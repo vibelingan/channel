@@ -199,3 +199,31 @@ test('manual, unapproved and archived products, and contributors, get nothing', 
     code: 'VALIDATION_ERROR',
   });
 });
+
+test('photos that would push the approval past its image limit wait for a later one', async () => {
+  // Finish touches every image of the old and new versions: at most 46 (5 fixed
+  // + 2 per image ≤ 98 operations). The row's 2 photos + SKU photos count too.
+  const skuPhotos = (count: number) => ({
+    variantImageIds: Array.from({ length: count }, (_, index) => `sku-${index}`),
+  });
+  store({}, undefined, skuPhotos(43));
+  // 45 now; the gallery adds photo c (46, fits); the description photo d would be 47.
+  assert.deepEqual(await plan(), {
+    ok: true,
+    adoption: { description: 'New text', gallery: [url('c'), url('a')] },
+    deferred: ['descriptionImages'],
+  });
+  store({}, undefined, skuPhotos(44));
+  assert.deepEqual(await plan(), {
+    ok: true,
+    adoption: { description: 'New text' },
+    deferred: ['gallery', 'descriptionImages'],
+  });
+});
+
+test('the plan names the product revision it judged, for the guarded save', async () => {
+  store({ updatedAt: '2026-10-08T00:00:00.000Z' });
+  const result = await plan();
+  assert.ok(result.ok);
+  assert.equal(result.updatedAt, '2026-10-08T00:00:00.000Z');
+});

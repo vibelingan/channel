@@ -159,7 +159,7 @@ test('"Approve changes" appears only on a published product flagged changed, rem
   );
   assert.ok(!changed.includes('>Unpublish<'));
   // DEC-18: approval also takes the supplier's text and photos nobody edited.
-  assert.ok(changed.includes('takes Alibaba&#x27;s new description and photos'));
+  assert.ok(changed.includes('take Alibaba&#x27;s new description and photos'));
   assert.ok(
     !preview({ published: true, alibabaReviewReason: 'edited' }).includes('new description'),
     'an admin-edited product has no supplier change to take',
@@ -267,6 +267,8 @@ test('"See changes" opens a read-only preview, so nothing changes under the open
   const preview = source.slice(source.indexOf('{changesPreview && ('));
   const element = preview.slice(0, preview.indexOf('/>'));
   assert.ok(element.includes('doc={changesPreview}'));
+  // It still shows the supplier preview and the live-page link (review P2).
+  assert.ok(element.includes('canMarkReviewed={canReviewAlibabaProducts}'));
   for (const action of ['onApproveChanges', 'onUnpublish', 'onMarkReviewed'])
     assert.ok(!element.includes(action), `${action} must not be offered over the form`);
 });

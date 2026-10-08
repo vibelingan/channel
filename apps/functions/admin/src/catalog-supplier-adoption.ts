@@ -12,7 +12,8 @@ import {
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { get } from '@vibelingan-channel/db';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { APPROVAL_IMAGE_LIMIT } from '@vibelingan-channel/db/catalog-detail-staging';
+import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { z } from 'zod';
 import { sourceLinkImageId } from './catalog-detail-source.ts';
@@ -29,6 +30,15 @@ export interface SupplierAdoption {
 }
 
 type Part = keyof SupplierAdoption;
+
+export interface SupplierAdoptionPlan {
+  ok: true;
+  adoption: SupplierAdoption;
+  /** Photos left for a later approval: taking them now exceeds the image limit. */
+  deferred?: Array<'gallery' | 'descriptionImages'>;
+  /** The product revision this plan judged; the browser's save is guarded by it. */
+  updatedAt?: string;
+}
 const PartsSchema = z
   .object({ description: z.boolean(), gallery: z.boolean(), descriptionImages: z.boolean() })
   .strict();
@@ -66,13 +76,16 @@ async function showsExactly(rowIds: unknown, urls: readonly string[]) {
   return same(ids(rowIds), linked);
 }
 
-export async function planSupplierAdoption(actorId: string, input: unknown) {
+export async function planSupplierAdoption(
+  actorId: string,
+  input: unknown,
+): Promise<SupplierAdoptionPlan | { ok: false; code: 'VALIDATION_ERROR' | 'FORBIDDEN' }> {
   const parsed = RequestSchema.safeParse(input);
-  if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+  if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
   const actor = await get('users', actorId);
   if (actor?.role !== 'admin' || actor.status === 'suspended')
-    return { ok: false as const, code: 'FORBIDDEN' as const };
-  const nothing = { ok: true as const, adoption: {} as SupplierAdoption };
+    return { ok: false, code: 'FORBIDDEN' };
+  const nothing: SupplierAdoptionPlan = { ok: true, adoption: {} };
   const product = await get('products', parsed.data.productId);
   const sourceKey = product?.alibabaPrimarySourceKey;
   if (!product || typeof sourceKey !== 'string' || sourceKey === '' || product.archived === true)
@@ -126,5 +139,25 @@ export async function planSupplierAdoption(actorId: string, input: unknown) {
     !(await showsExactly(product.descriptionImageIds, descriptionImages))
   )
     adoption.descriptionImages = descriptionImages;
-  return { ok: true as const, adoption };
+  // Finish touches the old and the new version's images in one transaction.
+  // Photos that would not fit wait for a later approval (gallery first).
+  const touched = new Set(catalogReferencedImageIds(product));
+  const deferred: NonNullable<SupplierAdoptionPlan['deferred']> = [];
+  for (const part of ['gallery', 'descriptionImages'] as const) {
+    const urls = adoption[part];
+    if (!urls) continue;
+    const linked = await Promise.all(urls.map((url) => sourceLinkImageId(url)));
+    const next = new Set(touched);
+    linked.forEach((id, index) => next.add(id ?? `unimported:${urls[index]}`));
+    if (next.size > APPROVAL_IMAGE_LIMIT) {
+      delete adoption[part];
+      deferred.push(part);
+    } else for (const id of next) touched.add(id);
+  }
+  return {
+    ok: true,
+    adoption,
+    ...(deferred.length > 0 ? { deferred } : {}),
+    ...(typeof product.updatedAt === 'string' ? { updatedAt: product.updatedAt } : {}),
+  };
 }

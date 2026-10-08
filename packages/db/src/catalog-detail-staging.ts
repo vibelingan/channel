@@ -216,7 +216,8 @@ export function prepareStagedApproval(
  * Which parts of the row are still the supplier's own (MIU-39). The next
  * approval may replace only those with the supplier's newer version. Photos
  * count only when every supplier photo is imported and the row shows exactly
- * those, in order; the finish fingerprint keeps this true until the switch.
+ * those, in order. The finish fingerprint covers the row's text and photos;
+ * the supplier media record is read when begin runs, outside the transaction.
  */
 function supplierParts(product: CollectionDoc) {
   const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -341,6 +342,13 @@ export async function stageApprovalPage(
   return progress(next);
 }
 
+/**
+ * Images one approval may touch, old and new versions together: finish reads
+ * and writes each once, plus five fixed operations (actor/job/product reads,
+ * product/job writes), within the 98 of a 100-operation transaction.
+ */
+export const APPROVAL_IMAGE_LIMIT = 46;
+
 export async function finishStagedApproval(
   tx: CatalogApprovalTransaction,
   actorId: string,
@@ -367,10 +375,9 @@ export async function finishStagedApproval(
   const afterImages = new Set(
     catalogReferencedImageIds({ ...product, catalogDetailPublication: job.publication }),
   );
-  // Keep finish within the existing 100-operation transaction budget, including
-  // retired snapshot images. Refuse before writing rather than partially approve.
-  // Actor/job/product reads + product/job writes = five fixed operations.
-  if (5 + 2 * new Set([...beforeImages, ...afterImages]).size > 98)
+  // Keep finish within the transaction budget, including retired snapshot
+  // images. Refuse before writing rather than partially approve.
+  if (new Set([...beforeImages, ...afterImages]).size > APPROVAL_IMAGE_LIMIT)
     return fail('APPROVAL_TOO_LARGE');
   for (const imageId of new Set([...beforeImages, ...afterImages])) {
     const image = await tx.get('images', imageId);

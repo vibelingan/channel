@@ -51,11 +51,11 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 
 | Step | Status | Notes |
 |---|---|---|
-| R1 Unpublish the 21 | Not started — after local validation of batches 1–3 (DEC-13, owner 2026-10-08). 2026-10-08: the session's permission check refused this production write; needs the owner | List below |
+| R1 Unpublish the 21 | **Done 2026-10-08** after stage A: all 21 were live; each set `published: false` through the admin API from the signed-in admin page (same write as Disable); 21/21 confirmed. Public list 137 → 116; their detail endpoints answer 404 | List below |
 | Stage A deploy (batches 1, 2a, 2b) | **Done 2026-10-08 07:22–08:04 UTC**: `test` fast-forwarded `de5e347` → `b5f50c9` (no PR, owner 2026-10-08); CI and Deploy Test green (runs 37742975441, 37742975715). After: 137 listed, 0 name/photo mismatches; price fields differ on the 130 approved cards until R4 and stage B (expected) | R1 had to wait: the admin login in Chrome had expired |
-| R2 Replay rebuild | Not started | |
+| R2 Replay rebuild | 2026-10-08: Validate passed for 1,109 source products (56 pages, 3,781 variants, 471 headline prices removed, no failures). Apply started; in progress | Admin → Alibaba Sync → Build common catalog data |
 | R3 Pinned-offer count | **Done 2026-10-08**: 0 of 1,118 products have `alibabaPinnedOfferKey` → R2 may proceed | Read-only admin list |
-| R4 Price summary backfill | Not started | |
+| R4 Price summary backfill | **Done 2026-10-08**: plan 150 `ready`, 968 not approved; review list `productPriceWithConfigurations` = 28 (the 21, five unpublished drafts, and two live products: `5cc2ec2f` Cat Ear headset, `e34a1873` WH37). The two live ones were checked first: card and page already show the same price ($5.56 fixed; $2.30 at 2+, the supplier's only tier), so backfilling keeps card = page (hiding them was refused by the session's permission check and is not needed). Applied 150/150 from the signed-in admin page (same requests as the script); re-plan: 0 `ready`, 150 `already-present` | Gate for stage B met |
 | R5 Consistency audit (before and after batch 3) | **Before done 2026-10-08** (production, read-only): 137 listed, 130 approved, 7 fallback (the manual products), 0 errors, 0 name/photo changes; every approved card lacks a summary until stage B (expected) | After: not started |
 | R6 Changed-since-approval audit | Not started | |
 | R7 Admin re-approval | Not started | |
@@ -93,6 +93,32 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### Review of the DEC-12 fixes and MIU-39 (2026-10-08, `a5e45d6..c0fc5c5`)
+- One reviewer: WARN, no P1. Fixed:
+  - P2: taking a full new set of supplier photos could push one approval past
+    its image limit (46 images, old and new versions together), and the
+    approval then failed on every retry. The plan now counts the images finish
+    will touch and leaves photos that do not fit for a later approval
+    (`deferred`, gallery first). The limit is one constant,
+    `APPROVAL_IMAGE_LIMIT`, used by finish and the plan.
+  - P2: the save of the taken parts is now guarded by the revision the plan
+    judged (`expectedUpdatedAt`), so an edit made while photos imported is
+    never overwritten.
+  - P2: "See changes" again shows the supplier preview and the live-page link
+    (read-only; no action buttons).
+  - P3: the preview sentence now says approval *can* take the supplier's text
+    and photos (photos of approvals from before MIU-39 count as the admin's);
+    the confirmation dialog keeps its state if the browser closes it; a
+    comment no longer overclaims what the fingerprint covers.
+- Accepted and recorded (P3): prepare and the importer clean URLs slightly
+  differently (http→https only for `alicdn.com` in prepare; host allowlist in
+  the importer), so a gallery with such URLs is recorded as the admin's after
+  one adoption and is not taken again. A part recorded as the admin's is never
+  reopened automatically, including after a first approval of an untouched
+  draft. Both err toward keeping the current text and photos.
+- Tests: plan image limit (fits / defers one / defers both), plan revision,
+  guarded save; db 257/257, admin 274/274, site 544 (543 pass, 1 skipped).
 
 ### MIU-39 step 3 — approval takes the supplier's text and photos (2026-10-08)
 - What changed: `updateRecord` (linked product, re-approval only) asks the

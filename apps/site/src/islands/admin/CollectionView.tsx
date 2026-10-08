@@ -1113,6 +1113,8 @@ export function CollectionView({
       {changesPreview && (
         <PreviewModal
           doc={changesPreview}
+          // The supplier preview and the live-page link, without any action.
+          canMarkReviewed={canReviewAlibabaProducts}
           onClose={() => setChangesPreview(null)}
           onEdit={() => setChangesPreview(null)}
         />

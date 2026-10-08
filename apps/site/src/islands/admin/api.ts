@@ -406,10 +406,13 @@ async function takeSupplierChanges(
   id: string,
   current: CollectionDoc,
 ): Promise<CollectionDoc> {
-  const plan = await call<{ adoption?: Record<string, unknown> }>('catalogDetailApproval', {
-    action: 'supplier-adoption',
-    productId: id,
-  });
+  const plan = await call<{ adoption?: Record<string, unknown>; updatedAt?: unknown }>(
+    'catalogDetailApproval',
+    {
+      action: 'supplier-adoption',
+      productId: id,
+    },
+  );
   const adoption = plan?.adoption ?? {};
   const values: Record<string, unknown> = {};
   if (typeof adoption.description === 'string') values.description = adoption.description;
@@ -438,7 +441,13 @@ async function takeSupplierChanges(
     values[field] = imported.imageIds;
   }
   if (Object.keys(values).length === 0) return current;
-  return call<CollectionDoc>('update', { collection, id, values });
+  // Guarded: an edit made while the photos imported is never overwritten.
+  return call<CollectionDoc>('update', {
+    collection,
+    id,
+    values,
+    ...(typeof plan?.updatedAt === 'string' ? { expectedUpdatedAt: plan.updatedAt } : {}),
+  });
 }
 
 /**

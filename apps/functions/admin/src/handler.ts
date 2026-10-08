@@ -136,12 +136,12 @@ import {
   planChangeAudit,
 } from './catalog-change-audit.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
-import { planSupplierAdoption } from './catalog-supplier-adoption.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
   updateCatalogProductRecord,
 } from './catalog-product-identities.ts';
+import { planSupplierAdoption } from './catalog-supplier-adoption.ts';
 
 export interface AdminConfig {
   jwtSecret: string;

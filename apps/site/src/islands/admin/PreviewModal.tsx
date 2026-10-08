@@ -369,8 +369,8 @@ export function PreviewModal({
                 </a>
                 {onApproveChanges && reviewLabel(doc) !== 'Edited' && (
                   <p className="basis-full text-right text-sm text-slate-600">
-                    Approving also takes Alibaba's new description and photos, except any you
-                    edited.
+                    Approving can also take Alibaba's new description and photos; anything edited
+                    here stays.
                   </p>
                 )}
                 {onApproveChanges && (

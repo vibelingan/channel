@@ -33,6 +33,8 @@ export function PendingChangesConfirm({
         event.preventDefault();
         if (!busy) onCancel();
       }}
+      // A browser may still close it (a repeated Escape); keep the state in step.
+      onClose={onCancel}
       className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950 shadow-xl backdrop:bg-slate-900/40"
     >
       <h2 id="pending-changes-title" className="font-semibold">

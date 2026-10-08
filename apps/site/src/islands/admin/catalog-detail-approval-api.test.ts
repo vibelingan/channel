@@ -260,7 +260,8 @@ function linkedApi(
     let data: unknown = progress;
     if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
     if (body.action === 'get') data = current;
-    if (body.data?.action === 'supplier-adoption') data = { ok: true, adoption };
+    if (body.data?.action === 'supplier-adoption')
+      data = { ok: true, adoption, updatedAt: 'judged-revision' };
     if (body.action === 'importSourceImage') {
       const url = String(body.data?.url);
       if (url === options.failImport)
@@ -299,7 +300,8 @@ test('approving takes the supplier’s new text and photos before the approval r
     'update',
     'approval:prepare',
   ]);
-  // One save of everything taken, in the supplier's photo order, then the approval.
+  // One guarded save of everything taken, in the supplier's photo order.
+  assert.equal(api.updates[0]?.expectedUpdatedAt, 'judged-revision');
   assert.deepEqual(api.updates[0]?.values, {
     description: 'New text',
     imageIds: ['img-c', 'img-a'],
