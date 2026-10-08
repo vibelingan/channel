@@ -14,6 +14,8 @@ interface Props {
   unavailableLabel?: string;
   layout?: 'legacy' | 'detail';
   selection?: { source: string | null; onChange: (source: string) => void };
+  /** A shopper chose this photo from the thumbnails. */
+  onImageSelect?: (source: string) => void;
   onMainImageLoad?: () => void;
   mainImagePriority?: 'high' | 'low' | 'auto';
 }
@@ -158,6 +160,7 @@ function GallerySession({
   unavailableLabel = 'Product image unavailable',
   layout = 'legacy',
   selection,
+  onImageSelect,
   onMainImageLoad,
   mainImagePriority = 'auto',
 }: Props) {
@@ -216,6 +219,7 @@ function GallerySession({
           if (!source) return;
           if (selection) selection.onChange(source);
           else setActive(index);
+          onImageSelect?.(source);
         }}
         onToggle={() => setExpanded((current) => !current)}
       />
@@ -234,6 +238,7 @@ export function Gallery({
   unavailableLabel,
   layout,
   selection,
+  onImageSelect,
   onMainImageLoad,
   mainImagePriority,
 }: Props) {
@@ -262,6 +267,7 @@ export function Gallery({
       unavailableLabel={unavailableLabel}
       layout={layout}
       selection={selection}
+      onImageSelect={onImageSelect}
       onMainImageLoad={onMainImageLoad}
       mainImagePriority={mainImagePriority}
     />

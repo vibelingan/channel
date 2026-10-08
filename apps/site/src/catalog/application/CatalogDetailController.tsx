@@ -158,6 +158,7 @@ export function CatalogDetailController({
             unavailableLabel={copy.imageUnavailableLabel}
             selection={selection}
             variants={pages.items}
+            onSelectVariant={select}
           />
         }
         pagination={

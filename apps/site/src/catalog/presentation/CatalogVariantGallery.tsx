@@ -2,7 +2,10 @@ import type { CatalogDetailVariant } from '@vibelingan-channel/shared/catalog-de
 import { useState } from 'react';
 import { Gallery, boundedGalleryImages } from '../../islands/shop/Gallery.tsx';
 import { catalogVariantLabels } from '../application/catalog-variant-labels.ts';
-import { variantMediaSources } from '../application/catalog-variant-media.ts';
+import {
+  configurationForPhoto,
+  variantMediaSources,
+} from '../application/catalog-variant-media.ts';
 import type { VariantSelection } from '../application/catalog-variant-state.ts';
 import { useCatalogImagePrefetch } from '../application/use-catalog-image-prefetch.ts';
 
@@ -19,6 +22,8 @@ export interface CatalogVariantGalleryProps {
   loadingImages?: boolean;
   unavailableLabel: string;
   onMainImageLoad?: () => void;
+  /** Choosing a photo that belongs to exactly one configuration selects it. */
+  onSelectVariant?: (variantId: string) => void;
 }
 const identity = (source: string) => source;
 
@@ -33,6 +38,7 @@ function Session({
   loadingImages,
   unavailableLabel,
   onMainImageLoad,
+  onSelectVariant,
 }: CatalogVariantGalleryProps) {
   const selected = selection.status === 'selected' ? selection.variant : undefined;
   const specific = selected
@@ -78,6 +84,14 @@ function Session({
         layout="detail"
         mainImagePriority="high"
         onMainImageLoad={onMainImageLoad}
+        onImageSelect={(source) => {
+          const id = configurationForPhoto(
+            variants,
+            source,
+            (image) => boundedGalleryImages([image])[0],
+          );
+          if (id && id !== selected?.id) onSelectVariant?.(id);
+        }}
         unavailableLabel={
           loadingImages
             ? 'Loading images…'

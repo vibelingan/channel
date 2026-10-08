@@ -491,6 +491,42 @@ test('mobile selected photos use explicit SKU bindings; general photos never cha
   );
 });
 
+test('tapping a photo that belongs to exactly one color selects that color; a shared photo does not', async ({
+  page,
+}) => {
+  const detail = colorDetail();
+  // As on Alibaba listings: the product gallery repeats each color's own photo,
+  // plus one photo shared by two colors.
+  detail.images = ['/api/images/sku-white', '/api/images/sku-pink', '/api/images/shared'];
+  const [, white, pink] = detail.variants.items;
+  if (!white || !pink) throw new Error('Missing color fixtures');
+  white.images.push('/api/images/shared');
+  pink.images.push('/api/images/shared');
+  await page.route('**/api/products/canonical-product/detail*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+  );
+  await page.route('**/api/images/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+  await page.goto('/products/item/?id=canonical-product');
+  await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
+  const hero = page.locator('[data-gallery-frame] img');
+  const thumbnail = (source: string) =>
+    page.locator('[data-gallery-thumbnail]').filter({
+      has: page.locator(`img[src$="/${source}"]`),
+    });
+  await thumbnail('sku-white').click();
+  await expect(page.getByRole('radio', { name: /White/ })).toBeChecked();
+  await expect(hero).toHaveAttribute('src', /\/sku-white$/);
+  await expect(page).toHaveURL(new RegExp(`variant=${white.id}`));
+  await thumbnail('sku-pink').click();
+  await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
+  // Shared by White and Pink: only the big photo changes.
+  await thumbnail('shared').click();
+  await expect(hero).toHaveAttribute('src', /\/shared$/);
+  await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
+});
+
 test('unequal image/spec counts, unmapped and broken SKU images never fall back to a different color', async ({
   page,
 }) => {
