@@ -54,14 +54,15 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | R1 Unpublish the 21 | **Done 2026-10-08** after stage A: all 21 were live; each set `published: false` through the admin API from the signed-in admin page (same write as Disable); 21/21 confirmed. Public list 137 → 116; their detail endpoints answer 404 | List below |
 | Stage A deploy (batches 1, 2a, 2b) | **Done 2026-10-08 07:22–08:04 UTC**: `test` fast-forwarded `de5e347` → `b5f50c9` (no PR, owner 2026-10-08); CI and Deploy Test green (runs 37742975441, 37742975715). After: 137 listed, 0 name/photo mismatches; price fields differ on the 130 approved cards until R4 and stage B (expected) | R1 had to wait: the admin login in Chrome had expired |
 | Stage B deploy (batch 3) | **Done 2026-10-08 10:26–11:15 UTC**: merge commit `b656524` (tree identical to the reviewed `80d592c`; parents stage B and stage A, after checking every stage A file version is in stage B's history) created on GitHub and `test` fast-forwarded to it; CI and Deploy Test green (runs 37763484760, 37763484642) | Gate R4 = 0 ready was met first |
+| Batch 4 + 5a deploy, speed and photo fixes | **Done 2026-10-08 14:26–15:24 UTC (code live), `a4ee43a`**: `test` fast-forwarded; CI green (run 37794079348); Deploy Test deployed and smoke-tested (run 37794079959; its public browser E2E finished later). Each deploy runs the full test suite twice (CI, then again inside the deploy job), about 60–70 minutes in total | Owner noted the wait; pipeline follow-up |
 | R2 Replay rebuild | **Done 2026-10-08**: Validate passed for 1,109 source products (56 pages, 3,781 variants, 471 headline prices removed, no failures); Apply 1,109/1,109 | Admin → Alibaba Sync → Build common catalog data |
 | R3 Pinned-offer count | **Done 2026-10-08**: 0 of 1,118 products have `alibabaPinnedOfferKey` → R2 may proceed | Read-only admin list |
 | R4 Price summary backfill | **Done 2026-10-08**: plan 150 `ready`, 968 not approved; review list `productPriceWithConfigurations` = 28 (the 21, five unpublished drafts, and two live products: `5cc2ec2f` Cat Ear headset, `e34a1873` WH37). The two live ones were checked first: card and page already show the same price ($5.56 fixed; $2.30 at 2+, the supplier's only tier), so backfilling keeps card = page (hiding them was refused by the session's permission check and is not needed). Applied 150/150 from the signed-in admin page (same requests as the script); re-plan: 0 `ready`, 150 `already-present` | Gate for stage B met |
 | R5 Consistency audit (before and after batch 3) | **Before done 2026-10-08** (production, read-only): 137 listed, 130 approved, 7 fallback (the manual products), 0 errors, 0 name/photo changes. **After stage B (2026-10-08 11:16 UTC):** 116 listed (the 21 hidden), 109 approved, 0 mismatched, 0 errors, 7 fallback; exit 0 | |
-| R6 Changed-since-approval audit | Not started | |
+| R6 Changed-since-approval audit | **Done 2026-10-08 (after the batch 4+5a deploy, `a4ee43a`)**: plan over 1,118 products: 141 unchanged, 9 changed, 959 not approved, 9 unlinked (manual). The 9 changed: the five approved drafts and two live products (`5cc2ec2f`, `e34a1873`) whose approved version kept the retired headline as a product price, and two live products whose facts changed (`70bd6aaa`, `89f59908`). Applied 150/150 from the signed-in admin page (141 baselines, 9 flagged "Changed" for admins; public pages unchanged) | R7 for the 9 is an admin review |
 | R7 Admin re-approval | **The 21: done 2026-10-08 11:15–11:28 UTC** — each published from Admin → Products with the row's Disabled → Published button, which runs the full approval from the replayed data (new receipts for all 21). Every card now reads the configurations' own price (summary source `sku`), no product-level headline price remains on any page, and card lowest = page lowest for all 21. The rest of R7 (products flagged after batch 4) waits for batch 4 | |
 | R8 Final audit + browser checks | **Done for stages A+B, 2026-10-08**: audit 137 listed, 130 approved, 0 mismatched, 0 errors, 7 fallback (manual, until R9). Browser on supplychainsai.com: a restored product's page shows its tier ladder (USD 2.58 for 2–999, 1.39 from 1,000) instead of one fixed headline; list cards show "MOQ n · From $x" with photos loading (13/13); an untouched product's card and page agree; a manual product still renders on the row page as before | |
-| R9 Admin approves the 7 manual products | Not started | |
+| R9 Admin approves the 7 manual products | **Done 2026-10-08**: each approved with the new one-request approval (`approve`), 1.8–2.4 s each; all 7 already published, so their pages switched to the shared layout. Audit after: 137 listed, 137 approved, 0 fallback, 0 mismatches | |
 | R10 Audit with `--require-no-fallback` | Not started | |
 
 ## The 21 products (live audit 2026-10-06)
@@ -94,6 +95,15 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### Batch 4 + 5a live; speed measured (2026-10-08)
+- Measured in production after the deploy: a full approval now takes one
+  request of 1.8–2.4 s (the 7 manual products in R9), where the old protocol
+  made about 8 requests of 1–2 s each. A publish from the admin adds the
+  publication and two reads (about 3–4 requests in all, roughly 4–6 s).
+- Photo → configuration verified on the live site: on `cd823b43` tapping the
+  photo that belongs only to SKU#005 selected SKU#005 and updated the address.
+- Manual products now render on the shared product page (audit: 0 fallback).
 
 ### Review of the speed, photo and DEC-18 changes (2026-10-08, `de7b0d6..5727708`)
 - One reviewer: WARN, all P3, no blocker. Verified: the one-request approval

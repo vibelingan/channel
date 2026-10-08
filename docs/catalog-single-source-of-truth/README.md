@@ -20,12 +20,15 @@ and admins see every Alibaba change before it goes public.
 
 ## Rollout status (2026-10-08)
 
-Stages A and B (batches 1–3) are live on supplychainsai.com. The 21 products were
-hidden, the Alibaba data replayed, the card prices backfilled, and the 21
-re-approved: every product's list card and page now show the same price
-(audit: 137 listed, 0 mismatches). Details: EXECUTION_LOG "Runbook status".
-Next: batch 4 (changed flag, DEC-12 notices, DEC-18) and batch 5 (manual
-products), built and reviewed locally, not deployed.
+Live on supplychainsai.com: batches 1–4 and 5a. Every product's list card and
+page show the same approved version (audit: 137 listed, 137 approved, 0
+mismatches, 0 on the old layout, manual products included). Supplier changes
+since approval are flagged for admins (R6: 9 flagged) and never applied to the
+website text or photos without the admin (DEC-18 revised). Approving a product
+takes one request (about 2 s); batch publish runs four at a time. Tapping a
+photo that belongs to exactly one configuration selects it.
+Next: batch 5b (publish gate for every product), the admin review of the 9
+flagged products (R7), and the open questions below.
 
 ## Morning checklist (production, in this order)
 
