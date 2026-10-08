@@ -87,54 +87,36 @@ repair they disagreed on 21 products, and the page showed Alibaba's headline pri
 
 ## Waiting for owner review
 
-**DEC-18 — what counts as "changed".** A product's description and main photos
-belong to the admin: approval publishes the admin's text and photos, not the
-supplier's. So flagging a supplier description or photo change leads nowhere:
-approving it changes nothing on the site, and the flag disappears. Proposal:
-flag only what approval actually takes from Alibaba (configurations, their
-prices, options and photos, the product price, and facts). Alternative: keep
-flagging description and photo changes and make approval adopt the supplier's
-versions. Batch 4 ships either way after a small change.
+Decided earlier (see DESIGN): DEC-12 yes (notice before Save, batch Publish
+confirms); DEC-17 closed; DEC-18 revised 2026-10-08 — keep admin edits and never
+take supplier text or photos silently.
 
-**DEC-17 — which configuration the product page opens on.** The card shows the
-cheapest configuration ("From $4.30 · MOQ 1000" for a headset whose White option
-starts at 1,000 pieces). The page opens on the first configuration (Black,
-"$6.61, 2–99 pieces"). Both are right, but the first screen does not match the
-card; this is also how the site behaves today. Proposal: open the page on the
-configuration the card's price comes from. Alternative: keep today's behaviour.
-Batch 3 ships either way.
+**DEC-19 — side-by-side review of supplier changes (proposed).** "Changed"
+compares Alibaba's new data with Alibaba's data at the last approval, never
+with our edited copy, so admin edits never raise it. When a product is flagged,
+the edit form shows a "Supplier changes" panel: for each changed field
+(description, gallery, description photos, specifications) the website value
+and the incoming value side by side, marked "edited by an admin" or "from
+Alibaba", with Keep or Use incoming. Save and Publish apply the choices.
+Questions that change the build:
+1. Prices and configurations: choose per field too, or always take Alibaba's
+   latest on approval, showing old → new? Recommendation: always take the
+   latest (stale supplier prices lead to wrong quotes).
+2. Batch Publish with flagged products: skip them so each is reviewed, or offer
+   "keep the website version for all"? Recommendation: skip.
+3. Contributors: view a flagged product but not save or publish it?
+   Recommendation: yes.
+4. Interim (live now): approving a product flagged only for supplier text or
+   photos publishes the website's own text and clears the flag; the incoming
+   text is not shown until DEC-19 is built. Keep the flag instead?
 
-**DEC-12 — what Save does on a product that is already live.**
-
-How it works today:
-
-1. A product is approved and published with Alibaba data version A.
-2. A later sync stores version B (say, a price change) in our database. The
-   product page still shows A.
-3. An admin opens the edit form to fix a typo and clicks Save. Save re-runs the
-   approval with the product's **latest** data, so B goes live too. The edit
-   form never showed B; it shows the admin's own fields, not the Alibaba
-   configurations and prices.
-
-So Save already is an approval, as you said. My earlier wording "unreviewed" was
-misleading: the precise gap is that the admin is not *shown* what else gets
-published.
-
-**Proposed** (DESIGN DEC-12, MIU-25, MIU-35):
-
-- Save keeps working exactly as today: it takes effect on the live site
-  immediately. Nothing is unpublished, and there is no extra step.
-- When the product is flagged "Changed", the edit form shows a notice above Save:
-  "Alibaba data changed since the last approval. Saving publishes these changes
-  too." It has a "See changes" button that opens the preview with the
-  per-configuration differences.
-- The batch "Assign category" bar shows no product details, so before saving it
-  lists the flagged products and asks Continue / Skip those.
-- Saving clears the flag.
-
-This replaces my earlier proposal, which held the changes back and needed a
-separate "Approve changes" step. "Approve changes" stays in the preview for
-approving without editing anything.
+**DEC-20 — linking photos to colours when Alibaba does not (proposed).** Some
+listings send colour photos only as the general gallery (e.g. "China
+Manufacturer Custom 3.5mm…": six colours, no per-colour photo), so the page
+cannot connect "White" to the white photo. Proposal: in Edit, the admin can
+assign gallery photos to configurations; approval publishes the mapping like
+any other configuration photo. Alternative: leave these unlinked. Guessing from
+photo order is not reliable (the gallery order differs from the colour order).
 
 ## Decided on 2026-10-07
 
