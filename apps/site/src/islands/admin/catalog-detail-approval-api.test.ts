@@ -238,7 +238,7 @@ const supplierUrl = (name: string) => `https://sc04.alicdn.com/${name}.jpg`;
 function linkedApi(
   t: { mock: { method: typeof test.mock.method } },
   adoption: Record<string, unknown>,
-  options: { failImport?: string } = {},
+  options: { failImport?: string; staleUpdate?: boolean } = {},
 ) {
   const calls: string[] = [];
   const updates: Record<string, unknown>[] = [];
@@ -268,6 +268,14 @@ function linkedApi(
         return Response.json({ ok: false, error: { code: 'UPSTREAM', message: 'down' } });
       data = { imageId: `img-${url.split('/').at(-1)?.split('.')[0]}`, deduplicated: false };
     }
+    if (body.action === 'update' && options.staleUpdate && body.data?.expectedUpdatedAt)
+      return Response.json(
+        {
+          ok: false,
+          error: { code: 'CONFLICT', message: 'Product changed since classification.' },
+        },
+        { status: 409 },
+      );
     if (body.action === 'update') {
       updates.push(body.data ?? {});
       current = { ...current, ...(body.data?.values as object), updatedAt: 'after-update' };
@@ -356,4 +364,13 @@ test('the admin’s own form edits are saved first, so the plan sees them', asyn
     description: 'Our words',
     productFamily: 'headphones',
   });
+});
+
+test('an edit made while supplier photos imported stops the approval with a clear message', async (t) => {
+  const api = linkedApi(t, { gallery: [supplierUrl('c')] }, { staleUpdate: true });
+  await assert.rejects(
+    updateRecord('products', 'canonical-product', { published: true }),
+    /changed while supplier photos were imported/,
+  );
+  assert.equal(api.calls.includes('approval:prepare'), false);
 });

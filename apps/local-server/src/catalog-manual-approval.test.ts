@@ -171,6 +171,37 @@ test('a manual product is approved, listed, shown and quoted like a synced one',
     Object.keys(manualItem).join(', '),
   );
 
+  // Even if the row's price drifts after approval, the card, the page and the
+  // quote read the approved version, never the row.
+  await adapter.update('products', 'manual-1', {
+    manualCatalogPricing: {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [{ minQuantity: 1, unitAmountMinor: 99 }],
+    },
+  });
+  const relisted = await listCatalog(
+    'products',
+    { page: 1, pageSize: 24 },
+    { enableCatalogDetail: true },
+  );
+  assert.ok(relisted.ok);
+  const card = z
+    .object({ items: z.array(z.record(z.string(), z.unknown())) })
+    .parse(relisted.data)
+    .items.find((entry) => entry._id === 'manual-1');
+  assert.deepEqual(card?.priceSummary, {
+    source: 'website',
+    pricing: {
+      mode: 'tiered',
+      currency: 'USD',
+      minimumOrderQuantity: 50,
+      tiers: [
+        { minimumQuantity: 50, maximumQuantity: 199, unitAmountMinor: 450 },
+        { minimumQuantity: 200, unitAmountMinor: 400 },
+      ],
+    },
+  });
   // The card and the page read the same approved price.
   const detail = await getProductDetail('manual-1');
   assert.ok(detail.ok, JSON.stringify(detail));

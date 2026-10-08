@@ -140,8 +140,19 @@ export async function planSupplierAdoption(
   )
     adoption.descriptionImages = descriptionImages;
   // Finish touches the old and the new version's images in one transaction.
-  // Photos that would not fit wait for a later approval (gallery first).
+  // Photos that would not fit wait for a later approval (gallery first); the
+  // part stays the supplier's while nobody edits it, so a later one may take it.
+  // The new version also carries the re-prepared configurations' photos
+  // (first nine each); one not imported yet counts as new.
   const touched = new Set(catalogReferencedImageIds(product));
+  const variantUrls = [
+    ...new Set(observation.variants.flatMap((v) => v.media.slice(0, 9).map((m) => m.sourceUrl))),
+  ];
+  for (let offset = 0; offset < variantUrls.length; offset += 8) {
+    const batch = variantUrls.slice(offset, offset + 8);
+    const linked = await Promise.all(batch.map((url) => sourceLinkImageId(url)));
+    linked.forEach((id, index) => touched.add(id ?? `unimported:${batch[index]}`));
+  }
   const deferred: NonNullable<SupplierAdoptionPlan['deferred']> = [];
   for (const part of ['gallery', 'descriptionImages'] as const) {
     const urls = adoption[part];

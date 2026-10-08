@@ -442,12 +442,21 @@ async function takeSupplierChanges(
   }
   if (Object.keys(values).length === 0) return current;
   // Guarded: an edit made while the photos imported is never overwritten.
-  return call<CollectionDoc>('update', {
-    collection,
-    id,
-    values,
-    ...(typeof plan?.updatedAt === 'string' ? { expectedUpdatedAt: plan.updatedAt } : {}),
-  });
+  try {
+    return await call<CollectionDoc>('update', {
+      collection,
+      id,
+      values,
+      ...(typeof plan?.updatedAt === 'string' ? { expectedUpdatedAt: plan.updatedAt } : {}),
+    });
+  } catch (error) {
+    if (error instanceof AdminApiError && error.code === 'CONFLICT')
+      throw new AdminApiError(
+        'CONFLICT',
+        'The product changed while supplier photos were imported. Refresh and approve again.',
+      );
+    throw error;
+  }
 }
 
 /**

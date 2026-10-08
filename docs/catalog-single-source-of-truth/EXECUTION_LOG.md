@@ -95,6 +95,28 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Review of the MIU-39 fixes and MIU-34 part 1 (2026-10-08, `c0fc5c5..9131191`)
+- One reviewer: WARN, two P2, no P1. Fixed:
+  - P2: the image-limit estimate left out the new version's configuration
+    photos; it now adds the supplier's configuration photos (first nine each,
+    unimported ones counted as new; looked up in batches of eight).
+  - P2: a photo part left for a later approval was then recorded as the
+    admin's and never offered again. Ownership now carries forward: a part
+    stays the supplier's when it was theirs at the last approval and the row
+    still equals the approved version (also covers a sync landing between the
+    plan and prepare).
+  - P3: a guarded save that loses to a concurrent edit now says "The product
+    changed while supplier photos were imported. Refresh and approve again."
+  - P3: the manual-product test now drifts the row's price after approval and
+    checks the card's exact approved summary and the page's ladder.
+- Confirmed fine by the reviewer: the limit constant matches finish; the
+  guarded save reaches the server's revision check (`PRODUCT_STALE` →
+  `CONFLICT`); the confirmation's `onClose` cannot fire twice or clear a new
+  dialog; "See changes" shows the supplier preview without actions.
+- Tests: db 258/258, admin 275/275, site 545 (544 pass, 1 skipped),
+  local-server 155/155; typecheck and lint clean; functions packaged and
+  smoke-tested.
+
 ### MIU-34 part 1 — manual product end to end on the local server (2026-10-08)
 - New `apps/local-server/src/catalog-manual-approval.test.ts`, through the real
   admin and public handlers on a local database: a manual product (tiered

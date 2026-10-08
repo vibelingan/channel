@@ -227,3 +227,32 @@ test('the plan names the product revision it judged, for the guarded save', asyn
   assert.ok(result.ok);
   assert.equal(result.updatedAt, '2026-10-08T00:00:00.000Z');
 });
+
+test('the image limit also counts the supplier\u2019s configuration photos', async () => {
+  // Finish's new version carries the re-prepared configurations' photos too.
+  const docs = store({}, undefined, {
+    variantImageIds: Array.from({ length: 40 }, (_, index) => `sku-${index}`),
+  });
+  const stored = docs.catalogSourceObservations?.[0];
+  assert.ok(stored);
+  const observed = observation('New text', ['c', 'a'], ['d']) as Record<string, unknown>;
+  observed.variants = [
+    {
+      sourceVariantKey: 'black',
+      options: [{ sourceName: 'Color', value: 'Black' }],
+      inventory: [],
+      media: ['e', 'f', 'g', 'h'].map((name, position) => ({
+        sourceUrl: url(name),
+        position,
+        role: 'variant',
+      })),
+    },
+  ];
+  stored.observation = observed;
+  // 42 now + 4 new configuration photos = 46; any taken photo would be 47.
+  assert.deepEqual(await plan(), {
+    ok: true,
+    adoption: { description: 'New text' },
+    deferred: ['gallery', 'descriptionImages'],
+  });
+});

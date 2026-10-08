@@ -292,6 +292,61 @@ test("the receipt records which parts were still the supplier's own at approval 
   );
 });
 
+test('a part the supplier owned stays theirs while nobody edits it, even when not taken (MIU-39)', async () => {
+  // E.g. new supplier photos were left for a later approval (image limit), or
+  // a sync landed between the plan and prepare: the row still shows what was
+  // approved, so it is not an admin edit and a later approval may take them.
+  const approve = async (extra: Record<string, unknown>) => {
+    const h = fixture(0, undefined, extra);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    return (h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>)
+      .supplierParts;
+  };
+  const published = {
+    state: 'approved',
+    revision: 'old',
+    header: {
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'p',
+      name: 'Headset',
+      images: ['/api/images/image'],
+      facts: [],
+      offers: [],
+      descriptionText: 'Old text',
+    },
+    variantCount: 0,
+  };
+  const owned = { supplierParts: { description: true, gallery: true, descriptionImages: true } };
+  const supplierMoved = {
+    description: 'Old text',
+    detailSourceCandidate: { ...published.header, descriptionText: 'New text' },
+    detailSourceSupplierMedia: { gallery: ['newer'], descriptionImages: null },
+    catalogDetailPublication: published,
+  };
+  assert.deepEqual(
+    await approve({
+      ...supplierMoved,
+      catalogDetailApprovalReceipt: { revision: 'old', ...owned },
+    }),
+    { description: true, gallery: true, descriptionImages: true },
+  );
+  // An edit since the approval, or no earlier ownership, ends it.
+  assert.deepEqual(
+    await approve({
+      ...supplierMoved,
+      description: 'Our own words',
+      catalogDetailApprovalReceipt: { revision: 'old', ...owned },
+    }),
+    { description: false, gallery: true, descriptionImages: true },
+  );
+  assert.deepEqual(
+    await approve({ ...supplierMoved, catalogDetailApprovalReceipt: { revision: 'old' } }),
+    { description: false, gallery: false, descriptionImages: false },
+  );
+});
+
 test('review digest covers manual pricing: editing price after review cannot prepare a stale approval', () => {
   const h = fixture(1);
   const changed = { ...h.product, catalogPricingMode: 'manual', unitPrice: 6.2 };

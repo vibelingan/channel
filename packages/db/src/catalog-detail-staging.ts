@@ -214,25 +214,46 @@ export function prepareStagedApproval(
 
 /**
  * Which parts of the row are still the supplier's own (MIU-39). The next
- * approval may replace only those with the supplier's newer version. Photos
- * count only when every supplier photo is imported and the row shows exactly
- * those, in order. The finish fingerprint covers the row's text and photos;
- * the supplier media record is read when begin runs, outside the transaction.
+ * approval may replace only those with the supplier's newer version. A part
+ * is the supplier's when the row shows exactly the supplier's current version
+ * (photos: every one imported, in order), or when it was the supplier's at
+ * the last approval and nobody has edited it since (the row still equals the
+ * approved version) — e.g. newer photos left for a later approval. The finish
+ * fingerprint covers the row's text and photos; the supplier media record is
+ * read when begin runs, outside the transaction.
  */
 function supplierParts(product: CollectionDoc) {
   const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
-  const candidate = product.detailSourceCandidate;
-  const supplierText =
-    candidate && typeof candidate === 'object' ? Reflect.get(candidate, 'descriptionText') : '';
+  const field = (value: unknown, key: string) =>
+    value && typeof value === 'object' ? Reflect.get(value, key) : undefined;
+  const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+  const ids = (value: unknown) => (Array.isArray(value) ? value : []);
+  const paths = (value: unknown) => ids(value).map((id) => `/api/images/${String(id)}`);
+  const supplierText = field(product.detailSourceCandidate, 'descriptionText');
   const media = product.detailSourceSupplierMedia;
-  const supplier = (key: string) =>
-    media && typeof media === 'object' ? Reflect.get(media, key) : undefined;
-  const same = (row: unknown, ids: unknown) =>
-    Array.isArray(ids) && JSON.stringify(Array.isArray(row) ? row : []) === JSON.stringify(ids);
+  const isSupplier = (row: unknown, key: string) => {
+    const supplier = field(media, key);
+    return Array.isArray(supplier) && same(ids(row), supplier);
+  };
+  const before = field(product.catalogDetailApprovalReceipt, 'supplierParts');
+  const header = field(product.catalogDetailPublication, 'header');
+  const stillOwned = (key: string, unedited: boolean) => field(before, key) === true && unedited;
   return {
-    description: text(product.description) === text(supplierText),
-    gallery: same(product.imageIds, supplier('gallery')),
-    descriptionImages: same(product.descriptionImageIds, supplier('descriptionImages')),
+    description:
+      text(product.description) === text(supplierText) ||
+      stillOwned(
+        'description',
+        text(product.description) === text(field(header, 'descriptionText')),
+      ),
+    gallery:
+      isSupplier(product.imageIds, 'gallery') ||
+      stillOwned('gallery', same(paths(product.imageIds), ids(field(header, 'images')))),
+    descriptionImages:
+      isSupplier(product.descriptionImageIds, 'descriptionImages') ||
+      stillOwned(
+        'descriptionImages',
+        same(paths(product.descriptionImageIds), ids(field(header, 'descriptionImages'))),
+      ),
   };
 }
 
