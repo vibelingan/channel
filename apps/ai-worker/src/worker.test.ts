@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
-import { PUBLICATION_BLOCKED } from '@vibelingan-channel/ai-policy';
+import type { EngineRunRequest, EngineTurn } from '@vibelingan-channel/ai-engine/port';
+import { CHANNEL_PUBLIC_PROFILE, PUBLICATION_BLOCKED } from '@vibelingan-channel/ai-policy';
 import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import {
   type KnowledgeEvidence,
@@ -283,6 +284,65 @@ test(
     );
     assert.deepEqual(assistantMessages.rows, [{ content: 'Grounded answer.' }]);
     assert.equal(events[1]?.payload.url, 'https://site.example/public-faq');
+  },
+);
+
+class RecordingEngine extends FakeEngine {
+  readonly requests: EngineRunRequest[] = [];
+
+  override createRun(request: EngineRunRequest, signal: AbortSignal) {
+    this.requests.push(request);
+    return super.createRun(request, signal);
+  }
+}
+
+test(
+  'a long conversation hands the engine the question being asked as its last turn',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const citations = [
+      {
+        sourceId: 'channelkb-g1-public-faq',
+        title: 'Public FAQ',
+        url: 'https://site.example/public-faq',
+      },
+    ];
+    const transcript: EngineTurn[] = [];
+    // More answered turns than the window holds, so which end of the history
+    // is kept decides what the engine is asked.
+    for (let n = 1; n <= 16; n += 1) {
+      await store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `worker-long-${n}`,
+        content: `question ${n}`,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      const engine = new FakeEngine({ script: [`answer ${n}`], citations });
+      assert.equal(await processOne(store, engine, config), 'processed');
+      transcript.push(
+        { role: 'visitor', text: `question ${n}` },
+        { role: 'assistant', text: `answer ${n}` },
+      );
+    }
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'worker-long-17',
+      content: 'question 17',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    transcript.push({ role: 'visitor', text: 'question 17' });
+
+    const engine = new RecordingEngine({ script: ['answer 17'], citations });
+    assert.equal(await processOne(store, engine, config), 'processed');
+    assert.equal(engine.requests.length, 1);
+    assert.deepEqual(
+      engine.requests[0]?.turns,
+      transcript.slice(-CHANNEL_PUBLIC_PROFILE.maxContextTurns),
+    );
   },
 );
 

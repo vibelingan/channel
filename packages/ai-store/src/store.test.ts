@@ -151,7 +151,7 @@ test(
     assert.ok(first.run);
     const claim = await store.claimRun(first.run.id);
     assert.ok(claim);
-    const context = await store.getRunExecutionContext(first.run.id);
+    const context = await store.getRunExecutionContext(first.run.id, 20);
     assert.deepEqual(context?.turns, [{ role: 'visitor', text: 'first question' }]);
 
     const final = await store.appendEventFenced({
@@ -179,6 +179,218 @@ test(
     ]);
   },
 );
+
+test(
+  'run context keeps the newest turns, oldest first, once a conversation outgrows the window',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const transcript: Array<{ role: 'visitor' | 'assistant'; text: string }> = [];
+    // 16 answered questions plus the one being asked is 33 eligible messages.
+    // The read used to take the OLDEST 30, so the question the visitor had just
+    // asked never reached the engine and the model answered an old message.
+    for (let n = 1; n <= 16; n += 1) {
+      const accepted = await store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `window-${n}`,
+        content: `question ${n}`,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      assert.ok(accepted.run);
+      const claim = await store.claimRun(accepted.run.id);
+      assert.ok(claim);
+      assert.equal(
+        await store.finishRunFenced({
+          conversationId: conversation.id,
+          runId: accepted.run.id,
+          expectedControlVersion: claim.controlVersion,
+          claimEpoch: claim.claimEpoch,
+          status: 'completed',
+          events: [
+            { type: 'token', payload: { text: `answer ${n}` } },
+            { type: 'final', payload: { text: `answer ${n}` } },
+          ],
+        }),
+        true,
+      );
+      transcript.push(
+        { role: 'visitor', text: `question ${n}` },
+        { role: 'assistant', text: `answer ${n}` },
+      );
+    }
+    const latest = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'window-17',
+      content: 'question 17',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(latest.run);
+    assert.ok(await store.claimRun(latest.run.id));
+    transcript.push({ role: 'visitor', text: 'question 17' });
+
+    const context = await store.getRunExecutionContext(latest.run.id, 20);
+    assert.deepEqual(context?.turns.at(-1), { role: 'visitor', text: 'question 17' });
+    assert.deepEqual(context?.turns, transcript.slice(-20));
+  },
+);
+
+test(
+  'a queued question follows the answer it waited for and is the last turn of its own run',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const ask = (n: number) =>
+      store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `queued-${n}`,
+        content: `Q${n}`,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+    const liveRun = async () => {
+      const runId = (await store.getConversation(conversation.id))?.activeRunId;
+      assert.ok(runId);
+      const claim = await store.claimRun(runId);
+      assert.ok(claim);
+      return { runId, ...claim };
+    };
+    const answer = async (
+      run: { runId: string; controlVersion: number; claimEpoch: number },
+      text: string,
+    ) =>
+      assert.equal(
+        await store.finishRunFenced({
+          conversationId: conversation.id,
+          runId: run.runId,
+          expectedControlVersion: run.controlVersion,
+          claimEpoch: run.claimEpoch,
+          status: 'completed',
+          events: [
+            { type: 'token', payload: { text } },
+            { type: 'final', payload: { text } },
+          ],
+        }),
+        true,
+      );
+
+    assert.ok((await ask(0)).run);
+    // Q1 and Q2 arrive while Q0 is still being answered, so both queue. Each
+    // answer is stored AFTER the questions it held up, which is why ordering
+    // turns by storage time put Q1 before A0 and handed the engine A0 as the
+    // customer's current question.
+    assert.equal((await ask(1)).run, null);
+    assert.equal((await ask(2)).run, null);
+
+    await answer(await liveRun(), 'A0');
+    const second = await liveRun();
+    assert.deepEqual((await store.getRunExecutionContext(second.runId, 20))?.turns, [
+      { role: 'visitor', text: 'Q0' },
+      { role: 'assistant', text: 'A0' },
+      { role: 'visitor', text: 'Q1' },
+    ]);
+
+    await answer(second, 'A1');
+    const third = await liveRun();
+    assert.deepEqual((await store.getRunExecutionContext(third.runId, 20))?.turns, [
+      { role: 'visitor', text: 'Q0' },
+      { role: 'assistant', text: 'A0' },
+      { role: 'visitor', text: 'Q1' },
+      { role: 'assistant', text: 'A1' },
+      { role: 'visitor', text: 'Q2' },
+    ]);
+    // The newest-turns window is cut in the same order.
+    assert.deepEqual((await store.getRunExecutionContext(third.runId, 2))?.turns, [
+      { role: 'assistant', text: 'A1' },
+      { role: 'visitor', text: 'Q2' },
+    ]);
+  },
+);
+
+test('every streamed event names the question its run answers', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const ask = (key: string, content: string) =>
+    store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: key,
+      content,
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+  // The stream carries every event of the conversation. Without this field the
+  // widget could only assume the next events answer its newest question, so an
+  // answer that finished after the visitor changed page appeared under the
+  // question they asked next.
+  const answered = await ask('reply-0', 'answered question');
+  const failed = await ask('reply-1', 'queued question whose run fails');
+  assert.ok(answered.run);
+  assert.equal(failed.run, null);
+
+  const first = await store.claimRun(answered.run.id);
+  assert.ok(first);
+  const streamed = await store.appendEventFenced({
+    conversationId: conversation.id,
+    runId: answered.run.id,
+    expectedControlVersion: first.controlVersion,
+    claimEpoch: first.claimEpoch,
+    type: 'token',
+    payload: { text: 'answer' },
+  });
+  assert.equal(streamed?.replyTo, answered.messageId);
+  assert.equal(
+    await store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: answered.run.id,
+      expectedControlVersion: first.controlVersion,
+      claimEpoch: first.claimEpoch,
+      status: 'completed',
+      events: [
+        { type: 'citation', payload: { sourceId: 'channelkb-g1-faq', title: 'Public FAQ' } },
+        { type: 'final', payload: { text: 'answer' } },
+      ],
+    }),
+    true,
+  );
+
+  const drainedRun = (await store.getConversation(conversation.id))?.activeRunId;
+  assert.ok(drainedRun);
+  const second = await store.claimRun(drainedRun);
+  assert.ok(second);
+  assert.equal(
+    await store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: drainedRun,
+      expectedControlVersion: second.controlVersion,
+      claimEpoch: second.claimEpoch,
+      status: 'failed',
+      events: [{ type: 'error', payload: { category: 'knowledge_empty', retriable: false } }],
+    }),
+    true,
+  );
+
+  const stopped = await ask('reply-2', 'question the visitor stops');
+  assert.ok(stopped.run);
+  assert.equal(await store.requestCancellation(conversation.id, conversation.controlVersion), true);
+  assert.equal(
+    await store.terminalizeRun({ runId: stopped.run.id, reason: 'cancel_requested' }),
+    true,
+  );
+
+  assert.deepEqual(
+    (await store.listEvents(conversation.id)).map((event) => [event.type, event.replyTo]),
+    [
+      ['token', answered.messageId],
+      ['citation', answered.messageId],
+      ['final', answered.messageId],
+      ['error', failed.messageId],
+      ['assistant.cancelled', stopped.messageId],
+    ],
+  );
+});
 
 test('database rejects an event whose run belongs to another conversation', { skip }, async () => {
   assert.ok(store);
