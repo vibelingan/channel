@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createCatalogMediaState } from '../../catalog/application/catalog-media.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
@@ -16,6 +16,11 @@ interface Props {
   selection?: { source: string | null; onChange: (source: string) => void };
   /** A shopper chose this photo from the thumbnails. */
   onImageSelect?: (source: string) => void;
+  /**
+   * Show this photo first and focus its thumbnail: the gallery was redrawn
+   * because the shopper tapped it (it selected its configuration).
+   */
+  initialSource?: string;
   onMainImageLoad?: () => void;
   mainImagePriority?: 'high' | 'low' | 'auto';
 }
@@ -161,11 +166,21 @@ function GallerySession({
   layout = 'legacy',
   selection,
   onImageSelect,
+  initialSource,
   onMainImageLoad,
   mainImagePriority = 'auto',
 }: Props) {
-  const [active, setActive] = useState(0);
+  const initialIndex = initialSource ? images.indexOf(initialSource) : -1;
+  const [active, setActive] = useState(Math.max(0, initialIndex));
   const [expanded, setExpanded] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  // Keep a keyboard user's place when the tap redrew the gallery.
+  useEffect(() => {
+    if (initialIndex < 0) return;
+    root.current
+      ?.querySelector<HTMLButtonElement>(`[data-gallery-thumbnail="${initialIndex}"]`)
+      ?.focus({ preventScroll: true });
+  }, [initialIndex]);
   const controlledSource = selection?.source
     ? createCatalogMediaState([selection.source], apiMediaUrl).sources[0]
     : undefined;
@@ -177,6 +192,7 @@ function GallerySession({
 
   return (
     <div
+      ref={root}
       className={layout === 'detail' ? 'mx-auto min-w-0 max-w-[560px] lg:max-w-none' : 'min-w-0'}
       data-gallery
     >
@@ -239,6 +255,7 @@ export function Gallery({
   layout,
   selection,
   onImageSelect,
+  initialSource,
   onMainImageLoad,
   mainImagePriority,
 }: Props) {
@@ -268,6 +285,7 @@ export function Gallery({
       layout={layout}
       selection={selection}
       onImageSelect={onImageSelect}
+      initialSource={initialSource}
       onMainImageLoad={onMainImageLoad}
       mainImagePriority={mainImagePriority}
     />

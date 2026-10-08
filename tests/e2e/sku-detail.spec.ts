@@ -497,10 +497,15 @@ test('tapping a photo that belongs to exactly one color selects that color; a sh
   const detail = colorDetail();
   // As on Alibaba listings: the product gallery repeats each color's own photo,
   // plus one photo shared by two colors.
-  detail.images = ['/api/images/sku-white', '/api/images/sku-pink', '/api/images/shared'];
+  detail.images = [
+    '/api/images/sku-white',
+    '/api/images/sku-white-side',
+    '/api/images/sku-pink',
+    '/api/images/shared',
+  ];
   const [, white, pink] = detail.variants.items;
   if (!white || !pink) throw new Error('Missing color fixtures');
-  white.images.push('/api/images/shared');
+  white.images.push('/api/images/sku-white-side', '/api/images/shared');
   pink.images.push('/api/images/shared');
   await page.route('**/api/products/canonical-product/detail*', (route) =>
     route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
@@ -515,9 +520,13 @@ test('tapping a photo that belongs to exactly one color selects that color; a sh
     page.locator('[data-gallery-thumbnail]').filter({
       has: page.locator(`img[src$="/${source}"]`),
     });
-  await thumbnail('sku-white').click();
+  // White's second photo: White is selected and the tapped photo stays shown,
+  // with keyboard focus kept on its thumbnail.
+  await thumbnail('sku-white-side').focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('radio', { name: /White/ })).toBeChecked();
-  await expect(hero).toHaveAttribute('src', /\/sku-white$/);
+  await expect(hero).toHaveAttribute('src', /\/sku-white-side$/);
+  await expect(thumbnail('sku-white-side')).toBeFocused();
   await expect(page).toHaveURL(new RegExp(`variant=${white.id}`));
   await thumbnail('sku-pink').click();
   await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();

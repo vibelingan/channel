@@ -23,7 +23,9 @@ export interface CatalogVariantGalleryProps {
   unavailableLabel: string;
   onMainImageLoad?: () => void;
   /** Choosing a photo that belongs to exactly one configuration selects it. */
-  onSelectVariant?: (variantId: string) => void;
+  onSelectVariant?: (variantId: string, tappedPhoto?: string) => void;
+  /** The photo whose tap selected the current configuration; shown first. */
+  tappedPhoto?: string;
 }
 const identity = (source: string) => source;
 
@@ -39,6 +41,7 @@ function Session({
   unavailableLabel,
   onMainImageLoad,
   onSelectVariant,
+  tappedPhoto,
 }: CatalogVariantGalleryProps) {
   const selected = selection.status === 'selected' ? selection.variant : undefined;
   const specific = selected
@@ -84,13 +87,14 @@ function Session({
         layout="detail"
         mainImagePriority="high"
         onMainImageLoad={onMainImageLoad}
+        {...(tappedPhoto ? { initialSource: tappedPhoto } : {})}
         onImageSelect={(source) => {
           const id = configurationForPhoto(
             variants,
             source,
             (image) => boundedGalleryImages([image])[0],
           );
-          if (id && id !== selected?.id) onSelectVariant?.(id);
+          if (id && id !== selected?.id) onSelectVariant?.(id, source);
         }}
         unavailableLabel={
           loadingImages
@@ -107,6 +111,7 @@ function Session({
 /** One selection/gallery state owner shared by buyer routes and authenticated preview. */
 export function CatalogVariantGallery(props: CatalogVariantGalleryProps) {
   const [loadedIdentity, setLoadedIdentity] = useState('');
+  const [tapped, setTapped] = useState<{ variantId: string; source: string }>();
   const productIdentity = JSON.stringify([props.productId, props.revision]);
   useCatalogImagePrefetch(
     props.resolveImage ? [] : props.variants.flatMap((v) => v.images),
@@ -117,7 +122,22 @@ export function CatalogVariantGallery(props: CatalogVariantGalleryProps) {
     props.revision,
     props.selection.status === 'selected' ? props.selection.variant.id : props.selection.status,
   ]);
+  const selectedId = props.selection.status === 'selected' ? props.selection.variant.id : undefined;
+  const onSelectVariant = props.onSelectVariant;
   return (
-    <Session key={key} {...props} onMainImageLoad={() => setLoadedIdentity(productIdentity)} />
+    <Session
+      key={key}
+      {...props}
+      onMainImageLoad={() => setLoadedIdentity(productIdentity)}
+      {...(tapped && tapped.variantId === selectedId ? { tappedPhoto: tapped.source } : {})}
+      {...(onSelectVariant
+        ? {
+            onSelectVariant: (variantId: string, source?: string) => {
+              if (source) setTapped({ variantId, source });
+              onSelectVariant(variantId);
+            },
+          }
+        : {})}
+    />
   );
 }

@@ -294,6 +294,30 @@ test('a lost response starts no new product and reports uncertainty, not failure
   );
 });
 
+test('products already running when the batch stops still report their own result', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.data.id === '0') throw new TypeError('Failed to fetch');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return Response.json({ ok: true, data: { _id: body.data.id, published: false } });
+  });
+  const result = await batchUpdateRecords('products', ['0', '1', '2', '3', '4', '5'], {
+    published: false,
+  });
+  assert.deepEqual(
+    result.items.map((item) => item._id),
+    ['1', '2', '3'],
+  );
+  assert.deepEqual(
+    result.failures.map((row) => [row.id, row.outcome]),
+    [
+      ['0', 'unconfirmed'],
+      ['4', 'not-attempted'],
+      ['5', 'not-attempted'],
+    ],
+  );
+});
+
 test('products run four at a time, and results keep the selection order', async (t) => {
   let running = 0;
   let peak = 0;

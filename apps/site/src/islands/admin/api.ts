@@ -302,8 +302,8 @@ export async function updateRecord(
             'CONFLICT',
             'Open Edit to review supplier media and approve this product before publishing.',
           );
-        // Save reviewed form edits first without changing publication. Preparation
-        // and approval have resumable, server-checked requests, not one long call.
+        // Save reviewed form edits first without changing publication. The server
+        // then approves in one request (step-by-step fallback, same operation id).
         const { published: _published, ...draftValues } = values;
         if (Object.keys(draftValues).length)
           current = await call<CollectionDoc>('update', { collection, id, values: draftValues });

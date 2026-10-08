@@ -95,6 +95,28 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Review of the speed, photo and DEC-18 changes (2026-10-08, `de7b0d6..5727708`)
+- One reviewer: WARN, all P3, no blocker. Verified: the one-request approval
+  runs the same checks in the same order as the browser steps; resuming with
+  the same operation id reuses the job (or fails safe with CONFLICT if the
+  product changed); every failure code is mapped; gating unchanged; functions
+  deploy before the site; CloudBase re-runs colliding transactions; batch
+  workers never take the same product and keep selection order.
+- Fixed: tapping a configuration's second photo now keeps that photo shown and
+  keyboard focus on its thumbnail (the gallery redraw used to reset both);
+  photo → configuration only once every configuration has loaded (a partial
+  list could misjudge "exactly one"); a stale comment; a test where products
+  already running when the batch stops still report success.
+- Accepted, noted: two products sharing an image in one batch can make the
+  second answer "images busy" (rejected cleanly, works on retry); the
+  published-count update outside finish's transaction relies on CloudBase
+  detecting the write conflict (the image backfill reconciles otherwise); no
+  real-staging test yet of a server time-budget hand-back after begin.
+- Open for the owner (interim behaviour, revised DEC-18): approving a product
+  flagged "Changed" only for supplier text or photos publishes the website's
+  own text and clears the flag; the supplier's new text is not shown until the
+  side-by-side review is designed.
+
 ### Publish speed and photo → configuration (2026-10-08, owner request)
 - Measured in production: every request to CloudBase costs 0.6–3 s end to
   end while the function itself runs 28–52 ms (header
