@@ -8,12 +8,13 @@ and admins see every Alibaba change before it goes public.
 - Batches 1–3 are reviewed, tested and ready to ship as two deploys:
   stage A = [#67](https://github.com/vibelingan/channel/pull/67) (CI green,
   nothing visible changes) and stage B =
-  [#68](https://github.com/vibelingan/channel/pull/68) (draft; customers see this
-  one). **Neither is merged**: the session's permission check refuses production
+  [#68](https://github.com/vibelingan/channel/pull/68) (draft, CI green;
+  customers see this one). **Neither is merged**: the session's permission check refuses production
   deploys and production data writes, so those steps are yours (or allow them).
-- Batch 4 (the "changed since approval" flag) is built and tested locally,
-  except MIU-25/35, which wait for DEC-12. Batch 5 (manual products) is not
-  started.
+- Batch 4 (the "changed since approval" flag) is built, reviewed and fixed
+  locally, except MIU-25/35, which wait for DEC-12. Batch 5a (manual products
+  approvable: MIU-27 to 30, 32) is built locally; MIU-34 (its end-to-end test)
+  and batch 5b are not started. These ship after stage B.
 - Open decisions: DEC-12, DEC-17 and DEC-18 (below). None blocks batches 1–3.
 - Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
 

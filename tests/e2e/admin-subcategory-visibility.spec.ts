@@ -1116,11 +1116,15 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await expect(partial.locator('section[role="alert"]')).toContainText('1 need attention');
   const laterIds = writes[3]?.ids ?? [];
   expect([...laterIds].sort()).toEqual([later._id, rejected._id].sort());
-  // A manual product is approved before it publishes (MIU-32); one without an
-  // image is refused in the browser before any publish write.
+  // With detail approval on (the formal lane), a manual product is approved
+  // before it publishes (MIU-32) and one without an image is refused in the
+  // browser before any publish write; with it off, both are attempted.
+  const approvalOn = process.env.E2E_CATALOG_FORMAL === '1';
   expect(writes.slice(3)).toEqual([
     { action: 'classify', ids: laterIds },
-    { action: 'publish', ids: [later._id] },
+    ...(approvalOn
+      ? [{ action: 'publish', ids: [later._id] }]
+      : laterIds.map((id) => ({ action: 'publish', ids: [id] }))),
   ]);
   expect(await read(later._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
   expect(await read(rejected._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });

@@ -92,6 +92,30 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Batch 4 review and fixes (2026-10-08, `ec74c2e`)
+- Two reviewers on `2e34df6..d5a601d`. Drift: WARN, no P1 (R6 had no runnable
+  tool — fixed by `f250478`; "Approve changes" shows no before/after; the
+  "changed" signal includes supplier description/gallery changes that
+  approval cannot publish → DEC-18 proposed). Code: one P1, two P2.
+- P1 fixed: prepare's short-circuit (already prepared from the same data)
+  skipped recording the fingerprint, so approvals of most live products would
+  carry none and the sync could never flag them. It now records it. Test
+  reproduced the bug first.
+- P2 fixed: the audit compared the approved description (the admin's text)
+  with the supplier's and reported false "changed"; descriptions are no
+  longer compared. The product-level price comparison now has a test.
+- P2 fixed: an approval built from older supplier data could clear a fresh
+  "changed" flag. The sync records `alibabaSourcePublicDigest` (last seen);
+  publish keeps the flag when the approval's digest differs. Tested both ways.
+- P3s fixed: unlink clears the last-seen digest; manual prepare drops an old
+  Alibaba digest; facts hashed trimmed; `Object.hasOwn` for reason lookups;
+  "Mark reviewed" allow-list; "Compare with the live page" link; module doc
+  comments moved back; offer-order test with several offers per SKU.
+- MIU-32 lane failure fixed before any push: the classification journey now
+  expects the browser to refuse an image-less manual product before any
+  publish write; the message says "image" (the attention list matches it).
+- Stage B PR #68 CI green (build and smoke incl. both browser lanes).
+
 ### MIU-23, 24, 38, R6 script, MIU-27 to 32 (2026-10-08, local)
 - MIU-38 `9e7b020`: admin action `auditChangesSinceApproval`. Plan builds the
   candidate with the same builder and configuration ids as a real approval

@@ -416,10 +416,15 @@ async function approveManualProduct(
     });
     if (guard) guard = typeof current.updatedAt === 'string' ? current.updatedAt : undefined;
   }
+  // Refused before any write: a definite rejection, which batch publish reports
+  // as "needs attention" with this message (not as an unconfirmed result).
   if (!isProductFamily(current.productFamily))
-    throw new AdminApiError('INVALID_PRODUCT', 'Choose a website category before publishing.');
+    throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
   if (!Array.isArray(current.imageIds) || current.imageIds.length === 0)
-    throw new AdminApiError('MEDIA_NOT_READY', 'Add at least one product image before publishing.');
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'Add at least one product image before publishing.',
+    );
   const { prepareDetailReview, approveDetailReview } = await import(
     './catalog-detail-approval-api.ts'
   );
