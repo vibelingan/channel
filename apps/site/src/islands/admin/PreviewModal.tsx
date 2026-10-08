@@ -367,6 +367,12 @@ export function PreviewModal({
                 >
                   Compare with the live page
                 </a>
+                {onApproveChanges && reviewLabel(doc) !== 'Edited' && (
+                  <p className="basis-full text-right text-sm text-slate-600">
+                    Approving also takes Alibaba's new description and photos, except any you
+                    edited.
+                  </p>
+                )}
                 {onApproveChanges && (
                   <button
                     type="button"

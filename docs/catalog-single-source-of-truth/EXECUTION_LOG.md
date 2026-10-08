@@ -44,7 +44,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
-| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | In progress: steps 1–2 done (local) | see log |
+| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | Done (local, unit tests; e2e with batch 4) | see log |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
 
 ## Runbook status
@@ -93,6 +93,21 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-39 step 3 — approval takes the supplier's text and photos (2026-10-08)
+- What changed: `updateRecord` (linked product, re-approval only) asks the
+  server's plan after saving the form's own values, imports the planned photos
+  (all must import, or it stops with MEDIA_NOT_READY before any write), saves the
+  taken text and photos in one update, then approves as before. A first approval
+  never asks (nothing approved to compare with). The preview's "Approve changes"
+  carries one line: "Approving also takes Alibaba's new description and photos,
+  except any you edited." (a fixed sentence, not a per-product plan).
+- Tests (written first, red → green): order plan → imports → one update →
+  prepare; nothing to take leaves the flow unchanged; a failed import writes
+  nothing; form edits save before the plan; a first approval never asks; the
+  preview line. An existing test caught the first-approval ordering. Site unit
+  tests 544 (543 pass, 1 skipped).
+- Not yet run: the local admin e2e for this step (batch 4 validation).
 
 ### MIU-25/35 review fixes (2026-10-08)
 - Reviewer on `8ea753c..a5e45d6`: BLOCK, one P1. The batch Publish confirmation

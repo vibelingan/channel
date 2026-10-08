@@ -158,6 +158,12 @@ test('"Approve changes" appears only on a published product flagged changed, rem
     'a link to compare with the live page',
   );
   assert.ok(!changed.includes('>Unpublish<'));
+  // DEC-18: approval also takes the supplier's text and photos nobody edited.
+  assert.ok(changed.includes('takes Alibaba&#x27;s new description and photos'));
+  assert.ok(
+    !preview({ published: true, alibabaReviewReason: 'edited' }).includes('new description'),
+    'an admin-edited product has no supplier change to take',
+  );
   const removed = preview({ published: true, alibabaReviewReason: 'removed' });
   assert.ok(removed.includes('Approve changes'));
   assert.ok(removed.includes('>Unpublish<'), 'a removed source can also be taken offline');

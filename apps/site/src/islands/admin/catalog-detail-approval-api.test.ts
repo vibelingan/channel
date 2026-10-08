@@ -231,3 +231,127 @@ test('a category change on a published manual product without an image is refuse
   );
   assert.deepEqual(api.updates, [], 'nothing saved, so "needs attention" is exact');
 });
+
+// --- MIU-39: approval takes the supplier's new text and photos (DEC-18) -------
+
+const supplierUrl = (name: string) => `https://sc04.alicdn.com/${name}.jpg`;
+function linkedApi(
+  t: { mock: { method: typeof test.mock.method } },
+  adoption: Record<string, unknown>,
+  options: { failImport?: string } = {},
+) {
+  const calls: string[] = [];
+  const updates: Record<string, unknown>[] = [];
+  let current: Record<string, unknown> = {
+    _id: 'canonical-product',
+    name: 'Headset',
+    description: 'Old text',
+    imageIds: ['img-a', 'img-b'],
+    productFamily: 'headphones',
+    published: true,
+    alibabaPrimarySourceKey: 'source-a',
+    catalogDetailPublication: { state: 'approved', revision: 'r1' },
+  };
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    const step =
+      body.action === 'catalogDetailApproval' ? `approval:${body.data?.action}` : body.action;
+    calls.push(step);
+    let data: unknown = progress;
+    if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
+    if (body.action === 'get') data = current;
+    if (body.data?.action === 'supplier-adoption') data = { ok: true, adoption };
+    if (body.action === 'importSourceImage') {
+      const url = String(body.data?.url);
+      if (url === options.failImport)
+        return Response.json({ ok: false, error: { code: 'UPSTREAM', message: 'down' } });
+      data = { imageId: `img-${url.split('/').at(-1)?.split('.')[0]}`, deduplicated: false };
+    }
+    if (body.action === 'update') {
+      updates.push(body.data ?? {});
+      current = { ...current, ...(body.data?.values as object), updatedAt: 'after-update' };
+      data = current;
+    }
+    if (body.data?.action === 'begin') data = { ...progress, complete: false };
+    if (body.data?.action === 'review')
+      data = { ...review(1, 0), productId: 'canonical-product', previewMedia: undefined };
+    return Response.json({ ok: true, data });
+  });
+  const reset = (extra: Record<string, unknown>) => {
+    current = { ...current, ...extra };
+  };
+  return { calls, updates, reset };
+}
+
+test('approving takes the supplier’s new text and photos before the approval runs', async (t) => {
+  const api = linkedApi(t, {
+    description: 'New text',
+    gallery: [supplierUrl('c'), supplierUrl('a')],
+    descriptionImages: [supplierUrl('d')],
+  });
+  await updateRecord('products', 'canonical-product', { published: true });
+  const steps = api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities');
+  assert.deepEqual(steps.slice(0, 6), [
+    'approval:supplier-adoption',
+    'importSourceImage',
+    'importSourceImage',
+    'importSourceImage',
+    'update',
+    'approval:prepare',
+  ]);
+  // One save of everything taken, in the supplier's photo order, then the approval.
+  assert.deepEqual(api.updates[0]?.values, {
+    description: 'New text',
+    imageIds: ['img-c', 'img-a'],
+    descriptionImageIds: ['img-d'],
+  });
+  assert.ok(steps.includes('approval:finish'));
+  assert.deepEqual(api.updates.at(-1)?.values, { published: true });
+});
+
+test('nothing to take: the approval runs exactly as before', async (t) => {
+  const api = linkedApi(t, {});
+  await updateRecord('products', 'canonical-product', { published: true });
+  assert.equal(api.calls.includes('importSourceImage'), false);
+  assert.deepEqual(
+    api.updates.map((update) => update.values),
+    [{ published: true }],
+  );
+});
+
+test('a photo that fails to import stops before any write or approval', async (t) => {
+  const api = linkedApi(
+    t,
+    { description: 'New text', gallery: [supplierUrl('c'), supplierUrl('a')] },
+    { failImport: supplierUrl('a') },
+  );
+  await assert.rejects(
+    updateRecord('products', 'canonical-product', { published: true }),
+    (error: unknown) =>
+      error instanceof Error && 'code' in error && error.code === 'MEDIA_NOT_READY',
+  );
+  assert.deepEqual(api.updates, []);
+  assert.equal(api.calls.includes('approval:prepare'), false);
+});
+
+test('a first approval never asks: there is no earlier version to compare with', async (t) => {
+  const api = linkedApi(t, { description: 'New text' });
+  api.reset({ published: false, catalogDetailPublication: undefined });
+  await updateRecord('products', 'canonical-product', { published: true });
+  assert.equal(api.calls.includes('approval:supplier-adoption'), false);
+});
+
+test('the admin’s own form edits are saved first, so the plan sees them', async (t) => {
+  const api = linkedApi(t, {});
+  // The edit form sends every field; a live product's Save re-approves it.
+  await updateRecord('products', 'canonical-product', {
+    description: 'Our words',
+    productFamily: 'headphones',
+  });
+  const steps = api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities');
+  assert.deepEqual(steps.slice(0, 2), ['update', 'approval:supplier-adoption']);
+  assert.deepEqual(api.updates[0]?.values, {
+    description: 'Our words',
+    productFamily: 'headphones',
+  });
+});
