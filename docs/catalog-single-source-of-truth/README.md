@@ -15,7 +15,7 @@ and admins see every Alibaba change before it goes public.
   locally, except MIU-25/35, which wait for DEC-12. Batch 5a (manual products
   approvable: MIU-27 to 30, 32) is built locally; MIU-34 (its end-to-end test)
   and batch 5b are not started. These ship after stage B.
-- Open decisions: DEC-12, DEC-17 and DEC-18 (below). None blocks batches 1–3.
+- Decisions 2026-10-08: DEC-12 yes (build MIU-25/35); DEC-17 closed (no product prices its options differently); DEC-18 decided (approval applies the supplier's new description and photos unless an admin edited them; MIU-39). None blocks batches 1–3.
 - Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
 
 ## Morning checklist (production, in this order)
