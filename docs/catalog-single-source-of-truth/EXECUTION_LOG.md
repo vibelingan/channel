@@ -92,6 +92,31 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Re-review of batch 4 fixes and batch 5a (2026-10-08, `84c4a22`)
+- One reviewer on `d5a601d..399a26c`: no P1; the batch 4 P1 confirmed fixed by
+  an end-to-end trace (pre-deploy product → prepare → begin → finish → receipt
+  carries the fingerprint; the trace fails with the fix reverted). It also
+  confirmed staging writes never change `updatedAt` (so the classification
+  revision guard holds) and that contributors cannot reach `manual-source`.
+- P2 fixed: a product synced from Alibaba and then unlinked keeps its
+  Alibaba-owned configuration rows, which blocked every manual approval; only
+  manual configuration rows block now.
+- P3 fixed: a repeated manual prepare that would write an identical row
+  confirms without writing (CloudBase may report "0 updated"); image and
+  category are checked before anything is saved; tests now pin archive
+  clearing, the "Mark reviewed" allow-list and unlink clearing the last-seen
+  fingerprint.
+- Noted, not changed:
+  - During a quarantine, "Approve changes" can approve the newest stored data
+    while the sync's last-seen fingerprint is older; the flag then stays until
+    one more approval after the quarantine is approved. It never hides a change.
+  - A contributor can no longer change the category of a published manual
+    product (the refresh needs an admin); OWN-1 replaces this with drafts.
+  - `commitCatalogApproval` (db) rebuilds a receipt without the fingerprint; no
+    HTTP path uses it (only a local-server test).
+- Validation: typecheck, lint, all package tests; both browser lanes rerun
+  after this commit.
+
 ### Batch 4 review and fixes (2026-10-08, `ec74c2e`)
 - Two reviewers on `2e34df6..d5a601d`. Drift: WARN, no P1 (R6 had no runnable
   tool — fixed by `f250478`; "Approve changes" shows no before/after; the
