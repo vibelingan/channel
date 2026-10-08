@@ -75,6 +75,7 @@ function fixture(): Store {
         alibabaSourceReview: { provider: 'alibaba' },
         alibabaReviewPending: true,
         alibabaReviewReason: 'changed',
+        alibabaSourcePublicDigest: 'd'.repeat(64),
         alibabaReviewedAt: NOW,
         alibabaReviewedByUserId: 'admin',
       },

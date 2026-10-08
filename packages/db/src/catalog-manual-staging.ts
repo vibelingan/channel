@@ -1,12 +1,14 @@
+import { isDeepStrictEqual } from 'node:util';
 /**
  * Prepare for a manual product (MIU-28): the same approval pipeline as a synced
  * product, with an empty candidate the planner fills from the row (MIU-27). One
  * transaction of three operations: actor read, product read, product write.
  *
  * Approval reads configuration rows only from this manifest, which is empty, so
- * a product that has configuration rows (only the not-yet-live Excel import
- * creates them) is refused rather than approved without them (DESIGN §5.2).
- * The server lists those rows before calling; browsers never call this command.
+ * a product with manual configuration rows (the not-yet-live Excel import) is
+ * refused rather than approved without them (DESIGN §5.2). Rows left by an
+ * earlier Alibaba link are not the admin's and do not count. The server lists
+ * the rows before calling; browsers never call this command.
  */
 import { manualDetailCandidate } from '@vibelingan-channel/shared/catalog-detail';
 import { z } from 'zod';
@@ -40,10 +42,18 @@ export async function prepareManualSource(
     typeof product.alibabaPrimarySourceKey === 'string' && product.alibabaPrimarySourceKey !== '';
   if (linked || product.archived === true) return { ok: false, code: 'CONFLICT' };
   const revision = sourceDigest(['manual', product._id, 'v1']);
+  const done = {
+    ok: true as const,
+    jobId: revision,
+    revision,
+    nextPage: 1,
+    pages: 1,
+    complete: true,
+  };
   // A product unlinked from Alibaba must not carry its old source fingerprint
   // into a manual approval.
   const { detailSourcePublicDigest: _previous, ...current } = product;
-  await tx.set('products', {
+  const prepared = {
     ...current,
     detailSourceOwner: `manual:${product._id}`,
     detailSourceRevision: revision,
@@ -56,6 +66,10 @@ export async function prepareManualSource(
     }),
     detailSourceContentCandidate: null,
     detailSourceNoteBlocksCandidate: null,
-  });
-  return { ok: true, jobId: revision, revision, nextPage: 1, pages: 1, complete: true };
+  };
+  // Already prepared exactly so: confirm without writing (CloudBase may answer
+  // an identical write with "0 updated", which the adapter treats as failure).
+  if (isDeepStrictEqual(prepared, product)) return done;
+  await tx.set('products', prepared);
+  return done;
 }

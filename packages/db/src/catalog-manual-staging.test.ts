@@ -95,6 +95,16 @@ test('a product unlinked from Alibaba drops its old source fingerprint on manual
   assert.equal('detailSourcePublicDigest' in h.product(), false);
 });
 
+test('preparing again an already prepared manual product writes nothing', async () => {
+  // CloudBase may report "0 updated" for an identical write, which the adapter
+  // treats as a failure; an unchanged preparation is simply confirmed.
+  const h = harness(manualProduct());
+  const first = await h.prepare();
+  const writes = h.writes.length;
+  assert.deepEqual(await h.prepare(), first);
+  assert.equal(h.writes.length, writes);
+});
+
 test('synced, archived and configured products, and non-admins, are refused without a write', async () => {
   const cases: Array<[CollectionDoc, string, string[], string]> = [
     [manualProduct({ alibabaPrimarySourceKey: 'source-a' }), 'admin', [], 'CONFLICT'],

@@ -407,6 +407,16 @@ async function approveManualProduct(
   let current = initial;
   let guard = options.expectedUpdatedAt;
   const { published: _published, ...draftValues } = values;
+  // Checked on the would-be product before anything is saved, so a refusal is a
+  // definite rejection that batch publish reports as "needs attention".
+  const prospective = { ...initial, ...draftValues };
+  if (!isProductFamily(prospective.productFamily))
+    throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
+  if (!Array.isArray(prospective.imageIds) || prospective.imageIds.length === 0)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'Add at least one product image before publishing.',
+    );
   if (Object.keys(draftValues).length) {
     current = await call<CollectionDoc>('update', {
       collection,
@@ -416,15 +426,6 @@ async function approveManualProduct(
     });
     if (guard) guard = typeof current.updatedAt === 'string' ? current.updatedAt : undefined;
   }
-  // Refused before any write: a definite rejection, which batch publish reports
-  // as "needs attention" with this message (not as an unconfirmed result).
-  if (!isProductFamily(current.productFamily))
-    throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
-  if (!Array.isArray(current.imageIds) || current.imageIds.length === 0)
-    throw new AdminApiError(
-      'VALIDATION_ERROR',
-      'Add at least one product image before publishing.',
-    );
   const { prepareDetailReview, approveDetailReview } = await import(
     './catalog-detail-approval-api.ts'
   );

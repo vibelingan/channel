@@ -222,3 +222,12 @@ test('a guarded batch publish of a manual product keeps its revision guard throu
     expectedUpdatedAt: 'seen',
   });
 });
+
+test('a category change on a published manual product without an image is refused before any write', async (t) => {
+  const api = manualApi(t, { productFamily: 'headphones', imageIds: [], published: true });
+  await assert.rejects(
+    updateRecord('products', 'canonical-product', { productFamily: 'toys' }),
+    /Add at least one product image before publishing/,
+  );
+  assert.deepEqual(api.updates, [], 'nothing saved, so "needs attention" is exact');
+});

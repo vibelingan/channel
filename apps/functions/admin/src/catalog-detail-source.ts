@@ -65,21 +65,32 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   const sourceKey = product.alibabaPrimarySourceKey;
   if (typeof sourceKey !== 'string' || sourceKey === '') {
     // Manual product (MIU-30): approval reads configuration rows only from the
-    // prepare manifest, which is empty here, so rows from the Excel import would
-    // be dropped silently. Refuse instead (DESIGN §5.2).
-    const rows = await list({
-      collection: 'productVariants',
-      page: 1,
-      pageSize: 1,
-      filter: {
-        combinator: 'and',
-        clauses: [
-          { field: 'productId', op: 'eq', value: productId },
-          { field: 'archived', op: 'ne', value: true },
-        ],
-      },
-    });
-    if (rows.total > 0) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
+    // prepare manifest, which is empty here, so manual configuration rows (the
+    // Excel import) would be dropped silently. Refuse instead (DESIGN §5.2).
+    // Rows left by an earlier Alibaba link are not the admin's and do not block.
+    for (let page = 1; page <= 100; page++) {
+      const rows = await list({
+        collection: 'productVariants',
+        page,
+        pageSize: 100,
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'productId', op: 'eq', value: productId },
+            { field: 'archived', op: 'ne', value: true },
+          ],
+        },
+      });
+      const manualRow = rows.items.some(
+        (row) =>
+          !(
+            typeof row.detailSourceOwner === 'string' &&
+            row.detailSourceOwner.startsWith('alibaba:')
+          ),
+      );
+      if (manualRow) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
+      if (rows.items.length === 0 || page * 100 >= rows.total) break;
+    }
     return persistCatalogDetailApproval(actorId, {
       action: 'manual-source',
       productId,

@@ -378,6 +378,19 @@ test('publishing an approval built from older supplier data keeps the "changed" 
       admin,
     ),
   );
+  // Archiving takes the product out of the catalog: the flag clears regardless.
+  store.products?.push(product('archived', 'b'.repeat(64)));
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'archived', values: { archived: true } },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    { pending: row('archived').alibabaReviewPending, reason: row('archived').alibabaReviewReason },
+    { pending: false, reason: null },
+  );
   assert.deepEqual(
     { pending: row('current').alibabaReviewPending, reason: row('current').alibabaReviewReason },
     { pending: false, reason: null },
@@ -423,6 +436,9 @@ test('publish and archive clear the review reason; unpublish never does; mark re
   okData(await update('changed-archive', { archived: true }));
   assert.deepEqual(flag('changed-archive'), { pending: false, reason: null });
 
+  // Allow-list: an unknown reason is not "new" either.
+  store.products?.push(flagged('odd-mark', 'something-else'));
+  expectErr(await call('markProductReviewed', { productId: 'odd-mark' }, admin), 'CONFLICT');
   const before = structuredClone(row('changed-mark'));
   expectErr(await call('markProductReviewed', { productId: 'changed-mark' }, admin), 'CONFLICT');
   assert.deepEqual(row('changed-mark'), before, 'refused without a write');

@@ -91,3 +91,16 @@ test('a linked product keeps the Alibaba prepare path', async () => {
   });
   assert.deepEqual(adapter.commands, []);
 });
+
+test('leftover rows from an earlier Alibaba link do not block a manual approval', async () => {
+  // Unlinking keeps the Alibaba-owned configuration rows; they are not manual
+  // configurations, so approving without them drops nothing the admin owns.
+  const adapter = new RecordingAdapter({
+    products: [{ _id: 'm1', name: 'Was synced' }],
+    productVariants: [{ _id: 'v1', productId: 'm1', detailSourceOwner: 'alibaba:source-a' }],
+  });
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'm1' });
+  assert.equal(result.ok, true);
+  assert.equal(adapter.commands.length, 1);
+});
