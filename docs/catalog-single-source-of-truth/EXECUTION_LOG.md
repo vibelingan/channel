@@ -53,13 +53,14 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 |---|---|---|
 | R1 Unpublish the 21 | **Done 2026-10-08** after stage A: all 21 were live; each set `published: false` through the admin API from the signed-in admin page (same write as Disable); 21/21 confirmed. Public list 137 → 116; their detail endpoints answer 404 | List below |
 | Stage A deploy (batches 1, 2a, 2b) | **Done 2026-10-08 07:22–08:04 UTC**: `test` fast-forwarded `de5e347` → `b5f50c9` (no PR, owner 2026-10-08); CI and Deploy Test green (runs 37742975441, 37742975715). After: 137 listed, 0 name/photo mismatches; price fields differ on the 130 approved cards until R4 and stage B (expected) | R1 had to wait: the admin login in Chrome had expired |
-| R2 Replay rebuild | 2026-10-08: Validate passed for 1,109 source products (56 pages, 3,781 variants, 471 headline prices removed, no failures). Apply started; in progress | Admin → Alibaba Sync → Build common catalog data |
+| Stage B deploy (batch 3) | **Done 2026-10-08 10:26–11:15 UTC**: merge commit `b656524` (tree identical to the reviewed `80d592c`; parents stage B and stage A, after checking every stage A file version is in stage B's history) created on GitHub and `test` fast-forwarded to it; CI and Deploy Test green (runs 37763484760, 37763484642) | Gate R4 = 0 ready was met first |
+| R2 Replay rebuild | **Done 2026-10-08**: Validate passed for 1,109 source products (56 pages, 3,781 variants, 471 headline prices removed, no failures); Apply 1,109/1,109 | Admin → Alibaba Sync → Build common catalog data |
 | R3 Pinned-offer count | **Done 2026-10-08**: 0 of 1,118 products have `alibabaPinnedOfferKey` → R2 may proceed | Read-only admin list |
 | R4 Price summary backfill | **Done 2026-10-08**: plan 150 `ready`, 968 not approved; review list `productPriceWithConfigurations` = 28 (the 21, five unpublished drafts, and two live products: `5cc2ec2f` Cat Ear headset, `e34a1873` WH37). The two live ones were checked first: card and page already show the same price ($5.56 fixed; $2.30 at 2+, the supplier's only tier), so backfilling keeps card = page (hiding them was refused by the session's permission check and is not needed). Applied 150/150 from the signed-in admin page (same requests as the script); re-plan: 0 `ready`, 150 `already-present` | Gate for stage B met |
-| R5 Consistency audit (before and after batch 3) | **Before done 2026-10-08** (production, read-only): 137 listed, 130 approved, 7 fallback (the manual products), 0 errors, 0 name/photo changes; every approved card lacks a summary until stage B (expected) | After: not started |
+| R5 Consistency audit (before and after batch 3) | **Before done 2026-10-08** (production, read-only): 137 listed, 130 approved, 7 fallback (the manual products), 0 errors, 0 name/photo changes. **After stage B (2026-10-08 11:16 UTC):** 116 listed (the 21 hidden), 109 approved, 0 mismatched, 0 errors, 7 fallback; exit 0 | |
 | R6 Changed-since-approval audit | Not started | |
-| R7 Admin re-approval | Not started | |
-| R8 Final audit + browser checks | Not started | |
+| R7 Admin re-approval | **The 21: done 2026-10-08 11:15–11:28 UTC** — each published from Admin → Products with the row's Disabled → Published button, which runs the full approval from the replayed data (new receipts for all 21). Every card now reads the configurations' own price (summary source `sku`), no product-level headline price remains on any page, and card lowest = page lowest for all 21. The rest of R7 (products flagged after batch 4) waits for batch 4 | |
+| R8 Final audit + browser checks | **Done for stages A+B, 2026-10-08**: audit 137 listed, 130 approved, 0 mismatched, 0 errors, 7 fallback (manual, until R9). Browser on supplychainsai.com: a restored product's page shows its tier ladder (USD 2.58 for 2–999, 1.39 from 1,000) instead of one fixed headline; list cards show "MOQ n · From $x" with photos loading (13/13); an untouched product's card and page agree; a manual product still renders on the row page as before | |
 | R9 Admin approves the 7 manual products | Not started | |
 | R10 Audit with `--require-no-fallback` | Not started | |
 
@@ -137,6 +138,10 @@ paired with the MOQ. Names are truncated as captured.
   draft. Both err toward keeping the current text and photos.
 - Tests: plan image limit (fits / defers one / defers both), plan revision,
   guarded save; db 257/257, admin 274/274, site 544 (543 pass, 1 skipped).
+- Local e2e at `78374d9`: lane 1 (`pnpm test:e2e:catalog-admin-local`) and
+  lane 2 (`E2E_CATALOG_FORMAL=1`) all passed (41, 89, 1, 1, 5, 13, 8, 1 and
+  41, 89, 6, 8, 1). An earlier lane 1 run had one `ECONNRESET` on a local API
+  call in the taxonomy test; the rerun passed unchanged.
 
 ### MIU-39 step 3 — approval takes the supplier's text and photos (2026-10-08)
 - What changed: `updateRecord` (linked product, re-approval only) asks the

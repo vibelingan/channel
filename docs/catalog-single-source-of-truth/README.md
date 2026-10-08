@@ -18,6 +18,15 @@ and admins see every Alibaba change before it goes public.
 - Decisions 2026-10-08: DEC-12 yes (build MIU-25/35); DEC-17 closed (no product prices its options differently); DEC-18 decided (approval applies the supplier's new description and photos unless an admin edited them; MIU-39). None blocks batches 1–3.
 - Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
 
+## Rollout status (2026-10-08)
+
+Stages A and B (batches 1–3) are live on supplychainsai.com. The 21 products were
+hidden, the Alibaba data replayed, the card prices backfilled, and the 21
+re-approved: every product's list card and page now show the same price
+(audit: 137 listed, 0 mismatches). Details: EXECUTION_LOG "Runbook status".
+Next: batch 4 (changed flag, DEC-12 notices, DEC-18) and batch 5 (manual
+products), built and reviewed locally, not deployed.
+
 ## Morning checklist (production, in this order)
 
 Each step needs the one before it. Steps 1, 3, 4 and 7 change production data.
