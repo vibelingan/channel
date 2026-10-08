@@ -12,7 +12,7 @@ import {
   readProductSubcategories,
   validateProductSubcategories,
 } from '@vibelingan-channel/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
@@ -176,7 +176,10 @@ export function RecordForm({
   const cancelInFlight = useRef(false);
   const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
   const busy = submitting || mediaBusy;
-  const supplierChange = initial ? pendingSupplierChange(initial) : null;
+  // Only while Save would keep the product live; unticking Published unpublishes instead.
+  const supplierChange =
+    initial && state.published !== false ? pendingSupplierChange(initial) : null;
+  const supplierChangeId = useId();
   const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
@@ -576,7 +579,7 @@ export function RecordForm({
                   role="note"
                   className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
                 >
-                  <p>{PENDING_SUPPLIER_CHANGE_NOTICE[supplierChange]}</p>
+                  <p id={supplierChangeId}>{PENDING_SUPPLIER_CHANGE_NOTICE[supplierChange]}</p>
                   {onSeeChanges && (
                     <button
                       type="button"
@@ -600,6 +603,7 @@ export function RecordForm({
                 <button
                   type="submit"
                   disabled={busy || pricingInvalid || mappingInvalid}
+                  aria-describedby={supplierChange ? supplierChangeId : undefined}
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
                 >
                   {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}

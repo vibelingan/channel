@@ -42,3 +42,15 @@ export function splitPendingSupplierChanges(
     docs.filter((doc) => pendingSupplierChange(doc) === null),
   ];
 }
+
+/**
+ * What batch Publish sends once the admin chose (MIU-35): every selected
+ * product, or only those without pending Alibaba changes (the rest reported
+ * as skipped).
+ */
+export function batchPublishPlan(docs: readonly CollectionDoc[], choice: 'all' | 'others') {
+  const [flagged, others] = splitPendingSupplierChanges(docs);
+  return choice === 'all'
+    ? { ids: docs.map((doc) => doc._id), skipped: [] as string[] }
+    : { ids: others.map((doc) => doc._id), skipped: flagged.map((doc) => doc._id) };
+}

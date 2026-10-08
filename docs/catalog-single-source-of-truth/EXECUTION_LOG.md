@@ -31,7 +31,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 22 | `change-audit-mark` db command | 4 | Done (local) | `ab7b3c1` |
 | 23 | Admin badge / chip show reason | 4 | Done (local) | `756a364` |
 | 24 | "Approve changes" action | 4 | Done (local) | `d5a601d` |
-| 25 | Edit form shows pending Alibaba changes before Save | 4 | Done (local) | see log |
+| 25 | Edit form shows pending Alibaba changes before Save | 4 | Done (local, reviewed) | see log |
 | 26 | `catalog-consistency-audit` script | 3 | Done | `4d69d06` (review fix `844d98b`) |
 | 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Done (local) | `4a76230` |
 | 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Done (local) | `788d134` |
@@ -93,6 +93,24 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-25/35 review fixes (2026-10-08)
+- Reviewer on `8ea753c..a5e45d6`: BLOCK, one P1. The batch Publish confirmation
+  kept a fixed product list while the table stayed clickable, so an admin could
+  untick a flagged product and Continue still published it. Fix: the
+  confirmation is a modal dialog (the table is inert while it is open) and the
+  ids come from a tested helper, `batchPublishPlan`. P2s fixed: "See changes"
+  opens a read-only preview (no Approve/Unpublish under the open form); the
+  confirmation announces itself as a dialog with clear labels ("Publish all N",
+  "Publish the other N only"); the ids each choice sends are unit-tested. P3s
+  fixed: the notice shows only while Published stays ticked and Save points to it
+  (`aria-describedby`); bigger buttons. Accepted: the flags come from the loaded
+  list, so a product flagged after the list loaded is not in the dialog (the list
+  refreshes after every write).
+- Deviation noted: MIU-25 landed in `RecordForm`/`CollectionView` with tests in
+  `product-review-render.test.ts`, not `PreviewModal`/`review-badge.test.ts`.
+- Validation: site unit tests 539 (538 pass, 1 skipped); `pnpm build`;
+  `pnpm test:e2e:catalog-admin-local` all lanes passed (41, 89, 1, 1, 5, 13, 8, 1).
 
 ### MIU-39 step 2 — the read-only "take from the supplier" plan (2026-10-08)
 - What changed: `catalogDetailApproval` with `action: 'supplier-adoption'`

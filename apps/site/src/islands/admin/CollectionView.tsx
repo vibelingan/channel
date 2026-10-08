@@ -55,7 +55,7 @@ import {
   adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
-import { reviewLabel, splitPendingSupplierChanges } from './review-reason.ts';
+import { batchPublishPlan, reviewLabel, splitPendingSupplierChanges } from './review-reason.ts';
 import type { DashboardSection } from './sections.ts';
 import {
   savedProductSubcategories,
@@ -107,10 +107,11 @@ export function CollectionView({
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
   const [publishConfirm, setPublishConfirm] = useState<{
-    flagged: CollectionDoc[];
-    others: string[];
+    docs: CollectionDoc[];
     names: Record<string, string>;
   } | null>(null);
+  // "See changes" from the edit form: read-only, so nothing changes under the form.
+  const [changesPreview, setChangesPreview] = useState<CollectionDoc | null>(null);
   const [classifying, setClassifying] = useState<{
     products: CollectionDoc[];
     publishOnSave: boolean;
@@ -822,11 +823,13 @@ export function CollectionView({
             const names = Object.fromEntries(
               rows.map((row) => [row._id, String(row.name ?? row._id)]),
             );
-            const [flagged, others] = splitPendingSupplierChanges(
-              rows.filter((row) => selectedIds.includes(row._id)),
-            );
-            if (isProducts && values.published === true && flagged.length > 0) {
-              setPublishConfirm({ flagged, others: others.map((row) => row._id), names });
+            const docs = rows.filter((row) => selectedIds.includes(row._id));
+            if (
+              isProducts &&
+              values.published === true &&
+              splitPendingSupplierChanges(docs)[0].length > 0
+            ) {
+              setPublishConfirm({ docs, names });
               return;
             }
             batchUpdateMutation.mutate({ ids: selectedIds, values, names });
@@ -850,28 +853,27 @@ export function CollectionView({
         />
       )}
 
-      {publishConfirm && selectedIds.length > 0 && (
+      {publishConfirm && (
         <PendingChangesConfirm
-          flagged={publishConfirm.flagged}
-          othersCount={publishConfirm.others.length}
+          docs={publishConfirm.docs}
           busy={recordWritePending}
-          onContinue={() => {
-            const { flagged, others, names } = publishConfirm;
+          onPublishAll={() => {
+            const { ids } = batchPublishPlan(publishConfirm.docs, 'all');
             setPublishConfirm(null);
             batchUpdateMutation.mutate({
-              ids: [...flagged.map((row) => row._id), ...others],
+              ids,
               values: { published: true },
-              names,
+              names: publishConfirm.names,
             });
           }}
-          onSkip={() => {
-            const { flagged, others, names } = publishConfirm;
+          onPublishOthers={() => {
+            const { ids, skipped } = batchPublishPlan(publishConfirm.docs, 'others');
             setPublishConfirm(null);
             batchUpdateMutation.mutate({
-              ids: others,
+              ids,
               values: { published: true },
-              names,
-              skipped: flagged.map((row) => row._id),
+              names: publishConfirm.names,
+              skipped,
             });
           }}
           onCancel={() => setPublishConfirm(null)}
@@ -1079,7 +1081,7 @@ export function CollectionView({
           error={updateMutation.error as Error | null}
           onCancel={() => setEditing(null)}
           onSubmit={(values) => updateMutation.mutate({ id: editing._id, values })}
-          onSeeChanges={() => setPreviewing(editing)}
+          onSeeChanges={() => setChangesPreview(editing)}
         />
       )}
 
@@ -1105,6 +1107,14 @@ export function CollectionView({
             setEditing(previewing);
             setPreviewing(null);
           }}
+        />
+      )}
+
+      {changesPreview && (
+        <PreviewModal
+          doc={changesPreview}
+          onClose={() => setChangesPreview(null)}
+          onEdit={() => setChangesPreview(null)}
         />
       )}
     </div>
