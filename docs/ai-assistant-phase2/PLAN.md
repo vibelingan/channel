@@ -4,6 +4,7 @@
 **Date:** 2026-09-18
 **Base:** `origin/main` at `b0015c0`
 **Spec:** [SPEC.md](./SPEC.md) · **Decision record:** [ADR-003](../ai-platform/ADR-003-TOOL-CALLING-SALES-AGENT.md) · **Technical review:** [TECH-REVIEW.md](./TECH-REVIEW.md)
+**Added 2026-10-09:** [MEETING-PREP-2026-10-10.md](./MEETING-PREP-2026-10-10.md) (client flows, screens, questions; visual: [Sales Agent Flows](https://claude.ai/artifact/SHLiVpkhp49qf5nhrrTUQ9), [journey diagram](https://claude.ai/artifact/5EjbHy4mZCSCdJ8YJZgEy3)) · [PLATFORM-VISION.md](./PLATFORM-VISION.md) (reusable chat platform, protocol, UI base)
 **Visual version:** [Sales Agent Phase 2](https://claude.ai/artifact/3Am4dwBztj8cM5uqNaWMso) (private until shared from its menu)
 
 Evidence labels: **observed** (checked in code or on the live site on
@@ -288,6 +289,20 @@ ship while B0 answers the model question.
 
 **Rough effort (assumed, one developer, this repo's review standard):** A 1.5
 weeks, B 2 weeks, C 3.5 weeks, D 1.5 weeks. B0 can change C.
+
+### Stage E — Email consultation (added 2026-10-09, after the client meeting defines policy)
+
+| MIU | What | Done when |
+|---|---|---|
+| E0 | Mailbox access and policy agreed: mail system, shared vs personal mailbox, approval classes, follow-up rule, data residency | written and signed off by the client |
+| E1 | Inbound reading and classification (new inquiry, RFQ, sample, existing order, not sales); link to the buyer's web chat by email address | labelled set of past inquiries classified at an agreed accuracy |
+| E2 | Draft reply with evidence and visible placeholders for price, lead time, sample terms; same tools and policy as chat | eval: no draft states a price; every product link resolves |
+| E3 | Review surface in the Inquiries page: approve / edit / ask to revise / take over; sent from the sales mailbox; logged as lead | e2e on a test mailbox |
+| E4 | Follow-up suggestions after N days, approved the same way | nothing is sent without approval, proven by test |
+| E5 | Learning from edits: diffs between draft and sent feed the eval set and the knowledge gaps | weekly report shows edit categories |
+
+The inbox is the second surface on the same backend and protocol; see
+PLATFORM-VISION.md §4.
 
 **Deferred to a later phase:** live human takeover console (LLD-001 in full), an
 AI lead queue in PostgreSQL with a sales role, cross-device memory, logged-in

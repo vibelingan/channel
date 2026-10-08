@@ -215,6 +215,16 @@ Observed gaps in the current widget:
 | Knowledge base as the content store and editing UI | No tracing or feedback → OpenTelemetry + Langfuse + thumbs |
 | | One-off eval runs → CI evals and widget Playwright tests |
 
+## Addendum, 2026-10-09
+
+The UI-library choice below was made for a one-off rebuild of this widget. The
+platform discussion in [PLATFORM-VISION.md](./PLATFORM-VISION.md) §2–§3 changes
+it: when the chat surface must outlive one backend, the base becomes
+**assistant-ui** primitives over the **AG-UI 1.0** protocol, with AI Elements
+kept as a visual reference. Spike X0 therefore evaluates assistant-ui + AG-UI
+first, and X3 emits AG-UI events rather than the AI SDK UI message stream. The
+rest of this document stands.
+
 ## Proposed stack
 
 | Layer | Choice | Why this one |
