@@ -47,6 +47,7 @@ PT-C   15 → 21, 23 → 24, 25;  15 → 35
        16 → 17 → 18
        15, 16, 18 → 19 → 20
        15, 18 → 22;  16, 22 → 38
+       16, 19, 24 → 39
 PT-D   3, 8 → 26
 PT-E   4 → 27 → 28 → 29, 30 → 31 → 37;  15 → 37
        30 → 32
@@ -64,7 +65,7 @@ define shapes that later MIUs consume.
 | 2a | 3 | Functions can **read** a publication with a price summary (nothing writes one yet). Makes later rollbacks safe |
 | 2b | 4, 6, 7 | Every approval stores a price summary; existing versions backfilled (R4). **Public reads unchanged** |
 | 3 | 5, 8–14, 26, 33 | All public surfaces read the one version; consistency audit passes (R5). MIU-33 moved here from 5a (batch 3 review #9) so card and page both show an MOQ-only quote |
-| 4 | 15–25, 35, 38 | "Changed" flag live; audit flags stale products (R6, run before admins use Save); admin re-approves (R7) |
+| 4 | 15–25, 35, 38, 39 | "Changed" flag live; audit flags stale products (R6, run before admins use Save); admin re-approves (R7) |
 | 5a | 27–30, 32, 34 | Manual products approvable; admin approves the 7 live ones (R9) |
 | 5b | 31, 37 | Publish gate for every product (after R9); audit shows 0 products on the row fallback (R10) |
 
@@ -1280,6 +1281,89 @@ Depends on: MIU-15
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build`.
 - `pnpm test:e2e:catalog-admin-local` passes.
+
+### MIU-39: approval takes the supplier's new description and photos unless an admin changed them (DEC-18)
+
+```
+Block:      BACKEND + FRONTEND
+Files:      packages/db/src/catalog-detail-staging.ts            (receipt baseline)
+            packages/shared/src/catalog/detail-approval.ts        (which parts match the supplier)
+            apps/functions/admin/src/catalog-supplier-adoption.ts (new: read-only plan)
+            apps/functions/admin/src/handler.ts                   (action wiring)
+            apps/site/src/islands/admin/api.ts                    (approval flow)
+            apps/site/src/islands/admin/PreviewModal.tsx           (one line in the preview)
+            + tests next to each
+Type:       modify-existing + new
+Depends on: MIU-16, MIU-19, MIU-24
+```
+
+**Why** (DEC-18, owner 2026-10-08). Approval publishes our own copy of the
+description and photos: the product row's `description`, `imageIds` and
+`descriptionImageIds` (`detail-approval.ts:143-163`). The sync never changes
+those after it creates the draft; it only refreshes the supplier's text (in the
+stored observation) and photo links (`alibabaSourceImageUrls`,
+`alibabaDescriptionImageUrls`). So today a supplier description or photo change
+raises "Changed" (DEC-6), but approving publishes nothing new. The owner wants one
+flag on the product and approval to apply everything, including description and
+photos. The assumption recorded with the decision: if an admin changed the
+description or photos, the admin's version stays.
+
+**Rule.** Three parts are judged separately: description text, main gallery,
+description images. At approval, a part is replaced by the supplier's current
+version when both hold:
+1. at the last approval that part was the supplier's own (recorded baseline, below);
+2. it has not been edited since (the row's part equals the approved version's).
+Otherwise the row's part is kept. A part that already equals the supplier's
+current version needs nothing.
+
+**Baseline.** `finish` records in `catalogDetailApprovalReceipt.supplierParts`
+`{ description, gallery, descriptionImages }` (booleans): whether each row part
+equalled the supplier's version at this approval. Description: trimmed row text
+equals the source `descriptionText` (the same test that keeps the structured
+content, `detail-approval.ts:176`). Gallery: the row's `imageIds` equal, in
+order, the image ids linked to the source gallery URLs (the `url → imageId` map
+`prepareCatalogSource` already builds from `catalogSourceLinks`), at most nine.
+Description images: the same with the description image URLs, at most 18.
+
+Approvals made before this MIU have no baseline: description counts as the
+supplier's when the approved version kept the structured content (it is kept only
+when the texts matched); gallery and description images count as the admin's
+(kept). The admin can still re-import the supplier gallery in Edit.
+
+**Flow.** In `updateRecord`'s linked branch, after saving the form's own values
+and before `prepareCatalogSource`:
+- call the new read-only admin action `planSupplierAdoption(productId)`; it
+  returns, for each adoptable part that differs, the supplier text or URLs;
+- photos: import through the existing `importAlibabaGallery` (all-or-nothing:
+  any failure stops before approval with `MEDIA_NOT_READY`, as today);
+- one `update` with the new `description` / `imageIds` / `descriptionImageIds`,
+  guarded by the product's `updatedAt`;
+- then the approval runs as today, so the approved version and the edit form show
+  the same text and photos.
+The preview (MIU-24) adds one line when a part will be replaced: "Approving also
+updates the description and photos from Alibaba."
+
+**Not changed.** The product name stays the admin's (DEC-6). Manual products have
+no supplier and are untouched. The source fingerprint and the one-time audit keep
+counting description and photos (DEC-6): approval now publishes them, so the flag
+can be resolved.
+
+**Test plan (write first)**
+- `finish` writes `supplierParts` true/false per part (each part both ways).
+- Plan: adoptable when baseline true and row equals approved; not adoptable when
+  the admin edited the text, removed or reordered a photo, or uploaded their own;
+  legacy receipts follow the rule above; manual products return nothing;
+  contributors get FORBIDDEN.
+- `updateRecord`: for a live flagged product calls plan → import → update →
+  prepare in that order; an admin-edited description is never overwritten; an
+  image import failure stops before any write.
+- Approval of a product whose supplier changed only its description publishes the
+  new text and keeps the structured content.
+
+**Done when**
+- Tests pass; `pnpm typecheck`; `pnpm lint`; `pnpm build`;
+  `pnpm package:functions && pnpm smoke:functions`; local admin e2e.
+- Ships with batch 4 (before R6/R7).
 
 ---
 

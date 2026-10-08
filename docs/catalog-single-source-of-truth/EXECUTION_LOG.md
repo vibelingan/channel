@@ -44,6 +44,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
+| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | Spec written 2026-10-08; not started | |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
 
 ## Runbook status
@@ -51,6 +52,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | Step | Status | Notes |
 |---|---|---|
 | R1 Unpublish the 21 | Not started — after local validation of batches 1–3 (DEC-13, owner 2026-10-08). 2026-10-08: the session's permission check refused this production write; needs the owner | List below |
+| Stage A deploy (batches 1, 2a, 2b) | **Done 2026-10-08 07:22–08:04 UTC**: `test` fast-forwarded `de5e347` → `b5f50c9` (no PR, owner 2026-10-08); CI and Deploy Test green (runs 37742975441, 37742975715). After: 137 listed, 0 name/photo mismatches; price fields differ on the 130 approved cards until R4 and stage B (expected) | R1 had to wait: the admin login in Chrome had expired |
 | R2 Replay rebuild | Not started | |
 | R3 Pinned-offer count | **Done 2026-10-08**: 0 of 1,118 products have `alibabaPinnedOfferKey` → R2 may proceed | Read-only admin list |
 | R4 Price summary backfill | Not started | |
