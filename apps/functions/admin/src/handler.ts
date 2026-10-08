@@ -129,6 +129,7 @@ import {
 } from '@vibelingan-channel/shared/catalog-inquiry';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
+import { approveInOneRequest } from './catalog-approve-once.ts';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
 import {
   type ChangeAuditReader,
@@ -615,7 +616,9 @@ export async function handleAdminRequest(
             ? await prepareCatalogSource(claims.sub, req.data)
             : action === 'supplier-adoption'
               ? await planSupplierAdoption(claims.sub, req.data)
-              : await manageCatalogDetailApproval(claims.sub, req.data);
+              : action === 'approve'
+                ? await approveInOneRequest(claims.sub, req.data)
+                : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         if (result.code === 'MANUAL_CONFIGURATIONS')
           return err(

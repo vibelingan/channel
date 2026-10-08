@@ -368,11 +368,8 @@ export async function updateRecord(
               values: { descriptionImageIds: imported.imageIds },
             });
         }
-        const { prepareDetailReview, approveDetailReview } = await import(
-          './catalog-detail-approval-api.ts'
-        );
-        const review = await prepareDetailReview(id);
-        await approveDetailReview(review, crypto.randomUUID());
+        const { approveProduct } = await import('./catalog-detail-approval-api.ts');
+        await approveProduct(id);
         if (refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
         return call<CollectionDoc>('update', {
           collection,
@@ -425,11 +422,8 @@ async function approveManualProduct(
     });
     if (guard) guard = typeof current.updatedAt === 'string' ? current.updatedAt : undefined;
   }
-  const { prepareDetailReview, approveDetailReview } = await import(
-    './catalog-detail-approval-api.ts'
-  );
-  const review = await prepareDetailReview(id);
-  await approveDetailReview(review, crypto.randomUUID());
+  const { approveProduct } = await import('./catalog-detail-approval-api.ts');
+  await approveProduct(id);
   if (options.refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
   return call<CollectionDoc>('update', {
     collection,
@@ -455,6 +449,9 @@ export interface BatchUpdateResult {
   items: CollectionDoc[];
   failures: BatchUpdateFailure[];
 }
+
+/** Products updated at once in a batch: enough to hide gateway latency, few enough to stay polite. */
+export const BATCH_CONCURRENCY = 4;
 
 /** Products must use the server's per-product validation, identity and media locks. */
 export async function batchUpdateRecords(
@@ -488,59 +485,78 @@ export async function batchUpdateRecords(
       'Select up to 20 products to publish, disable, classify or archive.',
     );
   }
-  const items: CollectionDoc[] = [];
-  const failures: BatchUpdateFailure[] = [];
+  // Each product is its own request chain, and most of its time is gateway
+  // latency, so a few run at once. After an uncertain result or a refused
+  // session no new product starts; products already running finish and report
+  // their own outcome. Results keep the selection order.
+  const outcomes: Array<{ item: CollectionDoc } | { failure: BatchUpdateFailure }> = [];
   let stopped = false;
-  for (const id of uniqueIds) {
-    if (stopped) {
-      failures.push({
-        id,
-        code: 'NOT_ATTEMPTED',
-        message: 'Not attempted because the batch stopped. Refresh before retrying.',
-        outcome: 'not-attempted',
-      });
-      continue;
-    }
-    try {
-      const item = await updateRecord(collection, id, values, expectedRevisions?.get(id));
-      if (
-        !item ||
-        item._id !== id ||
-        Object.entries(values).some(([key, value]) => item[key] !== value)
-      ) {
-        throw new AdminApiError(
-          'INVALID_RESPONSE',
-          'The returned product did not confirm the requested status.',
-        );
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < uniqueIds.length) {
+      const index = nextIndex++;
+      const id = uniqueIds[index] as string;
+      if (stopped) {
+        outcomes[index] = {
+          failure: {
+            id,
+            code: 'NOT_ATTEMPTED',
+            message: 'Not attempted because the batch stopped. Refresh before retrying.',
+            outcome: 'not-attempted',
+          },
+        };
+        continue;
       }
-      items.push(item);
-    } catch (error) {
-      // A transport/5xx/malformed response may follow a committed write. Never
-      // auto-retry or claim rollback; stop and ask the operator to refresh.
-      const rejected =
-        error instanceof AdminApiError &&
-        [
-          'BAD_REQUEST',
-          'VALIDATION_ERROR',
-          'NOT_FOUND',
-          'CONFLICT',
-          'UNAUTHORIZED',
-          'FORBIDDEN',
-        ].includes(error.code);
-      stopped =
-        !rejected ||
-        (error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code));
-      failures.push({
-        id,
-        code: error instanceof AdminApiError ? error.code : 'NETWORK_ERROR',
-        message:
-          rejected && error instanceof Error
-            ? error.message
-            : 'Result not confirmed. Refresh the product status before retrying.',
-        outcome: rejected ? 'rejected' : 'unconfirmed',
-      });
+      try {
+        const item = await updateRecord(collection, id, values, expectedRevisions?.get(id));
+        if (
+          !item ||
+          item._id !== id ||
+          Object.entries(values).some(([key, value]) => item[key] !== value)
+        ) {
+          throw new AdminApiError(
+            'INVALID_RESPONSE',
+            'The returned product did not confirm the requested status.',
+          );
+        }
+        outcomes[index] = { item };
+      } catch (error) {
+        // A transport/5xx/malformed response may follow a committed write. Never
+        // auto-retry or claim rollback; stop and ask the operator to refresh.
+        const rejected =
+          error instanceof AdminApiError &&
+          [
+            'BAD_REQUEST',
+            'VALIDATION_ERROR',
+            'NOT_FOUND',
+            'CONFLICT',
+            'UNAUTHORIZED',
+            'FORBIDDEN',
+          ].includes(error.code);
+        if (
+          !rejected ||
+          (error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code))
+        )
+          stopped = true;
+        outcomes[index] = {
+          failure: {
+            id,
+            code: error instanceof AdminApiError ? error.code : 'NETWORK_ERROR',
+            message:
+              rejected && error instanceof Error
+                ? error.message
+                : 'Result not confirmed. Refresh the product status before retrying.',
+            outcome: rejected ? 'rejected' : 'unconfirmed',
+          },
+        };
+      }
     }
-  }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(BATCH_CONCURRENCY, uniqueIds.length) }, () => worker()),
+  );
+  const items = outcomes.flatMap((outcome) => ('item' in outcome ? [outcome.item] : []));
+  const failures = outcomes.flatMap((outcome) => ('failure' in outcome ? [outcome.failure] : []));
   return { updated: items.length, items, failures };
 }
 

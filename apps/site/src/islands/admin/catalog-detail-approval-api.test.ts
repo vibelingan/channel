@@ -5,6 +5,7 @@ import { updateRecord } from './api.ts';
 import {
   type DetailReview,
   approveDetailReview,
+  approveProduct,
   prepareDetailReview,
 } from './catalog-detail-approval-api.ts';
 
@@ -168,6 +169,8 @@ function manualApi(
     }
     // As the server answers: begin stages the job (not complete); finish completes it.
     if (body.data?.action === 'begin') data = { ...progress, complete: false };
+    if (body.data?.action === 'approve')
+      data = { ok: true, status: 'approved', jobId: 'job', revision: 'revision' };
     if (body.data?.action === 'review')
       data = { ...review(1, 0), productId: 'canonical-product', previewMedia: undefined };
     return Response.json({ ok: true, data });
@@ -181,7 +184,8 @@ test('publishing a manual product runs the approval, then publishes; no Alibaba 
   assert.equal(saved.published, true);
   assert.deepEqual(
     api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities'),
-    ['approval:prepare', 'approval:review', 'approval:begin', 'approval:finish', 'update'],
+    // One request runs the whole approval (publish speed), then the publication.
+    ['approval:approve', 'update'],
   );
   assert.equal(api.calls.includes('importSourceImage'), false);
   assert.deepEqual(api.updates.at(-1)?.values, { published: true });
@@ -202,7 +206,7 @@ test('a manual product without photos stops before any approval call', async (t)
 test('a category-only save on a published manual product refreshes its approved version', async (t) => {
   const api = manualApi(t, { productFamily: 'headphones', imageIds: ['img'], published: true });
   await updateRecord('products', 'canonical-product', { productFamily: 'toys' });
-  assert.ok(api.calls.includes('approval:finish'), api.calls.join(' → '));
+  assert.ok(api.calls.includes('approval:approve'), api.calls.join(' → '));
   assert.deepEqual(api.updates[0]?.values, { productFamily: 'toys' });
   assert.equal(api.updates.length, 1, 'publication state is not touched');
 });
@@ -264,6 +268,8 @@ function linkedApi(t: { mock: { method: typeof test.mock.method } }) {
       data = current;
     }
     if (body.data?.action === 'begin') data = { ...progress, complete: false };
+    if (body.data?.action === 'approve')
+      data = { ok: true, status: 'approved', jobId: 'job', revision: 'revision' };
     if (body.data?.action === 'review')
       data = { ...review(1, 0), productId: 'canonical-product', previewMedia: undefined };
     return Response.json({ ok: true, data });
@@ -276,10 +282,51 @@ test('approving a live linked product never asks to take the supplier text or ph
   await updateRecord('products', 'canonical-product', { published: true });
   assert.equal(api.calls.includes('approval:supplier-adoption'), false);
   assert.equal(api.calls.includes('importSourceImage'), false);
-  assert.ok(api.calls.includes('approval:finish'));
+  assert.ok(api.calls.includes('approval:approve'));
   assert.deepEqual(
     api.updates.map((update) => update.values),
     [{ published: true }],
     'only the publication changes; description and photos stay the product’s own',
   );
+});
+
+// --- Publish speed (2026-10-08): one request per approval, step-by-step only as fallback.
+
+test('when the server hands back, the step-by-step approval resumes the same operation', async (t) => {
+  const steps: string[] = [];
+  const operations = new Set<unknown>();
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall & {
+      data?: { operationId?: unknown; command?: { operationId?: unknown } };
+    } = JSON.parse(String(init.body));
+    steps.push(String(body.data?.action ?? body.action));
+    let data: unknown = progress;
+    if (body.data?.action === 'approve') {
+      operations.add(body.data.operationId);
+      data = { ok: true, status: 'needs-browser', reason: 'media-import' };
+    }
+    if (body.data?.action === 'review')
+      data = { ...review(1, 0), productId: 'canonical-product', previewMedia: undefined };
+    if (body.data?.action === 'begin') {
+      operations.add(body.data.command?.operationId);
+      data = { ...progress, complete: false };
+    }
+    return Response.json({ ok: true, data });
+  });
+  await approveProduct('canonical-product');
+  assert.deepEqual(steps, ['approve', 'prepare', 'review', 'begin', 'finish']);
+  assert.equal(operations.size, 1, 'begin resumes the job the server started');
+});
+
+test('an approved answer ends the approval in one request', async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests += 1;
+    return Response.json({
+      ok: true,
+      data: { ok: true, status: 'approved', jobId: 'job', revision: 'revision' },
+    });
+  });
+  await approveProduct('canonical-product');
+  assert.equal(requests, 1);
 });

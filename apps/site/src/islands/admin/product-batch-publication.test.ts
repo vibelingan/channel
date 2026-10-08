@@ -107,8 +107,9 @@ test('browser bulk publication crosses the real HTTP handler, persists valid row
   await db.update('users', 'operator', { status: 'suspended' });
   const revoked = await batchUpdateRecords('products', ['ready', 'no-family'], { published: true });
   assert.equal(revoked.updated, 0);
+  // Both start together (up to four run at once); each is refused on its own.
   assert.deepEqual(
     revoked.failures.map((row) => row.outcome),
-    ['rejected', 'not-attempted'],
+    ['rejected', 'rejected'],
   );
 });

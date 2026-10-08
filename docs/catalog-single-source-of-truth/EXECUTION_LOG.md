@@ -95,6 +95,42 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Publish speed and photo → configuration (2026-10-08, owner request)
+- Measured in production: every request to CloudBase costs 0.6–3 s end to
+  end while the function itself runs 28–52 ms (header
+  `x-cloudbase-upstream-timecost`); the gap is the gateway in mainland China
+  (server `110.40.162.120`), reached from outside it. A publish made 8–9
+  requests in a row (capabilities, get, prepare, review, begin, page, finish,
+  publish) and batch publish ran products one at a time: 15–25 s per product.
+  The token check is not the cost (a no-auth health call pays the same).
+- Change 1 — one request per approval: new `catalogDetailApproval` action
+  `approve` (`apps/functions/admin/src/catalog-approve-once.ts`) runs prepare →
+  review → begin → pages → finish in the function, with the same steps and
+  checks, and a 12 s budget inside the 20 s timeout. It hands back
+  (`needs-browser`) when configuration photos must be imported first (another
+  function does that) or the budget is spent; the browser then runs the
+  step-by-step protocol under the same operation id, which resumes the same
+  job. A publish is now about 4 requests instead of 8–9.
+- Change 2 — batch publish runs four products at once (`BATCH_CONCURRENCY`).
+  Kept: after an uncertain result or a refused session no new product starts;
+  running ones report their own outcome; no automatic retry; results keep the
+  selection order. CloudBase re-runs a transaction that collides with another
+  (two products sharing a photo), so parallel approvals are safe.
+- Change 3 — tapping a photo that belongs to exactly one configuration selects
+  it (`configurationForPhoto`); a photo shared by several, or by none, only
+  changes the big photo. Root cause of the owner's example ("China
+  Manufacturer Custom 3.5mm…", `1098d540`): Alibaba's SKU photo field
+  (`sku_attributes.values.image_url`) is empty for its six colours, so the
+  colours have no photos and nothing links "White" to the white gallery photo.
+  The kids headphones (`cd823b43`) have per-configuration photos, so choosing
+  one switches the photo.
+- Tests: approve-once unit tests (order, hand-back for photos and time,
+  failures pass through, bad input), manual product approved in one request
+  against the real local server, browser fallback resumes the same operation,
+  batch runs four at once and keeps order, photo rule unit test and a browser
+  test (photo selects its colour; a shared photo does not). Updated tests that
+  encoded one-at-a-time batches and the old request sequence.
+
 ### DEC-18 revised — approval no longer takes supplier text or photos (2026-10-08)
 - Owner: keep admin edits; never map supplier changes silently, edited or not;
   show incoming vs current side by side and let the admin choose per field

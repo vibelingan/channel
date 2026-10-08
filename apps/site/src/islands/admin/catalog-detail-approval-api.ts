@@ -159,3 +159,38 @@ export async function approveDetailReview(
   if (!result.complete) throw new Error('Approval was not confirmed.');
   return result;
 }
+
+const approveOnce = z.discriminatedUnion('status', [
+  z
+    .object({
+      ok: z.literal(true),
+      status: z.literal('approved'),
+      jobId: z.string(),
+      revision: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      status: z.literal('needs-browser'),
+      reason: z.enum(['media-import', 'time-budget']),
+    })
+    .strict(),
+]);
+
+/**
+ * Approve a product. Each request to the backend costs about a second of
+ * gateway time, so the server runs the whole approval in one request; it hands
+ * back only when configuration photos must be imported first, or a very large
+ * product needs more time. Then the step-by-step protocol continues under the
+ * same operation id, which resumes the same job.
+ */
+export async function approveProduct(productId: string, signal?: AbortSignal) {
+  const operationId = crypto.randomUUID();
+  const result = approveOnce.parse(
+    await catalogApprovalCall({ action: 'approve', productId, operationId }, signal),
+  );
+  if (result.status === 'approved') return;
+  const review = await prepareDetailReview(productId, signal);
+  await approveDetailReview(review, operationId, signal);
+}

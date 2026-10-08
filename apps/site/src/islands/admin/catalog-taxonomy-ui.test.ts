@@ -692,23 +692,25 @@ test('revisioned bulk publish never approves unseen supplier detail', async (con
       return Response.json({
         ok: true,
         data:
-          step === 'review'
-            ? {
-                ok: true,
-                kind: 'review',
-                productId: 'ordinary-draft',
-                expectedDigest: 'a'.repeat(64),
-                expectedRevision: null,
-                detail: { ...detailFixture(0), _id: 'ordinary-draft' },
-              }
-            : {
-                ok: true,
-                jobId: 'job',
-                revision: 'r',
-                nextPage: 0,
-                pages: 0,
-                complete: step !== 'begin',
-              },
+          step === 'approve'
+            ? { ok: true, status: 'approved', jobId: 'job', revision: 'r' }
+            : step === 'review'
+              ? {
+                  ok: true,
+                  kind: 'review',
+                  productId: 'ordinary-draft',
+                  expectedDigest: 'a'.repeat(64),
+                  expectedRevision: null,
+                  detail: { ...detailFixture(0), _id: 'ordinary-draft' },
+                }
+              : {
+                  ok: true,
+                  jobId: 'job',
+                  revision: 'r',
+                  nextPage: 0,
+                  pages: 0,
+                  complete: step !== 'begin',
+                },
       });
     }
     assert.equal(request.action, 'update');
@@ -730,17 +732,13 @@ test('revisioned bulk publish never approves unseen supplier detail', async (con
     result?.failures.map(({ id, code, outcome }) => ({ id, code, outcome })),
     [{ id: 'supplier-linked', code: 'CONFLICT', outcome: 'rejected' }],
   );
-  assert.deepEqual(actions, [
-    'catalogDetailCapabilities',
-    'get',
-    'catalogDetailCapabilities',
-    'get',
-    'approval:prepare',
-    'approval:review',
-    'approval:begin',
-    'approval:finish',
-    'update',
-  ]);
+  // Both products run at once; only the manual draft reaches approval, in one
+  // request, then its guarded publication.
+  assert.deepEqual(
+    actions.filter((action) => action.startsWith('approval:') || action === 'update'),
+    ['approval:approve', 'update'],
+  );
+  assert.equal(actions.filter((action) => action === 'get').length, 2);
 });
 
 test('malformed product IDs block assignment and registry reads show a loading state', async () => {

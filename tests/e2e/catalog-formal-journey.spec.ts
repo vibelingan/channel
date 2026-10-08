@@ -623,7 +623,9 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
         if (
           !withdrawnDuringPreparation &&
           body.action === 'catalogDetailApproval' &&
-          body.data?.action === 'prepare'
+          // 'approve' runs the whole approval in one request; 'prepare' is the
+          // step-by-step fallback. Either way, withdraw before it reaches the server.
+          ['approve', 'prepare'].includes(body.data?.action)
         ) {
           // A separate real API request withdraws the product while the browser
           // is classifying it. Approval must not manufacture a republish command.

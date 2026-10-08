@@ -115,13 +115,9 @@ test('a manual product is approved, listed, shown and quoted like a synced one',
     handleAdminRequest({ action, token, data }, config);
   const approval = (data: unknown) => admin('catalogDetailApproval', data);
 
-  // The admin's Publish: prepare (manual products build from the row) → review
-  // → begin → pages → finish → publish.
-  const approveAndPublish = async (productId: string, prepare: boolean) => {
-    if (prepare) {
-      const prepared = await approval({ action: 'prepare', productId });
-      assert.ok(prepared.ok, JSON.stringify(prepared));
-    }
+  // The step-by-step protocol the browser falls back to: review → begin →
+  // pages → finish → publish (a synced product's source is already prepared).
+  const approveAndPublish = async (productId: string) => {
     const review = await approval({ action: 'review', productId });
     assert.ok(review.ok, JSON.stringify(review));
     const reviewed = z
@@ -144,8 +140,21 @@ test('a manual product is approved, listed, shown and quoted like a synced one',
     });
     assert.ok(published.ok, JSON.stringify(published));
   };
-  await approveAndPublish('manual-1', true);
-  await approveAndPublish('synced-1', false);
+  // The manual product approves in one request (publish speed, 2026-10-08).
+  const once = await approval({
+    action: 'approve',
+    productId: 'manual-1',
+    operationId: randomUUID(),
+  });
+  assert.ok(once.ok, JSON.stringify(once));
+  assert.equal(z.object({ status: z.string() }).parse(once.data).status, 'approved');
+  const publishedManual = await admin('update', {
+    collection: 'products',
+    id: 'manual-1',
+    values: { published: true },
+  });
+  assert.ok(publishedManual.ok, JSON.stringify(publishedManual));
+  await approveAndPublish('synced-1');
 
   // As deployed: the approved version is the public one.
   const list = await listCatalog(

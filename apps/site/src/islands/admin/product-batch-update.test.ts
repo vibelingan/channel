@@ -270,21 +270,48 @@ test('product batch publishes through individual updates and retains each busine
   ]);
 });
 
-test('a lost response stops the product batch and reports uncertainty rather than falsely reporting failure', async (t) => {
+test('a lost response starts no new product and reports uncertainty, not failure', async (t) => {
+  // Up to four run at once; the first wave all lose their responses.
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     calls += 1;
     throw new TypeError('Failed to fetch');
   });
-  const result = await batchUpdateRecords('products', ['first', 'second'], { published: false });
-  assert.equal(calls, 1);
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const result = await batchUpdateRecords('products', ids, { published: false });
+  assert.equal(calls, 4);
   assert.equal(result.updated, 0);
   assert.deepEqual(
     result.failures.map((row) => [row.id, row.outcome]),
     [
-      ['first', 'unconfirmed'],
-      ['second', 'not-attempted'],
+      ['a', 'unconfirmed'],
+      ['b', 'unconfirmed'],
+      ['c', 'unconfirmed'],
+      ['d', 'unconfirmed'],
+      ['e', 'not-attempted'],
+      ['f', 'not-attempted'],
     ],
+  );
+});
+
+test('products run four at a time, and results keep the selection order', async (t) => {
+  let running = 0;
+  let peak = 0;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    running += 1;
+    peak = Math.max(peak, running);
+    // Later products answer sooner, so completion order differs from selection order.
+    await new Promise((resolve) => setTimeout(resolve, 20 - Number(body.data.id)));
+    running -= 1;
+    return Response.json({ ok: true, data: { _id: body.data.id, published: false } });
+  });
+  const ids = Array.from({ length: 10 }, (_, index) => String(index));
+  const result = await batchUpdateRecords('products', ids, { published: false });
+  assert.equal(peak, 4);
+  assert.deepEqual(
+    result.items.map((item) => item._id),
+    ids,
   );
 });
 
@@ -305,7 +332,7 @@ test('invalid or oversized product batches are rejected before sending any reque
   assert.equal(calls, 0);
 });
 
-test('authorization rejection stops the batch without attempting later products', async (t) => {
+test('authorization rejection starts no new product', async (t) => {
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     calls += 1;
@@ -314,11 +341,13 @@ test('authorization rejection stops the batch without attempting later products'
       { status: 401 },
     );
   });
-  const result = await batchUpdateRecords('products', ['one', 'two'], { published: true });
-  assert.equal(calls, 1);
+  const result = await batchUpdateRecords('products', ['1', '2', '3', '4', '5'], {
+    published: false,
+  });
+  assert.equal(calls, 4);
   assert.deepEqual(
     result.failures.map((row) => row.outcome),
-    ['rejected', 'not-attempted'],
+    ['rejected', 'rejected', 'rejected', 'rejected', 'not-attempted'],
   );
 });
 
@@ -328,12 +357,14 @@ test('a mismatched success response is unconfirmed, not counted as a successful 
     calls += 1;
     return Response.json({ ok: true, data: { _id: 'different-product', published: true } });
   });
-  const result = await batchUpdateRecords('products', ['one', 'two'], { published: true });
-  assert.equal(calls, 1);
+  const result = await batchUpdateRecords('products', ['1', '2', '3', '4', '5'], {
+    published: false,
+  });
+  assert.equal(calls, 4);
   assert.equal(result.updated, 0);
   assert.deepEqual(
     result.failures.map((row) => row.outcome),
-    ['unconfirmed', 'not-attempted'],
+    ['unconfirmed', 'unconfirmed', 'unconfirmed', 'unconfirmed', 'not-attempted'],
   );
 });
 
