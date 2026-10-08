@@ -44,7 +44,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
-| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | In progress: baseline done (local) | see log |
+| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | In progress: steps 1–2 done (local) | see log |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
 
 ## Runbook status
@@ -93,6 +93,19 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-39 step 2 — the read-only "take from the supplier" plan (2026-10-08)
+- What changed: `catalogDetailApproval` with `action: 'supplier-adoption'`
+  (admin only, detail approval enabled) returns, per part, the supplier's text
+  or photo URLs to import when the part was the supplier's at the last approval
+  and is unedited since; nothing for manual, unapproved or archived products;
+  an empty supplier text or photo list never replaces ours. Approvals from
+  before this MIU: the text counts as the supplier's only when the approved
+  version kept its structured layout; photos count as the admin's. The link
+  lookup moved into `sourceLinkImageId` (shared with prepare).
+- Tests (written first): seven plan tests (all parts, admin-edited, already
+  the admin's, nothing to do, empty supplier data, legacy, refusals) and a
+  handler test (admin-only, needs detail approval, writes nothing).
 
 ### MIU-39 step 1 — record what was the supplier's at each approval (2026-10-08)
 - What changed: prepare sends our image ids for the supplier's gallery (first

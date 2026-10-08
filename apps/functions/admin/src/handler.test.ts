@@ -5303,3 +5303,29 @@ test('change audit plan reads products through the real wiring and writes nothin
   assert.ok(plan.rows.every((row) => row.outcome === 'skipped'));
   assert.deepEqual(store.products, before);
 });
+
+// --- MIU-39: what an approval may take from the supplier, through the handler ---
+
+test('supplier adoption plan is admin-only and read-only through the approval action', async () => {
+  const store = setup({ users: [{ _id: 'admin-1', role: 'admin' }], products: [] });
+  const adoption = (token: string, override: AdminConfig = approvalConfig) =>
+    handleAdminRequest(
+      {
+        action: 'catalogDetailApproval',
+        token,
+        data: { action: 'supplier-adoption', productId: 'missing' },
+      } as Parameters<typeof handleAdminRequest>[0],
+      override,
+    );
+  const contributor = await sessionToken({
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await adoption(contributor), 'FORBIDDEN');
+  expectErr(await adoption(await adminToken(), config), 'FORBIDDEN');
+  const before = structuredClone(store);
+  assert.deepEqual(okData(await adoption(await adminToken())), { ok: true, adoption: {} });
+  assert.deepEqual(store, before);
+});

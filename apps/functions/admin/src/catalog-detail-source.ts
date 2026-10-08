@@ -56,6 +56,22 @@ export function catalogCategoryLabel(productFamily: unknown): { categoryLabel?: 
 }
 
 /** Read the existing observation; approval never invokes Alibaba or downloads media. */
+/** Our image id for a supplier photo that was imported, if any. */
+export async function sourceLinkImageId(url: string): Promise<string | undefined> {
+  const transport = new URL(url);
+  if (
+    transport.protocol === 'http:' &&
+    (transport.hostname === 'alicdn.com' || transport.hostname.endsWith('.alicdn.com'))
+  )
+    transport.protocol = 'https:';
+  const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', transport.href));
+  return link?.provider === 'alibaba' &&
+    link.sourceUrl === transport.href &&
+    typeof link.imageId === 'string'
+    ? link.imageId
+    : undefined;
+}
+
 export async function prepareCatalogSource(actorId: string, input: unknown) {
   const parsed = command.safeParse(input);
   if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
@@ -128,21 +144,10 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   for (let offset = 0; offset < urls.length; offset += 8) {
     await Promise.all(
       urls.slice(offset, offset + 8).map(async (url) => {
-        const transport = new URL(url);
-        if (
-          transport.protocol === 'http:' &&
-          (transport.hostname === 'alicdn.com' || transport.hostname.endsWith('.alicdn.com'))
-        )
-          transport.protocol = 'https:';
-        const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', transport.href));
-        if (
-          link?.provider !== 'alibaba' ||
-          link.sourceUrl !== transport.href ||
-          typeof link.imageId !== 'string'
-        )
-          return;
-        linked.set(url, link.imageId);
-        if (gallery.has(link.imageId) || variantUrls.has(url)) images.set(url, link.imageId);
+        const imageId = await sourceLinkImageId(url);
+        if (imageId === undefined) return;
+        linked.set(url, imageId);
+        if (gallery.has(imageId) || variantUrls.has(url)) images.set(url, imageId);
       }),
     );
   }

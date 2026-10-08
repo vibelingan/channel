@@ -136,6 +136,7 @@ import {
   planChangeAudit,
 } from './catalog-change-audit.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
+import { planSupplierAdoption } from './catalog-supplier-adoption.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
@@ -607,10 +608,14 @@ export async function handleAdminRequest(
           return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
         if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
           return err('VALIDATION_ERROR', 'Approval request is too large.');
+        const action =
+          req.data && typeof req.data === 'object' ? Reflect.get(req.data, 'action') : undefined;
         const result =
-          req.data && typeof req.data === 'object' && Reflect.get(req.data, 'action') === 'prepare'
+          action === 'prepare'
             ? await prepareCatalogSource(claims.sub, req.data)
-            : await manageCatalogDetailApproval(claims.sub, req.data);
+            : action === 'supplier-adoption'
+              ? await planSupplierAdoption(claims.sub, req.data)
+              : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         if (result.code === 'MANUAL_CONFIGURATIONS')
           return err(
