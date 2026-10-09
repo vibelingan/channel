@@ -54,6 +54,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 45 | Batch Publish skips flagged products | PT-F | Done (local) | `57f8d71` |
 | 46 | Configuration photos in approval | PT-F | Done (local) | `cffdb50` |
 | 47 | "Photos for each configuration" in the edit form | PT-F | Done (local) | `57f8d71` |
+| 48–54 | PT-G: Alibaba photos copied ahead; new drafts hidden until ready | PT-G | Done (live) | `609b362`, `099ab12`, `7e3a4c8`, `78a4c47` |
+| 55 | One product, one unit: photos land together or the product retries in 10 minutes | PT-G | Done (local, validated); deploying | `5fd7752` |
 
 ## Runbook status
 
@@ -103,6 +105,33 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-55 — one product, one unit (2026-10-09, `5fd7752`)
+- Owner (07:27 UTC): a product's fields and photos are one unit; all succeed
+  or the product waits and retries, without holding up other products; a day
+  is too long to wait; make sure existing drafts publish after a category is
+  assigned (single or batch); write retro docs and keep them current.
+- Built: the photo job copies every photo of a product first and saves once;
+  a temporary failure writes nothing (`waiting`) and is retried by the next
+  photo run at least 10 minutes later, 6 tries at most; Alibaba 404/410 is a
+  new permanent reason (`not-found`) and, with invalid or disallowed
+  addresses, too large and not-an-image, is skipped as unavailable; a sync
+  that changes a sync-owned part's photo sources hides the draft until the
+  photos are copied again (`photosRefresh` in create-draft, reconcile and
+  promote). The Sync page shows "N drafts waiting to try again in 10
+  minutes" and "N drafts with photos Alibaba could not provide (skipped)".
+- Tests: photo-preparation 19 (unit/waiting/10-minute retry, not-found skip,
+  6-try give-up, all-unavailable shown, refresh keeps old photos), db
+  `alibaba-photos-refresh.test.ts`, media-import 404; formal browser lane 8/8
+  with a new test: an Alibaba draft prepared by the real photo job is
+  published by "Assign category → Save and publish" and its shared page is
+  visible. Full validation: typecheck, lint, all package tests, package +
+  function smoke, approval-off browser lane (all passed).
+- Gap recorded: the sync timer is off, so a waiting product is retried only
+  when the Alibaba Sync page runs (a sync, opening the page, or "Copy photos
+  now").
+- Retro docs started: [retro/](retro/README.md).
+
 
 ### PT-G — Alibaba photos copied ahead; drafts appear ready (2026-10-09)
 - Owner: photos come with the product and its single approval; they should

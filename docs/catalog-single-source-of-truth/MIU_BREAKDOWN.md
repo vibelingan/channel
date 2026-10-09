@@ -1908,3 +1908,16 @@ downloads at least one batch, so it always progresses. Review of `609b362`
 | 52 | Admin list, review counts exclude hidden drafts (db option `hidePreparing`) | db adapter + handler tests |
 | 53 | Admin actions `prepareAlibabaPhotos`, `photoPreparationStatus` | handler tests |
 | 54 | Alibaba Sync page: Product photos section, automatic run after sync / drafts / single sync, finishes hidden drafts on open | site tests |
+| 55 | One product, one unit (owner 2026-10-09, `5fd7752`): a product is written only when every photo of every part is copied or known unavailable; any temporary failure writes nothing and the product is retried after 10 minutes (6 tries, then unavailable); 404/410, invalid or disallowed address, too large, not an image are skipped as unavailable; a sync that changes a sync-owned part's photo sources hides the draft until re-copied (`photosRefresh`) | photo-preparation tests (19), `alibaba-photos-refresh.test.ts`, media-import 404 test, formal lane: prepared Alibaba draft published by "Assign category → Save and publish" |
+
+**Revised 2026-10-09 (MIU-55), replacing "noted for a day" and "a part where
+nothing copies keeps what it had" above.** Owner: "see a product's everything
+as a whole, success then all should success, fail then all fail and retry
+later, but don't affect later other product's data". The job now copies
+everything a product needs first and then makes one guarded save; a temporary
+failure leaves the product untouched (hidden if it was hidden) and moves on
+to the next product. Fields synced from Alibaba are written by the sync before
+the photo step, but the draft stays hidden until that step finishes, so no
+admin sees a half-prepared product. One database transaction across both is
+not possible: photo downloads take seconds each and CloudBase transactions are
+short and capped at 100 operations.
