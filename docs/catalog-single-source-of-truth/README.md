@@ -4,19 +4,11 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-08 morning):**
-- Batches 1–3 are reviewed, tested and ready to ship as two deploys:
-  stage A = [#67](https://github.com/vibelingan/channel/pull/67) (CI green,
-  nothing visible changes) and stage B =
-  [#68](https://github.com/vibelingan/channel/pull/68) (draft, CI green;
-  customers see this one). **Neither is merged**: the session's permission check refuses production
-  deploys and production data writes, so those steps are yours (or allow them).
-- Batch 4 (the "changed since approval" flag) is built, reviewed and fixed
-  locally, except MIU-25/35, which wait for DEC-12. Batch 5a (manual products
-  approvable: MIU-27 to 30, 32) is built locally; MIU-34 (its end-to-end test)
-  and batch 5b are not started. These ship after stage B.
-- Decisions 2026-10-08: DEC-12 yes (build MIU-25/35); DEC-17 closed (no product prices its options differently); DEC-18 decided (approval applies the supplier's new description and photos unless an admin edited them; MIU-39). None blocks batches 1–3.
-- Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
+**Status (2026-10-09):** batches 1–4 and 5a are live. Built and tested
+locally, deploying next: DEC-19 (side-by-side review of supplier changes),
+DEC-20 (photos per configuration) and batch 5b (every product goes live only
+as its approved version). Branch `feat/catalog-alibaba-price-tiers` (not yet
+merged to `main`).
 
 ## Rollout status (2026-10-08)
 
@@ -27,10 +19,10 @@ since approval are flagged for admins (R6: 9 flagged) and never applied to the
 website text or photos without the admin (DEC-18 revised). Approving a product
 takes one request (about 2 s); batch publish runs four at a time. Tapping a
 photo that belongs to exactly one configuration selects it.
-Next: batch 5b (publish gate for every product), the admin review of the 9
-flagged products (R7), and the open questions below.
+Next: deploy DEC-19, DEC-20 and batch 5b, then the admin review of the 9
+flagged products (R7) in the new Supplier changes panel.
 
-## Morning checklist (production, in this order)
+## Morning checklist of 2026-10-08 (done; kept for the record)
 
 Each step needs the one before it. Steps 1, 3, 4 and 7 change production data.
 
@@ -88,38 +80,28 @@ repair they disagreed on 21 products, and the page showed Alibaba's headline pri
 - manual products go through the same approval and look exactly like synced ones;
 - the 21 products are restored through normal re-approval.
 
-## Waiting for owner review
+## Decided on 2026-10-09 (owner approved the recommendations)
 
-Decided earlier (see DESIGN): DEC-12 yes (notice before Save, batch Publish
-confirms); DEC-17 closed; DEC-18 revised 2026-10-08 — keep admin edits and never
-take supplier text or photos silently.
+**DEC-19 — side-by-side review of supplier changes.** "Changed" compares
+Alibaba's new data with Alibaba's data at the last approval, never with our
+edited copy, so admin edits never raise it. When a product is flagged, Edit
+shows a **Supplier changes** panel: description, gallery and description
+photos side by side (website value and Alibaba's new value, marked "From
+Alibaba at the last approval", "Edited here" or "Website version"), each with
+**Keep website version** or **Use Alibaba's**. Save carries the choices.
+1. Prices, configurations and specifications always take Alibaba's latest on
+   approval; the panel lists them old → new.
+2. Batch Publish skips flagged (Changed or Removed) products and names them;
+   each is reviewed in Edit.
+3. Contributors can view a flagged product but not save or publish it.
+4. The Changed flag stays until every changed text or photo part has a
+   decision. A decision covers one exact Alibaba value: a newer value asks again.
 
-**DEC-19 — side-by-side review of supplier changes (proposed).** "Changed"
-compares Alibaba's new data with Alibaba's data at the last approval, never
-with our edited copy, so admin edits never raise it. When a product is flagged,
-the edit form shows a "Supplier changes" panel: for each changed field
-(description, gallery, description photos, specifications) the website value
-and the incoming value side by side, marked "edited by an admin" or "from
-Alibaba", with Keep or Use incoming. Save and Publish apply the choices.
-Questions that change the build:
-1. Prices and configurations: choose per field too, or always take Alibaba's
-   latest on approval, showing old → new? Recommendation: always take the
-   latest (stale supplier prices lead to wrong quotes).
-2. Batch Publish with flagged products: skip them so each is reviewed, or offer
-   "keep the website version for all"? Recommendation: skip.
-3. Contributors: view a flagged product but not save or publish it?
-   Recommendation: yes.
-4. Interim (live now): approving a product flagged only for supplier text or
-   photos publishes the website's own text and clears the flag; the incoming
-   text is not shown until DEC-19 is built. Keep the flag instead?
-
-**DEC-20 — linking photos to colours when Alibaba does not (proposed).** Some
-listings send colour photos only as the general gallery (e.g. "China
-Manufacturer Custom 3.5mm…": six colours, no per-colour photo), so the page
-cannot connect "White" to the white photo. Proposal: in Edit, the admin can
-assign gallery photos to configurations; approval publishes the mapping like
-any other configuration photo. Alternative: leave these unlinked. Guessing from
-photo order is not reliable (the gallery order differs from the colour order).
+**DEC-20 — photos for each configuration.** In Edit → Media, "Photos for each
+configuration" lets the admin pick gallery photos for a configuration (for
+listings such as "China Manufacturer Custom 3.5mm…" whose colours have no photo
+of their own). Approval publishes the choice like any configuration photo, so
+tapping that photo selects the configuration on the product page.
 
 ## Decided on 2026-10-07
 
@@ -128,7 +110,7 @@ photo order is not reliable (the gallery order differs from the colour order).
 | DEC-4 | Manual products are first-class approved versions, indistinguishable from synced ones |
 | DEC-11 | Publishing (including Save on a live product) or archiving clears the "Changed" flag; unpublishing does not |
 | DEC-13 | Unpublish the 21 only after the fix is validated locally |
-| OWN-1 | A contributor's save on a published product stays a draft, flagged "edited", until an admin publishes it |
+| OWN-1 | A contributor's save on a published product stays a draft, flagged "Edited", until an admin publishes it (built in batch 5b) |
 | OWN-2 | Hermes creates drafts for an admin to publish. Its import currently fails (client report); not investigated now |
 | Removed | Behaviour stays: Alibaba changes, deletions included, reach us only through a sync; no new detection |
 

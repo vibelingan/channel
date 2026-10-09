@@ -37,15 +37,23 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Done (local) | `788d134` |
 | 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Done (local) | `15a1f90` |
 | 30 | Admin prepare — manual branch | 5a | Done (local) | `572877b` |
-| 31 | Publish gate for every product on update | 5b | Not started (ships after R9) | |
+| 31 | Publish gate for every product on update | 5b | Done (local) | `c48a4ab` |
 | 32 | Admin publish flow and preview include manual products | 5a | Done (local) | `20e8a2e` |
 | 33 | Product page shows MOQ when there is no price | 3 (moved from 5a) | Done | `00a157a` |
-| 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Part 1 done (local server); part 2 (admin e2e) open | see log |
+| 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Done: part 1 local server; part 2 in the approval-on browser lane | see log |
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
-| 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
+| 37 | Gate on creating an already-published product (+ OWN-1 contributor edits) | 5b | Done (local) | `c48a4ab` |
 | 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | Steps 1–2 done (local); step 3 removed after the owner's revision of DEC-18 (2026-10-08) | see log |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
+| 40 | Product fields `supplierDecisions`, `configurationPhotos` | PT-F | Done (local) | `5af7309` |
+| 41 | Read-only `supplier-review` admin action | PT-F | Done (local) | `5af7309` |
+| 42 | The flag stays until every listed part is decided | PT-F | Done (local) | `5af7309` |
+| 43 | Contributors cannot save or publish a flagged product | PT-F | Done (local) | `5af7309`, `57f8d71` |
+| 44 | Supplier changes panel in the edit form | PT-F | Done (local) | `57f8d71` |
+| 45 | Batch Publish skips flagged products | PT-F | Done (local) | `57f8d71` |
+| 46 | Configuration photos in approval | PT-F | Done (local) | `cffdb50` |
+| 47 | "Photos for each configuration" in the edit form | PT-F | Done (local) | `57f8d71` |
 
 ## Runbook status
 
@@ -95,6 +103,81 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### DEC-19, DEC-20 and batch 5b built (2026-10-09, `5af7309..c48a4ab`)
+- Owner approved the five recommendations (2026-10-09): prices,
+  configurations and specifications always take Alibaba's latest; batch
+  Publish skips flagged products; contributors cannot save flagged products;
+  the flag stays until every changed text/photo part is decided; admins pick
+  photos per configuration.
+- Server: `supplier-review` (read-only, admins) lists each part whose
+  incoming value differs from the website, where the website value came from,
+  and old → new prices, configurations and specifications. A decision is
+  stored with a SHA-256 digest of the exact incoming value, so a newer value
+  asks again. Publishing keeps "Changed" while any part is undecided; archiving
+  clears it. Contributors cannot write decisions or photo choices, nor save a
+  Changed/Removed product.
+- Approval applies `configurationPhotos` (gallery photos only) to the
+  configurations; fingerprints include it only once set, so the 137 existing
+  approvals stay valid.
+- Admin page: Supplier changes panel at the top of Edit; "Photos for each
+  configuration" in Media; preview "Review changes" opens Edit; batch Publish
+  skips and names flagged products; contributors see a read-only notice.
+- Batch 5b: the publish gate covers manual products and checks only writes
+  that publish, so a price edited on a live product is saved and waits for the
+  next approval. Creating a product already published is refused while
+  approval is on; the admin page creates a draft, then approves and publishes
+  (if that fails the draft is kept and the reason shown). A contributor's edit
+  on a live product is saved without changing publication and flagged
+  "Edited" (OWN-1).
+- MIU-34 part 2: the admin test file runs only with approval off, so the
+  manual-product approval check went into the approval-on lane
+  (`catalog-formal-journey.spec.ts`): raw create-as-published and raw publish
+  are refused; batch Publish of a good and a legacy-image product gives
+  "1 published · 1 need attention" with the images message; the shared page
+  shows both tiers and the card the lowest.
+- Tests: db 264, admin function 286, site 556 (+1 skipped), full repo
+  suite, typecheck and lint passing; both browser lanes passing (approval-on
+  formal journey 7/7, new manual-product test included).
+
+### Review of batch 5b and the fixes (2026-10-09, `57f8d71..cb31e9a`)
+- One reviewer: no P1; every admin publish path still works (Edit → Save,
+  row switch, batch Publish, classification "Save and publish", Mark
+  reviewed, unpublish, archive). Fixed in `cb1c6b5`:
+  - P2: a product whose row kept an old Headphones `category` after moving
+    family could never be published from the row switch or batch Publish:
+    the save clears that category before the approval check, and approval
+    fingerprinted the row with it. The check now accepts the row as approved.
+  - P2: the public site reads family, category, URL slug and SKU from the
+    row even for approved products, so a contributor's change to them went
+    live at once while the product showed "Edited". Contributors can no
+    longer change these four on a live product.
+  - P3: a contributor Save that changes nothing no longer flags the product;
+    a "New" flag becomes "Edited"; a category change on a live flagged
+    product clears the flag after approval like a publish; creating a
+    product as Published checks category and photo before saving a draft.
+- Accepted: a contributor who tries to publish sees the admin wording
+  ("Review and approve…"). Outside this range: the Dianxiaomi import's
+  `makePublic` option publishes without approval (follow-up task).
+
+### Review of DEC-19/DEC-20 (2026-10-09, `62992d6..57f8d71`)
+- One reviewer: no P1. Fixed in `cb31e9a`:
+  - P2: an admin's own edit to the description or photos of a flagged
+    product made a new undecided part, so publishing kept "Changed" while the
+    panel said everything was decided. Such an edit is now recorded as
+    "keep" for Alibaba's current value (only for parts that matched before
+    the save; a part already listed still needs the admin's choice).
+  - P2: Save and Close stayed enabled while "Use Alibaba's" imported photos
+    (orphaned images, decision lost). Now blocked like other imports.
+  - P2: "Keep website version" reset the field even when the admin had
+    edited it. It now only undoes an earlier "Use Alibaba's".
+  - P3: decisions and photo picks count as unsaved changes; a publish that
+    keeps the flag shows a notice; the row's Publish switch opens Edit for a
+    flagged product; contributors cannot set supplier fields on create; the
+    contributor's read-only form disables its fields; photo picks no longer
+    in the gallery are not counted; the picker's summary is 44 px tall.
+- Accepted: with approval switched off (local only) the review panel cannot
+  load, so a flagged product with different text clears only by archiving.
 
 ### Batch 4 + 5a live; speed measured (2026-10-08)
 - Measured in production after the deploy: a full approval now takes one
