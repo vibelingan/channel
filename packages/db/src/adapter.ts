@@ -57,12 +57,25 @@ export interface AdapterListQuery {
   page: number;
   pageSize: number;
   search: string;
+  /** Fields `search` matches instead of the collection's `searchableFields`. */
+  searchFields?: readonly string[];
   filter?: FilterModel;
   sort?: SortClause[];
 }
 
 export type ImageMutationAcquireResult = 'acquired' | 'missing' | 'busy' | 'corrupt';
 export type ImageMutationReleaseResult = 'released' | 'missing' | 'not-owner' | 'corrupt';
+
+/**
+ * The fields a free-text search matches: the caller's narrower set when given
+ * (the public storefront leaves out admin-only ids), else the collection's.
+ */
+export function listSearchFields(
+  query: Pick<AdapterListQuery, 'searchFields'>,
+  def: { searchableFields: readonly string[] } | undefined,
+): readonly string[] {
+  return query.searchFields ?? def?.searchableFields ?? [];
+}
 
 export interface CatalogProductSaveInput {
   mode: 'create' | 'update';

@@ -164,3 +164,7 @@ owner's only test environment).
   showed Alibaba still lists the photos but blocks them (403). Fixed the
   thumbnails, added GIF support end to end, and "Copy photos now" now
   retries unavailable photos.
+- ~10:00 Owner: do the "Remove Alibaba product ID from public search" task
+  here. The storefront search matched the Alibaba ID (the payload never
+  showed it, but a match confirmed the product). Public search now uses its
+  own field list (name, series, model); admin search unchanged.

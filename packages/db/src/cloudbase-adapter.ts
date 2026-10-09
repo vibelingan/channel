@@ -50,6 +50,7 @@ import type {
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   holdsAlibabaLease,
+  listSearchFields,
   planCatalogProductSave,
   planProductSubcategorySave,
   transitionAlibabaLeaseAcquire,
@@ -600,10 +601,12 @@ export const cloudBaseAdapter: DbAdapter = {
       ands.push(productSubcategoryWhere(_, query.productSubcategories));
     }
 
-    // Free-text search across the collection's searchable fields.
-    if (query.search && def && def.searchableFields.length > 0) {
+    // Free-text search across the collection's searchable fields (or the
+    // narrower set the caller asked for, e.g. the public storefront's).
+    const searchFields = listSearchFields(query, def);
+    if (query.search && def && searchFields.length > 0) {
       const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });
-      ands.push(_.or(def.searchableFields.map((field) => ({ [field]: term }))));
+      ands.push(_.or(searchFields.map((field) => ({ [field]: term }))));
     }
 
     // Structured filter (field/operator/value clauses combined with AND/OR).

@@ -18,6 +18,7 @@ import {
   normalizeSkuCode,
   ok,
   productFamilyForDoc,
+  publicSearchFields,
   toRole,
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
@@ -471,6 +472,8 @@ export async function listCatalog(
     page,
     pageSize,
     search: query.search ?? '',
+    // Buyers search what they can see; internal ids (Alibaba's) stay admin-only.
+    searchFields: publicSearchFields(collection),
     filter: { combinator: 'and' as const, clauses },
     sort: [{ field: '_id', dir: 'asc' }],
   });

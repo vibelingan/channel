@@ -167,6 +167,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
     page,
     pageSize,
     search: (query.search ?? '').trim(),
+    ...(query.searchFields ? { searchFields: query.searchFields } : {}),
     ...(query.filter ? { filter: query.filter } : {}),
     ...(query.sort ? { sort: query.sort } : {}),
   });

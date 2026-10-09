@@ -34,6 +34,7 @@ import {
   ALIBABA_PRODUCT_LINK_LIMIT,
   type AlibabaProductMutationInput,
   catalogSuggestionChanged,
+  listSearchFields,
   parseCatalogExpectedSuggestion,
   planCatalogSuggestionSave,
   planProductSubcategorySave,
@@ -472,8 +473,9 @@ export class JsonFileAdapter implements DbAdapter {
 
       if (query.search && def) {
         const needle = query.search.toLowerCase();
+        const searchFields = listSearchFields(query, def);
         docs = docs.filter((doc) =>
-          def.searchableFields.some((field) =>
+          searchFields.some((field) =>
             String(doc[field] ?? '')
               .toLowerCase()
               .includes(needle),

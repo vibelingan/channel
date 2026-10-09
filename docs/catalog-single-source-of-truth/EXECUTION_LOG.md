@@ -106,6 +106,26 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
+- Problem (found in the batch 3 review, pre-existing): the storefront search
+  used the products' admin search fields, which include
+  `alibabaSourceProductId`. The public payload never contains that ID (field
+  allowlist), but typing it into the website search confirmed whether we
+  sell that Alibaba product.
+- Fix: collections may declare `publicSearchableFields` (products: name,
+  series, model name); the public catalog list passes them as `searchFields`;
+  both database adapters use one rule (`listSearchFields`): the caller's
+  narrower list, else the collection's. The admin search is unchanged and
+  still finds a product by its Alibaba ID. `searchFields` is set only by the
+  server; the admin list schema drops unknown keys, so a client cannot set it.
+- Tests: `apps/local-server/src/public-search-fields.test.ts` runs the real
+  public handler on the real local adapter (Alibaba ID → no result; name,
+  series, model → found; admin search by Alibaba ID → found; field lists).
+  With the fix removed, the public test fails (checked). Full validation
+  green except one browser test in the approval-off lane ("linked pricing:
+  … Save disabled for an invalid price"), which passed 3 of 3 reruns on its
+  own: a timing flake, not touched by this change.
+
 ### Admin thumbnails, GIF photos, refused photos (2026-10-09, owner ~09:00 UTC)
 - Owner: most thumbnails in Admin → Products are broken; asked for the
   refused-photo product (to ask the client) and for GIF support from storage
@@ -835,7 +855,7 @@ paired with the MOQ. Names are truncated as captured.
   safer than showing a possibly retired price; R4 makes the case not occur.
 - Left for the owner: DEC-17 (open the product on the card's configuration).
 - Separate task offered (pre-existing, not this branch): public search matches
-  the Alibaba product ID.
+  the Alibaba product ID. Done 2026-10-09 (see "Public search no longer matches the Alibaba product ID").
 - Validation: shared 176, db 235, admin 247, public-api 125, site 517, scripts
   449 — all pass; `pnpm typecheck`; `pnpm lint`; `pnpm build`; MIU-14 e2e.
 

@@ -78,6 +78,12 @@ export interface CollectionDef {
   description?: string;
   /** Fields the free-text search box matches against. */
   searchableFields: readonly string[];
+  /**
+   * Fields the public storefront search matches, when narrower than the admin
+   * search: internal identifiers (e.g. the Alibaba product ID) stay admin-only.
+   * Absent means the same as `searchableFields`.
+   */
+  publicSearchableFields?: readonly string[];
   fields: readonly FieldDef[];
   /** Hide from the dashboard navigation (managed indirectly, e.g. images). */
   hideFromNav?: boolean;
@@ -284,6 +290,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     label: 'Products',
     description: 'Catalog products (headphones and other categories).',
     searchableFields: ['name', 'series', 'modName', 'alibabaSourceProductId'],
+    publicSearchableFields: ['name', 'series', 'modName'],
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       {
@@ -1733,6 +1740,12 @@ const COLLECTION_MAP = new Map(COLLECTIONS.map((c) => [c.name, c]));
 
 export function getCollection(name: string): CollectionDef | undefined {
   return COLLECTION_MAP.get(name);
+}
+
+/** Fields the public storefront search may match (never admin-only identifiers). */
+export function publicSearchFields(name: string): readonly string[] {
+  const def = getCollection(name);
+  return def?.publicSearchableFields ?? def?.searchableFields ?? [];
 }
 
 export function isKnownCollection(name: string): boolean {

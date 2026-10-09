@@ -30,6 +30,11 @@ export interface ListQuery {
   page?: number;
   pageSize?: number;
   search?: string;
+  /**
+   * Fields `search` matches instead of the collection's `searchableFields`.
+   * Set by the server (public storefront search); never accepted from a client.
+   */
+  searchFields?: readonly string[];
   filter?: FilterModel;
   sort?: SortClause[];
 }
