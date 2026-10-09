@@ -104,6 +104,23 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Live after `7f32909`; first-18 description photos (2026-10-09)
+- Deploy `7f32909` (DEC-19, DEC-20, batch 5b, classification P0 fix) live
+  03:00–03:58 UTC; CI and Deploy Test green, post-deploy browser tests
+  green. Checks: both APIs on `7f32909`; consistency audit 137 listed, 137
+  approved, 0 mismatches, 0 fallback; "Go to page" works (jumped to 40 /
+  56); the Supplier changes panel loads on a flagged product (closed
+  without saving). Supplier review of the 9 flagged products: 7 have price
+  changes only (no decision needed, Edit → Save); the 2 live AI plush toys
+  (`70bd6aaa`, `89f59908`) also have new Alibaba photos to Keep or Use.
+- Owner test in production: classification "Save and publish" on two New
+  drafts published one; the other was refused with "Import up to 18
+  description images in Edit…" because Alibaba sent 19. The Edit import
+  just takes the first 18, so publishing now does the same (`d54b027`); an
+  admin's own selection is never replaced. Known follow-ups: the Alibaba
+  description previews in the panel do not load; the old bottom notice
+  ("Saving publishes these changes too") overlaps the panel.
+
 ### P0: classification "Save and publish" never published Alibaba drafts (2026-10-09)
 - Owner report: assigning a category with "Save and publish" failed for
   every product with "Open Edit to review supplier media and approve this
