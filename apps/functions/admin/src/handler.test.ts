@@ -5663,3 +5663,55 @@ test('with approval off, contributor edits on live products save as before', asy
     ['Renamed', true, undefined],
   );
 });
+
+// --- Classification "Save and publish" clears a New flag under the classification guard ---
+
+test('publishing a New Alibaba draft with the classification revision acknowledges it; a stale revision is refused', async () => {
+  const draft = (id: string) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published: false }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'new',
+      updatedAt: '2026-10-09T02:00:00.000Z',
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [draft('fresh'), draft('stale')],
+    catalogProductIdentities: [],
+  });
+  const admin = await adminToken();
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  okData(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'fresh',
+        values: { published: true },
+        expectedUpdatedAt: '2026-10-09T02:00:00.000Z',
+      },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    [row('fresh').published, row('fresh').alibabaReviewPending, row('fresh').alibabaReviewReason],
+    [true, false, null],
+  );
+  const before = structuredClone(row('stale'));
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'stale',
+        values: { published: true },
+        expectedUpdatedAt: '2026-10-09T01:00:00.000Z',
+      },
+      admin,
+    ),
+    'CONFLICT',
+  );
+  assert.deepEqual(row('stale'), before);
+});

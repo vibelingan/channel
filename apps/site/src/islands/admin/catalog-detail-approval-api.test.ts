@@ -438,3 +438,91 @@ test('creating a product as Published without a photo is refused before anything
   );
   assert.deepEqual(api.calls, []);
 });
+
+// --- Classification "Save and publish" on an Alibaba draft (P0, 2026-10-09) ---
+
+/** An unpublished Alibaba draft whose photos were never imported, as classification leaves it. */
+function linkedDraftApi(
+  t: { mock: { method: typeof test.mock.method } },
+  product: Record<string, unknown> = {},
+) {
+  const calls: string[] = [];
+  const updates: Record<string, unknown>[] = [];
+  let revision = 0;
+  let current: Record<string, unknown> = {
+    _id: 'draft-product',
+    name: 'Office headset',
+    productFamily: 'headphones',
+    published: false,
+    alibabaPrimarySourceKey: 'source-a',
+    alibabaReviewPending: true,
+    alibabaReviewReason: 'new',
+    alibabaSourceImageUrls: ['https://sc04.alicdn.com/a.jpg', 'https://sc04.alicdn.com/b.jpg'],
+    updatedAt: 'classified',
+    ...product,
+  };
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    calls.push(
+      body.action === 'catalogDetailApproval' ? `approval:${body.data?.action}` : body.action,
+    );
+    let data: unknown = progress;
+    if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
+    if (body.action === 'get') data = current;
+    if (body.action === 'importSourceImage')
+      data = { imageId: `owned-${calls.length}`, deduplicated: false };
+    if (body.action === 'update') {
+      updates.push(body.data ?? {});
+      const guard = body.data?.expectedUpdatedAt;
+      if (guard !== undefined && guard !== current.updatedAt)
+        return Response.json({
+          ok: false,
+          error: { code: 'CONFLICT', message: 'Product changed since classification.' },
+        });
+      revision += 1;
+      current = { ...current, ...(body.data?.values as object), updatedAt: `rev-${revision}` };
+      data = current;
+    }
+    if (body.data?.action === 'approve')
+      data = { ok: true, status: 'approved', jobId: 'job', revision: 'revision' };
+    return Response.json({ ok: true, data });
+  });
+  return { calls, updates };
+}
+
+test('classification Save and publish imports the Alibaba photos, approves and publishes, keeping its guard', async (t) => {
+  const api = linkedDraftApi(t);
+  const saved = await updateRecord('products', 'draft-product', { published: true }, 'classified');
+  assert.equal(saved.published, true);
+  assert.equal(api.calls.filter((call) => call === 'importSourceImage').length, 2);
+  assert.ok(api.calls.includes('approval:approve'));
+  // Each write carries the revision the previous one returned.
+  assert.deepEqual(
+    api.updates.map((update) => update.expectedUpdatedAt),
+    ['classified', 'rev-1'],
+  );
+  assert.deepEqual(api.updates.at(-1)?.values, { published: true });
+});
+
+test('classification Save and publish stops when the product changed after classification', async (t) => {
+  const api = linkedDraftApi(t, { updatedAt: 'edited-since' });
+  await assert.rejects(
+    updateRecord('products', 'draft-product', { published: true }, 'classified'),
+    /changed since classification/i,
+  );
+  assert.equal(api.calls.includes('importSourceImage'), false);
+  assert.deepEqual(api.updates, []);
+});
+
+test('classification Save and publish leaves a product with Alibaba changes to its review in Edit', async (t) => {
+  const api = linkedDraftApi(t, { alibabaReviewReason: 'changed', imageIds: ['img'] });
+  await assert.rejects(
+    updateRecord('products', 'draft-product', { published: true }, 'classified'),
+    /Alibaba changes to review/,
+  );
+  assert.deepEqual(api.updates, []);
+  assert.equal(
+    api.calls.some((call) => call.startsWith('approval:')),
+    false,
+  );
+});

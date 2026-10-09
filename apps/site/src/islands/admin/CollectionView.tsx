@@ -26,6 +26,7 @@ import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
 import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
+import { PageJump } from './PageJump.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import {
   type UnresolvedClassificationSnapshot,
@@ -1032,9 +1033,7 @@ export function CollectionView({
           >
             Prev
           </button>
-          <span>
-            {page} / {pageCount}
-          </span>
+          <PageJump page={page} pageCount={pageCount} onJump={setPage} />
           <button
             type="button"
             disabled={page >= pageCount}

@@ -353,22 +353,53 @@ export async function updateRecord(
           ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
         });
       if (typeof current.alibabaPrimarySourceKey === 'string') {
-        if (expectedUpdatedAt)
-          throw new AdminApiError(
-            'CONFLICT',
-            'Open Edit to review supplier media and approve this product before publishing.',
-          );
+        // A guarded publish (classification "Save and publish") is an approval
+        // like Publish: from the revision the classification saved, each write
+        // carrying the revision the previous one returned.
+        let guard = expectedUpdatedAt;
+        if (guard !== undefined) {
+          if (current.updatedAt !== guard)
+            throw new AdminApiError(
+              'CONFLICT',
+              'Product changed since classification. Refresh before publishing.',
+            );
+          if (
+            current.alibabaReviewPending === true &&
+            ['changed', 'removed'].includes(String(current.alibabaReviewReason))
+          )
+            throw new AdminApiError(
+              'CONFLICT',
+              'This product has Alibaba changes to review. Open Edit to review them, then publish.',
+            );
+        }
+        const write = async (writeValues: Record<string, unknown>) => {
+          const saved = await call<CollectionDoc>('update', {
+            collection,
+            id,
+            values: writeValues,
+            ...(guard ? { expectedUpdatedAt: guard } : {}),
+          });
+          if (guard) guard = typeof saved.updatedAt === 'string' ? saved.updatedAt : undefined;
+          return saved;
+        };
         // Save reviewed form edits first without changing publication. The server
         // then approves in one request (step-by-step fallback, same operation id).
         const { published: _published, ...draftValues } = values;
-        if (Object.keys(draftValues).length)
-          current = await call<CollectionDoc>('update', { collection, id, values: draftValues });
+        if (Object.keys(draftValues).length) current = await write(draftValues);
         if (!isProductFamily(current.productFamily))
           throw new AdminApiError(
             'INVALID_PRODUCT',
             'Choose a website category before publishing.',
           );
         if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
+          if (
+            !Array.isArray(current.alibabaSourceImageUrls) ||
+            current.alibabaSourceImageUrls.length === 0
+          )
+            throw new AdminApiError(
+              'MEDIA_NOT_READY',
+              'This product has no photos and Alibaba sent none. Add a photo in Edit, then publish.',
+            );
           const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
             import('./alibaba-gallery-import.ts'),
             import('./alibaba-catalog-sync/alibaba-api.ts'),
@@ -384,8 +415,7 @@ export async function updateRecord(
               'MEDIA_NOT_READY',
               'Some images could not be imported. Open Edit and retry the source gallery.',
             );
-          if (imported.imageIds.length)
-            await call('update', { collection, id, values: { imageIds: imported.imageIds } });
+          if (imported.imageIds.length) await write({ imageIds: imported.imageIds });
         }
         if (
           // First publication only. A re-approval never takes newer supplier
@@ -417,12 +447,7 @@ export async function updateRecord(
               'MEDIA_NOT_READY',
               'Review and import description images in Edit before publishing.',
             );
-          if (imported.imageIds.length)
-            await call('update', {
-              collection,
-              id,
-              values: { descriptionImageIds: imported.imageIds },
-            });
+          if (imported.imageIds.length) await write({ descriptionImageIds: imported.imageIds });
         }
         const { approveProduct } = await import('./catalog-detail-approval-api.ts');
         await approveProduct(id);
@@ -431,7 +456,7 @@ export async function updateRecord(
           collection,
           id,
           values: { published: true },
-          ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+          ...(guard ? { expectedUpdatedAt: guard } : {}),
         });
       }
     }

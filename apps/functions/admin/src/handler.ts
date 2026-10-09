@@ -1525,6 +1525,8 @@ async function acknowledgeAlibabaProductReview(
   reviewerId: string,
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
   undecidedSupplierChange = false,
+  // Classification "Save and publish": the revision its save returned.
+  expectedUpdatedAt?: string,
 ) {
   const data = { ...values };
   for (const field of ['slug', 'skuCode'] as const) {
@@ -1573,8 +1575,15 @@ async function acknowledgeAlibabaProductReview(
           : null,
     },
     requireDetailApproval,
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
   });
   if (result.result === 'saved') return result;
+  if (result.result === 'stale') {
+    throw new CatalogProductWriteError(
+      'PRODUCT_STALE',
+      'Product changed since classification. Refresh before publishing.',
+    );
+  }
   if (result.result === 'alibaba-identity-conflict') {
     throw new CatalogProductWriteError(
       'IDENTITY_CONFLICT',
@@ -2098,11 +2107,6 @@ async function updateAction(
         (values.published === true || values.archived === true);
       if (acknowledgesReview && claims.role !== 'admin')
         return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
-      if (acknowledgesReview && parsed.data.expectedUpdatedAt)
-        return err(
-          'CONFLICT',
-          'Complete supplier review before publishing this classified product.',
-        );
       const contributorSupplierStatusChange =
         claims.role !== 'admin' &&
         typeof before?.alibabaPrimarySourceKey === 'string' &&
@@ -2131,6 +2135,7 @@ async function updateAction(
               claims.sub,
               requiresApproval,
               undecidedSupplierChange,
+              parsed.data.expectedUpdatedAt,
             )
           : await updateCatalogProductRecord(
               parsed.data.id,

@@ -297,3 +297,19 @@ test('batch Publish skips products with Alibaba changes to review, live or not (
   assert.ok(feedback.includes('Changed headset'));
   assert.ok(feedback.includes('Open each in Edit'));
 });
+
+test('the product list jumps to a typed page number, kept within the pages that exist', async () => {
+  const { PageJump, requestedPage } = await import('./PageJump.tsx');
+  assert.equal(requestedPage('7', 56), 7);
+  assert.equal(requestedPage(' 99 ', 56), 56);
+  assert.equal(requestedPage('0', 56), 1);
+  assert.equal(requestedPage('abc', 56), null);
+  const html = renderToStaticMarkup(
+    createElement(PageJump, { page: 3, pageCount: 56, onJump: () => {} }),
+  );
+  assert.match(
+    html,
+    /<label[^>]*>Page<\/label><input[^>]*type="number"[^>]*max="56"[^>]*value="3"/,
+  );
+  assert.ok(html.includes('aria-label="Go to page"'));
+});
