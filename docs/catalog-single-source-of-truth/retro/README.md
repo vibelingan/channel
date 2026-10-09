@@ -51,14 +51,19 @@ shown).
   limit, none is flagged "Changed"; 56 still need a product family.
 - Classification "Save and publish" (single and batch) publishes Alibaba
   drafts; the product list has "Go to page".
+- Admin list thumbnails load for every product again (drafts show the
+  Alibaba original their photo was copied from); GIF photos are supported
+  from storage to the website.
+- The website search no longer matches Alibaba product IDs; the admin search
+  still does.
 
 ## Still open (owner's or follow-up)
 
 - R7: the owner reviews the 9 products flagged "Changed" (7 price-only, 2
   with new photos to Keep or Use).
-- "One product, one unit" photo rule: live since 08:33 UTC (`8cca888`);
-  failed photos retry after 10 minutes (while the Sync page is open, or at
-  the next sync) instead of a day. Follow-up: 403 counts as unavailable.
+- Supplier action for the client: the clock product (`33e4983e`, "Home Decor
+  Nordic Creative Silent Clocks…") has two photos Alibaba blocks (403); only
+  the supplier can re-upload them.
 - Follow-ups: Alibaba description previews in the Supplier changes panel
   don't load; an old notice overlaps the panel; the panel takes 5–10 s to
   load; the sync timer is off, so photo copying runs only from the Sync page;

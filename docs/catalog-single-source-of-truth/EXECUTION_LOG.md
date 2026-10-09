@@ -125,6 +125,29 @@ paired with the MOQ. Names are truncated as captured.
   green except one browser test in the approval-off lane ("linked pricing:
   … Save disabled for an invalid price"), which passed 3 of 3 reruns on its
   own: a timing flake, not touched by this change.
+- Production before the fix (10:38 UTC, read-only): public
+  `GET /api/products?search=AAEWBBhgAOVTpOKZBnR3cm_5` (the Alibaba ID of the
+  live "Cute Pink Cat Ear Wireless Headset", `5cc2ec2f`) returned that
+  product; a search by its name did too.
+- Live 11:01 UTC (`74d77cc`). After: public search by the full Alibaba ID →
+  0 results, by its first 8 characters → 0, by "Cute Pink Cat" → that
+  product; admin search by the Alibaba ID → that product. Consistency audit:
+  141 listed, 141 approved, 0 mismatched, 0 errors, 0 fallback.
+
+### Thumbnails/GIF live; GIF photos copied (2026-10-09)
+- `37d421e` functions live 10:12 UTC (CI passed this time; the earlier
+  failure on `9e52965` did not repeat).
+- "Copy photos now" retry run 10:12–10:14 UTC (same requests as the button):
+  12 calls, no repeat fetches; 4 photos copied (the 4 animated GIFs, stored
+  as `image/gif`), 3 drafts saved (`8e68f309` 18 description photos, 2 GIFs;
+  `9d2c6664` 16, 1 GIF; `bdbcfc2b` 18, 1 GIF), 4 failures again (the deleted
+  configuration photo on 2 drafts, the clock's 2 refused photos). Status: 0
+  hidden, 0 waiting, 1 draft (the clock) missing a gallery photo.
+- Site live 10:34 UTC. Admin → Products checked in the browser: Headphones
+  page 1 (drafts) 20/20 thumbnails load (19 from the Alibaba original, 1 by
+  admin preview); All products page 54 (live products) 20/20 (19 public
+  address, 1 refused by it and shown by the admin preview fallback). No
+  broken or empty thumbnails.
 
 ### Admin thumbnails, GIF photos, refused photos (2026-10-09, owner ~09:00 UTC)
 - Owner: most thumbnails in Admin → Products are broken; asked for the

@@ -168,3 +168,8 @@ owner's only test environment).
   here. The storefront search matched the Alibaba ID (the payload never
   showed it, but a match confirmed the product). Public search now uses its
   own field list (name, series, model); admin search unchanged.
+- 10:12–11:01 Deployed the thumbnail/GIF fix (`37d421e`, after a review that
+  found "Copy photos now" could loop) and the search fix (`74d77cc`).
+  "Copy photos now" copied the 4 GIFs; admin list thumbnails checked in the
+  browser (40/40 load); public search by an Alibaba ID returns nothing on
+  the live site. Audit 141/141, 0 mismatches.
