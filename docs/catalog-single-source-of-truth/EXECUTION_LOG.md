@@ -493,7 +493,7 @@ paired with the MOQ. Names are truncated as captured.
 - Accepted: a contributor who tries to publish sees the admin wording
   ("Review and approve…"). Outside this range: the Dianxiaomi import's
   `makePublic` option publishes without approval (follow-up task). Done
-  2026-10-09 (see "Dianxiaomi import \"make public\" goes through approval").
+  2026-10-09 (see "Dianxiaomi import "make public" goes through approval").
 
 ### Review of DEC-19/DEC-20 (2026-10-09, `62992d6..57f8d71`)
 - One reviewer: no P1. Fixed in `cb31e9a`:
