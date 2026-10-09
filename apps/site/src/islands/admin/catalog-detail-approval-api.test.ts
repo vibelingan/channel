@@ -581,19 +581,24 @@ test('a draft that cannot be published for a known reason is reported with that 
   assert.match(String(result.failures[0]?.message), /no photos/);
 });
 
-test('too many Alibaba description photos are refused before any photo is imported', async (t) => {
+test('more than 18 Alibaba description photos: the first 18 are taken, as the Edit import does', async (t) => {
   const api = linkedDraftApi(t, {
     alibabaDescriptionImageUrls: Array.from(
       { length: 19 },
       (_, i) => `https://sc04.alicdn.com/detail-${i}.jpg`,
     ),
   });
-  await assert.rejects(
-    updateRecord('products', 'draft-product', { published: true }, 'classified'),
-    /description images/,
+  const saved = await updateRecord('products', 'draft-product', { published: true }, 'classified');
+  assert.equal(saved.published, true);
+  // 2 gallery photos + the first 18 description photos.
+  assert.equal(api.calls.filter((call) => call === 'importSourceImage').length, 20);
+  const description = api.updates.find((update) =>
+    Object.hasOwn(update.values as object, 'descriptionImageIds'),
   );
-  assert.equal(api.calls.includes('importSourceImage'), false);
-  assert.deepEqual(api.updates, []);
+  assert.equal(
+    (description?.values as { descriptionImageIds: string[] }).descriptionImageIds.length,
+    18,
+  );
 });
 
 test('the classification guard never silently turns off', async (t) => {

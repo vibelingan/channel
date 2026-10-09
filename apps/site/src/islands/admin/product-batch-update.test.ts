@@ -58,16 +58,25 @@ for (const selectedImages of [undefined, [], ['reviewed-description']]) {
       ),
     };
     let prepared = false;
+    let imported = 0;
+    const saved: Record<string, unknown>[] = [];
     t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
       const body = JSON.parse(String(init.body));
       if (body.action === 'get') return Response.json({ ok: true, data: current });
       if (body.action === 'catalogDetailCapabilities')
         return Response.json({ ok: true, data: { enabled: true } });
-      assert.equal(
-        body.action,
-        'catalogDetailApproval',
-        'explicit media selection must not be replaced',
-      );
+      if (body.action === 'importSourceImage') {
+        imported += 1;
+        return Response.json({
+          ok: true,
+          data: { imageId: `owned-${imported}`, deduplicated: false },
+        });
+      }
+      if (body.action === 'update') {
+        saved.push(body.data.values);
+        return Response.json({ ok: true, data: { ...current, ...body.data.values } });
+      }
+      assert.equal(body.action, 'catalogDetailApproval');
       prepared = true;
       return Response.json(
         { ok: false, error: { code: 'CONFLICT', message: 'approval-boundary-probe' } },
@@ -76,9 +85,20 @@ for (const selectedImages of [undefined, [], ['reviewed-description']]) {
     });
     await assert.rejects(
       updateRecord('products', current._id, { published: true }),
-      selectedImages === undefined ? /18 description images/ : /approval-boundary-probe/,
+      /approval-boundary-probe/,
     );
-    assert.equal(prepared, selectedImages !== undefined);
+    assert.equal(prepared, true);
+    if (selectedImages === undefined) {
+      // Nothing chosen yet: the first 18 in Alibaba's order, as the Edit import takes.
+      assert.equal(imported, 18);
+      assert.deepEqual(saved, [
+        { descriptionImageIds: Array.from({ length: 18 }, (_, i) => `owned-${i + 1}`) },
+      ]);
+    } else {
+      // The admin's explicit selection is never replaced.
+      assert.equal(imported, 0);
+      assert.deepEqual(saved, []);
+    }
   });
 }
 

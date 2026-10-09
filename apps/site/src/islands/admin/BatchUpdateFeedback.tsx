@@ -45,9 +45,9 @@ export function BatchUpdateFeedback({ result, names, published, skipped = [], on
             ))}
           </ul>
           <p className="mt-3">
-            Use Edit on the affected products to resolve the listed issues. For Alibaba source
-            previews, import the source gallery in Edit and save before publishing. Unconfirmed
-            results must be refreshed before retrying; confirmed updates are not rolled back.
+            Fix the reason listed for each product (in Edit when it asks for it), then publish it
+            again. Unconfirmed results must be refreshed before retrying; confirmed updates are not
+            rolled back.
           </p>
         </>
       )}

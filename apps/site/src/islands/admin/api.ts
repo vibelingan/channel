@@ -399,8 +399,9 @@ export async function updateRecord(
             'Choose a website category before publishing.',
           );
         // First publication only. A re-approval never takes newer supplier
-        // text or photos on its own; the admin chooses them (DEC-18). Checked
-        // before any import, so a refusal leaves the draft untouched.
+        // text or photos on its own; the admin chooses them (DEC-18). The
+        // website shows up to 18 description photos: the first 18 in
+        // Alibaba's order are taken, as the Edit import does.
         const descriptionSources =
           !refreshPublishedDetail &&
           current.published !== true &&
@@ -408,11 +409,6 @@ export async function updateRecord(
           Array.isArray(current.alibabaDescriptionImageUrls)
             ? current.alibabaDescriptionImageUrls
             : [];
-        if (descriptionSources.length > PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
-          throw new AdminApiError(
-            'MEDIA_NOT_READY',
-            `Import up to ${PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT} description images in Edit and review them before publishing.`,
-          );
         if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
           if (
             !Array.isArray(current.alibabaSourceImageUrls) ||
