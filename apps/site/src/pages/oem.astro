@@ -1,14 +1,19 @@
 ---
+import CTASection from '../components/CTASection.astro';
 import CardGrid from '../components/CardGrid.astro';
-import MediaVideo from '../components/MediaVideo.astro';
+import CertificationsSection from '../components/CertificationsSection.astro';
+import FactorySection from '../components/FactorySection.astro';
+import OemProcessSection from '../components/OemProcessSection.astro';
+import OurTeamSection from '../components/OurTeamSection.astro';
 import PageHero from '../components/PageHero.astro';
 import ProcessTimeline from '../components/ProcessTimeline.astro';
-import ProjectForm from '../components/ProjectForm.astro';
+import QualityTestingSection from '../components/QualityTestingSection.astro';
 import ReasonList from '../components/ReasonList.astro';
 import Section from '../components/Section.astro';
 import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { AssistantWidget } from '../islands/ai/AssistantWidget.tsx';
@@ -16,7 +21,19 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const oem = getOemContent(DEFAULT_LOCALE);
-const { brand, nav, services, footer } = site;
+const {
+  brand,
+  nav,
+  services,
+  footer,
+  oemProcess,
+  factory,
+  ourPeople,
+  whyChooseUs,
+  quality,
+  certifications,
+  ctaSection,
+} = site;
 const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
 ---
 
@@ -45,16 +62,6 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       <p class="reveal mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-ink-soft">
         {capabilities.note}
       </p>
-      <div class="reveal mx-auto mt-14 max-w-3xl">
-        <MediaVideo
-          src={factoryVideo.src}
-          poster={factoryVideo.poster}
-          posterWidth={factoryVideo.posterWidth}
-          posterHeight={factoryVideo.posterHeight}
-          caption={factoryVideo.caption}
-          label={factoryVideo.caption}
-        />
-      </div>
     </Section>
 
     <Section
@@ -67,6 +74,18 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       <ProcessTimeline steps={process.steps} />
     </Section>
 
+    {/* Detailed ten-step execution flow — the full factory-floor version of
+        the six decision stages above (homepage trust-section integration). */}
+    <OemProcessSection process={oemProcess} sectionId="detailed-process" />
+
+    {/* Factory video + photo strip; stats stay in the icon band below, so
+        the plain stat grid is suppressed here to avoid repeating the same
+        four numbers twice on one page. The OEM page's own factory video
+        pair is used instead of the homepage defaults. */}
+    <FactorySection factory={factory} media={factoryVideo} showStats={false} />
+
+    <OurTeamSection people={ourPeople} />
+
     <Section
       id={whyUs.id}
       eyebrow={whyUs.eyebrow}
@@ -77,25 +96,14 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       <ReasonList reasons={whyUs.reasons} />
     </Section>
 
-    <Section
-      id={submit.id}
-      eyebrow={submit.eyebrow}
-      heading={submit.heading}
-      intro={submit.intro}
-      tone="surface"
-    >
-      <div class="mx-auto max-w-3xl">
-        <ProjectForm
-          fields={submit.fields}
-          submitLabel={submit.submitLabel}
-          disclaimer={submit.disclaimer}
-          successTitle={submit.successTitle}
-          successBody={submit.successBody}
-          action="/api/admin"
-          resultPath="/oem_submit_result"
-        />
-      </div>
-    </Section>
+    <WhyChooseUsSection why={whyChooseUs} />
+
+    <QualityTestingSection quality={quality} />
+
+    <CertificationsSection certs={certifications} />
+
+    {/* CTA + inquiry form; sectionId="submit" preserves the /oem#submit deep link. */}
+    <CTASection cta={ctaSection} submit={submit} sectionId="submit" />
   </main>
 
   <SiteFooter brand={brand} footer={footer} />

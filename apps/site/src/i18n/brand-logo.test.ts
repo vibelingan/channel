@@ -581,7 +581,9 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
 
 test('CTASection derives its anchor from an optional sectionId defaulting to oem-inquiry', () => {
   // Preserve the shared component enhancement and the homepage's default
-  // #oem-inquiry contract. The independent /oem route uses Section directly.
+  // #oem-inquiry contract. The /oem route passes sectionId="submit" so its
+  // deep link stays /oem#submit and the inquiry form renders through the
+  // shared CTA section.
   assert.ok(ctaSource.includes('sectionId?: string'));
   assert.ok(ctaSource.includes("sectionId = 'oem-inquiry'"));
   assert.ok(ctaSource.includes('id={sectionId}'));
@@ -646,7 +648,7 @@ test('OEM content keeps an independent service narrative and approved response-t
     'shared ProjectForm success copy uses the PPT-approved response time',
   );
   assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
-  assert.ok(oemPageSource.includes('<ProjectForm'));
+  assert.ok(oemPageSource.includes('<CTASection'));
 });
 
 test('OEM content carries the homepage proof points customers need before enquiry', () => {
@@ -733,20 +735,17 @@ test('OemContent restores independent page fields without restoring unsupported 
   ]);
 });
 
-test('OEM route restores its independent composition and shares only the workflow comparison', () => {
+test('OEM route integrates the homepage trust sections into its independent composition', () => {
+  // 2026-10 product decision: /oem becomes the capability page, so it takes
+  // the homepage's trust sections (10-step process, factory, people, AI
+  // stories, quality lab, certifications, CTA+form) on top of its own hero,
+  // capability cards, six-stage path, and proof band.
   for (const component of [
     'PageHero',
     'ServiceGridSection',
     'CardGrid',
-    'MediaVideo',
     'ProcessTimeline',
     'ReasonList',
-    'ProjectForm',
-  ]) {
-    assert.ok(oemPageSource.includes(`<${component}`), `OEM route renders ${component}`);
-  }
-  for (const homepageOnly of [
-    'AIHero',
     'OemProcessSection',
     'FactorySection',
     'OurTeamSection',
@@ -755,6 +754,22 @@ test('OEM route restores its independent composition and shares only the workflo
     'CertificationsSection',
     'CTASection',
   ]) {
-    assert.ok(!oemPageSource.includes(`<${homepageOnly}`), `OEM route excludes ${homepageOnly}`);
+    assert.ok(oemPageSource.includes(`<${component}`), `OEM route renders ${component}`);
   }
+  // The OEM hero stays route-specific, the factory video renders through
+  // FactorySection (OEM media override), and the inquiry form renders through
+  // CTASection — none of them are routed directly anymore.
+  for (const internal of ['AIHero', 'MediaVideo', 'ProjectForm']) {
+    assert.ok(
+      !oemPageSource.includes(`<${internal}`),
+      `OEM route renders ${internal} through a shared section instead`,
+    );
+  }
+  // Guardrails against repeating the same page twice: the OEM page surfaces
+  // the four proof numbers in its own icon band, so the factory stat grid
+  // stays suppressed; the OEM factory-video pair overrides the homepage video.
+  assert.ok(oemPageSource.includes('showStats={false}'));
+  assert.ok(oemPageSource.includes('media={factoryVideo}'));
+  // The /oem#submit deep link survives through the CTA section anchor.
+  assert.ok(oemPageSource.includes('sectionId="submit"'));
 });

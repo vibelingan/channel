@@ -40,9 +40,9 @@ process:
   eyebrow: How we work
   heading: A clear six-stage path from brief to delivery
   intro: >-
-    The homepage shows the detailed ten-step execution flow. Here it is grouped
-    into six decision stages so project owners can see what is reviewed and
-    approved before the next commitment.
+    Six decision stages from brief to delivery — each one reviewed and
+    approved before the next commitment. The same path is detailed below as
+    the ten-step execution flow our engineers follow on the factory floor.
   steps:
     - { title: Brief & Feasibility, desc: 'Align the product idea, target market, requirements, compliance needs, target cost, and schedule.' }
     - { title: Product & Engineering Design, desc: 'Develop appearance, mechanical structure, circuit design, material choices, and initial cost direction.' }
@@ -53,7 +53,7 @@ process:
 
 whyUs:
   id: why-us
-  eyebrow: Why choose us
+  eyebrow: Our Track Record
   heading: Engineering depth with global delivery reach
   intro: >-
     The same team that develops the product stays accountable through
