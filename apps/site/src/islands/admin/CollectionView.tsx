@@ -35,6 +35,7 @@ import { RecordForm } from './RecordForm.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
+  DraftSavedError,
   batchRemoveRecords,
   batchUpdateRecords,
   createRecord,
@@ -252,6 +253,14 @@ export function CollectionView({
       setCreating(false);
       invalidate();
     },
+    onError: (error) => {
+      // The draft exists: close the form so a retry cannot create it twice; the
+      // reason it was not published shows above the list.
+      if (error instanceof DraftSavedError) {
+        setCreating(false);
+        invalidate();
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -313,6 +322,7 @@ export function CollectionView({
     batchRemoveMutation.isPending;
 
   const visibleMutationError =
+    (!creating && createMutation.error instanceof DraftSavedError && createMutation.error) ||
     batchUpdateMutation.error ||
     (!editing && updateMutation.error) ||
     removeMutation.error ||

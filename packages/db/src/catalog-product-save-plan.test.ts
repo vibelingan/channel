@@ -257,12 +257,116 @@ test('admin save scope compares pricing against the current atomic row, not an e
       .result,
     'invalid-product',
   );
+  // A price saved on a published row reaches buyers only through the next
+  // approval (MIU-31): the draft save is accepted, publishing it is not.
   const concurrent: CollectionDoc = { ...product, unitPrice: 4 };
   concurrent.catalogDetailApprovalReceipt = {
     contentFingerprint: publicationContentFingerprint(concurrent),
   };
-  assert.equal(planCatalogProductSave(concurrent, input, 'now').result, 'invalid-product');
+  assert.equal(planCatalogProductSave(concurrent, input, 'now').result, 'ready');
+  assert.equal(
+    planCatalogProductSave(
+      concurrent,
+      { ...input, data: { ...input.data, published: true } },
+      'now',
+    ).result,
+    'invalid-product',
+  );
   assert.deepEqual(product, unchanged);
+});
+
+function manualProduct(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'manual-product',
+    name: 'Manual headset',
+    description: 'Typed by the admin',
+    productFamily: 'headphones',
+    imageIds: ['image'],
+    series: 'S1',
+    detailSourceOwner: 'manual:manual-product',
+    published: false,
+    archived: false,
+    ...overrides,
+  };
+}
+const publishManual: CatalogProductSaveInput = {
+  mode: 'update',
+  productId: 'manual-product',
+  data: { published: true },
+  requireDetailApproval: 'publication-or-pricing',
+};
+const approvedNow = (product: CollectionDoc): CollectionDoc => ({
+  ...product,
+  catalogDetailApprovalReceipt: { contentFingerprint: publicationContentFingerprint(product) },
+});
+
+test('publishing a manual product needs its approved version, like a synced one (MIU-31)', () => {
+  const issues = planCatalogProductSave(manualProduct(), publishManual, 'now');
+  assert.equal(issues.result, 'invalid-product');
+  const approved = approvedNow(manualProduct());
+  const published = planCatalogProductSave(approved, publishManual, 'now');
+  assert.equal(published.result, 'ready');
+  if (published.result === 'ready') assert.equal(published.doc.published, true);
+  // A spec field edited after approval must be approved again (MIU-29).
+  assert.equal(
+    planCatalogProductSave({ ...approved, series: 'S2' }, publishManual, 'now').result,
+    'invalid-product',
+  );
+  // Approval switched off: today's behaviour.
+  const { requireDetailApproval: _off, ...ungated } = publishManual;
+  assert.equal(planCatalogProductSave(manualProduct(), ungated, 'now').result, 'ready');
+});
+
+test('a price change saved on a published product waits for approval instead of being refused (MIU-31)', () => {
+  for (const linked of [false, true]) {
+    const product = approvedNow(
+      manualProduct({
+        published: true,
+        ...(linked ? { alibabaPrimarySourceKey: 'source-a', detailSourceOwner: undefined } : {}),
+      }),
+    );
+    const draft = planCatalogProductSave(
+      product,
+      {
+        ...publishManual,
+        data: {
+          manualCatalogPricing: {
+            schemaVersion: 'manual-catalog-pricing-v1',
+            currency: 'USD',
+            tiers: [{ minQuantity: 10, unitAmountMinor: 250 }],
+          },
+        },
+      },
+      'now',
+    );
+    assert.equal(draft.result, 'ready', linked ? 'synced' : 'manual');
+    if (draft.result === 'ready') {
+      assert.equal(draft.doc.published, true);
+      assert.deepEqual(
+        draft.doc.catalogDetailApprovalReceipt,
+        product.catalogDetailApprovalReceipt,
+      );
+    }
+  }
+});
+
+test('a new product cannot be created already published while approval is on (MIU-37)', () => {
+  const create: CatalogProductSaveInput = {
+    mode: 'create',
+    productId: 'manual-product',
+    data: { ...manualProduct({ published: true }) },
+    requireDetailApproval: 'publication-or-pricing',
+  };
+  const refused = planCatalogProductSave(null, create, 'now');
+  assert.equal(refused.result, 'invalid-product');
+  if (refused.result === 'invalid-product')
+    assert.match(refused.issues.map((issue) => issue.message).join(' '), /draft/i);
+  const { published: _published, ...draftData } = manualProduct();
+  const draft = planCatalogProductSave(null, { ...create, data: draftData }, 'now');
+  assert.equal(draft.result, 'ready');
+  if (draft.result === 'ready') assert.equal(draft.doc.published, false);
+  const { requireDetailApproval: _off, ...ungated } = create;
+  assert.equal(planCatalogProductSave(null, ungated, 'now').result, 'ready');
 });
 
 test('adding optional description media leaves historical publication receipts unchanged until edited', () => {

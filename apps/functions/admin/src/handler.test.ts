@@ -25,6 +25,7 @@ import {
   runStagedApproval,
 } from '@vibelingan-channel/db/catalog-detail-staging';
 import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
+import { publicationContentFingerprint } from '@vibelingan-channel/db/catalog-publication-fingerprint';
 import {
   type MediaStorageAdapter,
   type UploadCredential,
@@ -5454,4 +5455,92 @@ test('contributors cannot save a flagged product or write supplier decisions and
       'FORBIDDEN',
     );
   assert.deepEqual(store.products, before);
+});
+
+// --- MIU-37, OWN-1: with approval on, products go live only as their approved version ---
+
+const callWithApproval = (action: string, data: unknown, token: string) =>
+  handleAdminRequest(
+    { action, token, data } as Parameters<typeof handleAdminRequest>[0],
+    approvalConfig,
+  );
+
+test('with approval on, a new product cannot be created already published; a draft is stored (MIU-37)', async () => {
+  const store = setup({ users: [], products: [], catalogProductIdentities: [] });
+  const admin = await adminToken();
+  const refused = await callWithApproval(
+    'create',
+    { collection: 'products', values: publishableProduct() },
+    admin,
+  );
+  expectErr(refused, 'VALIDATION_ERROR');
+  assert.match(refused.ok ? '' : refused.error.message, /starts as a draft/);
+  assert.equal(store.products?.length, 0);
+  assert.equal(store.catalogProductIdentities?.length, 0);
+  const draft = okData<CollectionDoc>(
+    await callWithApproval(
+      'create',
+      { collection: 'products', values: publishableProduct({ published: false }) },
+      admin,
+    ),
+  );
+  assert.equal(draft.published, false);
+  assert.equal(store.products?.length, 1);
+});
+
+test('with approval on, a contributor edit on a live product is saved as a draft and flagged Edited (OWN-1)', async () => {
+  const live = { _id: 'live', ...publishableProduct({ name: 'Approved name' }) } as CollectionDoc;
+  live.catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(live) };
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  const row = () => store.products?.find((item) => item._id === 'live') as CollectionDoc;
+  const contributor = await contributorToken();
+  const edit = (values: Record<string, unknown>) =>
+    callWithApproval('update', { collection: 'products', id: 'live', values }, contributor);
+  // The edit form sends Published as it stands.
+  okData(await edit({ name: 'Contributor name', published: true }));
+  assert.deepEqual(
+    [row().name, row().published, row().alibabaReviewPending, row().alibabaReviewReason],
+    ['Contributor name', true, true, 'edited'],
+  );
+  assert.deepEqual(row().catalogDetailApprovalReceipt, live.catalogDetailApprovalReceipt);
+  // A second edit while it waits is still an edit, not a refused review acknowledgement.
+  okData(await edit({ description: 'More words', published: true }));
+  assert.equal(row().alibabaReviewReason, 'edited');
+  // An admin publishes it after approving the edited version; the flag clears.
+  row().catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(row()) };
+  okData(
+    await callWithApproval(
+      'update',
+      { collection: 'products', id: 'live', values: { published: true } },
+      await adminToken(),
+    ),
+  );
+  assert.deepEqual([row().alibabaReviewPending, row().alibabaReviewReason], [false, null]);
+  // Taking a product offline is not an edit to review.
+  okData(await edit({ published: false }));
+  assert.deepEqual([row().published, row().alibabaReviewPending], [false, false]);
+});
+
+test('with approval off, contributor edits on live products save as before', async () => {
+  const store = setup({
+    users: [],
+    products: [{ _id: 'live', ...publishableProduct() } as CollectionDoc],
+    catalogProductIdentities: [],
+  });
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'live', values: { name: 'Renamed', published: true } },
+      await contributorToken(),
+    ),
+  );
+  const product = store.products?.[0];
+  assert.deepEqual(
+    [product?.name, product?.published, product?.alibabaReviewPending],
+    ['Renamed', true, undefined],
+  );
 });

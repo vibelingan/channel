@@ -6,7 +6,6 @@
  * development wires a file-backed adapter. This keeps the persistence layer
  * swappable without any module-aliasing tricks.
  */
-import { isDeepStrictEqual } from 'node:util';
 import type {
   CollectionDoc,
   FilterModel,
@@ -239,15 +238,13 @@ export function planCatalogProductSave(
     doc.category = '';
   }
   const issues = validateProductPublication(doc);
+  // Every product, synced or manual, is published only as its approved version
+  // (DEC-15). A row edit on a published product (a price, say) is accepted:
+  // buyers keep seeing the approved version until the next approval (MIU-31).
   if (
     input.requireDetailApproval &&
     doc.published === true &&
-    typeof doc.alibabaPrimarySourceKey === 'string' &&
-    (input.requireDetailApproval === true ||
-      data.published === true ||
-      ['catalogPricingMode', 'manualCatalogPricing', 'unitPrice', 'wholesalePrice', 'moq'].some(
-        (field) => !isDeepStrictEqual(existing?.[field], doc[field]),
-      ))
+    (input.requireDetailApproval === true || data.published === true)
   ) {
     const receipt = existing?.catalogDetailApprovalReceipt;
     if (
@@ -257,7 +254,10 @@ export function planCatalogProductSave(
     )
       issues.push({
         field: 'published',
-        message: 'Review and approve the current product details before publishing.',
+        message:
+          input.mode === 'create'
+            ? 'A new product starts as a draft. Save it unpublished, then approve it to publish.'
+            : 'Review and approve the current product details before publishing.',
       });
   }
   if (issues.length > 0) return { result: 'invalid-product', issues };

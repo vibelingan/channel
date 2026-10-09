@@ -121,8 +121,9 @@ async function saveCatalogProduct(input: {
 export function createCatalogProductRecord(
   values: unknown,
   productId: string = randomUUID(),
+  requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
 ): Promise<CatalogProductWriteTransition> {
-  return saveCatalogProduct({ mode: 'create', productId, values });
+  return saveCatalogProduct({ mode: 'create', productId, values, requireDetailApproval });
 }
 
 export function updateCatalogProductRecord(

@@ -15,6 +15,7 @@
     "./catalog-price-summary-backfill": "./src/catalog-price-summary-backfill.ts",
     "./catalog-detail-storage": "./src/catalog-detail-storage.ts",
     "./catalog-quote": "./src/catalog-quote.ts",
+    "./catalog-publication-fingerprint": "./src/catalog-publication-fingerprint.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts"
   },
   "scripts": {

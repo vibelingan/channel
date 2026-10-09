@@ -682,7 +682,7 @@ export async function handleAdminRequest(
       case 'get':
         return await getAction(req, claims);
       case 'create':
-        return await createAction(req, claims);
+        return await createAction(req, claims, config);
       case 'update':
         return await updateAction(req, claims, config);
       case 'remove':
@@ -1922,7 +1922,22 @@ async function abandonUploadAction(
   }
 }
 
-async function createAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
+/** A contributor's edit on a live product, saved without changing publication (OWN-1). */
+function contributorDraftEdit(
+  before: CollectionDoc,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const { published: _published, ...draft } = values;
+  return Object.keys(draft).length > 0 && before.alibabaReviewPending !== true
+    ? { ...draft, alibabaReviewPending: true, alibabaReviewReason: 'edited' }
+    : draft;
+}
+
+async function createAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
   const parsed = createSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and values are required');
   if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
@@ -1944,7 +1959,12 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
         return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
       }
       const values = buildWriteSchema(definition).parse(parsed.data.values);
-      const transition = await createCatalogProductRecord(values);
+      // A new product has no approved version yet, so it starts as a draft (MIU-37).
+      const transition = await createCatalogProductRecord(
+        values,
+        undefined,
+        config.enableDetailApproval === true ? 'publication-or-pricing' : false,
+      );
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {
@@ -1999,13 +2019,14 @@ async function updateAction(
       const { manualCatalogPricing: _clearCommand, ...productValuesWithoutPricing } =
         parsed.data.values;
       const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
-      const values = buildWriteSchema(definition).partial().parse(productValues);
-      if (clearsManualPricing) values.manualCatalogPricing = '';
+      const parsedValues = buildWriteSchema(definition).partial().parse(productValues);
+      if (clearsManualPricing) parsedValues.manualCatalogPricing = '';
       // Supplier decisions and configuration photos change what approval
       // publishes; a product with supplier changes waits for an admin (DEC-19).
       if (
         claims.role !== 'admin' &&
-        (Object.hasOwn(values, 'supplierDecisions') || Object.hasOwn(values, 'configurationPhotos'))
+        (Object.hasOwn(parsedValues, 'supplierDecisions') ||
+          Object.hasOwn(parsedValues, 'configurationPhotos'))
       )
         return err(
           'FORBIDDEN',
@@ -2020,6 +2041,17 @@ async function updateAction(
           'FORBIDDEN',
           'This product has Alibaba changes waiting for an admin’s review. Ask an admin to review it.',
         );
+      // A contributor's edit on a live product waits for an admin (OWN-1): the
+      // row keeps the edit, buyers keep the approved version, and the product is
+      // flagged Edited until an admin approves and publishes it.
+      const values =
+        config.enableDetailApproval === true &&
+        claims.role !== 'admin' &&
+        before?.published === true &&
+        parsedValues.published !== false &&
+        parsedValues.archived !== true
+          ? contributorDraftEdit(before, parsedValues)
+          : parsedValues;
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);

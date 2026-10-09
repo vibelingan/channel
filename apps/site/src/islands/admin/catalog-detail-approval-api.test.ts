@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
-import { updateRecord } from './api.ts';
+import { DraftSavedError, createRecord, updateRecord } from './api.ts';
 import {
   type DetailReview,
   approveDetailReview,
@@ -149,6 +149,7 @@ function manualApi(
 ) {
   const calls: string[] = [];
   const updates: Record<string, unknown>[] = [];
+  const creates: Record<string, unknown>[] = [];
   let current: Record<string, unknown> = {
     _id: 'canonical-product',
     name: 'Kids headset',
@@ -162,6 +163,11 @@ function manualApi(
     let data: unknown = progress;
     if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
     if (body.action === 'get') data = current;
+    if (body.action === 'create') {
+      creates.push(body.data ?? {});
+      current = { _id: 'canonical-product', ...(body.data?.values as object) };
+      data = current;
+    }
     if (body.action === 'update') {
       updates.push(body.data ?? {});
       current = { ...current, ...(body.data?.values as object), updatedAt: 'after-update' };
@@ -175,7 +181,7 @@ function manualApi(
       data = { ...review(1, 0), productId: 'canonical-product', previewMedia: undefined };
     return Response.json({ ok: true, data });
   });
-  return { calls, updates };
+  return { calls, updates, creates };
 }
 
 test('publishing a manual product runs the approval, then publishes; no Alibaba imports', async (t) => {
@@ -237,8 +243,8 @@ test('a category change on a published manual product without an image is refuse
 });
 
 // --- DEC-18 (revised 2026-10-08): approval never takes supplier text or photos silently.
-// The admin will choose them side by side (open design); until then approval
-// publishes the product's own text and photos, as before MIU-39.
+// The admin chooses them in Supplier changes (DEC-19); approval publishes the
+// product's own text and photos.
 
 /** A live Alibaba-linked product behind the real admin API protocol. */
 function linkedApi(t: { mock: { method: typeof test.mock.method } }) {
@@ -329,4 +335,63 @@ test('an approved answer ends the approval in one request', async (t) => {
   });
   await approveProduct('canonical-product');
   assert.equal(requests, 1);
+});
+
+// --- MIU-37: a new product starts as a draft; OWN-1: contributors save without the admin-only approval ---
+
+test('creating a product as Published saves a draft, then approves and publishes it', async (t) => {
+  const api = manualApi(t, {});
+  const saved = await createRecord('products', {
+    name: 'Kids headset',
+    productFamily: 'headphones',
+    imageIds: ['img'],
+    published: true,
+  });
+  assert.equal(saved.published, true);
+  assert.equal(api.creates[0]?.values && Reflect.get(api.creates[0].values, 'published'), false);
+  assert.deepEqual(
+    api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities'),
+    ['create', 'approval:approve', 'update'],
+  );
+});
+
+test('when publishing the new product fails, the draft is kept and the error says so', async (t) => {
+  manualApi(t, {});
+  const failure = await createRecord('products', {
+    name: 'Kids headset',
+    productFamily: 'headphones',
+    imageIds: [],
+    published: true,
+  }).catch((error: unknown) => error);
+  assert.ok(failure instanceof DraftSavedError);
+  assert.equal(failure.draft._id, 'canonical-product');
+  assert.match(failure.message, /Saved as a draft/);
+  assert.match(failure.message, /Add at least one product image before publishing/);
+});
+
+test('a draft is created in one request', async (t) => {
+  const api = manualApi(t, {});
+  await createRecord('products', { name: 'Kids headset', published: false });
+  assert.deepEqual(api.calls, ['create']);
+});
+
+test('a contributor save goes straight to the server, which keeps it as a draft for an admin', async (t) => {
+  const calls: AdminCall[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    calls.push(body);
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'Admin permission is required.' },
+      });
+    return Response.json({ ok: true, data: { _id: 'p1', ...(body.data?.values as object) } });
+  });
+  const values = { name: 'Renamed', productFamily: 'headphones', published: true };
+  await updateRecord('products', 'p1', values);
+  assert.deepEqual(
+    calls.map((call) => call.action),
+    ['catalogDetailCapabilities', 'update'],
+  );
+  assert.deepEqual(calls.at(-1)?.data?.values, values);
 });

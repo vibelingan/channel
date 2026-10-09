@@ -51,6 +51,18 @@ export class AdminApiError extends Error {
   }
 }
 
+/** The new product was saved as a draft, but publishing it failed (MIU-37). */
+export class DraftSavedError extends AdminApiError {
+  constructor(
+    code: string,
+    message: string,
+    public readonly draft: CollectionDoc,
+  ) {
+    super(code, `Saved as a draft, not published: ${message}`);
+    this.name = 'DraftSavedError';
+  }
+}
+
 async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
@@ -272,11 +284,25 @@ export function markProductReviewed(productId: string): Promise<CollectionDoc> {
   return call<CollectionDoc>('markProductReviewed', { productId });
 }
 
-export function createRecord(
+export async function createRecord(
   collection: string,
   values: Record<string, unknown>,
 ): Promise<CollectionDoc> {
-  return call<CollectionDoc>('create', { collection, values });
+  if (collection !== 'products' || values.published !== true)
+    return call<CollectionDoc>('create', { collection, values });
+  // A new product has no approved version, so it starts as a draft and
+  // publishing it is an approval, like any other product (MIU-37).
+  const draft = await call<CollectionDoc>('create', {
+    collection,
+    values: { ...values, published: false },
+  });
+  try {
+    return await updateRecord(collection, draft._id, { published: true });
+  } catch (error) {
+    const code = error instanceof AdminApiError ? error.code : 'INTERNAL_ERROR';
+    const message = error instanceof Error ? error.message : 'Publishing failed.';
+    throw new DraftSavedError(code, message, draft);
+  }
 }
 
 export async function updateRecord(
@@ -300,10 +326,17 @@ export async function updateRecord(
     }
   }
   if (collection === 'products' && (values.published === true || refreshPublishedDetail)) {
-    const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities');
-    if (typeof capabilities?.enabled !== 'boolean')
+    // Approval is for admins. A contributor's save goes straight to the server,
+    // which keeps an edit on a live product as a draft for an admin (OWN-1).
+    const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities').catch(
+      (error: unknown) => {
+        if (error instanceof AdminApiError && error.code === 'FORBIDDEN') return null;
+        throw error;
+      },
+    );
+    if (capabilities !== null && typeof capabilities?.enabled !== 'boolean')
       throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
-    if (capabilities.enabled) {
+    if (capabilities?.enabled) {
       let current = await call<CollectionDoc>('get', { collection, id });
       if (typeof current.alibabaPrimarySourceKey !== 'string')
         return approveManualProduct(collection, id, values, current, {
