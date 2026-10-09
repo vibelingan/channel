@@ -141,6 +141,21 @@ paired with the MOQ. Names are truncated as captured.
   UTC, smoke passed); its post-deploy public browser step hit the job's
   45-minute limit while passing (41/41 so far) and shows as cancelled — the
   known slow-deploy issue, not this change.
+- Run 2 (`acd7ed8`, 13:55 UTC): both smoke tests passed; the deploy was
+  green end to end. But the UI test's uploaded image was still there: its
+  cleanup failed silently. Calling the same `abandonUpload` from the admin
+  page (same account) gave "Unexpected server error" after 7.5 s. Cause: the
+  image reference scan behind it lists every collection with `imageIds`, and
+  three website 2.0 content collections (`successStories`,
+  `teardownReports`, `blueOceanProducts`) were registered but never created
+  in the deployed database, so listing them threw (the admin `list` for them
+  failed the same way; all other registered collections answered). Nothing
+  on the website calls `abandonUpload`, so it went unnoticed.
+- Fix: the deploy now provisions the three collections (private, like every
+  other); a new test fails if a registered collection is neither provisioned
+  nor one of the five created before provisioning existed (users,
+  oemProjects, overstock, images, files — verified in production). The UI
+  test's cleanup now logs a failure instead of hiding it.
 
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search

@@ -320,7 +320,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   const messages = [];
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 28);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 31);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
@@ -501,4 +501,23 @@ test('deployment docs match restored routes and post-baseline resource contracts
   ]) {
     assert.ok(deploymentDesign.includes(contract), `deployment design keeps ${contract}`);
   }
+});
+
+test('every registered collection exists in the deployed database', async () => {
+  // Created before this deploy step existed (verified in production
+  // 2026-10-09); every newer collection must be provisioned here, or listing it
+  // and scanning it for image references fails with a server error.
+  const createdBeforeProvisioning = new Set([
+    'users',
+    'oemProjects',
+    'overstock',
+    'images',
+    'files',
+  ]);
+  const { COLLECTIONS } = await import('../packages/shared/src/collections.ts');
+  const provisioned = new Set(REQUIRED_NOSQL_RESOURCES.map((r) => r.collectionName));
+  const missing = COLLECTIONS.map((definition) => definition.name).filter(
+    (name) => !provisioned.has(name) && !createdBeforeProvisioning.has(name),
+  );
+  assert.deepEqual(missing, []);
 });

@@ -119,12 +119,14 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
             'abandonUpload',
             { imageId: img._id },
             session.token,
-          ).catch(() => {
-            /* best-effort cleanup */
+          ).catch((error: unknown) => {
+            // Never fail the test on teardown, but say so: a silent failure
+            // here hid a server bug (missing collections, 2026-10-09).
+            console.warn(`MIU-09 UI cleanup: abandon ${img._id} failed: ${String(error)}`);
           });
         }
-      } catch {
-        /* best-effort cleanup; never fail the test on teardown */
+      } catch (error) {
+        console.warn(`MIU-09 UI cleanup failed: ${String(error)}`);
       }
     }
   });
