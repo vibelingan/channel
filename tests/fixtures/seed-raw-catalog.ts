@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createDraftForSource } from '../../apps/functions/alibaba-catalog-sync/src/linking.ts';
+import { prepareAlibabaPhotosPage } from '../../apps/functions/alibaba-catalog-sync/src/photo-preparation.ts';
 import type { JsonFileAdapter } from '../../apps/local-server/src/json-adapter.ts';
 import {
   extractProductDetail,
@@ -148,4 +149,16 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
     description: 'Disposable source color mapping acceptance fixture.',
     imageIds: colorGallery.map((_, i) => `raw-color-image-${i}`),
   });
+  // New drafts appear once their photos are prepared (PT-G), as after a real
+  // sync. Photos stored above are reused; this disposable lane never fetches
+  // from Alibaba, so any other photo is noted as not copied.
+  let afterProductId = '';
+  for (;;) {
+    const page = await prepareAlibabaPhotosPage({
+      afterProductId,
+      importImage: async () => ({ ok: false, reason: 'fetch-failed' }),
+    });
+    if (page.done) break;
+    afterProductId = page.nextProductId;
+  }
 }
