@@ -1,19 +1,15 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import { setAdapter } from '@vibelingan-channel/db';
-import {
-  createAlibabaPricingAdapter,
-  resolveCatalogPricing,
-} from '@vibelingan-channel/shared/catalog';
 import { z } from 'zod';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { getProductDetail } from '../../functions/public-api/src/catalog-detail.ts';
-import { publicDoc } from '../../functions/public-api/src/handler.ts';
+import { publicItem } from '../../functions/public-api/src/handler.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 test('manual price patches cannot leave published list and approved detail on different prices', async (t) => {
@@ -112,19 +108,21 @@ test('manual price patches cannot leave published list and approved detail on di
     setAdapter(adapter);
     const saved = await adapter.get('products', 'headset');
     assert.ok(saved);
-    const projected = publicDoc('products', saved, {});
-    assert.deepEqual(
-      resolveCatalogPricing(
-        { ...projected, unitPrice: projected.unitPrice },
-        createAlibabaPricingAdapter(),
-      ),
-      {
-        source: 'scalar',
-        field: 'unitPrice',
-        currency: 'USD',
-        amount,
-      },
-    );
+    // The list item buyers get is the approved version: its price summary,
+    // never the row's prices (DEC-1, DEC-14).
+    const item = publicItem('products', saved, { enableCatalogDetail: true });
+    assert.equal(item.kind, 'approved');
+    for (const field of [
+      'unitPrice',
+      'wholesalePrice',
+      'manualCatalogPricing',
+      'catalogPricingMode',
+    ])
+      assert.equal(field in item.doc, false, `row ${field} reached the list`);
+    assert.deepEqual(item.doc.priceSummary, {
+      source: 'website',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: amount * 100 },
+    });
     const detail = await getProductDetail('headset');
     assert.ok(detail.ok, JSON.stringify(detail));
     assert.deepEqual(detail.data.websitePricing, {
@@ -161,7 +159,18 @@ test('manual price patches cannot leave published list and approved detail on di
       await approve();
     },
   );
+  // A price edit on a live product is saved to the row and waits for the next
+  // approval: buyers keep the approved price, and publishing the edit needs
+  // approval (MIU-31).
   const before = await adapter.get('products', 'headset');
+  assert.ok(before);
+  // Each case starts from the approved product: put this disposable DB back.
+  const snapshot = readFileSync(file, 'utf8');
+  const restore = () => {
+    writeFileSync(file, snapshot);
+    adapter = new JsonFileAdapter(file);
+    setAdapter(adapter);
+  };
   for (const values of [
     { unitPrice: 8.5 },
     { wholesalePrice: 8.5 },
@@ -176,18 +185,24 @@ test('manual price patches cannot leave published list and approved detail on di
         tiers: [{ minQuantity: 5, unitAmountMinor: 850 }],
       },
     },
-    { unitPrice: 8.5, published: true },
   ]) {
     const result = await save(values);
-    assert.equal(
-      result.ok,
-      false,
-      `unreviewed published patch accepted: ${JSON.stringify(values)}`,
-    );
-    if (!result.ok) assert.equal(result.error.code, 'VALIDATION_ERROR');
-    assert.deepEqual(await adapter.get('products', 'headset'), before);
+    assert.ok(result.ok, `price edit on a live product refused: ${JSON.stringify(values)}`);
+    const saved = await adapter.get('products', 'headset');
+    assert.equal(saved?.published, true);
+    assert.deepEqual(saved?.catalogDetailPublication, before.catalogDetailPublication);
+    assert.deepEqual(saved?.catalogDetailApprovalReceipt, before.catalogDetailApprovalReceipt);
+    await assertPublicPrice(3);
+    const republish = await save({ published: true });
+    assert.equal(republish.ok, false, `unapproved edit published: ${JSON.stringify(values)}`);
+    restore();
     await assertPublicPrice(3);
   }
+  // Publishing together with an unapproved price change is refused outright.
+  const both = await save({ unitPrice: 8.5, published: true });
+  assert.equal(both.ok, false);
+  if (!both.ok) assert.equal(both.error.code, 'VALIDATION_ERROR');
+  await assertPublicPrice(3);
   assert.ok((await save({ unitPrice: 3 })).ok, 'unchanged pricing remains editable');
 
   assert.ok((await save({ published: false, unitPrice: 8.5 })).ok);
