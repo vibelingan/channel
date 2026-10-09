@@ -1033,7 +1033,9 @@ export function CollectionView({
           >
             Prev
           </button>
-          <PageJump page={page} pageCount={pageCount} onJump={setPage} />
+          <span>
+            {page} / {pageCount}
+          </span>
           <button
             type="button"
             disabled={page >= pageCount}
@@ -1042,6 +1044,7 @@ export function CollectionView({
           >
             Next
           </button>
+          {pageCount > 1 && <PageJump page={page} pageCount={pageCount} onJump={setPage} />}
         </div>
       </div>
 

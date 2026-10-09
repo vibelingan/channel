@@ -309,7 +309,10 @@ test('the product list jumps to a typed page number, kept within the pages that 
   );
   assert.match(
     html,
-    /<label[^>]*>Page<\/label><input[^>]*type="number"[^>]*max="56"[^>]*value="3"/,
+    /<label[^>]*>Go to page<\/label><input[^>]*type="number"[^>]*max="56"[^>]*value="3"/,
   );
-  assert.ok(html.includes('aria-label="Go to page"'));
+  assert.match(html, /<button type="submit"[^>]*>Go<\/button>/);
+  // The "page / pages" indicator stays as it was; the jump box sits beside it.
+  const view = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(view, /\{page\} \/ \{pageCount\}/);
 });

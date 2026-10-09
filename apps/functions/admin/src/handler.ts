@@ -114,6 +114,7 @@ import {
   normalizeSkuCode,
   oemFileUploadSchema,
   ok,
+  productFamilyForDoc,
   rateLimited,
   sanitizeDownloadFilename,
   selectExpiredPendingForSweep,
@@ -1943,6 +1944,28 @@ function sameFieldValue(left: unknown, right: unknown): boolean {
 const LIVE_ROW_FIELDS = ['productFamily', 'category', 'slug', 'skuCode'] as const;
 
 /**
+ * Whether a save changes one of those fields. The family is compared as the
+ * site reads it (an old row's family comes from its Headphones category), and
+ * clearing an old Headphones category from another family is the cleanup
+ * every save applies anyway.
+ */
+function changesLiveRowField(
+  before: CollectionDoc,
+  values: Record<string, unknown>,
+  field: (typeof LIVE_ROW_FIELDS)[number],
+): boolean {
+  if (!Object.hasOwn(values, field)) return false;
+  if (field === 'productFamily') return values.productFamily !== productFamilyForDoc(before);
+  if (field === 'category') {
+    const family = Object.hasOwn(values, 'productFamily')
+      ? values.productFamily
+      : productFamilyForDoc(before);
+    if (family !== 'headphones' && sameFieldValue(values.category, '')) return false;
+  }
+  return !sameFieldValue(values[field], before[field]);
+}
+
+/**
  * A contributor's edit on a live product, saved without changing publication
  * and flagged "Edited" for an admin when something actually changed (OWN-1).
  */
@@ -2082,11 +2105,8 @@ async function updateAction(
         parsedValues.archived !== true;
       if (
         contributorEditsLiveProduct &&
-        LIVE_ROW_FIELDS.some(
-          (field) =>
-            Object.hasOwn(parsedValues, field) &&
-            !sameFieldValue(parsedValues[field], before[field]),
-        )
+        before &&
+        LIVE_ROW_FIELDS.some((field) => changesLiveRowField(before, parsedValues, field))
       )
         return err(
           'FORBIDDEN',

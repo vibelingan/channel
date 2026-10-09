@@ -5715,3 +5715,32 @@ test('publishing a New Alibaba draft with the classification revision acknowledg
   );
   assert.deepEqual(row('stale'), before);
 });
+
+test('a contributor save that only clears an old Headphones category is not a category change', async () => {
+  const live = {
+    _id: 'live',
+    ...publishableProduct({ productFamily: 'toys' }),
+    category: 'wired',
+  } as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  okData(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: 'live',
+        values: { name: 'Renamed toy', productFamily: 'toys', category: '', published: true },
+      },
+      await contributorToken(),
+    ),
+  );
+  const row = store.products?.[0];
+  assert.deepEqual(
+    [row?.name, row?.published, row?.alibabaReviewReason],
+    ['Renamed toy', true, 'edited'],
+  );
+});

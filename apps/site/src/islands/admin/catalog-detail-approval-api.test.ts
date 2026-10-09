@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
-import { DraftSavedError, createRecord, updateRecord } from './api.ts';
+import { DraftSavedError, batchUpdateRecords, createRecord, updateRecord } from './api.ts';
 import {
   type DetailReview,
   approveDetailReview,
@@ -524,5 +524,97 @@ test('classification Save and publish leaves a product with Alibaba changes to i
   assert.equal(
     api.calls.some((call) => call.startsWith('approval:')),
     false,
+  );
+});
+
+test('a draft that cannot be published for a known reason is reported with that reason; the batch goes on', async (t) => {
+  const products: Record<string, Record<string, unknown>> = {
+    'no-photos': {
+      _id: 'no-photos',
+      name: 'No photos',
+      productFamily: 'headphones',
+      published: false,
+      alibabaPrimarySourceKey: 'source-x',
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'new',
+      updatedAt: 'rev-x',
+    },
+    ready: {
+      _id: 'ready',
+      name: 'Ready',
+      productFamily: 'headphones',
+      imageIds: ['img'],
+      published: false,
+      alibabaPrimarySourceKey: 'source-y',
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'new',
+      updatedAt: 'rev-y',
+    },
+  };
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    const id = String(body.data?.id ?? body.data?.productId ?? '');
+    let data: unknown = progress;
+    if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
+    if (body.action === 'get') data = products[id];
+    if (body.action === 'update') {
+      products[id] = { ...products[id], ...(body.data?.values as object), updatedAt: 'after' };
+      data = products[id];
+    }
+    if (body.data?.action === 'approve')
+      data = { ok: true, status: 'approved', jobId: 'job', revision: 'revision' };
+    return Response.json({ ok: true, data });
+  });
+  const result = await batchUpdateRecords(
+    'products',
+    ['no-photos', 'ready'],
+    { published: true },
+    new Map([
+      ['no-photos', 'rev-x'],
+      ['ready', 'rev-y'],
+    ]),
+  );
+  assert.equal(result.updated, 1);
+  assert.equal(result.failures.length, 1);
+  assert.equal(result.failures[0]?.id, 'no-photos');
+  assert.equal(result.failures[0]?.outcome, 'rejected');
+  assert.match(String(result.failures[0]?.message), /no photos/);
+});
+
+test('too many Alibaba description photos are refused before any photo is imported', async (t) => {
+  const api = linkedDraftApi(t, {
+    alibabaDescriptionImageUrls: Array.from(
+      { length: 19 },
+      (_, i) => `https://sc04.alicdn.com/detail-${i}.jpg`,
+    ),
+  });
+  await assert.rejects(
+    updateRecord('products', 'draft-product', { published: true }, 'classified'),
+    /description images/,
+  );
+  assert.equal(api.calls.includes('importSourceImage'), false);
+  assert.deepEqual(api.updates, []);
+});
+
+test('the classification guard never silently turns off', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    let data: unknown = {
+      _id: 'draft-product',
+      productFamily: 'headphones',
+      published: false,
+      alibabaPrimarySourceKey: 'source-a',
+      alibabaSourceImageUrls: ['https://sc04.alicdn.com/a.jpg'],
+      updatedAt: 'classified',
+    };
+    if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
+    if (body.action === 'importSourceImage') data = { imageId: 'owned', deduplicated: false };
+    // A save answer without its revision.
+    if (body.action === 'update') data = { _id: 'draft-product', imageIds: ['owned'] };
+    return Response.json({ ok: true, data });
+  });
+  await assert.rejects(
+    updateRecord('products', 'draft-product', { published: true }, 'classified'),
+    /revision/i,
   );
 });

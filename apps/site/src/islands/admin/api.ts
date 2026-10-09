@@ -379,7 +379,14 @@ export async function updateRecord(
             values: writeValues,
             ...(guard ? { expectedUpdatedAt: guard } : {}),
           });
-          if (guard) guard = typeof saved.updatedAt === 'string' ? saved.updatedAt : undefined;
+          if (guard) {
+            if (typeof saved.updatedAt !== 'string')
+              throw new AdminApiError(
+                'INVALID_RESPONSE',
+                'The save did not return its revision. Refresh before publishing.',
+              );
+            guard = saved.updatedAt;
+          }
           return saved;
         };
         // Save reviewed form edits first without changing publication. The server
@@ -390,6 +397,21 @@ export async function updateRecord(
           throw new AdminApiError(
             'INVALID_PRODUCT',
             'Choose a website category before publishing.',
+          );
+        // First publication only. A re-approval never takes newer supplier
+        // text or photos on its own; the admin chooses them (DEC-18). Checked
+        // before any import, so a refusal leaves the draft untouched.
+        const descriptionSources =
+          !refreshPublishedDetail &&
+          current.published !== true &&
+          current.descriptionImageIds === undefined &&
+          Array.isArray(current.alibabaDescriptionImageUrls)
+            ? current.alibabaDescriptionImageUrls
+            : [];
+        if (descriptionSources.length > PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
+          throw new AdminApiError(
+            'MEDIA_NOT_READY',
+            `Import up to ${PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT} description images in Edit and review them before publishing.`,
           );
         if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
           if (
@@ -417,26 +439,13 @@ export async function updateRecord(
             );
           if (imported.imageIds.length) await write({ imageIds: imported.imageIds });
         }
-        if (
-          // First publication only. A re-approval never takes newer supplier
-          // text or photos on its own; the admin chooses them (DEC-18).
-          !refreshPublishedDetail &&
-          current.published !== true &&
-          current.descriptionImageIds === undefined &&
-          Array.isArray(current.alibabaDescriptionImageUrls) &&
-          current.alibabaDescriptionImageUrls.length
-        ) {
-          if (current.alibabaDescriptionImageUrls.length > PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
-            throw new AdminApiError(
-              'MEDIA_NOT_READY',
-              `Import up to ${PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT} description images in Edit and review them before publishing.`,
-            );
+        if (descriptionSources.length > 0) {
           const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
             import('./alibaba-gallery-import.ts'),
             import('./alibaba-catalog-sync/alibaba-api.ts'),
           ]);
           const imported = await importAlibabaGallery({
-            sourceUrls: current.alibabaDescriptionImageUrls,
+            sourceUrls: descriptionSources,
             imageIds: [],
             maxItems: PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
             importImage: importAlibabaSourceImage,
@@ -625,6 +634,9 @@ export async function batchUpdateRecords(
             'CONFLICT',
             'UNAUTHORIZED',
             'FORBIDDEN',
+            // Refused by the admin page before publishing: the product stays a draft.
+            'MEDIA_NOT_READY',
+            'INVALID_PRODUCT',
           ].includes(error.code);
         if (
           !rejected ||

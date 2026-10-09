@@ -7,7 +7,7 @@ export function requestedPage(input: string, pageCount: number): number | null {
   return Math.min(Math.max(1, pageCount), Math.max(1, value));
 }
 
-/** "Page [n] / N  Go": type a page number to jump straight to it. */
+/** "Go to page [n] Go": type a page number to jump straight to it. */
 export function PageJump({
   page,
   pageCount,
@@ -33,7 +33,9 @@ export function PageJump({
         }
       }}
     >
-      <label htmlFor={inputId}>Page</label>
+      <label htmlFor={inputId} className="ml-2">
+        Go to page
+      </label>
       <input
         id={inputId}
         type="number"
@@ -44,12 +46,7 @@ export function PageJump({
         onChange={(event) => setDraft(event.target.value)}
         className="h-9 w-16 rounded-lg border border-slate-300 px-2 text-center tabular-nums text-slate-800"
       />
-      <span className="tabular-nums">/ {pageCount}</span>
-      <button
-        type="submit"
-        aria-label="Go to page"
-        className="min-h-9 rounded-lg border border-slate-300 px-3 py-1.5"
-      >
+      <button type="submit" className="min-h-9 rounded-lg border border-slate-300 px-3 py-1.5">
         Go
       </button>
     </form>
