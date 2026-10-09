@@ -4,14 +4,15 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-09, 11:05 UTC):** live on supplychainsai.com: batches 1–5b,
+**Status (2026-10-09, 15:35 UTC):** live on supplychainsai.com: batches 1–5b,
 DEC-19 (Supplier changes panel), DEC-20 (photos per configuration), the
-classification "Save and publish" fix, PT-G (Alibaba photos copied ahead) and
-MIU-55 ("one product, one unit"), admin thumbnails for drafts, GIF photos,
-and a public search that no longer matches Alibaba product IDs. Every draft
-has its photos and can be published once it has a category. Audit: 141
-listed, 141 approved, 0 mismatches. Branch `feat/catalog-alibaba-price-tiers`
-(not yet merged to `main`).
+classification "Save and publish" fix, PT-G and MIU-55 (Alibaba photos copied
+ahead, one product one unit), admin thumbnails for drafts, GIF photos, a public
+search that no longer matches Alibaba product IDs, the Excel import's "make
+public" behind approval, and the three website 2.0 collections the deploy now
+creates. The media-upload smoke passes on the live site. Audit: 141 listed,
+141 approved, 0 mismatches. Branch `feat/catalog-alibaba-price-tiers` (not yet
+merged to `main`).
 
 **Retro:** [retro/](retro/README.md) — timeline, problems and fixes, design as
 built, from 2026-10-02 to now; updated as work continues.

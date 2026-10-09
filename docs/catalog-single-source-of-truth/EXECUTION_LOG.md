@@ -183,6 +183,12 @@ paired with the MOQ. Names are truncated as captured.
   hung 31 minutes installing the browsers and was cancelled, so production
   stayed on `acd7ed8`. Redeployed with `18d2068` (also carries the import
   approval fix).
+- `18d2068` deployed green end to end (admin live 15:08 UTC, run finished
+  15:32). The deploy log reports `successStories`, `teardownReports` and
+  `blueOceanProducts` "ready (0 indexes, ADMINONLY)". Still to confirm from a
+  signed-in admin page (the session expired at ~15:09): listing the three
+  answers without error, and `abandonUpload` removes the two leftover 1x1
+  test images (`…-ui.png`).
 
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search
