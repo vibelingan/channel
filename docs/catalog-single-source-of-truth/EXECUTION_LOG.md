@@ -125,9 +125,22 @@ paired with the MOQ. Names are truncated as captured.
   role is required (publishing is an approval).
 - `media-upload-ui.spec.ts`: cleanup abandons the uploaded image instead of the
   refused `remove`; exact "Products" button; comments say PUT, not POST.
-- Checked: e2e typecheck, lint, both tests list. Not yet run: they only run
-  against the live site with the stored admin password, and the API smoke
-  publishes a test product for a few seconds — run on the owner's go-ahead.
+- Checked: e2e typecheck, lint, both tests list. They only run against the
+  live site with the stored admin password; the owner approved a run.
+- Run 1 (E2E workflow from `test` at `9656150`, 12:56 UTC): the API smoke
+  passed on the live site (upload → private preview → draft → approve →
+  publish → image public → archive). The UI test failed: the product form
+  now has two uploaders (product and description photos), so
+  `input[type="file"]` matched two elements. Fixed: scope to
+  `[data-image-manager="gallery"]`. Also the uploader's help text now says
+  "JPG, PNG, WebP or GIF" (missed in the GIF change).
+- The E2E workflow uses the `test` environment, which only `test` (and two
+  other refs) may use: a run from the feature branch is rejected before it
+  starts, so `test` was fast-forwarded to `9656150` (docs and tests only
+  since the live `74d77cc`). That redeploy finished (functions 12:12–12:21
+  UTC, smoke passed); its post-deploy public browser step hit the job's
+  45-minute limit while passing (41/41 so far) and shows as cancelled — the
+  known slow-deploy issue, not this change.
 
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search

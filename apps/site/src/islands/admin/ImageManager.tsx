@@ -433,8 +433,8 @@ export function ImageManager({
         </label>
       </div>
       <p id={`${inputId}-capacity`} className="mt-2 text-xs text-slate-400">
-        JPG, PNG, or WebP. {purpose === 'gallery' ? 'The first image is primary. ' : ''}Use ‹ › to
-        reorder.
+        JPG, PNG, WebP or GIF. {purpose === 'gallery' ? 'The first image is primary. ' : ''}Use ‹ ›
+        to reorder.
         {capacityText ? ` ${capacityText}` : ''}
       </p>
       <output className="mt-1 block text-xs text-amber-700" aria-live="polite">

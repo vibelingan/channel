@@ -60,15 +60,14 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
       await page.getByRole('button', { name: 'Products', exact: true }).click();
       await page.getByRole('button', { name: /^New / }).click();
 
-      // The ImageManager file input is hidden behind a styled label; set files on it
-      // directly. This drives the real intent → COS PUT → completeUpload.
-      const fileInput = page.locator('input[type="file"]');
+      // The product form has one uploader per photo list (product photos,
+      // description photos); use the product photos one. Its file input is
+      // hidden behind a styled label, so set files on it directly. This drives
+      // the real intent → COS PUT → completeUpload. Assertions stay inside this
+      // uploader: the table behind the form also renders `img[alt=""]`.
+      const imageManager = page.locator('[data-image-manager="gallery"]');
+      const fileInput = imageManager.locator('input[type="file"]');
       await fileInput.waitFor({ state: 'attached' });
-      // Scope preview assertions to the ImageManager's own tile row (the flex
-      // container that also holds the upload file input), NOT the whole page — the
-      // background CollectionView table always renders `img[alt=""]` row thumbnails,
-      // so a page-wide selector would pass vacuously without ever uploading.
-      const imageManager = page.locator('div.flex.flex-wrap', { has: fileInput });
       await fileInput.setInputFiles({ name: fileName, mimeType: 'image/png', buffer: onePixelPng });
 
       // The transient "Uploading…" tile clears and the uploaded image previews via an
