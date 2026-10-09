@@ -72,6 +72,8 @@ export interface CatalogProductSaveInput {
   rejectPendingReview?: boolean;
   expectedPrimarySourceKey?: string | null;
   requireDetailApproval?: boolean | 'publication-or-pricing';
+  /** Refuse (as stale) when the product was approved, published or archived (PT-G photo job). */
+  requireUnapprovedDraft?: boolean;
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
     productUpdatedAt: string | null;
@@ -177,6 +179,13 @@ export function planCatalogProductSave(
   }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
   if (input.expectedUpdatedAt !== undefined && existing?.updatedAt !== input.expectedUpdatedAt)
+    return { result: 'stale' };
+  if (
+    input.requireUnapprovedDraft &&
+    (existing?.published === true ||
+      existing?.archived === true ||
+      Boolean(existing?.catalogDetailApprovalReceipt))
+  )
     return { result: 'stale' };
   if (
     input.rejectPendingReview &&

@@ -317,6 +317,30 @@ test('non-image bytes are rejected regardless of headers; oversize bodies are ca
   );
 });
 
+test('a download that stalls after its headers gives up instead of hanging (PT-G)', async () => {
+  setup();
+  const stalled: typeof fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(PNG_BYTES.subarray(0, 8));
+          // Never closes: the rest of the photo never arrives.
+        },
+      }),
+      { status: 200 },
+    );
+  const started = Date.now();
+  assert.deepEqual(
+    await importCandidateImage('https://sc04.alicdn.com/slow.png', {
+      fetchImpl: stalled,
+      resolveDns: PUBLIC_DNS,
+      bodyTimeoutMs: 50,
+    }),
+    { ok: false, reason: 'fetch-failed' },
+  );
+  assert.ok(Date.now() - started < 2_000);
+});
+
 // --- lifecycle ---------------------------------------------------------------
 
 test('a verified import lands as an ACTIVE, unreferenced, sentinel-owned candidate', async () => {

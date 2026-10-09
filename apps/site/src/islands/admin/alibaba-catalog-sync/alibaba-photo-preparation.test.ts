@@ -23,7 +23,14 @@ const page = (overrides: Record<string, unknown>) => ({
 test('photo preparation runs page after page to the end and adds up the progress', async (t) => {
   const requests: Record<string, unknown>[] = [];
   const pages = [
-    page({ nextProductId: 'p-100', visited: 100, prepared: 3, photosCopied: 40, photosFailed: 1 }),
+    page({
+      nextProductId: 'p-100',
+      visited: 100,
+      prepared: 3,
+      photosCopied: 40,
+      photosFailed: 1,
+      failures: [{ productId: 'p-7', reason: 'invalid-product' }],
+    }),
     page({ afterProductId: 'p-100', nextProductId: 'p-100', prepared: 1, photosCopied: 9 }),
     page({ afterProductId: 'p-100', nextProductId: 'p-180', done: true, visited: 80, busy: 1 }),
   ];
@@ -48,7 +55,8 @@ test('photo preparation runs page after page to the end and adds up the progress
     photosReused: 0,
     photosFailed: 1,
     busy: 1,
-    failures: 0,
+    failures: 1,
+    failedProducts: ['p-7'],
   });
   assert.deepEqual(seen, [3, 4, 4]);
 });
@@ -62,9 +70,16 @@ test('a page that does not continue from where it was asked is refused', async (
 
 test('the photo status is read and validated', async (t) => {
   t.mock.method(globalThis, 'fetch', async () =>
-    Response.json({ ok: true, data: { hiddenDrafts: 2, draftsToFill: 958 } }),
+    Response.json({
+      ok: true,
+      data: { hiddenDrafts: 2, draftsToFill: 958, draftsMissingPhotos: 4 },
+    }),
   );
-  assert.deepEqual(await fetchPhotoPreparationStatus(), { hiddenDrafts: 2, draftsToFill: 958 });
+  assert.deepEqual(await fetchPhotoPreparationStatus(), {
+    hiddenDrafts: 2,
+    draftsToFill: 958,
+    draftsMissingPhotos: 4,
+  });
   t.mock.method(globalThis, 'fetch', async () =>
     Response.json({ ok: true, data: { hiddenDrafts: -1 } }),
   );
@@ -74,14 +89,15 @@ test('the photo status is read and validated', async (t) => {
 test('the Product photos section says what is left and what happens automatically', () => {
   const markup = renderToStaticMarkup(
     createElement(AlibabaPhotoPreparation, {
-      status: { hiddenDrafts: 2, draftsToFill: 958 },
+      status: { hiddenDrafts: 2, draftsToFill: 958, draftsMissingPhotos: 4 },
       progress: {
         prepared: 12,
         photosCopied: 240,
         photosReused: 30,
         photosFailed: 3,
         busy: 0,
-        failures: 0,
+        failures: 1,
+        failedProducts: ['p-7'],
       },
       running: true,
       onRun: () => {},
@@ -94,10 +110,13 @@ test('the Product photos section says what is left and what happens automaticall
   assert.ok(markup.includes('12 drafts ready'));
   assert.ok(markup.includes('240 photos copied'));
   assert.ok(markup.includes('3 could not be copied'));
+  assert.ok(markup.includes('4 drafts with photos that could not be copied yet'));
+  assert.ok(markup.includes('1 draft could not be saved'));
+  assert.ok(markup.includes('p-7'));
   assert.match(markup, /<button[^>]*disabled=""[^>]*>Copying photos…<\/button>/);
   const done = renderToStaticMarkup(
     createElement(AlibabaPhotoPreparation, {
-      status: { hiddenDrafts: 0, draftsToFill: 0 },
+      status: { hiddenDrafts: 0, draftsToFill: 0, draftsMissingPhotos: 0 },
       progress: null,
       running: false,
       onRun: () => {},
@@ -110,8 +129,10 @@ test('the Product photos section says what is left and what happens automaticall
 test('the sync page copies photos automatically after every sync and finishes hidden drafts on open', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('./AlibabaCatalogSyncPage.tsx', import.meta.url), 'utf8');
-  // After Run now, after Create missing drafts, after syncing one product.
-  assert.equal(source.match(/void runPhotoPreparation\('all'\);/g)?.length, 3);
+  // After Run now, after Create missing drafts, after syncing one product —
+  // also when the sync failed partway.
+  assert.equal(source.match(/void syncThenPhotos\(async \(\) => \{/g)?.length, 3);
+  assert.match(source, /finally \{\s*void runPhotoPreparationRef\.current\?\.\('all'\);/);
   assert.match(source, /hiddenDrafts > 0\) void runPhotoPreparation\('pending'\)/);
   assert.match(source, /onRun=\{\(\) => void runPhotoPreparation\('all'\)\}/);
 });

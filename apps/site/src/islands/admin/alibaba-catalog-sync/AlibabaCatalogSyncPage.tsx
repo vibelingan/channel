@@ -148,6 +148,17 @@ export function AlibabaCatalogSyncPage() {
     [refresh],
   );
 
+  const runPhotoPreparationRef = useRef<((scope: 'pending' | 'all') => Promise<void>) | null>(null);
+  /** A sync action, then photo copying — also after a sync that failed partway (PT-G). */
+  const syncThenPhotos = (operation: () => Promise<string | null>) =>
+    guard(async () => {
+      try {
+        return await operation();
+      } finally {
+        void runPhotoPreparationRef.current?.('all');
+      }
+    });
+
   const refreshProductReviewQueue = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
     void queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
@@ -182,14 +193,28 @@ export function AlibabaCatalogSyncPage() {
       run.running = true;
       setPhotosRunning(true);
       let next: 'pending' | 'all' | null = scope;
+      let retriedBusy = false;
       try {
+        setPhotoProgress(null);
+        let total: PhotoPreparationProgress | undefined;
         while (next) {
           const current: 'pending' | 'all' = next;
           run.again = null;
-          setPhotoProgress(null);
           // Hidden new drafts first, so they appear soonest.
-          await prepareAlibabaPhotos(setPhotoProgress, { pendingOnly: true });
-          if (current === 'all') await prepareAlibabaPhotos(setPhotoProgress);
+          total = await prepareAlibabaPhotos(setPhotoProgress, {
+            pendingOnly: true,
+            ...(total ? { from: total } : {}),
+          });
+          refreshProductReviewQueue();
+          if (current === 'all') {
+            const busyBefore = total.busy;
+            total = await prepareAlibabaPhotos(setPhotoProgress, { from: total });
+            // Drafts changed meanwhile are looked at once more in this session.
+            if (total.busy > busyBefore && !retriedBusy) {
+              retriedBusy = true;
+              run.again = 'all';
+            }
+          }
           refreshProductReviewQueue();
           await refreshPhotoStatus();
           next = run.again;
@@ -205,6 +230,7 @@ export function AlibabaCatalogSyncPage() {
     },
     [refreshPhotoStatus, refreshProductReviewQueue],
   );
+  runPhotoPreparationRef.current = runPhotoPreparation;
   useEffect(() => {
     // Finish any new drafts left hidden, e.g. when this page was closed mid-run.
     void refreshPhotoStatus().then((status) => {
@@ -239,7 +265,7 @@ export function AlibabaCatalogSyncPage() {
           })
         }
         onRunNow={() =>
-          void guard(async () => {
+          void syncThenPhotos(async () => {
             const { report, ticks } = await runSyncToTerminal({
               onProgress: (progress, completedTicks) => {
                 if (progress.outcome !== 'continued') return;
@@ -249,7 +275,6 @@ export function AlibabaCatalogSyncPage() {
               },
             });
             refreshProductReviewQueue();
-            void runPhotoPreparation('all');
             return `Sync finished after ${ticks} worker tick${ticks === 1 ? '' : 's'}: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
           })
         }
@@ -271,12 +296,11 @@ export function AlibabaCatalogSyncPage() {
         }}
         onSync={(sourceProductId) => {
           setInspectingDetail(true);
-          void guard(async () => {
+          void syncThenPhotos(async () => {
             setSelectedSyncResult(null);
             const result = await syncProduct(sourceProductId);
             setSelectedSyncResult(result);
             refreshProductReviewQueue();
-            void runPhotoPreparation('all');
             return `${result.draftCreated ? 'Created' : 'Updated'} an unpublished product draft for ${result.sourceProductId}.`;
           }).finally(() => setInspectingDetail(false));
         }}
@@ -287,11 +311,10 @@ export function AlibabaCatalogSyncPage() {
         progress={draftProgress}
         onMaterialize={(sourceCategoryId) => {
           setDraftProgress({ visited: 0, created: 0, existing: 0, failures: 0 });
-          void guard(async () => {
+          void syncThenPhotos(async () => {
             const result = await materializeAlibabaDrafts(setDraftProgress, sourceCategoryId);
             setDraftProgress(result);
             refreshProductReviewQueue();
-            void runPhotoPreparation('all');
             return `Product drafts ready: ${result.created} created, ${result.existing} already present, ${result.failures} failed.`;
           });
         }}

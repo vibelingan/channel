@@ -1888,10 +1888,16 @@ publishing, and drafts an admin sees should be ready to work on.
   same preparation.)
 
 **Rules per product and part** (gallery: first 9 sources; description: first 18):
-eligible = Alibaba-linked, not archived, not published, never approved. A part is
-filled when the field is empty and was never auto-filled, or still equals what
-was auto-filled (marker `alibabaAutoPhotos`) and the sources changed. A photo
-that cannot be copied is left out and reported; it does not block the product.
+eligible = Alibaba-linked, not archived, not published, never approved — checked
+again inside the save (`requireUnapprovedDraft`), because approval does not change
+the revision. A part is the sync's while its field was never set, or still equals
+what the sync filled (marker `alibabaAutoPhotos`, with the sources copied and the
+ones still missing); an emptied list is the admin's. A photo that cannot be
+copied is left out, noted for a day (`catalogSourceLinks.failedAt`), then tried
+again; a part where nothing copies keeps what it had. Configuration (SKU) photos
+are copied too (copy only), so approval finds them in our storage. Every call
+downloads at least one batch, so it always progresses. Review of `609b362`
+(no P1; five P2) fixed in the commit after it.
 
 | MIU | What | Check |
 |---|---|---|

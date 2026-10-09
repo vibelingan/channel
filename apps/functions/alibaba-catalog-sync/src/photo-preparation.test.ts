@@ -1,7 +1,10 @@
 /** Alibaba photos copied ahead into our storage; drafts appear ready (PT-G). */
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
+import {
+  sourceMediaLinkId,
+  sourceObservationDocumentId,
+} from '@vibelingan-channel/catalog-import/observations';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
@@ -247,8 +250,12 @@ test('prepare: copies each photo once, fills the draft in one save and shows a h
   assert.deepEqual(a.descriptionImageIds, ['img-a-d1']);
   assert.equal(a.alibabaPhotosPending, false);
   assert.deepEqual(a.alibabaAutoPhotos, {
-    gallery: { sources: [url('a-g1'), url('a-g2')], imageIds: ['img-a-g1', 'img-a-g2'] },
-    description: { sources: [url('a-d1')], imageIds: ['img-a-d1'] },
+    gallery: {
+      sources: [url('a-g1'), url('a-g2')],
+      imageIds: ['img-a-g1', 'img-a-g2'],
+      missing: [],
+    },
+    description: { sources: [url('a-d1')], imageIds: ['img-a-d1'], missing: [] },
   });
   // Image locks are released.
   assert.ok(store.images?.every((image) => !image.imageMutationOwner));
@@ -266,8 +273,177 @@ test('prepare: a photo that cannot be copied is left out and does not block the 
   const a = store.products?.[0] as CollectionDoc;
   assert.deepEqual(a.imageIds, ['img-a-g1']);
   assert.equal(a.alibabaPhotosPending, false);
-  // Not retried while Alibaba's photos stay the same.
-  assert.equal(photoPreparationPlan(a), null);
+  // Within a day nothing is fetched again and the draft is not saved again.
+  const updatedAt = a.updatedAt;
+  const soon = await prepareAlibabaPhotosPage({
+    importImage: importer.importImage,
+    now: () => new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  });
+  assert.equal(soon.prepared, 0);
+  assert.equal(importer.calls.filter((call) => call === url('a-g2')).length, 1);
+  assert.equal((store.products?.[0] as CollectionDoc).updatedAt, updatedAt);
+  // After a day it is tried again; once it copies, the gallery is complete.
+  const recovered = fakeImporter(store);
+  const later = await prepareAlibabaPhotosPage({
+    importImage: recovered.importImage,
+    now: () => new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+  });
+  assert.equal(later.prepared, 1);
+  assert.deepEqual((store.products?.[0] as CollectionDoc).imageIds, ['img-a-g1', 'img-a-g2']);
+});
+
+test('prepare: when nothing can be copied, the draft is shown and keeps what it had', async () => {
+  const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
+  setAdapter(new MemoryAdapter(store));
+  const page = await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['a-']).importImage,
+  });
+  assert.equal(page.prepared, 1);
+  const a = store.products?.[0] as CollectionDoc;
+  assert.equal(a.alibabaPhotosPending, false, 'never hidden for good');
+  assert.equal(a.imageIds, undefined);
+  assert.equal(a.alibabaAutoPhotos, undefined, 'still the sync to fill later');
+});
+
+test('prepare: a refresh where every new photo fails keeps the old photos and keeps following Alibaba', async () => {
+  const filled = draft('a', {
+    imageIds: ['img-a-g1'],
+    alibabaSourceImageUrls: [url('a-g9')],
+    alibabaDescriptionImageUrls: [],
+    alibabaAutoPhotos: {
+      gallery: { sources: [url('a-g1')], imageIds: ['img-a-g1'], missing: [] },
+    },
+  });
+  const store: Store = { products: [filled] };
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({ importImage: fakeImporter(store, ['a-g9']).importImage });
+  const a = store.products?.[0] as CollectionDoc;
+  assert.deepEqual(a.imageIds, ['img-a-g1']);
+  assert.deepEqual(a.alibabaAutoPhotos, filled.alibabaAutoPhotos);
+  assert.deepEqual(
+    photoPreparationPlan(a)?.parts.map((part) => part.part),
+    ['gallery'],
+    'still the sync to refresh',
+  );
+});
+
+test('prepare: a draft approved, published or archived while its photos copy is left alone', async () => {
+  for (const change of [
+    { catalogDetailApprovalReceipt: { contentFingerprint: 'x' } },
+    { published: true },
+    { archived: true },
+  ]) {
+    const store: Store = { products: [draft('a')] };
+    setAdapter(new MemoryAdapter(store));
+    const importer = fakeImporter(store);
+    const page = await prepareAlibabaPhotosPage({
+      importImage: async (source) => {
+        // Approval writes the product without a new revision.
+        Object.assign(store.products?.[0] as CollectionDoc, change);
+        return importer.importImage(source);
+      },
+    });
+    assert.equal(page.busy, 1);
+    assert.equal((store.products?.[0] as CollectionDoc).imageIds, undefined);
+  }
+});
+
+test('prepare: an image removed before the save is never referenced', async () => {
+  const store: Store = { products: [draft('a', { alibabaDescriptionImageUrls: [] })] };
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store);
+  const page = await prepareAlibabaPhotosPage({
+    importImage: async (source) => {
+      const result = await importer.importImage(source);
+      // An admin removes the unreferenced candidate right after it was copied.
+      if (result.ok)
+        store.images = (store.images ?? []).filter((image) => image._id !== result.imageId);
+      return result;
+    },
+  });
+  assert.equal(page.busy, 1);
+  assert.equal((store.products?.[0] as CollectionDoc).imageIds, undefined);
+});
+
+test('plan: a photo list an admin emptied is theirs, never refilled', () => {
+  assert.deepEqual(
+    photoPreparationPlan(draft('a', { descriptionImageIds: [] }))?.parts.map((part) => part.part),
+    ['gallery'],
+  );
+});
+
+test('prepare: configuration photos are copied for approval without changing the product photos', async () => {
+  const observationDoc = {
+    _id: sourceObservationDocumentId('alibaba', 'source-a'),
+    observation: {
+      schemaVersion: 'catalog-source-observation-v1',
+      source: {
+        provider: 'alibaba',
+        sourceProductKey: 'source-a',
+        externalProductId: '987',
+        observedAt: '2026-10-01T00:00:00.000Z',
+        captureMode: 'full',
+        completeness: 'full-product',
+      },
+      identity: { title: 'Supplier title', matchHints: {}, attributes: [] },
+      content: {
+        description: {
+          text: 'Supplier text',
+          imageUrls: [],
+          placeholder: false,
+          sanitized: true,
+          provenance: 'provider-description',
+        },
+        media: [],
+      },
+      lifecycle: { sourceListingStatus: 'published' },
+      variants: [
+        {
+          sourceVariantKey: 'white',
+          options: [{ sourceName: 'Color', value: 'White' }],
+          inventory: [],
+          media: [{ sourceUrl: url('a-white'), position: 0, role: 'variant' }],
+        },
+      ],
+      offers: [],
+      evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+      warnings: [],
+    },
+  };
+  const store: Store = {
+    products: [draft('a', { imageIds: ['own'], descriptionImageIds: ['own-d'] })],
+    catalogSourceObservations: [observationDoc],
+  };
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store);
+  await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+  assert.deepEqual(importer.calls, [url('a-white')]);
+  const a = store.products?.[0] as CollectionDoc;
+  assert.deepEqual(a.imageIds, ['own']);
+  assert.deepEqual(a.descriptionImageIds, ['own-d']);
+  assert.deepEqual(a.alibabaAutoPhotos, {
+    configurations: { sources: [url('a-white')], imageIds: [], missing: [] },
+  });
+});
+
+test('prepare: every call makes progress, even with no time left', async () => {
+  const store: Store = { products: [draft('a')] };
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store);
+  let calls = 0;
+  let after = '';
+  for (;;) {
+    calls += 1;
+    const page = await prepareAlibabaPhotosPage({
+      afterProductId: after,
+      importImage: importer.importImage,
+      budgetMs: 0,
+    });
+    if (page.done) break;
+    after = page.nextProductId;
+    assert.ok(calls < 10, 'no endless loop');
+  }
+  assert.deepEqual((store.products?.[0] as CollectionDoc).imageIds, ['img-a-g1', 'img-a-g2']);
 });
 
 test('prepare: an admin edit made meanwhile wins; the draft is looked at again next pass', async () => {

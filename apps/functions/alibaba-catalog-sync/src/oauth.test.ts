@@ -1310,5 +1310,6 @@ test('photo preparation and its status are admin-only and validated (PT-G)', asy
     baseConfig,
   );
   assert.equal(status.ok, true);
-  if (status.ok) assert.deepEqual(status.data, { hiddenDrafts: 0, draftsToFill: 0 });
+  if (status.ok)
+    assert.deepEqual(status.data, { hiddenDrafts: 0, draftsToFill: 0, draftsMissingPhotos: 0 });
 });

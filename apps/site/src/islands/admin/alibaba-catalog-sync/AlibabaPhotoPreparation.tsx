@@ -12,7 +12,11 @@ const plural = (count: number, one: string, many: string) =>
 
 /** Alibaba photos copied into our storage ahead of publishing (PT-G). */
 export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Props) {
-  const nothingLeft = status !== null && status.hiddenDrafts === 0 && status.draftsToFill === 0;
+  const nothingLeft =
+    status !== null &&
+    status.hiddenDrafts === 0 &&
+    status.draftsToFill === 0 &&
+    status.draftsMissingPhotos === 0;
   return (
     <section
       data-photo-preparation
@@ -36,7 +40,7 @@ export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Pr
             <p data-photo-preparation-status className="mt-2 text-sm text-slate-800">
               {nothingLeft
                 ? 'Every draft has its photos.'
-                : `${plural(status.hiddenDrafts, 'new draft', 'new drafts')} being prepared · ${plural(status.draftsToFill, 'draft', 'drafts')} waiting for photos`}
+                : `${plural(status.hiddenDrafts, 'new draft', 'new drafts')} being prepared · ${plural(status.draftsToFill, 'draft', 'drafts')} waiting for photos · ${plural(status.draftsMissingPhotos, 'draft', 'drafts')} with photos that could not be copied yet (tried again after a day)`}
             </p>
           )}
         </div>
@@ -62,6 +66,12 @@ export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Pr
           {progress.busy > 0
             ? ` · ${plural(progress.busy, 'draft', 'drafts')} changed meanwhile, next pass`
             : ''}
+        </p>
+      )}
+      {progress && progress.failures > 0 && (
+        <p data-photo-preparation-failures role="alert" className="mt-2 text-sm text-red-700">
+          {plural(progress.failures, 'draft', 'drafts')} could not be saved:{' '}
+          {progress.failedProducts.join(', ')}. Open them in Products and save once to fix.
         </p>
       )}
     </section>

@@ -461,3 +461,20 @@ test('an unrelated update clears stale non-Headphones subcategory in the atomic 
     tiers: [{ minQuantity: 1, unitAmountMinor: 100 }],
   });
 });
+
+test('the photo job never changes a product approved, published or archived meanwhile (PT-G)', () => {
+  const draft = manualProduct({ alibabaPrimarySourceKey: 'source-a', detailSourceOwner: undefined });
+  const fill: CatalogProductSaveInput = {
+    mode: 'update',
+    productId: 'manual-product',
+    data: { imageIds: ['copied'] },
+    requireUnapprovedDraft: true,
+  };
+  assert.equal(planCatalogProductSave(draft, fill, 'now').result, 'ready');
+  for (const changed of [
+    { catalogDetailApprovalReceipt: { contentFingerprint: 'x' } },
+    { published: true },
+    { archived: true },
+  ])
+    assert.equal(planCatalogProductSave({ ...draft, ...changed }, fill, 'now').result, 'stale');
+});

@@ -42,6 +42,8 @@ const IMPORTABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export interface MediaImportDeps {
   fetchImpl?: typeof fetch;
+  /** How long the photo body may take after its headers (default 15 s). */
+  bodyTimeoutMs?: number;
   /** Injectable resolver for tests; returns every address for the host. */
   resolveDns?: (hostname: string) => Promise<string[]>;
   now?: () => string;
@@ -115,16 +117,39 @@ async function defaultResolveDns(hostname: string): Promise<string[]> {
   return results.map((entry) => entry.address);
 }
 
-async function readBodyCapped(response: Response): Promise<Buffer | null> {
+async function readBodyCapped(
+  response: Response,
+  timeoutMs: number,
+): Promise<Buffer | null | 'timeout'> {
+  const deadline = Date.now() + timeoutMs;
+  const withinDeadline = async <T>(work: Promise<T>): Promise<T | 'timeout'> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), Math.max(0, deadline - Date.now()));
+    });
+    try {
+      return await Promise.race([work, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const reader = response.body?.getReader();
   if (!reader) {
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const body = await withinDeadline(response.arrayBuffer());
+    if (body === 'timeout') return 'timeout';
+    const buffer = Buffer.from(body);
     return buffer.byteLength > CATALOG_IMAGE_MAX_BYTES ? null : buffer;
   }
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
-    const { done, value } = await reader.read();
+    // A photo that stalls mid-download must not hold the copy job (PT-G).
+    const read = await withinDeadline(reader.read());
+    if (read === 'timeout') {
+      await reader.cancel().catch(() => {});
+      return 'timeout';
+    }
+    const { done, value } = read;
     if (done) break;
     if (value) {
       total += value.byteLength;
@@ -210,7 +235,8 @@ export async function importCandidateImage(
   if (!response) return { ok: false, reason: 'too-many-redirects' };
   if (!response.ok) return { ok: false, reason: 'fetch-failed' };
 
-  const bytes = await readBodyCapped(response);
+  const bytes = await readBodyCapped(response, deps.bodyTimeoutMs ?? FETCH_TIMEOUT_MS);
+  if (bytes === 'timeout') return { ok: false, reason: 'fetch-failed' };
   if (bytes === null) return { ok: false, reason: 'too-large' };
 
   // MIME derives from magic bytes; header Content-Type is untrusted.

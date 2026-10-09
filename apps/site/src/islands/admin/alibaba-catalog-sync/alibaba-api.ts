@@ -350,7 +350,11 @@ const PhotoPreparationPageSchema = z.object({
   busy: count,
   failures: z.array(z.object({ productId: z.string(), reason: z.string() })),
 });
-const PhotoPreparationStatusSchema = z.object({ hiddenDrafts: count, draftsToFill: count });
+const PhotoPreparationStatusSchema = z.object({
+  hiddenDrafts: count,
+  draftsToFill: count,
+  draftsMissingPhotos: count,
+});
 
 export interface PhotoPreparationProgress {
   prepared: number;
@@ -359,6 +363,8 @@ export interface PhotoPreparationProgress {
   photosFailed: number;
   busy: number;
   failures: number;
+  /** Drafts whose save failed (first 20), for the admin to look at. */
+  failedProducts: string[];
 }
 export type PhotoPreparationStatus = z.infer<typeof PhotoPreparationStatusSchema>;
 
@@ -379,16 +385,19 @@ export async function fetchPhotoPreparationStatus(): Promise<PhotoPreparationSta
  */
 export async function prepareAlibabaPhotos(
   onProgress?: (progress: PhotoPreparationProgress) => void,
-  options: { pendingOnly?: boolean } = {},
+  options: { pendingOnly?: boolean; from?: PhotoPreparationProgress } = {},
 ): Promise<PhotoPreparationProgress> {
-  const total: PhotoPreparationProgress = {
-    prepared: 0,
-    photosCopied: 0,
-    photosReused: 0,
-    photosFailed: 0,
-    busy: 0,
-    failures: 0,
-  };
+  const total: PhotoPreparationProgress = options.from
+    ? { ...options.from, failedProducts: [...options.from.failedProducts] }
+    : {
+        prepared: 0,
+        photosCopied: 0,
+        photosReused: 0,
+        photosFailed: 0,
+        busy: 0,
+        failures: 0,
+        failedProducts: [],
+      };
   let afterProductId = '';
   for (let pageNumber = 0; pageNumber < 5_000; pageNumber += 1) {
     const parsed = PhotoPreparationPageSchema.safeParse(
@@ -409,7 +418,9 @@ export async function prepareAlibabaPhotos(
     total.photosFailed += page.photosFailed;
     total.busy += page.busy;
     total.failures += page.failures.length;
-    onProgress?.({ ...total });
+    for (const failure of page.failures)
+      if (total.failedProducts.length < 20) total.failedProducts.push(failure.productId);
+    onProgress?.({ ...total, failedProducts: [...total.failedProducts] });
     if (page.done) return total;
     afterProductId = page.nextProductId;
   }
