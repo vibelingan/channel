@@ -126,7 +126,14 @@ paired with the MOQ. Names are truncated as captured.
   into 4 id ranges: about 11,200 photos copied, 8 failed, no errors; drafts
   saving the same shared supplier photos at once were skipped as busy and
   saved by a final single pass. Found: a page with no downloads ignored the
-  per-call time limit (one call ran ~4 minutes); fixed in the next commit.
+  per-call time limit (one call ran ~4 minutes); fixed in `78a4c47`.
+- Final passes 06:08–06:55 UTC saved every draft skipped as busy (locks left
+  by the parallel run expired after 15 minutes). Result (read-only check):
+  all 957 eligible drafts have product photos; 956 of 956 with Alibaba
+  description photos have them; 6 drafts miss 7 photos in total (1 gallery,
+  4 description, 3 configuration), retried automatically after a day; no
+  hidden drafts; none of the 139 live products touched. Consistency audit:
+  139 listed, 139 approved, 0 mismatches, 0 errors.
 
 ### Live after `7f32909`; first-18 description photos (2026-10-09)
 - Deploy `7f32909` (DEC-19, DEC-20, batch 5b, classification P0 fix) live

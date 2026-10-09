@@ -4,12 +4,12 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-09):** batches 1–4 and 5a are live. Built, tested and
-deploying: DEC-19 (side-by-side review of supplier changes), DEC-20 (photos
-per configuration), batch 5b (every product goes live only as its approved
-version) and the P0 fix for classification "Save and publish" on Alibaba
-drafts (see EXECUTION_LOG). Branch `feat/catalog-alibaba-price-tiers` (not
-yet merged to `main`).
+**Status (2026-10-09, 07:00 UTC):** live on supplychainsai.com: batches 1–5b,
+DEC-19 (Supplier changes panel), DEC-20 (photos per configuration), the
+classification "Save and publish" fix, and PT-G (Alibaba photos copied ahead;
+new drafts appear ready; Edit picker for photos beyond the limit). The one-time
+photo catch-up is done: all 957 Alibaba drafts have their photos. Branch
+`feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
 
 ## Rollout status (2026-10-08)
 
