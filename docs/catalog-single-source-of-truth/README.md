@@ -4,11 +4,12 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-09):** batches 1–4 and 5a are live. Built and tested
-locally, deploying next: DEC-19 (side-by-side review of supplier changes),
-DEC-20 (photos per configuration) and batch 5b (every product goes live only
-as its approved version). Branch `feat/catalog-alibaba-price-tiers` (not yet
-merged to `main`).
+**Status (2026-10-09):** batches 1–4 and 5a are live. Built, tested and
+deploying: DEC-19 (side-by-side review of supplier changes), DEC-20 (photos
+per configuration), batch 5b (every product goes live only as its approved
+version) and the P0 fix for classification "Save and publish" on Alibaba
+drafts (see EXECUTION_LOG). Branch `feat/catalog-alibaba-price-tiers` (not
+yet merged to `main`).
 
 ## Rollout status (2026-10-08)
 

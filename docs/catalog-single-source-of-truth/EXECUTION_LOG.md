@@ -104,6 +104,34 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### P0: classification "Save and publish" never published Alibaba drafts (2026-10-09)
+- Owner report: assigning a category with "Save and publish" failed for
+  every product with "Open Edit to review supplier media and approve this
+  product before publishing", and saving in Edit did not help.
+- Production facts (read-only): 1,118 products; 958 are Alibaba drafts
+  flagged "New" (never published), 9 "Changed" (4 live), 133 live without a
+  flag. The list shows flagged products first, so the first pages are all
+  drafts. The three products tried had 0 imported photos.
+- Cause: "Save and publish" publishes with the revision the classification
+  saved. With that revision present, the admin page refused every
+  Alibaba-linked product before checking anything, and the server refused
+  any product still flagged for review (every New draft). Nothing in Edit
+  could satisfy either.
+- Fix (`f90363c`, review fixes `8d7cbdf`): a guarded publish now runs the
+  same steps as Publish: unchanged since classification, Changed/Removed
+  sent to Edit (DEC-19), photos imported when the gallery is empty,
+  description photos on first publication (limit checked first), approval,
+  publish; each write carries the revision the previous one returned. Known
+  refusals (no photos, import failed, too many description photos) show
+  their reason and do not stop the batch. The server acknowledges the
+  review under the revision and reports a stale one as a conflict.
+- Also: the product list has "Go to page" beside the page counter.
+- The deploy started at 02:32 UTC (`539392e`) was cancelled during its tests
+  (nothing deployed) so that one deploy carries this fix.
+- Review: one reviewer, no P1. Fixed the P2 above and three P3s. Accepted:
+  two products sharing an Alibaba photo in one batch can be refused as
+  "images busy" (retry works; Publish behaves the same).
+
 ### DEC-19, DEC-20 and batch 5b built (2026-10-09, `5af7309..c48a4ab`)
 - Owner approved the five recommendations (2026-10-09): prices,
   configurations and specifications always take Alibaba's latest; batch
