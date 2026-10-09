@@ -121,7 +121,12 @@ paired with the MOQ. Names are truncated as captured.
   automatically after each sync, Edit picker for photos beyond the limit.
 - Review of `609b362`: no P1, five P2 (retry, all-fail refresh, approval
   mid-copy, removed image, emptied list) and P3s, all fixed in `7e3a4c8`.
-- Next: deploy, then run the catch-up from the Alibaba Sync page.
+- Deployed `0997cb3` (functions live 05:37 UTC). Catch-up run 05:38–06:08 UTC
+  from the signed-in admin page (same requests as "Copy photos now"), split
+  into 4 id ranges: about 11,200 photos copied, 8 failed, no errors; drafts
+  saving the same shared supplier photos at once were skipped as busy and
+  saved by a final single pass. Found: a page with no downloads ignored the
+  per-call time limit (one call ran ~4 minutes); fixed in the next commit.
 
 ### Live after `7f32909`; first-18 description photos (2026-10-09)
 - Deploy `7f32909` (DEC-19, DEC-20, batch 5b, classification P0 fix) live

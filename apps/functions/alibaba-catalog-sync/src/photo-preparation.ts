@@ -443,6 +443,9 @@ export async function prepareAlibabaPhotosPage(
     }
     result.visited += 1;
     result.nextProductId = product._id;
+    // A finished product is progress too, so a page of products whose photos
+    // are already copied still stops at the time limit.
+    budget.worked();
     if (budget.outOfTime() && product !== page.items.at(-1)) return result;
   }
   result.done = page.items.length < limit;

@@ -527,3 +527,22 @@ test('prepare: a photo that failed is not fetched again when a product resumes',
   assert.equal(importer.calls.filter((call) => call === url('a-g2')).length, 1);
   assert.deepEqual((store.products?.[0] as CollectionDoc).imageIds, ['img-a-g1']);
 });
+
+test('prepare: a call stops at its time limit even when nothing needs downloading', async () => {
+  // Photos already copied: every product is quick, but a page of many must
+  // still stop once its time is up (seen in the production catch-up).
+  const store: Store = { products: [draft('a'), draft('b'), draft('c')] };
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store);
+  await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+  for (const product of store.products ?? []) {
+    product.alibabaSourceImageUrls = [url(`${product._id}-g1`)];
+    product.alibabaDescriptionImageUrls = [];
+  }
+  const page = await prepareAlibabaPhotosPage({
+    importImage: importer.importImage,
+    budgetMs: 0,
+  });
+  assert.equal(page.done, false);
+  assert.equal(page.visited, 1, 'one product, then the time limit');
+});
