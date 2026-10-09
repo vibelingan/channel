@@ -84,6 +84,7 @@ publishes runs the approval itself; Edit is needed only for a real reason
 | Classification "Save and publish" (single and batch) | Category saved, then guarded approve + publish carrying the saved revision (P0 fix) |
 | Preview "Review changes" | Opens Edit on the Supplier changes panel |
 | Create with Published ticked | Draft created, then approved and published; on failure the draft is kept and the reason shown |
+| Excel (Dianxiaomi) import "make public" | Same gate: without an approved version the product stays a draft, reported "approve and publish it in Admin → Products" (local CLI only today) |
 
 **Roles.** Only admins approve. A contributor's edit to a live product is
 saved as a draft change and flags the product "Edited" (OWN-1); contributors
@@ -233,6 +234,5 @@ hour in total. Rollback = move `test` back and redeploy.
   2026-08-07"). Automatic retries with nobody on the page need a timer, which
   is the owner's decision (deploy change: apply the timer and assert exactly
   that one).
-- Dianxiaomi import `makePublic` publishes without approval (task offered).
 - Hermes / WeCom importer: should create drafts (OWN-2), not investigated now.
 - Faster, tag-based deploys (deferred by the owner until this ships).

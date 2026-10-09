@@ -424,6 +424,73 @@ test('imported products land unpublished, so nothing reaches the storefront unre
   }
 });
 
+// A 1x1 PNG with a real header, so the stand-in image passes the size check.
+const PNG_1PX = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64',
+);
+
+/** An operator maps every source category of the job to one website family. */
+async function mapEveryCategory(family: string) {
+  for (const item of await allOf('catalogImportItems')) {
+    const candidate = item.candidate as {
+      identity: { provider: string };
+      category?: { sourceTaxonomy?: string; sourceCategoryId?: string };
+    };
+    const { sourceTaxonomy, sourceCategoryId } = candidate.category ?? {};
+    if (!sourceTaxonomy || !sourceCategoryId) continue;
+    const provider = candidate.identity.provider;
+    await upsertDocWithId(
+      'sourceCategoryMappings',
+      `${provider}:${sourceTaxonomy}|${sourceCategoryId}`,
+      { provider, sourceTaxonomy, sourceCategoryId, productFamily: family },
+    );
+  }
+}
+
+async function importPublishable() {
+  const run = await runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' });
+  await mapEveryCategory('misc');
+  return String(run.job._id);
+}
+
+test('"make public" never publishes an unapproved product; it stays a draft for an admin (DEC-15, OWN-2)', async (t) => {
+  const { cleanup } = harness();
+  t.after(cleanup);
+  const jobId = await importPublishable();
+  const published = await publishImportedSample({
+    jobId,
+    limit: 1,
+    makePublic: true,
+    localSeedImage: { bytes: PNG_1PX, name: 'seed.png' },
+  });
+  assert.equal(published.products, 1);
+  assert.equal(published.publishedPublic, 0, 'nothing went live');
+  const [product] = await allOf('products');
+  assert.equal(product?.published, false);
+  assert.equal(product?.productFamily, 'misc', 'otherwise ready: category and photo in place');
+  assert.equal(Array.isArray(product?.imageIds) && product.imageIds.length > 0, true);
+  assert.equal(published.blocked.length, 1);
+  assert.match(String(published.blocked[0]?.reason), /draft/i);
+  assert.match(String(published.blocked[0]?.reason), /Admin → Products/);
+});
+
+test('with approval switched off, "make public" publishes a product that meets the catalog rules', async (t) => {
+  const { cleanup } = harness();
+  t.after(cleanup);
+  const jobId = await importPublishable();
+  const published = await publishImportedSample({
+    jobId,
+    limit: 1,
+    makePublic: true,
+    requireApproval: false,
+    localSeedImage: { bytes: PNG_1PX, name: 'seed.png' },
+  });
+  assert.deepEqual(published.blocked, []);
+  assert.equal(published.publishedPublic, 1);
+  assert.equal((await allOf('products'))[0]?.published, true);
+});
+
 test('publishing the same sample twice creates no duplicates', async (t) => {
   const { cleanup } = harness();
   t.after(cleanup);

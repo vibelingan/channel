@@ -173,3 +173,9 @@ owner's only test environment).
   "Copy photos now" copied the 4 GIFs; admin list thumbnails checked in the
   browser (40/40 load); public search by an Alibaba ID returns nothing on
   the live site. Audit 141/141, 0 mismatches.
+- 11:40–15:00 Owner: do the "Fix stale media-upload smoke test" and "Route
+  Dianxiaomi makePublic through approval" tasks here. The smoke now follows
+  draft → approve → publish and passed on the live site; its silent cleanup
+  failure exposed three never-created database collections that crashed
+  `abandonUpload` (deploy now creates them). The Excel import's "make public"
+  now goes through the approval gate (products stay drafts).

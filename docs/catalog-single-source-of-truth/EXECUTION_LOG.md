@@ -106,6 +106,27 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Dianxiaomi import "make public" goes through approval (2026-10-09, owner request)
+- Found in the batch 5b review: `publishImportedSample` (Excel/Dianxiaomi
+  import) published with `makePublic` through the catalog save without the
+  approval check, so an imported product could go live unapproved (DEC-15;
+  OWN-2 says importers create drafts an admin publishes). In production
+  nothing calls it today: only the local import CLI and tests do, and the
+  admin Catalog import page is read-only.
+- Fix: the publish write now passes the same gate as the admin form
+  (`requireDetailApproval: 'publication-or-pricing'`), on by default; a caller
+  may pass `requireApproval: false` only where approval is switched off. A
+  product refused only for lack of approval is reported as "saved as a draft:
+  publishing needs an approval — approve and publish it in Admin → Products".
+  The local CLI follows `CATALOG_DETAIL_APPROVAL_ENABLED`, like the local
+  server.
+- Tests (written first; the first failed — the product went live): with
+  approval on, a fully ready imported product (category and photo) stays a
+  draft with that reason; with approval off it still publishes. Import flow
+  30/30, admin function 290/290, typecheck.
+- Not deployed on its own: it changes no production behaviour (no
+  production caller); it ships with the next deploy.
+
 ### Media-upload smoke brought up to date (2026-10-09, owner request)
 - The deployed upload smoke (`tests/e2e/media-upload.spec.ts`, run only by a
   manual dispatch of Deploy Test or E2E with the media-upload option) had
@@ -471,7 +492,8 @@ paired with the MOQ. Names are truncated as captured.
     product as Published checks category and photo before saving a draft.
 - Accepted: a contributor who tries to publish sees the admin wording
   ("Review and approve…"). Outside this range: the Dianxiaomi import's
-  `makePublic` option publishes without approval (follow-up task).
+  `makePublic` option publishes without approval (follow-up task). Done
+  2026-10-09 (see "Dianxiaomi import \"make public\" goes through approval").
 
 ### Review of DEC-19/DEC-20 (2026-10-09, `62992d6..57f8d71`)
 - One reviewer: no P1. Fixed in `cb31e9a`:

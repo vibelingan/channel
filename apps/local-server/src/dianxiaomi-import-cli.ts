@@ -82,6 +82,8 @@ function usage(): never {
       '  --publish-plan       report what publishing the WHOLE job would do,',
       '                       writing nothing and downloading nothing',
       '  --make-public        publish the sample if it passes the catalog rules',
+      '                       (with CATALOG_DETAIL_APPROVAL_ENABLED=1 it stays a draft',
+      '                       for an admin to approve and publish)',
       '  --map-source-categories <family>',
       '                       record operator mappings from every source category',
       '                       in the job to one Channel product family',
@@ -355,6 +357,9 @@ if (typeof values.publish === 'string') {
     jobId: String(result.job._id),
     limit,
     ...(values['make-public'] === true ? { makePublic: true } : {}),
+    // Same gate as the local server: with approval on, products stay drafts
+    // for an admin to approve and publish.
+    requireApproval: process.env.CATALOG_DETAIL_APPROVAL_ENABLED === '1',
     ...(typeof values['fetch-images'] === 'string'
       ? { fetchImages: Number.parseInt(values['fetch-images'], 10) }
       : {}),
