@@ -149,6 +149,18 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
     description: 'Disposable source color mapping acceptance fixture.',
     imageIds: colorGallery.map((_, i) => `raw-color-image-${i}`),
   });
+  // A second Alibaba draft with the same supplier photos, left unclassified:
+  // the admin assigns its category and publishes it in one step (classification
+  // "Save and publish"). Its photos arrive through photo preparation below.
+  const classify = await seedRawObservation(
+    db,
+    colorRaw
+      .replaceAll('fixture-sy-t11', 'fixture-classify-1')
+      .replaceAll('Raw Color Headphones', 'Classify Ready Headset'),
+  );
+  await db.update('products', classify.draft.productId, {
+    description: 'Disposable classification publish acceptance fixture.',
+  });
   // New drafts appear once their photos are prepared (PT-G), as after a real
   // sync. Photos stored above are reused; this disposable lane never fetches
   // from Alibaba, so any other photo is noted as not copied.

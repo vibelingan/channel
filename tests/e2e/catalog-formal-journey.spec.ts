@@ -987,3 +987,71 @@ test('manual products go live only through approval; the shared page shows their
     page.locator(`[data-product-card="${ready._id}"] [data-product-card-price]`),
   ).toContainText('118.31');
 });
+
+test('an Alibaba draft with photos copied ahead is published by "Save and publish" when its category is assigned', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const list = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Classify Ready Headset', pageSize: 5 },
+    session.token,
+  );
+  const draft = list.items[0];
+  if (!draft) throw new Error('Classification fixture missing');
+  expect(draft.published).toBe(false);
+  // Photos were copied ahead, so publishing needs no import (this lane has no network).
+  expect(Array.isArray(draft.imageIds) && draft.imageIds.length).toBeTruthy();
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Classify Ready Headset');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(1);
+  await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+  await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+  const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+  await classification
+    .getByRole('combobox', { name: 'Website main category' })
+    .and(page.locator('button'))
+    .click();
+  await page
+    .getByRole('listbox', { name: 'Website main category' })
+    .getByRole('option', { name: 'Miscellaneous', exact: true })
+    .click();
+  await classification.getByRole('button', { name: 'Save and publish', exact: true }).click();
+  await classification
+    .getByRole('button', { name: 'Confirm save and publish', exact: true })
+    .click();
+  await expect
+    .poll(
+      async () =>
+        (
+          await adminAction<CollectionDoc>(
+            request,
+            'get',
+            { collection: 'products', id: draft._id },
+            session.token,
+          )
+        ).published,
+      { timeout: 60000 },
+    )
+    .toBe(true);
+  const saved = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  expect(saved.productFamily).toBe('misc');
+  expect(saved.catalogDetailPublication).toMatchObject({ state: 'approved' });
+  expect(saved.alibabaReviewPending).toBe(false);
+  await page.goto(`/products/item/?id=${draft._id}`);
+  await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+});

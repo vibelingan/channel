@@ -348,6 +348,8 @@ const PhotoPreparationPageSchema = z.object({
   photosReused: count,
   photosFailed: count,
   busy: count,
+  /** Products whose photos failed briefly; the whole product tries again later. */
+  waiting: count.default(0),
   failures: z.array(z.object({ productId: z.string(), reason: z.string() })),
 });
 const PhotoPreparationStatusSchema = z.object({
@@ -362,6 +364,7 @@ export interface PhotoPreparationProgress {
   photosReused: number;
   photosFailed: number;
   busy: number;
+  waiting: number;
   failures: number;
   /** Drafts whose save failed (first 20), for the admin to look at. */
   failedProducts: string[];
@@ -395,6 +398,7 @@ export async function prepareAlibabaPhotos(
         photosReused: 0,
         photosFailed: 0,
         busy: 0,
+        waiting: 0,
         failures: 0,
         failedProducts: [],
       };
@@ -417,6 +421,7 @@ export async function prepareAlibabaPhotos(
     total.photosReused += page.photosReused;
     total.photosFailed += page.photosFailed;
     total.busy += page.busy;
+    total.waiting += page.waiting;
     total.failures += page.failures.length;
     for (const failure of page.failures)
       if (total.failedProducts.length < 20) total.failedProducts.push(failure.productId);

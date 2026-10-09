@@ -40,7 +40,7 @@ export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Pr
             <p data-photo-preparation-status className="mt-2 text-sm text-slate-800">
               {nothingLeft
                 ? 'Every draft has its photos.'
-                : `${plural(status.hiddenDrafts, 'new draft', 'new drafts')} being prepared · ${plural(status.draftsToFill, 'draft', 'drafts')} waiting for photos · ${plural(status.draftsMissingPhotos, 'draft', 'drafts')} with photos that could not be copied yet (tried again after a day)`}
+                : `${plural(status.hiddenDrafts, 'new draft', 'new drafts')} being prepared · ${plural(status.draftsToFill, 'draft', 'drafts')} waiting for photos · ${plural(status.draftsMissingPhotos, 'draft', 'drafts')} with photos Alibaba could not provide (skipped)`}
             </p>
           )}
         </div>
@@ -65,6 +65,9 @@ export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Pr
           {progress.photosFailed.toLocaleString('en-US')} could not be copied
           {progress.busy > 0
             ? ` · ${plural(progress.busy, 'draft', 'drafts')} changed meanwhile, next pass`
+            : ''}
+          {progress.waiting > 0
+            ? ` · ${plural(progress.waiting, 'draft', 'drafts')} waiting to try again in 10 minutes`
             : ''}
         </p>
       )}

@@ -55,6 +55,8 @@ export type MediaImportFailure =
   | 'dns-blocked'
   | 'too-many-redirects'
   | 'fetch-failed'
+  /** The photo is gone at Alibaba (404/410): trying again cannot help. */
+  | 'not-found'
   | 'too-large'
   | 'bad-content'
   | 'write-failed';
@@ -233,7 +235,11 @@ export async function importCandidateImage(
     break;
   }
   if (!response) return { ok: false, reason: 'too-many-redirects' };
-  if (!response.ok) return { ok: false, reason: 'fetch-failed' };
+  if (!response.ok)
+    return {
+      ok: false,
+      reason: response.status === 404 || response.status === 410 ? 'not-found' : 'fetch-failed',
+    };
 
   const bytes = await readBodyCapped(response, deps.bodyTimeoutMs ?? FETCH_TIMEOUT_MS);
   if (bytes === 'timeout') return { ok: false, reason: 'fetch-failed' };

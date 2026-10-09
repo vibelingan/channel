@@ -142,11 +142,15 @@ function draft(id: string, overrides: Partial<CollectionDoc> = {}): CollectionDo
 }
 
 /** A fake copier: every URL becomes an active image; names in `failing` fail. */
-function fakeImporter(store: Store, failing: string[] = []) {
+function fakeImporter(
+  store: Store,
+  failing: string[] = [],
+  reason: 'fetch-failed' | 'not-found' = 'fetch-failed',
+) {
   const calls: string[] = [];
   const importImage = async (source: string): Promise<MediaImportResult> => {
     calls.push(source);
-    if (failing.some((name) => source.includes(name))) return { ok: false, reason: 'fetch-failed' };
+    if (failing.some((name) => source.includes(name))) return { ok: false, reason };
     const imageId = `img-${source.split('/').at(-1)?.replace('.jpg', '')}`;
     store.images ??= [];
     if (!store.images.some((image) => image._id === imageId))
@@ -253,9 +257,10 @@ test('prepare: copies each photo once, fills the draft in one save and shows a h
     gallery: {
       sources: [url('a-g1'), url('a-g2')],
       imageIds: ['img-a-g1', 'img-a-g2'],
+      unusable: [],
       missing: [],
     },
-    description: { sources: [url('a-d1')], imageIds: ['img-a-d1'], missing: [] },
+    description: { sources: [url('a-d1')], imageIds: ['img-a-d1'], unusable: [], missing: [] },
   });
   // Image locks are released.
   assert.ok(store.images?.every((image) => !image.imageMutationOwner));
@@ -264,54 +269,93 @@ test('prepare: copies each photo once, fills the draft in one save and shows a h
   assert.equal(again.prepared, 0);
 });
 
-test('prepare: a photo that cannot be copied is left out and does not block the draft', async () => {
-  const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
+test('prepare: one product is one unit — a passing failure saves nothing and the product tries again in 10 minutes', async () => {
+  const store: Store = { products: [draft('a', { alibabaPhotosPending: true }), draft('b')] };
   setAdapter(new MemoryAdapter(store));
   const importer = fakeImporter(store, ['a-g2']);
   const page = await prepareAlibabaPhotosPage({ importImage: importer.importImage });
-  assert.equal(page.photosFailed, 1);
-  const a = store.products?.[0] as CollectionDoc;
-  assert.deepEqual(a.imageIds, ['img-a-g1']);
-  assert.equal(a.alibabaPhotosPending, false);
-  // Within a day nothing is fetched again and the draft is not saved again.
-  const updatedAt = a.updatedAt;
+  assert.equal(page.waiting, 1);
+  assert.equal(page.prepared, 1, 'the other product is not held up');
+  const a = () => store.products?.find((row) => row._id === 'a') as CollectionDoc;
+  assert.equal(a().imageIds, undefined, 'nothing saved for a');
+  assert.equal(a().alibabaPhotosPending, true, 'still hidden while incomplete');
+  assert.deepEqual((store.products?.[1] as CollectionDoc).imageIds, ['img-b-g1', 'img-b-g2']);
+  // Five minutes later: still waiting, nothing fetched again.
   const soon = await prepareAlibabaPhotosPage({
     importImage: importer.importImage,
-    now: () => new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    now: () => new Date(Date.now() + 5 * 60 * 1000).toISOString(),
   });
-  assert.equal(soon.prepared, 0);
+  assert.equal(soon.waiting, 1);
   assert.equal(importer.calls.filter((call) => call === url('a-g2')).length, 1);
-  assert.equal((store.products?.[0] as CollectionDoc).updatedAt, updatedAt);
-  // After a day it is tried again; once it copies, the gallery is complete.
-  const recovered = fakeImporter(store);
+  // Eleven minutes later it is tried again; everything lands together.
   const later = await prepareAlibabaPhotosPage({
-    importImage: recovered.importImage,
-    now: () => new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+    importImage: fakeImporter(store).importImage,
+    now: () => new Date(Date.now() + 11 * 60 * 1000).toISOString(),
   });
   assert.equal(later.prepared, 1);
-  assert.deepEqual((store.products?.[0] as CollectionDoc).imageIds, ['img-a-g1', 'img-a-g2']);
+  assert.deepEqual(a().imageIds, ['img-a-g1', 'img-a-g2']);
+  assert.equal(a().alibabaPhotosPending, false);
 });
 
-test('prepare: when nothing can be copied, the draft is shown and keeps what it had', async () => {
+test('prepare: a photo Alibaba no longer has is skipped and does not block the product', async () => {
   const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
   setAdapter(new MemoryAdapter(store));
   const page = await prepareAlibabaPhotosPage({
-    importImage: fakeImporter(store, ['a-']).importImage,
+    importImage: fakeImporter(store, ['a-g2'], 'not-found').importImage,
+  });
+  assert.equal(page.prepared, 1);
+  const a = store.products?.[0] as CollectionDoc;
+  assert.deepEqual(a.imageIds, ['img-a-g1']);
+  assert.equal(a.alibabaPhotosPending, false);
+  assert.deepEqual(Reflect.get(a.alibabaAutoPhotos as object, 'gallery'), {
+    sources: [url('a-g1'), url('a-g2')],
+    imageIds: ['img-a-g1'],
+    unusable: [url('a-g2')],
+    missing: [],
+  });
+  assert.equal(photoPreparationPlan(a), null, 'not tried again while Alibaba keeps it');
+});
+
+test('prepare: a photo that keeps failing is given up after 6 tries so the product can appear', async () => {
+  const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store, ['a-g2']);
+  let minutes = 0;
+  let page = await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+  for (let tries = 1; tries < 6; tries += 1) {
+    minutes += 11;
+    const at = minutes;
+    page = await prepareAlibabaPhotosPage({
+      importImage: importer.importImage,
+      now: () => new Date(Date.now() + at * 60 * 1000).toISOString(),
+    });
+  }
+  assert.equal(importer.calls.filter((call) => call === url('a-g2')).length, 6);
+  assert.equal(page.prepared, 1);
+  const a = store.products?.[0] as CollectionDoc;
+  assert.deepEqual(a.imageIds, ['img-a-g1']);
+  assert.equal(a.alibabaPhotosPending, false);
+});
+
+test('prepare: when every photo is unavailable, the draft is shown without photos', async () => {
+  const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
+  setAdapter(new MemoryAdapter(store));
+  const page = await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['a-'], 'not-found').importImage,
   });
   assert.equal(page.prepared, 1);
   const a = store.products?.[0] as CollectionDoc;
   assert.equal(a.alibabaPhotosPending, false, 'never hidden for good');
   assert.equal(a.imageIds, undefined);
-  assert.equal(a.alibabaAutoPhotos, undefined, 'still the sync to fill later');
 });
 
-test('prepare: a refresh where every new photo fails keeps the old photos and keeps following Alibaba', async () => {
+test('prepare: a refresh with a passing failure keeps the old photos and keeps following Alibaba', async () => {
   const filled = draft('a', {
     imageIds: ['img-a-g1'],
     alibabaSourceImageUrls: [url('a-g9')],
     alibabaDescriptionImageUrls: [],
     alibabaAutoPhotos: {
-      gallery: { sources: [url('a-g1')], imageIds: ['img-a-g1'], missing: [] },
+      gallery: { sources: [url('a-g1')], imageIds: ['img-a-g1'], unusable: [], missing: [] },
     },
   });
   const store: Store = { products: [filled] };
@@ -324,6 +368,24 @@ test('prepare: a refresh where every new photo fails keeps the old photos and ke
     photoPreparationPlan(a)?.parts.map((part) => part.part),
     ['gallery'],
     'still the sync to refresh',
+  );
+});
+
+test('prepare: drafts filled under the earlier rule with photos missing are prepared again', () => {
+  const earlier = draft('a', {
+    imageIds: ['img-a-g1'],
+    alibabaDescriptionImageUrls: [],
+    alibabaAutoPhotos: {
+      gallery: {
+        sources: [url('a-g1'), url('a-g2')],
+        imageIds: ['img-a-g1'],
+        missing: [url('a-g2')],
+      },
+    },
+  });
+  assert.deepEqual(
+    photoPreparationPlan(earlier)?.parts.map((part) => part.part),
+    ['gallery'],
   );
 });
 
@@ -422,7 +484,7 @@ test('prepare: configuration photos are copied for approval without changing the
   assert.deepEqual(a.imageIds, ['own']);
   assert.deepEqual(a.descriptionImageIds, ['own-d']);
   assert.deepEqual(a.alibabaAutoPhotos, {
-    configurations: { sources: [url('a-white')], imageIds: [], missing: [] },
+    configurations: { sources: [url('a-white')], imageIds: [], unusable: [], missing: [] },
   });
 });
 
@@ -509,7 +571,7 @@ test('prepare: hidden drafts only, when asked', async () => {
 test('prepare: a photo that failed is not fetched again when a product resumes', async () => {
   const store: Store = { products: [draft('a')] };
   setAdapter(new MemoryAdapter(store));
-  const importer = fakeImporter(store, ['a-g2']);
+  const importer = fakeImporter(store, ['a-g2'], 'not-found');
   let now = 0;
   const importImage = async (source: string) => {
     now += 7_000;

@@ -135,6 +135,41 @@ const draftFields = new Set([
   ...writableFields,
 ]);
 
+const PHOTO_SOURCE_PARTS = [
+  { field: 'imageIds', sources: 'alibabaSourceImageUrls', part: 'gallery' },
+  { field: 'descriptionImageIds', sources: 'alibabaDescriptionImageUrls', part: 'description' },
+] as const;
+
+/**
+ * One product is one unit (PT-G, owner 2026-10-09): when a sync changes the
+ * Alibaba photos of a draft whose photos are still the sync's, the draft is
+ * hidden until photo preparation has copied the new ones, so nobody works on
+ * new data with old photos. Live, approved or archived products never hide,
+ * and photos an admin chose are theirs.
+ */
+export function photosRefresh(product: CollectionDoc, patch: Record<string, unknown>) {
+  if (
+    product.published === true ||
+    product.archived === true ||
+    Boolean(product.catalogDetailApprovalReceipt)
+  )
+    return {};
+  const auto = product.alibabaAutoPhotos;
+  const refreshes = PHOTO_SOURCE_PARTS.some(({ field, sources, part }) => {
+    if (!Object.hasOwn(patch, sources)) return false;
+    if (JSON.stringify(patch[sources] ?? []) === JSON.stringify(product[sources] ?? []))
+      return false;
+    const filled = auto && typeof auto === 'object' ? Reflect.get(auto, part) : undefined;
+    const filledIds =
+      filled && typeof filled === 'object' ? Reflect.get(filled, 'imageIds') : undefined;
+    // The sync's while never set, or while it still equals what the sync filled.
+    return filledIds === undefined
+      ? product[field] === undefined
+      : JSON.stringify(product[field] ?? []) === JSON.stringify(filledIds);
+  });
+  return refreshes ? { alibabaPhotosPending: true } : {};
+}
+
 function reconciliationPatch(product: CollectionDoc, patch: Record<string, unknown>) {
   const reviewed =
     typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
@@ -358,6 +393,7 @@ export async function runAlibabaProductMutation(
       ? {
           ...product,
           ...reconciliationPatch(product, reviewPatch),
+          ...photosRefresh(product, reviewPatch),
           alibabaLinkRevision: nextRevision,
           updatedAt: input.now,
         }
@@ -505,6 +541,7 @@ export async function runAlibabaProductMutation(
     await transaction.set('products', {
       ...product,
       ...reconciliationPatch(product, input.patch),
+      ...photosRefresh(product, input.patch),
       alibabaLinkRevision: revision + 1,
       updatedAt: input.now,
     });
@@ -561,6 +598,7 @@ export async function runAlibabaProductMutation(
     ...(input.action === 'promote'
       ? sourceChangeFlag(product, source.active === true, input.publicSourceDigest)
       : {}),
+    ...(input.action === 'promote' ? photosRefresh(product, input.patch) : {}),
     // What the sync last saw; publishing an approval of older data keeps the flag.
     ...(input.action === 'promote' && input.publicSourceDigest !== undefined
       ? { alibabaSourcePublicDigest: input.publicSourceDigest }

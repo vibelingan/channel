@@ -55,6 +55,7 @@ test('photo preparation runs page after page to the end and adds up the progress
     photosReused: 0,
     photosFailed: 1,
     busy: 1,
+    waiting: 0,
     failures: 1,
     failedProducts: ['p-7'],
   });
@@ -96,6 +97,7 @@ test('the Product photos section says what is left and what happens automaticall
         photosReused: 30,
         photosFailed: 3,
         busy: 0,
+        waiting: 2,
         failures: 1,
         failedProducts: ['p-7'],
       },
@@ -110,7 +112,8 @@ test('the Product photos section says what is left and what happens automaticall
   assert.ok(markup.includes('12 drafts ready'));
   assert.ok(markup.includes('240 photos copied'));
   assert.ok(markup.includes('3 could not be copied'));
-  assert.ok(markup.includes('4 drafts with photos that could not be copied yet'));
+  assert.ok(markup.includes('4 drafts with photos Alibaba could not provide (skipped)'));
+  assert.ok(markup.includes('2 drafts waiting to try again in 10 minutes'));
   assert.ok(markup.includes('1 draft could not be saved'));
   assert.ok(markup.includes('p-7'));
   assert.match(markup, /<button[^>]*disabled=""[^>]*>Copying photos…<\/button>/);

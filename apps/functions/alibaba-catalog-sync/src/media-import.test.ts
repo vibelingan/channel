@@ -341,6 +341,23 @@ test('a download that stalls after its headers gives up instead of hanging (PT-G
   assert.ok(Date.now() - started < 2_000);
 });
 
+test('a photo gone at Alibaba is reported as not found, a server error as a passing failure', async () => {
+  setup();
+  for (const [status, reason] of [
+    [404, 'not-found'],
+    [410, 'not-found'],
+    [503, 'fetch-failed'],
+  ] as const) {
+    assert.deepEqual(
+      await importCandidateImage('https://sc04.alicdn.com/gone.png', {
+        fetchImpl: async () => new Response('', { status }),
+        resolveDns: PUBLIC_DNS,
+      }),
+      { ok: false, reason },
+    );
+  }
+});
+
 // --- lifecycle ---------------------------------------------------------------
 
 test('a verified import lands as an ACTIVE, unreferenced, sentinel-owned candidate', async () => {
