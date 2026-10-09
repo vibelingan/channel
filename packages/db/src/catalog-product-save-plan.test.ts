@@ -463,7 +463,10 @@ test('an unrelated update clears stale non-Headphones subcategory in the atomic 
 });
 
 test('the photo job never changes a product approved, published or archived meanwhile (PT-G)', () => {
-  const draft = manualProduct({ alibabaPrimarySourceKey: 'source-a', detailSourceOwner: undefined });
+  const draft = manualProduct({
+    alibabaPrimarySourceKey: 'source-a',
+    detailSourceOwner: undefined,
+  });
   const fill: CatalogProductSaveInput = {
     mode: 'update',
     productId: 'manual-product',

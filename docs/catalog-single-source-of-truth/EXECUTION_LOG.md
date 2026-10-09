@@ -104,6 +104,25 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### PT-G — Alibaba photos copied ahead; drafts appear ready (2026-10-09)
+- Owner: photos come with the product and its single approval; they should
+  be in our storage before an admin works on a draft and never block
+  publishing; new drafts appear only when ready; >18 description photos get
+  a notice and can be added one by one.
+- Measured in production (read-only): 957 eligible drafts — 929 with no photo
+  fields, 28 with product photos only, none with an emptied list; 11,180
+  unique photo sources (6,380 gallery, 4,800 description); 208 drafts with
+  more than 18 description photos; stored photos average 347 KB (median 190).
+- Built (`609b362`, picker `099ab12`, review fixes `7e3a4c8`): server job
+  `prepareAlibabaPhotos` (copy with reuse, 4 at a time, 12 s calls,
+  resumable, failures noted for a day and retried), configuration photos
+  copied for approval, new drafts hidden until ready, admin list and counts
+  leave hidden drafts out, Alibaba Sync "Product photos" section running
+  automatically after each sync, Edit picker for photos beyond the limit.
+- Review of `609b362`: no P1, five P2 (retry, all-fail refresh, approval
+  mid-copy, removed image, emptied list) and P3s, all fixed in `7e3a4c8`.
+- Next: deploy, then run the catch-up from the Alibaba Sync page.
+
 ### Live after `7f32909`; first-18 description photos (2026-10-09)
 - Deploy `7f32909` (DEC-19, DEC-20, batch 5b, classification P0 fix) live
   03:00–03:58 UTC; CI and Deploy Test green, post-deploy browser tests
