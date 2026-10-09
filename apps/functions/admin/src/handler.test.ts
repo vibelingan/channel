@@ -5421,6 +5421,47 @@ test('publishing keeps the Changed flag until every supplier change has a decisi
   assert.deepEqual(flags('taken'), [true, false, null]);
 });
 
+test('an admin edit to a part that matched Alibaba is recorded as kept, so publishing clears the flag', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'price-only',
+        ...publishableProduct({ published: false, description: 'Supplier text' }),
+        alibabaPrimarySourceKey: 'source-price-only',
+        alibabaReviewPending: true,
+        alibabaReviewReason: 'changed',
+      } as CollectionDoc,
+    ],
+    catalogProductIdentities: [],
+    catalogSourceObservations: [supplierObservation('source-price-only', 'Supplier text')],
+  });
+  const admin = await adminToken();
+  const row = () => store.products?.find((item) => item._id === 'price-only') as CollectionDoc;
+  // Flagged for a price change only; the admin fixes a typo in the description.
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'price-only', values: { description: 'Our fixed text' } },
+      admin,
+    ),
+  );
+  assert.deepEqual(row().supplierDecisions, {
+    description: { choice: 'keep', incomingDigest: descriptionDigest('Supplier text') },
+  });
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'price-only', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    [row().description, row().alibabaReviewPending, row().alibabaReviewReason],
+    ['Our fixed text', false, null],
+  );
+});
+
 test('contributors cannot save a flagged product or write supplier decisions and photo choices', async () => {
   const store = setup({
     users: [],
@@ -5449,11 +5490,23 @@ test('contributors cannot save a flagged product or write supplier decisions and
   for (const values of [
     { supplierDecisions: { description: { choice: 'keep', incomingDigest: 'a'.repeat(64) } } },
     { configurationPhotos: { v1: ['imgA'] } },
-  ])
+  ]) {
     expectErr(
       await call('update', { collection: 'products', id: 'plain', values }, contributor),
       'FORBIDDEN',
     );
+    expectErr(
+      await call(
+        'create',
+        {
+          collection: 'products',
+          values: { ...publishableProduct({ published: false }), ...values },
+        },
+        contributor,
+      ),
+      'FORBIDDEN',
+    );
+  }
   assert.deepEqual(store.products, before);
 });
 

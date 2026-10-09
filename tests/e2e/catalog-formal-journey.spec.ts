@@ -546,7 +546,11 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   expect(after.catalogDetailPublication).toBeUndefined();
   expect(after.alibabaReviewPending).toBe(true);
   expect(commands.length).toBeGreaterThan(0);
-  expect(commands.every((action) => ['prepare', 'review'].includes(action))).toBe(true);
+  // Read-only steps only: preview builds, Edit reads the supplier review for the
+  // configuration photo picker (DEC-20); nothing begins or approves.
+  expect(
+    commands.every((action) => ['prepare', 'review', 'supplier-review'].includes(action)),
+  ).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -879,4 +883,104 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
     fullPage: true,
   });
   expect(errors).toEqual([]);
+});
+
+test('manual products go live only through approval; the shared page shows their tiers; a legacy image is refused (MIU-31, MIU-34, MIU-37)', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const prefix = `${e2e.runId} Manual`;
+  const manualCatalogPricing = {
+    schemaVersion: 'manual-catalog-pricing-v1',
+    currency: 'USD',
+    tiers: [
+      { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+      { minQuantity: 13, unitAmountMinor: 11_831 },
+    ],
+  };
+  const values = (label: string, imageId: string) => ({
+    name: `${prefix} ${label}`,
+    productFamily: 'toys',
+    description: 'Disposable manual product approved through the admin.',
+    series: 'MIU-34',
+    imageIds: [imageId],
+    manualCatalogPricing,
+    archived: false,
+  });
+  // A new product has no approved version, so it cannot be created already published.
+  await expect(
+    adminAction(
+      request,
+      'create',
+      {
+        collection: 'products',
+        values: { ...values('Refused', 'formal-manual-image'), published: true },
+      },
+      session.token,
+    ),
+  ).rejects.toThrow(/starts as a draft/);
+  const ready = await adminAction<CollectionDoc>(
+    request,
+    'create',
+    {
+      collection: 'products',
+      values: { ...values('Ready', 'formal-manual-image'), published: false },
+    },
+    session.token,
+  );
+  // A legacy embedded image (bytes in the record, not in storage) cannot be approved.
+  const legacy = await adminAction<CollectionDoc>(
+    request,
+    'create',
+    {
+      collection: 'products',
+      values: { ...values('Legacy image', '0e0afdc26a68209e00523aa031e56460'), published: false },
+    },
+    session.token,
+  );
+  // Publishing without an approved version is refused.
+  await expect(
+    adminAction(
+      request,
+      'update',
+      { collection: 'products', id: ready._id, values: { published: true } },
+      session.token,
+    ),
+  ).rejects.toThrow(/approve/i);
+
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill(prefix);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
+  await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  const feedback = page.getByRole('alert').filter({ hasText: 'need attention' });
+  await expect(feedback).toContainText('1 published · 1 need attention', { timeout: 30000 });
+  await expect(feedback).toContainText('The product images are missing or busy');
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  const [published, refused] = await Promise.all([read(ready._id), read(legacy._id)]);
+  expect(published.published).toBe(true);
+  expect(published.catalogDetailPublication).toMatchObject({ state: 'approved' });
+  expect(refused.published).toBe(false);
+  expect(refused.catalogDetailPublication).toBeUndefined();
+
+  // The shared product page and the list card read the same approved version.
+  await page.goto(`/products/item/?id=${ready._id}`);
+  await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  const tiers = page.locator('[data-catalog-compact-price] [data-price-tier]');
+  await expect(tiers).toHaveCount(2);
+  await expect(tiers.nth(0)).toContainText('134.18');
+  await expect(tiers.nth(1)).toContainText('118.31');
+  await page.goto('/toys/');
+  await expect(
+    page.locator(`[data-product-card="${ready._id}"] [data-product-card-price]`),
+  ).toContainText('118.31');
 });

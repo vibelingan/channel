@@ -224,4 +224,21 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
       primaryPricing: untouchedPricing,
     },
   });
+  // A stored photo no product uses yet, for the manual product the admin
+  // publishes through approval (MIU-34).
+  await writeFile(
+    resolve(mediaDir, 'formal-manual-image.png'),
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  );
+  await db.createDocWithId('images', 'formal-manual-image', {
+    status: 'active',
+    storageProvider: 'local-disk',
+    storagePath: 'formal-manual-image.png',
+    storageFileId: 'local-disk:formal-manual-image.png',
+    mimeType: 'image/png',
+    publishedRefCount: 0,
+  });
 }

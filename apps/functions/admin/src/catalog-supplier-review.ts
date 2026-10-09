@@ -150,6 +150,44 @@ export async function supplierParts(
   return parts;
 }
 
+/**
+ * An admin's own edit to a website part that matched Alibaba's is the admin's
+ * choice: it is recorded as "keep" for Alibaba's current value, so the Changed
+ * flag does not wait on a decision nobody was asked for (DEC-19).
+ */
+export async function withAdminEditsKept(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (
+    !['description', 'imageIds', 'descriptionImageIds'].some((field) =>
+      Object.hasOwn(values, field),
+    )
+  )
+    return values;
+  const sourceKey = product.alibabaPrimarySourceKey;
+  if (typeof sourceKey !== 'string' || sourceKey === '') return values;
+  const observation = await storedObservation(sourceKey);
+  if (!observation) return values;
+  const listed = new Set((await supplierParts(product, observation)).map((part) => part.part));
+  const edited = (await supplierParts({ ...product, ...values }, observation)).filter(
+    (part) => !listed.has(part.part) && !part.decision,
+  );
+  if (edited.length === 0) return values;
+  const earlier = SupplierDecisionsSchema.safeParse(
+    values.supplierDecisions ?? product.supplierDecisions ?? {},
+  );
+  return {
+    ...values,
+    supplierDecisions: {
+      ...(earlier.success ? earlier.data : {}),
+      ...Object.fromEntries(
+        edited.map((part) => [part.part, { choice: 'keep', incomingDigest: part.incomingDigest }]),
+      ),
+    },
+  };
+}
+
 /** The stored observation of a linked product, or null. */
 export async function storedObservation(sourceKey: string) {
   const row = await get(

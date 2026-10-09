@@ -147,6 +147,7 @@ import {
   readSupplierReview,
   storedObservation,
   supplierParts,
+  withAdminEditsKept,
 } from './catalog-supplier-review.ts';
 
 export interface AdminConfig {
@@ -1959,6 +1960,14 @@ async function createAction(
         return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
       }
       const values = buildWriteSchema(definition).parse(parsed.data.values);
+      if (
+        claims.role !== 'admin' &&
+        (Object.hasOwn(values, 'supplierDecisions') || Object.hasOwn(values, 'configurationPhotos'))
+      )
+        return err(
+          'FORBIDDEN',
+          'Only admins can decide on supplier changes and configuration photos.',
+        );
       // A new product has no approved version yet, so it starts as a draft (MIU-37).
       const transition = await createCatalogProductRecord(
         values,
@@ -2044,7 +2053,7 @@ async function updateAction(
       // A contributor's edit on a live product waits for an admin (OWN-1): the
       // row keeps the edit, buyers keep the approved version, and the product is
       // flagged Edited until an admin approves and publishes it.
-      const values =
+      const editValues =
         config.enableDetailApproval === true &&
         claims.role !== 'admin' &&
         before?.published === true &&
@@ -2052,6 +2061,12 @@ async function updateAction(
         parsedValues.archived !== true
           ? contributorDraftEdit(before, parsedValues)
           : parsedValues;
+      const values =
+        claims.role === 'admin' &&
+        before?.alibabaReviewPending === true &&
+        ['changed', 'removed'].includes(String(before.alibabaReviewReason))
+          ? await withAdminEditsKept(before, editValues)
+          : editValues;
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);

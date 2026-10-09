@@ -150,6 +150,20 @@ test('configuration photos: each configuration picks from the gallery', () => {
   assert.ok(html.includes('Alibaba photo'), 'Black has its own supplier photo');
   assert.match(html, /aria-pressed="true"[^>]*aria-label="White: gallery photo 2"/);
   assert.match(html, /aria-pressed="false"[^>]*aria-label="White: gallery photo 1"/);
+  assert.ok(html.includes('(1 of 2 chosen)'));
+});
+
+test('configuration photos no longer in the gallery are not counted or shown as chosen', () => {
+  const html = renderToStaticMarkup(
+    createElement(ConfigurationPhotosEditor, {
+      configurations: review.configurations,
+      galleryIds: ['img-a'],
+      value: { 'v-white': ['img-b'] },
+      onChange: () => {},
+    }),
+  );
+  assert.ok(html.includes('(0 of 2 chosen)'));
+  assert.doesNotMatch(html, /aria-pressed="true"/);
 });
 
 test('a contributor sees why a flagged product is read-only, and cannot save it', () => {
@@ -169,6 +183,8 @@ test('a contributor sees why a flagged product is read-only, and cannot save it'
   );
   assert.ok(html.includes('waiting for an admin’s review'));
   assert.match(html, /<button type="submit" disabled=""/);
+  // The form sections (and every field inside them) are disabled too, not only Save.
+  assert.match(html, /<fieldset disabled=""/);
 });
 
 test('the supplier review answer is validated before use', async (t) => {

@@ -195,7 +195,6 @@ export function RecordForm({
   const initialStateRef = useRef(state);
   const cancelInFlight = useRef(false);
   const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
-  const busy = submitting || mediaBusy;
   // Only while Save would keep the product live; unticking Published unpublishes instead.
   const supplierChange =
     initial && state.published !== false ? pendingSupplierChange(initial) : null;
@@ -228,9 +227,14 @@ export function RecordForm({
   const [supplierBusy, setSupplierBusy] = useState<SupplierReviewPartName | null>(null);
   const [supplierError, setSupplierError] = useState('');
   const [configurationPhotos, setConfigurationPhotos] = useState<ConfigurationPhotos>();
+  // Importing Alibaba's photos blocks Save and Close like any media import.
+  const busy = submitting || mediaBusy || supplierBusy !== null;
   const flaggedForSupplier =
     initial !== undefined && ['Changed', 'Removed'].includes(String(reviewLabel(initial)));
-  const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
+  const dirty =
+    JSON.stringify(state) !== JSON.stringify(initialStateRef.current) ||
+    Object.keys(supplierChoices).length > 0 ||
+    configurationPhotos !== undefined;
 
   function setField(name: string, value: string | boolean) {
     if (collection.name === 'sourceCategoryMappings' && name === 'productFamily') {
@@ -284,9 +288,11 @@ export function RecordForm({
   const photoField = (part: SupplierReviewPartName) =>
     part === 'gallery' ? 'imageIds' : 'descriptionImageIds';
   function keepWebsite(part: SupplierReviewPart) {
-    // Undo an earlier "Use Alibaba's" in this form.
-    if (part.part === 'description') setField('description', part.website.text ?? '');
-    else setField(photoField(part.part), JSON.stringify(part.website.imageIds ?? []));
+    // Undo an earlier "Use Alibaba's" in this form; other edits stay.
+    if (supplierChoices[part.part]?.choice === 'incoming') {
+      if (part.part === 'description') setField('description', part.website.text ?? '');
+      else setField(photoField(part.part), JSON.stringify(part.website.imageIds ?? []));
+    }
     setSupplierChoices((current) => ({
       ...current,
       [part.part]: { choice: 'keep', incomingDigest: part.incomingDigest },
@@ -495,7 +501,13 @@ export function RecordForm({
                     {column.sections.map((section) => (
                       <fieldset
                         key={section.heading}
-                        disabled={submitting || sourceImageBusy || discardRequested}
+                        disabled={
+                          submitting ||
+                          sourceImageBusy ||
+                          supplierBusy !== null ||
+                          discardRequested ||
+                          Boolean(readOnlyReason)
+                        }
                         className="min-w-0 space-y-4 rounded-xl border border-slate-200 p-4"
                       >
                         <legend className="font-semibold text-slate-900">{section.heading}</legend>
@@ -659,7 +671,10 @@ export function RecordForm({
               )}
             </div>
           ) : (
-            <fieldset disabled={busy || discardRequested} className="mt-4 min-w-0 space-y-4">
+            <fieldset
+              disabled={busy || discardRequested || Boolean(readOnlyReason)}
+              className="mt-4 min-w-0 space-y-4"
+            >
               {editableFields.map((field) =>
                 collection.name === 'sourceCategoryMappings' && field.name === 'subcategoryIds' ? (
                   <MappingSubcategories

@@ -23,20 +23,23 @@ export function ConfigurationPhotosEditor({
 }) {
   const previews = useAdminImagePreviews(galleryIds);
   if (configurations.length === 0) return null;
+  // Only photos still in the gallery count; approval ignores the rest.
+  const chosen = (configurationId: string) =>
+    (value[configurationId] ?? []).filter((id) => galleryIds.includes(id));
   const toggle = (configurationId: string, imageId: string) => {
-    const current = value[configurationId] ?? [];
+    const current = chosen(configurationId);
     const next = current.includes(imageId)
       ? current.filter((id) => id !== imageId)
       : [...current, imageId].slice(0, CONFIGURATION_PHOTO_LIMIT);
     onChange({ ...value, [configurationId]: next });
   };
-  const chosenCount = configurations.filter((c) => (value[c.id] ?? []).length > 0).length;
+  const chosenCount = configurations.filter((c) => chosen(c.id).length > 0).length;
   return (
     <details
       data-configuration-photos
       className="rounded-lg border border-slate-200 p-3 lg:col-span-2"
     >
-      <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-slate-800">
         Photos for each configuration ({chosenCount} of {configurations.length} chosen)
       </summary>
       <p className="mt-2 text-sm text-slate-600">
@@ -55,7 +58,7 @@ export function ConfigurationPhotosEditor({
             </p>
             <div className="mt-1 flex flex-wrap gap-2">
               {galleryIds.map((imageId, index) => {
-                const pressed = (value[configuration.id] ?? []).includes(imageId);
+                const pressed = chosen(configuration.id).includes(imageId);
                 return (
                   <button
                     key={imageId}

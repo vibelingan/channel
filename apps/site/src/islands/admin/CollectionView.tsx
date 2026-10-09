@@ -111,6 +111,8 @@ export function CollectionView({
     skipped: string[];
     names: Record<string, string>;
   } | null>(null);
+  // A publish that kept "Changed": some supplier change still needs a decision (DEC-19).
+  const [stillFlagged, setStillFlagged] = useState<string | null>(null);
   // "See changes" from the edit form: read-only, so nothing changes under the form.
   const [changesPreview, setChangesPreview] = useState<CollectionDoc | null>(null);
   const [classifying, setClassifying] = useState<{
@@ -266,8 +268,13 @@ export function CollectionView({
   const updateMutation = useMutation({
     mutationFn: (vars: { id: string; values: Record<string, unknown> }) =>
       updateRecord(collection.name, vars.id, vars.values),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       setEditing(null);
+      setStillFlagged(
+        saved.published === true && ['Changed', 'Removed'].includes(String(reviewLabel(saved)))
+          ? String(saved.name || saved._id)
+          : null,
+      );
       invalidate();
     },
   });
@@ -509,7 +516,11 @@ export function CollectionView({
             published={row.original.published === true}
             busy={recordWritePending}
             onToggle={() =>
-              patch(row.original._id, { published: !(row.original.published === true) })
+              // Publishing a flagged product goes through its review in Edit (DEC-19).
+              row.original.published !== true &&
+              ['Changed', 'Removed'].includes(String(reviewLabel(row.original)))
+                ? setEditing(row.original)
+                : patch(row.original._id, { published: !(row.original.published === true) })
             }
           />
         ),
@@ -614,7 +625,10 @@ export function CollectionView({
         </div>
         <button
           type="button"
-          onClick={() => setCreating(true)}
+          onClick={() => {
+            createMutation.reset();
+            setCreating(true);
+          }}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
         >
           New {singular}
@@ -891,6 +905,24 @@ export function CollectionView({
           onDismiss={() => batchUpdateMutation.reset()}
         />
       )}
+      {stillFlagged && (
+        <output
+          data-still-flagged
+          className="mt-4 block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <p>
+            Saved “{stillFlagged}”. It stays flagged Changed until every supplier change has a
+            decision. Open Edit to decide.
+          </p>
+          <button
+            type="button"
+            className="mt-2 min-h-11 underline"
+            onClick={() => setStillFlagged(null)}
+          >
+            Dismiss
+          </button>
+        </output>
+      )}
       {visibleMutationError && (
         <div
           role="alert"
@@ -905,6 +937,7 @@ export function CollectionView({
             type="button"
             className="mt-2 underline"
             onClick={() => {
+              createMutation.reset();
               batchUpdateMutation.reset();
               updateMutation.reset();
               removeMutation.reset();

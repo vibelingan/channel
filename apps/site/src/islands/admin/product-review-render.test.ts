@@ -279,6 +279,10 @@ test('batch Publish skips products with Alibaba changes to review, live or not (
   const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
   assert.match(source, /splitForBatchPublish\(docs\)/);
   assert.match(source, /setSkippedOnly\(\{ skipped, names \}\)/, 'nothing left: no request');
+  // The single-row switch opens Edit for a flagged product instead of publishing it.
+  assert.match(source, /\? setEditing\(row\.original\)\s*: patch\(row\.original\._id/);
+  // A publish that kept the flag says so.
+  assert.match(source, /data-still-flagged/);
   const feedback = renderToStaticMarkup(
     createElement(BatchUpdateFeedback, {
       result: { updated: 1, items: [], failures: [] },
