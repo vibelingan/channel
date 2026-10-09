@@ -40,7 +40,7 @@ export const MAX_IMAGE_PIXELS = 40_000_000;
 /** No single side may exceed this, even within the pixel budget. */
 export const MAX_IMAGE_SIDE = 20_000;
 
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export type AllowedImageMime = (typeof ALLOWED_MIME_TYPES)[number];
 
 export type ImageFetchFailure =
@@ -235,6 +235,9 @@ export function sniffImageMime(bytes: Buffer): AllowedImageMime | null {
   ) {
     return 'image/webp';
   }
+  if (bytes.length >= 6 && ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii'))) {
+    return 'image/gif';
+  }
   return null;
 }
 
@@ -257,6 +260,12 @@ export function readImageDimensions(
     // 8-byte signature, 4-byte length, "IHDR", then width and height.
     if (bytes.length < 24 || bytes.subarray(12, 16).toString('ascii') !== 'IHDR') return null;
     return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+
+  if (mimeType === 'image/gif') {
+    // Logical screen size, little-endian, right after the 6-byte signature.
+    if (bytes.length < 10) return null;
+    return { width: bytes.readUInt16LE(6), height: bytes.readUInt16LE(8) };
   }
 
   if (mimeType === 'image/jpeg') {
@@ -511,6 +520,7 @@ const EXTENSIONS: Record<AllowedImageMime, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+  'image/gif': 'gif',
 };
 
 export interface MigratedImage {

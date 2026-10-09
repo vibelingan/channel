@@ -761,12 +761,27 @@ export async function uploadImage(file: File): Promise<string> {
  * instead of the public `/api/images/:id` (which is `publishedRefCount`-gated and
  * 404s unpublished images). Serves legacy `data` rows and `active` storage rows.
  */
-export async function getImagePreview(id: string): Promise<string> {
-  const res = await call<{ id: string; mimeType: string; dataBase64: string }>('getImagePreview', {
+export function getImagePreview(id: string): Promise<string> {
+  // An image's bytes never change under its id, so one fetch serves the list
+  // thumbnail, the edit form and the preview alike. Failures are not kept.
+  const known = imagePreviews.get(id);
+  if (known) return known;
+  const loading = call<{ id: string; mimeType: string; dataBase64: string }>('getImagePreview', {
     id,
+  }).then((res) => `data:${res.mimeType};base64,${res.dataBase64}`);
+  imagePreviews.set(id, loading);
+  loading.catch(() => {
+    if (imagePreviews.get(id) === loading) imagePreviews.delete(id);
   });
-  return `data:${res.mimeType};base64,${res.dataBase64}`;
+  if (imagePreviews.size > IMAGE_PREVIEW_CACHE_LIMIT) {
+    const oldest = imagePreviews.keys().next().value;
+    if (oldest !== undefined) imagePreviews.delete(oldest);
+  }
+  return loading;
 }
+
+const IMAGE_PREVIEW_CACHE_LIMIT = 60;
+const imagePreviews = new Map<string, Promise<string>>();
 
 export async function taxonomyCall(
   input: CatalogTaxonomyCommand,

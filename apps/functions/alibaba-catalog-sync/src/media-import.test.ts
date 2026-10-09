@@ -383,6 +383,20 @@ test('a verified import lands as an ACTIVE, unreferenced, sentinel-owned candida
   assert.equal(storage.puts[0]?.namespace, 'catalog');
 });
 
+test('an animated GIF from Alibaba is copied as a GIF (owner 2026-10-09)', async () => {
+  setup();
+  const gif = Buffer.from('GIF89a\x16\x03\x3a\x05\xf7\x00\x00', 'latin1');
+  const { fetchImpl } = fakeImageFetch(gif);
+  const result = await importCandidateImage('https://sc04.alicdn.com/kf/H7ca8.jpg', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(result.ok, true, 'named .jpg, but the bytes decide');
+  const image = store.images?.[0] as CollectionDoc;
+  assert.equal(image.mimeType, 'image/gif');
+  assert.match(String(image.name), /\.gif$/);
+});
+
 test('identical bytes deduplicate by checksum (one object, one row)', async () => {
   setup();
   const { fetchImpl } = fakeImageFetch();

@@ -180,6 +180,8 @@ export function AlibabaCatalogSyncPage() {
   // Products waiting on a photo are tried again once the wait is over, while
   // this page stays open (the sync has no timer; see the photo section).
   const photoRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // "Copy photos now" also tries photos earlier found unavailable.
+  const retryUnavailableNext = useRef(false);
   useEffect(
     () => () => {
       if (photoRetry.current) clearTimeout(photoRetry.current);
@@ -222,7 +224,12 @@ export function AlibabaCatalogSyncPage() {
           refreshProductReviewQueue();
           if (current === 'all') {
             const busyBefore = total.busy;
-            total = await prepareAlibabaPhotos(setPhotoProgress, { from: total });
+            const retryUnavailable = retryUnavailableNext.current;
+            retryUnavailableNext.current = false;
+            total = await prepareAlibabaPhotos(setPhotoProgress, {
+              from: total,
+              ...(retryUnavailable ? { retryUnavailable: true } : {}),
+            });
             // Drafts changed meanwhile are looked at once more in this session.
             if (total.busy > busyBefore && !retriedBusy) {
               retriedBusy = true;
@@ -342,7 +349,10 @@ export function AlibabaCatalogSyncPage() {
         status={photoStatus}
         progress={photoProgress}
         running={photosRunning}
-        onRun={() => void runPhotoPreparation('all')}
+        onRun={() => {
+          retryUnavailableNext.current = true;
+          void runPhotoPreparation('all');
+        }}
       />
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold text-slate-900">Repair missing source quotes</h2>

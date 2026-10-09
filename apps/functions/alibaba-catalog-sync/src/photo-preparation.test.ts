@@ -345,6 +345,34 @@ test('prepare: a photo that keeps failing is given up after 6 tries so the produ
   assert.equal(a.alibabaPhotosPending, false);
 });
 
+test('prepare: "Copy photos now" tries unavailable photos again, e.g. GIFs once accepted', async () => {
+  const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
+  setAdapter(new MemoryAdapter(store));
+  // First the description photo is refused as content we did not accept.
+  const refused = fakeImporter(store, ['a-d1'], 'not-found');
+  await prepareAlibabaPhotosPage({ importImage: refused.importImage });
+  const a = () => store.products?.[0] as CollectionDoc;
+  assert.equal(a().descriptionImageIds, undefined);
+  assert.deepEqual(Reflect.get(a().alibabaAutoPhotos as object, 'description').unusable, [
+    url('a-d1'),
+  ]);
+  // An automatic run leaves it alone: nothing changed at Alibaba.
+  const automatic = fakeImporter(store);
+  await prepareAlibabaPhotosPage({ importImage: automatic.importImage });
+  assert.deepEqual(automatic.calls, []);
+  // A manual retry fetches it again and the product gets it.
+  const manual = fakeImporter(store);
+  const page = await prepareAlibabaPhotosPage({
+    importImage: manual.importImage,
+    retryUnavailable: true,
+  });
+  assert.deepEqual(manual.calls, [url('a-d1')], 'only the unavailable photo is fetched');
+  assert.equal(page.prepared, 1);
+  assert.deepEqual(a().descriptionImageIds, ['img-a-d1']);
+  assert.deepEqual(Reflect.get(a().alibabaAutoPhotos as object, 'description').unusable, []);
+  assert.deepEqual(a().imageIds, ['img-a-g1', 'img-a-g2'], 'other parts unchanged');
+});
+
 test('prepare: when every photo is unavailable, the draft is shown without photos', async () => {
   const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
   setAdapter(new MemoryAdapter(store));

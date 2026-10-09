@@ -34,7 +34,8 @@ export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Pr
           <p className="mt-1 text-sm text-slate-600">
             Alibaba photos are copied into our storage automatically after each sync, so drafts are
             ready to publish. A new draft appears in Products once its photos are in. Photos an
-            admin changed are never replaced.
+            admin changed are never replaced. Copy photos now also tries again the photos Alibaba
+            could not provide.
           </p>
           {status && (
             <p data-photo-preparation-status className="mt-2 text-sm text-slate-800">

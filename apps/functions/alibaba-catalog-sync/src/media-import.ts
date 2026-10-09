@@ -38,7 +38,7 @@ export const ALIBABA_IMAGE_IMPORT_OWNER = 'alibaba-catalog-sync';
 const ALLOWED_HOST_SUFFIXES = ['alicdn.com', 'alibaba.com'];
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 15_000;
-const IMPORTABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const IMPORTABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 export interface MediaImportDeps {
   fetchImpl?: typeof fetch;

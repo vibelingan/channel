@@ -106,6 +106,45 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Admin thumbnails, GIF photos, refused photos (2026-10-09, owner ~09:00 UTC)
+- Owner: most thumbnails in Admin → Products are broken; asked for the
+  refused-photo product (to ask the client) and for GIF support from storage
+  to the website.
+- Thumbnails (regression from PT-G): the list showed a product's first photo
+  through the public address `/api/images/:id`, which serves only photos of
+  published products (`publishedRefCount > 0`). Before PT-G a draft had no
+  stored photo and the list showed Alibaba's; after PT-G every draft has
+  stored but unpublished photos, so the public address answers 404 (checked
+  in production). The data is complete; only the list display was wrong.
+  Fix: `product-thumbnail.ts` picks the source per row: live product → public
+  address (falls back to the admin preview if refused); unpublished product
+  whose gallery is still the sync's → the Alibaba photo its first photo was
+  copied from (same picture, no request to our API); otherwise → the signed-in
+  admin preview (`getImagePreview`), cached across rows.
+- Refused photos: both belong to one product, "Home Decor Nordic Creative
+  Silent Clocks Mechanism Gift Modern World Map Large Wall Clock…"
+  (`33e4983e-b8ce-42a9-aff8-a7ea5a851882`, Alibaba ID used by the sync
+  `AAG_BBhgAOVTpOKZBnR03JkR`). Re-synced from Alibaba at 09:00 UTC: Alibaba
+  still lists both photos, and its image server answers 403 on every host
+  and size while a wrong extension gives 404 — the files exist but Alibaba
+  blocks them (typically taken down). Only the supplier can replace them.
+- GIF support: four Alibaba description photos are animated GIFs named
+  `.jpg`. Now accepted end to end: the shared upload allowlist
+  (`CATALOG_IMAGE_MIME_TYPES`), the Alibaba copier, the Excel-import media
+  step (signature and header size check for GIF), the upload button. Public
+  delivery already served `image/gif`; browsers show GIFs as they are.
+- "Copy photos now" also tries again photos earlier found unavailable
+  (`retryUnavailable`), with a fresh count; automatic runs do not. This
+  copies the four GIFs after deploy.
+- Validation found the list thumbnail and the Edit photo manager fetching the
+  same photo twice (browser test "ImageManager enforces catalog capacity":
+  11 previews for 10 photos). `getImagePreview` now keeps one fetch per image
+  id for the page (60 most recent; failures not kept), shared by the list,
+  Edit and Preview.
+- Unrelated flaky test seen once: `ai-engine-anythingllm` "the hosted fork
+  keeps the document name as provenance…" failed in the full run and passed
+  101/101 on its own; not touched by this work.
+
 ### MIU-55 live; photo retry pass and readiness check (2026-10-09)
 - Deployed `8cca888` (MIU-55 + review fixes): functions live 08:33 UTC.
 - Retry pass 08:35–08:37 UTC from the signed-in admin page (same requests

@@ -122,6 +122,30 @@ says what happened, why, what we tried, how it ended, and what to do next time.
   times). A sync that changes a draft's photos hides it until they are copied
   again.
 
+### 1.10 Admin list thumbnails broke for drafts (10-09)
+
+- **What:** after the photo catch-up, most thumbnails in Admin → Products
+  showed a broken image. The owner asked whether the data had synced.
+- **Why:** the list loaded a product's first photo through the public image
+  address, which serves only photos of published products. Before photo
+  copying, drafts had no stored photo, so the list showed Alibaba's own
+  photo. After copying, every draft had a stored photo that the public
+  address refused. The data was complete. None of our tests rendered the
+  list with a draft that has copied photos, and the production check after
+  the catch-up looked at counts, not at the page.
+- **Fix:** the list now picks the source per row (public address for live
+  products; the Alibaba original for copied drafts; the signed-in preview
+  otherwise).
+- **Lesson:** after a data change that every row sees, open the admin page
+  and look, not just count.
+
+### 1.11 Animated GIFs from Alibaba (10-09)
+
+- Four description photos are animated GIFs named `.jpg`; our storage took
+  only JPEG, PNG and WebP. The owner asked for GIF support from storage to
+  the website; added across the upload allowlist, the Alibaba copier, the
+  Excel import and the upload button (public delivery already served GIF).
+
 ## 2. Bugs our reviews caught before shipping
 
 Every batch had at least one independent review; these are the findings that

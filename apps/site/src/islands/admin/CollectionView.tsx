@@ -19,7 +19,15 @@ import {
   isProductFamily,
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
@@ -33,7 +41,6 @@ import {
   matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
 import { RecordForm } from './RecordForm.tsx';
-import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
   DraftSavedError,
@@ -56,6 +63,7 @@ import {
   adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
+import { adminThumbnail, productThumbnailSource } from './product-thumbnail.ts';
 import { reviewLabel, splitForBatchPublish } from './review-reason.ts';
 import type { DashboardSection } from './sections.ts';
 import {
@@ -1522,48 +1530,86 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
 }
 
 export function ProductThumbnail({ doc }: { doc: CollectionDoc }) {
-  const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
+  const source = productThumbnailSource(doc);
   const label = reviewLabel(doc);
+  // A live product's photo that the public address refuses (e.g. added after
+  // the last approval) falls back to the admin preview.
+  const [publicFailed, setPublicFailed] = useState(false);
+  const previewId =
+    source?.kind === 'admin' || (source?.kind === 'public' && publicFailed) ? source.imageId : null;
+  const [preview, setPreview] = useState<{ id: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!previewId) return;
+    let cancelled = false;
+    adminThumbnail(previewId).then(
+      (url) => !cancelled && setPreview({ id: previewId, url }),
+      () => !cancelled && setPreview({ id: previewId, url: null }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [previewId]);
   const badge = label ? (
     <span className="absolute -left-1 -top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white shadow-sm">
       {label}
     </span>
   ) : null;
-  if (ids[0]) {
-    return (
-      <span className="relative inline-block">
-        <img
-          src={imageUrl(ids[0])}
-          alt=""
-          className="h-10 w-10 rounded-md border border-slate-200 object-cover"
-        />
-        {badge}
-      </span>
-    );
-  }
-  const sourceUrl = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls, 1)[0];
-  if (sourceUrl) {
-    return (
-      <span className="relative inline-block">
-        <img
-          src={sourceUrl}
-          alt=""
-          referrerPolicy="no-referrer"
-          className="h-10 w-10 rounded-md border border-dashed border-slate-300 object-cover"
-          title="Alibaba source preview; not yet imported for publication"
-        />
-        {badge}
-      </span>
-    );
-  }
-  return (
+  const frame = (image: ReactNode) => (
     <span className="relative inline-block">
-      <span className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-slate-300">
-        —
-      </span>
+      {image}
       {badge}
     </span>
   );
+  const empty = frame(
+    <span className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-slate-300">
+      —
+    </span>,
+  );
+  if (source?.kind === 'public' && !publicFailed)
+    return frame(
+      <img
+        src={imageUrl(source.imageId)}
+        alt=""
+        onError={() => setPublicFailed(true)}
+        className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+      />,
+    );
+  if (source?.kind === 'alibaba')
+    return frame(
+      <img
+        src={source.url}
+        alt=""
+        referrerPolicy="no-referrer"
+        className={`h-10 w-10 rounded-md border object-cover ${
+          source.copied ? 'border-slate-200' : 'border-dashed border-slate-300'
+        }`}
+        title={
+          source.copied
+            ? 'Copied to our storage from this Alibaba photo'
+            : 'Alibaba source preview; not yet imported for publication'
+        }
+      />,
+    );
+  if (previewId) {
+    const url = preview?.id === previewId ? preview.url : undefined;
+    if (url)
+      return frame(
+        <img
+          src={url}
+          alt=""
+          className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+        />,
+      );
+    if (url === undefined)
+      return frame(
+        <span
+          aria-hidden="true"
+          data-thumbnail-loading
+          className="block h-10 w-10 animate-pulse rounded-md bg-slate-100"
+        />,
+      );
+  }
+  return empty;
 }
 
 function InlineSelect({

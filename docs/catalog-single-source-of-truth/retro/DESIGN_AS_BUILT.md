@@ -162,8 +162,7 @@ first, and only then writes the product, in one guarded save (it fails if
 the product changed meanwhile, was approved, or was published). If any copy
 is "waiting", nothing is written for that product and the next product is
 processed as normal. Photos Alibaba cannot provide (403/404/410, invalid or
-disallowed address, too large, not a JPEG/PNG/WebP image — some Alibaba
-"photos" are animated GIFs) are skipped and listed as
+disallowed address, too large, not a JPEG/PNG/WebP/GIF image) are skipped and listed as
 "photos Alibaba could not provide", so one dead link never blocks a product.
 
 **Why not one database transaction for fields and photos.** Copying a photo is
@@ -193,6 +192,15 @@ the draft.
 in Edit and can be added one by one. Configuration photos are copied (not
 attached) so approval finds them in storage. Approval accepts at most 46
 distinct images per product; no current draft exceeds it.
+
+**Admin list thumbnails.** The public image address serves only photos of
+published products, so the list shows a live product's photo from it, a
+copied draft's photo from the Alibaba original it was copied from, and any
+other unpublished photo through the signed-in admin preview
+(`product-thumbnail.ts`).
+
+**Formats.** JPEG, PNG, WebP and GIF (animated GIFs included, 2026-10-09).
+"Copy photos now" also retries photos earlier found unavailable.
 
 **Where.** `apps/functions/alibaba-catalog-sync/src/photo-preparation.ts`
 (job), `media-import.ts` (download, reasons), `packages/db/src/alibaba-product-identity.ts`

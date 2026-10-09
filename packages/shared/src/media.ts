@@ -55,7 +55,13 @@ export const PRODUCT_IMAGE_MAX_COUNT = 9;
 export const PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT = 18;
 /** Legacy shared ceiling retained for Overstock and pre-V1.1 catalog compatibility. */
 export const CATALOG_IMAGE_MAX_COUNT = 18;
-export const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+/** GIF included (owner 2026-10-09): some Alibaba description photos are animated GIFs. */
+export const CATALOG_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+] as const;
 
 /**
  * Canonical ordered image references for storefront catalog documents.

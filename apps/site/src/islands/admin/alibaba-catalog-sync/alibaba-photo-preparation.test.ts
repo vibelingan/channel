@@ -107,6 +107,7 @@ test('the Product photos section says what is left and what happens automaticall
   );
   assert.ok(markup.includes('Product photos'));
   assert.ok(markup.includes('automatically after each sync'));
+  assert.ok(markup.includes('Copy photos now also tries again the photos Alibaba'));
   assert.ok(markup.includes('2 new drafts being prepared'));
   assert.ok(markup.includes('958 drafts waiting for photos'));
   assert.ok(markup.includes('12 drafts ready'));
@@ -141,7 +142,12 @@ test('the sync page copies photos automatically after every sync and finishes hi
   assert.equal(source.match(/void syncThenPhotos\(async \(\) => \{/g)?.length, 3);
   assert.match(source, /finally \{\s*void runPhotoPreparationRef\.current\?\.\('all'\);/);
   assert.match(source, /hiddenDrafts > 0\) void runPhotoPreparation\('pending'\)/);
-  assert.match(source, /onRun=\{\(\) => void runPhotoPreparation\('all'\)\}/);
+  // "Copy photos now" also tries photos earlier found unavailable.
+  assert.match(
+    source,
+    /onRun=\{\(\) => \{\s*retryUnavailableNext\.current = true;\s*void runPhotoPreparation\('all'\);/,
+  );
+  assert.match(source, /\.\.\.\(retryUnavailable \? \{ retryUnavailable: true \} : \{\}\)/);
   // Products waiting on a photo are tried again while the page stays open.
   assert.match(
     source,

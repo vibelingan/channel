@@ -347,6 +347,12 @@ test('dimensions are read from the header of each accepted format', () => {
     height: 600,
   });
 
+  // GIF (animated supplier photos, owner 2026-10-09): logical screen 790 x 1338.
+  const gif = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x16, 0x03, 0x3a, 0x05, 0xf7, 0x00]);
+  assert.equal(sniffImageMime(gif), 'image/gif');
+  assert.deepEqual(readImageDimensions(gif, 'image/gif'), { width: 790, height: 1338 });
+  assert.equal(readImageDimensions(gif.subarray(0, 8), 'image/gif'), null);
+
   // JPEG: SOI, then a SOF0 frame declaring 480 high by 640 wide.
   const jpeg = Buffer.concat([
     Buffer.from([0xff, 0xd8]),
@@ -429,7 +435,7 @@ test('vector, document and markup payloads are all refused', async () => {
     ['svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>')],
     ['html', Buffer.from('<!DOCTYPE html><html><body>hi</body></html>')],
     ['pdf', Buffer.from('%PDF-1.7\n1 0 obj')],
-    ['gif', Buffer.from('GIF89a')],
+    ['tiff', Buffer.from([0x49, 0x49, 0x2a, 0x00])],
     ['bmp', Buffer.from('BM')],
     ['zip', Buffer.from([0x50, 0x4b, 0x03, 0x04])],
     ['ico', Buffer.from([0x00, 0x00, 0x01, 0x00])],

@@ -157,3 +157,10 @@ owner's only test environment).
   refused (403) and four animated GIFs. 403 now counts as unavailable.
   Read-only readiness check: all 955 drafts have photos, none hidden or
   flagged, none over the image limit; 56 need a product family.
+- ~09:00 Owner: most admin list thumbnails are broken; asks for the
+  refused-photo product and for GIF support. Cause: the list used the public
+  image address, which refuses unpublished photos — a display regression
+  from photo copying, data intact. Re-sync of the refused-photo product
+  showed Alibaba still lists the photos but blocks them (403). Fixed the
+  thumbnails, added GIF support end to end, and "Copy photos now" now
+  retries unavailable photos.

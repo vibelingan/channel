@@ -388,7 +388,12 @@ export async function fetchPhotoPreparationStatus(): Promise<PhotoPreparationSta
  */
 export async function prepareAlibabaPhotos(
   onProgress?: (progress: PhotoPreparationProgress) => void,
-  options: { pendingOnly?: boolean; from?: PhotoPreparationProgress } = {},
+  options: {
+    pendingOnly?: boolean;
+    /** Also try photos earlier found unavailable ("Copy photos now"). */
+    retryUnavailable?: boolean;
+    from?: PhotoPreparationProgress;
+  } = {},
 ): Promise<PhotoPreparationProgress> {
   const total: PhotoPreparationProgress = options.from
     ? { ...options.from, failedProducts: [...options.from.failedProducts] }
@@ -408,6 +413,7 @@ export async function prepareAlibabaPhotos(
       await call<unknown>('prepareAlibabaPhotos', {
         afterProductId,
         ...(options.pendingOnly ? { pendingOnly: true } : {}),
+        ...(options.retryUnavailable ? { retryUnavailable: true } : {}),
       }),
     );
     if (!parsed.success || parsed.data.afterProductId !== afterProductId)

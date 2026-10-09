@@ -112,9 +112,13 @@ function eligible(product: CollectionDoc): boolean {
   );
 }
 
-/** Whether the sync still has work for this part: never filled, sources changed, or photos missing. */
-function partWork(filled: AutoPart | null, sources: readonly string[]) {
+/**
+ * Whether the sync still has work for this part: never filled, sources changed,
+ * photos missing, or (when asked) photos earlier found unavailable.
+ */
+function partWork(filled: AutoPart | null, sources: readonly string[], retryUnavailable = false) {
   if (!filled || !sameList(filled.sources, sources)) return 'fill' as const;
+  if (retryUnavailable && filled.unusable.length > 0) return 'fill' as const;
   return filled.missing.length > 0 ? ('missing' as const) : null;
 }
 
@@ -125,7 +129,9 @@ function partWork(filled: AutoPart | null, sources: readonly string[]) {
 export function photoPreparationPlan(
   product: CollectionDoc,
   configurationSources?: readonly string[],
+  options: { retryUnavailable?: boolean } = {},
 ): PhotoPreparationPlan | null {
+  const retry = options.retryUnavailable === true;
   const showDraft = product.alibabaPhotosPending === true;
   if (!eligible(product)) return showDraft ? { parts: [], showDraft } : null;
   const parts: PhotoPreparationPart[] = [];
@@ -137,11 +143,11 @@ export function photoPreparationPlan(
     const ownedBySync = filled
       ? sameList(strings(current) ?? [], filled.imageIds)
       : current === undefined;
-    if (ownedBySync && partWork(filled, sources)) parts.push({ part, field, sources });
+    if (ownedBySync && partWork(filled, sources, retry)) parts.push({ part, field, sources });
   }
   if (configurationSources && configurationSources.length > 0) {
     const filled = autoPart(product, 'configurations');
-    if (partWork(filled, configurationSources))
+    if (partWork(filled, configurationSources, retry))
       parts.push({ part: 'configurations', field: null, sources: [...configurationSources] });
   }
   return parts.length === 0 && !showDraft ? null : { parts, showDraft };
@@ -183,6 +189,12 @@ export interface PhotoPreparationInput {
   limit?: number;
   /** Only drafts hidden until their photos are in. */
   pendingOnly?: boolean;
+  /**
+   * Try again photos earlier found unavailable or still waiting, with a fresh
+   * count ("Copy photos now"): Alibaba may have fixed them, or we may now
+   * accept their format (GIF, 2026-10-09).
+   */
+  retryUnavailable?: boolean;
   /** Soft budget for one call; a product in progress resumes next call. */
   budgetMs?: number;
   importImage?: (url: string) => Promise<MediaImportResult>;
@@ -212,6 +224,7 @@ type CopiedState = { imageId: string } | 'unusable' | 'waiting';
 async function copiedState(
   url: string,
   nowMs: number,
+  retryUnavailable: boolean,
 ): Promise<{ state: CopiedState | null; attempts: number }> {
   const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', url));
   if (link?.provider !== 'alibaba' || link.sourceUrl !== url) return { state: null, attempts: 0 };
@@ -219,6 +232,7 @@ async function copiedState(
     const image = await get('images', link.imageId);
     if (image?.status === 'active') return { state: { imageId: link.imageId }, attempts: 0 };
   }
+  if (retryUnavailable) return { state: null, attempts: 0 };
   const failedAt = typeof link.failedAt === 'string' ? Date.parse(link.failedAt) : Number.NaN;
   if (!Number.isFinite(failedAt)) return { state: null, attempts: 0 };
   const attempts =
@@ -242,6 +256,7 @@ async function copySources(
   budget: Budget,
   now: () => string,
   counts: Pick<PhotoPreparationPage, 'photosCopied' | 'photosReused' | 'photosFailed'>,
+  retryUnavailable: boolean,
 ): Promise<CopiedState[] | null> {
   const states: CopiedState[] = [];
   for (let start = 0; start < sources.length; start += COPY_CONCURRENCY) {
@@ -249,7 +264,7 @@ async function copySources(
     const batch = sources.slice(start, start + COPY_CONCURRENCY);
     const results = await Promise.all(
       batch.map(async (url) => {
-        const known = await copiedState(url, Date.parse(now()));
+        const known = await copiedState(url, Date.parse(now()), retryUnavailable);
         if (known.state !== null)
           return {
             state: known.state,
@@ -355,6 +370,7 @@ async function prepareProduct(
   budget: Budget,
   now: () => string,
   counts: PhotoPreparationPage,
+  retryUnavailable: boolean,
 ): Promise<ProductOutcome> {
   if (!eligible(product)) {
     // Hidden, then approved, published, archived or unlinked before its photos
@@ -369,7 +385,14 @@ async function prepareProduct(
   // or known to be unavailable (one product, one unit).
   const copied: { part: PhotoPreparationPart; states: CopiedState[] }[] = [];
   for (const part of plan.parts) {
-    const states = await copySources(part.sources, importImage, budget, now, counts);
+    const states = await copySources(
+      part.sources,
+      importImage,
+      budget,
+      now,
+      counts,
+      retryUnavailable,
+    );
     if (states === null) return 'out-of-time';
     copied.push({ part, states });
   }
@@ -461,6 +484,7 @@ export async function prepareAlibabaPhotosPage(
   };
   const importImage = input.importImage ?? ((url: string) => importCandidateImage(url));
   const now = input.now ?? (() => new Date().toISOString());
+  const retryUnavailable = input.retryUnavailable === true;
   const page = await list({
     collection: 'products',
     page: 1,
@@ -492,10 +516,20 @@ export async function prepareAlibabaPhotosPage(
   };
   for (const product of page.items) {
     const plan = eligible(product)
-      ? photoPreparationPlan(product, await configurationPhotoSources(product))
+      ? photoPreparationPlan(product, await configurationPhotoSources(product), {
+          retryUnavailable,
+        })
       : photoPreparationPlan(product);
     if (plan) {
-      const outcome = await prepareProduct(product, plan, importImage, budget, now, result);
+      const outcome = await prepareProduct(
+        product,
+        plan,
+        importImage,
+        budget,
+        now,
+        result,
+        retryUnavailable,
+      );
       if (outcome === 'out-of-time') return result;
       if (outcome === 'prepared') result.prepared += 1;
       else if (outcome === 'busy') result.busy += 1;

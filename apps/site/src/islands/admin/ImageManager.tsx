@@ -24,8 +24,8 @@ export interface PendingUpload {
   error?: string;
 }
 
-// Matches the server allowlist (catalogImageUploadSchema): SVG/GIF are rejected.
-const ACCEPT = 'image/jpeg,image/png,image/webp';
+// Matches the server allowlist (catalogImageUploadSchema): SVG is rejected.
+const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 
 export function availableImageSlots(
   maxItems: number | undefined,
