@@ -148,6 +148,8 @@ export function approvalProductFingerprint(product: CollectionDoc) {
     'modName',
     'modType',
   ];
+  // Configuration photo choices (DEC-20); absent on older rows, which keep their fingerprint.
+  if (product.configurationPhotos !== undefined) fields.push('configurationPhotos');
   return hash(Object.fromEntries(fields.map((field) => [field, product[field] ?? null])));
 }
 

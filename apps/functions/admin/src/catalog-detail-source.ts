@@ -10,6 +10,7 @@ import { buildStructuredContent } from '@vibelingan-channel/catalog-import/struc
 import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
 import { sourceDigest, sourceGalleryDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import { isProductFamily } from '@vibelingan-channel/shared';
+import { ConfigurationPhotosSchema } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { z } from 'zod';
 
 const command = z
@@ -167,6 +168,20 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   );
   if (!candidate.ok) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
   const { variants: pageVariants, revision: _revision, ...header } = candidate.value;
+  // The admin's photo choice for a configuration replaces the supplier's
+  // photos (DEC-20); only photos in this product's gallery count.
+  const chosen = ConfigurationPhotosSchema.safeParse(product.configurationPhotos ?? {});
+  const galleryIds = new Set(Array.isArray(product.imageIds) ? product.imageIds : []);
+  const choiceFor = (variantId: string) => {
+    const picked = (chosen.success ? (chosen.data[variantId] ?? []) : []).filter((id) =>
+      galleryIds.has(id),
+    );
+    return picked.length > 0 ? picked : undefined;
+  };
+  for (const variant of pageVariants.items) {
+    const picked = choiceFor(variant.id);
+    if (picked) variant.images = picked.map((id) => `/api/images/${id}`);
+  }
   const structured = buildStructuredContent(observation.content.description);
   const observationDigest = sourceDigest(row?.observation);
   const galleryDigest = sourceGalleryDigest(product);
@@ -206,10 +221,12 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       return {
         id,
         sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
-        unboundSources: variant.media
-          .slice(0, 9)
-          .filter((m) => !images.has(m.sourceUrl))
-          .map((m) => m.sourceUrl),
+        unboundSources: choiceFor(id)
+          ? []
+          : variant.media
+              .slice(0, 9)
+              .filter((m) => !images.has(m.sourceUrl))
+              .map((m) => m.sourceUrl),
       };
     }),
   });

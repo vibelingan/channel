@@ -8,7 +8,7 @@ import {
 import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
 import type { ApprovalPersistenceCommand } from '@vibelingan-channel/db/catalog-detail-staging';
 import { type CollectionDoc, type ListResult, matchesFilter } from '@vibelingan-channel/shared';
-import { prepareCatalogSource } from './catalog-detail-source.ts';
+import { prepareCatalogSource, sourceVariantIds } from './catalog-detail-source.ts';
 
 class RecordingAdapter implements DbAdapter {
   commands: ApprovalPersistenceCommand[] = [];
@@ -169,4 +169,77 @@ test('prepare sends our image ids for the supplier photos, null while one is not
   const command = adapter.commands[0] as { supplierMedia?: unknown };
   // In the supplier's order (by position), as an import would add them.
   assert.deepEqual(command.supplierMedia, { gallery: ['img-b', 'img-a'], descriptionImages: null });
+});
+
+test('an admin photo choice for a configuration replaces its supplier photos in prepare (DEC-20)', async () => {
+  const url = (name: string) => `https://sc04.alicdn.com/${name}.jpg`;
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      externalProductId: '987',
+      observedAt: '2026-10-01T00:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: { title: 'Supplier title', matchHints: {}, attributes: [] },
+    content: { media: [{ sourceUrl: url('a'), position: 0, role: 'primary' }] },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: ['white', 'black'].map((key) => ({
+      sourceVariantKey: key,
+      options: [{ sourceName: 'Color', value: key }],
+      inventory: [],
+      // Supplier photos never imported: without a choice these block approval.
+      media: [{ sourceUrl: url(`${key}-sku`), position: 0, role: 'variant' }],
+    })),
+    offers: [],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+    warnings: [],
+  };
+  const variants = sourceVariantIds('p1', 'source-a', observation as never);
+  const white = variants.get('white');
+  const black = variants.get('black');
+  assert.ok(white && black);
+  const adapter = new RecordingAdapter({
+    products: [
+      {
+        _id: 'p1',
+        name: 'Synced',
+        alibabaPrimarySourceKey: 'source-a',
+        productFamily: 'headphones',
+        imageIds: ['img-a', 'img-white'],
+        // White: a gallery photo; black: a photo not in the gallery is ignored.
+        configurationPhotos: { [white]: ['img-white'], [black]: ['img-elsewhere'] },
+      },
+    ],
+    catalogSourceObservations: [
+      { _id: sourceObservationDocumentId('alibaba', 'source-a'), observation },
+    ],
+    catalogSourceLinks: [
+      {
+        _id: sourceMediaLinkId('alibaba', url('a')),
+        provider: 'alibaba',
+        sourceUrl: url('a'),
+        imageId: 'img-a',
+      },
+    ],
+  });
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'p1' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const command = adapter.commands[0] as {
+    variants: Array<{ id: string; images: string[] }>;
+    variantMedia: Array<{ id: string; unboundSources: string[] }>;
+  };
+  const byId = (id: string) => command.variants.find((variant) => variant.id === id);
+  const mediaById = (id: string) => command.variantMedia.find((media) => media.id === id);
+  assert.deepEqual(byId(white)?.images, ['/api/images/img-white']);
+  assert.deepEqual(mediaById(white)?.unboundSources, [], 'the choice replaces the supplier photos');
+  assert.deepEqual(byId(black)?.images, []);
+  assert.deepEqual(
+    mediaById(black)?.unboundSources,
+    [url('black-sku')],
+    'unchanged without a valid choice',
+  );
 });

@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
-import { SourcePageSchema, sourceDigest, stageSourcePage } from './catalog-source-staging.ts';
+import {
+  SourcePageSchema,
+  sourceDigest,
+  sourceGalleryDigest,
+  stageSourcePage,
+} from './catalog-source-staging.ts';
 
 test('source preparation seals only the complete generation; retries, changed observation and wrong actor are safe', async () => {
   const store: Record<string, CollectionDoc> = {
@@ -209,4 +214,17 @@ test("prepare records which of our images are the supplier's photos (MIU-39)", a
     detailSourceSupplierMedia: supplierMedia,
   });
   assert.equal('detailSourceSupplierMedia' in (none ?? {}), false);
+});
+
+test('configuration photo choices are part of the gallery digest only when set (DEC-20)', () => {
+  const base = { _id: 'p', imageIds: ['a'] };
+  assert.equal(
+    sourceGalleryDigest(base),
+    sourceDigest(['a']),
+    'products without choices keep their digest',
+  );
+  assert.notEqual(
+    sourceGalleryDigest({ ...base, configurationPhotos: { v1: ['a'] } }),
+    sourceGalleryDigest({ ...base, configurationPhotos: { v1: [] } }),
+  );
 });

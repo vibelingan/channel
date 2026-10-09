@@ -16,11 +16,17 @@ import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 const id = z.string().trim().min(1).max(200);
 export const sourceDigest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
+/**
+ * The admin's photo set: gallery, description photos and configuration photo
+ * choices (DEC-20). Fields absent on older rows keep the digest they had.
+ */
 export const sourceGalleryDigest = (product: Record<string, unknown>) =>
   sourceDigest(
-    product.descriptionImageIds === undefined
-      ? (product.imageIds ?? [])
-      : [product.imageIds ?? [], product.descriptionImageIds],
+    product.configurationPhotos !== undefined
+      ? [product.imageIds ?? [], product.descriptionImageIds ?? null, product.configurationPhotos]
+      : product.descriptionImageIds === undefined
+        ? (product.imageIds ?? [])
+        : [product.imageIds ?? [], product.descriptionImageIds],
   );
 /**
  * What a buyer would see from the observation this candidate was built from

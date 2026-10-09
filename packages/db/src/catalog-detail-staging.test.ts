@@ -803,3 +803,19 @@ test('reapproval atomically releases old snapshot-only media; failure and retry 
   assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
   assert.equal(h.row('images', 'old-image').publishedRefCount, 0);
 });
+
+test('a configuration photo edit changes the approval fingerprint; products without one keep theirs (DEC-20)', async () => {
+  const { approvalProductFingerprint } = await import('./catalog-detail-staging.ts');
+  const { publicationContentFingerprint } = await import('./catalog-publication-fingerprint.ts');
+  const product = { _id: 'p', name: 'Headset', imageIds: ['a'] };
+  const withChoice = { ...product, configurationPhotos: { v1: ['a'] } };
+  assert.notEqual(approvalProductFingerprint(withChoice), approvalProductFingerprint(product));
+  assert.notEqual(
+    publicationContentFingerprint(withChoice),
+    publicationContentFingerprint(product),
+  );
+  assert.equal(
+    approvalProductFingerprint({ ...product, configurationPhotos: undefined }),
+    approvalProductFingerprint(product),
+  );
+});
