@@ -170,6 +170,10 @@ feature starts from it. Facts come from [TIMELINE.md](TIMELINE.md),
 
 ## Where it should live (proposals, not done)
 
+Superseded by [RETRO_PLAN.md](RETRO_PLAN.md) after the owner's review: full
+worked cases instead of one-line lessons, a test for what deserves a skill,
+and detailed pipeline changes. Kept below for the record.
+
 ### Engineering craft (via the lessons journal and `/dev-pipeline:consolidate-lessons`)
 
 | Lesson | Trigger words for the skill |
