@@ -362,8 +362,10 @@ test('prepare: "Copy photos now" tries unavailable photos again, e.g. GIFs once 
   assert.deepEqual(automatic.calls, []);
   // A manual retry fetches it again and the product gets it.
   const manual = fakeImporter(store);
+  // A minute later, someone presses "Copy photos now".
   const page = await prepareAlibabaPhotosPage({
     importImage: manual.importImage,
+    now: () => new Date(Date.now() + 60_000).toISOString(),
     retryUnavailable: true,
   });
   assert.deepEqual(manual.calls, [url('a-d1')], 'only the unavailable photo is fetched');
@@ -371,6 +373,68 @@ test('prepare: "Copy photos now" tries unavailable photos again, e.g. GIFs once 
   assert.deepEqual(a().descriptionImageIds, ['img-a-d1']);
   assert.deepEqual(Reflect.get(a().alibabaAutoPhotos as object, 'description').unusable, []);
   assert.deepEqual(a().imageIds, ['img-a-g1', 'img-a-g2'], 'other parts unchanged');
+});
+
+test('prepare: a manual retry does not fetch a slow photo again on every call (review P2)', async () => {
+  const sources = ['a-g1', 'a-g2', 'a-g3', 'a-g4', 'a-g5'].map(url);
+  const store: Store = {
+    products: [
+      draft('a', {
+        alibabaSourceImageUrls: sources,
+        alibabaDescriptionImageUrls: [],
+        imageIds: ['img-a-g2'],
+        alibabaAutoPhotos: {
+          gallery: { sources, imageIds: ['img-a-g2'], unusable: [url('a-g1')], missing: [] },
+        },
+      }),
+    ],
+    catalogSourceLinks: [
+      {
+        _id: sourceMediaLinkId('alibaba', url('a-g1')),
+        kind: 'media',
+        provider: 'alibaba',
+        sourceUrl: url('a-g1'),
+        failedAt: '2026-10-01T00:00:00.000Z',
+        failureReason: 'not-found',
+        failureAttempts: 1,
+      },
+    ],
+  };
+  setAdapter(new MemoryAdapter(store));
+  let t = Date.parse('2026-10-09T10:00:00.000Z');
+  const clock = () => t;
+  const now = () => new Date(t).toISOString();
+  const importer = fakeImporter(store);
+  const importImage = async (source: string): Promise<MediaImportResult> => {
+    if (source === url('a-g1')) {
+      importer.calls.push(source);
+      t += 15_000; // hangs until the fetch time limit
+      return { ok: false, reason: 'fetch-failed' };
+    }
+    return importer.importImage(source);
+  };
+  const first = await prepareAlibabaPhotosPage({
+    importImage,
+    clock,
+    now,
+    retryUnavailable: true,
+  });
+  assert.equal(first.done, false, 'ran out of time on the product');
+  assert.equal(first.retryFailedBefore, '2026-10-09T10:00:00.000Z', 'the run start, server time');
+  const second = await prepareAlibabaPhotosPage({
+    afterProductId: first.nextProductId,
+    importImage,
+    clock,
+    now,
+    retryFailedBefore: first.retryFailedBefore,
+  });
+  assert.equal(second.done, true, 'the run moves on');
+  assert.equal(second.waiting, 1, 'the slow photo waits like any passing failure');
+  assert.equal(
+    importer.calls.filter((call) => call === url('a-g1')).length,
+    1,
+    'fetched once in the run',
+  );
 });
 
 test('prepare: when every photo is unavailable, the draft is shown without photos', async () => {

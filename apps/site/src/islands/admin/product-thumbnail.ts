@@ -11,7 +11,8 @@ import { getImagePreview } from './api.ts';
  */
 export type ThumbnailSource =
   | { kind: 'public'; imageId: string }
-  | { kind: 'alibaba'; url: string; copied: boolean }
+  /** `imageId`: our copy, shown if Alibaba no longer serves the original. */
+  | { kind: 'alibaba'; url: string; imageId?: string }
   | { kind: 'admin'; imageId: string }
   | null;
 
@@ -42,10 +43,10 @@ export function productThumbnailSource(doc: CollectionDoc): ThumbnailSource {
   if (first) {
     if (doc.published === true) return { kind: 'public', imageId: first };
     const url = copiedFrom(doc, ids);
-    return url ? { kind: 'alibaba', url, copied: true } : { kind: 'admin', imageId: first };
+    return url ? { kind: 'alibaba', url, imageId: first } : { kind: 'admin', imageId: first };
   }
   const url = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls, 1)[0];
-  return url ? { kind: 'alibaba', url, copied: false } : null;
+  return url ? { kind: 'alibaba', url } : null;
 }
 
 /** Admin preview of one image as a `data:` URL (cached in `getImagePreview`). */

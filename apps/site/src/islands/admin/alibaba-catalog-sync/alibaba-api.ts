@@ -351,6 +351,8 @@ const PhotoPreparationPageSchema = z.object({
   /** Products whose photos failed briefly; the whole product tries again later. */
   waiting: count.default(0),
   failures: z.array(z.object({ productId: z.string(), reason: z.string() })),
+  /** A retry run's start (server time), passed to the run's later calls. */
+  retryFailedBefore: z.string().datetime().optional(),
 });
 const PhotoPreparationStatusSchema = z.object({
   hiddenDrafts: count,
@@ -408,12 +410,19 @@ export async function prepareAlibabaPhotos(
         failedProducts: [],
       };
   let afterProductId = '';
+  // A retry run starts on the server's clock and keeps that start for its
+  // later calls, so photos that fail during the run are not fetched again.
+  let retryFailedBefore: string | undefined;
   for (let pageNumber = 0; pageNumber < 5_000; pageNumber += 1) {
     const parsed = PhotoPreparationPageSchema.safeParse(
       await call<unknown>('prepareAlibabaPhotos', {
         afterProductId,
         ...(options.pendingOnly ? { pendingOnly: true } : {}),
-        ...(options.retryUnavailable ? { retryUnavailable: true } : {}),
+        ...(retryFailedBefore
+          ? { retryFailedBefore }
+          : options.retryUnavailable
+            ? { retryUnavailable: true }
+            : {}),
       }),
     );
     if (!parsed.success || parsed.data.afterProductId !== afterProductId)
@@ -422,6 +431,7 @@ export async function prepareAlibabaPhotos(
         'Photo preparation returned an invalid page summary.',
       );
     const page = parsed.data;
+    if (options.retryUnavailable) retryFailedBefore ??= page.retryFailedBefore;
     total.prepared += page.prepared;
     total.photosCopied += page.photosCopied;
     total.photosReused += page.photosReused;

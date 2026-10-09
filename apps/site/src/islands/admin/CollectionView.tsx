@@ -1532,11 +1532,16 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
 export function ProductThumbnail({ doc }: { doc: CollectionDoc }) {
   const source = productThumbnailSource(doc);
   const label = reviewLabel(doc);
-  // A live product's photo that the public address refuses (e.g. added after
-  // the last approval) falls back to the admin preview.
-  const [publicFailed, setPublicFailed] = useState(false);
+  // A live product's photo the public address refuses (e.g. added after the
+  // last approval), or an Alibaba original taken down after we copied it,
+  // falls back to the admin preview of our stored photo.
+  const [primaryFailed, setPrimaryFailed] = useState(false);
   const previewId =
-    source?.kind === 'admin' || (source?.kind === 'public' && publicFailed) ? source.imageId : null;
+    source?.kind === 'admin'
+      ? source.imageId
+      : primaryFailed && source
+        ? (source.imageId ?? null)
+        : null;
   const [preview, setPreview] = useState<{ id: string; url: string | null } | null>(null);
   useEffect(() => {
     if (!previewId) return;
@@ -1565,26 +1570,27 @@ export function ProductThumbnail({ doc }: { doc: CollectionDoc }) {
       —
     </span>,
   );
-  if (source?.kind === 'public' && !publicFailed)
+  if (source?.kind === 'public' && !primaryFailed)
     return frame(
       <img
         src={imageUrl(source.imageId)}
         alt=""
-        onError={() => setPublicFailed(true)}
+        onError={() => setPrimaryFailed(true)}
         className="h-10 w-10 rounded-md border border-slate-200 object-cover"
       />,
     );
-  if (source?.kind === 'alibaba')
+  if (source?.kind === 'alibaba' && !(primaryFailed && source.imageId))
     return frame(
       <img
         src={source.url}
         alt=""
         referrerPolicy="no-referrer"
+        onError={source.imageId ? () => setPrimaryFailed(true) : undefined}
         className={`h-10 w-10 rounded-md border object-cover ${
-          source.copied ? 'border-slate-200' : 'border-dashed border-slate-300'
+          source.imageId ? 'border-slate-200' : 'border-dashed border-slate-300'
         }`}
         title={
-          source.copied
+          source.imageId
             ? 'Copied to our storage from this Alibaba photo'
             : 'Alibaba source preview; not yet imported for publication'
         }

@@ -456,6 +456,9 @@ export async function handleAlibabaSyncRequest(
           ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
           ...(payload.data.pendingOnly ? { pendingOnly: true } : {}),
           ...(payload.data.retryUnavailable ? { retryUnavailable: true } : {}),
+          ...(payload.data.retryFailedBefore
+            ? { retryFailedBefore: payload.data.retryFailedBefore }
+            : {}),
         }),
       );
     }
@@ -566,6 +569,7 @@ const preparePhotosSchema = z
     limit: z.number().int().min(1).max(100).optional(),
     pendingOnly: z.boolean().optional(),
     retryUnavailable: z.boolean().optional(),
+    retryFailedBefore: z.string().datetime().optional(),
   })
   .strict();
 const importImageSchema = z.object({ url: z.string().min(1) });

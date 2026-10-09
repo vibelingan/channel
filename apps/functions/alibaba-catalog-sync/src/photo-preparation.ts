@@ -181,6 +181,8 @@ export interface PhotoPreparationPage {
   busy: number;
   /** A photo failed for a passing reason: the whole product tries again later. */
   waiting: number;
+  /** Set when retrying unavailable photos: pass it to the run's later calls. */
+  retryFailedBefore?: string;
   failures: { productId: string; reason: string }[];
 }
 
@@ -190,11 +192,15 @@ export interface PhotoPreparationInput {
   /** Only drafts hidden until their photos are in. */
   pendingOnly?: boolean;
   /**
-   * Try again photos earlier found unavailable or still waiting, with a fresh
-   * count ("Copy photos now"): Alibaba may have fixed them, or we may now
-   * accept their format (GIF, 2026-10-09).
+   * Try again photos earlier found unavailable or still waiting ("Copy photos
+   * now"): Alibaba may have fixed them, or we may now accept their format
+   * (GIF, 2026-10-09). The first call of a run starts it; failures recorded
+   * after that moment count as usual, so a product that resumes in the next
+   * call does not fetch the same photo again and again.
    */
   retryUnavailable?: boolean;
+  /** The run's start, echoed by its first call (`retryFailedBefore` in the page). */
+  retryFailedBefore?: string;
   /** Soft budget for one call; a product in progress resumes next call. */
   budgetMs?: number;
   importImage?: (url: string) => Promise<MediaImportResult>;
@@ -224,7 +230,7 @@ type CopiedState = { imageId: string } | 'unusable' | 'waiting';
 async function copiedState(
   url: string,
   nowMs: number,
-  retryUnavailable: boolean,
+  retryBeforeMs: number | null,
 ): Promise<{ state: CopiedState | null; attempts: number }> {
   const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', url));
   if (link?.provider !== 'alibaba' || link.sourceUrl !== url) return { state: null, attempts: 0 };
@@ -232,11 +238,13 @@ async function copiedState(
     const image = await get('images', link.imageId);
     if (image?.status === 'active') return { state: { imageId: link.imageId }, attempts: 0 };
   }
-  if (retryUnavailable) return { state: null, attempts: 0 };
   const failedAt = typeof link.failedAt === 'string' ? Date.parse(link.failedAt) : Number.NaN;
   if (!Number.isFinite(failedAt)) return { state: null, attempts: 0 };
   const attempts =
     typeof link.failureAttempts === 'number' && link.failureAttempts > 0 ? link.failureAttempts : 1;
+  // A manual retry fetches once more; the count is kept, so a photo that
+  // already gave up is not put back into waiting for other drafts.
+  if (retryBeforeMs !== null && failedAt < retryBeforeMs) return { state: null, attempts };
   if (PERMANENT_FAILURES.has(String(link.failureReason)) || attempts >= MAX_ATTEMPTS)
     return { state: 'unusable', attempts };
   return { state: nowMs - failedAt < RETRY_AFTER_MS ? 'waiting' : null, attempts };
@@ -256,7 +264,7 @@ async function copySources(
   budget: Budget,
   now: () => string,
   counts: Pick<PhotoPreparationPage, 'photosCopied' | 'photosReused' | 'photosFailed'>,
-  retryUnavailable: boolean,
+  retryBeforeMs: number | null,
 ): Promise<CopiedState[] | null> {
   const states: CopiedState[] = [];
   for (let start = 0; start < sources.length; start += COPY_CONCURRENCY) {
@@ -264,7 +272,7 @@ async function copySources(
     const batch = sources.slice(start, start + COPY_CONCURRENCY);
     const results = await Promise.all(
       batch.map(async (url) => {
-        const known = await copiedState(url, Date.parse(now()), retryUnavailable);
+        const known = await copiedState(url, Date.parse(now()), retryBeforeMs);
         if (known.state !== null)
           return {
             state: known.state,
@@ -370,7 +378,7 @@ async function prepareProduct(
   budget: Budget,
   now: () => string,
   counts: PhotoPreparationPage,
-  retryUnavailable: boolean,
+  retryBeforeMs: number | null,
 ): Promise<ProductOutcome> {
   if (!eligible(product)) {
     // Hidden, then approved, published, archived or unlinked before its photos
@@ -385,14 +393,7 @@ async function prepareProduct(
   // or known to be unavailable (one product, one unit).
   const copied: { part: PhotoPreparationPart; states: CopiedState[] }[] = [];
   for (const part of plan.parts) {
-    const states = await copySources(
-      part.sources,
-      importImage,
-      budget,
-      now,
-      counts,
-      retryUnavailable,
-    );
+    const states = await copySources(part.sources, importImage, budget, now, counts, retryBeforeMs);
     if (states === null) return 'out-of-time';
     copied.push({ part, states });
   }
@@ -484,7 +485,14 @@ export async function prepareAlibabaPhotosPage(
   };
   const importImage = input.importImage ?? ((url: string) => importCandidateImage(url));
   const now = input.now ?? (() => new Date().toISOString());
-  const retryUnavailable = input.retryUnavailable === true;
+  // A retry run's cutoff: given by its first call, then passed along.
+  const retryFailedBefore =
+    input.retryFailedBefore && Number.isFinite(Date.parse(input.retryFailedBefore))
+      ? input.retryFailedBefore
+      : input.retryUnavailable
+        ? now()
+        : undefined;
+  const retryBeforeMs = retryFailedBefore ? Date.parse(retryFailedBefore) : null;
   const page = await list({
     collection: 'products',
     page: 1,
@@ -513,11 +521,12 @@ export async function prepareAlibabaPhotosPage(
     busy: 0,
     waiting: 0,
     failures: [],
+    ...(retryFailedBefore ? { retryFailedBefore } : {}),
   };
   for (const product of page.items) {
     const plan = eligible(product)
       ? photoPreparationPlan(product, await configurationPhotoSources(product), {
-          retryUnavailable,
+          retryUnavailable: retryBeforeMs !== null,
         })
       : photoPreparationPlan(product);
     if (plan) {
@@ -528,7 +537,7 @@ export async function prepareAlibabaPhotosPage(
         budget,
         now,
         result,
-        retryUnavailable,
+        retryBeforeMs,
       );
       if (outcome === 'out-of-time') return result;
       if (outcome === 'prepared') result.prepared += 1;

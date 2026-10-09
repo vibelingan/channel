@@ -477,7 +477,7 @@ export async function fetchSourceImage(
       // an HTML page or an SVG served as image/jpeg is refused here.
       const mimeType = sniffImageMime(bytes);
       if (mimeType === null) {
-        return { ok: false, reason: 'unsupported-content', detail: 'not a JPEG, PNG or WebP' };
+        return { ok: false, reason: 'unsupported-content', detail: 'not a JPEG, PNG, WebP or GIF' };
       }
 
       const dimensions = readImageDimensions(bytes, mimeType);

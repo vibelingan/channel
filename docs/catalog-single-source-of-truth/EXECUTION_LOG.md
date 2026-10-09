@@ -141,6 +141,25 @@ paired with the MOQ. Names are truncated as captured.
   11 previews for 10 photos). `getImagePreview` now keeps one fetch per image
   id for the page (60 most recent; failures not kept), shared by the list,
   Edit and Preview.
+- Review of `9e52965` (one reviewer): no P1, one P2, four P3, fixed before
+  that commit deployed:
+  - P2: "Copy photos now" ignored every failure note, including notes
+    written moments earlier in the same run, so a product with a slow photo
+    resumed on the next call, fetched it again, ran out of time again —
+    looping for hours. Now the run's first call fixes a cutoff on the
+    server's clock (`retryFailedBefore`, echoed in the page and passed on by
+    the browser); only failures recorded before it are retried. Test
+    reproduces the loop.
+  - P3: a retry keeps a photo's failure count (no reset that would make other
+    drafts wait again); a copied draft's thumbnail falls back to our stored
+    photo if Alibaba drops the original; Excel import error text names GIF.
+    Accepted: up to one admin preview request per unpublished row whose
+    gallery an admin changed (few rows in practice); the shared cache holds
+    the 60 most recently added previews.
+- 403 change (`288b6f5`) live 09:23 UTC; photo pass 09:24: the clock
+  product saved with its two refused photos marked unavailable; status 0
+  hidden, 0 waiting, 4 drafts with skipped gallery/description photos (3 by
+  GIFs, until the GIF deploy; 1 by the refused photo).
 - Unrelated flaky test seen once: `ai-engine-anythingllm` "the hosted fork
   keeps the document name as provenance…" failed in the full run and passed
   101/101 on its own; not touched by this work.

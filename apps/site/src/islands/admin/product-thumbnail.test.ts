@@ -37,7 +37,7 @@ test('a draft with copied photos shows the Alibaba photo its first photo was cop
   assert.deepEqual(productThumbnailSource(copiedDraft()), {
     kind: 'alibaba',
     url: url('g2'),
-    copied: true,
+    imageId: 'img-2',
   });
 });
 
@@ -64,7 +64,7 @@ test('a draft whose photos an admin changed, or that kept old photos, uses the a
 test('a draft with no stored photo previews Alibaba; nothing at all shows an empty frame', () => {
   assert.deepEqual(
     productThumbnailSource(copiedDraft({ imageIds: undefined, alibabaAutoPhotos: undefined })),
-    { kind: 'alibaba', url: url('g1'), copied: false },
+    { kind: 'alibaba', url: url('g1') },
   );
   assert.equal(productThumbnailSource({ _id: 'x', published: false }), null);
 });
@@ -107,4 +107,14 @@ test('one admin preview fetch per image serves the list and the edit form; a fai
   assert.equal(second, first);
   assert.equal(await getImagePreview('preview-cache-1'), first);
   assert.equal(calls, 2, 'the failure, then one fetch for every later use');
+});
+
+test('a copied draft keeps a way back to our stored photo if Alibaba drops the original', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(
+    source,
+    /onError=\{source\.imageId \? \(\) => setPrimaryFailed\(true\) : undefined\}/,
+  );
+  assert.match(source, /primaryFailed && source\s*\?\s*\(source\.imageId \?\? null\)/);
 });

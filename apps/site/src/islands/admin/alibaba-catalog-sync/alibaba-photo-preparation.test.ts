@@ -156,3 +156,21 @@ test('the sync page copies photos automatically after every sync and finishes hi
   assert.match(source, /const PHOTO_RETRY_AFTER_MS = 10\.5 \* 60 \* 1000;/);
   assert.match(source, /clearTimeout\(photoRetry\.current\)/);
 });
+
+test('a retry run starts on the server clock and passes that start to its later calls', async (t) => {
+  const requests: Record<string, unknown>[] = [];
+  const start = '2026-10-09T10:00:00.000Z';
+  const pages = [
+    page({ nextProductId: 'p-100', visited: 100, retryFailedBefore: start }),
+    page({ afterProductId: 'p-100', nextProductId: 'p-150', done: true, visited: 50 }),
+  ];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    requests.push(JSON.parse(String(init.body)).data);
+    return Response.json({ ok: true, data: pages[requests.length - 1] });
+  });
+  await prepareAlibabaPhotos(undefined, { retryUnavailable: true });
+  assert.deepEqual(requests, [
+    { afterProductId: '', retryUnavailable: true },
+    { afterProductId: 'p-100', retryFailedBefore: start },
+  ]);
+});
