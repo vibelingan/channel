@@ -17,7 +17,7 @@ import {
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { get } from '@vibelingan-channel/db';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, allAlibabaPhotoSources } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import {
   ConfigurationPhotosSchema,
@@ -185,6 +185,52 @@ export async function withAdminEditsKept(
         edited.map((part) => [part.part, { choice: 'keep', incomingDigest: part.incomingDigest }]),
       ),
     },
+  };
+}
+
+const PhotoSourcesRequestSchema = z
+  .object({ action: z.literal('photo-sources'), productId: z.string().trim().min(1).max(200) })
+  .strict();
+
+/** Our active copy of a supplier photo, if any. */
+async function ownedCopy(url: string): Promise<string | null> {
+  const imageId = await sourceLinkImageId(url);
+  if (!imageId) return null;
+  const image = await get('images', imageId);
+  return image?.status === 'active' ? imageId : null;
+}
+
+/**
+ * Every Alibaba photo of a product, gallery and description, in Alibaba's
+ * order, with our copy when we have one. Edit uses it to add photos beyond
+ * the ones filled automatically (more than 18 description photos). Read-only.
+ */
+export async function readPhotoSources(
+  actorId: string,
+  input: unknown,
+): Promise<
+  | {
+      ok: true;
+      gallery: { url: string; imageId: string | null }[];
+      description: { url: string; imageId: string | null }[];
+    }
+  | { ok: false; code: 'VALIDATION_ERROR' | 'FORBIDDEN' | 'NOT_FOUND' }
+> {
+  const parsed = PhotoSourcesRequestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
+  const actor = await get('users', actorId);
+  if (actor?.role !== 'admin' || actor.status === 'suspended')
+    return { ok: false, code: 'FORBIDDEN' };
+  const product = await get('products', parsed.data.productId);
+  if (!product) return { ok: false, code: 'NOT_FOUND' };
+  const withCopies = (value: unknown) =>
+    Promise.all(
+      allAlibabaPhotoSources(value).map(async (url) => ({ url, imageId: await ownedCopy(url) })),
+    );
+  return {
+    ok: true,
+    gallery: await withCopies(product.alibabaSourceImageUrls),
+    description: await withCopies(product.alibabaDescriptionImageUrls),
   };
 }
 

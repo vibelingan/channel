@@ -16,12 +16,19 @@ export function alibabaPhotoSourcesInfo(
   value: unknown,
   limit = PRODUCT_IMAGE_MAX_COUNT,
 ): { urls: string[]; total: number } {
-  if (!Array.isArray(value) || !Number.isFinite(limit)) return { urls: [], total: 0 };
+  if (!Number.isFinite(limit)) return { urls: [], total: 0 };
   const targetLimit = Math.min(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT, Math.max(0, Math.trunc(limit)));
-  if (targetLimit === 0) return { urls: [], total: 0 };
+  const all = allAlibabaPhotoSources(value);
+  return { urls: targetLimit === 0 ? [] : all.slice(0, targetLimit), total: all.length };
+}
+
+/** Every valid distinct source, in Alibaba's order (at most 200), for choosing beyond the limit. */
+export function allAlibabaPhotoSources(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
   for (const candidate of value) {
+    if (out.length >= 200) break;
     if (typeof candidate !== 'string' || candidate.length === 0 || candidate.length > 2_048)
       continue;
     try {
@@ -44,10 +51,10 @@ export function alibabaPhotoSourcesInfo(
       const safeUrl = url.toString();
       if (seen.has(safeUrl)) continue;
       seen.add(safeUrl);
-      if (out.length < targetLimit) out.push(safeUrl);
+      out.push(safeUrl);
     } catch {
       // Invalid provider strings are ignored; they never become DOM URLs.
     }
   }
-  return { urls: out, total: seen.size };
+  return out;
 }

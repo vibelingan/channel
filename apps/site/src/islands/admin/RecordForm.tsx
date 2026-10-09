@@ -21,6 +21,7 @@ import {
 } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { AlibabaPhotoPicker, type AlibabaPhotoSource } from './AlibabaPhotoPicker.tsx';
 import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
@@ -35,7 +36,7 @@ import {
 } from './alibaba-catalog-sync/alibaba-api.ts';
 import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
-import { AdminApiError, fetchSupplierReview } from './api.ts';
+import { AdminApiError, fetchPhotoSources, fetchSupplierReview } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
 import {
   PENDING_SUPPLIER_CHANGE_NOTICE,
@@ -223,12 +224,30 @@ export function RecordForm({
       cancelled = true;
     };
   }, [canReviewSupplier, linkedProductId]);
+  // Every Alibaba photo, for adding ones beyond those filled automatically.
+  const [photoSources, setPhotoSources] = useState<Awaited<
+    ReturnType<typeof fetchPhotoSources>
+  > | null>(null);
+  const [photoAddBusy, setPhotoAddBusy] = useState<string | null>(null);
+  useEffect(() => {
+    if (!canReviewSupplier || linkedProductId === undefined) return;
+    let cancelled = false;
+    fetchPhotoSources(linkedProductId).then(
+      (data) => {
+        if (!cancelled) setPhotoSources(data);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canReviewSupplier, linkedProductId]);
   const [supplierChoices, setSupplierChoices] = useState<SupplierChoices>({});
   const [supplierBusy, setSupplierBusy] = useState<SupplierReviewPartName | null>(null);
   const [supplierError, setSupplierError] = useState('');
   const [configurationPhotos, setConfigurationPhotos] = useState<ConfigurationPhotos>();
   // Importing Alibaba's photos blocks Save and Close like any media import.
-  const busy = submitting || mediaBusy || supplierBusy !== null;
+  const busy = submitting || mediaBusy || supplierBusy !== null || photoAddBusy !== null;
   const flaggedForSupplier =
     initial !== undefined && ['Changed', 'Removed'].includes(String(reviewLabel(initial)));
   const dirty =
@@ -345,6 +364,55 @@ export function RecordForm({
   const savedConfigurationPhotos = ConfigurationPhotosSchema.safeParse(
     initial?.configurationPhotos ?? {},
   );
+
+  const fieldIds = (field: 'imageIds' | 'descriptionImageIds') => {
+    try {
+      const parsed: unknown = JSON.parse(String(state[field] || '[]'));
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  /** Adds one Alibaba photo: our copy when we have it, otherwise copied first. */
+  async function addSourcePhoto(
+    field: 'imageIds' | 'descriptionImageIds',
+    source: AlibabaPhotoSource,
+  ) {
+    const limit = field === 'imageIds' ? 9 : 18;
+    if (photoAddBusy || fieldIds(field).length >= limit) return;
+    setPhotoAddBusy(source.url);
+    setSourceImageNotice('');
+    try {
+      let imageId = source.imageId;
+      if (!imageId) {
+        const imported = await importAlibabaSourceImage(source.url);
+        imageId = imported.imageId;
+        if (!imported.deduplicated)
+          setNewSourceImageIds((ids) => [...new Set([...ids, imported.imageId])]);
+        const added = imported.imageId;
+        setPhotoSources(
+          (current) =>
+            current && {
+              ...current,
+              [field === 'imageIds' ? 'gallery' : 'description']: current[
+                field === 'imageIds' ? 'gallery' : 'description'
+              ].map((item) => (item.url === source.url ? { ...item, imageId: added } : item)),
+            },
+        );
+      }
+      const ids = fieldIds(field);
+      if (!ids.includes(imageId)) setField(field, JSON.stringify([...ids, imageId]));
+      setSourceImageNotice('Photo added. Save to keep it.');
+    } catch (error) {
+      setSourceImageNotice(
+        error instanceof Error ? error.message : 'The Alibaba photo could not be added.',
+      );
+    } finally {
+      setPhotoAddBusy(null);
+    }
+  }
 
   async function importSourceGallery(description = false) {
     const sourceUrls = description ? descriptionPreviewUrls : sourcePreviewUrls;
@@ -607,6 +675,14 @@ export function RecordForm({
                                 </button>
                               ))}
                             </div>
+                            <AlibabaPhotoPicker
+                              title="Alibaba photos"
+                              sources={photoSources?.gallery ?? null}
+                              currentIds={galleryIds}
+                              limit={9}
+                              busyUrl={photoAddBusy}
+                              onAdd={(source) => void addSourcePhoto('imageIds', source)}
+                            />
                           </div>
                         )}
                         {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
@@ -635,6 +711,14 @@ export function RecordForm({
                                   ? `Import first ${descriptionPreviewUrls.length} description images`
                                   : 'Import description images'}
                             </button>
+                            <AlibabaPhotoPicker
+                              title="Alibaba description photos"
+                              sources={photoSources?.description ?? null}
+                              currentIds={fieldIds('descriptionImageIds')}
+                              limit={18}
+                              busyUrl={photoAddBusy}
+                              onAdd={(source) => void addSourcePhoto('descriptionImageIds', source)}
+                            />
                           </div>
                         )}
                         {section.heading === 'Media' && sourceImageNotice && (

@@ -10,7 +10,11 @@ import { type DbAdapter, setAdapter } from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { SupplierReviewSchema } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { sourceVariantIds } from './catalog-detail-source.ts';
-import { pendingSupplierParts, readSupplierReview } from './catalog-supplier-review.ts';
+import {
+  pendingSupplierParts,
+  readPhotoSources,
+  readSupplierReview,
+} from './catalog-supplier-review.ts';
 
 const url = (name: string) => `https://sc04.alicdn.com/${name}.jpg`;
 const path = (name: string) => `/api/images/img-${name}`;
@@ -279,6 +283,50 @@ test('drafts have no changes yet; manual products have nothing to review; only a
   store();
   assert.deepEqual(await review('editor'), { ok: false, code: 'FORBIDDEN' });
   assert.deepEqual(await readSupplierReview('admin', { action: 'supplier-review' }, reader), {
+    ok: false,
+    code: 'VALIDATION_ERROR',
+  });
+});
+
+test('photo sources: every Alibaba photo, with our copy when we have one (choosing beyond the limit)', async () => {
+  const docs = store({
+    alibabaSourceImageUrls: [url('a'), url('c')],
+    alibabaDescriptionImageUrls: Array.from({ length: 20 }, (_, i) => url(`d${i}`)),
+  });
+  docs.images = [
+    { _id: 'img-a', status: 'active' },
+    { _id: 'img-b', status: 'active' },
+    { _id: 'img-d19', status: 'active' },
+  ];
+  docs.catalogSourceLinks?.push(
+    {
+      _id: sourceMediaLinkId('alibaba', url('d19')),
+      provider: 'alibaba',
+      sourceUrl: url('d19'),
+      imageId: 'img-d19',
+    },
+    // A photo that could not be copied has no image.
+    {
+      _id: sourceMediaLinkId('alibaba', url('d0')),
+      provider: 'alibaba',
+      sourceUrl: url('d0'),
+      failedAt: '2026-10-09T05:00:00.000Z',
+    },
+  );
+  const result = await readPhotoSources('admin', { action: 'photo-sources', productId: 'p1' });
+  assert.ok(result.ok);
+  assert.deepEqual(result.gallery, [
+    { url: url('a'), imageId: 'img-a' },
+    { url: url('c'), imageId: null },
+  ]);
+  assert.equal(result.description.length, 20, 'all of them, not only the first 18');
+  assert.deepEqual(result.description[0], { url: url('d0'), imageId: null });
+  assert.deepEqual(result.description.at(-1), { url: url('d19'), imageId: 'img-d19' });
+  assert.deepEqual(await readPhotoSources('editor', { action: 'photo-sources', productId: 'p1' }), {
+    ok: false,
+    code: 'FORBIDDEN',
+  });
+  assert.deepEqual(await readPhotoSources('admin', { action: 'photo-sources' }), {
     ok: false,
     code: 'VALIDATION_ERROR',
   });

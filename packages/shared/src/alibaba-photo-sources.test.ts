@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { alibabaPhotoSources, alibabaPhotoSourcesInfo } from './alibaba-photo-sources.ts';
+import {
+  alibabaPhotoSources,
+  alibabaPhotoSourcesInfo,
+  allAlibabaPhotoSources,
+} from './alibaba-photo-sources.ts';
 
 test('Alibaba photo sources: HTTPS on Alibaba hosts only, de-duplicated, in order, bounded', () => {
   const sources = [
@@ -30,4 +34,11 @@ test('Alibaba photo sources: HTTPS on Alibaba hosts only, de-duplicated, in orde
   // The description limit is the largest bound.
   const many = Array.from({ length: 30 }, (_, i) => `https://sc04.alicdn.com/${i}.jpg`);
   assert.equal(alibabaPhotoSources(many, 99).length, 18);
+});
+
+test('every Alibaba photo source can be listed for choosing beyond the limit', () => {
+  const many = Array.from({ length: 23 }, (_, i) => `https://sc04.alicdn.com/${i}.jpg`);
+  assert.equal(allAlibabaPhotoSources(many).length, 23);
+  assert.equal(alibabaPhotoSourcesInfo(many, 18).total, 23);
+  assert.deepEqual(allAlibabaPhotoSources([...many, many[0], 'http://evil.com/x.jpg']), many);
 });

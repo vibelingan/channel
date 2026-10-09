@@ -146,6 +146,7 @@ import {
 } from './catalog-product-identities.ts';
 import {
   pendingSupplierParts,
+  readPhotoSources,
   readSupplierReview,
   storedObservation,
   supplierParts,
@@ -624,9 +625,11 @@ export async function handleAdminRequest(
             ? await prepareCatalogSource(claims.sub, req.data)
             : action === 'supplier-review'
               ? await readSupplierReview(claims.sub, req.data, changeAuditReader)
-              : action === 'approve'
-                ? await approveInOneRequest(claims.sub, req.data)
-                : await manageCatalogDetailApproval(claims.sub, req.data);
+              : action === 'photo-sources'
+                ? await readPhotoSources(claims.sub, req.data)
+                : action === 'approve'
+                  ? await approveInOneRequest(claims.sub, req.data)
+                  : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         if (result.code === 'MANUAL_CONFIGURATIONS')
           return err(

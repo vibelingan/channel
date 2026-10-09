@@ -92,6 +92,26 @@ export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
   return call<unknown>('catalogDetailApproval', data, signal);
 }
 
+const PhotoSourceSchema = z.object({ url: z.string(), imageId: z.string().nullable() });
+const PhotoSourcesSchema = z.object({
+  ok: z.literal(true),
+  gallery: z.array(PhotoSourceSchema),
+  description: z.array(PhotoSourceSchema),
+});
+
+/** Every Alibaba photo of a product with our copy when we have one; admins only. */
+export async function fetchPhotoSources(productId: string): Promise<{
+  gallery: z.infer<typeof PhotoSourceSchema>[];
+  description: z.infer<typeof PhotoSourceSchema>[];
+}> {
+  const parsed = PhotoSourcesSchema.safeParse(
+    await catalogApprovalCall({ action: 'photo-sources', productId }),
+  );
+  if (!parsed.success)
+    throw new AdminApiError('INVALID_RESPONSE', 'The Alibaba photos could not be read.');
+  return { gallery: parsed.data.gallery, description: parsed.data.description };
+}
+
 /** What changed at Alibaba for one product (DEC-19, DEC-20); read-only, admins only. */
 export async function fetchSupplierReview(productId: string): Promise<SupplierReview> {
   const parsed = SupplierReviewSchema.safeParse(

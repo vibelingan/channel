@@ -547,9 +547,12 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   expect(after.alibabaReviewPending).toBe(true);
   expect(commands.length).toBeGreaterThan(0);
   // Read-only steps only: preview builds, Edit reads the supplier review for the
-  // configuration photo picker (DEC-20); nothing begins or approves.
+  // configuration photo picker (DEC-20) and Alibaba's photos for adding more;
+  // nothing begins or approves.
   expect(
-    commands.every((action) => ['prepare', 'review', 'supplier-review'].includes(action)),
+    commands.every((action) =>
+      ['prepare', 'review', 'supplier-review', 'photo-sources'].includes(action),
+    ),
   ).toBe(true);
   expect(errors).toEqual([]);
 });
