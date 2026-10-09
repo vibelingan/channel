@@ -344,8 +344,10 @@ test('a download that stalls after its headers gives up instead of hanging (PT-G
 test('a photo gone at Alibaba is reported as not found, a server error as a passing failure', async () => {
   setup();
   for (const [status, reason] of [
+    [403, 'not-found'],
     [404, 'not-found'],
     [410, 'not-found'],
+    [429, 'fetch-failed'],
     [503, 'fetch-failed'],
   ] as const) {
     assert.deepEqual(

@@ -152,3 +152,8 @@ owner's only test environment).
   list), two P2 (an all-unavailable refresh stopped following Alibaba; the
   10-minute retry was not scheduled). All fixed with tests, then validated
   again (see EXECUTION_LOG "Review of MIU-55 and the fixes").
+- 08:10–08:33 Deployed `8cca888` (functions live 08:33). 08:35 retry pass:
+  5 drafts saved, the remaining failures traced to one deleted photo, two
+  refused (403) and four animated GIFs. 403 now counts as unavailable.
+  Read-only readiness check: all 955 drafts have photos, none hidden or
+  flagged, none over the image limit; 56 need a product family.

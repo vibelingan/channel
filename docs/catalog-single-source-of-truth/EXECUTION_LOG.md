@@ -106,6 +106,32 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### MIU-55 live; photo retry pass and readiness check (2026-10-09)
+- Deployed `8cca888` (MIU-55 + review fixes): functions live 08:33 UTC.
+- Retry pass 08:35–08:37 UTC from the signed-in admin page (same requests
+  as "Copy photos now"): 1,118 products looked at, 5 drafts saved, 0 photos
+  copied, 64 reused, 8 photo attempts failed, 1 draft waiting, no errors.
+  Status after: 0 hidden drafts, 1 waiting, 3 drafts whose gallery or
+  description lack photos Alibaba cannot provide.
+- Why those photos fail (checked by fetching each address):
+  - one configuration photo shared by 2 drafts (`167c07d5`, `f27be699`):
+    Alibaba answers 404 — gone, skipped;
+  - 2 photos of `33e4983e` (one gallery, one configuration): Alibaba answers
+    403. The code treated 403 as passing, so the draft would retry six times
+    first (it stays visible meanwhile). Changed: 403 now counts as a photo
+    Alibaba no longer serves (next commit), like 404/410;
+  - 4 description photos on 3 drafts (`8e68f309` ×2, `9d2c6664`,
+    `bdbcfc2b`): they load fine but are animated GIFs named `.jpg`. Our image
+    storage accepts JPEG, PNG and WebP only, so they are skipped by design;
+    each draft keeps its other description photos.
+- Readiness check (read-only, all 1,118 products): 955 Alibaba drafts, none
+  hidden; every one has gallery photos; gallery plus description photos are
+  at most 27 per draft (approval limit 46); no draft is flagged "Changed";
+  56 drafts have no product family yet (the admin's step: Assign category →
+  Save and publish); 141 live products. Flagged "Changed": 9 (4 live:
+  `5cc2ec2f`, `70bd6aaa`, `89f59908`, `e34a1873`; 5 approved, not live) —
+  R7, the owner's review.
+
 ### MIU-55 — one product, one unit (2026-10-09, `5fd7752`)
 - Owner (07:27 UTC): a product's fields and photos are one unit; all succeed
   or the product waits and retries, without holding up other products; a day

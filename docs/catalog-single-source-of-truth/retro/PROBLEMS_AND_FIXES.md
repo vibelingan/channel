@@ -183,7 +183,19 @@ would have reached the live site.
 - **Tool limit:** browser-tool batches over about 150 s timed out; runs were
   cut into batches of about 110 s.
 
-### 3.5 Local test environment quirks
+### 3.5 The last few photos (10-09)
+
+- After the catch-up and the retry pass, 7 Alibaba photos still fail. Each
+  address was fetched by hand: one is gone (404, shared by 2 drafts), two
+  are refused (403), four are animated GIFs named `.jpg`, which our image
+  storage does not accept (JPEG, PNG, WebP only).
+- Change: 403 now counts as "Alibaba no longer serves it", like 404, so a
+  new draft is not held back through six retries. GIF support is not
+  planned; the drafts keep their other photos and an admin can add others.
+- Lesson: when a failure count stops shrinking, look at the actual
+  responses before adding retries.
+
+### 3.6 Local test environment quirks
 
 - Node 25 needs `NODE_OPTIONS=--no-experimental-webstorage` for tests.
 - Browser lanes need `TMPDIR` on the same disk as the repo (otherwise an EXDEV

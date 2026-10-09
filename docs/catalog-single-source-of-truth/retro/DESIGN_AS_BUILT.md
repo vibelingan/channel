@@ -161,8 +161,9 @@ fails on them. Admins only add or remove photos.
 first, and only then writes the product, in one guarded save (it fails if
 the product changed meanwhile, was approved, or was published). If any copy
 is "waiting", nothing is written for that product and the next product is
-processed as normal. Photos Alibaba cannot provide (404/410, invalid or
-disallowed address, too large, not an image) are skipped and listed as
+processed as normal. Photos Alibaba cannot provide (403/404/410, invalid or
+disallowed address, too large, not a JPEG/PNG/WebP image — some Alibaba
+"photos" are animated GIFs) are skipped and listed as
 "photos Alibaba could not provide", so one dead link never blocks a product.
 
 **Why not one database transaction for fields and photos.** Copying a photo is

@@ -43,8 +43,12 @@ shown).
 - Supplier changes on approved products are flagged; the admin reviews text
   and photos side by side and chooses per part; prices and configurations
   always take Alibaba's latest.
-- Every one of the 957 Alibaba drafts has its photos in our storage; 6
-  drafts miss 7 photos Alibaba could not provide.
+- Every Alibaba draft (955 now) has its photos in our
+  storage and none is hidden; 6 drafts miss 7 photos Alibaba cannot provide
+  (one deleted, two refused, four animated GIFs our storage doesn't take).
+- Every draft can be published from "Assign category → Save and publish"
+  (single or batch): all have photos, none exceeds the approval's image
+  limit, none is flagged "Changed"; 56 still need a product family.
 - Classification "Save and publish" (single and batch) publishes Alibaba
   drafts; the product list has "Go to page".
 
@@ -52,8 +56,9 @@ shown).
 
 - R7: the owner reviews the 9 products flagged "Changed" (7 price-only, 2
   with new photos to Keep or Use).
-- "One product, one unit" photo rule (`5fd7752`): built and tested locally,
-  deploying next; retries failed photos after 10 minutes instead of a day.
+- "One product, one unit" photo rule: live since 08:33 UTC (`8cca888`);
+  failed photos retry after 10 minutes (while the Sync page is open, or at
+  the next sync) instead of a day. Follow-up: 403 counts as unavailable.
 - Follow-ups: Alibaba description previews in the Supplier changes panel
   don't load; an old notice overlaps the panel; the panel takes 5–10 s to
   load; the sync timer is off, so photo copying runs only from the Sync page;

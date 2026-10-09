@@ -4,13 +4,14 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-09, 08:15 UTC):** live on supplychainsai.com: batches 1–5b,
+**Status (2026-10-09, 08:50 UTC):** live on supplychainsai.com: batches 1–5b,
 DEC-19 (Supplier changes panel), DEC-20 (photos per configuration), the
 classification "Save and publish" fix, and PT-G (Alibaba photos copied ahead;
 new drafts appear ready; Edit picker for photos beyond the limit). The one-time
 photo catch-up is done: all 957 Alibaba drafts have their photos. Next:
 MIU-55, "one product, one unit" (photos land together or the product retries
-after 10 minutes), validated and deploying. Branch
+after 10 minutes) is live (functions `8cca888`, 08:33 UTC); retry pass done;
+every draft can be published once it has a category. Branch
 `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
 
 **Retro:** [retro/](retro/README.md) — timeline, problems and fixes, design as

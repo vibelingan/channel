@@ -235,10 +235,12 @@ export async function importCandidateImage(
     break;
   }
   if (!response) return { ok: false, reason: 'too-many-redirects' };
+  // Alibaba's image server answers 403 for a photo it no longer serves, like
+  // 404/410; retrying cannot bring it back (measured 2026-10-09).
   if (!response.ok)
     return {
       ok: false,
-      reason: response.status === 404 || response.status === 410 ? 'not-found' : 'fetch-failed',
+      reason: [403, 404, 410].includes(response.status) ? 'not-found' : 'fetch-failed',
     };
 
   const bytes = await readBodyCapped(response, deps.bodyTimeoutMs ?? FETCH_TIMEOUT_MS);
