@@ -431,6 +431,7 @@ export class JsonFileAdapter implements DbAdapter {
       const def = getCollection(query.collection);
       let docs = [...this.docs(query.collection)];
 
+      if (query.hidePreparing) docs = docs.filter((doc) => doc.alibabaPhotosPending !== true);
       if (query.needsClassification) {
         docs = docs.filter((doc) =>
           matchesFilter(doc, {

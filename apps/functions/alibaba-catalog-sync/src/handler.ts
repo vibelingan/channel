@@ -37,6 +37,7 @@ import {
   probeConnection,
   startOAuth,
 } from './oauth.ts';
+import { photoPreparationStatus, prepareAlibabaPhotosPage } from './photo-preparation.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
 import { enforceOAuthRateLimit, hashSourceIp } from './rate-limit.ts';
 import { replayAlibabaRawPage } from './raw-replay.ts';
@@ -441,6 +442,27 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(result);
     }
+    case 'prepareAlibabaPhotos': {
+      // Copies Alibaba photos ahead into our storage and fills untouched
+      // drafts; shows new drafts once their photos are in (PT-G).
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = preparePhotosSchema.safeParse(parsed.data.data ?? {});
+      if (!payload.success)
+        return err('VALIDATION_ERROR', 'The photo cursor or page limit is invalid.');
+      return ok(
+        await prepareAlibabaPhotosPage({
+          ...(payload.data.afterProductId ? { afterProductId: payload.data.afterProductId } : {}),
+          ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
+          ...(payload.data.pendingOnly ? { pendingOnly: true } : {}),
+        }),
+      );
+    }
+    case 'photoPreparationStatus': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      return ok(await photoPreparationStatus());
+    }
     case 'importSourceImage': {
       // Candidate-only import (MIU 12): fetches ONE allowlisted source image
       // through the SSRF pipeline; never attaches it to a product.
@@ -537,6 +559,13 @@ const rawReplaySchema = z
       }
     }
   });
+const preparePhotosSchema = z
+  .object({
+    afterProductId: z.string().max(200).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    pendingOnly: z.boolean().optional(),
+  })
+  .strict();
 const importImageSchema = z.object({ url: z.string().min(1) });
 const removeImageSchema = z.object({ imageId: z.string().min(1) });
 

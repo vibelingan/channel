@@ -584,6 +584,7 @@ export const cloudBaseAdapter: DbAdapter = {
     const ands: Record<string, unknown>[] = [];
 
     if (query.needsClassification) ands.push(unclassifiedProductWhere(_));
+    if (query.hidePreparing) ands.push(preparingProductHiddenWhere(_));
 
     if (query.productFamily) {
       ands.push(
@@ -1000,6 +1001,19 @@ function clauseToWhere(
 }
 
 /** Same legacy fallback boundary as productFamilyForDoc; applied before count/page. */
+/**
+ * Leaves out new drafts waiting for their Alibaba photos (PT-G). Written as
+ * "absent or not true" so it never depends on how a missing field compares.
+ */
+export function preparingProductHiddenWhere(
+  _: Pick<WxCommand, 'or' | 'exists' | 'neq'>,
+): Record<string, unknown> {
+  return _.or([
+    { alibabaPhotosPending: _.exists(false) },
+    { alibabaPhotosPending: _.neq(true) },
+  ]);
+}
+
 export function unclassifiedProductWhere(_: Pick<WxCommand, 'and' | 'or' | 'exists' | 'nin'>): Record<string, unknown> {
   return _.and([
     { productFamily: _.nin([...PRODUCT_FAMILY_OPTIONS]) },

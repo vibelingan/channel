@@ -1428,6 +1428,8 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
       : sort;
   const result = await list({
     ...rest,
+    // A new draft appears once its Alibaba photos are in (PT-G).
+    ...(parsed.data.collection === 'products' ? { hidePreparing: true } : {}),
     ...(productFamily ? { productFamily } : {}),
     ...(needsClassification ? { needsClassification: true } : {}),
     ...(productSubcategories ? { productSubcategories } : {}),
@@ -1468,6 +1470,7 @@ async function productSubcategoryScope(
 async function pendingProductCount(productFamily?: (typeof PRODUCT_FAMILY_OPTIONS)[number]) {
   const result = await list({
     collection: 'products',
+    hidePreparing: true,
     page: 1,
     pageSize: 1,
     search: '',

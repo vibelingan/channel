@@ -1861,3 +1861,44 @@ production data and need the owner's go-ahead at the time.
 | R8 | After R7 | `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`; browser check at 390px and 1440px: one multi-tier, one single-tier, one website-price, one "Request a quote" product; switch configurations | 0 mismatches; each configuration shows its own price |
 | R9 ⚠ | After batch 5a, before 5b | Admin approves each of the 7 live manual products (they are already published, so: Edit → Save; with MIU-32, Save on a published product runs the approval). Before each, check in Edit the three rules approval enforces: at most 9 photos, photos uploaded to storage (not legacy embedded images), prices with at most 2 decimals. A refusal shows a generic message ("The catalog approval could not be completed." or the media-not-ready text), so check these three first | All 7 have an approved version |
 | R10 | After batch 5b | `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN --require-no-fallback`; browser check of one manual product next to a synced one | 0 mismatches, 0 products on the row fallback; the two pages look alike |
+
+---
+
+## PT-G — Alibaba photos copied ahead; drafts appear ready (owner 2026-10-09)
+
+**Why.** Photos were copied only at publish time, through the admin's browser
+(1–3 s per photo from outside China; a draft with 9 + 18 photos took 30–80 s to
+publish), or by the Edit "Import" buttons. Owner: photos come with the product
+and its single approval; they should already be in our storage, never block
+publishing, and drafts an admin sees should be ready to work on.
+
+**Decisions (owner 2026-10-09).**
+- Untouched drafts follow Alibaba: when a later sync brings new photos and nobody
+  has edited the draft's photos, they are refreshed. Once an admin edits them, or
+  the product has been approved or published, they never change on their own
+  (DEC-18; live products get supplier photos only via Supplier changes, DEC-19).
+- New drafts stay hidden from the admin list until their photos are in
+  (`alibabaPhotosPending`), so nobody works on a half-prepared draft.
+- One-time catch-up for all existing drafts (about 11,200 unique photos,
+  about 3.7 GB at the measured 347 KB average). Existing drafts stay visible;
+  each changes in one save; admin edits always win (optimistic save).
+- Copying starts automatically after each sync, draft creation or single-product
+  sync from the Alibaba Sync page; the page also finishes hidden drafts when it
+  opens. (The 15-minute timer is off; when it is enabled, the tick must run the
+  same preparation.)
+
+**Rules per product and part** (gallery: first 9 sources; description: first 18):
+eligible = Alibaba-linked, not archived, not published, never approved. A part is
+filled when the field is empty and was never auto-filled, or still equals what
+was auto-filled (marker `alibabaAutoPhotos`) and the sources changed. A photo
+that cannot be copied is left out and reported; it does not block the product.
+
+| MIU | What | Check |
+|---|---|---|
+| 48 | Shared `alibabaPhotoSources` (source URL normalization, moved from the site); product fields `alibabaPhotosPending`, `alibabaAutoPhotos` (read-only); identity writable/cleared fields | unit tests |
+| 49 | Pure plan `photoPreparationPlan(product)` | unit tests for every rule |
+| 50 | Server page `prepareAlibabaPhotos` (copy with link reuse, 4 at a time, 12 s budget, resumable; one optimistic save with image locks; clears the hidden flag) | tests with in-memory db and fake importer |
+| 51 | New drafts start hidden when they have photo sources | runner, selected sync, materialize tests |
+| 52 | Admin list, review counts exclude hidden drafts (db option `hidePreparing`) | db adapter + handler tests |
+| 53 | Admin actions `prepareAlibabaPhotos`, `photoPreparationStatus` | handler tests |
+| 54 | Alibaba Sync page: Product photos section, automatic run after sync / drafts / single sync, finishes hidden drafts on open | site tests |

@@ -27,6 +27,9 @@ import {
 import {
   type CollectionDoc,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  PRODUCT_IMAGE_MAX_COUNT,
+  alibabaPhotoSources,
   isProductFamily,
 } from '@vibelingan-channel/shared';
 import { listAllDocs } from './list-all.ts';
@@ -520,8 +523,17 @@ async function createLinkedDraft(
   const observedTitle = observation?.identity.title;
   const observedDescription = observation?.content.description?.text;
 
+  const sourceImageUrls = Array.isArray(source.sourceImageUrls)
+    ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
+    : [];
+  const descriptionImageUrls = observation?.content.description?.imageUrls ?? [];
+  // A new draft stays out of the admin list until its photos are copied
+  // (PT-G); photo preparation shows it.
+  const hasPhotosToCopy =
+    alibabaPhotoSources(sourceImageUrls, PRODUCT_IMAGE_MAX_COUNT).length > 0 ||
+    alibabaPhotoSources(descriptionImageUrls, PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT).length > 0;
   const draft: Record<string, unknown> = {
-    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
+    alibabaDescriptionImageUrls: descriptionImageUrls,
     name:
       typeof observedTitle === 'string' && observedTitle.trim() !== ''
         ? observedTitle
@@ -543,12 +555,11 @@ async function createLinkedDraft(
     alibabaPrimarySourceKey: source._id,
     alibabaSourceProductId: String(source.sourceProductId ?? ''),
     alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
-    alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
-      ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
-      : [],
+    alibabaSourceImageUrls: sourceImageUrls,
     alibabaSourceStatus: source.active === true ? 'available' : 'removed',
     alibabaSourceLastSyncedAt: now,
     alibabaReviewPending: true,
+    ...(hasPhotosToCopy ? { alibabaPhotosPending: true } : {}),
     ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
     createdAt: now,
     updatedAt: now,

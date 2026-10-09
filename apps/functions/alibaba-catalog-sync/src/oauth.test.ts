@@ -1276,3 +1276,39 @@ test('a diagnostics write failure does NOT break authorization', async () => {
   });
   assert.equal(result.ok, true, 'OAuth proceeds even with diagnostics broken');
 });
+
+test('photo preparation and its status are admin-only and validated (PT-G)', async () => {
+  setup();
+  const contributor = await contributorToken();
+  for (const action of ['prepareAlibabaPhotos', 'photoPreparationStatus']) {
+    const forbidden = await handleAlibabaSyncRequest(
+      { action, token: contributor, data: {} },
+      baseConfig,
+    );
+    assert.equal(forbidden.ok, false);
+    if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+  }
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'prepareAlibabaPhotos', token: admin, data: { limit: 101 } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+  const empty = await handleAlibabaSyncRequest(
+    {
+      action: 'prepareAlibabaPhotos',
+      token: admin,
+      data: { afterProductId: '', pendingOnly: true },
+    },
+    baseConfig,
+  );
+  assert.equal(empty.ok, true);
+  if (empty.ok) assert.equal(Reflect.get(empty.data as object, 'done'), true);
+  const status = await handleAlibabaSyncRequest(
+    { action: 'photoPreparationStatus', token: admin, data: {} },
+    baseConfig,
+  );
+  assert.equal(status.ok, true);
+  if (status.ok) assert.deepEqual(status.data, { hiddenDrafts: 0, draftsToFill: 0 });
+});

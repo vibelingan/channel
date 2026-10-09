@@ -7,27 +7,32 @@
  */
 import { useQueryClient } from '@tanstack/react-query';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listRecords } from '../api.ts';
 import { AlibabaCategoryAssignment } from './AlibabaCategoryAssignment.tsx';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
 import { AlibabaDraftMaterialization } from './AlibabaDraftMaterialization.tsx';
 import { AlibabaObservationReplay } from './AlibabaObservationReplay.tsx';
+import { AlibabaPhotoPreparation } from './AlibabaPhotoPreparation.tsx';
 import { AlibabaProductDetailInspection } from './AlibabaProductDetailInspection.tsx';
 import { AlibabaProductLinkAction } from './AlibabaProductLinkAction.tsx';
 import { AlibabaQuarantineReview } from './AlibabaQuarantineReview.tsx';
 import { AlibabaSyncRunTable } from './AlibabaSyncRunTable.tsx';
 import {
   type ConnectionStatus,
+  type PhotoPreparationProgress,
+  type PhotoPreparationStatus,
   type ProductDetailInspectionSummary,
   type SourceObservationReplayPlan,
   applySourceObservationReplay,
   approveQuarantine,
   disconnectAlibaba,
   fetchConnectionStatus,
+  fetchPhotoPreparationStatus,
   inspectProductDetail,
   linkSourceProduct,
   materializeAlibabaDrafts,
+  prepareAlibabaPhotos,
   repairAlibabaSourcePricing,
   runSyncToTerminal,
   startOAuthFlow,
@@ -148,6 +153,65 @@ export function AlibabaCatalogSyncPage() {
     void queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
   }, [queryClient]);
 
+  // Product photos (PT-G): copied automatically after each sync; new drafts
+  // stay hidden until theirs are in. One run at a time; a request made during
+  // a run is done right after it.
+  const [photoStatus, setPhotoStatus] = useState<PhotoPreparationStatus | null>(null);
+  const [photoProgress, setPhotoProgress] = useState<PhotoPreparationProgress | null>(null);
+  const [photosRunning, setPhotosRunning] = useState(false);
+  const photoRun = useRef<{ running: boolean; again: 'pending' | 'all' | null }>({
+    running: false,
+    again: null,
+  });
+  const refreshPhotoStatus = useCallback(async () => {
+    try {
+      const next = await fetchPhotoPreparationStatus();
+      setPhotoStatus(next);
+      return next;
+    } catch {
+      return null;
+    }
+  }, []);
+  const runPhotoPreparation = useCallback(
+    async (scope: 'pending' | 'all') => {
+      const run = photoRun.current;
+      if (run.running) {
+        if (run.again !== 'all') run.again = scope;
+        return;
+      }
+      run.running = true;
+      setPhotosRunning(true);
+      let next: 'pending' | 'all' | null = scope;
+      try {
+        while (next) {
+          const current: 'pending' | 'all' = next;
+          run.again = null;
+          setPhotoProgress(null);
+          // Hidden new drafts first, so they appear soonest.
+          await prepareAlibabaPhotos(setPhotoProgress, { pendingOnly: true });
+          if (current === 'all') await prepareAlibabaPhotos(setPhotoProgress);
+          refreshProductReviewQueue();
+          await refreshPhotoStatus();
+          next = run.again;
+        }
+      } catch (error) {
+        setNotice(
+          `Photo copying stopped: ${error instanceof Error ? error.message : 'unknown error'}. It continues after the next sync or with Copy photos now.`,
+        );
+      } finally {
+        run.running = false;
+        setPhotosRunning(false);
+      }
+    },
+    [refreshPhotoStatus, refreshProductReviewQueue],
+  );
+  useEffect(() => {
+    // Finish any new drafts left hidden, e.g. when this page was closed mid-run.
+    void refreshPhotoStatus().then((status) => {
+      if (status && status.hiddenDrafts > 0) void runPhotoPreparation('pending');
+    });
+  }, [refreshPhotoStatus, runPhotoPreparation]);
+
   return (
     <div data-alibaba-sync-page className="space-y-4">
       <AlibabaCategoryAssignment
@@ -185,6 +249,7 @@ export function AlibabaCatalogSyncPage() {
               },
             });
             refreshProductReviewQueue();
+            void runPhotoPreparation('all');
             return `Sync finished after ${ticks} worker tick${ticks === 1 ? '' : 's'}: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
           })
         }
@@ -211,6 +276,7 @@ export function AlibabaCatalogSyncPage() {
             const result = await syncProduct(sourceProductId);
             setSelectedSyncResult(result);
             refreshProductReviewQueue();
+            void runPhotoPreparation('all');
             return `${result.draftCreated ? 'Created' : 'Updated'} an unpublished product draft for ${result.sourceProductId}.`;
           }).finally(() => setInspectingDetail(false));
         }}
@@ -225,9 +291,16 @@ export function AlibabaCatalogSyncPage() {
             const result = await materializeAlibabaDrafts(setDraftProgress, sourceCategoryId);
             setDraftProgress(result);
             refreshProductReviewQueue();
+            void runPhotoPreparation('all');
             return `Product drafts ready: ${result.created} created, ${result.existing} already present, ${result.failures} failed.`;
           });
         }}
+      />
+      <AlibabaPhotoPreparation
+        status={photoStatus}
+        progress={photoProgress}
+        running={photosRunning}
+        onRun={() => void runPhotoPreparation('all')}
       />
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold text-slate-900">Repair missing source quotes</h2>

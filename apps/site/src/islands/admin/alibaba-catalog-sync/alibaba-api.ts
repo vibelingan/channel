@@ -4,6 +4,7 @@
  * the session rides the body, never a cookie (ARCHITECTURE §8.1). Responses
  * never contain token material; the panel renders redacted status only.
  */
+import { z } from 'zod';
 import { apiUrl } from '../../../lib/api-url.ts';
 import { getToken } from '../../../lib/session.ts';
 
@@ -334,6 +335,85 @@ export async function materializeAlibabaDrafts(
     afterSourceKey = page.nextSourceKey;
   }
   throw new AlibabaSyncApiError('CONFLICT', 'Draft materialization exceeded the page limit.');
+}
+
+const count = z.number().int().nonnegative();
+const PhotoPreparationPageSchema = z.object({
+  afterProductId: z.string(),
+  nextProductId: z.string(),
+  done: z.boolean(),
+  visited: count,
+  prepared: count,
+  photosCopied: count,
+  photosReused: count,
+  photosFailed: count,
+  busy: count,
+  failures: z.array(z.object({ productId: z.string(), reason: z.string() })),
+});
+const PhotoPreparationStatusSchema = z.object({ hiddenDrafts: count, draftsToFill: count });
+
+export interface PhotoPreparationProgress {
+  prepared: number;
+  photosCopied: number;
+  photosReused: number;
+  photosFailed: number;
+  busy: number;
+  failures: number;
+}
+export type PhotoPreparationStatus = z.infer<typeof PhotoPreparationStatusSchema>;
+
+/** How many new drafts are hidden while prepared, and drafts still to fill (PT-G). */
+export async function fetchPhotoPreparationStatus(): Promise<PhotoPreparationStatus> {
+  const parsed = PhotoPreparationStatusSchema.safeParse(
+    await call<unknown>('photoPreparationStatus', {}),
+  );
+  if (!parsed.success)
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'The photo status could not be read.');
+  return parsed.data;
+}
+
+/**
+ * Copies Alibaba photos into our storage and fills untouched drafts, page after
+ * page on the server until every product was looked at (PT-G). A product that
+ * ran out of time resumes on the next page; photos already copied are reused.
+ */
+export async function prepareAlibabaPhotos(
+  onProgress?: (progress: PhotoPreparationProgress) => void,
+  options: { pendingOnly?: boolean } = {},
+): Promise<PhotoPreparationProgress> {
+  const total: PhotoPreparationProgress = {
+    prepared: 0,
+    photosCopied: 0,
+    photosReused: 0,
+    photosFailed: 0,
+    busy: 0,
+    failures: 0,
+  };
+  let afterProductId = '';
+  for (let pageNumber = 0; pageNumber < 5_000; pageNumber += 1) {
+    const parsed = PhotoPreparationPageSchema.safeParse(
+      await call<unknown>('prepareAlibabaPhotos', {
+        afterProductId,
+        ...(options.pendingOnly ? { pendingOnly: true } : {}),
+      }),
+    );
+    if (!parsed.success || parsed.data.afterProductId !== afterProductId)
+      throw new AlibabaSyncApiError(
+        'INTERNAL_ERROR',
+        'Photo preparation returned an invalid page summary.',
+      );
+    const page = parsed.data;
+    total.prepared += page.prepared;
+    total.photosCopied += page.photosCopied;
+    total.photosReused += page.photosReused;
+    total.photosFailed += page.photosFailed;
+    total.busy += page.busy;
+    total.failures += page.failures.length;
+    onProgress?.({ ...total });
+    if (page.done) return total;
+    afterProductId = page.nextProductId;
+  }
+  throw new AlibabaSyncApiError('CONFLICT', 'Photo preparation exceeded the page limit.');
 }
 
 export type SourceObservationReplayMode = 'dry-run' | 'apply';

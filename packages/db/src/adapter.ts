@@ -51,6 +51,8 @@ export interface AdapterListQuery {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  /** Leave out new drafts still waiting for their Alibaba photos (PT-G). */
+  hidePreparing?: boolean;
   productSubcategories?: ProductSubcategoryScope;
   page: number;
   pageSize: number;

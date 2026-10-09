@@ -6,6 +6,7 @@ export * from './catalog-product.ts';
 export * from './catalog-taxonomy.ts';
 export * from './manual-catalog-pricing.ts';
 export * from './media.ts';
+export * from './alibaba-photo-sources.ts';
 export * from './media-content.ts';
 export * from './media-lifecycle.ts';
 export * from './media-ratelimit.ts';
@@ -22,6 +23,8 @@ export interface ListQuery {
   productFamily?: import('./catalog-product.ts').ProductFamily;
   /** Admin classification queue, not a persisted product family. */
   needsClassification?: boolean;
+  /** Leave out new drafts still waiting for their Alibaba photos (PT-G). */
+  hidePreparing?: boolean;
   /** Built by the server from the saved registry; never accepted from a client. */
   productSubcategories?: ProductSubcategoryScope;
   page?: number;

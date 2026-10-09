@@ -210,3 +210,22 @@ test('propagates identity conflicts without changing products or links', async (
   assert.deepEqual(store.products, before.products);
   assert.deepEqual(store.alibabaProductLinks, before.alibabaProductLinks);
 });
+
+test('a new draft with Alibaba photos starts hidden until its photos are copied (PT-G)', async () => {
+  const withPhotos = {
+    ...source('photos'),
+    sourceImageUrls: ['https://sc04.alicdn.com/a.jpg'],
+  } as CollectionDoc;
+  const store: Store = { alibabaSourceProducts: [withPhotos, source('none')] };
+  setAdapter(new MemoryAdapter(store));
+  await materializeAlibabaDraftPage({ limit: 5, now: () => '2026-10-09T05:00:00.000Z' });
+  const bySource = (key: string) =>
+    store.products?.find((product) => product.alibabaPrimarySourceKey === key);
+  assert.equal(bySource('source-photos')?.alibabaPhotosPending, true);
+  assert.equal(bySource('source-none')?.alibabaPhotosPending, undefined, 'nothing to copy');
+  // Materializing again never hides an existing draft.
+  const existing = bySource('source-photos') as CollectionDoc;
+  existing.alibabaPhotosPending = false;
+  await materializeAlibabaDraftPage({ limit: 5, now: () => '2026-10-09T05:01:00.000Z' });
+  assert.equal(bySource('source-photos')?.alibabaPhotosPending, false);
+});

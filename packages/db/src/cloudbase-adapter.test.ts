@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   claimAlibabaSyncRunInCloudBase,
+  preparingProductHiddenWhere,
   unclassifiedProductWhere,
   upsertCatalogSourceObservationInCloudBase,
   upsertDocWithAlibabaLeaseInCloudBase,
@@ -25,6 +26,17 @@ test('unclassified native query includes absent families without capturing legac
         ],
       },
     ],
+  });
+});
+
+test('drafts waiting for photos are hidden explicitly, whether or not the field exists (PT-G)', () => {
+  const query = preparingProductHiddenWhere({
+    or: (items) => ({ $or: items }),
+    exists: (value) => ({ $exists: value }),
+    neq: (value) => ({ $ne: value }),
+  });
+  assert.deepEqual(query, {
+    $or: [{ alibabaPhotosPending: { $exists: false } }, { alibabaPhotosPending: { $ne: true } }],
   });
 });
 

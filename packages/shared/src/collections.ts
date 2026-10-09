@@ -493,6 +493,27 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         readOnly: true,
         hideInTable: true,
       },
+      {
+        // A new draft stays out of the admin list until its Alibaba photos are
+        // copied into our storage (PT-G).
+        name: 'alibabaPhotosPending',
+        label: 'Alibaba Photos Pending',
+        type: 'boolean',
+        readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
+      },
+      {
+        // What the sync filled in automatically, per part: the sources copied
+        // and the photo ids set. A part equal to this is still the sync's to
+        // refresh; anything else is the admin's (PT-G).
+        name: 'alibabaAutoPhotos',
+        label: 'Alibaba Auto Photos',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
+      },
     ],
   },
   {

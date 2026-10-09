@@ -88,6 +88,9 @@ const ALIBABA_PRODUCT_FIELDS = [
   'alibabaReviewReason',
   'alibabaReviewedAt',
   'alibabaReviewedByUserId',
+  // Photos copied ahead (PT-G): set by the sync worker only.
+  'alibabaPhotosPending',
+  'alibabaAutoPhotos',
 ];
 
 test('products exposes every additive Alibaba field as read-only', () => {

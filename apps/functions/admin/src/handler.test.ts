@@ -66,6 +66,7 @@ class MemoryAdapter implements DbAdapter {
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
+    if (query.hidePreparing) docs = docs.filter((doc) => doc.alibabaPhotosPending !== true);
     if (query.needsClassification) {
       docs = docs.filter((doc) =>
         matchesFilter(doc, {
@@ -5743,4 +5744,36 @@ test('a contributor save that only clears an old Headphones category is not a ca
     [row?.name, row?.published, row?.alibabaReviewReason],
     ['Renamed toy', true, 'edited'],
   );
+});
+
+// --- PT-G: drafts waiting for their photos stay out of the admin list ---
+
+test('the admin product list and review counts leave out drafts still waiting for photos', async () => {
+  setup({
+    users: [],
+    products: [
+      { _id: 'ready', name: 'Ready', published: false, alibabaReviewPending: true },
+      {
+        _id: 'preparing',
+        name: 'Preparing',
+        published: false,
+        alibabaReviewPending: true,
+        alibabaPhotosPending: true,
+      },
+      { _id: 'shown', name: 'Shown', published: false, alibabaPhotosPending: false },
+    ],
+  });
+  const admin = await adminToken();
+  const listed = okData<{ items: CollectionDoc[]; total: number }>(
+    await call('list', { collection: 'products', page: 1, pageSize: 20 }, admin),
+  );
+  assert.deepEqual(listed.items.map((item) => item._id).sort(), ['ready', 'shown']);
+  assert.equal(listed.total, 2);
+  const summary = okData<{ pendingTotal: number }>(await call('productReviewSummary', {}, admin));
+  assert.equal(summary.pendingTotal, 1);
+  // Other collections are unaffected.
+  const users = okData<{ items: CollectionDoc[] }>(
+    await call('list', { collection: 'users', page: 1, pageSize: 20 }, admin),
+  );
+  assert.ok(users.items.length >= 1);
 });

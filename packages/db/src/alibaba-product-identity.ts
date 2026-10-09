@@ -101,6 +101,8 @@ const clearedFields = {
   alibabaSourcePublicDigest: null,
   alibabaReviewedAt: null,
   alibabaReviewedByUserId: null,
+  // An unlinked product is never hidden as a draft waiting for photos (PT-G).
+  alibabaPhotosPending: null,
 };
 
 const writableFields = new Set([
@@ -127,6 +129,7 @@ const draftFields = new Set([
   'published',
   'archived',
   'alibabaClassifiedCategoryId',
+  'alibabaPhotosPending',
   'createdAt',
   'updatedAt',
   ...writableFields,
