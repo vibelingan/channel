@@ -106,6 +106,29 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Media-upload smoke brought up to date (2026-10-09, owner request)
+- The deployed upload smoke (`tests/e2e/media-upload.spec.ts`, run only by a
+  manual dispatch of Deploy Test or E2E with the media-upload option) had
+  gone stale and would fail or leave data behind:
+  - it created a product with `vipPrice` (refused: VIP price is deprecated)
+    and `published: true` (refused while approval is on: a new product starts
+    as a draft, MIU-37), with the legacy `category` instead of
+    `productFamily`;
+  - its cleanup deleted the product (refused: products are archived, never
+    deleted) and the image with `remove` (refused: images go through
+    `abandonUpload`); both refusals were swallowed, so a successful run would
+    have left a published test product on the site.
+- Now: create a draft with `productFamily`, approve in one request
+  (`catalogDetailApproval {action:'approve'}`, when approval is on), publish,
+  check the image turns public; cleanup archives the product (which also
+  unpublishes it), or abandons the image when no product used it. The admin
+  role is required (publishing is an approval).
+- `media-upload-ui.spec.ts`: cleanup abandons the uploaded image instead of the
+  refused `remove`; exact "Products" button; comments say PUT, not POST.
+- Checked: e2e typecheck, lint, both tests list. Not yet run: they only run
+  against the live site with the stored admin password, and the API smoke
+  publishes a test product for a few seconds — run on the owner's go-ahead.
+
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search
   used the products' admin search fields, which include
