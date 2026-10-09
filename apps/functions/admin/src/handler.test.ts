@@ -5578,6 +5578,72 @@ test('with approval on, a contributor edit on a live product is saved as a draft
   assert.deepEqual([row().published, row().alibabaReviewPending], [false, false]);
 });
 
+test('a contributor Save with nothing changed does not flag a live product; a New flag becomes Edited', async () => {
+  const live = { _id: 'live', ...publishableProduct({ name: 'Approved name' }) } as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  const row = () => store.products?.find((item) => item._id === 'live') as CollectionDoc;
+  const contributor = await contributorToken();
+  const { _id, ...unchanged } = live;
+  okData(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: 'live',
+        values: { ...unchanged, description: live.description },
+      },
+      contributor,
+    ),
+  );
+  assert.equal(row().alibabaReviewPending, undefined);
+  Object.assign(row(), { alibabaReviewPending: true, alibabaReviewReason: 'new' });
+  okData(
+    await callWithApproval(
+      'update',
+      { collection: 'products', id: 'live', values: { name: 'Edited name', published: true } },
+      contributor,
+    ),
+  );
+  assert.deepEqual([row().alibabaReviewPending, row().alibabaReviewReason], [true, 'edited']);
+});
+
+test('a contributor cannot change the category, URL or SKU of a live product (they go live from the row)', async () => {
+  const live = { _id: 'live', ...publishableProduct() } as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  for (const values of [
+    { productFamily: 'toys' },
+    { slug: 'another-url' },
+    { skuCode: 'another-sku' },
+  ]) {
+    expectErr(
+      await callWithApproval('update', { collection: 'products', id: 'live', values }, contributor),
+      'FORBIDDEN',
+    );
+  }
+  assert.deepEqual(store.products, [live]);
+  // Sending the same values, as the edit form does, is fine.
+  okData(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: 'live',
+        values: { productFamily: live.productFamily, slug: live.slug, skuCode: live.skuCode },
+      },
+      contributor,
+    ),
+  );
+});
+
 test('with approval off, contributor edits on live products save as before', async () => {
   const store = setup({
     users: [],

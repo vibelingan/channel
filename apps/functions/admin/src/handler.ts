@@ -31,6 +31,7 @@ import {
   create,
   createDoc,
   findByField,
+  flagForReview,
   get,
   getCatalogTaxonomy,
   incrementField,
@@ -1923,15 +1924,26 @@ async function abandonUploadAction(
   }
 }
 
-/** A contributor's edit on a live product, saved without changing publication (OWN-1). */
+/** Equal for a form save: empty, null and absent mean the same. */
+function sameFieldValue(left: unknown, right: unknown): boolean {
+  const blank = (value: unknown) => value === undefined || value === null || value === '';
+  return (blank(left) && blank(right)) || isDeepStrictEqual(left, right);
+}
+
+/** Fields the public site reads from the row even for an approved product. */
+const LIVE_ROW_FIELDS = ['productFamily', 'category', 'slug', 'skuCode'] as const;
+
+/**
+ * A contributor's edit on a live product, saved without changing publication
+ * and flagged "Edited" for an admin when something actually changed (OWN-1).
+ */
 function contributorDraftEdit(
   before: CollectionDoc,
   values: Record<string, unknown>,
 ): Record<string, unknown> {
   const { published: _published, ...draft } = values;
-  return Object.keys(draft).length > 0 && before.alibabaReviewPending !== true
-    ? { ...draft, alibabaReviewPending: true, alibabaReviewReason: 'edited' }
-    : draft;
+  const changed = Object.keys(draft).some((key) => !sameFieldValue(draft[key], before[key]));
+  return changed ? { ...draft, ...flagForReview(before, 'edited') } : draft;
 }
 
 async function createAction(
@@ -2053,12 +2065,26 @@ async function updateAction(
       // A contributor's edit on a live product waits for an admin (OWN-1): the
       // row keeps the edit, buyers keep the approved version, and the product is
       // flagged Edited until an admin approves and publishes it.
-      const editValues =
+      const contributorEditsLiveProduct =
         config.enableDetailApproval === true &&
         claims.role !== 'admin' &&
         before?.published === true &&
         parsedValues.published !== false &&
-        parsedValues.archived !== true
+        parsedValues.archived !== true;
+      if (
+        contributorEditsLiveProduct &&
+        LIVE_ROW_FIELDS.some(
+          (field) =>
+            Object.hasOwn(parsedValues, field) &&
+            !sameFieldValue(parsedValues[field], before[field]),
+        )
+      )
+        return err(
+          'FORBIDDEN',
+          'Only an admin can change the category, URL or SKU of a live product.',
+        );
+      const editValues =
+        contributorEditsLiveProduct && before
           ? contributorDraftEdit(before, parsedValues)
           : parsedValues;
       const values =

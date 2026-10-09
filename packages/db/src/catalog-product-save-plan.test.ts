@@ -317,6 +317,23 @@ test('publishing a manual product needs its approved version, like a synced one 
   assert.equal(planCatalogProductSave(manualProduct(), ungated, 'now').result, 'ready');
 });
 
+test('a leftover Headphones category cleared by the save does not block publishing an approved product', () => {
+  // Approval fingerprinted the stored row, stale category included; the
+  // publish write clears that category (legacy cleanup) and must still pass.
+  const approved = approvedNow(manualProduct({ productFamily: 'toys', category: 'wired' }));
+  const published = planCatalogProductSave(approved, publishManual, 'now');
+  assert.equal(published.result, 'ready');
+  if (published.result === 'ready') {
+    assert.equal(published.doc.published, true);
+    assert.equal(published.doc.category, '');
+  }
+  // Any other change still needs a new approval.
+  assert.equal(
+    planCatalogProductSave({ ...approved, name: 'Renamed' }, publishManual, 'now').result,
+    'invalid-product',
+  );
+});
+
 test('a price change saved on a published product waits for approval instead of being refused (MIU-31)', () => {
   for (const linked of [false, true]) {
     const product = approvedNow(

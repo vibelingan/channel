@@ -356,17 +356,31 @@ test('creating a product as Published saves a draft, then approves and publishes
 });
 
 test('when publishing the new product fails, the draft is kept and the error says so', async (t) => {
-  manualApi(t, {});
+  let current: Record<string, unknown> = {};
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    if (body.action === 'create') current = { _id: 'draft-1', ...(body.data?.values as object) };
+    if (body.action === 'catalogDetailApproval')
+      return Response.json({
+        ok: false,
+        error: {
+          code: 'CONFLICT',
+          message: 'The product images are missing or busy. Confirm the gallery before approval.',
+        },
+      });
+    const data = body.action === 'catalogDetailCapabilities' ? { enabled: true } : current;
+    return Response.json({ ok: true, data });
+  });
   const failure = await createRecord('products', {
     name: 'Kids headset',
     productFamily: 'headphones',
-    imageIds: [],
+    imageIds: ['legacy-image'],
     published: true,
   }).catch((error: unknown) => error);
   assert.ok(failure instanceof DraftSavedError);
-  assert.equal(failure.draft._id, 'canonical-product');
-  assert.match(failure.message, /Saved as a draft/);
-  assert.match(failure.message, /Add at least one product image before publishing/);
+  assert.equal(failure.draft._id, 'draft-1');
+  assert.equal(failure.draft.published, false);
+  assert.match(failure.message, /^Saved as a draft, not published: The product images are missing/);
 });
 
 test('a draft is created in one request', async (t) => {
@@ -394,4 +408,33 @@ test('a contributor save goes straight to the server, which keeps it as a draft 
     ['catalogDetailCapabilities', 'update'],
   );
   assert.deepEqual(calls.at(-1)?.data?.values, values);
+});
+
+test('a category change on a published product waiting for review also clears its flag after approval', async (t) => {
+  const api = manualApi(t, {
+    productFamily: 'headphones',
+    imageIds: ['img'],
+    published: true,
+    alibabaReviewPending: true,
+    alibabaReviewReason: 'edited',
+  });
+  await updateRecord('products', 'canonical-product', { productFamily: 'toys' });
+  assert.ok(api.calls.includes('approval:approve'));
+  assert.deepEqual(api.updates.at(-1)?.values, { published: true }, 'acknowledges the review');
+});
+
+test('creating a product as Published without a photo is refused before anything is saved', async (t) => {
+  const api = manualApi(t, {});
+  await assert.rejects(
+    createRecord('products', {
+      name: 'Kids headset',
+      productFamily: 'headphones',
+      published: true,
+    }),
+    (error: unknown) =>
+      error instanceof Error &&
+      !(error instanceof DraftSavedError) &&
+      /Add at least one product image before publishing/.test(error.message),
+  );
+  assert.deepEqual(api.calls, []);
 });

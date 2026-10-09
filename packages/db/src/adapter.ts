@@ -39,6 +39,7 @@ export { planProductSubcategorySave } from './product-subcategory-save.ts';
 export {
   ALIBABA_PRODUCT_LINK_LIMIT,
   alibabaLinkRevision,
+  flagForReview,
   runAlibabaProductMutation,
   type AlibabaProductLinkIdentity,
   type AlibabaProductMutationInput,
@@ -229,6 +230,9 @@ export function planCatalogProductSave(
   // stale value after moving to another family. Clear it in the transaction on the
   // next write so unrelated edits stay possible and no caller must know old storage
   // cleanup rules. Empty string is the established clear sentinel for patch writes.
+  // The category as the row had it, for the approval check below: approval
+  // fingerprinted the stored row, before this cleanup.
+  const categoryBeforeCleanup = doc.category;
   if (
     isProductFamily(doc.productFamily) &&
     doc.productFamily !== 'headphones' &&
@@ -250,7 +254,9 @@ export function planCatalogProductSave(
     if (
       !receipt ||
       typeof receipt !== 'object' ||
-      Reflect.get(receipt, 'contentFingerprint') !== publicationContentFingerprint(doc)
+      (Reflect.get(receipt, 'contentFingerprint') !== publicationContentFingerprint(doc) &&
+        Reflect.get(receipt, 'contentFingerprint') !==
+          publicationContentFingerprint({ ...doc, category: categoryBeforeCleanup }))
     )
       issues.push({
         field: 'published',

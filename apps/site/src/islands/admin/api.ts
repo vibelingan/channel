@@ -290,6 +290,15 @@ export async function createRecord(
 ): Promise<CollectionDoc> {
   if (collection !== 'products' || values.published !== true)
     return call<CollectionDoc>('create', { collection, values });
+  // Publishing needs a category and a photo: say so in the form, before a
+  // draft exists.
+  if (!isProductFamily(values.productFamily))
+    throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
+  if (!Array.isArray(values.imageIds) || values.imageIds.length === 0)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'Add at least one product image before publishing.',
+    );
   // A new product has no approved version, so it starts as a draft and
   // publishing it is an approval, like any other product (MIU-37).
   const draft = await call<CollectionDoc>('create', {
@@ -417,7 +426,7 @@ export async function updateRecord(
         }
         const { approveProduct } = await import('./catalog-detail-approval-api.ts');
         await approveProduct(id);
-        if (refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
+        if (refreshPublishedDetail) return refreshedProduct(collection, id);
         return call<CollectionDoc>('update', {
           collection,
           id,
@@ -433,6 +442,18 @@ export async function updateRecord(
     values,
     ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
   });
+}
+
+/**
+ * A live product after its approval was refreshed. A review flag on it is
+ * cleared the way a publish clears it (DEC-11); "Changed" stays while a
+ * supplier change still needs a decision (DEC-19).
+ */
+async function refreshedProduct(collection: string, id: string): Promise<CollectionDoc> {
+  const latest = await call<CollectionDoc>('get', { collection, id });
+  return latest.published === true && latest.alibabaReviewPending === true
+    ? call<CollectionDoc>('update', { collection, id, values: { published: true } })
+    : latest;
 }
 
 /**
@@ -471,7 +492,7 @@ async function approveManualProduct(
   }
   const { approveProduct } = await import('./catalog-detail-approval-api.ts');
   await approveProduct(id);
-  if (options.refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
+  if (options.refreshPublishedDetail) return refreshedProduct(collection, id);
   return call<CollectionDoc>('update', {
     collection,
     id,
