@@ -67,7 +67,7 @@ export function AlibabaPhotoPreparation({ status, progress, running, onRun }: Pr
             ? ` · ${plural(progress.busy, 'draft', 'drafts')} changed meanwhile, next pass`
             : ''}
           {progress.waiting > 0
-            ? ` · ${plural(progress.waiting, 'draft', 'drafts')} waiting to try again in 10 minutes`
+            ? ` · ${plural(progress.waiting, 'draft', 'drafts')} waiting to try again in 10 minutes (while this page stays open, or at the next sync)`
             : ''}
         </p>
       )}

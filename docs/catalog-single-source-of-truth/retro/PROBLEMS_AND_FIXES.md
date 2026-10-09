@@ -140,6 +140,9 @@ would have reached the live site.
 | Batch 5b | P2 | A product with an old Headphones category could never be published from the row switch or batch | Gate accepts the pre-cleanup category |
 | Batch 5b | P2 | A contributor's change to family, category, slug or SKU went live at once | Contributors can't change these on a live product |
 | PT-G | 5 × P2 | Missing photos never retried; an all-fail refresh dropped photos; approval mid-copy; removed image; emptied list | All fixed in `7e3a4c8` before deploy |
+| MIU-55 | P1 | A hidden draft approved or published before its photos landed stayed hidden from the admin list for good (every photo run refused to touch a live product) | The next run clears only the hidden flag |
+| MIU-55 | P2 | A refresh whose new photos were all unavailable silently made the gallery "the admin's", so later Alibaba changes were ignored | Marker records the photos kept |
+| MIU-55 | P2 | The page promised "try again in 10 minutes" but nothing scheduled it | The open Sync page reruns after 10 minutes; text says so |
 
 ## 3. Difficulties running things in production
 

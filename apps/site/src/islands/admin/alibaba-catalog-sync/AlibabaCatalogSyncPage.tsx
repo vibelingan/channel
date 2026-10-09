@@ -71,6 +71,9 @@ const CALLBACK_NOTICES = new Map<string, string>([
   ['error-exchange-failed', 'Authorization failed at the token exchange. Start the flow again.'],
 ]);
 
+/** The photo job tries a waiting photo again after 10 minutes; a little margin. */
+const PHOTO_RETRY_AFTER_MS = 10.5 * 60 * 1000;
+
 export function callbackNotice(search: string): string | null {
   const value = new URLSearchParams(search).get('alibaba');
   if (!value) return null;
@@ -174,6 +177,15 @@ export function AlibabaCatalogSyncPage() {
     running: false,
     again: null,
   });
+  // Products waiting on a photo are tried again once the wait is over, while
+  // this page stays open (the sync has no timer; see the photo section).
+  const photoRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (photoRetry.current) clearTimeout(photoRetry.current);
+    },
+    [],
+  );
   const refreshPhotoStatus = useCallback(async () => {
     try {
       const next = await fetchPhotoPreparationStatus();
@@ -192,6 +204,8 @@ export function AlibabaCatalogSyncPage() {
       }
       run.running = true;
       setPhotosRunning(true);
+      if (photoRetry.current) clearTimeout(photoRetry.current);
+      photoRetry.current = null;
       let next: 'pending' | 'all' | null = scope;
       let retriedBusy = false;
       try {
@@ -219,6 +233,11 @@ export function AlibabaCatalogSyncPage() {
           await refreshPhotoStatus();
           next = run.again;
         }
+        if (total && total.waiting > 0)
+          photoRetry.current = setTimeout(
+            () => void runPhotoPreparationRef.current?.('all'),
+            PHOTO_RETRY_AFTER_MS,
+          );
       } catch (error) {
         setNotice(
           `Photo copying stopped: ${error instanceof Error ? error.message : 'unknown error'}. It continues after the next sync or with Copy photos now.`,

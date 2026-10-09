@@ -163,12 +163,13 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
   });
   // New drafts appear once their photos are prepared (PT-G), as after a real
   // sync. Photos stored above are reused; this disposable lane never fetches
-  // from Alibaba, so any other photo is noted as not copied.
+  // from Alibaba, so any other photo counts as one Alibaba cannot provide
+  // (skipped), never as a passing failure that would keep a draft hidden.
   let afterProductId = '';
   for (;;) {
     const page = await prepareAlibabaPhotosPage({
       afterProductId,
-      importImage: async () => ({ ok: false, reason: 'fetch-failed' }),
+      importImage: async () => ({ ok: false, reason: 'not-found' }),
     });
     if (page.done) break;
     afterProductId = page.nextProductId;

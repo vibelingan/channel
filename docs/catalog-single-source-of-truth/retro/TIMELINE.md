@@ -146,4 +146,9 @@ owner's only test environment).
 - `5fd7752`: one product, one unit (below and in DESIGN_AS_BUILT.md);
   formal browser lane 8/8 including a new test that publishes a prepared
   Alibaba draft through "Assign category → Save and publish". Validation
-  green; deploy next.
+  green.
+- 07:50–08:30 Independent review of `5fd7752` before deploying: one P1 (a
+  hidden draft approved before its photos landed would stay out of the admin
+  list), two P2 (an all-unavailable refresh stopped following Alibaba; the
+  10-minute retry was not scheduled). All fixed with tests, then validated
+  again (see EXECUTION_LOG "Review of MIU-55 and the fixes").

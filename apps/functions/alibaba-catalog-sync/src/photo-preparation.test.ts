@@ -60,8 +60,16 @@ class MemoryAdapter implements DbAdapter {
   async create(): Promise<CollectionDoc> {
     throw new Error('not used');
   }
-  async update(): Promise<CollectionDoc | null> {
-    throw new Error('not used');
+  async update(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<CollectionDoc | null> {
+    const docs = this.docs(collection);
+    const index = docs.findIndex((doc) => doc._id === id);
+    if (index < 0) return null;
+    docs[index] = { ...(docs[index] as CollectionDoc), ...data };
+    return structuredClone(docs[index] as CollectionDoc);
   }
   async remove(): Promise<boolean> {
     return false;
@@ -145,7 +153,7 @@ function draft(id: string, overrides: Partial<CollectionDoc> = {}): CollectionDo
 function fakeImporter(
   store: Store,
   failing: string[] = [],
-  reason: 'fetch-failed' | 'not-found' = 'fetch-failed',
+  reason: 'fetch-failed' | 'not-found' | 'write-failed' = 'fetch-failed',
 ) {
   const calls: string[] = [];
   const importImage = async (source: string): Promise<MediaImportResult> => {
@@ -347,6 +355,78 @@ test('prepare: when every photo is unavailable, the draft is shown without photo
   const a = store.products?.[0] as CollectionDoc;
   assert.equal(a.alibabaPhotosPending, false, 'never hidden for good');
   assert.equal(a.imageIds, undefined);
+});
+
+test('prepare: a refresh whose new photos are all unavailable keeps the old ones and still follows Alibaba', async () => {
+  const filled = draft('a', {
+    imageIds: ['img-a-g1'],
+    alibabaSourceImageUrls: [url('a-g9')],
+    alibabaDescriptionImageUrls: [],
+    alibabaPhotosPending: true,
+    alibabaAutoPhotos: {
+      gallery: { sources: [url('a-g1')], imageIds: ['img-a-g1'], unusable: [], missing: [] },
+    },
+  });
+  const store: Store = { products: [filled] };
+  setAdapter(new MemoryAdapter(store));
+  const page = await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['a-g9'], 'not-found').importImage,
+  });
+  assert.equal(page.prepared, 1);
+  const a = () => store.products?.[0] as CollectionDoc;
+  assert.deepEqual(a().imageIds, ['img-a-g1']);
+  assert.equal(a().alibabaPhotosPending, false);
+  assert.deepEqual(Reflect.get(a().alibabaAutoPhotos as object, 'gallery'), {
+    sources: [url('a-g9')],
+    imageIds: ['img-a-g1'],
+    unusable: [url('a-g9')],
+    missing: [],
+  });
+  assert.equal(photoPreparationPlan(a()), null, 'nothing to do until Alibaba changes again');
+  // Alibaba's next change is still the sync's to follow.
+  assert.deepEqual(
+    photoPreparationPlan({ ...a(), alibabaSourceImageUrls: [url('a-g10')] })?.parts.map(
+      (part) => part.part,
+    ),
+    ['gallery'],
+  );
+});
+
+test('prepare: a hidden product approved or published before its photos landed is shown again', async () => {
+  for (const state of [
+    { published: true, catalogDetailApprovalReceipt: { contentFingerprint: 'x' } },
+    { catalogDetailApprovalReceipt: { contentFingerprint: 'x' } },
+    { archived: true },
+  ]) {
+    const store: Store = { products: [draft('a', { alibabaPhotosPending: true, ...state })] };
+    setAdapter(new MemoryAdapter(store));
+    const importer = fakeImporter(store);
+    const page = await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+    assert.equal(page.prepared, 1, JSON.stringify([state, page.failures]));
+    assert.equal(page.failures.length, 0);
+    assert.equal(page.busy, 0);
+    const a = store.products?.[0] as CollectionDoc;
+    assert.equal(a.alibabaPhotosPending, false, 'back in the admin list');
+    assert.equal(a.imageIds, undefined, 'its photos are not touched');
+    assert.equal(a.alibabaAutoPhotos, undefined);
+    assert.deepEqual(importer.calls, [], 'nothing copied');
+  }
+});
+
+test('prepare: a failure in our own storage never counts toward giving a photo up', async () => {
+  const store: Store = { products: [draft('a', { alibabaPhotosPending: true })] };
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store, ['a-g2'], 'write-failed');
+  for (let tries = 0; tries < 8; tries += 1) {
+    const at = tries * 11;
+    const page = await prepareAlibabaPhotosPage({
+      importImage: importer.importImage,
+      now: () => new Date(Date.now() + at * 60 * 1000).toISOString(),
+    });
+    assert.equal(page.waiting, 1, `try ${tries + 1}`);
+  }
+  assert.equal(importer.calls.filter((call) => call === url('a-g2')).length, 8);
+  assert.equal((store.products?.[0] as CollectionDoc).alibabaPhotosPending, true);
 });
 
 test('prepare: a refresh with a passing failure keeps the old photos and keeps following Alibaba', async () => {

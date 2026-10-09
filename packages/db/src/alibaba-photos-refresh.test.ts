@@ -46,3 +46,24 @@ test('nothing hides when the photos did not change, are the admin’s, or the pr
   ])
     assert.deepEqual(photosRefresh(draft(state), newGallery), {});
 });
+
+test('a change the photo job would not act on does not hide the draft', () => {
+  const nine = Array.from({ length: 9 }, (_, index) => `https://sc04.alicdn.com/g${index}.jpg`);
+  const filled = draft({
+    alibabaSourceImageUrls: nine,
+    imageIds: undefined,
+    alibabaAutoPhotos: undefined,
+  });
+  // Only past the 9 gallery photos the job copies.
+  assert.deepEqual(
+    photosRefresh(filled, { alibabaSourceImageUrls: [...nine, 'https://sc04.alicdn.com/g9.jpg'] }),
+    {},
+  );
+  // The same photo, now addressed over HTTPS.
+  assert.deepEqual(
+    photosRefresh(draft({ alibabaSourceImageUrls: ['http://sc04.alicdn.com/a.jpg'] }), {
+      alibabaSourceImageUrls: ['https://sc04.alicdn.com/a.jpg'],
+    }),
+    {},
+  );
+});

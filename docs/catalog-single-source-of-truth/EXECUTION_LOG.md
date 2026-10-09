@@ -132,6 +132,30 @@ paired with the MOQ. Names are truncated as captured.
   now").
 - Retro docs started: [retro/](retro/README.md).
 
+### Review of MIU-55 and the fixes (2026-10-09)
+- One reviewer on `5fd7752`: one P1, two P2, three P3, each reproduced
+  with a scratch test or the e2e seed. Fixed before deploying:
+  - P1: a hidden draft approved, published or archived before its photos
+    landed stayed hidden from the admin list for good: the photo job's save
+    refuses anything that is not an unapproved draft, so it counted "busy"
+    forever. Now the job clears only the hidden flag of such a product (a
+    one-field write; a full save would re-check a live product it does not
+    change). Test covers published, approved and archived.
+  - P2: when a refresh found every new photo of a part unavailable, the
+    field kept its old photos but the marker recorded none, so the part
+    looked admin-owned and stopped following Alibaba. The marker now records
+    the photos kept. Test includes Alibaba's next change.
+  - P2: "waiting to try again in 10 minutes" was not scheduled. The open
+    Sync page now reruns about 10 minutes after a run that left products
+    waiting, and the text says "while this page stays open, or at the next
+    sync".
+  - P3 fixed: `photosRefresh` compares sources the way the job reads them
+    (normalized, first 9/18), so changes it would not act on don't hide a
+    draft; a failure in our own storage (`write-failed`) never counts toward
+    the 6 tries; the e2e seed's stub uses `not-found` so it can never keep a
+    fixture draft hidden.
+- Each new test fails with its fix removed (checked).
+
 
 ### PT-G — Alibaba photos copied ahead; drafts appear ready (2026-10-09)
 - Owner: photos come with the product and its single approval; they should

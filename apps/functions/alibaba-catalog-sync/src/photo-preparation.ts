@@ -37,6 +37,7 @@ import {
   list,
   releaseImageMutation,
   saveCatalogProductWithIdentities,
+  updateDoc,
   upsertDocWithId,
 } from '@vibelingan-channel/db';
 import {
@@ -264,7 +265,8 @@ async function copySources(
             kind: 'copied' as const,
             downloaded: true,
           };
-        const attempts = known.attempts + 1;
+        // A failure on our side (storage) says nothing about the photo.
+        const attempts = imported.reason === 'write-failed' ? known.attempts : known.attempts + 1;
         // Remembered, so other drafts and the next tries know without fetching.
         await upsertDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', url), {
           kind: 'media',
@@ -354,6 +356,14 @@ async function prepareProduct(
   now: () => string,
   counts: PhotoPreparationPage,
 ): Promise<ProductOutcome> {
+  if (!eligible(product)) {
+    // Hidden, then approved, published, archived or unlinked before its photos
+    // landed: only the flag is cleared so it is back in the admin list; its
+    // photos and everything else stay as they are. A one-field write, because
+    // a full product save would re-check a live product it does not change.
+    await updateDoc('products', product._id, { alibabaPhotosPending: false });
+    return 'prepared';
+  }
   if (typeof product.updatedAt !== 'string') return { failure: 'no-revision' };
   // Copy everything first: the product is saved only when every photo is in
   // or known to be unavailable (one product, one unit).
@@ -372,7 +382,11 @@ async function prepareProduct(
       ...new Set(states.flatMap((state) => (typeof state === 'object' ? [state.imageId] : []))),
     ];
     const unusable = part.sources.filter((_, index) => states[index] === 'unusable');
-    const recorded = part.field === null ? [] : ids;
+    // Nothing usable from the new sources: the field keeps what it had and the
+    // marker records exactly that, so the part stays the sync's and follows
+    // Alibaba's next change.
+    const recorded =
+      part.field === null ? [] : ids.length > 0 ? ids : (strings(product[part.field]) ?? []);
     const earlier = autoPart(product, part.part);
     if (
       earlier &&

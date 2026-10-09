@@ -174,9 +174,19 @@ everything is in. An admin never sees a half-prepared draft.
 
 **When the photo job runs.** After every sync started from the Alibaba Sync
 page (Run now, Create missing drafts, sync one product), when that page
-opens (hidden drafts only), and on "Copy photos now". The 15-minute sync
-timer is off, so a waiting product is retried only when one of these
-happens; nothing retries it while nobody uses the Sync page.
+opens (hidden drafts only), on "Copy photos now", and, while the page stays
+open, again about 10 minutes after a run that left products waiting. The
+15-minute sync timer is off, so nothing retries while nobody has the Sync
+page open.
+
+**Edge cases settled in review (MIU-55).** A hidden draft that an admin
+approves, publishes or archives before its photos land gets only its hidden
+flag cleared on the next run, so it returns to the admin list unchanged. A
+part whose new Alibaba photos are all unavailable keeps its old photos and
+stays the sync's, so Alibaba's next change still updates it. A failure in
+our own storage never counts toward giving a photo up. A source change the
+job would not act on (beyond the first 9/18, or http → https) does not hide
+the draft.
 
 **Limits.** Gallery: first 9 photos. Description: first 18; more are listed
 in Edit and can be added one by one. Configuration photos are copied (not
@@ -208,7 +218,12 @@ hour in total. Rollback = move `test` back and redeploy.
 - Panel follow-ups: Alibaba description previews don't load; an old notice
   overlaps the panel; it loads in 5–10 s.
 - The sync timer is off, so "Removed" and new drafts are noticed only when
-  someone runs a sync; photo copying runs from the Sync page.
+  someone runs a sync; photo copying and its 10-minute retries run only from
+  the Sync page. This is deliberate: the deploy refuses any function timer
+  (see `docs/alibaba-linked-catalog-sync/BACKLOG.md`, "Re-scoped
+  2026-08-07"). Automatic retries with nobody on the page need a timer, which
+  is the owner's decision (deploy change: apply the timer and assert exactly
+  that one).
 - Dianxiaomi import `makePublic` publishes without approval (task offered).
 - Hermes / WeCom importer: should create drafts (OWN-2), not investigated now.
 - Faster, tag-based deploys (deferred by the owner until this ships).

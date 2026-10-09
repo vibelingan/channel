@@ -113,7 +113,11 @@ test('the Product photos section says what is left and what happens automaticall
   assert.ok(markup.includes('240 photos copied'));
   assert.ok(markup.includes('3 could not be copied'));
   assert.ok(markup.includes('4 drafts with photos Alibaba could not provide (skipped)'));
-  assert.ok(markup.includes('2 drafts waiting to try again in 10 minutes'));
+  assert.ok(
+    markup.includes(
+      '2 drafts waiting to try again in 10 minutes (while this page stays open, or at the next sync)',
+    ),
+  );
   assert.ok(markup.includes('1 draft could not be saved'));
   assert.ok(markup.includes('p-7'));
   assert.match(markup, /<button[^>]*disabled=""[^>]*>Copying photos…<\/button>/);
@@ -138,4 +142,11 @@ test('the sync page copies photos automatically after every sync and finishes hi
   assert.match(source, /finally \{\s*void runPhotoPreparationRef\.current\?\.\('all'\);/);
   assert.match(source, /hiddenDrafts > 0\) void runPhotoPreparation\('pending'\)/);
   assert.match(source, /onRun=\{\(\) => void runPhotoPreparation\('all'\)\}/);
+  // Products waiting on a photo are tried again while the page stays open.
+  assert.match(
+    source,
+    /if \(total && total\.waiting > 0\)\s*photoRetry\.current = setTimeout\(\s*\(\) => void runPhotoPreparationRef\.current\?\.\('all'\),\s*PHOTO_RETRY_AFTER_MS,/,
+  );
+  assert.match(source, /const PHOTO_RETRY_AFTER_MS = 10\.5 \* 60 \* 1000;/);
+  assert.match(source, /clearTimeout\(photoRetry\.current\)/);
 });

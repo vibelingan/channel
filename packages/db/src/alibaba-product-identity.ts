@@ -1,4 +1,9 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import {
+  type CollectionDoc,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  PRODUCT_IMAGE_MAX_COUNT,
+  alibabaPhotoSources,
+} from '@vibelingan-channel/shared';
 import {
   createAlibabaPricingAdapter,
   resolveManualCatalogPricing,
@@ -136,8 +141,18 @@ const draftFields = new Set([
 ]);
 
 const PHOTO_SOURCE_PARTS = [
-  { field: 'imageIds', sources: 'alibabaSourceImageUrls', part: 'gallery' },
-  { field: 'descriptionImageIds', sources: 'alibabaDescriptionImageUrls', part: 'description' },
+  {
+    field: 'imageIds',
+    sources: 'alibabaSourceImageUrls',
+    part: 'gallery',
+    limit: PRODUCT_IMAGE_MAX_COUNT,
+  },
+  {
+    field: 'descriptionImageIds',
+    sources: 'alibabaDescriptionImageUrls',
+    part: 'description',
+    limit: PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  },
 ] as const;
 
 /**
@@ -155,9 +170,14 @@ export function photosRefresh(product: CollectionDoc, patch: Record<string, unkn
   )
     return {};
   const auto = product.alibabaAutoPhotos;
-  const refreshes = PHOTO_SOURCE_PARTS.some(({ field, sources, part }) => {
+  const refreshes = PHOTO_SOURCE_PARTS.some(({ field, sources, part, limit }) => {
     if (!Object.hasOwn(patch, sources)) return false;
-    if (JSON.stringify(patch[sources] ?? []) === JSON.stringify(product[sources] ?? []))
+    // Compared as the photo job reads them (normalized, first `limit`), so a
+    // change it would not act on does not hide the draft.
+    if (
+      JSON.stringify(alibabaPhotoSources(patch[sources], limit)) ===
+      JSON.stringify(alibabaPhotoSources(product[sources], limit))
+    )
       return false;
     const filled = auto && typeof auto === 'object' ? Reflect.get(auto, part) : undefined;
     const filledIds =
