@@ -156,6 +156,12 @@ paired with the MOQ. Names are truncated as captured.
     Accepted: up to one admin preview request per unpublished row whose
     gallery an admin changed (few rows in practice); the shared cache holds
     the 60 most recently added previews.
+- CI on `9e52965` failed in "Build and smoke" on public product-page tests
+  (gallery scroll position off by 42 px; quote form country field empty at
+  mobile sizes). Neither page is touched by the commit, no seed or fixture is
+  a GIF, the same tests passed locally on the same code and on every earlier
+  run today; treated as a runner timing failure. `37d421e` (review fixes)
+  replaced the queued deploy and re-runs CI; watched.
 - 403 change (`288b6f5`) live 09:23 UTC; photo pass 09:24: the clock
   product saved with its two refused photos marked unavailable; status 0
   hidden, 0 waiting, 4 drafts with skipped gallery/description photos (3 by
