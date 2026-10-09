@@ -33,24 +33,13 @@ export const PENDING_SUPPLIER_CHANGE_NOTICE = {
     'This product was removed on Alibaba since the last approval. Saving keeps it live with its last Alibaba data.',
 } as const;
 
-/** [products with pending Alibaba changes, the rest], each in the given order. */
-export function splitPendingSupplierChanges(
+/**
+ * Batch Publish skips products with Alibaba changes to review, live or not:
+ * each is reviewed in its edit form (DEC-19). [skipped, the rest], in order.
+ */
+export function splitForBatchPublish(
   docs: readonly CollectionDoc[],
 ): [CollectionDoc[], CollectionDoc[]] {
-  return [
-    docs.filter((doc) => pendingSupplierChange(doc) !== null),
-    docs.filter((doc) => pendingSupplierChange(doc) === null),
-  ];
-}
-
-/**
- * What batch Publish sends once the admin chose (MIU-35): every selected
- * product, or only those without pending Alibaba changes (the rest reported
- * as skipped).
- */
-export function batchPublishPlan(docs: readonly CollectionDoc[], choice: 'all' | 'others') {
-  const [flagged, others] = splitPendingSupplierChanges(docs);
-  return choice === 'all'
-    ? { ids: docs.map((doc) => doc._id), skipped: [] as string[] }
-    : { ids: others.map((doc) => doc._id), skipped: flagged.map((doc) => doc._id) };
+  const flagged = (doc: CollectionDoc) => ['Changed', 'Removed'].includes(String(reviewLabel(doc)));
+  return [docs.filter(flagged), docs.filter((doc) => !flagged(doc))];
 }

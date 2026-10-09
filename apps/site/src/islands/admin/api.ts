@@ -1,10 +1,3 @@
-/**
- * Browser API client for the admin dashboard.
- *
- * All requests go to a single endpoint (`/api/admin`) using the same
- * `{ action, data, token }` protocol the cloud function and local-server speak.
- * The session token is shared with the rest of the site via `lib/session`.
- */
 import {
   type CatalogClassificationAssignmentRequest,
   CatalogClassificationAssignmentRequestSchema,
@@ -26,6 +19,17 @@ import {
   type SortClause,
   isProductFamily,
 } from '@vibelingan-channel/shared';
+/**
+ * Browser API client for the admin dashboard.
+ *
+ * All requests go to a single endpoint (`/api/admin`) using the same
+ * `{ action, data, token }` protocol the cloud function and local-server speak.
+ * The session token is shared with the rest of the site via `lib/session`.
+ */
+import {
+  type SupplierReview,
+  SupplierReviewSchema,
+} from '@vibelingan-channel/shared/catalog-supplier-review';
 import { z } from 'zod';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
@@ -74,6 +78,16 @@ async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Pr
 
 export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
   return call<unknown>('catalogDetailApproval', data, signal);
+}
+
+/** What changed at Alibaba for one product (DEC-19, DEC-20); read-only, admins only. */
+export async function fetchSupplierReview(productId: string): Promise<SupplierReview> {
+  const parsed = SupplierReviewSchema.safeParse(
+    await catalogApprovalCall({ action: 'supplier-review', productId }),
+  );
+  if (!parsed.success)
+    throw new AdminApiError('INVALID_RESPONSE', 'The supplier review could not be read.');
+  return parsed.data;
 }
 
 export function fetchCurrentUser(): Promise<{ user: SessionUser }> {

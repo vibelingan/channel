@@ -6,14 +6,9 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { ProductFamilyTab, ProductThumbnail } from './CollectionView.tsx';
-import { PendingChangesConfirm } from './PendingChangesConfirm.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import { RecordForm } from './RecordForm.tsx';
-import {
-  batchPublishPlan,
-  pendingSupplierChange,
-  splitPendingSupplierChanges,
-} from './review-reason.ts';
+import { pendingSupplierChange, splitForBatchPublish } from './review-reason.ts';
 
 const pending = {
   _id: 'p-new',
@@ -138,52 +133,45 @@ test('the preview chip names the reason; "Mark reviewed" is offered only for new
   assert.ok(preview({ alibabaReviewReason: 'new' }).includes('Mark reviewed'));
 });
 
-test('"Approve changes" appears only on a published product flagged changed, removed or edited (MIU-24)', () => {
+test('"Review changes" appears on a published product flagged changed, removed or edited (MIU-24, DEC-19)', () => {
   const preview = (extra: object) =>
     renderToStaticMarkup(
       createElement(PreviewModal, {
         doc: { ...pending, ...extra } as CollectionDoc,
         canMarkReviewed: true,
         onMarkReviewed: () => {},
-        onApproveChanges: () => {},
+        onReviewChanges: () => {},
         onUnpublish: () => {},
         onClose: () => {},
         onEdit: () => {},
       }),
     );
   const changed = preview({ published: true, alibabaReviewReason: 'changed' });
-  assert.ok(changed.includes('Approve changes'));
+  assert.ok(changed.includes('>Review changes<'));
+  assert.ok(!changed.includes('Approve changes'), 'approval happens in the edit form');
   assert.ok(
     changed.includes('href="/products/item/?id=p-new"'),
     'a link to compare with the live page',
   );
   assert.ok(!changed.includes('>Unpublish<'));
-  // DEC-18 (revised 2026-10-08): approval never takes supplier text or photos
-  // silently, so the preview promises nothing of the kind.
-  assert.ok(!changed.includes('new description'));
   const removed = preview({ published: true, alibabaReviewReason: 'removed' });
-  assert.ok(removed.includes('Approve changes'));
+  assert.ok(removed.includes('>Review changes<'));
   assert.ok(removed.includes('>Unpublish<'), 'a removed source can also be taken offline');
   // Unpublished or new products use Publish / Mark reviewed instead.
   assert.ok(
-    !preview({ published: false, alibabaReviewReason: 'changed' }).includes('Approve changes'),
+    !preview({ published: false, alibabaReviewReason: 'changed' }).includes('Review changes'),
   );
-  assert.ok(!preview({ published: true, alibabaReviewReason: 'new' }).includes('Approve changes'));
-  assert.ok(!preview({ published: true, alibabaReviewPending: false }).includes('Approve changes'));
+  assert.ok(!preview({ published: true, alibabaReviewReason: 'new' }).includes('Review changes'));
+  assert.ok(!preview({ published: true, alibabaReviewPending: false }).includes('Review changes'));
 });
 
-test('"Approve changes" publishes through the full approval path', () => {
+test('"Review changes" opens the edit form, where the supplier changes are decided', () => {
   const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
-  // updateRecord with published: true runs prepare → begin/page/finish → publish
-  // for a linked product, and the server then clears the review flag (MIU-21).
   assert.match(
     source,
-    /approveChangesMutation = useMutation\(\{\s*mutationFn: \(productId: string\) =>\s*updateRecord\('products', productId, \{ published: true \}\)/,
+    /onReviewChanges=\{\(\) => \{\s*setEditing\(previewing\);\s*setPreviewing\(null\);\s*\}\}/,
   );
-  assert.match(
-    source,
-    /onApproveChanges=\{\(\) => approveChangesMutation\.mutate\(previewing\._id\)\}/,
-  );
+  assert.ok(!source.includes('approveChangesMutation'), 'no approval straight from the preview');
 });
 
 test('a pending supplier change is a published product flagged changed or removed (DEC-12)', () => {
@@ -266,73 +254,31 @@ test('"See changes" opens a read-only preview, so nothing changes under the open
   assert.ok(element.includes('doc={changesPreview}'));
   // It still shows the supplier preview and the live-page link (review P2).
   assert.ok(element.includes('canMarkReviewed={canReviewAlibabaProducts}'));
-  for (const action of ['onApproveChanges', 'onUnpublish', 'onMarkReviewed'])
+  for (const action of ['onReviewChanges', 'onUnpublish', 'onMarkReviewed'])
     assert.ok(!element.includes(action), `${action} must not be offered over the form`);
 });
 
-test('batch Publish: who has pending Alibaba changes, and what each choice sends (MIU-35)', () => {
+test('batch Publish skips products with Alibaba changes to review, live or not (DEC-19)', () => {
   const live = { ...pending, _id: 'live', name: 'Live headset', published: true } as CollectionDoc;
-  const flagged = {
-    ...live,
-    _id: 'flagged',
-    name: 'Changed headset',
-    alibabaReviewReason: 'changed',
-  };
-  const draft = { ...pending, _id: 'draft', alibabaReviewReason: 'changed' } as CollectionDoc;
-  const docs = [live, flagged, draft];
+  const flagged = { ...live, _id: 'flagged', alibabaReviewReason: 'changed' } as CollectionDoc;
+  const removedDraft = {
+    ...pending,
+    _id: 'removed-draft',
+    alibabaReviewReason: 'removed',
+  } as CollectionDoc;
+  const fresh = { ...pending, _id: 'fresh' } as CollectionDoc;
   assert.deepEqual(
-    splitPendingSupplierChanges(docs).map((group) => group.map((doc) => doc._id)),
-    [['flagged'], ['live', 'draft']],
+    splitForBatchPublish([live, flagged, removedDraft, fresh]).map((group) =>
+      group.map((doc) => doc._id),
+    ),
+    [
+      ['flagged', 'removed-draft'],
+      ['live', 'fresh'],
+    ],
   );
-  assert.deepEqual(batchPublishPlan(docs, 'all'), {
-    ids: ['live', 'flagged', 'draft'],
-    skipped: [],
-  });
-  assert.deepEqual(batchPublishPlan(docs, 'others'), {
-    ids: ['live', 'draft'],
-    skipped: ['flagged'],
-  });
-});
-
-test('the batch Publish confirmation is a modal dialog naming the products and the choices', () => {
-  const live = { ...pending, _id: 'live', name: 'Live headset', published: true } as CollectionDoc;
-  const flagged = {
-    ...live,
-    _id: 'flagged',
-    name: 'Changed headset',
-    alibabaReviewReason: 'changed',
-  };
-  const render = (docs: CollectionDoc[]) =>
-    renderToStaticMarkup(
-      createElement(PendingChangesConfirm, {
-        docs,
-        busy: false,
-        onPublishAll: () => {},
-        onPublishOthers: () => {},
-        onCancel: () => {},
-      }),
-    );
-  const html = render([live, flagged as CollectionDoc]);
-  assert.match(html, /^<dialog[^>]*aria-labelledby="pending-changes-title"/);
-  assert.ok(html.includes('Changed headset'));
-  assert.ok(!html.includes('Live headset'), 'only the products with pending changes are listed');
-  assert.ok(html.includes('Publishing also approves their pending Alibaba changes.'));
-  assert.ok(html.includes('>Publish all 2<'));
-  assert.ok(html.includes('>Publish the other 1 only<'));
-  assert.ok(html.includes('>Cancel<'));
-  const onlyFlagged = render([flagged as CollectionDoc]);
-  assert.ok(!onlyFlagged.includes('Publish the other'), 'nothing would be left to publish');
-});
-
-test('batch Publish opens the confirmation only for selections with pending changes', () => {
   const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
-  // No flagged product: one batch update with every selected id, as before.
-  assert.match(
-    source,
-    /splitPendingSupplierChanges\(docs\)\[0\]\.length > 0[\s\S]{0,120}setPublishConfirm\(\{ docs, names \}\);\s*return;\s*\}\s*batchUpdateMutation\.mutate\(\{ ids: selectedIds, values, names \}\);/,
-  );
-  assert.match(source, /batchPublishPlan\(publishConfirm\.docs, 'all'\)/);
-  assert.match(source, /batchPublishPlan\(publishConfirm\.docs, 'others'\)/);
+  assert.match(source, /splitForBatchPublish\(docs\)/);
+  assert.match(source, /setSkippedOnly\(\{ skipped, names \}\)/, 'nothing left: no request');
   const feedback = renderToStaticMarkup(
     createElement(BatchUpdateFeedback, {
       result: { updated: 1, items: [], failures: [] },
@@ -343,6 +289,7 @@ test('batch Publish opens the confirmation only for selections with pending chan
     }),
   );
   assert.ok(feedback.includes('1 published'));
-  assert.ok(feedback.includes('Skipped (pending Alibaba changes)'));
+  assert.ok(feedback.includes('Skipped (Alibaba changes to review)'));
   assert.ok(feedback.includes('Changed headset'));
+  assert.ok(feedback.includes('Open each in Edit'));
 });

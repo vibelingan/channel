@@ -12,23 +12,37 @@ import {
   readProductSubcategories,
   validateProductSubcategories,
 } from '@vibelingan-channel/shared';
+import {
+  type ConfigurationPhotos,
+  ConfigurationPhotosSchema,
+  type SupplierReview,
+  type SupplierReviewPart,
+  type SupplierReviewPartName,
+} from '@vibelingan-channel/shared/catalog-supplier-review';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
 import { ImageViewer, PreviewImageContent } from './ImageViewer.tsx';
 import { ProductPricingEditor } from './ProductPricingEditor.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
 import { SavedClassificationSummary } from './SavedClassificationSummary.tsx';
+import { SupplierChangesPanel } from './SupplierChangesPanel.tsx';
 import {
   importAlibabaSourceImage,
   removeAlibabaImportedImage,
 } from './alibaba-catalog-sync/alibaba-api.ts';
 import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
-import { AdminApiError } from './api.ts';
+import { AdminApiError, fetchSupplierReview } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
-import { PENDING_SUPPLIER_CHANGE_NOTICE, pendingSupplierChange } from './review-reason.ts';
+import {
+  PENDING_SUPPLIER_CHANGE_NOTICE,
+  pendingSupplierChange,
+  reviewLabel,
+} from './review-reason.ts';
+import { type SupplierChoices, withSupplierChoices } from './supplier-review-ui.ts';
 import { taxonomyQuery } from './taxonomy-ui-state.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
 
@@ -45,6 +59,10 @@ interface RecordFormProps {
   onCancel: () => void;
   /** Opens the preview, which shows what changed on Alibaba (DEC-12). */
   onSeeChanges?: () => void;
+  /** Admins see the supplier review and configuration photos (DEC-19, DEC-20). */
+  canReviewSupplier?: boolean;
+  /** Why this record cannot be saved by the current user; Save is disabled. */
+  readOnlyReason?: string;
 }
 
 type FormState = Record<string, string | boolean>;
@@ -156,6 +174,8 @@ export function RecordForm({
   onSubmit,
   onCancel,
   onSeeChanges,
+  canReviewSupplier = false,
+  readOnlyReason,
 }: RecordFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
   const [localError, setLocalError] = useState('');
@@ -180,6 +200,36 @@ export function RecordForm({
   const supplierChange =
     initial && state.published !== false ? pendingSupplierChange(initial) : null;
   const supplierChangeId = useId();
+  // Supplier review (DEC-19) and configuration photos (DEC-20), admins only.
+  const linkedProductId =
+    collection.name === 'products' && initial && typeof initial.alibabaPrimarySourceKey === 'string'
+      ? initial._id
+      : undefined;
+  const [supplierReview, setSupplierReview] = useState<{
+    data?: SupplierReview;
+    isError?: boolean;
+  }>({});
+  useEffect(() => {
+    if (!canReviewSupplier || linkedProductId === undefined) return;
+    let cancelled = false;
+    fetchSupplierReview(linkedProductId).then(
+      (data) => {
+        if (!cancelled) setSupplierReview({ data });
+      },
+      () => {
+        if (!cancelled) setSupplierReview({ isError: true });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canReviewSupplier, linkedProductId]);
+  const [supplierChoices, setSupplierChoices] = useState<SupplierChoices>({});
+  const [supplierBusy, setSupplierBusy] = useState<SupplierReviewPartName | null>(null);
+  const [supplierError, setSupplierError] = useState('');
+  const [configurationPhotos, setConfigurationPhotos] = useState<ConfigurationPhotos>();
+  const flaggedForSupplier =
+    initial !== undefined && ['Changed', 'Removed'].includes(String(reviewLabel(initial)));
   const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
@@ -207,10 +257,15 @@ export function RecordForm({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || pricingInvalid || mappingInvalid || discardRequested) return;
+    if (busy || pricingInvalid || mappingInvalid || discardRequested || readOnlyReason) return;
     setLocalError('');
     try {
-      const values = coerceValues(collection, state, initial);
+      const values = withSupplierChoices(
+        coerceValues(collection, state, initial),
+        initial,
+        supplierChoices,
+        configurationPhotos,
+      );
       onSubmit(values);
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : 'Invalid input');
@@ -225,6 +280,65 @@ export function RecordForm({
   );
   const descriptionPreviewUrls = descriptionPreview.urls;
   const descriptionSourceOverflow = descriptionPreview.total > descriptionPreviewUrls.length;
+
+  const photoField = (part: SupplierReviewPartName) =>
+    part === 'gallery' ? 'imageIds' : 'descriptionImageIds';
+  function keepWebsite(part: SupplierReviewPart) {
+    // Undo an earlier "Use Alibaba's" in this form.
+    if (part.part === 'description') setField('description', part.website.text ?? '');
+    else setField(photoField(part.part), JSON.stringify(part.website.imageIds ?? []));
+    setSupplierChoices((current) => ({
+      ...current,
+      [part.part]: { choice: 'keep', incomingDigest: part.incomingDigest },
+    }));
+  }
+  async function useIncoming(part: SupplierReviewPart) {
+    setSupplierError('');
+    if (part.part === 'description') {
+      setField('description', part.incoming.text ?? '');
+    } else {
+      setSupplierBusy(part.part);
+      try {
+        const result = await importAlibabaGallery({
+          sourceUrls: part.incoming.urls ?? [],
+          maxItems: part.part === 'gallery' ? 9 : 18,
+          imageIds: [],
+          importImage: importAlibabaSourceImage,
+          onProgress: () => {},
+        });
+        setNewSourceImageIds((ids) => [...new Set([...ids, ...result.createdIds])]);
+        if (result.failures.length || result.remaining || result.imageIds.length === 0) {
+          setSupplierError('Some Alibaba photos could not be imported. Try again.');
+          return;
+        }
+        setField(photoField(part.part), JSON.stringify(result.imageIds));
+      } catch (importError) {
+        setSupplierError(
+          importError instanceof Error ? importError.message : 'Alibaba photo import failed.',
+        );
+        return;
+      } finally {
+        setSupplierBusy(null);
+      }
+    }
+    setSupplierChoices((current) => ({
+      ...current,
+      [part.part]: { choice: 'incoming', incomingDigest: part.incomingDigest },
+    }));
+  }
+  const galleryIds = (() => {
+    try {
+      const parsed: unknown = JSON.parse(String(state.imageIds || '[]'));
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  })();
+  const savedConfigurationPhotos = ConfigurationPhotosSchema.safeParse(
+    initial?.configurationPhotos ?? {},
+  );
 
   async function importSourceGallery(description = false) {
     const sourceUrls = description ? descriptionPreviewUrls : sourcePreviewUrls;
@@ -343,6 +457,32 @@ export function RecordForm({
           data-record-form-body
           className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
         >
+          {readOnlyReason && (
+            <p
+              role="note"
+              data-record-read-only
+              className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              {readOnlyReason}
+            </p>
+          )}
+          {flaggedForSupplier && supplierReview.data && (
+            <div className="mb-6">
+              <SupplierChangesPanel
+                review={supplierReview.data}
+                choices={supplierChoices}
+                busyPart={supplierBusy}
+                error={supplierError}
+                onKeep={keepWebsite}
+                onUseIncoming={(part) => void useIncoming(part)}
+              />
+            </div>
+          )}
+          {flaggedForSupplier && supplierReview.isError && (
+            <p role="alert" className="mb-4 text-sm text-red-700">
+              The Alibaba changes could not be loaded. Close and open the product again.
+            </p>
+          )}
           {sections.length > 0 ? (
             <div className="grid min-w-0 gap-6 lg:grid-cols-2">
               {sectionColumns
@@ -490,6 +630,19 @@ export function RecordForm({
                             {sourceImageNotice}
                           </output>
                         )}
+                        {section.heading === 'Media' && supplierReview.data && (
+                          <ConfigurationPhotosEditor
+                            configurations={supplierReview.data.configurations}
+                            galleryIds={galleryIds}
+                            value={
+                              configurationPhotos ??
+                              (savedConfigurationPhotos.success
+                                ? savedConfigurationPhotos.data
+                                : {})
+                            }
+                            onChange={setConfigurationPhotos}
+                          />
+                        )}
                       </fieldset>
                     ))}
                   </div>
@@ -602,7 +755,7 @@ export function RecordForm({
                 </button>
                 <button
                   type="submit"
-                  disabled={busy || pricingInvalid || mappingInvalid}
+                  disabled={busy || pricingInvalid || mappingInvalid || Boolean(readOnlyReason)}
                   aria-describedby={supplierChange ? supplierChangeId : undefined}
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
                 >

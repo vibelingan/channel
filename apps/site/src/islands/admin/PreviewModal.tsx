@@ -22,7 +22,7 @@ interface Props {
   reviewError?: Error | null;
   onMarkReviewed?: () => void;
   /** Approve a published product's flagged changes: the full approval, then publish (MIU-24). */
-  onApproveChanges?: () => void;
+  onReviewChanges?: () => void;
   /** Take a product whose source was removed offline. */
   onUnpublish?: () => void;
 }
@@ -39,7 +39,7 @@ export function PreviewModal({
   reviewBusy = false,
   reviewError = null,
   onMarkReviewed,
-  onApproveChanges,
+  onReviewChanges,
   onUnpublish,
 }: Props) {
   const dialogRef = useModalDialog();
@@ -367,14 +367,14 @@ export function PreviewModal({
                 >
                   Compare with the live page
                 </a>
-                {onApproveChanges && (
+                {onReviewChanges && (
                   <button
                     type="button"
                     disabled={reviewBusy}
-                    onClick={onApproveChanges}
+                    onClick={onReviewChanges}
                     className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {reviewBusy ? 'Approving…' : 'Approve changes'}
+                    Review changes
                   </button>
                 )}
               </>

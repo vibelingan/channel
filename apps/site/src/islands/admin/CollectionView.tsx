@@ -26,7 +26,6 @@ import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
 import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
-import { PendingChangesConfirm } from './PendingChangesConfirm.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import {
   type UnresolvedClassificationSnapshot,
@@ -55,7 +54,7 @@ import {
   adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
-import { batchPublishPlan, reviewLabel, splitPendingSupplierChanges } from './review-reason.ts';
+import { reviewLabel, splitForBatchPublish } from './review-reason.ts';
 import type { DashboardSection } from './sections.ts';
 import {
   savedProductSubcategories,
@@ -106,8 +105,9 @@ export function CollectionView({
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
-  const [publishConfirm, setPublishConfirm] = useState<{
-    docs: CollectionDoc[];
+  // Batch Publish where every selected product was skipped: no request, just the notice.
+  const [skippedOnly, setSkippedOnly] = useState<{
+    skipped: string[];
     names: Record<string, string>;
   } | null>(null);
   // "See changes" from the edit form: read-only, so nothing changes under the form.
@@ -294,15 +294,6 @@ export function CollectionView({
 
   const reviewMutation = useMutation({
     mutationFn: (productId: string) => markProductReviewed(productId),
-    onSuccess: (updated) => {
-      setPreviewing(updated);
-      invalidate();
-    },
-  });
-  // Approving a published product's flagged changes is publishing it again:
-  // the full approval, then publish; the server clears the flag (MIU-21, MIU-24).
-  const approveChangesMutation = useMutation({
-    mutationFn: (productId: string) => updateRecord('products', productId, { published: true }),
     onSuccess: (updated) => {
       setPreviewing(updated);
       invalidate();
@@ -824,12 +815,21 @@ export function CollectionView({
               rows.map((row) => [row._id, String(row.name ?? row._id)]),
             );
             const docs = rows.filter((row) => selectedIds.includes(row._id));
-            if (
-              isProducts &&
-              values.published === true &&
-              splitPendingSupplierChanges(docs)[0].length > 0
-            ) {
-              setPublishConfirm({ docs, names });
+            setSkippedOnly(null);
+            if (isProducts && values.published === true) {
+              // Products with Alibaba changes are reviewed one by one (DEC-19).
+              const [flagged, others] = splitForBatchPublish(docs);
+              const skipped = flagged.map((row) => row._id);
+              if (others.length === 0) {
+                setSkippedOnly({ skipped, names });
+                return;
+              }
+              batchUpdateMutation.mutate({
+                ids: others.map((row) => row._id),
+                values,
+                names,
+                ...(skipped.length ? { skipped } : {}),
+              });
               return;
             }
             batchUpdateMutation.mutate({ ids: selectedIds, values, names });
@@ -853,30 +853,13 @@ export function CollectionView({
         />
       )}
 
-      {publishConfirm && (
-        <PendingChangesConfirm
-          docs={publishConfirm.docs}
-          busy={recordWritePending}
-          onPublishAll={() => {
-            const { ids } = batchPublishPlan(publishConfirm.docs, 'all');
-            setPublishConfirm(null);
-            batchUpdateMutation.mutate({
-              ids,
-              values: { published: true },
-              names: publishConfirm.names,
-            });
-          }}
-          onPublishOthers={() => {
-            const { ids, skipped } = batchPublishPlan(publishConfirm.docs, 'others');
-            setPublishConfirm(null);
-            batchUpdateMutation.mutate({
-              ids,
-              values: { published: true },
-              names: publishConfirm.names,
-              skipped,
-            });
-          }}
-          onCancel={() => setPublishConfirm(null)}
+      {skippedOnly && (
+        <BatchUpdateFeedback
+          result={{ updated: 0, items: [], failures: [] }}
+          names={skippedOnly.names}
+          published
+          skipped={skippedOnly.skipped}
+          onDismiss={() => setSkippedOnly(null)}
         />
       )}
 
@@ -1082,6 +1065,13 @@ export function CollectionView({
           onCancel={() => setEditing(null)}
           onSubmit={(values) => updateMutation.mutate({ id: editing._id, values })}
           onSeeChanges={() => setChangesPreview(editing)}
+          canReviewSupplier={role === 'admin'}
+          {...(role !== 'admin' && ['Changed', 'Removed'].includes(String(reviewLabel(editing)))
+            ? {
+                readOnlyReason:
+                  'This product has Alibaba changes waiting for an admin’s review. Ask an admin to review it.',
+              }
+            : {})}
         />
       )}
 
@@ -1089,18 +1079,14 @@ export function CollectionView({
         <PreviewModal
           doc={previewing}
           canMarkReviewed={canReviewAlibabaProducts}
-          reviewBusy={
-            reviewMutation.isPending ||
-            approveChangesMutation.isPending ||
-            unpublishFromReviewMutation.isPending
-          }
-          reviewError={
-            (reviewMutation.error ??
-              approveChangesMutation.error ??
-              unpublishFromReviewMutation.error) as Error | null
-          }
+          reviewBusy={reviewMutation.isPending || unpublishFromReviewMutation.isPending}
+          reviewError={(reviewMutation.error ?? unpublishFromReviewMutation.error) as Error | null}
           onMarkReviewed={() => reviewMutation.mutate(previewing._id)}
-          onApproveChanges={() => approveChangesMutation.mutate(previewing._id)}
+          // Supplier changes are reviewed side by side in the edit form (DEC-19).
+          onReviewChanges={() => {
+            setEditing(previewing);
+            setPreviewing(null);
+          }}
           onUnpublish={() => unpublishFromReviewMutation.mutate(previewing._id)}
           onClose={() => setPreviewing(null)}
           onEdit={() => {

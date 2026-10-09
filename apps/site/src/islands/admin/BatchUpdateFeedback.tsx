@@ -4,7 +4,7 @@ interface Props {
   result: BatchUpdateResult;
   names: Record<string, string>;
   published?: boolean;
-  /** Ids the admin chose not to publish because of pending Alibaba changes. */
+  /** Ids left out of a batch Publish because their Alibaba changes need review (DEC-19). */
   skipped?: readonly string[];
   onDismiss: () => void;
 }
@@ -28,8 +28,8 @@ export function BatchUpdateFeedback({ result, names, published, skipped = [], on
       </div>
       {skipped.length > 0 && (
         <p className="mt-2">
-          Skipped (pending Alibaba changes): {skipped.map((id) => names[id] || id).join(', ')}. Open
-          each one's preview to review and approve its changes.
+          Skipped (Alibaba changes to review): {skipped.map((id) => names[id] || id).join(', ')}.
+          Open each in Edit to review its changes.
         </p>
       )}
       {hasFailures && (
