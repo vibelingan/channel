@@ -177,6 +177,12 @@ paired with the MOQ. Names are truncated as captured.
   nor one of the five created before provisioning existed (users,
   oemProjects, overstock, images, files — verified in production). The UI
   test's cleanup now logs a failure instead of hiding it.
+- Run 3 (`74d6687`, 14:38 UTC): both smoke tests passed and the new log
+  line showed the cleanup failure ("abandonUpload failed (500)"), as
+  expected: the deploy that creates the collections never ran — its CI job
+  hung 31 minutes installing the browsers and was cancelled, so production
+  stayed on `acd7ed8`. Redeployed with `18d2068` (also carries the import
+  approval fix).
 
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search

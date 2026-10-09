@@ -9,6 +9,7 @@ production checks). It is kept up to date while work continues.
 | [TIMELINE.md](TIMELINE.md) | What happened, day by day: what the owner asked, what was built, what went live |
 | [PROBLEMS_AND_FIXES.md](PROBLEMS_AND_FIXES.md) | Every problem we hit (product bugs, data, tooling, process): cause, what we tried, how it was resolved, lesson |
 | [DESIGN_AS_BUILT.md](DESIGN_AS_BUILT.md) | How the system works now, area by area, with the decisions behind it and what is still open |
+| [RETRO.md](RETRO.md) | The retrospective: business, workflow, technical, delivery and testing — what went well, what didn't, and where each lesson should live (proposals) |
 
 The detailed records stay where they were: [DESIGN.md](../DESIGN.md) (decisions
 DEC-1…DEC-20, OWN-1/2), [MIU_BREAKDOWN.md](../MIU_BREAKDOWN.md) (every work
