@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   type AdapterListQuery,
   type CatalogProductSaveInput,
@@ -5304,16 +5305,16 @@ test('change audit plan reads products through the real wiring and writes nothin
   assert.deepEqual(store.products, before);
 });
 
-// --- MIU-39: what an approval may take from the supplier, through the handler ---
+// --- DEC-19: the read-only supplier review, through the handler ---
 
-test('supplier adoption plan is admin-only and read-only through the approval action', async () => {
+test('supplier review is admin-only and read-only through the approval action', async () => {
   const store = setup({ users: [{ _id: 'admin-1', role: 'admin' }], products: [] });
-  const adoption = (token: string, override: AdminConfig = approvalConfig) =>
+  const supplierReview = (token: string, override: AdminConfig = approvalConfig) =>
     handleAdminRequest(
       {
         action: 'catalogDetailApproval',
         token,
-        data: { action: 'supplier-adoption', productId: 'missing' },
+        data: { action: 'supplier-review', productId: 'missing' },
       } as Parameters<typeof handleAdminRequest>[0],
       override,
     );
@@ -5323,9 +5324,134 @@ test('supplier adoption plan is admin-only and read-only through the approval ac
     name: 'contributor',
     role: 'contributor',
   });
-  expectErr(await adoption(contributor), 'FORBIDDEN');
-  expectErr(await adoption(await adminToken(), config), 'FORBIDDEN');
+  expectErr(await supplierReview(contributor), 'FORBIDDEN');
+  expectErr(await supplierReview(await adminToken(), config), 'FORBIDDEN');
   const before = structuredClone(store);
-  assert.deepEqual(okData(await adoption(await adminToken())), { ok: true, adoption: {} });
+  expectErr(await supplierReview(await adminToken()), 'NOT_FOUND');
   assert.deepEqual(store, before);
+});
+
+// --- DEC-19: supplier decisions gate the Changed flag; contributors cannot save flagged products ---
+
+function supplierObservation(sourceKey: string, text: string) {
+  return {
+    _id: sourceObservationDocumentId('alibaba', sourceKey),
+    observation: {
+      schemaVersion: 'catalog-source-observation-v1',
+      source: {
+        provider: 'alibaba',
+        sourceProductKey: sourceKey,
+        externalProductId: '987',
+        observedAt: '2026-10-01T00:00:00.000Z',
+        captureMode: 'full',
+        completeness: 'full-product',
+      },
+      identity: { title: 'Supplier title', matchHints: {}, attributes: [] },
+      content: {
+        description: {
+          text,
+          placeholder: false,
+          sanitized: true,
+          provenance: 'provider-description',
+        },
+        media: [],
+      },
+      lifecycle: { sourceListingStatus: 'published' },
+      variants: [],
+      offers: [],
+      evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+      warnings: [],
+    },
+  };
+}
+const descriptionDigest = (text: string) =>
+  createHash('sha256')
+    .update(JSON.stringify(['description', text]))
+    .digest('hex');
+
+test('publishing keeps the Changed flag until every supplier change has a decision', async () => {
+  const flagged = (id: string, extra: Record<string, unknown> = {}) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published: false, description: 'Our text' }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'changed',
+      ...extra,
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [
+      flagged('undecided'),
+      flagged('kept', {
+        supplierDecisions: {
+          description: { choice: 'keep', incomingDigest: descriptionDigest('Supplier text') },
+        },
+      }),
+      flagged('stale-decision', {
+        supplierDecisions: {
+          description: { choice: 'keep', incomingDigest: descriptionDigest('Older text') },
+        },
+      }),
+      flagged('taken'),
+    ],
+    catalogProductIdentities: [],
+    catalogSourceObservations: ['undecided', 'kept', 'stale-decision', 'taken'].map((id) =>
+      supplierObservation(`source-${id}`, 'Supplier text'),
+    ),
+  });
+  const admin = await adminToken();
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  const publish = (id: string, values: Record<string, unknown> = {}) =>
+    call('update', { collection: 'products', id, values: { ...values, published: true } }, admin);
+  okData(await publish('undecided'));
+  okData(await publish('kept'));
+  okData(await publish('stale-decision'));
+  // "Use incoming": the website now shows the supplier's text, nothing is left to decide.
+  okData(await publish('taken', { description: 'Supplier text' }));
+  const flags = (id: string) => [
+    row(id).published,
+    row(id).alibabaReviewPending,
+    row(id).alibabaReviewReason,
+  ];
+  assert.deepEqual(flags('undecided'), [true, true, 'changed']);
+  assert.deepEqual(flags('kept'), [true, false, null]);
+  assert.deepEqual(flags('stale-decision'), [true, true, 'changed'], 'decided for an older value');
+  assert.deepEqual(flags('taken'), [true, false, null]);
+});
+
+test('contributors cannot save a flagged product or write supplier decisions and photo choices', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'flagged',
+        ...publishableProduct({ published: true }),
+        alibabaPrimarySourceKey: 'source-flagged',
+        alibabaReviewPending: true,
+        alibabaReviewReason: 'changed',
+      } as CollectionDoc,
+      { _id: 'plain', ...publishableProduct({ published: false }) } as CollectionDoc,
+    ],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  const before = structuredClone(store.products);
+  expectErr(
+    await call(
+      'update',
+      { collection: 'products', id: 'flagged', values: { name: 'Edit' } },
+      contributor,
+    ),
+    'FORBIDDEN',
+  );
+  for (const values of [
+    { supplierDecisions: { description: { choice: 'keep', incomingDigest: 'a'.repeat(64) } } },
+    { configurationPhotos: { v1: ['imgA'] } },
+  ])
+    expectErr(
+      await call('update', { collection: 'products', id: 'plain', values }, contributor),
+      'FORBIDDEN',
+    );
+  assert.deepEqual(store.products, before);
 });

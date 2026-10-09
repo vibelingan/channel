@@ -1775,6 +1775,75 @@ Depends on: MIU-8, MIU-9, MIU-10, MIU-27, MIU-28, MIU-29, MIU-30, MIU-32, MIU-33
 
 ---
 
+## PT-F — Supplier review and configuration photos (DEC-19, DEC-20; owner 2026-10-09)
+
+Decisions (owner approved the recommendations): a supplier change never
+reaches the website text or photos without the admin. When a product is
+flagged Changed or Removed, the edit form shows a **Supplier changes** panel:
+for description, gallery and description photos, the website value and the
+incoming value side by side, labelled "from Alibaba (last approval)", "edited
+here" or "website version" (approved before baselines existed), with **Keep**
+or **Use incoming**. Prices, configurations and specifications come straight
+from Alibaba on synced products (there is no admin copy), so approval always
+takes the latest and the panel shows old → new. The Changed flag stays until
+every listed field has a decision. Batch Publish skips flagged products.
+Contributors can view a flagged product but cannot save or publish it.
+DEC-20: an admin can assign gallery photos to configurations; approval
+publishes the mapping like any configuration photo.
+
+### MIU-40: product fields `supplierDecisions` and `configurationPhotos`
+Strict write schemas in `packages/shared/src/collections.ts`:
+`supplierDecisions` = per part (`description`, `gallery`, `descriptionImages`)
+`{ choice: 'keep' | 'incoming', incomingDigest: sha256 hex }`;
+`configurationPhotos` = configuration id → up to 9 image ids (at most 500
+configurations). Done when: invalid shapes are rejected by the generic update.
+
+### MIU-41: read-only `supplier-review` (admin action)
+`catalogDetailApproval {action: 'supplier-review', productId}` returns, for a
+linked product: each part whose incoming value differs from the website value
+(website value, incoming value with linked image ids, origin label, whether a
+decision for exactly this incoming value exists, `incomingDigest`); price,
+configuration and specification changes since the approved version (old →
+new, from the same comparison as the change audit); and the configurations
+with their supplier photos (for DEC-20). Replaces the unused
+`supplier-adoption` plan. Done when: unit tests per part, origin label,
+decided state, price pairs, admin-only, writes nothing.
+
+### MIU-42: the flag stays until every listed part is decided
+Publishing a flagged product (the acknowledge path) clears the flag only when
+no part is pending (incoming differs from the website and no decision matches
+its `incomingDigest`); otherwise it publishes and keeps "Changed". Decisions
+are written with the same update (admins only). Done when: tests for pending
+→ kept, decided → cleared, Use incoming (website equals incoming) → cleared.
+
+### MIU-43: contributors cannot save or publish a flagged product
+Server refuses any contributor update of a product flagged Changed or Removed;
+the edit form shows why and disables Save. Done when: handler test + render test.
+
+### MIU-44: Supplier changes panel in the edit form
+Panel for flagged linked products: per part Keep / Use incoming (Use incoming
+sets the description, or imports the supplier photos and sets the gallery /
+description photos); decisions sent with Save; prices, configurations and
+specifications listed old → new; a note when parts are still undecided (the
+flag stays). The preview's "Approve changes" opens the edit form. Done when:
+render tests, api tests, local admin e2e.
+
+### MIU-45: batch Publish skips flagged products
+Changed or Removed products in a batch Publish are skipped and listed ("review
+each in Edit"); replaces the MIU-35 confirmation. Done when: unit tests.
+
+### MIU-46: configuration photos in approval
+Prepare uses `configurationPhotos` for a configuration when set (only ids in
+the product gallery); the mapping is part of the gallery digest and the
+approval fingerprint, so editing it re-prepares and conflicts with an
+in-flight approval. Done when: staging/prepare tests.
+
+### MIU-47: "Photos for each configuration" in the edit form
+For linked products with configurations: choose gallery photos per
+configuration (from `supplier-review`'s configuration list); Save stores the
+mapping and, on a live product, re-approves. Done when: render test, local
+admin e2e.
+
 ## Rollout runbook (operations, not code)
 
 Each step needs the batch before it deployed to `test`. Steps marked ⚠ write

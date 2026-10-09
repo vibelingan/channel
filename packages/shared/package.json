@@ -10,6 +10,7 @@
     "./catalog-detail-approval": "./src/catalog/detail-approval.ts",
     "./catalog-public-version": "./src/catalog/public-version.ts",
     "./catalog-source-digest": "./src/catalog/public-source-digest.ts",
+    "./catalog-supplier-review": "./src/catalog/supplier-review.ts",
     "./catalog-quote": "./src/catalog/quote-draft.ts",
     "./catalog-inquiry": "./src/catalog/inquiry.ts",
     "./countries": "./src/countries.ts",

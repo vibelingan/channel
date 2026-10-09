@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { ROLES, type Role, canEditCollection, canReadCollection } from './auth.ts';
 import { PRODUCT_FAMILY_OPTIONS } from './catalog-product.ts';
+import { ConfigurationPhotosSchema, SupplierDecisionsSchema } from './catalog/supplier-review.ts';
 import { manualCatalogPricingSchema } from './manual-catalog-pricing.ts';
 import {
   CATALOG_IMAGE_MAX_COUNT,
@@ -345,6 +346,24 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         label: 'Source description images',
         type: 'json',
         readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
+      },
+      {
+        // Gallery photos shown for each configuration when Alibaba gives none
+        // or the admin chooses others (DEC-20). Approval publishes them.
+        name: 'configurationPhotos',
+        label: 'Configuration photos',
+        type: 'json',
+        hideInTable: true,
+        hideInForm: true,
+      },
+      {
+        // The admin's Keep / Use incoming per part, for one exact incoming
+        // supplier value (DEC-19). The Changed flag stays until each is decided.
+        name: 'supplierDecisions',
+        label: 'Supplier decisions',
+        type: 'json',
         hideInTable: true,
         hideInForm: true,
       },
@@ -1757,16 +1776,20 @@ function zodForField(field: FieldDef): z.ZodTypeAny {
       schema =
         field.name === 'manualCatalogPricing'
           ? manualCatalogPricingSchema
-          : field.maxItems === undefined
-            ? z.unknown()
-            : z.unknown().superRefine((value, ctx) => {
-                if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
-                  ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: `${field.label} must contain at most ${field.maxItems} items`,
+          : field.name === 'supplierDecisions'
+            ? SupplierDecisionsSchema
+            : field.name === 'configurationPhotos'
+              ? ConfigurationPhotosSchema
+              : field.maxItems === undefined
+                ? z.unknown()
+                : z.unknown().superRefine((value, ctx) => {
+                    if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
+                      ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: `${field.label} must contain at most ${field.maxItems} items`,
+                      });
+                    }
                   });
-                }
-              });
       break;
     default:
       schema = z.string();

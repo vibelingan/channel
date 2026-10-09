@@ -142,7 +142,12 @@ import {
   createCatalogProductRecord,
   updateCatalogProductRecord,
 } from './catalog-product-identities.ts';
-import { planSupplierAdoption } from './catalog-supplier-adoption.ts';
+import {
+  pendingSupplierParts,
+  readSupplierReview,
+  storedObservation,
+  supplierParts,
+} from './catalog-supplier-review.ts';
 
 export interface AdminConfig {
   jwtSecret: string;
@@ -614,8 +619,8 @@ export async function handleAdminRequest(
         const result =
           action === 'prepare'
             ? await prepareCatalogSource(claims.sub, req.data)
-            : action === 'supplier-adoption'
-              ? await planSupplierAdoption(claims.sub, req.data)
+            : action === 'supplier-review'
+              ? await readSupplierReview(claims.sub, req.data, changeAuditReader)
               : action === 'approve'
                 ? await approveInOneRequest(claims.sub, req.data)
                 : await manageCatalogDetailApproval(claims.sub, req.data);
@@ -1496,11 +1501,28 @@ async function productReviewSummaryAction(claims: SessionClaims): Promise<ApiRes
   });
 }
 
+/** A flagged linked product with a supplier text or photo change still undecided. */
+async function hasUndecidedSupplierChange(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+): Promise<boolean> {
+  if (values.published !== true || values.archived === true) return false;
+  if (!['changed', 'removed'].includes(String(product.alibabaReviewReason))) return false;
+  const sourceKey = product.alibabaPrimarySourceKey;
+  if (typeof sourceKey !== 'string' || sourceKey === '') return false;
+  const observation = await storedObservation(sourceKey);
+  if (!observation) return false;
+  return (
+    pendingSupplierParts(await supplierParts({ ...product, ...values }, observation)).length > 0
+  );
+}
+
 async function acknowledgeAlibabaProductReview(
   product: CollectionDoc,
   values: Record<string, unknown>,
   reviewerId: string,
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
+  undecidedSupplierChange = false,
 ) {
   const data = { ...values };
   for (const field of ['slug', 'skuCode'] as const) {
@@ -1531,15 +1553,16 @@ async function acknowledgeAlibabaProductReview(
   const result = await saveCatalogProductWithIdentities({
     mode: 'update',
     productId: product._id,
-    data: staleApproval
-      ? data
-      : {
-          ...data,
-          alibabaReviewPending: false,
-          alibabaReviewReason: null,
-          alibabaReviewedAt: new Date().toISOString(),
-          alibabaReviewedByUserId: reviewerId,
-        },
+    data:
+      staleApproval || undecidedSupplierChange
+        ? data
+        : {
+            ...data,
+            alibabaReviewPending: false,
+            alibabaReviewReason: null,
+            alibabaReviewedAt: new Date().toISOString(),
+            alibabaReviewedByUserId: reviewerId,
+          },
     expectedAlibabaIdentity: {
       revision: alibabaLinkRevision(product),
       primarySourceKey:
@@ -1978,6 +2001,25 @@ async function updateAction(
       const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
       const values = buildWriteSchema(definition).partial().parse(productValues);
       if (clearsManualPricing) values.manualCatalogPricing = '';
+      // Supplier decisions and configuration photos change what approval
+      // publishes; a product with supplier changes waits for an admin (DEC-19).
+      if (
+        claims.role !== 'admin' &&
+        (Object.hasOwn(values, 'supplierDecisions') || Object.hasOwn(values, 'configurationPhotos'))
+      )
+        return err(
+          'FORBIDDEN',
+          'Only admins can decide on supplier changes and configuration photos.',
+        );
+      if (
+        claims.role !== 'admin' &&
+        before?.alibabaReviewPending === true &&
+        ['changed', 'removed'].includes(String(before.alibabaReviewReason))
+      )
+        return err(
+          'FORBIDDEN',
+          'This product has Alibaba changes waiting for an admin’s review. Ask an admin to review it.',
+        );
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
@@ -2004,9 +2046,19 @@ async function updateAction(
       // form edits to reach the subsequent detail review and approval.
       const requiresApproval =
         config.enableDetailApproval === true ? 'publication-or-pricing' : false;
+      // Publishing keeps "Changed" while a supplier text or photo change has no
+      // decision for its exact incoming value (DEC-19); archiving always clears.
+      const undecidedSupplierChange =
+        acknowledgesReview && before ? await hasUndecidedSupplierChange(before, values) : false;
       const transition =
         acknowledgesReview && before
-          ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)
+          ? await acknowledgeAlibabaProductReview(
+              before,
+              values,
+              claims.sub,
+              requiresApproval,
+              undecidedSupplierChange,
+            )
           : await updateCatalogProductRecord(
               parsed.data.id,
               values,

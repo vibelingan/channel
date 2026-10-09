@@ -20,6 +20,7 @@ import {
   CatalogDetailVariantSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
+import type { z } from 'zod';
 import { catalogCategoryLabel, sourceVariantIds } from './catalog-detail-source.ts';
 
 export interface ChangeAuditReader {
@@ -75,6 +76,118 @@ const offerSet = (offers: readonly Offer[] | undefined) =>
     .sort()
     .join('|');
 
+type Variant = z.infer<typeof CatalogDetailVariantSchema>;
+type Publication = z.infer<typeof CatalogDetailPublicationSchema>;
+type Observation = Extract<
+  ReturnType<typeof validateCatalogSourceObservation>,
+  { ok: true }
+>['value'];
+
+/**
+ * What an approval would take from the supplier now, against the approved
+ * version, on what both sides take from the source (DEC-6): configurations,
+ * their prices and options, the product-level price and facts. Shared by the
+ * one-time audit and the admin's supplier review (DEC-19).
+ */
+type Pricing = Variant['offers'][number]['pricing'];
+type Fact = Publication['header']['facts'][number];
+export interface ApprovedComparison {
+  configurationsAdded: string[];
+  configurationsRemoved: string[];
+  prices: Array<{ configuration: string; before: Pricing[]; after: Pricing[] }>;
+  options: string[];
+  productPrice?: { before: Pricing[]; after: Pricing[] };
+  facts?: { before: Fact[]; after: Fact[] };
+}
+
+const variantLabel = (variant: { options: readonly { value: unknown }[] }) =>
+  variant.options.map((option) => String(option.value)).join(' / ') || 'default';
+const pricings = (offers: readonly { pricing: Pricing }[]) => offers.map((offer) => offer.pricing);
+
+export async function compareWithApproved(
+  reader: Pick<ChangeAuditReader, 'listApprovedVariants'>,
+  product: CollectionDoc,
+  sourceKey: string,
+  observation: Observation,
+  publication: Publication,
+): Promise<ApprovedComparison | 'invalid-variant-rows' | 'no-observation'> {
+  const { revision, header, variantCount } = publication;
+  const storage = publication.variantStorage === 'immutable-v1' ? 'immutable-v1' : 'legacy';
+  const approved = (await reader.listApprovedVariants(product._id, revision, storage)).map((row) =>
+    CatalogDetailVariantSchema.safeParse(row.catalogDetailApproved),
+  );
+  if (approved.length !== variantCount || approved.some((row) => !row.success))
+    return 'invalid-variant-rows';
+  // What an approval would build today, every configuration page.
+  const bindings = {
+    productId: product._id,
+    variants: sourceVariantIds(product._id, sourceKey, observation),
+    images: new Map<string, string>(),
+    ...catalogCategoryLabel(product.productFamily),
+  };
+  const first = buildCatalogDetailCandidate(observation, bindings, 1, 50);
+  if (!first.ok) return 'no-observation';
+  const candidateVariants: Variant[] = [...first.value.variants.items];
+  for (let page = 2; candidateVariants.length < first.value.variants.total; page++) {
+    const next = buildCatalogDetailCandidate(observation, bindings, page, 50);
+    if (!next.ok || next.value.variants.items.length === 0) return 'no-observation';
+    candidateVariants.push(...next.value.variants.items);
+  }
+  const before = new Map(
+    approved.flatMap((row) => (row.success ? [[row.data.id, row.data] as const] : [])),
+  );
+  const after = new Map(candidateVariants.map((variant) => [variant.id, variant]));
+  const comparison: ApprovedComparison = {
+    configurationsAdded: [...after.values()]
+      .filter((variant) => !before.has(variant.id))
+      .map(variantLabel),
+    configurationsRemoved: [...before.values()]
+      .filter((variant) => !after.has(variant.id))
+      .map(variantLabel),
+    prices: [],
+    options: [],
+  };
+  for (const [id, was] of before) {
+    const now = after.get(id);
+    if (!now) continue;
+    if (offerSet(was.offers) !== offerSet(now.offers))
+      comparison.prices.push({
+        configuration: variantLabel(was),
+        before: pricings(was.offers),
+        after: pricings(now.offers),
+      });
+    if (canonical(was.options) !== canonical(now.options))
+      comparison.options.push(variantLabel(was));
+  }
+  if (offerSet(header.offers) !== offerSet(first.value.offers))
+    comparison.productPrice = {
+      before: pricings(header.offers),
+      after: pricings(first.value.offers),
+    };
+  if (canonical(header.facts) !== canonical(first.value.facts))
+    comparison.facts = { before: header.facts, after: first.value.facts };
+  // Not compared: the description (the approved text is the admin's own, from
+  // the row) and images (approved rows hold image ids, the source holds URLs);
+  // the supplier review compares those parts separately.
+  return comparison;
+}
+
+/** The audit's one-line differences, in a stable order. */
+function differenceLabels(comparison: ApprovedComparison): string[] {
+  const labels: string[] = [];
+  if (comparison.configurationsAdded.length) labels.push('configurations added');
+  if (comparison.configurationsRemoved.length) labels.push('configurations removed');
+  const priced = new Set(comparison.prices.map((entry) => entry.configuration));
+  const optioned = new Set(comparison.options);
+  for (const label of [...new Set([...priced, ...optioned])]) {
+    if (priced.has(label)) labels.push(`configuration ${label}: price`);
+    if (optioned.has(label)) labels.push(`configuration ${label}: options`);
+  }
+  if (comparison.productPrice) labels.push('product price');
+  if (comparison.facts) labels.push('facts');
+  return labels;
+}
+
 export async function planProductChange(
   reader: ChangeAuditReader,
   product: CollectionDoc,
@@ -105,55 +218,17 @@ export async function planProductChange(
     valid.value.source.sourceProductKey !== sourceKey
   )
     return skip('no-observation');
-  const observation = valid.value;
-  const { revision, header, variantCount } = publication.data;
-  const storage = publication.data.variantStorage === 'immutable-v1' ? 'immutable-v1' : 'legacy';
-  const approved = (await reader.listApprovedVariants(product._id, revision, storage)).map((row) =>
-    CatalogDetailVariantSchema.safeParse(row.catalogDetailApproved),
+  const comparison = await compareWithApproved(
+    reader,
+    product,
+    sourceKey,
+    valid.value,
+    publication.data,
   );
-  if (approved.length !== variantCount || approved.some((row) => !row.success))
-    return skip('invalid-variant-rows');
-
-  // What an approval would build today, every configuration page.
-  const bindings = {
-    productId: product._id,
-    variants: sourceVariantIds(product._id, sourceKey, observation),
-    images: new Map<string, string>(),
-    ...catalogCategoryLabel(product.productFamily),
-  };
-  const first = buildCatalogDetailCandidate(observation, bindings, 1, 50);
-  if (!first.ok) return skip('no-observation');
-  const candidateVariants = [...first.value.variants.items];
-  for (let page = 2; candidateVariants.length < first.value.variants.total; page++) {
-    const next = buildCatalogDetailCandidate(observation, bindings, page, 50);
-    if (!next.ok || next.value.variants.items.length === 0) return skip('no-observation');
-    candidateVariants.push(...next.value.variants.items);
-  }
-
-  const differences: string[] = [];
-  const before = new Map(
-    approved.flatMap((row) => (row.success ? [[row.data.id, row.data] as const] : [])),
-  );
-  const after = new Map(candidateVariants.map((variant) => [variant.id, variant]));
-  const label = (variant: { options: readonly { value: unknown }[] }) =>
-    variant.options.map((option) => String(option.value)).join(' / ') || 'default';
-  if ([...after.keys()].some((id) => !before.has(id))) differences.push('configurations added');
-  if ([...before.keys()].some((id) => !after.has(id))) differences.push('configurations removed');
-  for (const [id, was] of before) {
-    const now = after.get(id);
-    if (!now) continue;
-    if (offerSet(was.offers) !== offerSet(now.offers))
-      differences.push(`configuration ${label(was)}: price`);
-    if (canonical(was.options) !== canonical(now.options))
-      differences.push(`configuration ${label(was)}: options`);
-  }
-  if (offerSet(header.offers) !== offerSet(first.value.offers)) differences.push('product price');
-  if (canonical(header.facts) !== canonical(first.value.facts)) differences.push('facts');
-  // Not compared: the description (the approved text is the admin's own, from
-  // the row, and there is no record of the supplier's text at approval) and
-  // images (approved rows hold image ids, the source holds URLs).
-
-  const sourceDigest = publicSourceDigest(observation);
+  if (typeof comparison === 'string') return skip(comparison);
+  const differences = differenceLabels(comparison);
+  const { revision } = publication.data;
+  const sourceDigest = publicSourceDigest(valid.value);
   return differences.length > 0
     ? { productId: product._id, revision, outcome: 'changed', sourceDigest, differences }
     : { productId: product._id, revision, outcome: 'unchanged', sourceDigest };
