@@ -106,6 +106,31 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Batch "Save and publish" often fails (client report, 2026-10-12) — diagnosis
+- Client screenshot: classification "Save and publish" on 9 products →
+  "3 published · 6 need attention": 2 "Not confirmed — Result not confirmed",
+  4 "Not attempted because the batch stopped".
+- Live data (read-only): all 9 products come from one supplier family and
+  share the same 11 description photos. Three published at 07:46; PX15 and
+  SN81 published on a later run (07:49); "New Cross-Border" only at 08:34;
+  "Experience superior…" and "Factory New Noise-canceling 6.0" still
+  unpublished.
+- Cause, from the code and the installed SDK:
+  1. The batch approves 4 products at once (`BATCH_CONCURRENCY`). The
+     approval's final transaction writes every photo record of the product
+     (refcount and an approval fence), so 4 products sharing 11 photos write
+     the same 11 records concurrently.
+  2. `@cloudbase/database` `runTransaction` retries a
+     `DATABASE_TRANSACTION_CONFLICT` 3 times immediately (no pause), then
+     throws it. The admin function does not catch it: "Unexpected server
+     error" (500).
+  3. The browser counts any code outside a short refusal list as "not
+     confirmed" and stops starting new products, so the rest show "not
+     attempted". The screen hides the error code, and asks the user to
+     "refresh statuses" instead of checking itself.
+- Proposal and decision pending (see the reply to the owner).
+
+
 ### Dianxiaomi import "make public" goes through approval (2026-10-09, owner request)
 - Found in the batch 5b review: `publishImportedSample` (Excel/Dianxiaomi
   import) published with `makePublic` through the catalog save without the
