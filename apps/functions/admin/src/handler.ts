@@ -642,6 +642,16 @@ export async function handleAdminRequest(
             'CONFLICT',
             'The complete product data is not ready for review. Refresh after synchronization finishes.',
           );
+        if (result.code === 'APPROVAL_EXPIRED')
+          return err(
+            'CONFLICT',
+            'This approval took over an hour and was stopped. Publish the product again.',
+          );
+        if (result.code === 'MEDIA_BUSY')
+          return err(
+            'BUSY',
+            'A photo of this product was being changed at the same moment. Nothing was published; try again.',
+          );
         if (result.code === 'MEDIA_NOT_READY')
           return err(
             'CONFLICT',
@@ -747,7 +757,7 @@ export async function handleAdminRequest(
       console.warn('[fn-admin] transaction conflict after SDK retries');
       return err(
         'BUSY',
-        'Another change to the same product or photos happened at the same moment. Nothing was saved; try again.',
+        'Another change happened at the same moment. Nothing was saved; try again.',
       );
     }
     console.error('[fn-admin] unexpected error:', e);
@@ -1812,7 +1822,10 @@ async function acquireImageReferenceLocks(
         return {
           imageIds: [],
           owner,
-          error: err('CONFLICT', `Image ${imageId} is being changed.`),
+          error: err(
+            'BUSY',
+            `Image ${imageId} was being changed at the same moment. Nothing was saved; try again.`,
+          ),
         };
       }
       if (result === 'corrupt') {
@@ -1923,7 +1936,7 @@ async function abandonUploadAction(
     if (approving) {
       return err(
         'CONFLICT',
-        `Image is being approved with products/${approving}. Try again in a minute.`,
+        `Image is being approved with products/${approving}. Try again once that approval finishes (at most an hour).`,
       );
     }
     const reference = await findImageReference(imageId);

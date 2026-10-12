@@ -2453,6 +2453,7 @@ test('abandonUpload is refused while an unfinished approval would publish the im
       _id: 'job-1',
       productId: 'p-1',
       state: 'staging',
+      createdAt: new Date().toISOString(),
       publication: {
         state: 'approved',
         revision: 'r1',
@@ -2490,7 +2491,13 @@ test('a photo whose approval finishes between the delete checks is not deleted (
   };
   store.products = [{ _id: 'p-1', name: 'Headset', published: false }];
   store.catalogDetailApprovals = [
-    { _id: 'job-1', productId: 'p-1', state: 'staging', publication },
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication,
+    },
   ];
   // The approval commits (product and job in one transaction) right after the
   // delete has read the products: whichever check comes second must see it.
@@ -2504,7 +2511,13 @@ test('a photo whose approval finishes between the delete checks is not deleted (
           { _id: 'p-1', name: 'Headset', published: false, catalogDetailPublication: publication },
         ];
         store.catalogDetailApprovals = [
-          { _id: 'job-1', productId: 'p-1', state: 'complete', publication },
+          {
+            _id: 'job-1',
+            productId: 'p-1',
+            state: 'complete',
+            createdAt: new Date().toISOString(),
+            publication,
+          },
         ];
       }
       return page;
@@ -2629,7 +2642,8 @@ test('a deletion claim blocks a concurrent imageIds writer', async () => {
   );
   releaseDelete?.();
 
-  expectErr(createResult, 'CONFLICT');
+  // Busy while the delete runs: nothing was saved and the page sends it again.
+  expectErr(createResult, 'BUSY');
   assert.equal((await abandonment).ok, true);
   assert.equal(store.successStories?.length ?? 0, 0);
 });

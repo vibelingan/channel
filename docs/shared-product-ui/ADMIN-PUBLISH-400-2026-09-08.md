@@ -29,6 +29,8 @@ relax publication rules or publish any real inventory.
 
 ## Fix
 
+> Superseded 2026-10-12 by DEC-21 (`docs/catalog-single-source-of-truth/DESIGN.md`): one unclear result no longer stops a batch; unclear products are read back; "busy" answers are resent automatically; results say "N published · M not published" with a Try again button.
+
 - Products use the existing authenticated `update` action, one product at a time.
   IDs are deduplicated, bounded to the existing 20-row page, and the operation is
   restricted to a boolean publication change. Other collections retain their

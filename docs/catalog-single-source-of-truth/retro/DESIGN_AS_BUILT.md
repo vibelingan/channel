@@ -136,9 +136,32 @@ compares every approved product with its supplier data (R6 flagged 9).
   prepare → review → begin → pages → finish inside the function (12 s budget
   within the 20 s timeout). If photos must be imported first or time runs
   out, it hands back and the browser continues the same job step by step.
-- **Batch publish** runs four products at once; after an uncertain result or
-  a refused session no new product starts; results keep the selection order.
+- **Batch publish** runs four products at once; results keep the selection
+  order. Since DEC-21 (2026-10-12): a "busy" answer is resent automatically;
+  one unclear answer no longer stops the batch (a refused sign-in or two
+  unclear answers in a row do); unclear products are read back right after
+  the batch; each product's reason is shown in plain words, with "Try again"
+  for those that need no fix.
 - Result: about 2 s per approval, 4–6 s per publish (was 15–25 s).
+
+## 7a. Shared photos and approval (DEC-21, 2026-10-12)
+
+- **Why photos are shared.** All Alibaba products come from the client's one
+  store. Its description template (company, R&D, exhibition pages) is in
+  every listing, and the seller re-uploads the same gallery photo to similar
+  listings; Alibaba serves the identical file under a new address each time.
+  We keep one stored copy per identical file (SHA-256), with a live-use count.
+- **Approval reads shared photos, writes one only when its live-use count
+  changes.** It used to write every photo as a conflict marker, so approvals
+  sharing a photo collided and batch publish failed.
+- **Deletes stay safe without that marker.** A photo delete locks the photo,
+  then refuses while an unfinished approval job lists it, then refuses while
+  a product lists it (jobs first: a finish records its product and closes its
+  job in one transaction). An approval job finishes within one hour or never;
+  older jobs no longer block deletes.
+- **Collisions that remain answer "busy, try again"**: a database conflict,
+  a photo locked by another save. The page resends them; the SDK's coded
+  in-transaction answers are rethrown so the database retries conflicts.
 
 ## 8. Photos come with the product (PT-G and "one product, one unit")
 

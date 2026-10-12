@@ -222,6 +222,8 @@ requireCheck(
     'await transaction.rollback();',
     'ERRORS.DATABASE_TRANSACTION_CONFLICT.code',
     'return await runTransaction.bind(this)(callback, --times);',
+    // docs/agents/cloudbase.md: "retries 3 times with no pause".
+    'async function runTransaction(callback, times = 3)',
   ]),
   '@cloudbase/database runTransaction commits, returns callback results, rolls back, and retries conflicts',
 );
@@ -284,6 +286,54 @@ try {
           'database.commitTransaction',
         ]),
     '@cloudbase/database runTransaction behavior passes commit, rollback, result, and retry probes',
+  );
+  // DEC-21: the admin function answers BUSY by this code once the SDK's own
+  // retries run out, so the same error must come back, code intact.
+  transactionCalls.length = 0;
+  let exhaustedCode = null;
+  try {
+    await fakeDatabase.runTransaction(async () => {
+      throw { code: 'DATABASE_TRANSACTION_CONFLICT' };
+    }, 1);
+  } catch (error) {
+    exhaustedCode = error?.code ?? null;
+  }
+  requireCheck(
+    exhaustedCode === 'DATABASE_TRANSACTION_CONFLICT' &&
+      transactionCalls.filter((api) => api === 'database.startTransaction').length === 2 &&
+      transactionCalls.includes('database.abortTransaction'),
+    '@cloudbase/database rethrows DATABASE_TRANSACTION_CONFLICT after its retries (admin answers BUSY, DEC-21)',
+  );
+  // DEC-21: production goes through @cloudbase/node-sdk, whose request layer
+  // THROWS a coded database answer (throwOnCode defaults to true), so
+  // runTransaction sees the conflict code and retries.
+  const nodeSdkRoot = dirname(nodeSdk.packagePath);
+  const nodeSdkUtils = readFileSync(join(nodeSdkRoot, 'dist/utils/utils.js'), 'utf8');
+  const nodeSdkRequester = readFileSync(join(nodeSdkRoot, 'dist/utils/tcbapirequester.js'), 'utf8');
+  requireCheck(
+    containsAll(nodeSdkUtils, ['let throwOnCode = true;', 'throw E(Object.assign({}, result));']) &&
+      containsAll(nodeSdkRequester, ['return processReturn(result);']),
+    '@cloudbase/node-sdk throws a coded database answer by default (throwOnCode true)',
+  );
+  // The bare @cloudbase/database API instead ANSWERS a failed read or write with
+  // { code }, not thrown; the approval wrappers rethrow it (sdkAnswer).
+  class CodedTransactionRequest {
+    async send(api) {
+      if (api === 'database.startTransaction') return { transactionId: 'transaction-coded' };
+      if (api === 'database.modifyDocument' || api === 'database.getDocument')
+        return { code: 'DATABASE_TRANSACTION_CONFLICT', message: 'probe' };
+      return { requestId: 'request-coded' };
+    }
+  }
+  databaseModule.Db.reqClass = CodedTransactionRequest;
+  const codedDatabase = new databaseModule.Db({});
+  const codedTransaction = await codedDatabase.startTransaction();
+  const codedSet = await codedTransaction.collection('probe').doc('probe').set({ value: 1 });
+  const codedGet = await codedTransaction.collection('probe').doc('probe').get();
+  requireCheck(
+    codedSet?.code === 'DATABASE_TRANSACTION_CONFLICT' &&
+      codedGet?.code === 'DATABASE_TRANSACTION_CONFLICT',
+    '@cloudbase/database answers a failed in-transaction set/get with { code } instead of throwing (sdkAnswer rethrows it, DEC-21)',
   );
 } finally {
   databaseModule.Db.reqClass = originalRequestClass;

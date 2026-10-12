@@ -23,7 +23,7 @@ feature starts from it. Facts come from [TIMELINE.md](TIMELINE.md),
 - The owner's principle, one approved version read by list, page and quote,
   was turned into a design in one day. It fixed the cause for every product,
   not only the 21 rows, and has held through every audit since.
-- Owner decisions were recorded as numbered decisions (DEC-1…DEC-20,
+- Owner decisions were recorded as numbered decisions (DEC-1…DEC-21,
   OWN-1/2) with status and date. Reversals (DEC-18) were visible and traceable.
 - Supplier changes are reviewed side by side (DEC-19), shaped by the owner's
   own edge cases: keep admin edits, never apply supplier text or photos

@@ -188,6 +188,16 @@ says what happened, why, what we tried, how it ended, and what to do next time.
   every common overlap into a failure. And a batch's error path is product
   design: say what happened per item and offer the next step, rather than
   "refresh before retrying".
+- **Lesson (owner):** code that was correct for one product at a time (the
+  fence came from a September design, CUI-09B) was not correct once the
+  batch ran four approvals at once over shared photos. When a flow changes
+  shape (sequential → concurrent), re-check the older code it calls.
+- **Lesson (owner):** the owner had asked for real batch tests. Unit and
+  local browser tests used products with their own photos, so the collision
+  never happened. A real test on the live site — about ten drafts of one
+  subcategory from the same store, batch "Save and publish", then unpublish
+  them — would have shown it before the client did. Now part of the
+  deploy checks for batch work.
 
 ## 2. Bugs our reviews caught before shipping
 

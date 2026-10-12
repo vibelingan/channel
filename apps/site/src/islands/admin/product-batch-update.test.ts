@@ -4,6 +4,7 @@ import type { CollectionDoc } from '../../../../../packages/shared/src/collectio
 import {
   type BatchUpdateResult,
   batchUpdateRecords,
+  readbackProves,
   retryBatchUpdate,
   updateRecord,
 } from './api.ts';
@@ -410,7 +411,7 @@ test('a product that keeps colliding is reported once, as retryable', async (t) 
     {
       id: '0',
       code: 'BUSY',
-      message: 'Another change to the same photos was happening at the same moment. Try again.',
+      message: 'Another change happened at the same moment. Try again.',
       outcome: 'rejected',
       retryable: true,
     },
@@ -633,4 +634,120 @@ test('non-product collections keep the existing batch protocol', async (t) => {
     });
   });
   assert.equal((await batchUpdateRecords('overstock', ['one'], { published: false })).updated, 1);
+});
+
+test('a read-back proves a change only when no approval is left unproven (DEC-21)', () => {
+  const publish = { published: true };
+  assert.equal(readbackProves({ _id: 'a', published: false }, publish), 'not-done');
+  assert.equal(readbackProves({ _id: 'a', published: true }, publish), 'done');
+  // Live but still waiting for review: its re-approval may not have run.
+  assert.equal(
+    readbackProves({ _id: 'a', published: true, alibabaReviewPending: true }, publish),
+    'unproven',
+  );
+  const category = { productFamily: 'toys' };
+  assert.equal(readbackProves({ _id: 'a', productFamily: 'toys' }, category), 'done');
+  // A live product's new category is approved too; the field alone is no proof.
+  assert.equal(
+    readbackProves({ _id: 'a', productFamily: 'toys', published: true }, category),
+    'unproven',
+  );
+  assert.equal(readbackProves({ _id: 'a', published: true }, { published: false }), 'not-done');
+});
+
+test('a lost answer on a live product still waiting for review is not reported as published', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: false } });
+    if (body.action === 'update') throw new TypeError('Failed to fetch');
+    return Response.json({
+      ok: true,
+      data: { _id: body.data.id, published: true, alibabaReviewPending: true },
+    });
+  });
+  const result = await batchUpdateRecords('products', ['edited'], { published: true });
+  assert.equal(result.updated, 0);
+  assert.deepEqual(
+    result.failures.map((row) => [row.outcome, row.retryable, row.message]),
+    [['unconfirmed', true, "Couldn't confirm the website shows this change. Try again."]],
+  );
+});
+
+test('trying again re-sends a live product still waiting for review instead of counting it', async (t) => {
+  const updates: unknown[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: false } });
+    if (body.action === 'get')
+      return Response.json({
+        ok: true,
+        data: { _id: 'edited', published: true, alibabaReviewPending: true, updatedAt: 'r1' },
+      });
+    updates.push(body.data);
+    return Response.json({ ok: true, data: { _id: 'edited', published: true } });
+  });
+  const result = await retryBatchUpdate(
+    {
+      updated: 0,
+      items: [],
+      failures: [
+        { id: 'edited', code: 'BUSY', message: 'x', outcome: 'rejected', retryable: true },
+      ],
+    },
+    ['edited'],
+    { published: true },
+  );
+  assert.deepEqual(updates, [
+    { collection: 'products', id: 'edited', values: { published: true }, expectedUpdatedAt: 'r1' },
+  ]);
+  assert.equal(result.updated, 1);
+});
+
+test('one unclear result between successes never stops the batch', async (t) => {
+  // Unclear, fine, unclear: never two unclear in a row, so every product runs.
+  let updates = 0;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'update') {
+      updates += 1;
+      if (body.data.id === 'a' || body.data.id === 'c') throw new TypeError('Failed to fetch');
+    }
+    await new Promise((resolve) => setTimeout(resolve, body.data.id === 'b' ? 1 : 5));
+    return Response.json({ ok: true, data: { _id: body.data.id, published: false } });
+  });
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  const result = await batchUpdateRecords('products', ids, { published: false });
+  assert.equal(updates, 5, 'all five were sent');
+  assert.equal(result.failures.filter((row) => row.outcome === 'not-attempted').length, 0);
+});
+
+test('a status check answered about another product with matching values proves nothing', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'update') throw new TypeError('Failed to fetch');
+    return Response.json({ ok: true, data: { _id: 'different-product', published: false } });
+  });
+  const result = await batchUpdateRecords('products', ['a'], { published: false });
+  assert.equal(result.updated, 0);
+  assert.equal(result.failures[0]?.outcome, 'unconfirmed');
+});
+
+test('after a refused sign-in, untried products offer no Try again', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls += 1;
+    return Response.json(
+      { ok: false, error: { code: 'UNAUTHORIZED', message: 'Sign in again' } },
+      { status: 401 },
+    );
+  });
+  const result = await batchUpdateRecords('products', ['a', 'b', 'c', 'd', 'e', 'f'], {
+    published: false,
+  });
+  const untried = result.failures.filter((row) => row.outcome === 'not-attempted');
+  assert.ok(untried.length > 0);
+  assert.ok(untried.every((row) => row.retryable === false));
+  assert.ok(calls <= 4);
 });

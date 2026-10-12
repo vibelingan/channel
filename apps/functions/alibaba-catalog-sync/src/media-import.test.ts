@@ -444,7 +444,13 @@ test('a photo whose approval finishes between the removal checks is kept (DEC-21
   };
   store.products = [{ _id: 'p-1', published: false }];
   store.catalogDetailApprovals = [
-    { _id: 'job-1', productId: 'p-1', state: 'staging', publication } as CollectionDoc,
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication,
+    } as CollectionDoc,
   ];
   // The approval commits (product and job in one transaction) right after the
   // removal has read the products: whichever check comes second must see it.
@@ -457,7 +463,13 @@ test('a photo whose approval finishes between the removal checks is kept (DEC-21
         committed = true;
         shared.products = [{ _id: 'p-1', published: false, catalogDetailPublication: publication }];
         shared.catalogDetailApprovals = [
-          { _id: 'job-1', productId: 'p-1', state: 'complete', publication } as CollectionDoc,
+          {
+            _id: 'job-1',
+            productId: 'p-1',
+            state: 'complete',
+            createdAt: new Date().toISOString(),
+            publication,
+          } as CollectionDoc,
         ];
       }
       return page;
@@ -497,6 +509,7 @@ test('removal deletes only unreferenced sentinel-owned candidates (object first)
       _id: 'job-1',
       productId: 'p-1',
       state: 'staging',
+      createdAt: new Date().toISOString(),
       publication: {
         state: 'approved',
         header: { _id: 'p-1', images: [`/api/images/${imported.imageId}`] },

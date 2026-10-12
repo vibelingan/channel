@@ -295,6 +295,7 @@ export function CollectionView({
     onSuccess: invalidate,
   });
 
+  const retryStarted = useRef(false);
   const batchUpdateMutation = useMutation({
     mutationFn: (vars: {
       ids: string[];
@@ -922,8 +923,17 @@ export function CollectionView({
             ? {
                 onRetry: (ids: string[]) => {
                   const { variables, data } = batchUpdateMutation;
-                  if (variables && data)
-                    batchUpdateMutation.mutate({ ...variables, ids, previous: data });
+                  // Two clicks before the panel re-renders start one retry.
+                  if (!variables || !data || retryStarted.current) return;
+                  retryStarted.current = true;
+                  batchUpdateMutation.mutate(
+                    { ...variables, ids, previous: data },
+                    {
+                      onSettled: () => {
+                        retryStarted.current = false;
+                      },
+                    },
+                  );
                 },
               }
             : {})}

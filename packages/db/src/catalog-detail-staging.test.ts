@@ -515,9 +515,10 @@ test('media rollover budgets every read/write and rejects overflow before changi
     const result = await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId));
     if (newDescriptionCount === 10) {
       assert.ok(result.ok);
-      // Worst case (every photo's live-use count changes) stays inside the
-      // 98-operation budget; unchanged photos are no longer written (DEC-21).
-      assert.ok(h.maximumOperations() <= 97, String(h.maximumOperations()));
+      // Unchanged photos are no longer written (DEC-21): 78 here. The worst
+      // case, every photo's live-use count changing, writes every photo as
+      // before DEC-21: 97, inside the 98-operation budget.
+      assert.equal(h.maximumOperations(), 78);
     } else {
       assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
       assert.deepEqual(h.store(), before);
@@ -639,7 +640,25 @@ test('missing and busy media cannot switch a fully staged approval; a newer appr
   h.row('images', 'image').status = 'active';
   h.row('images', 'image').imageMutationOwner = 'upload';
   h.row('images', 'image').imageMutationStartedAt = new Date().toISOString();
-  assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, false);
+  // Locked by a save in progress: "busy, try again" (DEC-21), not "fix the photos".
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'MEDIA_BUSY',
+  });
+  // A stale lock (its holder crashed) or a corrupt one does not clear by
+  // waiting: a definite "not ready", never an endless "try again".
+  h.row('images', 'image').imageMutationStartedAt = new Date(
+    Date.now() - 20 * 60 * 1000,
+  ).toISOString();
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
+  h.row('images', 'image').imageMutationStartedAt = '';
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
   h.row('images', 'image').imageMutationOwner = '';
   h.row('images', 'image').imageMutationStartedAt = '';
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, true);
@@ -675,6 +694,32 @@ test('approval never writes a photo whose live-use count does not change (DEC-21
     assert.notEqual(h.publication().revision, 'old', 'the approval went through');
     assert.deepEqual(h.row('images', 'image'), before, `photo untouched (published=${published})`);
   }
+});
+
+test('an approval job older than an hour can no longer finish; a finished one still answers (DEC-21)', async () => {
+  const h = fixture(1);
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+  // Each run replaces the store, so the job is read again before each change.
+  const startedMinutesAgo = (minutes: number) => {
+    h.row('catalogDetailApprovals', begin.jobId).createdAt = new Date(
+      Date.now() - minutes * 60 * 1000,
+    ).toISOString();
+  };
+  // Photo deletes stop waiting for a job this old, so it must not publish.
+  startedMinutesAgo(61);
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'APPROVAL_EXPIRED',
+  });
+  assert.deepEqual(h.store(), before, 'nothing written');
+  startedMinutesAgo(59);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  // Asking again a day later still answers: the job is complete.
+  startedMinutesAgo(24 * 60);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
 });
 
 test('independent SKU media stays private until atomic approval, with retry-safe reference rollover', async () => {

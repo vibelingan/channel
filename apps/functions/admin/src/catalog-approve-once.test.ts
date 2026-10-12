@@ -134,6 +134,9 @@ test('a failing step answers exactly as it would on its own, and nothing after i
   assert.equal(calls.at(-1)?.action, 'begin');
   const stalled = server({ prepare: progress(0, 2, false) });
   assert.deepEqual(await approve(stalled.deps), { ok: false, code: 'SOURCE_NOT_READY' });
+  // A photo locked by another save is "busy, try again", never a validation error.
+  const busy = server({ begin: { ok: false, code: 'MEDIA_BUSY' } });
+  assert.deepEqual(await approve(busy.deps), { ok: false, code: 'MEDIA_BUSY' });
 });
 
 test('a malformed request or step answer is refused', async () => {

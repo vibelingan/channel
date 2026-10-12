@@ -269,7 +269,9 @@ test.describe('Admin catalog lifecycle', () => {
     await expect(page.getByRole('alert')).toContainText('0 published · 2 not published', {
       timeout: 30000,
     });
-    await expect(page.getByRole('alert')).toContainText('Another change to the same photos');
+    await expect(page.getByRole('alert')).toContainText(
+      'Another change happened at the same moment',
+    );
     await expect(page.getByRole('alert')).toContainText('image');
     collide = false;
     await page.getByRole('alert').getByRole('button', { name: 'Try again for 1 product' }).click();

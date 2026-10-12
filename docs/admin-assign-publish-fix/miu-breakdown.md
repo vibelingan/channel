@@ -10,6 +10,8 @@ Product tasks: make save-versus-publish explicit and recover ambiguous outcomes 
 
 ## Cancelled MIU 1: Sequential publication progress callback (historical; DO NOT IMPLEMENT)
 
+> Superseded 2026-10-12 by DEC-21 (`docs/catalog-single-source-of-truth/DESIGN.md`): one unclear result no longer stops a batch; unclear products are read back; "busy" answers are resent automatically; results say "N published · M not published" with a Try again button.
+
 - **Block:** FRONTEND
 - **Files:** `apps/site/src/islands/admin/api.ts`; `apps/site/src/islands/admin/catalog-taxonomy-ui.test.ts`
 - **Type:** modify-existing

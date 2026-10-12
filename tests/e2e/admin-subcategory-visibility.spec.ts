@@ -1280,6 +1280,47 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     { action: 'classify', ids: [inDialogReadback._id] },
     { action: 'publish', ids: [inDialogReadback._id] },
   ]);
+
+  // DEC-21: a publish that keeps colliding (BUSY: nothing saved) is offered
+  // "Try again" in the dialog, which publishes it.
+  const colliding = await create('Colliding publication', imageIds);
+  await page.reload();
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill(prefix);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  let collide = true;
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      data?: { id?: string; values?: { published?: boolean } };
+    };
+    if (
+      collide &&
+      body.action === 'update' &&
+      body.data?.id === colliding._id &&
+      body.data.values?.published === true
+    ) {
+      await route.fulfill({
+        status: 409,
+        json: { ok: false, error: { code: 'BUSY', message: 'Nothing was saved; try again.' } },
+      });
+      return;
+    }
+    await route.continue();
+  });
+  const retrying = await selectAndReview([colliding]);
+  await retrying.getByRole('button', { name: 'Confirm save and publish' }).click();
+  const receipt = retrying.locator('section[role="alert"]');
+  await expect(receipt).toContainText('0 published · 1 not published', { timeout: 30000 });
+  await expect(receipt).toContainText('Another change happened at the same moment');
+  expect(await read(colliding._id)).toMatchObject({ published: false });
+  collide = false;
+  await receipt.getByRole('button', { name: 'Try again for 1 product' }).click();
+  await expect(retrying).toContainText('1 product classified and published.', { timeout: 30000 });
+  await expect(retrying.getByRole('button', { name: 'Done' })).toBeEnabled();
+  expect(await read(colliding._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
+  await page.unrouteAll();
+  await retrying.getByRole('button', { name: 'Done' }).click();
   expect(errors).toEqual([]);
 });
 

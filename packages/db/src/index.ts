@@ -27,6 +27,7 @@ import type {
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
+import { APPROVAL_JOB_DELETE_MARGIN_MS, APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 export function manageCatalogCategory(actorId: string, input: unknown) {
   const adapter = db();
@@ -652,9 +653,13 @@ export interface BackfillRefCountsReport {
  * path cannot rely on a write conflict with the approval. Delete paths call
  * this after locking the photo: a job begun before the lock is found here; a
  * job begun after it finds the photo locked and refuses inside its own
- * transaction.
+ * transaction. A job older than the approval limit (plus a margin) is
+ * ignored: it can no longer finish.
  */
 export async function unfinishedApprovalUsingImage(imageId: string): Promise<string | null> {
+  const startedAfter = new Date(
+    Date.now() - APPROVAL_JOB_MAX_AGE_MS - APPROVAL_JOB_DELETE_MARGIN_MS,
+  ).toISOString();
   let afterId = '';
   for (;;) {
     const page = await list({
@@ -667,6 +672,8 @@ export async function unfinishedApprovalUsingImage(imageId: string): Promise<str
         combinator: 'and',
         clauses: [
           { field: 'state', op: 'eq', value: 'staging' },
+          // Older jobs can no longer finish (finishStagedApproval refuses them).
+          { field: 'createdAt', op: 'gt', value: startedAfter },
           ...(afterId ? [{ field: '_id', op: 'gt' as const, value: afterId }] : []),
         ],
       },
@@ -683,7 +690,10 @@ export async function unfinishedApprovalUsingImage(imageId: string): Promise<str
         return productId;
     }
     if (page.items.length < 100) return null;
-    afterId = String(page.items.at(-1)?._id ?? '');
+    const last = page.items.at(-1)?._id;
+    // Fail closed: a page we cannot continue past must not read as "no approval".
+    if (typeof last !== 'string' || !last) throw new Error('Approval job without an id');
+    afterId = last;
   }
 }
 

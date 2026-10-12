@@ -7,13 +7,15 @@ import {
 } from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
-import { readImageMutationState } from './adapter.ts';
+import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
+import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import { ChangeAuditMarkSchema, markChangeAudit } from './catalog-change-audit-store.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import { ManualSourceSchema, prepareManualSource } from './catalog-manual-staging.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
+import { sdkAnswer } from './cloudbase-sdk-answer.ts';
 export { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import {
   CatalogApprovalCommandSchema,
@@ -61,6 +63,8 @@ type Failure = {
     | 'NOT_FOUND'
     | 'CONFLICT'
     | 'MEDIA_NOT_READY'
+    | 'MEDIA_BUSY'
+    | 'APPROVAL_EXPIRED'
     | 'APPROVAL_TOO_LARGE'
     | 'SOURCE_NOT_READY';
 };
@@ -391,6 +395,9 @@ export async function finishStagedApproval(
       ? progress(job)
       : fail('CONFLICT');
   }
+  // Too old to finish: the admin starts the approval again (a new job).
+  if (!(Date.now() - Date.parse(job.createdAt) <= APPROVAL_JOB_MAX_AGE_MS))
+    return fail('APPROVAL_EXPIRED');
   if (job.nextPage !== job.pageHashes.length) return fail('SOURCE_NOT_READY');
   if (!sameProduct(product, job)) return fail('CONFLICT');
   const images: CollectionDoc[] = [];
@@ -404,10 +411,19 @@ export async function finishStagedApproval(
     return fail('APPROVAL_TOO_LARGE');
   for (const imageId of new Set([...beforeImages, ...afterImages])) {
     const image = await tx.get('images', imageId);
+    const lock = image ? readImageMutationState(image) : null;
+    // Held right now by a save or delete (a fresh lock): free again in a
+    // moment, so "busy, try again". A stale or corrupt lock does not clear by
+    // waiting, so it stays "not ready".
+    if (
+      lock?.state === 'owned' &&
+      Date.now() - Date.parse(lock.startedAt) < IMAGE_MUTATION_STALE_MS
+    )
+      return fail('MEDIA_BUSY');
     if (
       !image ||
       image.status !== 'active' ||
-      readImageMutationState(image).state !== 'free' ||
+      lock?.state !== 'free' ||
       !['cloudbase-storage', 'local-disk'].includes(String(image.storageProvider)) ||
       (Object.hasOwn(image, 'publishedRefCount') &&
         (typeof image.publishedRefCount !== 'number' ||
@@ -525,7 +541,7 @@ export function persistStagedApprovalInCloud(
     runStagedApproval(
       {
         get: async (collection, id) => {
-          const response = (await tx.collection(collection).doc(id).get()).data;
+          const response = sdkAnswer(await tx.collection(collection).doc(id).get()).data;
           const row = Array.isArray(response) ? response[0] : response;
           if (row == null) return null;
           if (typeof row !== 'object' || Array.isArray(row) || !('_id' in row) || row._id !== id)
@@ -534,7 +550,7 @@ export function persistStagedApprovalInCloud(
         },
         set: async (collection, row) => {
           const { _id, ...data } = row;
-          const result = await tx.collection(collection).doc(_id).set(data);
+          const result = sdkAnswer(await tx.collection(collection).doc(_id).set(data));
           // Installed @cloudbase/database 1.4.3 transaction set returns upserted
           // for a new document. A response with neither acknowledgement aborts.
           if (result.updated !== 1 && !result.upserted?.some((item) => item._id === _id))

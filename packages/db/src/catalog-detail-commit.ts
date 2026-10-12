@@ -6,6 +6,7 @@ import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-de
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
+import { sdkAnswer } from './cloudbase-sdk-answer.ts';
 
 const identity = z
   .string()
@@ -210,17 +211,19 @@ export async function commitCatalogApproval(
   if (images.some((image) => Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) < 0))
     return { ok: false, code: 'MEDIA_NOT_READY' };
   // Every deterministic rejection is above this boundary. Exceptions below MUST abort the transaction.
-  // Shared photos are read, never written, unless their live-use count changes (DEC-21): delete
-  // paths lock the photo and refuse while an unfinished approval lists it, and a locked photo is
-  // refused above.
-  for (const image of images) {
-    const delta = referenceDelta(image._id);
-    if (delta === 0) continue;
+  // This one-request path creates no approval job, so photo deletes cannot see it in flight
+  // (they check unfinished jobs, DEC-21). It keeps writing every photo so the database's
+  // write-conflict check catches a concurrent delete. Production approves through the staged
+  // path (finishStagedApproval), which reads shared photos without writing them; wire this path
+  // into a production action only with a job, or keep this write.
+  for (const image of images)
     await tx.set('images', {
       ...image,
-      publishedRefCount: Number(image.publishedRefCount ?? 0) + delta,
+      ...(referenceDelta(image._id)
+        ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) }
+        : {}),
+      catalogDetailApprovalFence: revision,
     });
-  }
   const byId = new Map(rows.map((row) => [row._id, row]));
   for (const [position, variant] of plan.variants.entries()) {
     const row = byId.get(variant.id);
@@ -275,10 +278,10 @@ export async function approveCatalogDetailInCloud(
     commitCatalogApproval(
       {
         get: async (collection, id) =>
-          document((await tx.collection(collection).doc(id).get()).data),
+          document(sdkAnswer(await tx.collection(collection).doc(id).get()).data),
         set: async (collection, row) => {
           const { _id, ...data } = row;
-          const result = await tx.collection(collection).doc(_id).set(data);
+          const result = sdkAnswer(await tx.collection(collection).doc(_id).set(data));
           if (result.updated !== 1) throw new Error('Approval write not confirmed');
         },
       },

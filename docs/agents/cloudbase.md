@@ -70,6 +70,14 @@ first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
   admin function answers `BUSY` (409, nothing saved) and the admin page
   resends it. Do not write a shared record (a photo used by hundreds of
   products) in a transaction unless its value changes (DEC-21).
+- Coded answers: through `@cloudbase/node-sdk` (what our functions use) a
+  failed database call THROWS a `TcbError` with its `code` (request layer →
+  `processReturn`, `throwOnCode` true by default; never turn it off). The bare
+  `@cloudbase/database` API would return `{ code }` instead; the approval
+  wrappers guard against that with `sdkAnswer`. `pnpm verify:cloudbase-sdk`
+  pins both behaviours.
+- An approval job finishes within an hour or never; photo deletes ignore older
+  unfinished jobs (`packages/db/src/approval-job-age.ts`).
 - Approval writes do not change `updatedAt`; a revision guard alone does not
   detect an approval in between. Add a state guard (`requireUnapprovedDraft`).
 

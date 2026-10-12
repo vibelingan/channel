@@ -4,6 +4,7 @@ import { type ApiResult, ok, rateLimited } from '@vibelingan-channel/shared';
 import type { AdminConfig, AdminRequest, AdminResult } from './handler.ts';
 import {
   type HttpResponse,
+  errorStatus,
   handleAdminFunctionEvent,
   parseAllowedOrigins,
 } from './http-adapter.ts';
@@ -134,4 +135,8 @@ test('parses comma-separated CORS origins', () => {
     'https://a.example',
     'https://b.example',
   ]);
+});
+
+test('BUSY (a colliding change, nothing saved) answers 409; the page reads the code and resends', () => {
+  assert.equal(errorStatus({ ok: false, error: { code: 'BUSY', message: 'try again' } }), 409);
 });

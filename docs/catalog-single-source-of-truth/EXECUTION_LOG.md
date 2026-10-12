@@ -56,7 +56,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 47 | "Photos for each configuration" in the edit form | PT-F | Done (local) | `57f8d71` |
 | 48–54 | PT-G: Alibaba photos copied ahead; new drafts hidden until ready | PT-G | Done (live) | `609b362`, `099ab12`, `7e3a4c8`, `78a4c47` |
 | 55 | One product, one unit: photos land together or the product retries in 10 minutes | PT-G | Done (local, validated); deploying | `5fd7752` |
-| 56 | Batch publish stops failing: approval reads shared photos without writing them; the batch recovers and offers Try again (DEC-21) | fix | Done (local, validated) | see log |
+| 56 | Batch publish stops failing: approval reads shared photos without writing them; the batch recovers and offers Try again (DEC-21) | fix | Done (local, validated, reviewed); deploying | `4c91f4b` + review fixes |
 
 ## Runbook status
 
@@ -106,6 +106,63 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### DEC-21 review round, photo investigation, data check (2026-10-12)
+- Review gate on `4c91f4b`: four independent reviewers (docs drift, cross-file
+  traces, races, tests and types). No blocking finding; the delete-safety
+  argument confirmed on the staged path. Applied:
+  - **Stale approval jobs.** Every attempt starts a new job, and a failed one
+    stayed "unfinished" forever, which (with the new check) blocked deleting
+    its photos with "try again in a minute". Now a job finishes within one
+    hour or never (`finishStagedApproval` refuses older), and deletes ignore
+    jobs older than one hour plus 10 minutes (`approval-job-age.ts`).
+  - **SDK coded answers (claim corrected by the last reviewer).** One
+    reviewer read the bare `@cloudbase/database` code, where a failed
+    in-transaction read/write RETURNS `{ code }`. Production goes through
+    `@cloudbase/node-sdk`, whose request layer throws such answers with their
+    code (`processReturn`, `throwOnCode` true by default) — checked in the
+    installed 3.17.2 — so conflicts were already thrown and retried and the
+    original diagnosis stands. Kept `sdkAnswer` in the approval wrappers as a
+    guard; the contract script pins both behaviours and the 3-retry default.
+  - **Last re-review:** "busy" only for a fresh photo lock (a stale or corrupt
+    one never clears by waiting, so it stays a definite "not ready"); an
+    expired approval answers "took over an hour, publish again"; the delete
+    refusal no longer says "in a minute"; neutral batch wording; a malformed
+    job scan fails closed. Accepted: a lost answer on a live, unflagged
+    product counts as published (its approval is already current unless it
+    has unapproved admin edits, which admin saves do not leave).
+  - **Locked photo = busy.** A save or approval meeting a photo locked by
+    another save or delete answered "missing or busy, fix the gallery" (a
+    definite refusal, no Try again). It now answers BUSY (save) or
+    `MEDIA_BUSY` → BUSY (approval), which the page resends.
+  - **False "published".** After a lost answer, a live product read back as
+    published proved nothing (its re-approval may not have run). A read-back
+    now proves a change only when no approval is left unproven
+    (`readbackProves`); otherwise "couldn't confirm", offered again.
+  - The unused one-request approval (`commitCatalogApproval`, no job) keeps
+    writing every photo. Smaller: pause stops on cancel, read-backs run in
+    parallel (8 s each), no Try again after a refused sign-in, double-click
+    guard on the list's Try again, neutral BUSY wording, operation budget
+    pinned at 78, tests for job age, >100 jobs, 409 status, editor Try again
+    (browser), streaks, wrong-product read-back.
+- **Why ~1,000 products share photos (owner question; read-only checks on the
+  live data).** All 1,109 Alibaba products come from ONE store (one
+  connection); each maps to exactly one Alibaba product (no merging).
+  Description photos: the store's template pages (R&D, exhibition, company)
+  are in every listing; the most shared is in 689 descriptions. Gallery
+  photos: 752 shared by 2 products, 303 by 3–5, 4 by 6–20, none by more; in
+  1,509 of 1,528 sharing pairs Alibaba lists DIFFERENT addresses. Downloaded
+  22 such pairs from Alibaba: 22/22 byte-identical to each other and to our
+  stored copy (SHA-256). The seller uploaded the same photo to similar
+  listings (e.g. "Music Headphones Wired Earbuds" / "3.5mm In-Ear Wired
+  Earphones"). Our mapping is correct; one copy per identical file is right.
+- **Data left by the client's failed attempts.** Both products from the
+  failed batch are now published with an approved version (a later retry
+  worked). Public consistency audit: 0 errors, 0 fallbacks, 0 mismatches.
+  Photo live-use counts (repair action, report-only): 21 of 9,799 wrong, all
+  on photos no product uses (17 at -1, 3 too high, 1 missing); not from the
+  batch failures (a failed approval rolls back). Fixing them is a 21-record
+  write with the existing repair action — asked the owner.
 
 ### Batch publish redesign — DEC-21 built (2026-10-12)
 - Owner: "a real fix instead of just the hot fix … give the client side a
@@ -683,6 +740,8 @@ paired with the MOQ. Names are truncated as captured.
   running ones report their own outcome; no automatic retry; results keep the
   selection order. CloudBase re-runs a transaction that collides with another
   (two products sharing a photo), so parallel approvals are safe.
+  [Superseded 2026-10-12 by DEC-21: that re-run was 3 instant retries, which
+  shared photos exhausted; see the DEC-21 entries at the top of this log.]
 - Change 3 — tapping a photo that belongs to exactly one configuration selects
   it (`configurationForPhoto`); a photo shared by several, or by none, only
   changes the big photo. Root cause of the owner's example ("China

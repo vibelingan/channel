@@ -19,7 +19,7 @@ const mixed: BatchUpdateResult = {
     {
       id: 'busy',
       code: 'BUSY',
-      message: 'Another change to the same photos was happening at the same moment. Try again.',
+      message: 'Another change happened at the same moment. Try again.',
       outcome: 'rejected',
       retryable: true,
     },
@@ -63,7 +63,7 @@ test('the summary counts what was published, what was not, and what could not be
 test('each product says in plain words why it did not publish', () => {
   const html = render();
   assert.match(html, /<strong>Unclassified lamp<\/strong>: Product family is required to publish/);
-  assert.match(html, /<strong>Headset<\/strong>: Another change to the same photos/);
+  assert.match(html, /<strong>Headset<\/strong>: Another change happened at the same moment/);
   assert.match(html, /<strong>Charger<\/strong>: Not tried because the server stopped answering/);
   assert.match(html, /Fix the reason shown for each product \(in Edit\), then publish it again\./);
 });

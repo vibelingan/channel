@@ -69,8 +69,21 @@ export class DraftSavedError extends AdminApiError {
  * pause (DEC-21). Any other answer is returned as it is.
  */
 export const BUSY_RETRIES = 3;
-const busyPause = (attempt: number) =>
-  new Promise((resolve) => setTimeout(resolve, (0.4 + Math.random()) * 600 * attempt));
+const busyPause = (attempt: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const stop = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(
+      () => {
+        signal?.removeEventListener('abort', stop);
+        resolve();
+      },
+      (0.4 + Math.random()) * 600 * attempt,
+    );
+    signal?.addEventListener('abort', stop, { once: true });
+  });
 
 async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
@@ -84,7 +97,8 @@ async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Pr
         signal?.aborted
       )
         throw error;
-      await busyPause(attempt);
+      await busyPause(attempt, signal);
+      if (signal?.aborted) throw error;
     }
   }
 }
@@ -548,7 +562,7 @@ async function approveManualProduct(
   let guard = options.expectedUpdatedAt;
   const { published: _published, ...draftValues } = values;
   // Checked on the would-be product before anything is saved, so a refusal is a
-  // definite rejection that batch publish reports as "needs attention".
+  // definite rejection that batch publish reports with its reason.
   const prospective = { ...initial, ...draftValues };
   if (!isProductFamily(prospective.productFamily))
     throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
@@ -614,6 +628,30 @@ export interface BatchUpdateResult {
   failures: BatchUpdateFailure[];
 }
 
+const SIGN_IN_STOP = 'your sign-in expired or lacks permission. Sign in again, then try again.';
+
+/**
+ * Whether a product read back after an unclear answer proves the batch change.
+ * Publishing, and a category change on a live product, include an approval
+ * the fields cannot show: a product counts as published only when nothing on
+ * it still waits for review (publishing clears that flag), and a live
+ * product's new category is never taken as proof. "unproven" is sent again.
+ */
+export function readbackProves(
+  current: CollectionDoc,
+  values: Record<string, unknown>,
+): 'done' | 'not-done' | 'unproven' {
+  if (!Object.entries(values).every(([key, value]) => current[key] === value)) return 'not-done';
+  if (values.published === true && current.alibabaReviewPending === true) return 'unproven';
+  if (
+    values.published === undefined &&
+    isProductFamily(values.productFamily) &&
+    current.published === true
+  )
+    return 'unproven';
+  return 'done';
+}
+
 /** Products updated at once in a batch: enough to hide gateway latency, few enough to stay polite. */
 export const BATCH_CONCURRENCY = 4;
 
@@ -669,7 +707,8 @@ export async function batchUpdateRecords(
             code: 'NOT_ATTEMPTED',
             message: `Not tried because ${stopReason}`,
             outcome: 'not-attempted',
-            retryable: true,
+            // After a refused sign-in, trying again is refused too.
+            retryable: stopReason !== SIGN_IN_STOP,
           },
         };
         continue;
@@ -692,8 +731,7 @@ export async function batchUpdateRecords(
         const code = error instanceof AdminApiError ? error.code : 'NETWORK_ERROR';
         // A definite answer: nothing (more) was saved for this product.
         const rejected = DEFINITE_REJECTIONS.has(code);
-        if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN')
-          stopReason = 'your sign-in expired or lacks permission. Sign in again, then try again.';
+        if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') stopReason = SIGN_IN_STOP;
         if (rejected) unclearInARow = 0;
         else if (++unclearInARow >= 2)
           stopReason ??= 'the server stopped answering. Try again in a minute.';
@@ -703,7 +741,7 @@ export async function batchUpdateRecords(
             code,
             message:
               code === 'BUSY'
-                ? 'Another change to the same photos was happening at the same moment. Try again.'
+                ? 'Another change happened at the same moment. Try again.'
                 : rejected && error instanceof Error
                   ? error.message
                   : 'Checking whether it went through…',
@@ -717,37 +755,45 @@ export async function batchUpdateRecords(
   await Promise.all(
     Array.from({ length: Math.min(BATCH_CONCURRENCY, uniqueIds.length) }, () => worker()),
   );
-  // Unclear results are checked now, so the admin is told what happened
-  // instead of being asked to refresh.
-  for (const [index, outcome] of outcomes.entries()) {
-    if (!('failure' in outcome) || outcome.failure.outcome !== 'unconfirmed') continue;
-    const { id } = outcome.failure;
-    try {
-      const current = await call<CollectionDoc>('get', { collection, id });
-      // An answer about another product says nothing about this one.
-      if (current?._id !== id) throw new AdminApiError('INVALID_RESPONSE', 'Wrong product');
-      if (Object.entries(values).every(([key, value]) => current[key] === value)) {
-        outcomes[index] = { item: current };
-        continue;
+  // Unclear results are checked now, all at once, so the admin is told what
+  // happened instead of being asked to refresh.
+  await Promise.all(
+    outcomes.map(async (outcome, index) => {
+      if (!('failure' in outcome) || outcome.failure.outcome !== 'unconfirmed') return;
+      const { id } = outcome.failure;
+      let current: CollectionDoc;
+      try {
+        current = await call<CollectionDoc>('get', { collection, id }, AbortSignal.timeout(8000));
+        // An answer about another product says nothing about this one.
+        if (current?._id !== id) throw new AdminApiError('INVALID_RESPONSE', 'Wrong product');
+      } catch {
+        outcomes[index] = {
+          failure: {
+            ...outcome.failure,
+            message:
+              "Couldn't check whether it went through. Refresh the list to see, then try again if needed.",
+          },
+        };
+        return;
       }
-      outcomes[index] = {
-        failure: {
-          ...outcome.failure,
-          message: "Didn't go through: the server didn't answer in time. Try again.",
-          outcome: 'rejected',
-          retryable: true,
-        },
-      };
-    } catch {
-      outcomes[index] = {
-        failure: {
-          ...outcome.failure,
-          message:
-            "Couldn't check whether it went through. Refresh the list to see, then try again if needed.",
-        },
-      };
-    }
-  }
+      const proof = readbackProves(current, values);
+      outcomes[index] =
+        proof === 'done'
+          ? { item: current }
+          : {
+              failure: {
+                ...outcome.failure,
+                ...(proof === 'not-done'
+                  ? {
+                      message: "Didn't go through: the server didn't answer in time. Try again.",
+                      outcome: 'rejected' as const,
+                    }
+                  : { message: "Couldn't confirm the website shows this change. Try again." }),
+                retryable: true,
+              },
+            };
+    }),
+  );
   const items = outcomes.flatMap((outcome) => ('item' in outcome ? [outcome.item] : []));
   const failures = outcomes.flatMap((outcome) => ('failure' in outcome ? [outcome.failure] : []));
   return { updated: items.length, items, failures };
@@ -756,7 +802,7 @@ export async function batchUpdateRecords(
 /**
  * Try again for products a batch did not change, folding the answers into the
  * earlier result. Only retryable failures are sent. Publishing reads each
- * product first: one that went through after all is counted, not sent again,
+ * product first: one proven done (readbackProves) is counted, not sent again,
  * and the rest carry the revision just read, so a product flagged with
  * Alibaba changes since (DEC-19) or edited in between is refused, not
  * overwritten. Other changes (disable, category, archive) are harmless to
@@ -781,12 +827,12 @@ export async function retryBatchUpdate(
     );
     for (const [index, failure] of retry.entries()) {
       const doc = reads[index];
-      if (!doc || typeof doc.updatedAt !== 'string')
+      if (doc && readbackProves(doc, values) === 'done') done.push(doc);
+      else if (!doc || typeof doc.updatedAt !== 'string')
         unreadable.set(failure.id, {
           ...failure,
           message: "Couldn't read the product to try again. Refresh the list, then try again.",
         });
-      else if (Object.entries(values).every(([key, value]) => doc[key] === value)) done.push(doc);
       else {
         send.push(failure.id);
         revisions.set(failure.id, doc.updatedAt);

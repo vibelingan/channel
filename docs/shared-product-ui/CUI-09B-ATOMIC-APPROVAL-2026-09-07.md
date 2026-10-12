@@ -38,6 +38,9 @@ doc.set 为直接数据参数、不能含 _id。沿用现有 NodeSdkDatabase 结
 任何异常由事务回滚；确定性失败在第一笔写前返回，不能 catch 后继续提交半份数据。
 媒体行必须 active、无 mutation lock；使用事务 set 保持媒体业务数据和 refCount 不变、写入新的私有
 `catalogDetailApprovalFence`，确保真正参加写冲突检测，避免同值 no-op 与只读快照的写偏差。
+
+> 2026-10-12 更新：此写入（approval fence）已由 DEC-21 取消。共享图片被几百个产品使用，每次审批都写所有图片会让共享图片的审批互相冲突。现在审批只读取图片，仅在上线引用数变化时写入；删除路径改为先检查未完成的审批任务。详见 `docs/catalog-single-source-of-truth/DESIGN.md` DEC-21。
+
 不在事务里发网络请求、下载文件、发送邮件或回填全库计数。
 本地 JsonFileAdapter 在已有单文件互斥区对副本执行同一算法，成功后一次原子 rename 持久化。
 
