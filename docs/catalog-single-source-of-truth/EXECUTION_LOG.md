@@ -205,6 +205,11 @@ paired with the MOQ. Names are truncated as captured.
 - Fix: `wxRemovedCount` reads `stats.removed`; unit test; the SDK contract
   script now pins wx-server-sdk's `remove` shape and the adapter's use of it
   (fails on the old code, checked).
+- `0008af1` live 03:15 UTC (run green 03:36). Verified from the signed-in
+  admin page: created a temporary row in the empty, admin-only
+  `successStories` collection and removed it with the generic admin delete —
+  answer `{ deleted: true }` (before: "Document not found"); collection back
+  to 0 rows.
 
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search
