@@ -4,6 +4,15 @@ Replaces the "Where it should live" section of [RETRO.md](RETRO.md) after the
 owner's review (2026-10-10): one-line lessons are too thin for a future agent
 to match to a task or act on. Nothing below has been done yet.
 
+## Progress (2026-10-12)
+
+| Item | Status |
+|---|---|
+| C1, C5 (+C6), C10 as engineering-craft rules, new categories `data-pipeline-atomicity` and `performance-latency` | Done on branch `feat/catalog-retro-cases` (orocsy/engineering-craft), not merged |
+| dev-pipeline refinements §5 (all nine) | Done on branch `feat/retro-catalog-probes` (orocsy/dev-pipeline), not merged; review also checks hand-typed SDK result interfaces (from the delete bug found 2026-10-12) |
+| `cloudbase-ops` as a project reference doc | Done: `docs/agents/cloudbase.md`, linked from `CLAUDE.md` |
+| Remaining 19 cases, `data-operations` category, spec-forge §6 | Not started |
+
 ## 1. What changes in the approach
 
 A lesson is only reusable if a future agent can (a) recognise the situation

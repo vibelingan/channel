@@ -13,6 +13,10 @@ GitHub issues for `vibelingan/channel`. PRs are not a triage surface. See `docs/
 
 Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 
+### CloudBase and production
+
+One environment serves supplychainsai.com and is the owner's test environment; deploy by fast-forwarding `test`. Release ids, deploy timing and failure modes, gateway latency, SDK result shapes, provisioning, admin calls from the signed-in page. See `docs/agents/cloudbase.md`.
+
 ### Domain docs
 
 Single-context repo — `CONTEXT.md` at root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
