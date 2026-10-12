@@ -1,6 +1,6 @@
 # Meeting prep — the client's sales-agent flows (10 Oct 2026)
 
-**Status:** proposal for discussion; nothing implemented
+**Status:** proposal for discussion; nothing implemented. Answers received on 12 Oct are in [CLIENT-ANSWERS-2026-10-12.md](./CLIENT-ANSWERS-2026-10-12.md).
 **Visual version:** [Sales Agent Flows](https://claude.ai/artifact/SHLiVpkhp49qf5nhrrTUQ9) (screens, questions, order)
 and the interactive diagram [Sales Agent: Inquiry to Quote Across Chat and
 Email](https://claude.ai/artifact/5EjbHy4mZCSCdJ8YJZgEy3). Both are private until shared from their Share menu.

@@ -4,6 +4,7 @@
 **Date:** 2026-09-18
 **Base:** `origin/main` at `b0015c0`
 **Spec:** [SPEC.md](./SPEC.md) · **Decision record:** [ADR-003](../ai-platform/ADR-003-TOOL-CALLING-SALES-AGENT.md) · **Technical review:** [TECH-REVIEW.md](./TECH-REVIEW.md)
+**Added 2026-10-12:** [CLIENT-ANSWERS-2026-10-12.md](./CLIENT-ANSWERS-2026-10-12.md) (answers, email mechanics, field list, card and context rules)
 **Added 2026-10-09:** [MEETING-PREP-2026-10-10.md](./MEETING-PREP-2026-10-10.md) (client flows, screens, questions; visual: [Sales Agent Flows](https://claude.ai/artifact/SHLiVpkhp49qf5nhrrTUQ9), [journey diagram](https://claude.ai/artifact/5EjbHy4mZCSCdJ8YJZgEy3)) · [PLATFORM-VISION.md](./PLATFORM-VISION.md) (reusable chat platform, protocol, UI base)
 **Visual version:** [Sales Agent Phase 2](https://claude.ai/artifact/3Am4dwBztj8cM5uqNaWMso) (private until shared from its menu)
 
@@ -294,10 +295,10 @@ weeks, B 2 weeks, C 3.5 weeks, D 1.5 weeks. B0 can change C.
 
 | MIU | What | Done when |
 |---|---|---|
-| E0 | Mailbox access and policy agreed: mail system, shared vs personal mailbox, approval classes, follow-up rule, data residency | written and signed off by the client |
+| E0 | Mailbox access and policy agreed: Tencent enterprise mail, one shared `sales@`, IMAP/SMTP enabled with a client authorization code, auto-acknowledgement class, 1/3/7-day follow-ups in the company name, data-residency decision (D9), signature and tone drafted | written and signed off by the client |
 | E1 | Inbound reading and classification (new inquiry, RFQ, sample, existing order, not sales); link to the buyer's web chat by email address | labelled set of past inquiries classified at an agreed accuracy |
 | E2 | Draft reply with evidence and visible placeholders for price, lead time, sample terms; same tools and policy as chat | eval: no draft states a price; every product link resolves |
-| E3 | Review surface in the Inquiries page: approve / edit / ask to revise / take over; sent from the sales mailbox; logged as lead | e2e on a test mailbox |
+| E3 | Draft written to the mailbox's Drafts folder over IMAP; WeCom group notification with mentions; admin edits and sends from the mail client; Sent folder watched and logged as a lead; review page in the site admin shows evidence, flags and audit (no send in v1) | e2e on a test mailbox, including "nothing sent until the admin sends" |
 | E4 | Follow-up suggestions after N days, approved the same way | nothing is sent without approval, proven by test |
 | E5 | Learning from edits: diffs between draft and sent feed the eval set and the knowledge gaps | weekly report shows edit categories |
 
@@ -330,13 +331,14 @@ buyer history.
 
 | # | Question | Recommendation |
 |---|---|---|
-| D1 | Which price classes, if any, may the assistant show? (KB brief prerequisite 1.) Note that the pricing template says "We don't publish prices here" while product pages now show supplier reference ranges; that wording needs the owner too. | v1: **no prices in cards or text**; "View product" shows the viewer's own price. Revisit anonymous reference ranges after B2's absence tests exist |
+| D1 | Which price classes may the assistant show? | **Decided 2026-10-12:** the public price the product page shows an anonymous visitor (`alibabaCatalogPricing` / manual pricing), in cards and answers; never `vipPrice`. B2's absence tests still prove the gated field is absent. The "We don't publish prices here" template is rewritten |
 | D2 | How long should a browser remember a chat? | Same device, 7 days sliding, with "New chat" |
 | D3 | Give the worker its own model-provider key and amend SECURITY §11.5 so a product search is an approved tool? Without it Phase 2 stops at Stage A. | Approve after B0 |
-| D4 | Where does "talk to sales" land? | Existing inquiry form and admin Inquiries page; live takeover and an AI lead queue later |
-| D5 | Answer languages | English; reply in Chinese when the buyer writes Chinese |
+| D4 | Where does "talk to sales" land? | **Decided 2026-10-12:** the Inquiries page, with a WeCom group notification to the admins when a draft or lead needs them; email per CLIENT-ANSWERS §3 |
+| D5 | Answer languages | **Decided 2026-10-12:** English |
 | D6 | Which pages show the assistant, and who are the named product and security owners for gate 10 and page CSP (A6)? | All public catalog pages including `/products/item/`, plus `/`, `/oem`, `/portfolio`; never admin, sign-in, account or result pages |
-| D7 | Spend caps: turns per conversation, daily model spend | set from B0's measured cost per turn |
+| D7 | Spend caps: turns per conversation, daily model spend | set from B0's measured cost per turn; volume today is under 10 inquiries a day |
+| D9 | Model-provider data residency for email contents | client decision; see CLIENT-ANSWERS §4 |
 
 ---
 
