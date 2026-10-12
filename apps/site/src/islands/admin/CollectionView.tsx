@@ -43,6 +43,7 @@ import {
 import { RecordForm } from './RecordForm.tsx';
 import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
+  type BatchUpdateResult,
   DraftSavedError,
   batchRemoveRecords,
   batchUpdateRecords,
@@ -53,6 +54,7 @@ import {
   listRecords,
   markProductReviewed,
   removeRecord,
+  retryBatchUpdate,
   updateRecord,
 } from './api.ts';
 import {
@@ -299,7 +301,12 @@ export function CollectionView({
       values: Record<string, unknown>;
       names: Record<string, string>;
       skipped?: string[];
-    }) => batchUpdateRecords(collection.name, vars.ids, vars.values),
+      /** Set when trying again: the answers are folded into this result. */
+      previous?: BatchUpdateResult;
+    }) =>
+      vars.previous
+        ? retryBatchUpdate(vars.previous, vars.ids, vars.values)
+        : batchUpdateRecords(collection.name, vars.ids, vars.values),
     onSuccess: (result) => {
       const completed = new Set(result.items.map((item) => item._id));
       setRowSelection((current) =>
@@ -732,10 +739,10 @@ export function CollectionView({
         >
           <p className="font-semibold">
             {classificationReview.snapshot.unresolvedIds.length > 0
-              ? 'Classification result not confirmed for:'
+              ? "Couldn't check the result for:"
               : classificationReview.snapshot.attentionIds.length > 0
-                ? 'Classification needs attention for:'
-                : 'Product status refresh failed for:'}
+                ? 'These products need a fix:'
+                : "Couldn't refresh the status of:"}
           </p>
           <p className="mt-1 break-words">
             {(reviewIds.length > 0 ? reviewIds : classificationReview.snapshot.submittedIds)
@@ -743,10 +750,10 @@ export function CollectionView({
               .join(', ')}
           </p>
           <p className="mt-1">
-            {classificationReview.snapshot.confirmedPublishedIds.length} confirmed published;{' '}
-            {classificationReview.snapshot.unresolvedIds.length} unresolved;{' '}
-            {classificationReview.snapshot.attentionIds.length} need attention. Check product
-            statuses before retrying.
+            {classificationReview.snapshot.confirmedPublishedIds.length} published ·{' '}
+            {classificationReview.snapshot.unresolvedIds.length} couldn't be checked ·{' '}
+            {classificationReview.snapshot.attentionIds.length} need a fix. Each product's reason is
+            listed below.
           </p>
           {classificationReview.snapshot.unresolvedIds.length > 0 && (
             <ul aria-label="Products to verify" className="mt-2 list-disc space-y-1 pl-5">
@@ -754,7 +761,7 @@ export function CollectionView({
                 <li key={id} className="break-words">
                   {classificationReview.names[id] ?? id}:{' '}
                   {classificationReview.snapshot.issuesById[id] ??
-                    'Result not confirmed; inspect before retrying.'}
+                    "Couldn't check whether it went through. Refresh statuses to see."}
                 </li>
               ))}
             </ul>
@@ -764,7 +771,7 @@ export function CollectionView({
               {classificationReview.snapshot.attentionIds.map((id) => (
                 <li key={id} className="break-words">
                   {classificationReview.names[id] ?? id}:{' '}
-                  {classificationReview.snapshot.issuesById[id] ?? 'Review product status'}
+                  {classificationReview.snapshot.issuesById[id] ?? 'Open it in Edit to see why.'}
                 </li>
               ))}
             </ul>
@@ -911,6 +918,15 @@ export function CollectionView({
               ? batchUpdateMutation.variables.values.published
               : undefined
           }
+          {...(isProducts && batchUpdateMutation.variables
+            ? {
+                onRetry: (ids: string[]) => {
+                  const { variables, data } = batchUpdateMutation;
+                  if (variables && data)
+                    batchUpdateMutation.mutate({ ...variables, ids, previous: data });
+                },
+              }
+            : {})}
           onDismiss={() => batchUpdateMutation.reset()}
         />
       )}

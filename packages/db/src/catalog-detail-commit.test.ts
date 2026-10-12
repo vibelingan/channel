@@ -328,7 +328,7 @@ test('malformed commands do not start writes', async () => {
 test('a failure at the final product write also rolls back the SKU and media writes', async () => {
   const h = harness();
   const before = structuredClone(h.state);
-  h.fail(4); // image + two variants + product
+  h.fail(3); // two variants + product (an unchanged photo is not written, DEC-21)
   await assert.rejects(approveCatalogDetailInCloud(h.db, 'admin', h.command), /injected/);
   assert.deepEqual(h.state, before);
 });

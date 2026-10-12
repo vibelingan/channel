@@ -210,15 +210,17 @@ export async function commitCatalogApproval(
   if (images.some((image) => Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) < 0))
     return { ok: false, code: 'MEDIA_NOT_READY' };
   // Every deterministic rejection is above this boundary. Exceptions below MUST abort the transaction.
-  // Unchanged media writes include lifecycle rows in conflict detection; reading alone is snapshot isolation.
-  for (const image of images)
+  // Shared photos are read, never written, unless their live-use count changes (DEC-21): delete
+  // paths lock the photo and refuse while an unfinished approval lists it, and a locked photo is
+  // refused above.
+  for (const image of images) {
+    const delta = referenceDelta(image._id);
+    if (delta === 0) continue;
     await tx.set('images', {
       ...image,
-      ...(referenceDelta(image._id)
-        ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) }
-        : {}),
-      catalogDetailApprovalFence: revision,
+      publishedRefCount: Number(image.publishedRefCount ?? 0) + delta,
     });
+  }
   const byId = new Map(rows.map((row) => [row._id, row]));
   for (const [position, variant] of plan.variants.entries()) {
     const row = byId.get(variant.id);

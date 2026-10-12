@@ -63,7 +63,33 @@ export class DraftSavedError extends AdminApiError {
   }
 }
 
+/**
+ * BUSY means a database transaction collided with another and rolled back:
+ * nothing was saved, so the same request is sent again after a short random
+ * pause (DEC-21). Any other answer is returned as it is.
+ */
+export const BUSY_RETRIES = 3;
+const busyPause = (attempt: number) =>
+  new Promise((resolve) => setTimeout(resolve, (0.4 + Math.random()) * 600 * attempt));
+
 async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await callOnce<T>(action, data, signal);
+    } catch (error) {
+      if (
+        !(error instanceof AdminApiError) ||
+        error.code !== 'BUSY' ||
+        attempt > BUSY_RETRIES ||
+        signal?.aborted
+      )
+        throw error;
+      await busyPause(attempt);
+    }
+  }
+}
+
+async function callOnce<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -560,7 +586,27 @@ export interface BatchUpdateFailure {
   code: string;
   message: string;
   outcome: 'rejected' | 'unconfirmed' | 'not-attempted';
+  /** Trying the same update again may work (no fix needed first). */
+  retryable?: boolean;
 }
+
+/**
+ * Answers that are definite: the product was not (further) changed, and the
+ * message says why. Anything else is unclear and is checked after the batch.
+ */
+const DEFINITE_REJECTIONS = new Set([
+  'BAD_REQUEST',
+  'VALIDATION_ERROR',
+  'NOT_FOUND',
+  'CONFLICT',
+  'UNAUTHORIZED',
+  'FORBIDDEN',
+  // Refused by the admin page before publishing: the product stays a draft.
+  'MEDIA_NOT_READY',
+  'INVALID_PRODUCT',
+  // A colliding transaction rolled back (still colliding after retries).
+  'BUSY',
+]);
 
 export interface BatchUpdateResult {
   updated: number;
@@ -604,23 +650,26 @@ export async function batchUpdateRecords(
     );
   }
   // Each product is its own request chain, and most of its time is gateway
-  // latency, so a few run at once. After an uncertain result or a refused
-  // session no new product starts; products already running finish and report
-  // their own outcome. Results keep the selection order.
+  // latency, so a few run at once. One unclear result (no answer, an
+  // unexpected answer) affects only its own product: the batch carries on and
+  // checks it afterwards. It stops starting products only when the session is
+  // refused or the server fails twice in a row. Results keep the selection order.
   const outcomes: Array<{ item: CollectionDoc } | { failure: BatchUpdateFailure }> = [];
-  let stopped = false;
+  let stopReason: string | null = null;
+  let unclearInARow = 0;
   let nextIndex = 0;
   const worker = async () => {
     while (nextIndex < uniqueIds.length) {
       const index = nextIndex++;
       const id = uniqueIds[index] as string;
-      if (stopped) {
+      if (stopReason) {
         outcomes[index] = {
           failure: {
             id,
             code: 'NOT_ATTEMPTED',
-            message: 'Not attempted because the batch stopped. Refresh before retrying.',
+            message: `Not tried because ${stopReason}`,
             outcome: 'not-attempted',
+            retryable: true,
           },
         };
         continue;
@@ -637,37 +686,29 @@ export async function batchUpdateRecords(
             'The returned product did not confirm the requested status.',
           );
         }
+        unclearInARow = 0;
         outcomes[index] = { item };
       } catch (error) {
-        // A transport/5xx/malformed response may follow a committed write. Never
-        // auto-retry or claim rollback; stop and ask the operator to refresh.
-        const rejected =
-          error instanceof AdminApiError &&
-          [
-            'BAD_REQUEST',
-            'VALIDATION_ERROR',
-            'NOT_FOUND',
-            'CONFLICT',
-            'UNAUTHORIZED',
-            'FORBIDDEN',
-            // Refused by the admin page before publishing: the product stays a draft.
-            'MEDIA_NOT_READY',
-            'INVALID_PRODUCT',
-          ].includes(error.code);
-        if (
-          !rejected ||
-          (error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code))
-        )
-          stopped = true;
+        const code = error instanceof AdminApiError ? error.code : 'NETWORK_ERROR';
+        // A definite answer: nothing (more) was saved for this product.
+        const rejected = DEFINITE_REJECTIONS.has(code);
+        if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN')
+          stopReason = 'your sign-in expired or lacks permission. Sign in again, then try again.';
+        if (rejected) unclearInARow = 0;
+        else if (++unclearInARow >= 2)
+          stopReason ??= 'the server stopped answering. Try again in a minute.';
         outcomes[index] = {
           failure: {
             id,
-            code: error instanceof AdminApiError ? error.code : 'NETWORK_ERROR',
+            code,
             message:
-              rejected && error instanceof Error
-                ? error.message
-                : 'Result not confirmed. Refresh the product status before retrying.',
+              code === 'BUSY'
+                ? 'Another change to the same photos was happening at the same moment. Try again.'
+                : rejected && error instanceof Error
+                  ? error.message
+                  : 'Checking whether it went through…',
             outcome: rejected ? 'rejected' : 'unconfirmed',
+            retryable: code === 'BUSY' || !rejected,
           },
         };
       }
@@ -676,8 +717,93 @@ export async function batchUpdateRecords(
   await Promise.all(
     Array.from({ length: Math.min(BATCH_CONCURRENCY, uniqueIds.length) }, () => worker()),
   );
+  // Unclear results are checked now, so the admin is told what happened
+  // instead of being asked to refresh.
+  for (const [index, outcome] of outcomes.entries()) {
+    if (!('failure' in outcome) || outcome.failure.outcome !== 'unconfirmed') continue;
+    const { id } = outcome.failure;
+    try {
+      const current = await call<CollectionDoc>('get', { collection, id });
+      // An answer about another product says nothing about this one.
+      if (current?._id !== id) throw new AdminApiError('INVALID_RESPONSE', 'Wrong product');
+      if (Object.entries(values).every(([key, value]) => current[key] === value)) {
+        outcomes[index] = { item: current };
+        continue;
+      }
+      outcomes[index] = {
+        failure: {
+          ...outcome.failure,
+          message: "Didn't go through: the server didn't answer in time. Try again.",
+          outcome: 'rejected',
+          retryable: true,
+        },
+      };
+    } catch {
+      outcomes[index] = {
+        failure: {
+          ...outcome.failure,
+          message:
+            "Couldn't check whether it went through. Refresh the list to see, then try again if needed.",
+        },
+      };
+    }
+  }
   const items = outcomes.flatMap((outcome) => ('item' in outcome ? [outcome.item] : []));
   const failures = outcomes.flatMap((outcome) => ('failure' in outcome ? [outcome.failure] : []));
+  return { updated: items.length, items, failures };
+}
+
+/**
+ * Try again for products a batch did not change, folding the answers into the
+ * earlier result. Only retryable failures are sent. Publishing reads each
+ * product first: one that went through after all is counted, not sent again,
+ * and the rest carry the revision just read, so a product flagged with
+ * Alibaba changes since (DEC-19) or edited in between is refused, not
+ * overwritten. Other changes (disable, category, archive) are harmless to
+ * repeat and are sent as they are.
+ */
+export async function retryBatchUpdate(
+  previous: BatchUpdateResult,
+  ids: readonly string[],
+  values: Record<string, unknown>,
+): Promise<BatchUpdateResult> {
+  const wanted = new Set(ids);
+  const retry = previous.failures.filter((failure) => failure.retryable && wanted.has(failure.id));
+  const done: CollectionDoc[] = [];
+  const unreadable = new Map<string, BatchUpdateFailure>();
+  let send = retry.map((failure) => failure.id);
+  let revisions: Map<string, string> | undefined;
+  if (values.published === true) {
+    revisions = new Map();
+    send = [];
+    const reads = await Promise.all(
+      retry.map((failure) => getRecord('products', failure.id).catch(() => null)),
+    );
+    for (const [index, failure] of retry.entries()) {
+      const doc = reads[index];
+      if (!doc || typeof doc.updatedAt !== 'string')
+        unreadable.set(failure.id, {
+          ...failure,
+          message: "Couldn't read the product to try again. Refresh the list, then try again.",
+        });
+      else if (Object.entries(values).every(([key, value]) => doc[key] === value)) done.push(doc);
+      else {
+        send.push(failure.id);
+        revisions.set(failure.id, doc.updatedAt);
+      }
+    }
+  }
+  const sent = send.length
+    ? await batchUpdateRecords('products', send, values, revisions)
+    : { updated: 0, items: [], failures: [] };
+  const retried = new Set(retry.map((failure) => failure.id));
+  const answers = new Map(sent.failures.map((failure) => [failure.id, failure]));
+  const failures = previous.failures.flatMap((failure) => {
+    if (!retried.has(failure.id)) return [failure];
+    const still = answers.get(failure.id) ?? unreadable.get(failure.id);
+    return still ? [still] : [];
+  });
+  const items = [...previous.items, ...done, ...sent.items];
   return { updated: items.length, items, failures };
 }
 

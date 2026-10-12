@@ -197,7 +197,7 @@ test('zero-SKU publication needs no page, and a failed final commit leaves the o
   const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
   assert.ok(begin.ok && begin.pages === 0);
   assert.equal((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok, false);
-  h.fail(7); // after writing the prospective product pointer, before transaction commit
+  h.fail(6); // the job write: after the prospective product pointer, before commit (no photo write, DEC-21)
   await assert.rejects(
     h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)),
     /injected/,
@@ -515,7 +515,9 @@ test('media rollover budgets every read/write and rejects overflow before changi
     const result = await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId));
     if (newDescriptionCount === 10) {
       assert.ok(result.ok);
-      assert.equal(h.maximumOperations(), 97);
+      // Worst case (every photo's live-use count changes) stays inside the
+      // 98-operation budget; unchanged photos are no longer written (DEC-21).
+      assert.ok(h.maximumOperations() <= 97, String(h.maximumOperations()));
     } else {
       assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
       assert.deepEqual(h.store(), before);
@@ -647,6 +649,32 @@ test('missing and busy media cannot switch a fully staged approval; a newer appr
   };
   assert.equal((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok, false);
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, false);
+});
+
+test('approval never writes a photo whose live-use count does not change (DEC-21: shared photos)', async () => {
+  // Products share stored photos (a seller's banners in hundreds of listings).
+  // Writing every photo in each approval made any two approvals sharing one
+  // collide; only a real change of a live product's photo set may write.
+  for (const published of [false, true]) {
+    const h = fixture(1);
+    const p = h.row('products', 'p');
+    p.published = published;
+    h.row('images', 'image').publishedRefCount = published ? 1 : 0;
+    const prepared = prepareStagedApproval(
+      'admin',
+      { ...h.command, expectedDigest: catalogApprovalDigest(p, [h.row('productVariants', 'v0')]) },
+      p,
+      [h.row('productVariants', 'v0')],
+    );
+    assert.ok(prepared.ok);
+    const before = structuredClone(h.row('images', 'image'));
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    assert.notEqual(h.publication().revision, 'old', 'the approval went through');
+    assert.deepEqual(h.row('images', 'image'), before, `photo untouched (published=${published})`);
+  }
 });
 
 test('independent SKU media stays private until atomic approval, with retry-safe reference rollover', async () => {

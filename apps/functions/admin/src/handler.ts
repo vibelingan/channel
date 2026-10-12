@@ -42,6 +42,7 @@ import {
   releaseImageMutation,
   remove,
   saveCatalogProductWithIdentities,
+  unfinishedApprovalUsingImage,
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
@@ -740,9 +741,27 @@ export async function handleAdminRequest(
     if (e instanceof z.ZodError) {
       return err('VALIDATION_ERROR', e.issues.map((i) => i.message).join('; '));
     }
+    // CloudBase retries a colliding transaction 3 times, then throws it; the
+    // transaction rolled back, so the same request may simply be sent again.
+    if (isTransactionConflict(e)) {
+      console.warn('[fn-admin] transaction conflict after SDK retries');
+      return err(
+        'BUSY',
+        'Another change to the same product or photos happened at the same moment. Nothing was saved; try again.',
+      );
+    }
     console.error('[fn-admin] unexpected error:', e);
     return err('INTERNAL_ERROR', 'Unexpected server error');
   }
+}
+
+/** The SDK's error after its own retries of a write-write transaction conflict. */
+export function isTransactionConflict(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    Reflect.get(error, 'code') === 'DATABASE_TRANSACTION_CONFLICT'
+  );
 }
 
 // --- Auth actions ----------------------------------------------------------
@@ -1896,6 +1915,17 @@ async function abandonUploadAction(
       return err('CONFLICT', 'Only a completed upload may be abandoned.');
     }
 
+    // Approval reads shared photos without writing them (DEC-21), so the
+    // unfinished jobs are checked FIRST: an approval that finishes after this
+    // check has recorded the product (same transaction as its job) before the
+    // reference scan below runs, and one that finishes later refuses the lock.
+    const approving = await unfinishedApprovalUsingImage(imageId);
+    if (approving) {
+      return err(
+        'CONFLICT',
+        `Image is being approved with products/${approving}. Try again in a minute.`,
+      );
+    }
     const reference = await findImageReference(imageId);
     if (reference) {
       return err(

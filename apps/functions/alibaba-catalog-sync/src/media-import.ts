@@ -22,6 +22,7 @@ import {
   findByField,
   list,
   releaseImageMutation,
+  unfinishedApprovalUsingImage,
   upsertDocWithId,
 } from '@vibelingan-channel/db';
 import { mediaStorage, objectStoragePath } from '@vibelingan-channel/media-storage';
@@ -409,6 +410,12 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
     ) {
       return { ok: false, reason: 'still-referenced' };
     }
+    // Approval reads shared photos without writing them (DEC-21): an
+    // unfinished approval that would publish this photo still uses it. Jobs
+    // first, references second: a job that finishes in between has recorded
+    // its product (same transaction) before the reference scan reads it.
+    if (await unfinishedApprovalUsingImage(imageId))
+      return { ok: false, reason: 'still-referenced' };
     const reference = await findCandidateReference(imageId);
     if (reference) return { ok: false, reason: 'still-referenced' };
 

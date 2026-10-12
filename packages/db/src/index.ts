@@ -646,6 +646,48 @@ export interface BackfillRefCountsReport {
 }
 
 /**
+ * The unfinished approval job, if any, whose version would publish this photo.
+ *
+ * Approval reads shared photos and never writes them (DEC-21), so a delete
+ * path cannot rely on a write conflict with the approval. Delete paths call
+ * this after locking the photo: a job begun before the lock is found here; a
+ * job begun after it finds the photo locked and refuses inside its own
+ * transaction.
+ */
+export async function unfinishedApprovalUsingImage(imageId: string): Promise<string | null> {
+  let afterId = '';
+  for (;;) {
+    const page = await list({
+      collection: 'catalogDetailApprovals',
+      page: 1,
+      pageSize: 100,
+      search: '',
+      sort: [{ field: '_id', dir: 'asc' }],
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'state', op: 'eq', value: 'staging' },
+          ...(afterId ? [{ field: '_id', op: 'gt' as const, value: afterId }] : []),
+        ],
+      },
+    });
+    for (const job of page.items) {
+      const productId = typeof job.productId === 'string' ? job.productId : '';
+      if (
+        productId &&
+        catalogReferencedImageIds({
+          _id: productId,
+          catalogDetailPublication: job.publication,
+        }).includes(imageId)
+      )
+        return productId;
+    }
+    if (page.items.length < 100) return null;
+    afterId = String(page.items.at(-1)?._id ?? '');
+  }
+}
+
+/**
  * recompute `images.publishedRefCount` from the current public catalog: for each
  * image, the number of PUBLISHED products/overstock documents that reference it.
  * Scope comes from `PUBLIC_CATALOG_COLLECTIONS`, shared with routing and online

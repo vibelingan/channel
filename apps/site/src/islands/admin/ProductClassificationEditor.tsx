@@ -21,6 +21,7 @@ import {
   fetchCategorySuggestion,
   getRecord,
   publishConfirmedClassification,
+  retryBatchUpdate,
 } from './api.ts';
 import {
   classificationChoices,
@@ -185,6 +186,13 @@ const resultLabels: Record<
   unknown: 'Not confirmed; refresh needed',
   notattempted: 'Not attempted; refresh needed',
 };
+
+/** What the editor says after publishing; each product's reason is in the panel below. */
+export function publicationMessage(outcome: BatchUpdateResult): string {
+  return outcome.failures.length
+    ? `Classification saved. ${outcome.updated} of ${outcome.updated + outcome.failures.length} published; the others are listed below with the reason.`
+    : `${outcome.updated} ${outcome.updated === 1 ? 'product' : 'products'} classified and published.`;
+}
 
 export function ProductClassificationEditor({
   products,
@@ -472,11 +480,7 @@ export function ProductClassificationEditor({
           if (mounted.current) {
             publicationOutcome = outcome;
             setPublicationResult(outcome);
-            setMessage(
-              outcome.failures.length
-                ? `${outcome.updated} published; ${outcome.failures.length} need attention. Refresh statuses before retrying. Confirmed publications are not rolled back.`
-                : `${outcome.updated} products classified and published.`,
-            );
+            setMessage(publicationMessage(outcome));
           }
         } else {
           setMessage(
@@ -494,9 +498,48 @@ export function ProductClassificationEditor({
         setStage('refreshing');
       }
     }
+    await readBack(submitted, result.results, publicationOutcome, allSaved && !publish);
+  }
+
+  /** Tries again for the products that need no fix, then checks the results again. */
+  async function retryPublication(ids: string[]) {
+    const submitted = submittedCommand;
+    const assignment = results;
+    const previous = publicationResult;
+    if (!submitted || !assignment || !previous || pending || busy || inFlight.current) return;
+    inFlight.current = true;
+    setPending(true);
+    setStage('publishing');
+    setReadbackFailed(false);
+    setReadbackVerified(false);
+    busyCallback.current?.(true);
+    let outcome = previous;
+    try {
+      // Each product is read again and published from the revision just read
+      // (retryBatchUpdate): the first attempt may have imported its photos,
+      // which moved the revision this classification saved.
+      outcome = await retryBatchUpdate(previous, ids, { published: true });
+      if (mounted.current) {
+        setPublicationResult(outcome);
+        setMessage(publicationMessage(outcome));
+      }
+    } catch {
+      if (mounted.current) setMessage("Couldn't try again. Check the connection, then try again.");
+    }
+    if (mounted.current) setStage('refreshing');
+    await readBack(submitted, assignment, outcome, false);
+  }
+
+  /** Reads the products back and hands what still needs the admin to the list. */
+  async function readBack(
+    submitted: CatalogClassificationAssignmentRequest,
+    assignmentResults: CatalogClassificationAssignmentResult['results'],
+    publicationOutcome: BatchUpdateResult | null,
+    savedWithoutPublishing: boolean,
+  ) {
     const snapshot = unresolvedClassificationSnapshot(
       submitted,
-      result.results,
+      assignmentResults,
       publicationOutcome,
     );
     let readbackSucceeded = false;
@@ -532,7 +575,7 @@ export function ProductClassificationEditor({
         else onVerified?.(snapshot.submittedIds);
         setPending(false);
         busyCallback.current?.(false);
-        if (allSaved && !publish && readbackSucceeded) onSaved();
+        if (savedWithoutPublishing && readbackSucceeded) onSaved();
       }
     }
   }
@@ -884,6 +927,8 @@ export function ProductClassificationEditor({
               products.map((product) => [product._id, String(product.name ?? product._id)]),
             )}
             published
+            onRetry={(ids) => void retryPublication(ids)}
+            retrying={pending && stage === 'publishing'}
             onDismiss={() => setShowPublicationFeedback(false)}
           />
         )}

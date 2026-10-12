@@ -8,6 +8,8 @@ export const ERROR_CODES = [
   'UNKNOWN_COLLECTION',
   'CONFLICT',
   'RATE_LIMITED',
+  /** Temporary contention: nothing was saved, and the same request may be retried. */
+  'BUSY',
   'INTERNAL_ERROR',
 ] as const;
 

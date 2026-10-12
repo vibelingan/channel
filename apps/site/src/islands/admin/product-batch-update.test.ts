@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '../../../../../packages/shared/src/collections.ts';
-import { batchUpdateRecords, updateRecord } from './api.ts';
+import {
+  type BatchUpdateResult,
+  batchUpdateRecords,
+  retryBatchUpdate,
+  updateRecord,
+} from './api.ts';
 
 for (const sourceImageCount of [1, 19]) {
   test(`saving an existing publication does not auto-import ${sourceImageCount} newly synchronized description images`, async (t) => {
@@ -286,12 +291,16 @@ test('product batch publishes through individual updates and retains each busine
       code: 'VALIDATION_ERROR',
       message: 'Product family is required to publish',
       outcome: 'rejected',
+      retryable: false,
     },
   ]);
 });
 
-test('a lost response starts no new product and reports uncertainty, not failure', async (t) => {
-  // Up to four run at once; the first wave all lose their responses.
+test('a server that stops answering stops the batch; unclear products are checked, still unclear', async (t) => {
+  // Four run at once and all lose their answers. After the first one only one
+  // result is unclear, so that worker starts a fifth product; the second
+  // unclear result in a row stops the batch. The checks afterwards cannot
+  // reach the server either, so those five stay unclear and say so.
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     calls += 1;
@@ -299,26 +308,37 @@ test('a lost response starts no new product and reports uncertainty, not failure
   });
   const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
   const result = await batchUpdateRecords('products', ids, { published: false });
-  assert.equal(calls, 4);
+  assert.equal(calls, 10, 'five updates, then five status checks');
   assert.equal(result.updated, 0);
   assert.deepEqual(
-    result.failures.map((row) => [row.id, row.outcome]),
+    result.failures.map((row) => [row.id, row.outcome, row.retryable]),
     [
-      ['a', 'unconfirmed'],
-      ['b', 'unconfirmed'],
-      ['c', 'unconfirmed'],
-      ['d', 'unconfirmed'],
-      ['e', 'not-attempted'],
-      ['f', 'not-attempted'],
+      ['a', 'unconfirmed', true],
+      ['b', 'unconfirmed', true],
+      ['c', 'unconfirmed', true],
+      ['d', 'unconfirmed', true],
+      ['e', 'unconfirmed', true],
+      ['f', 'not-attempted', true],
     ],
+  );
+  assert.match(String(result.failures[0]?.message), /^Couldn't check whether it went through/);
+  assert.equal(
+    result.failures[5]?.message,
+    'Not tried because the server stopped answering. Try again in a minute.',
   );
 });
 
-test('products already running when the batch stops still report their own result', async (t) => {
+test('one unclear result does not stop the batch; the product is checked afterwards', async (t) => {
+  // The client's case: one product's answer is lost; the others must still run.
+  let firstUpdate = true;
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(String(init.body));
-    if (body.data.id === '0') throw new TypeError('Failed to fetch');
+    if (body.action === 'update' && body.data.id === '0' && firstUpdate) {
+      firstUpdate = false;
+      throw new TypeError('Failed to fetch');
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
+    // The lost update did go through: the status check finds it published.
     return Response.json({ ok: true, data: { _id: body.data.id, published: false } });
   });
   const result = await batchUpdateRecords('products', ['0', '1', '2', '3', '4', '5'], {
@@ -326,16 +346,200 @@ test('products already running when the batch stops still report their own resul
   });
   assert.deepEqual(
     result.items.map((item) => item._id),
-    ['1', '2', '3'],
+    ['0', '1', '2', '3', '4', '5'],
+    'checked, and counted as done',
   );
+  assert.deepEqual(result.failures, []);
+});
+
+test('an unclear product that did not go through is reported plainly as retryable', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'update' && body.data.id === '0') throw new TypeError('Failed to fetch');
+    return Response.json({
+      ok: true,
+      data: { _id: body.data.id, published: body.action === 'get' && body.data.id === '0' },
+    });
+  });
+  const result = await batchUpdateRecords('products', ['0', '1'], { published: false });
   assert.deepEqual(
-    result.failures.map((row) => [row.id, row.outcome]),
+    result.items.map((item) => item._id),
+    ['1'],
+  );
+  assert.deepEqual(result.failures, [
+    {
+      id: '0',
+      code: 'NETWORK_ERROR',
+      message: "Didn't go through: the server didn't answer in time. Try again.",
+      outcome: 'rejected',
+      retryable: true,
+    },
+  ]);
+});
+
+test('a BUSY answer is retried, and only reported when it keeps colliding', async (t) => {
+  let updates = 0;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    updates += 1;
+    if (updates === 1)
+      return Response.json(
+        { ok: false, error: { code: 'BUSY', message: 'Nothing was saved; try again.' } },
+        { status: 409 },
+      );
+    return Response.json({ ok: true, data: { _id: body.data.id, published: false } });
+  });
+  const result = await batchUpdateRecords('products', ['0'], { published: false });
+  assert.equal(updates, 2, 'sent again after the collision');
+  assert.deepEqual(result.failures, []);
+});
+
+test('a product that keeps colliding is reported once, as retryable', async (t) => {
+  t.mock.method(Math, 'random', () => 0); // shortest pauses: 240 + 480 + 720 ms
+  let updates = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    updates += 1;
+    return Response.json(
+      { ok: false, error: { code: 'BUSY', message: 'Nothing was saved; try again.' } },
+      { status: 409 },
+    );
+  });
+  const result = await batchUpdateRecords('products', ['0'], { published: false });
+  assert.equal(updates, 4, 'the first try and three retries');
+  assert.deepEqual(result.failures, [
+    {
+      id: '0',
+      code: 'BUSY',
+      message: 'Another change to the same photos was happening at the same moment. Try again.',
+      outcome: 'rejected',
+      retryable: true,
+    },
+  ]);
+});
+
+const earlier: BatchUpdateResult = {
+  updated: 1,
+  items: [{ _id: 'done', published: true }],
+  failures: [
+    { id: 'busy', code: 'BUSY', message: 'collided', outcome: 'rejected', retryable: true },
+    {
+      id: 'no-family',
+      code: 'VALIDATION_ERROR',
+      message: 'Choose a website category before publishing.',
+      outcome: 'rejected',
+      retryable: false,
+    },
+    {
+      id: 'went-through',
+      code: 'NETWORK_ERROR',
+      message: "Couldn't check whether it went through.",
+      outcome: 'unconfirmed',
+      retryable: true,
+    },
+    {
+      id: 'flagged',
+      code: 'NOT_ATTEMPTED',
+      message: 'Not tried because the server stopped answering.',
+      outcome: 'not-attempted',
+      retryable: true,
+    },
+    {
+      id: 'unreadable',
+      code: 'NOT_ATTEMPTED',
+      message: 'Not tried because the server stopped answering.',
+      outcome: 'not-attempted',
+      retryable: true,
+    },
+  ],
+};
+
+test('trying again reads each product first and sends only what is still not done, with the revision just read', async (t) => {
+  const current: Record<string, CollectionDoc> = {
+    busy: { _id: 'busy', published: false, updatedAt: 'r-busy' },
+    'went-through': { _id: 'went-through', published: true, updatedAt: 'r-went' },
+    flagged: { _id: 'flagged', published: false, updatedAt: 'r-flagged' },
+  };
+  const updates: unknown[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: false } });
+    if (body.action === 'get') {
+      const doc = current[body.data.id];
+      if (!doc) throw new TypeError('Failed to fetch');
+      return Response.json({ ok: true, data: doc });
+    }
+    assert.equal(body.action, 'update');
+    updates.push(body.data);
+    if (body.data.id === 'flagged')
+      return Response.json(
+        { ok: false, error: { code: 'CONFLICT', message: 'Changed since you looked.' } },
+        { status: 409 },
+      );
+    return Response.json({ ok: true, data: { _id: body.data.id, published: true } });
+  });
+  const result = await retryBatchUpdate(
+    earlier,
+    ['busy', 'went-through', 'flagged', 'unreadable', 'no-family'],
+    { published: true },
+  );
+  // Already published: counted, not sent again. Not retryable: never sent.
+  // Unreadable: not sent without a revision.
+  assert.deepEqual(updates, [
+    {
+      collection: 'products',
+      id: 'busy',
+      values: { published: true },
+      expectedUpdatedAt: 'r-busy',
+    },
+    {
+      collection: 'products',
+      id: 'flagged',
+      values: { published: true },
+      expectedUpdatedAt: 'r-flagged',
+    },
+  ]);
+  assert.deepEqual(
+    result.items.map((item) => item._id),
+    ['done', 'went-through', 'busy'],
+  );
+  assert.equal(result.updated, 3);
+  assert.deepEqual(
+    result.failures.map((row) => [row.id, row.outcome, row.retryable, row.message]),
     [
-      ['0', 'unconfirmed'],
-      ['4', 'not-attempted'],
-      ['5', 'not-attempted'],
+      ['no-family', 'rejected', false, 'Choose a website category before publishing.'],
+      ['flagged', 'rejected', false, 'Changed since you looked.'],
+      [
+        'unreadable',
+        'not-attempted',
+        true,
+        "Couldn't read the product to try again. Refresh the list, then try again.",
+      ],
     ],
   );
+});
+
+test('trying again a change other than publishing sends it again as it is', async (t) => {
+  const updates: unknown[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    assert.equal(body.action, 'update', 'no reads: disabling twice is harmless');
+    updates.push(body.data);
+    return Response.json({ ok: true, data: { _id: body.data.id, published: false } });
+  });
+  const result = await retryBatchUpdate(
+    {
+      updated: 0,
+      items: [],
+      failures: [
+        { id: 'a', code: 'BUSY', message: 'collided', outcome: 'rejected', retryable: true },
+      ],
+    },
+    ['a'],
+    { published: false },
+  );
+  assert.deepEqual(updates, [{ collection: 'products', id: 'a', values: { published: false } }]);
+  assert.deepEqual(result, { updated: 1, items: [{ _id: 'a', published: false }], failures: [] });
 });
 
 test('products run four at a time, and results keep the selection order', async (t) => {
@@ -404,11 +608,13 @@ test('a mismatched success response is unconfirmed, not counted as a successful 
   const result = await batchUpdateRecords('products', ['1', '2', '3', '4', '5'], {
     published: false,
   });
-  assert.equal(calls, 4);
+  // Every answer is about another product, so neither the update nor the
+  // status check afterwards confirms anything: all five stay unclear.
+  assert.equal(calls, 10);
   assert.equal(result.updated, 0);
   assert.deepEqual(
     result.failures.map((row) => row.outcome),
-    ['unconfirmed', 'unconfirmed', 'unconfirmed', 'unconfirmed', 'not-attempted'],
+    ['unconfirmed', 'unconfirmed', 'unconfirmed', 'unconfirmed', 'unconfirmed'],
   );
 });
 

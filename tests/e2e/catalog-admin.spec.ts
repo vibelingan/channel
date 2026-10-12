@@ -244,9 +244,41 @@ test.describe('Admin catalog lifecycle', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    // The ready product's publish keeps colliding (BUSY: a transaction rolled
+    // back, nothing saved) until the admin tries again (DEC-21).
+    let collide = true;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON();
+      if (
+        collide &&
+        body?.action === 'update' &&
+        body.data?.id === ids[0] &&
+        body.data?.values?.published === true
+      )
+        return route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: false,
+            error: { code: 'BUSY', message: 'Nothing was saved; try again.' },
+          }),
+        });
+      return route.continue();
+    });
     await page.getByRole('button', { name: 'Publish', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('1 published · 1 need attention');
+    await expect(page.getByRole('alert')).toContainText('0 published · 2 not published', {
+      timeout: 30000,
+    });
+    await expect(page.getByRole('alert')).toContainText('Another change to the same photos');
     await expect(page.getByRole('alert')).toContainText('image');
+    collide = false;
+    await page.getByRole('alert').getByRole('button', { name: 'Try again for 1 product' }).click();
+    await expect(page.getByRole('alert')).toContainText('1 published · 1 not published', {
+      timeout: 30000,
+    });
+    await expect(page.getByRole('alert')).toContainText('image');
+    await expect(page.getByRole('button', { name: /^Try again for/ })).toHaveCount(0);
+    await page.unrouteAll();
     const [ready, invalid] = await Promise.all(
       ids.map((id) =>
         adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token),

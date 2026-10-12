@@ -164,6 +164,31 @@ says what happened, why, what we tried, how it ended, and what to do next time.
   is a stub of that SDK; check it against the installed types like a new
   method call (now a dev-pipeline review rule).
 
+### 1.13 Batch "Save and publish" often failed (client report 10-12)
+
+- **What:** classifying and publishing 9 products of one supplier showed
+  "3 published · 6 need attention": 2 "Not confirmed", 4 "Not attempted
+  because the batch stopped". The client could only refresh and try again,
+  and it kept failing.
+- **Why:** three things together. The products shared 11 photos (the
+  seller's banners; we keep one copy per photo). Approval wrote every photo
+  of the product in its transaction, as a marker nothing ever read, so four
+  approvals running at once wrote the same photo records and collided. The
+  database retried 3 times with no pause and gave up; the function answered
+  "Unexpected server error"; the page treated that as "unclear" and stopped
+  the whole batch.
+- **Fix (DEC-21):** approval reads shared photos and writes one only when
+  its live-use count changes; delete paths check unfinished approvals
+  (checked before products, see the DEC-21 rows in section 2); a leftover collision answers
+  "busy, try again" and the page resends it; one unclear result no longer
+  stops a batch; the result says each product's reason in plain words and
+  offers "Try again".
+- **Lesson:** a record many transactions touch must not be written by them
+  unless its value changes; a "fence" write that protects a rare race turns
+  every common overlap into a failure. And a batch's error path is product
+  design: say what happened per item and offer the next step, rather than
+  "refresh before retrying".
+
 ## 2. Bugs our reviews caught before shipping
 
 Every batch had at least one independent review; these are the findings that
@@ -186,6 +211,8 @@ would have reached the live site.
 | MIU-55 | P2 | A refresh whose new photos were all unavailable silently made the gallery "the admin's", so later Alibaba changes were ignored | Marker records the photos kept |
 | MIU-55 | P2 | The page promised "try again in 10 minutes" but nothing scheduled it | The open Sync page reruns after 10 minutes; text says so |
 | Thumbnails/GIF | P2 | "Copy photos now" could fetch the same slow photo on every call and never finish | The run's start on the server clock decides which failures to retry |
+| DEC-21 | P1 | A photo delete checked "does a product use it?" before "is an approval about to use it?"; an approval finishing between the two checks let a photo that had just gone live be deleted | Jobs checked first (an approval records its product and closes its job in one transaction); a test commits an approval in the gap |
+| DEC-21 | P2 | "Try again" would have published a product flagged "Changed" meanwhile without review (the server lets an admin; only the page holds flagged products back) | Try again reads each product and sends the revision it read; the guarded publish refuses a flagged product |
 
 ## 3. Difficulties running things in production
 

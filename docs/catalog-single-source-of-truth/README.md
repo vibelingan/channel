@@ -14,6 +14,12 @@ creates. The media-upload smoke passes on the live site. Audit: 141 listed,
 141 approved, 0 mismatches. Branch `feat/catalog-alibaba-price-tiers` (not yet
 merged to `main`).
 
+**2026-10-12:** batch "Save and publish" often failed for products sharing
+photos. Fixed by design (DEC-21): approval no longer writes shared photos, so
+approvals don't collide; the batch carries on past one unclear result,
+checks it itself, explains each product in plain words and offers "Try
+again". Built and validated locally; deploying. Then: the retro cases.
+
 **Retro:** [retro/](retro/README.md) — timeline, problems and fixes, design as
 built, from 2026-10-02 to now; updated as work continues.
 

@@ -52,6 +52,7 @@ import {
   type AdminResult,
   type RequestContext,
   handleAdminRequest,
+  isTransactionConflict,
 } from './handler.ts';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -2435,6 +2436,87 @@ test('abandonUpload is refused while any registered collection references the im
     store.images?.some((image) => image._id === intent.imageId),
     true,
   );
+});
+
+test('abandonUpload is refused while an unfinished approval would publish the image (DEC-21)', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  // Approval reads shared photos without writing them, so the job itself is
+  // what tells a delete the photo is in use.
+  store.catalogDetailApprovals = [
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      publication: {
+        state: 'approved',
+        revision: 'r1',
+        variantCount: 0,
+        variantImageIds: [intent.imageId],
+        header: { _id: 'p-1', name: 'Headset', images: [], facts: [], offers: [] },
+      },
+    },
+  ];
+
+  const result = await call('abandonUpload', { imageId: intent.imageId }, token);
+
+  expectErr(result, 'CONFLICT');
+  assert.deepEqual(storage.deleted, []);
+  store.catalogDetailApprovals = [
+    { ...(store.catalogDetailApprovals[0] as CollectionDoc), state: 'complete' },
+  ];
+  assert.equal((await call('abandonUpload', { imageId: intent.imageId }, token)).ok, true);
+});
+
+test('a photo whose approval finishes between the delete checks is not deleted (DEC-21)', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  const publication = {
+    state: 'approved',
+    revision: 'r1',
+    variantCount: 0,
+    variantImageIds: [intent.imageId],
+    header: { _id: 'p-1', name: 'Headset', images: [], facts: [], offers: [] },
+  };
+  store.products = [{ _id: 'p-1', name: 'Headset', published: false }];
+  store.catalogDetailApprovals = [
+    { _id: 'job-1', productId: 'p-1', state: 'staging', publication },
+  ];
+  // The approval commits (product and job in one transaction) right after the
+  // delete has read the products: whichever check comes second must see it.
+  let committed = false;
+  class CommitDuringScan extends MemoryAdapter {
+    override async list(query: AdapterListQuery) {
+      const page = await super.list(query);
+      if (query.collection === 'products' && !committed) {
+        committed = true;
+        store.products = [
+          { _id: 'p-1', name: 'Headset', published: false, catalogDetailPublication: publication },
+        ];
+        store.catalogDetailApprovals = [
+          { _id: 'job-1', productId: 'p-1', state: 'complete', publication },
+        ];
+      }
+      return page;
+    }
+  }
+  setAdapter(new CommitDuringScan(store));
+
+  const result = await call('abandonUpload', { imageId: intent.imageId }, token);
+
+  expectErr(result, 'CONFLICT');
+  assert.deepEqual(storage.deleted, []);
+  assert.ok(store.images?.some((image) => image._id === intent.imageId));
 });
 
 test('abandonUpload keeps metadata retryable when storage deletion fails', async () => {
@@ -5776,4 +5858,28 @@ test('the admin product list and review counts leave out drafts still waiting fo
     await call('list', { collection: 'users', page: 1, pageSize: 20 }, admin),
   );
   assert.ok(users.items.length >= 1);
+});
+
+test('a database transaction conflict answers BUSY (nothing saved, retry), never a server error', async () => {
+  const store = setup();
+  const token = await adminToken();
+  const mem = new MemoryAdapter(store);
+  const conflict = Object.assign(new Error('write conflict'), {
+    code: 'DATABASE_TRANSACTION_CONFLICT',
+  });
+  setAdapter({
+    list: async () => {
+      throw conflict;
+    },
+    get: (c, i) => mem.get(c, i),
+    findByField: (c, f, v) => mem.findByField(c, f, v),
+    create: (c, d) => mem.create(c, d),
+    update: (c, i, d) => mem.update(c, i, d),
+    remove: (c, i) => mem.remove(c, i),
+    incrementField: (c, i, f, d) => mem.incrementField(c, i, f, d),
+  });
+  const result = await call('list', { collection: 'products', page: 1, pageSize: 1 }, token);
+  expectErr(result, 'BUSY');
+  assert.equal(isTransactionConflict(conflict), true);
+  assert.equal(isTransactionConflict(new Error('other')), false);
 });

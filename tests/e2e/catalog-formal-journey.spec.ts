@@ -964,8 +964,8 @@ test('manual products go live only through approval; the shared page shows their
   await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
   await page.getByRole('checkbox', { name: 'Select all rows' }).check();
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  const feedback = page.getByRole('alert').filter({ hasText: 'need attention' });
-  await expect(feedback).toContainText('1 published · 1 need attention', { timeout: 30000 });
+  const feedback = page.getByRole('alert').filter({ hasText: 'not published' });
+  await expect(feedback).toContainText('1 published · 1 not published', { timeout: 30000 });
   await expect(feedback).toContainText('The product images are missing or busy');
   const read = (id: string) =>
     adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);

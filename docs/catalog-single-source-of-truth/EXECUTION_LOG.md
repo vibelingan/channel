@@ -56,6 +56,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 47 | "Photos for each configuration" in the edit form | PT-F | Done (local) | `57f8d71` |
 | 48–54 | PT-G: Alibaba photos copied ahead; new drafts hidden until ready | PT-G | Done (live) | `609b362`, `099ab12`, `7e3a4c8`, `78a4c47` |
 | 55 | One product, one unit: photos land together or the product retries in 10 minutes | PT-G | Done (local, validated); deploying | `5fd7752` |
+| 56 | Batch publish stops failing: approval reads shared photos without writing them; the batch recovers and offers Try again (DEC-21) | fix | Done (local, validated) | see log |
 
 ## Runbook status
 
@@ -106,6 +107,64 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Batch publish redesign — DEC-21 built (2026-10-12)
+- Owner: "a real fix instead of just the hot fix … give the client side a
+  graceful fallback". Why photos were written at all: approval stamped a
+  marker on every photo of the product so the database would flag a
+  concurrent delete. Nothing ever read the marker; it only made approvals
+  that share a photo collide.
+- Server:
+  - Approval (`finishStagedApproval`, `commitCatalogApproval`) still checks
+    each photo (active, not locked) but writes one only when its live-use
+    count changes. Approvals sharing photos no longer collide.
+  - The two delete paths (`abandonUpload`, the Alibaba import's
+    `removeImportedCandidate`) lock the photo, then refuse while an
+    unfinished approval job lists it (`unfinishedApprovalUsingImage`), then
+    refuse while a product lists it. That order matters: an approval records
+    its product and closes its job in one transaction. With the checks the
+    other way round, an approval finishing between them let a now-live photo
+    be deleted. Found in self-review; a test commits an approval in the gap
+    and failed with the old order (both paths).
+  - A transaction conflict still left after the SDK's own 3 retries answers
+    `BUSY` (409, "nothing was saved; try again") instead of "Unexpected
+    server error". Checked in the installed `@cloudbase/database` 1.4.3: it
+    retries `DATABASE_TRANSACTION_CONFLICT` 3 times with no pause, then
+    rethrows the same error; no inner catch on the approval path touches the
+    database.
+- Admin page (`api.ts`, `BatchUpdateFeedback`, `CollectionView`,
+  `ProductClassificationEditor`):
+  - every request answered `BUSY` is sent again, up to 3 times, after a
+    short random pause;
+  - one unclear answer no longer stops a batch; it stops only on a refused
+    session or two unclear answers in a row;
+  - right after the batch, each unclear product is read back: done, or
+    "Didn't go through … Try again" (a read about a different product
+    counts as no answer);
+  - the result reads "3 published · 5 not published · 1 couldn't be
+    checked", with each product's reason; "Fix the reason shown … (in
+    Edit)" appears only when a product needs a fix;
+  - "Try again for N products" (list and classification editor) resends
+    only products that need no fix. Publishing reads each one first: one
+    that went through is counted, the rest carry the revision just read, so
+    a product flagged "Changed" or edited meanwhile is refused, not
+    published unreviewed (the server does not refuse a flagged product
+    for an admin; only the page holds them back, DEC-19).
+- Tests: approval never writes an unchanged shared photo (staging and
+  commit); delete refused while a job lists the photo, and when the job
+  finishes between the checks (admin and import paths); BUSY mapping; the
+  batch rules (one unclear result, two in a row, BUSY retried then reported,
+  checked afterwards, wrong-product answer); Try again (reads first, skips
+  what went through, never sends without a revision, other changes resent
+  as they are); result wording; browser: the list's batch Publish collides
+  (BUSY) for one product, then Try again publishes it. Changed browser
+  expectation: when a publish goes through but its answer is lost, the
+  page now finds it published by itself ("1 product classified and
+  published.") instead of asking for a refresh; the in-dialog "Refresh
+  statuses" path is still tested by also losing the page's own check.
+- Validation: typecheck, lint, unit tests (about 2,900, 0 failures);
+  functions packaged and artifact smoke passed; SDK contract passed.
+  Browser lanes: approval off 159/159, approval on 148/148.
+
 ### Batch "Save and publish" often fails (client report, 2026-10-12) — diagnosis
 - Client screenshot: classification "Save and publish" on 9 products →
   "3 published · 6 need attention": 2 "Not confirmed — Result not confirmed",
@@ -128,7 +187,7 @@ paired with the MOQ. Names are truncated as captured.
      confirmed" and stops starting new products, so the rest show "not
      attempted". The screen hides the error code, and asks the user to
      "refresh statuses" instead of checking itself.
-- Proposal and decision pending (see the reply to the owner).
+- Decided (owner 2026-10-12): a real design fix, not a retry hotfix — DEC-21, built in the entry above.
 
 
 ### Dianxiaomi import "make public" goes through approval (2026-10-09, owner request)

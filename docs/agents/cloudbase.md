@@ -65,6 +65,11 @@ first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
     resolves `{ stats: { removed } }`.
   The hand-written types in `cloudbase-adapter.ts` must match the installed
   SDK; `pnpm verify:cloudbase-sdk` pins the shapes we rely on.
+- Colliding transactions: `@cloudbase/database` retries a
+  `DATABASE_TRANSACTION_CONFLICT` 3 times with no pause, then throws it. The
+  admin function answers `BUSY` (409, nothing saved) and the admin page
+  resends it. Do not write a shared record (a photo used by hundreds of
+  products) in a transaction unless its value changes (DEC-21).
 - Approval writes do not change `updatedAt`; a revision guard alone does not
   detect an approval in between. Add a state guard (`requireUnapprovedDraft`).
 

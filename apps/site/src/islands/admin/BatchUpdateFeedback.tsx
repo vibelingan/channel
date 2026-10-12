@@ -6,22 +6,46 @@ interface Props {
   published?: boolean;
   /** Ids left out of a batch Publish because their Alibaba changes need review (DEC-19). */
   skipped?: readonly string[];
+  /** Sends the products that need no fix again; the button shows only when given. */
+  onRetry?: (ids: string[]) => void;
+  retrying?: boolean;
   onDismiss: () => void;
 }
 
-export function BatchUpdateFeedback({ result, names, published, skipped = [], onDismiss }: Props) {
+/** Products worth sending again as they are: nothing has to be fixed first. */
+export function retryableIds(result: BatchUpdateResult): string[] {
+  return result.failures.filter((failure) => failure.retryable).map((failure) => failure.id);
+}
+
+export function BatchUpdateFeedback({
+  result,
+  names,
+  published,
+  skipped = [],
+  onRetry,
+  retrying = false,
+  onDismiss,
+}: Props) {
   const hasFailures = result.failures.length > 0;
+  const done = published === true ? 'published' : published === false ? 'disabled' : 'updated';
+  const unclear = result.failures.filter((failure) => failure.outcome === 'unconfirmed').length;
+  const notDone = result.failures.length - unclear;
+  const needsFix = result.failures.some((failure) => !failure.retryable);
+  const retry = retryableIds(result);
+  const summary = [
+    `${result.updated} ${done}`,
+    notDone ? `${notDone} not ${done}` : '',
+    unclear ? `${unclear} couldn't be checked` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <section
       role={hasFailures ? 'alert' : 'status'}
       className={`mt-4 rounded-xl border p-4 text-sm ${hasFailures ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-green-200 bg-green-50 text-green-900'}`}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="font-semibold">
-          {result.updated}{' '}
-          {published === true ? 'published' : published === false ? 'disabled' : 'updated'}
-          {hasFailures ? ` · ${result.failures.length} need attention` : ''}
-        </p>
+        <p className="font-semibold">{summary}</p>
         <button type="button" className="shrink-0 underline" onClick={onDismiss}>
           Dismiss
         </button>
@@ -37,18 +61,28 @@ export function BatchUpdateFeedback({ result, names, published, skipped = [], on
           <ul className="mt-2 space-y-2">
             {result.failures.map((failure) => (
               <li key={failure.id}>
-                <strong>{names[failure.id] || failure.id}</strong>
-                {': '}
-                {failure.outcome === 'unconfirmed' ? 'Not confirmed — ' : ''}
-                {failure.message}
+                <strong>{names[failure.id] || failure.id}</strong>: {failure.message}
               </li>
             ))}
           </ul>
-          <p className="mt-3">
-            Fix the reason listed for each product (in Edit when it asks for it), then publish it
-            again. Unconfirmed results must be refreshed before retrying; confirmed updates are not
-            rolled back.
-          </p>
+          {needsFix && (
+            <p className="mt-3">
+              Fix the reason shown for each product (in Edit), then{' '}
+              {published === true ? 'publish' : 'try'} it again.
+            </p>
+          )}
+          {onRetry && retry.length > 0 && (
+            <button
+              type="button"
+              disabled={retrying}
+              className="mt-3 min-h-11 rounded-lg border border-amber-400 bg-white px-4 font-semibold disabled:opacity-50"
+              onClick={() => onRetry(retry)}
+            >
+              {retrying
+                ? 'Trying again…'
+                : `Try again for ${retry.length} ${retry.length === 1 ? 'product' : 'products'}`}
+            </button>
+          )}
         </>
       )}
     </section>

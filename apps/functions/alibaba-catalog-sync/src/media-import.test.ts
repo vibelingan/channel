@@ -427,6 +427,51 @@ test('a doc-write failure compensates by deleting the stored object first', asyn
 
 // --- removal action ----------------------------------------------------------
 
+test('a photo whose approval finishes between the removal checks is kept (DEC-21)', async () => {
+  setup();
+  const { fetchImpl } = fakeImageFetch();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+  const images = store.images as CollectionDoc[];
+  images[0] = { ...(images[0] as CollectionDoc), publishedRefCount: 0 };
+  const publication = {
+    state: 'approved',
+    header: { _id: 'p-1', images: [`/api/images/${imported.imageId}`] },
+  };
+  store.products = [{ _id: 'p-1', published: false }];
+  store.catalogDetailApprovals = [
+    { _id: 'job-1', productId: 'p-1', state: 'staging', publication } as CollectionDoc,
+  ];
+  // The approval commits (product and job in one transaction) right after the
+  // removal has read the products: whichever check comes second must see it.
+  const shared = store;
+  let committed = false;
+  class CommitDuringScan extends MemoryAdapter {
+    override async list(query: AdapterListQuery) {
+      const page = await super.list(query);
+      if (query.collection === 'products' && !committed) {
+        committed = true;
+        shared.products = [{ _id: 'p-1', published: false, catalogDetailPublication: publication }];
+        shared.catalogDetailApprovals = [
+          { _id: 'job-1', productId: 'p-1', state: 'complete', publication } as CollectionDoc,
+        ];
+      }
+      return page;
+    }
+  }
+  setAdapter(new CommitDuringScan(store));
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'still-referenced',
+  });
+  assert.equal(store.images?.length, 1);
+  assert.equal(storage.deletes.length, 0);
+});
+
 test('removal deletes only unreferenced sentinel-owned candidates (object first)', async () => {
   setup();
   const { fetchImpl } = fakeImageFetch();
@@ -446,6 +491,23 @@ test('removal deletes only unreferenced sentinel-owned candidates (object first)
   });
 
   images[0] = { ...(images[0] as CollectionDoc), publishedRefCount: 0 };
+  // An unfinished approval that would publish it still uses it (DEC-21).
+  store.catalogDetailApprovals = [
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      publication: {
+        state: 'approved',
+        header: { _id: 'p-1', images: [`/api/images/${imported.imageId}`] },
+      },
+    } as CollectionDoc,
+  ];
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'still-referenced',
+  });
+  store.catalogDetailApprovals = [];
   const removed = await removeImportedCandidate(imported.imageId);
   assert.deepEqual(removed, { ok: true, imageId: imported.imageId });
   assert.equal(store.images?.length, 0);

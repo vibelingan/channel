@@ -568,7 +568,7 @@ test('Check later retains confirmed publication receipts and restores row focus'
   await dialog.getByRole('button', { name: 'Check later' }).click();
   await expect(dialog).toHaveCount(0);
   const reminder = page.getByRole('alert').filter({ hasText: String(product.name) });
-  await expect(reminder).toContainText('1 confirmed published; 0 unresolved');
+  await expect(reminder).toContainText("1 published · 0 couldn't be checked");
   await expect(
     reminder.getByRole('button', { name: 'Clear selection and reminder' }),
   ).toBeFocused();
@@ -738,7 +738,7 @@ test('lost assignment response preserves the selected product after Escape', asy
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toContainText(
-    'not confirmed',
+    "couldn't be checked",
   );
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   await expect(row.getByRole('button', { name: 'Classify' })).toBeDisabled();
@@ -1113,7 +1113,7 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   const partial = await selectAndReview([later, rejected]);
   await partial.getByRole('button', { name: 'Confirm save and publish' }).click();
   await expect(partial.locator('section[role="alert"]')).toContainText('1 published');
-  await expect(partial.locator('section[role="alert"]')).toContainText('1 need attention');
+  await expect(partial.locator('section[role="alert"]')).toContainText('1 not published');
   const laterIds = writes[3]?.ids ?? [];
   expect([...laterIds].sort()).toEqual([later._id, rejected._id].sort());
   // With detail approval on (the formal lane), a manual product is approved
@@ -1131,7 +1131,7 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   expect(await read(excluded._id)).toEqual(excludedBefore);
   await partial.getByRole('button', { name: 'Check later', exact: true }).click();
   const partialReminder = page.getByRole('alert').filter({ hasText: String(rejected.name) });
-  await expect(partialReminder).toContainText('1 need attention');
+  await expect(partialReminder).toContainText('1 need a fix');
   await expect(partialReminder.locator('p').nth(1)).toHaveText(String(rejected.name));
   const attention = page.getByRole('list', { name: 'Products needing attention' });
   await expect(attention).toContainText(String(rejected.name));
@@ -1213,7 +1213,10 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   const writesBeforeLoss = writes.length;
   const unknown = await selectAndReview([lostResponse]);
   await unknown.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(unknown.getByRole('button', { name: 'Check later' })).toBeEnabled();
+  // The answer was lost but the publish went through: the page reads the
+  // product back itself instead of asking the admin to refresh (DEC-21).
+  await expect(unknown).toContainText('1 product classified and published.');
+  await expect(unknown.getByRole('button', { name: 'Done' })).toBeEnabled();
   expect(await read(lostResponse._id)).toMatchObject({
     published: true,
     subcategoryIds: [child.id],
@@ -1224,24 +1227,18 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     { action: 'publish', ids: [lostResponse._id] },
   ]);
   await page.unrouteAll();
-  await unknown.getByRole('button', { name: 'Check later' }).click();
-  const reminder = page.getByRole('alert').filter({ hasText: String(lostResponse.name) });
-  await expect(reminder).toContainText('1 unresolved');
-  await expect(reminder.getByRole('list', { name: 'Products to verify' })).toContainText(
-    String(lostResponse.name),
-  );
-  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(reminder).toHaveCount(0);
+  await unknown.getByRole('button', { name: 'Done' }).click();
+  await expect(unknown).toHaveCount(0);
   await expect(
     row(lostResponse).getByRole('checkbox', { name: 'Select row', exact: true }),
   ).not.toBeChecked();
-  expect(writes.slice(writesBeforeLoss)).toHaveLength(2);
 
   const inDialogReadback = await create('Dialog publication readback', imageIds);
   await page.reload();
   await page.getByRole('button', { name: 'Products', exact: true }).click();
   await page.getByPlaceholder(/^Search name/).fill(prefix);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
+  let loseNextCheck = false;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON() as {
       action?: string;
@@ -1253,6 +1250,14 @@ test('bulk classification publishes confirmed selections and reports rejected pu
       body.data.values?.published === true
     ) {
       await route.fetch();
+      loseNextCheck = true;
+      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
+      return;
+    }
+    // The page's own check right after the batch is lost too, so the result
+    // stays "couldn't be checked" until the admin refreshes.
+    if (loseNextCheck && body.action === 'get' && body.data?.id === inDialogReadback._id) {
+      loseNextCheck = false;
       await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
       return;
     }

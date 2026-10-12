@@ -429,15 +429,21 @@ export async function finishStagedApproval(
     const count = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : 0;
     if (count + delta < 0) return fail('MEDIA_NOT_READY');
   }
+  // Photos are shared (a seller's banners appear in hundreds of products), so
+  // approval only READS them; it writes a photo only when the number of live
+  // products showing it changes (DEC-21). Writing every photo made any two
+  // approvals that share one collide. A delete cannot slip in meanwhile: delete
+  // paths lock the photo and refuse while an unfinished approval job lists it,
+  // and this transaction refuses a locked photo (checked above).
   for (const image of images) {
     const delta =
       product.published === true
         ? Number(afterImages.has(image._id)) - Number(beforeImages.has(image._id))
         : 0;
+    if (delta === 0) continue;
     await tx.set('images', {
       ...image,
-      ...(delta ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + delta } : {}),
-      catalogDetailApprovalFence: job.revision,
+      publishedRefCount: Number(image.publishedRefCount ?? 0) + delta,
     });
   }
   await tx.set('products', {

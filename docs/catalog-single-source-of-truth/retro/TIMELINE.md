@@ -191,3 +191,10 @@ owner's only test environment).
   spec-forge fixes (`fix/flattened-yaml-and-ci-landmines`) — including a
   real template bug found on the way: the open-source sanitize pass had
   flattened YAML templates, breaking the generated CI workflow.
+- Client: batch "Save and publish" often fails, and the messages are hard
+  to read. Diagnosed: shared photos written by every approval, so
+  approvals collided; one unclear result stopped the batch. Owner: a real
+  fix, not a retry hotfix. Built DEC-21 (approval reads shared photos; the
+  batch recovers, checks unclear products itself, and offers Try again).
+  Self-review found an ordering race in the delete check (an approval
+  finishing between two checks); fixed with a test that commits in the gap.
