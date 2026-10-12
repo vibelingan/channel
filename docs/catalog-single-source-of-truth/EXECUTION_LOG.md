@@ -189,6 +189,22 @@ paired with the MOQ. Names are truncated as captured.
   signed-in admin page (the session expired at ~15:09): listing the three
   answers without error, and `abandonUpload` removes the two leftover 1x1
   test images (`…-ui.png`).
+- Checked 2026-10-12 after the owner signed in: the three collections list
+  fine (0 rows each). `abandonUpload` no longer crashes and deleted the four
+  completed leftover test images, but answered "Image changed before
+  abandonment completed" for each (the three August `…-ui.png` rows are
+  failed uploads, correctly refused). Cause, read from the installed SDK:
+  wx-server-sdk resolves `remove()` as `{ stats: { removed } }`, while
+  `cloudbase-adapter.ts` typed it by hand as `{ deleted }` and read
+  `res.deleted`, so every plain delete in production reported "nothing
+  removed". Effects: admin delete answered "Document not found" after
+  deleting, and skipped the image-visibility update that follows a delete;
+  `abandonUpload` answered CONFLICT after deleting; orphan-image cleanup and
+  the OEM file sweep reported 0 removed. Transactional deletes use
+  `@cloudbase/node-sdk`, which does return `deleted`, and are unaffected.
+- Fix: `wxRemovedCount` reads `stats.removed`; unit test; the SDK contract
+  script now pins wx-server-sdk's `remove` shape and the adapter's use of it
+  (fails on the old code, checked).
 
 ### Public search no longer matches the Alibaba product ID (2026-10-09, owner request)
 - Problem (found in the batch 3 review, pre-existing): the storefront search

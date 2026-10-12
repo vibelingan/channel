@@ -322,6 +322,20 @@ requireCheck(
   ]),
   '@cloudbase/database doc.remove is transaction-aware and returns the deleted count',
 );
+// wx-server-sdk wraps @cloudbase/database's delete count as
+// `{ stats: { removed } }`; the adapter's plain `remove()` reads it there
+// (`wxRemovedCount`). Reading `deleted` made every delete report failure.
+const wxRuntime = readFileSync(join(dirname(wxSdk.packagePath), 'index.js'), 'utf8');
+requireCheck(
+  containsAll(wxRuntime, ['stats: {', 'removed: removeResult.deleted || 0']),
+  'wx-server-sdk doc.remove resolves { stats: { removed } }',
+);
+requireCheck(
+  containsAll(readFileSync(join(root, 'packages/db/src/cloudbase-adapter.ts'), 'utf8'), [
+    'return wxRemovedCount(res) > 0;',
+  ]),
+  'cloudbase-adapter remove() reads the wx-server-sdk removed count',
+);
 // Runtime probe: drive a transaction through get(miss) -> set -> update ->
 // remove and pin the API sequence + transaction params actually sent.
 {

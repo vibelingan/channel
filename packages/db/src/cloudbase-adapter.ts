@@ -71,7 +71,22 @@ import {
 interface WxDocumentReference {
   get(): Promise<{ data: Record<string, unknown> | Record<string, unknown>[] | null }>;
   update(options: { data: Record<string, unknown> }): Promise<{ updated: number }>;
-  remove(): Promise<{ deleted: number }>;
+  /**
+   * wx-server-sdk wraps the count: `{ stats: { removed } }` (its index.js
+   * `remove` maps @cloudbase/database's `deleted` into it). Reading `deleted`
+   * here made every delete report "nothing removed" (2026-10-10).
+   */
+  remove(): Promise<WxRemoveResult>;
+}
+
+interface WxRemoveResult {
+  stats?: { removed?: number };
+}
+
+/** How many documents a wx-server-sdk `remove()` removed. */
+export function wxRemovedCount(result: WxRemoveResult | undefined): number {
+  const removed = result?.stats?.removed;
+  return typeof removed === 'number' && Number.isFinite(removed) ? removed : 0;
 }
 
 interface WxQuery {
@@ -688,7 +703,7 @@ export const cloudBaseAdapter: DbAdapter = {
   async remove(collection, id): Promise<boolean> {
     const db = database();
     const res = await db.collection(collection).doc(id).remove();
-    return (res.deleted ?? 0) > 0;
+    return wxRemovedCount(res) > 0;
   },
 
   async incrementField(collection, id, field, delta): Promise<number | null> {

@@ -7,6 +7,7 @@ import {
   unclassifiedProductWhere,
   upsertCatalogSourceObservationInCloudBase,
   upsertDocWithAlibabaLeaseInCloudBase,
+  wxRemovedCount,
 } from './cloudbase-adapter.ts';
 
 test('unclassified native query includes absent families without capturing legacy headphone categories', () => {
@@ -245,4 +246,13 @@ test('production source observation upsert rejects older captures and preserves 
     harness.store.get('catalogSourceObservations')?.get('obs-1')?.firstSeenOperationId,
     'first-import',
   );
+});
+
+test('a wx-server-sdk delete reports its count under stats.removed, not deleted', () => {
+  // The shape wx-server-sdk 4.0.2 resolves (index.js `remove`); reading
+  // `deleted` made every successful admin delete answer "not found".
+  assert.equal(wxRemovedCount({ stats: { removed: 1 } }), 1);
+  assert.equal(wxRemovedCount({ stats: { removed: 0 } }), 0);
+  assert.equal(wxRemovedCount({ deleted: 1 } as never), 0, 'node-sdk shape is not what wx returns');
+  assert.equal(wxRemovedCount(undefined), 0);
 });
