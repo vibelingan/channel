@@ -179,3 +179,15 @@ owner's only test environment).
   failure exposed three never-created database collections that crashed
   `abandonUpload` (deploy now creates them). The Excel import's "make public"
   now goes through the approval gate (products stay drafts).
+
+## 2026-10-12 — Retro follow-through
+
+- Owner signed in; the three collections list fine. Removing the leftover
+  test images exposed that every plain delete reported "nothing removed"
+  (hand-typed SDK result shape); fixed and deployed (`0008af1`).
+- Retro plan executed in part: three worked cases in engineering-craft
+  (`feat/catalog-retro-cases`), nine dev-pipeline refinements
+  (`feat/retro-catalog-probes`), CloudBase reference doc for agents, and
+  spec-forge fixes (`fix/flattened-yaml-and-ci-landmines`) — including a
+  real template bug found on the way: the open-source sanitize pass had
+  flattened YAML templates, breaking the generated CI workflow.

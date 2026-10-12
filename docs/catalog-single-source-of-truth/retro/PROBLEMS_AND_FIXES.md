@@ -146,6 +146,24 @@ says what happened, why, what we tried, how it ended, and what to do next time.
   the website; added across the upload allowlist, the Alibaba copier, the
   Excel import and the upload button (public delivery already served GIF).
 
+### 1.12 Every delete reported "nothing removed" (found 10-12)
+
+- **What:** after the missing collections were created, removing the
+  leftover test images worked but answered "Image changed before
+  abandonment completed". The admin's generic delete had the same problem:
+  "Document not found" after a successful delete.
+- **Why:** `cloudbase-adapter.ts` describes the SDK with hand-written types
+  and said wx-server-sdk's `remove()` returns `{ deleted }`. The installed
+  SDK wraps it as `{ stats: { removed } }`. The typecheck could not see the
+  mismatch; the SDK contract script pinned the other SDK's delete shape, not
+  this one. The admin delete also returned early and skipped the
+  image-visibility update that follows a delete.
+- **Fix:** read the count where the SDK puts it, test it, and pin the shape
+  and its use in the contract script (`0008af1`).
+- **Lesson:** a hand-written interface that describes a third-party result
+  is a stub of that SDK; check it against the installed types like a new
+  method call (now a dev-pipeline review rule).
+
 ## 2. Bugs our reviews caught before shipping
 
 Every batch had at least one independent review; these are the findings that

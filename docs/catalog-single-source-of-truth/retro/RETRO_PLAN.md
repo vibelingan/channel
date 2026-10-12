@@ -11,7 +11,8 @@ to match to a task or act on. Nothing below has been done yet.
 | C1, C5 (+C6), C10 as engineering-craft rules, new categories `data-pipeline-atomicity` and `performance-latency` | Done on branch `feat/catalog-retro-cases` (orocsy/engineering-craft), not merged |
 | dev-pipeline refinements §5 (all nine) | Done on branch `feat/retro-catalog-probes` (orocsy/dev-pipeline), not merged; review also checks hand-typed SDK result interfaces (from the delete bug found 2026-10-12) |
 | `cloudbase-ops` as a project reference doc | Done: `docs/agents/cloudbase.md`, linked from `CLAUDE.md` |
-| Remaining 19 cases, `data-operations` category, spec-forge §6 | Not started |
+| spec-forge §6 | Done on branch `fix/flattened-yaml-and-ci-landmines` (orocsy/spec-forge), not merged: landmines 23 (flattened YAML templates — found while doing this: the sanitize pass had broken the generated CI workflow and docker-compose), 24 (install step timeout), 25 (`/api/health` with release id); eight more listed under "STILL NOT YET" because no integration ships a deploy workflow yet |
+| Remaining 19 cases, `data-operations` category | Not started |
 
 ## 1. What changes in the approach
 
