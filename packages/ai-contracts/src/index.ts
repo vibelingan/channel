@@ -23,20 +23,29 @@ export interface CancelResponse {
   cancelled: boolean;
 }
 
+/**
+ * `replyTo` on an answer's events is the `messageId` (from
+ * `AppendMessageResponse`) of the visitor message that answer replies to. The
+ * stream carries every event of the conversation, so a client that stopped
+ * listening mid-answer — closed page, reload — needs it to keep that answer
+ * from appearing under the next question. It is absent on conversation-level
+ * events, and on events from a BFF that predates it.
+ */
 export type PublicSseEvent =
-  | { type: 'token'; sequence: number; text: string }
+  | { type: 'token'; sequence: number; replyTo?: string; text: string }
   | {
       type: 'citation';
       sequence: number;
+      replyTo?: string;
       sourceId: string;
       title: string;
       url?: string;
     }
-  | { type: 'final'; sequence: number; text: string }
-  | { type: 'error'; sequence: number; category: string; retriable: boolean }
+  | { type: 'final'; sequence: number; replyTo?: string; text: string }
+  | { type: 'error'; sequence: number; replyTo?: string; category: string; retriable: boolean }
   | { type: 'handoff.started'; sequence: number }
-  | { type: 'assistant.cancelled'; sequence: number }
-  | { type: 'run.failed'; sequence: number; category?: string }
+  | { type: 'assistant.cancelled'; sequence: number; replyTo?: string }
+  | { type: 'run.failed'; sequence: number; replyTo?: string; category?: string }
   | { type: 'conversation.closed'; sequence: number };
 
 export type AiApiErrorCode =

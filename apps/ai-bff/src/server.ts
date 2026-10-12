@@ -316,34 +316,40 @@ async function streamEvents(
 
 function toPublicEvent(event: EventRow): PublicSseEvent {
   const sequence = event.sequence;
+  // Which question this answer belongs to, so the widget never renders it
+  // under a later one (see PublicSseEvent).
+  const reply = event.replyTo ? { replyTo: event.replyTo } : {};
   switch (event.type) {
     case 'token':
-      return { type: 'token', sequence, text: stringField(event.payload, 'text') };
+      return { type: 'token', sequence, ...reply, text: stringField(event.payload, 'text') };
     case 'citation': {
       const url = optionalStringField(event.payload, 'url');
       return {
         type: 'citation',
         sequence,
+        ...reply,
         sourceId: stringField(event.payload, 'sourceId'),
         title: stringField(event.payload, 'title'),
         ...(url ? { url } : {}),
       };
     }
     case 'final':
-      return { type: 'final', sequence, text: stringField(event.payload, 'text') };
+      return { type: 'final', sequence, ...reply, text: stringField(event.payload, 'text') };
     case 'error':
       return {
         type: 'error',
         sequence,
+        ...reply,
         category: stringField(event.payload, 'category'),
         retriable: event.payload.retriable === true,
       };
     case 'run.failed': {
       const category = optionalStringField(event.payload, 'category');
-      return { type: 'run.failed', sequence, ...(category ? { category } : {}) };
+      return { type: 'run.failed', sequence, ...reply, ...(category ? { category } : {}) };
     }
-    case 'handoff.started':
     case 'assistant.cancelled':
+      return { type: 'assistant.cancelled', sequence, ...reply };
+    case 'handoff.started':
     case 'conversation.closed':
       return { type: event.type, sequence };
   }
