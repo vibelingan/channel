@@ -328,3 +328,21 @@ P2c1 最终 SHA 6cafe7c 已完成 inline review 与 SDK gate；P2c2 的执行记
 
 
 P2c2b 提交前 inline 复核：来源完整捕获、普通/lease/特殊写入、绑定/已有重建/promotion/quarantine 消费者逐条追踪，source/header/media/public 字段归属未变；危险假设（无镜像兼容）已通过反例推翻并去除。显式主 link 的完整检查和 source-page seal 仍属于下一单元，不把它或其后的 readiness/durable operation/recovery/full local-server/deploy/cloud acceptance 记为已完成。
+
+
+### P2c2c：显式 primary link 和逐页写入 seal（2026-10-14，本地子单元）
+
+824f27d 已完成提交后 inline review / SDK gate，仅为本地子单元。下一步核对 source primary link 与 source/product 的精确归属，并把冻结的 link/source 证明带入 source-page 的事务 seal。alibabaProductLinks 在 collection definition 是 readOnly，正常身份写入由受保护 mutation 执行；分类 suggestion/assignment 只更新其 metadata fence，不能把无关 metadata 当绑定变化。
+
+另一个必须验证的边界：当前所有 source pages 写同一个 detailPreparationFence=revision，第二页可能成为相同记录写入，无法证明建立了新的物理写入防护，也可能被零更新 ACK 拒绝。需要逐页变化，已确认的重试则不重写；补纯协议反例和实际生产 Cloud persistence 的 zero-on-identical 测试。必须在最终浏览器串联后才继续。三件真实 primary links 已只读取得，后续严格数据副本验证不虚构 link。
+
+
+实际实现：共用严格 primary-link decoder，拒绝缺失、空白、错归属，只有显式允许的旧空 claim 保留；剔除分类/审计 metadata 后冻结 identity hash。prepare 要求真实 mirror、完整 observation、精确 primary link；source-page 在同一事务内重读 source/observation/link/product 并比较冻结 hash、canonical observation ID、gallery 与 generation，变更在任何写入前拒绝。逐页 observation fence 使用 revision+page 的 hash，每页建立实际变化；已确认的重试不重写。20 SKU 页最多 47 文档操作，无新的共享写锁。
+
+测试：初始 3 项反例先红；最终相关回归 1044 passed / 0 failed / 0 skipped，六组 tsc（db/sync/admin/local/public/e2e）通过，12 个修改代码文件 Biome 通过，installed SDK gate 通过。30 个复用 SDK/schema 表面机械关联到落盘 probe，包括新增 decoder 的 refine。实际 production Cloud persistence 用零更新 ACK 模型验证 21 SKU 分页/重试，所有要求写入均有变化；两实际 JSON adapters 验证准备与解绑两个先后次序，旧包不能恢复解绑。五种冻结 link 场景拒绝 product/connection/external-ID/relinked 变动，metadata-only 保持通过。
+
+独立 mutation：恢复旧 revision-only fence 时，实际 Cloud persistence 的第二页在 ACK guard 失败；移除事务内 linkHash 比较时，relinked 反例失败而 metadata 正向仍通过。finally 恢复后执行最终 1044/类型/SDK/浏览器门槛。新增三项 decoder 测试也包含在 1044 中。首轮 1035 中 1 个普通人工价格 fixture 缺 primary link，修正正常夹具后重跑；不放宽生产检查、不自动补显式坏 fixture。
+
+最终生产构建浏览器串联 150 passed（41 public / 90 catalog / 10 formal / 8 visibility / 1 taxonomy），临时 DB/services 清理成功；日志 p2c2c-combined-e2e.log。三件真实存储副本连同实际 primary links 通过严格 prepare/review/begin/pages/finish，完整原值 113/113/121、header 7668/7675/8136 bytes、job 12005/11866/12269 bytes、variants 4/2/1，仍未发布且分类未变，临时文件清理。无云业务写入、resync、发布或部署；真实 vendor transaction/lease 交错仍未验证。
+
+提交前 inline review 已逐条核对 decoder 消费者、HTTP workflow 不接受内部 source-page、冻结证明/事务写入、ACK 与重试、测试有效性和 public/private 投影。当前子单元无剩余 P1/P2；后续旧 UI-02 工具、共享报告/列表/Preview、durable intents/recovery、历史修复、全量构建和 vendor/test 现场验收仍阻止完整交付。文字核对将“重新绑定只是 metadata”更正为 linkedAt 参与身份 hash，并区分当前子单元通过与全部发布修复完成。

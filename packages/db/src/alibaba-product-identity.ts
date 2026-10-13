@@ -15,6 +15,10 @@ import {
   holdsAlibabaLease,
 } from './adapter.ts';
 import {
+  type AlibabaProductLinkIdentity,
+  parseAlibabaProductLink as linkIdentity,
+} from './alibaba-link-identity.ts';
+import {
   type AlibabaPricingEvidenceExpectation,
   alibabaPricingFingerprint,
 } from './alibaba-pricing-fingerprint.ts';
@@ -29,14 +33,7 @@ import { advanceCatalogProduct, assertCatalogProductVersions } from './catalog-p
 
 export const ALIBABA_PRODUCT_LINK_LIMIT = 40;
 
-export interface AlibabaProductLinkIdentity {
-  _id: string;
-  sourceKey: string;
-  connectionId: string;
-  sourceProductId: string;
-  productId: string;
-  linkedAt: string;
-}
+export type { AlibabaProductLinkIdentity } from './alibaba-link-identity.ts';
 
 interface AlibabaProductExpectation {
   productId: string;
@@ -268,30 +265,6 @@ export function alibabaLinkRevision(product: CollectionDoc): number | null {
   const value = product.alibabaLinkRevision;
   if (value === undefined) return 0;
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
-}
-
-function linkIdentity(
-  row: CollectionDoc | AlibabaProductLinkIdentity,
-  allowEmptyClaim = false,
-): AlibabaProductLinkIdentity | null {
-  const { _id, sourceKey, connectionId, sourceProductId, productId, linkedAt } = row;
-  if (
-    [_id, sourceKey, connectionId, sourceProductId, linkedAt].some(
-      (value) => typeof value !== 'string' || value.trim() === '',
-    ) ||
-    typeof productId !== 'string' ||
-    (productId.trim() === '' && !(allowEmptyClaim && productId === '')) ||
-    _id !== sourceKey
-  )
-    return null;
-  return {
-    _id,
-    sourceKey,
-    connectionId,
-    sourceProductId,
-    productId,
-    linkedAt,
-  } as AlibabaProductLinkIdentity;
 }
 
 function sameLink(

@@ -168,6 +168,13 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     sourceImageUrls: urls,
     active: true,
   });
+  await db.createDocWithId('alibabaProductLinks', sourceKey, {
+    sourceKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-formal-linked',
+    productId: product._id,
+    linkedAt: '2026-09-09T00:00:00.000Z',
+  });
   await db.update('products', product._id, {
     imageIds: ['formal-image-0', 'formal-image-1'],
     alibabaSourceImageUrls: urls,
@@ -229,6 +236,13 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
       (_, i) => `https://s.alicdn.com/formal-draft-${i}.png`,
     ),
     active: true,
+  });
+  await db.createDocWithId('alibabaProductLinks', untouchedKey, {
+    sourceKey: untouchedKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-only-draft',
+    productId: 'local-untouched-draft',
+    linkedAt: '2026-09-09T00:00:00.000Z',
   });
   await db.createDocWithId('products', 'local-untouched-draft', {
     name: 'Untouched Sync Headset',

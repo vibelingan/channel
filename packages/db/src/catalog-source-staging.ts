@@ -1,5 +1,6 @@
 /** Bounded server-only source preparation. No provider calls and no publication writes. */
 import { createHash } from 'node:crypto';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   CatalogContentSchema,
   CatalogDetailVariantSchema,
@@ -12,6 +13,11 @@ import {
 } from '@vibelingan-channel/shared/catalog-source-digest';
 import { z } from 'zod';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
+import {
+  CatalogPreparedSourceBindingSchema,
+  primarySourceLinkSnapshot,
+} from './catalog-source-binding.ts';
+import { sourceBindingHash, sourceInputDigest } from './catalog-source-inputs.ts';
 
 const id = z.string().trim().min(1).max(200);
 export const sourceDigest = (value: unknown) =>
@@ -51,6 +57,7 @@ export const SourcePageSchema = z
     sourceKey: id,
     observationId: id,
     observationDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    expectedBinding: CatalogPreparedSourceBindingSchema,
     revision: z.string().regex(/^[a-f0-9]{64}$/),
     galleryDigest: z.string().regex(/^[a-f0-9]{64}$/),
     contentGeneration: z.number().int().nonnegative().safe().optional(),
@@ -102,11 +109,20 @@ export async function stageSourcePage(
   if (actor?.role !== 'admin' || actor.status === 'suspended') return fail('FORBIDDEN');
   const product = await tx.get('products', input.productId);
   const observed = await tx.get('catalogSourceObservations', input.observationId);
+  const source = await tx.get('alibabaSourceProducts', input.sourceKey);
+  const link = await tx.get('alibabaProductLinks', input.sourceKey);
+  const primaryLink = source ? primarySourceLinkSnapshot(source, link, input.productId) : null;
   if (
     !product ||
     product.alibabaPrimarySourceKey !== input.sourceKey ||
     product.archived === true ||
     !observed ||
+    !source ||
+    !primaryLink?.ok ||
+    input.observationId !== sourceObservationDocumentId('alibaba', input.sourceKey) ||
+    sourceBindingHash(source) !== input.expectedBinding.sourceHash ||
+    sourceInputDigest(observed) !== input.expectedBinding.observationHash ||
+    primaryLink.linkHash !== input.expectedBinding.linkHash ||
     sourceDigest(observed.observation) !== input.observationDigest ||
     sourceGalleryDigest(product) !== input.galleryDigest ||
     (product.catalogContentGeneration ?? 0) !== (input.contentGeneration ?? 0)
@@ -181,7 +197,7 @@ export async function stageSourcePage(
   // Write the observed row too: concurrent sync is a transaction conflict, not a stale seal.
   await tx.set('catalogSourceObservations', {
     ...observed,
-    detailPreparationFence: input.revision,
+    detailPreparationFence: sourceDigest([input.revision, input.page]),
   });
   const publicDigest = publicDigestOf(observed.observation);
   // A re-prepare without these must not keep old ones.

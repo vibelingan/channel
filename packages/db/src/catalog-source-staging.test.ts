@@ -1,13 +1,52 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import { primarySourceLinkSnapshot } from './catalog-source-binding.ts';
+import { sourceBindingHash, sourceInputDigest } from './catalog-source-inputs.ts';
 import {
   SourcePageSchema,
   sourceDigest,
   sourceGalleryDigest,
   stageSourcePage,
 } from './catalog-source-staging.ts';
+import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
+
+const sourceObservationId = sourceObservationDocumentId('alibaba', 'source');
+function bindFixture(
+  store: Record<string, CollectionDoc>,
+  sourceKey: string,
+  productId: string,
+  observationId: string,
+) {
+  const source = {
+    _id: sourceKey,
+    sourceKey,
+    connectionId: 'fixture',
+    sourceProductId: `fixture-${sourceKey}`,
+    active: true,
+  };
+  const link = {
+    _id: sourceKey,
+    sourceKey,
+    connectionId: source.connectionId,
+    sourceProductId: source.sourceProductId,
+    productId,
+    linkedAt: '2026-01-01T00:00:00.000Z',
+  };
+  store[`alibabaSourceProducts/${sourceKey}`] = source;
+  store[`alibabaProductLinks/${sourceKey}`] = link;
+  const snapshot = primarySourceLinkSnapshot(source, link, productId);
+  assert.ok(snapshot.ok);
+  return {
+    sourceHash: sourceBindingHash(source),
+    observationHash: sourceInputDigest(store[`catalogSourceObservations/${observationId}`] ?? null),
+    linkHash: snapshot.linkHash,
+  };
+}
 
 test('source preparation seals only the complete generation; retries, changed observation and wrong actor are safe', async () => {
   const store: Record<string, CollectionDoc> = {
@@ -20,8 +59,12 @@ test('source preparation seals only the complete generation; retries, changed ob
       name: 'Manual title',
       unitPrice: 7,
     },
-    'catalogSourceObservations/source': { _id: 'source', observation: { value: 1 } },
+    [`catalogSourceObservations/${sourceObservationId}`]: {
+      _id: sourceObservationId,
+      observation: { value: 1 },
+    },
   };
+  const binding = bindFixture(store, 'source', 'product', sourceObservationId);
   const tx = {
     get: async (c: string, id: string) => structuredClone(store[`${c}/${id}`] ?? null),
     set: async (c: string, row: CollectionDoc) => {
@@ -34,7 +77,8 @@ test('source preparation seals only the complete generation; retries, changed ob
       action: 'source-page',
       productId: 'product',
       sourceKey: 'source',
-      observationId: 'source',
+      observationId: sourceObservationId,
+      expectedBinding: binding,
       observationDigest: sourceDigest({ value: 1 }),
       galleryDigest: sourceDigest([]),
       revision: 'a'.repeat(64),
@@ -69,9 +113,15 @@ test('source preparation seals only the complete generation; retries, changed ob
   assert.equal((await stageSourcePage(tx, 'admin', page(0))).ok, true);
   assert.equal(store['products/product']?.detailSourceReady, false);
   assert.equal((await stageSourcePage(tx, 'admin', page(0))).ok, true);
-  store['catalogSourceObservations/source'] = { _id: 'source', observation: { value: 2 } };
+  store[`catalogSourceObservations/${sourceObservationId}`] = {
+    _id: sourceObservationId,
+    observation: { value: 2 },
+  };
   assert.deepEqual(await stageSourcePage(tx, 'admin', page(1)), { ok: false, code: 'CONFLICT' });
-  store['catalogSourceObservations/source'] = { _id: 'source', observation: { value: 1 } };
+  store[`catalogSourceObservations/${sourceObservationId}`] = {
+    _id: sourceObservationId,
+    observation: { value: 1 },
+  };
   const done = await stageSourcePage(tx, 'admin', page(1));
   assert.equal(done.ok && done.complete, true);
   const product = store['products/product'];
@@ -115,8 +165,9 @@ async function prepareOnce(
       imageIds: [],
       ...existing,
     },
-    'catalogSourceObservations/source': { _id: 'source', observation },
+    [`catalogSourceObservations/${sourceObservationId}`]: { _id: sourceObservationId, observation },
   };
+  const binding = bindFixture(store, 'source', 'product', sourceObservationId);
   const tx = {
     get: async (c: string, id: string) => structuredClone(store[`${c}/${id}`] ?? null),
     set: async (c: string, row: CollectionDoc) => {
@@ -130,7 +181,8 @@ async function prepareOnce(
       action: 'source-page',
       productId: 'product',
       sourceKey: 'source',
-      observationId: 'source',
+      observationId: sourceObservationId,
+      expectedBinding: binding,
       observationDigest: sourceDigest(observation),
       galleryDigest: sourceDigest([]),
       revision,
@@ -239,11 +291,13 @@ test('a source page without the current content generation cannot restore an inv
     catalogContentGeneration: 1,
     detailSourceReady: false,
   };
+  const observationId = sourceObservationDocumentId('alibaba', 'key');
   const store: Record<string, CollectionDoc> = {
     'users/admin': { _id: 'admin', role: 'admin' },
     'products/p': product,
-    'catalogSourceObservations/obs': { _id: 'obs', observation },
+    [`catalogSourceObservations/${observationId}`]: { _id: observationId, observation },
   };
+  const binding = bindFixture(store, 'key', 'p', observationId);
   const writes: string[] = [];
   const tx = {
     get: async (collection: string, id: string) => store[`${collection}/${id}`] ?? null,
@@ -256,7 +310,8 @@ test('a source page without the current content generation cannot restore an inv
     action: 'source-page',
     productId: 'p',
     sourceKey: 'key',
-    observationId: 'obs',
+    observationId,
+    expectedBinding: binding,
     observationDigest: sourceDigest(observation),
     galleryDigest: sourceGalleryDigest(product),
     revision: 'a'.repeat(64),
@@ -289,3 +344,242 @@ test('a source page without the current content generation cannot restore an inv
   assert.deepEqual(await stageSourcePage(tx, 'admin', current), { ok: false, code: 'CONFLICT' });
   assert.deepEqual(writes, []);
 });
+
+test('every newly prepared source page changes the write fence; a repeated page does not write it', async () => {
+  const observationId = sourceObservationDocumentId('alibaba', 'k');
+  const store: Record<string, CollectionDoc> = {
+    'users/admin': { _id: 'admin', role: 'admin' },
+    'products/p': {
+      _id: 'p',
+      name: 'Clock',
+      alibabaPrimarySourceKey: 'k',
+      imageIds: [],
+      published: false,
+    },
+    [`catalogSourceObservations/${observationId}`]: {
+      _id: observationId,
+      observation: { value: 1 },
+    },
+  };
+  const binding = bindFixture(store, 'k', 'p', observationId);
+  const fences: unknown[] = [];
+  const tx = {
+    get: async (collection: string, id: string) =>
+      structuredClone(store[`${collection}/${id}`] ?? null),
+    set: async (collection: string, row: CollectionDoc) => {
+      if (collection === 'catalogSourceObservations') fences.push(row.detailPreparationFence);
+      store[`${collection}/${row._id}`] = structuredClone(row);
+    },
+  };
+  const ids = Array.from({ length: 21 }, (_, i) => `configuration-${i}`);
+  const page = (index: number) =>
+    SourcePageSchema.parse({
+      action: 'source-page',
+      productId: 'p',
+      sourceKey: 'k',
+      observationId,
+      expectedBinding: binding,
+      observationDigest: sourceDigest({ value: 1 }),
+      galleryDigest: sourceDigest([]),
+      revision: 'a'.repeat(64),
+      header: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: 'p',
+        name: 'Clock',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+      content: null,
+      noteBlocks: null,
+      variantIds: ids,
+      page: index,
+      variants: ids.slice(index * 20, (index + 1) * 20).map((id) => ({
+        id,
+        options: [],
+        images: [],
+        offers: [],
+        inventory: { state: 'unknown' },
+      })),
+    });
+  assert.equal((await stageSourcePage(tx, 'admin', page(0))).ok, true);
+  assert.equal((await stageSourcePage(tx, 'admin', page(1))).ok, true);
+  assert.equal(fences.length, 2);
+  assert.notDeepEqual(
+    fences[0],
+    fences[1],
+    'the second page must perform an actual observation write',
+  );
+  assert.equal((await stageSourcePage(tx, 'admin', page(1))).ok, true);
+  assert.equal(fences.length, 2, 'a confirmed repeated page has no new source write');
+});
+
+test('production Cloud source paging succeeds when identical writes acknowledge zero updates', async () => {
+  const observationId = sourceObservationDocumentId('alibaba', 'k');
+  let store: Record<string, CollectionDoc> = {
+    'users/admin': { _id: 'admin', role: 'admin' },
+    'products/p': {
+      _id: 'p',
+      name: 'Clock',
+      alibabaPrimarySourceKey: 'k',
+      imageIds: [],
+      published: false,
+    },
+    [`catalogSourceObservations/${observationId}`]: {
+      _id: observationId,
+      observation: { value: 1 },
+    },
+  };
+  const binding = bindFixture(store, 'k', 'p', observationId);
+  const ids = Array.from({ length: 21 }, (_, i) => `configuration-${i}`);
+  const page = (index: number) =>
+    SourcePageSchema.parse({
+      action: 'source-page',
+      productId: 'p',
+      sourceKey: 'k',
+      observationId,
+      expectedBinding: binding,
+      observationDigest: sourceDigest({ value: 1 }),
+      galleryDigest: sourceDigest([]),
+      revision: 'a'.repeat(64),
+      header: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: 'p',
+        name: 'Clock',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+      content: null,
+      noteBlocks: null,
+      variantIds: ids,
+      page: index,
+      variants: ids.slice(index * 20, (index + 1) * 20).map((id) => ({
+        id,
+        options: [],
+        images: [],
+        offers: [],
+        inventory: { state: 'unknown' },
+      })),
+    });
+  let zeroAcks = 0;
+  let maximumOperations = 0;
+  const db: NodeSdkDatabase = {
+    command: { set: (value) => value },
+    async runTransaction(operation) {
+      const copy = structuredClone(store);
+      let writes = false;
+      let operations = 0;
+      const result = await operation({
+        collection: (collection) => ({
+          doc: (id) => ({
+            get: async () => {
+              assert.equal(writes, false, 'all reads precede writes');
+              operations++;
+              return { data: structuredClone(copy[`${collection}/${id}`] ?? null) };
+            },
+            set: async (data) => {
+              writes = true;
+              operations++;
+              assert.equal(Object.hasOwn(data, '_id'), false);
+              const key = `${collection}/${id}`;
+              const next = { ...structuredClone(data), _id: id };
+              if (isDeepStrictEqual(copy[key], next)) {
+                zeroAcks++;
+                return { updated: 0 };
+              }
+              const existing = copy[key];
+              copy[key] = next;
+              return existing ? { updated: 1 } : { upserted: [{ _id: id }] };
+            },
+            update: async () => {
+              throw new Error('unexpected partial update');
+            },
+            remove: async () => {
+              throw new Error('unexpected removal');
+            },
+          }),
+        }),
+      });
+      maximumOperations = Math.max(maximumOperations, operations);
+      store = copy;
+      return result;
+    },
+  };
+  assert.equal((await persistStagedApprovalInCloud(db, 'admin', page(0))).ok, true);
+  const final = await persistStagedApprovalInCloud(db, 'admin', page(1));
+  assert.ok(final.ok && 'complete' in final && final.complete);
+  assert.equal(zeroAcks, 0, 'every requested write must change the stored row');
+  assert.equal(maximumOperations, 47);
+  assert.equal((await persistStagedApprovalInCloud(db, 'admin', page(1))).ok, true);
+  assert.equal(zeroAcks, 0);
+  assert.equal(store['products/p']?.published, false);
+});
+
+for (const fault of ['product', 'connection', 'external-id', 'relinked', 'metadata'] as const)
+  test(`source-page transaction checks the frozen primary link (${fault})`, async () => {
+    const observationId = sourceObservationDocumentId('alibaba', 'k');
+    const store: Record<string, CollectionDoc> = {
+      'users/admin': { _id: 'admin', role: 'admin' },
+      'products/p': { _id: 'p', name: 'Clock', alibabaPrimarySourceKey: 'k', imageIds: [] },
+      [`catalogSourceObservations/${observationId}`]: {
+        _id: observationId,
+        observation: { value: 1 },
+      },
+    };
+    const binding = bindFixture(store, 'k', 'p', observationId);
+    const packet = SourcePageSchema.parse({
+      action: 'source-page',
+      productId: 'p',
+      sourceKey: 'k',
+      observationId,
+      expectedBinding: binding,
+      observationDigest: sourceDigest({ value: 1 }),
+      galleryDigest: sourceDigest([]),
+      revision: 'a'.repeat(64),
+      header: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: 'p',
+        name: 'Clock',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+      content: null,
+      noteBlocks: null,
+      variantIds: [],
+      page: 0,
+      variants: [],
+    });
+    const link = store['alibabaProductLinks/k'];
+    assert.ok(link);
+    store['alibabaProductLinks/k'] = {
+      ...link,
+      ...(fault === 'product' ? { productId: 'other' } : {}),
+      ...(fault === 'connection' ? { connectionId: 'other' } : {}),
+      ...(fault === 'external-id' ? { sourceProductId: 'other' } : {}),
+      ...(fault === 'relinked' ? { linkedAt: '2026-01-02T00:00:00.000Z' } : {}),
+      ...(fault === 'metadata'
+        ? { categoryAssignmentFence: 'new-metadata-fence', updatedAt: '2026-01-02T00:00:00.000Z' }
+        : {}),
+    };
+    const writes: string[] = [];
+    const before = structuredClone(store);
+    const result = await stageSourcePage(
+      {
+        get: async (collection, id) => structuredClone(store[`${collection}/${id}`] ?? null),
+        set: async (collection, row) => {
+          writes.push(collection);
+          store[`${collection}/${row._id}`] = structuredClone(row);
+        },
+      },
+      'admin',
+      packet,
+    );
+    assert.equal(result.ok, fault === 'metadata');
+    if (fault !== 'metadata') {
+      assert.deepEqual(result, { ok: false, code: 'CONFLICT' });
+      assert.deepEqual(writes, []);
+      assert.deepEqual(store, before);
+    }
+  });

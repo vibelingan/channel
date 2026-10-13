@@ -519,3 +519,30 @@ test('actual prepare refuses a dangling Alibaba primary source even with a compl
   );
   assert.equal(adapter.commands.length, 0);
 });
+
+for (const fault of ['missing', 'other-product'] as const)
+  test(`actual prepare refuses a ${fault} primary source link before staging`, async () => {
+    const f = pairedSourceFixture();
+    const adapter = new RecordingAdapter({
+      ...f.store,
+      alibabaProductLinks:
+        fault === 'missing'
+          ? []
+          : [
+              {
+                _id: f.source._id,
+                sourceKey: f.source._id,
+                connectionId: f.source.connectionId,
+                sourceProductId: f.source.sourceProductId,
+                productId: 'another-product',
+                linkedAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+    });
+    setAdapter(adapter);
+    assert.deepEqual(
+      await prepareCatalogSource('admin', { action: 'prepare', productId: 'paired-product' }),
+      { ok: false, code: 'SOURCE_NOT_READY' },
+    );
+    assert.equal(adapter.commands.length, 0);
+  });

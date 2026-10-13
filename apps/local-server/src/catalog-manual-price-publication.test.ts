@@ -76,6 +76,16 @@ test('manual price patches cannot leave published list and approved detail on di
     JSON.stringify({
       products: [product],
       alibabaSourceProducts: [source],
+      alibabaProductLinks: [
+        {
+          _id: source._id,
+          sourceKey: source._id,
+          connectionId: source.connectionId,
+          sourceProductId: source.sourceProductId,
+          productId: 'headset',
+          linkedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       catalogSourceObservations: [observation],
       users: [{ _id: 'admin', role: 'admin', status: 'active' }],
       images: [

@@ -7,7 +7,10 @@ import {
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
-import { sourceBindingSnapshot } from '@vibelingan-channel/db/catalog-source-binding';
+import {
+  primarySourceLinkSnapshot,
+  sourceBindingSnapshot,
+} from '@vibelingan-channel/db/catalog-source-binding';
 import {
   SourcePageSchema,
   sourceDigest,
@@ -126,6 +129,12 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const snapshot = sourceBindingSnapshot(normalized, row);
   if (!snapshot.ok) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  const primaryLink = primarySourceLinkSnapshot(
+    normalized,
+    await get('alibabaProductLinks', sourceKey),
+    productId,
+  );
+  if (!primaryLink.ok) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const observation = snapshot.observation;
   const gallery = new Set(Array.isArray(product.imageIds) ? product.imageIds : []);
   for (const id of Array.isArray(product.descriptionImageIds) ? product.descriptionImageIds : [])
@@ -199,6 +208,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   const galleryDigest = sourceGalleryDigest(product);
   const revision = sourceDigest([
     observationDigest,
+    { ...snapshot.expectation, linkHash: primaryLink.linkHash },
     galleryDigest,
     [...images].sort(),
     [...variants],
@@ -214,6 +224,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     sourceKey,
     observationId,
     observationDigest,
+    expectedBinding: { ...snapshot.expectation, linkHash: primaryLink.linkHash },
     galleryDigest,
     ...(product.catalogContentGeneration == null
       ? {}

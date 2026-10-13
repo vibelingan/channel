@@ -6,6 +6,7 @@ import {
   sourceObservationDocumentId,
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
+import { sourceBindingSnapshot } from '@vibelingan-channel/db/catalog-source-binding';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   alibabaCatalogPricingSchema,
@@ -144,40 +145,66 @@ export function sourceObservationFixture(
 
 /** Upgrade implicit old test fixtures only; explicit missing mirrors remain missing. */
 export function completeSourceMirrorFixtures(store: Record<string, CollectionDoc[]>) {
-  if (store.alibabaSourceProducts !== undefined) return;
-  const mirrors: CollectionDoc[] = [];
-  for (const row of store.catalogSourceObservations ?? []) {
-    const parsed = validateCatalogSourceObservation(row.observation);
-    if (
-      !parsed.ok ||
-      parsed.value.source.provider !== 'alibaba' ||
-      parsed.value.source.completeness !== 'full-product'
-    )
-      continue;
-    const value = parsed.value;
-    const key = value.source.sourceProductKey;
-    if (
-      row._id !== sourceObservationDocumentId('alibaba', key) ||
-      (row.provider !== undefined && row.provider !== 'alibaba') ||
-      (row.sourceProductKey !== undefined && row.sourceProductKey !== key)
-    )
-      continue;
-    const externalId = value.source.externalProductId ?? `fixture-${key}`;
-    row.observation = { ...value, source: { ...value.source, externalProductId: externalId } };
-    mirrors.push({
-      _id: key,
-      sourceKey: key,
-      connectionId: value.source.accountKey ?? 'synthetic-fixture',
-      sourceProductId: externalId,
-      sourceTitle: value.identity.title,
-      sourceCategoryId: value.identity.category?.sourceCategoryId,
-      sourceImageUrls: value.content.media
-        .filter((media) => media.role === 'primary' || media.role === 'gallery')
-        .map((media) => media.sourceUrl),
-      active: row.active !== false,
-      ...(typeof row.sourceContentHash === 'string' ? { contentHash: row.sourceContentHash } : {}),
-      ...(typeof row.evidenceId === 'string' ? { payloadId: row.evidenceId } : {}),
+  if (store.alibabaSourceProducts === undefined) {
+    const mirrors: CollectionDoc[] = [];
+    for (const row of store.catalogSourceObservations ?? []) {
+      const parsed = validateCatalogSourceObservation(row.observation);
+      if (
+        !parsed.ok ||
+        parsed.value.source.provider !== 'alibaba' ||
+        parsed.value.source.completeness !== 'full-product'
+      )
+        continue;
+      const value = parsed.value;
+      const key = value.source.sourceProductKey;
+      if (
+        row._id !== sourceObservationDocumentId('alibaba', key) ||
+        (row.provider !== undefined && row.provider !== 'alibaba') ||
+        (row.sourceProductKey !== undefined && row.sourceProductKey !== key)
+      )
+        continue;
+      const externalId = value.source.externalProductId ?? `fixture-${key}`;
+      row.observation = { ...value, source: { ...value.source, externalProductId: externalId } };
+      mirrors.push({
+        _id: key,
+        sourceKey: key,
+        connectionId: value.source.accountKey ?? 'synthetic-fixture',
+        sourceProductId: externalId,
+        sourceTitle: value.identity.title,
+        sourceCategoryId: value.identity.category?.sourceCategoryId,
+        sourceImageUrls: value.content.media
+          .filter((media) => media.role === 'primary' || media.role === 'gallery')
+          .map((media) => media.sourceUrl),
+        active: row.active !== false,
+        ...(typeof row.sourceContentHash === 'string'
+          ? { contentHash: row.sourceContentHash }
+          : {}),
+        ...(typeof row.evidenceId === 'string' ? { payloadId: row.evidenceId } : {}),
+      });
+    }
+    store.alibabaSourceProducts = mirrors;
+  }
+  if (store.alibabaProductLinks !== undefined) return;
+  const links: CollectionDoc[] = [];
+  for (const source of store.alibabaSourceProducts) {
+    const products = (store.products ?? []).filter(
+      (product) => product.alibabaPrimarySourceKey === source._id,
+    );
+    if (products.length !== 1) continue;
+    const product = products[0];
+    const observation =
+      store.catalogSourceObservations?.find(
+        (row) => row._id === sourceObservationDocumentId('alibaba', source._id),
+      ) ?? null;
+    if (!product || !sourceBindingSnapshot(source, observation).ok) continue;
+    links.push({
+      _id: source._id,
+      sourceKey: source._id,
+      connectionId: source.connectionId,
+      sourceProductId: source.sourceProductId,
+      productId: product._id,
+      linkedAt: '2026-01-01T00:00:00.000Z',
     });
   }
-  store.alibabaSourceProducts = mirrors;
+  if (links.length > 0) store.alibabaProductLinks = links;
 }
