@@ -1545,3 +1545,42 @@ Review of MIU-1, MIU-2, MIU-36: 0 P1, 1 P2, 8 P3. Fixed:
 - Validation commands and results:
 - Deviations from the spec:
 -->
+
+
+### Preparation validation diagnostics — 2026-10-13
+
+- Scope: preserve the reason for a failed supplier-detail preparation. No new
+  content storage, limit changes, category assignments, publication writes or
+  changes to DEC-21 transaction/retry/media-reference rules.
+- Observed live: T142 and T157 return HTTP 400 / VALIDATION_ERROR during
+  `prepare`; T142, T157 and W203 fail Preview. The actual failing field is still
+  unknown. Synthetic oversized samples are reproductions of a validation gap,
+  not proof of these products' root cause.
+- Changed: carry bounded stage + field/constraint diagnostics through prepare,
+  one-request approval and the existing authenticated admin error envelope.
+  Validate the exact SourcePageSchema before persistence. No raw source payload
+  or field values are intentionally included in the diagnostic.
+- Red → green: four new tests failed before the change and passed afterward:
+  source-candidate rejection, source-page rejection with zero staging writes,
+  one-request approval stopping before review, and admin error propagation.
+- Relevant regression suites passed: admin catalog-detail-source,
+  catalog-approve-once, handler, http-adapter; DB catalog-detail-staging,
+  catalog-detail-commit, catalog-source-staging; site product-batch-update.
+  Admin TypeScript, full repository Biome (825 files), and
+  verify-cloudbase-sdk-contract.mjs passed independently.
+- Hook limitation: the existing global pre-commit invokes Biome with an invalid
+  `--silent` option and nevertheless reports success. The independent Biome
+  command above exited zero; the hook message was not used as evidence.
+- Inline review replaces agent delegation per the user's no-subagents rule.
+  Reviewed all seven changed TS files against a3ce01e, traced the new diagnostic
+  producers/consumers, and checked the existing auth gate, persistence boundary
+  and early-stop behavior. No P1/P2 findings in this diagnostic-only change.
+- Writing review: reviewed this entry and the actual TS files listed above.
+  Replaced a potential claim that oversized fields caused the clocks' failures
+  with the explicit distinction between synthetic reproduction and observed
+  live failure. Compared the stated gates with their actual command outcomes.
+- Still required: deploy diagnostic version; identify and fix the real cause;
+  resync the broken products; verify Preview/Edit; publish 20 suitable currently
+  unpublished classified products via Assign category → Save and publish; check
+  public details; restore unpublished status. Unclassified products must keep
+  their current classification state. Local tests do not complete acceptance.
