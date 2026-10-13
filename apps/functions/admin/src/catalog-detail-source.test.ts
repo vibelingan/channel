@@ -332,3 +332,107 @@ test('source-page schema failures identify the boundary before staging', async (
   });
   assert.deepEqual(adapter.commands, []);
 });
+
+test('prepare retains private supplier text while validating the actual website description', async () => {
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      observedAt: '2026-10-13T00:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: { title: 'Supplier '.repeat(80).trim(), matchHints: {}, attributes: [] },
+    content: {
+      media: [],
+      description: {
+        text: 'x'.repeat(30001),
+        sanitizedHtml: '<p>Unused supplier notes</p>',
+        placeholder: false,
+        sanitized: true,
+        provenance: 'provider-description',
+      },
+    },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [],
+    offers: [],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'evidence' }],
+    warnings: [],
+  };
+  const adapter = new RecordingAdapter({
+    products: [
+      {
+        _id: 'clock',
+        name: 'Website clock',
+        description: 'Reviewed clock description',
+        alibabaPrimarySourceKey: 'source-a',
+        productFamily: 'misc',
+      },
+    ],
+    catalogSourceObservations: [
+      { _id: sourceObservationDocumentId('alibaba', 'source-a'), observation },
+    ],
+  });
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'clock' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const command = adapter.commands[0];
+  assert.ok(command?.action === 'source-page');
+  assert.equal(command.header.descriptionText, observation.content.description.text);
+  assert.equal(command.content, null);
+  assert.equal(command.noteBlocks, null);
+});
+
+test('changing description ownership cannot reuse a preparation that omitted supplier content', async () => {
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      observedAt: '2026-10-13T00:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: { title: 'Supplier', matchHints: {}, attributes: [] },
+    content: {
+      media: [],
+      description: {
+        text: 'Supplier text',
+        sanitizedHtml: '<p>Supplier text</p>',
+        placeholder: false,
+        sanitized: true,
+        provenance: 'provider-description',
+      },
+    },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [],
+    offers: [],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'evidence' }],
+    warnings: [],
+  };
+  const product = {
+    _id: 'p1',
+    name: 'Website',
+    description: 'My replacement',
+    alibabaPrimarySourceKey: 'source-a',
+  };
+  const adapter = new RecordingAdapter({
+    products: [product],
+    catalogSourceObservations: [
+      { _id: sourceObservationDocumentId('alibaba', 'source-a'), observation },
+    ],
+  });
+  setAdapter(adapter);
+  await prepareCatalogSource('admin', { action: 'prepare', productId: 'p1' });
+  product.description = 'Supplier text';
+  await prepareCatalogSource('admin', { action: 'prepare', productId: 'p1' });
+  const [first, second] = adapter.commands;
+  assert.ok(first?.action === 'source-page' && second?.action === 'source-page');
+  assert.equal(first.content, null);
+  assert.ok(
+    second.content || second.noteBlocks,
+    'supplier content is restored when explicitly adopted',
+  );
+  assert.notEqual(first.revision, second.revision, 'the old no-content cursor must not be reused');
+});

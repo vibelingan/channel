@@ -1,0 +1,12 @@
+{
+  "reviewedHead": "39705e2323d51d4aa79f1240d66f65608f407649",
+  "scenario": "Concurrent unpublish after live category refresh read; subsequent published:true write",
+  "unguarded": {
+    "result": "ready",
+    "published": true
+  },
+  "guarded": {
+    "result": "stale"
+  },
+  "scope": "Offline real planCatalogProductSave; no live writes"
+}

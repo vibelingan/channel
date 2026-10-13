@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { buildCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
 import {
   type CatalogSourceObservation,
   sourceMediaLinkId,
@@ -165,14 +165,21 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     return ids.every((value): value is string => value !== undefined) ? ids : null;
   };
   const variants = sourceVariantIds(productId, sourceKey, observation);
-  const candidate = buildCatalogDetailCandidate(
+  const candidate = buildCatalogPreparationPlan(
     observation,
-    { productId, variants, images, ...catalogCategoryLabel(product.productFamily) },
+    {
+      productId,
+      variants,
+      images,
+      websiteProduct: { ...product, detailSourceOwner: `alibaba:${sourceKey}` },
+      ...catalogCategoryLabel(product.productFamily),
+    },
     page + 1,
     20,
   );
   if (!candidate.ok) return catalogValidationFailure('source-candidate', candidate.errors);
-  const { variants: pageVariants, revision: _revision, ...header } = candidate.value;
+  const { variants: pageVariants } = candidate.value;
+  const header = candidate.sourceHeader;
   // The admin's photo choice for a configuration replaces the supplier's
   // photos (DEC-20); only photos in this product's gallery count.
   const chosen = ConfigurationPhotosSchema.safeParse(product.configurationPhotos ?? {});
@@ -187,7 +194,10 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     const picked = choiceFor(variant.id);
     if (picked) variant.images = picked.map((id) => `/api/images/${id}`);
   }
-  const structured = buildStructuredContent(observation.content.description);
+  const structured =
+    candidate.value.descriptionText === header.descriptionText
+      ? buildStructuredContent(observation.content.description)
+      : { content: undefined, noteBlocks: undefined };
   const observationDigest = sourceDigest(row?.observation);
   const galleryDigest = sourceGalleryDigest(product);
   const revision = sourceDigest([
@@ -195,6 +205,8 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     galleryDigest,
     [...images].sort(),
     [...variants],
+    structured.content ?? null,
+    structured.noteBlocks ?? null,
   ]);
   const sourcePage = SourcePageSchema.safeParse({
     action: 'source-page',

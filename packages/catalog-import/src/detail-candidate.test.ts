@@ -312,3 +312,62 @@ test('malformed money fails the common boundary instead of becoming a display nu
     );
   }
 });
+
+for (const field of ['title', 'description'] as const) {
+  test(`website-owned ${field} is applied before the shared detail validation`, () => {
+    const item = observation();
+    if (field === 'title') item.identity.title = 'Unused supplier title '.repeat(30).trim();
+    else {
+      assert.ok(item.content.description);
+      item.content.description = { ...item.content.description, text: 'x'.repeat(30001) };
+    }
+    const bound = {
+      ...bindings(),
+      websiteProduct: {
+        _id: 'product-1',
+        name: 'Reviewed website title',
+        description: 'Reviewed website text',
+        imageIds: ['image-1'],
+        detailSourceOwner: 'alibaba:private-parent',
+      },
+    };
+    const result = buildCatalogDetailCandidate(item, bound);
+    assert.ok(result.ok, result.ok ? undefined : result.errors.join('; '));
+    assert.equal(result.value.name, 'Reviewed website title');
+    assert.equal(result.value.descriptionText, 'Reviewed website text');
+    assert.equal(
+      item.content.description?.text?.length,
+      field === 'description' ? 30001 : 9,
+      'source evidence remains complete',
+    );
+  });
+}
+
+test('effective website validation still rejects an invalid chosen description', () => {
+  const bound = {
+    ...bindings(),
+    websiteProduct: {
+      _id: 'product-1',
+      name: 'Reviewed',
+      description: 'x'.repeat(30001),
+      imageIds: ['image-1'],
+      detailSourceOwner: 'alibaba:private-parent',
+    },
+  };
+  const result = buildCatalogDetailCandidate(observation(), bound);
+  assert.equal(result.ok, false);
+});
+
+test('website field ownership cannot cross product identities', () => {
+  const bound = {
+    ...bindings(),
+    websiteProduct: {
+      _id: 'another-product',
+      name: 'Other product',
+      description: 'Other text',
+      imageIds: ['other-image'],
+      detailSourceOwner: 'alibaba:private-parent',
+    },
+  };
+  assert.equal(buildCatalogDetailCandidate(observation(), bound).ok, false);
+});

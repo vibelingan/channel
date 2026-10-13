@@ -2,10 +2,10 @@
 import { createHash } from 'node:crypto';
 import {
   CatalogContentSchema,
-  CatalogDetailHeaderSchema,
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
+import { CatalogSourceDetailHeaderSchema } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
   type PublicSourceDigestInput,
   publicSourceDigest,
@@ -53,7 +53,7 @@ export const SourcePageSchema = z
     observationDigest: z.string().regex(/^[a-f0-9]{64}$/),
     revision: z.string().regex(/^[a-f0-9]{64}$/),
     galleryDigest: z.string().regex(/^[a-f0-9]{64}$/),
-    header: CatalogDetailHeaderSchema,
+    header: CatalogSourceDetailHeaderSchema,
     content: CatalogContentSchema.nullable(),
     noteBlocks: CatalogNoteBlocksSchema.nullable(),
     variantIds: z

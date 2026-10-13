@@ -9,6 +9,8 @@ import {
   type CatalogProductDetail,
   decodeCatalogProductDetail,
 } from '@vibelingan-channel/shared/catalog-detail';
+import { applyWebsiteDetailHeader } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { z } from 'zod';
 import { validateCatalogSourceObservation } from './source-observations.ts';
 
 export interface CatalogDetailBindings {
@@ -18,9 +20,11 @@ export interface CatalogDetailBindings {
   /** source URL -> approved/local image ID, never a COS URL */
   images: ReadonlyMap<string, string>;
   categoryLabel?: string;
+  /** Server-provided current website fields; raw evidence is never modified. */
+  websiteProduct?: unknown;
 }
 
-export function buildCatalogDetailCandidate(
+export function buildCatalogPreparationPlan(
   input: unknown,
   bindings: CatalogDetailBindings,
   page = 1,
@@ -141,6 +145,32 @@ export function buildCatalogDetailCandidate(
       hasMore: offset + variants.length < observation.variants.length,
     },
   };
-  const result = decodeCatalogProductDetail(candidate);
-  return result.ok ? { ...result, warnings: [...new Set(warnings)] } : result;
+  const { variants: variantPage, ...sourceHeader } = candidate;
+  try {
+    const header =
+      bindings.websiteProduct === undefined
+        ? sourceHeader
+        : applyWebsiteDetailHeader(sourceHeader, bindings.websiteProduct);
+    const result = decodeCatalogProductDetail({ ...header, variants: variantPage });
+    return result.ok ? { ...result, sourceHeader, warnings: [...new Set(warnings)] } : result;
+  } catch (error) {
+    if (!(error instanceof z.ZodError)) throw error;
+    return {
+      ok: false as const,
+      errors: error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+    };
+  }
+}
+
+/** Public candidate shape deliberately omits the private source header. */
+export function buildCatalogDetailCandidate(
+  input: unknown,
+  bindings: CatalogDetailBindings,
+  page = 1,
+  pageSize = 50,
+) {
+  const result = buildCatalogPreparationPlan(input, bindings, page, pageSize);
+  if (!result.ok) return result;
+  const { sourceHeader: _sourceHeader, ...candidate } = result;
+  return candidate;
 }

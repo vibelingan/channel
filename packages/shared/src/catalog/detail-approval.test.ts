@@ -306,3 +306,24 @@ test('a one-page partial plan (staged approval) does not throw while deriving th
     planCatalogDetailApproval({ ...input, variants: input.variants.slice(0, 1) }),
   );
 });
+
+test('unused supplier text does not block the effective website version or restore supplier notes', () => {
+  const input = fixture();
+  const source = {
+    ...input.product.detailSourceCandidate,
+    name: 'Supplier '.repeat(80).trim(),
+    descriptionText: 'x'.repeat(30001),
+  };
+  const product = {
+    ...input.product,
+    description: 'Reviewed replacement',
+    detailSourceCandidate: source,
+  };
+  const result = planCatalogDetailApproval({ ...input, product });
+  assert.equal(result.publication.header.name, 'Reviewed title');
+  assert.equal(result.publication.header.descriptionText, 'Reviewed replacement');
+  assert.equal(result.publication.content, undefined);
+  assert.equal(result.publication.noteBlocks, undefined);
+  assert.equal(product.detailSourceCandidate.descriptionText.length, 30001);
+  assert.equal(JSON.stringify(result).includes(source.name), false);
+});

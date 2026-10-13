@@ -19,7 +19,13 @@ const identity = z
   .max(200)
   .refine((value) => value === value.trim());
 const imageIds = z.array(z.string().regex(/^[A-Za-z0-9_-]+$/)).max(9);
-const productInput = z.object({
+/** Private preparation input. Website-owned text is checked after applying the row. */
+export const CatalogSourceDetailHeaderSchema = CatalogDetailHeaderSchema.extend({
+  name: z.string(),
+  descriptionText: z.string().optional(),
+});
+
+const websiteInput = z.object({
   _id: identity,
   name: z.string(),
   description: z.string().optional(),
@@ -31,11 +37,7 @@ const productInput = z.object({
     .max(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
     .optional(),
   archived: z.literal(false).optional(),
-  detailSourceReady: z.literal(true),
   detailSourceOwner: identity,
-  detailSourceCandidate: CatalogDetailHeaderSchema,
-  detailSourceContentCandidate: z.unknown(),
-  detailSourceNoteBlocksCandidate: z.unknown(),
   catalogPricingMode: z.unknown(),
   manualCatalogPricing: z.unknown(),
   unitPrice: z.unknown(),
@@ -49,12 +51,19 @@ const productInput = z.object({
   modType: z.unknown(),
 });
 
-const isManualOwner = (product: z.infer<typeof productInput>) =>
+const productInput = websiteInput.extend({
+  detailSourceReady: z.literal(true),
+  detailSourceCandidate: CatalogSourceDetailHeaderSchema,
+  detailSourceContentCandidate: z.unknown(),
+  detailSourceNoteBlocksCandidate: z.unknown(),
+});
+
+const isManualOwner = (product: z.infer<typeof websiteInput>) =>
   product.detailSourceOwner.startsWith('manual:');
 const positiveMoq = (value: unknown) =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 
-function websitePricing(product: z.infer<typeof productInput>) {
+function websitePricing(product: z.infer<typeof websiteInput>) {
   const decision = resolveManualCatalogPricing(product);
   // DEC-16: a manual product with no price but a minimum order shows
   // "Request a quote" with that minimum, on the card and the page.
@@ -118,6 +127,37 @@ const variantInput = z.object({
   detailSourceCandidate: CatalogDetailVariantSchema,
 });
 
+/** Apply field ownership once, before validating the effective website header. */
+export function applyWebsiteDetailHeader(
+  source: z.infer<typeof CatalogSourceDetailHeaderSchema>,
+  input: unknown,
+) {
+  const product = websiteInput.parse(input);
+  z.literal(source._id).parse(product._id);
+  const { descriptionText: _description, ...withoutDescription } = source;
+  const description = product.description?.trim();
+  return CatalogDetailHeaderSchema.parse({
+    ...withoutDescription,
+    name: product.name,
+    ...(product.productFamily
+      ? {
+          categoryLabel: {
+            headphones: 'Headphones',
+            'ai-gadgets': 'AI Gadgets',
+            toys: 'Toys',
+            misc: 'Misc',
+          }[product.productFamily],
+        }
+      : {}),
+    images: product.imageIds.map((id) => `/api/images/${id}`),
+    descriptionImages: product.descriptionImageIds?.map((id) => `/api/images/${id}`),
+    // A manual product's facts are its spec fields; a synced one keeps its source facts.
+    ...(isManualOwner(product) ? { facts: manualFacts(product) } : {}),
+    websitePricing: websitePricing(product),
+    ...(description ? { descriptionText: description } : {}),
+  });
+}
+
 /** Input rows must be the complete active source-owned set, not one page. No writes occur here. */
 export function planCatalogDetailApproval(input: {
   product: unknown;
@@ -140,28 +180,7 @@ export function planCatalogDetailApproval(input: {
     seen.add(row._id);
   }
   rows.sort((a, b) => a.position - b.position || a._id.localeCompare(b._id));
-  const { descriptionText: _description, ...withoutDescription } = source;
-  const description = product.description?.trim();
-  const header = CatalogDetailHeaderSchema.parse({
-    ...withoutDescription,
-    name: product.name,
-    ...(product.productFamily
-      ? {
-          categoryLabel: {
-            headphones: 'Headphones',
-            'ai-gadgets': 'AI Gadgets',
-            toys: 'Toys',
-            misc: 'Misc',
-          }[product.productFamily],
-        }
-      : {}),
-    images: product.imageIds.map((id) => `/api/images/${id}`),
-    descriptionImages: product.descriptionImageIds?.map((id) => `/api/images/${id}`),
-    // A manual product's facts are its spec fields; a synced one keeps its source facts.
-    ...(isManualOwner(product) ? { facts: manualFacts(product) } : {}),
-    websitePricing: websitePricing(product),
-    ...(description ? { descriptionText: description } : {}),
-  });
+  const header = applyWebsiteDetailHeader(source, product);
   const variants = rows.map((row) =>
     CatalogDetailVariantSchema.parse({
       ...row.detailSourceCandidate,
