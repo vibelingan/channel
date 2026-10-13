@@ -602,3 +602,29 @@ for (const storedRevision of [undefined, null]) {
     assert.equal(typeof saved?.updatedAt, 'string');
   });
 }
+
+test('observation recapture cannot overwrite its private binding fence', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      catalogSourceObservations: [
+        {
+          _id: 'o',
+          active: true,
+          observedAt: '2026-01-01T00:00:00.000Z',
+          catalogBindingGeneration: 3,
+        },
+      ],
+    }),
+  );
+  const adapter = new JsonFileAdapter(file);
+  const result = await adapter.upsertCatalogSourceObservation(
+    'o',
+    { active: true, observedAt: '2026-01-01T00:00:00.000Z', catalogBindingGeneration: 1 },
+    {},
+  );
+  assert.equal(result.doc.catalogBindingGeneration, 3);
+  assert.equal((await adapter.get('catalogSourceObservations', 'o'))?.catalogBindingGeneration, 3);
+});

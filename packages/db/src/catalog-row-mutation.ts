@@ -1,4 +1,5 @@
 /** Shared input mutation body. Dedicated preparation/approval outputs use their own CAS. */
+import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
 import { z } from 'zod';
@@ -9,9 +10,15 @@ import {
   isCatalogProductVersionField,
   monotonicProductTime,
 } from './catalog-product-state.ts';
+import { planSourceInvalidation } from './catalog-source-invalidation.ts';
 import { nextCounterValue } from './counter-value.ts';
 
-const collection = z.enum(['products', 'productVariants']);
+const collection = z.enum([
+  'products',
+  'productVariants',
+  'alibabaSourceProducts',
+  'catalogSourceObservations',
+]);
 const id = z.string().min(1).max(200);
 const base = z.object({ collection, id });
 export const CatalogRowMutationSchema = z.discriminatedUnion('action', [
@@ -33,10 +40,15 @@ export const CatalogRowMutationSchema = z.discriminatedUnion('action', [
 export type CatalogRowMutation = z.infer<typeof CatalogRowMutationSchema>;
 export type CatalogRowCollection = z.infer<typeof collection>;
 export function isCatalogRowCollection(value: string): value is CatalogRowCollection {
-  return value === 'products' || value === 'productVariants';
+  return (
+    value === 'products' ||
+    value === 'productVariants' ||
+    value === 'alibabaSourceProducts' ||
+    value === 'catalogSourceObservations'
+  );
 }
 export interface CatalogRowStore {
-  get(collection: CatalogRowCollection, id: string): Promise<CollectionDoc | null>;
+  get(collection: string, id: string): Promise<CollectionDoc | null>;
   set(collection: CatalogRowCollection, doc: CollectionDoc): Promise<void>;
   remove(collection: CatalogRowCollection, id: string): Promise<void>;
 }
@@ -93,6 +105,14 @@ export async function runCatalogRowMutation(
       throw new CatalogProductStateError(
         'Product versions cannot be incremented as ordinary counters',
       );
+    if (
+      (command.collection === 'alibabaSourceProducts' ||
+        command.collection === 'catalogSourceObservations') &&
+      command.field === 'catalogBindingGeneration'
+    )
+      throw new CatalogProductStateError(
+        'Source binding versions cannot be incremented as ordinary counters',
+      );
     const value = nextCounterValue(before[command.field], command.delta);
     if (!Number.isFinite(value))
       throw new CatalogProductStateError('Counter result must be finite');
@@ -123,6 +143,30 @@ export async function runCatalogRowMutation(
         parents.push(advanceCatalogProduct(parent, parent, now, true));
       }
     }
+  }
+  if (
+    command.collection === 'alibabaSourceProducts' ||
+    command.collection === 'catalogSourceObservations'
+  ) {
+    if (next) {
+      next = { ...next, ...(!before ? { createdAt: now } : {}), updatedAt: now };
+      if (before && Object.hasOwn(before, 'catalogBindingGeneration'))
+        next.catalogBindingGeneration = before.catalogBindingGeneration;
+      else {
+        const { catalogBindingGeneration: _untrustedFence, ...sourceValues } = next;
+        next = sourceValues;
+      }
+    }
+    if (before && next && isDeepStrictEqual(before, next))
+      return { status: 'written', doc: before, created: false };
+    const invalidated = await planSourceInvalidation(
+      store,
+      before,
+      next,
+      now,
+      command.collection === 'alibabaSourceProducts' ? 'mirror' : 'observation',
+    );
+    if (invalidated) parents.push(invalidated);
   }
   if (next) await store.set(command.collection, next);
   else await store.remove(command.collection, command.id);

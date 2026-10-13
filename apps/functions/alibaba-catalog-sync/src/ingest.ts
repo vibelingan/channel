@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import {
   type AlibabaProductDetailDraft,
+  type NormalizedSourceProduct,
   alibabaObservationAdapter,
   extractProductDetail,
   normalizeProductDetail,
@@ -168,6 +169,18 @@ export function contentFingerprint(product: object, offers: unknown[]): string {
     .digest('hex');
 }
 
+/** Missing fields in a full capture clear previous provider values; website fields are separate. */
+export function sourceMirrorValues(source: NormalizedSourceProduct) {
+  return {
+    ...source,
+    sourceTitle: source.sourceTitle ?? null,
+    sourceDescription: source.sourceDescription ?? null,
+    sourceCategoryId: source.sourceCategoryId ?? null,
+    sourceCategoryPath: source.sourceCategoryPath ?? [],
+    sourceUpdatedAt: source.sourceUpdatedAt ?? null,
+  };
+}
+
 export async function ingestProductDetail(input: IngestDetailInput): Promise<IngestDetailResult> {
   const raw = await storeRawPayload(input);
   if (!raw.ok) return { ok: false, error: 'raw-write-failed' };
@@ -215,7 +228,7 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
     'alibabaSourceProducts',
     sourceProduct.sourceKey,
     {
-      ...sourceProduct,
+      ...sourceMirrorValues(sourceProduct),
       lastSeenRunId: input.runId,
       contentHash,
       lastChangedRunId: changed
@@ -271,6 +284,7 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
       sourceProductKey: sourceProduct.sourceKey,
       externalProductId: sourceProduct.sourceProductId,
       schemaVersion: observation.schemaVersion,
+      sourceContentHash: contentHash,
       observedAt: observation.source.observedAt,
       ...(observation.source.sourceUpdatedAt === undefined
         ? {}

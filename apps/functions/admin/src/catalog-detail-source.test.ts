@@ -8,11 +8,17 @@ import {
 import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
 import type { ApprovalPersistenceCommand } from '@vibelingan-channel/db/catalog-detail-staging';
 import { type CollectionDoc, type ListResult, matchesFilter } from '@vibelingan-channel/shared';
+import {
+  completeSourceMirrorFixtures,
+  sourceObservationFixture,
+} from '../../alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import { prepareCatalogSource, sourceVariantIds } from './catalog-detail-source.ts';
 
 class RecordingAdapter implements DbAdapter {
   commands: ApprovalPersistenceCommand[] = [];
-  constructor(private readonly store: Record<string, CollectionDoc[]>) {}
+  constructor(private readonly store: Record<string, CollectionDoc[]>) {
+    completeSourceMirrorFixtures(store);
+  }
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     const filter = query.filter;
     const docs = (this.store[query.collection] ?? []).filter(
@@ -435,4 +441,81 @@ test('changing description ownership cannot reuse a preparation that omitted sup
     'supplier content is restored when explicitly adopted',
   );
   assert.notEqual(first.revision, second.revision, 'the old no-content cursor must not be reused');
+});
+
+function pairedSourceFixture() {
+  const source = {
+    _id: 'paired',
+    connectionId: 'test',
+    sourceProductId: 'external-paired',
+    sourceTitle: 'Source clock',
+    active: true,
+    contentHash: 'a'.repeat(64),
+    payloadId: 'capture-current',
+  };
+  const row = sourceObservationFixture(source);
+  return {
+    source,
+    row,
+    store: {
+      products: [
+        {
+          _id: 'paired-product',
+          name: 'Website clock',
+          productFamily: 'misc',
+          imageIds: ['image'],
+          alibabaPrimarySourceKey: source._id,
+          published: false,
+          archived: false,
+        },
+      ],
+      alibabaSourceProducts: [source],
+      catalogSourceObservations: [row],
+      images: [{ _id: 'image', status: 'active', storageProvider: 'local-disk' }],
+    },
+  };
+}
+
+test('actual prepare accepts a complete paired capture', async () => {
+  const f = pairedSourceFixture();
+  const adapter = new RecordingAdapter(f.store);
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', {
+    action: 'prepare',
+    productId: 'paired-product',
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(adapter.commands.length, 1, 'the positive control reaches staging');
+});
+
+test('actual prepare refuses half-written, mismatched or removed captures before staging', async () => {
+  for (const fault of ['hash', 'legacy-evidence', 'mirror-tombstone', 'both-tombstones'] as const) {
+    const f = pairedSourceFixture();
+    if (fault === 'hash') f.row.sourceContentHash = 'b'.repeat(64);
+    if (fault === 'legacy-evidence') {
+      const { sourceContentHash: _old, ...legacy } = f.row;
+      f.store.catalogSourceObservations = [{ ...legacy, evidenceId: 'capture-old' }];
+    }
+    if (fault === 'mirror-tombstone' || fault === 'both-tombstones') f.source.active = false;
+    if (fault === 'both-tombstones') f.row.active = false;
+    const adapter = new RecordingAdapter(f.store);
+    setAdapter(adapter);
+    assert.deepEqual(
+      await prepareCatalogSource('admin', { action: 'prepare', productId: 'paired-product' }),
+      { ok: false, code: 'SOURCE_NOT_READY' },
+      fault,
+    );
+    assert.equal(adapter.commands.length, 0, fault);
+  }
+});
+
+test('actual prepare refuses a dangling Alibaba primary source even with a complete observation', async () => {
+  const f = pairedSourceFixture();
+  const adapter = new RecordingAdapter({ ...f.store, alibabaSourceProducts: [] });
+  setAdapter(adapter);
+  assert.deepEqual(
+    await prepareCatalogSource('admin', { action: 'prepare', productId: 'paired-product' }),
+    { ok: false, code: 'SOURCE_NOT_READY' },
+  );
+  assert.equal(adapter.commands.length, 0);
 });

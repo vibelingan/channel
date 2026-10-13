@@ -803,3 +803,31 @@ for (const action of ['link', 'create-draft'] as const)
     assert.deepEqual(store.products, before);
     assert.equal((store.alibabaProductLinks ?? []).length, 0);
   });
+
+for (const changed of ['source', 'observation'] as const)
+  test(`existing draft reconciliation refuses stale ${changed} mapping`, async () => {
+    setup();
+    assert.equal((await linkExistingProduct(SOURCE_KEY, 'p-1', CTX)).ok, true);
+    const before = structuredClone(store.products);
+    adapter.beforeMutation = async () => {
+      if (changed === 'source') {
+        const source = store.alibabaSourceProducts?.[0];
+        assert.ok(source);
+        source.sourceTitle = 'New mirror';
+      } else {
+        const row = store.catalogSourceObservations?.[0];
+        assert.ok(row);
+        const parsed = validateCatalogSourceObservation(row.observation);
+        assert.ok(parsed.ok);
+        row.observation = {
+          ...parsed.value,
+          identity: { ...parsed.value.identity, title: 'New observation' },
+        };
+      }
+    };
+    assert.deepEqual(await createDraftForSource(SOURCE_KEY, { now: NOW }), {
+      ok: false,
+      reason: 'source-changed',
+    });
+    assert.deepEqual(store.products, before);
+  });

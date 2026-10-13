@@ -781,3 +781,44 @@ test('raw byte-size and run provenance mismatches fail closed before writes', as
   assert.equal(provenanceHarness.updatedOffers.length, 0);
   assert.equal(provenanceHarness.observations.length, 0);
 });
+
+test('resync replay rebuilds the complete mirror and clears absent source classification', async () => {
+  const f = fixture();
+  const original = f.bodyText;
+  f.bodyText = f.bodyText
+    .replace('"category_id":44,', '')
+    .replace('"description":"<p>Safe</p>",', '');
+  assert.notEqual(f.bodyText, original);
+  f.payloadId = createHash('sha256').update(f.bodyText).digest('hex');
+  f.source.payloadId = f.payloadId;
+  Object.assign(f.source, {
+    sourceCategoryId: 'old-category',
+    sourceDescription: 'Old source description',
+    sourceCategoryPath: ['Old category'],
+    sourceUpdatedAt: NOW,
+  });
+  f.payload._id = f.payloadId;
+  f.payload.responseSha256 = f.payloadId;
+  f.payload.byteLength = Buffer.byteLength(f.bodyText);
+  const h = port(f);
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, h.p);
+  assert.ok(dry.ok && dry.ready);
+  const applied = await replayAlibabaRawPage(
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    },
+    h.p,
+  );
+  assert.ok(applied.ok && applied.applied === 1);
+  const mirror = h.updatedSources[0]?.patch;
+  assert.ok(mirror);
+  assert.equal(mirror.sourceCategoryId, null);
+  assert.equal(mirror.sourceDescription, null);
+  assert.deepEqual(mirror.sourceCategoryPath, []);
+  assert.equal(mirror.sourceUpdatedAt, null);
+  assert.equal(h.observations[0]?.value.sourceContentHash, mirror.contentHash);
+});

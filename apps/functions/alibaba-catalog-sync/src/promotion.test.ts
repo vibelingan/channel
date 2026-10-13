@@ -1,7 +1,10 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
-import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
+import {
+  sourceObservationDocumentId,
+  validateCatalogSourceObservation,
+} from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, AlibabaLeaseGuard, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
@@ -28,7 +31,12 @@ class FencedMemoryAdapter implements DbAdapter {
   mutations: AlibabaProductMutationInput[] = [];
   beforeMutation: (() => Promise<void>) | undefined;
   private mutationQueue = Promise.resolve();
-  constructor(readonly store: Store) {}
+  constructor(readonly store: Store) {
+    if (store.catalogSourceObservations === undefined)
+      store.catalogSourceObservations = (store.alibabaSourceProducts ?? []).map((source) =>
+        sourceObservationFixture(source, store.alibabaSupplierOffers),
+      );
+  }
   async mutateAlibabaProduct(
     input: AlibabaProductMutationInput,
   ): Promise<AlibabaProductMutationResult> {
@@ -356,6 +364,7 @@ test('promotion materializes the primary offer through the fenced write, touchin
     'alibabaSourceImageUrls',
     'alibabaSourceLastSyncedAt',
     'alibabaSourceProductId',
+    'alibabaSourceReview',
     'alibabaSourceStatus',
   ]);
   // Every non-Alibaba field is byte-identical (protected-surface proof).
@@ -662,6 +671,7 @@ function setupApproved(
     catalogSourceObservations: [
       {
         _id: sourceObservationDocumentId('alibaba', SOURCE_KEY),
+        active: source.active !== false,
         observation: observedAt(nowAmount),
       } as CollectionDoc,
     ],
@@ -724,3 +734,30 @@ test('an existing flag keeps the stronger reason: removed > changed > edited > n
   assert.equal((await promote()).ok, true);
   assert.deepEqual(review(), { pending: true, reason: 'removed' });
 });
+
+for (const changed of ['source', 'observation'] as const)
+  test(`promotion refuses stale ${changed} mapping before its transaction`, async () => {
+    setup();
+    const before = structuredClone(store.products);
+    adapter.beforeMutation = async () => {
+      if (changed === 'source') {
+        const source = store.alibabaSourceProducts?.[0];
+        assert.ok(source);
+        source.sourceTitle = 'New mirror';
+      } else {
+        const row = store.catalogSourceObservations?.[0];
+        assert.ok(row);
+        const parsed = validateCatalogSourceObservation(row.observation);
+        assert.ok(parsed.ok);
+        row.observation = {
+          ...parsed.value,
+          identity: { ...parsed.value.identity, title: 'New observation' },
+        };
+      }
+    };
+    assert.deepEqual(
+      await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW }),
+      { ok: false, reason: 'source-changed' },
+    );
+    assert.deepEqual(store.products, before);
+  });

@@ -509,3 +509,42 @@ test('a real content change DOES advance the change stamp', async () => {
     'a price move is a real change',
   );
 });
+
+test('a complete capture clears omitted provider fields and preserves website classification', async () => {
+  setup();
+  const key = alibabaSourceKey('primary', '987');
+  store.alibabaSourceProducts = [
+    {
+      _id: key,
+      sourceKey: key,
+      connectionId: 'primary',
+      sourceProductId: '987',
+      sourceTitle: 'Old title',
+      sourceCategoryId: 'old-category',
+      sourceDescription: 'Old provider description',
+      sourceCategoryPath: ['Old category'],
+      sourceUpdatedAt: NOW,
+      active: true,
+    },
+  ];
+  store.products = [
+    {
+      _id: 'manual',
+      name: 'Website title',
+      productFamily: 'misc',
+      subcategoryIds: [],
+      description: 'Website description',
+      published: false,
+    },
+  ];
+  const website = structuredClone(store.products);
+  assert.equal((await ingest(detailBody([{ id: 'sku-1', price: 10 }]))).ok, true);
+  const source = store.alibabaSourceProducts[0];
+  assert.ok(source);
+  assert.equal(source.sourceTitle, 'Headphones');
+  assert.equal(source.sourceCategoryId, null);
+  assert.equal(source.sourceDescription, null);
+  assert.deepEqual(source.sourceCategoryPath, []);
+  assert.equal(source.sourceUpdatedAt, null);
+  assert.deepEqual(store.products, website);
+});

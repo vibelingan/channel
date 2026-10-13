@@ -57,7 +57,12 @@ export type AlibabaProductMutationInput = AlibabaProductExpectation &
         expectedSource: CatalogSourceBindingExpectation;
       }
     | { action: 'pin'; sourceKey: string; offerKey: string }
-    | { action: 'reconcile'; sourceKey: string; patch: Record<string, unknown> }
+    | {
+        action: 'reconcile';
+        sourceKey: string;
+        patch: Record<string, unknown>;
+        expectedSource: CatalogSourceBindingExpectation;
+      }
     | {
         action: 'create-draft';
         expectedSource: CatalogSourceBindingExpectation;
@@ -75,6 +80,7 @@ export type AlibabaProductMutationInput = AlibabaProductExpectation &
       }
     | {
         action: 'promote';
+        expectedSource: CatalogSourceBindingExpectation;
         sourceKey: string;
         guard: AlibabaLeaseGuard;
         patch: Record<string, unknown>;
@@ -417,7 +423,12 @@ export async function runAlibabaProductMutation(
   }
 
   let sourceFences: CollectionDoc[] = [];
-  if (input.action === 'link' || input.action === 'create-draft') {
+  if (
+    input.action === 'link' ||
+    input.action === 'create-draft' ||
+    input.action === 'reconcile' ||
+    input.action === 'promote'
+  ) {
     const expected = CatalogSourceBindingExpectationSchema.safeParse(input.expectedSource);
     if (!expected.success) return { ok: false, reason: 'invalid-patch' };
     const observed = await transaction.get(
@@ -431,7 +442,10 @@ export async function runAlibabaProductMutation(
       snapshot.expectation.observationHash !== expected.data.observationHash
     )
       return { ok: false, reason: 'source-changed' };
-    if (!alreadyLinked || primary !== input.sourceKey)
+    if (
+      (input.action === 'link' || input.action === 'create-draft') &&
+      (!alreadyLinked || primary !== input.sourceKey)
+    )
       sourceFences = [advanceSourceBindingFence(source), advanceSourceBindingFence(snapshot.row)];
   }
   const writeSourceFences = async () => {

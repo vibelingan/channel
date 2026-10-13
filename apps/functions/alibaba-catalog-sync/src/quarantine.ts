@@ -20,11 +20,12 @@ import {
   mutateAlibabaProduct,
   releaseAlibabaSyncLease,
 } from '@vibelingan-channel/db';
+import type { CatalogSourceBindingExpectation } from '@vibelingan-channel/db/catalog-source-binding';
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import type { AlertSender } from './alerts.ts';
 import {
   buildAlibabaSourceReview,
-  loadAlibabaObservation,
+  loadAlibabaBindingSnapshot,
   snapshotAlibabaProductIdentity,
 } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
@@ -53,6 +54,7 @@ export type ApproveResult =
 
 export interface QuarantineCandidate {
   sourceKey: string;
+  expectedSource: CatalogSourceBindingExpectation | null;
   expectation: Pick<
     AlibabaProductMutationInput,
     'productId' | 'expectedRevision' | 'expectedPrimarySourceKey' | 'expectedLinks'
@@ -65,9 +67,18 @@ export async function snapshotQuarantineCandidate(sourceKey: string): Promise<Qu
     typeof link?.productId === 'string' && link.productId !== ''
       ? await getDoc('products', link.productId)
       : null;
-  if (!product) return { sourceKey, expectation: null };
+  if (!product) return { sourceKey, expectation: null, expectedSource: null };
   const snapshot = await snapshotAlibabaProductIdentity(product);
-  return { sourceKey, expectation: snapshot.ok ? snapshot.expectation : null };
+  const source =
+    snapshot.ok && snapshot.expectation.expectedPrimarySourceKey === sourceKey
+      ? await getDoc('alibabaSourceProducts', sourceKey)
+      : null;
+  const sourceSnapshot = source ? await loadAlibabaBindingSnapshot(source) : null;
+  return {
+    sourceKey,
+    expectation: snapshot.ok ? snapshot.expectation : null,
+    expectedSource: sourceSnapshot?.ok ? sourceSnapshot.expectation : null,
+  };
 }
 
 export function computeQuarantineCandidateHash(input: {
@@ -75,7 +86,7 @@ export function computeQuarantineCandidateHash(input: {
   candidates: QuarantineCandidate[];
   tombstones: string[];
 }): string {
-  return computeCandidateHash({ schemaVersion: 'alibaba-quarantine-identity-v2', ...input });
+  return computeCandidateHash({ schemaVersion: 'alibaba-quarantine-identity-v3', ...input });
 }
 
 async function recomputeCandidates(runId: string, mode: string) {
@@ -130,7 +141,12 @@ export async function approveQuarantinedRun(input: ApproveInput): Promise<Approv
     if (
       recomputedHash !== run.candidateHash ||
       input.candidateHash !== run.candidateHash ||
-      candidates.some((candidate) => candidate.expectation === null)
+      candidates.some(
+        (candidate) =>
+          candidate.expectation === null ||
+          (candidate.sourceKey === candidate.expectation.expectedPrimarySourceKey &&
+            candidate.expectedSource === null),
+      )
     ) {
       return { ok: false, reason: 'superseded' };
     }
@@ -142,7 +158,15 @@ export async function approveQuarantinedRun(input: ApproveInput): Promise<Approv
       if (!product) return { ok: false, reason: 'superseded' };
       const source = await getDoc('alibabaSourceProducts', candidate.sourceKey);
       if (!source) return { ok: false, reason: 'superseded' };
-      const observation = await loadAlibabaObservation(source);
+      if (!candidate.expectedSource) return { ok: false, reason: 'superseded' };
+      const sourceSnapshot = await loadAlibabaBindingSnapshot(source);
+      if (
+        !sourceSnapshot.ok ||
+        sourceSnapshot.expectation.sourceHash !== candidate.expectedSource.sourceHash ||
+        sourceSnapshot.expectation.observationHash !== candidate.expectedSource.observationHash
+      )
+        return { ok: false, reason: 'superseded' };
+      const observation = sourceSnapshot.observation;
       const offers = await listAllDocs('alibabaSupplierOffers', [
         { field: 'sourceKey', op: 'eq', value: candidate.sourceKey },
       ]);
@@ -197,6 +221,7 @@ export async function approveQuarantinedRun(input: ApproveInput): Promise<Approv
       const result = await mutateAlibabaProduct({
         ...candidate.expectation,
         action: 'promote',
+        expectedSource: candidate.expectedSource,
         sourceKey: candidate.sourceKey,
         patch,
         guard: {
@@ -216,7 +241,10 @@ export async function approveQuarantinedRun(input: ApproveInput): Promise<Approv
           reason:
             result.reason === 'fence-rejected'
               ? 'lease-busy'
-              : result.reason === 'identity-conflict' || result.reason === 'source-linked-elsewhere'
+              : result.reason === 'identity-conflict' ||
+                  result.reason === 'source-linked-elsewhere' ||
+                  result.reason === 'source-changed' ||
+                  result.reason === 'source-not-ready'
                 ? 'superseded'
                 : 'promotion-rejected',
         };

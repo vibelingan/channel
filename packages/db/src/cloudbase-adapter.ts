@@ -592,13 +592,13 @@ export async function upsertCatalogSourceObservationInCloudBase(
   return db.runTransaction(async (transaction) => {
     const ref = transaction.collection('catalogSourceObservations').doc(id);
     const existing = normalizeSingle(sdkAnswer(await ref.get()).data);
-    const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+    const { _id: _patchId, catalogBindingGeneration: _incomingFence, ...patch } = data as Record<string, unknown> & { _id?: unknown };
     if (
       existing &&
       Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt ?? ''))
     )
       return { result: 'stale', doc: existing };
-    const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+    const { _id: _createId, catalogBindingGeneration: _createdFence, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
       _id?: unknown;
     };
     const next: CollectionDoc = existing

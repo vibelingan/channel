@@ -134,6 +134,50 @@ export function sourceObservationFixture(
     provider: 'alibaba',
     sourceProductKey: source._id,
     active: source.active !== false,
+    ...(typeof source.contentHash === 'string' && /^[a-f0-9]{64}$/.test(source.contentHash)
+      ? { sourceContentHash: source.contentHash }
+      : {}),
+    ...(typeof source.payloadId === 'string' ? { evidenceId: source.payloadId } : {}),
     observation: parsed.value,
   };
+}
+
+/** Upgrade implicit old test fixtures only; explicit missing mirrors remain missing. */
+export function completeSourceMirrorFixtures(store: Record<string, CollectionDoc[]>) {
+  if (store.alibabaSourceProducts !== undefined) return;
+  const mirrors: CollectionDoc[] = [];
+  for (const row of store.catalogSourceObservations ?? []) {
+    const parsed = validateCatalogSourceObservation(row.observation);
+    if (
+      !parsed.ok ||
+      parsed.value.source.provider !== 'alibaba' ||
+      parsed.value.source.completeness !== 'full-product'
+    )
+      continue;
+    const value = parsed.value;
+    const key = value.source.sourceProductKey;
+    if (
+      row._id !== sourceObservationDocumentId('alibaba', key) ||
+      (row.provider !== undefined && row.provider !== 'alibaba') ||
+      (row.sourceProductKey !== undefined && row.sourceProductKey !== key)
+    )
+      continue;
+    const externalId = value.source.externalProductId ?? `fixture-${key}`;
+    row.observation = { ...value, source: { ...value.source, externalProductId: externalId } };
+    mirrors.push({
+      _id: key,
+      sourceKey: key,
+      connectionId: value.source.accountKey ?? 'synthetic-fixture',
+      sourceProductId: externalId,
+      sourceTitle: value.identity.title,
+      sourceCategoryId: value.identity.category?.sourceCategoryId,
+      sourceImageUrls: value.content.media
+        .filter((media) => media.role === 'primary' || media.role === 'gallery')
+        .map((media) => media.sourceUrl),
+      active: row.active !== false,
+      ...(typeof row.sourceContentHash === 'string' ? { contentHash: row.sourceContentHash } : {}),
+      ...(typeof row.evidenceId === 'string' ? { payloadId: row.evidenceId } : {}),
+    });
+  }
+  store.alibabaSourceProducts = mirrors;
 }

@@ -337,6 +337,7 @@ for (const backend of ['local', 'cloud'] as const) {
     const result = await harness.mutate({
       ...stale,
       action: 'promote',
+      expectedSource: bindingExpectation(fixture(), 'source-a'),
       sourceKey: 'source-a',
       patch: { alibabaCatalogPricing: { mode: 'negotiable' } },
       guard: { connectionId: 'connection', holder: 'worker', fence: 1, now: NOW },
@@ -516,6 +517,7 @@ for (const backend of ['local', 'cloud'] as const) {
       await harness.mutate({
         ...stale,
         action: 'reconcile',
+        expectedSource: bindingExpectation(fixture(), 'source-a'),
         sourceKey: 'source-a',
         patch: { alibabaDescriptionImageUrls: ['stale'] },
       }),
@@ -525,6 +527,7 @@ for (const backend of ['local', 'cloud'] as const) {
       await harness.mutate({
         ...stale,
         action: 'promote',
+        expectedSource: bindingExpectation(fixture(), 'source-a'),
         sourceKey: 'source-a',
         patch: {},
         guard: { connectionId: 'connection', holder: 'worker', fence: 1, now: NOW },
@@ -536,6 +539,7 @@ for (const backend of ['local', 'cloud'] as const) {
         await harness.mutate({
           ...unlinkInput(pinned),
           action: 'reconcile',
+          expectedSource: bindingExpectation(fixture(), 'source-a'),
           sourceKey: 'source-a',
           patch: { alibabaDescriptionImageUrls: ['fresh'] },
         })
@@ -558,6 +562,7 @@ for (const backend of ['local', 'cloud'] as const) {
       const result = await harness.mutate({
         ...unlinkInput(initial),
         action: 'reconcile',
+        expectedSource: bindingExpectation(fixture(), 'source-a'),
         sourceKey: 'source-a',
         patch: { alibabaDescriptionImageUrls: ['fresh'] },
       });
@@ -576,6 +581,7 @@ for (const backend of ['local', 'cloud'] as const) {
         const promotion: AlibabaProductMutationInput = {
           ...expected,
           action: 'promote',
+          expectedSource: bindingExpectation(fixture(), 'source-a'),
           sourceKey: 'source-a',
           patch: {},
           guard: { connectionId: 'connection', holder: 'worker', fence: 1, now: NOW },
@@ -586,6 +592,7 @@ for (const backend of ['local', 'cloud'] as const) {
             : {
                 ...expected,
                 action,
+                expectedSource: bindingExpectation(fixture(), 'source-a'),
                 sourceKey: 'source-a',
                 patch: { alibabaDescriptionImageUrls: [] },
               };
@@ -611,6 +618,7 @@ for (const backend of ['local', 'cloud'] as const) {
       await harness.mutate({
         ...unlinkInput(initial),
         action: 'reconcile',
+        expectedSource: bindingExpectation(fixture(), 'source-b'),
         sourceKey: 'source-b',
         patch: { alibabaDescriptionImageUrls: ['wrong-source'] },
       }),
@@ -673,6 +681,7 @@ for (const backend of ['local', 'cloud'] as const) {
     const input: AlibabaProductMutationInput = {
       ...unlinkInput(initial),
       action: 'promote',
+      expectedSource: bindingExpectation(fixture(), 'source-a'),
       sourceKey: 'source-a',
       patch: { alibabaCatalogPricing: { mode: 'negotiable' } },
       guard: { connectionId: 'connection', holder: 'worker', fence: 1, now: NOW },
@@ -707,6 +716,7 @@ for (const backend of ['local', 'cloud'] as const) {
     const input: AlibabaProductMutationInput = {
       ...unlinkInput(initial),
       action: 'promote',
+      expectedSource: bindingExpectation(fixture(), 'source-a'),
       sourceKey: 'source-a',
       patch: { alibabaCatalogPricing: { mode: 'negotiable' } },
       guard: { connectionId: 'connection', holder: 'worker', fence: 1, now: NOW },
@@ -1172,3 +1182,24 @@ for (const backend of ['local', 'cloud'] as const)
       1,
     );
   });
+
+test('binding cannot combine a new normalized mirror with a previous full observation', () => {
+  const state = fixture();
+  const source = state.alibabaSourceProducts[0];
+  const row = state.catalogSourceObservations?.[0];
+  assert.ok(source && row);
+  const current = { ...source, contentHash: 'a'.repeat(64), payloadId: 'current-raw' };
+  assert.deepEqual(sourceBindingSnapshot(current, { ...row, sourceContentHash: 'b'.repeat(64) }), {
+    ok: false,
+    reason: 'source-not-ready',
+  });
+  assert.deepEqual(sourceBindingSnapshot(current, { ...row, evidenceId: 'old-raw' }), {
+    ok: false,
+    reason: 'source-not-ready',
+  });
+  assert.equal(
+    sourceBindingSnapshot(current, { ...row, sourceContentHash: 'a'.repeat(64) }).ok,
+    true,
+  );
+  assert.equal(sourceBindingSnapshot(current, { ...row, evidenceId: 'current-raw' }).ok, true);
+});

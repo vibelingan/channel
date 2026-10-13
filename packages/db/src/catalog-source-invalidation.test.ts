@@ -131,3 +131,36 @@ test('a corrupt existing link cannot silently allow a source write with an old r
     /source link/,
   );
 });
+
+test('adding or changing a capture pairing proof invalidates readiness even with identical observation', async () => {
+  const before = source();
+  const result = await planSourceInvalidation(
+    store(product()),
+    before,
+    { ...before, sourceContentHash: 'a'.repeat(64) },
+    '2026-10-13T00:01:00.000Z',
+  );
+  assert.equal(result?.detailSourceReady, false);
+});
+
+test('a valid unclaimed legacy source has no primary product to invalidate', async () => {
+  const result = await planSourceInvalidation(
+    { get: async () => ({ _id: 'key', sourceKey: 'key', productId: '' }) },
+    source(),
+    source('Changed'),
+    '2026-10-13T00:01:00.000Z',
+  );
+  assert.equal(result, null);
+});
+
+test('wrapper-only source identity changes are refused even when the observation digest is unchanged', async () => {
+  await assert.rejects(
+    planSourceInvalidation(
+      store(product()),
+      source(),
+      { ...source(), provider: 'dianxiaomi' },
+      '2026-10-13T00:01:00.000Z',
+    ),
+    /identity/,
+  );
+});

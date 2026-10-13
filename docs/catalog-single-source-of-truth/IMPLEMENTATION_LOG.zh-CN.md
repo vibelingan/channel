@@ -299,3 +299,32 @@ P2c1 最终 SHA 6cafe7c 已完成 inline review 与 SDK gate；P2c2 的执行记
 - 后续 P2c2b 必须处理镜像与 observation 半写入一致性、normalized-source 全部写入失效、reconcile/promote 的冻结输入；P1/P2/P3/P4/P5/P6/P7 的其余门槛按计划继续。真实 vendor snapshot/lease 交错仍未验证，不由内存/JSON 测试替代。
 
 文字核对：复核 linking.ts、catalog-source-binding.ts、identity/cloud bridge、测试夹具和本日志；将“source 不存在是 linked-elsewhere”改为明确缺失/未准备/版本改变，保持权限、分类、published、完整原值和本地/云端证据边界。未增加未来属性筛选 mapping 功能。
+
+
+### P2c2b：完整捕获配对和来源输入写入（2026-10-14，本地子单元）
+
+范围：同一共享 row mutation body 处理 products/productVariants/alibabaSourceProducts/catalogSourceObservations，所有通用 CRUD、lease upsert/update 在已有事务或 JSON mutation lock 内写来源及已绑定主产品的失效。特殊 observation recency upsert 保留旧排序保护，并剔除输入携带的私有绑定版本。source keys/provider 不允许原地换身份；合法空 claim 无产品可失效，损坏 link 仍明确拒绝。metadata-only/no-op 不推进 generation；来源 createdAt/updatedAt 保持原 writer 合约，完全相同的重试读到已确认状态即返回，不发可能零更新的 SDK 写。
+
+完整 ingest / raw replay 最后写 sourceContentHash，配对本轮规范镜像业务 contentHash；旧记录以精确 payloadId/evidenceId 证明捕获关系。private marker 参与 observation 失效，时间戳/evidence/绑定 counter 仍不当业务变化。link/create/reconcile/promote 都冻结来源及 observation 业务 hash，事务内重读；新绑定仍写双来源 fence，已有绑定与来源 writers 竞争同产品。quarantine 候选改为 identity-v3，主来源版本参与冻结 hash，不把旧 v2 hash 无证明升级；次要来源不产生 promotion，仍冻结产品/link 身份。旧待审批 run 保守返回 superseded，恢复 UI 和历史审计仍属后续门槛。
+
+复核修正：
+
+- 完整 source snapshot 省略分类/描述/路径/来源时间时，旧 merge 会残留历史值；ingest/replay 共用 sourceMirrorValues 显式清空私有来源缺失值（null/空路径），不改网站分类、描述或 published。两个实际 ingest/replay 反例先失败于旧分类残留/未清理，修复后通过。
+- 曾为旧 fixture 保留无镜像兼容分支，没有真实 Alibaba collector 依据，已删除。显式 Alibaba primary 必须有同身份完整 mirror 和 observation；实际 prepare 的 dangling-source 反例先证明旧分支错误进入 staging，再变为零写入拒绝。正常夹具补齐完整镜像/外部 ID，显式 []、错 canonical ID/provider/key、无效/不完整 observation 不自动修补。生产代码没有测试夹具推导器。
+- quarantine 另一个 promote 调用由 tsc 捕获并补齐；旧 takeover 测试硬编码 v2 导致未到拦截点，已使用当前完整冻结 fixture，保留 takeoverCount===1，避免“提前被其他条件拒绝”伪通过。
+- 同步私有 binding fence 不允许普通写/计数器修改；特殊 recapture 也不能用旧副本降级已提高版本。
+
+证据：11 项来源半写入/规范 writer 反例全红后全绿；reconcile/promote 4 个过期补丁反例先红；Cloud source/observation × source/product 写点 × throw/zero/coded/wrong-ID ACK 全回滚，删除 ACK 与 lease 拒绝/预算分别覆盖。source 事务最多 5 文档操作，lease 6；已有 max-40 links 边界保留，无新的逐件全局写锁。三个 mutation 分别检出移除镜像失效写（9 个失败）、移除捕获配对（2 个失败且正向 prepare 仍通过）、断开 observation predicate（实际普通 observation CRUD 失败）；finally 恢复。
+
+严格分支最终相关回归：1030 passed / 0 failed / 0 skipped；五模块 tsc 通过。此前 1027/1029 的通过只覆盖当时版本，未冒充严格版本最终结果。SDK gate 通过，29 个复用 SDK/schema 表面有机械关联的 installed-types/runtime probe 行；Cloud 文件既有 ignore 不作为 lint 通过计入，其修改函数按类型、行为和 installed SDK gate 人工复核。
+
+只读补取三件真实 alibabaSourceProducts（当前 env diversity-123-d9grnqfux221323bb，ap-shanghai，auth READY），未取明文凭据、未写云业务数据。连同真实 observations/media/products 副本，在临时 JSON 用严格 prepare → review → begin/page/finish 验证三件均通过，所有属性仍完整 113/113/121，header 7668/7675/8136 bytes、job 12005/11866/12269 bytes，variants 4/2/1，仍 published=false 且网站分类不变；finally 清除 DB/owner。证据 p2c2b-real-clock-strict.log。这个结果不代表 test 云环境已修复或已实际发布。
+
+浏览器证据：初版/清理镜像版各 150 passed；严格镜像检查后的 r3 在两个只存 observation 的旧浏览器 fixture 上暴露 3 个失败，正式 10 项为 7 pass/3 fail，owned DB 清理。已补齐两套 fixture 的镜像、外部 ID 和一致的原始图库；fixture/e2e tsc 通过；r4 完整生产构建串联最终 150 passed（41 public / 90 catalog / 10 formal / 8 visibility / 1 taxonomy），全部 owned DB/services 清理成功。r3 的真实失败保留，不用先前版本的通过替代修正后的结果。
+
+未完门槛：显式主 link 的完整检查/准备 seal、旧 UI-02 local rehearsal 受保护准备通道、共享报告/正常和问题列表准入、只读 Preview、全 SKU/人工配置、durable intents 和恢复、历史 audit/resync/激活、vendor 隔离交错探针、全构建/transport/performance/test 部署、20 件真实选品发布和恢复。旧 UI-02 全 local-server 失败组仍未修复，不能由本单元的 1030/150 替代全服务器门槛。
+
+文字核对：review source-inputs/binding/invalidation、row mutation、ingest/replay/promotion/quarantine、admin prepare、实际 Cloud/JSON 桥接及测试；将“两个 hash 未变”明确为“配对证明 + 事务内冻结输入”，去掉无真实依据的缺镜像兼容，区分来源清空与网站分类、局部回归与全量/云端验收。未实现未来选择性属性 mapping。
+
+
+P2c2b 提交前 inline 复核：来源完整捕获、普通/lease/特殊写入、绑定/已有重建/promotion/quarantine 消费者逐条追踪，source/header/media/public 字段归属未变；危险假设（无镜像兼容）已通过反例推翻并去除。显式主 link 的完整检查和 source-page seal 仍属于下一单元，不把它或其后的 readiness/durable operation/recovery/full local-server/deploy/cloud acceptance 记为已完成。

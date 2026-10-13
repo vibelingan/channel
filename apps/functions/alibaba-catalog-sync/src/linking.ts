@@ -337,16 +337,18 @@ export async function loadAlibabaSourceReview(
 async function reconcileLinkedDraft(
   expectation: AlibabaProductIdentitySnapshot,
   source: Record<string, unknown> & { _id: string },
-  observation: CatalogSourceObservation | null,
+  sourceSnapshot: Extract<Awaited<ReturnType<typeof loadAlibabaBindingSnapshot>>, { ok: true }>,
   now: string,
 ): Promise<DraftMutationResult> {
+  const observation = sourceSnapshot.observation;
   const patch: Record<string, unknown> = {
-    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
-    ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
+    alibabaDescriptionImageUrls: observation.content.description?.imageUrls ?? [],
+    alibabaSourceReview: buildAlibabaSourceReview(observation),
   };
   const result = await mutateAlibabaProduct({
     ...expectation,
     action: 'reconcile',
+    expectedSource: sourceSnapshot.expectation,
     sourceKey: source._id,
     patch,
     now,
@@ -499,9 +501,8 @@ async function materializeDraftForSource(
   if (!source) return { ok: false, reason: 'source-not-found' };
   const sourceSnapshot = await loadAlibabaBindingSnapshot(source);
   if (!sourceSnapshot.ok) return sourceSnapshot;
-  const observation = sourceSnapshot.observation;
   if (product && expectedClaim?.productId === productId) {
-    return reconcileLinkedDraft(snapshot.expectation, source, observation, context.now);
+    return reconcileLinkedDraft(snapshot.expectation, source, sourceSnapshot, context.now);
   }
   const category = await (context.resolveCategory ?? createAlibabaCategoryResolver())(
     String(source.sourceCategoryId ?? ''),

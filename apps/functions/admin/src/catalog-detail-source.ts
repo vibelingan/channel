@@ -4,10 +4,10 @@ import {
   type CatalogSourceObservation,
   sourceMediaLinkId,
   sourceObservationDocumentId,
-  validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
+import { sourceBindingSnapshot } from '@vibelingan-channel/db/catalog-source-binding';
 import {
   SourcePageSchema,
   sourceDigest,
@@ -121,15 +121,12 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   }
   const observationId = sourceObservationDocumentId('alibaba', sourceKey);
   const row = await get('catalogSourceObservations', observationId);
-  const valid = validateCatalogSourceObservation(row?.observation);
-  if (
-    !valid.ok ||
-    valid.value.source.completeness !== 'full-product' ||
-    valid.value.source.provider !== 'alibaba' ||
-    valid.value.source.sourceProductKey !== sourceKey
-  )
+  const normalized = await get('alibabaSourceProducts', sourceKey);
+  if (!normalized || row?.active === false)
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
-  const observation = valid.value;
+  const snapshot = sourceBindingSnapshot(normalized, row);
+  if (!snapshot.ok) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  const observation = snapshot.observation;
   const gallery = new Set(Array.isArray(product.imageIds) ? product.imageIds : []);
   for (const id of Array.isArray(product.descriptionImageIds) ? product.descriptionImageIds : [])
     gallery.add(id);

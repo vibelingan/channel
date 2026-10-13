@@ -444,3 +444,24 @@ for (const writer of ['fenced-upsert', 'generic-upsert', 'fenced-tombstone'] as 
     });
   }
 }
+
+test('Cloud observation recapture cannot overwrite its private binding fence', async () => {
+  const at = '2026-10-14T00:00:00.000Z';
+  const harness = fakeDatabase({
+    catalogSourceObservations: [
+      { _id: 'o', active: true, observedAt: at, catalogBindingGeneration: 3 },
+    ],
+  });
+  const result = await upsertCatalogSourceObservationInCloudBase(
+    harness.db,
+    'o',
+    { active: true, observedAt: at, catalogBindingGeneration: 1 },
+    {},
+    at,
+  );
+  assert.equal(result.doc.catalogBindingGeneration, 3);
+  assert.equal(
+    harness.store.get('catalogSourceObservations')?.get('o')?.catalogBindingGeneration,
+    3,
+  );
+});

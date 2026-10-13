@@ -33,7 +33,12 @@ function fixture() {
     updatedAt: now,
     metadata: { preserved: true },
   };
-  const link: CollectionDoc = { _id: 'source', productId: 'product', updatedAt: now };
+  const link: CollectionDoc = {
+    _id: 'source',
+    sourceKey: 'source',
+    productId: 'product',
+    updatedAt: now,
+  };
   const mapping: CollectionDoc = {
     _id: 'alibaba-icbu-100',
     provider: 'alibaba',

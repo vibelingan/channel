@@ -29,7 +29,7 @@ import {
 } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, FilterModel } from '@vibelingan-channel/shared';
-import { contentFingerprint } from './ingest.ts';
+import { contentFingerprint, sourceMirrorValues } from './ingest.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
@@ -781,10 +781,15 @@ export async function replayAlibabaRawPage(
         // is created and the apply must be re-validated.
         // Store the content hash the next ingest will compute, so a parser change
         // does not make every replayed product look changed to the surge guard.
+        const sourceContentHash = contentFingerprint(
+          plan.normalized.sourceProduct,
+          plan.normalized.offers,
+        );
         const sourceWritten = await port.updateSourceProduct(
           plan.source._id,
           {
-            contentHash: contentFingerprint(plan.normalized.sourceProduct, plan.normalized.offers),
+            ...sourceMirrorValues(plan.normalized.sourceProduct),
+            contentHash: sourceContentHash,
           },
           {
             connectionId: PRIMARY_CONNECTION_ID,
@@ -807,6 +812,7 @@ export async function replayAlibabaRawPage(
               ? {}
               : { sourceUpdatedAt: plan.observation.source.sourceUpdatedAt }),
             evidenceId: plan.payloadId,
+            sourceContentHash,
             active: true,
             observation: plan.observation,
             lastSeenOperationId: plan.lastSeenOperationId,

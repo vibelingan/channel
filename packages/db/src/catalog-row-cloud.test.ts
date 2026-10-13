@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import type { CatalogRowMutation } from './catalog-row-mutation.ts';
+import { type CatalogRowMutation, isCatalogRowCollection } from './catalog-row-mutation.ts';
 import * as cloud from './cloudbase-adapter.ts';
 
 const now = '2026-10-13T00:00:00.000Z';
@@ -16,6 +16,7 @@ function fixture() {
         published: false,
         catalogContentGeneration: 4,
         detailSourceReady: true,
+        alibabaPrimarySourceKey: 'k',
       },
     ],
     [
@@ -27,6 +28,34 @@ function fixture() {
         published: false,
         catalogContentGeneration: 9,
         detailSourceReady: true,
+      },
+    ],
+    ['alibabaProductLinks/k', { _id: 'k', sourceKey: 'k', productId: 'p' }],
+    [
+      'alibabaSourceProducts/k',
+      {
+        _id: 'k',
+        sourceKey: 'k',
+        connectionId: 'primary',
+        sourceProductId: 'external',
+        sourceTitle: 'Before',
+        updatedAt: now,
+        sourceCategoryId: 1,
+        active: true,
+        catalogBindingGeneration: 3,
+      },
+    ],
+    [
+      'catalogSourceObservations/obs',
+      {
+        _id: 'obs',
+        provider: 'alibaba',
+        sourceProductKey: 'k',
+        active: true,
+        observation: {
+          source: { provider: 'alibaba', sourceProductKey: 'k' },
+          identity: { title: 'Before' },
+        },
       },
     ],
     ['productVariants/v', { _id: 'v', productId: 'p', sku: 'Before', inventoryQuantity: 2 }],
@@ -324,3 +353,103 @@ for (const identity of [null, 17, ['bad-id']])
       /Catalog row identity must be a string/,
     );
   });
+
+for (const collection of ['alibabaSourceProducts', 'catalogSourceObservations'] as const)
+  for (const fault of ['fail', 'silent', 'coded', 'wrongId'] as const)
+    for (const target of ['source', 'product'] as const)
+      test(`Cloud ${collection} ${fault} at ${target} rolls back input and invalidation`, async () => {
+        const h = fixture();
+        const id = collection === 'alibabaSourceProducts' ? 'k' : 'obs';
+        h.control[fault] = target === 'product' ? 'products/p' : `${collection}/${id}`;
+        const before = h.snapshot();
+        await assert.rejects(
+          cloud.mutateCatalogRowInCloudBase(
+            h.db,
+            { action: 'update', collection, id, data: { active: false } },
+            now,
+          ),
+        );
+        assert.deepEqual(h.snapshot(), before);
+        assert.ok(h.control.maximumOperations <= 5);
+      });
+
+for (const action of ['upsert', 'update'] as const)
+  test(`Cloud fenced mirror ${action} invalidates in one bounded transaction`, async () => {
+    const h = fixture();
+    const guard = { connectionId: 'primary', holder: 'owner', fence: 2, now };
+    const applied =
+      action === 'upsert'
+        ? await cloud.upsertDocWithAlibabaLeaseInCloudBase(
+            h.db,
+            'alibabaSourceProducts',
+            'k',
+            { sourceTitle: 'After' },
+            {},
+            guard,
+          )
+        : await cloud.updateDocWithAlibabaLeaseInCloudBase(
+            h.db,
+            'alibabaSourceProducts',
+            'k',
+            { active: false },
+            guard,
+          );
+    assert.equal(applied, true);
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+    assert.equal(h.get('products', 'p')?.detailSourceReady, false);
+    assert.ok(h.control.maximumOperations <= 6);
+  });
+
+for (const collection of ['alibabaSourceProducts', 'catalogSourceObservations'] as const)
+  test(`Cloud ${collection} deletion is atomic with invalidation and checks ACK`, async () => {
+    const id = collection === 'alibabaSourceProducts' ? 'k' : 'obs';
+    const h = fixture();
+    const before = h.snapshot();
+    h.control.silent = `${collection}/${id}`;
+    await assert.rejects(
+      cloud.mutateCatalogRowInCloudBase(h.db, { action: 'remove', collection, id }, now),
+    );
+    assert.deepEqual(h.snapshot(), before);
+    h.control.silent = '';
+    assert.deepEqual(
+      await cloud.mutateCatalogRowInCloudBase(h.db, { action: 'remove', collection, id }, now),
+      { status: 'removed' },
+    );
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+    assert.equal(h.get('products', 'p')?.detailSourceReady, false);
+  });
+
+test('Cloud identical source upsert confirms the existing row without an ambiguous zero-update write', async () => {
+  const h = fixture();
+  h.control.silent = 'alibabaSourceProducts/k';
+  const result = await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    {
+      action: 'upsert',
+      collection: 'alibabaSourceProducts',
+      id: 'k',
+      data: { sourceTitle: 'Before' },
+    },
+    now,
+  );
+  assert.equal(result.status, 'written');
+  assert.equal(h.control.maximumOperations, 1);
+  assert.equal(h.get('products', 'p')?.catalogContentGeneration, 4);
+});
+
+test('production input collection predicate routes all four catalog input kinds', () => {
+  for (const collection of [
+    'products',
+    'productVariants',
+    'alibabaSourceProducts',
+    'catalogSourceObservations',
+  ])
+    assert.equal(isCatalogRowCollection(collection), true, collection);
+  for (const collection of [
+    'images',
+    'catalogDetailApprovals',
+    'alibabaSupplierOffers',
+    'catalogSourceLinks',
+  ])
+    assert.equal(isCatalogRowCollection(collection), false, collection);
+});

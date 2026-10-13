@@ -976,13 +976,21 @@ export class JsonFileAdapter implements DbAdapter {
       const index = docs.findIndex((document) => document._id === id);
       const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
       const now = new Date().toISOString();
-      const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      const {
+        _id: _patchId,
+        catalogBindingGeneration: _incomingFence,
+        ...patch
+      } = data as Record<string, unknown> & { _id?: unknown };
       if (
         existing &&
         Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt ?? ''))
       )
         return { result: 'stale', doc: existing };
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      const {
+        _id: _createId,
+        catalogBindingGeneration: _createdFence,
+        ...safeCreateOnly
+      } = createOnly as Record<string, unknown> & {
         _id?: unknown;
       };
       const next = existing

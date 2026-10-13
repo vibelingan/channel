@@ -1,6 +1,7 @@
 /** Source writers and approval must compete on the same bound product record. */
-import { createHash } from 'node:crypto';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { normalizedSourceInputDigest, sourceInputDigest } from './catalog-source-inputs.ts';
+export { sourceInputDigest } from './catalog-source-inputs.ts';
 import { advanceCatalogProduct } from './catalog-product-state.ts';
 
 interface ReadStore {
@@ -11,54 +12,43 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined;
 
-function stable(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stable);
-  const object = record(value);
-  if (!object) return value;
-  return Object.fromEntries(
-    Object.keys(object)
-      .sort()
-      .map((key) => [key, stable(object[key])]),
-  );
-}
-
-/** Capture timestamps and raw evidence IDs do not change the effective source input. */
-export function sourceInputDigest(row: CollectionDoc | null): string {
-  const observation = record(row?.observation);
-  const source = record(observation?.source);
-  const { observedAt: _at, ...identity } = source ?? {};
-  const { evidence: _evidence, source: _source, ...content } = observation ?? {};
-  return createHash('sha256')
-    .update(
-      JSON.stringify(
-        stable({
-          active: row?.active !== false,
-          observation: observation ? { ...content, source: identity } : null,
-        }),
-      ),
-    )
-    .digest('hex');
-}
-
 /** Read-only plan. Call before ANY transaction writes, then commit both records together. */
 export async function planSourceInvalidation(
   store: ReadStore,
   before: CollectionDoc | null,
-  next: CollectionDoc,
+  next: CollectionDoc | null,
   now: string,
+  kind: 'observation' | 'mirror' = 'observation',
 ): Promise<CollectionDoc | null> {
-  if (sourceInputDigest(before) === sourceInputDigest(next)) return null;
-  const observation = record(next.observation);
-  const source = record(observation?.source);
-  const provider = next.provider ?? source?.provider;
-  const key = next.sourceProductKey ?? source?.sourceProductKey;
-  // Alibaba is the current app's only explicit primary-source binding. Importer
-  // observations without such a binding cannot invalidate an unrelated product.
+  const hash = kind === 'mirror' ? normalizedSourceInputDigest : sourceInputDigest;
+  const identity = (row: CollectionDoc | null) => {
+    if (kind === 'mirror') return { provider: 'alibaba', key: row?._id };
+    const observation = record(row?.observation);
+    const source = record(observation?.source);
+    return {
+      provider: row?.provider ?? source?.provider,
+      key: row?.sourceProductKey ?? source?.sourceProductKey,
+    };
+  };
+  const previous = identity(before);
+  const current = identity(next);
+  if (
+    before &&
+    next &&
+    previous.key &&
+    current.key &&
+    (previous.key !== current.key || previous.provider !== current.provider)
+  )
+    throw new Error('Source identity cannot change in place');
+  if (hash(before) === hash(next)) return null;
+  const { provider, key } = next ? current : previous;
+  // Only explicit primary Alibaba bindings affect a canonical product.
   if (provider !== 'alibaba' || typeof key !== 'string' || !key) return null;
   const link = await store.get('alibabaProductLinks', key);
   if (!link) return null;
-  if (link.sourceKey !== key || typeof link.productId !== 'string' || !link.productId)
+  if (link.sourceKey !== key || typeof link.productId !== 'string')
     throw new Error('Invalid primary source link');
+  if (link.productId === '') return null;
   const product = await store.get('products', link.productId);
   if (product?.alibabaPrimarySourceKey !== key) return null;
   if (!Number.isFinite(Date.parse(now))) throw new Error('Invalid source invalidation time');

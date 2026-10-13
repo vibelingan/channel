@@ -5,8 +5,11 @@ import {
 } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
-import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
-import { sourceInputDigest } from './catalog-source-invalidation.ts';
+import {
+  sourceBindingHash,
+  sourceCaptureMatches,
+  sourceInputDigest,
+} from './catalog-source-inputs.ts';
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 export const CatalogSourceBindingExpectationSchema = z
@@ -17,26 +20,7 @@ export const CatalogSourceBindingExpectationSchema = z
   .strict();
 export type CatalogSourceBindingExpectation = z.infer<typeof CatalogSourceBindingExpectationSchema>;
 
-const sourceFields = [
-  '_id',
-  'sourceKey',
-  'connectionId',
-  'sourceProductId',
-  'sourceTitle',
-  'sourceDescription',
-  'sourceCategoryId',
-  'sourceCategoryPath',
-  'sourceImageUrls',
-  'active',
-  'sourceUpdatedAt',
-  'contentHash',
-] as const;
-export function sourceBindingHash(source: CollectionDoc): string {
-  return alibabaPricingFingerprint([
-    'catalog-source-binding-v1',
-    Object.fromEntries(sourceFields.map((field) => [field, source[field]])),
-  ]);
-}
+export { sourceBindingHash, sourceCaptureMatches } from './catalog-source-inputs.ts';
 
 export function sourceBindingSnapshot(source: CollectionDoc, row: CollectionDoc | null) {
   const parsed = validateCatalogSourceObservation(row?.observation);
@@ -45,6 +29,7 @@ export function sourceBindingSnapshot(source: CollectionDoc, row: CollectionDoc 
     row._id !== sourceObservationDocumentId('alibaba', source._id) ||
     (row.provider !== undefined && row.provider !== 'alibaba') ||
     (row.sourceProductKey !== undefined && row.sourceProductKey !== source._id) ||
+    !sourceCaptureMatches(source, row) ||
     !parsed.ok ||
     parsed.value.source.provider !== 'alibaba' ||
     parsed.value.source.sourceProductKey !== source._id ||

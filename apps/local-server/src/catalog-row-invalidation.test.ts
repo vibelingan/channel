@@ -32,6 +32,20 @@ function fixture(t: TestContext) {
         { _id: 'v', productId: 'p', sku: 'Before', inventoryQuantity: 2, archived: false },
       ],
       alibabaProductLinks: [{ _id: 'k', sourceKey: 'k', productId: 'p' }],
+      alibabaSourceProducts: [
+        {
+          _id: 'k',
+          sourceKey: 'k',
+          connectionId: 'test',
+          sourceProductId: 'external',
+          active: true,
+          sourceTitle: 'Before',
+          sourceCategoryId: 1,
+          contentHash: 'a'.repeat(64),
+          payloadId: 'raw-old',
+          catalogBindingGeneration: 3,
+        },
+      ],
       catalogSourceObservations: [
         {
           _id: 'obs',
@@ -257,3 +271,125 @@ test('two JSON adapters deleting the same variant invalidate its parent exactly 
   await stale(db);
   assert.equal(await db.get('productVariants', 'v'), null);
 });
+
+for (const kind of [
+  'create',
+  'create-id',
+  'upsert',
+  'update',
+  'remove',
+  'conditional-remove',
+  'increment',
+  'lease-upsert',
+  'lease-update',
+] as const)
+  test(`normalized source ${kind} invalidates its primary product in the same JSON commit`, async (t) => {
+    const { db, file } = fixture(t);
+    const source = await db.get('alibabaSourceProducts', 'k');
+    assert.ok(source);
+    if (kind === 'create' || kind === 'create-id') {
+      const stored = JSON.parse(readFileSync(file, 'utf8'));
+      stored.alibabaSourceProducts = [];
+      writeFileSync(file, JSON.stringify(stored));
+    }
+    if (kind === 'create')
+      await db.create('alibabaSourceProducts', { ...source, sourceTitle: 'After' });
+    if (kind === 'create-id')
+      assert.equal(
+        await db.createDocWithId('alibabaSourceProducts', 'k', { ...source, sourceTitle: 'After' }),
+        'created',
+      );
+    if (kind === 'upsert')
+      await db.upsertDocWithId('alibabaSourceProducts', 'k', { sourceTitle: 'After' });
+    if (kind === 'update') await db.update('alibabaSourceProducts', 'k', { active: false });
+    if (kind === 'remove') assert.equal(await db.remove('alibabaSourceProducts', 'k'), true);
+    if (kind === 'conditional-remove')
+      assert.equal(
+        await db.removeDocIfFieldEquals('alibabaSourceProducts', 'k', 'active', true),
+        true,
+      );
+    if (kind === 'increment')
+      assert.equal(await db.incrementField('alibabaSourceProducts', 'k', 'sourceCategoryId', 1), 2);
+    if (kind.startsWith('lease-')) {
+      const now = new Date().toISOString();
+      const lease = await db.acquireAlibabaSyncLease('test', 'worker', now, 60000);
+      assert.equal(lease.result, 'granted');
+      assert.ok(lease.result === 'granted');
+      const guard = { connectionId: 'test', holder: 'worker', fence: lease.fence, now };
+      if (kind === 'lease-update')
+        assert.equal(
+          await db.updateDocWithAlibabaLease(
+            'alibabaSourceProducts',
+            'k',
+            { active: false },
+            guard,
+          ),
+          true,
+        );
+      else
+        assert.equal(
+          await db.upsertDocWithAlibabaLease(
+            'alibabaSourceProducts',
+            'k',
+            { sourceTitle: 'After' },
+            {},
+            guard,
+          ),
+          true,
+        );
+    }
+    await stale(db);
+  });
+
+test('normalized source metadata recapture preserves ready and its private binding fence', async (t) => {
+  const { db } = fixture(t);
+  await db.update('alibabaSourceProducts', 'k', {
+    payloadId: 'raw-new',
+    lastSeenRunId: 'new-run',
+    fetchedAt: '2026-10-14T00:00:00.000Z',
+    catalogBindingGeneration: 999,
+  });
+  const product = await db.get('products', 'p');
+  assert.equal(product?.detailSourceReady, true);
+  assert.equal(product?.catalogContentGeneration, 4);
+  assert.equal((await db.get('alibabaSourceProducts', 'k'))?.catalogBindingGeneration, 3);
+  await assert.rejects(
+    db.incrementField('alibabaSourceProducts', 'k', 'catalogBindingGeneration', 1),
+  );
+});
+
+for (const kind of [
+  'create',
+  'create-id',
+  'upsert',
+  'update',
+  'remove',
+  'conditional-remove',
+] as const)
+  test(`generic observation ${kind} invalidates its primary product in the same JSON commit`, async (t) => {
+    const { db, file } = fixture(t);
+    const source = await db.get('catalogSourceObservations', 'obs');
+    assert.ok(source);
+    if (kind === 'create' || kind === 'create-id') {
+      const stored = JSON.parse(readFileSync(file, 'utf8'));
+      stored.catalogSourceObservations = [];
+      writeFileSync(file, JSON.stringify(stored));
+    }
+    if (kind === 'create')
+      await db.create('catalogSourceObservations', { ...source, active: false });
+    if (kind === 'create-id')
+      assert.equal(
+        await db.createDocWithId('catalogSourceObservations', 'obs', { ...source, active: false }),
+        'created',
+      );
+    if (kind === 'upsert')
+      await db.upsertDocWithId('catalogSourceObservations', 'obs', { active: false });
+    if (kind === 'update') await db.update('catalogSourceObservations', 'obs', { active: false });
+    if (kind === 'remove') assert.equal(await db.remove('catalogSourceObservations', 'obs'), true);
+    if (kind === 'conditional-remove')
+      assert.equal(
+        await db.removeDocIfFieldEquals('catalogSourceObservations', 'obs', 'active', true),
+        true,
+      );
+    await stale(db);
+  });

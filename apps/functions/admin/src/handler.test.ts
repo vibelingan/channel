@@ -48,6 +48,7 @@ import {
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
+import { completeSourceMirrorFixtures } from '../../alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import {
   type AdminConfig,
   type AdminResult,
@@ -63,7 +64,9 @@ class MemoryAdapter implements DbAdapter {
   /** Records every list() query so tests can assert pagination parameters. */
   readonly listQueries: AdapterListQuery[] = [];
 
-  constructor(private readonly store: Store) {}
+  constructor(private readonly store: Store) {
+    completeSourceMirrorFixtures(store);
+  }
 
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);

@@ -106,6 +106,7 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     source: {
       provider: 'alibaba',
       sourceProductKey: sourceKey,
+      externalProductId: 'local-formal-linked',
       accountKey: 'local-only',
       observedAt: '2026-09-09T00:00:00.000Z',
       captureMode: 'selected',
@@ -159,6 +160,14 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     sourceObservationDocumentId('alibaba', sourceKey),
     { observation: valid.value },
   );
+  await db.createDocWithId('alibabaSourceProducts', sourceKey, {
+    sourceKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-formal-linked',
+    sourceTitle: product.name,
+    sourceImageUrls: urls,
+    active: true,
+  });
   await db.update('products', product._id, {
     imageIds: ['formal-image-0', 'formal-image-1'],
     alibabaSourceImageUrls: urls,
@@ -180,7 +189,19 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   };
   const untouchedObservation = validateCatalogSourceObservation({
     ...observation,
-    source: { ...observation.source, sourceProductKey: untouchedKey },
+    source: {
+      ...observation.source,
+      sourceProductKey: untouchedKey,
+      externalProductId: 'local-only-draft',
+    },
+    content: {
+      ...observation.content,
+      media: Array.from({ length: 9 }, (_, position) => ({
+        sourceUrl: `https://s.alicdn.com/formal-draft-${position}.png`,
+        position,
+        role: position === 0 ? 'primary' : 'gallery',
+      })),
+    },
     identity: { ...observation.identity, title: 'Untouched Sync Headset' },
     variants: Array.from({ length: 55 }, (_, i) => ({
       ...observation.variants[0],
@@ -198,6 +219,17 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
       observation: untouchedObservation.value,
     },
   );
+  await db.createDocWithId('alibabaSourceProducts', untouchedKey, {
+    sourceKey: untouchedKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-only-draft',
+    sourceTitle: 'Untouched Sync Headset',
+    sourceImageUrls: Array.from(
+      { length: 9 },
+      (_, i) => `https://s.alicdn.com/formal-draft-${i}.png`,
+    ),
+    active: true,
+  });
   await db.createDocWithId('products', 'local-untouched-draft', {
     name: 'Untouched Sync Headset',
     description: product.description,
