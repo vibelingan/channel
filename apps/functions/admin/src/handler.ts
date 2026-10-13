@@ -153,6 +153,7 @@ import {
   supplierParts,
   withAdminEditsKept,
 } from './catalog-supplier-review.ts';
+import { catalogValidationMessage } from './catalog-validation.ts';
 
 export interface AdminConfig {
   jwtSecret: string;
@@ -662,6 +663,10 @@ export async function handleAdminRequest(
             'VALIDATION_ERROR',
             'Too many images changed at once. Save and approve gallery changes separately from description-image changes. The current website version has not changed.',
           );
+        if (result.code === 'VALIDATION_ERROR' && 'validation' in result) {
+          const message = catalogValidationMessage(result.validation);
+          if (message) return err('VALIDATION_ERROR', message);
+        }
         return err(
           result.code,
           result.code === 'CONFLICT'

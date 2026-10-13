@@ -8,10 +8,15 @@ import {
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
-import { sourceDigest, sourceGalleryDigest } from '@vibelingan-channel/db/catalog-source-staging';
+import {
+  SourcePageSchema,
+  sourceDigest,
+  sourceGalleryDigest,
+} from '@vibelingan-channel/db/catalog-source-staging';
 import { isProductFamily } from '@vibelingan-channel/shared';
 import { ConfigurationPhotosSchema } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { z } from 'zod';
+import { catalogValidationFailure } from './catalog-validation.ts';
 
 const command = z
   .object({
@@ -166,7 +171,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     page + 1,
     20,
   );
-  if (!candidate.ok) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+  if (!candidate.ok) return catalogValidationFailure('source-candidate', candidate.errors);
   const { variants: pageVariants, revision: _revision, ...header } = candidate.value;
   // The admin's photo choice for a configuration replaces the supplier's
   // photos (DEC-20); only photos in this product's gallery count.
@@ -191,7 +196,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     [...images].sort(),
     [...variants],
   ]);
-  return persistCatalogDetailApproval(actorId, {
+  const sourcePage = SourcePageSchema.safeParse({
     action: 'source-page',
     productId,
     sourceKey,
@@ -230,4 +235,15 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       };
     }),
   });
+  if (!sourcePage.success)
+    return catalogValidationFailure(
+      'source-page',
+      sourcePage.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+    );
+  const result = await persistCatalogDetailApproval(actorId, sourcePage.data);
+  return !result.ok && result.code === 'VALIDATION_ERROR'
+    ? catalogValidationFailure('source-persistence', [
+        'Stored product and source page failed validation.',
+      ])
+    : result;
 }

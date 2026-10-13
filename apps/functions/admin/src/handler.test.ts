@@ -5897,3 +5897,42 @@ test('a database transaction conflict answers BUSY (nothing saved, retry), never
   assert.equal(isTransactionConflict(conflict), true);
   assert.equal(isTransactionConflict(new Error('other')), false);
 });
+
+test('prepare response identifies invalid website fields without returning private source values', async () => {
+  const source = supplierObservation('clock-source', 'Safe description');
+  const observation = {
+    ...source.observation,
+    identity: {
+      ...source.observation.identity,
+      attributes: [{ sourceName: 'Material', value: 'private-source-value-'.repeat(120) }],
+    },
+  };
+  setup({
+    users: [],
+    products: [
+      {
+        _id: 'clock',
+        name: 'Clock',
+        alibabaPrimarySourceKey: 'clock-source',
+        productFamily: 'misc',
+      },
+    ],
+    catalogSourceObservations: [{ ...source, observation }],
+  });
+  const result = await handleAdminRequest(
+    {
+      action: 'catalogDetailApproval',
+      token: await adminToken(),
+      data: { action: 'prepare', productId: 'clock', page: 0 },
+    },
+    approvalConfig,
+  );
+  expectErr(result, 'VALIDATION_ERROR');
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error.message, /source-candidate/);
+    assert.match(result.error.message, /facts\.0\.value/);
+    assert.match(result.error.message, /2000/);
+    assert.doesNotMatch(result.error.message, /private-source-value|private-evidence/);
+  }
+});

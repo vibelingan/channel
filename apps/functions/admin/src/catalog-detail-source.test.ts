@@ -243,3 +243,92 @@ test('an admin photo choice for a configuration replaces its supplier photos in 
     'unchanged without a valid choice',
   );
 });
+
+test('source projection validation preserves the failing field and performs no staging writes', async () => {
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      observedAt: '2026-10-13T00:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: {
+      title: 'Clock',
+      matchHints: {},
+      attributes: [{ sourceName: 'Material', value: 'private-marker-'.repeat(160) }],
+    },
+    content: { media: [] },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [],
+    offers: [],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'private-evidence' }],
+    warnings: [],
+  };
+  const adapter = new RecordingAdapter({
+    products: [
+      { _id: 'clock', name: 'Clock', alibabaPrimarySourceKey: 'source-a', productFamily: 'misc' },
+    ],
+    catalogSourceObservations: [
+      { _id: sourceObservationDocumentId('alibaba', 'source-a'), observation },
+    ],
+  });
+  setAdapter(adapter);
+  assert.deepEqual(await prepareCatalogSource('admin', { action: 'prepare', productId: 'clock' }), {
+    ok: false,
+    code: 'VALIDATION_ERROR',
+    validation: {
+      stage: 'source-candidate',
+      issues: ['facts.0.value: String must contain at most 2000 character(s)'],
+    },
+  });
+  assert.deepEqual(adapter.commands, []);
+});
+
+test('source-page schema failures identify the boundary before staging', async () => {
+  const sourceUrl = 'https://sc04.alicdn.com/clock.jpg';
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      observedAt: '2026-10-13T00:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: { title: 'Clock', matchHints: {}, attributes: [] },
+    content: { media: [{ sourceUrl, role: 'primary', position: 0 }] },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [],
+    offers: [],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'evidence' }],
+    warnings: [],
+  };
+  const adapter = new RecordingAdapter({
+    products: [
+      { _id: 'clock', name: 'Clock', alibabaPrimarySourceKey: 'source-a', productFamily: 'misc' },
+    ],
+    catalogSourceObservations: [
+      { _id: sourceObservationDocumentId('alibaba', 'source-a'), observation },
+    ],
+    catalogSourceLinks: [
+      {
+        _id: sourceMediaLinkId('alibaba', sourceUrl),
+        provider: 'alibaba',
+        sourceUrl,
+        imageId: 'x'.repeat(201),
+      },
+    ],
+  });
+  setAdapter(adapter);
+  assert.deepEqual(await prepareCatalogSource('admin', { action: 'prepare', productId: 'clock' }), {
+    ok: false,
+    code: 'VALIDATION_ERROR',
+    validation: {
+      stage: 'source-page',
+      issues: ['supplierMedia.gallery.0: String must contain at most 200 character(s)'],
+    },
+  });
+  assert.deepEqual(adapter.commands, []);
+});

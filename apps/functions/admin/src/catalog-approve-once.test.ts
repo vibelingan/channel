@@ -148,3 +148,26 @@ test('a malformed request or step answer is refused', async () => {
   const odd = server({ review: { ok: true, nonsense: true } });
   assert.deepEqual(await approve(odd.deps), { ok: false, code: 'VALIDATION_ERROR' });
 });
+
+test('one-request approval preserves safe preparation diagnostics and stops before review', async () => {
+  const failure = {
+    ok: false,
+    code: 'VALIDATION_ERROR',
+    validation: {
+      stage: 'source-candidate',
+      issues: ['facts: Array must contain at most 100 element(s)'],
+    },
+  };
+  const result = await approveInOneRequest(
+    'admin',
+    { action: 'approve', productId: 'clock', operationId: '11111111-1111-4111-8111-111111111111' },
+    {
+      prepare: async () => failure,
+      workflow: async () => {
+        throw new Error('Validation failure must stop approval');
+      },
+      now: () => 0,
+    },
+  );
+  assert.deepEqual(result, failure);
+});

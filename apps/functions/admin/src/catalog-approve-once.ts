@@ -15,6 +15,7 @@
 import { manageCatalogDetailApproval } from '@vibelingan-channel/db';
 import { z } from 'zod';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
+import { type CatalogValidation, CatalogValidationSchema } from './catalog-validation.ts';
 
 const RequestSchema = z
   .object({
@@ -61,12 +62,14 @@ const FAILURE_CODES = [
   'SOURCE_NOT_READY',
   'MANUAL_CONFIGURATIONS',
 ] as const;
-type Failure = { ok: false; code: (typeof FAILURE_CODES)[number] };
+type Failure = { ok: false; code: (typeof FAILURE_CODES)[number]; validation?: CatalogValidation };
 const asFailure = (value: object): Failure => {
   const code = Reflect.get(value, 'code');
+  const validation = CatalogValidationSchema.safeParse(Reflect.get(value, 'validation'));
   return {
     ok: false,
     code: FAILURE_CODES.find((known) => known === code) ?? 'VALIDATION_ERROR',
+    ...(code === 'VALIDATION_ERROR' && validation.success ? { validation: validation.data } : {}),
   };
 };
 export type ApproveOnceResult =
