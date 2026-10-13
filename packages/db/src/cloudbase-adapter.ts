@@ -512,7 +512,7 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
         : await targetRef.set(
             Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')),
           );
-      if (collection === 'catalogSourceObservations') confirmDocumentWrite(answer, id);
+      confirmDocumentWrite(answer, id);
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return true;
@@ -556,7 +556,7 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
     if (!isDeepStrictEqual(before, next)) {
       await beforeWrite();
       const answer = await target.update(replaceNestedObjects(values, db.command));
-      if (collection === 'catalogSourceObservations') confirmDocumentWrite(answer, id);
+      confirmDocumentWrite(answer, id);
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return true;
@@ -599,13 +599,17 @@ export async function claimAlibabaSyncRunInCloudBase(
       unknown
     > & { _id?: unknown };
     await alibabaLeaseWriteFence(transaction, guard.connectionId, lease)();
-    await runRef.set({
+    const created = await runRef.set({
       ...safeRun,
       createdAt: guard.now,
       updatedAt: guard.now,
     });
-    await checkpointRef.update(
-      replaceNestedObjects({ ...safeCheckpointPatch, updatedAt: guard.now }, db.command),
+    confirmDocumentWrite(created, runId);
+    confirmDocumentWrite(
+      await checkpointRef.update(
+        replaceNestedObjects({ ...safeCheckpointPatch, updatedAt: guard.now }, db.command),
+      ),
+      guard.connectionId,
     );
     return 'claimed';
   }));

@@ -396,6 +396,8 @@ requireCheck(
       if (api === 'database.startTransaction') return { transactionId: 'lease-probe-tx' };
       if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
       if (api === 'database.modifyDocument') {
+        if (params?.query?.includes('update-not-found'))
+          return { requestId: 'r', data: { updated: 0 } };
         if (params?.query?.includes('approval-new'))
           return { requestId: 'r', data: { updated: 0, upsert_id: 'approval-new' } };
         return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
@@ -414,9 +416,14 @@ requireCheck(
       const ref = transaction.collection('alibabaSyncLeases').doc('conn-1');
       const missing = await ref.get();
       const setResult = await ref.set({ holder: 'h', fence: 1 });
-      await ref.update({ heartbeatAt: 'x' });
+      const updateResult = await ref.update({ heartbeatAt: 'x' });
       const removeResult = await ref.remove();
-      return { missing: missing.data, updated: setResult.updated, deleted: removeResult.deleted };
+      return {
+        missing: missing.data,
+        updated: setResult.updated,
+        updateCount: updateResult.updated,
+        deleted: removeResult.deleted,
+      };
     });
     const apiSequence = txCalls.map((call) => call.api);
     const setCall = txCalls.find(
@@ -447,6 +454,18 @@ requireCheck(
         removeCall?.params?.transactionId === 'lease-probe-tx' &&
         removeCall?.params?.query?.includes('conn-1'),
       '@cloudbase/database transaction get/set/update/remove probe matches deterministic write contracts',
+    );
+
+    requireCheck(
+      probeResult.updateCount === 1,
+      '@cloudbase/database update exposes the exact affected-document count',
+    );
+    const notUpdated = await probeDb.runTransaction((transaction) =>
+      transaction.collection('probe').doc('update-not-found').update({ value: 'changed' }),
+    );
+    requireCheck(
+      notUpdated.updated === 0,
+      '@cloudbase/database update preserves a zero-write ACK for caller rejection',
     );
 
     txCalls.length = 0;

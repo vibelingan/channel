@@ -49,7 +49,13 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
       new Map(docs.map((doc) => [doc._id, structuredClone(doc)])),
     ]),
   );
-  const controls = { failWrite: '', silentWrite: '', maximumOperations: 0 };
+  const controls = {
+    failWrite: '',
+    silentWrite: '',
+    codedWrite: '',
+    wrongUpsertId: '',
+    maximumOperations: 0,
+  };
   type Scope = typeof store;
   const collection = (name: string, scope: Scope = store) => ({
     doc: (id: string) => ({
@@ -57,6 +63,8 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
       update: async (patch: Record<string, unknown>) => {
         if (controls.failWrite === `${name}/${id}`) throw new Error('injected write failure');
         if (controls.silentWrite === `${name}/${id}`) return { updated: 0 };
+        if (controls.codedWrite === `${name}/${id}`)
+          return { code: 'DATABASE_TRANSACTION_CONFLICT' };
         const docs = scope.get(name) ?? new Map<string, CollectionDoc>();
         const existing = docs.get(id);
         if (!existing) return { updated: 0 };
@@ -67,11 +75,15 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
       set: async (data: Record<string, unknown>) => {
         if (controls.failWrite === `${name}/${id}`) throw new Error('injected write failure');
         if (controls.silentWrite === `${name}/${id}`) return { updated: 0 };
+        if (controls.codedWrite === `${name}/${id}`)
+          return { code: 'DATABASE_TRANSACTION_CONFLICT' };
         const docs = scope.get(name) ?? new Map<string, CollectionDoc>();
         const exists = docs.has(id);
         docs.set(id, { _id: id, ...data });
         scope.set(name, docs);
-        return exists ? { updated: 1 } : { upserted: [{ _id: id }] };
+        return exists
+          ? { updated: 1 }
+          : { upserted: [{ _id: controls.wrongUpsertId === `${name}/${id}` ? 'wrong-id' : id }] };
       },
       remove: async () => ({ deleted: 1 }),
     }),
@@ -512,3 +524,136 @@ for (const action of ['upsert', 'update'] as const) {
     });
   }
 }
+
+function writeAckFixture(collection: string, existing = true) {
+  const at = '2026-10-14T00:00:00.000Z';
+  return {
+    at,
+    harness: fakeDatabase({
+      alibabaSyncLeases: [
+        {
+          _id: 'primary',
+          holder: 'ack-owner',
+          fence: 1,
+          expiresAt: '2026-10-14T00:03:00.000Z',
+          releasedAt: '',
+        },
+      ],
+      [collection]: existing ? [{ _id: 'target', value: 'before', updatedAt: at }] : [],
+    }),
+    guard: { connectionId: 'primary', holder: 'ack-owner', fence: 1, now: at },
+  };
+}
+
+for (const collection of [
+  'alibabaSupplierOffers',
+  'alibabaRawReplayManifests',
+  'alibabaSyncRuns',
+  'alibabaSyncCheckpoints',
+]) {
+  for (const action of ['create', 'upsert', 'update'] as const) {
+    for (const fault of ['zero', 'coded'] as const) {
+      test(`${collection} ${action} rejects ${fault} business write ACK and rolls back lease transaction`, async () => {
+        const { harness, guard } = writeAckFixture(collection, action !== 'create');
+        const before = structuredClone(harness.store);
+        if (fault === 'zero') harness.controls.silentWrite = `${collection}/target`;
+        else harness.controls.codedWrite = `${collection}/target`;
+        const write = () =>
+          action === 'update'
+            ? updateDocWithAlibabaLeaseInCloudBase(
+                harness.db,
+                collection,
+                'target',
+                { value: 'after' },
+                guard,
+              )
+            : upsertDocWithAlibabaLeaseInCloudBase(
+                harness.db,
+                collection,
+                'target',
+                { value: 'after' },
+                {},
+                guard,
+              );
+        if (fault === 'zero') await assert.rejects(write(), /not confirmed/);
+        else
+          await assert.rejects(
+            write(),
+            (error) =>
+              typeof error === 'object' &&
+              error !== null &&
+              Reflect.get(error, 'code') === 'DATABASE_TRANSACTION_CONFLICT',
+          );
+        assert.deepEqual(harness.store, before);
+        harness.controls.silentWrite = '';
+        harness.controls.codedWrite = '';
+        assert.equal(await write(), true);
+        assert.equal(harness.store.get(collection)?.get('target')?.value, 'after');
+      });
+    }
+  }
+  test(`${collection} refuses a new row ACK naming another identity`, async () => {
+    const { harness, guard } = writeAckFixture(collection, false);
+    harness.controls.wrongUpsertId = `${collection}/target`;
+    const before = structuredClone(harness.store);
+    await assert.rejects(
+      upsertDocWithAlibabaLeaseInCloudBase(
+        harness.db,
+        collection,
+        'target',
+        { value: 'after' },
+        {},
+        guard,
+      ),
+      /not confirmed/,
+    );
+    assert.deepEqual(harness.store, before);
+  });
+}
+
+for (const target of ['alibabaSyncRuns/new-run', 'alibabaSyncCheckpoints/primary']) {
+  test(`run claim cannot succeed when ${target} was not written`, async () => {
+    const { harness, guard } = writeAckFixture('unused', false);
+    harness.store.set(
+      'alibabaSyncCheckpoints',
+      new Map([['primary', { _id: 'primary', activeRunId: '' }]]),
+    );
+    harness.controls.silentWrite = target;
+    const before = structuredClone(harness.store);
+    const write = () =>
+      claimAlibabaSyncRunInCloudBase(
+        harness.db,
+        'new-run',
+        { status: 'running' },
+        { activeRunId: 'new-run' },
+        guard,
+      );
+    await assert.rejects(write(), /not confirmed/);
+    assert.deepEqual(harness.store, before);
+    harness.controls.silentWrite = '';
+    assert.equal(await write(), 'claimed');
+    assert.equal(harness.store.get('alibabaSyncRuns')?.get('new-run')?.status, 'running');
+    assert.equal(
+      harness.store.get('alibabaSyncCheckpoints')?.get('primary')?.activeRunId,
+      'new-run',
+    );
+  });
+}
+
+test('an unchanged generic target succeeds without requiring a redundant write ACK', async () => {
+  const { harness, guard } = writeAckFixture('alibabaSupplierOffers');
+  harness.controls.silentWrite = 'alibabaSupplierOffers/target';
+  const before = structuredClone(harness.store);
+  assert.equal(
+    await updateDocWithAlibabaLeaseInCloudBase(
+      harness.db,
+      'alibabaSupplierOffers',
+      'target',
+      { value: 'before' },
+      guard,
+    ),
+    true,
+  );
+  assert.deepEqual(harness.store, before);
+  assert.equal(harness.controls.maximumOperations, 2);
+});

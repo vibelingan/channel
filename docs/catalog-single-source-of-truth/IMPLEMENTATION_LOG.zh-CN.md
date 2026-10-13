@@ -419,3 +419,13 @@ P2c2e 实现：upsert/update/run claim 的 lease 加入实际写集合；generic
 文字核对：实际复核cloudbase-adapter、catalogRowStore、runCatalogRowMutation、AlibabaProduct identity、runner/ingest/raw-replay/selected-sync和对应测试。将“事务中读过lease就能阻止旧worker”更正为写集合fence；区分过程内排队的性能用途和持久事务的正确性用途，明确供应商同步与用户审批的边界。此项完成不代表其他vendor race、完整P2或全部发布可靠性交付完成。
 
 提交前跨文件复核还保留两项明确后续门槛：P2c2f 要补齐非catalog supplier offer/update和run/checkpoint实际业务写入ACK，当前 lease fence 自身确认不等于所有旧目标写入已确认；P6切换新实现前须禁止旧sync新入调用并排空旧调用，manifest最大timeout900秒，原timer默认关闭保持不变。旧代码不参与新fence，不能用新实现的正确性证明覆盖旧调用仍在运行的窗口。上述是发布阻断项，尚未开始暂停/部署操作。
+
+### P2c2f：确认每次同步业务写入回执（2026-10-14，本地子单元完成，待精确提交 review）
+
+P2c2e 提交 ad19f794653718839232070a32ff83e64e9d0ac6 已完成精确 inline review；该项云实验资源清理与整体未发布边界不变。本单元修复其复核中记录的旧目标 ACK 缺口：非catalog supplier offers/raw-replay manifests/runs/checkpoints 的 create/upsert/update 必须确认1次实际写入或对应的新建ID；run claim 确认 run set 与 checkpoint update 两条回执，任一未确认即事务回滚，避免phantom run或checkpoint独占。继续使用原 confirmDocumentWrite/sdkAnswer，coded原生错误保留code，无新SDK方法/shim。未变化目标不强制冗余写入或ACK。
+
+31项先红：30个假成功反例失败，1个正常no-op正控通过。覆盖4集合x3变更入口x0/coded ACK，4个新建错误ID，run/checkpoint各1个零写入；每个拒绝检查整事务无变化，清除故障后同owner队列能继续成功。修正后整个DB/sync/实际prepare消费者758 passed/0 failed/0 skipped，五组backend消费者类型及SDK gate通过，test与standing gate的真实Biome2文件通过，大adapter保留既有lint排除；diff whitespace通过。内存副本移除ACK确认30 fail/1正常正控，原文件未动；同时重新确认fence11fail/10正控、queue1fail/4正控。
+
+已把精确update ACK加入现有自动SDK合约门槛：真实已安装@cloudbase/database1.4.3包装器通过假的请求发送层取得updated1/0，并检查它实际返回该字段；新增2项检查通过。反向在独立Node进程内让实际SDK update返回值丢掉updated，文件和发送过程仍保持原样，恰好2项新检查失败，get/set/remove/发送序列正控保持通过。此为SDK包装器合约证明，不是云端0写入故障注入。原P2c2e真实云40次测量和150浏览器是上一个节点证据，不称作本ACK版本的新云/浏览器验收；后续关键节点与最终test继续重跑。
+
+文字核对：实际复核cloudbase-adapter的generic guarded upsert/update、run claim、已有confirmDocumentWrite/sdkAnswer，SDK document.js70-145实际返回分支，standing合约脚本、runner/ingest/raw-replay消费者及对应测试。将“await写入就算成功”改为精确回执确认，区分正常no-op、0写入、coded失败与新建ID；未改变分类、商品内容、正常发布入口、来源原件、队列范围或审批状态。完整MIU和test部署/真实20件发布回退仍未完成。
