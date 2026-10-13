@@ -1,6 +1,6 @@
 # Catalog 发布可靠性整合方案
 
-状态：用户已于 2026-10-13 批准实施，当前实施中。P1a、P2a、P3a-c、P4a 已完成对应本地子单元；各大 MIU 的其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
+状态：用户已于 2026-10-13 批准实施，当前实施中。P1a、P2a-b、P3a-c、P4a 已完成对应本地子单元；各大 MIU 的其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
 
 本文件是本轮唯一实施方案，替代 `PUBLISH_READINESS_PROPOSAL.zh-CN.md` 的初稿建议。详细验收范围见 [测试矩阵](PUBLISH_RELIABILITY_TEST_MATRIX.zh-CN.md)。当前工作目录为原 Claude checkout，分支 `feat/catalog-alibaba-price-tiers`，审查 HEAD `39705e2323d51d4aa79f1240d66f65608f407649`；正常已部署基线的最近观察为 `a3ce01e`。这些标识在实施开始前须重新核对。
 
@@ -133,7 +133,7 @@ ready 表示可构建，不等于有分类、有发布权限或无需供应商�
 - **显式 Publish：** 仅批准本次冻结版本，并在最终受版本保护的写入中上线。管理员在打开表单后他人下架、编辑或 source 更新时，不能用陈旧开关自动批准新内容。
 - **分类 Save and publish：** 保留“先确认分类保存结果，再逐件发布”的现有语义。预检针对目标分类做，避免先因旧分类缺失误拒绝。分类已保存、发布没成功必须分别显示；不自动回滚合法分类，也不自动批准 Changed/Removed。
 - **只保存分类：** 保持既有分类生效规则；当前分类在列表、路由和详情标签使用同一分类投影。不能将公开读取字段的变化隐藏成详情批准成功；与内容审批的结果分别可见。
-- **下架/归档：** 使相应生命周期版本前进；旧 approve/refresh/publish 请求不能覆盖。回退不删除批准历史，不倒灌旧的坏来源。
+- **下架/归档：** 使相应生命周期版本前进；旧 approve/refresh/publish 请求不能覆盖。即使当前已是 draft，显式 Disable 也必须取消更早的 pending publish，不能按同状态无操作处理。回退不删除批准历史，不倒灌旧的坏来源。
 - **创建并发布：** 创建意图也幂等。创建成功、发布失败返回原草稿 ID；丢失 create 响应时查询原操作，不能创建第二件。
 
 请求重复、BUSY 和续接复用同一个 operationId。权限、身份、输入版本变化不盲重试；过期 job 用新检查启动新的操作。结果成功的证明包括同一 productId/operationId/批准 revision 和发布状态；旧的 published=true、另一管理员的新批准或错误 ID 均不能冒充本次成功。

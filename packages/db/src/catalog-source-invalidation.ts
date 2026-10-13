@@ -1,6 +1,7 @@
 /** Source writers and approval must compete on the same bound product record. */
 import { createHash } from 'node:crypto';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { advanceCatalogProduct } from './catalog-product-state.ts';
 
 interface ReadStore {
   get(collection: string, id: string): Promise<CollectionDoc | null>;
@@ -60,26 +61,6 @@ export async function planSourceInvalidation(
     throw new Error('Invalid primary source link');
   const product = await store.get('products', link.productId);
   if (product?.alibabaPrimarySourceKey !== key) return null;
-  const generation = product.catalogContentGeneration ?? 0;
-  if (
-    typeof generation !== 'number' ||
-    !Number.isSafeInteger(generation) ||
-    generation < 0 ||
-    generation === Number.MAX_SAFE_INTEGER
-  )
-    throw new Error('Invalid catalog content generation');
-  const currentTime =
-    typeof product.updatedAt === 'string' ? Date.parse(product.updatedAt) : Number.NaN;
-  const nextTime = Date.parse(now);
-  if (!Number.isFinite(nextTime)) throw new Error('Invalid source invalidation time');
-  return {
-    ...product,
-    catalogContentGeneration: generation + 1,
-    catalogPreparationState: 'stale',
-    detailSourceReady: false,
-    updatedAt:
-      Number.isFinite(currentTime) && currentTime >= nextTime
-        ? new Date(currentTime + 1).toISOString()
-        : now,
-  };
+  if (!Number.isFinite(Date.parse(now))) throw new Error('Invalid source invalidation time');
+  return advanceCatalogProduct(product, product, now, true);
 }

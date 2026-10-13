@@ -18,6 +18,8 @@ import {
   alibabaPricingFingerprint,
 } from './alibaba-pricing-fingerprint.ts';
 
+import { advanceCatalogProduct, assertCatalogProductVersions } from './catalog-product-state.ts';
+
 export const ALIBABA_PRODUCT_LINK_LIMIT = 40;
 
 export interface AlibabaProductLinkIdentity {
@@ -315,6 +317,9 @@ export async function runAlibabaProductMutation(
   const product = await transaction.get('products', input.productId);
   if (!product && input.action !== 'create-draft')
     return { ok: false, reason: 'product-not-found' };
+  assertCatalogProductVersions(product);
+  const writeProduct = (next: CollectionDoc) =>
+    transaction.set('products', advanceCatalogProduct(product, next, input.now));
   const revision = product ? alibabaLinkRevision(product) : null;
   const primary = product?.alibabaPrimarySourceKey ?? null;
   if (
@@ -348,7 +353,7 @@ export async function runAlibabaProductMutation(
     ) {
       return { ok: true, revision, clearedLinks: 0 };
     }
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       ...clearedFields,
       alibabaLinkRevision: revision + 1,
@@ -433,7 +438,7 @@ export async function runAlibabaProductMutation(
           createdAt: input.now,
           updatedAt: input.now,
         };
-    await transaction.set('products', nextProduct);
+    await writeProduct(nextProduct);
     if (!alreadyLinked)
       await transaction.set('alibabaProductLinks', {
         ...link,
@@ -528,7 +533,7 @@ export async function runAlibabaProductMutation(
     )
       return { ok: false, reason: 'fence-rejected' };
     await transaction.set(ALIBABA_SYNC_LEASE_COLLECTION, lease);
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       ...input.patch,
       alibabaLinkRevision: revision + 1,
@@ -544,7 +549,7 @@ export async function runAlibabaProductMutation(
         return { ok: false, reason: 'offer-not-found' };
       if (offer.active !== true) return { ok: false, reason: 'offer-not-active' };
     }
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       alibabaPinnedOfferKey: input.offerKey,
       alibabaLinkRevision: revision + 1,
@@ -558,7 +563,7 @@ export async function runAlibabaProductMutation(
     if (Object.keys(input.patch).some((field) => !reconciliationFields.has(field)))
       return { ok: false, reason: 'invalid-patch' };
     if (primary !== input.sourceKey) return { ok: true, revision, clearedLinks: 0 };
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       ...reconciliationPatch(product, input.patch),
       ...photosRefresh(product, input.patch),
@@ -605,7 +610,7 @@ export async function runAlibabaProductMutation(
     });
   }
 
-  await transaction.set('products', {
+  await writeProduct({
     ...product,
     ...(input.action === 'link' && primary !== input.sourceKey ? clearedFields : {}),
     ...input.patch,

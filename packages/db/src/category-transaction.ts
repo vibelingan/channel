@@ -17,6 +17,7 @@ import {
   type CatalogMappingResult,
   runCatalogMappingCommand,
 } from './catalog-mapping-transaction.ts';
+import { advanceCatalogProduct } from './catalog-product-state.ts';
 import { runCatalogTaxonomyCommand } from './catalog-taxonomy-transaction.ts';
 
 export { resolveCatalogMappingEvidence } from './catalog-mapping-transaction.ts';
@@ -217,6 +218,16 @@ export async function runCategoryCommand(
   )
     return { status: 'conflict' };
   if (!rule) return { status: 'conflict' };
+  const nextProduct = advanceCatalogProduct(
+    product,
+    {
+      ...product,
+      productFamily: preview.target,
+      category: '',
+      alibabaClassifiedCategoryId: categoryId,
+    },
+    now,
+  );
   // Snapshot reads alone do not serialize concurrent source/link/rule changes.
   // Fence these dependencies in the same transaction; failure aborts all writes.
   for (const [collection, row] of [
@@ -227,10 +238,7 @@ export async function runCategoryCommand(
     await tx.set(collection, { ...row, categoryAssignmentFence: command.operationId });
   }
   await tx.set('products', {
-    ...product,
-    productFamily: preview.target,
-    category: '',
-    alibabaClassifiedCategoryId: categoryId,
+    ...nextProduct,
     catalogClassificationReceipt: {
       requestDigest,
       operationId: command.operationId,
@@ -241,7 +249,6 @@ export async function runCategoryCommand(
       sourceKey,
       sourceCategoryId: categoryId,
     },
-    updatedAt: now,
   });
   return { status: 'applied' };
 }

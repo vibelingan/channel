@@ -42,7 +42,7 @@
 | F20 | selected resync / full/incremental/replay 的单商品落点 | 新、已有、无分类、人工改过、主来源变化 | 数据/身份幂等；不覆盖人工字段、不发布、不误分类；坏商品可正常加载 |
 | F21 | 来源 link/unlink、missing/removed | 显式绑定、重试、并发变更、旧批准版本 | 主来源归属唯一且正确；旧任务不写新来源；现有公开版本不串源；专用对象恢复 |
 | F22 | 发布后前台所有消费面 | list/item/id/slug/family route、SKU、图片、RFQ 价格投影 | 同一批准内容与分类投影；无私有字段或旧 row 价格泄露；不对真实客户发送测试询盘/通知 |
-| F23 | Disable、Archive、Restore draft | live/draft/changed、单件/批量、重复请求 | 旧发布任务不能复活；恢复为 draft；图片 delta 正确；实际对象仅可逆操作 |
+| F23 | Disable、Archive、Restore draft | live/draft/changed、单件/批量、重复请求、draft 已有 pending publish 时再 Disable | 显式取消即使状态相同也阻止旧发布；旧发布任务不能复活；恢复为 draft；图片 delta 正确；实际对象仅可逆操作 |
 | F24 | 旧数据迁移、功能开关和版本回退 | readiness 缺失/空、旧批准 v1-v3、无 slug/旧 category | 影子数量/哈希覆盖、可中断幂等；问题入口先就绪；旧公开数据不消失；回滚仍可读 |
 
 ## C. 24 类异常与边界组

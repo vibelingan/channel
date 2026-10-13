@@ -57,7 +57,7 @@ test('public products omit malformed manual pricing and stale non-Headphones cat
   assert.equal(Object.hasOwn(projected, 'manualCatalogPricing'), false);
 });
 
-test('public products never expose the private Alibaba source-review projection', () => {
+test('public products never expose private source-review or preparation state', () => {
   const projected = publicDoc(
     'products',
     {
@@ -65,6 +65,11 @@ test('public products never expose the private Alibaba source-review projection'
       name: 'Supplier draft',
       productFamily: 'headphones',
       published: false,
+      catalogContentGeneration: 3,
+      catalogLifecycleVersion: 2,
+      catalogClassificationRevision: 4,
+      catalogPreparationState: 'stale',
+      detailSourceReady: false,
       alibabaSourceReview: {
         schemaVersion: 'alibaba-source-review-v1',
         provider: 'alibaba',
@@ -86,5 +91,14 @@ test('public products never expose the private Alibaba source-review projection'
     config,
   );
 
-  assert.equal(Object.hasOwn(projected, 'alibabaSourceReview'), false);
+  for (const key of [
+    'alibabaSourceReview',
+    'catalogContentGeneration',
+    'catalogLifecycleVersion',
+    'catalogClassificationRevision',
+    'catalogPreparationState',
+    'detailSourceReady',
+  ]) {
+    assert.equal(Object.hasOwn(projected, key), false, key);
+  }
 });

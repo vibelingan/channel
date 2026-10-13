@@ -908,3 +908,21 @@ test('a source A-to-B-to-A generation cannot finish an older job even after its 
   });
   assert.equal(h.publication().revision, 'old');
 });
+
+for (const field of ['catalogLifecycleVersion', 'catalogClassificationRevision']) {
+  test(`an ABA transition of ${field} cannot finish an old approval`, async () => {
+    const h = fixture(0, () => [], { [field]: 0 });
+    const begun = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(begun.ok);
+    await h.run(async (tx) => {
+      const current = await tx.get('products', 'p');
+      assert.ok(current);
+      await tx.set('products', { ...current, [field]: 2 });
+    });
+    assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', h.prepared._id)), {
+      ok: false,
+      code: 'CONFLICT',
+    });
+    assert.equal(h.publication().revision, 'old');
+  });
+}

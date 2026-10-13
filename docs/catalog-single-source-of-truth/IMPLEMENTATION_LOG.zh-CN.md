@@ -198,3 +198,34 @@ updateRecord('products', opened._id, values, opened.updatedAt ?? null, intent);
 - 提交后 review 追加两实际 JSON adapter 的 legacy 并发保存检查，必须恰好一个 saved、一个 stale（该 DB API 用结果值拒绝，不能误数 Promise fulfilled）。同时将新增隔离浏览器会话初始化限制为本次 owned origin 的 admin 路径，避免导航/frame 扩散。SDK nullable/addInitScript 已核对安装类型与官方文档，详见 SDK-PROBE；没有引入新 CloudBase 方法或 shim。
 
 - 提交后复核最终 312 项相关回归通过，含双实际 JSON adapter 的 absent/null 两场竞争；删除原子 CAS 后该两项变红，finally 恢复。e2e/local-server tsc 通过；实际 addInitScript 回调经 AST 提取运行，owned admin / 外部 origin / owned 非 admin 三场边界通过。该小修只约束隔离测试夹具，不修改产品行为；产品功能以第四轮 150 项证据为准。
+
+## P2b：产品行写入的内容、分类和生命周期版本（红测准备）
+
+运行问题：普通 Edit / 图片绑定 / 人工价格没有与保存原子撤销 ready；绑定、pin、unlink、reconcile/promotion 和自动分类直接使用请求 now，可能将已有单调 updatedAt 写回旧时间；内容 A→B→A 与下架→上线的旧任务无法仅靠相等值识别。
+
+数据：catalogContentGeneration、catalogLifecycleVersion、catalogClassificationRevision 是各产品的安全整数计数；缺失/null 作为旧行 0。内容包括网站文本、价格、图选择、供应商决策、主要来源与选定报价；分类包含 family/category/subcategoryIds。批准快照和媒体计数不由这些计数重写。
+
+技术约束：共用 server-only 纯产品状态计划，在既有产品事务内应用，无额外 SDK 方法、全局写锁或网络调用。准备输出字段不能算成内容输入，否则审批自己让自己过期；共享图 refCount 同理。无语义变更不增加内容/分类/生命周期版本。
+
+修正：normal save plan、Alibaba 所有 product set、分类专用事务与已完成 source invalidation 复用同一版本推进；输出时间始终比已有时间晚。批准 job 指纹额外绑定生命周期与分类计数以防 ABA。
+
+```ts
+next = advanceCatalogProduct(before, proposed, now);
+await tx.set('products', next); // 同一原子写中 ready=false 与 generation 前进
+```
+
+不采用：API 层异步失效、统一用 updatedAt 代替每种版本、每次无变化同步也递增内容版本。
+
+风险/测试：真实 normal plan、Alibaba pin/unlink、自动分类的计数/ready/time 红测；无变化和 metadata 保持 ready；同毫秒内容 ABA 与生命周期 ABA；非法/耗尽计数 fail closed；随后所有 DB/source/classification/sync 回归。通用 adapter product/variant writer 与新绑定 observation fence 尚为 P2c 后续，不由此单元宣称覆盖。
+
+- P2b 首轮扩大回归 825 项中 801 通过、24 失败；失败集中在现有 pricing repair 的读回契约，新增合法 generation/ready 字段被旧 protectedHash 判为额外变化。修正为从同一纯状态计划计算 expectedProtectedHash，保留原 protectedHash 审计，读回仍逐字段精确匹配预期；不扩大忽略字段列表。补“批准后 generation 又前进”拒绝测试，防止盲确认其他写入。
+- Review 另补 price.syncedAt-only 红测并复现无谓失效，内容指纹只排除该价格捕获时间。配置照片与供应商决策 fixture 改用实际合约形状，pin fixture 明确已有被清除的选择；避免用未定义→空 pin 的语义无变化样本假装证明变更。
+- 类型检查首轮发现 CollectionDoc spread 丢失索引签名、私有状态错误字段不在公开校验 issue union、pin/unlink test 输入没有正确判别。分别加明确 CollectionDoc 类型、只在 DB 写入 issue union 加私有状态字段、用判别分支构造真实输入，未使用 any 或压制类型。
+
+- 第二轮扩大回归 827 项全通过；db/admin/local-server 类型检查通过，sync 新增 mock 参数缺显式类型被 tsc 抓到并补齐。Review 两条新红测发现旧快照 ready 输出可在无内容变更时被回写，以及空 pin 被误当内容变化。现在普通产品计划保留既有检查输出，只有专用 preparation CAS 可写回 ready；空/缺失选择按相同无选择语义。补所有三种计数的损坏/耗尽分支和生命周期/分类 ABA 拒绝旧 finish。
+
+- P2b 最终 846 项 DB/sync/handler/source 回归 + 3 项公开投影回归通过，0 failed / 0 skipped；db/admin/sync/local-server/public-api 类型检查通过；SDK contract gate 通过。源码生命周期指纹、Alibaba product writer 接线、pricing readback 三项 mutation 均检测并 finally 恢复。
+- P2b 整体生产构建 browser 150 项全部通过：public 41 / catalog 90 / formal 10 / visibility 8 / taxonomy 1；20 件 Assign category 发布及恢复 26.0 秒，普通 Edit 组合 2.1 秒；这些是单次流程时间，不是 P95。runner 确认删除隔离 DB/服务。
+- Review 审阅实际 catalog-product-state / adapter / alibaba-product-identity / source-invalidation / category-transaction / detail-staging / pricing-repair 与各测试、package exports、public projection。将“价格修复不得改其他字段”的笼统表述收窄为“保留网站字段，准备版本与状态按相同规则失效，读回逐项匹配本次预期”，没有删除 protected 字段保护。
+- 明确剩余 P3 条件：若当前已是 draft 但另有 pending publish，显式 Disable 仍应取消旧发布意图，不能仅凭布尔状态没变化认作纯 no-op。P2b 这里只实现语义状态变更计数，明确同状态生命周期命令由 P3 durable intent 完成；此条件已补测试矩阵，发版前必须绿。
+- 腾讯云 MCP auth(status) 本轮仍为 EXPIRED / env NONE；真实三件字段根因与云端 race/验收未由本地 150 项替代。

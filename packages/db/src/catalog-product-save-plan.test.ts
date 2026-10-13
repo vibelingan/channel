@@ -506,3 +506,148 @@ for (const stored of [undefined, null]) {
     );
   });
 }
+
+function readyVersionedProduct(): CollectionDoc {
+  return {
+    _id: 'p',
+    name: 'Before',
+    description: 'Website description',
+    productFamily: 'misc',
+    imageIds: ['img'],
+    unitPrice: 5,
+    published: false,
+    archived: false,
+    detailSourceReady: true,
+    catalogPreparationState: 'ready',
+    catalogContentGeneration: 3,
+    catalogLifecycleVersion: 4,
+    catalogClassificationRevision: 2,
+    catalogDetailPublication: { state: 'approved', revision: 'retained' },
+    updatedAt: '2026-10-13T00:00:00.000Z',
+  };
+}
+function savedVersion(current: CollectionDoc, data: Record<string, unknown>): CollectionDoc {
+  const plan = planCatalogProductSave(
+    current,
+    { mode: 'update', productId: current._id, data },
+    '2026-10-13T00:00:00.000Z',
+  );
+  assert.equal(plan.result, 'ready');
+  if (plan.result !== 'ready') throw new Error('Unexpected save refusal');
+  return plan.doc;
+}
+for (const patch of [
+  { name: 'After' },
+  { description: 'After' },
+  { imageIds: ['other'] },
+  { configurationPhotos: { sku: ['img'] } },
+  { supplierDecisions: { description: { choice: 'keep', incomingDigest: 'a'.repeat(64) } } },
+  { unitPrice: 6 },
+  { series: 'After' },
+]) {
+  test(`ordinary content save invalidates preparation atomically: ${Object.keys(patch)[0]}`, () => {
+    const before = readyVersionedProduct();
+    const after = savedVersion(before, patch);
+    assert.equal(after.catalogContentGeneration, 4);
+    assert.equal(after.detailSourceReady, false);
+    assert.equal(after.catalogPreparationState, 'stale');
+    assert.equal(after.catalogLifecycleVersion, 4);
+    assert.equal(after.catalogDetailPublication, before.catalogDetailPublication);
+    assert.equal(before.detailSourceReady, true);
+  });
+}
+test('ordinary same-millisecond ABA cannot restore the old generation', () => {
+  const before = readyVersionedProduct();
+  const changed = savedVersion(before, { name: 'After' });
+  const reverted = savedVersion(changed, { name: 'Before' });
+  assert.equal(reverted.catalogContentGeneration, 5);
+  assert.equal(reverted.updatedAt, '2026-10-13T00:00:00.002Z');
+});
+test('publication lifecycle advances independently and detects toggle ABA', () => {
+  const before = readyVersionedProduct();
+  const live = savedVersion(before, { published: true });
+  const withdrawn = savedVersion(live, { published: false });
+  assert.equal(live.catalogLifecycleVersion, 5);
+  assert.equal(withdrawn.catalogLifecycleVersion, 6);
+  assert.equal(withdrawn.catalogContentGeneration, 3);
+  assert.equal(withdrawn.detailSourceReady, true);
+});
+test('subcategory changes advance classification without invalidating website content', () => {
+  const before = readyVersionedProduct();
+  const after = savedVersion(before, { subcategoryIds: ['leaf'] });
+  assert.equal(after.catalogClassificationRevision, 3);
+  assert.equal(after.catalogContentGeneration, 3);
+  assert.equal(after.detailSourceReady, true);
+});
+test('semantic no-op and capture metadata do not invalidate preparation', () => {
+  const before = readyVersionedProduct();
+  const after = savedVersion(before, {
+    name: 'Before',
+    imageIds: ['img'],
+    alibabaSourceLastSyncedAt: 'later',
+  });
+  assert.equal(after.catalogContentGeneration, 3);
+  assert.equal(after.detailSourceReady, true);
+});
+
+test('a supplier price capture timestamp alone does not invalidate ready content', () => {
+  const before = readyVersionedProduct();
+  before.alibabaCatalogPricing = {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 500,
+    syncedAt: '2026-10-12T00:00:00.000Z',
+  };
+  const after = savedVersion(before, {
+    alibabaCatalogPricing: {
+      mode: 'fixed',
+      currency: 'USD',
+      amountMinor: 500,
+      syncedAt: '2026-10-13T00:00:00.000Z',
+    },
+  });
+  assert.equal(after.catalogContentGeneration, 3);
+  assert.equal(after.detailSourceReady, true);
+});
+
+test('ordinary writes cannot restore preparation output from an old snapshot', () => {
+  const before = {
+    ...readyVersionedProduct(),
+    detailSourceReady: false,
+    catalogPreparationState: 'stale',
+  };
+  const after = savedVersion(before, {
+    detailSourceReady: true,
+    catalogPreparationState: 'ready',
+    catalogContentGeneration: 1,
+  });
+  assert.equal(after.detailSourceReady, false);
+  assert.equal(after.catalogPreparationState, 'stale');
+  assert.equal(after.catalogContentGeneration, 3);
+});
+test('an empty offer selection is semantically the same as an absent selection', () => {
+  const before = readyVersionedProduct();
+  const after = savedVersion(before, { alibabaPinnedOfferKey: '' });
+  assert.equal(after.catalogContentGeneration, 3);
+  assert.equal(after.detailSourceReady, true);
+});
+
+for (const [field, patch] of [
+  ['catalogContentGeneration', { name: 'After' }],
+  ['catalogLifecycleVersion', { published: true }],
+  ['catalogClassificationRevision', { subcategoryIds: ['leaf'] }],
+] as const) {
+  for (const value of [-1, 1.5, '1', Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER]) {
+    test(`${field} cannot be corrupt or wrap on its transition (${value})`, () => {
+      const before = readyVersionedProduct();
+      before[field] = value;
+      const plan = planCatalogProductSave(
+        before,
+        { mode: 'update', productId: before._id, data: patch },
+        '2026-10-13T00:00:01.000Z',
+      );
+      assert.equal(plan.result, 'invalid-product');
+      assert.equal(before.detailSourceReady, true);
+    });
+  }
+}

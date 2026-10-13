@@ -17,7 +17,8 @@
     "./catalog-quote": "./src/catalog-quote.ts",
     "./catalog-publication-fingerprint": "./src/catalog-publication-fingerprint.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts",
-    "./catalog-source-invalidation": "./src/catalog-source-invalidation.ts"
+    "./catalog-source-invalidation": "./src/catalog-source-invalidation.ts",
+    "./catalog-product-state": "./src/catalog-product-state.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

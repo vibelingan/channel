@@ -26,6 +26,7 @@ export {
   alibabaPricingFingerprint,
   type AlibabaPricingEvidenceExpectation,
 } from './alibaba-pricing-fingerprint.ts';
+import { CatalogProductStateError, advanceCatalogProduct } from './catalog-product-state.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import type { CatalogExpectedSuggestion } from './catalog-suggestion-save.ts';
 export {
@@ -110,7 +111,13 @@ export type CatalogProductSaveResult =
   | { result: 'alibaba-identity-conflict' }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
-  | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
+  | {
+      result: 'invalid-product';
+      issues: Array<
+        | ReturnType<typeof validateProductPublication>[number]
+        | { field: 'catalogPreparationState'; message: string }
+      >;
+    }
   | { result: 'missing' | 'exists' | 'stale' };
 
 export type CatalogSourceObservationUpsertResult =
@@ -232,19 +239,12 @@ export function planCatalogProductSave(
     const willBeArchived = data.archived === true;
     if (wasArchived !== willBeArchived) data.published = false;
   }
-  const previousUpdatedAt =
-    typeof existing?.updatedAt === 'string' ? Date.parse(existing.updatedAt) : Number.NaN;
-  const nowMs = Date.parse(now);
-  const updatedAt =
-    Number.isFinite(nowMs) && Number.isFinite(previousUpdatedAt) && previousUpdatedAt >= nowMs
-      ? new Date(previousUpdatedAt + 1).toISOString()
-      : now;
-  const doc = {
+  let doc = {
     ...(existing ?? {}),
     ...data,
     _id: input.productId,
     createdAt: existing?.createdAt ?? now,
-    updatedAt,
+    updatedAt: now,
   } as CollectionDoc;
   if (
     Object.hasOwn(data, 'productFamily') &&
@@ -267,6 +267,15 @@ export function planCatalogProductSave(
     doc.category
   ) {
     doc.category = '';
+  }
+  try {
+    doc = advanceCatalogProduct(existing, doc, now);
+  } catch (error) {
+    if (!(error instanceof CatalogProductStateError)) throw error;
+    return {
+      result: 'invalid-product',
+      issues: [{ field: 'catalogPreparationState', message: error.message }],
+    };
   }
   const issues = validateProductPublication(doc);
   // Every product, synced or manual, is published only as its approved version
