@@ -1,3 +1,4 @@
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   type CollectionDoc,
   PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
@@ -17,6 +18,12 @@ import {
   type AlibabaPricingEvidenceExpectation,
   alibabaPricingFingerprint,
 } from './alibaba-pricing-fingerprint.ts';
+import {
+  type CatalogSourceBindingExpectation,
+  CatalogSourceBindingExpectationSchema,
+  advanceSourceBindingFence,
+  sourceBindingSnapshot,
+} from './catalog-source-binding.ts';
 
 import { advanceCatalogProduct, assertCatalogProductVersions } from './catalog-product-state.ts';
 
@@ -42,11 +49,18 @@ interface AlibabaProductExpectation {
 export type AlibabaProductMutationInput = AlibabaProductExpectation &
   (
     | { action: 'unlink' }
-    | { action: 'link'; sourceKey: string; linkedByUserId: string; patch: Record<string, unknown> }
+    | {
+        action: 'link';
+        sourceKey: string;
+        linkedByUserId: string;
+        patch: Record<string, unknown>;
+        expectedSource: CatalogSourceBindingExpectation;
+      }
     | { action: 'pin'; sourceKey: string; offerKey: string }
     | { action: 'reconcile'; sourceKey: string; patch: Record<string, unknown> }
     | {
         action: 'create-draft';
+        expectedSource: CatalogSourceBindingExpectation;
         sourceKey: string;
         expectedClaim: AlibabaProductLinkIdentity | null;
         draft: Record<string, unknown>;
@@ -76,6 +90,8 @@ export type AlibabaProductMutationResult =
       reason:
         | 'product-not-found'
         | 'source-not-found'
+        | 'source-not-ready'
+        | 'source-changed'
         | 'source-linked-elsewhere'
         | 'not-linked'
         | 'offer-not-found'
@@ -368,6 +384,7 @@ export async function runAlibabaProductMutation(
   const link = await transaction.get('alibabaProductLinks', input.sourceKey);
   const source = await transaction.get('alibabaSourceProducts', input.sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
+  if (source._id !== input.sourceKey) return { ok: false, reason: 'identity-conflict' };
   if (
     typeof source.connectionId !== 'string' ||
     source.connectionId.trim() === '' ||
@@ -398,6 +415,30 @@ export async function runAlibabaProductMutation(
   if (alreadyLinked && !input.expectedLinks.some((expected) => expected._id === input.sourceKey)) {
     return { ok: false, reason: 'identity-conflict' };
   }
+
+  let sourceFences: CollectionDoc[] = [];
+  if (input.action === 'link' || input.action === 'create-draft') {
+    const expected = CatalogSourceBindingExpectationSchema.safeParse(input.expectedSource);
+    if (!expected.success) return { ok: false, reason: 'invalid-patch' };
+    const observed = await transaction.get(
+      'catalogSourceObservations',
+      sourceObservationDocumentId('alibaba', input.sourceKey),
+    );
+    const snapshot = sourceBindingSnapshot(source, observed);
+    if (!snapshot.ok) return snapshot;
+    if (
+      snapshot.expectation.sourceHash !== expected.data.sourceHash ||
+      snapshot.expectation.observationHash !== expected.data.observationHash
+    )
+      return { ok: false, reason: 'source-changed' };
+    if (!alreadyLinked || primary !== input.sourceKey)
+      sourceFences = [advanceSourceBindingFence(source), advanceSourceBindingFence(snapshot.row)];
+  }
+  const writeSourceFences = async () => {
+    const [sourceFence, observationFence] = sourceFences;
+    if (sourceFence) await transaction.set('alibabaSourceProducts', sourceFence);
+    if (observationFence) await transaction.set('catalogSourceObservations', observationFence);
+  };
 
   if (input.action === 'create-draft') {
     if (product && primary !== input.sourceKey) return { ok: false, reason: 'identity-conflict' };
@@ -438,6 +479,7 @@ export async function runAlibabaProductMutation(
           createdAt: input.now,
           updatedAt: input.now,
         };
+    await writeSourceFences();
     await writeProduct(nextProduct);
     if (!alreadyLinked)
       await transaction.set('alibabaProductLinks', {
@@ -596,6 +638,7 @@ export async function runAlibabaProductMutation(
   } else {
     if (!alreadyLinked && observedLinks.length === ALIBABA_PRODUCT_LINK_LIMIT)
       return { ok: false, reason: 'link-limit' };
+    await writeSourceFences();
     await transaction.set('alibabaProductLinks', {
       ...link,
       _id: input.sourceKey,

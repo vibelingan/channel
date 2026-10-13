@@ -649,23 +649,23 @@ export async function mutateAlibabaProductInCloud(
   db: AlibabaProductCloudDatabase,
   input: AlibabaProductMutationInput,
 ): Promise<AlibabaProductMutationResult> {
-  const result = await db.collection('alibabaProductLinks')
-    .where({ productId: input.productId }).limit(ALIBABA_PRODUCT_LINK_LIMIT + 1).get();
+  const result = sdkAnswer(await db.collection('alibabaProductLinks')
+    .where({ productId: input.productId }).limit(ALIBABA_PRODUCT_LINK_LIMIT + 1).get());
   if (!Array.isArray(result.data) || result.data.some((row) => !row || typeof row !== 'object' || typeof row._id !== 'string')) {
     throw new Error('Alibaba link query was not acknowledged');
   }
   const links = result.data as CollectionDoc[];
   return db.runTransaction((transaction) => runAlibabaProductMutation({
-    get: async (collection, id) => normalizeSingle((await transaction.collection(collection).doc(id).get()).data),
+    get: async (collection, id) => normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
     set: async (collection, row) => {
       const { _id, ...data } = row;
-      const acknowledgement = await transaction.collection(collection).doc(_id).set(data);
+      const acknowledgement = sdkAnswer(await transaction.collection(collection).doc(_id).set(data));
       if (acknowledgement.updated !== 1 && !acknowledgement.upserted?.some((entry) => entry._id === _id)) {
         throw new Error('Alibaba product write was not acknowledged');
       }
     },
     remove: async (collection, id) => {
-      const acknowledgement = await transaction.collection(collection).doc(id).remove();
+      const acknowledgement = sdkAnswer(await transaction.collection(collection).doc(id).remove());
       if (acknowledgement.deleted !== 1) throw new Error('Alibaba link removal was not acknowledged');
     },
   }, links, input));

@@ -19,6 +19,7 @@ import { publicDoc } from '../../public-api/src/handler.ts';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 import { handleAlibabaSyncRequest } from './handler.ts';
 import { planProductPricingRepair, repairMissingSourcePricing } from './pricing-repair.ts';
+import { sourceObservationFixture } from './testing/source-observation-fixture.ts';
 
 async function linked(
   db: JsonFileAdapter,
@@ -85,6 +86,12 @@ async function fixture(t: TestContext, sourceProductIds = ['g2']) {
         syncedAt: '2026-09-03T00:00:00.000Z',
       },
     });
+    const source = await db.get('alibabaSourceProducts', `source-${sourceProductId}`);
+    const offer = await db.get('alibabaSupplierOffers', `offer-${sourceProductId}`);
+    assert.ok(source);
+    assert.ok(offer);
+    const observation = sourceObservationFixture(source, [offer]);
+    await db.create('catalogSourceObservations', observation);
   }
   return db;
 }

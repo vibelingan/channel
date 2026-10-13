@@ -19,6 +19,7 @@ import {
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
 import { promoteLinkedProduct } from './promotion.ts';
+import { sourceObservationFixture } from './testing/source-observation-fixture.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -258,6 +259,10 @@ test('R1: promotion carries its original revision and exact complete link set', 
 for (const relink of [false, true]) {
   test(`R1: promotion cannot restore supplier fields after ${relink ? 'same-source relink' : 'unlink'}`, async () => {
     setup();
+    if (relink)
+      store.catalogSourceObservations = [
+        sourceObservationFixture(sourceDoc(), store.alibabaSupplierOffers ?? []),
+      ];
     let afterConcurrent: Store | undefined;
     adapter.beforeMutation = async () => {
       adapter.beforeMutation = undefined;

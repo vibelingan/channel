@@ -11,6 +11,10 @@ import type {
   AlibabaProductMutationInput,
   AlibabaProductMutationResult,
 } from '@vibelingan-channel/db/adapter';
+import {
+  advanceSourceBindingFence,
+  sourceBindingSnapshot,
+} from '@vibelingan-channel/db/catalog-source-binding';
 import * as cloudAdapters from '@vibelingan-channel/db/cloudbase';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { handleAlibabaSyncRequest } from '../../functions/alibaba-catalog-sync/src/handler.ts';
@@ -25,6 +29,7 @@ import {
   computeQuarantineCandidateHash,
   snapshotQuarantineCandidate,
 } from '../../functions/alibaba-catalog-sync/src/quarantine.ts';
+import { sourceObservationFixture } from '../../functions/alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 const NOW = '2026-09-15T10:00:00.000Z';
@@ -51,7 +56,7 @@ function linkFixture(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
 }
 
 function fixture(): Store {
-  return {
+  const store: Store = {
     products: [
       {
         _id: 'product',
@@ -96,6 +101,20 @@ function fixture(): Store {
       },
     ],
   };
+  store.catalogSourceObservations = store.alibabaSourceProducts.map((source) =>
+    sourceObservationFixture(source),
+  );
+  return store;
+}
+
+function bindingExpectation(store: Store, key: string) {
+  const source = store.alibabaSourceProducts.find((row) => row._id === key);
+  assert.ok(source);
+  const observation =
+    store.catalogSourceObservations?.find((row) => row.sourceProductKey === key) ?? null;
+  const snapshot = sourceBindingSnapshot(source, observation);
+  assert.ok(snapshot.ok);
+  return snapshot.expectation;
 }
 
 function unlinkInput(store: Store): AlibabaProductMutationInput {
@@ -124,6 +143,7 @@ function unlinkInput(store: Store): AlibabaProductMutationInput {
 function draftInput(claim: CollectionDoc | null = null): AlibabaProductMutationInput {
   return {
     action: 'create-draft',
+    expectedSource: bindingExpectation(fixture(), 'source-b'),
     productId: 'new-draft',
     sourceKey: 'source-b',
     expectedRevision: null,
@@ -170,6 +190,9 @@ function cloudHarness(initial = fixture()) {
   let state = structuredClone(initial);
   let failWrite = Number.POSITIVE_INFINITY;
   let beforeCommit = false;
+  let silentWrite = Number.POSITIVE_INFINITY;
+  let codedWrite = Number.POSITIVE_INFINITY;
+  const operations: string[] = [];
   let queue = Promise.resolve();
   const db: cloudAdapters.AlibabaProductCloudDatabase = {
     collection: (name) => ({
@@ -194,17 +217,21 @@ function cloudHarness(initial = fixture()) {
             doc: (id) => ({
               get: async () => {
                 assert.equal(writes, 0, 'all reads must precede writes');
+                operations.push(`get:${name}/${id}`);
                 return {
                   data: structuredClone((copy[name] ?? []).filter((row) => row._id === id)),
                 };
               },
               set: async (data) => {
                 assert.ok(!Object.hasOwn(data, '_id'));
+                operations.push(`set:${name}/${id}`);
                 copy[name] ??= [];
                 const index = copy[name].findIndex((row) => row._id === id);
                 if (index < 0) copy[name].push({ ...data, _id: id });
                 else copy[name][index] = { ...data, _id: id };
                 if (++writes === failWrite) throw new Error('injected write failure');
+                if (writes === silentWrite) return { updated: 0 };
+                if (writes === codedWrite) return { code: 'DATABASE_REQUEST_FAILED', updated: 1 };
                 return index < 0 ? { upserted: [{ _id: id }] } : { updated: 1 };
               },
               remove: async () => {
@@ -233,6 +260,13 @@ function cloudHarness(initial = fixture()) {
     read: () => structuredClone(state),
     fail: (at: number) => {
       failWrite = at;
+    },
+    operations,
+    silent: (at: number) => {
+      silentWrite = at;
+    },
+    coded: (at: number) => {
+      codedWrite = at;
     },
     failCommit: () => {
       beforeCommit = true;
@@ -282,6 +316,7 @@ for (const backend of ['local', 'cloud'] as const) {
         await harness.mutate({
           ...fresh,
           action: 'link',
+          expectedSource: bindingExpectation(fixture(), 'source-a'),
           sourceKey: 'source-a',
           linkedByUserId: 'admin',
           patch: {},
@@ -318,6 +353,7 @@ for (const backend of ['local', 'cloud'] as const) {
       harness.mutate({
         ...expected,
         action: 'link',
+        expectedSource: bindingExpectation(fixture(), 'source-b'),
         sourceKey: 'source-b',
         linkedByUserId: 'admin',
         patch: {},
@@ -396,6 +432,7 @@ for (const backend of ['local', 'cloud'] as const) {
     const result = await harness.mutate({
       ...unlinkInput(initial),
       action: 'link',
+      expectedSource: bindingExpectation(fixture(), 'source-b'),
       sourceKey: 'source-b',
       linkedByUserId: 'admin',
       patch: { alibabaSourceImageUrls: ['new-supplier-image'] },
@@ -785,10 +822,10 @@ test('local: API distinguishes mutation conflicts from missing products', async 
 });
 
 test('cloud: failed draft writes and commit never leave an orphan claim', async () => {
-  for (const at of [1, 2, 3]) {
+  for (const at of [1, 2, 3, 4, 5]) {
     const initial = fixture();
     const harness = cloudHarness(initial);
-    if (at === 3) harness.failCommit();
+    if (at === 5) harness.failCommit();
     else harness.fail(at);
     await assert.rejects(harness.mutate(draftInput()), /injected (write|commit) failure/);
     assert.deepEqual(harness.read(), initial);
@@ -863,6 +900,7 @@ test('local: a concurrent relink wins over stale draft repair, reconciliation an
             await mutate({
               ...unlinkInput(harness.read()),
               action: 'link',
+              expectedSource: bindingExpectation(fixture(), 'source-b'),
               sourceKey: 'source-b',
               linkedByUserId: 'admin',
               patch: {},
@@ -931,3 +969,206 @@ test('local: failed atomic rename preserves disk and memory, then retry succeeds
     null,
   );
 });
+
+for (const failure of ['silent', 'coded'] as const)
+  test(`cloud: every source binding write rejects ${failure} acknowledgement and rolls back`, async () => {
+    for (const at of [1, 2, 3, 4]) {
+      const initial = fixture();
+      const harness = cloudHarness(initial);
+      harness[failure](at);
+      await assert.rejects(harness.mutate(draftInput()), (error) => {
+        assert.ok(error instanceof Error);
+        if (failure === 'coded')
+          assert.equal(Reflect.get(error, 'code'), 'DATABASE_REQUEST_FAILED');
+        else assert.match(error.message, /not acknowledged|not confirmed/);
+        return true;
+      });
+      assert.deepEqual(harness.read(), initial);
+    }
+  });
+
+test('cloud: new binding writes both source fences within a bounded transaction', async () => {
+  const harness = cloudHarness();
+  assert.equal((await harness.mutate(draftInput())).ok, true);
+  const state = harness.read();
+  assert.equal(
+    state.alibabaSourceProducts.find((row) => row._id === 'source-b')?.catalogBindingGeneration,
+    1,
+  );
+  assert.equal(
+    state.catalogSourceObservations?.find((row) => row.sourceProductKey === 'source-b')
+      ?.catalogBindingGeneration,
+    1,
+  );
+  assert.deepEqual(
+    harness.operations.filter((op) => op.startsWith('set:')),
+    [
+      'set:alibabaSourceProducts/source-b',
+      `set:catalogSourceObservations/${state.catalogSourceObservations?.find((row) => row.sourceProductKey === 'source-b')?._id}`,
+      'set:products/new-draft',
+      'set:alibabaProductLinks/source-b',
+    ],
+  );
+  assert.equal(harness.operations.length, 8);
+});
+
+test('source binding snapshot rejects malformed, incomplete or mismatched observations', () => {
+  const store = fixture();
+  const source = store.alibabaSourceProducts[0];
+  assert.ok(source);
+  const row = store.catalogSourceObservations?.[0];
+  assert.ok(row);
+  const good = sourceBindingSnapshot(source, row);
+  assert.ok(good.ok);
+  const mismatches = [
+    null,
+    { ...row, _id: 'wrong-document' },
+    { ...row, provider: 'dianxiaomi' },
+    { ...row, sourceProductKey: 'wrong-source' },
+    { ...row, observation: {} },
+    {
+      ...row,
+      observation: {
+        ...good.observation,
+        source: { ...good.observation.source, completeness: 'summary' },
+      },
+    },
+    {
+      ...row,
+      observation: {
+        ...good.observation,
+        source: { ...good.observation.source, sourceProductKey: 'other' },
+      },
+    },
+    {
+      ...row,
+      observation: {
+        ...good.observation,
+        source: { ...good.observation.source, externalProductId: 'other' },
+      },
+    },
+  ];
+  for (const mismatch of mismatches)
+    assert.deepEqual(sourceBindingSnapshot(source, mismatch), {
+      ok: false,
+      reason: 'source-not-ready',
+    });
+});
+
+test('source binding hashes exclude capture and binding metadata, retain business changes', () => {
+  const store = fixture();
+  const source = store.alibabaSourceProducts[0];
+  const row = store.catalogSourceObservations?.[0];
+  assert.ok(source && row);
+  const original = sourceBindingSnapshot(source, row);
+  assert.ok(original.ok);
+  const recapture = sourceBindingSnapshot(
+    { ...source, payloadId: 'new-raw', updatedAt: NOW, catalogBindingGeneration: 9 },
+    {
+      ...row,
+      catalogBindingGeneration: 10,
+      observation: {
+        ...original.observation,
+        source: { ...original.observation.source, observedAt: NOW },
+        evidence: [{ kind: 'raw-payload', evidenceId: 'new-raw' }],
+      },
+    },
+  );
+  assert.ok(recapture.ok);
+  assert.deepEqual(recapture.expectation, original.expectation);
+  const changed = sourceBindingSnapshot({ ...source, sourceTitle: 'Changed title' }, row);
+  assert.ok(changed.ok);
+  assert.notEqual(changed.expectation.sourceHash, original.expectation.sourceHash);
+});
+
+for (const invalid of [-1, 1.5, '1', Number.MAX_SAFE_INTEGER, Number.NaN])
+  test(`source binding rejects corrupt fence (${String(invalid)})`, () => {
+    assert.throws(
+      () => advanceSourceBindingFence({ _id: 'x', catalogBindingGeneration: invalid }),
+      /invalid or exhausted/,
+    );
+  });
+
+for (const sourceFirst of [false, true])
+  test(`two actual JSON adapters serialize first binding and source update (sourceFirst=${sourceFirst})`, async (context) => {
+    const initial = fixture();
+    const harness = localHarness(context, initial);
+    const writer = new JsonFileAdapter(harness.file);
+    const row = initial.catalogSourceObservations?.find(
+      (row) => row.sourceProductKey === 'source-b',
+    );
+    const source = initial.alibabaSourceProducts.find((row) => row._id === 'source-b');
+    assert.ok(source && row);
+    const snapshot = sourceBindingSnapshot(source, row);
+    assert.ok(snapshot.ok);
+    const update = () =>
+      writer.upsertCatalogSourceObservation(
+        row._id,
+        {
+          ...row,
+          observation: {
+            ...snapshot.observation,
+            identity: { ...snapshot.observation.identity, title: 'Changed before commit' },
+          },
+        },
+        {},
+      );
+    const bind = () => harness.adapter.mutateAlibabaProduct(draftInput());
+    const results = await Promise.all(sourceFirst ? [update(), bind()] : [bind(), update()]);
+    const bound = results[sourceFirst ? 1 : 0];
+    assert.ok(bound && typeof bound === 'object' && 'ok' in bound);
+    assert.equal(bound.ok, !sourceFirst);
+    const saved = harness.read();
+    const draft = saved.products.find((row) => row._id === 'new-draft');
+    if (sourceFirst) {
+      assert.deepEqual(bound, { ok: false, reason: 'source-changed' });
+      assert.equal(draft, undefined);
+      assert.equal(
+        saved.alibabaProductLinks.some((row) => row.sourceKey === 'source-b'),
+        false,
+      );
+    } else {
+      assert.ok(draft);
+      assert.equal(draft.catalogContentGeneration, 1);
+      assert.equal(draft.detailSourceReady, false);
+      assert.equal(draft.published, false);
+    }
+  });
+
+for (const backend of ['local', 'cloud'] as const)
+  test(`${backend}: promoting an existing secondary binding fences both source records`, async (context) => {
+    const initial = fixture();
+    initial.alibabaProductLinks.push(
+      linkFixture({ _id: 'source-b', sourceKey: 'source-b', sourceProductId: 'external-b' }),
+    );
+    const local = backend === 'local' ? localHarness(context, initial) : null;
+    const cloud = backend === 'cloud' ? cloudHarness(initial) : null;
+    const mutate = local
+      ? (input: AlibabaProductMutationInput) => local.adapter.mutateAlibabaProduct(input)
+      : cloud?.mutate;
+    assert.ok(mutate);
+    assert.equal(
+      (
+        await mutate({
+          ...unlinkInput(initial),
+          action: 'link',
+          sourceKey: 'source-b',
+          linkedByUserId: 'admin',
+          patch: {},
+          expectedSource: bindingExpectation(initial, 'source-b'),
+        })
+      ).ok,
+      true,
+    );
+    const state = local ? local.read() : cloud?.read();
+    assert.ok(state);
+    assert.equal(
+      state.alibabaSourceProducts.find((row) => row._id === 'source-b')?.catalogBindingGeneration,
+      1,
+    );
+    assert.equal(
+      state.catalogSourceObservations?.find((row) => row.sourceProductKey === 'source-b')
+        ?.catalogBindingGeneration,
+      1,
+    );
+  });

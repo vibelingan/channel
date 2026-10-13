@@ -15,12 +15,17 @@ import {
 } from '@vibelingan-channel/shared';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 import { createDraftForSource, draftProductId } from './linking.ts';
+import { sourceObservationFixture } from './testing/source-observation-fixture.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
   private mutationQueue = Promise.resolve();
-  constructor(readonly store: Store) {}
+  constructor(readonly store: Store) {
+    store.catalogSourceObservations ??= (store.alibabaSourceProducts ?? []).map((source) =>
+      sourceObservationFixture(source, store.alibabaSupplierOffers ?? []),
+    );
+  }
   async mutateAlibabaProduct(
     input: AlibabaProductMutationInput,
   ): Promise<AlibabaProductMutationResult> {

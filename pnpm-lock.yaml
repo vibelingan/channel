@@ -450,6 +450,9 @@ importers:
       '@cloudbase/node-sdk':
         specifier: 3.17.2
         version: 3.17.2
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../catalog-import
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../shared

@@ -274,3 +274,28 @@ for (const parent of parents) await tx.set('products', invalidate(parent));
 
 - 提交后两个互斥竞争补测与全套相关回归合计 903 passed / 0 failed / 0 skipped；local-server tsc 初次发现新增测试的两处不可达 reason 分支。该条先前把 tsc 提前记为通过，现已更正，待修正后重新验证。只新增测试和记录，运行时代码与已通过最终 150 项浏览器/SDK gate 的版本逐字一致。
 - 类型更正后重新执行：local-server tsc 退出 0，相关回归仍为 903 passed / 0 failed / 0 skipped；Biome 退出 0。原因是 assert.equal 已把 status 收窄为 fulfilled，随后读取不可能 rejected 分支的 reason 被 TypeScript 正确拒绝；去掉重复的 assert，保留显式拒绝分支及业务结果断言。证据 p2c1-postreview-final-tsc.log / p2c1-postreview-final-regression-r2.log。
+
+## P2c2：来源版本绑定与新绑定窗口（2026-10-14，红测）
+
+当前 linking/create-draft 在事务外读取来源、生成 patch，事务内仅检查产品 link revision 和来源身份，未比较生成 patch 的来源版本。6 项实际 server linking + transaction body 交错回归已先红：link/create-draft × source/observation 改变四项，缺完整 observation 两项；旧代码仍写入过期 patch 或 fallback 草稿。测试 fixture 的 observation 改为每次 clone，避免修改共享常量污染其他用例。
+
+数据边界：冻结实际采用的 normalized source 语义 hash 和完整 observation 语义 digest；捕获时间/无关审计字段不因自己变化而造成假冲突。新绑定需完整有效 observation；镜像来源仍保留，可定向 resync。缺来源不是 linked-elsewhere。
+
+实现方向：db 复用 catalog-import 的真实 observation 校验及 sourceObservationDocumentId，不复制第二份近似 schema/ID 算法；workspace 依赖先核对无环。事务内重读来源和 observation 比较冻结版本，先读后写；新绑定写同一 source/observation fence，与 sync/replay 竞争同一记录。已绑定变更仍与 source invalidation 竞争同 products 写，不加入逐件全局 lease/taxonomy 写锁。source+observation 的半写入一致性也需检验，不能将“两个 hash 各自没变”当作同一次完整捕获的证明。
+
+P2c1 最终 SHA 6cafe7c 已完成 inline review 与 SDK gate；P2c2 的执行记录如下，尚未部署。
+
+
+### P2c2a：新绑定输入与事务写入防护（本地子单元）
+
+- link/create-draft 冻结规范镜像和完整 observation 的业务 hash；事务内重读身份与完整契约，来源变更返回 source-changed，缺失/错身份/不完整返回 source-not-ready，不再错报已绑定别处。复用 catalog-import 的真实 decoder/ID 算法；新增 workspace 依赖无环，离线安装仅增加本地链接。
+- 首次 claim、旧空 claim 修复、次要来源改主来源均在同一事务写两条 per-source catalogBindingGeneration，再写产品/link；已是同一主来源则沿既有产品争用。无逐件全局锁。所有读取先于写入；新 draft 是 4 读 4 写，最大 40 links 的既有界限保留。
+- review 抓到两个边界并修正：同 sourceKey 但 externalProductId 错误也拒绝；已存在次要 link 不能因此跳过主来源切换的两条来源防护写。Cloud 桥复用 sdkAnswer 保留编码错误，不把编码失败当缺失或成功 ACK。
+- 先红后绿：原 6 项过期/缺 observation 反例；次要转主来源两适配层反例；Cloud 四次 set 的 throw/zero/coded ACK 及提交失败均回滚全部行。实际双 JSON adapter 两种先后次序验证来源先写则不建 product/link，绑定先写则后续来源使 generation +1、ready=false、仍未发布。新对象 generation 起点为 0，未把它错算为 1。
+- 最终相关回归 977 passed / 0 failed / 0 skipped；db/sync/admin/local/public 五模块 tsc 通过，扩大夹具后 local tsc 再通过。13 个修改代码/JSON 文件的 Biome 分批通过，Cloud 沿既有 ignore 规则仅人工审查修改桥接、配合类型/行为/SDK 验证。完整 SDK gate 通过；17 个语义 SDK/schema 表面与落盘 probe 行机械关联。
+- 两项独立 mutation：移除 observation fence 导致 3 项指定测试失败；移除来源版本比较导致 4 项指定测试失败。finally 恢复后 977 再通过。首轮从错误 cwd 启动/修改失败的日志未计入红测或通过证据；实际有效证据均是后续正确路径执行。
+- 生产构建本地浏览器完整串联 150 passed（41 public、90 catalog、10 formal、8 visibility、1 taxonomy），覆盖完整 raw-derived 来源、三件时钟原始属性、20 件分类发布/审批/公开回读/Disable、分类和引用计数恢复；owned DB/services 清理成功。该结果不是云端 20 件验收。
+- 扩大到所有 local-server 测试曾得到 212 项中 191 passed / 21 failed。分类夹具缺 observation、分类版本新增断言、人工价格编辑后缺 prepare 步骤已修正，相关 10 项通过。旧 UI-02 演练工具通过普通 CRUD 写 sourceReady，被版本保护拒绝，仍需迁移到受保护的准备通道；不放宽普通写入来消除失败。本单元不把全 local-server、全构建或发布门槛写为通过。
+- 后续 P2c2b 必须处理镜像与 observation 半写入一致性、normalized-source 全部写入失效、reconcile/promote 的冻结输入；P1/P2/P3/P4/P5/P6/P7 的其余门槛按计划继续。真实 vendor snapshot/lease 交错仍未验证，不由内存/JSON 测试替代。
+
+文字核对：复核 linking.ts、catalog-source-binding.ts、identity/cloud bridge、测试夹具和本日志；将“source 不存在是 linked-elsewhere”改为明确缺失/未准备/版本改变，保持权限、分类、published、完整原值和本地/云端证据边界。未增加未来属性筛选 mapping 功能。

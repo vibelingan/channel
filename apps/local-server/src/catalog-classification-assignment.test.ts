@@ -103,6 +103,7 @@ test('authenticated assignment persists two children in all four families withou
     assert.deepEqual(saved, {
       ...product,
       subcategoryIds: [`${family}-first`, `${family}-second`],
+      catalogClassificationRevision: 1,
       updatedAt: saved.updatedAt,
     });
   }

@@ -1,7 +1,10 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
-import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
+import {
+  sourceObservationDocumentId,
+  validateCatalogSourceObservation,
+} from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
 import * as repository from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
@@ -269,7 +272,7 @@ function setup(extra: Store = {}): Store {
         archived: false,
       } as CollectionDoc,
     ],
-    catalogSourceObservations: [SOURCE_OBSERVATION],
+    catalogSourceObservations: [structuredClone(SOURCE_OBSERVATION)],
     ...extra,
   };
   adapter = new MemoryAdapter(store);
@@ -746,3 +749,57 @@ test('draft retry never reopens a product an admin already reviewed', async () =
   assert.equal(product.alibabaReviewedAt, NOW);
   assert.equal(product.alibabaReviewedByUserId, 'admin-1');
 });
+
+for (const action of ['link', 'create-draft'] as const) {
+  for (const changed of ['source', 'observation'] as const) {
+    test(`${action} refuses mapping inputs changed after reading ${changed}`, async () => {
+      setup();
+      const beforeProducts = structuredClone(store.products);
+      adapter.beforeMutation = async () => {
+        if (changed === 'source') {
+          const source = store.alibabaSourceProducts?.[0];
+          assert.ok(source);
+          source.sourceImageUrls = ['https://sc04.alicdn.com/new-source.jpg'];
+        } else {
+          const row = store.catalogSourceObservations?.[0];
+          assert.ok(row);
+          const parsed = validateCatalogSourceObservation(SOURCE_OBSERVATION.observation);
+          assert.ok(parsed.ok);
+          row.observation = {
+            ...parsed.value,
+            content: {
+              description: {
+                text: 'New observed description',
+                imageUrls: ['https://sc04.alicdn.com/new-description.jpg'],
+                placeholder: false,
+                sanitized: true,
+                provenance: 'provider-description',
+              },
+              media: [],
+            },
+          };
+        }
+      };
+      const result =
+        action === 'link'
+          ? await linkExistingProduct(SOURCE_KEY, 'p-1', { now: NOW, userId: 'admin' })
+          : await createDraftForSource(SOURCE_KEY, { now: NOW });
+      assert.deepEqual(result, { ok: false, reason: 'source-changed' });
+      assert.deepEqual(store.products, beforeProducts, 'stale input writes no product');
+      assert.equal((store.alibabaProductLinks ?? []).length, 0, 'stale input claims no source');
+    });
+  }
+}
+
+for (const action of ['link', 'create-draft'] as const)
+  test(`${action} does not materialize an unvalidated missing observation`, async () => {
+    setup({ catalogSourceObservations: [] });
+    const before = structuredClone(store.products);
+    const result =
+      action === 'link'
+        ? await linkExistingProduct(SOURCE_KEY, 'p-1', { now: NOW, userId: 'admin' })
+        : await createDraftForSource(SOURCE_KEY, { now: NOW });
+    assert.deepEqual(result, { ok: false, reason: 'source-not-ready' });
+    assert.deepEqual(store.products, before);
+    assert.equal((store.alibabaProductLinks ?? []).length, 0);
+  });

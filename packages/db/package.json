@@ -19,7 +19,8 @@
     "./cloudbase": "./src/cloudbase-adapter.ts",
     "./catalog-source-invalidation": "./src/catalog-source-invalidation.ts",
     "./catalog-product-state": "./src/catalog-product-state.ts",
-    "./catalog-row-mutation": "./src/catalog-row-mutation.ts"
+    "./catalog-row-mutation": "./src/catalog-row-mutation.ts",
+    "./catalog-source-binding": "./src/catalog-source-binding.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "@cloudbase/node-sdk": "3.17.2",
+    "@vibelingan-channel/catalog-import": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",
     "wx-server-sdk": "4.0.2",
     "zod": "^3.24.1"

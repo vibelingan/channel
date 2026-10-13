@@ -7,7 +7,9 @@ import test from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import { setAdapter } from '@vibelingan-channel/db';
 import { z } from 'zod';
+import { prepareCatalogSource } from '../../functions/admin/src/catalog-detail-source.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
+import { sourceObservationFixture } from '../../functions/alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import { getProductDetail } from '../../functions/public-api/src/catalog-detail.ts';
 import { publicItem } from '../../functions/public-api/src/handler.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -47,10 +49,34 @@ test('manual price patches cannot leave published list and approved detail on di
       ],
     },
   };
+  const source = {
+    _id: 'source',
+    sourceProductId: 'external-source',
+    connectionId: 'test',
+    sourceTitle: 'Source headset',
+    active: true,
+  };
+  const observation = sourceObservationFixture(source, [
+    {
+      _id: 'offer',
+      sourceKey: 'source',
+      active: true,
+      pricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 290,
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    },
+  ]);
   writeFileSync(
     file,
     JSON.stringify({
       products: [product],
+      alibabaSourceProducts: [source],
+      catalogSourceObservations: [observation],
       users: [{ _id: 'admin', role: 'admin', status: 'active' }],
       images: [
         {
@@ -82,6 +108,11 @@ test('manual price patches cannot leave published list and approved detail on di
       config,
     );
   const approve = async () => {
+    const prepared = await prepareCatalogSource('admin', {
+      action: 'prepare',
+      productId: 'headset',
+    });
+    assert.ok(prepared.ok, JSON.stringify(prepared));
     const call = (data: unknown) =>
       handleAdminRequest({ action: 'catalogDetailApproval', token, data }, config);
     const review = await call({ action: 'review', productId: 'headset' });
