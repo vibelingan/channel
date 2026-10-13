@@ -207,6 +207,9 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     [...variants],
     structured.content ?? null,
     structured.noteBlocks ?? null,
+    ...(product.catalogContentGeneration === undefined
+      ? []
+      : ['content-generation', product.catalogContentGeneration]),
   ]);
   const sourcePage = SourcePageSchema.safeParse({
     action: 'source-page',
@@ -215,6 +218,9 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     observationId,
     observationDigest,
     galleryDigest,
+    ...(product.catalogContentGeneration == null
+      ? {}
+      : { contentGeneration: product.catalogContentGeneration }),
     revision,
     header,
     content: structured.content ?? null,

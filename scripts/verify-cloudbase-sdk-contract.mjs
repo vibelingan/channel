@@ -593,7 +593,7 @@ requireCheck(
   const writeSites = [
     /\.update\(\{ data: replaceNestedObjects\(patch, db\.command\) \}\)/,
     /await ref\.update\(replaceNestedObjects\(merged, db\.command\)\)/,
-    /await targetRef\.update\(replaceNestedObjects\(/,
+    /await targetRef\.update\(\s*replaceNestedObjects\(/,
   ];
   requireCheck(
     writeSites.every((pattern) => pattern.test(adapterSource)),
@@ -846,7 +846,6 @@ for (const method of [
   'acquireAlibabaSyncLease',
   'renewAlibabaSyncLease',
   'releaseAlibabaSyncLease',
-  'updateDocWithAlibabaLease',
   'createDocWithId',
   'upsertDocWithId',
 ]) {
@@ -896,72 +895,85 @@ requireCheck(
     ].every((name) => productTransactionCalls.includes(name)),
   'db cloudbase catalog save plans and writes product identities inside one transaction callback',
 );
-requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
-    'holdsAlibabaLease',
-  ) &&
-    objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
+function transactionFunctionCalls(name) {
+  const declaration = adapterAst.statements.find(
+    (node) => typescript.isFunctionDeclaration(node) && node.name?.text === name,
+  );
+  if (!declaration?.body) throw new Error(`Missing production transaction helper: ${name}`);
+  const calls = [];
+  const inspect = (node) => {
+    if (
+      typescript.isCallExpression(node) &&
+      node.expression.getText(adapterAst) === 'db.runTransaction'
+    ) {
+      const callback = node.arguments[0];
+      if (
+        callback &&
+        (typescript.isArrowFunction(callback) || typescript.isFunctionExpression(callback))
+      ) {
+        const collect = (child) => {
+          if (typescript.isCallExpression(child)) calls.push(child.expression.getText(adapterAst));
+          typescript.forEachChild(child, collect);
+        };
+        collect(callback.body);
+      }
+    }
+    typescript.forEachChild(node, inspect);
+  };
+  inspect(declaration.body);
+  return calls;
+}
+
+for (const [method, helper, required] of [
+  [
+    'updateDocWithAlibabaLease',
+    'updateDocWithAlibabaLeaseInCloudBase',
+    [
+      'transaction.collection',
+      'holdsAlibabaLease',
+      'target.get',
+      'target.update',
       'replaceNestedObjects',
-    ),
-  'db cloudbase updateDocWithAlibabaLease re-verifies the fence and replaces nested fields',
-);
-requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'upsertDocWithAlibabaLease').includes(
+      'sourceInvalidation',
+      'writeInvalidatedProduct',
+    ],
+  ],
+  [
+    'upsertDocWithAlibabaLease',
     'upsertDocWithAlibabaLeaseInCloudBase',
-  ),
-  'db cloudbase upsertDocWithAlibabaLease delegates to the takeover-tested production helper',
-);
-const fencedUpsertStart = cloudbaseAdapter.indexOf(
-  'export async function upsertDocWithAlibabaLeaseInCloudBase',
-);
-const fencedUpsertEnd = cloudbaseAdapter.indexOf(
-  'export const cloudBaseAdapter',
-  fencedUpsertStart,
-);
-const fencedUpsert =
-  fencedUpsertStart >= 0 && fencedUpsertEnd > fencedUpsertStart
-    ? cloudbaseAdapter.slice(fencedUpsertStart, fencedUpsertEnd)
-    : '';
-requireCheck(
-  containsAll(fencedUpsert, [
-    'db.runTransaction',
-    'leaseRef.get',
-    'holdsAlibabaLease',
-    'targetRef.get',
-    'replaceNestedObjects',
-    'targetRef.set',
-  ]),
-  'takeover-tested production fenced upsert reads lease and target inside one transaction',
-);
-requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes(
+    [
+      'transaction.collection',
+      'leaseRef.get',
+      'holdsAlibabaLease',
+      'targetRef.get',
+      'replaceNestedObjects',
+      'targetRef.set',
+      'sourceInvalidation',
+      'writeInvalidatedProduct',
+    ],
+  ],
+  [
+    'upsertCatalogSourceObservation',
     'upsertCatalogSourceObservationInCloudBase',
-  ),
-  'db cloudbase source observation upsert delegates to the behavior-tested production helper',
-);
-const observationUpsertStart = cloudbaseAdapter.indexOf(
-  'export async function upsertCatalogSourceObservationInCloudBase',
-);
-const observationUpsertEnd = cloudbaseAdapter.indexOf(
-  'export const cloudBaseAdapter',
-  observationUpsertStart,
-);
-const observationUpsert =
-  observationUpsertStart >= 0 && observationUpsertEnd > observationUpsertStart
-    ? cloudbaseAdapter.slice(observationUpsertStart, observationUpsertEnd)
-    : '';
-requireCheck(
-  containsAll(observationUpsert, [
-    'db.runTransaction',
-    'ref.get',
-    'Date.parse',
-    'previousAt',
-    'incomingAt',
-    'replaceNestedObjects',
-    'ref.set',
-  ]),
-  'behavior-tested production source observation helper compares recency and owns the transaction',
-);
+    [
+      'transaction.collection',
+      'ref.get',
+      'Date.parse',
+      'replaceNestedObjects',
+      'ref.set',
+      'sourceInvalidation',
+      'writeInvalidatedProduct',
+      'confirmSourceWrite',
+    ],
+  ],
+]) {
+  const calls = transactionFunctionCalls(helper);
+  requireCheck(
+    objectMethodCalls('cloudBaseAdapter', method).includes(helper) &&
+      required.every((name) => calls.includes(name)),
+    `db cloudbase ${method} delegates to its tested source/product transaction, with reads, guards and writes inside it`,
+  );
+}
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'claimAlibabaSyncRun').includes(
     'claimAlibabaSyncRunInCloudBase',

@@ -189,3 +189,14 @@ test('a spec edit between begin and finish is a conflict', async () => {
     { ok: false, code: 'CONFLICT' },
   );
 });
+
+for (const generation of [undefined, null, 0, 3]) {
+  test(`manual prepare binds the current generation ${generation} and discards an old source seal`, async () => {
+    const h = harness(
+      manualProduct({ catalogContentGeneration: generation, detailSourceContentGeneration: 99 }),
+    );
+    assert.equal((await h.prepare()).ok, true);
+    assert.equal(h.product().detailSourceContentGeneration ?? 0, generation ?? 0);
+    assert.equal(h.product().catalogContentGeneration, generation);
+  });
+}

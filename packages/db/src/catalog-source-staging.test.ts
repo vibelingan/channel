@@ -228,3 +228,64 @@ test('configuration photo choices are part of the gallery digest only when set (
     sourceGalleryDigest({ ...base, configurationPhotos: { v1: [] } }),
   );
 });
+
+test('a source page without the current content generation cannot restore an invalidated ready flag', async () => {
+  const observation = { value: 1 };
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    alibabaPrimarySourceKey: 'key',
+    imageIds: [],
+    catalogContentGeneration: 1,
+    detailSourceReady: false,
+  };
+  const store: Record<string, CollectionDoc> = {
+    'users/admin': { _id: 'admin', role: 'admin' },
+    'products/p': product,
+    'catalogSourceObservations/obs': { _id: 'obs', observation },
+  };
+  const writes: string[] = [];
+  const tx = {
+    get: async (collection: string, id: string) => store[`${collection}/${id}`] ?? null,
+    set: async (collection: string, row: CollectionDoc) => {
+      writes.push(collection);
+      store[`${collection}/${row._id}`] = row;
+    },
+  };
+  const input = SourcePageSchema.parse({
+    action: 'source-page',
+    productId: 'p',
+    sourceKey: 'key',
+    observationId: 'obs',
+    observationDigest: sourceDigest(observation),
+    galleryDigest: sourceGalleryDigest(product),
+    revision: 'a'.repeat(64),
+    header: {
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'p',
+      name: 'Clock',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+    content: null,
+    noteBlocks: null,
+    variantIds: [],
+    page: 0,
+    variants: [],
+  });
+  assert.deepEqual(await stageSourcePage(tx, 'admin', input), { ok: false, code: 'CONFLICT' });
+  assert.deepEqual(writes, []);
+  const current = SourcePageSchema.parse({ ...input, contentGeneration: 1 });
+  assert.equal((await stageSourcePage(tx, 'admin', current)).ok, true);
+  assert.equal(store['products/p']?.detailSourceContentGeneration, 1);
+  store['products/p'] = {
+    ...store['products/p'],
+    _id: 'p',
+    catalogContentGeneration: 2,
+    detailSourceReady: false,
+  };
+  writes.length = 0;
+  assert.deepEqual(await stageSourcePage(tx, 'admin', current), { ok: false, code: 'CONFLICT' });
+  assert.deepEqual(writes, []);
+});

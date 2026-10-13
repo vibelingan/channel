@@ -5,6 +5,7 @@ import {
   claimAlibabaSyncRunInCloudBase,
   preparingProductHiddenWhere,
   unclassifiedProductWhere,
+  updateDocWithAlibabaLeaseInCloudBase,
   upsertCatalogSourceObservationInCloudBase,
   upsertDocWithAlibabaLeaseInCloudBase,
   wxRemovedCount,
@@ -42,38 +43,86 @@ test('drafts waiting for photos are hidden explicitly, whether or not the field 
 });
 
 function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
-  const store = new Map(
-    Object.entries(initial).map(([collection, docs]) => [
-      collection,
-      new Map(docs.map((doc) => [doc._id, { ...doc }])),
+  const store = new Map<string, Map<string, CollectionDoc>>(
+    Object.entries(initial).map(([name, docs]) => [
+      name,
+      new Map(docs.map((doc) => [doc._id, structuredClone(doc)])),
     ]),
   );
-  const collection = (name: string) => ({
+  const controls = { failWrite: '', silentWrite: '', maximumOperations: 0 };
+  type Scope = typeof store;
+  const collection = (name: string, scope: Scope = store) => ({
     doc: (id: string) => ({
-      get: async () => ({ data: store.get(name)?.get(id) ?? null }),
+      get: async () => ({ data: structuredClone(scope.get(name)?.get(id) ?? null) }),
       update: async (patch: Record<string, unknown>) => {
-        const docs = store.get(name) ?? new Map<string, CollectionDoc>();
+        if (controls.failWrite === `${name}/${id}`) throw new Error('injected write failure');
+        if (controls.silentWrite === `${name}/${id}`) return { updated: 0 };
+        const docs = scope.get(name) ?? new Map<string, CollectionDoc>();
         const existing = docs.get(id);
-        if (existing) docs.set(id, { ...existing, ...patch });
-        store.set(name, docs);
-        return {};
+        if (!existing) return { updated: 0 };
+        docs.set(id, { ...existing, ...patch });
+        scope.set(name, docs);
+        return { updated: 1 };
       },
       set: async (data: Record<string, unknown>) => {
-        const docs = store.get(name) ?? new Map<string, CollectionDoc>();
+        if (controls.failWrite === `${name}/${id}`) throw new Error('injected write failure');
+        if (controls.silentWrite === `${name}/${id}`) return { updated: 0 };
+        const docs = scope.get(name) ?? new Map<string, CollectionDoc>();
+        const exists = docs.has(id);
         docs.set(id, { _id: id, ...data });
-        store.set(name, docs);
-        return {};
+        scope.set(name, docs);
+        return exists ? { updated: 1 } : { upserted: [{ _id: id }] };
       },
-      remove: async () => ({}),
+      remove: async () => ({ deleted: 1 }),
     }),
   });
   return {
     store,
+    controls,
     db: {
       command: { set: (value: unknown) => value },
       runTransaction: async <T>(
         operation: (transaction: { collection: typeof collection }) => Promise<T>,
-      ) => operation({ collection }),
+      ) => {
+        const copy = structuredClone(store);
+        let writing = false;
+        let operations = 0;
+        const trackedCollection = (name: string) => ({
+          doc: (id: string) => {
+            const ref = collection(name, copy).doc(id);
+            return {
+              get: async () => {
+                operations++;
+                assert.equal(writing, false, 'all transaction reads precede writes');
+                return ref.get();
+              },
+              update: async (data: Record<string, unknown>) => {
+                operations++;
+                writing = true;
+                return ref.update(data);
+              },
+              set: async (data: Record<string, unknown>) => {
+                operations++;
+                writing = true;
+                return ref.set(data);
+              },
+              remove: async () => {
+                operations++;
+                writing = true;
+                return ref.remove();
+              },
+            };
+          },
+        });
+        try {
+          const result = await operation({ collection: trackedCollection });
+          store.clear();
+          for (const [name, docs] of copy) store.set(name, docs);
+          return result;
+        } finally {
+          controls.maximumOperations = Math.max(controls.maximumOperations, operations);
+        }
+      },
     },
   };
 }
@@ -256,3 +305,142 @@ test('a wx-server-sdk delete reports its count under stats.removed, not deleted'
   assert.equal(wxRemovedCount({ deleted: 1 } as never), 0, 'node-sdk shape is not what wx returns');
   assert.equal(wxRemovedCount(undefined), 0);
 });
+
+for (const writer of ['fenced-upsert', 'generic-upsert'] as const) {
+  test(`source change atomically invalidates the linked preparation through ${writer}`, async () => {
+    const at = '2026-10-13T00:00:00.000Z';
+    const source = {
+      _id: 'observation',
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      active: true,
+      observedAt: at,
+      observation: {
+        source: { provider: 'alibaba', sourceProductKey: 'source-a', observedAt: at },
+        identity: { title: 'Before' },
+      },
+    };
+    const live = {
+      _id: 'product',
+      name: 'Website',
+      alibabaPrimarySourceKey: 'source-a',
+      detailSourceReady: true,
+      published: true,
+      productFamily: 'misc',
+      catalogDetailPublication: { revision: 'old-approved' },
+    };
+    const harness = fakeDatabase({
+      alibabaSyncLeases: [
+        {
+          _id: 'primary',
+          holder: 'holder',
+          fence: 1,
+          acquiredAt: at,
+          heartbeatAt: at,
+          expiresAt: '2026-10-13T00:03:00.000Z',
+          releasedAt: '',
+        },
+      ],
+      catalogSourceObservations: [source],
+      alibabaProductLinks: [{ _id: 'source-a', sourceKey: 'source-a', productId: 'product' }],
+      products: [live],
+    });
+    const patch = {
+      ...source,
+      observation: { ...source.observation, identity: { title: 'After' } },
+    };
+    if (writer === 'fenced-upsert')
+      await upsertDocWithAlibabaLeaseInCloudBase(
+        harness.db,
+        'catalogSourceObservations',
+        source._id,
+        patch,
+        {},
+        { connectionId: 'primary', holder: 'holder', fence: 1, now: at },
+      );
+    else await upsertCatalogSourceObservationInCloudBase(harness.db, source._id, patch, {}, at);
+    const product = harness.store.get('products')?.get('product');
+    assert.equal(product?.detailSourceReady, false);
+    assert.equal(product?.catalogContentGeneration, 1);
+    assert.equal(product?.published, true);
+    assert.equal(product?.productFamily, 'misc');
+    assert.deepEqual(product?.catalogDetailPublication, live.catalogDetailPublication);
+  });
+}
+
+for (const writer of ['fenced-upsert', 'generic-upsert', 'fenced-tombstone'] as const) {
+  for (const fault of [
+    'source-failure',
+    'product-failure',
+    'silent-source',
+    'silent-product',
+  ] as const) {
+    test(`source invalidation rolls back both documents: ${writer}/${fault}`, async () => {
+      const at = '2026-10-13T00:00:00.000Z';
+      const observation = {
+        _id: 'obs',
+        provider: 'alibaba',
+        sourceProductKey: 'key',
+        observedAt: at,
+        active: true,
+        observation: {
+          source: { provider: 'alibaba', sourceProductKey: 'key' },
+          identity: { title: 'Before' },
+        },
+      };
+      const harness = fakeDatabase({
+        alibabaSyncLeases: [
+          {
+            _id: 'primary',
+            holder: 'holder',
+            fence: 1,
+            acquiredAt: at,
+            heartbeatAt: at,
+            expiresAt: '2026-10-13T00:03:00.000Z',
+            releasedAt: '',
+          },
+        ],
+        catalogSourceObservations: [observation],
+        alibabaProductLinks: [{ _id: 'key', sourceKey: 'key', productId: 'p' }],
+        products: [
+          { _id: 'p', alibabaPrimarySourceKey: 'key', detailSourceReady: true, published: true },
+        ],
+      });
+      const before = structuredClone(harness.store);
+      const target = fault.includes('source') ? 'catalogSourceObservations/obs' : 'products/p';
+      if (fault.startsWith('silent')) harness.controls.silentWrite = target;
+      else harness.controls.failWrite = target;
+      const guard = { connectionId: 'primary', holder: 'holder', fence: 1, now: at };
+      const patch = {
+        ...observation,
+        observation: { ...observation.observation, identity: { title: 'After' } },
+      };
+      const write = () =>
+        writer === 'fenced-upsert'
+          ? upsertDocWithAlibabaLeaseInCloudBase(
+              harness.db,
+              'catalogSourceObservations',
+              'obs',
+              patch,
+              {},
+              guard,
+            )
+          : writer === 'fenced-tombstone'
+            ? updateDocWithAlibabaLeaseInCloudBase(
+                harness.db,
+                'catalogSourceObservations',
+                'obs',
+                { active: false },
+                guard,
+              )
+            : upsertCatalogSourceObservationInCloudBase(harness.db, 'obs', patch, {}, at);
+      await assert.rejects(write(), /write failure|not confirmed/);
+      assert.deepEqual(harness.store, before);
+      harness.controls.failWrite = '';
+      harness.controls.silentWrite = '';
+      await write();
+      assert.equal(harness.store.get('products')?.get('p')?.detailSourceReady, false);
+      assert.ok(harness.controls.maximumOperations <= 6);
+    });
+  }
+}

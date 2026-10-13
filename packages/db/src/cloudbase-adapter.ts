@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { planSourceInvalidation } from './catalog-source-invalidation.ts';
+import { sdkAnswer } from './cloudbase-sdk-answer.ts';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
@@ -360,6 +363,48 @@ function normalizeSingle(raw: unknown): CollectionDoc | null {
     : null;
 }
 
+async function sourceInvalidation(
+  transaction: NodeSdkTransaction,
+  before: CollectionDoc | null,
+  next: CollectionDoc,
+  now: string,
+) {
+  return planSourceInvalidation(
+    {
+      get: async (collection, id) =>
+        normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+    },
+    before,
+    next,
+    now,
+  );
+}
+
+function confirmSourceWrite(answer: unknown, id: string): void {
+  const result = sdkAnswer(answer);
+  if (result && typeof result === 'object') {
+    const upserted = Reflect.get(result, 'upserted');
+    if (
+      Reflect.get(result, 'updated') === 1 ||
+      (Array.isArray(upserted) &&
+        upserted.some(
+          (row: unknown) => row && typeof row === 'object' && Reflect.get(row, '_id') === id,
+        ))
+    )
+      return;
+  }
+  throw new Error('Source invalidation write was not confirmed');
+}
+
+async function writeInvalidatedProduct(
+  transaction: NodeSdkTransaction,
+  product: CollectionDoc | null,
+) {
+  if (!product) return;
+  const { _id, ...data } = product;
+  confirmSourceWrite(await transaction.collection('products').doc(_id).set(data), _id);
+}
+
 /** Exported for a production-path takeover test; the live adapter calls this exact function. */
 export async function upsertDocWithAlibabaLeaseInCloudBase(
   db: NodeSdkDatabase,
@@ -371,27 +416,66 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
 ): Promise<boolean> {
   return db.runTransaction(async (transaction: NodeSdkTransaction) => {
     const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
-    const lease = normalizeSingle((await leaseRef.get()).data);
+    const lease = normalizeSingle(sdkAnswer(await leaseRef.get()).data);
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
-
     const targetRef = transaction.collection(collection).doc(id);
-    const existing = normalizeSingle((await targetRef.get()).data);
+    const existing = normalizeSingle(sdkAnswer(await targetRef.get()).data);
     const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
-    if (existing) {
-      await targetRef.update(
-        replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
-      );
-      return true;
-    }
     const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
       _id?: unknown;
     };
-    await targetRef.set({
-      ...safeCreateOnly,
-      ...safePatch,
-      createdAt: guard.now,
-      updatedAt: guard.now,
-    });
+    const next: CollectionDoc = existing
+      ? { ...existing, ...safePatch, updatedAt: guard.now }
+      : { ...safeCreateOnly, ...safePatch, _id: id, createdAt: guard.now, updatedAt: guard.now };
+    const invalidated =
+      collection === 'catalogSourceObservations'
+        ? await sourceInvalidation(transaction, existing, next, guard.now)
+        : null;
+    if (!isDeepStrictEqual(existing, next)) {
+      const answer = existing
+        ? await targetRef.update(
+            replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
+          )
+        : await targetRef.set(
+            Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')),
+          );
+      if (collection === 'catalogSourceObservations') confirmSourceWrite(answer, id);
+    }
+    await writeInvalidatedProduct(transaction, invalidated);
+    return true;
+  });
+}
+
+/** The tombstone writer follows the same protected source/product commit. */
+export async function updateDocWithAlibabaLeaseInCloudBase(
+  db: NodeSdkDatabase,
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  return db.runTransaction(async (transaction) => {
+    const lease = normalizeSingle(
+      sdkAnswer(
+        await transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId).get(),
+      ).data,
+    );
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const target = transaction.collection(collection).doc(id);
+    const before = normalizeSingle(sdkAnswer(await target.get()).data);
+    if (!before) return false;
+    const baseline = collection === 'products' ? categorySyncBaseline(before, patch) : {};
+    const values = { ...patch, ...baseline, updatedAt: guard.now };
+    const next = { ...before, ...values };
+    const invalidated =
+      collection === 'catalogSourceObservations'
+        ? await sourceInvalidation(transaction, before, next, guard.now)
+        : null;
+    if (!isDeepStrictEqual(before, next)) {
+      const answer = await target.update(replaceNestedObjects(values, db.command));
+      if (collection === 'catalogSourceObservations') confirmSourceWrite(answer, id);
+    }
+    await writeInvalidatedProduct(transaction, invalidated);
     return true;
   });
 }
@@ -451,26 +535,30 @@ export async function upsertCatalogSourceObservationInCloudBase(
   createOnly: Record<string, unknown>,
   now: string,
 ): Promise<CatalogSourceObservationUpsertResult> {
-  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+  return db.runTransaction(async (transaction) => {
     const ref = transaction.collection('catalogSourceObservations').doc(id);
-    const existing = normalizeSingle((await ref.get()).data);
+    const existing = normalizeSingle(sdkAnswer(await ref.get()).data);
     const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
-    if (existing) {
-      const previousAt = Date.parse(String(existing.observedAt ?? ''));
-      const incomingAt = Date.parse(String(patch.observedAt ?? ''));
-      if (Number.isFinite(previousAt) && previousAt > incomingAt) {
-        return { result: 'stale', doc: existing };
-      }
-      const merged = { ...patch, updatedAt: now };
-      await ref.update(replaceNestedObjects(merged, db.command));
-      return { result: 'applied', doc: normalize({ ...existing, ...merged, _id: id }) };
-    }
+    if (
+      existing &&
+      Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt ?? ''))
+    )
+      return { result: 'stale', doc: existing };
     const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
       _id?: unknown;
     };
-    const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
-    await ref.set(created);
-    return { result: 'applied', doc: normalize({ _id: id, ...created }) };
+    const next: CollectionDoc = existing
+      ? { ...existing, ...patch, updatedAt: now }
+      : { ...safeCreateOnly, ...patch, _id: id, createdAt: now, updatedAt: now };
+    const invalidated = await sourceInvalidation(transaction, existing, next, now);
+    if (!isDeepStrictEqual(existing, next)) {
+      const answer = existing
+        ? await ref.update(replaceNestedObjects({ ...patch, updatedAt: now }, db.command))
+        : await ref.set(Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')));
+      confirmSourceWrite(answer, id);
+    }
+    await writeInvalidatedProduct(transaction, invalidated);
+    return { result: 'applied', doc: next };
   });
 }
 
@@ -893,22 +981,8 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async updateDocWithAlibabaLease(collection, id, patch, guard): Promise<boolean> {
-    const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
-      // The fence recheck lives INSIDE the same transaction as the write —
-      // assert-then-update at the caller would be check-then-act (R1 E2).
-      const leaseRef = transaction
-        .collection(ALIBABA_SYNC_LEASE_COLLECTION)
-        .doc(guard.connectionId);
-      const lease = normalizeSingle((await leaseRef.get()).data);
-      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
-      const targetRef = transaction.collection(collection).doc(id);
-      const existing = normalizeSingle((await targetRef.get()).data);
-      if (!existing) return false;
-      const baseline = collection === 'products' ? categorySyncBaseline(existing, patch) : {};
-      await targetRef.update(replaceNestedObjects({ ...patch, ...baseline, updatedAt: guard.now }, db.command));
-      return true;
-    });
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return updateDocWithAlibabaLeaseInCloudBase(db, collection, id, patch, guard);
   },
 
   async upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard): Promise<boolean> {

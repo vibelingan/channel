@@ -124,3 +124,38 @@ return isTransactionConflict(error) ? busy : unconfirmed;
 
 - 最终 P3a/P3b/P4a 相关完整回归 280 passed / 0 failed / 0 skipped；site/admin/e2e 类型检查、7 文件 Biome 均通过。关键 mutation：删除数据库 CAS、把 lock conflict 判为 false、把原 SDK error 放回日志，各自被新用例抓到，finally 完整恢复代码。
 - 149 项组合浏览器测试的 runner 记录已确认删除临时 DB/服务；最新 P4a 修改仅改变锁失败分支，focused handler 回归通过，最终整合浏览器 lane 仍在 P6 重跑。
+
+## P2a：已绑定来源的原子失效（红测准备）
+
+运行问题：ingest/replay/tombstone/generic upsert 写 observation 后，产品仍可能保持 detailSourceReady=true；只在稍后 promotion 失效留下窗口。
+
+数据：来源当前内容与 active 状态、已有 alibabaProductLinks 的 productId、产品当前主来源和单调 catalogContentGeneration。首次缺 generation 作为 0；来源改变后同事务 +1、撤销准备标记，保持 published/分类/人工字段/批准历史。
+
+技术约束：CloudBase 快照读取不会产生写锁；必须与最终审批竞争同 products 写。仅 doc 读取，先完成来源/link/product 读，再写 observation 与 product；无共享全局 fence。已再次核对官方 /database/transaction 与已安装 database 1.4.3 实际 transaction/index.js；文档示例返回包装与当前 SDK callback 结果不同，沿仓库 SDK gate，不照抄。Context7 未提供。新增最坏来源事务 6 个 doc 操作（含 lease），远低于 100。
+
+修正：共用 server-only 来源失效计划，接入两个 lease writer、generic observation upsert 的 CloudBase/JSON 实现。语义相同的 observedAt/evidence 更新不增加 generation；同 observedAt 不同内容必须失效。旧绑定被替换时不写无关商品。
+
+```ts
+const invalidated = await planSourceInvalidation(tx, before, next);
+await writeObservation(next);
+await writeProduct(invalidated); // 与批准/解绑竞争同一记录
+```
+
+不采用：异步标记、缓存 TTL、先读取来源当作互斥、在每件商品上写共享 taxonomy。
+
+风险/测试：真实生产 CloudBase adapter 函数 + JSON adapter 的五个 writer 用例先红；补 no-op、ABA generation、错主来源、失效回滚、lease 丢失及 link/检查交错。新绑定与所有 row/media/classification writer、列表准入仍是 P2 后续，未由本子单元证明。
+
+### P2a review / 验证（进行中）
+
+- 五个 writer 红测转绿；67 项相关测试通过。另补损坏链接拒绝和两个 JSON adapter 实例的 source/finish 双顺序交错，证明 source 先提交时旧 finish 拒绝，finish 先提交时旧批准保留而新草稿变 stale；不把两个 fulfilled 当必须互斥的两次发布。
+- 全 DB、JSON adapter、ingest/replay/runner/linking/selected-sync/photo-preparation/source-prepare 回归共 444 passed / 0 failed / 0 skipped；db/local-server 类型检查通过。新增事务 double 具备快照副本与失败回滚，禁止写后读，确认最坏 6 操作；这些仍不是 vendor race 证据。
+- SDK gate 首轮 3 个结构断言失败，原因是生产 fenced update 提取为实际共享 helper，旧断言只看 object method 和变量名；更新为 AST 限定 helper 的 runTransaction 回调检查，不用整个模块里的相同文本代替实际路径。详见 P2a_SDK_PROBE。最终 gate 和 mutation 待补。
+
+- P2a 第二轮 review 实证旧 source-page 可对新 generation 写回 ready：新增用例先失败，修正为 SourcePageSchema 携带 contentGeneration、暂存事务 CAS、readCandidate 比较准备/当前 generation；无需增加事务记录。manual-source 同样绑定现有 generation，清理解绑后旧来源的 generation seal；缺失/null 仍按 legacy 0 工作。
+- review 发现非法已有主来源 link 不应被静默跳过，已改为事务写前拒绝；合法的非当前主来源仍不修改无关商品。
+
+- P2a 最终相关回归 449 passed / 0 failed / 0 skipped；db/admin/local-server 类型检查通过。SDK gate 更新后通过；断开 fenced-upsert 的 sourceInvalidation 接线使限定 AST gate 失败（没有被模块中其他同名调用蒙混），撤销后还原。移除准备 generation CAS、移除最终审批 generation 指纹，两项 mutation 也分别被回归抓到。
+- P2a 与 P1/P3/P4 整合浏览器测试再次通过 public 41 / catalog 90 / formal 9（含本地 20 件）/ visibility 8 / taxonomy 1，共 149；runner 确认删除隔离 DB/服务。此次仍无真实 test 发布/恢复。
+- CloudBase adapter 原文件被仓库 Biome 配置排除，未冒称其 lint 覆盖；只将本次新增事务函数分段格式化，保持既有无关代码不动。新 helper/test、其他改动文件仍执行 Biome；CloudBase 代码由 tsc、行为回归和 SDK gate 覆盖。
+
+- 最终分段格式化后 SDK gate 又捕获 1 项 matcher 失败：原正则要求 update( 与 replaceNestedObjects 同行。保留同一调用约束并允许合法空白；新增 source transaction 的 AST 校验保持不变。该失败和修复均保留，最终通过以 p2a-sdk-final-r2.log 为准。

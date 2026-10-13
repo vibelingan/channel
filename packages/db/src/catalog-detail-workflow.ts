@@ -55,6 +55,7 @@ async function readCandidate(store: CatalogApprovalStore, productId: string) {
   if (
     !manifest.success ||
     product.detailSourceReady !== true ||
+    (product.detailSourceContentGeneration ?? 0) !== (product.catalogContentGeneration ?? 0) ||
     manifest.data.revision !== product.detailSourceRevision
   )
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };

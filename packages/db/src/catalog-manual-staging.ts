@@ -41,7 +41,15 @@ export async function prepareManualSource(
   const linked =
     typeof product.alibabaPrimarySourceKey === 'string' && product.alibabaPrimarySourceKey !== '';
   if (linked || product.archived === true) return { ok: false, code: 'CONFLICT' };
-  const revision = sourceDigest(['manual', product._id, 'v1']);
+  const generation = product.catalogContentGeneration ?? 0;
+  if (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 0)
+    return { ok: false, code: 'VALIDATION_ERROR' };
+  const revision = sourceDigest([
+    'manual',
+    product._id,
+    'v1',
+    ...(product.catalogContentGeneration == null ? [] : ['content-generation', generation]),
+  ]);
   const done = {
     ok: true as const,
     jobId: revision,
@@ -52,11 +60,18 @@ export async function prepareManualSource(
   };
   // A product unlinked from Alibaba must not carry its old source fingerprint
   // into a manual approval.
-  const { detailSourcePublicDigest: _previous, ...current } = product;
+  const {
+    detailSourcePublicDigest: _previous,
+    detailSourceContentGeneration: _previousGeneration,
+    ...current
+  } = product;
   const prepared = {
     ...current,
     detailSourceOwner: `manual:${product._id}`,
     detailSourceRevision: revision,
+    ...(product.catalogContentGeneration == null
+      ? {}
+      : { detailSourceContentGeneration: generation }),
     detailSourceManifest: { revision, variantIds: [] },
     detailSourceNextPage: 1,
     detailSourceReady: true,

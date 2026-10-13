@@ -54,6 +54,7 @@ import {
   planCatalogQuote,
   quoteFingerprint,
 } from '@vibelingan-channel/db/catalog-quote';
+import { planSourceInvalidation } from '@vibelingan-channel/db/catalog-source-invalidation';
 import { runCategoryCommand } from '@vibelingan-channel/db/category-transaction';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
 import {
@@ -843,41 +844,53 @@ export class JsonFileAdapter implements DbAdapter {
     });
   }
 
+  private sourceInvalidation(before: CollectionDoc | null, next: CollectionDoc, now: string) {
+    return planSourceInvalidation(
+      {
+        get: async (collection, id) => this.docs(collection).find((row) => row._id === id) ?? null,
+      },
+      before,
+      next,
+      now,
+    );
+  }
+
+  private writeInvalidatedProduct(product: CollectionDoc | null): void {
+    if (!product) return;
+    const products = this.docs('products');
+    const index = products.findIndex((row) => row._id === product._id);
+    if (index < 0) throw new Error('Bound product disappeared inside the mutation lock');
+    products[index] = product;
+  }
+
   async upsertCatalogSourceObservation(
     id: string,
     data: Record<string, unknown>,
     createOnly: Record<string, unknown>,
   ): Promise<CatalogSourceObservationUpsertResult> {
-    return this.withMutationLock(() => {
+    return this.withMutationLock(async () => {
       const docs = this.docs('catalogSourceObservations');
       const index = docs.findIndex((document) => document._id === id);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
       const now = new Date().toISOString();
       const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
-      if (index >= 0) {
-        const existing = docs[index] as CollectionDoc;
-        const previousAt = Date.parse(String(existing.observedAt ?? ''));
-        const incomingAt = Date.parse(String(patch.observedAt ?? ''));
-        if (Number.isFinite(previousAt) && previousAt > incomingAt) {
-          return { result: 'stale', doc: existing };
-        }
-        const next = { ...existing, ...patch, updatedAt: now };
-        docs[index] = next;
-        this.persist();
-        return { result: 'applied', doc: next };
-      }
+      if (
+        existing &&
+        Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt ?? ''))
+      )
+        return { result: 'stale', doc: existing };
       const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
         _id?: unknown;
       };
-      const created = {
-        _id: id,
-        createdAt: now,
-        updatedAt: now,
-        ...safeCreateOnly,
-        ...patch,
-      } as CollectionDoc;
-      docs.push(created);
+      const next = existing
+        ? { ...existing, ...patch, updatedAt: now }
+        : { ...safeCreateOnly, ...patch, _id: id, createdAt: now, updatedAt: now };
+      const invalidated = await this.sourceInvalidation(existing, next, now);
+      if (index >= 0) docs[index] = next;
+      else docs.push(next);
+      this.writeInvalidatedProduct(invalidated);
       this.persist();
-      return { result: 'applied', doc: created };
+      return { result: 'applied', doc: next };
     });
   }
 
@@ -946,22 +959,23 @@ export class JsonFileAdapter implements DbAdapter {
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean> {
-    return this.withMutationLock(() => {
-      // Lease recheck + target write in ONE critical section (R1 E2).
-      const leases = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
-      const lease = leases.find((document) => document._id === guard.connectionId) ?? null;
+    return this.withMutationLock(async () => {
+      const lease =
+        this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
+        null;
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
       const docs = this.docs(collection);
-      const index = docs.findIndex((document) => document._id === id);
+      const index = docs.findIndex((row) => row._id === id);
       if (index < 0) return false;
-      const baseline =
-        collection === 'products' ? categorySyncBaseline(docs[index] as CollectionDoc, patch) : {};
-      docs[index] = {
-        ...(docs[index] as CollectionDoc),
-        ...patch,
-        ...baseline,
-        updatedAt: guard.now,
-      };
+      const existing = docs[index] as CollectionDoc;
+      const baseline = collection === 'products' ? categorySyncBaseline(existing, patch) : {};
+      const next = { ...existing, ...patch, ...baseline, updatedAt: guard.now };
+      const invalidated =
+        collection === 'catalogSourceObservations'
+          ? await this.sourceInvalidation(existing, next, guard.now)
+          : null;
+      docs[index] = next;
+      this.writeInvalidatedProduct(invalidated);
       this.persist();
       return true;
     });
@@ -974,31 +988,28 @@ export class JsonFileAdapter implements DbAdapter {
     createOnly: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean> {
-    return this.withMutationLock(() => {
-      const leases = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
-      const lease = leases.find((document) => document._id === guard.connectionId) ?? null;
+    return this.withMutationLock(async () => {
+      const lease =
+        this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
+        null;
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
       const docs = this.docs(collection);
-      const index = docs.findIndex((document) => document._id === id);
+      const index = docs.findIndex((row) => row._id === id);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
       const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
-      if (index >= 0) {
-        docs[index] = {
-          ...(docs[index] as CollectionDoc),
-          ...safePatch,
-          updatedAt: guard.now,
-        };
-      } else {
-        const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
-          _id?: unknown;
-        };
-        docs.push({
-          _id: id,
-          ...safeCreateOnly,
-          ...safePatch,
-          createdAt: guard.now,
-          updatedAt: guard.now,
-        } as CollectionDoc);
-      }
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const next = existing
+        ? { ...existing, ...safePatch, updatedAt: guard.now }
+        : { ...safeCreateOnly, ...safePatch, _id: id, createdAt: guard.now, updatedAt: guard.now };
+      const invalidated =
+        collection === 'catalogSourceObservations'
+          ? await this.sourceInvalidation(existing, next, guard.now)
+          : null;
+      if (index >= 0) docs[index] = next;
+      else docs.push(next);
+      this.writeInvalidatedProduct(invalidated);
       this.persist();
       return true;
     });

@@ -154,6 +154,9 @@ export function approvalProductFingerprint(product: CollectionDoc) {
   ];
   // Configuration photo choices (DEC-20); absent on older rows, which keep their fingerprint.
   if (product.configurationPhotos !== undefined) fields.push('configurationPhotos');
+  if (product.catalogContentGeneration !== undefined) fields.push('catalogContentGeneration');
+  if (product.detailSourceContentGeneration !== undefined)
+    fields.push('detailSourceContentGeneration');
   return hash(Object.fromEntries(fields.map((field) => [field, product[field] ?? null])));
 }
 

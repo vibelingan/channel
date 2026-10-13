@@ -53,6 +53,7 @@ export const SourcePageSchema = z
     observationDigest: z.string().regex(/^[a-f0-9]{64}$/),
     revision: z.string().regex(/^[a-f0-9]{64}$/),
     galleryDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    contentGeneration: z.number().int().nonnegative().safe().optional(),
     header: CatalogSourceDetailHeaderSchema,
     content: CatalogContentSchema.nullable(),
     noteBlocks: CatalogNoteBlocksSchema.nullable(),
@@ -107,7 +108,8 @@ export async function stageSourcePage(
     product.archived === true ||
     !observed ||
     sourceDigest(observed.observation) !== input.observationDigest ||
-    sourceGalleryDigest(product) !== input.galleryDigest
+    sourceGalleryDigest(product) !== input.galleryDigest ||
+    (product.catalogContentGeneration ?? 0) !== (input.contentGeneration ?? 0)
   )
     return fail('CONFLICT');
   if (input.header._id !== product._id) return fail('VALIDATION_ERROR');
@@ -192,6 +194,7 @@ export async function stageSourcePage(
     ...current,
     detailSourceOwner: owner,
     detailSourceRevision: input.revision,
+    detailSourceContentGeneration: input.contentGeneration ?? 0,
     detailSourceManifest: { revision: input.revision, variantIds: input.variantIds },
     detailSourceNextPage: input.page + 1,
     detailSourceReady: input.page + 1 === pages,
