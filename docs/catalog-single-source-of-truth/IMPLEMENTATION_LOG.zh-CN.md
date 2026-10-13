@@ -4,7 +4,7 @@
 
 ## P0：真实故障与入口清单（进行中）
 
-- 腾讯云管理登录状态 REQUIRED；已请求用户恢复登录，尚未读取三件时钟的存储 observation。已有实际 prepare 400 证据仍只证明阶段，字段根因未知。
+- 当前腾讯云管理授权 READY；三件时钟的实际 observation 已只读取到并复现 facts 数量上限，P1b 已完成本地容量修复与 150 项组合验证。详见 P1b_REAL_CLOCK_REPAIR.zh-CN.md；云上定向 resync/发布/恢复尚未执行。
 - 当前 DashboardShell 仅使用 sections 内存导航，没有隐藏 collection 的 URL 入口；不能用 registry readOnly 声明冒充可操作 UI。
 - 来源写入消费者：ingest.ts、raw-replay.ts、runner.ts tombstone、db/index.ts observation upsert；后续失效测试须全部覆盖。
 - 两个已复现 API race 保留于 design-review-evidence，后续转为仓库回归测试。
@@ -229,3 +229,48 @@ await tx.set('products', next); // 同一原子写中 ready=false 与 generation
 - Review 审阅实际 catalog-product-state / adapter / alibaba-product-identity / source-invalidation / category-transaction / detail-staging / pricing-repair 与各测试、package exports、public projection。将“价格修复不得改其他字段”的笼统表述收窄为“保留网站字段，准备版本与状态按相同规则失效，读回逐项匹配本次预期”，没有删除 protected 字段保护。
 - 明确剩余 P3 条件：若当前已是 draft 但另有 pending publish，显式 Disable 仍应取消旧发布意图，不能仅凭布尔状态没变化认作纯 no-op。P2b 这里只实现语义状态变更计数，明确同状态生命周期命令由 P3 durable intent 完成；此条件已补测试矩阵，发版前必须绿。
 - 腾讯云 MCP auth(status) 本轮仍为 EXPIRED / env NONE；真实三件字段根因与云端 race/验收未由本地 150 项替代。
+
+## P2c1：通用产品/配置写入的原子失效（实现、review 与验证中）
+
+运行问题：normal identity save 与 Alibaba 专用变更已接入版本规则，但 adapter 的 create/update/upsert/remove/conditional remove/increment 及 lease writer 仍可修改产品/配置而保留父产品 ready；配置换父产品时两边都需失效。
+
+数据：目标行 before/after、产品 ID（配置旧/新 productId，去重最多两个）、内容 generation。产品新建默认 generation/lifecycle/classification 0 且未准备；合法捕获时间或无内容计数更新不作废内容；缺失父产品不创造占位行，父产品日后新建必为 stale。
+
+技术约束：CloudBase 快照读不会锁住父产品，配置写与所有受影响 products 写必须在同一 doc-ID transaction；先完成全部读取再写，最坏配置移动 3 read + 3 write，带 lease 最多再加 1 read。source-page / approval transaction 是专用输出提交，不能被通用输入失效钩子再次作废自己。JSON 必须共用一个 withMutationLock，禁止在锁内再调用 adapter.get。
+
+修正：集中一套 server-only row mutation body，复用 P2b 的产品状态计划；两个 adapter 的通用入口和 lease 分支调用同一 body。batch facade 沿已有单行入口调用，仍须搜索确认覆盖；不对图片 refCount 写入作产品内容失效。
+
+```ts
+const before = await tx.get(collection, id);
+const parents = await readAffectedParents(before, next); // 全部写前读取
+await tx.set(collection, next);
+for (const parent of parents) await tx.set('products', invalidate(parent));
+```
+
+不采用：配置写后异步失效、逐件发布写全局 taxonomy、只处理创建而遗漏移除/改父产品。落盘失败是否已有保护先用实际读取验证，不凭私有内存变更推断对用户可见。
+
+风险/测试：实际 JSON 公共 CRUD/lease 方法的 row/parent、双父、no-op、错误条件删除；create 新状态；persist fault 后磁盘与正常读一致。CloudBase 将测试实际生产 helper，SDK gate 限定各 adapter 委托，覆盖写/父写失败与零 ACK、删除 ACK、lease 拒绝和最大操作数。新绑定 observation revision fence 仍为 P2c2，未在本单元宣称完成。
+
+### P2c1 已执行的 review / 测试
+
+- 实际 JSON CRUD 红测 19 项中 15 失败、4 已通过；两项 persist fault 的既有正常读取本来就安全，因为每次 withMutationLock 重读磁盘。未增加假想的全局 rollback/clone 机制。实现后 19 项通过，后补 batch facade、两实例 source/child 并发及非法身份边界。
+- Cloud 先测 17 项全部失败：两个既有 lease writer 未失效父产品，另外 15 项是缺少通用生产 helper 的契约失败。实现后与 JSON 共 36 项通过，再补新 SKU、旧 lease、三个私有版本字段保护。
+- 实际 batchUpdate 产品和 batchRemove 配置沿相同 adapter 入口；重复 ID 的删除只失效一次。两 JSON adapter 并发写来源和 SKU 后 generation 累积 +2，两个变更都保留。缺失父产品不新建占位行。
+- 最终补充身份边界前，DB/sync/admin/public/JSON 回归 895 passed / 0 failed / 0 skipped，9 个代码/包配置文件 Biome 通过，完整 SDK gate 通过。cloudbase-adapter.ts 被现有配置忽略，仅格式化并人工审查本 MIU 修改的 13 个函数/方法，不能将其冒充全文件 Biome 通过。
+- parent / ACK / 单个生产分支三项 mutation 均被检测，finally 恢复。SDK gate 按具体 catalog 分支 AST 检查，不被其他六个合法 helper 调用满足。
+- inline review 发现 create 的非法 _id 行为不一致：JSON 拒绝，Cloud 原实现会换随机 ID。已补入口测试先红，修复及最终回归结果后补。正常 facade 不允许表单指定 _id，仍将内部契约一致性作为本单元要求。
+- 当前全套浏览器串联仍在执行；不将中途已过的 lane 记成全通过。P2c2 新绑定来源 revision fence 仍未实施，lease takeover 的云端隔离行为也未由本地 fake 证明。
+
+写作核对：审查 catalog-row-mutation.ts、catalog-product-state.ts、cloudbase-adapter.ts、json-adapter.ts、db/index.ts、两个实际 adapter 测试和 SDK gate。把“全部 lease race 都覆盖”限定为“读取时已失去 lease 的拒绝已测；事务中途 takeover 仍待 vendor 验证”，把“磁盘失败需新增回滚”更正为“既有普通读已重载磁盘，实测安全”。
+
+- 身份边界红测：Cloud 的 3 个非字符串 _id 输入进入 SDK 路径，未得到预期身份拒绝；JSON 的对应 3 项通过。Cloud 改为仅在 _id 未提供时生成 ID，其余非字符串先拒绝。第一次应用补丁用了 apps/site 工作目录，文件未找到，后续回归仍 3 失败；不计为修复验证。回到 checkout 根目录应用成功后，全量相关回归 901 passed / 0 failed / 0 skipped，db tsc 和完整 SDK gate 再次通过。
+- 首轮 P2c1 全套浏览器 150 项通过，临时 DB/服务已删除；身份边界最终修正后第二轮完整串联仍在运行，结果后补。
+
+- P2c1 最终节点：身份守卫修正后的完整浏览器串联 150 passed（public 41 / catalog 90 / formal 10 / visibility 8 / taxonomy 1），包含原灯具规格/说明、20 个带完整时钟规格的 raw-derived 商品发布/回读/Disable、原分类和图片引用计数恢复。最终 taxonomy 1.2m 属单次运行，不能写成性能 P95。runner 确认删除临时 DB 和服务，证据 p2c1-combined-e2e-r2.log。
+- 最终相关回归 901 passed / 0 failed / 0 skipped，db/admin/sync/local-server/public-api 类型检查通过；9 文件 Biome、完整 SDK gate 通过。Cloud 文件沿现有 ignore 规则采用修改函数作用域格式化、类型/行为/SDK 检查和人工审查。
+- P2c1 inline review 本地子单元无遗留 P1/P2；source/link/new-binding fence、readiness 列表准入、durable intents、恢复 UI、历史数据修复与全量构建/真实 test 验收继续执行，不由本节点宣称完成。
+- 提交后 inline review 补了两个真实 JSON adapter 的同 ID 创建/删除竞争：业务结果应恰好一个 created / 一个 exists，以及一个 removed / 一个未移除，父 generation 只前进一次。这里拒绝是 fulfilled 的状态值，不能按 Promise fulfilled 数量误判。同时保留 source/child 两个合法写都完成且 generation +2 的非互斥并发用例。
+- 删除 ACK 的独立 mutation 也已执行：只移除 deleted===1 守卫时，silent deletion rollback 用例失败；finally 恢复后 Cloud 27 项再通过。该补测未改变运行时代码。
+
+- 提交后两个互斥竞争补测与全套相关回归合计 903 passed / 0 failed / 0 skipped；local-server tsc 初次发现新增测试的两处不可达 reason 分支。该条先前把 tsc 提前记为通过，现已更正，待修正后重新验证。只新增测试和记录，运行时代码与已通过最终 150 项浏览器/SDK gate 的版本逐字一致。
+- 类型更正后重新执行：local-server tsc 退出 0，相关回归仍为 903 passed / 0 failed / 0 skipped；Biome 退出 0。原因是 assert.equal 已把 status 收窄为 fulfilled，随后读取不可能 rejected 分支的 reason 被 TypeScript 正确拒绝；去掉重复的 assert，保留显式拒绝分支及业务结果断言。证据 p2c1-postreview-final-tsc.log / p2c1-postreview-final-regression-r2.log。

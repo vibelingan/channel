@@ -39,6 +39,9 @@ const versions = [
 ] as const;
 
 export class CatalogProductStateError extends Error {}
+export function isCatalogProductVersionField(field: string): boolean {
+  return versions.some((key) => key === field);
+}
 const versionLabels = {
   catalogContentGeneration: 'catalog content generation',
   catalogLifecycleVersion: 'catalog lifecycle version',

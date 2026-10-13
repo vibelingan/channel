@@ -924,6 +924,90 @@ function transactionFunctionCalls(name) {
   return calls;
 }
 
+function catalogBranchCalls(methodName) {
+  let method;
+  const find = (node) => {
+    if (
+      typescript.isVariableDeclaration(node) &&
+      node.name.getText(adapterAst) === 'cloudBaseAdapter' &&
+      node.initializer &&
+      typescript.isObjectLiteralExpression(node.initializer)
+    )
+      method = node.initializer.properties.find(
+        (item) =>
+          typescript.isMethodDeclaration(item) && item.name.getText(adapterAst) === methodName,
+      );
+    typescript.forEachChild(node, find);
+  };
+  find(adapterAst);
+  if (!method?.body) throw new Error(`Missing production adapter method: ${methodName}`);
+  const guard = method.body.statements.find(
+    (node) =>
+      typescript.isIfStatement(node) &&
+      typescript.isCallExpression(node.expression) &&
+      node.expression.expression.getText(adapterAst) === 'isCatalogRowCollection',
+  );
+  if (!guard) throw new Error(`Missing catalog branch: ${methodName}`);
+  const calls = [];
+  const collect = (node) => {
+    if (typescript.isCallExpression(node)) calls.push(node.expression.getText(adapterAst));
+    typescript.forEachChild(node, collect);
+  };
+  collect(guard.thenStatement);
+  return calls;
+}
+for (const method of [
+  'create',
+  'update',
+  'remove',
+  'incrementField',
+  'createDocWithId',
+  'upsertDocWithId',
+  'removeDocIfFieldEquals',
+]) {
+  requireCheck(
+    catalogBranchCalls(method).includes('mutateCatalogRowInCloudBase'),
+    `catalog ${method} uses the tested child/parent transaction inside its collection branch`,
+  );
+}
+requireCheck(
+  ['catalogRowStore', 'runCatalogRowMutation'].every((call) =>
+    transactionFunctionCalls('mutateCatalogRowInCloudBase').includes(call),
+  ),
+  'catalog input mutation plans and writes inside one runTransaction callback',
+);
+for (const helper of [
+  'updateDocWithAlibabaLeaseInCloudBase',
+  'upsertDocWithAlibabaLeaseInCloudBase',
+]) {
+  requireCheck(
+    ['holdsAlibabaLease', 'catalogRowStore', 'runCatalogRowMutation'].every((call) =>
+      transactionFunctionCalls(helper).includes(call),
+    ),
+    `${helper} reuses its existing fenced transaction for catalog inputs`,
+  );
+}
+const rowBridge = adapterAst.statements.find(
+  (node) => typescript.isFunctionDeclaration(node) && node.name?.text === 'catalogRowStore',
+);
+if (!rowBridge?.body) throw new Error('Missing catalogRowStore SDK bridge');
+const rowBridgeCalls = [];
+const collectBridge = (node) => {
+  if (typescript.isCallExpression(node)) rowBridgeCalls.push(node.expression.getText(adapterAst));
+  typescript.forEachChild(node, collectBridge);
+};
+collectBridge(rowBridge.body);
+requireCheck(
+  [
+    'transaction.collection(collection).doc(id).get',
+    'transaction.collection(collection).doc(_id).set',
+    'transaction.collection(collection).doc(id).remove',
+    'confirmDocumentWrite',
+    'sdkAnswer',
+  ].every((call) => rowBridgeCalls.includes(call)),
+  'catalog row bridge uses the verified SDK get/set/remove and confirms writes/deletions',
+);
+
 for (const [method, helper, required] of [
   [
     'updateDocWithAlibabaLease',
@@ -963,7 +1047,7 @@ for (const [method, helper, required] of [
       'ref.set',
       'sourceInvalidation',
       'writeInvalidatedProduct',
-      'confirmSourceWrite',
+      'confirmDocumentWrite',
     ],
   ],
 ]) {

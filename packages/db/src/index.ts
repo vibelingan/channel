@@ -303,13 +303,7 @@ export function releaseImageMutation(
  * silently coerce it to 0 and diverge. `delta` is assumed already validated
  * (finite integer) by `incrementField`.
  */
-export function nextCounterValue(current: unknown, delta: number): number {
-  if (current === undefined || current === null) return delta;
-  if (typeof current === 'number' && Number.isFinite(current)) return current + delta;
-  throw new Error(
-    `@vibelingan-channel/db: cannot increment a non-numeric counter value (got ${typeof current}).`,
-  );
-}
+export { nextCounterValue } from './counter-value.ts';
 
 export function remove(collection: string, id: string): Promise<boolean> {
   assertKnown(collection);

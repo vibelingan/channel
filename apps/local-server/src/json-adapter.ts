@@ -54,6 +54,12 @@ import {
   planCatalogQuote,
   quoteFingerprint,
 } from '@vibelingan-channel/db/catalog-quote';
+import {
+  type CatalogRowMutation,
+  type CatalogRowMutationResult,
+  isCatalogRowCollection,
+  runCatalogRowMutation,
+} from '@vibelingan-channel/db/catalog-row-mutation';
 import { planSourceInvalidation } from '@vibelingan-channel/db/catalog-source-invalidation';
 import { runCategoryCommand } from '@vibelingan-channel/db/category-transaction';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
@@ -567,7 +573,45 @@ export class JsonFileAdapter implements DbAdapter {
     );
   }
 
+  private catalogRowMutation(command: CatalogRowMutation, now: string) {
+    return runCatalogRowMutation(
+      {
+        get: async (collection, id) => this.docs(collection).find((row) => row._id === id) ?? null,
+        set: async (collection, row) => {
+          const docs = this.docs(collection);
+          const index = docs.findIndex((doc) => doc._id === row._id);
+          if (index < 0) docs.push(row);
+          else docs[index] = row;
+        },
+        remove: async (collection, id) => {
+          const docs = this.docs(collection);
+          const index = docs.findIndex((doc) => doc._id === id);
+          if (index < 0) throw new Error('Catalog row disappeared during its mutation');
+          docs.splice(index, 1);
+        },
+      },
+      command,
+      now,
+    );
+  }
+  private writtenCatalogRow(result: CatalogRowMutationResult): CollectionDoc {
+    if (result.status !== 'written') throw new Error('Catalog row was not written');
+    this.persist();
+    return result.doc;
+  }
+
   async create(collection: string, data: Record<string, unknown>): Promise<CollectionDoc> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const id = data._id === undefined ? randomUUID() : data._id;
+        if (typeof id !== 'string') throw new Error('Catalog row identity must be a string');
+        return this.writtenCatalogRow(
+          await this.catalogRowMutation(
+            { action: 'create', collection, id, data },
+            new Date().toISOString(),
+          ),
+        );
+      });
     return this.withMutationLock(() => {
       const now = new Date().toISOString();
       const doc: CollectionDoc = { _id: randomUUID(), ...data, createdAt: now, updatedAt: now };
@@ -582,6 +626,14 @@ export class JsonFileAdapter implements DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<CollectionDoc | null> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'update', collection, id, data },
+          new Date().toISOString(),
+        );
+        return result.status === 'missing' ? null : this.writtenCatalogRow(result);
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
@@ -595,6 +647,16 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async remove(collection: string, id: string): Promise<boolean> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'remove', collection, id },
+          new Date().toISOString(),
+        );
+        if (result.status === 'missing') return false;
+        this.persist();
+        return result.status === 'removed';
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
@@ -611,6 +673,18 @@ export class JsonFileAdapter implements DbAdapter {
     field: string,
     delta: number,
   ): Promise<number | null> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'increment', collection, id, field, delta },
+          new Date().toISOString(),
+        );
+        if (result.status === 'missing') return null;
+        const doc = this.writtenCatalogRow(result);
+        const value = doc[field];
+        if (typeof value !== 'number') throw new Error('Catalog counter result was not numeric');
+        return value;
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
@@ -665,6 +739,16 @@ export class JsonFileAdapter implements DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<'created' | 'exists'> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'create-if-missing', collection, id, data },
+          new Date().toISOString(),
+        );
+        if (result.status === 'exists') return 'exists';
+        this.writtenCatalogRow(result);
+        return 'created';
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       if (docs.some((document) => document._id === id)) return 'exists';
@@ -681,6 +765,16 @@ export class JsonFileAdapter implements DbAdapter {
     field: string,
     expectedValue: unknown,
   ): Promise<boolean> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'remove', collection, id, expectedField: { field, value: expectedValue } },
+          new Date().toISOString(),
+        );
+        if (result.status === 'missing') return false;
+        this.persist();
+        return result.status === 'removed';
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex(
@@ -817,6 +911,15 @@ export class JsonFileAdapter implements DbAdapter {
     data: Record<string, unknown>,
     createOnly: Record<string, unknown> = {},
   ): Promise<CollectionDoc> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () =>
+        this.writtenCatalogRow(
+          await this.catalogRowMutation(
+            { action: 'upsert', collection, id, data, createOnly },
+            new Date().toISOString(),
+          ),
+        ),
+      );
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((document) => document._id === id);
@@ -964,6 +1067,15 @@ export class JsonFileAdapter implements DbAdapter {
         this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
         null;
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      if (isCatalogRowCollection(collection)) {
+        const result = await this.catalogRowMutation(
+          { action: 'update', collection, id, data: patch },
+          guard.now,
+        );
+        if (result.status === 'missing') return false;
+        this.writtenCatalogRow(result);
+        return true;
+      }
       const docs = this.docs(collection);
       const index = docs.findIndex((row) => row._id === id);
       if (index < 0) return false;
@@ -993,6 +1105,15 @@ export class JsonFileAdapter implements DbAdapter {
         this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
         null;
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      if (isCatalogRowCollection(collection)) {
+        this.writtenCatalogRow(
+          await this.catalogRowMutation(
+            { action: 'upsert', collection, id, data: patch, createOnly },
+            guard.now,
+          ),
+        );
+        return true;
+      }
       const docs = this.docs(collection);
       const index = docs.findIndex((row) => row._id === id);
       const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;

@@ -1,6 +1,6 @@
 # Catalog 发布可靠性整合方案
 
-状态：用户已于 2026-10-13 批准实施，当前实施中。P1a-b、P2a-b、P3a-c、P4a 已完成对应本地子单元；各大 MIU 的其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
+状态：用户已于 2026-10-13 批准实施，当前实施中。P1a-b、P2a-b、P2c1、P3a-c、P4a 已完成对应本地子单元；各大 MIU 的其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
 
 本文件是本轮唯一实施方案，替代 `PUBLISH_READINESS_PROPOSAL.zh-CN.md` 的初稿建议。详细验收范围见 [测试矩阵](PUBLISH_RELIABILITY_TEST_MATRIX.zh-CN.md)。当前工作目录为原 Claude checkout，分支 `feat/catalog-alibaba-price-tiers`，审查 HEAD `39705e2323d51d4aa79f1240d66f65608f407649`；正常已部署基线的最近观察为 `a3ce01e`。这些标识在实施开始前须重新核对。
 

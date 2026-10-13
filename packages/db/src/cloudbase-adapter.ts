@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { planSourceInvalidation } from './catalog-source-invalidation.ts';
+import {
+  type CatalogRowMutation,
+  type CatalogRowMutationResult,
+  type CatalogRowStore,
+  isCatalogRowCollection,
+  runCatalogRowMutation,
+} from './catalog-row-mutation.ts';
 import { sdkAnswer } from './cloudbase-sdk-answer.ts';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
@@ -380,7 +387,7 @@ async function sourceInvalidation(
   );
 }
 
-function confirmSourceWrite(answer: unknown, id: string): void {
+function confirmDocumentWrite(answer: unknown, id: string): void {
   const result = sdkAnswer(answer);
   if (result && typeof result === 'object') {
     const upserted = Reflect.get(result, 'upserted');
@@ -393,7 +400,38 @@ function confirmSourceWrite(answer: unknown, id: string): void {
     )
       return;
   }
-  throw new Error('Source invalidation write was not confirmed');
+  throw new Error('Database document write was not confirmed');
+}
+
+function catalogRowStore(transaction: NodeSdkTransaction): CatalogRowStore {
+  return {
+    get: async (collection, id) =>
+      normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+    set: async (collection, row) => {
+      const { _id, ...data } = row;
+      confirmDocumentWrite(await transaction.collection(collection).doc(_id).set(data), _id);
+    },
+    remove: async (collection, id) => {
+      const result = sdkAnswer(await transaction.collection(collection).doc(id).remove());
+      if (result.deleted !== 1) throw new Error('Database document removal was not confirmed');
+    },
+  };
+}
+
+/** Generic catalog input writes share one bounded child/parent transaction. */
+export async function mutateCatalogRowInCloudBase(
+  db: NodeSdkDatabase,
+  command: CatalogRowMutation,
+  now = new Date().toISOString(),
+): Promise<CatalogRowMutationResult> {
+  return db.runTransaction(async (transaction) =>
+    runCatalogRowMutation(catalogRowStore(transaction), command, now),
+  );
+}
+
+function catalogWrittenRow(result: CatalogRowMutationResult): CollectionDoc {
+  if (result.status !== 'written') throw new Error('Catalog row write was not confirmed');
+  return result.doc;
 }
 
 async function writeInvalidatedProduct(
@@ -402,7 +440,7 @@ async function writeInvalidatedProduct(
 ) {
   if (!product) return;
   const { _id, ...data } = product;
-  confirmSourceWrite(await transaction.collection('products').doc(_id).set(data), _id);
+  confirmDocumentWrite(await transaction.collection('products').doc(_id).set(data), _id);
 }
 
 /** Exported for a production-path takeover test; the live adapter calls this exact function. */
@@ -418,6 +456,14 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
     const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
     const lease = normalizeSingle(sdkAnswer(await leaseRef.get()).data);
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    if (isCatalogRowCollection(collection)) {
+      const result = await runCatalogRowMutation(
+        catalogRowStore(transaction),
+        { action: 'upsert', collection, id, data: patch, createOnly },
+        guard.now,
+      );
+      return result.status === 'written';
+    }
     const targetRef = transaction.collection(collection).doc(id);
     const existing = normalizeSingle(sdkAnswer(await targetRef.get()).data);
     const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
@@ -439,7 +485,7 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
         : await targetRef.set(
             Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')),
           );
-      if (collection === 'catalogSourceObservations') confirmSourceWrite(answer, id);
+      if (collection === 'catalogSourceObservations') confirmDocumentWrite(answer, id);
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return true;
@@ -461,6 +507,14 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
       ).data,
     );
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    if (isCatalogRowCollection(collection)) {
+      const result = await runCatalogRowMutation(
+        catalogRowStore(transaction),
+        { action: 'update', collection, id, data: patch },
+        guard.now,
+      );
+      return result.status === 'written';
+    }
     const target = transaction.collection(collection).doc(id);
     const before = normalizeSingle(sdkAnswer(await target.get()).data);
     if (!before) return false;
@@ -473,7 +527,7 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
         : null;
     if (!isDeepStrictEqual(before, next)) {
       const answer = await target.update(replaceNestedObjects(values, db.command));
-      if (collection === 'catalogSourceObservations') confirmSourceWrite(answer, id);
+      if (collection === 'catalogSourceObservations') confirmDocumentWrite(answer, id);
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return true;
@@ -555,7 +609,7 @@ export async function upsertCatalogSourceObservationInCloudBase(
       const answer = existing
         ? await ref.update(replaceNestedObjects({ ...patch, updatedAt: now }, db.command))
         : await ref.set(Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')));
-      confirmSourceWrite(answer, id);
+      confirmDocumentWrite(answer, id);
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return { result: 'applied', doc: next };
@@ -771,6 +825,16 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async create(collection, data): Promise<CollectionDoc> {
+    if (isCatalogRowCollection(collection)) {
+      const id = data._id === undefined ? randomUUID() : data._id;
+      if (typeof id !== 'string') throw new Error('Catalog row identity must be a string');
+      return catalogWrittenRow(
+        await mutateCatalogRowInCloudBase(
+          cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+          { action: 'create', collection, id, data },
+        ),
+      );
+    }
     const db = database();
     const now = new Date().toISOString();
     const doc = { ...data, createdAt: now, updatedAt: now };
@@ -779,6 +843,13 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async update(collection, id, data): Promise<CollectionDoc | null> {
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'update', collection, id, data },
+      );
+      return result.status === 'missing' ? null : catalogWrittenRow(result);
+    }
     const db = database();
     const patch = { ...data, updatedAt: new Date().toISOString() };
     await db
@@ -789,12 +860,30 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async remove(collection, id): Promise<boolean> {
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'remove', collection, id },
+      );
+      return result.status === 'removed';
+    }
     const db = database();
     const res = await db.collection(collection).doc(id).remove();
     return wxRemovedCount(res) > 0;
   },
 
   async incrementField(collection, id, field, delta): Promise<number | null> {
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'increment', collection, id, field, delta },
+      );
+      if (result.status === 'missing') return null;
+      const value = catalogWrittenRow(result)[field];
+      if (typeof value !== 'number' || !Number.isFinite(value))
+        throw new Error('Catalog counter write was not confirmed');
+      return value;
+    }
     // The atomic increment MUST go through @cloudbase/node-sdk, NOT wx-server-sdk.
     // In the Tencent CloudBase runtime, wx-server-sdk's command-based update
     // (`.doc(id).update({ data: { f: db.command.inc(n) } })`) returns `updated: 0`
@@ -808,7 +897,10 @@ export const cloudBaseAdapter: DbAdapter = {
     // counter value reflects this write (read-after-write).
     const db = cloudStorageSdk().database();
     const ref = db.collection(collection).doc(id);
-    const res = await ref.update({ [field]: db.command.inc(delta), updatedAt: new Date().toISOString() });
+    const res = await ref.update({
+      [field]: db.command.inc(delta),
+      updatedAt: new Date().toISOString(),
+    });
     if ((res.updated ?? 0) === 0) return null;
     const got = await ref.get();
     const doc = (got.data as Record<string, unknown>[] | undefined)?.[0];
@@ -859,6 +951,15 @@ export const cloudBaseAdapter: DbAdapter = {
   // -------------------------------------------------------------------------
 
   async createDocWithId(collection, id, data): Promise<'created' | 'exists'> {
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'create-if-missing', collection, id, data },
+      );
+      if (result.status === 'exists') return 'exists';
+      catalogWrittenRow(result);
+      return 'created';
+    }
     const db = cloudStorageSdk().database();
     return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection(collection).doc(id);
@@ -873,6 +974,13 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async removeDocIfFieldEquals(collection, id, field, expectedValue): Promise<boolean> {
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'remove', collection, id, expectedField: { field, value: expectedValue } },
+      );
+      return result.status === 'removed';
+    }
     const db = cloudStorageSdk().database();
     return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection(collection).doc(id);
@@ -890,6 +998,14 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async upsertDocWithId(collection, id, data, createOnly = {}): Promise<CollectionDoc> {
+    if (isCatalogRowCollection(collection)) {
+      return catalogWrittenRow(
+        await mutateCatalogRowInCloudBase(
+          cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+          { action: 'upsert', collection, id, data, createOnly },
+        ),
+      );
+    }
     const db = cloudStorageSdk().database();
     return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection(collection).doc(id);

@@ -18,7 +18,8 @@
     "./catalog-publication-fingerprint": "./src/catalog-publication-fingerprint.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts",
     "./catalog-source-invalidation": "./src/catalog-source-invalidation.ts",
-    "./catalog-product-state": "./src/catalog-product-state.ts"
+    "./catalog-product-state": "./src/catalog-product-state.ts",
+    "./catalog-row-mutation": "./src/catalog-row-mutation.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",
