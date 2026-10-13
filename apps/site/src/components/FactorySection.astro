@@ -22,9 +22,15 @@ interface Props {
     caption?: string;
     label?: string;
   };
+  /**
+   * Optional stats-band toggle for consumers that already surface the same
+   * numbers elsewhere on the page (e.g. the OEM route's icon-stat proof
+   * band). Defaults to true so the homepage markup stays as-is.
+   */
+  showStats?: boolean;
 }
 
-const { factory, media } = Astro.props;
+const { factory, media, showStats = true } = Astro.props;
 
 const videoSrc = media?.src ?? '/media/oem/factory-video.mp4';
 const videoPoster = media?.poster ?? '/media/oem/factory-video-poster.jpg';
@@ -98,15 +104,17 @@ const factoryPhotos = [
           {factory.body}
         </p>
 
-        <dl class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-          {factory.stats.map((stat: StatItem) => (
-            <div class="rounded-[var(--radius-card)] border border-black/5 bg-surface p-5 text-center shadow-[var(--shadow-card)]">
-              <dt class="sr-only">{stat.label}</dt>
-              <dd class="font-display text-3xl font-bold text-brand-600">{stat.value}</dd>
-              <dd class="mt-2 text-sm font-medium text-ink-soft">{stat.label}</dd>
-            </div>
-          ))}
-        </dl>
+        {showStats && (
+          <dl class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+            {factory.stats.map((stat: StatItem) => (
+              <div class="rounded-[var(--radius-card)] border border-black/5 bg-surface p-5 text-center shadow-[var(--shadow-card)]">
+                <dt class="sr-only">{stat.label}</dt>
+                <dd class="font-display text-3xl font-bold text-brand-600">{stat.value}</dd>
+                <dd class="mt-2 text-sm font-medium text-ink-soft">{stat.label}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </div>
 
       <div class="reveal overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5">

@@ -534,7 +534,7 @@ test.describe('public browser smoke', () => {
     await expect(reveal).toHaveCSS('will-change', 'auto');
   });
 
-  test('OEM page keeps its independent service structure with current facts and deep links', async ({
+  test('OEM page integrates the homepage trust sections with current facts and deep links', async ({
     page,
   }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
@@ -563,13 +563,24 @@ test.describe('public browser smoke', () => {
     await expect(page.locator('#process ol > li')).toHaveCount(6);
     await expect(page.locator('#why-us')).toHaveCount(1);
 
-    // Capability section carries the OEM-specific video/poster pair, exactly once.
-    await expect(page.locator('#capabilities video')).toHaveCount(1);
-    await expect(page.locator('#capabilities video source')).toHaveAttribute(
+    // Integrated trust sections land exactly once, in order after the six-stage path.
+    await expect(page.locator('#detailed-process')).toHaveCount(1);
+    await expect(page.locator('#detailed-process ol > li')).toHaveCount(10);
+    await expect(page.locator('#factory')).toHaveCount(1);
+    await expect(page.getByText('Global Trade Experts Behind Your Business')).toBeAttached();
+    await expect(page.getByText('AI Proactive Incubation')).toBeAttached();
+    await expect(page.getByText('From Risk Prevention to Final Inspection')).toBeAttached();
+    await expect(
+      page.getByRole('heading', { name: 'Ready to develop your next product?' }),
+    ).toBeVisible();
+
+    // The factory section renders the OEM-specific video/poster pair, exactly once.
+    await expect(page.locator('#factory video')).toHaveCount(1);
+    await expect(page.locator('#factory video source')).toHaveAttribute(
       'src',
       '/media/oem-factory.mp4',
     );
-    await expect(page.locator('#capabilities video')).toHaveAttribute(
+    await expect(page.locator('#factory video')).toHaveAttribute(
       'poster',
       '/media/factory-oem.webp',
     );
