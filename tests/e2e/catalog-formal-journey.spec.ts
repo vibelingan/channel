@@ -692,7 +692,12 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
         { timeout: 30000 },
       )
       .toMatchObject({ state: 'approved', header: { categoryLabel: label } });
-    await expectProductSaved(page);
+    if (label === 'Misc') {
+      await expect(classification.locator('[data-record-form-error]')).toContainText(
+        /draft was saved.*withdrawn/i,
+      );
+      await classification.getByRole('button', { name: 'Cancel', exact: true }).click();
+    } else await expectProductSaved(page);
     const saved = await adminAction<CollectionDoc>(
       request,
       'get',
@@ -1223,5 +1228,143 @@ test('twenty source products publish through Assign category and restore shared-
     }
     for (const [index, id] of sharedIds.entries())
       expect(await referenceCount(id)).toBe(before[index]);
+  }
+});
+
+test('ordinary Edit keeps stale input, saves current drafts and live edits, and cannot revive a withdrawal', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const name = `${e2e.runId} Editor CAS Clock`;
+  const product = await adminAction<CollectionDoc>(
+    request,
+    'create',
+    {
+      collection: 'products',
+      values: {
+        name,
+        description: 'Editor concurrency fixture',
+        productFamily: 'misc',
+        imageIds: ['formal-manual-image'],
+        unitPrice: 5,
+        published: false,
+        archived: false,
+      },
+    },
+    session.token,
+  );
+  const read = () =>
+    adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: product._id },
+      session.token,
+    );
+  const image = () =>
+    adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'images', id: 'formal-manual-image' },
+      session.token,
+    );
+  const baseline = (await image()).publishedRefCount ?? 0;
+  const search = async () => {
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(name);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+  };
+  const row = page.getByRole('row').filter({ hasText: name });
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  try {
+    // This lane already exercised UI login above. Reuse its real API login
+    // here so the editor test does not add another login to the shared limiter.
+    await page.addInitScript(
+      ({ token, user, origin }) => {
+        if (location.origin !== origin || !location.pathname.startsWith('/admin')) return;
+        localStorage.setItem('channel.token', token);
+        localStorage.setItem('channel.user', JSON.stringify(user));
+      },
+      { ...session, origin: new URL(e2e.siteUrl).origin },
+    );
+    await page.goto('/admin');
+    await expect(page.getByRole('button', { name: 'Products', exact: true })).toBeVisible();
+    await search();
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} unsaved`);
+    await adminAction(
+      request,
+      'update',
+      {
+        collection: 'products',
+        id: product._id,
+        values: { description: 'Concurrent administrator description' },
+      },
+      session.token,
+    );
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(editor.locator('[data-record-form-error]')).toContainText(/changed|refresh/i);
+    await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(`${name} unsaved`);
+    expect((await read()).description).toBe('Concurrent administrator description');
+    expect((await read()).name).toBe(name);
+    await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.reload();
+    await search();
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} draft`);
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expectProductSaved(page);
+    expect((await read()).published).toBe(false);
+    await row.getByRole('checkbox', { name: 'Select row', exact: true }).check();
+    await page.getByRole('button', { name: 'Publish', exact: true }).click();
+    await expect.poll(async () => (await read()).published, { timeout: 30000 }).toBe(true);
+    await expect.poll(async () => (await image()).publishedRefCount).toBe(Number(baseline) + 1);
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} live`);
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expectProductSaved(page);
+    expect((await read()).published).toBe(true);
+    const detail = await request.get(
+      `${e2e.apiUrl}/api/products/${product._id}/detail?view=sections`,
+    );
+    expect(detail.ok()).toBe(true);
+    expect((await detail.json()).data.name).toBe(`${name} live`);
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} stale live`);
+    const live = await read();
+    await adminAction(
+      request,
+      'update',
+      {
+        collection: 'products',
+        id: product._id,
+        values: { published: false },
+        expectedUpdatedAt: live.updatedAt,
+      },
+      session.token,
+    );
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(editor.locator('[data-record-form-error]')).toContainText(/changed|withdrawn/i);
+    await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(
+      `${name} stale live`,
+    );
+    expect((await read()).published).toBe(false);
+    expect((await read()).name).toBe(`${name} live`);
+    expect(
+      (
+        await request.get(`${e2e.apiUrl}/api/products/${product._id}/detail?view=sections`)
+      ).status(),
+    ).toBe(404);
+  } finally {
+    await page.goto('/');
+    await adminAction(
+      request,
+      'update',
+      { collection: 'products', id: product._id, values: { published: false, archived: true } },
+      session.token,
+    );
+    expect((await read()).published).toBe(false);
+    expect((await image()).publishedRefCount ?? 0).toBe(baseline);
   }
 });

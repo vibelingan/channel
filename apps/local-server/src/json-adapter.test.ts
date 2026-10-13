@@ -566,3 +566,39 @@ for (const sourceFirst of [true, false]) {
     else assert.equal(publication.revision, prepared.value.revision);
   });
 }
+
+for (const storedRevision of [undefined, null]) {
+  test(`two actual adapters cannot both save from the same legacy editor snapshot (${storedRevision})`, async (t) => {
+    const { directory, file } = temporaryDatabase();
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    writeFileSync(
+      file,
+      JSON.stringify({
+        products: [
+          { _id: 'legacy-editor', name: 'Before', published: false, updatedAt: storedRevision },
+        ],
+      }),
+    );
+    const first = new JsonFileAdapter(file);
+    const second = new JsonFileAdapter(file);
+    const attempts = await Promise.allSettled(
+      [first, second].map((adapter, i) =>
+        adapter.saveCatalogProductWithIdentities({
+          mode: 'update',
+          productId: 'legacy-editor',
+          expectedUpdatedAt: null,
+          data: { name: `Editor ${i}` },
+        }),
+      ),
+    );
+    assert.equal(attempts.filter((result) => result.status === 'rejected').length, 0);
+    const outcomes = attempts.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value.result] : [],
+    );
+    assert.equal(outcomes.filter((result) => result === 'saved').length, 1);
+    assert.equal(outcomes.filter((result) => result === 'stale').length, 1);
+    const saved = readStore(file).products?.find((doc) => doc._id === 'legacy-editor');
+    assert.match(String(saved?.name), /^Editor [01]$/);
+    assert.equal(typeof saved?.updatedAt, 'string');
+  });
+}

@@ -81,7 +81,7 @@ export interface CatalogProductSaveInput {
   mode: 'create' | 'update';
   productId: string;
   data: Record<string, unknown>;
-  expectedUpdatedAt?: string;
+  expectedUpdatedAt?: string | null;
   rejectPendingReview?: boolean;
   expectedPrimarySourceKey?: string | null;
   requireDetailApproval?: boolean | 'publication-or-pricing';
@@ -191,7 +191,10 @@ export function planCatalogProductSave(
     return { result: 'alibaba-identity-conflict' };
   }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
-  if (input.expectedUpdatedAt !== undefined && existing?.updatedAt !== input.expectedUpdatedAt)
+  if (
+    input.expectedUpdatedAt !== undefined &&
+    (existing?.updatedAt ?? null) !== input.expectedUpdatedAt
+  )
     return { result: 'stale' };
   if (
     input.requireUnapprovedDraft &&

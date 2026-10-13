@@ -113,6 +113,7 @@ export function productFamilyTransition(
 
 export function productFormErrorTargets(error: Error | null): Record<string, string> {
   if (!(error instanceof AdminApiError)) return {};
+  if (error.code === 'CONFLICT' && !/slug|sku/i.test(error.message)) return {};
   const targets: Record<string, string> = {};
   for (const message of error.message
     .split(';')

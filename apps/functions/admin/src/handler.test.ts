@@ -6122,3 +6122,31 @@ for (const kind of ['conflict', 'transport'] as const) {
     assert.equal(JSON.stringify(logs).includes('synthetic-secret'), false);
   });
 }
+
+for (const prior of [undefined, null]) {
+  test(`ordinary editor null CAS accepts legacy row once and rejects stale retry (${prior})`, async () => {
+    const product = {
+      _id: 'legacy-editor',
+      ...publishableProduct(),
+      published: false,
+    } as CollectionDoc;
+    Reflect.set(product, 'updatedAt', prior);
+    const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+    const token = await adminToken();
+    const data = {
+      collection: 'products',
+      id: product._id,
+      values: { name: 'First edit' },
+      expectedUpdatedAt: null,
+    };
+    const saved = okData<CollectionDoc>(await callWithApproval('update', data, token));
+    assert.equal(saved.name, 'First edit');
+    assert.equal(typeof saved.updatedAt, 'string');
+    const before = structuredClone(store.products);
+    expectErr(
+      await callWithApproval('update', { ...data, values: { name: 'Stale edit' } }, token),
+      'CONFLICT',
+    );
+    assert.deepEqual(store.products, before);
+  });
+}

@@ -76,7 +76,7 @@ async function saveCatalogProduct(input: {
   productId: string;
   values: unknown;
   requireDetailApproval?: CatalogProductSaveInput['requireDetailApproval'];
-  expectedUpdatedAt?: string;
+  expectedUpdatedAt?: string | null;
   rejectPendingReview?: boolean;
   expectedPrimarySourceKey?: string | null;
 }): Promise<CatalogProductWriteTransition> {
@@ -84,7 +84,9 @@ async function saveCatalogProduct(input: {
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
-    ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
+    ...(input.expectedUpdatedAt !== undefined
+      ? { expectedUpdatedAt: input.expectedUpdatedAt }
+      : {}),
     ...(input.rejectPendingReview
       ? { rejectPendingReview: true, expectedPrimarySourceKey: input.expectedPrimarySourceKey }
       : {}),
@@ -130,7 +132,7 @@ export function updateCatalogProductRecord(
   productId: string,
   values: unknown,
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
-  expectedUpdatedAt?: string,
+  expectedUpdatedAt?: string | null,
   rejectPendingReview = false,
   expectedPrimarySourceKey: string | null = null,
 ): Promise<CatalogProductWriteTransition> {
@@ -139,7 +141,7 @@ export function updateCatalogProductRecord(
     productId,
     values,
     requireDetailApproval,
-    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
     ...(rejectPendingReview ? { rejectPendingReview: true, expectedPrimarySourceKey } : {}),
   });
 }

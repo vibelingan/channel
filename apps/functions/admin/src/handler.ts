@@ -261,7 +261,7 @@ const updateSchema = z.object({
   collection: z.string(),
   id: z.string().min(1),
   values: z.record(z.unknown()),
-  expectedUpdatedAt: z.string().datetime().optional(),
+  expectedUpdatedAt: z.string().datetime().nullable().optional(),
   intent: z.literal('refresh-live').optional(),
 });
 const batchUpdateSchema = z.object({
@@ -1568,7 +1568,7 @@ async function acknowledgeAlibabaProductReview(
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
   undecidedSupplierChange = false,
   // Classification "Save and publish": the revision its save returned.
-  expectedUpdatedAt?: string,
+  expectedUpdatedAt?: string | null,
   refreshLiveReview = false,
 ) {
   const data = { ...values };
@@ -1618,7 +1618,7 @@ async function acknowledgeAlibabaProductReview(
           : null,
     },
     requireDetailApproval,
-    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
   });
   if (result.result === 'saved') return result;
   if (result.result === 'stale') {
@@ -2117,7 +2117,7 @@ async function updateAction(
   if (parsed.data.collection === 'products' && !before) {
     return err('NOT_FOUND', 'Document not found');
   }
-  if (parsed.data.expectedUpdatedAt && parsed.data.collection !== 'products')
+  if (parsed.data.expectedUpdatedAt !== undefined && parsed.data.collection !== 'products')
     return err('BAD_REQUEST', 'Product revision is only valid for products.');
   const refreshLiveReview = parsed.data.intent === 'refresh-live';
   if (refreshLiveReview) {
@@ -2125,7 +2125,7 @@ async function updateAction(
       return err('FORBIDDEN', 'Only admins can confirm an approved edit.');
     if (
       parsed.data.collection !== 'products' ||
-      !parsed.data.expectedUpdatedAt ||
+      parsed.data.expectedUpdatedAt === undefined ||
       Object.keys(parsed.data.values).length !== 0
     )
       return err(
@@ -2137,7 +2137,7 @@ async function updateAction(
     if (
       before?.published !== true ||
       before.archived === true ||
-      before.updatedAt !== parsed.data.expectedUpdatedAt
+      (before.updatedAt ?? null) !== parsed.data.expectedUpdatedAt
     )
       return err(
         'CONFLICT',
@@ -2227,8 +2227,8 @@ async function updateAction(
         return err('CONFLICT', 'Refresh the supplier product before changing its status.');
       if (
         contributorSupplierStatusChange &&
-        parsed.data.expectedUpdatedAt &&
-        parsed.data.expectedUpdatedAt !== before?.updatedAt
+        parsed.data.expectedUpdatedAt !== undefined &&
+        parsed.data.expectedUpdatedAt !== (before?.updatedAt ?? null)
       )
         return err('CONFLICT', 'Product changed since classification. Refresh before publishing.');
       // Compare price changes in the atomic save, while allowing non-price

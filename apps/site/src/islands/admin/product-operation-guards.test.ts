@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { updateRecord } from './api.ts';
+import { updateProductFromEditor, updateRecord } from './api.ts';
 
 for (const response of ['missing-revision', 'wrong-id'] as const) {
   test(`manual publication stops before approval when draft save returns ${response}`, async (t) => {
@@ -150,3 +150,65 @@ for (const linked of [false, true]) {
     });
   }
 }
+
+for (const linked of [false, true]) {
+  test(`editor live save never republishes after a withdrawal (linked=${linked})`, async (t) => {
+    let published = true;
+    let revision: string | null = 'opened';
+    const writes: Record<string, unknown>[] = [];
+    const current = () => ({
+      _id: 'live-editor',
+      name: 'Clock',
+      productFamily: 'misc',
+      imageIds: ['owned'],
+      published,
+      updatedAt: revision,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'edited',
+      ...(linked ? { alibabaPrimarySourceKey: 'a'.repeat(64) } : {}),
+    });
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.action === 'get') return Response.json({ ok: true, data: current() });
+      if (body.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: true } });
+      if (body.action === 'catalogDetailApproval') {
+        published = false;
+        revision = 'withdrawn';
+        return Response.json({
+          ok: true,
+          data: { ok: true, status: 'approved', jobId: 'j', revision: 'approved-r' },
+        });
+      }
+      assert.equal(body.action, 'update');
+      writes.push(body.data);
+      if (Object.hasOwn(body.data.values, 'published')) published = body.data.values.published;
+      revision = 'saved';
+      return Response.json({ ok: true, data: current() });
+    });
+    await assert.rejects(
+      updateProductFromEditor(
+        { ...current(), updatedAt: 'opened' },
+        { name: 'Edited clock', published: true },
+      ),
+      /withdrawn|archived/i,
+    );
+    assert.equal(published, false);
+    assert.equal(
+      writes.some((w) => Object.hasOwn(w.values as object, 'published')),
+      false,
+    );
+  });
+}
+
+test('ordinary legacy editor save sends an explicit null revision instead of dropping the guard', async (t) => {
+  let update: Record<string, unknown> | undefined;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'update') update = body.data;
+    return Response.json({ ok: true, data: { _id: 'legacy', updatedAt: 'saved' } });
+  });
+  await updateProductFromEditor({ _id: 'legacy', published: false }, { name: 'Saved legacy' });
+  assert.equal(Object.hasOwn(update ?? {}, 'expectedUpdatedAt'), true);
+  assert.equal(update?.expectedUpdatedAt, null);
+});

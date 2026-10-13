@@ -55,6 +55,7 @@ import {
   markProductReviewed,
   removeRecord,
   retryBatchUpdate,
+  updateProductFromEditor,
   updateRecord,
 } from './api.ts';
 import {
@@ -277,8 +278,10 @@ export function CollectionView({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vars: { id: string; values: Record<string, unknown> }) =>
-      updateRecord(collection.name, vars.id, vars.values),
+    mutationFn: (vars: { id: string; values: Record<string, unknown>; opened?: CollectionDoc }) =>
+      vars.opened
+        ? updateProductFromEditor(vars.opened, vars.values)
+        : updateRecord(collection.name, vars.id, vars.values),
     onSuccess: (saved) => {
       setEditing(null);
       setStillFlagged(
@@ -352,8 +355,8 @@ export function CollectionView({
     removeMutation.error ||
     batchRemoveMutation.error;
 
-  function patch(id: string, values: Record<string, unknown>) {
-    updateMutation.mutate({ id, values });
+  function patch(opened: CollectionDoc, values: Record<string, unknown>) {
+    updateMutation.mutate({ id: opened._id, values, ...(isProducts ? { opened } : {}) });
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: selection resets only when the visible scope changes
@@ -479,7 +482,7 @@ export function CollectionView({
               <InlineSelect
                 field={field}
                 value={doc[field.name]}
-                onChange={(v) => patch(doc._id, { [field.name]: v })}
+                onChange={(v) => patch(doc, { [field.name]: v })}
               />
             );
           }
@@ -537,7 +540,7 @@ export function CollectionView({
               row.original.published !== true &&
               ['Changed', 'Removed'].includes(String(reviewLabel(row.original)))
                 ? setEditing(row.original)
-                : patch(row.original._id, { published: !(row.original.published === true) })
+                : patch(row.original, { published: !(row.original.published === true) })
             }
           />
         ),
@@ -590,7 +593,7 @@ export function CollectionView({
               onClick={() => {
                 if (isProducts) {
                   if (confirm('Archive this product? It will no longer be published.'))
-                    patch(doc._id, { archived: true, published: false });
+                    patch(doc, { archived: true, published: false });
                 } else if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
               className="ml-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
@@ -1142,7 +1145,13 @@ export function CollectionView({
           submitting={updateMutation.isPending}
           error={updateMutation.error as Error | null}
           onCancel={() => setEditing(null)}
-          onSubmit={(values) => updateMutation.mutate({ id: editing._id, values })}
+          onSubmit={(values) =>
+            updateMutation.mutate({
+              id: editing._id,
+              values,
+              ...(isProducts ? { opened: editing } : {}),
+            })
+          }
           onSeeChanges={() => setChangesPreview(editing)}
           canReviewSupplier={role === 'admin'}
           {...(role !== 'admin' && ['Changed', 'Removed'].includes(String(reviewLabel(editing)))

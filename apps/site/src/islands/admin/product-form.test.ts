@@ -318,3 +318,11 @@ test('archived publication errors target the lifecycle control', () => {
     { archived: 'Archived products cannot be published' },
   );
 });
+
+test('concurrent withdrawal stays a form-level conflict instead of an Archived field error', () => {
+  const error = new AdminApiError(
+    'CONFLICT',
+    'Your draft was saved, but the product was withdrawn or archived. Keep your edits and check its current state.',
+  );
+  assert.deepEqual(productFormErrorTargets(error), {});
+});

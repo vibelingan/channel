@@ -481,3 +481,28 @@ test('the photo job never changes a product approved, published or archived mean
   ])
     assert.equal(planCatalogProductSave({ ...draft, ...changed }, fill, 'now').result, 'stale');
 });
+
+for (const stored of [undefined, null]) {
+  test(`legacy opening revision remains guarded when stored updatedAt is ${stored}`, () => {
+    const input: CatalogProductSaveInput = {
+      mode: 'update',
+      productId: 'review-product',
+      data: { description: 'Operator edit' },
+      expectedUpdatedAt: null,
+    };
+    const current = reviewProduct();
+    Reflect.set(current, 'updatedAt', stored);
+    assert.equal(
+      planCatalogProductSave(current, input, '2026-10-13T00:00:00.000Z').result,
+      'ready',
+    );
+    assert.deepEqual(
+      planCatalogProductSave(
+        { ...current, updatedAt: '2026-10-13T00:00:01.000Z' },
+        input,
+        '2026-10-13T00:00:02.000Z',
+      ),
+      { result: 'stale' },
+    );
+  });
+}

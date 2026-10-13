@@ -159,3 +159,42 @@ await writeProduct(invalidated); // 与批准/解绑竞争同一记录
 - CloudBase adapter 原文件被仓库 Biome 配置排除，未冒称其 lint 覆盖；只将本次新增事务函数分段格式化，保持既有无关代码不动。新 helper/test、其他改动文件仍执行 Biome；CloudBase 代码由 tsc、行为回归和 SDK gate 覆盖。
 
 - 最终分段格式化后 SDK gate 又捕获 1 项 matcher 失败：原正则要求 update( 与 replaceNestedObjects 同行。保留同一调用约束并允许合法空白；新增 source transaction 的 AST 校验保持不变。该失败和修复均保留，最终通过以 p2a-sdk-final-r2.log 为准。
+
+## P3c：普通 Edit 的打开版本与 live 保存意图（红测准备）
+
+运行问题：CollectionView 的 `updateMutation({id, values})` 丢失打开表单时的版本；live 表单携带默认 `published:true`，保存编辑会进入显式发布分支，可能覆盖其他管理员刚完成的下架。
+
+数据：编辑快照持有产品 ID、打开时 updatedAt（旧行缺失/null 明确表示 null）、打开时 published。这个快照只在本表单存活；每次受保护保存的返回版本继续传给后续写入。null 是“仍无版本”的 CAS，undefined 才是不提供保护。
+
+技术约束：后端最终产品事务必须核对版本；浏览器的先读不能替代 CAS。审批暂存的版本由既有流程处理，不把 lifecycle 开关混入普通编辑。
+
+修正：表单从打开快照推导 save-draft / refresh-live / publish / unpublish，live 保存移除默认 published 开关。只有明确的编辑意图可进入人工审阅路径；分类批量原有 Changed/Removed 拒绝保持。
+
+```ts
+const intent = opened.published && values.published !== false ? 'refresh-live' : ...;
+updateRecord('products', opened._id, values, opened.updatedAt ?? null, intent);
+// 数据库： (existing.updatedAt ?? null) === expectedUpdatedAt
+```
+
+不采用：在提交时取最新时间戳替代打开版本，这会把他人的修改当成用户已经看过；也不因旧行缺版本取消保护。
+
+风险/测试：legacy null CAS 首次编辑、并发后 stale；manual/Alibaba live 默认开关保存后发生下架，不得写 publication toggle；对应 handler null 透传与 UI 打开快照接线，再测组合浏览器。
+
+文字审查：将“版本仍为空也安全”改为“只在仍为空时允许首次保存，后续更新即拒绝旧表单”，保留明确的并发条件。检查实际 CollectionView、api、handler、catalog-product-identities 与数据库 plan。
+
+- P3c 首轮红测确认 5 个失败（两种 legacy CAS、manual/Alibaba live 开关、null guard 透传），修正后相关回归 281 项通过。首轮从错误 cwd 执行的命令未启动测试，另留 p3c-red-r2 才作为红测证据。
+- 首轮组合 browser：public 41 / catalog 90 通过，formal 8 通过、2 失败，runner finally 清理成功。其一旧用例故意保存期间下架，旧预期表单关闭，与新增明确冲突语义不符；实际页面还揭露 conflict 误匹配 Archived 字段，使全局错误检测遗漏。新增独立红测后修复分类；用例改为显式检查冲突和保留表单，再取消。另一项是新用例 Name exact selector 未包含必填星号，改为实际 accessible textbox 名称。两项均不抹去首次失败。
+- 首轮 tsc 发现一处 non-product inline select 调用仍传 id，改为传当前 doc；null 存储测试通过 Reflect.set 注入真实不受信任行，避免谎报为正常 CollectionDoc 类型。最终检查待补。
+
+- 第二轮 public 41 / catalog 90 / formal 前 9 项全部通过（原保存期间下架流程已按冲突预期通过）。新增第 10 项在登录页超时，未捕获响应所以不能将限流根因写成已确认。该 lane 已通过多次真实 UI 登录，编辑用例改复用 beforeAll 的真实 API 登录会话，保留后端会话再验证，不额外测试共享登录窗口。与原用例一样不记录 token。全部 runner finally 清理成功。
+- 最终相关 unit 296 passed / 0 failed / 0 skipped；db/admin/site/e2e 四个 tsc 通过。完整第三轮 browser 与 mutation 待补。
+
+- 第三轮组合 public 41 / catalog 90 / formal 10 / visibility 8 共 149 通过；taxonomy 最后 Misc 步骤在 14 件读取结果的 Promise.all 中出现 APIRequestContext POST read ECONNRESET（无应用响应），1 failed。新普通编辑完整用例 2.1 秒通过，20 件 26.1 秒通过；finally 清理成功。尚未确认重置的具体来源，不能记为全套通过。SDK gate 首次 sandbox tsx IPC EPERM，授权范围内只读脚本重跑通过。
+- 三项 mutation（数据库 CAS、live 保存意图、conflict 全局提示）分别被测试抓住，finally 恢复后相关 296 项再通过。完整第四轮运行与 P6 transport/read recovery 门槛保留。
+
+- 第四轮组合全通过：public 41 / catalog 90 / formal 10 / visibility 8 / taxonomy 1，共 150，runner 确认删除隔离 DB/服务。第三轮 ECONNRESET 未重现，原因仍未确认，保留为 P6 transport/read recovery 检查项，不用此次成功覆盖历史失败。
+- P3c 最终 review 沿 UI 打开快照→client intent/null guard→handler nullable schema→identity facade→原子 plan CAS 逐段核对；旧分类 Changed/Removed 拒绝、贡献者权限、非产品 inline edit 均保留。guard/null、live intent、global conflict 三项 mutation 皆检测。当前子单元未剩确定 P1/P2；持久操作与更多恢复入口仍是 P3/P4 后续，整体尚未交付。
+
+- 提交后 review 追加两实际 JSON adapter 的 legacy 并发保存检查，必须恰好一个 saved、一个 stale（该 DB API 用结果值拒绝，不能误数 Promise fulfilled）。同时将新增隔离浏览器会话初始化限制为本次 owned origin 的 admin 路径，避免导航/frame 扩散。SDK nullable/addInitScript 已核对安装类型与官方文档，详见 SDK-PROBE；没有引入新 CloudBase 方法或 shim。
+
+- 提交后复核最终 312 项相关回归通过，含双实际 JSON adapter 的 absent/null 两场竞争；删除原子 CAS 后该两项变红，finally 恢复。e2e/local-server tsc 通过；实际 addInitScript 回调经 AST 提取运行，owned admin / 外部 origin / owned 非 admin 三场边界通过。该小修只约束隔离测试夹具，不修改产品行为；产品功能以第四轮 150 项证据为准。

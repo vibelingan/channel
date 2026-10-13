@@ -374,15 +374,43 @@ export async function createRecord(
   }
 }
 
+export type ProductWriteIntent = 'save-draft' | 'refresh-live' | 'publish' | 'unpublish';
+
+/** Save against the exact product snapshot that populated the editor. */
+export function updateProductFromEditor(
+  opened: CollectionDoc,
+  values: Record<string, unknown>,
+): Promise<CollectionDoc> {
+  const revision = opened.updatedAt ?? null;
+  if (revision !== null && typeof revision !== 'string')
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The product revision is invalid. Reload before saving.',
+    );
+  const intent: ProductWriteIntent =
+    values.published === false
+      ? 'unpublish'
+      : opened.published === true
+        ? 'refresh-live'
+        : values.published === true
+          ? 'publish'
+          : 'save-draft';
+  return updateRecord('products', opened._id, values, revision, intent);
+}
+
 export async function updateRecord(
   collection: string,
   id: string,
-  values: Record<string, unknown>,
-  expectedUpdatedAt?: string,
+  inputValues: Record<string, unknown>,
+  expectedUpdatedAt?: string | null,
+  intent?: ProductWriteIntent,
 ): Promise<CollectionDoc> {
-  let refreshPublishedDetail = false;
+  let refreshPublishedDetail = intent === 'refresh-live';
+  const { published: _published, ...draftValues } = inputValues;
+  const values = refreshPublishedDetail ? draftValues : inputValues;
   if (
     collection === 'products' &&
+    !refreshPublishedDetail &&
     values.published === undefined &&
     isProductFamily(values.productFamily)
   ) {
@@ -407,10 +435,20 @@ export async function updateRecord(
       throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
     if (capabilities?.enabled) {
       let current = await getRecord(collection, id);
+      if (expectedUpdatedAt !== undefined && (current.updatedAt ?? null) !== expectedUpdatedAt)
+        throw new AdminApiError(
+          'CONFLICT',
+          'Product changed since classification or editing. Keep your edits and reload before saving.',
+        );
+      if (refreshPublishedDetail && (current.published !== true || current.archived === true))
+        throw new AdminApiError(
+          'CONFLICT',
+          'Product was withdrawn or archived. Keep your edits and reload before saving.',
+        );
       if (typeof current.alibabaPrimarySourceKey !== 'string')
         return approveManualProduct(collection, id, values, current, {
           refreshPublishedDetail,
-          ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+          ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
         });
       if (typeof current.alibabaPrimarySourceKey === 'string') {
         // A guarded publish (classification "Save and publish") is an approval
@@ -418,12 +456,13 @@ export async function updateRecord(
         // carrying the revision the previous one returned.
         let guard = expectedUpdatedAt;
         if (guard !== undefined) {
-          if (current.updatedAt !== guard)
+          if ((current.updatedAt ?? null) !== guard)
             throw new AdminApiError(
               'CONFLICT',
               'Product changed since classification. Refresh before publishing.',
             );
           if (
+            intent === undefined &&
             current.alibabaReviewPending === true &&
             ['changed', 'removed'].includes(String(current.alibabaReviewReason))
           )
@@ -437,7 +476,7 @@ export async function updateRecord(
             collection,
             id,
             values: writeValues,
-            ...(guard ? { expectedUpdatedAt: guard } : {}),
+            ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
           });
           guard = savedProductRevision(saved, id, guard);
           return saved;
@@ -514,7 +553,7 @@ export async function updateRecord(
           collection,
           id,
           values: { published: true },
-          ...(guard ? { expectedUpdatedAt: guard } : {}),
+          ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
         });
       }
     }
@@ -523,14 +562,19 @@ export async function updateRecord(
     collection,
     id,
     values,
-    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
   });
 }
 
 /** Confirm an approved live edit without changing its publication state. */
 async function refreshedProduct(collection: string, id: string): Promise<CollectionDoc> {
   const latest = await getRecord(collection, id);
-  if (latest.published !== true || latest.alibabaReviewPending !== true) return latest;
+  if (latest.published !== true || latest.archived === true)
+    throw new AdminApiError(
+      'CONFLICT',
+      'Your draft was saved, but the product was withdrawn or archived. Keep your edits and check its current state.',
+    );
+  if (latest.alibabaReviewPending !== true) return latest;
   const revision = productRevision(latest, id);
   return call<CollectionDoc>('update', {
     collection,
@@ -545,7 +589,7 @@ async function refreshedProduct(collection: string, id: string): Promise<Collect
 function savedProductRevision(
   saved: CollectionDoc,
   productId: string,
-  guard: string | undefined,
+  guard: string | null | undefined,
 ): string | undefined {
   if (saved?._id !== productId)
     throw new AdminApiError(
@@ -579,11 +623,11 @@ async function approveManualProduct(
   id: string,
   values: Record<string, unknown>,
   initial: CollectionDoc,
-  options: { refreshPublishedDetail: boolean; expectedUpdatedAt?: string },
+  options: { refreshPublishedDetail: boolean; expectedUpdatedAt?: string | null },
 ): Promise<CollectionDoc> {
   let current = initial;
   let guard = options.expectedUpdatedAt;
-  if (guard !== undefined && current.updatedAt !== guard)
+  if (guard !== undefined && (current.updatedAt ?? null) !== guard)
     throw new AdminApiError(
       'CONFLICT',
       'Product changed since classification. Refresh before publishing.',
@@ -604,7 +648,7 @@ async function approveManualProduct(
       collection,
       id,
       values: draftValues,
-      ...(guard ? { expectedUpdatedAt: guard } : {}),
+      ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
     });
     guard = savedProductRevision(current, id, guard);
   }
@@ -615,7 +659,7 @@ async function approveManualProduct(
     collection,
     id,
     values: { published: true },
-    ...(guard ? { expectedUpdatedAt: guard } : {}),
+    ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
   });
 }
 
