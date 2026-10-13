@@ -346,3 +346,18 @@ P2c2b 提交前 inline 复核：来源完整捕获、普通/lease/特殊写入�
 最终生产构建浏览器串联 150 passed（41 public / 90 catalog / 10 formal / 8 visibility / 1 taxonomy），临时 DB/services 清理成功；日志 p2c2c-combined-e2e.log。三件真实存储副本连同实际 primary links 通过严格 prepare/review/begin/pages/finish，完整原值 113/113/121、header 7668/7675/8136 bytes、job 12005/11866/12269 bytes、variants 4/2/1，仍未发布且分类未变，临时文件清理。无云业务写入、resync、发布或部署；真实 vendor transaction/lease 交错仍未验证。
 
 提交前 inline review 已逐条核对 decoder 消费者、HTTP workflow 不接受内部 source-page、冻结证明/事务写入、ACK 与重试、测试有效性和 public/private 投影。当前子单元无剩余 P1/P2；后续旧 UI-02 工具、共享报告/列表/Preview、durable intents/recovery、历史修复、全量构建和 vendor/test 现场验收仍阻止完整交付。文字核对将“重新绑定只是 metadata”更正为 linkedAt 参与身份 hash，并区分当前子单元通过与全部发布修复完成。
+
+
+### P2c2d：旧本地演练准备和正式审批接线（2026-10-14，本地子单元）
+
+旧 UI-02 工具的 18 项现有测试先复现 17 failed：普通 CRUD 的 ready=true 被输入版本保护挡住，不能用放宽普通 writer 解决。新增仅在具体 JsonFileAdapter 的 prepareLocalDetailClone(begin/seal)，不加入 DbAdapter、Cloud adapter 或 HTTP。要求 localDetailClone=true、精确 ui02 owner；begin 标记 writing 并撤销 ready；seal 在既有单文件 mutation lock 内比较本轮 revision/generation，检查完整且唯一的自有 active manifest、所有配置 revision 及实际生效审批计划后才写 ready 和 content generation。失败不写；新一轮开始使旧 seal 不能获胜。
+
+approveLocalDetail 使用真实 manageCatalogDetailApproval 的 review/begin/pages/finish，写不可变 catalogDetailVariants 和正式回执，移除旧的先清 publication 再逐行覆盖快照做法。只在已接线隔离 workspace、确认 clone 后创建本地虚拟管理员，无云凭证或云动作。人工编辑使 ready 失效后，对完整当前候选重新检查；最终发布保留 expectedUpdatedAt 和 requireDetailApproval，并在隔离 workspace 复核图片引用。此工具仍是本地 fixture/HTTP 演练，不冒充真实客户入口或云现场验收。
+
+测试补齐：无 clone/错误 owner/旧 generation/旧 revision/缺 manifest/写入未完成不能批准；正常 21 SKU 使用 staged immutable-v1 并保留人工名称。损坏 canonical variant 用例改为损坏实际 immutable 存储行，不再修改已不被读取的旧 productVariants 输出；正式 v1 原 adapter 用例仍保留。部分 materialization 失败使用真实 begin 状态，不通过普通 CRUD 注入受保护 ready。两独立 mutation 移除 generation/owner 守卫时，各自反例失败且正常审批正向通过；finally 逐字恢复。
+
+最终扩大回归 1150 passed / 0 failed / 0 skipped，包含全量 apps/local-server/src/*.test.ts 及 db/sync/选定 admin/public 回归，耗时 152445ms。新增五项与原十八项的最终 focused 23 passed；local/e2e tsc、3 文件 Biome、installed CloudBase SDK gate 通过。初次接线误用不存在的 createDocIfMissing 被运行时/tsc 检出，已按实际 createDocWithId 合约修正；可选 revision 类型也已修正重跑。先前失效/失败日志保留，不算通过。修改范围没有新增第三方 SDK 方法，仅复用 Zod.parse，installed 声明和有效/无效 manifest 的实际运行覆盖。C 的 150 浏览器通过属于上一单元；本单元的实际 HTTP/子进程前端 transport probe 已在 1150 中执行，不宣称重新跑过 150。
+
+提交前 inline review：核对具体 Json seam 无 Cloud/HTTP 消费者、mutation lock/持久化恢复、准备与普通 writer 版本边界、真实 staged workflow/immutable public/RFQ consumer；当前局部无剩余 P1/P2。下一步继续 P1 共享安全问题契约、只读 Preview/完整 SKU/人工配置和 P2 准入，再 P3/P4 持久操作/恢复等完整门槛。未 push/部署/修改云业务数据。
+
+文字核对：实际复核 json-adapter、catalog-detail-workspace 及测试、正式 workflow/storage/public handler；将“普通写入 ready”更正为“带 owner/revision/generation 和完整 manifest 的受保护本地准备”，明确本地工具与正式客户入口的证据区别。

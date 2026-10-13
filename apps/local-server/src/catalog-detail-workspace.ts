@@ -15,6 +15,7 @@ import {
   backfillPublishedRefCounts,
   get,
   list,
+  manageCatalogDetailApproval,
   saveCatalogProductWithIdentities,
   setAdapter,
   updateDoc,
@@ -27,6 +28,7 @@ import {
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import type { CollectionDoc, ProductFamily } from '@vibelingan-channel/shared';
+import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { JsonFileAdapter } from './json-adapter.ts';
 
@@ -39,6 +41,7 @@ function activateLocalWorkspace() {
   if (!localWorkspace) throw new Error('Wire an isolated local workspace first');
   setAdapter(localWorkspace.adapter);
   setMediaStorage(localWorkspace.storage);
+  return localWorkspace;
 }
 
 export function wireLocalDetailWorkspace(databaseFile: string, mediaDirectory: string) {
@@ -77,7 +80,7 @@ export async function materializeLocalDetail(input: {
   productFamily: ProductFamily;
   images: ReadonlyMap<string, string>;
 }) {
-  activateLocalWorkspace();
+  const workspace = activateLocalWorkspace();
   const parsed = validateCatalogSourceObservation(input.observation);
   if (!parsed.ok) throw new Error('Invalid source observation');
   const observation = parsed.value;
@@ -153,7 +156,12 @@ export async function materializeLocalDetail(input: {
   }
   const active = new Set(bindings.values());
   const sourceRevision = randomUUID();
-  await updateDoc('products', productId, { detailSourceReady: false });
+  await workspace.adapter.prepareLocalDetailClone({
+    action: 'begin',
+    productId,
+    owner,
+    revision: sourceRevision,
+  });
   const previousProductFields = product.detailSourceProductFields;
   const productPatch: Record<string, unknown> = {};
   for (const [field, value] of Object.entries(productFields)) {
@@ -238,54 +246,107 @@ export async function materializeLocalDetail(input: {
   await updateDoc('products', productId, {
     detailSourceObservedAt: observation.source.observedAt,
     detailSourceManifest: { revision: sourceRevision, variantIds: [...active] },
-    detailSourceReady: true,
+  });
+  const prepared = await get('products', productId);
+  if (!prepared) throw new Error('Local clone disappeared');
+  await workspace.adapter.prepareLocalDetailClone({
+    action: 'seal',
+    productId,
+    owner,
+    revision: sourceRevision,
+    expectedGeneration: Number(prepared.catalogContentGeneration ?? 0),
   });
   return { productId, variants: active.size, stale: false, warnings: [...warnings] };
 }
 
 /** Explicit approval of a LOCAL clone only. Never exported as a cloud action. */
 export async function approveLocalDetail(productId: string) {
-  activateLocalWorkspace();
+  const workspace = activateLocalWorkspace();
   const product = await get('products', productId);
   requireClone(product);
-  if (product.detailSourceReady !== true) throw new Error('Source materialization is incomplete');
+  if (product.localDetailPreparationState !== 'complete')
+    throw new Error('Source materialization is incomplete');
   if (product.archived !== false) throw new Error('Archived clone cannot be approved');
+  if (
+    typeof product.detailSourceOwner !== 'string' ||
+    typeof product.detailSourceRevision !== 'string'
+  )
+    throw new Error('Source materialization is incomplete');
+  // Operator edits invalidate readiness; revalidate the complete effective clone before approval.
+  await workspace.adapter.prepareLocalDetailClone({
+    action: 'seal',
+    productId,
+    owner: product.detailSourceOwner,
+    revision: product.detailSourceRevision,
+    expectedGeneration: Number(product.catalogContentGeneration ?? 0),
+  });
+  const current = await get('products', productId);
+  requireClone(current);
   const rows = (await variantsFor(productId)).filter(
     (row) =>
-      row.detailSourceOwner === product.detailSourceOwner &&
+      row.detailSourceOwner === current.detailSourceOwner &&
       row.detailSourceMissing === false &&
       row.archived !== true,
   );
-  const revision = randomUUID();
-  const {
-    publication,
-    variants: approved,
-    imageIds,
-  } = planCatalogDetailApproval({
-    product,
+  const plan = planCatalogDetailApproval({
+    product: current,
     variants: rows,
-    revision,
+    revision: 'local-check',
   });
-  for (const id of imageIds) {
+  if (plan.publication.header.images.length === 0)
+    throw new Error('Local publication failed: invalid-product');
+  for (const id of plan.imageIds) {
     const image = await get('images', id);
     if (!image || image.status !== 'active' || image.storageProvider !== 'local-disk')
       throw new Error('Local image is not ready');
   }
-  // No partially replaced snapshot can be served during this bounded rehearsal.
-  await updateDoc('products', productId, { catalogDetailPublication: null });
-  for (const [position, variant] of approved.entries()) {
-    await updateDoc('productVariants', variant.id, {
-      catalogDetailApproved: variant,
-      catalogDetailRevision: revision,
-      catalogDetailPosition: position,
+  const actorId = 'ui02-local-approval-admin';
+  await workspace.adapter.createDocWithId('users', actorId, {
+    role: 'admin',
+    username: 'Isolated local rehearsal',
+    status: 'active',
+  });
+  const reviewed = await manageCatalogDetailApproval(actorId, { action: 'review', productId });
+  if (!reviewed.ok || !('kind' in reviewed) || reviewed.kind !== 'review')
+    throw new Error(`Local review failed: ${reviewed.ok ? 'unexpected-result' : reviewed.code}`);
+  const operationId = randomUUID();
+  const began = await manageCatalogDetailApproval(actorId, {
+    action: 'begin',
+    command: {
+      productId,
+      operationId,
+      expectedDigest: reviewed.expectedDigest,
+      expectedRevision: reviewed.expectedRevision,
+    },
+  });
+  if (!began.ok || !('jobId' in began))
+    throw new Error(`Local approval failed: ${began.ok ? 'unexpected-result' : began.code}`);
+  for (let page = began.nextPage; page < began.pages; page++) {
+    const staged = await manageCatalogDetailApproval(actorId, {
+      action: 'page',
+      jobId: began.jobId,
+      page,
     });
+    if (!staged.ok) throw new Error(`Local approval failed: ${staged.code}`);
   }
+  const finished = await manageCatalogDetailApproval(actorId, {
+    action: 'finish',
+    jobId: began.jobId,
+  });
+  if (!finished.ok || !('jobId' in finished) || !finished.complete)
+    throw new Error(`Local approval failed: ${finished.ok ? 'unexpected-result' : finished.code}`);
+  const approved = await get('products', productId);
+  requireClone(approved);
+  const publication = CatalogDetailPublicationSchema.parse(approved.catalogDetailPublication);
+  if (publication.revision !== finished.revision) throw new Error('Local approval changed');
   const saved = await saveCatalogProductWithIdentities({
     mode: 'update',
     productId,
-    data: { published: true, catalogDetailPublication: publication },
+    expectedUpdatedAt: typeof approved.updatedAt === 'string' ? approved.updatedAt : null,
+    requireDetailApproval: true,
+    data: { published: true },
   });
   if (saved.result !== 'saved') throw new Error(`Local publication failed: ${saved.result}`);
   await backfillPublishedRefCounts();
-  return { productId, revision, variants: approved.length };
+  return { productId, revision: publication.revision, variants: publication.variantCount };
 }

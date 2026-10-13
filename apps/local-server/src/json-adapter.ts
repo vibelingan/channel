@@ -40,7 +40,10 @@ import {
   planProductSubcategorySave,
   runAlibabaProductMutation,
 } from '@vibelingan-channel/db/adapter';
-import { commitCatalogApproval } from '@vibelingan-channel/db/catalog-detail-commit';
+import {
+  CatalogApprovalManifestSchema,
+  commitCatalogApproval,
+} from '@vibelingan-channel/db/catalog-detail-commit';
 import {
   type ApprovalPersistenceCommand,
   runStagedApproval,
@@ -49,6 +52,7 @@ import {
   approvedVariantTarget,
   canonicalApprovedVariant,
 } from '@vibelingan-channel/db/catalog-detail-storage';
+import { assertCatalogProductVersions } from '@vibelingan-channel/db/catalog-product-state';
 import {
   hashQuoteValue,
   planCatalogQuote,
@@ -72,6 +76,7 @@ import {
   normalizeProductSlug,
   normalizeSkuCode,
 } from '@vibelingan-channel/shared';
+import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import type { InquiryResult } from '@vibelingan-channel/shared/catalog-inquiry';
 import { CatalogQuoteSubmissionSchema } from '@vibelingan-channel/shared/catalog-quote';
 import { processCatalogInquiry } from './catalog-inquiry-store.ts';
@@ -164,6 +169,77 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  /** Isolated UI-02 fixture preparation only; absent from DbAdapter and cloud/HTTP actions. */
+  async prepareLocalDetailClone(
+    input: {
+      productId: string;
+      owner: string;
+      revision: string;
+    } & ({ action: 'begin' } | { action: 'seal'; expectedGeneration: number }),
+  ): Promise<void> {
+    return this.withMutationLock(() => {
+      const product = this.docs('products').find((row) => row._id === input.productId);
+      if (
+        !product ||
+        product.localDetailClone !== true ||
+        !input.owner.startsWith('ui02:') ||
+        product.detailSourceOwner !== input.owner
+      )
+        throw new Error('Not an owned UI-02 local clone');
+      assertCatalogProductVersions(product);
+      let next: CollectionDoc;
+      if (input.action === 'begin') {
+        CatalogApprovalManifestSchema.parse({ revision: input.revision, variantIds: [] });
+        next = {
+          ...product,
+          detailSourceReady: false,
+          localDetailPreparationRevision: input.revision,
+          localDetailPreparationState: 'writing',
+        };
+      } else {
+        if (
+          product.localDetailPreparationRevision !== input.revision ||
+          product.detailSourceRevision !== input.revision ||
+          !Number.isSafeInteger(input.expectedGeneration) ||
+          input.expectedGeneration !== (product.catalogContentGeneration ?? 0)
+        )
+          throw new Error('Local preparation inputs changed');
+        const manifest = CatalogApprovalManifestSchema.parse(product.detailSourceManifest);
+        const rows = this.docs('productVariants').filter(
+          (row) =>
+            row.productId === product._id &&
+            row.detailSourceOwner === input.owner &&
+            row.detailSourceMissing === false &&
+            row.archived !== true,
+        );
+        const ids = new Set(manifest.variantIds);
+        if (
+          manifest.revision !== input.revision ||
+          rows.length !== ids.size ||
+          rows.some((row) => !ids.has(row._id) || row.detailSourceRevision !== input.revision)
+        )
+          throw new Error('Incomplete local source manifest');
+        next = {
+          ...product,
+          detailSourceReady: true,
+          detailSourceContentGeneration: input.expectedGeneration,
+          localDetailPreparationState: 'complete',
+        };
+        planCatalogDetailApproval({ product: next, variants: rows, revision: 'local-validation' });
+      }
+      const previous = this.store;
+      this.store = {
+        ...this.store,
+        products: this.docs('products').map((row) => (row._id === product._id ? next : row)),
+      };
+      try {
+        this.persist();
+      } catch (error) {
+        this.store = previous;
+        throw error;
+      }
+    });
+  }
   async mutateAlibabaProduct(input: AlibabaProductMutationInput) {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
