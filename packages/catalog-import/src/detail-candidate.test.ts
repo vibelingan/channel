@@ -7,6 +7,7 @@ import {
   parseDianxiaomiWorkbook,
 } from './providers/dianxiaomi/adapter.ts';
 import type { CatalogSourceObservation } from './source-observations.ts';
+import { clockFactsSamples } from './testing/clock-source-facts.ts';
 import { buildAcceptanceWorkbook } from './testing/dianxiaomi-acceptance-fixture.ts';
 
 function observation(provider: 'alibaba' | 'dianxiaomi' = 'alibaba'): CatalogSourceObservation {
@@ -370,4 +371,64 @@ test('website field ownership cannot cross product identities', () => {
     },
   };
   assert.equal(buildCatalogDetailCandidate(observation(), bound).ok, false);
+});
+
+for (const sample of clockFactsSamples) {
+  test(`stored ${sample.specimen} multi-value specifications remain complete in a valid candidate`, () => {
+    const item = observation();
+    item.identity.attributes = sample.attributes;
+    const before = structuredClone(item);
+    const result = buildCatalogDetailCandidate(item, bindings());
+    assert.ok(result.ok, result.ok ? undefined : result.errors.join('; '));
+    assert.equal(result.value.facts.length, sample.attributes.length);
+    assert.deepEqual(
+      result.value.facts,
+      sample.attributes.map((fact) => ({
+        name: fact.sourceName,
+        value: String(fact.value).trim(),
+      })),
+    );
+    assert.deepEqual(item, before, 'private observation is unchanged');
+  });
+}
+
+test('source facts keep every conflicting and duplicate row with its original order', () => {
+  const item = observation();
+  item.identity.attributes = [
+    { sourceName: 'Finish', value: 'Matte', canonicalKey: 'finish' },
+    { sourceName: 'Power', value: 0 },
+    { sourceName: 'Finish', value: 'Gloss', canonicalKey: 'finish' },
+    { sourceName: 'Finish', value: 'Matte', canonicalKey: 'finish' },
+    { sourceName: 'Power', value: false },
+    { sourceName: 'Finish', value: 'Other context', canonicalKey: 'other-finish' },
+    { sourceName: 'finish', value: 'Lowercase' },
+  ];
+  const result = buildCatalogDetailCandidate(item, bindings());
+  assert.ok(result.ok);
+  assert.deepEqual(
+    result.value.facts,
+    item.identity.attributes.map((fact) => ({
+      name: fact.sourceName,
+      value: String(fact.value),
+    })),
+  );
+  assert.deepEqual(result.value.variants.items[0]?.options, [{ name: 'Color', value: 'Blue' }]);
+});
+
+test('source fact capacity is bounded without truncating values or retaining only the first page', () => {
+  const item = observation();
+  item.identity.attributes = Array.from({ length: 256 }, (_, i) => ({
+    sourceName: `Fact ${i}`,
+    value: i === 255 ? 'Last value' : 'Value',
+  }));
+  const result = buildCatalogDetailCandidate(item, bindings());
+  assert.ok(result.ok);
+  assert.equal(result.value.facts.length, 256);
+  assert.deepEqual(result.value.facts.at(-1), { name: 'Fact 255', value: 'Last value' });
+  item.identity.attributes.push({ sourceName: 'Fact 256', value: 'Beyond capacity' });
+  assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, false, 'never truncate at 256');
+  item.identity.attributes = [{ sourceName: 'Value boundary', value: 'x'.repeat(2000) }];
+  assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, true);
+  item.identity.attributes[0] = { sourceName: 'Value boundary', value: 'x'.repeat(2001) };
+  assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, false);
 });

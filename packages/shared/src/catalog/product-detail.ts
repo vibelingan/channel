@@ -80,6 +80,8 @@ export const CatalogDetailVariantSchema = z
   })
   .strict();
 
+// Keep repeated source values as separate facts; display decides which are notes.
+export const CATALOG_DETAIL_FACT_MAX_COUNT = 256;
 export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, name: true })
   .extend({
     _id: text(200),
@@ -90,7 +92,7 @@ export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, n
     descriptionText: text(30000).optional(),
     descriptionImages: z.array(image).max(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT).optional(),
     images: z.array(image).max(9),
-    facts: z.array(fact).max(100),
+    facts: z.array(fact).max(CATALOG_DETAIL_FACT_MAX_COUNT),
     offers: z.array(offer).max(32),
   })
   .strict();

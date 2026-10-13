@@ -15,6 +15,7 @@ import {
   sourceMediaLinkId,
   sourceObservationDocumentId,
 } from '../../packages/catalog-import/src/source-observations.ts';
+import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 
 /** The raw envelope, normalizer and production materializer are the fixture's only data producers. */
 async function seedRawObservation(db: JsonFileAdapter, raw: string) {
@@ -168,12 +169,21 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
     const product = envelope.alibaba_icbu_product_get_response.product;
     product.product_id = `fixture-batch-20-${index}`;
     product.subject = `Batch Twenty Clock ${index}`;
+    const clock = clockFactsSamples[index % clockFactsSamples.length];
+    assert.ok(clock);
+    product.attributes = {
+      product_attribute: clock.attributes.map((fact) => ({
+        attribute_name: fact.sourceName,
+        value_name: String(fact.value),
+      })),
+    };
     // The older color-only fixture intentionally lacks pricing context.
     // Add explicit normal per-piece wholesale input for this pricing journey.
     product.product_type = 'wholesale';
     product.wholesale_trade = { sale_type: 'normal', unit_type: 'Piece', min_order_quantity: '2' };
     const batchProduct = await seedRawObservation(db, JSON.stringify(envelope));
     assert.equal(batchProduct.observation.offers.length, 3);
+    assert.deepEqual(batchProduct.observation.identity.attributes, clock.attributes);
     assert.ok(batchProduct.observation.offers.every((offer) => offer.pricing.mode === 'tiered'));
     await db.update('products', batchProduct.draft.productId, {
       productFamily: 'misc',

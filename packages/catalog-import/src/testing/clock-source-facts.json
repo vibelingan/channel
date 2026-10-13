@@ -1,0 +1,1409 @@
+{
+  "capturedOn": "2026-10-13",
+  "scope": "Only exact specification names and values; account, source keys, evidence, transports and product IDs omitted.",
+  "samples": [
+    {
+      "specimen": "T142",
+      "attributes": [
+        {
+          "sourceName": "Type",
+          "value": "Table Clock"
+        },
+        {
+          "sourceName": "Movement",
+          "value": "Quartz"
+        },
+        {
+          "sourceName": "Dial Size",
+          "value": "3 inches"
+        },
+        {
+          "sourceName": "Brand",
+          "value": "OEM LOGO SUPPORT"
+        },
+        {
+          "sourceName": "BackLight",
+          "value": "No"
+        },
+        {
+          "sourceName": "Case Materials",
+          "value": "Metal"
+        },
+        {
+          "sourceName": "Colors",
+          "value": "Customizable"
+        },
+        {
+          "sourceName": "Application",
+          "value": "Home, Office, School"
+        },
+        {
+          "sourceName": "Battery",
+          "value": "AA"
+        },
+        {
+          "sourceName": "Packaging",
+          "value": "with Retail Box"
+        },
+        {
+          "sourceName": "shape",
+          "value": "Circular"
+        },
+        {
+          "sourceName": "movement type",
+          "value": "Mechanical"
+        },
+        {
+          "sourceName": "display type",
+          "value": "Needle"
+        },
+        {
+          "sourceName": "Motivity Type",
+          "value": "Quartz"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Caterers & Canteens"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Restaurants"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Fast Food and Takeaway Food Services"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Food & Beverage Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Specialty Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Food & Beverage Manufacture"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "TV Shopping"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Department Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Bubble tea,Juice & Smoothie Bars"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Super Markets"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Hotels"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Convenience Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Spice and Extract Manufacturing"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Drug Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Cafes and Coffee Shops"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Discount Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "E-commerce Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Gifts Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Beer,Wine,Liquor Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Souvenir Stores"
+        },
+        {
+          "sourceName": "Season",
+          "value": "All-Season"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Minimalist"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Contemporary"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Traditional"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Transitional"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Rustic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Shabby Chic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Coastal"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Scandinavian"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Bohemian"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Midcentury Modern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Industrial"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Eclectic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Farmhouse"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Country"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Art Decor"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Asian Zen"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Tropical"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Vintage"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Novelty"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Moroccan"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Casual"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Oriental"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Children's"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Craftsman"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Southwestern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Classic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Modern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Glam"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Morden Luxury"
+        },
+        {
+          "sourceName": "Room Space Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Desktop"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Countertop"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Kitchen"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Patio"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Closet"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Bathroom"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Bedroom"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Dining Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Dorm Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Entryway"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Indoor And Outdoor"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Living Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Kids Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Office"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Hallway"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Outdoor"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Baby Care Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Laundry Room"
+        },
+        {
+          "sourceName": "Occasion Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Back to School"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Giveaways"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Business Gifts"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Camping"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Travel"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Retirement"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Party"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Graduation"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Presents"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Wedding"
+        },
+        {
+          "sourceName": "Holiday Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Valentine's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Mother's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "New Baby"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Father's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Eid holidays"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Chinese New Year"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Oktoberfest"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Christmas"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "New Year'S"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Easter Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Thanksgiving"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Halloween"
+        },
+        {
+          "sourceName": "sheet size",
+          "value": "NA"
+        },
+        {
+          "sourceName": "type",
+          "value": "Mechanical"
+        },
+        {
+          "sourceName": "material",
+          "value": "Metal"
+        },
+        {
+          "sourceName": "place of origin",
+          "value": "CN;GUA"
+        },
+        {
+          "sourceName": "brand name",
+          "value": "OEM"
+        },
+        {
+          "sourceName": "model number",
+          "value": "T142"
+        }
+      ]
+    },
+    {
+      "specimen": "W203",
+      "attributes": [
+        {
+          "sourceName": "Type",
+          "value": "Wall Clock"
+        },
+        {
+          "sourceName": "Movement",
+          "value": "Sweep Non-Ticking"
+        },
+        {
+          "sourceName": "Dial Size",
+          "value": "12 inches"
+        },
+        {
+          "sourceName": "Brand",
+          "value": "OEM LOGO SUPPORT"
+        },
+        {
+          "sourceName": "BackLight / Luminova",
+          "value": "No"
+        },
+        {
+          "sourceName": "Case Materials",
+          "value": "Metal"
+        },
+        {
+          "sourceName": "Colors",
+          "value": "Customizable"
+        },
+        {
+          "sourceName": "Application",
+          "value": "Home, Office, School"
+        },
+        {
+          "sourceName": "Battery",
+          "value": "AA"
+        },
+        {
+          "sourceName": "Packaging",
+          "value": "with Retail Box"
+        },
+        {
+          "sourceName": "Style",
+          "value": "New Classical/Post-modern"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Restaurants"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Fast Food and Takeaway Food Services"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Food & Beverage Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Specialty Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Food & Beverage Manufacture"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "TV Shopping"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Department Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Bubble tea,Juice & Smoothie Bars"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Super Markets"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Hotels"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Convenience Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Spice and Extract Manufacturing"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Drug Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Cafes and Coffee Shops"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Discount Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Caterers & Canteens"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "E-commerce Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Gifts Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Beer,Wine,Liquor Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Souvenir Stores"
+        },
+        {
+          "sourceName": "Season",
+          "value": "All-Season"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Minimalist"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Transitional"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Mid-Century Modern"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Farmhouse"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Country"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Art Decor"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Tropical"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Vintage"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Novelty"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Moroccan"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Casual"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Oriental"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Children's"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Craftsman"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "CLASSIC"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Glam"
+        },
+        {
+          "sourceName": "Design Style",
+          "value": "Morden Luxury"
+        },
+        {
+          "sourceName": "Room Space Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Countertop"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Kitchen"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Patio"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Closet"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Bathroom"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Bedroom"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Dining Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Dorm Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Entryway"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Indoor and Outdoor"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Living Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Kids Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Office"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Hallway"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Outdoor"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Desktop"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Baby Care Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Laundry Room"
+        },
+        {
+          "sourceName": "Occasion Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Back to School"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Giveaways"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Business Gifts"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Camping"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Travel"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Retirement"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Party"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Graduation"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Presents"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Wedding"
+        },
+        {
+          "sourceName": "Holiday Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Valentine's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Mother's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "New Baby"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Father's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Eid holidays"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Chinese New Year"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Oktoberfest"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Christmas"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "New Year's"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Easter Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Thanksgiving"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Halloween"
+        },
+        {
+          "sourceName": "material",
+          "value": "Gold Plated"
+        },
+        {
+          "sourceName": "shape",
+          "value": "Circular"
+        },
+        {
+          "sourceName": "pattern",
+          "value": "Still Life"
+        },
+        {
+          "sourceName": "display type",
+          "value": "Needle"
+        },
+        {
+          "sourceName": "motivity type",
+          "value": "Quartz"
+        },
+        {
+          "sourceName": "applicable placement",
+          "value": "Living Room"
+        },
+        {
+          "sourceName": "wall clock type",
+          "value": "15 mm Thick Plate"
+        },
+        {
+          "sourceName": "combination",
+          "value": "Separates"
+        },
+        {
+          "sourceName": "feature",
+          "value": "Antique Style"
+        },
+        {
+          "sourceName": "body material",
+          "value": "Resin"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Contemporary"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Traditional"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Rustic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Shabby Chic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Coastal"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Scandinavian"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Bohemian"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Industrial"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Eclectic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Asian Zen"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Southwestern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Modern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Japandi"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Wabi-Sabi"
+        },
+        {
+          "sourceName": "form",
+          "value": "Single Face"
+        },
+        {
+          "sourceName": "type",
+          "value": "WALL CLOCKS"
+        },
+        {
+          "sourceName": "place of origin",
+          "value": "CN;GUA"
+        },
+        {
+          "sourceName": "brand name",
+          "value": "OEM"
+        },
+        {
+          "sourceName": "model number",
+          "value": "W203"
+        }
+      ]
+    },
+    {
+      "specimen": "T157",
+      "attributes": [
+        {
+          "sourceName": "Type",
+          "value": "Table Clock"
+        },
+        {
+          "sourceName": "Movement",
+          "value": "Quartz"
+        },
+        {
+          "sourceName": "Dial Size",
+          "value": "2.5 inches"
+        },
+        {
+          "sourceName": "Brand",
+          "value": "OEM LOGO SUPPORT"
+        },
+        {
+          "sourceName": "BackLight",
+          "value": "No"
+        },
+        {
+          "sourceName": "Case Materials",
+          "value": "ABS"
+        },
+        {
+          "sourceName": "Colors",
+          "value": "Customizable"
+        },
+        {
+          "sourceName": "Application",
+          "value": "Home, Office, School"
+        },
+        {
+          "sourceName": "Battery",
+          "value": "AA"
+        },
+        {
+          "sourceName": "Packaging",
+          "value": "with Retail Box"
+        },
+        {
+          "sourceName": "shape",
+          "value": "Circular"
+        },
+        {
+          "sourceName": "movement type",
+          "value": "Mechanical"
+        },
+        {
+          "sourceName": "display type",
+          "value": "Needle"
+        },
+        {
+          "sourceName": "Motivity Type",
+          "value": "Quartz"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Caterers & Canteens"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Restaurants"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Fast Food and Takeaway Food Services"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Food & Beverage Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Specialty Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Food & Beverage Manufacture"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "TV Shopping"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Department Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Bubble tea,Juice & Smoothie Bars"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Super Markets"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Hotels"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Convenience Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Spice and Extract Manufacturing"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Drug Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Cafes and Coffee Shops"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Discount Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "E-commerce Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Gifts Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Beer,Wine,Liquor Stores"
+        },
+        {
+          "sourceName": "Commercial Buyer",
+          "value": "Souvenir Stores"
+        },
+        {
+          "sourceName": "Season",
+          "value": "All-Season"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Minimalist"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Contemporary"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Traditional"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Transitional"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Rustic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Shabby Chic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Coastal"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Scandinavian"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Bohemian"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Midcentury Modern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Industrial"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Eclectic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Farmhouse"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Country"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Art Decor"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Asian Zen"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Tropical"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Vintage"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Novelty"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Moroccan"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Casual"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Oriental"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Children's"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Craftsman"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Southwestern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Classic"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Modern"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Glam"
+        },
+        {
+          "sourceName": "design style",
+          "value": "Morden Luxury"
+        },
+        {
+          "sourceName": "Room Space Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Desktop"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Countertop"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Kitchen"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Patio"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Closet"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Bathroom"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Bedroom"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Dining Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Dorm Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Entryway"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Indoor And Outdoor"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Living Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Kids Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Office"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Hallway"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Outdoor"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Baby Care Room"
+        },
+        {
+          "sourceName": "Room Space",
+          "value": "Laundry Room"
+        },
+        {
+          "sourceName": "Occasion Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Back to School"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Giveaways"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Business Gifts"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Camping"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Travel"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Retirement"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Party"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Graduation"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Presents"
+        },
+        {
+          "sourceName": "Occasion",
+          "value": "Wedding"
+        },
+        {
+          "sourceName": "Holiday Selection",
+          "value": "Support"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Valentine's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Mother's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "New Baby"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Father's Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Eid holidays"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Chinese New Year"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Oktoberfest"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Christmas"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "New Year'S"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Easter Day"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Thanksgiving"
+        },
+        {
+          "sourceName": "Holiday",
+          "value": "Halloween"
+        },
+        {
+          "sourceName": "sheet size",
+          "value": "NA"
+        },
+        {
+          "sourceName": "type",
+          "value": "Mechanical"
+        },
+        {
+          "sourceName": "material",
+          "value": "Plastic"
+        },
+        {
+          "sourceName": "place of origin",
+          "value": "CN;GUA"
+        },
+        {
+          "sourceName": "brand name",
+          "value": "OEM"
+        },
+        {
+          "sourceName": "model number",
+          "value": "T157"
+        }
+      ]
+    }
+  ]
+}

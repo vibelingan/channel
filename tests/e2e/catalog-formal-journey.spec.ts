@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
 import { expectInquirySaved } from './helpers/inquiry-followup';
@@ -1166,6 +1167,15 @@ test('twenty source products publish through Assign category and restore shared-
       const detail = (await detailResponse.json()).data;
       expect(detail.variants.items).toHaveLength(3);
       expect(detail.images).toHaveLength(6);
+      const clock =
+        clockFactsSamples[Number(String(draft.name).split(' ').at(-1)) % clockFactsSamples.length];
+      expect(clock).toBeDefined();
+      expect(detail.facts).toEqual(
+        (clock?.attributes ?? []).map((fact) => ({
+          name: fact.sourceName,
+          value: String(fact.value).trim(),
+        })),
+      );
       for (const variant of detail.variants.items)
         expect(variant.offers[0].pricing).toMatchObject({
           mode: 'tiered',
