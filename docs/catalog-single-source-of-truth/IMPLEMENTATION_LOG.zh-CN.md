@@ -361,3 +361,18 @@ approveLocalDetail 使用真实 manageCatalogDetailApproval 的 review/begin/pag
 提交前 inline review：核对具体 Json seam 无 Cloud/HTTP 消费者、mutation lock/持久化恢复、准备与普通 writer 版本边界、真实 staged workflow/immutable public/RFQ consumer；当前局部无剩余 P1/P2。下一步继续 P1 共享安全问题契约、只读 Preview/完整 SKU/人工配置和 P2 准入，再 P3/P4 持久操作/恢复等完整门槛。未 push/部署/修改云业务数据。
 
 文字核对：实际复核 json-adapter、catalog-detail-workspace 及测试、正式 workflow/storage/public handler；将“普通写入 ready”更正为“带 owner/revision/generation 和完整 manifest 的受保护本地准备”，明确本地工具与正式客户入口的证据区别。
+
+
+### P1c：分页前校验全量配置（2026-10-14，本地子单元）
+
+原计划仅验证所有 canonical IDs，配置实际内容只在当前页解码。新增 21/105 配置 × 页外 SKU 201 字符/选项 51 项/报价 33 项，6 个反例先失败；105 正常配置的分页/报价归属正向通过。实现用同一个 CatalogDetailVariantSchema 校验完整集合后才返回当前分页，不改来源、不丢配置；数量与既有 manifest 上界同为 10000，纯计划 10000 通过、10001 拒绝，该测试不代表最坏大小的审批 job 已通过字节预算。报价先按 sourceVariantKey 建一次索引，保留每个配置和产品级报价的原顺序，避免每个配置再次扫描全部报价。
+
+两个实际 prepare 反例确认第 21/105 配置非法时，第一页即返回字段路径，persist 命令为 []。移除全量配置检查的独立 mutation 检出六个纯计划反例和这两个实际 server 反例共 8 failed；正常 105 配置仍通过；finally 原样恢复后再执行最终验证。
+
+最终相关回归 1365 passed / 0 failed / 0 skipped，包含 catalog-import 根测试、shared/catalog、db、sync、实际本地演练及选定后台/公开消费者，耗时 10993ms；七组类型（catalog-import/shared/db/admin/local/public/e2e）、3 文件 Biome、installed SDK gate 通过。新 server 测试的 unknown validation 曾被 tsc 拒绝，改用实际 CatalogValidationSchema.parse 后重跑通过，不用类型断言。跨文件搜索另找出 change-audit 和 supplier-review 消费者，补跑 13 passed。最终生产构建浏览器 150 passed（41 public / 90 catalog / 10 formal / 8 visibility / 1 taxonomy），owned DB/services 清理成功；证据 p1c-combined-e2e.log。
+
+本地纯计划基准（Node 24，合成数据，不含 DB/网络，不代表云端 SLO）：0/20/105 配置各 50 次，warm P50/P95 分别 0.02/0.05、0.25/1.87、0.88/6.05 ms；10000 配置 10 次为 89.21/95.10 ms，首次 97.09ms。三个复用 schema 表面 array/max/safeParse 已按 installed Zod v3 数组签名和实际上下界/无效输入机械关联。无新 SDK 方法或 shim。
+
+提交前 inline review 已追踪 prepare、旧本地工具、来源审核/变更比较、分页及报价消费，当前局部无剩余 P1/P2。仍需共享安全 issue 契约及所有审批阶段原因、只读 Preview、人工配置/无损选项投影、容量预算报告、列表准入、durable operation/recovery、历史修复、全量发版验证及云现场验收。尤其来源审核尚有未采用长来源文本的有效字段合并缺口，要随共享生效计划继续修正；不把本单元的全 SKU 检查当作 P1 整体完成。无 push/部署/云业务写入。
+
+文字核对：复核 detail-candidate、实际 prepare、change-audit/supplier-review、workspace 和对应测试；把“全部配置 ID 通过”更正为“全部配置实际内容在分页前通过同一网站合约”，明确 10000 数量、job 字节预算、本地计算和云端性能的区别。

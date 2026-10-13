@@ -6,12 +6,15 @@ import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared'
  */
 import {
   type CatalogDetailVariant,
+  CatalogDetailVariantSchema,
   type CatalogProductDetail,
   decodeCatalogProductDetail,
 } from '@vibelingan-channel/shared/catalog-detail';
 import { applyWebsiteDetailHeader } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
 import { validateCatalogSourceObservation } from './source-observations.ts';
+
+const configurationSet = z.array(CatalogDetailVariantSchema).max(10000);
 
 export interface CatalogDetailBindings {
   productId: string;
@@ -80,41 +83,53 @@ export function buildCatalogPreparationPlan(
   ) {
     return { ok: false as const, errors: ['Missing or duplicate canonical variant binding'] };
   }
-  const offset = (page - 1) * pageSize;
-  const variants: CatalogDetailVariant[] = observation.variants
-    .slice(offset, offset + pageSize)
-    .map((variant) => {
-      // Validated above across ALL variants, not merely the displayed page.
-      const id = bindings.variants.get(variant.sourceVariantKey);
-      if (!id) throw new Error('Canonical binding changed during projection');
-      const known = variant.inventory.filter((v) => v.semantics !== 'unknown');
-      let inventory: CatalogDetailVariant['inventory'] = { state: 'unknown' };
-      if (known.length > 0 && known.length === variant.inventory.length) {
-        const first = known[0];
-        if (first && first.semantics !== 'unknown') {
-          inventory = known.every(
-            (v) => v.quantity === first.quantity && v.semantics === first.semantics,
-          )
-            ? {
-                state: 'reported',
-                quantity: first.quantity,
-                semantics: first.semantics,
-                basis: 'source',
-              }
-            : { state: 'conflict' };
-        }
+  const offersByVariant = new Map<string | undefined, ReturnType<typeof offer>[]>();
+  for (const item of observation.offers) {
+    const bucket = offersByVariant.get(item.sourceVariantKey) ?? [];
+    bucket.push(offer(item));
+    offersByVariant.set(item.sourceVariantKey, bucket);
+  }
+  const projected: CatalogDetailVariant[] = observation.variants.map((variant) => {
+    // Validated above across ALL variants, not merely the displayed page.
+    const id = bindings.variants.get(variant.sourceVariantKey);
+    if (!id) throw new Error('Canonical binding changed during projection');
+    const known = variant.inventory.filter((v) => v.semantics !== 'unknown');
+    let inventory: CatalogDetailVariant['inventory'] = { state: 'unknown' };
+    if (known.length > 0 && known.length === variant.inventory.length) {
+      const first = known[0];
+      if (first && first.semantics !== 'unknown') {
+        inventory = known.every(
+          (v) => v.quantity === first.quantity && v.semantics === first.semantics,
+        )
+          ? {
+              state: 'reported',
+              quantity: first.quantity,
+              semantics: first.semantics,
+              basis: 'source',
+            }
+          : { state: 'conflict' };
       }
-      return {
-        id,
-        ...(variant.sku ? { sku: variant.sku } : {}),
-        options: facts(variant.options),
-        inventory,
-        images: images(variant.media),
-        offers: observation.offers
-          .filter((o) => o.sourceVariantKey === variant.sourceVariantKey)
-          .map(offer),
-      };
-    });
+    }
+    return {
+      id,
+      ...(variant.sku ? { sku: variant.sku } : {}),
+      options: facts(variant.options),
+      inventory,
+      images: images(variant.media),
+      offers: offersByVariant.get(variant.sourceVariantKey) ?? [],
+    };
+  });
+  // Validate the complete set before any page can become a prepared source.
+  const configurations = configurationSet.safeParse(projected);
+  if (!configurations.success)
+    return {
+      ok: false as const,
+      errors: configurations.error.issues.map(
+        (issue) => `${['variants', 'items', ...issue.path].join('.')}: ${issue.message}`,
+      ),
+    };
+  const offset = (page - 1) * pageSize;
+  const variants = configurations.data.slice(offset, offset + pageSize);
   const descriptionText = observation.content.description?.text?.trim();
   const candidate: CatalogProductDetail = {
     schemaVersion: 'catalog-product-detail-v1',
@@ -136,7 +151,7 @@ export function buildCatalogPreparationPlan(
       : {}),
     images: images(observation.content.media),
     facts: facts(observation.identity.attributes),
-    offers: observation.offers.filter((o) => o.sourceVariantKey === undefined).map(offer),
+    offers: offersByVariant.get(undefined) ?? [],
     variants: {
       items: variants,
       page,

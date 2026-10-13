@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   sourceMediaLinkId,
   sourceObservationDocumentId,
+  validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
 import type { ApprovalPersistenceCommand } from '@vibelingan-channel/db/catalog-detail-staging';
@@ -13,6 +14,7 @@ import {
   sourceObservationFixture,
 } from '../../alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import { prepareCatalogSource, sourceVariantIds } from './catalog-detail-source.ts';
+import { CatalogValidationSchema } from './catalog-validation.ts';
 
 class RecordingAdapter implements DbAdapter {
   commands: ApprovalPersistenceCommand[] = [];
@@ -545,4 +547,56 @@ for (const fault of ['missing', 'other-product'] as const)
       { ok: false, code: 'SOURCE_NOT_READY' },
     );
     assert.equal(adapter.commands.length, 0);
+  });
+
+for (const count of [21, 105])
+  test(`prepare writes nothing when configuration ${count} fails the website contract`, async () => {
+    const source = {
+      _id: 'late-configuration',
+      sourceKey: 'late-configuration',
+      connectionId: 'fixture',
+      sourceProductId: 'external',
+      sourceTitle: 'Clock',
+      active: true,
+    };
+    const row = sourceObservationFixture(source);
+    const parsed = validateCatalogSourceObservation(row.observation);
+    assert.ok(parsed.ok);
+    row.observation = {
+      ...parsed.value,
+      variants: Array.from({ length: count }, (_, index) => ({
+        sourceVariantKey: `private-${index}`,
+        sku: index === count - 1 ? 'x'.repeat(201) : `SKU-${index}`,
+        options: [],
+        inventory: [],
+        media: [],
+      })),
+      offers: [],
+    };
+    const adapter = new RecordingAdapter({
+      products: [
+        {
+          _id: 'late-product',
+          name: 'Clock',
+          productFamily: 'misc',
+          alibabaPrimarySourceKey: source._id,
+          imageIds: [],
+        },
+      ],
+      alibabaSourceProducts: [source],
+      catalogSourceObservations: [row],
+    });
+    setAdapter(adapter);
+    const result = await prepareCatalogSource('admin', {
+      action: 'prepare',
+      productId: 'late-product',
+      page: 0,
+    });
+    assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
+    const validation = CatalogValidationSchema.parse(result.validation);
+    assert.equal(validation.stage, 'source-candidate');
+    assert.ok(
+      validation.issues.some((issue) => issue.startsWith(`variants.items.${count - 1}.sku:`)),
+    );
+    assert.deepEqual(adapter.commands, []);
   });

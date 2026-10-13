@@ -432,3 +432,127 @@ test('source fact capacity is bounded without truncating values or retaining onl
   item.identity.attributes[0] = { sourceName: 'Value boundary', value: 'x'.repeat(2001) };
   assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, false);
 });
+
+for (const count of [21, 105]) {
+  for (const fault of ['sku', 'options', 'offers'] as const) {
+    test(`first preparation page rejects ${fault} outside its visible page (${count} configurations)`, () => {
+      const item = observation();
+      const original = item.variants[0];
+      assert.ok(original);
+      item.variants = Array.from({ length: count }, (_, index) => ({
+        ...structuredClone(original),
+        sourceVariantKey: `private-${index}`,
+        sku: `SKU-${index}`,
+      }));
+      item.offers = [];
+      const last = item.variants.at(-1);
+      assert.ok(last);
+      if (fault === 'sku') last.sku = 'x'.repeat(201);
+      if (fault === 'options')
+        last.options = Array.from({ length: 51 }, (_, index) => ({
+          sourceName: `Option ${index}`,
+          value: 'Value',
+        }));
+      if (fault === 'offers')
+        item.offers = Array.from({ length: 33 }, (_, index) => ({
+          sourceOfferKey: `private-offer-${index}`,
+          sourceVariantKey: last.sourceVariantKey,
+          kind: 'supplier',
+          pricing: { mode: 'fixed', currency: 'USD', amountMinor: index + 1 },
+        }));
+      const bound = {
+        ...bindings(),
+        variants: new Map(
+          item.variants.map((variant, index) => [variant.sourceVariantKey, `variant-${index}`]),
+        ),
+      };
+      const before = structuredClone(item);
+      const result = buildCatalogDetailCandidate(item, bound, 1, 20);
+      assert.equal(
+        result.ok,
+        false,
+        'all configurations must be valid before the first page is staged',
+      );
+      assert.deepEqual(item, before, 'private source remains complete');
+    });
+  }
+}
+
+test('105 valid configurations keep exact offer ownership, order and paging', () => {
+  const item = observation();
+  const original = item.variants[0];
+  assert.ok(original);
+  item.variants = Array.from({ length: 105 }, (_, index) => ({
+    ...structuredClone(original),
+    sourceVariantKey: `private-${index}`,
+    sku: `SKU-${index}`,
+  }));
+  item.offers = item.variants.map((variant, index) => ({
+    sourceOfferKey: `offer-${index}`,
+    sourceVariantKey: variant.sourceVariantKey,
+    kind: 'supplier',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: index + 1 },
+  }));
+  item.offers.push({
+    sourceOfferKey: 'root',
+    kind: 'supplier',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 999 },
+  });
+  const bound = {
+    ...bindings(),
+    variants: new Map(
+      item.variants.map((variant, index) => [variant.sourceVariantKey, `variant-${index}`]),
+    ),
+  };
+  const ids: string[] = [];
+  for (let page = 1; page <= 6; page++) {
+    const result = buildCatalogDetailCandidate(item, bound, page, 20);
+    assert.ok(result.ok, result.ok ? undefined : result.errors.join('; '));
+    assert.equal(result.value.variants.total, 105);
+    assert.equal(result.value.offers.length, 1);
+    for (const [index, variant] of result.value.variants.items.entries()) {
+      ids.push(variant.id);
+      assert.equal(variant.offers.length, 1);
+      assert.deepEqual(variant.offers[0]?.pricing, {
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: (page - 1) * 20 + index + 1,
+      });
+    }
+  }
+  assert.deepEqual(
+    ids,
+    item.variants.map((_, index) => `variant-${index}`),
+  );
+});
+
+test('the complete configuration count uses the same 10000-row manifest bound', () => {
+  const item = observation();
+  item.offers = [];
+  item.variants = Array.from({ length: 10000 }, (_, index) => ({
+    sourceVariantKey: `private-${index}`,
+    sku: `SKU-${index}`,
+    options: [],
+    inventory: [],
+    media: [],
+  }));
+  const bound = {
+    ...bindings(),
+    variants: new Map(
+      item.variants.map((variant, index) => [variant.sourceVariantKey, `variant-${index}`]),
+    ),
+  };
+  const valid = buildCatalogDetailCandidate(item, bound, 1, 20);
+  assert.ok(valid.ok);
+  assert.equal(valid.value.variants.total, 10000);
+  assert.equal(valid.value.variants.items.length, 20);
+  item.variants.push({
+    sourceVariantKey: 'private-overflow',
+    sku: 'Overflow',
+    options: [],
+    inventory: [],
+    media: [],
+  });
+  bound.variants.set('private-overflow', 'variant-overflow');
+  assert.equal(buildCatalogDetailCandidate(item, bound, 1, 20).ok, false);
+});
