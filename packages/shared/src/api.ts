@@ -1,3 +1,4 @@
+import type { CatalogIssue } from './catalog/issues.ts';
 /**
  * Standard API result envelope shared by cloud functions, the local-server,
  * and the browser admin client. Every backend action returns an `ApiResult`.
@@ -15,6 +16,7 @@ export interface ApiErr {
     code: ErrorCode;
     message: string;
     retryAfterSeconds?: number;
+    issues?: CatalogIssue[];
   };
 }
 
@@ -24,8 +26,8 @@ export function ok<T>(data: T): ApiOk<T> {
   return { ok: true, data };
 }
 
-export function err(code: ErrorCode, message: string): ApiErr {
-  return { ok: false, error: { code, message } };
+export function err(code: ErrorCode, message: string, issues?: readonly CatalogIssue[]): ApiErr {
+  return { ok: false, error: { code, message, ...(issues ? { issues: [...issues] } : {}) } };
 }
 
 export function rateLimited(message: string, retryAfterSeconds: number): ApiErr {

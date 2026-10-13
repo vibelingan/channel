@@ -1,11 +1,23 @@
 /** Pure write preflight. Reading, authorization, media readiness and atomic commit belong to callers. */
 import { z } from 'zod';
+import {
+  CatalogIssueSchema,
+  CatalogValidationError,
+  catalogFailureIssue,
+  parseCatalogData,
+} from './issues.ts';
+export const CATALOG_DETAIL_VARIANT_MAX_COUNT = 10000;
+export const CATALOG_DETAIL_VARIANT_MAX_BYTES = 128 * 1024;
+export const CATALOG_APPROVAL_JOB_MAX_BYTES = 512 * 1024;
+
+const editContext = { stage: 'effective-content', remedy: 'edit' } as const;
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import { manualFacts } from './manual-detail.ts';
 import {
   CatalogContentSchema,
   CatalogDetailHeaderSchema,
   CatalogDetailPublicationSchema,
+  type CatalogDetailVariant,
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
   WebsiteDetailPricingSchema,
@@ -73,14 +85,22 @@ function websitePricing(product: z.infer<typeof websiteInput>) {
     moqOnly !== undefined &&
     (decision.source === 'inherit' || decision.source === 'empty-manual')
   )
-    return WebsiteDetailPricingSchema.parse({
+    return parseWebsitePricing({
       basis: 'website-manual',
       pricing: { mode: 'unavailable', minimumOrderQuantity: moqOnly },
     });
   if (decision.source === 'inherit') return undefined;
-  if (decision.source === 'invalid') throw new Error(decision.reason);
+  if (decision.source === 'invalid')
+    throw new CatalogValidationError([
+      CatalogIssueSchema.parse({
+        code: 'INVALID_VALUE',
+        ...editContext,
+        path: 'manualCatalogPricing',
+        severity: 'error',
+      }),
+    ]);
   if (decision.source === 'manual-tiered')
-    return WebsiteDetailPricingSchema.parse({
+    return parseWebsitePricing({
       basis: 'website-manual',
       pricing: {
         mode: 'tiered',
@@ -95,7 +115,7 @@ function websitePricing(product: z.infer<typeof websiteInput>) {
     });
   if (decision.source === 'scalar') {
     const amountMinor = scalarPriceMinorUnits(decision.amount);
-    return WebsiteDetailPricingSchema.parse({
+    return parseWebsitePricing({
       basis: 'website-manual',
       pricing: {
         mode: 'fixed',
@@ -108,12 +128,19 @@ function websitePricing(product: z.infer<typeof websiteInput>) {
     });
   }
   if (decision.source === 'empty-manual')
-    return WebsiteDetailPricingSchema.parse({
+    return parseWebsitePricing({
       basis: 'website-manual',
       pricing: { mode: 'unavailable' },
     });
   return undefined;
 }
+function parseWebsitePricing(input: unknown) {
+  return parseCatalogData(WebsiteDetailPricingSchema, input, {
+    ...editContext,
+    prefix: ['pricing'],
+  });
+}
+
 const variantInput = z.object({
   _id: identity,
   productId: identity,
@@ -132,42 +159,72 @@ export function applyWebsiteDetailHeader(
   source: z.infer<typeof CatalogSourceDetailHeaderSchema>,
   input: unknown,
 ) {
-  const product = websiteInput.parse(input);
-  z.literal(source._id).parse(product._id);
+  const product = parseCatalogData(websiteInput, input, editContext);
+  parseCatalogData(z.literal(source._id), product._id, { ...editContext, prefix: ['_id'] });
   const { descriptionText: _description, ...withoutDescription } = source;
   const description = product.description?.trim();
-  return CatalogDetailHeaderSchema.parse({
-    ...withoutDescription,
-    name: product.name,
-    ...(product.productFamily
-      ? {
-          categoryLabel: {
-            headphones: 'Headphones',
-            'ai-gadgets': 'AI Gadgets',
-            toys: 'Toys',
-            misc: 'Misc',
-          }[product.productFamily],
-        }
-      : {}),
-    images: product.imageIds.map((id) => `/api/images/${id}`),
-    descriptionImages: product.descriptionImageIds?.map((id) => `/api/images/${id}`),
-    // A manual product's facts are its spec fields; a synced one keeps its source facts.
-    ...(isManualOwner(product) ? { facts: manualFacts(product) } : {}),
-    websitePricing: websitePricing(product),
-    ...(description ? { descriptionText: description } : {}),
-  });
+  return parseCatalogData(
+    CatalogDetailHeaderSchema,
+    {
+      ...withoutDescription,
+      name: product.name,
+      ...(product.productFamily
+        ? {
+            categoryLabel: {
+              headphones: 'Headphones',
+              'ai-gadgets': 'AI Gadgets',
+              toys: 'Toys',
+              misc: 'Misc',
+            }[product.productFamily],
+          }
+        : {}),
+      images: product.imageIds.map((id) => `/api/images/${id}`),
+      descriptionImages: product.descriptionImageIds?.map((id) => `/api/images/${id}`),
+      // A manual product's facts are its spec fields; a synced one keeps its source facts.
+      ...(isManualOwner(product) ? { facts: manualFacts(product) } : {}),
+      websitePricing: websitePricing(product),
+      ...(description ? { descriptionText: description } : {}),
+    },
+    editContext,
+  );
 }
 
-/** Input rows must be the complete active source-owned set, not one page. No writes occur here. */
+/** Project private preparation paths into the same website fields reported before staging. */
 export function planCatalogDetailApproval(input: {
   product: unknown;
   variants: unknown;
   revision: string;
 }) {
-  const product = productInput.parse(input.product);
-  const rows = z.array(variantInput).parse(input.variants);
+  try {
+    return buildCatalogDetailApproval(input);
+  } catch (error) {
+    if (!(error instanceof CatalogValidationError)) throw error;
+    throw new CatalogValidationError(
+      error.issues.map((issue) => {
+        const parts = issue.path.split('.');
+        const source = parts.indexOf('detailSourceCandidate');
+        if (source < 0) return issue;
+        parts.splice(source, 1);
+        return { ...issue, path: parts.join('.') || 'data', remedy: 'resync' };
+      }),
+    );
+  }
+}
+
+/** Input rows must be the complete active source-owned set, not one page. No writes occur here. */
+function buildCatalogDetailApproval(input: {
+  product: unknown;
+  variants: unknown;
+  revision: string;
+}) {
+  const product = parseCatalogData(productInput, input.product, editContext);
+  const rows = parseCatalogData(z.array(variantInput), input.variants, {
+    ...editContext,
+    prefix: ['variants', 'items'],
+  });
   const source = product.detailSourceCandidate;
-  if (source._id !== product._id) throw new Error('Product candidate identity mismatch');
+  if (source._id !== product._id)
+    throw new CatalogValidationError([catalogFailureIssue('CONFLICT')]);
   const seen = new Set<string>();
   for (const row of rows) {
     if (
@@ -176,18 +233,22 @@ export function planCatalogDetailApproval(input: {
       row.detailSourceCandidate.id !== row._id ||
       seen.has(row._id)
     )
-      throw new Error('Variant candidate identity or ownership mismatch');
+      throw new CatalogValidationError([catalogFailureIssue('CONFLICT')]);
     seen.add(row._id);
   }
   rows.sort((a, b) => a.position - b.position || a._id.localeCompare(b._id));
   const header = applyWebsiteDetailHeader(source, product);
-  const variants = rows.map((row) =>
-    CatalogDetailVariantSchema.parse({
-      ...row.detailSourceCandidate,
-      sku: row.sku || undefined,
-      options: Object.entries(row.optionValues).map(([name, value]) => ({ name, value })),
-      images: row.imageIds.map((id) => `/api/images/${id}`),
-    }),
+  const variants = rows.map((row, index) =>
+    parseCatalogData(
+      CatalogDetailVariantSchema,
+      {
+        ...row.detailSourceCandidate,
+        sku: row.sku || undefined,
+        options: Object.entries(row.optionValues).map(([name, value]) => ({ name, value })),
+        images: row.imageIds.map((id) => `/api/images/${id}`),
+      },
+      { ...editContext, prefix: ['variants', 'items', index] },
+    ),
   );
   // SKU photos are independently bound and checked by the persistence gate.
   // Requiring them in the nine-image product gallery loses real provider mappings.
@@ -195,11 +256,19 @@ export function planCatalogDetailApproval(input: {
   const unchanged = header.descriptionText === source.descriptionText;
   const content =
     unchanged && product.detailSourceContentCandidate != null
-      ? CatalogContentSchema.parse(product.detailSourceContentCandidate)
+      ? parseCatalogData(CatalogContentSchema, product.detailSourceContentCandidate, {
+          ...editContext,
+          remedy: 'resync',
+          prefix: ['content'],
+        })
       : undefined;
   const noteBlocks =
     unchanged && product.detailSourceNoteBlocksCandidate != null
-      ? CatalogNoteBlocksSchema.parse(product.detailSourceNoteBlocksCandidate)
+      ? parseCatalogData(CatalogNoteBlocksSchema, product.detailSourceNoteBlocksCandidate, {
+          ...editContext,
+          remedy: 'resync',
+          prefix: ['noteBlocks'],
+        })
       : undefined;
   // The card's "From $X" comes from this same version, computed while every SKU
   // is in memory, so the list never needs to read SKU rows.
@@ -208,16 +277,20 @@ export function planCatalogDetailApproval(input: {
     offers: header.offers,
     variants: variants.map((variant) => ({ id: variant.id, offers: variant.offers })),
   });
-  const publication = CatalogDetailPublicationSchema.parse({
-    state: 'approved',
-    revision: input.revision,
-    header,
-    ...(content ? { content } : {}),
-    ...(noteBlocks ? { noteBlocks } : {}),
-    variantCount: variants.length,
-    ...(variantImageIds.length ? { variantImageIds } : {}),
-    ...(priceSummary ? { priceSummary } : {}),
-  });
+  const publication = parseCatalogData(
+    CatalogDetailPublicationSchema,
+    {
+      state: 'approved',
+      revision: input.revision,
+      header,
+      ...(content ? { content } : {}),
+      ...(noteBlocks ? { noteBlocks } : {}),
+      variantCount: variants.length,
+      ...(variantImageIds.length ? { variantImageIds } : {}),
+      ...(priceSummary ? { priceSummary } : {}),
+    },
+    { stage: 'commit', remedy: 'system-repair' },
+  );
   return {
     publication,
     variants,
@@ -225,4 +298,37 @@ export function planCatalogDetailApproval(input: {
       ...new Set([...product.imageIds, ...(product.descriptionImageIds ?? []), ...variantImageIds]),
     ],
   };
+}
+
+/** Exact UTF-8 wire budget; source values stay complete and private when rejected. */
+export function catalogVariantCapacityIssues(variants: readonly CatalogDetailVariant[]) {
+  if (variants.length > CATALOG_DETAIL_VARIANT_MAX_COUNT)
+    return [
+      CatalogIssueSchema.parse({
+        code: 'TOO_MANY',
+        stage: 'effective-content',
+        path: 'variants.items',
+        severity: 'error',
+        remedy: 'system-repair',
+        expected: { maxCount: CATALOG_DETAIL_VARIANT_MAX_COUNT },
+        observed: { count: variants.length },
+      }),
+    ];
+  const encoder = new TextEncoder();
+  return variants.flatMap((variant, index) => {
+    const bytes = encoder.encode(JSON.stringify(variant)).byteLength;
+    return bytes > CATALOG_DETAIL_VARIANT_MAX_BYTES
+      ? [
+          CatalogIssueSchema.parse({
+            code: 'TOO_LARGE',
+            stage: 'effective-content',
+            path: `variants.items.${index}`,
+            severity: 'error',
+            remedy: 'system-repair',
+            expected: { maxBytes: CATALOG_DETAIL_VARIANT_MAX_BYTES },
+            observed: { bytes },
+          }),
+        ]
+      : [];
+  });
 }

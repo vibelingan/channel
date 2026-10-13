@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import { PublicProductSchema } from './index.ts';
+import { catalogIssuesFromZod } from './issues.ts';
 import { catalogOfferPricingSchema } from './offer-pricing.ts';
 import { CatalogPriceSummarySchema } from './price-summary.ts';
 
@@ -205,7 +206,15 @@ const CatalogDetailViewSchema = z.union([
 export type CatalogDetailView = z.infer<typeof CatalogDetailViewSchema>;
 export function decodeCatalogDetailView(input: unknown) {
   const parsed = CatalogDetailViewSchema.safeParse(input);
-  return parsed.success ? { ok: true as const, value: parsed.data } : { ok: false as const };
+  return parsed.success
+    ? { ok: true as const, value: parsed.data }
+    : {
+        ok: false as const,
+        issues: catalogIssuesFromZod(parsed.error.issues, input, {
+          stage: 'effective-content',
+          remedy: 'edit',
+        }),
+      };
 }
 
 export type CatalogProductDetail = z.infer<typeof CatalogProductDetailSchema>;
@@ -218,5 +227,9 @@ export function decodeCatalogProductDetail(input: unknown) {
     : {
         ok: false as const,
         errors: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+        issues: catalogIssuesFromZod(parsed.error.issues, input, {
+          stage: 'effective-content',
+          remedy: 'edit',
+        }),
       };
 }

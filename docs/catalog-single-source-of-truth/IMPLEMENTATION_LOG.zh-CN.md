@@ -376,3 +376,22 @@ approveLocalDetail 使用真实 manageCatalogDetailApproval 的 review/begin/pag
 提交前 inline review 已追踪 prepare、旧本地工具、来源审核/变更比较、分页及报价消费，当前局部无剩余 P1/P2。仍需共享安全 issue 契约及所有审批阶段原因、只读 Preview、人工配置/无损选项投影、容量预算报告、列表准入、durable operation/recovery、历史修复、全量发版验证及云现场验收。尤其来源审核尚有未采用长来源文本的有效字段合并缺口，要随共享生效计划继续修正；不把本单元的全 SKU 检查当作 P1 整体完成。无 push/部署/云业务写入。
 
 文字核对：复核 detail-candidate、实际 prepare、change-audit/supplier-review、workspace 和对应测试；把“全部配置 ID 通过”更正为“全部配置实际内容在分页前通过同一网站合约”，明确 10000 数量、job 字节预算、本地计算和云端性能的区别。
+
+
+### P1d：安全问题报告和生效计划边界（2026-10-14，本地子单元完成，待提交后精确 review）
+
+当前 HEAD 8d8c177 已完成精确 inline review，仅为 P1c。正在接线共享 catalog/issues：固定 code/字段名/数值/恢复动作，不返回原始 message、枚举输入或任意 source key；CatalogValidationError 只保存安全 issues。网站实际生效 header、全部配置、结构化内容、正式 review/begin/page、manual-source 预检查使用同一解析边界；API 错误可选携带安全 issues，浏览器 envelope 先校验，AdminApiError/DraftSavedError 保留恢复信息。成功 DTO/发布状态/分类/来源原件不变。
+
+现有字符串 formatter 的 PRIVATE_SOURCE_TOKEN 回显先复现失败；数字记录 key 被当数组下标的边界也先红后修正。原始来源坏数据先仅返回 SOURCE_NOT_READY，已补具体安全字段分支；缺记录/半捕获/归属变动保持独立 not-ready。persistence 的已有结构化拒绝不被外层改成通用提示。
+
+中途集成：111 中 108 pass/3 个旧字符串报告断言失败，更新为新字段/限额/脱敏契约；扩大 1207 中 1203 pass/4 fail，发现来源 facts 的不同校验分支给出 edit/resync 不一致，已修正并统一私有候选路径。另两项 Admin 旧夹具用 HEAD 的原 API/transport 也复现 2 fail：分类发布 fixture 缺当前版本且未给供应商 Changed 状态；静态断言还期待 patch(row.original._id) 旧参数。已补完整已分类/待审核/正确版本场景，并断言实际 Alibaba review 拒绝原因，保留 New 允许发布语义；单行断言检查完整打开 snapshot。后续 focused 171 pass、八组类型通过（均为当时版本）。
+
+容量诊断保持既有 10000 配置、128 KiB 单配置、512 KiB job；数量常量集中，完整配置在第一页之前也检查 UTF-8 字节，超限报告具体 ordinal、期望及实际 bytes，无截断/分开存储。两项原 begin 字节预算通用失败先红；精确 131072 bytes 通过、131073 拒绝，以及来源字段/隐私/两级预算/persistence 76 项 focused 通过（仍为当时版本）。第 21 项 UTF-8 超限的实际 prepare 零写入反例刚补，最新 28 个代码/JSON 文件 Biome 通过。最终扩大回归/八组类型/SDK/反向注入/实际时钟副本/完整浏览器流程仍待当前代码执行；不得用上述中间结果当最终通过。
+
+文字核对：实际复核 shared issues/detail-approval、source observations/candidate、db workflow/staging/manual/source、admin handler/approve-once、浏览器 API/envelope 和对应测试。把“截短原始 Zod message 是脱敏”更正为只生成受控字段/数字；把来源规格的 Edit 提示修正为 resync，并区分配置容量与 job 容量、局部通过与现场交付。尚未实现只读 Preview、人工配置/无损选项、列表准入、durable operation/recovery、历史修复/启用及云现场验收；没有 push/部署/云业务写入。
+
+P1d 最终验证：r5 1705 passed / 0 failed / 0 skipped；八组实际配置类型和 installed SDK gate 通过。第一次类型命令将根 tsconfig.e2e.json 错写到 apps/site，命令明确失败；更正存在路径后完成第八组和 SDK，不把错误命令算通过。28 个变更代码/JSON 文件实际 Biome 通过，git diff --check 通过。四组反向注入各 1 个预期失败和 1 个正常正控通过：数字 record key、旧私有字符串 formatter、浏览器 issue gate、完整来源配置字节 gate；finally 恢复后执行上述 r5。证据均在 /private/tmp/channel-clock-repair-2026-10-13/p1d-*。
+
+三件真实存储数据副本再次通过生产 prepare/review/begin/page/finish，T142/T157/W203 的 113/113/121 facts 完整，job 字节 12005/11866/12269、配置 4/2/1，分类和未发布状态保留，独立 JSON 与 owner marker 已清理。最终生产构建浏览器 150 passed（41 public / 90 catalog / 10 formal / 8 visibility / 1 taxonomy），owned 临时 DB/services 清理通过；这是本地门槛，没有部署或现场发布。
+
+最终本地纯计划 CPU 基准（与浏览器并行时测量，不代表云端 SLO）：20 配置 n50 P50/P95 0.72/4.33ms；105 配置 n50 1.67/10.79ms；10000 配置 n10 155.86/280.90ms，cold151.66ms。与 P1c 相比加入完整 UTF-8 序列化预算有计算成本，普通小批样本仍为毫秒；大配置、云端网络与整个批量流程的 SLO 待后续实测。22 个保守枚举复用 Zod 表面与 installed 声明/运行测试 probe 机械精确关联；无新 Cloud SDK 方法。

@@ -6,7 +6,10 @@ import {
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
-import { CatalogSourceDetailHeaderSchema } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  CatalogSourceDetailHeaderSchema,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
   type PublicSourceDigestInput,
   publicSourceDigest,
@@ -66,7 +69,7 @@ export const SourcePageSchema = z
     noteBlocks: CatalogNoteBlocksSchema.nullable(),
     variantIds: z
       .array(id)
-      .max(10000)
+      .max(CATALOG_DETAIL_VARIANT_MAX_COUNT)
       .refine((ids) => new Set(ids).size === ids.length),
     page: z.number().int().min(0).max(499),
     variants: z.array(CatalogDetailVariantSchema).max(20),

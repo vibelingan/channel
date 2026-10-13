@@ -48,6 +48,8 @@ import {
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
+import { CatalogIssueSchema } from '@vibelingan-channel/shared/catalog-issues';
+import { z } from 'zod';
 import { completeSourceMirrorFixtures } from '../../alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import {
   type AdminConfig,
@@ -5934,8 +5936,11 @@ test('prepare response identifies invalid website fields without returning priva
   expectErr(result, 'VALIDATION_ERROR');
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.match(result.error.message, /source-candidate/);
-    assert.match(result.error.message, /facts\.0\.value/);
+    assert.match(result.error.message, /preparing the product/);
+    assert.match(result.error.message, /Specification 1 value/);
+    const issues = z.array(CatalogIssueSchema).parse(Reflect.get(result.error, 'issues'));
+    assert.equal(issues[0]?.path, 'facts.0.value');
+    assert.equal(issues[0]?.remedy, 'resync');
     assert.match(result.error.message, /2000/);
     assert.doesNotMatch(result.error.message, /private-source-value|private-evidence/);
   }

@@ -10,11 +10,22 @@ import {
   type CatalogProductDetail,
   decodeCatalogProductDetail,
 } from '@vibelingan-channel/shared/catalog-detail';
-import { applyWebsiteDetailHeader } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  applyWebsiteDetailHeader,
+  catalogVariantCapacityIssues,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  type CatalogIssue,
+  CatalogIssueSchema,
+  CatalogValidationError,
+  catalogIssueMessage,
+  catalogIssuesFromZod,
+} from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
 import { validateCatalogSourceObservation } from './source-observations.ts';
 
-const configurationSet = z.array(CatalogDetailVariantSchema).max(10000);
+const configurationSet = z.array(CatalogDetailVariantSchema).max(CATALOG_DETAIL_VARIANT_MAX_COUNT);
 
 export interface CatalogDetailBindings {
   productId: string;
@@ -43,7 +54,19 @@ export function buildCatalogPreparationPlan(
     pageSize > 50 ||
     !Number.isSafeInteger((page - 1) * pageSize)
   ) {
-    return { ok: false as const, errors: ['Invalid variant pagination'] };
+    return {
+      ok: false as const,
+      errors: ['Invalid variant pagination'],
+      issues: [
+        CatalogIssueSchema.parse({
+          code: 'INVALID_VALUE',
+          stage: 'effective-content',
+          path: 'page',
+          severity: 'error',
+          remedy: 'reload',
+        }),
+      ],
+    };
   }
   const observation = validated.value;
   const warnings: string[] = [];
@@ -81,7 +104,19 @@ export function buildCatalogPreparationPlan(
     ids.some((id) => !id || id.trim() !== id || id.length > 200) ||
     new Set(ids).size !== ids.length
   ) {
-    return { ok: false as const, errors: ['Missing or duplicate canonical variant binding'] };
+    return {
+      ok: false as const,
+      errors: ['Missing or duplicate canonical variant binding'],
+      issues: [
+        CatalogIssueSchema.parse({
+          code: 'INVALID_VALUE',
+          stage: 'source',
+          path: 'variants',
+          severity: 'error',
+          remedy: 'resync',
+        }),
+      ],
+    };
   }
   const offersByVariant = new Map<string | undefined, ReturnType<typeof offer>[]>();
   for (const item of observation.offers) {
@@ -127,6 +162,20 @@ export function buildCatalogPreparationPlan(
       errors: configurations.error.issues.map(
         (issue) => `${['variants', 'items', ...issue.path].join('.')}: ${issue.message}`,
       ),
+      issues: catalogIssuesFromZod(configurations.error.issues, projected, {
+        stage: 'effective-content',
+        remedy: 'resync',
+        prefix: ['variants', 'items'],
+      }),
+    };
+  const capacity = catalogVariantCapacityIssues(configurations.data);
+  if (capacity.length)
+    return {
+      ok: false as const,
+      issues: capacity,
+      errors: capacity.map(
+        (issue) => catalogIssueMessage(issue) ?? 'Configuration data is too large.',
+      ),
     };
   const offset = (page - 1) * pageSize;
   const variants = configurations.data.slice(offset, offset + pageSize);
@@ -167,12 +216,27 @@ export function buildCatalogPreparationPlan(
         ? sourceHeader
         : applyWebsiteDetailHeader(sourceHeader, bindings.websiteProduct);
     const result = decodeCatalogProductDetail({ ...header, variants: variantPage });
-    return result.ok ? { ...result, sourceHeader, warnings: [...new Set(warnings)] } : result;
+    return result.ok
+      ? { ...result, sourceHeader, warnings: [...new Set(warnings)] }
+      : {
+          ...result,
+          issues: sourceIssues(result.issues),
+        };
   } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return {
+        ok: false as const,
+        errors: error.issues.map((issue) => catalogIssueMessage(issue) ?? 'Invalid product data.'),
+        issues: sourceIssues(error.issues),
+      };
     if (!(error instanceof z.ZodError)) throw error;
     return {
       ok: false as const,
       errors: error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+      issues: catalogIssuesFromZod(error.issues, bindings.websiteProduct, {
+        stage: 'effective-content',
+        remedy: 'edit',
+      }),
     };
   }
 }
@@ -188,4 +252,15 @@ export function buildCatalogDetailCandidate(
   if (!result.ok) return result;
   const { sourceHeader: _sourceHeader, ...candidate } = result;
   return candidate;
+}
+
+function sourceIssues(issues: readonly CatalogIssue[]): CatalogIssue[] {
+  return issues.map((issue) =>
+    issue.path === 'facts' ||
+    issue.path.startsWith('facts.') ||
+    issue.path === 'offers' ||
+    issue.path.startsWith('offers.')
+      ? { ...issue, remedy: 'resync' }
+      : issue,
+  );
 }

@@ -63,6 +63,7 @@ import {
   CATALOG_IMAGE_MAX_BYTES,
   COLLECTIONS,
   type CollectionDoc,
+  type ErrorCode,
   FILTER_OPERATORS,
   type FilterClause,
   LOGIN_RATE_MAX_GLOBAL,
@@ -130,6 +131,7 @@ import {
   type InquiryEnvelope,
   inquiryErrorMessages,
 } from '@vibelingan-channel/shared/catalog-inquiry';
+import { catalogFailureIssue } from '@vibelingan-channel/shared/catalog-issues';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
 import { approveInOneRequest } from './catalog-approve-once.ts';
@@ -153,7 +155,7 @@ import {
   supplierParts,
   withAdminEditsKept,
 } from './catalog-supplier-review.ts';
-import { catalogValidationMessage } from './catalog-validation.ts';
+import { CatalogValidationSchema, catalogValidationMessage } from './catalog-validation.ts';
 
 export interface AdminConfig {
   jwtSecret: string;
@@ -634,41 +636,47 @@ export async function handleAdminRequest(
                   ? await approveInOneRequest(claims.sub, req.data)
                   : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
+        const validation =
+          'validation' in result ? CatalogValidationSchema.safeParse(result.validation) : undefined;
+        const issues = validation?.success
+          ? validation.data.issues
+          : [catalogFailureIssue(result.code)];
+        const rejectApproval = (code: ErrorCode, message: string) => err(code, message, issues);
         if (result.code === 'MANUAL_CONFIGURATIONS')
-          return err(
+          return rejectApproval(
             'CONFLICT',
             'This product has configurations; approving manual configurations is not supported yet.',
           );
         if (result.code === 'SOURCE_NOT_READY')
-          return err(
+          return rejectApproval(
             'CONFLICT',
             'The complete product data is not ready for review. Refresh after synchronization finishes.',
           );
         if (result.code === 'APPROVAL_EXPIRED')
-          return err(
+          return rejectApproval(
             'CONFLICT',
             'This approval took over an hour and was stopped. Publish the product again.',
           );
         if (result.code === 'MEDIA_BUSY')
-          return err(
+          return rejectApproval(
             'BUSY',
             'A photo of this product was being changed at the same moment. Nothing was published; try again.',
           );
         if (result.code === 'MEDIA_NOT_READY')
-          return err(
+          return rejectApproval(
             'CONFLICT',
             'The product images are missing or busy. Confirm the gallery before approval.',
           );
         if (result.code === 'APPROVAL_TOO_LARGE')
-          return err(
+          return rejectApproval(
             'VALIDATION_ERROR',
             'Too many images changed at once. Save and approve gallery changes separately from description-image changes. The current website version has not changed.',
           );
         if (result.code === 'VALIDATION_ERROR' && 'validation' in result) {
           const message = catalogValidationMessage(result.validation);
-          if (message) return err('VALIDATION_ERROR', message);
+          if (message) return rejectApproval('VALIDATION_ERROR', message);
         }
-        return err(
+        return rejectApproval(
           result.code,
           result.code === 'CONFLICT'
             ? 'The reviewed product changed. Refresh and review it again.'

@@ -200,3 +200,16 @@ for (const generation of [undefined, null, 0, 3]) {
     assert.equal(h.product().catalogContentGeneration, generation);
   });
 }
+
+test('invalid manual website content fails preparation before any readiness write', async () => {
+  const h = harness(manualProduct({ description: 'x'.repeat(30001) }));
+  const before = structuredClone(h.product());
+  const result = await h.prepare();
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.equal(result.validation.stage, 'manual-source');
+  assert.equal(result.validation.issues[0]?.path, 'descriptionText');
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxChars: 30000 });
+  assert.deepEqual(result.validation.issues[0]?.observed, { chars: 30001, bytes: 30001 });
+  assert.deepEqual(h.writes, []);
+  assert.deepEqual(h.product(), before);
+});

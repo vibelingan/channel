@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { planCatalogDetailApproval } from './detail-approval.ts';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_BYTES,
+  catalogVariantCapacityIssues,
+  planCatalogDetailApproval,
+} from './detail-approval.ts';
+import { CatalogValidationError } from './issues.ts';
+import { CatalogDetailVariantSchema } from './product-detail.ts';
 
 function fixture() {
   const variant = (id: string, position: number) => ({
@@ -326,4 +332,82 @@ test('unused supplier text does not block the effective website version or resto
   assert.equal(result.publication.noteBlocks, undefined);
   assert.equal(product.detailSourceCandidate.descriptionText.length, 30001);
   assert.equal(JSON.stringify(result).includes(source.name), false);
+});
+
+test('effective website failures retain safe measurements without source values in exceptions', () => {
+  const input = fixture();
+  input.product.description = '秘密'.repeat(15001);
+  assert.throws(
+    () => planCatalogDetailApproval(input),
+    (error: unknown) => {
+      assert.ok(error instanceof CatalogValidationError);
+      assert.deepEqual(error.issues, [
+        {
+          code: 'TOO_LONG',
+          stage: 'effective-content',
+          path: 'descriptionText',
+          severity: 'error',
+          remedy: 'edit',
+          expected: { maxChars: 30000 },
+          observed: { chars: 30002, bytes: 90006 },
+        },
+      ]);
+      assert.equal(JSON.stringify(error).includes('秘密'), false);
+      assert.equal(error.message.includes('秘密'), false);
+      return true;
+    },
+  );
+});
+
+test('stored source failures use the same public field and recovery action as preparation', () => {
+  const input = fixture();
+  const product = {
+    ...input.product,
+    detailSourceCandidate: {
+      ...input.product.detailSourceCandidate,
+      facts: [{ name: 'Private source fact', value: 'x'.repeat(2001) }],
+    },
+  };
+  assert.throws(
+    () => planCatalogDetailApproval({ ...input, product }),
+    (error: unknown) => {
+      assert.ok(error instanceof CatalogValidationError);
+      assert.equal(error.issues[0]?.path, 'facts.0.value');
+      assert.equal(error.issues[0]?.remedy, 'resync');
+      assert.deepEqual(error.issues[0]?.expected, { maxChars: 2000 });
+      assert.deepEqual(error.issues[0]?.observed, { chars: 2001, bytes: 2001 });
+      assert.doesNotMatch(JSON.stringify(error), /Private source fact|detailSourceCandidate/);
+      return true;
+    },
+  );
+});
+
+test('configuration UTF-8 capacity accepts the exact limit and rejects one extra byte', () => {
+  const variant = {
+    id: 'variant',
+    sku: 'SKU',
+    images: [],
+    offers: [],
+    inventory: { state: 'unknown' as const },
+    options: Array.from({ length: 44 }, (_, index) => ({
+      name: `Option ${index}`,
+      value: index < 42 ? '中'.repeat(1000) : index === 42 ? 'x' : '',
+    })),
+  };
+  const tail = variant.options.at(-1);
+  assert.ok(tail);
+  const remaining =
+    CATALOG_DETAIL_VARIANT_MAX_BYTES - new TextEncoder().encode(JSON.stringify(variant)).byteLength;
+  assert.ok(remaining > 0 && remaining < 6000);
+  tail.value = '中'.repeat(Math.floor(remaining / 3)) + 'x'.repeat(remaining % 3);
+  const valid = CatalogDetailVariantSchema.parse(variant);
+  assert.equal(new TextEncoder().encode(JSON.stringify(valid)).byteLength, 128 * 1024);
+  assert.deepEqual(catalogVariantCapacityIssues([valid]), []);
+  tail.value += 'x';
+  const oversized = CatalogDetailVariantSchema.parse(variant);
+  const issues = catalogVariantCapacityIssues([oversized]);
+  assert.equal(issues[0]?.code, 'TOO_LARGE');
+  assert.deepEqual(issues[0]?.expected, { maxBytes: 128 * 1024 });
+  assert.deepEqual(issues[0]?.observed, { bytes: 128 * 1024 + 1 });
+  assert.equal(tail.value.endsWith('x'), true);
 });

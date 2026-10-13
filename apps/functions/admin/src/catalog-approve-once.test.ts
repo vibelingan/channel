@@ -1,6 +1,10 @@
 /** A whole approval in one request (publish speed, 2026-10-08). */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  catalogFailureIssue,
+  catalogValidationFailure,
+} from '@vibelingan-channel/shared/catalog-issues';
 import { type ApproveOnceDeps, approveInOneRequest } from './catalog-approve-once.ts';
 
 const OPERATION = '12345678-1234-4234-8234-123456789012';
@@ -155,7 +159,18 @@ test('one-request approval preserves safe preparation diagnostics and stops befo
     code: 'VALIDATION_ERROR',
     validation: {
       stage: 'source-candidate',
-      issues: ['facts: Array must contain at most 100 element(s)'],
+      issues: [
+        {
+          code: 'TOO_MANY',
+          stage: 'effective-content',
+          path: 'facts',
+          severity: 'error',
+          remedy: 'resync',
+          expected: { maxCount: 256 },
+          observed: { count: 257 },
+        },
+      ],
+      totalIssues: 1,
     },
   };
   const result = await approveInOneRequest(
@@ -170,4 +185,23 @@ test('one-request approval preserves safe preparation diagnostics and stops befo
     },
   );
   assert.deepEqual(result, failure);
+});
+
+for (const stage of ['review', 'begin', 'page', 'finish'] as const)
+  test(`one-request approval retains structured ${stage} failure and stops immediately`, async () => {
+    const failure = catalogValidationFailure(stage, [catalogFailureIssue('VALIDATION_ERROR')]);
+    const { calls, deps } = server({ [stage]: failure });
+    assert.deepEqual(await approve(deps), failure);
+    assert.equal(calls.at(-1)?.action, stage);
+  });
+
+test('one-request approval discards malformed diagnostic text rather than exposing it', async () => {
+  const { deps } = server({
+    prepare: {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      validation: { stage: 'source-candidate', issues: ['PRIVATE_SOURCE_TOKEN'] },
+    },
+  });
+  assert.deepEqual(await approve(deps), { ok: false, code: 'VALIDATION_ERROR' });
 });

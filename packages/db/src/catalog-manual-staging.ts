@@ -11,6 +11,14 @@ import { isDeepStrictEqual } from 'node:util';
  * the rows before calling; browsers never call this command.
  */
 import { manualDetailCandidate } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  planCatalogDetailApproval,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CatalogValidationError,
+  catalogValidationFailure,
+} from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 import type { ApprovalStageResult } from './catalog-detail-staging.ts';
@@ -23,7 +31,7 @@ export const ManualSourceSchema = z
     action: z.literal('manual-source'),
     productId: id,
     /** Active configuration rows of the product, listed by the server. */
-    configurationRowIds: z.array(id).max(10000),
+    configurationRowIds: z.array(id).max(CATALOG_DETAIL_VARIANT_MAX_COUNT),
   })
   .strict();
 
@@ -82,6 +90,13 @@ export async function prepareManualSource(
     detailSourceContentCandidate: null,
     detailSourceNoteBlocksCandidate: null,
   };
+  try {
+    planCatalogDetailApproval({ product: prepared, variants: [], revision: 'manual-validation' });
+  } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return catalogValidationFailure('manual-source', error.issues);
+    throw error;
+  }
   // Already prepared exactly so: confirm without writing (CloudBase may answer
   // an identical write with "0 updated", which the adapter treats as failure).
   if (isDeepStrictEqual(prepared, product)) return done;

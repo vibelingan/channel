@@ -7,14 +7,18 @@ import {
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
-import type { ApprovalPersistenceCommand } from '@vibelingan-channel/db/catalog-detail-staging';
+import type {
+  ApprovalPersistenceCommand,
+  ApprovalStageResult,
+} from '@vibelingan-channel/db/catalog-detail-staging';
 import { type CollectionDoc, type ListResult, matchesFilter } from '@vibelingan-channel/shared';
+import { catalogFailureIssue } from '@vibelingan-channel/shared/catalog-issues';
 import {
   completeSourceMirrorFixtures,
   sourceObservationFixture,
 } from '../../alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import { prepareCatalogSource, sourceVariantIds } from './catalog-detail-source.ts';
-import { CatalogValidationSchema } from './catalog-validation.ts';
+import { CatalogValidationSchema, catalogValidationFailure } from './catalog-validation.ts';
 
 class RecordingAdapter implements DbAdapter {
   commands: ApprovalPersistenceCommand[] = [];
@@ -36,7 +40,10 @@ class RecordingAdapter implements DbAdapter {
   async get(collection: string, id: string) {
     return (this.store[collection] ?? []).find((doc) => doc._id === id) ?? null;
   }
-  async persistCatalogDetailApproval(_actorId: string, input: ApprovalPersistenceCommand) {
+  async persistCatalogDetailApproval(
+    _actorId: string,
+    input: ApprovalPersistenceCommand,
+  ): Promise<ApprovalStageResult> {
     this.commands.push(input);
     return { ok: true as const, jobId: 'j', revision: 'r', nextPage: 1, pages: 1, complete: true };
   }
@@ -288,7 +295,18 @@ test('source projection validation preserves the failing field and performs no s
     code: 'VALIDATION_ERROR',
     validation: {
       stage: 'source-candidate',
-      issues: ['facts.0.value: String must contain at most 2000 character(s)'],
+      issues: [
+        {
+          code: 'TOO_LONG',
+          stage: 'effective-content',
+          path: 'facts.0.value',
+          severity: 'error',
+          remedy: 'resync',
+          expected: { maxChars: 2000 },
+          observed: { chars: 2400, bytes: 2400 },
+        },
+      ],
+      totalIssues: 1,
     },
   });
   assert.deepEqual(adapter.commands, []);
@@ -335,7 +353,18 @@ test('source-page schema failures identify the boundary before staging', async (
     code: 'VALIDATION_ERROR',
     validation: {
       stage: 'source-page',
-      issues: ['supplierMedia.gallery.0: String must contain at most 200 character(s)'],
+      issues: [
+        {
+          code: 'TOO_LONG',
+          stage: 'source',
+          path: 'supplierMedia.gallery.0',
+          severity: 'error',
+          remedy: 'system-repair',
+          expected: { maxChars: 200 },
+          observed: { chars: 201, bytes: 201 },
+        },
+      ],
+      totalIssues: 1,
     },
   });
   assert.deepEqual(adapter.commands, []);
@@ -595,8 +624,159 @@ for (const count of [21, 105])
     assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
     const validation = CatalogValidationSchema.parse(result.validation);
     assert.equal(validation.stage, 'source-candidate');
-    assert.ok(
-      validation.issues.some((issue) => issue.startsWith(`variants.items.${count - 1}.sku:`)),
-    );
+    assert.ok(validation.issues.some((issue) => issue.path === `variants.items.${count - 1}.sku`));
     assert.deepEqual(adapter.commands, []);
   });
+
+test('invalid stored source data reports a safe field instead of a generic not-ready message', async () => {
+  const source = {
+    _id: 'invalid-capture',
+    sourceKey: 'invalid-capture',
+    connectionId: 'fixture',
+    sourceProductId: 'external',
+    sourceTitle: 'Clock',
+    active: true,
+  };
+  const row = sourceObservationFixture(source);
+  const parsed = validateCatalogSourceObservation(row.observation);
+  assert.ok(parsed.ok);
+  row.observation = {
+    ...parsed.value,
+    source: { ...parsed.value.source, observedAt: 'PRIVATE_SOURCE_TOKEN' },
+  };
+  const adapter = new RecordingAdapter({
+    products: [
+      { _id: 'clock', name: 'Clock', productFamily: 'misc', alibabaPrimarySourceKey: source._id },
+    ],
+    alibabaSourceProducts: [source],
+    catalogSourceObservations: [row],
+    alibabaProductLinks: [
+      {
+        _id: source._id,
+        sourceKey: source._id,
+        connectionId: source.connectionId,
+        sourceProductId: source.sourceProductId,
+        productId: 'clock',
+        linkedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+  });
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'clock' });
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
+  const validation = CatalogValidationSchema.parse(result.validation);
+  assert.equal(validation.issues[0]?.path, 'source.observedAt');
+  assert.equal(validation.issues[0]?.remedy, 'resync');
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_SOURCE_TOKEN/);
+  assert.deepEqual(adapter.commands, []);
+});
+
+test('preparation preserves a persistence-stage structured rejection unchanged', async () => {
+  const source = {
+    _id: 'validation-source',
+    sourceKey: 'validation-source',
+    connectionId: 'fixture',
+    sourceProductId: 'external',
+    sourceTitle: 'Clock',
+    active: true,
+  };
+  const adapter = new RecordingAdapter({
+    products: [
+      {
+        _id: 'clock',
+        name: 'Clock',
+        productFamily: 'misc',
+        alibabaPrimarySourceKey: source._id,
+        imageIds: [],
+      },
+    ],
+    alibabaSourceProducts: [source],
+    catalogSourceObservations: [sourceObservationFixture(source)],
+  });
+  const failure = catalogValidationFailure('begin', [catalogFailureIssue('VALIDATION_ERROR')]);
+  adapter.persistCatalogDetailApproval = async (_actorId, input) => {
+    adapter.commands.push(input);
+    return failure;
+  };
+  setAdapter(adapter);
+  assert.deepEqual(
+    await prepareCatalogSource('admin', { action: 'prepare', productId: 'clock' }),
+    failure,
+  );
+  assert.equal(adapter.commands.length, 1);
+});
+
+test('first source page refuses a later oversized configuration before any persistence', async () => {
+  const source = {
+    _id: 'large-configuration',
+    sourceKey: 'large-configuration',
+    connectionId: 'fixture',
+    sourceProductId: 'external',
+    sourceTitle: 'Clock',
+    active: true,
+  };
+  const row = sourceObservationFixture(source);
+  const parsed = validateCatalogSourceObservation(row.observation);
+  assert.ok(parsed.ok);
+  row.observation = {
+    ...parsed.value,
+    variants: Array.from({ length: 21 }, (_, index) => ({
+      sourceVariantKey: `source-${index}`,
+      sku: `SKU-${index}`,
+      inventory: [],
+      media: [],
+      options:
+        index === 20
+          ? Array.from({ length: 44 }, (_, position) => ({
+              sourceName: `Option ${position}`,
+              value: '中'.repeat(1000),
+            }))
+          : [],
+    })),
+    offers: [],
+  };
+  const before = structuredClone(row.observation);
+  const adapter = new RecordingAdapter({
+    products: [
+      {
+        _id: 'clock',
+        name: 'Clock',
+        productFamily: 'misc',
+        alibabaPrimarySourceKey: source._id,
+        imageIds: [],
+      },
+    ],
+    alibabaSourceProducts: [source],
+    catalogSourceObservations: [row],
+  });
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', {
+    action: 'prepare',
+    productId: 'clock',
+    page: 0,
+  });
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
+  const validation = CatalogValidationSchema.parse(result.validation);
+  assert.equal(validation.issues[0]?.code, 'TOO_LARGE');
+  assert.equal(validation.issues[0]?.path, 'variants.items.20');
+  assert.deepEqual(validation.issues[0]?.expected, { maxBytes: 128 * 1024 });
+  assert.deepEqual(adapter.commands, []);
+  assert.deepEqual(row.observation, before);
+  assert.doesNotMatch(JSON.stringify(result), /中/);
+});
+
+test('malformed preparation requests identify safe fields and never persist', async () => {
+  const adapter = new RecordingAdapter({});
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', {
+    action: 'prepare',
+    productId: 'p',
+    page: -1,
+    PRIVATE_KEY: 'PRIVATE_SOURCE_TOKEN',
+  });
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
+  const validation = CatalogValidationSchema.parse(result.validation);
+  assert.ok(validation.issues.some((issue) => issue.path === 'page' && issue.remedy === 'reload'));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_KEY|PRIVATE_SOURCE_TOKEN/);
+  assert.deepEqual(adapter.commands, []);
+});

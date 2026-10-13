@@ -19,6 +19,7 @@ import {
   type SortClause,
   isProductFamily,
 } from '@vibelingan-channel/shared';
+import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
 /**
  * Browser API client for the admin dashboard.
  *
@@ -41,6 +42,7 @@ export class AdminApiError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly issues: readonly CatalogIssue[] = [],
   ) {
     super(message);
     this.name = 'AdminApiError';
@@ -57,8 +59,9 @@ export class DraftSavedError extends AdminApiError {
     code: string,
     message: string,
     public readonly draft: CollectionDoc,
+    issues?: readonly CatalogIssue[],
   ) {
-    super(code, `Saved as a draft, not published: ${message}`);
+    super(code, `Saved as a draft, not published: ${message}`, issues);
     this.name = 'DraftSavedError';
   }
 }
@@ -123,7 +126,7 @@ async function callOnce<T>(action: string, data?: unknown, signal?: AbortSignal)
     );
   }
   if (!result.ok) {
-    throw new AdminApiError(result.error.code, result.error.message);
+    throw new AdminApiError(result.error.code, result.error.message, result.error.issues);
   }
   return result.data;
 }
@@ -370,7 +373,12 @@ export async function createRecord(
   } catch (error) {
     const code = error instanceof AdminApiError ? error.code : 'INTERNAL_ERROR';
     const message = error instanceof Error ? error.message : 'Publishing failed.';
-    throw new DraftSavedError(code, message, draft);
+    throw new DraftSavedError(
+      code,
+      message,
+      draft,
+      error instanceof AdminApiError ? error.issues : undefined,
+    );
   }
 }
 

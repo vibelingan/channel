@@ -679,8 +679,15 @@ test('revisioned bulk publish never approves unseen supplier detail', async (con
         data: {
           _id: request.data.id,
           published: false,
+          updatedAt: revision,
+          productFamily: 'headphones',
+          imageIds: ['img'],
           ...(request.data.id === 'supplier-linked'
-            ? { alibabaPrimarySourceKey: 'a'.repeat(64) }
+            ? {
+                alibabaPrimarySourceKey: 'a'.repeat(64),
+                alibabaReviewPending: true,
+                alibabaReviewReason: 'changed',
+              }
             : { productFamily: 'headphones', imageIds: ['img'] }),
         },
       });
@@ -732,6 +739,7 @@ test('revisioned bulk publish never approves unseen supplier detail', async (con
     result?.failures.map(({ id, code, outcome }) => ({ id, code, outcome })),
     [{ id: 'supplier-linked', code: 'CONFLICT', outcome: 'rejected' }],
   );
+  assert.match(result?.failures[0]?.message ?? '', /Alibaba changes to review/);
   // Both products run at once; only the manual draft reaches approval, in one
   // request, then its guarded publication.
   assert.deepEqual(

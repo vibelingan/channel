@@ -2,7 +2,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
-import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  planCatalogDetailApproval,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
@@ -18,7 +21,7 @@ export const CatalogApprovalManifestSchema = z
     revision: identity,
     variantIds: z
       .array(identity)
-      .max(10000)
+      .max(CATALOG_DETAIL_VARIANT_MAX_COUNT)
       .refine((ids) => new Set(ids).size === ids.length),
   })
   .strict();

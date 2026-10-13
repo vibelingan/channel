@@ -5,7 +5,19 @@ import {
   CatalogDetailPublicationSchema,
   CatalogPriceSummarySchema,
 } from '@vibelingan-channel/shared/catalog-detail';
-import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_APPROVAL_JOB_MAX_BYTES,
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  catalogVariantCapacityIssues,
+  planCatalogDetailApproval,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CatalogIssueSchema,
+  CatalogValidationError,
+  type CatalogValidationReport,
+  catalogIssuesFromZod,
+  catalogValidationFailure,
+} from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
 import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
@@ -40,7 +52,7 @@ const JobSchema = z
     expectedRevision: id.nullable(),
     revision: z.string().uuid(),
     publication: CatalogDetailPublicationSchema,
-    variantIds: z.array(id).max(10000),
+    variantIds: z.array(id).max(CATALOG_DETAIL_VARIANT_MAX_COUNT),
     pageHashes: z.array(digest).max(500),
     nextPage: z.number().int().nonnegative(),
     state: z.enum(['staging', 'complete']),
@@ -57,6 +69,7 @@ const JobSchema = z
 export type PreparedApproval = z.infer<typeof JobSchema>;
 type Failure = {
   ok: false;
+  validation?: CatalogValidationReport;
   code:
     | 'VALIDATION_ERROR'
     | 'FORBIDDEN'
@@ -188,8 +201,8 @@ export function prepareStagedApproval(
       )
     )
       return fail('MEDIA_NOT_READY');
-    if (plan.variants.some((variant) => Buffer.byteLength(JSON.stringify(variant)) > 128 * 1024))
-      return fail('VALIDATION_ERROR');
+    const capacity = catalogVariantCapacityIssues(plan.variants);
+    if (capacity.length) return catalogValidationFailure('begin', capacity);
     const pageHashes = [];
     for (let offset = 0; offset < plan.variants.length; offset += APPROVAL_PAGE_SIZE)
       pageHashes.push(hash(plan.variants.slice(offset, offset + APPROVAL_PAGE_SIZE)));
@@ -217,9 +230,28 @@ export function prepareStagedApproval(
         ? { supplierParts: supplierParts(product) }
         : {}),
     });
-    if (Buffer.byteLength(JSON.stringify(job)) > 512 * 1024) return fail('VALIDATION_ERROR');
+    const jobBytes = Buffer.byteLength(JSON.stringify(job));
+    if (jobBytes > CATALOG_APPROVAL_JOB_MAX_BYTES)
+      return catalogValidationFailure('begin', [
+        CatalogIssueSchema.parse({
+          code: 'TOO_LARGE',
+          stage: 'commit',
+          path: 'data',
+          severity: 'error',
+          remedy: 'system-repair',
+          expected: { maxBytes: CATALOG_APPROVAL_JOB_MAX_BYTES },
+          observed: { bytes: jobBytes },
+        }),
+      ]);
     return { ok: true, value: job };
-  } catch {
+  } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return catalogValidationFailure('begin', error.issues);
+    if (error instanceof z.ZodError)
+      return catalogValidationFailure(
+        'begin',
+        catalogIssuesFromZod(error.issues, input, { stage: 'commit', remedy: 'system-repair' }),
+      );
     return fail('VALIDATION_ERROR');
   }
 }
@@ -355,7 +387,18 @@ export async function stageApprovalPage(
       variants: rows,
       revision: job.revision,
     }).variants;
-  } catch {
+  } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return catalogValidationFailure('page', error.issues);
+    if (error instanceof z.ZodError)
+      return catalogValidationFailure(
+        'page',
+        catalogIssuesFromZod(error.issues, rows, {
+          stage: 'effective-content',
+          remedy: 'edit',
+          prefix: ['variants', 'items'],
+        }),
+      );
     return fail('VALIDATION_ERROR');
   }
   if (hash(variants) !== job.pageHashes[page]) return fail('CONFLICT');
@@ -526,7 +569,21 @@ export async function runStagedApproval(
   input: ApprovalPersistenceCommand,
 ): Promise<ApprovalStageResult> {
   const parsed = PersistenceCommandSchema.safeParse(input);
-  if (!parsed.success || !id.safeParse(actorId).success) return fail('VALIDATION_ERROR');
+  if (!parsed.success)
+    return catalogValidationFailure(
+      'commit',
+      catalogIssuesFromZod(parsed.error.issues, input, { stage: 'commit', remedy: 'reload' }),
+    );
+  const actor = id.safeParse(actorId);
+  if (!actor.success)
+    return catalogValidationFailure(
+      'commit',
+      catalogIssuesFromZod(actor.error.issues, actorId, {
+        stage: 'commit',
+        remedy: 'sign-in',
+        prefix: ['actorId'],
+      }),
+    );
   const command = parsed.data;
   if (command.action === 'source-page') return stageSourcePage(tx, actorId, command);
   if (command.action === 'price-summary-backfill')

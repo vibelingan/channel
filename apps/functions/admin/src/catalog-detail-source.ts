@@ -4,6 +4,7 @@ import {
   type CatalogSourceObservation,
   sourceMediaLinkId,
   sourceObservationDocumentId,
+  validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
@@ -17,6 +18,10 @@ import {
   sourceGalleryDigest,
 } from '@vibelingan-channel/db/catalog-source-staging';
 import { isProductFamily } from '@vibelingan-channel/shared';
+import {
+  catalogFailureIssue,
+  catalogIssuesFromZod,
+} from '@vibelingan-channel/shared/catalog-issues';
 import { ConfigurationPhotosSchema } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { z } from 'zod';
 import { catalogValidationFailure } from './catalog-validation.ts';
@@ -83,7 +88,11 @@ export async function sourceLinkImageId(url: string): Promise<string | undefined
 
 export async function prepareCatalogSource(actorId: string, input: unknown) {
   const parsed = command.safeParse(input);
-  if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+  if (!parsed.success)
+    return catalogValidationFailure(
+      'source-candidate',
+      catalogIssuesFromZod(parsed.error.issues, input, { stage: 'commit', remedy: 'reload' }),
+    );
   const { productId, page } = parsed.data;
   const product = await get('products', productId);
   if (!product) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
@@ -128,7 +137,13 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   if (!normalized || row?.active === false)
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const snapshot = sourceBindingSnapshot(normalized, row);
-  if (!snapshot.ok) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  if (!snapshot.ok) {
+    if (row) {
+      const checked = validateCatalogSourceObservation(row.observation);
+      if (!checked.ok) return catalogValidationFailure('source-candidate', checked.issues);
+    }
+    return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  }
   const primaryLink = primarySourceLinkSnapshot(
     normalized,
     await get('alibabaProductLinks', sourceKey),
@@ -183,7 +198,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     page + 1,
     20,
   );
-  if (!candidate.ok) return catalogValidationFailure('source-candidate', candidate.errors);
+  if (!candidate.ok) return catalogValidationFailure('source-candidate', candidate.issues);
   const { variants: pageVariants } = candidate.value;
   const header = candidate.sourceHeader;
   // The admin's photo choice for a configuration replaces the supplier's
@@ -218,7 +233,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       ? []
       : ['content-generation', product.catalogContentGeneration]),
   ]);
-  const sourcePage = SourcePageSchema.safeParse({
+  const packet = {
     action: 'source-page',
     productId,
     sourceKey,
@@ -260,16 +275,20 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
               .map((m) => m.sourceUrl),
       };
     }),
-  });
+  };
+  const sourcePage = SourcePageSchema.safeParse(packet);
   if (!sourcePage.success)
     return catalogValidationFailure(
       'source-page',
-      sourcePage.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+      catalogIssuesFromZod(sourcePage.error.issues, packet, {
+        stage: 'source',
+        remedy: 'system-repair',
+      }),
     );
   const result = await persistCatalogDetailApproval(actorId, sourcePage.data);
   return !result.ok && result.code === 'VALIDATION_ERROR'
-    ? catalogValidationFailure('source-persistence', [
-        'Stored product and source page failed validation.',
-      ])
+    ? result.validation
+      ? result
+      : catalogValidationFailure('source-persistence', [catalogFailureIssue('INTERNAL_ERROR')])
     : result;
 }

@@ -5,6 +5,11 @@ import {
   decodeCatalogDetailView,
 } from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CatalogValidationError,
+  catalogIssuesFromZod,
+  catalogValidationFailure,
+} from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
 import {
   CatalogApprovalCommandSchema,
@@ -88,7 +93,11 @@ export async function runCatalogApprovalWorkflow(
   if (actor?.role !== 'admin' || actor.status === 'suspended')
     return { ok: false as const, code: 'FORBIDDEN' as const };
   const parsed = WorkflowCommandSchema.safeParse(input);
-  if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+  if (!parsed.success)
+    return catalogValidationFailure(
+      'commit',
+      catalogIssuesFromZod(parsed.error.issues, input, { stage: 'commit', remedy: 'reload' }),
+    );
   const command = parsed.data;
   if (command.action === 'page' || command.action === 'finish')
     return store.persist(actorId, command);
@@ -133,7 +142,7 @@ export async function runCatalogApprovalWorkflow(
         hasMore: offset + 50 < plan.variants.length,
       },
     });
-    if (!detail.ok) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+    if (!detail.ok) return catalogValidationFailure('review', detail.issues);
     return {
       ok: true as const,
       kind: 'review' as const,
@@ -193,7 +202,17 @@ export async function runCatalogApprovalWorkflow(
           }
         : {}),
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return catalogValidationFailure('review', error.issues);
+    if (error instanceof z.ZodError)
+      return catalogValidationFailure(
+        'review',
+        catalogIssuesFromZod(error.issues, read.product, {
+          stage: 'effective-content',
+          remedy: 'edit',
+        }),
+      );
     return { ok: false as const, code: 'VALIDATION_ERROR' as const };
   }
 }

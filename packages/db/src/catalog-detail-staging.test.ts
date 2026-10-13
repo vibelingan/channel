@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
+import { CatalogValidationReportSchema } from '@vibelingan-channel/shared/catalog-issues';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import {
   beginStagedApproval,
@@ -926,3 +927,81 @@ for (const field of ['catalogLifecycleVersion', 'catalogClassificationRevision']
     assert.equal(h.publication().revision, 'old');
   });
 }
+
+test('oversized UTF-8 configuration reports its exact byte budget without losing source data', () => {
+  const h = fixture(1);
+  const original = h.variants[0];
+  assert.ok(original);
+  const options = Array.from({ length: 44 }, (_, index) => ({
+    name: `Option ${index}`,
+    value: '中'.repeat(1000),
+  }));
+  const row = {
+    ...original,
+    detailSourceCandidate: { ...original.detailSourceCandidate, options },
+    optionValues: Object.fromEntries(options.map((option) => [option.name, option.value])),
+  };
+  const variants = [row];
+  const before = structuredClone(row);
+  const result = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(h.product, variants) },
+    h.product,
+    variants,
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.equal(result.validation.issues[0]?.code, 'TOO_LARGE');
+  assert.equal(result.validation.issues[0]?.path, 'variants.items.0');
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 128 * 1024 });
+  assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 128 * 1024);
+  assert.doesNotMatch(JSON.stringify(result), /中/);
+  assert.deepEqual(row, before);
+});
+
+test('oversized approval job reports a separate exact job budget before persistence', () => {
+  const h = fixture(0);
+  const facts = Array.from({ length: 256 }, (_, index) => ({
+    name: `Fact ${index}`,
+    value: '中'.repeat(1000),
+  }));
+  const product = {
+    ...h.product,
+    detailSourceCandidate: { ...h.product.detailSourceCandidate, facts },
+  };
+  const before = structuredClone(product);
+  const result = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(product, []) },
+    product,
+    [],
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.equal(result.validation.issues[0]?.code, 'TOO_LARGE');
+  assert.equal(result.validation.issues[0]?.stage, 'commit');
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 512 * 1024 });
+  assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 512 * 1024);
+  assert.doesNotMatch(JSON.stringify(result), /中/);
+  assert.deepEqual(product, before);
+});
+
+test('malformed workflow requests retain a safe validation report before any product read', async () => {
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async (collection, id) => {
+        assert.equal(collection, 'users');
+        return { _id: id, role: 'admin' };
+      },
+      persist: async () => {
+        throw new Error('Malformed request cannot persist');
+      },
+    },
+    'admin',
+    { action: 'review', productId: 'p', page: -1, PRIVATE_KEY: 'PRIVATE_SOURCE_TOKEN' },
+  );
+  assert.ok(
+    !result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result && result.validation,
+  );
+  const validation = CatalogValidationReportSchema.parse(result.validation);
+  assert.ok(validation.issues.some((issue) => issue.path === 'page' && issue.remedy === 'reload'));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_KEY|PRIVATE_SOURCE_TOKEN/);
+});
