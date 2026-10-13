@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { withAlibabaLeaseCommit } from './alibaba-lease-commit-queue.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { planSourceInvalidation } from './catalog-source-invalidation.ts';
 import {
@@ -403,15 +404,20 @@ function confirmDocumentWrite(answer: unknown, id: string): void {
   throw new Error('Database document write was not confirmed');
 }
 
-function catalogRowStore(transaction: NodeSdkTransaction): CatalogRowStore {
+function catalogRowStore(
+  transaction: NodeSdkTransaction,
+  beforeWrite?: () => Promise<void>,
+): CatalogRowStore {
   return {
     get: async (collection, id) =>
       normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
     set: async (collection, row) => {
+      await beforeWrite?.();
       const { _id, ...data } = row;
       confirmDocumentWrite(await transaction.collection(collection).doc(_id).set(data), _id);
     },
     remove: async (collection, id) => {
+      await beforeWrite?.();
       const result = sdkAnswer(await transaction.collection(collection).doc(id).remove());
       if (result.deleted !== 1) throw new Error('Database document removal was not confirmed');
     },
@@ -443,6 +449,25 @@ async function writeInvalidatedProduct(
   confirmDocumentWrite(await transaction.collection('products').doc(_id).set(data), _id);
 }
 
+/** Snapshot reads alone do not fence takeover; verified with the deployed SDK. */
+function alibabaLeaseWriteFence(
+  transaction: NodeSdkTransaction,
+  connectionId: string,
+  lease: CollectionDoc | null,
+) {
+  let written = false;
+  return async () => {
+    if (written) return;
+    if (!lease || lease._id !== connectionId) throw new Error('Lease identity was not confirmed');
+    const { _id, ...data } = lease;
+    confirmDocumentWrite(
+      await transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId).set(data),
+      connectionId,
+    );
+    written = true;
+  };
+}
+
 /** Exported for a production-path takeover test; the live adapter calls this exact function. */
 export async function upsertDocWithAlibabaLeaseInCloudBase(
   db: NodeSdkDatabase,
@@ -452,13 +477,14 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
   createOnly: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
 ): Promise<boolean> {
-  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+  return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction: NodeSdkTransaction) => {
     const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
     const lease = normalizeSingle(sdkAnswer(await leaseRef.get()).data);
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const beforeWrite = alibabaLeaseWriteFence(transaction, guard.connectionId, lease);
     if (isCatalogRowCollection(collection)) {
       const result = await runCatalogRowMutation(
-        catalogRowStore(transaction),
+        catalogRowStore(transaction, beforeWrite),
         { action: 'upsert', collection, id, data: patch, createOnly },
         guard.now,
       );
@@ -478,6 +504,7 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
         ? await sourceInvalidation(transaction, existing, next, guard.now)
         : null;
     if (!isDeepStrictEqual(existing, next)) {
+      await beforeWrite();
       const answer = existing
         ? await targetRef.update(
             replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
@@ -489,7 +516,7 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return true;
-  });
+  }));
 }
 
 /** The tombstone writer follows the same protected source/product commit. */
@@ -500,16 +527,17 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
   patch: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
 ): Promise<boolean> {
-  return db.runTransaction(async (transaction) => {
+  return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction) => {
     const lease = normalizeSingle(
       sdkAnswer(
         await transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId).get(),
       ).data,
     );
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const beforeWrite = alibabaLeaseWriteFence(transaction, guard.connectionId, lease);
     if (isCatalogRowCollection(collection)) {
       const result = await runCatalogRowMutation(
-        catalogRowStore(transaction),
+        catalogRowStore(transaction, beforeWrite),
         { action: 'update', collection, id, data: patch },
         guard.now,
       );
@@ -526,12 +554,13 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
         ? await sourceInvalidation(transaction, before, next, guard.now)
         : null;
     if (!isDeepStrictEqual(before, next)) {
+      await beforeWrite();
       const answer = await target.update(replaceNestedObjects(values, db.command));
       if (collection === 'catalogSourceObservations') confirmDocumentWrite(answer, id);
     }
     await writeInvalidatedProduct(transaction, invalidated);
     return true;
-  });
+  }));
 }
 
 /**
@@ -546,7 +575,7 @@ export async function claimAlibabaSyncRunInCloudBase(
   checkpointPatch: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
 ): Promise<AlibabaSyncRunClaimResult> {
-  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+  return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction: NodeSdkTransaction) => {
     const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
     const checkpointRef = transaction
       .collection('alibabaSyncCheckpoints')
@@ -569,6 +598,7 @@ export async function claimAlibabaSyncRunInCloudBase(
       string,
       unknown
     > & { _id?: unknown };
+    await alibabaLeaseWriteFence(transaction, guard.connectionId, lease)();
     await runRef.set({
       ...safeRun,
       createdAt: guard.now,
@@ -578,7 +608,7 @@ export async function claimAlibabaSyncRunInCloudBase(
       replaceNestedObjects({ ...safeCheckpointPatch, updatedAt: guard.now }, db.command),
     );
     return 'claimed';
-  });
+  }));
 }
 
 /** Exported so recency behavior is tested against the exact production transaction. */
@@ -655,7 +685,7 @@ export async function mutateAlibabaProductInCloud(
     throw new Error('Alibaba link query was not acknowledged');
   }
   const links = result.data as CollectionDoc[];
-  return db.runTransaction((transaction) => runAlibabaProductMutation({
+  const commit = () => db.runTransaction((transaction) => runAlibabaProductMutation({
     get: async (collection, id) => normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
     set: async (collection, row) => {
       const { _id, ...data } = row;
@@ -669,6 +699,7 @@ export async function mutateAlibabaProductInCloud(
       if (acknowledgement.deleted !== 1) throw new Error('Alibaba link removal was not acknowledged');
     },
   }, links, input));
+  return 'guard' in input ? withAlibabaLeaseCommit(input.guard, commit) : commit();
 }
 
 export const cloudBaseAdapter: DbAdapter = {

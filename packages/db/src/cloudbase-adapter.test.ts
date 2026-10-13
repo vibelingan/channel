@@ -440,7 +440,7 @@ for (const writer of ['fenced-upsert', 'generic-upsert', 'fenced-tombstone'] as 
       harness.controls.silentWrite = '';
       await write();
       assert.equal(harness.store.get('products')?.get('p')?.detailSourceReady, false);
-      assert.ok(harness.controls.maximumOperations <= 6);
+      assert.ok(harness.controls.maximumOperations <= (writer === 'generic-upsert' ? 5 : 7));
     });
   }
 }
@@ -465,3 +465,50 @@ test('Cloud observation recapture cannot overwrite its private binding fence', a
     3,
   );
 });
+
+for (const action of ['upsert', 'update'] as const) {
+  for (const failure of ['throw', 'silent'] as const) {
+    test(`lease fence ${failure} prevents ${action} and releases the owner queue`, async () => {
+      const at = '2026-10-14T00:00:00.000Z';
+      const harness = fakeDatabase({
+        alibabaSyncLeases: [
+          {
+            _id: 'primary',
+            holder: 'owner',
+            fence: 1,
+            expiresAt: '2026-10-14T00:03:00.000Z',
+            releasedAt: '',
+          },
+        ],
+        alibabaSupplierOffers: [{ _id: 'offer', value: 'before' }],
+      });
+      const before = structuredClone(harness.store);
+      if (failure === 'throw') harness.controls.failWrite = 'alibabaSyncLeases/primary';
+      else harness.controls.silentWrite = 'alibabaSyncLeases/primary';
+      const guard = { connectionId: 'primary', holder: 'owner', fence: 1, now: at };
+      const write = () =>
+        action === 'upsert'
+          ? upsertDocWithAlibabaLeaseInCloudBase(
+              harness.db,
+              'alibabaSupplierOffers',
+              'offer',
+              { value: 'after' },
+              {},
+              guard,
+            )
+          : updateDocWithAlibabaLeaseInCloudBase(
+              harness.db,
+              'alibabaSupplierOffers',
+              'offer',
+              { value: 'after' },
+              guard,
+            );
+      await assert.rejects(write(), /write failure|not confirmed/);
+      assert.deepEqual(harness.store, before);
+      harness.controls.failWrite = '';
+      harness.controls.silentWrite = '';
+      assert.equal(await write(), true);
+      assert.equal(harness.store.get('alibabaSupplierOffers')?.get('offer')?.value, 'after');
+    });
+  }
+}

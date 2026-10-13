@@ -397,7 +397,7 @@ for (const action of ['upsert', 'update'] as const)
     assert.equal(applied, true);
     assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
     assert.equal(h.get('products', 'p')?.detailSourceReady, false);
-    assert.ok(h.control.maximumOperations <= 6);
+    assert.equal(h.control.maximumOperations, 7, 'four reads plus lease/source/product writes');
   });
 
 for (const collection of ['alibabaSourceProducts', 'catalogSourceObservations'] as const)

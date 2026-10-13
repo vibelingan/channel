@@ -395,3 +395,27 @@ P1d 最终验证：r5 1705 passed / 0 failed / 0 skipped；八组实际配置类
 三件真实存储数据副本再次通过生产 prepare/review/begin/page/finish，T142/T157/W203 的 113/113/121 facts 完整，job 字节 12005/11866/12269、配置 4/2/1，分类和未发布状态保留，独立 JSON 与 owner marker 已清理。最终生产构建浏览器 150 passed（41 public / 90 catalog / 10 formal / 8 visibility / 1 taxonomy），owned 临时 DB/services 清理通过；这是本地门槛，没有部署或现场发布。
 
 最终本地纯计划 CPU 基准（与浏览器并行时测量，不代表云端 SLO）：20 配置 n50 P50/P95 0.72/4.33ms；105 配置 n50 1.67/10.79ms；10000 配置 n10 155.86/280.90ms，cold151.66ms。与 P1c 相比加入完整 UTF-8 序列化预算有计算成本，普通小批样本仍为毫秒；大配置、云端网络与整个批量流程的 SLO 待后续实测。22 个保守枚举复用 Zod 表面与 installed 声明/运行测试 probe 机械精确关联；无新 Cloud SDK 方法。
+
+### P2c2e：真实云 lease 接管验证及修正（2026-10-14，本地及该项云实验完成，待提交后精确 review）
+
+P1d 提交 2a62715099d65cece91aa6d0b2edb1e1d8267d8f 精确 inline review 完成，22/22 SDK 表面证据关联，仅局部完成。
+
+独立云实验使用 Node20.19.3、实际 bundled node-sdk3.17.2 和生产 upsert 函数，仅随机前缀 crp_20261014_b32d0526 的5个 ADMINONLY 临时集合；临时 EventFunction 禁止客户端调用，无 HTTP/定时触发器，原应用函数代码未动。读版本1后 B 写2，A 只写独立结果仍提交版本1，证明读集合不验证；加入实际 fence 写入后 A 重试读2并拒绝。实际来源 writer A 读过 lease1 后暂停，实际TTL过期，B取得lease2但不写来源，A恢复仍成功落入 stale-holder-A。独立管理端读回 receipt/source/lease 确认；request6f1112b5-c18c-47c9-b8f4-1b014edf14b5，证据临时 vendor-probe 目录。
+
+复用身份更新已有同值 lease set 模式的云对照：同值 set 可在接管后触发冲突，正常 ack.updated=1；但4个同持有者事务竞争lease，10轮40次仅32成功，8次 DATABASE_TRANSACTION_CONFLICT，6220ms，不能直接上线。第一次4并发断言3/4失败被保留，随后补全逐件失败观测，未降低通过标准；request a6a8aff9-2fe7-4dc0-8a32-ae306a717932，后续完整结果见 invoke-noop-v2-result.json。
+
+拟修正：所有来源 upsert/update、run/checkpoint claim 的实际写入与现有 lease 文档同事务；复用同值写回而不新建字段/集合。在同一 connection/holder/fence 的数据库提交处排队，避免同一同步持有者自相冲突；不同连接/持有者及所有商品审批不进入该队列。队列是吞吐措施，持久层 lease 写入才是正确性保障。普通 sync runner/raw replay 当前是顺序处理；仍需验证4并发压力、不同持有者互不阻塞、失败后释放、真正 take-over、原异常/0写入、SDK/完整回归与浏览器。尚未实现；云临时函数/5集合及单项权限 override 仍在本次实验 ledger 中，后续必须清理并读回。
+
+P2c2e 实现：upsert/update/run claim 的 lease 加入实际写集合；generic catalog 子行/父行通过 beforeWrite 只写一次 lease，所有读取仍先于写入。复用原 lease 的完整同值 set，验证 _id 后去掉 SDK 禁止的 _id payload；每次 ACK 必须确认。原 identity promote/repair 已有同值 lease set，现在和来源写入共用 connection/holder/fence 进程内提交队列；失败 finally 释放且删除空队列。队列用于减少同持有者竞争，正确性仍由存储事务保护；其他连接/持有者/新 fence、普通分类/编辑/审批都不排队。无新字段、集合、SDK shim 或对外协议。
+
+新增快照模型依据云实测，只验证写集合：旧代码21项中11个接管反例失败、10个现持有者正控通过；修正后全部通过，另5项队列顺序/独立key/异常释放与4项 fence异常/0ACK的业务零写入及恢复通过。首次98项88通过/10失败均为原6操作上限已增到7，保留回滚检查并精确断言4读+lease/source/product共3写=7，unfenced5保持；没有放宽数据或原子性断言。新测试两处非空断言被实际 Biome 拒绝，改用存在性检查后5文件通过（大型cloudbase-adapter依旧按已有配置排除）。
+
+最终回归1735 passed/0 failed/0 skipped；DB/admin/sync/local/public/e2e六组类型及SDK gate通过；最终生产构建150浏览器通过（41/90/10/8/1），owned DB/services已清理。反向注入只在独立esbuild内存副本进行，工作区字节未动：禁用lease写入11 failed+10正常正控，禁用队列1 failed+4独立/恢复正控。真实时钟副本在P1d完成后未改变内容投影，本MIU不将未重新执行的时钟副本称作新验收。
+
+修正版实际云候选包 SHA256 5f2b23e866a3b23e969f49f19b9568def733ff211d8a457470e232ed1fb2491d，包含上述真实生产函数（基于2a62715的未提交P2c2e，不是应用部署SHA），Node20.19.3。实际TTL过期并接管后oldResult=false、oldWriterRefused=true、source保持baseline；4件并发10轮40次来源upsert全部完成并逐件读回40，40个native callback、0重试、0失败，写入段9595ms。独立管理端再次核对receipt及全部40个唯一sourceId。原无队列同值fence压力40次中32成功/8冲突、6220ms，修正是以提交排队消除自相冲突；不把更短但失败的旧测量称作吞吐优势，也不把同步写入性能当20商品发布SLO。
+
+云实验清理：先读所有记录验证本run所有权，control54/leases2/sources41/links0/products0，共97条纯合成记录；删除临时EventFunction， fresh读取规则后只去掉本函数override并读回原wildcard；删除5集合，再独立checkCollection证明均不存在。只剩原3函数且ModTime均为2026-10-12，应用函数、商品、媒体、分类及发布状态未改。清理证据vendor-probe/cleanup-verified.json，所有实验代码/账本/原始结果保留在/private/tmp/channel-clock-repair-2026-10-13/vendor-probe供复核。无应用部署/push。
+
+文字核对：实际复核cloudbase-adapter、catalogRowStore、runCatalogRowMutation、AlibabaProduct identity、runner/ingest/raw-replay/selected-sync和对应测试。将“事务中读过lease就能阻止旧worker”更正为写集合fence；区分过程内排队的性能用途和持久事务的正确性用途，明确供应商同步与用户审批的边界。此项完成不代表其他vendor race、完整P2或全部发布可靠性交付完成。
+
+提交前跨文件复核还保留两项明确后续门槛：P2c2f 要补齐非catalog supplier offer/update和run/checkpoint实际业务写入ACK，当前 lease fence 自身确认不等于所有旧目标写入已确认；P6切换新实现前须禁止旧sync新入调用并排空旧调用，manifest最大timeout900秒，原timer默认关闭保持不变。旧代码不参与新fence，不能用新实现的正确性证明覆盖旧调用仍在运行的窗口。上述是发布阻断项，尚未开始暂停/部署操作。
