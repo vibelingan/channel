@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { validateCatalogSourceObservation } from '@vibelingan-channel/catalog-import/observations';
 import { runStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
@@ -251,3 +252,30 @@ test('products outside the audit are reported with a reason and never compared',
     assert.deepEqual(row, { productId: 'p1', outcome: 'skipped', reason }, reason);
   }
 });
+
+for (const field of ['title', 'description'] as const) {
+  for (const changed of [false, true]) {
+    test(`unused oversized supplier ${field} cannot hide ${changed ? 'changed' : 'unchanged'} website source comparison`, async () => {
+      const store = approvedStore(observation(UNPRICED), {
+        description: 'Website description retained by the administrator',
+      });
+      const next = observation(changed ? TIERS : UNPRICED);
+      if (field === 'title') next.identity.title = 'PRIVATE_SOURCE_TITLE'.repeat(100);
+      else next.content.description.text = 'PRIVATE_SOURCE_DESCRIPTION'.repeat(2000);
+      assert.equal(validateCatalogSourceObservation(next).ok, true, 'complete raw source is valid');
+      store.observation = next;
+      const before = structuredClone(store);
+      const row = (await planChangeAudit(reader(store), { pageSize: 20 })).rows[0];
+      assert.equal(row?.outcome, changed ? 'changed' : 'unchanged');
+      if (changed) {
+        assert.ok(row?.outcome === 'changed');
+        assert.deepEqual(row.differences, ['configuration Black: price']);
+      }
+      assert.deepEqual(
+        store,
+        before,
+        'comparison neither truncates source nor writes website data',
+      );
+    });
+  }
+}

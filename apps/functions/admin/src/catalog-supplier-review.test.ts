@@ -331,3 +331,40 @@ test('photo sources: every Alibaba photo, with our copy when we have one (choosi
     code: 'VALIDATION_ERROR',
   });
 });
+
+for (const field of ['title', 'description'] as const) {
+  test(`supplier review retains price changes when unused source ${field} exceeds the website limit`, async () => {
+    const docs = store();
+    const stored = docs.catalogSourceObservations?.[0];
+    assert.ok(stored);
+    const incoming = observation('Old text', ['a', 'b'], [], {
+      offers: [
+        {
+          sourceOfferKey: 'product-price',
+          kind: 'supplier',
+          pricing: { mode: 'fixed', currency: 'USD', amountMinor: 390 },
+        },
+      ],
+    });
+    if (field === 'title') incoming.identity.title = 'Private supplier title'.repeat(100);
+    else incoming.content.description.text = 'Private supplier description'.repeat(2000);
+    stored.observation = incoming;
+    const before = structuredClone(docs);
+    const result = await review();
+    assert.ok(result.ok);
+    assert.deepEqual(result.changes?.productPrice, {
+      before: [],
+      after: [{ mode: 'fixed', currency: 'USD', amountMinor: 390 }],
+    });
+    if (field === 'description')
+      assert.equal(
+        result.parts.find((part) => part.part === 'description')?.incoming.text,
+        incoming.content.description.text,
+      );
+    assert.deepEqual(
+      docs,
+      before,
+      'the authorized review preserves complete source and website data',
+    );
+  });
+}

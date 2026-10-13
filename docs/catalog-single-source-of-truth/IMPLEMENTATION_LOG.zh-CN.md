@@ -429,3 +429,15 @@ P2c2e 提交 ad19f794653718839232070a32ff83e64e9d0ac6 已完成精确 inline rev
 已把精确update ACK加入现有自动SDK合约门槛：真实已安装@cloudbase/database1.4.3包装器通过假的请求发送层取得updated1/0，并检查它实际返回该字段；新增2项检查通过。反向在独立Node进程内让实际SDK update返回值丢掉updated，文件和发送过程仍保持原样，恰好2项新检查失败，get/set/remove/发送序列正控保持通过。此为SDK包装器合约证明，不是云端0写入故障注入。原P2c2e真实云40次测量和150浏览器是上一个节点证据，不称作本ACK版本的新云/浏览器验收；后续关键节点与最终test继续重跑。
 
 文字核对：实际复核cloudbase-adapter的generic guarded upsert/update、run claim、已有confirmDocumentWrite/sdkAnswer，SDK document.js70-145实际返回分支，standing合约脚本、runner/ingest/raw-replay消费者及对应测试。将“await写入就算成功”改为精确回执确认，区分正常no-op、0写入、coded失败与新建ID；未改变分类、商品内容、正常发布入口、来源原件、队列范围或审批状态。完整MIU和test部署/真实20件发布回退仍未完成。
+
+### P1e：来源比较使用网站实际字段（2026-10-14，本地子单元完成，待精确提交 review）
+
+P2c2f 提交 e52e7054aa92309b67825d9da83d187ac75a02bf 已完成精确 inline review。compareWithApproved 仍用来源原始标题/描述校验整个网站DTO，未采用的合法长来源文本会让 audit 和供应商Review跳过实际价格变化。四个先红反例确认 raw observation 合法，但 changed/unchanged 均被误记 skipped。修正只在比较的bindings中加入与正式prepare一致的网站产品字段及已经验证的 Alibaba source owner上下文；不写入或覆盖现存owner。
+
+最终小流程组合88 passed/0 failed/0 skipped，覆盖共享字段合并、来源准备、audit和实际Supplier Review；整个admin336 passed/0 failed/0 skipped，admin类型和3文件真实Biome通过、diff whitespace通过。供应商Review两项长标题/描述用例证明价格变化仍展示，完整待决描述保留，严格SupplierReviewSchema通过、原件和网站数据不变。内存副本移除合并：audit4fail/6正常正控，supplierReview2fail/7正常正控；原工作区字节不动。同步ACK/fence/queue反向证据同时保持原预期。
+
+本单元无新第三方调用/签名/SDK方法/shim，0个新SDK表面；不把P2c2e的云40次/150浏览器重算成本版本验收。正常权限、raw来源完整性、分类、原件存储和JSON成功协议不变。SDK/浏览器/完整组合及test实测在后续关键节点继续。另已读回本任务附件：先前pricing-takeover是archived_worktree，没有本任务新增活动worktree；当前继续原pricing目录。
+
+后续已定位但本单元未宣称解决：从audit分页循环与builder全量校验推导，超大SKU集合有重复全量构造，待共享只读完整计划抽取时去掉；本地UI-02工具新建时采用来源文本合理，重放已有管理员编辑的clone还需验证source-only preliminary是否误拒绝未采用长文本。两项保留为P1/性能验证门槛，无云端性能结论。只读Preview、无损options/人工配置、问题入口、列表准入、持久操作/恢复及最终部署验收仍未完成。
+
+文字核对：实际复核catalog-change-audit比较/应用、catalog-supplier-review认证与只读API、SupplierReviewSchema、正式prepare的websiteProduct绑定、detail-candidate/approval合并规则及本地workspace消费者；把“没有observation”更正为已确认的未采用来源文本误拦，严格区分来源原件、网站采用值和只读比较结果。本轮没有实现未来按分类选属性的mapping功能，也未丢弃或分组原属性。

@@ -123,6 +123,7 @@ export async function compareWithApproved(
     productId: product._id,
     variants: sourceVariantIds(product._id, sourceKey, observation),
     images: new Map<string, string>(),
+    websiteProduct: { ...product, detailSourceOwner: `alibaba:${sourceKey}` },
     ...catalogCategoryLabel(product.productFamily),
   };
   const first = buildCatalogDetailCandidate(observation, bindings, 1, 50);
