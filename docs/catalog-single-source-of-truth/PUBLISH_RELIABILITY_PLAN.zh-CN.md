@@ -1,6 +1,6 @@
 # Catalog 发布可靠性整合方案
 
-状态：设计复核后的实施候选，尚未实施、修复完成或部署验收。2026-10-13。
+状态：用户已于 2026-10-13 批准实施，当前实施中。P1a 已有本地 MIU 提交；其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
 
 本文件是本轮唯一实施方案，替代 `PUBLISH_READINESS_PROPOSAL.zh-CN.md` 的初稿建议。详细验收范围见 [测试矩阵](PUBLISH_RELIABILITY_TEST_MATRIX.zh-CN.md)。当前工作目录为原 Claude checkout，分支 `feat/catalog-alibaba-price-tiers`，审查 HEAD `39705e2323d51d4aa79f1240d66f65608f407649`；正常已部署基线的最近观察为 `a3ce01e`。这些标识在实施开始前须重新核对。
 
@@ -12,7 +12,7 @@
 
 同样不能通过隐藏合法商品、截断内容、取消并发、绕过审批或跳过测试来满足零错误指标。合法但较大的内容若属于实际支持范围，必须完整处理后才算完成。
 
-本轮仅形成设计和离线反例；不改业务代码、不提交/推送、不部署、不改线上商品。
+设计复核阶段只形成设计和离线反例。用户之后批准按 MIU 实施；提交、测试、部署及商品操作的实际状态统一记在实施记录中。
 
 ```mermaid
 flowchart TD
@@ -262,6 +262,6 @@ DEC-21 的共享图库/描述图/SKU 图片规则保持：无引用变化只读�
 
 若 P0 发现三件来自另一个字段或步骤，修改具体根因修复项及 fixture，不能为了符合初稿去强行引入长内容存储。若 P2/P3 的最坏事务预算不能满足，就先调整分阶段协议再实现，不以减少校验或取消计数事务规避。正常功能中的未解释错误或恢复缺口存在时不发版。
 
-本轮证据：读取现有 API、后台保存计划、审批准备/工作流/暂存、来源 ingest/replay/tombstone/link/photo preparation、分类与编辑 UI、DESIGN 的 DEC/OWN、历史故障复盘、现有回归与 E2E、SDK contract 文档和部署 gate。离线探针与输出存入同目录 `design-review-evidence/`。没有执行真实后台写入、业务实现、提交、CI 或部署。
+设计复核阶段证据：读取现有 API、后台保存计划、审批准备/工作流/暂存、来源 ingest/replay/tombstone/link/photo preparation、分类与编辑 UI、DESIGN 的 DEC/OWN、历史故障复盘、现有回归与 E2E、SDK contract 文档和部署 gate。离线探针与输出存入同目录 `design-review-evidence/`。设计复核阶段没有执行真实后台写入、业务实现、提交、CI 或部署；实施阶段的后续证据不由本段推定。
 
 写作复核：将“分开存储一定要做”改为由真实数据决定；将“0 错误保证”落实为支持矩阵的发版门槛与异常恢复；将“已批准=已发布”“有 ready=可发”“测试变绿=现场完成”拆开。实际对照源码、探针和现有测试名，不以规则或 skill 名称作为执行证据。React 专用 companion skill 在可见本地目录未找到；本轮未写 React 代码，UI 方案依据现有组件与仓库 Frontend Islands/E2E 规则复核，实施前补足相应参考。

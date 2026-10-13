@@ -386,7 +386,7 @@ export async function updateRecord(
     values.published === undefined &&
     isProductFamily(values.productFamily)
   ) {
-    const current = await call<CollectionDoc>('get', { collection, id });
+    const current = await getRecord(collection, id);
     if (current.published === true) {
       // Refresh the approved detail without inventing publication intent. Another
       // admin may withdraw the product while this operation is in flight. Manual
@@ -406,7 +406,7 @@ export async function updateRecord(
     if (capabilities !== null && typeof capabilities?.enabled !== 'boolean')
       throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
     if (capabilities?.enabled) {
-      let current = await call<CollectionDoc>('get', { collection, id });
+      let current = await getRecord(collection, id);
       if (typeof current.alibabaPrimarySourceKey !== 'string')
         return approveManualProduct(collection, id, values, current, {
           refreshPublishedDetail,
@@ -439,14 +439,7 @@ export async function updateRecord(
             values: writeValues,
             ...(guard ? { expectedUpdatedAt: guard } : {}),
           });
-          if (guard) {
-            if (typeof saved.updatedAt !== 'string')
-              throw new AdminApiError(
-                'INVALID_RESPONSE',
-                'The save did not return its revision. Refresh before publishing.',
-              );
-            guard = saved.updatedAt;
-          }
+          guard = savedProductRevision(saved, id, guard);
           return saved;
         };
         // Save reviewed form edits first without changing publication. The server
@@ -534,16 +527,46 @@ export async function updateRecord(
   });
 }
 
-/**
- * A live product after its approval was refreshed. A review flag on it is
- * cleared the way a publish clears it (DEC-11); "Changed" stays while a
- * supplier change still needs a decision (DEC-19).
- */
+/** Confirm an approved live edit without changing its publication state. */
 async function refreshedProduct(collection: string, id: string): Promise<CollectionDoc> {
-  const latest = await call<CollectionDoc>('get', { collection, id });
-  return latest.published === true && latest.alibabaReviewPending === true
-    ? call<CollectionDoc>('update', { collection, id, values: { published: true } })
-    : latest;
+  const latest = await getRecord(collection, id);
+  if (latest.published !== true || latest.alibabaReviewPending !== true) return latest;
+  const revision = productRevision(latest, id);
+  return call<CollectionDoc>('update', {
+    collection,
+    id,
+    intent: 'refresh-live',
+    values: {},
+    expectedUpdatedAt: revision,
+  });
+}
+
+/** A save may advance an existing guard only for the same product and a returned revision. */
+function savedProductRevision(
+  saved: CollectionDoc,
+  productId: string,
+  guard: string | undefined,
+): string | undefined {
+  if (saved?._id !== productId)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The save returned a different product identity. Check the result before continuing.',
+    );
+  return guard === undefined ? undefined : productRevision(saved, productId);
+}
+
+function productRevision(saved: CollectionDoc, productId: string): string {
+  if (saved?._id !== productId)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The save returned a different product identity. Check the result before continuing.',
+    );
+  if (typeof saved.updatedAt !== 'string' || saved.updatedAt.trim() === '')
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The save did not return its revision. Check the result before publishing.',
+    );
+  return saved.updatedAt;
 }
 
 /**
@@ -560,6 +583,11 @@ async function approveManualProduct(
 ): Promise<CollectionDoc> {
   let current = initial;
   let guard = options.expectedUpdatedAt;
+  if (guard !== undefined && current.updatedAt !== guard)
+    throw new AdminApiError(
+      'CONFLICT',
+      'Product changed since classification. Refresh before publishing.',
+    );
   const { published: _published, ...draftValues } = values;
   // Checked on the would-be product before anything is saved, so a refusal is a
   // definite rejection that batch publish reports with its reason.
@@ -578,7 +606,7 @@ async function approveManualProduct(
       values: draftValues,
       ...(guard ? { expectedUpdatedAt: guard } : {}),
     });
-    if (guard) guard = typeof current.updatedAt === 'string' ? current.updatedAt : undefined;
+    guard = savedProductRevision(current, id, guard);
   }
   const { approveProduct } = await import('./catalog-detail-approval-api.ts');
   await approveProduct(id);

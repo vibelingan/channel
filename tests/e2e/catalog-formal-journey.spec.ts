@@ -1055,3 +1055,173 @@ test('an Alibaba draft with photos copied ahead is published by "Save and publis
   await page.goto(`/products/item/?id=${draft._id}`);
   await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
 });
+
+test('twenty source products publish through Assign category and restore shared-image counts after a BUSY retry', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(180000);
+  const session = apiSession;
+  const drafts = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Batch Twenty Clock', pageSize: 20 },
+    session.token,
+  );
+  expect(drafts.total).toBe(20);
+  expect(drafts.items).toHaveLength(20);
+  for (const draft of drafts.items) {
+    expect(draft.published).toBe(false);
+    expect(draft.productFamily).toBe('misc');
+    expect(draft.imageIds).toHaveLength(6);
+  }
+  const referenceCount = async (id: string) => {
+    const image = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'images', id },
+      session.token,
+    );
+    expect(typeof image.publishedRefCount).toBe('number');
+    return image.publishedRefCount;
+  };
+  const sharedIds = Array.from({ length: 9 }, (_, index) => `raw-color-image-${index}`);
+  const before = await Promise.all(sharedIds.map(referenceCount));
+  try {
+    await page.goto('/login?returnTo=%2Fadmin');
+    await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+    await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/?$/);
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill('Batch Twenty Clock');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(20);
+    let refusedProductId: string | undefined;
+    const attempts = new Map<string, number>();
+    const operations = new Map<string, string>();
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON();
+      if (body.action === 'catalogDetailApproval' && body.data?.action === 'approve') {
+        const id = String(body.data.productId);
+        attempts.set(id, (attempts.get(id) ?? 0) + 1);
+        const operation = String(body.data.operationId);
+        expect(operations.get(id) ?? operation).toBe(operation);
+        operations.set(id, operation);
+        if (refusedProductId === undefined) {
+          refusedProductId = id;
+          await route.fulfill({
+            status: 409,
+            json: {
+              ok: false,
+              error: { code: 'BUSY', message: 'Nothing was saved; try again.' },
+            },
+          });
+          return;
+        }
+      }
+      await route.continue();
+    });
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+    await expect(
+      classification
+        .getByRole('combobox', { name: 'Website main category' })
+        .and(page.locator('button')),
+    ).toContainText('Miscellaneous');
+    await classification.getByRole('button', { name: 'Save and publish', exact: true }).click();
+    await classification
+      .getByRole('button', { name: 'Confirm save and publish', exact: true })
+      .click();
+    await expect(classification.getByRole('button', { name: 'Done', exact: true })).toBeVisible({
+      timeout: 90000,
+    });
+    expect(refusedProductId).toBeDefined();
+    expect(attempts.size).toBe(20);
+    expect(attempts.get(refusedProductId ?? '')).toBeGreaterThanOrEqual(2);
+    for (const draft of drafts.items) {
+      const saved = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: draft._id },
+        session.token,
+      );
+      expect(saved.published).toBe(true);
+      expect(saved.catalogDetailPublication).toMatchObject({ state: 'approved', variantCount: 3 });
+      expect(saved.productFamily).toBe(draft.productFamily);
+      expect(saved.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+      const publication = saved.catalogDetailPublication as { revision: string };
+      expect(saved.catalogDetailApprovalReceipt).toMatchObject({
+        revision: publication.revision,
+        operationId: operations.get(draft._id),
+      });
+      const detailResponse = await request.get(`${e2e.apiUrl}/api/products/${draft._id}/detail`);
+      expect(detailResponse.status()).toBe(200);
+      const detail = (await detailResponse.json()).data;
+      expect(detail.variants.items).toHaveLength(3);
+      expect(detail.images).toHaveLength(6);
+      for (const variant of detail.variants.items)
+        expect(variant.offers[0].pricing).toMatchObject({
+          mode: 'tiered',
+          currency: 'USD',
+          tiers: [
+            { minimumQuantity: 2, unitAmountMinor: 570 },
+            { minimumQuantity: 500, unitAmountMinor: 500 },
+            { minimumQuantity: 1000, unitAmountMinor: 380 },
+          ],
+        });
+    }
+    for (const [index, id] of sharedIds.entries())
+      expect(await referenceCount(id)).toBe(Number(before[index]) + 20);
+    await page.screenshot({ path: info.outputPath('twenty-published.png'), fullPage: true });
+    await classification.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page.getByRole('button', { name: 'Disable', exact: true }).click();
+    await expect(
+      page
+        .getByRole('row')
+        .filter({ hasText: 'Batch Twenty Clock' })
+        .getByRole('button', { name: 'Disabled', exact: true }),
+    ).toHaveCount(20, { timeout: 60000 });
+    for (const draft of drafts.items) {
+      const saved = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: draft._id },
+        session.token,
+      );
+      expect(saved.published).toBe(false);
+      expect((await request.get(`${e2e.apiUrl}/api/products/${draft._id}/detail`)).status()).toBe(
+        404,
+      );
+    }
+    for (const [index, id] of sharedIds.entries())
+      expect(await referenceCount(id)).toBe(before[index]);
+    await page.screenshot({ path: info.outputPath('twenty-restored.png'), fullPage: true });
+  } finally {
+    await page.goto('/');
+    for (const draft of drafts.items) {
+      await adminAction(
+        request,
+        'update',
+        { collection: 'products', id: draft._id, values: { published: false } },
+        session.token,
+      );
+      const restored = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: draft._id },
+        session.token,
+      );
+      expect(restored.published).toBe(false);
+      expect(restored.productFamily).toBe(draft.productFamily);
+      expect(restored.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+      expect((await request.get(`${e2e.apiUrl}/api/products/${draft._id}/detail`)).status()).toBe(
+        404,
+      );
+    }
+    for (const [index, id] of sharedIds.entries())
+      expect(await referenceCount(id)).toBe(before[index]);
+  }
+});

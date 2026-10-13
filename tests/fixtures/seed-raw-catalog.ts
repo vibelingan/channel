@@ -161,6 +161,25 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
   await db.update('products', classify.draft.productId, {
     description: 'Disposable classification publish acceptance fixture.',
   });
+  // Twenty independent source products share the same supplier gallery and
+  // SKU photos. This exercises approval and public reference counts together.
+  for (let index = 0; index < 20; index++) {
+    const envelope = JSON.parse(colorRaw);
+    const product = envelope.alibaba_icbu_product_get_response.product;
+    product.product_id = `fixture-batch-20-${index}`;
+    product.subject = `Batch Twenty Clock ${index}`;
+    // The older color-only fixture intentionally lacks pricing context.
+    // Add explicit normal per-piece wholesale input for this pricing journey.
+    product.product_type = 'wholesale';
+    product.wholesale_trade = { sale_type: 'normal', unit_type: 'Piece', min_order_quantity: '2' };
+    const batchProduct = await seedRawObservation(db, JSON.stringify(envelope));
+    assert.equal(batchProduct.observation.offers.length, 3);
+    assert.ok(batchProduct.observation.offers.every((offer) => offer.pricing.mode === 'tiered'));
+    await db.update('products', batchProduct.draft.productId, {
+      productFamily: 'misc',
+      description: 'Disposable twenty-product approval acceptance fixture.',
+    });
+  }
   // New drafts appear once their photos are prepared (PT-G), as after a real
   // sync. Photos stored above are reused; this disposable lane never fetches
   // from Alibaba, so any other photo counts as one Alibaba cannot provide

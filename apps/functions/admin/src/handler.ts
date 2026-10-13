@@ -262,6 +262,7 @@ const updateSchema = z.object({
   id: z.string().min(1),
   values: z.record(z.unknown()),
   expectedUpdatedAt: z.string().datetime().optional(),
+  intent: z.literal('refresh-live').optional(),
 });
 const batchUpdateSchema = z.object({
   collection: z.string(),
@@ -1568,6 +1569,7 @@ async function acknowledgeAlibabaProductReview(
   undecidedSupplierChange = false,
   // Classification "Save and publish": the revision its save returned.
   expectedUpdatedAt?: string,
+  refreshLiveReview = false,
 ) {
   const data = { ...values };
   for (const field of ['slug', 'skuCode'] as const) {
@@ -1590,7 +1592,7 @@ async function acknowledgeAlibabaProductReview(
   const approvedDigest =
     receipt && typeof receipt === 'object' ? Reflect.get(receipt, 'sourceDigest') : undefined;
   const staleApproval =
-    data.published === true &&
+    (data.published === true || refreshLiveReview) &&
     data.archived !== true &&
     typeof approvedDigest === 'string' &&
     typeof product.alibabaSourcePublicDigest === 'string' &&
@@ -1785,7 +1787,9 @@ async function releaseImageReferenceLocks(
     } catch (error) {
       // Never mask an already-committed catalog write with a false 500. An
       // unreleased lock fails closed until an admin performs stale-lock recovery.
-      console.error(`[fn-admin] image reference lock release failed for ${imageId}`, error);
+      console.error(`[fn-admin] image reference lock release failed for ${imageId}`, {
+        kind: isTransactionConflict(error) ? 'transaction-conflict' : 'unconfirmed',
+      });
     }
   }
 }
@@ -1848,12 +1852,20 @@ async function acquireImageReferenceLocks(
     // acquire itself — must not leak locks taken in earlier iterations: the
     // owner UUID would be lost and the images stuck busy until the stale-lock
     // takeover window elapses.
-    console.error('[fn-admin] image reference lock acquisition failed', error);
+    const conflict = isTransactionConflict(error);
+    console.error('[fn-admin] image reference lock acquisition failed', {
+      kind: conflict ? 'transaction-conflict' : 'unconfirmed',
+    });
     await releaseImageReferenceLocks(acquired, owner);
     return {
       imageIds: [],
       owner,
-      error: err('INTERNAL_ERROR', 'Image reference integrity check failed.'),
+      error: conflict
+        ? err('BUSY', 'Image references changed at the same moment. Nothing was saved; try again.')
+        : err(
+            'INTERNAL_ERROR',
+            'Image reference integrity check could not be confirmed. Check the result before continuing.',
+          ),
     };
   }
   return { imageIds: acquired, owner };
@@ -2107,6 +2119,32 @@ async function updateAction(
   }
   if (parsed.data.expectedUpdatedAt && parsed.data.collection !== 'products')
     return err('BAD_REQUEST', 'Product revision is only valid for products.');
+  const refreshLiveReview = parsed.data.intent === 'refresh-live';
+  if (refreshLiveReview) {
+    if (claims.role !== 'admin')
+      return err('FORBIDDEN', 'Only admins can confirm an approved edit.');
+    if (
+      parsed.data.collection !== 'products' ||
+      !parsed.data.expectedUpdatedAt ||
+      Object.keys(parsed.data.values).length !== 0
+    )
+      return err(
+        'BAD_REQUEST',
+        'An approved edit confirmation requires its product revision and an empty patch.',
+      );
+    if (config.enableDetailApproval !== true)
+      return err('CONFLICT', 'Detail approval is unavailable. Keep your edit and retry later.');
+    if (
+      before?.published !== true ||
+      before.archived === true ||
+      before.updatedAt !== parsed.data.expectedUpdatedAt
+    )
+      return err(
+        'CONFLICT',
+        'Product changed or was withdrawn. Your edit cannot publish it again.',
+      );
+  }
+
   const changesImageIds =
     collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
   const locks = await acquireImageReferenceLocks(
@@ -2178,7 +2216,7 @@ async function updateAction(
           : editValues;
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
-        (values.published === true || values.archived === true);
+        (values.published === true || values.archived === true || refreshLiveReview);
       if (acknowledgesReview && claims.role !== 'admin')
         return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
       const contributorSupplierStatusChange =
@@ -2195,12 +2233,20 @@ async function updateAction(
         return err('CONFLICT', 'Product changed since classification. Refresh before publishing.');
       // Compare price changes in the atomic save, while allowing non-price
       // form edits to reach the subsequent detail review and approval.
-      const requiresApproval =
-        config.enableDetailApproval === true ? 'publication-or-pricing' : false;
+      const requiresApproval = refreshLiveReview
+        ? true
+        : config.enableDetailApproval === true
+          ? 'publication-or-pricing'
+          : false;
       // Publishing keeps "Changed" while a supplier text or photo change has no
       // decision for its exact incoming value (DEC-19); archiving always clears.
       const undecidedSupplierChange =
-        acknowledgesReview && before ? await hasUndecidedSupplierChange(before, values) : false;
+        acknowledgesReview && before
+          ? await hasUndecidedSupplierChange(
+              before,
+              refreshLiveReview ? { ...values, published: true } : values,
+            )
+          : false;
       const transition =
         acknowledgesReview && before
           ? await acknowledgeAlibabaProductReview(
@@ -2210,6 +2256,7 @@ async function updateAction(
               requiresApproval,
               undecidedSupplierChange,
               parsed.data.expectedUpdatedAt,
+              refreshLiveReview,
             )
           : await updateCatalogProductRecord(
               parsed.data.id,

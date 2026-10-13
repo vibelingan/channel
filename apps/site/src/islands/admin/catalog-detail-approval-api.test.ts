@@ -420,7 +420,9 @@ test('a category change on a published product waiting for review also clears it
   });
   await updateRecord('products', 'canonical-product', { productFamily: 'toys' });
   assert.ok(api.calls.includes('approval:approve'));
-  assert.deepEqual(api.updates.at(-1)?.values, { published: true }, 'acknowledges the review');
+  assert.deepEqual(api.updates.at(-1)?.values, {}, 'acknowledges without changing publication');
+  assert.equal(api.updates.at(-1)?.intent, 'refresh-live');
+  assert.equal(api.updates.at(-1)?.expectedUpdatedAt, 'after-update');
 });
 
 test('creating a product as Published without a photo is refused before anything is saved', async (t) => {

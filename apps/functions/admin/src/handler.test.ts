@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { format } from 'node:util';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
@@ -5936,3 +5937,188 @@ test('prepare response identifies invalid website fields without returning priva
     assert.doesNotMatch(result.error.message, /private-source-value|private-evidence/);
   }
 });
+
+for (const scenario of [
+  'clear-reviewed',
+  'missing-guard',
+  'publication-patch',
+  'withdrawn',
+  'contributor',
+] as const) {
+  test(`refresh-live intent: ${scenario}`, async () => {
+    const revision = '2026-10-13T00:00:00.000Z';
+    const live = {
+      _id: 'refresh-live',
+      ...publishableProduct(),
+      updatedAt: revision,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'edited',
+    } as CollectionDoc;
+    live.catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(live) };
+    const store = setup({ users: [], products: [live], catalogProductIdentities: [] });
+    const token = scenario === 'contributor' ? await contributorToken() : await adminToken();
+    if (scenario === 'withdrawn') {
+      live.published = false;
+      live.updatedAt = '2026-10-13T00:00:01.000Z';
+    }
+    const before = structuredClone(store.products);
+    const result = await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: live._id,
+        intent: 'refresh-live',
+        values: scenario === 'publication-patch' ? { published: false } : {},
+        ...(scenario === 'missing-guard' ? {} : { expectedUpdatedAt: revision }),
+      },
+      token,
+    );
+    if (scenario === 'clear-reviewed') {
+      const saved = okData<CollectionDoc>(result);
+      assert.equal(saved.published, true);
+      assert.equal(saved.alibabaReviewPending, false);
+    } else {
+      expectErr(
+        result,
+        scenario === 'contributor'
+          ? 'FORBIDDEN'
+          : scenario === 'withdrawn'
+            ? 'CONFLICT'
+            : 'BAD_REQUEST',
+      );
+      assert.deepEqual(store.products, before);
+    }
+  });
+}
+
+test('refresh-live CAS rejects a withdrawal between the handler read and the database write', async () => {
+  const revision = '2026-10-13T00:00:00.000Z';
+  const live = {
+    _id: 'refresh-race',
+    ...publishableProduct(),
+    updatedAt: revision,
+    alibabaReviewPending: true,
+    alibabaReviewReason: 'edited',
+  } as CollectionDoc;
+  live.catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(live) };
+  const store = setup({ users: [], products: [live], catalogProductIdentities: [] });
+  const token = await adminToken();
+  class WithdrawalAdapter extends MemoryAdapter {
+    override async saveCatalogProductWithIdentities(input: CatalogProductSaveInput) {
+      assert.equal(input.data.published, undefined);
+      assert.equal(input.expectedUpdatedAt, revision);
+      live.published = false;
+      live.updatedAt = '2026-10-13T00:00:01.000Z';
+      return super.saveCatalogProductWithIdentities(input);
+    }
+  }
+  setAdapter(new WithdrawalAdapter(store));
+  expectErr(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: live._id,
+        intent: 'refresh-live',
+        expectedUpdatedAt: revision,
+        values: {},
+      },
+      token,
+    ),
+    'CONFLICT',
+  );
+  assert.equal(live.published, false);
+  assert.equal(live.alibabaReviewPending, true);
+});
+
+for (const cause of ['stale-source', 'undecided-source', 'unapproved-content'] as const) {
+  test(`refresh-live preserves review boundaries: ${cause}`, async () => {
+    const revision = '2026-10-13T00:00:00.000Z';
+    const live = {
+      _id: 'refresh-boundary',
+      ...publishableProduct(),
+      updatedAt: revision,
+      alibabaPrimarySourceKey: 'refresh-source',
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'changed',
+      alibabaSourcePublicDigest: 'a'.repeat(64),
+    } as CollectionDoc;
+    live.catalogDetailApprovalReceipt = {
+      contentFingerprint: publicationContentFingerprint(live),
+      sourceDigest: cause === 'stale-source' ? 'b'.repeat(64) : 'a'.repeat(64),
+    };
+    if (cause === 'unapproved-content') live.name = 'Unapproved later edit';
+    const store = setup({
+      users: [],
+      products: [live],
+      catalogProductIdentities: [],
+      catalogSourceObservations:
+        cause === 'undecided-source'
+          ? [supplierObservation('refresh-source', 'Unreviewed incoming text')]
+          : [],
+    });
+    const token = await adminToken();
+    const result = await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: live._id,
+        intent: 'refresh-live',
+        expectedUpdatedAt: revision,
+        values: {},
+      },
+      token,
+    );
+    if (cause === 'unapproved-content') expectErr(result, 'VALIDATION_ERROR');
+    else {
+      const saved = okData<CollectionDoc>(result);
+      assert.equal(saved.alibabaReviewPending, true);
+      assert.equal(saved.alibabaReviewReason, 'changed');
+    }
+    assert.equal(store.products?.[0]?.published, true);
+  });
+}
+
+for (const kind of ['conflict', 'transport'] as const) {
+  test(`image lock acquisition ${kind} releases prior locks and preserves a safe retry result`, async (t) => {
+    const store = imageStore(['imgA', 'imgB']);
+    for (const image of store.images ?? [])
+      Object.assign(image, { status: 'active', uploadedByUserId: 'admin-1' });
+    store.products = [
+      {
+        _id: 'locked-draft',
+        ...publishableProduct({ published: false, imageIds: [] }),
+      } as CollectionDoc,
+    ];
+    setup(store);
+    const token = await adminToken();
+    const logs: string[] = [];
+    t.mock.method(console, 'error', (...args: unknown[]) => logs.push(format(...args)));
+    class ThrowingAcquireAdapter extends MemoryAdapter {
+      override async acquireImageMutation(
+        id: string,
+        owner: string,
+        at: string,
+      ): Promise<ImageMutationAcquireResult> {
+        if (id === 'imgB')
+          throw Object.assign(new Error('private-link?token=synthetic-secret'), {
+            code: kind === 'conflict' ? 'DATABASE_TRANSACTION_CONFLICT' : 'ETIMEDOUT',
+          });
+        return super.acquireImageMutation(id, owner, at);
+      }
+    }
+    setAdapter(new ThrowingAcquireAdapter(store));
+    const before = structuredClone(store.products);
+    const result = await call(
+      'update',
+      { collection: 'products', id: 'locked-draft', values: { imageIds: ['imgA', 'imgB'] } },
+      token,
+    );
+    expectErr(result, kind === 'conflict' ? 'BUSY' : 'INTERNAL_ERROR');
+    assert.deepEqual(store.products, before);
+    const first = store.images?.find((image) => image._id === 'imgA');
+    assert.equal(first?.imageMutationOwner, '');
+    assert.equal(first?.imageMutationStartedAt, '');
+    assert.equal(JSON.stringify(logs).includes('synthetic-secret'), false);
+  });
+}
