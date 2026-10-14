@@ -21,7 +21,11 @@ import {
   sourceDigest,
   sourceGalleryDigest,
 } from '@vibelingan-channel/db/catalog-source-staging';
-import { type CollectionDoc, isProductFamily } from '@vibelingan-channel/shared';
+import {
+  type CollectionDoc,
+  alibabaPhotoSource,
+  isProductFamily,
+} from '@vibelingan-channel/shared';
 import {
   CATALOG_DETAIL_VARIANT_MAX_COUNT,
   catalogVariantCapacityIssues,
@@ -83,18 +87,19 @@ export function catalogCategoryLabel(productFamily: unknown): { categoryLabel?: 
     : {};
 }
 
-/** Read the existing observation; approval never invokes Alibaba or downloads media. */
-/** Our image id for a supplier photo that was imported, if any. */
+/** Our stored binding for a supplier photo; lookup never fetches it. */
 export async function sourceLinkImageId(url: string): Promise<string | undefined> {
-  const transport = new URL(url);
+  const transport = new URL(alibabaPhotoSource(url) ?? url);
+  // Retain old CDN bindings outside today's copy policy without fetching them.
   if (
     transport.protocol === 'http:' &&
     (transport.hostname === 'alicdn.com' || transport.hostname.endsWith('.alicdn.com'))
   )
     transport.protocol = 'https:';
-  const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', transport.href));
+  const sourceUrl = transport.href;
+  const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl));
   return link?.provider === 'alibaba' &&
-    link.sourceUrl === transport.href &&
+    link.sourceUrl === sourceUrl &&
     typeof link.imageId === 'string'
     ? link.imageId
     : undefined;

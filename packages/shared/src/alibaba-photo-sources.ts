@@ -29,32 +29,33 @@ export function allAlibabaPhotoSources(value: unknown): string[] {
   const seen = new Set<string>();
   for (const candidate of value) {
     if (out.length >= 200) break;
-    if (typeof candidate !== 'string' || candidate.length === 0 || candidate.length > 2_048)
-      continue;
-    try {
-      const url = new URL(candidate);
-      const host = url.hostname.toLowerCase();
-      // Historical Alibaba description images use HTTP on the same public CDN.
-      // Upgrade only after the host allowlist below; never permit HTTP fetching.
-      if (url.protocol === 'http:' && url.port === '') url.protocol = 'https:';
-      if (
-        url.protocol !== 'https:' ||
-        url.username !== '' ||
-        url.password !== '' ||
-        (url.port !== '' && url.port !== '443') ||
-        !ALLOWED_SOURCE_HOST_SUFFIXES.some(
-          (suffix) => host === suffix || host.endsWith(`.${suffix}`),
-        )
-      ) {
-        continue;
-      }
-      const safeUrl = url.toString();
-      if (seen.has(safeUrl)) continue;
-      seen.add(safeUrl);
-      out.push(safeUrl);
-    } catch {
-      // Invalid provider strings are ignored; they never become DOM URLs.
-    }
+    const url = alibabaPhotoSource(candidate);
+    if (url === undefined || seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
   }
   return out;
+}
+
+/** One copyable supplier URL; callers choose their own collection bound. */
+export function alibabaPhotoSource(candidate: unknown): string | undefined {
+  if (typeof candidate !== 'string' || candidate.length === 0 || candidate.length > 2_048)
+    return undefined;
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+    // Upgrade only an allowed public host; the copier never fetches HTTP.
+    if (url.protocol === 'http:' && url.port === '') url.protocol = 'https:';
+    if (
+      url.protocol !== 'https:' ||
+      url.username !== '' ||
+      url.password !== '' ||
+      (url.port !== '' && url.port !== '443') ||
+      !ALLOWED_SOURCE_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+    )
+      return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
 }

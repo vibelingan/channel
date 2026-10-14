@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
-import { validateCatalogSourceObservation } from '@vibelingan-channel/catalog-import/observations';
+import {
+  sourceMediaLinkId,
+  validateCatalogSourceObservation,
+} from '@vibelingan-channel/catalog-import/observations';
 import { SourcePageSchema } from '@vibelingan-channel/db/catalog-source-staging';
 import { CATALOG_DETAIL_VARIANT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
@@ -186,3 +189,75 @@ test('configuration photo choices cannot push a later configuration beyond the e
   assert.deepEqual(adapter.commands, []);
   assert.deepEqual(adapter.rows, before);
 });
+
+for (const [sourceUrl, copiedUrl] of [
+  ['http://sc04.alicdn.com/photo.jpg', 'https://sc04.alicdn.com/photo.jpg'],
+  ['http://sc04.alicdn.com:81/retained.jpg', 'https://sc04.alicdn.com:81/retained.jpg'],
+  ['http://s.alibaba.com/photo.jpg?size=large', 'https://s.alibaba.com/photo.jpg?size=large'],
+  ['HTTP://S.ALIBABA.COM/photo.jpg', 'https://s.alibaba.com/photo.jpg'],
+  ['https://example.com/retained.jpg', 'https://example.com/retained.jpg'],
+] as const) {
+  test(`source preparation reuses the exact copied URL binding for ${sourceUrl}`, async () => {
+    const { product, adapter } = fixture(1);
+    const stored = adapter.rows.catalogSourceObservations?.[0];
+    assert.ok(stored);
+    const checked = validateCatalogSourceObservation(stored.observation);
+    assert.ok(checked.ok);
+    const variant = checked.value.variants[0];
+    assert.ok(variant);
+    variant.media = [{ sourceUrl, position: 0, role: 'variant' }];
+    stored.observation = checked.value;
+    adapter.rows.catalogSourceLinks = [
+      {
+        _id: sourceMediaLinkId('alibaba', copiedUrl),
+        provider: 'alibaba',
+        kind: 'media',
+        sourceUrl: copiedUrl,
+        imageId: 'copied-photo',
+      },
+    ];
+    const before = structuredClone(adapter.rows);
+    const read = await readAlibabaDetailPlan(product._id, product, 0, 50);
+    assert.ok(read.ok, JSON.stringify(read));
+    assert.deepEqual(read.packet.variantMedia[0]?.unboundSources, []);
+    assert.deepEqual(read.detail.variants.items[0]?.images, ['/api/images/copied-photo']);
+    assert.deepEqual(adapter.commands, []);
+    assert.deepEqual(adapter.rows, before);
+  });
+}
+
+for (const corrupted of [
+  { provider: 'other' },
+  { sourceUrl: 'https://s.alibaba.com/different.jpg' },
+  { imageId: ['copied-photo'] },
+]) {
+  test(`a copied URL cannot borrow a corrupt binding ${JSON.stringify(corrupted)}`, async () => {
+    const { product, adapter } = fixture(1);
+    const sourceUrl = 'http://s.alibaba.com/photo.jpg';
+    const copiedUrl = 'https://s.alibaba.com/photo.jpg';
+    const stored = adapter.rows.catalogSourceObservations?.[0];
+    assert.ok(stored);
+    const checked = validateCatalogSourceObservation(stored.observation);
+    assert.ok(checked.ok);
+    const variant = checked.value.variants[0];
+    assert.ok(variant);
+    variant.media = [{ sourceUrl, position: 0, role: 'variant' }];
+    stored.observation = checked.value;
+    adapter.rows.catalogSourceLinks = [
+      {
+        _id: sourceMediaLinkId('alibaba', copiedUrl),
+        provider: 'alibaba',
+        sourceUrl: copiedUrl,
+        imageId: 'copied-photo',
+        ...corrupted,
+      },
+    ];
+    const before = structuredClone(adapter.rows);
+    const read = await readAlibabaDetailPlan(product._id, product, 0, 50);
+    assert.ok(read.ok, JSON.stringify(read));
+    assert.deepEqual(read.packet.variantMedia[0]?.unboundSources, [sourceUrl]);
+    assert.deepEqual(read.detail.variants.items[0]?.images, []);
+    assert.deepEqual(adapter.rows, before);
+    assert.deepEqual(adapter.commands, []);
+  });
+}

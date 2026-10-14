@@ -670,3 +670,16 @@ a21e490 精确 inline review 已通过。新增未注册的 inspectCatalogPrepar
 真实 T142/T157/W203 使用 capacity-census-20261014-1710 已存只读副本，经实际完整计划保留113/113/121属性、4/2/1配置，检查 ready、扫描27/25/24媒体，所有集合字节状态不变；没有刷新云端当前数据、resync、像素验证或真实发布，不把旧快照当现场验收。24个第三方表面（18安装声明+6 @playwright/test导出facade）逐单元精确join，Context7不可用、Zod文档无正文均如实记录；Playwright官方 maxRetries 和安装 coreBundle.js 返回/转发/ECONNRESET语义核对。没有新 CloudBase 方法/shim/依赖。
 
 文字实际复核 catalog-preparation-inspect、完整source/Preview共享分页、manual Preview拒绝非来源配置、readImageMutationState、PreparationReport契约、admin-api helper/list路由、loopback和真实浏览器失效断言、SDK表格及已存时钟脚本。将“检查ready等于可存报告”改为“只读未封存诊断，须媒体保护和最终CAS才可存”；将“连接重置已解决”改为“测试只读转发可恢复，底层原因未独立复现”。未push/部署应用/修改云商品；不新增分支worktree/agent，不筛属性或拆分存储。P1—P7总交付仍未完成，下一继续已验证的媒体URL绑定差异、全部配置媒体准备和持久操作/并发协议。
+
+
+### P2d5：复制和详情绑定使用同一 Alibaba URL（本地子单元完成，待精确提交 review）
+
+da453e5 精确 inline review 已通过。实际先红18pass/2fail：已按既有复制策略存成HTTPS的 s.alibaba.com 地址，在完整详情 source plan 里仍按HTTP找绑定，导致已复制图片被当 unbound；含查询参数与大写HTTP/主机两个反例。抽出 shared 单 URL alibabaPhotoSource，沿用全部旧协议/host/凭证/端口/2048字符策略；UI 集合仍200上限，gallery/description仍9/18，顺序和去重不变。sourceLinkImageId 对可复制地址复用此规范化；已有其他HTTPS绑定保持可读，不发起下载。
+
+复核时主动补旧绑定反例：仅用新策略规范化会改变历史HTTP alicdn 非当前复制策略地址的查找key，17正常控制/1fail。保留原CDN查找规则作为只读旧key兼容，不因此允许copier抓取此端口；具体provider/sourceUrl/imageId仍严格核对。没有改变source link、配置选择、published/分类/计数，也没有新的DB请求。
+
+故障注入发现测试盲点：原拒绝凭证用例同时有用户名和密码，删除username检查仍全绿。拆为用户名单独/密码单独两项实际子测试，再对两道守卫分别注入才确实失败。初轮控制数量检查未满足，以及这个存活缺陷均保留日志，不记通过。最终两个baseline18/20全通过，12个独立缺陷分别破坏新URL规范化、旧key兼容、provider/URL/imageId三道绑定校验、UI200、host/HTTP/用户名/密码/端口/去重；全部检出，有正常控制、0skip、源码不变，mutations-final-r3.log已机械核验。
+
+最终focused95（含33完整检查和24既有photo preparation），广泛消费者2493 passed/0failed/0skipped，真实图库浏览器开启；shared/admin/sync/local/site五套实际类型、四文件实际Biome、standingSDK、diff check通过。初次类型失败是新增表格被推断成string[][]而noUncheckedIndexedAccess视解构值可缺失，改为实际字面tuple as const，未assert外部数据。此节点未跑新版构建浏览器，P2d4的151不重算；后续完整配置媒体及报告串联节点重新跑。SDK新/改第三方表面为0，工作区pure helper不冒充vendorAPI。
+
+文字实际复核shared选择器/单URL、sourceLinkImageId/完整plan、worker configurationPhotoSources/copier/import allowedUrl及原手动绑定兼容；把“同一网址有绑定就能查到”改为“复制与读取须使用同一传输规范化key”，把“放开200就修好”保留为未实施项：完整配置遍历还须验证断点续跑和marker字节预算，不能把来源URL列表无限复制进product。未筛选属性/拆分正文存储/新增分支worktree/agent，未push/应用部署/云端商品写入。媒体封存/报告生产/query/UI、真正超98媒体、持久操作与恢复、历史修复、vendor/P95/Node20构建、test部署及实际三件时钟和20件发布恢复仍继续。
