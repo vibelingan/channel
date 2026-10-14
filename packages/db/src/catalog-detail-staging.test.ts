@@ -1277,3 +1277,106 @@ test('full legal gallery rollover and unchanged SKU media use the actual transac
     assert.deepEqual(h.store(), committed, 'finish replay must not update counters again');
   }
 });
+
+for (const fault of ['whole-job', 'last-configuration'] as const) {
+  test(`readonly review rejects ${fault} byte overflow without writes`, async () => {
+    const h = fixture(fault === 'whole-job' ? 0 : 105);
+    if (fault === 'whole-job') {
+      h.row('products', 'p').detailSourceCandidate = {
+        ...h.product.detailSourceCandidate,
+        facts: Array.from({ length: 256 }, (_, i) => ({
+          name: `Fact ${i}`,
+          value: '中'.repeat(1000),
+        })),
+      };
+    } else {
+      const last = h.row('productVariants', 'v104');
+      const variant = CatalogDetailVariantSchema.parse(last.detailSourceCandidate);
+      const options = Array.from({ length: 44 }, (_, i) => ({
+        name: `Option ${i}`,
+        value: '中'.repeat(1000),
+      }));
+      last.detailSourceCandidate = { ...variant, options };
+      last.optionValues = Object.fromEntries(options.map((o) => [o.name, o.value]));
+    }
+    const before = structuredClone(h.store());
+    const review = await runCatalogApprovalWorkflow(
+      {
+        get: async (collection, id) => structuredClone(h.store()[collection]?.[id] ?? null),
+        persist: async () => {
+          throw Error('review cannot persist');
+        },
+      },
+      'admin',
+      { action: 'review', productId: 'p' },
+    );
+    assert.ok(!review.ok && review.code === 'VALIDATION_ERROR' && review.validation, fault);
+    const issue = review.validation.issues[0];
+    assert.equal(issue?.code, 'TOO_LARGE');
+    assert.deepEqual(issue?.expected, { maxBytes: (fault === 'whole-job' ? 512 : 128) * 1024 });
+    assert.equal(issue?.path, fault === 'whole-job' ? 'data' : 'variants.items.104');
+    const begin = prepareStagedApproval(
+      'admin',
+      {
+        ...h.command,
+        expectedDigest: catalogApprovalDigest(h.row('products', 'p'), h.variants),
+      },
+      h.row('products', 'p'),
+      h.variants,
+    );
+    assert.ok(!begin.ok && begin.code === 'VALIDATION_ERROR' && begin.validation);
+    assert.deepEqual(
+      begin.validation.issues,
+      review.validation.issues,
+      'review and begin share exact budgets',
+    );
+    assert.deepEqual(h.store(), before);
+    assert.doesNotMatch(JSON.stringify(review), /中/);
+  });
+}
+
+test('capacity preflight reserves legal actor and history identities before admitting a near-limit job', () => {
+  const h = fixture(0);
+  const facts = Array.from({ length: 256 }, (_, i) => ({
+    name: `Fact ${i}`,
+    value: 'a'.repeat(2000),
+  }));
+  const product = {
+    ...h.product,
+    detailSourceCandidate: { ...h.product.detailSourceCandidate, facts },
+  };
+  const shortJob = () => ({
+    ...h.prepared,
+    publication: {
+      ...prepareCatalogApprovalPlan(product, [], h.prepared.revision).plan.publication,
+      revision: h.prepared.revision,
+    },
+  });
+  const targetBytes = 512 * 1024 - 500;
+  assert.ok(Buffer.byteLength(JSON.stringify(shortJob())) < targetBytes);
+  for (const fact of facts) {
+    const remaining = targetBytes - Buffer.byteLength(JSON.stringify(shortJob()));
+    if (remaining === 0) break;
+    fact.name += 'n'.repeat(Math.min(remaining, 200 - fact.name.length));
+  }
+  assert.equal(Buffer.byteLength(JSON.stringify(shortJob())), targetBytes);
+  const legalIdentity = '\u0001'.repeat(200);
+  assert.ok(
+    Buffer.byteLength(
+      JSON.stringify({ ...shortJob(), actorId: legalIdentity, expectedRevision: legalIdentity }),
+    ) >
+      512 * 1024,
+  );
+  const result = prepareStagedApproval(
+    'admin',
+    {
+      ...h.command,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 512 * 1024 });
+  assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 512 * 1024);
+});

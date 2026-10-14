@@ -587,3 +587,22 @@ dbf7b4810760df7363605a23c3710b0f8d11675a 的精确 review 已完成。本单元�
 中断前/private/tmp盘点目录已消失，原未结束cell不可恢复，未声称其完成。已重新只读盘点并逐页持久保存六集合：observations1109、normalized sources1109、primary links1109、source-media links13240、products1121、images9805；独立JSON检查ID唯一/排序/分页计数及起止总数一致。证据目录output/pricing-clock-repair-2026-10-13/capacity-census-20261014-1710，属于多页非事务观察，不是同一时刻原子快照，也不是已跑完审批容量盘点。
 
 文字核对实际staging finish、catalogReferencedImageIds、既有DEC-21/rollover/幂等断言、纯计划及新tx计数探针；把“最多46张图片”更正为“5+实际读数+计数变化写数不超过98”。没有把媒体暂存字节、旧新版本联合图片、公开wire上限混为一项。本单元只修误拒；合法超98组合的分阶段协议仍是P3硬门槛，不能靠提前报错或移出正常列表算解决。P1完整预检、P2报告生产/query/UI/影子启用、durable操作与编辑/媒体恢复、历史修复、vendor races/性能/Node20全构建、同SHA test部署与真实20件发布恢复继续实施。未push/部署app/改云商品，没有新分支/worktree/agent或未来属性筛选mapping。
+
+
+### P1h4：Preview/来源准备/Review/begin 共用完整配置与任务容量（本地子单元完成，待精确提交review）
+
+P3a0提交8a9db6058fcd26f7fb7aa963ead050627b0d6897精确inline review已完成。本单元实际先红：readonly Review放行整任务超过512KiB和第105配置超过128KiB两个独立反例；Prepare和readonly Preview也分别放行整任务超限，共四项行为失败。第一次写测试cwd错误未写入任何用例，空test-name命令不计红/通过；重新用确认路径写入后的四个失败才计证据。
+
+抽取现有JobSchema构造，统一catalogStagedApprovalCapacityIssues检查完整配置与任务。Review仍一次构造完整有效计划，六个原digest golden保持。任务身份保留两个最大200-code-unit字段的JSON控制字符最坏预算，避免当前管理员能过而另一合法身份/历史revision后来超限；独立近限任务实际短身份523788bytes可存、最长合法身份超512KiB，预检明确拒绝，不增加正文/属性副本或放宽上限。真正持久任务仍使用原actor/operation/request digest/UUID和ISO时间，placeholder只在内存容量计算使用，不写入job。
+
+来源暂存的product及variant序列化抽为两个纯函数，readonly完整候选用同一字段生成规则模拟暂存再调用实际审批计划/容量；原生page写入也使用它们，身份/CAS/observation物理fence/游标检查仍在原事务。完整媒体选择/结构化内容/无损属性和重复选项保持，未产生额外数据库读、provider请求、身份预留或暂存。归档Prepare明确CONFLICT；归档Readonly Preview沿现有override保持可读。类型检查抓到未知generation流入强类型投影，改为复用SourcePageSchema.shape.contentGeneration.safeParse，不cast；缺失/null/0/2兼容，负数/字符串/unsafe整数零写入system-repair。容量先于缺图拒绝，坏内容不能被MEDIA_NOT_READY掩盖。
+
+最终101focused、完整2403 passed/0 failed/0 skipped（p1h4/focused-final.log、broad-final.log，实际图库浏览器开启）；八套实际shared/import/db/admin/sync/public/local/site类型、六文件真实Biome、standingSDK通过。此前2402集合之后新增身份预算测试，最终2403已重跑，不拿旧集合替代。构建后真实前后端/独立JSON库public41/catalog90/formal10/visibility8/taxonomy1共150通过，包含20件Assign category→Save and publish/下架恢复；已独立核对各子任务计数及本次临时DB目录不存在。构建期间运行时代码冻结，后续仅增加unit身份预算测试，四个运行时文件摘要留在p1h4/runtime-digests.json。不是云test部署或真实20件验收。
+
+十项独立内存故障注入有各文件baseline46/24，0skip且源码字节不变：review容量44pass/2fail、job字节43/3、配置字节44/2、身份预算44/2、source容量22/2、generation23/1、source投影丢facts22/2；由于staging测试文件改过，又重跑原三项媒体探针：旧46上限44/2、忽略delta45/1、共享图写入44/2。精确mutation日志在p1h4/mutations.log，不以仅变绿证明测试有效。
+
+新只读盘点副本全部1109件经实际来源准备与同一完整审批容量预检，1109容量通过；1071能生成job，实际job最大15075bytes/Preview最大35928bytes/finish最多50操作/45图片；另38仅为配置图片未绑定（MEDIA_NOT_READY），不是属性/分类错误。未把这些缺图当成功发布或永久坏文件，原images投影未含实际锁字段，因此也未声称全集媒体健康。本轮真实三件时钟额外点读57个实际图片ID的状态/锁/计数，在内存副本完整Preview→prepare→begin→page→finish→不可变配置读回/重复finish：113/113/121facts、4/2/1配置、分类/人工字段/未发布及图片计数保持。三件本次job最大12283bytes，具体actor元数据与早期探针不同，不能用字节差异误认正文变化。私有证据capacity-census-20261014-1710内保留初版、r2及real-clocks-full-p1h4结果；不写云产品，副本与云快照分开，多页非事务观察不冒充同一时刻。
+
+当前来源样本支持保留完整属性而无需L1拆分存储；不能据此承诺任意未来正文都可存。新SDK方法/shim为0，复用Zod3.25.76 parse/safeParse/shape三表面有安装类型及正反例表。官方Zod v3页面能打开但工具无正文，未将其算作已读契约；安装类型/实际行为为本轮精确证据，CloudBase实际standing gate另已执行。Context7不可用。
+
+文字核对实际Job构造/Review、SourcePage serializer、完整source planner、Preview回读和100/101项断言、容量盘点脚本及150runner清理。把“当前短任务能存即可”改为“完整实际任务及合法身份预算均能存”；把“38坏商品”更正为“38件配置图片尚未完整绑定”。本单元未把真正超98图片组合、public-wire整页上限、P2报告生产与原生query/count/fullselect/UI/影子启用、P3持久操作/取消/回执、P4恢复、历史修复、vendor race/SLO/Node20全构建、test同SHA部署和真实20件恢复算完成。下一继续接线；无push/应用部署/客户写入/新分支worktree/agent，未来分类属性mapping未实施。

@@ -1,8 +1,10 @@
 /** Bounded server-only source preparation. No provider calls and no publication writes. */
 import { createHash } from 'node:crypto';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   CatalogContentSchema,
+  type CatalogDetailVariant,
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
@@ -178,23 +180,15 @@ export async function stageSourcePage(
     const existing = await tx.get('productVariants', variant.id);
     if (existing && (existing.productId !== product._id || existing.detailSourceOwner !== owner))
       return fail('CONFLICT');
-    rows.push({
-      ...existing,
-      _id: variant.id,
-      productId: product._id,
-      detailSourceOwner: owner,
-      detailSourceRevision: input.revision,
-      detailSourceMissing: false,
-      archived: false,
-      position: input.page * 20 + offset,
-      sku: variant.sku ?? '',
-      optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
-      imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
-      detailSourceMediaSources: input.variantMedia?.find((m) => m.id === variant.id)?.sources ?? [],
-      detailSourceUnboundMediaSources:
-        input.variantMedia?.find((m) => m.id === variant.id)?.unboundSources ?? [],
-      detailSourceCandidate: variant,
-    });
+    rows.push(
+      projectCatalogSourceVariantRow(
+        existing,
+        input,
+        input.page * 20 + offset,
+        variant,
+        input.variantMedia?.find((m) => m.id === variant.id),
+      ),
+    );
   }
   for (const row of rows) await tx.set('productVariants', row);
   // Write the observed row too: concurrent sync is a transaction conflict, not a stale seal.
@@ -202,26 +196,74 @@ export async function stageSourcePage(
     ...observed,
     detailPreparationFence: sourceDigest([input.revision, input.page]),
   });
-  const publicDigest = publicDigestOf(observed.observation);
+  await tx.set('products', projectCatalogSourceProduct(product, input, observed.observation));
+  return progress(input.page + 1);
+}
+
+type SourceInput = z.infer<typeof SourcePageSchema>;
+
+/** The same canonical fields are used by preflight and the native page write. */
+export function projectCatalogSourceVariantRow(
+  existing: CollectionDoc | null,
+  input: Pick<SourceInput, 'productId' | 'sourceKey' | 'revision'>,
+  position: number,
+  variant: CatalogDetailVariant,
+  media: NonNullable<SourceInput['variantMedia']>[number] | undefined,
+): CollectionDoc {
+  return {
+    ...existing,
+    _id: variant.id,
+    productId: input.productId,
+    detailSourceOwner: `alibaba:${input.sourceKey}`,
+    detailSourceRevision: input.revision,
+    detailSourceMissing: false,
+    archived: false,
+    position,
+    sku: variant.sku ?? '',
+    optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
+    imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
+    detailSourceMediaSources: media?.sources ?? [],
+    detailSourceUnboundMediaSources: media?.unboundSources ?? [],
+    detailSourceCandidate: variant,
+  };
+}
+
+/** Model the stored candidate without changing the saved product or its lifecycle. */
+export function projectCatalogSourceProduct(
+  product: CollectionDoc,
+  input: Pick<
+    SourceInput,
+    | 'sourceKey'
+    | 'revision'
+    | 'contentGeneration'
+    | 'variantIds'
+    | 'page'
+    | 'header'
+    | 'content'
+    | 'noteBlocks'
+    | 'supplierMedia'
+  >,
+  observation: unknown,
+): CollectionDoc {
+  const publicDigest = publicDigestOf(observation);
   // A re-prepare without these must not keep old ones.
   const {
     detailSourcePublicDigest: _previous,
     detailSourceSupplierMedia: _previousMedia,
     ...current
   } = product;
-  await tx.set('products', {
+  return {
     ...current,
-    detailSourceOwner: owner,
+    detailSourceOwner: `alibaba:${input.sourceKey}`,
     detailSourceRevision: input.revision,
     detailSourceContentGeneration: input.contentGeneration ?? 0,
     detailSourceManifest: { revision: input.revision, variantIds: input.variantIds },
     detailSourceNextPage: input.page + 1,
-    detailSourceReady: input.page + 1 === pages,
+    detailSourceReady: input.page + 1 === Math.max(1, Math.ceil(input.variantIds.length / 20)),
     detailSourceCandidate: input.header,
     detailSourceContentCandidate: input.content,
     detailSourceNoteBlocksCandidate: input.noteBlocks,
     ...(publicDigest === undefined ? {} : { detailSourcePublicDigest: publicDigest }),
     ...(input.supplierMedia ? { detailSourceSupplierMedia: input.supplierMedia } : {}),
-  });
-  return progress(input.page + 1);
+  };
 }

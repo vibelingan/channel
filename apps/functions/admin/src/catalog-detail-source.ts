@@ -8,12 +8,16 @@ import {
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
+import { prepareCatalogApprovalPlan } from '@vibelingan-channel/db/catalog-detail-commit';
+import { catalogStagedApprovalCapacityIssues } from '@vibelingan-channel/db/catalog-detail-staging';
 import {
   primarySourceLinkSnapshot,
   sourceBindingSnapshot,
 } from '@vibelingan-channel/db/catalog-source-binding';
 import {
   SourcePageSchema,
+  projectCatalogSourceProduct,
+  projectCatalogSourceVariantRow,
   sourceDigest,
   sourceGalleryDigest,
 } from '@vibelingan-channel/db/catalog-source-staging';
@@ -24,6 +28,7 @@ import {
 } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
   CatalogIssueSchema,
+  CatalogValidationError,
   catalogFailureIssue,
   catalogIssuesFromZod,
 } from '@vibelingan-channel/shared/catalog-issues';
@@ -124,6 +129,7 @@ async function prepareSourcePage(actorId: string, input: unknown, scope?: Prepar
     if (scope) scope.cached = undefined;
     const product = await get('products', productId);
     if (!product) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+    if (product.archived === true) return { ok: false as const, code: 'CONFLICT' as const };
     const sourceKey = product.alibabaPrimarySourceKey;
     if (typeof sourceKey !== 'string' || sourceKey === '') {
       // Manual product (MIU-30): approval reads configuration rows only from the
@@ -209,6 +215,18 @@ export async function readAlibabaDetailPlan(
 }
 
 async function readCompleteAlibabaDetailPlan(productId: string, product: CollectionDoc) {
+  const generation = SourcePageSchema.shape.contentGeneration.safeParse(
+    product.catalogContentGeneration ?? undefined,
+  );
+  if (!generation.success)
+    return catalogValidationFailure(
+      'source-candidate',
+      catalogIssuesFromZod(generation.error.issues, product.catalogContentGeneration, {
+        stage: 'commit',
+        remedy: 'system-repair',
+        prefix: ['catalogContentGeneration'],
+      }),
+    );
   const sourceKey = product.alibabaPrimarySourceKey;
   if (typeof sourceKey !== 'string' || sourceKey === '')
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
@@ -330,9 +348,7 @@ async function readCompleteAlibabaDetailPlan(productId: string, product: Collect
     observationDigest,
     expectedBinding: { ...snapshot.expectation, linkHash: primaryLink.linkHash },
     galleryDigest,
-    ...(product.catalogContentGeneration == null
-      ? {}
-      : { contentGeneration: product.catalogContentGeneration }),
+    ...(generation.data === undefined ? {} : { contentGeneration: generation.data }),
     revision,
     header,
     content: structured.content ?? null,
@@ -364,6 +380,27 @@ async function readCompleteAlibabaDetailPlan(productId: string, product: Collect
       };
     }),
   };
+  try {
+    const stagedProduct = projectCatalogSourceProduct(
+      product,
+      {
+        ...packet,
+        page: Math.max(1, Math.ceil(packet.variantIds.length / 20)) - 1,
+      },
+      row?.observation,
+    );
+    const mediaById = new Map(packet.variantMedia.map((media) => [media.id, media]));
+    const stagedRows = packet.variants.map((variant, position) =>
+      projectCatalogSourceVariantRow(null, packet, position, variant, mediaById.get(variant.id)),
+    );
+    const effective = prepareCatalogApprovalPlan(stagedProduct, stagedRows);
+    const capacity = catalogStagedApprovalCapacityIssues(stagedProduct, effective.plan);
+    if (capacity.length) return catalogValidationFailure('source-candidate', capacity);
+  } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return catalogValidationFailure('source-candidate', error.issues);
+    throw error;
+  }
   return {
     ok: true as const,
     packet,

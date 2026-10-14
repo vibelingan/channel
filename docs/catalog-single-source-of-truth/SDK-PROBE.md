@@ -178,3 +178,8 @@ P2d2：六个Zod3.25.76与五个已安装@cloudbase/database1.4.3复用表面逐
 #### P3a0 media-operation budget
 
 No new SDK API or hand-written type. Existing staging bridge remains runTransaction -> collection/doc -> get/set with exact ACK checks. Official https://docs.cloudbase.net/database/transaction re-read 2026-10-14 confirms 100 operations, 30 seconds and doc-only/no where; local limit remains98. Installed database1.4.3 runtime callback/ACK/rollback probes via standing gate passed. Complete2397 consumers,43staging and three independently failing in-memory mutations passed their respective expectations. Full-reader/98-boundary CloudBase latency/races remain P6, not claimed from local transaction simulation. Context7 unavailable.
+
+
+#### P1h4 complete capacity preflight
+
+Reused Zod3.25.76 surfaces: parse/safeParse/shape; exact installed types and positive/negative behavior table: .claude/sdk-probes/P1h4.md. No new CloudBase API, wrapper or shim. Unknown stored generation is decoded through existing SourcePageSchema rather than asserted. All8consumer types,2403/0/0,101focused,built150+cleanup,standingSDK and10independent mutation expectations passed. Official Zod v3 URLs opened but web tool returned no body; not counted as primary contract text. Installed version types/runtime and existing source-schema contract tests establish exact semantics; Context7 unavailable. Real cloud operation budgets/performance and feature rollout remain gates.

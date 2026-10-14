@@ -780,3 +780,96 @@ test('malformed preparation requests identify safe fields and never persist', as
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE_KEY|PRIVATE_SOURCE_TOKEN/);
   assert.deepEqual(adapter.commands, []);
 });
+
+for (const action of ['prepare', 'preview'] as const) {
+  test(`whole-job capacity is checked before source ${action}`, async () => {
+    const source = {
+      _id: 'large-header',
+      sourceKey: 'large-header',
+      connectionId: 'fixture',
+      sourceProductId: 'external',
+      sourceTitle: 'Clock',
+      active: true,
+    };
+    const row = sourceObservationFixture(source);
+    const parsed = validateCatalogSourceObservation(row.observation);
+    assert.ok(parsed.ok);
+    row.observation = {
+      ...parsed.value,
+      identity: {
+        ...parsed.value.identity,
+        attributes: Array.from({ length: 256 }, (_, i) => ({
+          sourceName: `Fact ${i}`,
+          value: '中'.repeat(1000),
+        })),
+      },
+    };
+    const before = structuredClone(row.observation);
+    const adapter = new RecordingAdapter({
+      products: [
+        {
+          _id: 'clock',
+          name: 'Clock',
+          productFamily: 'misc',
+          alibabaPrimarySourceKey: source._id,
+          imageIds: [],
+        },
+      ],
+      alibabaSourceProducts: [source],
+      catalogSourceObservations: [row],
+      users: [{ _id: 'admin', role: 'admin' }],
+    });
+    setAdapter(adapter);
+    const { readCatalogDetailPreview } = await import('./catalog-detail-preview.ts');
+    const result =
+      action === 'prepare'
+        ? await prepareCatalogSource('admin', { action, productId: 'clock', page: 0 })
+        : await readCatalogDetailPreview('admin', { action, productId: 'clock' });
+    assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
+    const validation = CatalogValidationSchema.parse(result.validation);
+    assert.equal(validation.issues[0]?.code, 'TOO_LARGE');
+    assert.equal(validation.issues[0]?.path, 'data');
+    assert.deepEqual(validation.issues[0]?.expected, { maxBytes: 512 * 1024 });
+    assert.deepEqual(adapter.commands, []);
+    assert.deepEqual(row.observation, before);
+    assert.doesNotMatch(JSON.stringify(result), /中/);
+  });
+}
+
+test('source capacity preflight decodes generation rather than casting unknown storage', async () => {
+  for (const generation of [undefined, null, 0, 2, -1, '2', Number.MAX_SAFE_INTEGER + 1]) {
+    const source = {
+      _id: 'generation',
+      sourceKey: 'generation',
+      connectionId: 'fixture',
+      sourceProductId: 'external',
+      sourceTitle: 'Clock',
+      active: true,
+    };
+    const adapter = new RecordingAdapter({
+      products: [
+        {
+          _id: 'clock',
+          name: 'Clock',
+          alibabaPrimarySourceKey: source._id,
+          imageIds: [],
+          catalogContentGeneration: generation,
+        },
+      ],
+      alibabaSourceProducts: [source],
+      catalogSourceObservations: [sourceObservationFixture(source)],
+    });
+    setAdapter(adapter);
+    const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'clock' });
+    if (generation == null || generation === 0 || generation === 2) {
+      assert.ok(result.ok);
+      assert.equal(adapter.commands.length, 1);
+    } else {
+      assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result);
+      const report = CatalogValidationSchema.parse(result.validation);
+      assert.equal(report.issues[0]?.path, 'catalogContentGeneration');
+      assert.equal(report.issues[0]?.remedy, 'system-repair');
+      assert.deepEqual(adapter.commands, []);
+    }
+  }
+});

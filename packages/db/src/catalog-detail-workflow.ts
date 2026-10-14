@@ -20,6 +20,7 @@ import {
   type ApprovalPersistenceCommand,
   type ApprovalStageResult,
   approvalProductFingerprint,
+  catalogStagedApprovalCapacityIssues,
   prepareStagedApproval,
 } from './catalog-detail-staging.ts';
 import { sourceDigest } from './catalog-source-staging.ts';
@@ -130,6 +131,8 @@ export async function runCatalogApprovalWorkflow(
         : CatalogDetailPublicationSchema.parse(read.product.catalogDetailPublication);
     if (current && current.header._id !== productId)
       return { ok: false as const, code: 'CONFLICT' as const };
+    const capacity = catalogStagedApprovalCapacityIssues(read.product, plan);
+    if (capacity.length) return catalogValidationFailure('review', capacity);
     const offset = (command.page - 1) * 50;
     const { descriptionImages: _descriptionImages, ...legacyHeader } = plan.publication.header;
     const detail = decodeCatalogDetailView({

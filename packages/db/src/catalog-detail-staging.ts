@@ -200,7 +200,10 @@ export function prepareStagedApproval(
     const prepared = prepareCatalogApprovalPlan(product, rows, revision);
     if (prepared.digest !== command.expectedDigest) return fail('CONFLICT');
     const plan = prepared.plan;
-    // Known source mappings may not silently disappear from an approved SKU.
+    const job = buildStagedApprovalJob(actorId, command, product, plan, revision);
+    const capacity = stagedApprovalCapacityIssues(plan, job);
+    if (capacity.length) return catalogValidationFailure('begin', capacity);
+    // Missing source photos cannot mask invalid content or a task that cannot be stored.
     if (
       rows.some(
         (row) =>
@@ -209,48 +212,6 @@ export function prepareStagedApproval(
       )
     )
       return fail('MEDIA_NOT_READY');
-    const capacity = catalogVariantCapacityIssues(plan.variants);
-    if (capacity.length) return catalogValidationFailure('begin', capacity);
-    const pageHashes = [];
-    for (let offset = 0; offset < plan.variants.length; offset += APPROVAL_PAGE_SIZE)
-      pageHashes.push(hash(plan.variants.slice(offset, offset + APPROVAL_PAGE_SIZE)));
-    const job = JobSchema.parse({
-      _id: hash([actorId, product._id, command.operationId]),
-      actorId,
-      operationId: command.operationId,
-      requestDigest: hash({ actorId, command }),
-      productId: product._id,
-      productFingerprint: approvalProductFingerprint(product),
-      expectedRevision: command.expectedRevision,
-      revision,
-      publication: plan.publication,
-      variantIds: plan.variants.map((variant) => variant.id),
-      pageHashes,
-      nextPage: 0,
-      state: 'staging',
-      createdAt: new Date().toISOString(),
-      // Absent for products prepared before MIU-17; the change audit covers them.
-      ...(typeof product.detailSourcePublicDigest === 'string' &&
-      /^[a-f0-9]{64}$/.test(product.detailSourcePublicDigest)
-        ? { sourceDigest: product.detailSourcePublicDigest }
-        : {}),
-      ...(String(product.detailSourceOwner).startsWith('alibaba:')
-        ? { supplierParts: supplierParts(product) }
-        : {}),
-    });
-    const jobBytes = Buffer.byteLength(JSON.stringify(job));
-    if (jobBytes > CATALOG_APPROVAL_JOB_MAX_BYTES)
-      return catalogValidationFailure('begin', [
-        CatalogIssueSchema.parse({
-          code: 'TOO_LARGE',
-          stage: 'commit',
-          path: 'data',
-          severity: 'error',
-          remedy: 'system-repair',
-          expected: { maxBytes: CATALOG_APPROVAL_JOB_MAX_BYTES },
-          observed: { bytes: jobBytes },
-        }),
-      ]);
     return { ok: true, value: job };
   } catch (error) {
     if (error instanceof CatalogValidationError)
@@ -262,6 +223,89 @@ export function prepareStagedApproval(
       );
     return fail('VALIDATION_ERROR');
   }
+}
+
+type ApprovalPlan = ReturnType<typeof prepareCatalogApprovalPlan>['plan'];
+const capacityIdentity = '\u0001'.repeat(200);
+const capacityRevision = '00000000-0000-4000-8000-000000000000';
+
+/** Check the complete plan, including storage metadata, before any staging or media work. */
+export function catalogStagedApprovalCapacityIssues(product: CollectionDoc, plan: ApprovalPlan) {
+  const job = buildStagedApprovalJob(
+    capacityIdentity,
+    {
+      productId: product._id,
+      operationId: capacityRevision,
+      expectedRevision: capacityIdentity,
+      expectedDigest: '0'.repeat(64),
+    },
+    product,
+    plan,
+    capacityRevision,
+  );
+  return stagedApprovalCapacityIssues(plan, job);
+}
+
+function stagedApprovalCapacityIssues(plan: ApprovalPlan, job: PreparedApproval) {
+  const issues = catalogVariantCapacityIssues(plan.variants);
+  // These two identities can be any legal 200-code-unit string. JSON control escapes
+  // reserve six bytes per code unit, so later admins/history cannot exceed this check.
+  const jobBytes = Buffer.byteLength(
+    JSON.stringify({
+      ...job,
+      actorId: capacityIdentity,
+      expectedRevision: capacityIdentity,
+    }),
+  );
+  if (jobBytes > CATALOG_APPROVAL_JOB_MAX_BYTES)
+    issues.push(
+      CatalogIssueSchema.parse({
+        code: 'TOO_LARGE',
+        stage: 'commit',
+        path: 'data',
+        severity: 'error',
+        remedy: 'system-repair',
+        expected: { maxBytes: CATALOG_APPROVAL_JOB_MAX_BYTES },
+        observed: { bytes: jobBytes },
+      }),
+    );
+  return issues;
+}
+
+function buildStagedApprovalJob(
+  actorId: string,
+  command: z.infer<typeof CatalogApprovalCommandSchema>,
+  product: CollectionDoc,
+  plan: ApprovalPlan,
+  revision: string,
+): PreparedApproval {
+  const pageHashes = [];
+  for (let offset = 0; offset < plan.variants.length; offset += APPROVAL_PAGE_SIZE)
+    pageHashes.push(hash(plan.variants.slice(offset, offset + APPROVAL_PAGE_SIZE)));
+  return JobSchema.parse({
+    _id: hash([actorId, product._id, command.operationId]),
+    actorId,
+    operationId: command.operationId,
+    requestDigest: hash({ actorId, command }),
+    productId: product._id,
+    productFingerprint: approvalProductFingerprint(product),
+    expectedRevision: command.expectedRevision,
+    revision,
+    publication: { ...plan.publication, revision },
+    variantIds: plan.variants.map((variant) => variant.id),
+    pageHashes,
+    nextPage: 0,
+    state: 'staging',
+    createdAt: new Date().toISOString(),
+    // Absent for products prepared before MIU-17; the change audit covers them.
+    ...(typeof product.detailSourcePublicDigest === 'string' &&
+    /^[a-f0-9]{64}$/.test(product.detailSourcePublicDigest)
+      ? { sourceDigest: product.detailSourcePublicDigest }
+      : {}),
+    ...(String(product.detailSourceOwner).startsWith('alibaba:')
+      ? { supplierParts: supplierParts(product) }
+      : {}),
+  });
 }
 
 /**
