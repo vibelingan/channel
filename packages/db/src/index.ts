@@ -28,6 +28,23 @@ import type {
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
 import { APPROVAL_JOB_DELETE_MARGIN_MS, APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
+import { type ImageDeletionCommand, ImageDeletionCommandSchema } from './image-deletion.ts';
+export { executeImageDeletion } from './image-deletion-runner.ts';
+export { runImageDeletion, readImageDeletionIntent } from './image-deletion.ts';
+export type {
+  ImageDeletionCommand,
+  ImageDeletionResult,
+  ImageDeletionIntent,
+  ImageDeletionStore,
+} from './image-deletion.ts';
+
+export function manageImageDeletion(command: ImageDeletionCommand) {
+  const input = ImageDeletionCommandSchema.parse(command);
+  const adapter = db();
+  if (!adapter.manageImageDeletion) throw new Error('Image deletion adapter is not configured');
+  return adapter.manageImageDeletion(input);
+}
+
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 export function manageCatalogCategory(actorId: string, input: unknown) {
   const adapter = db();

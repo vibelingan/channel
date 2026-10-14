@@ -19,8 +19,10 @@ import { lookup } from 'node:dns/promises';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import {
   acquireImageMutation,
+  executeImageDeletion,
   findByField,
   list,
+  manageImageDeletion,
   releaseImageMutation,
   unfinishedApprovalUsingImage,
   upsertDocWithId,
@@ -33,7 +35,7 @@ import {
   catalogReferencedImageIds,
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
-import { createDoc, getDoc, removeDoc } from './repo.ts';
+import { createDoc, getDoc } from './repo.ts';
 
 export const ALIBABA_IMAGE_IMPORT_OWNER = 'alibaba-catalog-sync';
 const ALLOWED_HOST_SUFFIXES = ['alicdn.com', 'alibaba.com'];
@@ -379,8 +381,8 @@ async function findCandidateReference(
  * owner means no admin's own uploader-identity delete path can ever match
  * (R1 M13). Mirrors abandonUpload's lifecycle discipline (review R2 #1):
  * mutation lock, re-read under the lock, full reference scan, and a storage
- * delete failure is TERMINAL — the doc survives so the object is never
- * orphaned. Object first, then the doc.
+ * quarantine is durable before deleting bytes. Failures retain the original
+ * storage targets for retry; the row is removed only after storage confirms.
  */
 export async function removeImportedCandidate(imageId: string): Promise<RemoveImportResult> {
   const image = await getDoc('images', imageId);
@@ -388,10 +390,14 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
   if (image.uploadedByUserId !== ALIBABA_IMAGE_IMPORT_OWNER) {
     return { ok: false, reason: 'not-imported' };
   }
-  if (image.status !== 'active') return { ok: false, reason: 'not-active' };
+  if (image.status !== 'active' && image.status !== 'deleted')
+    return { ok: false, reason: 'not-active' };
 
   const owner = randomUUID();
-  const lock = await acquireImageMutation(imageId, owner, new Date().toISOString());
+  const lock =
+    image.status === 'deleted'
+      ? 'acquired'
+      : await acquireImageMutation(imageId, owner, new Date().toISOString());
   if (lock === 'missing') return { ok: false, reason: 'not-found' };
   if (lock !== 'acquired') return { ok: false, reason: 'busy' };
   let deleted = false;
@@ -402,34 +408,41 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
     if (current.uploadedByUserId !== ALIBABA_IMAGE_IMPORT_OWNER) {
       return { ok: false, reason: 'not-imported' };
     }
-    if (current.status !== 'active') return { ok: false, reason: 'not-active' };
-    if (
-      typeof current.publishedRefCount !== 'number' ||
-      !Number.isFinite(current.publishedRefCount) ||
-      current.publishedRefCount !== 0
-    ) {
-      return { ok: false, reason: 'still-referenced' };
-    }
-    // Approval reads shared photos without writing them (DEC-21): an
-    // unfinished approval that would publish this photo still uses it. Jobs
-    // first, references second: a job that finishes in between has recorded
-    // its product (same transaction) before the reference scan reads it.
-    if (await unfinishedApprovalUsingImage(imageId))
-      return { ok: false, reason: 'still-referenced' };
-    const reference = await findCandidateReference(imageId);
-    if (reference) return { ok: false, reason: 'still-referenced' };
-
-    const storageFileId =
-      typeof current.storageFileId === 'string' ? current.storageFileId.trim() : '';
-    if (storageFileId) {
-      try {
-        await mediaStorage().deleteObject(storageFileId);
-      } catch (error) {
-        console.error('[alibaba-catalog-sync] imported-candidate object delete failed:', error);
-        return { ok: false, reason: 'delete-failed' };
+    if (current.status !== 'active' && current.status !== 'deleted')
+      return { ok: false, reason: 'not-active' };
+    if (current.status === 'active') {
+      if (
+        typeof current.publishedRefCount !== 'number' ||
+        !Number.isFinite(current.publishedRefCount) ||
+        current.publishedRefCount !== 0
+      ) {
+        return { ok: false, reason: 'still-referenced' };
       }
+      // Approval reads shared photos without writing them (DEC-21): an
+      // unfinished approval that would publish this photo still uses it. Jobs
+      // first, references second: a job that finishes in between has recorded
+      // its product (same transaction) before the reference scan reads it.
+      if (await unfinishedApprovalUsingImage(imageId))
+        return { ok: false, reason: 'still-referenced' };
+      const reference = await findCandidateReference(imageId);
+      if (reference) return { ok: false, reason: 'still-referenced' };
     }
-    await removeDoc('images', imageId);
+    const result = await executeImageDeletion(
+      {
+        manage: manageImageDeletion,
+        get: (id) => getDoc('images', id),
+      },
+      {
+        action: 'begin',
+        imageId,
+        uploadedByUserId: ALIBABA_IMAGE_IMPORT_OWNER,
+        owner,
+        startedAt: new Date().toISOString(),
+      },
+      (fileId) => mediaStorage().deleteObject(fileId),
+    );
+    if (result !== 'deleted')
+      return { ok: false, reason: result === 'missing' ? 'not-found' : 'delete-failed' };
     deleted = true;
     return { ok: true, imageId };
   } finally {

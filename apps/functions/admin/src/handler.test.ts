@@ -6,6 +6,7 @@ import { format } from 'node:util';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import {
   type AdapterListQuery,
   type CatalogProductSaveInput,
@@ -181,6 +182,21 @@ class MemoryAdapter implements DbAdapter {
     return next;
   }
 
+  async manageImageDeletion(command: ImageDeletionCommand) {
+    return runImageDeletion(
+      {
+        get: (collection, id) => this.get(collection, id),
+        set: async (collection, row) => {
+          if (!(await this.update(collection, row._id, row)))
+            throw new Error('Unconfirmed image quarantine');
+        },
+        remove: async (collection, id) => {
+          if (!(await this.remove(collection, id))) throw new Error('Unconfirmed image removal');
+        },
+      },
+      command,
+    );
+  }
   async acquireImageMutation(
     imageId: string,
     owner: string,
@@ -2648,8 +2664,8 @@ test('a deletion claim blocks a concurrent imageIds writer', async () => {
   );
   releaseDelete?.();
 
-  // Busy while the delete runs: nothing was saved and the page sends it again.
-  expectErr(createResult, 'BUSY');
+  // The quarantined image is unavailable: nothing may save a dangling reference.
+  expectErr(createResult, 'CONFLICT');
   assert.equal((await abandonment).ok, true);
   assert.equal(store.successStories?.length ?? 0, 0);
 });
@@ -6158,3 +6174,36 @@ for (const prior of [undefined, null]) {
     assert.deepEqual(store.products, before);
   });
 }
+
+test('abandonUpload quarantines storage before deletion and resumes an unconfirmed row removal', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  class UnconfirmedRemoval extends MemoryAdapter {
+    failNext = true;
+    override async remove(collection: string, id: string) {
+      if (collection === 'images' && this.failNext) {
+        this.failNext = false;
+        return false;
+      }
+      return super.remove(collection, id);
+    }
+  }
+  setAdapter(new UnconfirmedRemoval(store));
+  const originalDelete = storage.deleteObject.bind(storage);
+  storage.deleteObject = async (fileId) => {
+    assert.equal(store.images?.find((row) => row._id === intent.imageId)?.status, 'deleted');
+    return originalDelete(fileId);
+  };
+  assert.equal((await call('abandonUpload', { imageId: intent.imageId }, token)).ok, false);
+  assert.equal(store.images?.find((row) => row._id === intent.imageId)?.status, 'deleted');
+  assert.equal((await call('abandonUpload', { imageId: intent.imageId }, token)).ok, true);
+  assert.equal(
+    store.images?.some((row) => row._id === intent.imageId),
+    false,
+  );
+});

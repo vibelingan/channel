@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import type {
   AdapterListQuery,
   DbAdapter,
@@ -87,6 +88,20 @@ class MemoryAdapter implements DbAdapter {
   }
   async incrementField(): Promise<number | null> {
     throw new Error('not used');
+  }
+  async manageImageDeletion(command: ImageDeletionCommand) {
+    return runImageDeletion(
+      {
+        get: (collection, id) => this.get(collection, id),
+        set: async (collection, row) => {
+          await this.upsertDocWithId(collection, row._id, row);
+        },
+        remove: async (collection, id) => {
+          if (!(await this.remove(collection, id))) throw new Error('Unconfirmed image removal');
+        },
+      },
+      command,
+    );
   }
   async acquireImageMutation(
     imageId: string,
@@ -484,7 +499,7 @@ test('a photo whose approval finishes between the removal checks is kept (DEC-21
   assert.equal(storage.deletes.length, 0);
 });
 
-test('removal deletes only unreferenced sentinel-owned candidates (object first)', async () => {
+test('removal deletes only unreferenced sentinel-owned candidates', async () => {
   setup();
   const { fetchImpl } = fakeImageFetch();
   const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
@@ -563,7 +578,7 @@ test('removal is blocked by an UNPUBLISHED document reference (refCount 0)', asy
   assert.equal(removed.ok, true);
 });
 
-test('a storage delete failure is TERMINAL: the doc survives and a retry succeeds', async () => {
+test('a storage delete failure retains quarantined metadata and a retry succeeds', async () => {
   setup();
   const { fetchImpl } = fakeImageFetch();
   const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
@@ -589,7 +604,7 @@ test('a storage delete failure is TERMINAL: the doc survives and a retry succeed
   });
   assert.equal(store.images?.length, 1, 'doc NEVER removed before the object');
 
-  // The mutation lock was released on failure — the retry can acquire it.
+  // Retry resumes the durable terminal intent without waiting for a lock timeout.
   const retried = await removeImportedCandidate(imported.imageId);
   assert.deepEqual(retried, { ok: true, imageId: imported.imageId });
   assert.equal(store.images?.length, 0);
@@ -616,4 +631,54 @@ test('a held mutation lock refuses removal as busy', async () => {
     ok: false,
     reason: 'busy',
   });
+});
+
+test('removal quarantines the image before deleting its first byte', async () => {
+  setup();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    ...fakeImageFetch(),
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+  const originalDelete = storage.deleteObject.bind(storage);
+  storage.deleteObject = async (fileId) => {
+    assert.equal(store.images?.find((row) => row._id === imported.imageId)?.status, 'deleted');
+    return originalDelete(fileId);
+  };
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: true,
+    imageId: imported.imageId,
+  });
+});
+
+test('an unconfirmed row removal retains a quarantined retry target', async () => {
+  setup();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    ...fakeImageFetch(),
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+  class UnconfirmedRemoval extends MemoryAdapter {
+    failNext = true;
+    override async remove(collection: string, id: string) {
+      if (collection === 'images' && this.failNext) {
+        this.failNext = false;
+        return false;
+      }
+      return super.remove(collection, id);
+    }
+  }
+  setAdapter(new UnconfirmedRemoval(store));
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'delete-failed',
+  });
+  assert.equal(store.images?.find((row) => row._id === imported.imageId)?.status, 'deleted');
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: true,
+    imageId: imported.imageId,
+  });
+  assert.equal(store.images?.length, 0);
 });

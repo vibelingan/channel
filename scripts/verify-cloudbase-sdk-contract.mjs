@@ -767,35 +767,6 @@ requireCheck(
   ]),
   'db cloudbase strict publication/archive and legacy Headphones filters are composed server-side',
 );
-const acquireMutationStart = cloudbaseAdapter.indexOf('  async acquireImageMutation');
-const acquireMutationEnd = cloudbaseAdapter.indexOf(
-  '  async releaseImageMutation',
-  acquireMutationStart,
-);
-const acquireMutationMethod =
-  acquireMutationStart >= 0 && acquireMutationEnd > acquireMutationStart
-    ? cloudbaseAdapter.slice(acquireMutationStart, acquireMutationEnd)
-    : '';
-requireCheck(
-  acquireMutationMethod.includes('db.runTransaction') &&
-    acquireMutationMethod.includes("transaction.collection('images')") &&
-    acquireMutationMethod.includes('transitionImageMutationAcquire(doc, owner, startedAt)') &&
-    acquireMutationMethod.includes('...transition.patch'),
-  'db cloudbase adapter acquires image mutation ownership transactionally',
-);
-const releaseMutationStart = cloudbaseAdapter.indexOf('  async releaseImageMutation');
-const releaseMutationEnd = cloudbaseAdapter.indexOf('\n};', releaseMutationStart);
-const releaseMutationMethod =
-  releaseMutationStart >= 0 && releaseMutationEnd > releaseMutationStart
-    ? cloudbaseAdapter.slice(releaseMutationStart, releaseMutationEnd)
-    : '';
-requireCheck(
-  releaseMutationMethod.includes('db.runTransaction') &&
-    releaseMutationMethod.includes("transaction.collection('images')") &&
-    releaseMutationMethod.includes('transitionImageMutationRelease(doc, owner)') &&
-    releaseMutationMethod.includes('...transition.patch'),
-  'db cloudbase adapter releases image mutation ownership transactionally for the exact owner',
-);
 const typescript = rootRequire('typescript');
 const adapterAst = typescript.createSourceFile(
   'cloudbase-adapter.ts',
@@ -832,28 +803,33 @@ function objectMethodCalls(variableName, methodName) {
   visit(adapterAst);
   return calls;
 }
+// Bind the production adapter to the exact tested helper, then inspect only
+// that helper's transaction callback. Other methods cannot satisfy this gate.
+for (const [method, helper, transition] of [
+  ['acquireImageMutation', 'acquireImageMutationInCloudBase', 'transitionImageMutationAcquire'],
+  ['releaseImageMutation', 'releaseImageMutationInCloudBase', 'transitionImageMutationRelease'],
+]) {
+  requireCheck(
+    objectMethodCalls('cloudBaseAdapter', method).includes(helper) &&
+      objectMethodCalls('cloudBaseAdapter', method).includes('cloudStorageSdk().database'),
+    `db cloudbase ${method} delegates to its tested native SDK helper`,
+  );
+  const calls = transactionFunctionCalls(helper);
+  requireCheck(
+    ['transaction.collection', 'ref.get', 'ref.update', transition, 'confirmDocumentWrite'].every(
+      (call) => calls.includes(call),
+    ),
+    `db cloudbase ${method} checks ownership and confirms its write inside runTransaction`,
+  );
+}
 requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes(
-    'transitionImageMutationAcquire',
+  objectMethodCalls('cloudBaseAdapter', 'manageImageDeletion').includes(
+    'manageImageDeletionInCloudBase',
   ) &&
-    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes(
-      'transitionImageMutationRelease',
+    ['catalogRowStore', 'runImageDeletion'].every((call) =>
+      transactionFunctionCalls('manageImageDeletionInCloudBase').includes(call),
     ),
-  'db cloudbase acquire/release methods invoke shared ownership transitions',
-);
-// The transition must execute INSIDE a database transaction — a text needle
-// alone would also match a non-transactional TOCTOU rewrite, so assert the
-// actual call expressions in each method body.
-requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes('db.runTransaction') &&
-    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes('db.runTransaction') &&
-    objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes(
-      'transaction.collection',
-    ) &&
-    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes(
-      'transaction.collection',
-    ),
-  'db cloudbase acquire/release run their transitions inside runTransaction',
+  'image deletion production bridge executes the shared state machine in one native SDK transaction',
 );
 // The FENCED conditional write (R1 E2) is the branch's one architecture
 // amendment, and its PRODUCTION implementations had zero coverage — every

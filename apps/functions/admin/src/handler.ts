@@ -30,6 +30,7 @@ import {
   batchUpdate,
   create,
   createDoc,
+  executeImageDeletion,
   findByField,
   flagForReview,
   get,
@@ -38,6 +39,7 @@ import {
   list,
   manageCatalogDetailApproval,
   manageCatalogInquiry,
+  manageImageDeletion,
   persistCatalogDetailApproval,
   releaseImageMutation,
   remove,
@@ -1939,11 +1941,14 @@ async function abandonUploadAction(
   if (image.uploadedByUserId !== claims.sub) {
     return err('FORBIDDEN', 'Only the uploader may abandon this image.');
   }
-  if (image.status !== 'active') {
+  if (image.status !== 'active' && image.status !== 'deleted') {
     return err('CONFLICT', 'Only a completed upload may be abandoned.');
   }
 
-  const locks = await acquireImageReferenceLocks([imageId]);
+  const locks =
+    image.status === 'deleted'
+      ? { imageIds: [], owner: randomUUID(), error: undefined }
+      : await acquireImageReferenceLocks([imageId]);
   if (locks.error) return locks.error;
   let deleted = false;
   try {
@@ -1952,59 +1957,54 @@ async function abandonUploadAction(
     if (current.uploadedByUserId !== claims.sub) {
       return err('FORBIDDEN', 'Only the uploader may abandon this image.');
     }
-    if (current.status !== 'active') {
+    if (current.status !== 'active' && current.status !== 'deleted') {
       return err('CONFLICT', 'Only a completed upload may be abandoned.');
     }
 
-    // Approval reads shared photos without writing them (DEC-21), so the
-    // unfinished jobs are checked FIRST: an approval that finishes after this
-    // check has recorded the product (same transaction as its job) before the
-    // reference scan below runs, and one that finishes later refuses the lock.
-    const approving = await unfinishedApprovalUsingImage(imageId);
-    if (approving) {
-      return err(
-        'CONFLICT',
-        `Image is being approved with products/${approving}. Try again once that approval finishes (at most an hour).`,
-      );
-    }
-    const reference = await findImageReference(imageId);
-    if (reference) {
-      return err(
-        'CONFLICT',
-        `Image is still referenced by ${reference.collection}/${reference.documentId}.`,
-      );
-    }
+    if (current.status === 'active') {
+      // Approval reads shared photos without writing them (DEC-21), so the
+      // unfinished jobs are checked FIRST: an approval that finishes after this
+      // check has recorded the product (same transaction as its job) before the
+      // reference scan below runs, and one that finishes later refuses the lock.
+      const approving = await unfinishedApprovalUsingImage(imageId);
+      if (approving) {
+        return err(
+          'CONFLICT',
+          `Image is being approved with products/${approving}. Try again once that approval finishes (at most an hour).`,
+        );
+      }
+      const reference = await findImageReference(imageId);
+      if (reference) {
+        return err(
+          'CONFLICT',
+          `Image is still referenced by ${reference.collection}/${reference.documentId}.`,
+        );
+      }
 
-    if (
-      typeof current.publishedRefCount !== 'number' ||
-      !Number.isFinite(current.publishedRefCount) ||
-      current.publishedRefCount !== 0
-    ) {
-      return err('CONFLICT', 'Image reference count must be reconciled before abandonment.');
-    }
-
-    const provider = typeof current.storageProvider === 'string' ? current.storageProvider : '';
-    const storageFileId =
-      typeof current.storageFileId === 'string' ? current.storageFileId.trim() : '';
-    if (storageFileId && provider !== 'cloudbase-storage' && provider !== 'local-disk') {
-      return err('INTERNAL_ERROR', 'Image has an unsupported storage provider.');
-    }
-    const storageFileIds = new Set(
-      [current.storageFileId, current.migrationStorageFileId].flatMap((candidate) =>
-        typeof candidate === 'string' && candidate.trim() ? [candidate.trim()] : [],
-      ),
-    );
-    for (const fileId of storageFileIds) {
-      try {
-        await mediaStorage().deleteObject(fileId);
-      } catch (error) {
-        console.error(`[fn-admin] abandon upload: object delete failed for ${imageId}`, error);
-        return err('INTERNAL_ERROR', 'Image storage deletion failed; retry abandonment.');
+      if (
+        typeof current.publishedRefCount !== 'number' ||
+        !Number.isFinite(current.publishedRefCount) ||
+        current.publishedRefCount !== 0
+      ) {
+        return err('CONFLICT', 'Image reference count must be reconciled before abandonment.');
       }
     }
-
-    deleted = await remove('images', imageId);
-    if (!deleted) return err('CONFLICT', 'Image changed before abandonment completed.');
+    const result = await executeImageDeletion(
+      {
+        manage: manageImageDeletion,
+        get: (id) => get('images', id),
+      },
+      {
+        action: 'begin',
+        imageId,
+        uploadedByUserId: claims.sub,
+        owner: locks.owner,
+        startedAt: new Date().toISOString(),
+      },
+      (fileId) => mediaStorage().deleteObject(fileId),
+    );
+    deleted = result === 'deleted' || result === 'missing';
+    if (!deleted) return err('INTERNAL_ERROR', 'Image deletion is incomplete; retry abandonment.');
     return ok({ deleted: true });
   } finally {
     if (!deleted) await releaseImageReferenceLocks(locks.imageIds, locks.owner);
@@ -2844,6 +2844,10 @@ async function migrateLegacyImagesAction(
 
   for (const doc of candidates.items) {
     const id = String(doc._id);
+    if (doc.status === 'deleted') {
+      skipped.push({ id, reason: 'Image deletion is in progress.' });
+      continue;
+    }
     const data = typeof doc.data === 'string' ? doc.data : '';
     if (!data || data.length % 4 !== 0 || !BASE64_RE.test(data)) {
       skipped.push({ id, reason: 'missing or malformed base64 data' });
@@ -2865,50 +2869,70 @@ async function migrateLegacyImagesAction(
     const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
     const name = typeof doc.name === 'string' && doc.name.length > 0 ? doc.name : `${id}.bin`;
 
-    // 1) Upload first. A pure upload failure leaves NO object → just skip + retry.
-    let stored: StoredMediaObject;
-    try {
-      stored = await mediaStorage().putObject({
-        namespace: 'catalog',
-        logicalId: id,
-        fileName: `migrated-${name}`,
-        mimeType,
-        content: bytes,
-      });
-    } catch (e) {
-      console.error(`[fn-admin] migrateLegacyImages: upload failed for ${id}`, e);
-      skipped.push({ id, reason: e instanceof Error ? e.message : 'storage upload failed' });
+    const locks = await acquireImageReferenceLocks([id]);
+    if (locks.error) {
+      skipped.push({ id, reason: 'Image is unavailable or busy; retry migration.' });
       continue;
     }
+    try {
+      const current = await get('images', id);
+      if (
+        !current ||
+        current.status === 'deleted' ||
+        current.data !== doc.data ||
+        (typeof current.migrationStorageFileId === 'string' &&
+          current.migrationStorageFileId.trim())
+      ) {
+        skipped.push({ id, reason: 'Image changed before migration; reload and retry.' });
+        continue;
+      }
+      // 1) Upload first. A pure upload failure leaves NO object → just skip + retry.
+      let stored: StoredMediaObject;
+      try {
+        stored = await mediaStorage().putObject({
+          namespace: 'catalog',
+          logicalId: id,
+          fileName: `migrated-${name}`,
+          mimeType,
+          content: bytes,
+        });
+      } catch (e) {
+        console.error(`[fn-admin] migrateLegacyImages: upload failed for ${id}`, e);
+        skipped.push({ id, reason: e instanceof Error ? e.message : 'storage upload failed' });
+        continue;
+      }
 
-    // 2) Stage the pointer. From here an object EXISTS, so any staging failure must
-    // be compensated (delete it) — never leave orphaned bytes. Staged fields ONLY:
-    // data/provider/storageFileId/status stay untouched so delivery is unchanged.
-    let staged: CollectionDoc | null = null;
-    let stageError: unknown;
-    try {
-      staged = await updateDoc('images', id, {
-        migrationStorageFileId: stored.storageFileId,
-        migrationStoragePath: stored.storagePath,
-        migrationChecksumSha256: createHash('sha256').update(bytes).digest('hex'),
-        migrationByteSize: bytes.byteLength,
-        migratedAt: new Date().toISOString(),
-      });
-    } catch (e) {
-      stageError = e;
+      // 2) Stage the pointer. From here an object EXISTS, so any staging failure must
+      // be compensated (delete it) — never leave orphaned bytes. Staged fields ONLY:
+      // data/provider/storageFileId/status stay untouched so delivery is unchanged.
+      let staged: CollectionDoc | null = null;
+      let stageError: unknown;
+      try {
+        staged = await updateDoc('images', id, {
+          migrationStorageFileId: stored.storageFileId,
+          migrationStoragePath: stored.storagePath,
+          migrationChecksumSha256: createHash('sha256').update(bytes).digest('hex'),
+          migrationByteSize: bytes.byteLength,
+          migratedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        stageError = e;
+      }
+      if (staged) {
+        migrated.push(id);
+        continue;
+      }
+      // `null` return = the row vanished (concurrent remove) between query and stage.
+      await rollbackUpload(
+        id,
+        stored.storageFileId,
+        stageError instanceof Error
+          ? `staging failed after upload: ${stageError.message}`
+          : 'image row no longer exists at stage time',
+      );
+    } finally {
+      await releaseImageReferenceLocks(locks.imageIds, locks.owner);
     }
-    if (staged) {
-      migrated.push(id);
-      continue;
-    }
-    // `null` return = the row vanished (concurrent remove) between query and stage.
-    await rollbackUpload(
-      id,
-      stored.storageFileId,
-      stageError instanceof Error
-        ? `staging failed after upload: ${stageError.message}`
-        : 'image row no longer exists at stage time',
-    );
   }
 
   return ok({
@@ -3110,7 +3134,7 @@ async function getImagePreviewAction(
   if (!parsed.success) return err('BAD_REQUEST', 'id is required');
 
   const doc = await get('images', parsed.data.id);
-  if (!doc) return err('NOT_FOUND', 'Image not found');
+  if (!doc || doc.status === 'deleted') return err('NOT_FOUND', 'Image not found');
   const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
 
   if (typeof doc.data === 'string') {

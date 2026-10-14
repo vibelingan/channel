@@ -1,3 +1,4 @@
+import { runImageDeletion, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
 import { randomUUID } from 'node:crypto';
 import { withAlibabaLeaseCommit } from './alibaba-lease-commit-queue.ts';
 import { isDeepStrictEqual } from 'node:util';
@@ -407,7 +408,7 @@ function confirmDocumentWrite(answer: unknown, id: string): void {
 function catalogRowStore(
   transaction: NodeSdkTransaction,
   beforeWrite?: () => Promise<void>,
-): CatalogRowStore {
+): CatalogRowStore & ImageDeletionStore {
   return {
     get: async (collection, id) =>
       normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
@@ -422,6 +423,42 @@ function catalogRowStore(
       if (result.deleted !== 1) throw new Error('Database document removal was not confirmed');
     },
   };
+}
+
+export async function acquireImageMutationInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, imageId: string, owner: string, startedAt: string): Promise<ImageMutationAcquireResult> {
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection('images').doc(imageId);
+      const got = await ref.get();
+      const doc = normalizeSingle(got.data);
+      if (!doc) return 'missing';
+      const transition = transitionImageMutationAcquire(doc, owner, startedAt);
+      if (transition.result !== 'acquired') return transition.result;
+      confirmDocumentWrite(await ref.update({
+        ...transition.patch,
+        updatedAt: new Date().toISOString(),
+      }), imageId);
+      return 'acquired';
+    });
+}
+
+export async function releaseImageMutationInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, imageId: string, owner: string): Promise<ImageMutationReleaseResult> {
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection('images').doc(imageId);
+      const got = await ref.get();
+      const doc = normalizeSingle(got.data);
+      if (!doc) return 'missing';
+      const transition = transitionImageMutationRelease(doc, owner);
+      if (transition.result !== 'released') return transition.result;
+      confirmDocumentWrite(await ref.update({
+        ...transition.patch,
+        updatedAt: new Date().toISOString(),
+      }), imageId);
+      return 'released';
+    });
+}
+
+export async function manageImageDeletionInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageDeletionCommand) {
+  return db.runTransaction((transaction) => runImageDeletion(catalogRowStore(transaction), command));
 }
 
 /** Generic catalog input writes share one bounded child/parent transaction. */
@@ -943,38 +980,16 @@ export const cloudBaseAdapter: DbAdapter = {
     return Number.isFinite(value) ? value : null;
   },
 
+  async manageImageDeletion(command) {
+    return manageImageDeletionInCloudBase(cloudStorageSdk().database(), command);
+  },
+
   async acquireImageMutation(imageId, owner, startedAt): Promise<ImageMutationAcquireResult> {
-    const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
-      const ref = transaction.collection('images').doc(imageId);
-      const got = await ref.get();
-      const doc = normalizeSingle(got.data);
-      if (!doc) return 'missing';
-      const transition = transitionImageMutationAcquire(doc, owner, startedAt);
-      if (transition.result !== 'acquired') return transition.result;
-      await ref.update({
-        ...transition.patch,
-        updatedAt: new Date().toISOString(),
-      });
-      return 'acquired';
-    });
+    return acquireImageMutationInCloudBase(cloudStorageSdk().database(), imageId, owner, startedAt);
   },
 
   async releaseImageMutation(imageId, owner): Promise<ImageMutationReleaseResult> {
-    const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
-      const ref = transaction.collection('images').doc(imageId);
-      const got = await ref.get();
-      const doc = normalizeSingle(got.data);
-      if (!doc) return 'missing';
-      const transition = transitionImageMutationRelease(doc, owner);
-      if (transition.result !== 'released') return transition.result;
-      await ref.update({
-        ...transition.patch,
-        updatedAt: new Date().toISOString(),
-      });
-      return 'released';
-    });
+    return releaseImageMutationInCloudBase(cloudStorageSdk().database(), imageId, owner);
   },
 
   // -------------------------------------------------------------------------

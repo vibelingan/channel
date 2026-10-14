@@ -736,3 +736,19 @@ c558b03 精确 inline review 已通过。先红38pass/3fail：没有product URL�
 P2d6b的151构建是上一SHA，不作为这个小修的新版浏览器证据；本次小流程用真实JSON事务/handler/公共详情及恢复串联验证，最终P6/接线节点再跑构建浏览器。新SDK表面0，仅工作区helper与built-ins，无SDK/shim/依赖/URL/环境更改。
 
 文字实际复核detail-candidate排序、完整source map/packet/revision及SourcePage旧完成短路、readonly Review、source preparer、native approve/public/withdraw。把“改排序就够了”补成“修元数据排序，并让确实受影响的旧准备缓存重做”；将“发布错误”明确区分合法主图校验与待修的source缺图误判。仍未完成媒体封存/删除与绑定安全、后台service/报告生产/query/UI、真正超98媒体、durable intent/取消/回执/恢复、历史resync、vendor/P95/Node20全构建/test同SHA和实际三件时钟/20件恢复。未push/应用部署/云商品写入/新分支worktree/agent。
+
+### P2d7：先隔离再删字节，失败可重试（验证与 review 进行中）
+
+原导入删除忽略 remove(false)，会报成功；导入删除和 abandonUpload 都先删字节再删行，数据库失败会留下 active 坏图。三个接口反例在旧实现下实际失败，241 个既有控制通过。随后增加共享严格删除状态机与执行器，生产 CloudBase/JSON 适配器原子 begin/finish；原图片锁和权限不变，原行保存有界意图，字节操作在事务外。
+
+串联发现并修复：deleted 迁移行仍可走旧 base64 预览（原生先红 4 控制/1 失败）；旧 migration 可给隔离行追加新目标（5 控制/1 失败），现在迁移持原资源锁并重读；数据库锁的 acquire/release 必须确认更新 ACK。迁移上传本身的未知提交补偿仍属下一媒体写入单元，未声称已修复。
+
+review 再发现两个文件标识问题：2,048 字符限制误拒编码后的对象键（35 控制/1 失败），改为 8,192；trim 会使真实末尾空格文件仍在、行已删却返回成功（7 控制/1 失败），已逐字保留原目标。历史 census 的 images 投影没有文件标识，已明确不能拿 0 个返回指针证明兼容性。
+
+最终检查数字和浏览器恢复证据待本轮运行结束后补记。证据目录 output/pricing-clock-repair-2026-10-13/p2d7。状态表、并发边界和未完成上线门槛见 P2d7_IMAGE_DELETION.zh-CN.md。没有新建分支/worktree/PR/agent，没有 push、应用部署或云商品写入。
+
+写作实际复核 image-deletion / runner、CloudBase 与 JSON 原子封套、两条删除入口、migration 及 preview、故障用例和 SDK gate。把“对象优先删除，失败留原记录”改成“先持久化不可使用状态，失败保留原删除目标”；把“文件标识标准化”改成“文件标识逐字保留”。核对权限来源、原目标、数据库 ACK、真实文件是否仍存在以及测试对象清理，不把元数据成功写成云端字节或发布验收成功。
+
+P2d7 最终本地验证：315 focused / 2,769 broad，均 0 failed / 0 skipped；8 个相关包 + 根 E2E 类型检查通过；Biome 13 文件（CloudBase adapter 按仓库原配置排除，已单独逐行 review）、新鲜 standing SDK 通过。36/27/8/20/224 五个 baseline 全绿；22 次运行缺陷注入（其中同一隔离缺陷由四种测试入口交叉检出）全部检出，有正常控制、0 skip、源码未变。另 8 项 SDK gate 注入各有 92 正常控制；21 个 package/method pair 与 SDK-PROBE 精确对齐。未知版本测试盲点先存活、补测后失败；冗余迁移单守卫移除仍被其他守卫挡住，最终用准确旧迁移函数回退与互斥移除验证；初版 probe 的路径错误不算检出。
+
+浏览器门槛未完成：最后一次冻结源码构建为 41 public + 90 shared + 11 formal + 6 admin 通过，1 admin 失败，1 admin 与 1 taxonomy 未运行。失败是 BUSY 发布回执已出现、状态读回尚未结束时，Try again 按钮可点而内部 guard 静默返回。前两轮 151 通过不能替代这轮失败。三个相关 UI 模块逐字等于 15a253a，证明不是本单元改了该 UI；仍作为实际交付阻断，转入 P4a0 单独修复并复验。失败现场已保存 failed-browser-retry/error-context.md，临时库 N3bnoH 已确认删除；运行源码哈希全部匹配。未冒充 test 发布或真实产品验收完成。

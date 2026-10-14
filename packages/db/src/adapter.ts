@@ -64,6 +64,8 @@ export interface AdapterListQuery {
   sort?: SortClause[];
 }
 
+import type { ImageDeletionCommand, ImageDeletionResult } from './image-deletion.ts';
+
 export type ImageMutationAcquireResult = 'acquired' | 'missing' | 'busy' | 'corrupt';
 export type ImageMutationReleaseResult = 'released' | 'missing' | 'not-owner' | 'corrupt';
 
@@ -589,6 +591,8 @@ export interface DbAdapter {
     owner: string,
     startedAt: string,
   ): Promise<ImageMutationAcquireResult>;
+  /** Atomically quarantine or finalize an image deletion; never calls storage. */
+  manageImageDeletion?(command: ImageDeletionCommand): Promise<ImageDeletionResult>;
   /** Release only when the caller still owns the image mutation lock. */
   releaseImageMutation?(imageId: string, owner: string): Promise<ImageMutationReleaseResult>;
   /**
