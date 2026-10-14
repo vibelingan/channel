@@ -24,7 +24,7 @@
  * - A new draft hidden while its photos are prepared (`alibabaPhotosPending`)
  *   is shown by the same save, or as soon as nothing is left to prepare.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   sourceMediaLinkId,
   sourceObservationDocumentId,
@@ -44,8 +44,8 @@ import {
   type CollectionDoc,
   PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
   PRODUCT_IMAGE_MAX_COUNT,
+  alibabaPhotoSource,
   alibabaPhotoSources,
-  allAlibabaPhotoSources,
   isPermanentAlibabaPhotoFailure,
   readAlibabaPhotoFailure,
 } from '@vibelingan-channel/shared';
@@ -97,11 +97,63 @@ function autoPart(product: CollectionDoc, part: PartName): AutoPart | null {
   const auto = product.alibabaAutoPhotos;
   const value = auto && typeof auto === 'object' ? Reflect.get(auto, part) : undefined;
   if (!value || typeof value !== 'object') return null;
+  if (
+    part === 'configurations' &&
+    ['schemaVersion', 'sourcesDigest', 'sourceCount', 'unusableCount'].some((field) =>
+      Object.hasOwn(value, field),
+    )
+  )
+    return null;
   const sources = strings(Reflect.get(value, 'sources'));
   const imageIds = strings(Reflect.get(value, 'imageIds')) ?? [];
   const unusable = strings(Reflect.get(value, 'unusable')) ?? [];
   const missing = strings(Reflect.get(value, 'missing')) ?? [];
   return sources ? { sources, imageIds, unusable, missing } : null;
+}
+
+const CONFIGURATION_MARKER = 'alibaba-configuration-photos-v1';
+const configurationDigest = (sources: readonly string[]) =>
+  createHash('sha256').update(JSON.stringify(sources)).digest('hex');
+
+function readConfigurationMarker(product: CollectionDoc) {
+  const auto = product.alibabaAutoPhotos;
+  const value: unknown =
+    auto && typeof auto === 'object' ? Reflect.get(auto, 'configurations') : null;
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).length !== 4
+  )
+    return null;
+  const sourcesDigest: unknown = Reflect.get(value, 'sourcesDigest');
+  const sourceCount: unknown = Reflect.get(value, 'sourceCount');
+  const unusableCount: unknown = Reflect.get(value, 'unusableCount');
+  if (
+    Reflect.get(value, 'schemaVersion') !== CONFIGURATION_MARKER ||
+    typeof sourcesDigest !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(sourcesDigest) ||
+    typeof sourceCount !== 'number' ||
+    !Number.isSafeInteger(sourceCount) ||
+    sourceCount < 0 ||
+    typeof unusableCount !== 'number' ||
+    !Number.isSafeInteger(unusableCount) ||
+    unusableCount < 0 ||
+    unusableCount > sourceCount
+  )
+    return null;
+  return { schemaVersion: CONFIGURATION_MARKER, sourcesDigest, sourceCount, unusableCount };
+}
+
+function configurationWork(product: CollectionDoc, sources: readonly string[], retry: boolean) {
+  // Configuration copies can be deleted before staging, so an explicit retry checks every binding.
+  if (retry) return true;
+  const marker = readConfigurationMarker(product);
+  if (marker)
+    return (
+      marker.sourceCount !== sources.length || marker.sourcesDigest !== configurationDigest(sources)
+    );
+  return partWork(autoPart(product, 'configurations'), sources) !== null;
 }
 
 function eligible(product: CollectionDoc): boolean {
@@ -147,27 +199,36 @@ export function photoPreparationPlan(
       : current === undefined;
     if (ownedBySync && partWork(filled, sources, retry)) parts.push({ part, field, sources });
   }
-  if (configurationSources && configurationSources.length > 0) {
-    const filled = autoPart(product, 'configurations');
-    if (partWork(filled, configurationSources, retry))
+  const auto = product.alibabaAutoPhotos;
+  if (
+    configurationSources &&
+    (configurationSources.length > 0 ||
+      (auto && typeof auto === 'object' && Object.hasOwn(auto, 'configurations')))
+  ) {
+    if (configurationWork(product, configurationSources, retry))
       parts.push({ part: 'configurations', field: null, sources: [...configurationSources] });
   }
   return parts.length === 0 && !showDraft ? null : { parts, showDraft };
 }
 
 /** The product's configuration (SKU) photo sources from its stored observation. */
-async function configurationPhotoSources(product: CollectionDoc): Promise<string[]> {
+async function configurationPhotoSources(product: CollectionDoc): Promise<string[] | undefined> {
   const sourceKey = product.alibabaPrimarySourceKey;
-  if (typeof sourceKey !== 'string' || sourceKey === '') return [];
+  if (typeof sourceKey !== 'string' || sourceKey === '') return undefined;
   const row = await get(
     'catalogSourceObservations',
     sourceObservationDocumentId('alibaba', sourceKey),
   );
   const valid = validateCatalogSourceObservation(row?.observation);
-  if (!valid.ok || valid.value.source.sourceProductKey !== sourceKey) return [];
-  return allAlibabaPhotoSources(
-    valid.value.variants.flatMap((variant) => variant.media.map((media) => media.sourceUrl)),
-  );
+  if (!valid.ok || row?.active === false || valid.value.source.sourceProductKey !== sourceKey)
+    return undefined;
+  const sources = new Set<string>();
+  for (const variant of valid.value.variants)
+    for (const media of variant.media) {
+      const source = alibabaPhotoSource(media.sourceUrl);
+      if (source !== undefined) sources.add(source);
+    }
+  return [...sources];
 }
 
 export interface PhotoPreparationPage {
@@ -380,6 +441,23 @@ async function prepareProduct(
   const marker: Record<string, unknown> = {};
   const attached: string[] = [];
   for (const { part, states } of copied) {
+    if (part.field === null) {
+      const completed = {
+        schemaVersion: CONFIGURATION_MARKER,
+        sourcesDigest: configurationDigest(part.sources),
+        sourceCount: part.sources.length,
+        unusableCount: states.reduce((count, state) => count + Number(state === 'unusable'), 0),
+      };
+      const earlier = readConfigurationMarker(product);
+      if (
+        !earlier ||
+        earlier.sourcesDigest !== completed.sourcesDigest ||
+        earlier.sourceCount !== completed.sourceCount ||
+        earlier.unusableCount !== completed.unusableCount
+      )
+        marker.configurations = completed;
+      continue;
+    }
     const ids = [
       ...new Set(states.flatMap((state) => (typeof state === 'object' ? [state.imageId] : []))),
     ];
@@ -387,8 +465,7 @@ async function prepareProduct(
     // Nothing usable from the new sources: the field keeps what it had and the
     // marker records exactly that, so the part stays the sync's and follows
     // Alibaba's next change.
-    const recorded =
-      part.field === null ? [] : ids.length > 0 ? ids : (strings(product[part.field]) ?? []);
+    const recorded = ids.length > 0 ? ids : (strings(product[part.field]) ?? []);
     const earlier = autoPart(product, part.part);
     if (
       earlier &&
@@ -398,7 +475,7 @@ async function prepareProduct(
       earlier.missing.length === 0
     )
       continue;
-    if (part.field !== null && ids.length > 0) {
+    if (ids.length > 0) {
       data[part.field] = ids;
       attached.push(...ids);
     }
@@ -563,8 +640,12 @@ export async function photoPreparationStatus(): Promise<{
     });
     for (const product of page.items) {
       if (product.alibabaPhotosPending === true) hiddenDrafts += 1;
+      if (!eligible(product)) continue;
       if ((photoPreparationPlan(product)?.parts.length ?? 0) > 0) draftsToFill += 1;
       else if (
+        (readConfigurationMarker(product)?.unusableCount ??
+          autoPart(product, 'configurations')?.unusable.length ??
+          0) > 0 ||
         (['gallery', 'description'] as const).some(
           (part) => (autoPart(product, part)?.unusable.length ?? 0) > 0,
         )

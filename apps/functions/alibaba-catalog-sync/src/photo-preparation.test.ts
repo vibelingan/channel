@@ -23,7 +23,11 @@ import {
   matchesFilter,
 } from '@vibelingan-channel/shared';
 import type { MediaImportResult } from './media-import.ts';
-import { photoPreparationPlan, prepareAlibabaPhotosPage } from './photo-preparation.ts';
+import {
+  photoPreparationPlan,
+  photoPreparationStatus,
+  prepareAlibabaPhotosPage,
+} from './photo-preparation.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -656,7 +660,12 @@ test('prepare: configuration photos are copied for approval without changing the
   assert.deepEqual(a.imageIds, ['own']);
   assert.deepEqual(a.descriptionImageIds, ['own-d']);
   assert.deepEqual(a.alibabaAutoPhotos, {
-    configurations: { sources: [url('a-white')], imageIds: [], unusable: [], missing: [] },
+    configurations: {
+      schemaVersion: 'alibaba-configuration-photos-v1',
+      sourcesDigest: 'a588ced5a3a1aa38a1e82d0e1ad75fc43eb7f0b6e281f805ba42d371411f883d',
+      sourceCount: 1,
+      unusableCount: 0,
+    },
   });
 });
 
@@ -780,3 +789,344 @@ test('prepare: a call stops at its time limit even when nothing needs downloadin
   assert.equal(page.done, false);
   assert.equal(page.visited, 1, 'one product, then the time limit');
 });
+
+function configurationStore(sources: string[], overrides: Partial<CollectionDoc> = {}): Store {
+  return {
+    products: [
+      draft('a', {
+        imageIds: ['own'],
+        descriptionImageIds: ['own-d'],
+        alibabaPhotosPending: true,
+        ...overrides,
+      }),
+    ],
+    catalogSourceObservations: [
+      {
+        _id: sourceObservationDocumentId('alibaba', 'source-a'),
+        observation: {
+          schemaVersion: 'catalog-source-observation-v1',
+          source: {
+            provider: 'alibaba',
+            sourceProductKey: 'source-a',
+            observedAt: '2026-10-14T00:00:00.000Z',
+            captureMode: 'full',
+            completeness: 'full-product',
+          },
+          identity: { title: 'Configurations', matchHints: {}, attributes: [] },
+          content: { media: [] },
+          lifecycle: { sourceListingStatus: 'published' },
+          variants: sources.map((sourceUrl, i) => ({
+            sourceVariantKey: `sku-${i}`,
+            options: [{ sourceName: 'Color', value: String(i) }],
+            inventory: [],
+            media: [{ sourceUrl, role: 'variant', position: 0 }],
+          })),
+          offers: [],
+          evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+          warnings: [],
+        },
+      },
+    ],
+  };
+}
+
+function configurationMarkerOf(store: Store): object {
+  const auto = store.products?.[0]?.alibabaAutoPhotos;
+  assert.ok(auto && typeof auto === 'object');
+  const marker: unknown = Reflect.get(auto, 'configurations');
+  assert.ok(marker && typeof marker === 'object');
+  return marker;
+}
+
+function seedConfigurationCopies(store: Store, sources: string[]) {
+  store.catalogSourceLinks = sources.map((sourceUrl, i) => ({
+    _id: sourceMediaLinkId('alibaba', sourceUrl),
+    provider: 'alibaba',
+    sourceUrl,
+    imageId: `copied-${i}`,
+  }));
+  store.images = sources.map((_, i) => ({
+    _id: `copied-${i}`,
+    status: 'active',
+    storageProvider: 'cloudbase-storage',
+    publishedRefCount: 0,
+  }));
+}
+
+test('configuration preparation continues an old 200-source completion to the real final source', async () => {
+  const sources = Array.from({ length: 205 }, (_, i) => url(`sku-${i}`));
+  const store = configurationStore(sources, {
+    productFamily: 'misc',
+    subcategoryIds: ['retained'],
+    alibabaAutoPhotos: {
+      configurations: { sources: sources.slice(0, 200), imageIds: [], unusable: [], missing: [] },
+    },
+  });
+  seedConfigurationCopies(store, sources.slice(0, 200));
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store);
+  const result = await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+  assert.deepEqual(importer.calls, sources.slice(200));
+  assert.equal(result.prepared, 1);
+  const marker = configurationMarkerOf(store);
+  assert.equal(Reflect.get(marker, 'sourceCount'), 205);
+  assert.equal(Reflect.get(marker, 'unusableCount'), 0);
+  assert.ok(Buffer.byteLength(JSON.stringify(marker)) < 256);
+  const a = store.products?.[0];
+  assert.ok(a);
+  assert.deepEqual(a.imageIds, ['own']);
+  assert.deepEqual(a.descriptionImageIds, ['own-d']);
+  assert.deepEqual(a.subcategoryIds, ['retained']);
+  assert.equal(a.published, false);
+  assert.equal(a.alibabaPhotosPending, false);
+  const before = structuredClone(store);
+  const second = await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+  assert.equal(second.prepared, 0);
+  assert.deepEqual(importer.calls, sources.slice(200));
+  assert.deepEqual(store, before);
+});
+
+test('configuration completion stores a bounded digest instead of repeating hundreds of long URLs', async () => {
+  const sources = Array.from(
+    { length: 205 },
+    (_, i) => `https://s.alibaba.com/${i}.jpg?details=${'x'.repeat(1800)}`,
+  );
+  const store = configurationStore(sources);
+  seedConfigurationCopies(store, sources);
+  setAdapter(new MemoryAdapter(store));
+  const result = await prepareAlibabaPhotosPage({
+    importImage: async () => {
+      throw new Error('already copied');
+    },
+  });
+  assert.equal(result.prepared, 1);
+  assert.equal(result.photosReused, 205);
+  const marker = configurationMarkerOf(store);
+  assert.equal(Reflect.get(marker, 'sourceCount'), 205);
+  assert.match(String(Reflect.get(marker, 'sourcesDigest')), /^[a-f0-9]{64}$/);
+  assert.ok(Buffer.byteLength(JSON.stringify(marker)) < 256);
+  assert.equal(JSON.stringify(marker).includes('https:'), false);
+});
+
+test('configuration preparation resumes past the UI cap without redownloading any successful source', async () => {
+  const sources = Array.from({ length: 205 }, (_, i) => `http://s.alibaba.com/sku-${i}.jpg`);
+  const store = configurationStore([
+    ...sources,
+    ...sources.slice(0, 1).map((source) => source.replace('http:', 'https:')),
+  ]);
+  setAdapter(new MemoryAdapter(store));
+  const importer = fakeImporter(store);
+  const before = structuredClone(store.products);
+  let calls = 0;
+  let active = 0;
+  let peak = 0;
+  const importImage = async (source: string) => {
+    active++;
+    peak = Math.max(peak, active);
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      return await importer.importImage(source);
+    } finally {
+      active--;
+    }
+  };
+  for (;;) {
+    const page = await prepareAlibabaPhotosPage({ importImage, budgetMs: 0 });
+    calls++;
+    assert.ok(calls < 55, 'bounded forward progress');
+    if (page.done) break;
+    assert.equal(page.nextProductId, '');
+    assert.deepEqual(store.products, before, 'no partial product photos or visibility save');
+  }
+  assert.equal(calls, Math.ceil(205 / 4));
+  assert.equal(peak, 4);
+  assert.equal(importer.calls.length, 205);
+  assert.equal(new Set(importer.calls).size, 205);
+  assert.ok(importer.calls.every((source) => source.startsWith('https:')));
+  assert.equal(Reflect.get(configurationMarkerOf(store), 'sourceCount'), 205);
+});
+
+test('an unavailable final configuration is counted and an explicit retry only fetches that failed source', async () => {
+  const sources = Array.from({ length: 205 }, (_, i) => url(`sku-${i}`));
+  const last = sources.at(-1);
+  assert.ok(last);
+  const store = configurationStore(sources);
+  seedConfigurationCopies(store, sources.slice(0, -1));
+  setAdapter(new MemoryAdapter(store));
+  const first = fakeImporter(store, ['sku-204'], 'not-found');
+  const result = await prepareAlibabaPhotosPage({ importImage: first.importImage });
+  assert.deepEqual(first.calls, [last]);
+  assert.equal(result.prepared, 1);
+  assert.equal(Reflect.get(configurationMarkerOf(store), 'unusableCount'), 1);
+  const status = await photoPreparationStatus();
+  assert.equal(status.draftsMissingPhotos, 1);
+  const second = fakeImporter(store);
+  const retry = await prepareAlibabaPhotosPage({
+    importImage: second.importImage,
+    retryUnavailable: true,
+    now: () => new Date(Date.now() + 60000).toISOString(),
+  });
+  assert.deepEqual(second.calls, [last]);
+  assert.equal(retry.prepared, 1);
+  assert.equal(Reflect.get(configurationMarkerOf(store), 'unusableCount'), 0);
+});
+
+test('an explicit configuration retry repairs a deleted cached copy even if the completion had no failures', async () => {
+  const sources = [url('first'), url('last')];
+  const store = configurationStore(sources);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({ importImage: fakeImporter(store).importImage });
+  store.images = (store.images ?? []).filter((image) => image._id !== 'img-last');
+  const importer = fakeImporter(store);
+  await prepareAlibabaPhotosPage({ importImage: importer.importImage, retryUnavailable: true });
+  assert.deepEqual(importer.calls, [url('last')]);
+  assert.ok(store.images?.some((image) => image._id === 'img-last'));
+});
+
+test('configuration completion checks its full source digest, including same-count changes and removal', async () => {
+  const sources = [url('first'), url('last')];
+  const store = configurationStore(sources);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({ importImage: fakeImporter(store).importImage });
+  const previous = structuredClone(configurationMarkerOf(store));
+  const changed = [url('first'), url('replacement')];
+  store.catalogSourceObservations = configurationStore(changed).catalogSourceObservations ?? [];
+  const importer = fakeImporter(store);
+  await prepareAlibabaPhotosPage({ importImage: importer.importImage });
+  assert.deepEqual(importer.calls, [url('replacement')]);
+  assert.notEqual(
+    Reflect.get(configurationMarkerOf(store), 'sourcesDigest'),
+    Reflect.get(previous, 'sourcesDigest'),
+  );
+  store.catalogSourceObservations = configurationStore([]).catalogSourceObservations ?? [];
+  const removed = await prepareAlibabaPhotosPage({
+    importImage: async () => {
+      throw new Error('removed source');
+    },
+  });
+  assert.equal(removed.prepared, 1);
+  assert.equal(Reflect.get(configurationMarkerOf(store), 'sourceCount'), 0);
+  assert.equal(Reflect.get(configurationMarkerOf(store), 'unusableCount'), 0);
+});
+
+test('malformed completion summaries cannot skip a configuration check', async (t) => {
+  const sources = [url('first')];
+  const store = configurationStore(sources);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({ importImage: fakeImporter(store).importImage });
+  const completed = configurationMarkerOf(store);
+  for (const [name, patch] of [
+    ['version', { schemaVersion: 'unknown' }],
+    ['digest', { sourcesDigest: '0'.repeat(64) }],
+    ['digest type', { sourcesDigest: 42 }],
+    ['count', { sourceCount: 0 }],
+    ['fraction', { sourceCount: 1.5 }],
+    ['negative', { sourceCount: -1 }],
+    ['invalid failures', { unusableCount: 2 }],
+    ['fractional failures', { unusableCount: 0.5 }],
+    ['negative failures', { unusableCount: -1 }],
+    ['failure type', { unusableCount: '0' }],
+    ['extra field', { sources: [url('first')] }],
+  ] as const)
+    await t.test(name, () => {
+      const product = store.products?.[0];
+      assert.ok(product);
+      const plan = photoPreparationPlan(
+        { ...product, alibabaAutoPhotos: { configurations: { ...completed, ...patch } } },
+        sources,
+      );
+      assert.deepEqual(
+        plan?.parts.map((part) => part.part),
+        ['configurations'],
+      );
+    });
+});
+
+test('a temporary final configuration failure waits without saving partial photos and retries only that source', async () => {
+  const sources = Array.from({ length: 205 }, (_, i) => url(`sku-${i}`));
+  const last = sources.at(-1);
+  assert.ok(last);
+  const store = configurationStore(sources);
+  seedConfigurationCopies(store, sources.slice(0, -1));
+  setAdapter(new MemoryAdapter(store));
+  const before = structuredClone(store.products);
+  const first = fakeImporter(store, ['sku-204']);
+  const waiting = await prepareAlibabaPhotosPage({ importImage: first.importImage });
+  assert.equal(waiting.waiting, 1);
+  assert.equal(waiting.prepared, 0);
+  assert.deepEqual(store.products, before);
+  const soon = fakeImporter(store);
+  await prepareAlibabaPhotosPage({ importImage: soon.importImage });
+  assert.deepEqual(soon.calls, []);
+  const later = fakeImporter(store);
+  await prepareAlibabaPhotosPage({
+    importImage: later.importImage,
+    now: () => new Date(Date.now() + 660000).toISOString(),
+  });
+  assert.deepEqual(later.calls, [last]);
+  assert.equal(Reflect.get(configurationMarkerOf(store), 'sourceCount'), 205);
+});
+
+for (const state of [
+  { published: true },
+  { archived: true },
+  { catalogDetailApprovalReceipt: { revision: 'approved' } },
+])
+  test(`configuration preparation cannot overwrite a concurrent lifecycle change ${JSON.stringify(state)}`, async () => {
+    const store = configurationStore([url('last')]);
+    setAdapter(new MemoryAdapter(store));
+    const importer = fakeImporter(store);
+    const page = await prepareAlibabaPhotosPage({
+      importImage: async (source) => {
+        const product = store.products?.[0];
+        assert.ok(product);
+        Object.assign(product, state);
+        return importer.importImage(source);
+      },
+    });
+    assert.equal(page.busy, 1);
+    assert.equal(page.prepared, 0);
+    const product = store.products?.[0];
+    assert.ok(product);
+    for (const [key, value] of Object.entries(state)) assert.deepEqual(product[key], value);
+    assert.equal(product.alibabaAutoPhotos, undefined);
+    assert.deepEqual(product.imageIds, ['own']);
+  });
+
+test('photo preparation counts unavailable configurations only for eligible drafts', async () => {
+  const store = configurationStore([url('last')]);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['last'], 'not-found').importImage,
+  });
+  assert.equal((await photoPreparationStatus()).draftsMissingPhotos, 1);
+  const product = store.products?.[0];
+  assert.ok(product);
+  product.published = true;
+  assert.equal((await photoPreparationStatus()).draftsMissingPhotos, 0);
+});
+
+for (const state of ['missing', 'invalid', 'inactive', 'other-source'] as const)
+  test(`an unavailable observation cannot erase completed configuration metadata or trigger copies: ${state}`, async () => {
+    const store = configurationStore([url('first'), url('last')]);
+    setAdapter(new MemoryAdapter(store));
+    await prepareAlibabaPhotosPage({ importImage: fakeImporter(store).importImage });
+    const row = store.catalogSourceObservations?.[0];
+    assert.ok(row);
+    if (state === 'missing') store.catalogSourceObservations = [];
+    if (state === 'invalid') row.observation = { invalid: true };
+    if (state === 'inactive') row.active = false;
+    if (state === 'other-source') {
+      const observation = row.observation;
+      assert.ok(observation && typeof observation === 'object');
+      const source: unknown = Reflect.get(observation, 'source');
+      assert.ok(source && typeof source === 'object');
+      Reflect.set(source, 'sourceProductKey', 'another-source');
+    }
+    store.images = [];
+    const before = structuredClone(store.products);
+    const importer = fakeImporter(store);
+    await prepareAlibabaPhotosPage({ importImage: importer.importImage, retryUnavailable: true });
+    assert.deepEqual(importer.calls, []);
+    assert.deepEqual(store.products, before);
+  });

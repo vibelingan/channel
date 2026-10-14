@@ -698,3 +698,24 @@ c558b03 精确 inline review 已通过。先红38pass/3fail：没有product URL�
 文字实际复核sourceLinkPhoto到完整plan私有sourceMedia、Preview只投影原gallery/description字段、unsealed检查及失败摘要、copier copiedState/copySources与shared policy、25pure/42检查/24copier和18binding断言。将“永久失败只能从product.unusable URL列表判断”改为“当前有效source-link失败记录为准，旧摘要仅在缺记录时兼容”。没有将新只读状态当作媒体封存、正常列表启用或文件存在证明。
 
 下一完整配置准备需去掉误用的UI200上限，同时改为有界完成摘要，不能将无限完整URL列表再复制进product。沿现有四并发、源图链接复用、商品CAS和单件图库/可见性最后保存语义；还须覆盖末页失败、软预算续跑、同源重复、manual retry、来源/管理员编辑中途变化。很长已复制前缀的重复元数据扫描成本仍要在持久操作/服务协议和云性能验证中解决，不承诺现有波次软预算是严格墙钟上限。P2媒体封存/生产/query/UI、P3大媒体/持久意图、P4恢复、P5历史、P6/P7继续；未push/应用部署/云商品写入/新分支worktree/agent/属性筛选或正文拆分。
+
+
+### P2d6b：完整配置图片准备与固定大小完成标记（本地子单元完成，待精确提交 review）
+
+3b17c3a 精确 inline review 已通过。先红24正常控制/5fail，实际捕捉worker的200项误截断、长URL复制进product的额外存储、续跑末图遗漏、永久失败最后来源漏处理以及“完成且无失败”缓存被删后重试无效。完整观察逐URL使用既有安全策略、按序去重，不再调用有UI200cap的集合helper。界面cap、gallery9/description18和属性/原始观察保持。205个HTTP/HTTPS混合重复来源实际52个零预算调用推进，每张成功图只下载一次，实测peak4；每次中途产品照片/可见性完全不变。
+
+配置完成标记仅4字段：schemaVersion、完整规范化来源序列的SHA256、sourceCount、unusableCount；205个约1800字符URL依然小于256bytes，不重复存完整URL或配置imageId/unusableURL数组。来源全文及逐图失败仍在原observation/source-link；图库/描述图旧marker和人工所有权不变。纯旧sources格式继续读取，原200完成标记实际205时复用前200/只复制后5。来源同数量换URL和变为空集合正确更新；显式重试检查全部配置绑定，只重下载失败或已删缓存。
+
+新协议反例抓到兼容洞：损坏的新摘要带一个sources字段，会被strict新parser拒绝后又误走旧parser当成已完成。实际extra-field子例/父例失败，现版本化字段出现就不允许回退旧配置格式；格式、hash、计数及失败计数边界均测，重跑对应mutants已检出。复制过程中发布/归档/批准仍由原未批准draft/身份/updatedAt CAS拒绝，不覆盖分类或人工照片。来源图片失败数量纳入既有统计，live/archived/approved不再误计草稿待图。
+
+第一轮151构建通过并清理后，主动补出另一引入风险：缺失/损坏/停用/错主来源观察被当作有效空集合，可能清掉已有完成摘要或复制旧来源。47正控/4红已保留；改为返回undefined表示未知，只有有效空观察才返回[]。原生JSON后端另证明来源记录不可用后整个存储字节不再改变、无provider调用、检查不冒充ready。修正后再重跑全量及全部构建151；不以第一次旧runtime的151冒充最终版本。
+
+最终focused159、全量2692 passed/0failed/0skipped，shared顶层和catalog、实际图库浏览器均开启；shared/admin/sync/local/site五套及root tsconfig.e2e实际类型、三文件实际Biome、freshSDK、diffcheck通过。最初tests/e2e/tsconfig.json路径不存在不算type成功，已用实际枚举到的tsconfig.e2e.json重新执行并留日志。三个测试fixture赋undefined数组的类型错误改为明确空数组兼容，没有断言外部数据。原单SKU期望改为新4字段schema，digest另用Python独立计算为a588ced5...411f883d，不从实现输出直接抄expect值。
+
+最终两个mutation baselines51worker/3native全通过；26个独立故障检出且各有正控/0skip/源码不变，含截断、marker重复URL、digest/schema/strict及旧fallback、失败计数、重试缓存修复、草稿统计、等待/部分保存/预算/并发、生命周期/版本、原共享失败策略、native人工图/未绑定/永久失败、未知和inactive观察。新增native三例使用实际JsonFileAdapter/商品CAS/handler/approval/public读取：205独立图片检查206个实际采用ID，检查前后整库字节不变；另205来源共用对象的完整末失败→人工图库替代→approve→publish→五页205配置/最后照片读回→finally下架/引用数回0；来源未知不清旧标记。所有owned目录由after清理。这是后端串联与媒体元数据fixture，不是COS像素或205独立媒体最终批准。
+
+修正后的构建实际151 passed，41public+90catalog+11formal+8visibility+1taxonomy；本次owned /private/tmp/channel-clock-e2e-lexar/channel-catalog-e2e-5EztgA独立确认不存在，runtime-final-digests完整核验。含20件共享媒体Assign category→Save and publish及恢复，属于本地样本，不是云test真实20件。新第三方SDK表面0，无新vendor方法/shim/依赖。
+
+文字实际复核photoPreparationPlan/configurationPhotoSources/copySources/单件save/摘要strict和legacyparse/status，以及新增原生准备→检查→审批→公开读取→恢复；将“完成标记存URL全表”改为“固定摘要与计数，逐图记录沿用现有source-link”，将“来源读不到=零配置”改为“未知和有效空集合分开”。仍保留每次续跑重复扫描已复制前缀的真实性能风险，软预算不是严格墙钟上限。真正超过98媒体操作、媒体绑定/删除封存、service身份/报告生产/原生列表query/count/全选/UI、持久intent/取消/回执、历史resync、vendor/P95/Node20全构建、同SHA test和真实三件时钟/20件发布恢复继续。未push/应用部署/云商品写入/新分支worktree/agent/属性过滤或正文拆分。
+
+本轮额外只读刷新CloudBase登录READY及ap-shanghai当前环境清单：diversity-123-d9grnqfux221323bb下3个基础函数admin/public-api/alibaba-catalog-sync，Nodejs20.19且Active，当前地域环境总数1。该清单不证明实际test/prod URL隔离或其他地域不存在；部署前仍须核对真实目标、路由及数据边界。未切换环境或创建云资源。
