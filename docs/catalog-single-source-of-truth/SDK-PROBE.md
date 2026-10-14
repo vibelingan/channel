@@ -146,3 +146,18 @@ Two exact reused Zod3.25.76 package-method surfaces, no new CloudBase SDK/shim/s
 The existing installed v3 types/runtime and earlier primary https://zod.dev/api reference remain applicable; no v4-only method is used. Counter instrumentation proves compareWithApproved reads source SKU input once for105configurations; restoring the old paging loop yields3reads and one failing performance regression with10normal controls. Bad-photo fallback mutation1fail/8controls; dropping retained website context1fail/2normal complete-replay controls. Every mutation asserts actual bundle instrumentation and unchanged workspace bytes. CJS import.meta warnings belong to unselected workspace tests, not a claimed passing CLI mutation test.
 
 SDK standing gate's first sandbox invocation failed on tsx IPC before verification; elevated scoped rerun p1h1-sdk-final-r2.log passes. No CloudBase runtime or vendor resource changes. Full delivery, cloud timing and deployment remain unverified.
+
+
+## P1h2: request-scoped source reuse
+
+
+Two exact reused Zod3.25.76 surfaces; no new vendor SDK/shim/query method. Installed v3 declarations/runtime remain authoritative and unchanged. SourcePageSchema still parses the complete internal page before native persistence; the public single-page route still reads a fresh source. Existing official Zod API reference and installed v3 probes apply; no v4-only operation is adopted.
+
+| package@version | method | signature / used result | evidence |
+|---|---|---|---|
+| zod@3.25.76 | safeParse | `(unknown, params?) -> success/data or failure/error.issues` | actual source/page/choice schemas; 2292consumer cases,3consumer types; native105approval/readback/withdraw twice with a real Edit between |
+| zod@3.25.76 | parse | `(unknown, params?) -> parsed output or ZodError` | controlled invalid-page issue and actual issue/publication schemas; final photo-merged byte budget rejects before staging; final suite |
+
+Cache is created inside each approveInOneRequest default-dependency evaluation, keyed by actor/product, cleared at completion/failure/restart and never stored globally or in DB. Every native page rechecks raw observation/source/link/gallery/content generation/archive/admin. Actual105native-flow source-link reads drop636->106,<=8concurrent, two requests each read106 and second approval shows normally edited website title. This is local production-code path/read-count evidence, not cloud latency or an SLO result.
+
+Eight instrumented in-memory bundle mutants are independently observed: final photo budget1fail/9controls; request reuse and each of six raw/gallery/generation/binding/actor/archive native checks1fail/6controls. Whole workspace bytes unchanged. Standing CloudBase SDK gate passes p1h2-sdk.log; native vendor transaction code is unchanged. Full release and remaining cloud races/timing/acceptance are still open.

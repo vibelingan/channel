@@ -509,3 +509,20 @@ UI-02先只读查已有group link/clone，再按实际保留网站字段做prefl
 真实三件时钟副本再走readonly Preview→正式prepare/review/begin/page/finish，113/113/121属性及4/2/1配置完整，header7668/7675/8136bytes、job12005/11866/12269bytes，分类/published=false不变，临时DB/owner清理（p1h1-real-clock-r1.log）。本轮没有新云产品写入、push或部署。
 
 文字核对：复核detail-candidate完整/分页边界、source照片选择、audit比较、UI-02的group绑定与三方合并、结构化内容采用规则及实际测试。把“分页缓存”改为“一次构造完整候选”，因为本单元未增加缓存；把“照片异常回退”改为“损坏字段在暂存前明确拒绝”，保留原图库成员过滤行为。正式一次审批仍有重复来源读取/构造，下一子单元继续处理；normal/issues/preparing查询、持久操作与恢复、历史修复/启用、最终性能/全构建/test/真实20件回退门槛均未关闭。未来属性mapping继续留作后续想法，原始属性不筛除、不分组或新分表。
+
+
+### P1h2：一次审批复用完整来源，最终照片预算提前校验（2026-10-14，本地子单元完成，待精确提交 review）
+
+P1h1提交f61cd0a1dfaae0e3252d2e691f94b7ae430058d8已完成精确inline review。实际原生JSON审批先红测得105配置/106不同媒体URL，6页来源准备重复查询636次链接。现在approveInOneRequest每次创建独立preparer，完整来源/媒体映射/配置转换只读一次后分20行暂存；普通prepare和Preview每次仍重新读取。缓存只活在本次请求，绑定actor/product，完成、失败或重启第一页清除；不加全局缓存、DB副本、字段、集合、锁或SDK方法。
+
+实际修复后每请求106次链接读取、最多8并发。两次正常审批之间经真实handler Edit标题，第二次读取新数据并发布正确标题；两次都完整105配置、回执operationId匹配、真实公开最后页→下架及图片publishedRefCount回0，finally清理本次JSON目录。六个21配置的页间注入在第二次native source-page提交前分别改来源raw、图库、generation、主绑定、actor或归档；旧计划均拒绝，注入后的DB字节不再变化，ready=false/nextPage=1，未批准/未发布。此为本地原子协议边界证据，不冒充新的云并发实验；原native事务/fence保持。
+
+Review又补出真实先红边界：第105配置源数据距128KiB只有不到3bytes，加入合法9张配置照片后越界，旧first-page Preview仍通过。现按最终全部照片选择再检查每个配置的UTF8预算；Preview和prepare返回相同Configuration105容量issue及Edit remedy，零暂存、原件不变。该样本是明确构造的边界，不是三件时钟的实际根因；属性未截断，容量上限未放宽。
+
+最终2292 passed/0 failed/0 skipped（p1h2-broad-final-r3.log，真实图库浏览器开启）；针对性小流程71项通过。admin/local-server/site三套类型、4文件实际Biome、diff whitespace及standing SDK gate通过。测试写入首次cwd错误不计红测，实际p1h2-red-r2为636/106成本失败且6个保护正控通过。类型发现严格optional不能赋undefined和mock输入unknown；改成明确可空的固定shape及从适配器派生参数类型。Biome拒绝delete/多变量声明后按规则修正，无ignore或cast放行。
+
+最终8个独立bundle故障注入均确实插入源码：去最终照片预算1fail/9正控，去请求复用/六种native保护各1fail/6正控（p1h2-mutations-final-r2.log），工作区字节不变。两项复用Zod表面安装契约/结果读取见SDK-PROBE。真实时钟副本再走readonly→prepare/review/begin/page/finish，113/113/121属性、4/2/1配置、header/job预算与分类/未发布状态保持，临时DB/owner清理（p1h2-real-clock-final.log）。
+
+文字核对：实际复核source完整读取/分页、approve默认依赖生命周期、SourcePageSchema与stageSourcePage当前CAS、原生读取计数/两次Edit/公开恢复、照片合并预算及source-plan断言。把“缓存来源”明确为“同一请求复用，下一请求重读且逐页native检查”，把“图片字段长度正常”更正为“合并后的整配置UTF8预算也必须正常”。未把P1h1的150应用浏览器重算成本版新证据；下一P1性能节点再运行构建组合。
+
+正式review/begin仍重复读取/构造，下一子单元继续收敛同一审批计划。normal/issues/preparing查询与启用、durable intent/receipt/resume、直接恢复/保留编辑、历史修复、其余性能/云race/Node20构建、test部署及真实20件发布读回恢复仍未完成。未push/部署app/改云商品，未来属性mapping不在本轮。

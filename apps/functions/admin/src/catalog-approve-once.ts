@@ -14,7 +14,7 @@
  */
 import { manageCatalogDetailApproval } from '@vibelingan-channel/db';
 import { z } from 'zod';
-import { prepareCatalogSource } from './catalog-detail-source.ts';
+import { createCatalogSourcePreparer } from './catalog-detail-source.ts';
 import { type CatalogValidation, CatalogValidationSchema } from './catalog-validation.ts';
 
 const RequestSchema = z
@@ -83,19 +83,17 @@ export interface ApproveOnceDeps {
   now: () => number;
 }
 
-const defaultDeps: ApproveOnceDeps = {
-  prepare: prepareCatalogSource,
-  workflow: manageCatalogDetailApproval,
-  now: Date.now,
-};
-
 /** Stay well inside the function's 20 s timeout. */
 export const APPROVE_ONCE_BUDGET_MS = 12_000;
 
 export async function approveInOneRequest(
   actorId: string,
   input: unknown,
-  deps: ApproveOnceDeps = defaultDeps,
+  deps: ApproveOnceDeps = {
+    prepare: createCatalogSourcePreparer(),
+    workflow: manageCatalogDetailApproval,
+    now: Date.now,
+  },
   budgetMs = APPROVE_ONCE_BUDGET_MS,
 ): Promise<ApproveOnceResult> {
   const parsed = RequestSchema.safeParse(input);

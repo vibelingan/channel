@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { buildCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
 import {
   type CatalogSourceObservation,
   sourceMediaLinkId,
@@ -18,7 +18,10 @@ import {
   sourceGalleryDigest,
 } from '@vibelingan-channel/db/catalog-source-staging';
 import { type CollectionDoc, isProductFamily } from '@vibelingan-channel/shared';
-import { CATALOG_DETAIL_VARIANT_MAX_COUNT } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  catalogVariantCapacityIssues,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
   CatalogIssueSchema,
   catalogFailureIssue,
@@ -89,6 +92,24 @@ export async function sourceLinkImageId(url: string): Promise<string | undefined
 }
 
 export async function prepareCatalogSource(actorId: string, input: unknown) {
+  return prepareSourcePage(actorId, input);
+}
+
+type CompleteSourcePlan = Extract<
+  Awaited<ReturnType<typeof readCompleteAlibabaDetailPlan>>,
+  { ok: true }
+>;
+interface PreparationScope {
+  cached: { actorId: string; productId: string; plan: CompleteSourcePlan } | undefined;
+}
+
+/** Reuse a source snapshot only within one server request; every page still has native CAS. */
+export function createCatalogSourcePreparer() {
+  const scope: PreparationScope = { cached: undefined };
+  return (actorId: string, input: unknown) => prepareSourcePage(actorId, input, scope);
+}
+
+async function prepareSourcePage(actorId: string, input: unknown, scope?: PreparationScope) {
   const parsed = command.safeParse(input);
   if (!parsed.success)
     return catalogValidationFailure(
@@ -96,56 +117,66 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       catalogIssuesFromZod(parsed.error.issues, input, { stage: 'commit', remedy: 'reload' }),
     );
   const { productId, page } = parsed.data;
-  const product = await get('products', productId);
-  if (!product) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
-  const sourceKey = product.alibabaPrimarySourceKey;
-  if (typeof sourceKey !== 'string' || sourceKey === '') {
-    // Manual product (MIU-30): approval reads configuration rows only from the
-    // prepare manifest, which is empty here, so manual configuration rows (the
-    // Excel import) would be dropped silently. Refuse instead (DESIGN §5.2).
-    // Rows left by an earlier Alibaba link are not the admin's and do not block.
-    for (let page = 1; page <= 100; page++) {
-      const rows = await list({
-        collection: 'productVariants',
-        page,
-        pageSize: 100,
-        filter: {
-          combinator: 'and',
-          clauses: [
-            { field: 'productId', op: 'eq', value: productId },
-            { field: 'archived', op: 'ne', value: true },
-          ],
-        },
+  let complete: CompleteSourcePlan;
+  if (scope?.cached?.actorId === actorId && scope.cached.productId === productId && page > 0) {
+    complete = scope.cached.plan;
+  } else {
+    if (scope) scope.cached = undefined;
+    const product = await get('products', productId);
+    if (!product) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+    const sourceKey = product.alibabaPrimarySourceKey;
+    if (typeof sourceKey !== 'string' || sourceKey === '') {
+      // Manual product (MIU-30): approval reads configuration rows only from the
+      // prepare manifest, which is empty here, so manual configuration rows (the
+      // Excel import) would be dropped silently. Refuse instead (DESIGN §5.2).
+      // Rows left by an earlier Alibaba link are not the admin's and do not block.
+      for (let page = 1; page <= 100; page++) {
+        const rows = await list({
+          collection: 'productVariants',
+          page,
+          pageSize: 100,
+          filter: {
+            combinator: 'and',
+            clauses: [
+              { field: 'productId', op: 'eq', value: productId },
+              { field: 'archived', op: 'ne', value: true },
+            ],
+          },
+        });
+        if (rows.total > CATALOG_DETAIL_VARIANT_MAX_COUNT)
+          return catalogValidationFailure('source-candidate', [
+            CatalogIssueSchema.parse({
+              code: 'TOO_MANY',
+              stage: 'effective-content',
+              path: 'variants.items',
+              severity: 'error',
+              remedy: 'system-repair',
+              expected: { maxCount: CATALOG_DETAIL_VARIANT_MAX_COUNT },
+              observed: { count: rows.total },
+            }),
+          ]);
+        const manualRow = rows.items.some(
+          (row) =>
+            !(
+              typeof row.detailSourceOwner === 'string' &&
+              row.detailSourceOwner.startsWith('alibaba:')
+            ),
+        );
+        if (manualRow) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
+        if (rows.items.length === 0 || page * 100 >= rows.total) break;
+      }
+      return persistCatalogDetailApproval(actorId, {
+        action: 'manual-source',
+        productId,
+        configurationRowIds: [],
       });
-      if (rows.total > CATALOG_DETAIL_VARIANT_MAX_COUNT)
-        return catalogValidationFailure('source-candidate', [
-          CatalogIssueSchema.parse({
-            code: 'TOO_MANY',
-            stage: 'effective-content',
-            path: 'variants.items',
-            severity: 'error',
-            remedy: 'system-repair',
-            expected: { maxCount: CATALOG_DETAIL_VARIANT_MAX_COUNT },
-            observed: { count: rows.total },
-          }),
-        ]);
-      const manualRow = rows.items.some(
-        (row) =>
-          !(
-            typeof row.detailSourceOwner === 'string' &&
-            row.detailSourceOwner.startsWith('alibaba:')
-          ),
-      );
-      if (manualRow) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
-      if (rows.items.length === 0 || page * 100 >= rows.total) break;
     }
-    return persistCatalogDetailApproval(actorId, {
-      action: 'manual-source',
-      productId,
-      configurationRowIds: [],
-    });
+    const planned = await readCompleteAlibabaDetailPlan(productId, product);
+    if (!planned.ok) return planned;
+    complete = planned;
+    if (scope) scope.cached = { actorId, productId, plan: complete };
   }
-  const planned = await readAlibabaDetailPlan(productId, product, page, 20);
+  const planned = sourcePlanPage(complete, page, 20);
   if (!planned.ok) return planned;
   const { packet } = planned;
   const sourcePage = SourcePageSchema.safeParse(packet);
@@ -158,6 +189,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       }),
     );
   const result = await persistCatalogDetailApproval(actorId, sourcePage.data);
+  if (scope && (!result.ok || ('complete' in result && result.complete))) scope.cached = undefined;
   return !result.ok && result.code === 'VALIDATION_ERROR'
     ? result.validation
       ? result
@@ -172,6 +204,11 @@ export async function readAlibabaDetailPlan(
   page: number,
   pageSize: number,
 ) {
+  const complete = await readCompleteAlibabaDetailPlan(productId, product);
+  return complete.ok ? sourcePlanPage(complete, page, pageSize) : complete;
+}
+
+async function readCompleteAlibabaDetailPlan(productId: string, product: CollectionDoc) {
   const sourceKey = product.alibabaPrimarySourceKey;
   if (typeof sourceKey !== 'string' || sourceKey === '')
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
@@ -240,20 +277,15 @@ export async function readAlibabaDetailPlan(
     return ids.every((value): value is string => value !== undefined) ? ids : null;
   };
   const variants = sourceVariantIds(productId, sourceKey, observation);
-  const candidate = buildCatalogPreparationPlan(
-    observation,
-    {
-      productId,
-      variants,
-      images,
-      websiteProduct: { ...product, detailSourceOwner: `alibaba:${sourceKey}` },
-      ...catalogCategoryLabel(product.productFamily),
-    },
-    page + 1,
-    pageSize,
-  );
+  const candidate = buildCompleteCatalogPreparationPlan(observation, {
+    productId,
+    variants,
+    images,
+    websiteProduct: { ...product, detailSourceOwner: `alibaba:${sourceKey}` },
+    ...catalogCategoryLabel(product.productFamily),
+  });
   if (!candidate.ok) return catalogValidationFailure('source-candidate', candidate.issues);
-  const { variants: pageVariants } = candidate.value;
+  const { variants: allVariants } = candidate.value;
   const header = candidate.sourceHeader;
   // The admin's photo choice for a configuration replaces the supplier's
   // photos (DEC-20); only photos in this product's gallery count.
@@ -262,12 +294,18 @@ export async function readAlibabaDetailPlan(
     const picked = (chosen.data[variantId] ?? []).filter((id) => galleryIds.has(id));
     return picked.length > 0 ? picked : undefined;
   };
-  for (const variant of pageVariants.items) {
+  for (const variant of allVariants) {
     const picked = choiceFor(variant.id);
     if (picked) variant.images = picked.map((id) => `/api/images/${id}`);
   }
+  const capacity = catalogVariantCapacityIssues(allVariants);
+  if (capacity.length)
+    return catalogValidationFailure(
+      'source-candidate',
+      capacity.map((issue) => ({ ...issue, remedy: 'edit' as const })),
+    );
   const structured =
-    candidate.value.descriptionText === header.descriptionText
+    candidate.value.header.descriptionText === header.descriptionText
       ? buildStructuredContent(observation.content.description)
       : { content: undefined, noteBlocks: undefined };
   const observationDigest = sourceDigest(row?.observation);
@@ -300,8 +338,7 @@ export async function readAlibabaDetailPlan(
     content: structured.content ?? null,
     noteBlocks: structured.noteBlocks ?? null,
     variantIds: [...variants.values()],
-    page,
-    variants: pageVariants.items,
+    variants: allVariants,
     supplierMedia: {
       gallery: linkedIds(
         [...observation.content.media].sort((a, b) => a.position - b.position),
@@ -312,22 +349,20 @@ export async function readAlibabaDetailPlan(
         18,
       ),
     },
-    variantMedia: observation.variants
-      .slice(page * pageSize, (page + 1) * pageSize)
-      .map((variant) => {
-        const id = variants.get(variant.sourceVariantKey);
-        if (!id) throw new Error('Canonical variant binding changed during source preparation');
-        return {
-          id,
-          sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
-          unboundSources: choiceFor(id)
-            ? []
-            : variant.media
-                .slice(0, 9)
-                .filter((m) => !images.has(m.sourceUrl))
-                .map((m) => m.sourceUrl),
-        };
-      }),
+    variantMedia: observation.variants.map((variant) => {
+      const id = variants.get(variant.sourceVariantKey);
+      if (!id) throw new Error('Canonical variant binding changed during source preparation');
+      return {
+        id,
+        sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
+        unboundSources: choiceFor(id)
+          ? []
+          : variant.media
+              .slice(0, 9)
+              .filter((m) => !images.has(m.sourceUrl))
+              .map((m) => m.sourceUrl),
+      };
+    }),
   };
   return {
     ok: true as const,
@@ -345,6 +380,47 @@ export async function readAlibabaDetailPlan(
         0,
         18,
       ),
+    },
+  };
+}
+
+function sourcePlanPage(complete: CompleteSourcePlan, page: number, pageSize: number) {
+  if (
+    !Number.isSafeInteger(page) ||
+    page < 0 ||
+    !Number.isInteger(pageSize) ||
+    pageSize < 1 ||
+    pageSize > 50 ||
+    !Number.isSafeInteger(page * pageSize)
+  )
+    return catalogValidationFailure('source-candidate', [
+      CatalogIssueSchema.parse({
+        code: 'INVALID_VALUE',
+        stage: 'effective-content',
+        path: 'page',
+        severity: 'error',
+        remedy: 'reload',
+      }),
+    ]);
+  const offset = page * pageSize;
+  const variants = complete.detail.variants;
+  return {
+    ...complete,
+    packet: {
+      ...complete.packet,
+      page,
+      variants: complete.packet.variants.slice(offset, offset + pageSize),
+      variantMedia: complete.packet.variantMedia.slice(offset, offset + pageSize),
+    },
+    detail: {
+      ...complete.detail.header,
+      variants: {
+        items: variants.slice(offset, offset + pageSize),
+        page: page + 1,
+        pageSize,
+        total: variants.length,
+        hasMore: offset + pageSize < variants.length,
+      },
     },
   };
 }

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
 import { validateCatalogSourceObservation } from '@vibelingan-channel/catalog-import/observations';
 import { SourcePageSchema } from '@vibelingan-channel/db/catalog-source-staging';
+import { CATALOG_DETAIL_VARIANT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
   prepareCatalogSource,
   readAlibabaDetailPlan,
@@ -116,4 +118,71 @@ test('malformed saved configuration choices must not silently erase valid choice
     assert.deepEqual(adapter.commands, []);
     assert.deepEqual(adapter.rows, before);
   }
+});
+
+test('configuration photo choices cannot push a later configuration beyond the effective byte budget unnoticed', async () => {
+  const { product, observation, adapter } = fixture(105);
+  const last = observation.variants.at(-1);
+  assert.ok(last);
+  const padding = { sourceName: 'Padding', value: '界' };
+  last.options = [
+    ...Array.from({ length: 21 }, (_, index) => ({
+      sourceName: `Field ${index}`,
+      value: '界'.repeat(2000),
+    })),
+    padding,
+  ];
+  product.imageIds = Array.from({ length: 9 }, (_, index) => `img${index}_${'x'.repeat(190)}`);
+  const ids = sourceVariantIds(product._id, String(product.alibabaPrimarySourceKey), observation);
+  const lastId = ids.get(last.sourceVariantKey);
+  assert.ok(lastId);
+  const bindings = {
+    productId: product._id,
+    variants: ids,
+    images: new Map<string, string>(),
+    websiteProduct: { ...product, detailSourceOwner: 'alibaba:read-source' },
+  };
+  let low = 1;
+  let high = 2000;
+  let best = 0;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    padding.value = '界'.repeat(middle);
+    const plan = buildCompleteCatalogPreparationPlan(observation, bindings);
+    if (plan.ok) {
+      best = middle;
+      low = middle + 1;
+    } else {
+      assert.equal(plan.issues[0]?.code, 'TOO_LARGE');
+      high = middle - 1;
+    }
+  }
+  assert.ok(best > 0);
+  padding.value = '界'.repeat(best);
+  const beforeChoice = buildCompleteCatalogPreparationPlan(observation, bindings);
+  assert.ok(beforeChoice.ok);
+  const variant = beforeChoice.value.variants.at(-1);
+  assert.ok(variant);
+  const bytes = Buffer.byteLength(JSON.stringify(variant));
+  assert.ok(
+    bytes <= CATALOG_DETAIL_VARIANT_MAX_BYTES && bytes > CATALOG_DETAIL_VARIANT_MAX_BYTES - 3,
+  );
+  product.configurationPhotos = { [lastId]: product.imageIds };
+  const stored = adapter.rows.catalogSourceObservations?.[0];
+  assert.ok(stored);
+  stored.observation = observation;
+  const before = structuredClone(adapter.rows);
+  const read = await readAlibabaDetailPlan(product._id, product, 0, 50);
+  assert.ok(!read.ok && read.code === 'VALIDATION_ERROR');
+  const report = CatalogValidationSchema.parse(read.validation);
+  assert.equal(report.issues[0]?.path, 'variants.items.104');
+  assert.equal(report.issues[0]?.remedy, 'edit');
+  assert.equal(report.issues[0]?.expected?.maxBytes, CATALOG_DETAIL_VARIANT_MAX_BYTES);
+  assert.ok((report.issues[0]?.observed?.bytes ?? 0) > CATALOG_DETAIL_VARIANT_MAX_BYTES);
+  assert.deepEqual(
+    await prepareCatalogSource('admin', { action: 'prepare', productId: product._id }),
+    read,
+  );
+  assert.deepEqual(adapter.commands, []);
+  assert.deepEqual(adapter.rows, before);
 });
