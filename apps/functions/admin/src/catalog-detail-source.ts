@@ -436,6 +436,15 @@ export async function readAlibabaDetailPreviewPlan(
 ) {
   const complete = await readCompleteAlibabaDetailPlan(productId, product);
   if (!complete.ok) return complete;
+  const pagination = catalogSourcePreviewPagination(complete, product);
+  return pagination.ok ? sourcePlanPage(complete, page, pagination.pageSize) : pagination;
+}
+
+/** Reuse the actual Preview wire check without rebuilding or reading the source twice. */
+export function catalogSourcePreviewPagination(
+  complete: CompleteSourcePlan,
+  product: CollectionDoc,
+) {
   const pagination = planCatalogDetailPagination(
     complete.approvalPlan.publication,
     complete.approvalPlan.variants,
@@ -463,7 +472,7 @@ export async function readAlibabaDetailPreviewPlan(
         observed: { bytes: pagination.pageBytesBound },
       }),
     ]);
-  return sourcePlanPage(complete, page, pagination.pageSize);
+  return { ok: true as const, pageSize: pagination.pageSize };
 }
 
 function sourcePlanPage(complete: CompleteSourcePlan, page: number, pageSize: number) {

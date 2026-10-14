@@ -651,3 +651,22 @@ P3a0提交8a9db6058fcd26f7fb7aa963ead050627b0d6897精确inline review已完成�
 文字复核 staged/direct commit、readImageMutationState 和公开图片 provider 分支及完整 finish 状态断言。把“绑定了 imageId 就说明图片可用”明确为“还须核对实际图片状态、存储类型、锁及计数；源链接只是绑定关系”。下一继续媒体快照保护和报告生产，暂不启用列表准入。
 
 新增官方证据：2026-10-14 MCP 已读 https://docs.cloudbase.net/lowcode/faq 全文，数据模型 FAQ 明确写文档上限 16MB；腾讯云系统限制 https://cloud.tencent.com/document/product/876/47177 明确的是数据库单次出包 16M 和函数同步响应 6MB。两者不能混为同一个限制；FAQ 位于微搭数据模型模块，仍需核对当前 NoSQL SDK 路径的适用性及完整产品写入预算，不能把它直接当已完成目标环境容量实验。尚无新增云写入、部署或真实发布验收。
+
+
+### P2d4：完整只读准备检查及测试只读传输恢复（本地子单元完成，待精确提交 review）
+
+a21e490 精确 inline review 已通过。新增未注册的 inspectCatalogPreparation，严格命令、存储管理员前后验证、完整 product/source/observation/link 输入摘要、有效 generation；沿完整 source plan 或既有 manual Preview 检查所有实际采用图片，去重后每波最多 8 个点读。完整状态/严格 provider/锁/计数检查、12 秒波次间软预算、最多 50 条安全诊断；超过诊断容量的末项硬错误仍使结果 blocked。没有 DB 写入、身份预留、暂存、provider 下载、后台身份伪造或列表启用。
+
+实际反例发现 Preview 线容量不一致：完整源计划可通过但私有预览 URL 过大会使实际 Preview 拒绝。抽出唯一 catalogSourcePreviewPagination，检查模块和已接线 Preview 共享实际完整分页字节检查，避免双重来源读取。另覆盖已存批准损坏/错误商品、已知不可用或策略不可导入的配置图，以及人工配置图替换恢复。HTTP/HTTPS 按原复制策略逐 URL 规范化，不让 utility 的 200 项 UI cap 截掉已知失败集合。
+
+输出明确 kind=unsealed-inspection，没有 PreparationReport 必需的 schemaVersion/state/mediaReady，实际 schema 拒绝直接持久化。媒体摘要不含共享计数的合法绝对值或临时锁 owner/time；计数合法性仍在摘要且每次检查，实际文件标识变化使摘要变化。两次输入相等不证明全局媒体原子性；媒体绑定/删除封存及 service lease、报告生产/query/count/全选/UI/影子回填继续，不能以这个中间结果放行发布。
+
+最终 focused58（33检查+25source）、广泛消费者 2485 passed/0failed/0skipped，图库浏览器实际开启；admin/local-server/e2e 实际类型、六文件实际 Biome、fresh standingSDK、diff check 通过。实际完整构建浏览器 41+90+11+8+1=151，owned DB 路径独立确认已删除。浏览器覆盖共享已接线 helper/既有流程，未注册检查模块仅单元验证；verified-source-digests.json 明确两者不同，未用早期 inspector digest 冒充最终构建。
+
+初版检查测试16项失败源于 fixture 构造器复制了 observation、测试后来修改脱离 adapter 的对象；修正真实存储引用，未声称16个产品缺陷。17个最终独立内存缺陷均失败并保留正常控制，baseline33，0skip/源码不变，覆盖全图/类型/健康/末错误/待图/并发/输入/撤权/预算/代次/旧批准/线容量/共享计数摘要/临时锁摘要/永久失败/URL/人工回退。初轮故障脚本未命中 anchor 不计证据，final-r2 已机械核验全部18条执行。
+
+第一轮构建在 list 转发 route.fetch 遇 ECONNRESET，随后5项未运行，该轮不计通过。相邻测试 helper 只对 get/list 加 maxRetries=1，分类用例精确 list 转发同样一次；写动作仍0，HTTP400/503不重试。真实 Playwright request sender 到 owned loopback 的10项测试证明临时读重置恢复、持续读重置恰好两次后失败、4种未知写响应只尝试一次。3个真实网络 fault mutations 各被检出；原 CollectionView 分类核对故意跳过，构建浏览器仍1业务失败/2正常控制，无 ECONNRESET；源文件 SHA 字节恢复且临时库删除。最终正向151全通过。该项只是测试传输恢复，底层首次重置原因尚未复现，也不是应用 P4 持久回执/恢复完成。
+
+真实 T142/T157/W203 使用 capacity-census-20261014-1710 已存只读副本，经实际完整计划保留113/113/121属性、4/2/1配置，检查 ready、扫描27/25/24媒体，所有集合字节状态不变；没有刷新云端当前数据、resync、像素验证或真实发布，不把旧快照当现场验收。24个第三方表面（18安装声明+6 @playwright/test导出facade）逐单元精确join，Context7不可用、Zod文档无正文均如实记录；Playwright官方 maxRetries 和安装 coreBundle.js 返回/转发/ECONNRESET语义核对。没有新 CloudBase 方法/shim/依赖。
+
+文字实际复核 catalog-preparation-inspect、完整source/Preview共享分页、manual Preview拒绝非来源配置、readImageMutationState、PreparationReport契约、admin-api helper/list路由、loopback和真实浏览器失效断言、SDK表格及已存时钟脚本。将“检查ready等于可存报告”改为“只读未封存诊断，须媒体保护和最终CAS才可存”；将“连接重置已解决”改为“测试只读转发可恢复，底层原因未独立复现”。未push/部署应用/修改云商品；不新增分支worktree/agent，不筛属性或拆分存储。P1—P7总交付仍未完成，下一继续已验证的媒体URL绑定差异、全部配置媒体准备和持久操作/并发协议。

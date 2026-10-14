@@ -586,7 +586,7 @@ test('Check later retains confirmed publication receipts and restores row focus'
       data?: { id?: string; collection?: string };
     };
     if (body.action === 'list' && body.data?.collection === 'products') {
-      const response = await route.fetch();
+      const response = await route.fetch({ maxRetries: 1 });
       await route.fulfill({ response });
       listCompleted = true;
       return;
