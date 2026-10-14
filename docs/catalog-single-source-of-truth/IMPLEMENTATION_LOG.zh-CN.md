@@ -542,4 +542,7 @@ P1h2 提交 cca8a9fbdf0679e6e7fe134e10e7ba37bed987c0 已完成精确 review。�
 
 文字核对：实际复核commit/staging/workflow、fastapprove、native成本及续办、摘要兼容/六个golden、图库测试/安装Vite和Astrocache配置。把“只review第一页”改为“一次review检查服务器已读的全部配置”，把“已经修好测试失败根因”改为“已消除已核实的共享缓存，原动态加载失败的具体原因未证实”。余下normal/issues/preparing查询与启用、durable intent/receipt、恢复、历史修复、性能/云race/Node20构建、test部署与真实20件恢复仍开放；无push/app部署/真实商品写入，也未做未来属性过滤mapping。
 
-独立cache后，另一次实际Astro构建与原画廊测试并行均exit0，owned构建目录finally删除（p1h3-cache-isolated-parallel.log）。这验证隔离后的并行执行，不作为原故障已复现的证据。
+提交后复核纠正：p1h3-cache-isolated-parallel.log实际是gallery exit1、Astro exit0；外层诊断脚本exit0没有验证子任务，上一句“并行均exit0”错误，撤回该项通过结论。新网络记录明确捕获504 Outdated Optimize Dep，且首次动态导入刚发现React/Zod依赖并触发优化reload。独立缓存仍不足；该测试基础设施问题继续修复，review保持未通过。
+
+
+P1h3提交后review修正：d2add46的review withheld，明确记录并行子任务失败及误读wrapper退出的两个P2。画廊空HTML首次通过dynamic import载入harness，Vite此时才发现React/Zod依赖，优化变更触发reload；新日志捕获504。测试启动时显式预优化React、DOM/client、两种JSX及Zod，并关闭自动新依赖发现；只改变测试服务设置，原组件断言不变。独立缓存仍由本测试清理。诊断wrapper现在逐一assert两个child exit，finally清理后才接受通过。修正后同构建并行gallery0/Astro0（p1h3-gallery-startup-parallel-r1.log），最终全量2317pass/0fail/0skip（p1h3-broad-final-r4.log），site类型/实际Biome通过，再次hover故障恰好1fail/10正控。重跑没有自动retry。修改了测试文件后重新证明原探针有效；未将built150算作这次测试设置的新运行。实际修正文件为gallery测试、实施记录及SDK证据；把“外层exit0=全成功”更正为“必须逐个断言子任务”。首次原日志未录status的事实保持。

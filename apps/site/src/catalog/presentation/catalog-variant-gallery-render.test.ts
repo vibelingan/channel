@@ -223,6 +223,17 @@ test(
     const server = await createServer({
       configFile: false,
       cacheDir: cacheDirectory,
+      optimizeDeps: {
+        noDiscovery: true,
+        include: [
+          'react',
+          'react-dom',
+          'react-dom/client',
+          'react/jsx-runtime',
+          'react/jsx-dev-runtime',
+          'zod',
+        ],
+      },
       root: fileURLToPath(new URL('../../../', import.meta.url)),
       plugins: [
         tailwindcss(),
