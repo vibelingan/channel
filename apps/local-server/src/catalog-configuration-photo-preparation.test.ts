@@ -9,9 +9,12 @@ import {
   sourceMediaLinkId,
   sourceObservationDocumentId,
 } from '@vibelingan-channel/catalog-import/observations';
-import { setAdapter } from '@vibelingan-channel/db';
+import { manageCatalogDetailApproval, setAdapter } from '@vibelingan-channel/db';
 import { approveInOneRequest } from '../../functions/admin/src/catalog-approve-once.ts';
-import { sourceVariantIds } from '../../functions/admin/src/catalog-detail-source.ts';
+import {
+  readAlibabaDetailPlan,
+  sourceVariantIds,
+} from '../../functions/admin/src/catalog-detail-source.ts';
 import { inspectCatalogPreparation } from '../../functions/admin/src/catalog-preparation-inspect.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { fixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
@@ -222,4 +225,105 @@ test('native unavailable observation preserves its existing completion summary w
   const inspection = await inspectCatalogPreparation('admin', { productId: product._id });
   assert.ok(inspection.ok && inspection.outcome !== 'ready');
   assert.equal(inspection.previewReady, false);
+});
+
+test('native approval replaces old raw-prefix preparation when website photo order is already complete', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'channel-photo-order-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const { product, observation, adapter: seed } = fixture(1);
+  product.updatedAt = '2026-10-14T12:00:00.000Z';
+  product.imageIds = ['position-1'];
+  const variant = observation.variants[0];
+  const stored = seed.rows.catalogSourceObservations?.[0];
+  assert.ok(variant && stored);
+  const url = (i: number) => `https://s.alibaba.com/position-${i}.png`;
+  variant.media = Array.from({ length: 10 }, (_, i) => ({
+    sourceUrl: url(i),
+    role: 'variant',
+    position: 9 - i,
+  }));
+  stored.observation = observation;
+  seed.rows.catalogSourceLinks = Array.from({ length: 9 }, (_, offset) => {
+    const i = offset + 1;
+    return {
+      _id: sourceMediaLinkId('alibaba', url(i)),
+      provider: 'alibaba',
+      sourceUrl: url(i),
+      imageId: `position-${i}`,
+    };
+  });
+  seed.rows.images = Array.from({ length: 9 }, (_, offset) => ({
+    _id: `position-${offset + 1}`,
+    status: 'active',
+    storageProvider: 'local-disk',
+    publishedRefCount: 0,
+  }));
+  const path = join(directory, 'db.json');
+  writeFileSync(path, JSON.stringify(seed.rows));
+  const adapter = new JsonFileAdapter(path);
+  setAdapter(adapter);
+  const current = await readAlibabaDetailPlan(product._id, product, 0, 20);
+  assert.ok(current.ok);
+  const id = current.packet.variantIds[0];
+  assert.ok(id);
+  // Captured from the actual pre-fix module at24e10e7, with exactly this observation and bindings.
+  const legacyRevision = 'a1b4a8ab5814a7d69750aa51463bc49ae27c55b1fe6eac2bae9a98894bc5e3c9';
+  const legacy = await adapter.persistCatalogDetailApproval('admin', {
+    ...current.packet,
+    action: 'source-page',
+    revision: legacyRevision,
+    variantMedia: [
+      { id, sources: Array.from({ length: 9 }, (_, i) => url(i)), unboundSources: [url(0)] },
+    ],
+  });
+  assert.ok(legacy.ok);
+  const oldReview = await manageCatalogDetailApproval('admin', {
+    action: 'review',
+    productId: product._id,
+    includePreviewMedia: true,
+    includeMediaSummary: true,
+  });
+  assert.ok(oldReview.ok && 'previewMedia' in oldReview);
+  const media = oldReview.previewMedia;
+  assert.ok(media && typeof media === 'object');
+  assert.equal(Reflect.get(media, 'allVariantsBound'), false);
+  const approved = await approveInOneRequest('admin', {
+    action: 'approve',
+    productId: product._id,
+    operationId: randomUUID(),
+  });
+  assert.ok(approved.ok && approved.status === 'approved', JSON.stringify(approved));
+  const saved = await adapter.get('products', product._id);
+  assert.notEqual(saved?.detailSourceRevision, legacyRevision);
+  assert.deepEqual((await adapter.get('productVariants', id))?.detailSourceUnboundMediaSources, []);
+  const config = { jwtSecret: 'photo-order-local-only', enableDetailApproval: true };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    role: 'admin',
+    name: 'Admin',
+    email: 'admin@example.test',
+  });
+  const visibility = (published: boolean) =>
+    handleAdminRequest(
+      {
+        action: 'update',
+        token,
+        data: { collection: 'products', id: product._id, values: { published } },
+      },
+      config,
+    );
+  try {
+    const published = await visibility(true);
+    assert.ok(published.ok, JSON.stringify(published));
+    const detail = await getProductDetail(product._id, 1);
+    assert.ok(detail.ok);
+    assert.deepEqual(
+      detail.data.variants.items[0]?.images,
+      Array.from({ length: 9 }, (_, i) => `/api/images/position-${9 - i}`),
+    );
+  } finally {
+    assert.equal((await visibility(false)).ok, true);
+  }
+  for (let i = 1; i <= 9; i++)
+    assert.equal((await adapter.get('images', `position-${i}`))?.publishedRefCount, 0);
 });

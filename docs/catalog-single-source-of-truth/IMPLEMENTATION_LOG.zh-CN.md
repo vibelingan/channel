@@ -719,3 +719,20 @@ c558b03 精确 inline review 已通过。先红38pass/3fail：没有product URL�
 文字实际复核photoPreparationPlan/configurationPhotoSources/copySources/单件save/摘要strict和legacyparse/status，以及新增原生准备→检查→审批→公开读取→恢复；将“完成标记存URL全表”改为“固定摘要与计数，逐图记录沿用现有source-link”，将“来源读不到=零配置”改为“未知和有效空集合分开”。仍保留每次续跑重复扫描已复制前缀的真实性能风险，软预算不是严格墙钟上限。真正超过98媒体操作、媒体绑定/删除封存、service身份/报告生产/原生列表query/count/全选/UI、持久intent/取消/回执、历史resync、vendor/P95/Node20全构建、同SHA test和真实三件时钟/20件发布恢复继续。未push/应用部署/云商品写入/新分支worktree/agent/属性过滤或正文拆分。
 
 本轮额外只读刷新CloudBase登录READY及ap-shanghai当前环境清单：diversity-123-d9grnqfux221323bb下3个基础函数admin/public-api/alibaba-catalog-sync，Nodejs20.19且Active，当前地域环境总数1。该清单不证明实际test/prod URL隔离或其他地域不存在；部署前仍须核对真实目标、路由及数据边界。未切换环境或创建云资源。
+
+
+### P1h6：配置图顺序与准备缓存一致（本地子单元完成，待精确提交 review）
+
+24e10e7 精确 inline review 已通过。补真实counterexample：网站配置图按provider position排序，准备packet却按原数组前9记录sources/unboundSources。10张原数组逆序、网站实际用的9张已复制、未用的末序图未复制时，网站有9张有效图仍被准备错误拦住。先红18正常/1fail，actual old module probe另读git24e10e7源码bundle运行，独立确认其网站图片9..1、准备来源0..8、unbound错误为position0。
+
+抽唯一orderedCatalogMedia纯排序供既有图片投影与准备元数据共享。网站图片数量、绑定/去重/渲染及source全文均不变，仅准备元数据按网站已有position顺序取前9；不引入新的图片选择、属性筛选或存储拆分。媒体顺序受影响时才给source revision增加内部policy材料，必须重做旧准备缓存；已正确排序的输入保留原revision，避免所有正常商品无谓重暂存。
+
+对最强反例实际跑原生后端：先保存从旧模块结果还原的raw-prefix准备，readonly Review证实allVariantsBound=false；新approve必须重暂存、清掉旧unbound，随后真实handler发布/public详情读回9..1并finally下架、九张计数回0。忽略policy材料的mutation确实使旧缓存复用并失败。原native测试第一次发布失败是fixture没有商品主图，shared publish validator明确要求至少一张；没有修改这条用户规则，而是先给合法的owned gallery并从旧模块重新计算该上下文的legacy revision，再完整通过。不把这个fixture失败称为产品bug。
+
+旧模块独立输出legacy ordered revision=daccb357...0d6e81c，reversed=a74d6b92...b131758，owned-gallery reversed=a1b4a8ab...bc5e3c9；原始完整值及复现脚本在p1h6/legacy-source-results.json与legacy-probe.mjs。单位测试同时锁定普通ordered旧revision完全不变、affected必须不同。实际源码没有被旧模块探针覆盖写入，所有执行在内存bundle。
+
+最终101focused、2695广泛消费者passed/0failed/0skipped，实际图库浏览器开启；shared/import/db/admin/sync/local/site七套实际类型、四文件实际Biome、freshstandingSDK、diffcheck通过。native fixture的packet.action原推断为string，改为显式内部命令字面source-page，未cast外部数据；类型修正后focused和全部mutation重跑。两个baseline20source/4native通过，14个独立故障均失败且保留正控/0skip/源码不变，覆盖元数据/投影排序、in-place污染导致policy漏判、affected/ordinary revision、native旧缓存、新三binding守卫及原native人工图/未绑定/永久失败/未知观察保护。
+
+P2d6b的151构建是上一SHA，不作为这个小修的新版浏览器证据；本次小流程用真实JSON事务/handler/公共详情及恢复串联验证，最终P6/接线节点再跑构建浏览器。新SDK表面0，仅工作区helper与built-ins，无SDK/shim/依赖/URL/环境更改。
+
+文字实际复核detail-candidate排序、完整source map/packet/revision及SourcePage旧完成短路、readonly Review、source preparer、native approve/public/withdraw。把“改排序就够了”补成“修元数据排序，并让确实受影响的旧准备缓存重做”；将“发布错误”明确区分合法主图校验与待修的source缺图误判。仍未完成媒体封存/删除与绑定安全、后台service/报告生产/query/UI、真正超98媒体、durable intent/取消/回执/恢复、历史resync、vendor/P95/Node20全构建/test同SHA和实际三件时钟/20件恢复。未push/应用部署/云商品写入/新分支worktree/agent。

@@ -23,7 +23,10 @@ import {
   catalogIssuesFromZod,
 } from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
-import { validateCatalogSourceObservation } from './source-observations.ts';
+import {
+  type CatalogSourceObservation,
+  validateCatalogSourceObservation,
+} from './source-observations.ts';
 
 const configurationSet = z.array(CatalogDetailVariantSchema).max(CATALOG_DETAIL_VARIANT_MAX_COUNT);
 
@@ -38,6 +41,13 @@ export interface CatalogDetailBindings {
   websiteProduct?: unknown;
 }
 
+/** The provider's photo order, shared by projection and preparation metadata. */
+export function orderedCatalogMedia(
+  media: readonly CatalogSourceObservation['content']['media'][number][],
+) {
+  return [...media].sort((a, b) => a.position - b.position);
+}
+
 /** Validate and project the complete source once; callers may then page or compare it. */
 export function buildCompleteCatalogPreparationPlan(
   input: unknown,
@@ -49,7 +59,7 @@ export function buildCompleteCatalogPreparationPlan(
   const warnings: string[] = [];
   const images = (media: typeof observation.content.media, limit = 9) => {
     const resolved: string[] = [];
-    for (const item of [...media].sort((a, b) => a.position - b.position)) {
+    for (const item of orderedCatalogMedia(media)) {
       const id = bindings.images.get(item.sourceUrl);
       if (!id) {
         warnings.push('unbound-media');

@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
+import {
+  buildCompleteCatalogPreparationPlan,
+  orderedCatalogMedia,
+} from '@vibelingan-channel/catalog-import/detail-candidate';
 import {
   type CatalogSourceObservation,
   sourceMediaLinkId,
@@ -348,6 +351,23 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     candidate.value.header.descriptionText === header.descriptionText
       ? buildStructuredContent(observation.content.description)
       : { content: undefined, noteBlocks: undefined };
+  const variantMedia = observation.variants.map((variant) => {
+    const id = variants.get(variant.sourceVariantKey);
+    if (!id) throw new Error('Canonical variant binding changed during source preparation');
+    const selected = orderedCatalogMedia(variant.media).slice(0, 9);
+    return {
+      id,
+      sources: selected.map((media) => media.sourceUrl),
+      unboundSources: choiceFor(id)
+        ? []
+        : selected.filter((media) => !images.has(media.sourceUrl)).map((media) => media.sourceUrl),
+    };
+  });
+  const mediaOrderChanged = variantMedia.some((media, index) =>
+    media.sources.some(
+      (url, position) => observation.variants[index]?.media[position]?.sourceUrl !== url,
+    ),
+  );
   const observationDigest = sourceDigest(row?.observation);
   const galleryDigest = sourceGalleryDigest(product);
   const revision = sourceDigest([
@@ -358,6 +378,10 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     [...variants],
     structured.content ?? null,
     structured.noteBlocks ?? null,
+    // Invalidate old prepared rows only when their raw prefix had a different meaning.
+    ...(mediaOrderChanged
+      ? ['catalog-variant-media-order-v1', variantMedia.map((media) => media.sources)]
+      : []),
     ...(product.catalogContentGeneration === undefined
       ? []
       : ['content-generation', product.catalogContentGeneration]),
@@ -387,20 +411,7 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
         18,
       ),
     },
-    variantMedia: observation.variants.map((variant) => {
-      const id = variants.get(variant.sourceVariantKey);
-      if (!id) throw new Error('Canonical variant binding changed during source preparation');
-      return {
-        id,
-        sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
-        unboundSources: choiceFor(id)
-          ? []
-          : variant.media
-              .slice(0, 9)
-              .filter((m) => !images.has(m.sourceUrl))
-              .map((m) => m.sourceUrl),
-      };
-    }),
+    variantMedia,
   };
   let approvalPlan: ReturnType<typeof prepareCatalogApprovalPlan>['plan'];
   try {

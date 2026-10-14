@@ -261,3 +261,76 @@ for (const corrupted of [
     assert.deepEqual(adapter.commands, []);
   });
 }
+
+test('configuration source intentions follow the same provider position order as website photos', async () => {
+  const { product, adapter, observation } = fixture(1);
+  const variant = observation.variants[0];
+  const stored = adapter.rows.catalogSourceObservations?.[0];
+  assert.ok(variant && stored);
+  const url = (i: number) => `https://s.alibaba.com/position-${i}.png`;
+  variant.media = Array.from({ length: 10 }, (_, i) => ({
+    sourceUrl: url(i),
+    role: 'variant',
+    position: 9 - i,
+  }));
+  stored.observation = observation;
+  // The raw first entry is beyond the nine intended photos; all nine website photos are copied.
+  adapter.rows.catalogSourceLinks = Array.from({ length: 9 }, (_, offset) => {
+    const i = offset + 1;
+    return {
+      _id: sourceMediaLinkId('alibaba', url(i)),
+      provider: 'alibaba',
+      sourceUrl: url(i),
+      imageId: `position-${i}`,
+    };
+  });
+  const before = structuredClone(adapter.rows);
+  const read = await readAlibabaDetailPlan(product._id, product, 0, 50);
+  assert.ok(read.ok, JSON.stringify(read));
+  assert.deepEqual(
+    read.detail.variants.items[0]?.images,
+    Array.from({ length: 9 }, (_, i) => `/api/images/position-${9 - i}`),
+  );
+  assert.deepEqual(read.packet.variantMedia[0]?.unboundSources, []);
+  assert.deepEqual(
+    read.packet.variantMedia[0]?.sources,
+    Array.from({ length: 9 }, (_, i) => url(9 - i)),
+  );
+  assert.notEqual(
+    read.packet.revision,
+    'a74d6b92a041e2dfbb5f35437cf45c5d1c310f8aa868b1acdfdff080cb131758',
+    'an old prepared raw-prefix row must be restaged',
+  );
+  assert.deepEqual(adapter.rows, before);
+  assert.deepEqual(adapter.commands, []);
+});
+
+test('already ordered source metadata retains its previous prepared revision', async () => {
+  const { product, adapter, observation } = fixture(1);
+  const variant = observation.variants[0];
+  const stored = adapter.rows.catalogSourceObservations?.[0];
+  assert.ok(variant && stored);
+  const url = (i: number) => `https://s.alibaba.com/position-${i}.png`;
+  variant.media = Array.from({ length: 10 }, (_, i) => ({
+    sourceUrl: url(i),
+    role: 'variant',
+    position: i,
+  }));
+  stored.observation = observation;
+  adapter.rows.catalogSourceLinks = Array.from({ length: 9 }, (_, offset) => {
+    const i = offset + 1;
+    return {
+      _id: sourceMediaLinkId('alibaba', url(i)),
+      provider: 'alibaba',
+      sourceUrl: url(i),
+      imageId: `position-${i}`,
+    };
+  });
+  const read = await readAlibabaDetailPlan(product._id, product, 0, 50);
+  assert.ok(read.ok);
+  assert.equal(
+    read.packet.revision,
+    'daccb3577866f1c55460c996be06700c6c2343a9f22ca2bedd8bfb9aa0d6e81c',
+  );
+  assert.deepEqual(read.packet.variantMedia[0]?.unboundSources, [url(0)]);
+});
