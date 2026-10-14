@@ -559,3 +559,6 @@ P2d1验证：红测7fail/1正控后，保护输出字段及普通increment守卫
 6个内存反证：移除report保护4fail/4正控；放开三个output计数3fail/5正控；去generation检查3fail/21正控；去商品identity/策略/ready warning守卫各1fail/23正控（p2d1-mutations-r1.log）。源码未改。19项安装Zod3.25.76方法有逐项契约与结果证据，无CloudBase新方法/shim。未为这个尚未接线的私有字段重复称built150或云验收；下一整体小流程节点重跑。
 
 文字核对：实际复核preparation schema/readCurrent、advanceCatalogProduct、runCatalogRowMutation、nativeCloud helper及JsonFileAdapter保存、旧版本输入语义及19项SDK表；把“检查通过即可发布”明确为“只描述已保存输入，不能授权分类/媒体/权限/发布”。最后报告保留以便诊断，content修改使state stale且generation变化，旧报告不重新生效；该保留不增加完整来源/配置副本。生产/CAS/查询/UI/影子回填启用仍未完成。
+
+
+P2d1精确review发现并修正：b93c903暂未bless，因为datetime单独接受7万位小数秒，独立probe实际返回accepted=true/report70311bytes，违背有界摘要约定。新增反例先1fail/24正控，再仅给内部生成checkedAt加max40；来源原件无截断。最终全量2356pass/0fail/0skip（p2d1-broad-final-r2.log），finalshared类型、实际Biome通过；原schema探针重跑并增加去max40反证，共7个独立mutant均产生预期失败和正控（p2d1-mutations-r2.log）。四套consumer types之前已通过，后续修正类型不变；无新SDK方法，19表面完整记录。旧built150/云实验不重算为此版验收。这个容量发现是review修复项，不让它留到启用后。

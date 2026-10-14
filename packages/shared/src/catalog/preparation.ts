@@ -11,7 +11,7 @@ const base = z.object({
   inputDigest: z.string().regex(/^[a-f0-9]{64}$/),
   policyVersion: z.string().trim().min(1).max(100),
   contentGeneration: z.number().int().nonnegative().safe(),
-  checkedAt: z.string().datetime(),
+  checkedAt: z.string().max(40).datetime(),
 });
 export const CatalogPreparationReportSchema = z.discriminatedUnion('state', [
   base

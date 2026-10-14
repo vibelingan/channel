@@ -119,3 +119,8 @@ test('a structurally valid older policy is not a current check', () => {
     null,
   );
 });
+
+test('a syntactically valid timestamp cannot make the private report unbounded', () => {
+  const checkedAt = `2026-10-14T00:00:00.${'1'.repeat(70_000)}Z`;
+  assert.equal(CatalogPreparationReportSchema.safeParse({ ...report(), checkedAt }).success, false);
+});
