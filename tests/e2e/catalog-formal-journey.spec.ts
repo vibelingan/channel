@@ -48,6 +48,26 @@ test('real raw color mappings → owned media → Admin Preview → approval →
   await page.getByPlaceholder(/^Search name/).fill('Raw Color Headphones');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: 'Raw Color Headphones' });
+  const beforePreview = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  const previewActions: string[] = [];
+  const capturePreview = (request: import('@playwright/test').Request) => {
+    if (request.method() !== 'POST') return;
+    const body: unknown = request.postDataJSON();
+    if (!body || typeof body !== 'object') return;
+    const action = Reflect.get(body, 'action');
+    const data = Reflect.get(body, 'data');
+    if (action === 'importSourceImage') previewActions.push(action);
+    if (action === 'catalogDetailApproval' && data && typeof data === 'object') {
+      const detailAction = Reflect.get(data, 'action');
+      if (typeof detailAction === 'string') previewActions.push(detailAction);
+    }
+  };
+  page.on('request', capturePreview);
   await row.getByRole('button', { name: 'Preview', exact: true }).click();
   const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
   await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
@@ -68,6 +88,16 @@ test('real raw color mappings → owned media → Admin Preview → approval →
   // Viewing and changing selection never publish private media.
   expect((await request.get(`${e2e.apiUrl}/api/images/raw-color-image-6`)).status()).toBe(404);
   await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  page.off('request', capturePreview);
+  expect(previewActions).toEqual(['preview']);
+  const afterPreview = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  expect(afterPreview).toEqual(beforePreview);
+
   await page.getByRole('checkbox', { name: 'Select all rows' }).check();
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await expect
@@ -547,13 +577,13 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   expect(after.catalogDetailPublication).toBeUndefined();
   expect(after.alibabaReviewPending).toBe(true);
   expect(commands.length).toBeGreaterThan(0);
-  // Read-only steps only: preview builds, Edit reads the supplier review for the
-  // configuration photo picker (DEC-20) and Alibaba's photos for adding more;
-  // nothing begins or approves.
   expect(
-    commands.every((action) =>
-      ['prepare', 'review', 'supplier-review', 'photo-sources'].includes(action),
-    ),
+    after,
+    'preview, selection, retry and Edit reads leave the entire saved draft unchanged',
+  ).toEqual(before);
+  // Preview does not prepare; Edit only reads supplier choices and photo sources.
+  expect(
+    commands.every((action) => ['preview', 'supplier-review', 'photo-sources'].includes(action)),
   ).toBe(true);
   expect(errors).toEqual([]);
 });

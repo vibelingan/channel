@@ -7,6 +7,7 @@ import {
   approveDetailReview,
   approveProduct,
   prepareDetailReview,
+  readDetailPreview,
 } from './catalog-detail-approval-api.ts';
 
 function review(page = 1, total = 3): DetailReview {
@@ -52,7 +53,7 @@ type RequestBody = {
   };
 };
 
-test('Preview never imports; explicit approval imports each reviewed URL once then uses the rebound digest', async (t) => {
+test('Explicit preparation does not import; explicit approval imports each reviewed URL once then uses the rebound digest', async (t) => {
   const calls: RequestBody[] = [];
   let imported = false;
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
@@ -624,4 +625,86 @@ test('the classification guard never silently turns off', async (t) => {
     updateRecord('products', 'draft-product', { published: true }, 'classified'),
     /revision/i,
   );
+});
+
+test('readonly preview makes one preview call per page and never prepares or imports', async (t) => {
+  const calls: RequestBody[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: RequestBody = JSON.parse(String(init.body));
+    calls.push(body);
+    return Response.json({
+      ok: true,
+      data: {
+        ok: true,
+        kind: 'preview',
+        productId: 'canonical-product',
+        inputDigest: 'a'.repeat(64),
+        detail: detailFixture(105, body.data.page ?? 1),
+        previewMedia: {
+          galleryIds: [],
+          descriptionIds: [],
+          gallerySources: [],
+          descriptionSources: [],
+          variantSources: [],
+        },
+      },
+    });
+  });
+  const first = await readDetailPreview('canonical-product', 1);
+  assert.equal(first.kind, 'preview');
+  assert.equal('expectedDigest' in first, false);
+  await readDetailPreview('canonical-product', 2, first.inputDigest);
+  assert.deepEqual(
+    calls.map((c) => c.data.action),
+    ['preview', 'preview'],
+  );
+  assert.equal(Reflect.get(calls[1]?.data ?? {}, 'inputDigest'), first.inputDigest);
+});
+
+test('readonly preview rejects an approval response, wrong identity or changed page digest', async (t) => {
+  for (const fault of ['approval', 'identity', 'digest', 'import-proof']) {
+    const mock = t.mock.method(globalThis, 'fetch', async () => {
+      const data =
+        fault === 'approval'
+          ? review()
+          : {
+              ok: true,
+              kind: 'preview',
+              productId: fault === 'identity' ? 'another' : 'canonical-product',
+              inputDigest: fault === 'digest' ? 'b'.repeat(64) : 'a'.repeat(64),
+              detail: detailFixture(1),
+              ...(fault === 'import-proof'
+                ? {
+                    previewMedia: {
+                      galleryIds: [],
+                      descriptionIds: [],
+                      gallerySources: [],
+                      descriptionSources: [],
+                      importDigest: 'c'.repeat(64),
+                    },
+                  }
+                : {}),
+            };
+      return Response.json({ ok: true, data });
+    });
+    await assert.rejects(readDetailPreview('canonical-product', 1, 'a'.repeat(64)));
+    mock.mock.restore();
+  }
+});
+
+test('passing a preview to explicit approval fails before importing or writing', async (t) => {
+  const calls: RequestBody[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    calls.push(JSON.parse(String(init.body)));
+    return Response.json({ ok: true, data: progress });
+  });
+  const readonly = { ...review(), kind: 'preview' };
+  // Simulates an untyped runtime caller. TypeScript separately prevents this assignment.
+  await assert.rejects(
+    Reflect.apply(approveDetailReview, undefined, [
+      readonly,
+      '12345678-1234-4234-8234-123456789012',
+    ]),
+  );
+  assert.deepEqual(calls, [], 'no import, prepare, begin, page or finish');
 });

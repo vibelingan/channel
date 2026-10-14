@@ -40,3 +40,44 @@ Reused CloudBase query/transaction/get/set/remove contracts and Zod v3 object/st
 ## P2c2b source inputs
 
 Reused source/input command parsing and changed Cloud observation/transaction bridges have a semantic inventory of 29 Zod v3 / CloudBase database surfaces, mechanically joined to .claude/sdk-probes/p2c2b.md. Exact installed declaration/runtime evidence includes update ACK and command.set full nested replacement; no method or ambient shim added. Five consumer type checks and installed SDK gate pass; vendor read-set/lease takeover is still a separate isolated release gate. Private nullable mirror fields are persistence missing-value sentinels; the pure normalized wire model and public pricing/detail schemas are unchanged.
+
+
+## P1f1/P1f2: readonly preview boundaries
+
+Only workspace DB functions are moved/reused; no CloudBase SDK method, shim, storage protocol, function configuration or vendor resource is changed. Inventory includes reused surfaces at the changed call sites and the shape getter, rather than claiming each method is newly introduced.
+
+Installed contracts: zod@3.25.76 v3/types.d.ts:64-89,248,262,536-537,563-565,826-832 plus its types.cjs implementation; React19.2.7 / @types/react19.2.17 index.d.ts:1689-1697,1737-1761,1785 are checked by the site tsconfig; @playwright/test@1.61.1 delegates to playwright-core@1.61.1 types/types.d.ts:1137,1646,20308,20326 and playwright/types/test.d.ts's Expect/GenericAssertions. The actual test runner validates method()/postDataJSON()/on()/off() with real browser events. No ambient declarations or SDK-shaped fakes are added.
+
+| package@version | method | signature / used result | evidence |
+|---|---|---|---|
+| zod@3.25.76 | object | `(shape, params?) -> ZodObject` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | literal | `(value, params?) -> ZodLiteral` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | string | `(params?) -> ZodString` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | unknown | `(params?) -> ZodUnknown` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | trim | `() -> ZodString` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | min | `(value, message?) -> this string/number schema` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | max | `(value, message?) -> this string/number schema` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | number | `(params?) -> ZodNumber` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | int | `(message?) -> ZodNumber` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | default | `(defaultValue) -> ZodDefault<this>` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | regex | `(RegExp, message?) -> ZodString` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | optional | `() -> ZodOptional<this>` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | strict | `(message?) -> ZodObject<T,strict>` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | safeParse | `(unknown, params?) -> success/data or failure/error.issues` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | parse | `(unknown, params?) -> Output or ZodError` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | unwrap | `ZodOptional<T>.unwrap() -> T` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | omit | `ZodObject<T>.omit(mask) -> ZodObject<Omit<T,keys>>` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| zod@3.25.76 | shape | `ZodObject<T>.shape getter -> T` | strict valid preview + invalid command/identity/digest/import-proof/approval-kind tests; admin/site types; focused50cases |
+| react@19.2.7 | useState | `(initial?) -> [state, Dispatch<SetStateAction<S>>]` | site types; built private-preview/abort/retry/pagination flows |
+| react@19.2.7 | useRef | `(initial) -> RefObject<T>` | site types; built private-preview/abort/retry/pagination flows |
+| react@19.2.7 | useEffect | `(effect, dependencies?) -> void; cleanup runs on dependency change/unmount` | site types; built private-preview/abort/retry/pagination flows |
+| @playwright/test@1.61.1 | on | `Page.on('request', listener: (Request) -> any) -> this` | E2E types; built browser readonly request capture + exact saved-row equality; no rate-limit weakening |
+| @playwright/test@1.61.1 | off | `Page.off('request', sameListener) -> this` | E2E types; built browser readonly request capture + exact saved-row equality; no rate-limit weakening |
+| @playwright/test@1.61.1 | method | `Request.method() -> string` | E2E types; built browser readonly request capture + exact saved-row equality; no rate-limit weakening |
+| @playwright/test@1.61.1 | postDataJSON | `Request.postDataJSON() -> null or Serializable` | E2E types; built browser readonly request capture + exact saved-row equality; no rate-limit weakening |
+| @playwright/test@1.61.1 | expect | `expect(actual, message?) -> assertion matchers` | E2E types; built browser readonly request capture + exact saved-row equality; no rate-limit weakening |
+| @playwright/test@1.61.1 | toEqual | `toEqual(expected) -> void; label belongs to expect, not this matcher` | E2E types; built browser readonly request capture + exact saved-row equality; no rate-limit weakening |
+
+Table and manifest contain27unique(package,method) rows. Additional CloudBase standing gate is unchanged and passed p1f2-sdk-final.log. E2E final round and broad final counts are recorded separately in IMPLEMENTATION_LOG; no test cloud/customer acceptance inferred here.
+
+Context7 discovery returned no tool. Official references were freshly read: [Zod optional unwrap, shape and omit](https://zod.dev/api), [Playwright Request](https://playwright.dev/docs/api/class-request), [Page event contract](https://playwright.dev/docs/api/class-page), [React effect cleanup](https://react.dev/reference/react/useEffect). Latest Zod docs describe4.6; the installed3.25.76 implementation/types and actual parsing tests determine this version’s behavior, and no v4-only API or length semantics is adopted.

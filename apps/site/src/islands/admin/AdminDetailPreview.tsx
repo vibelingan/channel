@@ -6,11 +6,7 @@ import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../../catalog/presentation/CatalogVariantGallery.tsx';
 import { getSharedDetailContent } from '../../i18n/catalog.ts';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
-import {
-  type DetailReview,
-  prepareDetailReview,
-  readDetailReview,
-} from './catalog-detail-approval-api.ts';
+import { type DetailPreview, readDetailPreview } from './catalog-detail-approval-api.ts';
 import { useAdminImagePreviews } from './use-admin-image-previews.ts';
 
 /** Uses the same validated detail DTO and components as the buyer, without publication or RFQ. */
@@ -25,7 +21,7 @@ export default function AdminDetailPreview({
   sourceImages: boolean;
   descriptionImages?: readonly string[];
 }) {
-  const [review, setReview] = useState<DetailReview>();
+  const [review, setReview] = useState<DetailPreview>();
   const [error, setError] = useState('');
   const [requestPage, setRequestPage] = useState({ page: 1 });
   const page = requestPage.page;
@@ -45,15 +41,17 @@ export default function AdminDetailPreview({
     const controller = new AbortController();
     setBusy(true);
     setError('');
-    const request =
-      requestPage.page === 1
-        ? prepareDetailReview(productId, controller.signal)
-        : readDetailReview(productId, requestPage.page, digest.current, controller.signal);
+    const request = readDetailPreview(
+      productId,
+      requestPage.page,
+      requestPage.page === 1 ? undefined : digest.current,
+      controller.signal,
+    );
     void request
       .then((next) => {
         if (!controller.signal.aborted) {
           setReview(next);
-          digest.current = next.expectedDigest;
+          digest.current = next.inputDigest;
           setSelected(undefined);
         }
       })
@@ -92,7 +90,7 @@ export default function AdminDetailPreview({
     );
   const pages: DetailPages = {
     mode: review.detail.variants.hasMore || page > 1 ? 'paged' : 'complete',
-    currentPage: { ...review.detail, revision: `admin-preview-${review.expectedDigest}` },
+    currentPage: { ...review.detail, revision: `admin-preview-${review.inputDigest}` },
     items: review.detail.variants.items,
     retainedBytes: JSON.stringify(review.detail).length,
   };
@@ -148,7 +146,7 @@ export default function AdminDetailPreview({
             images={galleryImages}
             name={review.detail.name}
             productId={productId}
-            revision={review.expectedDigest}
+            revision={review.inputDigest}
             selection={selection}
             variants={pages.items}
             loadingImages={imagePreview.loading}

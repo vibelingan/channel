@@ -1,6 +1,6 @@
 # Catalog 全功能测试矩阵
 
-这是 [整合方案](PUBLISH_RELIABILITY_PLAN.zh-CN.md) 的验收附件。状态：计划，尚未执行；表内的功能组不等于测试通过数。
+这是 [整合方案](PUBLISH_RELIABILITY_PLAN.zh-CN.md) 的验收附件。状态：实施中；表内是最终验收要求，不等于均已通过。每个已执行本地子单元及尚未完成的云/test门槛以实施记录为准。
 
 ## A. 执行约定
 

@@ -141,6 +141,7 @@ import {
   applyChangeAudit,
   planChangeAudit,
 } from './catalog-change-audit.ts';
+import { readCatalogDetailPreview } from './catalog-detail-preview.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
 import {
   CatalogProductWriteError,
@@ -626,15 +627,17 @@ export async function handleAdminRequest(
         const action =
           req.data && typeof req.data === 'object' ? Reflect.get(req.data, 'action') : undefined;
         const result =
-          action === 'prepare'
-            ? await prepareCatalogSource(claims.sub, req.data)
-            : action === 'supplier-review'
-              ? await readSupplierReview(claims.sub, req.data, changeAuditReader)
-              : action === 'photo-sources'
-                ? await readPhotoSources(claims.sub, req.data)
-                : action === 'approve'
-                  ? await approveInOneRequest(claims.sub, req.data)
-                  : await manageCatalogDetailApproval(claims.sub, req.data);
+          action === 'preview'
+            ? await readCatalogDetailPreview(claims.sub, req.data)
+            : action === 'prepare'
+              ? await prepareCatalogSource(claims.sub, req.data)
+              : action === 'supplier-review'
+                ? await readSupplierReview(claims.sub, req.data, changeAuditReader)
+                : action === 'photo-sources'
+                  ? await readPhotoSources(claims.sub, req.data)
+                  : action === 'approve'
+                    ? await approveInOneRequest(claims.sub, req.data)
+                    : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         const validation =
           'validation' in result ? CatalogValidationSchema.safeParse(result.validation) : undefined;

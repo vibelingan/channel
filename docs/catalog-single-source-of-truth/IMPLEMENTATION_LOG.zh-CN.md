@@ -441,3 +441,20 @@ P2c2f 提交 e52e7054aa92309b67825d9da83d187ac75a02bf 已完成精确 inline rev
 后续已定位但本单元未宣称解决：从audit分页循环与builder全量校验推导，超大SKU集合有重复全量构造，待共享只读完整计划抽取时去掉；本地UI-02工具新建时采用来源文本合理，重放已有管理员编辑的clone还需验证source-only preliminary是否误拒绝未采用长文本。两项保留为P1/性能验证门槛，无云端性能结论。只读Preview、无损options/人工配置、问题入口、列表准入、持久操作/恢复及最终部署验收仍未完成。
 
 文字核对：实际复核catalog-change-audit比较/应用、catalog-supplier-review认证与只读API、SupplierReviewSchema、正式prepare的websiteProduct绑定、detail-candidate/approval合并规则及本地workspace消费者；把“没有observation”更正为已确认的未采用来源文本误拦，严格区分来源原件、网站采用值和只读比较结果。本轮没有实现未来按分类选属性的mapping功能，也未丢弃或分组原属性。
+
+
+### P1f1/P1f2：无业务写入的 Preview（2026-10-14，本地子单元完成，待精确提交 review）
+
+P1e 提交3bbb91b0b6b084fbb94cd42f51086ef2d123b329已完成精确inline review。本单元把已有source读取/完整校验/字段合并抽为server-only readAlibabaDetailPlan，正式prepare仍显式校验SourcePageSchema后仅调用一次持久化；新preview action直接读取同一计划，不创建配置身份、不写暂存、不导图片、不批准/发布。浏览器用kind=preview与inputDigest，审批仍要求kind=review与expectedDigest/revision；运行时也验证review，不能靠TypeScript把误传预览掩盖成安全。新API读取新鲜actor、完整真实source/observation/primary link，结束前再查来源绑定、商品和actor。分页版本覆盖完整来源/配置/媒体绑定、网站实际字段、分类/生命周期/批准版本，不含请求页号，不能混用两版配置；这不是数据库提交的串行化证明，真正审批仍走原受保护提交。
+
+来源图库回退来自本次绑定observation，不使用旧列表URL；私有已导图片保持原鉴权Blob读取和撤销。Preview继续使用原弹窗、网站组件、图片hook及Edit入口，归档草稿也可只读查看。人工零配置保持同一网站header规则；已有人工配置的无损投影仍是未完成门槛。复核发现旧人工扫描超过10000行可能漏行后按零配置继续，两个先红反例确认Preview与正式prepare均存在该边界；两端现明确返回数量/上限issue，不静默批准空集合。
+
+最终focused50 passed/0 failed/0 skipped；包括0/1/20/21/105配置、整集合后页错误、缺真实mirror、source/link换版、页间编辑和读中编辑、撤权、归档、错误请求、当前图片来源、未暂存草稿、人工扫描超限和误审批。整个shared/import/db/local-server/sync/所有admin/public/前端消费者1859 passed/0 failed/0 skipped（p1f2-broad-r4.log）；admin/site/E2E三套实际类型通过，实际Biome11文件及diff whitespace通过；standing CloudBase SDK gate通过。27个Zod/React/Playwright新/复用表面的安装版本、签名、返回读取及正反例见SDK-PROBE；无新增CloudBase SDK方法/shim或供应商资源。
+
+内存独立bundle故障注入：偷写暂存5fail/3正常正控；移除预览页版本校验2fail/14正控；移除审批kind运行时校验1fail/25正控。全部工作区源码字节不变。误传预览在修复前确实触发importSourceImage及prepare/review，修复后在任何网络调用前失败。首次测试入口缺模块只记接口红，不冒充业务回归；人工超限和误审批反例另外记录了真实行为失败。
+
+三件实际存储数据副本先做readonly Preview，核对JSON DB字节完全不变，再做真实prepare/review/begin/page/finish；HTTP JSON详情一致，113/113/121原属性完整，4/2/1配置，header7668/7675/8136 bytes，job12005/11866/12269 bytes，分类不变、published=false，finally清除DB/owner。最初直接比JS对象仅因Review带sku:undefined而Preview缺省键失败；改按真实HTTP JSON形态比较，没有丢字段/截短值来压过差异。证据p1f2-real-clock-r3.log；不是云产品修复或现场发布证据。
+
+最终第三轮构建后浏览器public41/catalog90/formal10/visibility8/taxonomy1，共150 passed/0 failed/0 skipped，runner确认临时DB/服务清理（p1f2-combined-e2e-r3.log）。真实handler+JSON+Astro产物+Chromium/WebKit证明首次Preview只有preview请求，切SKU、分页、重开、瞬时失败Retry及Edit读取不写任何商品字段；单件、普通编辑冲突、Assign category→Save and publish的20件及下架后共享引用恢复均通过。第二轮同样150通过；首轮旧测试错把prepare/review列为只读允许操作，修正为只允许preview/supplier-review/photo-sources并加强整记录不变断言；首轮失败导致worker重登，后续20件在登录页明确遭频率限制，未进入发布，限流没有削弱。最后类型检查另纠正Playwright断言说明参数从toEqual第二参数移到expect第二参数；最终第三轮包含该修正。
+
+文字核对：实际复核source/helper、readonly endpoint、handler鉴权/安全issue、shared header/DTO/staged workflow、浏览器approval API/Preview及正式和现场验收spec；把“Preview不发布”修正为“不准备、不导入、不写业务数据”，把“比较对象相同”区分为实际HTTP数据相同与undefined非线上差异，保留本地隔离20件与云上真实20件的证据边界。下一步继续无损配置/人工配置、独立问题面板、完整计划复用/性能、列表准入、durable intent/receipt/resume、恢复、历史修复及全量发布门槛。未push/部署app/更改任何云商品，未实施未来按分类选属性mapping。

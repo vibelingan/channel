@@ -17,8 +17,10 @@ import {
   sourceDigest,
   sourceGalleryDigest,
 } from '@vibelingan-channel/db/catalog-source-staging';
-import { isProductFamily } from '@vibelingan-channel/shared';
+import { type CollectionDoc, isProductFamily } from '@vibelingan-channel/shared';
+import { CATALOG_DETAIL_VARIANT_MAX_COUNT } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
+  CatalogIssueSchema,
   catalogFailureIssue,
   catalogIssuesFromZod,
 } from '@vibelingan-channel/shared/catalog-issues';
@@ -115,6 +117,18 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
           ],
         },
       });
+      if (rows.total > CATALOG_DETAIL_VARIANT_MAX_COUNT)
+        return catalogValidationFailure('source-candidate', [
+          CatalogIssueSchema.parse({
+            code: 'TOO_MANY',
+            stage: 'effective-content',
+            path: 'variants.items',
+            severity: 'error',
+            remedy: 'system-repair',
+            expected: { maxCount: CATALOG_DETAIL_VARIANT_MAX_COUNT },
+            observed: { count: rows.total },
+          }),
+        ]);
       const manualRow = rows.items.some(
         (row) =>
           !(
@@ -131,6 +145,36 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       configurationRowIds: [],
     });
   }
+  const planned = await readAlibabaDetailPlan(productId, product, page, 20);
+  if (!planned.ok) return planned;
+  const { packet } = planned;
+  const sourcePage = SourcePageSchema.safeParse(packet);
+  if (!sourcePage.success)
+    return catalogValidationFailure(
+      'source-page',
+      catalogIssuesFromZod(sourcePage.error.issues, packet, {
+        stage: 'source',
+        remedy: 'system-repair',
+      }),
+    );
+  const result = await persistCatalogDetailApproval(actorId, sourcePage.data);
+  return !result.ok && result.code === 'VALIDATION_ERROR'
+    ? result.validation
+      ? result
+      : catalogValidationFailure('source-persistence', [catalogFailureIssue('INTERNAL_ERROR')])
+    : result;
+}
+
+/** Source validation and website projection only; no identities, media imports or staging writes. */
+export async function readAlibabaDetailPlan(
+  productId: string,
+  product: CollectionDoc,
+  page: number,
+  pageSize: number,
+) {
+  const sourceKey = product.alibabaPrimarySourceKey;
+  if (typeof sourceKey !== 'string' || sourceKey === '')
+    return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const observationId = sourceObservationDocumentId('alibaba', sourceKey);
   const row = await get('catalogSourceObservations', observationId);
   const normalized = await get('alibabaSourceProducts', sourceKey);
@@ -196,7 +240,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       ...catalogCategoryLabel(product.productFamily),
     },
     page + 1,
-    20,
+    pageSize,
   );
   if (!candidate.ok) return catalogValidationFailure('source-candidate', candidate.issues);
   const { variants: pageVariants } = candidate.value;
@@ -261,34 +305,39 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
         18,
       ),
     },
-    variantMedia: observation.variants.slice(page * 20, (page + 1) * 20).map((variant) => {
-      const id = variants.get(variant.sourceVariantKey);
-      if (!id) throw new Error('Canonical variant binding changed during source preparation');
-      return {
-        id,
-        sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
-        unboundSources: choiceFor(id)
-          ? []
-          : variant.media
-              .slice(0, 9)
-              .filter((m) => !images.has(m.sourceUrl))
-              .map((m) => m.sourceUrl),
-      };
-    }),
-  };
-  const sourcePage = SourcePageSchema.safeParse(packet);
-  if (!sourcePage.success)
-    return catalogValidationFailure(
-      'source-page',
-      catalogIssuesFromZod(sourcePage.error.issues, packet, {
-        stage: 'source',
-        remedy: 'system-repair',
+    variantMedia: observation.variants
+      .slice(page * pageSize, (page + 1) * pageSize)
+      .map((variant) => {
+        const id = variants.get(variant.sourceVariantKey);
+        if (!id) throw new Error('Canonical variant binding changed during source preparation');
+        return {
+          id,
+          sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
+          unboundSources: choiceFor(id)
+            ? []
+            : variant.media
+                .slice(0, 9)
+                .filter((m) => !images.has(m.sourceUrl))
+                .map((m) => m.sourceUrl),
+        };
       }),
-    );
-  const result = await persistCatalogDetailApproval(actorId, sourcePage.data);
-  return !result.ok && result.code === 'VALIDATION_ERROR'
-    ? result.validation
-      ? result
-      : catalogValidationFailure('source-persistence', [catalogFailureIssue('INTERNAL_ERROR')])
-    : result;
+  };
+  return {
+    ok: true as const,
+    packet,
+    detail: candidate.value,
+    sourceMedia: {
+      gallerySources: [
+        ...new Set(
+          [...observation.content.media]
+            .sort((a, b) => a.position - b.position)
+            .map((media) => media.sourceUrl),
+        ),
+      ].slice(0, 9),
+      descriptionSources: [...new Set(observation.content.description?.imageUrls ?? [])].slice(
+        0,
+        18,
+      ),
+    },
+  };
 }
