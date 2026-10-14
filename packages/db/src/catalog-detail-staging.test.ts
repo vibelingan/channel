@@ -466,7 +466,7 @@ test('server review includes all 105 SKUs, exposes bounded pages and never excee
   assert.deepEqual(changed, { ok: false, code: 'CONFLICT' });
 });
 
-test('media rollover budgets every read/write and rejects overflow before changing the approved revision', async () => {
+test('media rollover counts unchanged photos as reads without an arbitrary image limit', async () => {
   for (const newDescriptionCount of [10, 11]) {
     const h = fixture(1);
     const product = h.row('products', 'p');
@@ -517,16 +517,9 @@ test('media rollover budgets every read/write and rejects overflow before changi
     assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
     const before = structuredClone(h.store());
     const result = await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId));
-    if (newDescriptionCount === 10) {
-      assert.ok(result.ok);
-      // Unchanged photos are no longer written (DEC-21): 78 here. The worst
-      // case, every photo's live-use count changing, writes every photo as
-      // before DEC-21: 97, inside the 98-operation budget.
-      assert.equal(h.maximumOperations(), 78);
-    } else {
-      assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
-      assert.deepEqual(h.store(), before);
-    }
+    assert.ok(result.ok);
+    assert.equal(h.maximumOperations(), newDescriptionCount === 10 ? 78 : 79);
+    assert.notDeepEqual(h.store(), before);
   }
 });
 
@@ -1188,4 +1181,99 @@ test('a media summary cannot be requested without the matching preview metadata'
     { action: 'review', productId: 'p', includeMediaSummary: true },
   );
   assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
+});
+
+test('full legal gallery rollover and unchanged SKU media use the actual transaction budget', async () => {
+  for (const [published, retiredSkuCount, shouldFinish, expectedOperations] of [
+    [true, 0, true, 86],
+    [true, 6, true, 98],
+    [true, 7, false, 3],
+    [false, 39, true, 98],
+    [false, 40, false, 3],
+  ] as const) {
+    const h = fixture(1);
+    const product = h.row('products', 'p');
+    const oldGallery = Array.from({ length: 9 }, (_, i) => `old-gallery-${i}`);
+    const oldDescription = Array.from({ length: 18 }, (_, i) => `old-description-${i}`);
+    const newGallery = Array.from({ length: 9 }, (_, i) => `new-gallery-${i}`);
+    const newDescription = Array.from({ length: 18 }, (_, i) => `new-description-${i}`);
+    const retired = Array.from({ length: retiredSkuCount }, (_, i) => `old-sku-${i}`);
+    product.published = published;
+    product.imageIds = newGallery;
+    product.descriptionImageIds = newDescription;
+    for (const variant of h.variants) {
+      variant.imageIds = [newGallery[0] ?? 'new-gallery-0'];
+      variant.detailSourceCandidate.images = ['/api/images/new-gallery-0'];
+    }
+    const previous = h.publication();
+    product.catalogDetailPublication = {
+      ...previous,
+      variantImageIds: retired,
+      header: {
+        ...previous.header,
+        images: oldGallery.map((id) => `/api/images/${id}`),
+        descriptionImages: oldDescription.map((id) => `/api/images/${id}`),
+      },
+    };
+    const imageStore = h.store().images;
+    assert.ok(imageStore);
+    for (const id of [
+      ...oldGallery,
+      ...oldDescription,
+      ...newGallery,
+      ...newDescription,
+      ...retired,
+    ])
+      imageStore[id] = {
+        _id: id,
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        publishedRefCount: published ? 1 : 0,
+      };
+    const prepared = prepareStagedApproval(
+      'admin',
+      {
+        ...h.command,
+        expectedDigest: catalogApprovalDigest(product, h.variants),
+      },
+      product,
+      h.variants,
+    );
+    assert.ok(prepared.ok);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+    const before = structuredClone(h.store());
+    let operations = 0;
+    const result = await h.run((tx) =>
+      finishStagedApproval(
+        {
+          get: (collection, id) => {
+            operations++;
+            return tx.get(collection, id);
+          },
+          set: (collection, row) => {
+            operations++;
+            return tx.set(collection, row);
+          },
+        },
+        'admin',
+        begin.jobId,
+      ),
+    );
+    assert.equal(result.ok, shouldFinish, `published=${published}, retired=${retiredSkuCount}`);
+    assert.equal(operations, expectedOperations);
+    if (!shouldFinish) {
+      assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
+      assert.deepEqual(h.store(), before);
+      continue;
+    }
+    for (const id of [...oldGallery, ...oldDescription, ...retired])
+      assert.equal(h.row('images', id).publishedRefCount, 0);
+    for (const id of [...newGallery, ...newDescription])
+      assert.equal(h.row('images', id).publishedRefCount, published ? 1 : 0);
+    const committed = structuredClone(h.store());
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    assert.deepEqual(h.store(), committed, 'finish replay must not update counters again');
+  }
 });

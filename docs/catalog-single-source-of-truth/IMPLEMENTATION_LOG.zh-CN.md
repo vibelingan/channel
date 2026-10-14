@@ -574,3 +574,16 @@ fd7ccdfba15be742b949ba417a2aa1a9a5700afd精确review已完成。私有报告复�
 九个独立内存mutation均有各文件独立baseline并按预期失败，保留正常正控且源码不改（p2d2-mutations-r1.log）：finalinput10/13、policy1/22、actor3/20、SDKACK2/57、JSONreplay1/48、legacyproof1/6、mirrorcapture5/2、productfence2/5、modernrawproof1/6（前为fail后为pass）。三件实际时钟副本再走readonly Preview→prepare/review/begin/page/finish→读回，113/113/121facts、4/2/1配置、header/job字节、分类和未发布保持，独立JSON/owner清理（p2d2-real-clock-r1.log）。未拿旧built150作这版新浏览器证据；下个接线小流程重跑构建组合。
 
 SDK11个复用表面逐项见SDK-PROBE；官方事务流程/安装数据库真实入口及现有vendor实验对照，安装index绑定的是transaction/index，不能误用同目录旧transaction.js或文档包装返回值。文字核对实际文件为preparation-store/staging/产品摘要、source-inputs/invalidation、Cloud helper/JSON与23/7/59/49断言；把“现代重抓不写商品”改为“不推进内容版本，但保留实际商品事务竞争”，把“检查成功即可发布”明确为“报告不授权发布”。旧packet可能需要重新review；durable恢复、正常模式/query/count/fullselect、自动检查/worker授权/影子回填启用、完整预算、媒体恢复、历史修复、其余云race/性能/Node20构建、test部署及真实20件恢复仍开放。无push/app部署/真实商品写入，无属性过滤或存储拆分。
+
+
+### P3a0：按实际媒体读写计算现有 finish 事务预算（本地子单元完成，待精确提交 review）
+
+dbf7b4810760df7363605a23c3710b0f8d11675a 的精确 review 已完成。本单元先红复现固定46张上限误拦正常完整图库/描述图替换：9+18张新图与9+18张旧图共存，实际finish86操作，却返回APPROVAL_TOO_LARGE。原47张用例实际79操作，同样被旧上限误拒。现在唯一planStagedApprovalMedia计算5个固定操作、全部图片点读及真正改变的live-use计数写入；finish使用同一个delta，不再把无变化图片算作写入。原DEC-21共享图只读、image lock/active/storage/counter检查、原子product/job提交及重复finish语义保持。
+
+43个staging回归通过，新增完整rollover、live恰好98/超过98、unpublished恰好98/超过98共五个边界，独立包裹tx逐次计数。超预算时只读actor/job/product共3次，整库不变；成功回放整库不变，旧图计数归零、新图计数保留。真实广泛消费者2397 passed/0 failed/0 skipped（output/pricing-clock-repair-2026-10-13/p3a0/broad.log，实际图库浏览器开启），db/admin实际类型、两文件实际Biome及standingSDK通过。没有新SDK方法或shim；官方/database/transaction再次核对100操作/30秒/doc-only，Context7未提供，仍保留98应用预算。安装数据库契约门槛实际通过，不采用文档示例的包装返回值。
+
+独立esbuild内存mutation：baseline43/0；恢复旧46限制41pass/2fail；忽略delta写入42/1；恢复无变化图片写入41/2；各轮0skip，工作区源码字节不变，日志位于同一私有p3a0目录。先红输出明确正常full rollover false!=true，不把新增未接线接口当业务根因。本次没有重复计算旧built150或旧云实验为新证据。
+
+中断前/private/tmp盘点目录已消失，原未结束cell不可恢复，未声称其完成。已重新只读盘点并逐页持久保存六集合：observations1109、normalized sources1109、primary links1109、source-media links13240、products1121、images9805；独立JSON检查ID唯一/排序/分页计数及起止总数一致。证据目录output/pricing-clock-repair-2026-10-13/capacity-census-20261014-1710，属于多页非事务观察，不是同一时刻原子快照，也不是已跑完审批容量盘点。
+
+文字核对实际staging finish、catalogReferencedImageIds、既有DEC-21/rollover/幂等断言、纯计划及新tx计数探针；把“最多46张图片”更正为“5+实际读数+计数变化写数不超过98”。没有把媒体暂存字节、旧新版本联合图片、公开wire上限混为一项。本单元只修误拒；合法超98组合的分阶段协议仍是P3硬门槛，不能靠提前报错或移出正常列表算解决。P1完整预检、P2报告生产/query/UI/影子启用、durable操作与编辑/媒体恢复、历史修复、vendor races/性能/Node20全构建、同SHA test部署与真实20件发布恢复继续实施。未push/部署app/改云商品，没有新分支/worktree/agent或未来属性筛选mapping。

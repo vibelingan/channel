@@ -426,12 +426,25 @@ export async function stageApprovalPage(
   return progress(next);
 }
 
-/**
- * Images one approval may touch, old and new versions together: finish reads
- * and writes each once, plus five fixed operations (actor/job/product reads,
- * product/job writes), within the 98 of a 100-operation transaction.
- */
-export const APPROVAL_IMAGE_LIMIT = 46;
+/** Reserve two of CloudBase's 100 operations for transaction overhead. */
+export const CATALOG_APPROVAL_FINISH_MAX_OPERATIONS = 98;
+
+/** The finish transaction reads every referenced image and writes only live-use changes. */
+export function planStagedApprovalMedia(
+  product: CollectionDoc,
+  publication: PreparedApproval['publication'],
+) {
+  const before = new Set(catalogReferencedImageIds(product));
+  const after = new Set(
+    catalogReferencedImageIds({ ...product, catalogDetailPublication: publication }),
+  );
+  const imageIds = new Set([...before, ...after]);
+  const delta = (imageId: string) =>
+    product.published === true ? Number(after.has(imageId)) - Number(before.has(imageId)) : 0;
+  // Actor/job/product reads plus product/job writes; unchanged photos stay read-only (DEC-21).
+  const operations = 5 + imageIds.size + [...imageIds].filter((id) => delta(id) !== 0).length;
+  return { imageIds, delta, operations };
+}
 
 export async function finishStagedApproval(
   tx: CatalogApprovalTransaction,
@@ -458,15 +471,9 @@ export async function finishStagedApproval(
   if (job.nextPage !== job.pageHashes.length) return fail('SOURCE_NOT_READY');
   if (!sameProduct(product, job)) return fail('CONFLICT');
   const images: CollectionDoc[] = [];
-  const beforeImages = new Set(catalogReferencedImageIds(product));
-  const afterImages = new Set(
-    catalogReferencedImageIds({ ...product, catalogDetailPublication: job.publication }),
-  );
-  // Keep finish within the transaction budget, including retired snapshot
-  // images. Refuse before writing rather than partially approve.
-  if (new Set([...beforeImages, ...afterImages]).size > APPROVAL_IMAGE_LIMIT)
-    return fail('APPROVAL_TOO_LARGE');
-  for (const imageId of new Set([...beforeImages, ...afterImages])) {
+  const media = planStagedApprovalMedia(product, job.publication);
+  if (media.operations > CATALOG_APPROVAL_FINISH_MAX_OPERATIONS) return fail('APPROVAL_TOO_LARGE');
+  for (const imageId of media.imageIds) {
     const image = await tx.get('images', imageId);
     const lock = image ? readImageMutationState(image) : null;
     // Held right now by a save or delete (a fresh lock): free again in a
@@ -495,10 +502,7 @@ export async function finishStagedApproval(
     variantStorage: 'immutable-v1',
   });
   for (const image of images) {
-    const delta =
-      product.published === true
-        ? Number(afterImages.has(image._id)) - Number(beforeImages.has(image._id))
-        : 0;
+    const delta = media.delta(image._id);
     const count = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : 0;
     if (count + delta < 0) return fail('MEDIA_NOT_READY');
   }
@@ -509,10 +513,7 @@ export async function finishStagedApproval(
   // paths lock the photo and refuse while an unfinished approval job lists it,
   // and this transaction refuses a locked photo (checked above).
   for (const image of images) {
-    const delta =
-      product.published === true
-        ? Number(afterImages.has(image._id)) - Number(beforeImages.has(image._id))
-        : 0;
+    const delta = media.delta(image._id);
     if (delta === 0) continue;
     await tx.set('images', {
       ...image,

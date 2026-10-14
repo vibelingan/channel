@@ -173,3 +173,8 @@ P2d1：私有PreparationReport的19项Zod3.25.76表面逐项见 .claude/sdk-prob
 P2d1follow-up：datetime的超长合法语法反例实际70311byte被接受，精确review withheld后加内部checkedAt max40。最终25report cases/full2356/0/0、finalshared type/Biome及7独立mutants通过，19表面不变；不涉及来源截断或新存储拆分。
 
 P2d2：六个Zod3.25.76与五个已安装@cloudbase/database1.4.3复用表面逐项见 .claude/sdk-probes/P2d2.md，native wrapper未更换。官方事务流程经MCP检索/读取，安装index实际选transaction/index并返回callbackRes；旧同级文件及文档包装示例不作契约。191focused/full2396/0/0、八consumer types、实际11-fileBiome/standingSDK/真实时钟副本清理通过；9独立mutants含ACK2fail/57正控。无新vendor race声明，新配对fence/报告CAS云race及重抓成本仍P6门槛；未接线自动producer/list rollout，无应用部署或客户变更。
+
+
+#### P3a0 media-operation budget
+
+No new SDK API or hand-written type. Existing staging bridge remains runTransaction -> collection/doc -> get/set with exact ACK checks. Official https://docs.cloudbase.net/database/transaction re-read 2026-10-14 confirms 100 operations, 30 seconds and doc-only/no where; local limit remains98. Installed database1.4.3 runtime callback/ACK/rollback probes via standing gate passed. Complete2397 consumers,43staging and three independently failing in-memory mutations passed their respective expectations. Full-reader/98-boundary CloudBase latency/races remain P6, not claimed from local transaction simulation. Context7 unavailable.
