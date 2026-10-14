@@ -5,9 +5,9 @@ import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared'
  * reviewed canonical projection may expose this DTO through a public handler.
  */
 import {
+  CatalogDetailHeaderSchema,
   type CatalogDetailVariant,
   CatalogDetailVariantSchema,
-  type CatalogProductDetail,
   decodeCatalogProductDetail,
 } from '@vibelingan-channel/shared/catalog-detail';
 import {
@@ -38,36 +38,13 @@ export interface CatalogDetailBindings {
   websiteProduct?: unknown;
 }
 
-export function buildCatalogPreparationPlan(
+/** Validate and project the complete source once; callers may then page or compare it. */
+export function buildCompleteCatalogPreparationPlan(
   input: unknown,
   bindings: CatalogDetailBindings,
-  page = 1,
-  pageSize = 50,
 ) {
   const validated = validateCatalogSourceObservation(input);
   if (!validated.ok) return validated;
-  if (
-    !Number.isSafeInteger(page) ||
-    page < 1 ||
-    !Number.isInteger(pageSize) ||
-    pageSize < 1 ||
-    pageSize > 50 ||
-    !Number.isSafeInteger((page - 1) * pageSize)
-  ) {
-    return {
-      ok: false as const,
-      errors: ['Invalid variant pagination'],
-      issues: [
-        CatalogIssueSchema.parse({
-          code: 'INVALID_VALUE',
-          stage: 'effective-content',
-          path: 'page',
-          severity: 'error',
-          remedy: 'reload',
-        }),
-      ],
-    };
-  }
   const observation = validated.value;
   const warnings: string[] = [];
   const images = (media: typeof observation.content.media, limit = 9) => {
@@ -177,11 +154,9 @@ export function buildCatalogPreparationPlan(
         (issue) => catalogIssueMessage(issue) ?? 'Configuration data is too large.',
       ),
     };
-  const offset = (page - 1) * pageSize;
-  const variants = configurations.data.slice(offset, offset + pageSize);
   const descriptionText = observation.content.description?.text?.trim();
-  const candidate: CatalogProductDetail = {
-    schemaVersion: 'catalog-product-detail-v1',
+  const sourceHeader = {
+    schemaVersion: 'catalog-product-detail-v1' as const,
     _id: bindings.productId,
     name: observation.identity.title ?? '',
     ...(bindings.categoryLabel ? { categoryLabel: bindings.categoryLabel } : {}),
@@ -201,27 +176,32 @@ export function buildCatalogPreparationPlan(
     images: images(observation.content.media),
     facts: facts(observation.identity.attributes),
     offers: offersByVariant.get(undefined) ?? [],
-    variants: {
-      items: variants,
-      page,
-      pageSize,
-      total: observation.variants.length,
-      hasMore: offset + variants.length < observation.variants.length,
-    },
   };
-  const { variants: variantPage, ...sourceHeader } = candidate;
   try {
     const header =
       bindings.websiteProduct === undefined
         ? sourceHeader
         : applyWebsiteDetailHeader(sourceHeader, bindings.websiteProduct);
-    const result = decodeCatalogProductDetail({ ...header, variants: variantPage });
-    return result.ok
-      ? { ...result, sourceHeader, warnings: [...new Set(warnings)] }
-      : {
-          ...result,
-          issues: sourceIssues(result.issues),
-        };
+    const checkedHeader = CatalogDetailHeaderSchema.safeParse(header);
+    if (!checkedHeader.success)
+      return {
+        ok: false as const,
+        errors: checkedHeader.error.issues.map(
+          (issue) => `${issue.path.join('.')}: ${issue.message}`,
+        ),
+        issues: sourceIssues(
+          catalogIssuesFromZod(checkedHeader.error.issues, header, {
+            stage: 'effective-content',
+            remedy: 'edit',
+          }),
+        ),
+      };
+    return {
+      ok: true as const,
+      value: { header: checkedHeader.data, variants: configurations.data },
+      sourceHeader,
+      warnings: [...new Set(warnings)],
+    };
   } catch (error) {
     if (error instanceof CatalogValidationError)
       return {
@@ -239,6 +219,54 @@ export function buildCatalogPreparationPlan(
       }),
     };
   }
+}
+
+/** A validated page view of the same complete plan; no validation is skipped on later rows. */
+export function buildCatalogPreparationPlan(
+  input: unknown,
+  bindings: CatalogDetailBindings,
+  page = 1,
+  pageSize = 50,
+) {
+  if (
+    !Number.isSafeInteger(page) ||
+    page < 1 ||
+    !Number.isInteger(pageSize) ||
+    pageSize < 1 ||
+    pageSize > 50 ||
+    !Number.isSafeInteger((page - 1) * pageSize)
+  ) {
+    return {
+      ok: false as const,
+      errors: ['Invalid variant pagination'],
+      issues: [
+        CatalogIssueSchema.parse({
+          code: 'INVALID_VALUE',
+          stage: 'effective-content',
+          path: 'page',
+          severity: 'error',
+          remedy: 'reload',
+        }),
+      ],
+    };
+  }
+  const complete = buildCompleteCatalogPreparationPlan(input, bindings);
+  if (!complete.ok) return complete;
+  const offset = (page - 1) * pageSize;
+  const variants = complete.value.variants;
+  const result = decodeCatalogProductDetail({
+    ...complete.value.header,
+    variants: {
+      items: variants.slice(offset, offset + pageSize),
+      page,
+      pageSize,
+      total: variants.length,
+      hasMore: offset + pageSize < variants.length,
+    },
+  });
+  return result.ok
+    ? { ...result, sourceHeader: complete.sourceHeader, warnings: complete.warnings }
+    : { ...result, issues: sourceIssues(result.issues) };
 }
 
 /** Public candidate shape deliberately omits the private source header. */

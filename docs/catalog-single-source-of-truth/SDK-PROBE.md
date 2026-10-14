@@ -131,3 +131,18 @@ Old job schemas remain readable. A legacy collapsed projection cannot accept new
 All rows join exactly to sdk-surfaces-p1f3.txt. SafeParse's failure branch owns its message rather than surfacing raw Zod received values. Unknown errors use an owned generic message. The issue schema bounds allowed paths/codes and capacity measurements; first50 entries only. Independent instrumented bundle mutants: unsafe wire parse1fail/26controls; issue guard bypass1fail/3controls; lost sign-in remedy1fail/2controls; arbitrary error exposure1fail/2controls. Workspace bytes unchanged. First TSX mutation loader did not instrument the panel and is excluded; corrected loader asserts instrumentation before running.
 
 Official references: [React static markup](https://react.dev/reference/react-dom/server/renderToStaticMarkup), [Playwright Route](https://playwright.dev/docs/api/class-route). No Context7 tool is available. Latest official React docs describe19.3; installed declarations/runtime plus actual tests determine19.2 behavior.
+
+
+## P1h1: complete source planning
+
+
+Two exact reused Zod3.25.76 package-method surfaces, no new CloudBase SDK/shim/signature or query type. Complete plan now validates CatalogDetailHeaderSchema and every configuration separately; paged wire views still use the existing strict decoder. No new storage field, collection or global cache.
+
+| package@version | method | signature / used result | evidence |
+|---|---|---|---|
+| zod@3.25.76 | safeParse | `(unknown, params?) -> success/data or failure/error.issues` | installed v3/types.d.ts:65; full header/all configurations, invalid saved photo choices, strict safe issue paths; 2284 consumers and eight types |
+| zod@3.25.76 | parse | `(unknown, params?) -> parsed output or ZodError` | actual publication parse in 105-configuration comparison fixture; complete native local replay/approval/readback; 2284 consumers and eight types |
+
+The existing installed v3 types/runtime and earlier primary https://zod.dev/api reference remain applicable; no v4-only method is used. Counter instrumentation proves compareWithApproved reads source SKU input once for105configurations; restoring the old paging loop yields3reads and one failing performance regression with10normal controls. Bad-photo fallback mutation1fail/8controls; dropping retained website context1fail/2normal complete-replay controls. Every mutation asserts actual bundle instrumentation and unchanged workspace bytes. CJS import.meta warnings belong to unselected workspace tests, not a claimed passing CLI mutation test.
+
+SDK standing gate's first sandbox invocation failed on tsx IPC before verification; elevated scoped rerun p1h1-sdk-final-r2.log passes. No CloudBase runtime or vendor resource changes. Full delivery, cloud timing and deployment remain unverified.

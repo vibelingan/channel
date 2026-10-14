@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateCatalogSourceObservation } from '@vibelingan-channel/catalog-import/observations';
 import { SourcePageSchema } from '@vibelingan-channel/db/catalog-source-staging';
-import { prepareCatalogSource, readAlibabaDetailPlan } from './catalog-detail-source.ts';
+import {
+  prepareCatalogSource,
+  readAlibabaDetailPlan,
+  sourceVariantIds,
+} from './catalog-detail-source.ts';
 import { CatalogValidationSchema } from './catalog-validation.ts';
 import { fixture } from './testing/catalog-source-plan-fixture.ts';
 
@@ -85,4 +89,31 @@ test('manual prepare must not drop configurations beyond the supported scan', as
   const result = await prepareCatalogSource('admin', { action: 'prepare', productId: product._id });
   assert.ok(!result.ok && result.code === 'VALIDATION_ERROR', JSON.stringify(result));
   assert.deepEqual(adapter.commands, []);
+});
+
+test('malformed saved configuration choices must not silently erase valid choices or stage source data', async () => {
+  const { product, observation, adapter } = fixture(105);
+  const first = sourceVariantIds(product._id, String(product.alibabaPrimarySourceKey), observation)
+    .values()
+    .next().value;
+  assert.ok(first);
+  product.imageIds = ['img-chosen'];
+  product.configurationPhotos = {
+    [first]: ['img-chosen'],
+    'private-configuration-key': ['private-invalid-image/value'],
+  };
+  const before = structuredClone(adapter.rows);
+  for (const read of [
+    () => readAlibabaDetailPlan(product._id, product, 0, 50),
+    () => prepareCatalogSource('admin', { action: 'prepare', productId: product._id }),
+  ]) {
+    const result = await read();
+    assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
+    const report = CatalogValidationSchema.parse(result.validation);
+    assert.equal(report.issues[0]?.path, 'configurationPhotos.field.0');
+    assert.equal(report.issues[0]?.remedy, 'edit');
+    assert.doesNotMatch(JSON.stringify(report), /private-/);
+    assert.deepEqual(adapter.commands, []);
+    assert.deepEqual(adapter.rows, before);
+  }
 });

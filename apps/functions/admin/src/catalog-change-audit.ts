@@ -12,7 +12,7 @@
  * `change-audit-mark` command (MIU-22): "unchanged" records the baseline
  * digest, "changed" flags the product for review.
  */
-import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
 import { validateCatalogSourceObservation } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
@@ -126,14 +126,9 @@ export async function compareWithApproved(
     websiteProduct: { ...product, detailSourceOwner: `alibaba:${sourceKey}` },
     ...catalogCategoryLabel(product.productFamily),
   };
-  const first = buildCatalogDetailCandidate(observation, bindings, 1, 50);
-  if (!first.ok) return 'no-observation';
-  const candidateVariants: Variant[] = [...first.value.variants.items];
-  for (let page = 2; candidateVariants.length < first.value.variants.total; page++) {
-    const next = buildCatalogDetailCandidate(observation, bindings, page, 50);
-    if (!next.ok || next.value.variants.items.length === 0) return 'no-observation';
-    candidateVariants.push(...next.value.variants.items);
-  }
+  const complete = buildCompleteCatalogPreparationPlan(observation, bindings);
+  if (!complete.ok) return 'no-observation';
+  const candidateVariants = complete.value.variants;
   const before = new Map(
     approved.flatMap((row) => (row.success ? [[row.data.id, row.data] as const] : [])),
   );
@@ -160,13 +155,13 @@ export async function compareWithApproved(
     if (canonical(was.options) !== canonical(now.options))
       comparison.options.push(variantLabel(was));
   }
-  if (offerSet(header.offers) !== offerSet(first.value.offers))
+  if (offerSet(header.offers) !== offerSet(complete.value.header.offers))
     comparison.productPrice = {
       before: pricings(header.offers),
-      after: pricings(first.value.offers),
+      after: pricings(complete.value.header.offers),
     };
-  if (canonical(header.facts) !== canonical(first.value.facts))
-    comparison.facts = { before: header.facts, after: first.value.facts };
+  if (canonical(header.facts) !== canonical(complete.value.header.facts))
+    comparison.facts = { before: header.facts, after: complete.value.header.facts };
   // Not compared: the description (the approved text is the admin's own, from
   // the row) and images (approved rows hold image ids, the source holds URLs);
   // the supplier review compares those parts separately.

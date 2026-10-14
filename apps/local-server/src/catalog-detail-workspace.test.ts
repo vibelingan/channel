@@ -756,3 +756,57 @@ test('another UI-02 owner and an older local seal cannot claim a valid clone', a
   assert.deepEqual(await get('products', productId), pending);
   assert.equal(pending?.detailSourceReady, false);
 });
+
+test('an existing local replay validates retained website text instead of unused long incoming text', async (t) => {
+  await workspace(t);
+  for (const provider of ['alibaba', 'dianxiaomi'] as const) {
+    const source = observation(provider, 105);
+    const { productId } = await materialize(source);
+    await updateDoc('products', productId, {
+      name: 'Retained website title',
+      description: 'Retained website description',
+    });
+    await approveLocalDetail(productId);
+    const publicBefore = (await read(productId)).body;
+    const old = await get('products', productId);
+    assert.ok(old);
+    source.source.observedAt = '2026-09-06T02:00:00.000Z';
+    source.identity.title = 'x'.repeat(1001);
+    const description = source.content.description;
+    assert.ok(description);
+    description.text = 'y'.repeat(30001);
+    const replayed = await materialize(source);
+    assert.equal(replayed.productId, productId);
+    assert.equal(replayed.variants, 105);
+    const current = await get('products', productId);
+    assert.equal(current?.name, 'Retained website title');
+    assert.equal(current?.description, 'Retained website description');
+    assert.equal(current?.published, true);
+    assert.deepEqual(current?.catalogDetailPublication, old.catalogDetailPublication);
+    assert.equal((await read(productId)).body, publicBefore);
+    await approveLocalDetail(productId);
+    const view = detail((await read(productId)).body);
+    assert.equal(view.name, 'Retained website title');
+    assert.equal(view.descriptionText, 'Retained website description');
+    assert.equal(view.variants.total, 105);
+  }
+});
+
+test('a new clone with invalid adopted text reserves no product or configuration identity', async (t) => {
+  const { adapter } = await workspace(t);
+  for (const provider of ['alibaba', 'dianxiaomi'] as const) {
+    for (const fault of ['title', 'description']) {
+      const source = observation(provider, 105);
+      if (fault === 'title') source.identity.title = 'x'.repeat(1001);
+      else {
+        assert.ok(source.content.description);
+        source.content.description.text = 'y'.repeat(30001);
+      }
+      await assert.rejects(materialize(source), /name:|descriptionText:/);
+      for (const collection of ['products', 'productVariants', 'catalogSourceLinks']) {
+        const rows = await adapter.list({ collection, page: 1, pageSize: 100, search: '' });
+        assert.equal(rows.total, 0, `${collection} unchanged before any identity reservation`);
+      }
+    }
+  }
+});

@@ -6,10 +6,12 @@ import { validateCatalogSourceObservation } from '@vibelingan-channel/catalog-im
 import { runStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import {
   type ChangeAuditReader,
   applyChangeAudit,
+  compareWithApproved,
   planChangeAudit,
 } from './catalog-change-audit.ts';
 import { catalogCategoryLabel, sourceVariantIds } from './catalog-detail-source.ts';
@@ -279,3 +281,63 @@ for (const field of ['title', 'description'] as const) {
     });
   }
 }
+
+test('comparing all 105 configurations validates source input once, without rebuilding earlier pages', async () => {
+  const raw = observation(UNPRICED);
+  const original = raw.variants[0];
+  assert.ok(original);
+  raw.variants = Array.from({ length: 105 }, (_, index) => ({
+    ...original,
+    sourceVariantKey: `sku-${index}`,
+  }));
+  raw.offers = [];
+  const checked = validateCatalogSourceObservation(raw);
+  assert.ok(checked.ok);
+  const source = checked.value;
+  const store = approvedStore(raw);
+  const bindings = {
+    productId: 'p1',
+    variants: sourceVariantIds('p1', SOURCE, source),
+    images: new Map<string, string>(),
+    ...catalogCategoryLabel('headphones'),
+  };
+  for (let page = 2; page <= 3; page++) {
+    const built = buildCatalogDetailCandidate(source, bindings, page, 50);
+    assert.ok(built.ok);
+    store.rows.push(
+      ...built.value.variants.items.map((variant, offset) => ({
+        _id: approvedVariantDocumentId('p1', 'r1', variant.id),
+        productId: 'p1',
+        variantId: variant.id,
+        catalogDetailRevision: 'r1',
+        catalogDetailPosition: (page - 1) * 50 + offset,
+        catalogDetailApproved: variant,
+      })),
+    );
+  }
+  const product = store.products[0];
+  assert.ok(product);
+  const publication = CatalogDetailPublicationSchema.parse(product.catalogDetailPublication);
+  publication.variantCount = 105;
+  product.catalogDetailPublication = publication;
+  let reads = 0;
+  const first = source.variants[0];
+  assert.ok(first);
+  Object.defineProperty(first, 'sku', {
+    enumerable: true,
+    get: () => {
+      reads++;
+      return 'SKU-0';
+    },
+  });
+  const result = await compareWithApproved(reader(store), product, SOURCE, source, publication);
+  assert.equal(typeof result, 'object');
+  assert.equal(reads, 1, 'one complete source validation, not one per output page');
+  assert.deepEqual(result, {
+    configurationsAdded: [],
+    configurationsRemoved: [],
+    prices: [],
+    options: [],
+  });
+  assert.deepEqual(store.writes, []);
+});

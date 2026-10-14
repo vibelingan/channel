@@ -490,3 +490,22 @@ readDetailPreview把wire safeParse失败转换为自有提示，不再把Zod rec
 手工配置范围复核：当前集合配置productVariants为hideFromNav/adminAccess:none，CatalogImport为只读且apply仅CLI，现有正式UI无配置导入/编辑入口。2026-10-14对确认环境diversity-123-d9grnqfux221323bb的只读分页覆盖products1121及productVariants2578个唯一ID；7件active manual均已发布，其下active配置0，全集active非Alibaba配置0。计数为多页观察，不是事务快照，也不证明7件详情已健康。私有metadata证据manual-configuration-scope-2026-10-14.json留在临时证据目录，无名称/价格/图片/凭据。依已批准计划的条件规则，本轮正常UI支持manual零配置；CLI人工配置仍明确拒绝，不能静默丢行或声称其已受支持。不扩展另一importer工作流；P5继续审计旧数据，新增正常UI配置入口前必须另补无损投影及完整验收。
 
 文字核对：实际复核CatalogIssuesPanel、preview失败转换/API边界、AdminDetailPreview/PreviewModal现有Edit交接、sidebar Alibaba Sync名称、登录路由、issue合约和formal浏览器断言。把“Edit修复来源”更正为“进入Alibaba Sync刷新来源”，把“有修复按钮”具体为“真实现有Edit callback已由构建浏览器点击验证”；核对受控path、50上限和未知异常不泄漏。未push/部署app/操作云商品，未来分类属性mapping继续仅为想法。P1计划复用/照片选择、P2查询与启用、P3/P4持久恢复、历史修复及最终整合/test现场验收继续实施。
+
+
+### P1h1：完整候选复用、照片字段拒绝与本地重放（2026-10-14，本地子单元完成，待精确提交 review）
+
+P1f3提交a2617960098ac648a46ebb00324e69fed7fc6774已完成精确inline review。两个实际先红反例：readAlibabaDetailPlan忽略损坏的configurationPhotos，导致其中合法选择也一起丢掉并继续；UI-02已有clone保留有效网站文本，却被未采用的1001字符来源标题/30001字符说明拦住。已让Preview与prepare在任何暂存前返回安全、可Edit修复的照片issue；原DEC-20图库成员规则保留，不把已移出图库的旧照片当作新错误。
+
+抽取buildCompleteCatalogPreparationPlan，独立严格校验header与完整配置，公开分页继续从同一规则解码。audit和Supplier Review比较直接用整份配置，不再为每50行重建全部来源。105配置SKU getter计数由旧逻辑3次降为1次，恢复旧循环会触发新测试失败；这是本地计算次数证据，未冒称云耗时达标。0/1/20/21/50/105完整计划和分页保持所有SKU、重复选项、完整私有来源header及原件不变，公开candidate不带sourceHeader。
+
+UI-02先只读查已有group link/clone，再按实际保留网站字段做preflight；新建仍检查要采用的来源文本，4种provider/字段无效组合不预留任何产品/配置/link身份。最终canonical ID计划一次构造所有配置，保留三方字段合并、完整原始来源header及现有批准版本，未采用描述不构建结构化来源文本。Alibaba与Dianxiaomi各105配置的重放→重新审批→公开读回证明有效保留文本不误拦，旧公开内容在重新批准前不变。正常新建、缺媒体修复、手工SKU编辑和当前本地owner/generation封印检查均保留。
+
+最终相关消费者2284 passed/0 failed/0 skipped，显式开启真实图库浏览器（p1h1-broad-final-r2.log）；8套实际类型、8文件真实Biome、diff whitespace及standing SDK gate通过。第一个测试写入cwd错误未产生新用例，不计红测，实际p1h1-red-r2记录两个行为失败。抽取期间变量重名、内部空首页不符合decoder关系均被测试拒绝，改为直接header校验；类型又抓到schemaVersion字面量和新测试缺search，均按真实契约修正，无cast压过边界。SDK gate初次sandbox的tsx IPC失败不算通过， scoped elevated重跑通过。
+
+独立bundle注入：坏照片忽略1fail/8正常正控、未采用文本误拦1fail/2完整重放正控、旧分页重复构建1fail/10正控；工作区字节不动（p1h1-mutations-final.log）。109项小流程在首次修复后通过；随后补了新建无效文本零身份写入用例，最终2284集合包含它。
+
+构建浏览器public41/catalog90/formal10/visibility8/taxonomy1共150通过，临时DB/服务清理确认（p1h1-combined-e2e-r1.log），包含普通单件/Edit/20件Assign category→Save and publish/共享计数恢复。浏览器运行时保持源码冻结；之后仅把schemaVersion收窄为字面量并补测试search参数。独立Node20 esbuild前后emit字节相同，SHA256 ad8e6b69aa64b1edb5b3b7c8068d89ab399c60863bbe5263bd116d874a414d5d；所有最终类型与2284集合在该修正后再通过，不把尚未执行的云验收算作完成。
+
+真实三件时钟副本再走readonly Preview→正式prepare/review/begin/page/finish，113/113/121属性及4/2/1配置完整，header7668/7675/8136bytes、job12005/11866/12269bytes，分类/published=false不变，临时DB/owner清理（p1h1-real-clock-r1.log）。本轮没有新云产品写入、push或部署。
+
+文字核对：复核detail-candidate完整/分页边界、source照片选择、audit比较、UI-02的group绑定与三方合并、结构化内容采用规则及实际测试。把“分页缓存”改为“一次构造完整候选”，因为本单元未增加缓存；把“照片异常回退”改为“损坏字段在暂存前明确拒绝”，保留原图库成员过滤行为。正式一次审批仍有重复来源读取/构造，下一子单元继续处理；normal/issues/preparing查询、持久操作与恢复、历史修复/启用、最终性能/全构建/test/真实20件回退门槛均未关闭。未来属性mapping继续留作后续想法，原始属性不筛除、不分组或新分表。

@@ -5,7 +5,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
 import {
   type CatalogSourceObservation,
   validateCatalogSourceObservation,
@@ -21,8 +21,10 @@ import {
   updateDoc,
 } from '@vibelingan-channel/db';
 import {
+  SOURCE_LINKS,
   bindProduct,
   bindVariant,
+  groupLinkId,
   writeVariant,
 } from '@vibelingan-channel/fn-admin/catalog-import-store';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
@@ -88,11 +90,21 @@ export async function materializeLocalDetail(input: {
     throw new Error('Complete product required');
   const owner = scope(observation);
   const now = new Date().toISOString();
-  // Validate the entire candidate before reserving persistent identities.
-  const preliminary = buildCatalogDetailCandidate(observation, {
+  // Read an existing clone before validating text it has already chosen to retain.
+  const link = await get(SOURCE_LINKS, groupLinkId(owner));
+  const previous =
+    typeof link?.productId === 'string' ? await get('products', link.productId) : null;
+  if (previous) {
+    requireClone(previous);
+    if (previous.detailSourceOwner !== owner) throw new Error('Source ownership mismatch');
+  }
+  const preliminary = buildCompleteCatalogPreparationPlan(observation, {
     productId: 'validation-only',
     images: input.images,
     variants: new Map(observation.variants.map((v, i) => [v.sourceVariantKey, `validation-${i}`])),
+    ...(previous
+      ? { websiteProduct: { ...previous, _id: 'validation-only', archived: false } }
+      : {}),
   });
   if (!preliminary.ok) throw new Error(preliminary.errors.join('; '));
   const binding = await bindProduct(
@@ -108,7 +120,7 @@ export async function materializeLocalDetail(input: {
   const productFields = {
     name: observation.identity.title,
     description: observation.content.description?.text ?? '',
-    imageIds: preliminary.value.images.map((url) => url.slice('/api/images/'.length)),
+    imageIds: preliminary.sourceHeader.images.map((url) => url.slice('/api/images/'.length)),
   };
   let product = await get('products', productId);
   if (!product) {
@@ -119,7 +131,7 @@ export async function materializeLocalDetail(input: {
         name: observation.identity.title,
         productFamily: input.productFamily,
         description: observation.content.description?.text ?? '',
-        imageIds: preliminary.value.images.map((url) => url.slice('/api/images/'.length)),
+        imageIds: preliminary.sourceHeader.images.map((url) => url.slice('/api/images/'.length)),
         detailSourceProductFields: productFields,
         localDetailClone: true,
         detailSourceOwner: owner,
@@ -181,63 +193,62 @@ export async function materializeLocalDetail(input: {
     // untouched draft gallery; a replay never changes a published gallery.
     ...(product.published !== true ? { detailSourceProductFields: productFields } : {}),
   });
-  const warnings = new Set<string>();
-  for (let page = 1; page <= Math.max(1, Math.ceil(observation.variants.length / 50)); page++) {
-    const candidate = buildCatalogDetailCandidate(
-      observation,
-      { productId, images: input.images, variants: bindings },
-      page,
-    );
-    if (!candidate.ok) throw new Error(candidate.errors.join('; '));
-    for (const warning of candidate.warnings) warnings.add(warning);
-    for (const [offset, variant] of candidate.value.variants.items.entries()) {
-      const position = (page - 1) * 50 + offset;
-      const existing = await get('productVariants', variant.id);
-      const fields = {
-        sku: variant.sku ?? '',
-        position,
-        optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
-        imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
-      };
-      if (!existing)
-        await writeVariant({ variantId: variant.id, productId, ...fields, inventory: undefined });
-      // Three-way update: preserve operator edits; only move values still equal
-      // to the previous source write. Approval snapshots never change here.
-      const previous = existing?.detailSourceFields;
-      const patch: Record<string, unknown> = {};
-      for (const [field, value] of Object.entries(fields)) {
-        if (
-          !existing ||
-          (typeof previous === 'object' &&
-            previous !== null &&
-            Object.hasOwn(previous, field) &&
-            isDeepStrictEqual(existing[field], Reflect.get(previous, field)))
-        ) {
-          patch[field] = value;
-        }
+  const currentProduct = await get('products', productId);
+  requireClone(currentProduct);
+  const candidate = buildCompleteCatalogPreparationPlan(observation, {
+    productId,
+    images: input.images,
+    variants: bindings,
+    websiteProduct: { ...currentProduct, archived: false },
+  });
+  if (!candidate.ok) throw new Error(candidate.errors.join('; '));
+  const warnings = new Set(candidate.warnings);
+  for (const [position, variant] of candidate.value.variants.entries()) {
+    const existing = await get('productVariants', variant.id);
+    const fields = {
+      sku: variant.sku ?? '',
+      position,
+      optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
+      imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
+    };
+    if (!existing)
+      await writeVariant({ variantId: variant.id, productId, ...fields, inventory: undefined });
+    // Three-way update: preserve operator edits; only move values still equal
+    // to the previous source write. Approval snapshots never change here.
+    const previous = existing?.detailSourceFields;
+    const patch: Record<string, unknown> = {};
+    for (const [field, value] of Object.entries(fields)) {
+      if (
+        !existing ||
+        (typeof previous === 'object' &&
+          previous !== null &&
+          Object.hasOwn(previous, field) &&
+          isDeepStrictEqual(existing[field], Reflect.get(previous, field)))
+      ) {
+        patch[field] = value;
       }
-      await updateDoc('productVariants', variant.id, {
-        ...patch,
-        detailSourceOwner: owner,
-        detailSourceRevision: sourceRevision,
-        detailSourceFields: fields,
-        detailSourceCandidate: variant,
-        detailSourceMissing: false,
-      });
     }
-    if (page === 1) {
-      const { variants: _variants, revision: _revision, ...header } = candidate.value;
-      const structured = buildStructuredContent(observation.content.description);
-      for (const warning of structured.warnings) warnings.add(warning);
-      await updateDoc('products', productId, {
-        detailSourceCandidate: header,
-        detailSourceRevision: sourceRevision,
-        detailSourceContentCandidate: structured.content ?? null,
-        detailSourceContentWarnings: structured.warnings,
-        detailSourceNoteBlocksCandidate: structured.noteBlocks ?? null,
-      });
-    }
+    await updateDoc('productVariants', variant.id, {
+      ...patch,
+      detailSourceOwner: owner,
+      detailSourceRevision: sourceRevision,
+      detailSourceFields: fields,
+      detailSourceCandidate: variant,
+      detailSourceMissing: false,
+    });
   }
+  const structured =
+    candidate.value.header.descriptionText === candidate.sourceHeader.descriptionText
+      ? buildStructuredContent(observation.content.description)
+      : { content: undefined, noteBlocks: undefined, warnings: [] };
+  for (const warning of structured.warnings) warnings.add(warning);
+  await updateDoc('products', productId, {
+    detailSourceCandidate: candidate.sourceHeader,
+    detailSourceRevision: sourceRevision,
+    detailSourceContentCandidate: structured.content ?? null,
+    detailSourceContentWarnings: structured.warnings,
+    detailSourceNoteBlocksCandidate: structured.noteBlocks ?? null,
+  });
   for (const variant of await variantsFor(productId)) {
     if (variant.detailSourceOwner === owner && !active.has(variant._id)) {
       await updateDoc('productVariants', variant._id, { detailSourceMissing: true });

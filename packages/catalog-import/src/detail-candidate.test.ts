@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeCatalogProductDetail } from '@vibelingan-channel/shared/catalog-detail';
-import { type CatalogDetailBindings, buildCatalogDetailCandidate } from './detail-candidate.ts';
+import {
+  type CatalogDetailBindings,
+  buildCatalogDetailCandidate,
+  buildCompleteCatalogPreparationPlan,
+} from './detail-candidate.ts';
 import {
   dianxiaomiObservationAdapter,
   parseDianxiaomiWorkbook,
@@ -556,3 +560,53 @@ test('the complete configuration count uses the same 10000-row manifest bound', 
   bound.variants.set('private-overflow', 'variant-overflow');
   assert.equal(buildCatalogDetailCandidate(item, bound, 1, 20).ok, false);
 });
+
+for (const count of [0, 1, 20, 21, 50, 105]) {
+  test(`complete source plan keeps every one of ${count} configurations and the private source header`, () => {
+    const source = observation();
+    source.offers = [];
+    source.variants = Array.from({ length: count }, (_, index) => ({
+      sourceVariantKey: `source-${index}`,
+      sku: `SKU-${index}`,
+      media: [],
+      inventory: [],
+      options: [
+        { sourceName: 'Color', value: `Color ${index}` },
+        { sourceName: 'Color', value: 'Extra' },
+      ],
+    }));
+    source.identity.title = 's'.repeat(1001);
+    const before = structuredClone(source);
+    const bound = {
+      ...bindings(),
+      variants: new Map(source.variants.map((v, i) => [v.sourceVariantKey, `variant-${i}`])),
+      websiteProduct: {
+        _id: 'product-1',
+        name: 'Website title',
+        description: 'Website description',
+        detailSourceOwner: 'alibaba:source',
+        imageIds: ['image-1'],
+      },
+    };
+    const complete = buildCompleteCatalogPreparationPlan(source, bound);
+    assert.ok(complete.ok);
+    assert.equal(complete.value.header.name, 'Website title');
+    assert.equal(complete.sourceHeader.name.length, 1001);
+    assert.equal(complete.value.variants.length, count);
+    assert.deepEqual(
+      complete.value.variants.map((v) => v.sku),
+      Array.from({ length: count }, (_, i) => `SKU-${i}`),
+    );
+    for (const variant of complete.value.variants) assert.equal(variant.options.length, 2);
+    const folded = [];
+    for (let page = 1; page <= Math.max(1, Math.ceil(count / 50)); page++) {
+      const view = buildCatalogDetailCandidate(source, bound, page, 50);
+      assert.ok(view.ok);
+      assert.equal(Object.hasOwn(view, 'sourceHeader'), false);
+      assert.equal(view.value.variants.total, count);
+      folded.push(...view.value.variants.items);
+    }
+    assert.deepEqual(folded, complete.value.variants);
+    assert.deepEqual(source, before);
+  });
+}

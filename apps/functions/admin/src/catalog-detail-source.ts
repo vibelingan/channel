@@ -194,6 +194,16 @@ export async function readAlibabaDetailPlan(
     productId,
   );
   if (!primaryLink.ok) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  const chosen = ConfigurationPhotosSchema.safeParse(product.configurationPhotos ?? {});
+  if (!chosen.success)
+    return catalogValidationFailure(
+      'source-candidate',
+      catalogIssuesFromZod(chosen.error.issues, product.configurationPhotos, {
+        stage: 'effective-content',
+        remedy: 'edit',
+        prefix: ['configurationPhotos'],
+      }),
+    );
   const observation = snapshot.observation;
   const gallery = new Set(Array.isArray(product.imageIds) ? product.imageIds : []);
   for (const id of Array.isArray(product.descriptionImageIds) ? product.descriptionImageIds : [])
@@ -247,12 +257,9 @@ export async function readAlibabaDetailPlan(
   const header = candidate.sourceHeader;
   // The admin's photo choice for a configuration replaces the supplier's
   // photos (DEC-20); only photos in this product's gallery count.
-  const chosen = ConfigurationPhotosSchema.safeParse(product.configurationPhotos ?? {});
   const galleryIds = new Set(Array.isArray(product.imageIds) ? product.imageIds : []);
   const choiceFor = (variantId: string) => {
-    const picked = (chosen.success ? (chosen.data[variantId] ?? []) : []).filter((id) =>
-      galleryIds.has(id),
-    );
+    const picked = (chosen.data[variantId] ?? []).filter((id) => galleryIds.has(id));
     return picked.length > 0 ? picked : undefined;
   };
   for (const variant of pageVariants.items) {
