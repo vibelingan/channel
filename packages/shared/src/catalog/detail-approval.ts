@@ -149,7 +149,17 @@ const variantInput = z.object({
   archived: z.literal(false).optional(),
   position: z.number().int().nonnegative().safe(),
   sku: z.string().optional(),
-  optionValues: z.record(z.string()),
+  // An entry array validates own keys without Zod's object-key stripping.
+  optionValues: z.preprocess(
+    (value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+      const prototype = Object.getPrototypeOf(value);
+      return prototype === Object.prototype || prototype === null
+        ? Object.entries(value)
+        : undefined;
+    },
+    z.array(z.tuple([z.string(), z.string()])),
+  ),
   imageIds,
   detailSourceCandidate: CatalogDetailVariantSchema,
 });
@@ -238,18 +248,27 @@ function buildCatalogDetailApproval(input: {
   }
   rows.sort((a, b) => a.position - b.position || a._id.localeCompare(b._id));
   const header = applyWebsiteDetailHeader(source, product);
-  const variants = rows.map((row, index) =>
-    parseCatalogData(
+  const variants = rows.map((row, index) => {
+    const canonicalOptions = row.optionValues.map(([name, value]) => ({ name, value }));
+    const sourceOptions = row.detailSourceCandidate.options;
+    const sourceMirror = new Map(sourceOptions.map(({ name, value }) => [name, value]));
+    // Staging's legacy object keeps the last value per name. Recover the complete
+    // source sequence when that mirror matches; keep differing canonical overrides.
+    const unchangedSourceOptions =
+      row.detailSourceOwner.startsWith('alibaba:') &&
+      sourceMirror.size === canonicalOptions.length &&
+      canonicalOptions.every(({ name, value }) => sourceMirror.get(name) === value);
+    return parseCatalogData(
       CatalogDetailVariantSchema,
       {
         ...row.detailSourceCandidate,
         sku: row.sku || undefined,
-        options: Object.entries(row.optionValues).map(([name, value]) => ({ name, value })),
+        options: unchangedSourceOptions ? sourceOptions : canonicalOptions,
         images: row.imageIds.map((id) => `/api/images/${id}`),
       },
       { ...editContext, prefix: ['variants', 'items', index] },
-    ),
-  );
+    );
+  });
   // SKU photos are independently bound and checked by the persistence gate.
   // Requiring them in the nine-image product gallery loses real provider mappings.
   const variantImageIds = [...new Set(rows.flatMap((row) => row.imageIds))];

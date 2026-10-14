@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  CatalogDetailPublicationSchema,
+  CatalogDetailVariantSchema,
+} from '@vibelingan-channel/shared/catalog-detail';
 import { CatalogValidationReportSchema } from '@vibelingan-channel/shared/catalog-issues';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import {
@@ -1004,4 +1007,48 @@ test('malformed workflow requests retain a safe validation report before any pro
   const validation = CatalogValidationReportSchema.parse(result.validation);
   assert.ok(validation.issues.some((issue) => issue.path === 'page' && issue.remedy === 'reload'));
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE_KEY|PRIVATE_SOURCE_TOKEN/);
+});
+
+test('a legacy collapsed-options approval cannot stage a new projection, and a freshly reviewed operation recovers', async () => {
+  const h = fixture(21);
+  // h.prepared represents the old last-value projection; the source retains both values.
+  for (const row of h.variants) {
+    const current = h.row('productVariants', row._id);
+    const source = CatalogDetailVariantSchema.parse(current.detailSourceCandidate);
+    current.detailSourceCandidate = {
+      ...source,
+      options: [
+        { name: 'Color', value: 'First' },
+        { name: 'Color', value: row.optionValues.Color },
+      ],
+    };
+  }
+  assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok);
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => stageApprovalPage(tx, 'admin', h.prepared._id, 0)), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.deepEqual(h.store(), before, 'no new page or cursor is mixed into the older job');
+  assert.equal(h.publication().revision, 'old');
+  const product = h.row('products', 'p');
+  const rows = h.variants.map((row) => h.row('productVariants', row._id));
+  const renewed = prepareStagedApproval(
+    'admin',
+    {
+      ...h.command,
+      operationId: '22345678-1234-4234-8234-123456789012',
+      expectedDigest: catalogApprovalDigest(product, rows),
+    },
+    product,
+    rows,
+  );
+  assert.ok(renewed.ok);
+  assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', renewed.value))).ok);
+  for (let page = 0; page < renewed.value.pageHashes.length; page++)
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', renewed.value._id, page))).ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', renewed.value._id))).ok);
+  assert.equal(h.publication().revision, renewed.value.revision);
+  assert.equal(h.publication().variantCount, 21);
+  assert.equal(h.row('products', 'p').published, false);
 });

@@ -411,3 +411,109 @@ test('configuration UTF-8 capacity accepts the exact limit and rejects one extra
   assert.deepEqual(issues[0]?.observed, { bytes: 128 * 1024 + 1 });
   assert.equal(tail.value.endsWith('x'), true);
 });
+
+for (const [caseName, options] of [
+  [
+    'repeated names',
+    [
+      { name: 'Color', value: 'Black' },
+      { name: 'Color', value: 'White' },
+      { name: 'Size', value: 'Small' },
+      { name: 'Size', value: 'Large' },
+    ],
+  ],
+  [
+    'numeric names in source order',
+    [
+      { name: '10', value: 'First' },
+      { name: '2', value: 'Second' },
+      { name: '01', value: 'Third' },
+    ],
+  ],
+  [
+    'prototype-shaped names',
+    [
+      { name: '__proto__', value: 'ABS' },
+      { name: 'constructor', value: 'Metal' },
+      { name: 'toString', value: 'Quartz' },
+    ],
+  ],
+] as const) {
+  test(`approval preserves complete source options with ${caseName}`, () => {
+    const input = fixture();
+    const base = input.variants[0];
+    assert.ok(base);
+    const row = {
+      ...base,
+      detailSourceOwner: 'alibaba:source',
+      optionValues: Object.fromEntries(options.map((option) => [option.name, option.value])),
+      detailSourceCandidate: { ...base.detailSourceCandidate, options },
+    };
+    const product = { ...input.product, detailSourceOwner: row.detailSourceOwner };
+    const before = structuredClone(row);
+    const plan = planCatalogDetailApproval({ ...input, product, variants: [row] });
+    assert.deepEqual(plan.variants[0]?.options, options);
+    assert.equal(plan.variants[0]?.sku, row.sku);
+    assert.deepEqual(plan.variants[0]?.images, ['/api/images/image']);
+    assert.deepEqual(row, before);
+    assert.equal(Reflect.get({}, 'polluted'), undefined);
+  });
+}
+
+test('legacy canonical overrides still take precedence when they differ from the source mirror', () => {
+  const input = fixture();
+  const base = input.variants[0];
+  assert.ok(base);
+  for (const owner of ['source-owner', 'alibaba:source', 'manual:product']) {
+    const row = { ...base, detailSourceOwner: owner };
+    const plan = planCatalogDetailApproval({
+      ...input,
+      product: { ...input.product, detailSourceOwner: owner },
+      variants: [row],
+    });
+    assert.deepEqual(plan.variants[0]?.options, [{ name: 'Color', value: 'Blue' }]);
+  }
+});
+
+test('manual and legacy canonical option dictionaries retain prototype-shaped own keys', () => {
+  const input = fixture();
+  const base = input.variants[0];
+  assert.ok(base);
+  const optionValues: unknown = JSON.parse(
+    '{"__proto__":"ABS","constructor":"Metal","Color":"Black"}',
+  );
+  const dictionaries: unknown[] = [
+    optionValues,
+    Object.setPrototypeOf(structuredClone(optionValues), null),
+  ];
+  for (const values of dictionaries) {
+    const row: unknown = { ...base, optionValues: values };
+    const before: string = JSON.stringify(row);
+    const plan = planCatalogDetailApproval({ ...input, variants: [row] });
+    assert.deepEqual(plan.variants[0]?.options, [
+      { name: '__proto__', value: 'ABS' },
+      { name: 'constructor', value: 'Metal' },
+      { name: 'Color', value: 'Black' },
+    ]);
+    assert.equal(JSON.stringify(row), before);
+  }
+});
+
+test('non-dictionaries and non-string prototype-shaped values cannot become successful empty options', () => {
+  const input = fixture();
+  const base = input.variants[0];
+  assert.ok(base);
+  for (const optionValues of [
+    new Date(),
+    new Map([['Color', 'Black']]),
+    Object.create({ Color: 'Inherited' }),
+    [['Color', 'Black']],
+    JSON.parse('{"__proto__":2}'),
+    JSON.parse('{"__proto__":{"polluted":true}}'),
+  ]) {
+    assert.throws(
+      () => planCatalogDetailApproval({ ...input, variants: [{ ...base, optionValues }] }),
+      CatalogValidationError,
+    );
+  }
+});

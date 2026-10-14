@@ -458,3 +458,20 @@ P1e 提交3bbb91b0b6b084fbb94cd42f51086ef2d123b329已完成精确inline review�
 最终第三轮构建后浏览器public41/catalog90/formal10/visibility8/taxonomy1，共150 passed/0 failed/0 skipped，runner确认临时DB/服务清理（p1f2-combined-e2e-r3.log）。真实handler+JSON+Astro产物+Chromium/WebKit证明首次Preview只有preview请求，切SKU、分页、重开、瞬时失败Retry及Edit读取不写任何商品字段；单件、普通编辑冲突、Assign category→Save and publish的20件及下架后共享引用恢复均通过。第二轮同样150通过；首轮旧测试错把prepare/review列为只读允许操作，修正为只允许preview/supplier-review/photo-sources并加强整记录不变断言；首轮失败导致worker重登，后续20件在登录页明确遭频率限制，未进入发布，限流没有削弱。最后类型检查另纠正Playwright断言说明参数从toEqual第二参数移到expect第二参数；最终第三轮包含该修正。
 
 文字核对：实际复核source/helper、readonly endpoint、handler鉴权/安全issue、shared header/DTO/staged workflow、浏览器approval API/Preview及正式和现场验收spec；把“Preview不发布”修正为“不准备、不导入、不写业务数据”，把“比较对象相同”区分为实际HTTP数据相同与undefined非线上差异，保留本地隔离20件与云上真实20件的证据边界。下一步继续无损配置/人工配置、独立问题面板、完整计划复用/性能、列表准入、durable intent/receipt/resume、恢复、历史修复及全量发布门槛。未push/部署app/更改任何云商品，未实施未来按分类选属性mapping。
+
+
+### P1g1：配置选项无损投影（2026-10-14，本地子单元完成，待精确提交 review）
+
+P1f1/f2提交904030dfe4525d4c54059c1292d6327e4f13b3e8已完成精确inline review。新增4个先红丢失反例：同名多值被optionValues字典折叠、数字名称改变顺序、来源特殊名称和canonical自身__proto__键被丢掉。独立检查实际安装Zod3.25.76的helpers/parseUtil.cjs:102，确认其对象合并跳过__proto__。原始来源数组和已存detailSourceCandidate早已保留完整选项；本单元没有增加存储字段、分页集合或再复制一份来源。
+
+现将canonical字符串字典在校验时转换为自身键的tuple数组，保留普通及null-prototype合法字典、拒绝Date/Map/数组/继承对象及非字符串值。正式审批在Alibaba来源的canonical字典与来源“每名称最后一个值”的既有镜像完全一致时，恢复已有完整来源选项的顺序和重复项；字典确有不同的legacy canonical覆盖时保留原优先级，SKU、人工配置照片及报价规则不变。正式prepare继续从本次来源重建镜像。网站原有按ID选择保留；相互冲突的多值轴不会被虚构成单值组合。
+
+小流程81 passed/0 failed/0 skipped，涵盖共享审批/分页/版本保护、公开选择与渲染。5个真实Json持久化流程分别0/1/20/21/105配置，使用严格真实source/mirror/link，readonly Preview字节不变→实际prepare→review→begin/page/finish（逐页重开adapter）→真实handler发布→完整公开分页/网站选择→最后页配置的持久询盘及同key幂等→下架及私有404，全部通过且finally清理本次临时目录。询盘仅为本地disabled-local通知；曾因测试适配器默认未开启RFQ而明确unavailable，现显式以真实本地启动同样的enablePublicInquiries=true配置运行，没有加localDetailClone绕过来源验证，没有改生产开关或发外部通知。
+
+旧任务边界：既有折叠计划的page hash不能接受新完整选项，拒绝后整个store/游标及旧公开revision不变；重新明确审核的新operation能完整完成。Job decoder、旧字段和既有受保护提交未更改；不声称旧语义任务能无提示透明续接，durable UI恢复与最终切换检查仍属P3/P4/P6。类型检查暴露测试返回值需要Progress/Backfill判别，以及跨应用严格检查下既有单一配置选择分支未证明array[0]存在；改用真实discriminant收窄，并加元素存在条件，未用cast压过问题，正常匹配行为不变。
+
+最终后台/shared/import/db/local/sync/所有admin/public及网站/询盘/图库消费者2266 passed/0 failed/0 skipped（p1g1-broad-r2.log）。第一次扩大检查为2265通过+1个默认关闭的图库浏览器测试；随后显式GALLERY_BROWSER_TEST=1执行整个最终集合，真实Chromium点击、失败、换SKU、滚动及旧控件用例也通过，不把skip算通过。8套实际类型、5文件实际Biome、standing CloudBase SDK gate与diff whitespace通过。新增5个Zod方法表面核对见SDK-PROBE。未将上一节点150应用浏览器组合当作本版新证据；下一UI节点及最终发版继续跑构建组合。
+
+缺陷注入的独立bundle：只恢复canonical折叠2fail/23正常正控；丢弃__proto__自身键3fail/22正控；在真实完整持久化流程中恢复折叠4fail/零配置正控1pass；工作区源码字节未动。三件真实时钟数据副本再走readonly→审批，113/113/121属性、4/2/1配置及header/job预算保持，published=false/分类不变，临时DB/owner清理（p1g1-real-clock.log）。这些是本地证据，不是云20件验收或云性能结论。
+
+文字核对：实际复核shared输入解析/字段归属/容量、source-staging既有镜像写入、原生prepare/review/immutable SKU/public API、网站分页/标签/多值直接ID选择、RFQ不可变snapshot及旧job/page hash。把改动说明中含糊的“保留选项”具体为“保留同名项、原顺序及特殊自身键”，写明既有网站按ID选择原本已正确并继续保留，不把它误报为新修复；核对存储字段0新增、canonical覆盖仍生效及价格/图片语义不变。本轮不做未来分类属性mapping、不分表、不丢来源事实。其余P1完整计划/人工配置/问题面板、P2准入、P3/P4恢复、历史修复及全发版/test/真实20件回退门槛继续实施。

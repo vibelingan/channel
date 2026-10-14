@@ -81,3 +81,22 @@ Installed contracts: zod@3.25.76 v3/types.d.ts:64-89,248,262,536-537,563-565,826
 Table and manifest contain27unique(package,method) rows. Additional CloudBase standing gate is unchanged and passed p1f2-sdk-final.log. E2E final round and broad final counts are recorded separately in IMPLEMENTATION_LOG; no test cloud/customer acceptance inferred here.
 
 Context7 discovery returned no tool. Official references were freshly read: [Zod optional unwrap, shape and omit](https://zod.dev/api), [Playwright Request](https://playwright.dev/docs/api/class-request), [Page event contract](https://playwright.dev/docs/api/class-page), [React effect cleanup](https://react.dev/reference/react/useEffect). Latest Zod docs describe4.6; the installed3.25.76 implementation/types and actual parsing tests determine this version’s behavior, and no v4-only API or length semantics is adopted.
+
+
+## P1g1: lossless configuration options
+
+No CloudBase SDK/shim/query or persisted field changes. The existing optionValues string dictionary is decoded into an internal tuple array; the source candidate already stores the complete ordered option array. No new data copy or collection is stored. Changed third-party surfaces are Zod3.25.76 only; Node Object/Map builtins and workspace APIs are not vendor SDK calls.
+
+Installed v3/types.d.ts:821,1005,1018,1030 and types.cjs:3339-3345 verify preprocessing returns the declared schema output. v3/helpers/parseUtil.cjs:102 independently confirms its object merger skips the __proto__ key; preprocessing to entries keeps it as a validated string rather than an object property. Latest official Zod docs arev4; installedv3/types/runtime and positive/negative actual tests determine behavior here.
+
+| package@version | method | signature / used result | evidence |
+|---|---|---|---|
+| zod@3.25.76 | preprocess | `(preprocess: (unknown, RefinementCtx) -> unknown, schema) -> ZodEffects<I,I[output],unknown>` | dictionary/prototype/numeric/repeat/override regressions; native0/1/20/21/105-source approval/public paging/client selection/RFQ/withdrawal; eight consumer types |
+| zod@3.25.76 | array | `(elementSchema, params?) -> ZodArray<Element>` | dictionary/prototype/numeric/repeat/override regressions; native0/1/20/21/105-source approval/public paging/client selection/RFQ/withdrawal; eight consumer types |
+| zod@3.25.76 | tuple | `([ZodString,ZodString], params?) -> ZodTuple<[ZodString,ZodString],null>` | dictionary/prototype/numeric/repeat/override regressions; native0/1/20/21/105-source approval/public paging/client selection/RFQ/withdrawal; eight consumer types |
+| zod@3.25.76 | string | `(params?) -> ZodString; rejects non-string option values` | dictionary/prototype/numeric/repeat/override regressions; native0/1/20/21/105-source approval/public paging/client selection/RFQ/withdrawal; eight consumer types |
+| zod@3.25.76 | parse | `(unknown, params?) -> parsed data or ZodError` | dictionary/prototype/numeric/repeat/override regressions; native0/1/20/21/105-source approval/public paging/client selection/RFQ/withdrawal; eight consumer types |
+
+5unique exact inventory/table rows. Source mirror equality is checked with Map key/value equality, preserving duplicate values and source order only when the canonical dictionary matches the source's last-value mirror. Differing legacy canonical overrides retain their existing precedence; source preparation still regenerates the provider mirror. Invalid values and non-JSON dictionaries remain refusals. No global Object prototype mutation or new fields.
+
+Old job schemas remain readable. A legacy collapsed projection cannot accept newly complete pages; the unchanged page-hash guard refuses without a write, and a freshly reviewed operation can complete. Whole release still needs durable UI recovery, readiness/policy backfill and deployment cutover checks; this subunit does not claim transparent resumption of an older semantic plan or cloud20-product acceptance.
