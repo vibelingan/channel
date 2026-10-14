@@ -638,3 +638,16 @@ P3a0提交8a9db6058fcd26f7fb7aa963ead050627b0d6897精确inline review已完成�
 文字核对实际 pagination/approval/job/Preview/Review/public HTTP/website transport、集合状态/选择 reducer、原生串联和 raw/browser fixture。将“一个大配置通过”明确为“所有配置共同决定固定页宽，逐页读回不遗漏”；将“150 已通过”修正为“最终五组共 151，清理已独立核验”。未筛选来源属性或拆分存储。
 
 发布仍受原 P1—P7 门槛约束：旧已批准大数据需影子审计和分页提示迁移，兼容读端先部署、旧 writer drain 后再写大数据；云端单文档上限当前契约仍未知。P2 媒体绑定快照/生产者及服务身份/原生查询计数全选和 UI、真正超过 98 操作的媒体协议、持久操作与恢复、历史 resync、vendor race/SLO/Node20 全构建、同 SHA test 部署、三件时钟及真实 20 件发布读回和恢复均继续。未 push、应用部署或修改客户数据。
+
+
+### P2d3b：批量审批拒绝坏图片存储类型（本地子单元完成，待精确提交 review）
+
+5848807 的精确 inline review 已通过本地子单元，整体仍未发版。在媒体快照接线检查中发现 staged finish 使用 String(image.storageProvider)，而 direct commit 和公开图片读取使用严格类型。因此 ["cloudbase-storage"]、["local-disk"]、嵌套单元素数组均能被误当合法存储类型，批准后实际图片读取会拒绝。此为代码及本地反例，不声称云端已经存在这些坏值。
+
+五个完整 begin/page/finish 反例中，三种数组原实现实际完成批准，两个 null/unknown 控制正常拒绝；红测 49 pass / 3 fail。修改为与 direct commit 相同的两个字符串严格比较，所有坏值在任何 image/product/job 写入之前返回 MEDIA_NOT_READY，批准版本和全部存储状态不变。没有新增存储、额外 DB 操作、锁或字段，不影响有效 cloudbase-storage/local-disk 或旧缺省计数。首次运行红测的日志路径错误使命令未执行，不计证据；实际 r2 红测已独立检查。
+
+最终 87 focused、全量 2442 passed / 0 failed / 0 skipped，db 类型与两文件实际 Biome 通过。新 strict-provider 反证恢复旧 String 转换，49 pass / 3 fail；因为 staging 测试文件有新增用例，又重新执行该文件原页宽、完整 Review/job/配置/身份容量、旧图片上限、delta 预算和共享图片不写探针，另外八项各有预期失败及正常控制。所有十次执行（一个 baseline、九个独立缺陷）0 skip，源码不变。SDK diff 无新/修改第三方表面，仅移除 JavaScript String 强制转换。H5 的构建 151 是上一 SHA 的组合证据，本次不重新计为新版浏览器验收。
+
+文字复核 staged/direct commit、readImageMutationState 和公开图片 provider 分支及完整 finish 状态断言。把“绑定了 imageId 就说明图片可用”明确为“还须核对实际图片状态、存储类型、锁及计数；源链接只是绑定关系”。下一继续媒体快照保护和报告生产，暂不启用列表准入。
+
+新增官方证据：2026-10-14 MCP 已读 https://docs.cloudbase.net/lowcode/faq 全文，数据模型 FAQ 明确写文档上限 16MB；腾讯云系统限制 https://cloud.tencent.com/document/product/876/47177 明确的是数据库单次出包 16M 和函数同步响应 6MB。两者不能混为同一个限制；FAQ 位于微搭数据模型模块，仍需核对当前 NoSQL SDK 路径的适用性及完整产品写入预算，不能把它直接当已完成目标环境容量实验。尚无新增云写入、部署或真实发布验收。

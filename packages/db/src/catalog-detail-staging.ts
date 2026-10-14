@@ -535,7 +535,7 @@ export async function finishStagedApproval(
       !image ||
       image.status !== 'active' ||
       lock?.state !== 'free' ||
-      !['cloudbase-storage', 'local-disk'].includes(String(image.storageProvider)) ||
+      (image.storageProvider !== 'cloudbase-storage' && image.storageProvider !== 'local-disk') ||
       (Object.hasOwn(image, 'publishedRefCount') &&
         (typeof image.publishedRefCount !== 'number' ||
           !Number.isSafeInteger(image.publishedRefCount) ||

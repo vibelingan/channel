@@ -1416,3 +1416,18 @@ test('large complete approval persists a revision-bound public page width and ke
   assert.deepEqual(h.store(), before);
   assert.equal(h.row('products', 'p').published, false);
 });
+
+for (const provider of [['cloudbase-storage'], ['local-disk'], [['local-disk']], null, 'unknown'])
+  test(`finish refuses malformed media provider without changing publication: ${JSON.stringify(provider)}`, async () => {
+    const h = fixture(1);
+    const start = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(start.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', start.jobId, 0))).ok);
+    h.row('images', 'image').storageProvider = provider;
+    const before = structuredClone(h.store());
+    assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', start.jobId)), {
+      ok: false,
+      code: 'MEDIA_NOT_READY',
+    });
+    assert.deepEqual(h.store(), before);
+  });
