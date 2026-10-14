@@ -183,6 +183,7 @@ export function PreviewModal({
                 <AdminDetailPreview
                   key={doc._id}
                   productId={doc._id}
+                  onEdit={onEdit}
                   images={
                     imageIds.length
                       ? galleryIds.flatMap((id) => (urls[id] ? [urls[id]] : []))

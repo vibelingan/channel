@@ -100,3 +100,34 @@ Installed v3/types.d.ts:821,1005,1018,1030 and types.cjs:3339-3345 verify prepro
 5unique exact inventory/table rows. Source mirror equality is checked with Map key/value equality, preserving duplicate values and source order only when the canonical dictionary matches the source's last-value mirror. Differing legacy canonical overrides retain their existing precedence; source preparation still regenerates the provider mirror. Invalid values and non-JSON dictionaries remain refusals. No global Object prototype mutation or new fields.
 
 Old job schemas remain readable. A legacy collapsed projection cannot accept newly complete pages; the unchanged page-hash guard refuses without a write, and a freshly reviewed operation can complete. Whole release still needs durable UI recovery, readiness/policy backfill and deployment cutover checks; this subunit does not claim transparent resumption of an older semantic plan or cloud20-product acceptance.
+
+
+## P1f3: structured issues and existing repair actions
+
+
+18 exact unique new/reused package-method surfaces in the changed code/tests. No CloudBase SDK/shim/query change. Installed Zod3.25.76 types.d.ts:65, React19.2.17 declarations and ReactDOM server declarations:122, Playwright1.61.1 types verify the used signatures. React and ReactDOM runtime19.2.7 remain pinned. Official React renderToStaticMarkup and Playwright Route references were freshly read; static HTML assertions are complemented by the built application's actual Edit callback and existing retry browser flow. No claim that static markup can verify button interaction.
+
+| package@version | method | signature / used result | evidence |
+|---|---|---|---|
+| zod@3.25.76 | safeParse | `(unknown, params?) -> success/data or failure/error.issues` | 34 focused safe-response/panel/error cases; site types and 210 frontend cases |
+| zod@3.25.76 | parse | `(unknown, params?) -> parsed output or ZodError` | 34 focused safe-response/panel/error cases; site types and 210 frontend cases |
+| react@19.2.7 | useState | `(initial?) -> [state, Dispatch<SetStateAction<S>>]` | 34 focused safe-response/panel/error cases; site types and 210 frontend cases |
+| react@19.2.7 | createElement | `(component, props, ...children) -> ReactElement` | 34 focused safe-response/panel/error cases; site types and 210 frontend cases |
+| react-dom@19.2.7 | renderToStaticMarkup | `(ReactNode, options?) -> non-interactive HTML string; test only` | 34 focused safe-response/panel/error cases; site types and 210 frontend cases |
+| @playwright/test@1.61.1 | route | `Page.route(url, handler, options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | request | `Route.request() -> Request` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | postDataJSON | `Request.postDataJSON() -> null or Serializable` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | fulfill | `Route.fulfill({status,json,...}) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | continue | `Route.continue(options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | getByRole | `(role, options?) -> Locator` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | getByText | `(string or RegExp, options?) -> Locator` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | locator | `(selector, options?) -> Locator` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | click | `Locator.click(options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | toBeVisible | `Locator assertion(options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | toContainText | `Locator assertion(string or RegExp, options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | toHaveText | `Locator assertion(string or RegExp, options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+| @playwright/test@1.61.1 | toHaveCount | `Locator assertion(number, options?) -> Promise<void>` | E2E types; built150 including controlled no-DTO rejection, details expansion, exact existing Edit action and unchanged saved row |
+
+All rows join exactly to sdk-surfaces-p1f3.txt. SafeParse's failure branch owns its message rather than surfacing raw Zod received values. Unknown errors use an owned generic message. The issue schema bounds allowed paths/codes and capacity measurements; first50 entries only. Independent instrumented bundle mutants: unsafe wire parse1fail/26controls; issue guard bypass1fail/3controls; lost sign-in remedy1fail/2controls; arbitrary error exposure1fail/2controls. Workspace bytes unchanged. First TSX mutation loader did not instrument the panel and is excluded; corrected loader asserts instrumentation before running.
+
+Official references: [React static markup](https://react.dev/reference/react-dom/server/renderToStaticMarkup), [Playwright Route](https://playwright.dev/docs/api/class-route). No Context7 tool is available. Latest official React docs describe19.3; installed declarations/runtime plus actual tests determine19.2 behavior.

@@ -543,9 +543,38 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await expect(preview).toBeFocused();
   // A transient service error must allow retry without approving or losing the draft.
   let injected = false;
+  let injectDataIssue = false;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON();
-    if (!injected && body.action === 'catalogDetailApproval') {
+    if (
+      injectDataIssue &&
+      body.action === 'catalogDetailApproval' &&
+      body.data?.action === 'preview' &&
+      body.data.productId === 'local-untouched-draft'
+    ) {
+      injectDataIssue = false;
+      await route.fulfill({
+        status: 400,
+        json: {
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Saved source data needs attention.',
+            issues: [
+              {
+                code: 'TOO_LONG',
+                stage: 'effective-content',
+                path: 'variants.items.54.sku',
+                severity: 'error',
+                remedy: 'resync',
+                expected: { maxChars: 200 },
+                observed: { chars: 201 },
+              },
+            ],
+          },
+        },
+      });
+    } else if (!injected && body.action === 'catalogDetailApproval') {
       injected = true;
       await route.fulfill({
         status: 503,
@@ -562,8 +591,20 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await dialog.getByRole('button', { name: 'Retry product preview' }).click();
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
   await close.click();
-  // Edit must not revert to a contradictory legacy unavailable price after Preview works.
-  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  // A structured source rejection stays actionable even when no website DTO was returned.
+  injectDataIssue = true;
+  await preview.click();
+  const issues = dialog.getByRole('list', { name: 'Product data issues' });
+  await expect(issues).toBeVisible();
+  await expect(issues).toContainText('Configuration 55 SKU');
+  await expect(issues).toContainText('Length: 201; limit: 200');
+  await expect(issues).toContainText('Alibaba Sync');
+  await issues.getByText('Show issue details', { exact: true }).click();
+  await expect(issues.locator('code')).toHaveText('TOO_LONG · variants.items.54.sku');
+  await dialog.getByRole('button', { name: 'Open item to repair', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  // The same existing Edit action opens the exact saved draft and keeps its pricing.
+
   const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
   const pricePreview = editor.getByRole('region', { name: 'Effective website pricing' });
   await expect(pricePreview).toContainText('USD 7.89');

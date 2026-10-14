@@ -708,3 +708,24 @@ test('passing a preview to explicit approval fails before importing or writing',
   );
   assert.deepEqual(calls, [], 'no import, prepare, begin, page or finish');
 });
+
+test('invalid preview wire shapes never expose untrusted Zod values or field names', async (t) => {
+  for (const fault of ['literal', 'key']) {
+    const data = {
+      ok: true,
+      kind: fault === 'literal' ? 'private-raw-token' : 'preview',
+      productId: 'canonical-product',
+      inputDigest: 'a'.repeat(64),
+      detail: detailFixture(1),
+      ...(fault === 'key' ? { 'private-source-key': 'private-value' } : {}),
+    };
+    const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ ok: true, data }));
+    await assert.rejects(readDetailPreview('canonical-product'), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /preview.*reload/i);
+      assert.doesNotMatch(error.message, /private-|ZodError|received|unrecognized_keys/);
+      return true;
+    });
+    mock.mock.restore();
+  }
+});

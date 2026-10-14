@@ -5,8 +5,10 @@ import { CatalogDescriptionImages } from '../../catalog/presentation/CatalogDesc
 import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../../catalog/presentation/CatalogVariantGallery.tsx';
 import { getSharedDetailContent } from '../../i18n/catalog.ts';
+import { CatalogIssuesPanel } from './CatalogIssuesPanel.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { type DetailPreview, readDetailPreview } from './catalog-detail-approval-api.ts';
+import { catalogPreviewFailure } from './catalog-preview-failure.ts';
 import { useAdminImagePreviews } from './use-admin-image-previews.ts';
 
 /** Uses the same validated detail DTO and components as the buyer, without publication or RFQ. */
@@ -15,14 +17,16 @@ export default function AdminDetailPreview({
   images,
   sourceImages,
   descriptionImages = [],
+  onEdit,
 }: {
   productId: string;
   images: readonly string[];
   sourceImages: boolean;
   descriptionImages?: readonly string[];
+  onEdit: () => void;
 }) {
   const [review, setReview] = useState<DetailPreview>();
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ReturnType<typeof catalogPreviewFailure>>();
   const [requestPage, setRequestPage] = useState({ page: 1 });
   const page = requestPage.page;
   const digest = useRef<string | undefined>(undefined);
@@ -40,7 +44,7 @@ export default function AdminDetailPreview({
   useEffect(() => {
     const controller = new AbortController();
     setBusy(true);
-    setError('');
+    setError(undefined);
     const request = readDetailPreview(
       productId,
       requestPage.page,
@@ -56,8 +60,7 @@ export default function AdminDetailPreview({
         }
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted)
-          setError(cause instanceof Error ? cause.message : 'Product preview could not be loaded.');
+        if (!controller.signal.aborted) setError(catalogPreviewFailure(cause));
       })
       .finally(() => {
         if (!controller.signal.aborted) setBusy(false);
@@ -66,21 +69,12 @@ export default function AdminDetailPreview({
   }, [productId, requestPage]);
   if (error)
     return (
-      <div
-        role="alert"
-        className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800"
-      >
-        <p>{error}</p>
-        <button
-          type="button"
-          className="mt-3 min-h-11 underline"
-          onClick={() => {
-            setRequestPage({ page: 1 });
-          }}
-        >
-          Retry product preview
-        </button>
-      </div>
+      <CatalogIssuesPanel
+        message={error.message}
+        issues={error.issues}
+        onRetry={() => setRequestPage({ page: 1 })}
+        onEdit={onEdit}
+      />
     );
   if (busy || !review)
     return (

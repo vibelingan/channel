@@ -1,6 +1,6 @@
 # Catalog 发布可靠性整合方案
 
-状态：用户已于 2026-10-13 批准实施，当前实施中。P1a-e/P1f1-f2/P1g1、P2a-b、P2c1/P2c2a-f、P3a-c、P4a 已完成对应本地子单元；各大 MIU 的其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
+状态：用户已于 2026-10-13 批准实施，当前实施中。P1a-e/P1f1-f3/P1g1、P2a-b、P2c1/P2c2a-f、P3a-c、P4a 已完成对应本地子单元；各大 MIU 的其余门槛及真实 test 验收尚未完成。执行证据见 [实施记录](IMPLEMENTATION_LOG.zh-CN.md)。
 
 本文件是本轮唯一实施方案，替代 `PUBLISH_READINESS_PROPOSAL.zh-CN.md` 的初稿建议。详细验收范围见 [测试矩阵](PUBLISH_RELIABILITY_TEST_MATRIX.zh-CN.md)。当前工作目录为原 Claude checkout，分支 `feat/catalog-alibaba-price-tiers`，审查 HEAD `39705e2323d51d4aa79f1240d66f65608f407649`；正常已部署基线的最近观察为 `a3ce01e`。这些标识在实施开始前须重新核对。
 
@@ -93,6 +93,8 @@ type CatalogIssue = {
 ```
 
 错误由受控 code/path/数值约束生成友好文案；直接截短 Zod message 不等于安全脱敏。日志和响应不输出 token、raw payload、私有字段值或存储签名链接。
+
+手工配置范围已按上述条件复核（2026-10-14）：正式UI没有配置导入/编辑入口，源表隐藏且仅内部可写；确认环境的只读分页观察覆盖1121商品/2578配置，active manual7件，其下active配置0。当前正常UI支持manual零配置；CLI人工配置仍显式拒绝，不会丢行批准。本轮不扩展另一importer功能。该观察不是事务快照，旧商品健康仍须P5审计；若正常UI新增配置入口，必须先补无损投影和完整矩阵。详细证据见实施记录P1f3。
 
 ### 3.2 三条状态轴，不能压成一个 ready
 

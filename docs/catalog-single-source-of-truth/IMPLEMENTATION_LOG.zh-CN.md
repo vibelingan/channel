@@ -475,3 +475,18 @@ P1f1/f2提交904030dfe4525d4c54059c1292d6327e4f13b3e8已完成精确inline revie
 缺陷注入的独立bundle：只恢复canonical折叠2fail/23正常正控；丢弃__proto__自身键3fail/22正控；在真实完整持久化流程中恢复折叠4fail/零配置正控1pass；工作区源码字节未动。三件真实时钟数据副本再走readonly→审批，113/113/121属性、4/2/1配置及header/job预算保持，published=false/分类不变，临时DB/owner清理（p1g1-real-clock.log）。这些是本地证据，不是云20件验收或云性能结论。
 
 文字核对：实际复核shared输入解析/字段归属/容量、source-staging既有镜像写入、原生prepare/review/immutable SKU/public API、网站分页/标签/多值直接ID选择、RFQ不可变snapshot及旧job/page hash。把改动说明中含糊的“保留选项”具体为“保留同名项、原顺序及特殊自身键”，写明既有网站按ID选择原本已正确并继续保留，不把它误报为新修复；核对存储字段0新增、canonical覆盖仍生效及价格/图片语义不变。本轮不做未来分类属性mapping、不分表、不丢来源事实。其余P1完整计划/人工配置/问题面板、P2准入、P3/P4恢复、历史修复及全发版/test/真实20件回退门槛继续实施。
+
+
+### P1f3：详情失败时可查看问题并进入现有修复入口（2026-10-14，本地子单元完成，待精确提交 review）
+
+P1g1提交37fbaa4ae22234ad7750c6c7d94e988c696e8665已完成精确inline review。Preview继续使用原红色提示样式；新增CatalogIssuesPanel不依赖成功的website DTO，严格解析最多50个受控issue，显示配置位置、长度/数量/字节限额、具体remedy，折叠显示code/path。实际Edit callback必传，支持Retry重读第一页；登录过期可直接进入现有登录路由。resync提示指向实际sidebar的Alibaba Sync，不编造Edit内有resync功能。后续P4仍需完成更直接的恢复动作及未保存编辑保护。
+
+readDetailPreview把wire safeParse失败转换为自有提示，不再把Zod received内容或任意未知异常信息展示给用户；真实AdminApiError保留受控issues，旧UNAUTHORIZED缺issues也有sign-in恢复。先红wire用例证明确实曾泄漏private-raw-token；新增面板缺模块仅算接口红，不冒充现有业务回归。
+
+最终focused34、整个前端210及shared/import/db/local/sync/所有admin/public/网站消费者2274 passed/0 failed/0 skipped（GALLERY_BROWSER_TEST=1，p1f3-broad-r1.log）。site及E2E两套实际类型、9文件真实Biome、diff whitespace通过。18个新/复用SDK表面有精确安装契约/正反例表；没有新增CloudBase方法或shim。独立bundle缺陷注入4项均触发预期失败并保留正常正控；最初TSX loader未插入缺陷的结果不计，修正后显式断言已插入，工作区源码字节未变。
+
+构建后public41/catalog90/formal10/visibility8/taxonomy1，共150 passed/0 failed/0 skipped，runner确认本次临时DB/服务清理（p1f3-combined-e2e-r1.log）。真实55配置草稿保留瞬时503 Retry用例，再注入明确400/TOO_LONG的wire错误，确认Configuration55 SKU及201/200限额可见、Alibaba Sync指引、展开详情并点击真实Open item to repair进入同件Edit，整条保存记录不变。此400是明确注入，不声称该fixture真实SKU超长。组合包含g1无损选项运行时代码、单件/普通编辑/20件Assign category→Save and publish/下架及共享计数恢复；不是云上真实20件验收。
+
+手工配置范围复核：当前集合配置productVariants为hideFromNav/adminAccess:none，CatalogImport为只读且apply仅CLI，现有正式UI无配置导入/编辑入口。2026-10-14对确认环境diversity-123-d9grnqfux221323bb的只读分页覆盖products1121及productVariants2578个唯一ID；7件active manual均已发布，其下active配置0，全集active非Alibaba配置0。计数为多页观察，不是事务快照，也不证明7件详情已健康。私有metadata证据manual-configuration-scope-2026-10-14.json留在临时证据目录，无名称/价格/图片/凭据。依已批准计划的条件规则，本轮正常UI支持manual零配置；CLI人工配置仍明确拒绝，不能静默丢行或声称其已受支持。不扩展另一importer工作流；P5继续审计旧数据，新增正常UI配置入口前必须另补无损投影及完整验收。
+
+文字核对：实际复核CatalogIssuesPanel、preview失败转换/API边界、AdminDetailPreview/PreviewModal现有Edit交接、sidebar Alibaba Sync名称、登录路由、issue合约和formal浏览器断言。把“Edit修复来源”更正为“进入Alibaba Sync刷新来源”，把“有修复按钮”具体为“真实现有Edit callback已由构建浏览器点击验证”；核对受控path、50上限和未知异常不泄漏。未push/部署app/操作云商品，未来分类属性mapping继续仅为想法。P1计划复用/照片选择、P2查询与启用、P3/P4持久恢复、历史修复及最终整合/test现场验收继续实施。

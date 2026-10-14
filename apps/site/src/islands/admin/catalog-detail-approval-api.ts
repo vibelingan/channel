@@ -67,12 +67,15 @@ export async function readDetailPreview(
   inputDigest?: string,
   signal?: AbortSignal,
 ) {
-  const result = preview.parse(
+  const parsed = preview.safeParse(
     await catalogApprovalCall(
       { action: 'preview', productId, page, ...(inputDigest ? { inputDigest } : {}) },
       signal,
     ),
   );
+  if (!parsed.success)
+    throw new Error('Product preview could not be read. Reload the saved preview.');
+  const result = parsed.data;
   const detail = decodeCatalogDetailView(result.detail);
   if (
     !detail.ok ||
