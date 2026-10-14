@@ -6,7 +6,7 @@ import {
   CatalogDetailVariantSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
 import { CatalogValidationReportSchema } from '@vibelingan-channel/shared/catalog-issues';
-import { catalogApprovalDigest } from './catalog-detail-commit.ts';
+import { catalogApprovalDigest, prepareCatalogApprovalPlan } from './catalog-detail-commit.ts';
 import {
   beginStagedApproval,
   finishStagedApproval,
@@ -1051,4 +1051,141 @@ test('a legacy collapsed-options approval cannot stage a new projection, and a f
   assert.equal(h.publication().revision, renewed.value.revision);
   assert.equal(h.publication().variantCount, 21);
   assert.equal(h.row('products', 'p').published, false);
+});
+
+test('staged begin builds the complete effective configuration plan once for both digest and job', () => {
+  const h = fixture();
+  const first = h.variants[0];
+  assert.ok(first);
+  const values = first.optionValues;
+  let reads = 0;
+  Object.defineProperty(first, 'optionValues', {
+    enumerable: true,
+    get: () => {
+      reads++;
+      return values;
+    },
+  });
+  const prepared = prepareStagedApproval('admin', h.command, h.product, h.variants);
+  assert.ok(prepared.ok);
+  assert.equal(reads, 1, 'one effective plan for matching digest and the final job');
+  assert.equal(prepared.value.variantIds.length, 105);
+  assert.equal(prepared.value.pageHashes.length, 6);
+});
+
+test('readonly review builds its complete effective plan once for digest and displayed page', async () => {
+  const h = fixture();
+  const first = h.variants[0];
+  assert.ok(first);
+  const values = first.optionValues;
+  let reads = 0;
+  Object.defineProperty(first, 'optionValues', {
+    enumerable: true,
+    get: () => {
+      reads++;
+      return values;
+    },
+  });
+  const review = await runCatalogApprovalWorkflow(
+    {
+      get: async (collection, id) => h.store()[collection]?.[id] ?? null,
+      persist: async () => {
+        throw new Error('Readonly review attempted persistence');
+      },
+    },
+    'admin',
+    { action: 'review', productId: 'p' },
+  );
+  assert.ok(review.ok && 'kind' in review && review.kind === 'review');
+  assert.equal(reads, 1, 'one effective plan for digest and the review page');
+  assert.equal(review.expectedDigest, h.command.expectedDigest);
+  assert.equal(review.detail.variants.total, 105);
+  assert.equal(h.store().catalogDetailApprovals, undefined);
+});
+
+const digestBaselines = new Map([
+  [0, '65ce6a3801573b3e0524d916045577faa22de1b9f59e895abdb3c76d2c70c29d'],
+  [1, 'c8f29158c6ea9cb3f46fd146ef4692574205b9d4fdd7b648e39bad13ddab27db'],
+  [20, '5c6e7f5e0db034a1da7cbf8f717e6ff3122d42fad9436c1c743658ac5c86d33a'],
+  [21, '3abe41d69a79a32f26079a2cbdb0305674254528cda0c3a378d5ff93a2fbccf6'],
+  [105, '6ba7acde91343171015925275b54ebe3882ae3b86b1be6b3b16721104ce969aa'],
+]);
+for (const [count, expected] of digestBaselines) {
+  test(`approval digest baseline remains exact for ${count} configurations and a chosen revision`, () => {
+    const h = fixture(count);
+    assert.equal(catalogApprovalDigest(h.product, h.variants), expected);
+    const revision = '22222222-2222-4222-8222-222222222222';
+    const prepared = prepareCatalogApprovalPlan(h.product, h.variants, revision);
+    assert.equal(
+      prepared.digest,
+      expected,
+      'target revision must not change the existing review identity',
+    );
+    assert.equal(prepared.plan.publication.revision, revision);
+    assert.equal(prepared.plan.variants.length, count);
+    CatalogDetailPublicationSchema.parse(prepared.plan.publication);
+  });
+}
+test('manual zero-configuration digest baseline remains exact', () => {
+  const h = fixture(0, () => [], {
+    detailSourceOwner: 'manual:p',
+    skuCode: 'M-0',
+    unitPrice: 2.5,
+    moq: 25,
+  });
+  assert.equal(
+    catalogApprovalDigest(h.product, h.variants),
+    'bf50d123a1df4a5adef4714ccae37704fa23e99632f9a84252db65c4893a49a6',
+  );
+});
+
+test('whole-media status is opt-in so ordinary strict review clients keep the same metadata shape', async () => {
+  const h = fixture();
+  const store = {
+    get: async (collection: string, id: string) => h.store()[collection]?.[id] ?? null,
+    persist: async () => {
+      throw new Error('Readonly review attempted a write');
+    },
+  };
+  const ordinary = await runCatalogApprovalWorkflow(store, 'admin', {
+    action: 'review',
+    productId: 'p',
+    includePreviewMedia: true,
+  });
+  assert.ok(ordinary.ok && 'kind' in ordinary && ordinary.kind === 'review');
+  assert.ok(ordinary.previewMedia);
+  assert.equal(Object.hasOwn(ordinary.previewMedia, 'allVariantsBound'), false);
+  h.row('productVariants', 'v104').detailSourceUnboundMediaSources = [
+    'https://sc04.alicdn.com/final-photo.png',
+  ];
+  const summary = await runCatalogApprovalWorkflow(store, 'admin', {
+    action: 'review',
+    productId: 'p',
+    includePreviewMedia: true,
+    includeMediaSummary: true,
+  });
+  assert.ok(summary.ok && 'kind' in summary && summary.kind === 'review');
+  assert.equal(summary.previewMedia?.allVariantsBound, false);
+  assert.equal(summary.previewMedia?.variantSources.length, 50);
+  assert.ok(
+    summary.previewMedia?.variantSources.every((variant) => variant.unboundSources.length === 0),
+  );
+});
+
+test('a media summary cannot be requested without the matching preview metadata', async () => {
+  const h = fixture();
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async (collection, id) => {
+        assert.equal(collection, 'users', 'reject before reading any product or configuration');
+        return h.store()[collection]?.[id] ?? null;
+      },
+      persist: async () => {
+        throw new Error('Invalid request attempted a write');
+      },
+    },
+    'admin',
+    { action: 'review', productId: 'p', includeMediaSummary: true },
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
 });

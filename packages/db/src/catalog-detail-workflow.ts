@@ -4,8 +4,8 @@ import {
   CatalogDetailPublicationSchema,
   decodeCatalogDetailView,
 } from '@vibelingan-channel/shared/catalog-detail';
-import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
+  CatalogIssueSchema,
   CatalogValidationError,
   catalogIssuesFromZod,
   catalogValidationFailure,
@@ -14,7 +14,7 @@ import { z } from 'zod';
 import {
   CatalogApprovalCommandSchema,
   CatalogApprovalManifestSchema,
-  catalogApprovalDigest,
+  prepareCatalogApprovalPlan,
 } from './catalog-detail-commit.ts';
 import {
   type ApprovalPersistenceCommand,
@@ -31,6 +31,7 @@ const WorkflowCommandSchema = z.discriminatedUnion('action', [
       productId: z.string().trim().min(1).max(200),
       page: z.number().int().min(1).max(200).default(1),
       includePreviewMedia: z.boolean().optional(),
+      includeMediaSummary: z.boolean().optional(),
       expectedDigest: z
         .string()
         .regex(/^[a-f0-9]{64}$/)
@@ -99,6 +100,16 @@ export async function runCatalogApprovalWorkflow(
       catalogIssuesFromZod(parsed.error.issues, input, { stage: 'commit', remedy: 'reload' }),
     );
   const command = parsed.data;
+  if (command.action === 'review' && command.includeMediaSummary && !command.includePreviewMedia)
+    return catalogValidationFailure('commit', [
+      CatalogIssueSchema.parse({
+        code: 'INVALID_VALUE',
+        stage: 'commit',
+        path: 'data',
+        severity: 'error',
+        remedy: 'reload',
+      }),
+    ]);
   if (command.action === 'page' || command.action === 'finish')
     return store.persist(actorId, command);
   const productId = command.action === 'begin' ? command.command.productId : command.productId;
@@ -110,7 +121,7 @@ export async function runCatalogApprovalWorkflow(
     return store.persist(actorId, { action: 'begin', prepared: prepared.value });
   }
   try {
-    const expectedDigest = catalogApprovalDigest(read.product, read.rows);
+    const { digest: expectedDigest, plan } = prepareCatalogApprovalPlan(read.product, read.rows);
     if (command.expectedDigest !== undefined && expectedDigest !== command.expectedDigest)
       return { ok: false as const, code: 'CONFLICT' as const };
     const current =
@@ -119,11 +130,6 @@ export async function runCatalogApprovalWorkflow(
         : CatalogDetailPublicationSchema.parse(read.product.catalogDetailPublication);
     if (current && current.header._id !== productId)
       return { ok: false as const, code: 'CONFLICT' as const };
-    const plan = planCatalogDetailApproval({
-      product: read.product,
-      variants: read.rows,
-      revision: 'review-candidate',
-    });
     const offset = (command.page - 1) * 50;
     const { descriptionImages: _descriptionImages, ...legacyHeader } = plan.publication.header;
     const detail = decodeCatalogDetailView({
@@ -155,6 +161,15 @@ export async function runCatalogApprovalWorkflow(
       ...(command.includePreviewMedia
         ? {
             previewMedia: {
+              ...(command.includeMediaSummary
+                ? {
+                    allVariantsBound: !read.rows.some(
+                      (row) =>
+                        Array.isArray(row.detailSourceUnboundMediaSources) &&
+                        row.detailSourceUnboundMediaSources.length > 0,
+                    ),
+                  }
+                : {}),
               // Stable across transport-to-owned conversion, but not across any
               // reviewed content, identity, price, gallery or source mapping edit.
               importDigest: sourceDigest({

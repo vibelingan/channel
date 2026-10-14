@@ -56,9 +56,18 @@ const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(valu
 
 /** Digest the exact reviewable plan, not opaque unrelated source evidence or a mutable timestamp. */
 export function catalogApprovalDigest(product: CollectionDoc, variants: CollectionDoc[]): string {
+  return prepareCatalogApprovalPlan(product, variants).digest;
+}
+
+/** One effective plan for both review identity and its eventual publication revision. */
+export function prepareCatalogApprovalPlan(
+  product: CollectionDoc,
+  variants: CollectionDoc[],
+  revision = 'review-candidate',
+) {
   const manifest = CatalogApprovalManifestSchema.parse(product.detailSourceManifest);
   const sourceIds = new Set(manifest.variantIds);
-  const plan = planCatalogDetailApproval({ product, variants, revision: 'review-candidate' });
+  const plan = planCatalogDetailApproval({ product, variants, revision });
   if (
     product.detailSourceRevision !== manifest.revision ||
     manifest.variantIds.length !== variants.length ||
@@ -67,7 +76,7 @@ export function catalogApprovalDigest(product: CollectionDoc, variants: Collecti
     )
   )
     throw new Error('Incomplete or mixed source generation');
-  return hash({
+  const digest = hash({
     manifest: { revision: manifest.revision, variantIds: [...manifest.variantIds].sort() },
     owner: product.detailSourceOwner,
     published: product.published ?? null,
@@ -82,8 +91,12 @@ export function catalogApprovalDigest(product: CollectionDoc, variants: Collecti
       sourceKey: product.alibabaPrimarySourceKey ?? null,
       sourcePricing: product.alibabaCatalogPricing ?? null,
     },
-    plan,
+    plan: {
+      ...plan,
+      publication: { ...plan.publication, revision: 'review-candidate' },
+    },
   });
+  return { plan, digest };
 }
 
 /** Execute only inside an adapter's atomic transaction. No external effects or transaction nesting. */
@@ -172,9 +185,9 @@ export async function commitCatalogApproval(
   // Revision is server-generated, not the caller's retry key: a reused key can never resurrect a historical revision.
   const revision = randomUUID();
   try {
-    plan = planCatalogDetailApproval({ product, variants: rows, revision });
-    if (catalogApprovalDigest(product, rows) !== command.expectedDigest)
-      return { ok: false, code: 'CONFLICT' };
+    const prepared = prepareCatalogApprovalPlan(product, rows, revision);
+    if (prepared.digest !== command.expectedDigest) return { ok: false, code: 'CONFLICT' };
+    plan = prepared.plan;
   } catch {
     return { ok: false, code: 'VALIDATION_ERROR' };
   }

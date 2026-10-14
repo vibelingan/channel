@@ -161,3 +161,6 @@ Two exact reused Zod3.25.76 surfaces; no new vendor SDK/shim/query method. Insta
 Cache is created inside each approveInOneRequest default-dependency evaluation, keyed by actor/product, cleared at completion/failure/restart and never stored globally or in DB. Every native page rechecks raw observation/source/link/gallery/content generation/archive/admin. Actual105native-flow source-link reads drop636->106,<=8concurrent, two requests each read106 and second approval shows normally edited website title. This is local production-code path/read-count evidence, not cloud latency or an SLO result.
 
 Eight instrumented in-memory bundle mutants are independently observed: final photo budget1fail/9controls; request reuse and each of six raw/gallery/generation/binding/actor/archive native checks1fail/6controls. Whole workspace bytes unchanged. Standing CloudBase SDK gate passes p1h2-sdk.log; native vendor transaction code is unchanged. Full release and remaining cloud races/timing/acceptance are still open.
+
+
+P1h3：14个复用Zod3.25.76方法及1个Vite7.3.5 createServer(cacheDir)逐项证据见 .claude/sdk-probes/P1h3.md。完整计划六个摘要兼容、后页全媒体摘要/严格旧客户端、malformed review、时间边界和实际native续办均通过；13个审批mutation及独立hover mutation确实失败，正控保持。最终2317、八包类型及额外site、实际9文件Biome、standingSDK通过。built150在测试cache-only改动前通过；首次gallery模块加载失败及未证实根因完整保留，不当作已复现。无CloudBase新表面/资源或应用部署。

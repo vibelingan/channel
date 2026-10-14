@@ -32,7 +32,7 @@ export { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import {
   CatalogApprovalCommandSchema,
   type CatalogApprovalTransaction,
-  catalogApprovalDigest,
+  prepareCatalogApprovalPlan,
 } from './catalog-detail-commit.ts';
 
 export const APPROVAL_JOBS = 'catalogDetailApprovals';
@@ -185,13 +185,11 @@ export function prepareStagedApproval(
 ): { ok: true; value: PreparedApproval } | Failure {
   try {
     const command = CatalogApprovalCommandSchema.parse(input);
-    if (
-      command.productId !== product._id ||
-      catalogApprovalDigest(product, rows) !== command.expectedDigest
-    )
-      return fail('CONFLICT');
+    if (command.productId !== product._id) return fail('CONFLICT');
     const revision = randomUUID();
-    const plan = planCatalogDetailApproval({ product, variants: rows, revision });
+    const prepared = prepareCatalogApprovalPlan(product, rows, revision);
+    if (prepared.digest !== command.expectedDigest) return fail('CONFLICT');
+    const plan = prepared.plan;
     // Known source mappings may not silently disappear from an approved SKU.
     if (
       rows.some(

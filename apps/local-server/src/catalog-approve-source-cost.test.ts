@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
-import { setAdapter } from '@vibelingan-channel/db';
+import { manageCatalogDetailApproval, setAdapter } from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { approveInOneRequest } from '../../functions/admin/src/catalog-approve-once.ts';
+import { createCatalogSourcePreparer } from '../../functions/admin/src/catalog-detail-source.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { fixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { getProductDetail } from '../../functions/public-api/src/catalog-detail.ts';
@@ -58,9 +59,11 @@ test('one-request approval resolves each source media link once for all 105 conf
   const { adapter, product } = workspace(t, 105);
   const original = adapter.get.bind(adapter);
   let reads = 0;
+  let variantReads = 0;
   let inflight = 0;
   let maximum = 0;
   t.mock.method(adapter, 'get', async (collection: string, id: string) => {
+    if (collection === 'productVariants') variantReads++;
     if (collection !== 'catalogSourceLinks') return original(collection, id);
     reads++;
     inflight++;
@@ -101,6 +104,11 @@ test('one-request approval resolves each source media link once for all 105 conf
     const approved = await approveInOneRequest('admin', request);
     assert.ok(approved.ok && approved.status === 'approved', JSON.stringify(approved));
     assert.equal(reads, attempt * 106, 'one bounded source lookup per distinct URL per request');
+    assert.equal(
+      variantReads,
+      attempt * 210,
+      'one complete review plus a fresh complete begin read',
+    );
     assert.ok(maximum <= 8, `at most eight source lookups concurrently, observed ${maximum}`);
     const saved = await adapter.get('products', product._id);
     assert.equal(saved?.published, false);
@@ -191,3 +199,91 @@ for (const fault of ['source', 'gallery', 'generation', 'binding', 'actor', 'arc
     assert.equal(saved?.catalogDetailPublication, undefined);
   });
 }
+
+test('a whole-media summary finds an unimported final configuration after one complete review read', async (t) => {
+  const { adapter, product, path } = workspace(t, 105);
+  const data: Record<string, CollectionDoc[]> = JSON.parse(readFileSync(path, 'utf8'));
+  data.catalogSourceLinks =
+    data.catalogSourceLinks?.filter(
+      (link) => link.sourceUrl !== 'https://sc04.alicdn.com/source-cost-104.png',
+    ) ?? [];
+  writeFileSync(path, JSON.stringify(data));
+  const original = adapter.get.bind(adapter);
+  let variantReads = 0;
+  t.mock.method(adapter, 'get', async (collection: string, id: string) => {
+    if (collection === 'productVariants') variantReads++;
+    return original(collection, id);
+  });
+  const result = await approveInOneRequest('admin', command(product._id));
+  assert.deepEqual(result, { ok: true, status: 'needs-browser', reason: 'media-import' });
+  assert.equal(variantReads, 105, 'later photos must not require re-reading every earlier row');
+  const saved: Record<string, CollectionDoc[]> = JSON.parse(readFileSync(path, 'utf8'));
+  assert.equal(saved.catalogDetailApprovals, undefined);
+  assert.equal(saved.products?.[0]?.published, false);
+  assert.equal(saved.products?.[0]?.productFamily, product.productFamily);
+});
+
+test('a real approval handed over after its last staged page resumes the same job and revision then publishes and restores', async (t) => {
+  const { adapter, product, path } = workspace(t, 21);
+  const request = command(product._id);
+  const prepare = createCatalogSourcePreparer();
+  let clock = 0;
+  const handed = await approveInOneRequest(
+    'admin',
+    request,
+    {
+      prepare: async (actor, input) => {
+        const result = await prepare(actor, input);
+        clock++;
+        return result;
+      },
+      workflow: async (actor, input) => {
+        const result = await manageCatalogDetailApproval(actor, input);
+        clock++;
+        return result;
+      },
+      now: () => clock,
+    },
+    5,
+  );
+  assert.deepEqual(handed, { ok: true, status: 'needs-browser', reason: 'time-budget' });
+  const staged: Record<string, CollectionDoc[]> = JSON.parse(readFileSync(path, 'utf8'));
+  const jobs = staged.catalogDetailApprovals;
+  assert.equal(jobs?.length, 1);
+  const job = jobs?.[0];
+  assert.ok(job);
+  assert.equal(job.state, 'staging');
+  assert.equal(job.nextPage, 2);
+  assert.equal(staged.products?.[0]?.catalogDetailPublication, undefined);
+  const resumed = await approveInOneRequest('admin', request);
+  assert.ok(resumed.ok && resumed.status === 'approved');
+  assert.equal(resumed.jobId, job._id);
+  assert.equal(resumed.revision, job.revision);
+  const saved = await adapter.get('products', product._id);
+  const receipt = saved?.catalogDetailApprovalReceipt;
+  assert.ok(receipt && typeof receipt === 'object');
+  assert.equal(Reflect.get(receipt, 'operationId'), request.operationId);
+  const config = { jwtSecret: 'source-handover-local-only', enableDetailApproval: true };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    role: 'admin',
+    name: 'Admin',
+    email: 'admin@example.test',
+  });
+  const visibility = (published: boolean) =>
+    handleAdminRequest(
+      {
+        action: 'update',
+        token,
+        data: { collection: 'products', id: product._id, values: { published } },
+      },
+      config,
+    );
+  assert.equal((await visibility(true)).ok, true);
+  const detail = await getProductDetail(product._id);
+  assert.ok(detail.ok);
+  assert.equal(detail.data.variants.total, 21);
+  assert.equal(detail.data.revision, job.revision);
+  assert.equal((await visibility(false)).ok, true);
+  assert.equal((await adapter.get('images', 'image-owned'))?.publishedRefCount, 0);
+});

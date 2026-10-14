@@ -23,7 +23,11 @@ const review = (unbound: string[] = [], total = 3) => ({
   expectedDigest: 'd'.repeat(64),
   expectedRevision: 'old',
   detail: { variants: { total, pageSize: 50 } },
-  previewMedia: { importDigest: 'i'.repeat(64), variantSources: [{ unboundSources: unbound }] },
+  previewMedia: {
+    allVariantsBound: unbound.length === 0,
+    importDigest: 'i'.repeat(64),
+    variantSources: [{ unboundSources: unbound }],
+  },
 });
 
 /** Records every server step in order; answers like the real handlers. */
@@ -94,17 +98,15 @@ test('configuration photos still to import hand the approval back before begin',
   );
 });
 
-test('later review pages are read against the first page’s digest', async () => {
-  const pages: unknown[] = [];
-  const { deps } = server();
+test('a whole-set media summary sends later missing photos to the browser after one review', async () => {
+  const { calls, deps } = server();
   const workflow = deps.workflow;
   deps.workflow = async (actor, input) => {
-    const command = input as Record<string, unknown>;
-    if (command.action === 'review') {
-      pages.push([command.page, command.expectedDigest]);
-      return command.page === 2
-        ? review(['https://sc04.alicdn.com/late.jpg'], 120)
-        : review([], 120);
+    if (input && typeof input === 'object' && Reflect.get(input, 'action') === 'review') {
+      const first = review([], 120);
+      first.previewMedia.allVariantsBound = false;
+      calls.push({ action: 'review', page: Reflect.get(input, 'page') });
+      return first;
     }
     return workflow(actor, input);
   };
@@ -113,10 +115,14 @@ test('later review pages are read against the first page’s digest', async () =
     status: 'needs-browser',
     reason: 'media-import',
   });
-  assert.deepEqual(pages, [
-    [1, undefined],
-    [2, 'd'.repeat(64)],
-  ]);
+  assert.deepEqual(
+    calls.filter((call) => call.action === 'review').map((call) => call.page),
+    [1],
+  );
+  assert.equal(
+    calls.some((call) => call.action === 'begin'),
+    false,
+  );
 });
 
 test('a very large product hands over when the time budget is spent', async () => {
@@ -205,3 +211,49 @@ test('one-request approval discards malformed diagnostic text rather than exposi
   });
   assert.deepEqual(await approve(deps), { ok: false, code: 'VALIDATION_ERROR' });
 });
+
+for (const fault of [
+  'kind',
+  'product',
+  'negative-total',
+  'too-many',
+  'zero-page-size',
+  'wrong-page-size',
+  'missing-summary',
+]) {
+  test(`fast approval refuses malformed ${fault} review before any begin`, async () => {
+    const answer = review();
+    if (fault === 'kind') Reflect.set(answer, 'kind', 'preview');
+    if (fault === 'product') answer.productId = 'another-product';
+    if (fault === 'negative-total') answer.detail.variants.total = -1;
+    if (fault === 'too-many') answer.detail.variants.total = 10001;
+    if (fault === 'zero-page-size') answer.detail.variants.pageSize = 0;
+    if (fault === 'wrong-page-size') answer.detail.variants.pageSize = 51;
+    if (fault === 'missing-summary')
+      Reflect.deleteProperty(answer.previewMedia, 'allVariantsBound');
+    const { calls, deps } = server({ review: answer }, { now: 0, step: 500 });
+    assert.deepEqual(await approve(deps), {
+      ok: false,
+      code: fault === 'product' ? 'CONFLICT' : 'VALIDATION_ERROR',
+    });
+    assert.equal(
+      calls.some((call) => call.action === 'begin'),
+      false,
+    );
+  });
+}
+
+for (const phase of ['prepare', 'review', 'page']) {
+  test(`a completed ${phase} beyond the request budget hands over before starting another write phase`, async () => {
+    const step = phase === 'page' ? 4000 : 5000;
+    const budget = phase === 'prepare' ? 4000 : phase === 'review' ? 7000 : 12000;
+    const { calls, deps } = server({ prepare: progress(1, 1, true) }, { now: 0, step });
+    assert.deepEqual(await approve(deps, budget), {
+      ok: true,
+      status: 'needs-browser',
+      reason: 'time-budget',
+    });
+    const last = phase === 'prepare' ? 'prepare' : phase === 'review' ? 'review' : 'page';
+    assert.equal(calls.at(-1)?.action, last);
+  });
+}

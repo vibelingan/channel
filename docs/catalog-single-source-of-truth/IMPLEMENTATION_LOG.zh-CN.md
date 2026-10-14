@@ -526,3 +526,20 @@ Review又补出真实先红边界：第105配置源数据距128KiB只有不到3b
 文字核对：实际复核source完整读取/分页、approve默认依赖生命周期、SourcePageSchema与stageSourcePage当前CAS、原生读取计数/两次Edit/公开恢复、照片合并预算及source-plan断言。把“缓存来源”明确为“同一请求复用，下一请求重读且逐页native检查”，把“图片字段长度正常”更正为“合并后的整配置UTF8预算也必须正常”。未把P1h1的150应用浏览器重算成本版新证据；下一P1性能节点再运行构建组合。
 
 正式review/begin仍重复读取/构造，下一子单元继续收敛同一审批计划。normal/issues/preparing查询与启用、durable intent/receipt/resume、直接恢复/保留编辑、历史修复、其余性能/云race/Node20构建、test部署及真实20件发布读回恢复仍未完成。未push/部署app/改云商品，未来属性mapping不在本轮。
+
+
+### P1h3：复用审批计划和全配置媒体检查（2026-10-14，本地子单元完成，待精确提交 review）
+
+P1h2 提交 cca8a9fbdf0679e6e7fe134e10e7ba37bed987c0 已完成精确 review。本单元先红确认 staged begin 和 readonly review 都把同一105配置有效计划构造两遍；新 prepareCatalogApprovalPlan 同时返回计划和摘要。实际批准 UUID 只改变 publication.revision，摘要仍使用既有 review-candidate 规范值。改前捕获的0/1/20/21/105配置及manual0六个摘要逐字匹配；完整manifest身份/缺行/混版检查保留。分阶段page仍使用局部计划，不错误套用完整manifest检查。
+
+正常快速审批改为一次服务端全配置媒体摘要，替代每显示一页再读全部配置；摘要显式 opt-in，普通严格客户端返回shape不变。真实JSON/handler105配置正常路径读取420降为210，后页缺图315降为105，后者在begin前交回既有媒体准备流程。review的kind、商品ID、digest、revision、总数、pageSize及摘要都校验；错误商品回执不能进入begin。prepare完成、review完成及finish前补时间预算边界。真实21配置在最后stage后交回浏览器，同operation恢复同job/revision，正常发布、公开读回、下架、计数归零并清理。这里是本地读次数及fake-clock断点证明，不当作云端延时达标。
+
+94针对性测试通过；八个包类型检查、最终site类型检查、九文件实际Biome、standing SDK gate通过。构建后组合150 passed/0 failed/0 skipped，实际20件隔离分类发布及恢复在内，临时DB/服务清理。三件真实时钟存储副本再次完整prepare/review/begin/page/finish，113/113/121属性与4/2/1配置保留，header/job字节及未发布状态不变，独立JSON清理。这些不是test部署/真实商品变更。
+
+首次全量2316pass/1fail发生在画廊测试模块dynamic import、组件断言之前；原日志没有HTTP状态，不能断言504或具体根因。单独及顺序诊断分别11/2317通过，三轮构建并行尝试均未复现。已核实Astro与测试Vite默认共用site/node_modules/.vite，日志出现config变化重新优化；现仅给测试分配独立临时cacheDir，after清理，消除这项共享资源。最终全量2317 passed/0 failed/0 skipped（p1h3-broad-final-r3.log）；保留首次失败及根因未证实，不用自动retry/skip或改断言抹除。另独立内存hover缩放故障使原浏览器断言恰好1fail/10正控，确认测试缓存修正没有削弱探针。
+
+13个审批内存故障注入均被对应测试检测：重复计划、摘要混入目标revision、缺行放行、只看前50图片、破坏旧客户端shape、错商品/错kind/非法total/pageSize及三个预算边界，另实际native续办；每轮工作区源码不变（p1h3-mutations-r1.log）。SDK14个复用Zod方法和1个Vite调用有逐项表，官方与安装版本契约对照；无新增CloudBase方法/shim。
+
+文字核对：实际复核commit/staging/workflow、fastapprove、native成本及续办、摘要兼容/六个golden、图库测试/安装Vite和Astrocache配置。把“只review第一页”改为“一次review检查服务器已读的全部配置”，把“已经修好测试失败根因”改为“已消除已核实的共享缓存，原动态加载失败的具体原因未证实”。余下normal/issues/preparing查询与启用、durable intent/receipt、恢复、历史修复、性能/云race/Node20构建、test部署与真实20件恢复仍开放；无push/app部署/真实商品写入，也未做未来属性过滤mapping。
+
+独立cache后，另一次实际Astro构建与原画廊测试并行均exit0，owned构建目录finally删除（p1h3-cache-isolated-parallel.log）。这验证隔离后的并行执行，不作为原故障已复现的证据。

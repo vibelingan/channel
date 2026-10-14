@@ -13,6 +13,7 @@
  * step-by-step protocol with the same operation id, which resumes the same job.
  */
 import { manageCatalogDetailApproval } from '@vibelingan-channel/db';
+import { CATALOG_DETAIL_VARIANT_MAX_COUNT } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
 import { createCatalogSourcePreparer } from './catalog-detail-source.ts';
 import { type CatalogValidation, CatalogValidationSchema } from './catalog-validation.ts';
@@ -35,18 +36,17 @@ const Progress = z.object({
 });
 const Review = z.object({
   ok: z.literal(true),
-  expectedDigest: z.string(),
-  expectedRevision: z.string().nullable(),
-  detail: z.object({ variants: z.object({ total: z.number(), pageSize: z.number() }) }),
-  previewMedia: z
-    .object({
-      importDigest: z.string().optional(),
-      variantSources: z
-        .array(z.object({ unboundSources: z.array(z.string()) }).passthrough())
-        .optional(),
-    })
-    .passthrough()
-    .optional(),
+  kind: z.literal('review'),
+  productId: z.string().trim().min(1).max(200),
+  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedRevision: z.string().trim().min(1).max(200).nullable(),
+  detail: z.object({
+    variants: z.object({
+      total: z.number().int().min(0).max(CATALOG_DETAIL_VARIANT_MAX_COUNT),
+      pageSize: z.literal(50),
+    }),
+  }),
+  previewMedia: z.object({ allVariantsBound: z.boolean() }),
 });
 
 /** The codes the individual steps answer with; the handler maps each. */
@@ -135,31 +135,24 @@ export async function approveInOneRequest(
     if (outOfTime()) return handOver('time-budget');
   }
 
-  // 2. Review every page; configuration photos not yet imported go to the browser.
-  const reviewPage = (page: number, expectedDigest?: string) =>
-    step(
-      Review,
-      deps.workflow(actorId, {
-        action: 'review',
-        productId,
-        page,
-        includePreviewMedia: true,
-        ...(expectedDigest ? { expectedDigest } : {}),
-      }),
-    );
-  const first = await reviewPage(1);
+  if (outOfTime()) return handOver('time-budget');
+
+  // The workflow already reads every configuration; its summary avoids repeated full reads per displayed page.
+  const first = await step(
+    Review,
+    deps.workflow(actorId, {
+      action: 'review',
+      productId,
+      page: 1,
+      includePreviewMedia: true,
+      includeMediaSummary: true,
+    }),
+  );
   if (!first.ok) return first.failure;
   const review = first.value;
-  const unbound = (value: z.infer<typeof Review>) =>
-    (value.previewMedia?.variantSources ?? []).some((entry) => entry.unboundSources.length > 0);
-  if (unbound(review)) return handOver('media-import');
-  const reviewPages = Math.ceil(review.detail.variants.total / review.detail.variants.pageSize);
-  for (let page = 2; page <= reviewPages; page++) {
-    const next = await reviewPage(page, review.expectedDigest);
-    if (!next.ok) return next.failure;
-    if (unbound(next.value)) return handOver('media-import');
-    if (outOfTime()) return handOver('time-budget');
-  }
+  if (review.productId !== productId) return { ok: false, code: 'CONFLICT' };
+  if (!review.previewMedia.allVariantsBound) return handOver('media-import');
+  if (outOfTime()) return handOver('time-budget');
 
   // 3. Begin (same operation id → the same job), stage pages, finish.
   const begun = await step(
@@ -189,6 +182,7 @@ export async function approveInOneRequest(
     progress = staged.value;
   }
   if (!progress.complete) {
+    if (outOfTime()) return handOver('time-budget');
     const finished = await step(
       Progress,
       deps.workflow(actorId, { action: 'finish', jobId: progress.jobId }),
