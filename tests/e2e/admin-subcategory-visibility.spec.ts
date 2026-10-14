@@ -1289,22 +1289,34 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await page.getByPlaceholder(/^Search name/).fill(prefix);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   let collide = true;
+  let holdReadback = false;
+  let readbackHeld = false;
+  let releaseReadback: (() => void) | undefined;
+  const readbackGate = new Promise<void>((resolve) => {
+    releaseReadback = resolve;
+  });
   await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { id?: string; values?: { published?: boolean } };
-    };
-    if (
-      collide &&
-      body.action === 'update' &&
-      body.data?.id === colliding._id &&
-      body.data.values?.published === true
-    ) {
+    const body: unknown = route.request().postDataJSON();
+    if (!body || typeof body !== 'object') throw new Error('Expected an admin request object');
+    const action: unknown = Reflect.get(body, 'action');
+    const rawData: unknown = Reflect.get(body, 'data');
+    const data = rawData && typeof rawData === 'object' ? rawData : null;
+    const id: unknown = data ? Reflect.get(data, 'id') : undefined;
+    const collection: unknown = data ? Reflect.get(data, 'collection') : undefined;
+    const values: unknown = data ? Reflect.get(data, 'values') : undefined;
+    const published: unknown =
+      values && typeof values === 'object' ? Reflect.get(values, 'published') : undefined;
+    if (collide && action === 'update' && id === colliding._id && published === true) {
+      holdReadback = true;
       await route.fulfill({
         status: 409,
         json: { ok: false, error: { code: 'BUSY', message: 'Nothing was saved; try again.' } },
       });
       return;
+    }
+    if (holdReadback && action === 'list' && collection === 'products') {
+      readbackHeld = true;
+      await readbackGate;
     }
     await route.continue();
   });
@@ -1314,11 +1326,28 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await expect(receipt).toContainText('0 published · 1 not published', { timeout: 30000 });
   await expect(receipt).toContainText('Another change happened at the same moment');
   expect(await read(colliding._id)).toMatchObject({ published: false });
-  collide = false;
-  await receipt.getByRole('button', { name: 'Try again for 1 product' }).click();
+  const retryButton = receipt.getByRole('button', { name: 'Try again for 1 product' });
+  try {
+    await expect.poll(() => readbackHeld, { timeout: 5000 }).toBe(true);
+    await expect(retrying.getByText('Checking product statuses...', { exact: true })).toBeVisible();
+    await expect(retryButton).toBeDisabled({ timeout: 1000 });
+  } finally {
+    collide = false;
+    holdReadback = false;
+    releaseReadback?.();
+  }
+  await expect(retryButton).toBeEnabled();
+  const retryWrites = writes.filter(
+    (write) => write.action === 'publish' && write.ids.includes(colliding._id),
+  ).length;
+  await retryButton.click();
   await expect(retrying).toContainText('1 product classified and published.', { timeout: 30000 });
   await expect(retrying.getByRole('button', { name: 'Done' })).toBeEnabled();
   expect(await read(colliding._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
+  expect(
+    writes.filter((write) => write.action === 'publish' && write.ids.includes(colliding._id))
+      .length,
+  ).toBe(retryWrites + 1);
   await page.unrouteAll();
   await retrying.getByRole('button', { name: 'Done' }).click();
   expect(errors).toEqual([]);

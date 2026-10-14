@@ -929,6 +929,7 @@ export function ProductClassificationEditor({
             published
             onRetry={(ids) => void retryPublication(ids)}
             retrying={pending && stage === 'publishing'}
+            retryDisabled={pending || busy}
             onDismiss={() => setShowPublicationFeedback(false)}
           />
         )}

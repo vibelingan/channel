@@ -119,3 +119,13 @@ test('the classification editor says how many of the selection were published', 
     '1 product classified and published.',
   );
 });
+
+test('retry remains unavailable during readback while preserving its normal action label', () => {
+  const html = render({ onRetry: () => {}, retryDisabled: true });
+  assert.match(html, /disabled=""[^>]*>Try again for 3 products/);
+  assert.doesNotMatch(html, /Trying again/);
+  assert.doesNotMatch(
+    render({ onRetry: () => {}, retryDisabled: false }),
+    /disabled=""[^>]*>Try again/,
+  );
+});

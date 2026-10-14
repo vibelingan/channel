@@ -752,3 +752,17 @@ review 再发现两个文件标识问题：2,048 字符限制误拒编码后的�
 P2d7 最终本地验证：315 focused / 2,769 broad，均 0 failed / 0 skipped；8 个相关包 + 根 E2E 类型检查通过；Biome 13 文件（CloudBase adapter 按仓库原配置排除，已单独逐行 review）、新鲜 standing SDK 通过。36/27/8/20/224 五个 baseline 全绿；22 次运行缺陷注入（其中同一隔离缺陷由四种测试入口交叉检出）全部检出，有正常控制、0 skip、源码未变。另 8 项 SDK gate 注入各有 92 正常控制；21 个 package/method pair 与 SDK-PROBE 精确对齐。未知版本测试盲点先存活、补测后失败；冗余迁移单守卫移除仍被其他守卫挡住，最终用准确旧迁移函数回退与互斥移除验证；初版 probe 的路径错误不算检出。
 
 浏览器门槛未完成：最后一次冻结源码构建为 41 public + 90 shared + 11 formal + 6 admin 通过，1 admin 失败，1 admin 与 1 taxonomy 未运行。失败是 BUSY 发布回执已出现、状态读回尚未结束时，Try again 按钮可点而内部 guard 静默返回。前两轮 151 通过不能替代这轮失败。三个相关 UI 模块逐字等于 15a253a，证明不是本单元改了该 UI；仍作为实际交付阻断，转入 P4a0 单独修复并复验。失败现场已保存 failed-browser-retry/error-context.md，临时库 N3bnoH 已确认删除；运行源码哈希全部匹配。未冒充 test 发布或真实产品验收完成。
+
+### P4a0：发布冲突后重试不得静默丢点击（本地子单元完成，待精确提交 review）
+
+P2d7 最后一轮实际构建暴露旧 UI race：失败回执已经出现，stage 已切到 refreshing，按钮却只按 publishing 禁用；retryPublication 仍检查 pending/busy/inFlight，于是正常点击被静默丢弃。三个 UI 模块与15a253a逐字相同，属于原流程缺口，但仍作为交付阻断处理，没有靠重跑把148通过/1失败/2未运行写绿。
+
+用 diagnosing-bugs 收紧复现：依次排查按钮门禁不一致、模拟 BUSY 未撤销、请求已发但版本过期。把 BUSY 后真实 product list 读回主动挂起，确认 Checking product statuses 已显示，旧按钮仍 enabled，固定在 disabled 断言失败；独立反馈组件先红7控制/1失败。原回执、选中商品和分类没有修改。增加 first-party retryDisabled 通道，分类编辑器传 pending || busy；原 retrying 仅描述确实重试中的标签。现在读回结束后才接受重试，仍由原后端校验与 per-product guard 负责发布。
+
+受控正向浏览器走完：读回挂起→按钮禁用→finally释放→按钮启用→一次发布写→实际 published=true 与原分类读回。另一个临时 Astro 构建只断开编辑器的 busy prop，同一 disabled 断言确实失败；源码哈希不变。组件 baseline8全绿，移除门禁与混淆读回/重试标签两项均7控制/1失败/0skip。初次根目录 JSX 配置错、临时 Astro absolute config 解析错均只算脚本错误；按实际 site配置和 Astro源码修正后再收有效证据。一次给定测试文件名不存在被 Node 忽略，随后显式 test -f 校验所有测试路径，最终 focused65 为真实四个文件测试，不能用之前8条单文件结果冒充。
+
+最终 focused65 / broad2770 均0failed/0skip；site与根E2E类型、Biome4、新鲜standingSDK93通过。SDK-PROBE共15package/method pairs（13实际声明+2真实import facade）精确对照安装1.61.1与官方文档；未使用新文档1.62才有的signal。完整重新构建151 = 41 public + 90 shared + 11 formal + 8 admin + 1 taxonomy，全通过，PYTlr7临时库已删除。原样受控场景包括在完整151中，没有增加重试次数或放宽业务预期。P2d7运行源码除本单元三个明确UI文件外均哈希相同，所有失败现场保留于对应evidence目录。
+
+P2d7 review 中已观察的这个 P2 在本单元关闭；整体仍未完成媒体写入与来源绑定封存、report producer/query/UI、持久意图/大媒体协议/恢复/历史修复、vendor/P95/Node20总构建和 test真实三件时钟及20件发布恢复。未push、应用部署、云商品写入、新建分支/worktree/agent。
+
+写作实际复核 ProductClassificationEditor 的 pending/stage/inFlight/readBack/finally、BatchUpdateFeedback props/标签/原有调用方、CollectionView mutation与retryStarted、受控E2E route与Promise finally，以及组件和API测试。把“失败时可以立即重试”改成“读回结束后按钮启用，一次重试接受一次发布请求”；核对了真实旧UI失败、caller单独断开反例、实际服务写入次数、持久读回和隔离库清理。

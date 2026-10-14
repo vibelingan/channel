@@ -9,6 +9,8 @@ interface Props {
   /** Sends the products that need no fix again; the button shows only when given. */
   onRetry?: (ids: string[]) => void;
   retrying?: boolean;
+  /** Other work, such as status read-back, must finish before retry can accept a click. */
+  retryDisabled?: boolean;
   onDismiss: () => void;
 }
 
@@ -24,6 +26,7 @@ export function BatchUpdateFeedback({
   skipped = [],
   onRetry,
   retrying = false,
+  retryDisabled = false,
   onDismiss,
 }: Props) {
   const hasFailures = result.failures.length > 0;
@@ -74,7 +77,7 @@ export function BatchUpdateFeedback({
           {onRetry && retry.length > 0 && (
             <button
               type="button"
-              disabled={retrying}
+              disabled={retrying || retryDisabled}
               className="mt-3 min-h-11 rounded-lg border border-amber-400 bg-white px-4 font-semibold disabled:opacity-50"
               onClick={() => onRetry(retry)}
             >
