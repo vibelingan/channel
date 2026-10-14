@@ -1,4 +1,5 @@
 /** Source writers and approval must compete on the same bound product record. */
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { normalizedSourceInputDigest, sourceInputDigest } from './catalog-source-inputs.ts';
 export { sourceInputDigest } from './catalog-source-inputs.ts';
@@ -12,7 +13,7 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined;
 
-/** Read-only plan. Call before ANY transaction writes, then commit both records together. */
+/** Read-only product write plan: invalidate changed inputs or fence capture metadata. Read before ANY writes. */
 export async function planSourceInvalidation(
   store: ReadStore,
   before: CollectionDoc | null,
@@ -40,7 +41,14 @@ export async function planSourceInvalidation(
     (previous.key !== current.key || previous.provider !== current.provider)
   )
     throw new Error('Source identity cannot change in place');
-  if (hash(before) === hash(next)) return null;
+  const sameInput = hash(before) === hash(next);
+  const captureMayChange =
+    kind === 'mirror' &&
+    before &&
+    next &&
+    before.contentHash !== undefined &&
+    before.payloadId !== next.payloadId;
+  if (sameInput && !captureMayChange) return null;
   const { provider, key } = next ? current : previous;
   // Only explicit primary Alibaba bindings affect a canonical product.
   if (provider !== 'alibaba' || typeof key !== 'string' || !key) return null;
@@ -52,5 +60,14 @@ export async function planSourceInvalidation(
   const product = await store.get('products', link.productId);
   if (product?.alibabaPrimarySourceKey !== key) return null;
   if (!Number.isFinite(Date.parse(now))) throw new Error('Invalid source invalidation time');
+  if (sameInput) {
+    const observed = await store.get(
+      'catalogSourceObservations',
+      sourceObservationDocumentId('alibaba', key),
+    );
+    // Even a modern/missing observation may change pairing concurrently. The
+    // same-value product write serializes that change without advancing content.
+    if (!observed || observed.sourceContentHash !== undefined) return product;
+  }
   return advanceCatalogProduct(product, product, now, true);
 }

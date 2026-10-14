@@ -562,3 +562,15 @@ P2d1验证：红测7fail/1正控后，保护输出字段及普通increment守卫
 
 
 P2d1精确review发现并修正：b93c903暂未bless，因为datetime单独接受7万位小数秒，独立probe实际返回accepted=true/report70311bytes，违背有界摘要约定。新增反例先1fail/24正控，再仅给内部生成checkedAt加max40；来源原件无截断。最终全量2356pass/0fail/0skip（p2d1-broad-final-r2.log），finalshared类型、实际Biome通过；原schema探针重跑并增加去max40反证，共7个独立mutant均产生预期失败和正控（p2d1-mutations-r2.log）。四套consumer types之前已通过，后续修正类型不变；无新SDK方法，19表面完整记录。旧built150/云实验不重算为此版验收。这个容量发现是review修复项，不让它留到启用后。
+
+### P2d2：检查结果的版本保护写回及旧捕获证明（本地子单元完成，待精确提交review）
+
+fd7ccdfba15be742b949ba417a2aa1a9a5700afd精确review已完成。私有报告复用现有内部staging事务通道，不新建状态机/集合；HTTP approval命令不能提交该内部snapshot。写回重新核对admin身份、商品ID/内容generation/策略，以及网站实际输入、主来源/observation/link/捕获证明的同一摘要。只写product检查字段，不改updatedAt、分类、发布、批准内容或图片计数。过期计算拒绝；相同完整回执不重复写product，JSON也不重复写盘；错误generation有受控system-repair issue。尚未接线自动生产报告或列表查询/启用。
+
+内部新命令先12fail，明确是功能尚未接线，不冒充已有产品回归故障。取证又发现旧来源配对漏洞：legacy依赖raw evidence ID，原来源写入版本却忽略它；3个实际反例先红/3正控（p2c3-capture-red.log）。现在legacy evidenceId参与observation输入，主来源payloadId变化时legacy推进商品generation并stale；新版content-hash配对不因rawID变动推进内容版本。并发review进一步推导出“观察到modern/missing后，另一写入切换legacy”的读集合窗口，因此modern/missing也写同值product作实际事务fence，保持generation/updatedAt。该防护依据前面真实vendor已证明的write-set竞争，不把只读校验当隔离证明；本次新增配对/report云race和重抓延时仍待P6实测。额外点读/单商品写仅发生于content-hashed来源的raw捕获ID改变，不增加共享全局锁或每条普通列表的source读取。
+
+最终191focused通过，包含23写回/CAS/权限/来源变化/HTTP边界、7捕获证明、nativeCloud59与JSON49及既有staging/失效。实际helper测试验证scalar/array读、fail/silent/coded/wrongID回执回滚；JSON磁盘故障保持文件及下次读取，幂等重放零persist调用。完整2396 passed/0 failed/0 skipped（p2d2-broad-r1.log，实际画廊开启），八consumer types、11文件实际Biome、standingSDK通过。首次类型检查发现扩展Failure union失去已有validation可选字段，改为共享既有Failure、仅并入新的success分支；测试noDelete按nullable fixture处理，无cast/ignore。
+
+九个独立内存mutation均有各文件独立baseline并按预期失败，保留正常正控且源码不改（p2d2-mutations-r1.log）：finalinput10/13、policy1/22、actor3/20、SDKACK2/57、JSONreplay1/48、legacyproof1/6、mirrorcapture5/2、productfence2/5、modernrawproof1/6（前为fail后为pass）。三件实际时钟副本再走readonly Preview→prepare/review/begin/page/finish→读回，113/113/121facts、4/2/1配置、header/job字节、分类和未发布保持，独立JSON/owner清理（p2d2-real-clock-r1.log）。未拿旧built150作这版新浏览器证据；下个接线小流程重跑构建组合。
+
+SDK11个复用表面逐项见SDK-PROBE；官方事务流程/安装数据库真实入口及现有vendor实验对照，安装index绑定的是transaction/index，不能误用同目录旧transaction.js或文档包装返回值。文字核对实际文件为preparation-store/staging/产品摘要、source-inputs/invalidation、Cloud helper/JSON与23/7/59/49断言；把“现代重抓不写商品”改为“不推进内容版本，但保留实际商品事务竞争”，把“检查成功即可发布”明确为“报告不授权发布”。旧packet可能需要重新review；durable恢复、正常模式/query/count/fullselect、自动检查/worker授权/影子回填启用、完整预算、媒体恢复、历史修复、其余云race/性能/Node20构建、test部署及真实20件恢复仍开放。无push/app部署/真实商品写入，无属性过滤或存储拆分。

@@ -119,6 +119,10 @@ export function monotonicProductTime(before: CollectionDoc | null, now: string):
   return next.toISOString();
 }
 
+export function catalogProductContentDigest(product: CollectionDoc): string {
+  return fingerprint(product, contentFields);
+}
+
 function fingerprint(product: CollectionDoc, fields: readonly string[]): string {
   return alibabaPricingFingerprint(
     Object.fromEntries(fields.map((key) => [key, inputValue(product, key)])),

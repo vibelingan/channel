@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import {
+  CatalogPreparationCommitSchema,
+  catalogPreparationInputDigest,
+  readCatalogPreparationInputs,
+} from './catalog-preparation-store.ts';
 import { type CatalogRowMutation, isCatalogRowCollection } from './catalog-row-mutation.ts';
 import * as cloud from './cloudbase-adapter.ts';
 
 const now = '2026-10-13T00:00:00.000Z';
-function fixture() {
+function fixture(seed: Record<string, CollectionDoc> = {}) {
   let store = new Map<string, CollectionDoc>([
     [
       'products/p',
@@ -71,6 +78,7 @@ function fixture() {
       },
     ],
   ]);
+  for (const [key, row] of Object.entries(seed)) store.set(key, structuredClone(row));
   const control = {
     fail: '',
     silent: '',
@@ -481,3 +489,80 @@ for (const action of ['update', 'upsert', 'create'] as const) {
     assert.equal(saved.published, action === 'create' ? undefined : false);
   });
 }
+
+async function preparationCommand(h: ReturnType<typeof fixture>, id = 'q') {
+  const product = h.get('products', id);
+  assert.ok(product);
+  const inputs = await readCatalogPreparationInputs(
+    { get: async (collection, key) => h.get(collection, key) },
+    product,
+  );
+  return CatalogPreparationCommitSchema.parse({
+    action: 'preparation-report',
+    report: {
+      schemaVersion: 'catalog-preparation-report-v1',
+      productId: id,
+      inputDigest: catalogPreparationInputDigest(inputs),
+      policyVersion: CATALOG_PREPARATION_POLICY,
+      contentGeneration: product.catalogContentGeneration,
+      checkedAt: now,
+      state: 'ready',
+      previewReady: true,
+      mediaReady: true,
+      issues: [],
+    },
+  });
+}
+for (const arrayReads of [false, true])
+  test(`Cloud native preparation report accepts installed get shape array=${arrayReads} and preserves other state`, async () => {
+    const h = fixture({ 'users/admin': { _id: 'admin', role: 'admin' } });
+    h.control.arrayReads = arrayReads;
+    const command = await preparationCommand(h);
+    const before = h.get('products', 'q');
+    assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', command), {
+      ok: true,
+      preparation: 'stored',
+      productId: 'q',
+    });
+    assert.deepEqual(h.get('products', 'q'), {
+      ...before,
+      catalogPreparationState: 'ready',
+      catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
+      catalogPreparationReport: command.report,
+    });
+    assert.equal(h.control.maximumOperations, 3);
+    assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', command), {
+      ok: true,
+      preparation: 'unchanged',
+      productId: 'q',
+    });
+  });
+for (const fault of ['fail', 'silent', 'coded', 'wrongId'] as const)
+  test(`Cloud preparation report ${fault} ACK never reports success and rolls back`, async () => {
+    const h = fixture({ 'users/admin': { _id: 'admin', role: 'admin' } });
+    const command = await preparationCommand(h);
+    const before = h.snapshot();
+    h.control[fault] = 'products/q';
+    await assert.rejects(persistStagedApprovalInCloud(h.db, 'admin', command));
+    assert.deepEqual(h.snapshot(), before);
+  });
+test('Cloud preparation report refuses a source update committed after its calculation', async () => {
+  const h = fixture({ 'users/admin': { _id: 'admin', role: 'admin' } });
+  const command = await preparationCommand(h, 'p');
+  await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    {
+      action: 'update',
+      collection: 'alibabaSourceProducts',
+      id: 'k',
+      data: { sourceTitle: 'Changed' },
+    },
+    now,
+  );
+  const before = h.snapshot();
+  assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', command), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.deepEqual(h.snapshot(), before);
+});

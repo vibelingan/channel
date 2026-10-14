@@ -301,7 +301,7 @@ export class JsonFileAdapter implements DbAdapter {
         actorId,
         input,
       );
-      if (result.ok) {
+      if (result.ok && !('preparation' in result && result.preparation === 'unchanged')) {
         const previous = this.store;
         this.store = copy;
         try {

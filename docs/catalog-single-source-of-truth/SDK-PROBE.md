@@ -171,3 +171,5 @@ P1h3测试启动follow-up：同createServer调用新增安装Vite7.3.5支持的o
 P2d1：私有PreparationReport的19项Zod3.25.76表面逐项见 .claude/sdk-probes/P2d1.md。24严格契约/8managed-state及6nativeCloud/JSON保存路径、189focused、完整2355/0/0、四consumer types/实际8文件Biome/standingSDK通过；6独立mutation确实失败且正控保留。无CloudBaseSDK或shim变化。尚未生产报告/启用过滤，不把旧built150当新验收。
 
 P2d1follow-up：datetime的超长合法语法反例实际70311byte被接受，精确review withheld后加内部checkedAt max40。最终25report cases/full2356/0/0、finalshared type/Biome及7独立mutants通过，19表面不变；不涉及来源截断或新存储拆分。
+
+P2d2：六个Zod3.25.76与五个已安装@cloudbase/database1.4.3复用表面逐项见 .claude/sdk-probes/P2d2.md，native wrapper未更换。官方事务流程经MCP检索/读取，安装index实际选transaction/index并返回callbackRes；旧同级文件及文档包装示例不作契约。191focused/full2396/0/0、八consumer types、实际11-fileBiome/standingSDK/真实时钟副本清理通过；9独立mutants含ACK2fail/57正控。无新vendor race声明，新配对fence/报告CAS云race及重抓成本仍P6门槛；未接线自动producer/list rollout，无应用部署或客户变更。

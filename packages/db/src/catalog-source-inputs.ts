@@ -52,6 +52,9 @@ export function sourceInputDigest(row: CollectionDoc | null): string {
           ...(row?.sourceContentHash === undefined
             ? {}
             : { sourceContentHash: row.sourceContentHash }),
+          ...(row?.sourceContentHash === undefined && row?.evidenceId !== undefined
+            ? { legacyEvidenceId: row.evidenceId }
+            : {}),
           observation: observation ? { ...content, source: identity } : null,
         }),
       ),

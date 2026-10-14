@@ -3,8 +3,15 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import { batchRemove, batchUpdate, setAdapter } from '@vibelingan-channel/db';
+import {
+  CatalogPreparationCommitSchema,
+  catalogPreparationInputDigest,
+  readCatalogPreparationInputs,
+} from '@vibelingan-channel/db/catalog-preparation-store';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 function fixture(t: TestContext) {
@@ -414,3 +421,96 @@ for (const action of ['update', 'upsert', 'create'] as const) {
     assert.equal(saved.published, action === 'create' ? undefined : false);
   });
 }
+
+test('JSON legacy raw capture loses and recovers its pairing with atomic version invalidation', async (t) => {
+  const { db, file } = fixture(t);
+  const data: Record<string, CollectionDoc[]> = JSON.parse(readFileSync(file, 'utf8'));
+  data.catalogSourceObservations = [
+    {
+      _id: sourceObservationDocumentId('alibaba', 'k'),
+      provider: 'alibaba',
+      sourceProductKey: 'k',
+      evidenceId: 'raw-old',
+      observation: {
+        source: { provider: 'alibaba', sourceProductKey: 'k' },
+        identity: { title: 'Before' },
+      },
+    },
+  ];
+  writeFileSync(file, JSON.stringify(data));
+  await db.update('alibabaSourceProducts', 'k', { payloadId: 'raw-new' });
+  await stale(db);
+  await db.update('catalogSourceObservations', sourceObservationDocumentId('alibaba', 'k'), {
+    evidenceId: 'raw-new',
+  });
+  assert.equal((await db.get('products', 'p'))?.catalogContentGeneration, 6);
+  assert.equal((await db.get('products', 'p'))?.catalogPreparationState, 'stale');
+});
+async function localPreparationCommand(db: JsonFileAdapter) {
+  const product = await db.get('products', 'q');
+  assert.ok(product);
+  const input = await readCatalogPreparationInputs(db, product);
+  return CatalogPreparationCommitSchema.parse({
+    action: 'preparation-report',
+    report: {
+      schemaVersion: 'catalog-preparation-report-v1',
+      productId: 'q',
+      inputDigest: catalogPreparationInputDigest(input),
+      policyVersion: CATALOG_PREPARATION_POLICY,
+      contentGeneration: product.catalogContentGeneration,
+      checkedAt: '2026-10-14T00:00:00.000Z',
+      state: 'ready',
+      previewReady: true,
+      mediaReady: true,
+      issues: [],
+    },
+  });
+}
+function preparationFixture(t: TestContext) {
+  const h = fixture(t);
+  const data: Record<string, CollectionDoc[]> = JSON.parse(readFileSync(h.file, 'utf8'));
+  data.users = [{ _id: 'admin', role: 'admin' }];
+  writeFileSync(h.file, JSON.stringify(data));
+  return h;
+}
+test('JSON report replay preserves file bytes and does not call disk persistence again', async (t) => {
+  const { db, file } = preparationFixture(t);
+  const command = await localPreparationCommand(db);
+  assert.ok((await db.persistCatalogDetailApproval('admin', command)).ok);
+  const before = readFileSync(file, 'utf8');
+  const persist: unknown = Reflect.get(db, 'persist');
+  assert.equal(typeof persist, 'function');
+  let writes = 0;
+  Reflect.set(db, 'persist', () => {
+    writes++;
+    if (typeof persist === 'function') Reflect.apply(persist, db, []);
+  });
+  try {
+    assert.deepEqual(await db.persistCatalogDetailApproval('admin', command), {
+      ok: true,
+      preparation: 'unchanged',
+      productId: 'q',
+    });
+    assert.equal(writes, 0);
+    assert.equal(readFileSync(file, 'utf8'), before);
+  } finally {
+    Reflect.set(db, 'persist', persist);
+  }
+});
+test('JSON report disk failure leaves both stored and next-read product state unchanged', async (t) => {
+  const { db, file } = preparationFixture(t);
+  const command = await localPreparationCommand(db);
+  const before = readFileSync(file, 'utf8');
+  const product = await db.get('products', 'q');
+  const persist: unknown = Reflect.get(db, 'persist');
+  Reflect.set(db, 'persist', () => {
+    throw new Error('report-disk-fault');
+  });
+  try {
+    await assert.rejects(db.persistCatalogDetailApproval('admin', command), /report-disk-fault/);
+    assert.equal(readFileSync(file, 'utf8'), before);
+    assert.deepEqual(await db.get('products', 'q'), product);
+  } finally {
+    Reflect.set(db, 'persist', persist);
+  }
+});

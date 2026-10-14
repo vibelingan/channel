@@ -24,6 +24,11 @@ import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import { ChangeAuditMarkSchema, markChangeAudit } from './catalog-change-audit-store.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import { ManualSourceSchema, prepareManualSource } from './catalog-manual-staging.ts';
+import {
+  CatalogPreparationCommitSchema,
+  type CatalogPreparationStoreResult,
+  storeCatalogPreparationReport,
+} from './catalog-preparation-store.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
@@ -96,7 +101,11 @@ type Backfill = {
   backfill: 'applied' | 'skipped';
   reason?: 'revision-changed' | 'already-present' | 'not-approved' | 'archived';
 };
-export type ApprovalStageResult = Progress | Failure | Backfill;
+export type ApprovalStageResult =
+  | Progress
+  | Failure
+  | Backfill
+  | Extract<CatalogPreparationStoreResult, { ok: true }>;
 const PriceSummaryBackfillSchema = z
   .object({
     action: z.literal('price-summary-backfill'),
@@ -107,6 +116,7 @@ const PriceSummaryBackfillSchema = z
   .strict();
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
   SourcePageSchema,
+  CatalogPreparationCommitSchema,
   z.object({ action: z.literal('begin'), prepared: JobSchema }).strict(),
   z
     .object({
@@ -583,6 +593,8 @@ export async function runStagedApproval(
       }),
     );
   const command = parsed.data;
+  if (command.action === 'preparation-report')
+    return storeCatalogPreparationReport(tx, actorId, command);
   if (command.action === 'source-page') return stageSourcePage(tx, actorId, command);
   if (command.action === 'price-summary-backfill')
     return backfillPublicationPriceSummary(tx, actorId, command);
