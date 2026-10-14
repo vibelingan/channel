@@ -432,3 +432,92 @@ test('an unbound URL that the existing photo-copy policy cannot import is blocke
   assert.equal(result.issues[0]?.remedy, 'edit');
   assert.equal(JSON.stringify(result).includes('private-other-host.test'), false);
 });
+
+for (const [name, failed, outcome] of [
+  ['gone', { failureReason: 'not-found', failureAttempts: 1 }, 'blocked'],
+  ['six failed attempts', { failureReason: 'fetch-failed', failureAttempts: 6 }, 'blocked'],
+  ['temporary failure', { failureReason: 'fetch-failed', failureAttempts: 1 }, 'preparing'],
+  ['storage failure', { failureReason: 'write-failed', failureAttempts: 0 }, 'preparing'],
+  ['invalid failure date', { failureReason: 'not-found', failedAt: 'invalid' }, 'preparing'],
+  ['unowned failure record', { failureReason: 'not-found', provider: 'other' }, 'preparing'],
+] as const) {
+  test(`configuration inspection reads its durable photo failure without a product URL copy: ${name}`, async () => {
+    const h = sample(1);
+    const link = h.adapter.rows.catalogSourceLinks?.[0];
+    assert.ok(link);
+    Reflect.deleteProperty(link, 'imageId');
+    Object.assign(link, { failedAt: new Date().toISOString(), ...failed });
+    const before = structuredClone(h.adapter.rows);
+    const result = await h.inspect();
+    assert.ok(result.ok);
+    assert.equal(result.outcome, outcome);
+    assert.equal(result.issues[0]?.remedy, outcome === 'blocked' ? 'edit' : 'retry-media');
+    assert.equal(typeof link.sourceUrl, 'string');
+    if (typeof link.sourceUrl !== 'string') throw new Error('fixture source URL');
+    assert.equal(JSON.stringify(result).includes(link.sourceUrl), false);
+    assert.deepEqual(h.adapter.rows, before);
+    assert.deepEqual(h.adapter.commands, []);
+  });
+}
+
+test('a recorded current retry takes precedence over an obsolete product unavailable marker', async () => {
+  const h = sample(1);
+  const link = h.adapter.rows.catalogSourceLinks?.[0];
+  const source = h.observation.variants[0]?.media[0]?.sourceUrl;
+  assert.ok(link && source);
+  Reflect.deleteProperty(link, 'imageId');
+  Object.assign(link, {
+    failedAt: new Date().toISOString(),
+    failureReason: 'fetch-failed',
+    failureAttempts: 1,
+  });
+  h.product.alibabaAutoPhotos = { configurations: { unusable: [source] } };
+  const result = await h.inspect();
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'preparing');
+  assert.equal(result.issues[0]?.remedy, 'retry-media');
+});
+
+test('a manual owned configuration photo also recovers a durable unavailable link', async () => {
+  const h = sample(1);
+  const link = h.adapter.rows.catalogSourceLinks?.[0];
+  const variant = h.observation.variants[0];
+  assert.ok(link && variant);
+  Reflect.deleteProperty(link, 'imageId');
+  Object.assign(link, {
+    failedAt: new Date().toISOString(),
+    failureReason: 'not-found',
+    failureAttempts: 1,
+  });
+  const id = sourceVariantIds(h.product._id, 'read-source', h.observation).get(
+    variant.sourceVariantKey,
+  );
+  assert.ok(id);
+  h.product.imageIds = [h.id(0)];
+  h.product.configurationPhotos = { [id]: [h.id(0)] };
+  const before = structuredClone(h.adapter.rows);
+  const result = await h.inspect();
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'ready');
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(h.adapter.rows, before);
+});
+
+test('a durable media failure transition changes its inspection digest without changing product inputs', async () => {
+  const h = sample(1);
+  const link = h.adapter.rows.catalogSourceLinks?.[0];
+  assert.ok(link);
+  Reflect.deleteProperty(link, 'imageId');
+  Object.assign(link, {
+    failedAt: new Date().toISOString(),
+    failureReason: 'fetch-failed',
+    failureAttempts: 1,
+  });
+  const waiting = await h.inspect();
+  assert.ok(waiting.ok && waiting.outcome === 'preparing');
+  link.failureAttempts = 6;
+  const exhausted = await h.inspect();
+  assert.ok(exhausted.ok && exhausted.outcome === 'blocked');
+  assert.equal(exhausted.inputDigest, waiting.inputDigest);
+  assert.notEqual(exhausted.mediaInputDigest, waiting.mediaInputDigest);
+});

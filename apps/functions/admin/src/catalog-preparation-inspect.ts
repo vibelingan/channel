@@ -37,6 +37,7 @@ function failureIssues(failure: { code: string; validation?: unknown }): Catalog
 function hasUnavailableConfigurationPhoto(
   product: CollectionDoc,
   media: readonly { unboundSources: readonly string[] }[],
+  failures: readonly { sourceUrl: string; unavailable: boolean }[],
 ): boolean {
   const auto = product.alibabaAutoPhotos;
   const part = auto && typeof auto === 'object' ? Reflect.get(auto, 'configurations') : null;
@@ -44,10 +45,16 @@ function hasUnavailableConfigurationPhoto(
   const known = new Set(
     Array.isArray(unusable) ? unusable.flatMap((source) => allAlibabaPhotoSources([source])) : [],
   );
+  const current = new Map(
+    failures.flatMap((failure) => {
+      const normalized = allAlibabaPhotoSources([failure.sourceUrl])[0];
+      return normalized ? [[normalized, failure.unavailable] as const] : [];
+    }),
+  );
   return media.some((variant) =>
     variant.unboundSources.some((source) => {
       const normalized = allAlibabaPhotoSources([source])[0];
-      return normalized === undefined || known.has(normalized);
+      return normalized === undefined || (current.get(normalized) ?? known.has(normalized));
     }),
   );
 }
@@ -88,6 +95,7 @@ export async function inspectCatalogPreparation(
   let unbound = false;
   let unavailable = false;
   let sourceRevision: string | null = null;
+  let failureInputs: { sourceUrl: string; unavailable: boolean }[] = [];
   if (product.catalogDetailPublication != null) {
     const publication = CatalogDetailPublicationSchema.safeParse(product.catalogDetailPublication);
     if (!publication.success)
@@ -114,8 +122,18 @@ export async function inspectCatalogPreparation(
         previewReady = true;
         imageIds = planned.approvalPlan.imageIds;
         sourceRevision = planned.packet.revision;
-        unbound = planned.packet.variantMedia.some((media) => media.unboundSources.length > 0);
-        unavailable = hasUnavailableConfigurationPhoto(product, planned.packet.variantMedia);
+        const unboundSources = new Set(
+          planned.packet.variantMedia.flatMap((media) => media.unboundSources),
+        );
+        unbound = unboundSources.size > 0;
+        failureInputs = planned.sourceMedia.configurationFailures.filter((failure) =>
+          unboundSources.has(failure.sourceUrl),
+        );
+        unavailable = hasUnavailableConfigurationPhoto(
+          product,
+          planned.packet.variantMedia,
+          planned.sourceMedia.configurationFailures,
+        );
       }
     }
   } else if (issues.length === 0) {
@@ -213,7 +231,7 @@ export async function inspectCatalogPreparation(
     checkedAt: new Date(startedAt).toISOString(),
     outcome,
     previewReady,
-    mediaInputDigest: sourceDigest([sourceRevision, snapshots]),
+    mediaInputDigest: sourceDigest([sourceRevision, snapshots, failureInputs]),
     media: { scanned, total: imageIds.length },
     issues: issues.slice(0, 50),
   };

@@ -25,6 +25,7 @@ import {
   type CollectionDoc,
   alibabaPhotoSource,
   isProductFamily,
+  readAlibabaPhotoFailure,
 } from '@vibelingan-channel/shared';
 import {
   CATALOG_DETAIL_VARIANT_MAX_COUNT,
@@ -89,6 +90,10 @@ export function catalogCategoryLabel(productFamily: unknown): { categoryLabel?: 
 
 /** Our stored binding for a supplier photo; lookup never fetches it. */
 export async function sourceLinkImageId(url: string): Promise<string | undefined> {
+  return (await sourceLinkPhoto(url))?.imageId;
+}
+
+async function sourceLinkPhoto(url: string) {
   const transport = new URL(alibabaPhotoSource(url) ?? url);
   // Retain old CDN bindings outside today's copy policy without fetching them.
   if (
@@ -98,11 +103,13 @@ export async function sourceLinkImageId(url: string): Promise<string | undefined
     transport.protocol = 'https:';
   const sourceUrl = transport.href;
   const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl));
-  return link?.provider === 'alibaba' &&
-    link.sourceUrl === sourceUrl &&
-    typeof link.imageId === 'string'
-    ? link.imageId
-    : undefined;
+  if (link?.provider !== 'alibaba' || link.sourceUrl !== sourceUrl) return null;
+  const failure = readAlibabaPhotoFailure(link, Date.now());
+  return {
+    imageId: typeof link.imageId === 'string' ? link.imageId : undefined,
+    failureRecorded: failure.recorded,
+    unavailable: failure.state === 'unusable',
+  };
 }
 
 export async function prepareCatalogSource(actorId: string, input: unknown) {
@@ -274,6 +281,7 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     gallery.add(id);
   const images = new Map<string, string>();
   const linked = new Map<string, string>();
+  const configurationFailures: { sourceUrl: string; unavailable: boolean }[] = [];
   const variantUrls = new Set(observation.variants.flatMap((v) => v.media.map((m) => m.sourceUrl)));
   // General images must be attached to this product. SKU-only images instead
   // require an exact mapping in this product's source observation and an owned link.
@@ -289,8 +297,13 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
   for (let offset = 0; offset < urls.length; offset += 8) {
     await Promise.all(
       urls.slice(offset, offset + 8).map(async (url) => {
-        const imageId = await sourceLinkImageId(url);
-        if (imageId === undefined) return;
+        const binding = await sourceLinkPhoto(url);
+        const imageId = binding?.imageId;
+        if (imageId === undefined) {
+          if (binding?.failureRecorded && variantUrls.has(url))
+            configurationFailures.push({ sourceUrl: url, unavailable: binding.unavailable });
+          return;
+        }
         linked.set(url, imageId);
         if (gallery.has(imageId) || variantUrls.has(url)) images.set(url, imageId);
       }),
@@ -418,6 +431,9 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     approvalPlan,
     detail: candidate.value,
     sourceMedia: {
+      configurationFailures: configurationFailures.sort((a, b) =>
+        a.sourceUrl.localeCompare(b.sourceUrl),
+      ),
       gallerySources: [
         ...new Set(
           [...observation.content.media]

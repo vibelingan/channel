@@ -46,6 +46,8 @@ import {
   PRODUCT_IMAGE_MAX_COUNT,
   alibabaPhotoSources,
   allAlibabaPhotoSources,
+  isPermanentAlibabaPhotoFailure,
+  readAlibabaPhotoFailure,
 } from '@vibelingan-channel/shared';
 import { type MediaImportResult, importCandidateImage } from './media-import.ts';
 
@@ -210,20 +212,6 @@ export interface PhotoPreparationInput {
 
 const COPY_CONCURRENCY = 4;
 
-/** A photo that failed for a passing reason is tried again after this long. */
-const RETRY_AFTER_MS = 10 * 60 * 1000;
-/** After this many failed tries a photo is treated as one Alibaba cannot provide. */
-const MAX_ATTEMPTS = 6;
-/** Failures that trying again cannot fix. */
-const PERMANENT_FAILURES = new Set([
-  'invalid-url',
-  'host-not-allowed',
-  'too-many-redirects',
-  'not-found',
-  'too-large',
-  'bad-content',
-]);
-
 type CopiedState = { imageId: string } | 'unusable' | 'waiting';
 
 /** Our image for a supplier photo, or why there is none; null when it should be tried now. */
@@ -238,16 +226,7 @@ async function copiedState(
     const image = await get('images', link.imageId);
     if (image?.status === 'active') return { state: { imageId: link.imageId }, attempts: 0 };
   }
-  const failedAt = typeof link.failedAt === 'string' ? Date.parse(link.failedAt) : Number.NaN;
-  if (!Number.isFinite(failedAt)) return { state: null, attempts: 0 };
-  const attempts =
-    typeof link.failureAttempts === 'number' && link.failureAttempts > 0 ? link.failureAttempts : 1;
-  // A manual retry fetches once more; the count is kept, so a photo that
-  // already gave up is not put back into waiting for other drafts.
-  if (retryBeforeMs !== null && failedAt < retryBeforeMs) return { state: null, attempts };
-  if (PERMANENT_FAILURES.has(String(link.failureReason)) || attempts >= MAX_ATTEMPTS)
-    return { state: 'unusable', attempts };
-  return { state: nowMs - failedAt < RETRY_AFTER_MS ? 'waiting' : null, attempts };
+  return readAlibabaPhotoFailure(link, nowMs, retryBeforeMs);
 }
 
 interface Budget {
@@ -301,10 +280,9 @@ async function copySources(
         }).catch((error: unknown) =>
           console.error('[alibaba-catalog-sync] photo failure note not saved:', error),
         );
-        const state: CopiedState =
-          PERMANENT_FAILURES.has(imported.reason) || attempts >= MAX_ATTEMPTS
-            ? 'unusable'
-            : 'waiting';
+        const state: CopiedState = isPermanentAlibabaPhotoFailure(imported.reason, attempts)
+          ? 'unusable'
+          : 'waiting';
         return { state, kind: 'failed' as const, downloaded: true };
       }),
     );

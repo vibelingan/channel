@@ -7,6 +7,7 @@ export * from './catalog-taxonomy.ts';
 export * from './manual-catalog-pricing.ts';
 export * from './media.ts';
 export * from './alibaba-photo-sources.ts';
+export * from './alibaba-photo-failure.ts';
 export * from './media-content.ts';
 export * from './media-lifecycle.ts';
 export * from './media-ratelimit.ts';

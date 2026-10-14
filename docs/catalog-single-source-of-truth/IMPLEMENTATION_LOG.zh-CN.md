@@ -683,3 +683,18 @@ da453e5 精确 inline review 已通过。实际先红18pass/2fail：已按既有
 最终focused95（含33完整检查和24既有photo preparation），广泛消费者2493 passed/0failed/0skipped，真实图库浏览器开启；shared/admin/sync/local/site五套实际类型、四文件实际Biome、standingSDK、diff check通过。初次类型失败是新增表格被推断成string[][]而noUncheckedIndexedAccess视解构值可缺失，改为实际字面tuple as const，未assert外部数据。此节点未跑新版构建浏览器，P2d4的151不重算；后续完整配置媒体及报告串联节点重新跑。SDK新/改第三方表面为0，工作区pure helper不冒充vendorAPI。
 
 文字实际复核shared选择器/单URL、sourceLinkImageId/完整plan、worker configurationPhotoSources/copier/import allowedUrl及原手动绑定兼容；把“同一网址有绑定就能查到”改为“复制与读取须使用同一传输规范化key”，把“放开200就修好”保留为未实施项：完整配置遍历还须验证断点续跑和marker字节预算，不能把来源URL列表无限复制进product。未筛选属性/拆分正文存储/新增分支worktree/agent，未push/应用部署/云端商品写入。媒体封存/报告生产/query/UI、真正超98媒体、持久操作与恢复、历史修复、vendor/P95/Node20构建、test部署及实际三件时钟和20件发布恢复仍继续。
+
+
+### P2d6a：来源图片失败记录成为检查依据（本地子单元完成，待精确提交 review）
+
+c558b03 精确 inline review 已通过。先红38pass/3fail：没有product URL副本时，已持久not-found/6次fetch失败仍被只读检查当作preparing；反过来，商品旧unusable标记盖过来源图当前新的临时重试记录。把原copier的10分钟/6次/永久失败/固定manual retry cutoff规则抽到shared纯函数；copier读旧失败及本次失败都复用，检查从已有精确source-link读取中带回受控状态，不增加DB查询，不复制原始失败原因或私有值到响应。
+
+有效当前失败记录优先于旧商品摘要，永久或耗尽失败给blocked/edit，临时失败保留preparing/retry-media，旧无有效时间的记录不冒充已确认失败；错误provider/URL绑定不能提供状态。人工配置图覆盖仍可ready。只对实际unbound配置失败加入媒体输入摘要，状态由临时转耗尽时摘要变化、商品inputDigest不变；不把所有无关图片计数或失败时间当作内容改变。来源packet、public DTO/分页/revision及实际批准数据未增加失败字段。
+
+额外收紧失败metadata的信任边界：次数须正safe整数；缺失/负数/小数/字符串/Infinity/unsafe沿一次旧失败兼容，不能因此提前制造永久失败；reason必须真实string，数组不经String伪装not-found。25个pure行为测试覆盖每种永久/临时原因、恰好10分钟、恰好6次、手动cutoff相等与旧记录、坏次数/坏时间。原24个copier测试保持，包括6次、manual retry续跑和单件原子保存，不拿检查模块测试替代复制行为。
+
+最终focused129，全量扩到shared顶层全部测试后2662 passed/0failed/0skipped，实际图库浏览器开启；shared/admin/sync/local/site五套实际类型、七文件实际Biome、standingSDK、diff check通过。四个bundle baselines42检查/25policy/24copier/18binding通过，31个独立故障全部失败且有正控/0skip/源码不变：重跑原17检查保护，新增持久状态/当前优先/摘要、绑定三守卫、失败时间/次数/reason/阈值/延时/cutoff及copier两个共享策略入口。日志已机械核验。不新增第三方SDK表面、shim或依赖，没有新的网络抓取/授权路径。
+
+文字实际复核sourceLinkPhoto到完整plan私有sourceMedia、Preview只投影原gallery/description字段、unsealed检查及失败摘要、copier copiedState/copySources与shared policy、25pure/42检查/24copier和18binding断言。将“永久失败只能从product.unusable URL列表判断”改为“当前有效source-link失败记录为准，旧摘要仅在缺记录时兼容”。没有将新只读状态当作媒体封存、正常列表启用或文件存在证明。
+
+下一完整配置准备需去掉误用的UI200上限，同时改为有界完成摘要，不能将无限完整URL列表再复制进product。沿现有四并发、源图链接复用、商品CAS和单件图库/可见性最后保存语义；还须覆盖末页失败、软预算续跑、同源重复、manual retry、来源/管理员编辑中途变化。很长已复制前缀的重复元数据扫描成本仍要在持久操作/服务协议和云性能验证中解决，不承诺现有波次软预算是严格墙钟上限。P2媒体封存/生产/query/UI、P3大媒体/持久意图、P4恢复、P5历史、P6/P7继续；未push/应用部署/云商品写入/新分支worktree/agent/属性筛选或正文拆分。
