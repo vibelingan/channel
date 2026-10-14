@@ -388,3 +388,63 @@ test('explicit choice made during a page request survives completion and does no
     assert.equal(complete.selection.variant.id, 'variant-2');
   assert.equal(JSON.stringify(first), before);
 });
+
+test('negotiated first page pins the smaller width before collecting later configurations', () => {
+  const loading = reduceProductDetail(initialProductDetailState(), {
+    type: 'open',
+    generation: 1,
+    productId: 'A',
+  });
+  const first = ready(
+    reduceProductDetail(loading, {
+      type: 'result',
+      generation: 1,
+      productId: 'A',
+      result: {
+        status: 'ready',
+        detail: { ...detailFixture(31, 1, 10), _id: 'A', revision: 'approved-r1' },
+        bytes: 1000,
+      },
+    }),
+  );
+  const next = ready(reduceProductDetail(first, { type: 'page', generation: 2, page: 2 }));
+  assert.equal(next.request?.pageSize, 10);
+  const accepted = ready(
+    reduceProductDetail(next, {
+      type: 'result',
+      generation: 2,
+      productId: 'A',
+      result: {
+        status: 'ready',
+        detail: { ...detailFixture(31, 2, 10), _id: 'A', revision: 'approved-r1' },
+        bytes: 1000,
+      },
+    }),
+  );
+  assert.equal(accepted.pages.items.length, 20);
+});
+
+test('crossing the collection byte budget preserves the selected configuration in paged mode', () => {
+  let current = open(251, 'variant-1');
+  assert.equal(current.selection.status, 'selected');
+  for (let page = 2; page <= 5; page++) {
+    const pending = reduceProductDetail(current, { type: 'page', generation: page, page });
+    const result = response(251, page);
+    assert.equal(result.status, 'ready');
+    if (result.status !== 'ready') throw Error('fixture');
+    current = ready(
+      reduceProductDetail(pending, {
+        type: 'result',
+        generation: page,
+        productId: 'A',
+        result: { ...result, bytes: 2 * 1024 * 1024 },
+      }),
+    );
+  }
+  assert.equal(current.pages.mode, 'paged');
+  assert.equal(current.pages.retainedBytes, 2 * 1024 * 1024);
+  assert.equal(current.pages.items[0]?.id, 'variant-201');
+  assert.equal(current.selection.status, 'selected');
+  if (current.selection.status === 'selected')
+    assert.equal(current.selection.variant.id, 'variant-1');
+});

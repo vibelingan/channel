@@ -1449,3 +1449,170 @@ test('ordinary Edit keeps stale input, saves current drafts and live edits, and 
     expect((await image()).publishedRefCount ?? 0).toBe(baseline);
   }
 });
+
+test('large complete configurations remain usable through readonly preview, classification publish and public byte paging', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(180000);
+  const session = apiSession;
+  const list = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Byte Budget Headset', pageSize: 20 },
+    session.token,
+  );
+  expect(list.items).toHaveLength(1);
+  const draft = list.items[0];
+  if (!draft) throw Error('byte fixture');
+  expect(draft.published).toBe(false);
+  if (
+    !Array.isArray(draft.imageIds) ||
+    !draft.imageIds.every((id): id is string => typeof id === 'string')
+  )
+    throw Error('owned fixture gallery');
+  const imageIds = draft.imageIds;
+  const count = async (id: string) =>
+    (await adminAction<CollectionDoc>(request, 'get', { collection: 'images', id }, session.token))
+      .publishedRefCount;
+  const baseline = await Promise.all(imageIds.map(count));
+  const before = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  const { decodeCatalogDetailView } = await import(
+    '../../packages/shared/src/catalog/product-detail.ts'
+  );
+  const prepared = await adminAction<unknown>(
+    request,
+    'catalogDetailApproval',
+    { action: 'preview', productId: draft._id },
+    session.token,
+  );
+  if (!prepared || typeof prepared !== 'object' || !('detail' in prepared))
+    throw Error('preview response');
+  const firstPreview = decodeCatalogDetailView(prepared.detail);
+  if (!firstPreview.ok) throw Error('preview DTO');
+  const width = firstPreview.value.variants.pageSize;
+  expect(width).toBeLessThan(50);
+  expect(firstPreview.value.variants.total).toBe(50);
+  const pageCount = Math.ceil(50 / width);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Byte Budget Headset');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Byte Budget Headset' });
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  for (let number = 2; number <= pageCount; number++) {
+    await preview.getByRole('button', { name: 'Next configurations', exact: true }).click();
+    await expect(preview).toContainText(`Page ${number} of ${pageCount}`);
+  }
+  await expect(
+    preview.getByRole('button', { name: 'Next configurations', exact: true }),
+  ).toBeDisabled();
+  await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  expect(
+    await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: draft._id },
+      session.token,
+    ),
+  ).toEqual(before);
+  try {
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const classify = page.getByRole('dialog', { name: 'Edit website classification' });
+    await expect(
+      classify.getByRole('combobox', { name: 'Website main category' }).and(page.locator('button')),
+    ).toContainText('Headphones');
+    await classify.getByRole('button', { name: 'Save and publish', exact: true }).click();
+    await classify.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
+    await expect(classify.getByRole('button', { name: 'Done', exact: true })).toBeVisible({
+      timeout: 90000,
+    });
+    await classify.getByRole('button', { name: 'Done', exact: true }).click();
+    const saved = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: draft._id },
+      session.token,
+    );
+    expect(saved.published).toBe(true);
+    expect(saved.productFamily).toBe(draft.productFamily);
+    expect(saved.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+    const { CatalogDetailPaginationSchema } = await import(
+      '../../packages/shared/src/catalog/pagination.ts'
+    );
+    const hint = CatalogDetailPaginationSchema.parse(saved.catalogDetailPagination);
+    expect(hint.pageSize).toBeLessThan(50);
+    const seen: string[] = [];
+    for (let number = 1; number <= Math.ceil(50 / hint.pageSize); number++) {
+      const response = await request.get(
+        `${e2e.apiUrl}/api/products/${draft._id}/detail?view=sections-media&pagination=byte-budget-v1&page=${number}&pageSize=${hint.pageSize}&revision=${hint.revision}`,
+      );
+      expect(response.status()).toBe(200);
+      expect((await response.body()).byteLength).toBeLessThan(2 * 1024 * 1024);
+      const body: unknown = await response.json();
+      if (!body || typeof body !== 'object' || !('data' in body)) throw Error('public response');
+      const decoded = decodeCatalogDetailView(body.data);
+      if (!decoded.ok) throw Error('public DTO');
+      expect(decoded.value.variants.total).toBe(50);
+      for (const variant of decoded.value.variants.items) {
+        expect(variant.options).toHaveLength(seen.length === 49 ? 42 : 1);
+        seen.push(variant.id);
+      }
+    }
+    expect(new Set(seen).size).toBe(50);
+    expect(seen).toHaveLength(50);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/headphones/?id=${draft._id}`);
+    const selector = page.locator('[data-catalog-variant-selector] select');
+    await expect(selector.locator('option')).toHaveCount(51, { timeout: 30000 });
+    const lastId = seen.at(-1);
+    if (!lastId) throw Error('last configuration');
+    await selector.selectOption(lastId);
+    await expect(selector).toHaveValue(lastId);
+    await expect(page).toHaveURL(new RegExp(lastId));
+    await page.screenshot({
+      path: info.outputPath('large-byte-paging-mobile.png'),
+      fullPage: true,
+    });
+    expect(errors).toEqual([]);
+  } finally {
+    await page.goto('/');
+    await adminAction(
+      request,
+      'update',
+      { collection: 'products', id: draft._id, values: { published: false } },
+      session.token,
+    );
+    const restored = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: draft._id },
+      session.token,
+    );
+    expect(restored.published).toBe(false);
+    expect(restored.productFamily).toBe(draft.productFamily);
+    expect(restored.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+    expect(
+      (
+        await request.get(
+          `${e2e.apiUrl}/api/products/${draft._id}/detail?pagination=byte-budget-v1`,
+        )
+      ).status(),
+    ).toBe(404);
+    expect(await Promise.all(imageIds.map(count))).toEqual(baseline);
+  }
+});

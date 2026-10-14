@@ -94,7 +94,10 @@ export function acceptDetailPage(
     current.items.length + page.items.length > DETAIL_COLLECTION_VARIANT_LIMIT ||
     page.page > DETAIL_COLLECTION_PAGE_LIMIT
   )
-    return { status: 'limit-exceeded' };
+    return {
+      status: 'ready',
+      value: { mode: 'paged', currentPage: detail, items: page.items, retainedBytes: bytes },
+    };
   return {
     status: 'ready',
     value: {

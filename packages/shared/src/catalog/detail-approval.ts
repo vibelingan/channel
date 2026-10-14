@@ -13,6 +13,7 @@ export const CATALOG_APPROVAL_JOB_MAX_BYTES = 512 * 1024;
 const editContext = { stage: 'effective-content', remedy: 'edit' } as const;
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import { manualFacts } from './manual-detail.ts';
+import { planCatalogDetailPagination } from './pagination.ts';
 import {
   CatalogContentSchema,
   CatalogDetailHeaderSchema,
@@ -310,9 +311,11 @@ function buildCatalogDetailApproval(input: {
     },
     { stage: 'commit', remedy: 'system-repair' },
   );
+  const pagination = planCatalogDetailPagination(publication, variants);
   return {
     publication,
     variants,
+    ...(pagination.pageSize < 50 ? { publicPageSize: pagination.pageSize } : {}),
     imageIds: [
       ...new Set([...product.imageIds, ...(product.descriptionImageIds ?? []), ...variantImageIds]),
     ],

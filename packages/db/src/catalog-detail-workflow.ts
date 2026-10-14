@@ -4,6 +4,11 @@ import {
   CatalogDetailPublicationSchema,
   decodeCatalogDetailView,
 } from '@vibelingan-channel/shared/catalog-detail';
+import { CATALOG_DETAIL_VARIANT_MAX_COUNT } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_DETAIL_PAGE_MAX_BYTES,
+  planCatalogDetailPagination,
+} from '@vibelingan-channel/shared/catalog-detail-pagination';
 import {
   CatalogIssueSchema,
   CatalogValidationError,
@@ -30,7 +35,7 @@ const WorkflowCommandSchema = z.discriminatedUnion('action', [
     .object({
       action: z.literal('review'),
       productId: z.string().trim().min(1).max(200),
-      page: z.number().int().min(1).max(200).default(1),
+      page: z.number().int().min(1).max(CATALOG_DETAIL_VARIANT_MAX_COUNT).default(1),
       includePreviewMedia: z.boolean().optional(),
       includeMediaSummary: z.boolean().optional(),
       expectedDigest: z
@@ -133,7 +138,83 @@ export async function runCatalogApprovalWorkflow(
       return { ok: false as const, code: 'CONFLICT' as const };
     const capacity = catalogStagedApprovalCapacityIssues(read.product, plan);
     if (capacity.length) return catalogValidationFailure('review', capacity);
-    const offset = (command.page - 1) * 50;
+    const previewMedia = command.includePreviewMedia
+      ? {
+          ...(command.includeMediaSummary
+            ? {
+                allVariantsBound: !read.rows.some(
+                  (row) =>
+                    Array.isArray(row.detailSourceUnboundMediaSources) &&
+                    row.detailSourceUnboundMediaSources.length > 0,
+                ),
+              }
+            : {}),
+          importDigest: sourceDigest({
+            revision: current?.revision ?? null,
+            header: plan.publication.header,
+            content: plan.publication.content,
+            notes: plan.publication.noteBlocks,
+            variants: plan.variants.map(({ images: _images, ...v }) => v),
+            sources: read.rows.map((row) => [row._id, row.detailSourceMediaSources ?? []]),
+          }),
+          variantSources: read.rows.map((row) => ({
+            id: row._id,
+            sources: Array.isArray(row.detailSourceMediaSources)
+              ? row.detailSourceMediaSources
+                  .filter((v): v is string => typeof v === 'string')
+                  .slice(0, 9)
+              : [],
+            unboundSources: Array.isArray(row.detailSourceUnboundMediaSources)
+              ? row.detailSourceUnboundMediaSources
+                  .filter((v): v is string => typeof v === 'string')
+                  .slice(0, 9)
+              : [],
+          })),
+          galleryIds: Array.isArray(read.product.imageIds)
+            ? read.product.imageIds.filter((v): v is string => typeof v === 'string').slice(0, 9)
+            : [],
+          descriptionIds: Array.isArray(read.product.descriptionImageIds)
+            ? read.product.descriptionImageIds
+                .filter((v): v is string => typeof v === 'string')
+                .slice(0, 18)
+            : [],
+          gallerySources: Array.isArray(read.product.alibabaSourceImageUrls)
+            ? read.product.alibabaSourceImageUrls
+                .filter((v): v is string => typeof v === 'string')
+                .slice(0, 9)
+            : [],
+          descriptionSources: Array.isArray(read.product.alibabaDescriptionImageUrls)
+            ? read.product.alibabaDescriptionImageUrls
+                .filter((v): v is string => typeof v === 'string')
+                .slice(0, 18)
+            : [],
+        }
+      : undefined;
+    const pagination = planCatalogDetailPagination(plan.publication, plan.variants, previewMedia);
+    if (!pagination.singlePageFits)
+      return catalogValidationFailure('review', [
+        CatalogIssueSchema.parse({
+          code: 'TOO_LARGE',
+          stage: 'commit',
+          path: 'data',
+          severity: 'error',
+          remedy: 'system-repair',
+          expected: { maxBytes: CATALOG_DETAIL_PAGE_MAX_BYTES },
+          observed: { bytes: pagination.pageBytesBound },
+        }),
+      ]);
+    const pageSize = pagination.pageSize;
+    if (command.page > Math.max(1, Math.ceil(plan.variants.length / pageSize)))
+      return catalogValidationFailure('review', [
+        CatalogIssueSchema.parse({
+          code: 'INVALID_VALUE',
+          stage: 'commit',
+          path: 'page',
+          severity: 'error',
+          remedy: 'reload',
+        }),
+      ]);
+    const offset = (command.page - 1) * pageSize;
     const { descriptionImages: _descriptionImages, ...legacyHeader } = plan.publication.header;
     const detail = decodeCatalogDetailView({
       ...(command.includePreviewMedia ? plan.publication.header : legacyHeader),
@@ -144,11 +225,11 @@ export async function runCatalogApprovalWorkflow(
         ? { schemaVersion: 'catalog-product-detail-v3', noteBlocks: plan.publication.noteBlocks }
         : {}),
       variants: {
-        items: plan.variants.slice(offset, offset + 50),
+        items: plan.variants.slice(offset, offset + pageSize),
         total: plan.variants.length,
         page: command.page,
-        pageSize: 50,
-        hasMore: offset + 50 < plan.variants.length,
+        pageSize,
+        hasMore: offset + pageSize < plan.variants.length,
       },
     });
     if (!detail.ok) return catalogValidationFailure('review', detail.issues);
@@ -159,63 +240,11 @@ export async function runCatalogApprovalWorkflow(
       expectedDigest,
       expectedRevision: current?.revision ?? null,
       detail: detail.value,
-      // Authenticated preview metadata comes from the same fresh product read,
-      // never from the potentially stale list row. Public APIs omit this field.
-      ...(command.includePreviewMedia
+      ...(previewMedia
         ? {
             previewMedia: {
-              ...(command.includeMediaSummary
-                ? {
-                    allVariantsBound: !read.rows.some(
-                      (row) =>
-                        Array.isArray(row.detailSourceUnboundMediaSources) &&
-                        row.detailSourceUnboundMediaSources.length > 0,
-                    ),
-                  }
-                : {}),
-              // Stable across transport-to-owned conversion, but not across any
-              // reviewed content, identity, price, gallery or source mapping edit.
-              importDigest: sourceDigest({
-                revision: current?.revision ?? null,
-                header: plan.publication.header,
-                content: plan.publication.content,
-                notes: plan.publication.noteBlocks,
-                variants: plan.variants.map(({ images: _images, ...v }) => v),
-                sources: read.rows.map((row) => [row._id, row.detailSourceMediaSources ?? []]),
-              }),
-              variantSources: read.rows.slice(offset, offset + 50).map((row) => ({
-                id: row._id,
-                sources: Array.isArray(row.detailSourceMediaSources)
-                  ? row.detailSourceMediaSources
-                      .filter((v): v is string => typeof v === 'string')
-                      .slice(0, 9)
-                  : [],
-                unboundSources: Array.isArray(row.detailSourceUnboundMediaSources)
-                  ? row.detailSourceUnboundMediaSources
-                      .filter((v): v is string => typeof v === 'string')
-                      .slice(0, 9)
-                  : [],
-              })),
-              galleryIds: Array.isArray(read.product.imageIds)
-                ? read.product.imageIds
-                    .filter((v): v is string => typeof v === 'string')
-                    .slice(0, 9)
-                : [],
-              descriptionIds: Array.isArray(read.product.descriptionImageIds)
-                ? read.product.descriptionImageIds
-                    .filter((v): v is string => typeof v === 'string')
-                    .slice(0, 18)
-                : [],
-              gallerySources: Array.isArray(read.product.alibabaSourceImageUrls)
-                ? read.product.alibabaSourceImageUrls
-                    .filter((v): v is string => typeof v === 'string')
-                    .slice(0, 9)
-                : [],
-              descriptionSources: Array.isArray(read.product.alibabaDescriptionImageUrls)
-                ? read.product.alibabaDescriptionImageUrls
-                    .filter((v): v is string => typeof v === 'string')
-                    .slice(0, 18)
-                : [],
+              ...previewMedia,
+              variantSources: previewMedia.variantSources.slice(offset, offset + pageSize),
             },
           }
         : {}),

@@ -22,14 +22,14 @@ import {
   catalogIssuesFromZod,
 } from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
-import { readAlibabaDetailPlan } from './catalog-detail-source.ts';
+import { readAlibabaDetailPreviewPlan } from './catalog-detail-source.ts';
 import { catalogValidationFailure } from './catalog-validation.ts';
 
 const commandSchema = z
   .object({
     action: z.literal('preview'),
     productId: z.string().trim().min(1).max(200),
-    page: z.number().int().min(1).max(200).default(1),
+    page: z.number().int().min(1).max(CATALOG_DETAIL_VARIANT_MAX_COUNT).default(1),
     inputDigest: z
       .string()
       .regex(/^[a-f0-9]{64}$/)
@@ -106,7 +106,7 @@ export async function readCatalogDetailPreview(actorId: string, input: unknown) 
     let gallerySources: string[] = [];
     let descriptionSources: string[] = [];
     if (typeof sourceKey === 'string' && sourceKey !== '') {
-      const plan = await readAlibabaDetailPlan(productId, projectedProduct, page - 1, 50);
+      const plan = await readAlibabaDetailPreviewPlan(productId, projectedProduct, page - 1);
       if (!plan.ok) return plan;
       sourceRevision = plan.packet.revision;
       rawDetail = {
@@ -187,7 +187,7 @@ export async function readCatalogDetailPreview(actorId: string, input: unknown) 
     }
     const detail = decodeCatalogDetailView(rawDetail);
     if (!detail.ok) return catalogValidationFailure('review', detail.issues);
-    if (page > Math.max(1, Math.ceil(detail.value.variants.total / 50)))
+    if (page > Math.max(1, Math.ceil(detail.value.variants.total / detail.value.variants.pageSize)))
       return catalogValidationFailure('review', [
         CatalogIssueSchema.parse({
           code: 'INVALID_VALUE',
@@ -201,7 +201,14 @@ export async function readCatalogDetailPreview(actorId: string, input: unknown) 
     if (!admin(actor)) return { ok: false as const, code: 'FORBIDDEN' as const };
     if (!current || productDigest(current) !== initialProductDigest)
       return { ok: false as const, code: 'CONFLICT' as const };
-    const inputDigest = sourceDigest(['catalog-preview-v1', initialProductDigest, sourceRevision]);
+    const inputDigest = sourceDigest([
+      'catalog-preview-v1',
+      initialProductDigest,
+      sourceRevision,
+      ...(detail.value.variants.pageSize === 50
+        ? []
+        : ['catalog-detail-pagination-v1', detail.value.variants.pageSize]),
+    ]);
     if (parsed.data.inputDigest !== undefined && parsed.data.inputDigest !== inputDigest)
       return { ok: false as const, code: 'CONFLICT' as const };
     return {

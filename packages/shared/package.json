@@ -22,7 +22,8 @@
     "./media": "./src/media.ts",
     "./release": "./src/release.ts",
     "./catalog-preparation": "./src/catalog/preparation.ts",
-    "./catalog-issues": "./src/catalog/issues.ts"
+    "./catalog-issues": "./src/catalog/issues.ts",
+    "./catalog-detail-pagination": "./src/catalog/pagination.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

@@ -338,6 +338,11 @@ async function routeGet(
     ) {
       return jsonResponse(event, config, err('VALIDATION_ERROR', 'Invalid detail view.'));
     }
+    if (
+      params.getAll('pagination').length > 1 ||
+      (params.has('pagination') && params.get('pagination') !== 'byte-budget-v1')
+    )
+      return jsonResponse(event, config, err('VALIDATION_ERROR', 'Invalid detail pagination.'));
     const integer = (name: string, fallback: number) => {
       const value = params.get(name);
       return value === null ? fallback : /^\d+$/.test(value) ? Number(value) : Number.NaN;
@@ -353,6 +358,7 @@ async function routeGet(
         params.has('view'),
         ['sections', 'sections-media'].includes(params.get('view') ?? ''),
         params.get('view') === 'sections-media',
+        params.get('pagination') === 'byte-budget-v1',
       ),
       undefined,
       { ...CATALOG_CACHE_HEADERS, 'Cache-Control': 'no-store' },

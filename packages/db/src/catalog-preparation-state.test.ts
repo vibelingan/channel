@@ -8,6 +8,7 @@ const outputs = {
   catalogPreparationState: 'ready',
   catalogPreparationPolicy: 'forged-policy',
   catalogPreparationReport: { productId: 'other', state: 'ready' },
+  catalogDetailPagination: { policyVersion: 'forged', revision: 'other', pageSize: 1 },
 };
 const original = (): CollectionDoc => ({
   _id: 'p',
@@ -18,6 +19,11 @@ const original = (): CollectionDoc => ({
   catalogPreparationState: 'blocked',
   catalogPreparationPolicy: 'previous-policy',
   catalogPreparationReport: { productId: 'p', state: 'blocked' },
+  catalogDetailPagination: {
+    policyVersion: 'catalog-detail-pagination-v1',
+    revision: 'kept',
+    pageSize: 50,
+  },
 });
 test('ordinary saves cannot replace server-owned preparation policy or report', () => {
   const before = original();

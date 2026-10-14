@@ -11,6 +11,7 @@ import {
   catalogVariantCapacityIssues,
   planCatalogDetailApproval,
 } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/catalog-detail-pagination';
 import {
   CatalogIssueSchema,
   CatalogValidationError,
@@ -57,6 +58,7 @@ const JobSchema = z
     expectedRevision: id.nullable(),
     revision: z.string().uuid(),
     publication: CatalogDetailPublicationSchema,
+    publicPageSize: z.number().int().min(1).max(50).optional(),
     variantIds: z.array(id).max(CATALOG_DETAIL_VARIANT_MAX_COUNT),
     pageHashes: z.array(digest).max(500),
     nextPage: z.number().int().nonnegative(),
@@ -292,6 +294,7 @@ function buildStagedApprovalJob(
     expectedRevision: command.expectedRevision,
     revision,
     publication: { ...plan.publication, revision },
+    ...(plan.publicPageSize === undefined ? {} : { publicPageSize: plan.publicPageSize }),
     variantIds: plan.variants.map((variant) => variant.id),
     pageHashes,
     nextPage: 0,
@@ -567,6 +570,11 @@ export async function finishStagedApproval(
   await tx.set('products', {
     ...product,
     catalogDetailPublication: publication,
+    catalogDetailPagination: {
+      policyVersion: CATALOG_DETAIL_PAGINATION_POLICY,
+      revision: job.revision,
+      pageSize: job.publicPageSize ?? 50,
+    },
     catalogDetailApprovalReceipt: {
       contentFingerprint: publicationContentFingerprint(product),
       operationId: job.operationId,

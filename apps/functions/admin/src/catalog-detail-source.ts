@@ -27,6 +27,10 @@ import {
   catalogVariantCapacityIssues,
 } from '@vibelingan-channel/shared/catalog-detail-approval';
 import {
+  CATALOG_DETAIL_PAGE_MAX_BYTES,
+  planCatalogDetailPagination,
+} from '@vibelingan-channel/shared/catalog-detail-pagination';
+import {
   CatalogIssueSchema,
   CatalogValidationError,
   catalogFailureIssue,
@@ -214,7 +218,7 @@ export async function readAlibabaDetailPlan(
   return complete.ok ? sourcePlanPage(complete, page, pageSize) : complete;
 }
 
-async function readCompleteAlibabaDetailPlan(productId: string, product: CollectionDoc) {
+export async function readCompleteAlibabaDetailPlan(productId: string, product: CollectionDoc) {
   const generation = SourcePageSchema.shape.contentGeneration.safeParse(
     product.catalogContentGeneration ?? undefined,
   );
@@ -380,6 +384,7 @@ async function readCompleteAlibabaDetailPlan(productId: string, product: Collect
       };
     }),
   };
+  let approvalPlan: ReturnType<typeof prepareCatalogApprovalPlan>['plan'];
   try {
     const stagedProduct = projectCatalogSourceProduct(
       product,
@@ -394,6 +399,7 @@ async function readCompleteAlibabaDetailPlan(productId: string, product: Collect
       projectCatalogSourceVariantRow(null, packet, position, variant, mediaById.get(variant.id)),
     );
     const effective = prepareCatalogApprovalPlan(stagedProduct, stagedRows);
+    approvalPlan = effective.plan;
     const capacity = catalogStagedApprovalCapacityIssues(stagedProduct, effective.plan);
     if (capacity.length) return catalogValidationFailure('source-candidate', capacity);
   } catch (error) {
@@ -404,6 +410,7 @@ async function readCompleteAlibabaDetailPlan(productId: string, product: Collect
   return {
     ok: true as const,
     packet,
+    approvalPlan,
     detail: candidate.value,
     sourceMedia: {
       gallerySources: [
@@ -419,6 +426,44 @@ async function readCompleteAlibabaDetailPlan(productId: string, product: Collect
       ),
     },
   };
+}
+
+/** Readonly paging uses the complete plan and the same media metadata returned to the browser. */
+export async function readAlibabaDetailPreviewPlan(
+  productId: string,
+  product: CollectionDoc,
+  page: number,
+) {
+  const complete = await readCompleteAlibabaDetailPlan(productId, product);
+  if (!complete.ok) return complete;
+  const pagination = planCatalogDetailPagination(
+    complete.approvalPlan.publication,
+    complete.approvalPlan.variants,
+    {
+      galleryIds: Array.isArray(product.imageIds)
+        ? product.imageIds.filter((v): v is string => typeof v === 'string')
+        : [],
+      descriptionIds: Array.isArray(product.descriptionImageIds)
+        ? product.descriptionImageIds.filter((v): v is string => typeof v === 'string')
+        : [],
+      gallerySources: complete.sourceMedia.gallerySources,
+      descriptionSources: complete.sourceMedia.descriptionSources,
+      variantSources: complete.packet.variantMedia,
+    },
+  );
+  if (!pagination.singlePageFits)
+    return catalogValidationFailure('source-candidate', [
+      CatalogIssueSchema.parse({
+        code: 'TOO_LARGE',
+        stage: 'media',
+        path: 'data',
+        severity: 'error',
+        remedy: 'system-repair',
+        expected: { maxBytes: CATALOG_DETAIL_PAGE_MAX_BYTES },
+        observed: { bytes: pagination.pageBytesBound },
+      }),
+    ]);
+  return sourcePlanPage(complete, page, pagination.pageSize);
 }
 
 function sourcePlanPage(complete: CompleteSourcePlan, page: number, pageSize: number) {

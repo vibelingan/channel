@@ -122,9 +122,12 @@ test('enforces page and accumulated byte budgets without silently truncating rec
   }
   assert.equal(result.status, 'ready');
   if (result.status !== 'ready') return;
-  assert.deepEqual(acceptDetailPage(result.value, detailFixture(251, 5), 1), {
-    status: 'limit-exceeded',
-  });
+  const fallback = acceptDetailPage(result.value, detailFixture(251, 5), 1);
+  assert.equal(fallback.status, 'ready');
+  if (fallback.status !== 'ready') throw Error('fallback');
+  assert.equal(fallback.value.mode, 'paged');
+  assert.equal(fallback.value.retainedBytes, 1);
+  assert.equal(fallback.value.items.length, 50);
 });
 
 test('a small requested page size still respects the ten-page collection budget', () => {
@@ -132,4 +135,36 @@ test('a small requested page size still respects the ten-page collection budget'
   assert.equal(result.status, 'ready');
   if (result.status !== 'ready') return;
   assert.equal(result.value.mode, 'paged');
+});
+
+test('a valid collection crossing its byte budget remains usable in bounded paged mode', () => {
+  let result = startDetailPages(detailFixture(251), 2 * 1024 * 1024);
+  for (let page = 2; page <= 4; page++) {
+    assert.equal(result.status, 'ready');
+    if (result.status !== 'ready') throw Error('fixture');
+    result = acceptDetailPage(result.value, detailFixture(251, page), 2 * 1024 * 1024);
+  }
+  assert.equal(result.status, 'ready');
+  if (result.status !== 'ready') throw Error('fixture');
+  const duplicate = detailFixture(251, 5);
+  const item = duplicate.variants.items[0];
+  assert.ok(item);
+  item.id = 'variant-1';
+  assert.deepEqual(acceptDetailPage(result.value, duplicate, 1000), { status: 'invalid-response' });
+  assert.deepEqual(
+    acceptDetailPage(result.value, { ...detailFixture(251, 5), revision: 'other' }, 1000),
+    { status: 'refresh-required' },
+  );
+  const next = acceptDetailPage(result.value, detailFixture(251, 5), 1000);
+  assert.equal(next.status, 'ready');
+  if (next.status !== 'ready') throw Error('must stay usable');
+  assert.equal(next.value.mode, 'paged');
+  assert.equal(next.value.retainedBytes, 1000);
+  assert.equal(next.value.items.length, 50);
+  assert.equal(next.value.items[0]?.id, 'variant-201');
+  const last = acceptDetailPage(next.value, detailFixture(251, 6), 100);
+  assert.equal(last.status, 'ready');
+  if (last.status !== 'ready') throw Error('last page');
+  assert.equal(last.value.mode, 'paged', 'one final page is not full coverage');
+  assert.equal(last.value.items[0]?.id, 'variant-251');
 });

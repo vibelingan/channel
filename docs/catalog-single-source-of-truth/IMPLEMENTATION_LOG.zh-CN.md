@@ -619,3 +619,22 @@ P3a0提交8a9db6058fcd26f7fb7aa963ead050627b0d6897精确inline review已完成�
 本小单元未重算P1h4的150构建浏览器为新版证据；下一报告/query/UI整体节点再跑。文字复核实际photo-preparation中field=null/auto marker/flag清理、advanceCatalogProduct的共享fingerprint、report final CAS、native/JSON实际调用和ABA/重放测试；把“图片没换就不必重查”更正为“配置图片准备状态变化同样需要重查”，区分修复未来自动检查缺口与已观察生产故障。正常列表仍未启用PreparationReport。
 
 后续仍需解决media-link写入与检查snapshot稳定性及自动生产/后台授权、nativequery/count/fullselect/UI/影子回填启用。官方EXCEED_MAX_RESPONSE_SIZE文档本次确认云函数最大响应6MB；P1h5须覆盖整页实际HTTP封装及合法大配置分页，不能只看单配置128KiB或job512KiB。单文档平台大小尚未取得明确当前契约，不猜1MB或16MB。真正超98媒体组合/P3durable操作/P4恢复/P5历史修复/P6vendor race与SLO/Node20全构建/P7test部署与真实20件恢复继续实施；无push/应用部署/客户写入/新分支worktree/agent/属性过滤mapping或拆分存储。
+
+
+### P1h5：整页字节预算、固定页宽与浏览器容量回退（本地子单元完成，待精确提交 review）
+
+继续原 pricing 分支；a578309 已精确 review。先用合法的 50 个大配置确认固定每页 50 会超过网站 2 MiB 响应限制；累计内容超过 8 MiB 时，旧消费者也会报错。新增 shared 纯计划按完整 header/content/notes、最大完整配置和认证预览媒体元数据的实际 UTF-8 JSON 字节选择 1..50 页宽，应用预算 1.75 MiB。属性、选项、价格和图片均保留；普通 0/20/105/10000 个轻量配置仍每页 50。预览媒体单项不可分割时返回受控容量问题，不能截断。
+
+分页提示绑定批准 revision，放产品私有 catalogDetailPagination；与批准切换在原 product 写入内提交，不加 finish 文档操作。只有需要缩页的内部 job 增加可选宽度，六个既有普通摘要 golden 保持。普通 save/create/upsert/increment 保留服务端输出保护。readonly Preview、Review 和 public 都用完整输入决定宽度；网站第一页协商后固定实际宽度和 revision。累计预算触发时转现有分页模式，保留选中配置；混版、重复 ID、异常响应仍拒绝。
+
+第一轮全量为 2434 pass / 1 fail：真实 HTTP 子进程证明，过期 revision 在商品变少后先撞到页码范围检查，误报 invalid-request，失去刷新回退。现先判断 revision，新增“旧版本第 2 页 / 当前版本越界第 2 页”分别返回 CONFLICT / VALIDATION_ERROR。测试夹具的推断窄类型及 local-server 测试跨入前端 tsconfig 的两处类型错误也已修正：原生整条链只读实际 HTTP 响应并调用共享 decoder，真正网站 transport 由构建浏览器流程验证。一次 focused 命令从根目录无法解析 tsx，0 个业务用例执行，不计红测；改到 apps/site 后实际 91 项通过。
+
+第一轮构建正式流程有 2 项失败，分别为读回 ECONNRESET 和恢复阶段 update 超时；该轮不计通过。新增全大配置被放在共享单文件 JSON 库中，使每次原生事务复制和整库持久化都携带大样本。浏览器夹具调整为前 49 个配置各 1 项、最后一个有 42 项多字节选项，仍经原始 Alibaba envelope/normalizer/materializer/照片准备，并验证全部 50 个身份、最后大配置、全部预览/公开页、手机选择、分类发布和撤回。未增加超时或重试掩盖错误。50 个全大配置仍由实际 public HTTP 全页测试、完整 staged approval 和 shared 真实字节测试覆盖。修正后的原失败流程通过；单文件测试成本是已核实的额外负担，但首次连接重置的网络级原因没有独立复现，不能据此声称已经解决所有连接异常。
+
+最终本地全量 2437 passed / 0 failed / 0 skipped，含实际图库浏览器；九套 shared/import/db/admin/sync/public/local/site/e2e 类型、26 文件实际 Biome、standing CloudBase SDK gate、git diff --check 通过。构建后的真实页面与独立 JSON 后台 151 passed，分组 41 public / 90 catalog / 11 formal / 8 visibility / 1 taxonomy。逐组退出和日志计数已核对，owned 临时 DB 目录独立确认不存在。20 件共享媒体 Assign category → Save and publish 和恢复通过，属于本地 fixtures，不能当云 test 的真实 20 件。构建期间运行时代码冻结，之后仅格式化三个测试/fixture 文件，运行时摘要保存在 p1h5/runtime-digests.json。
+
+故障注入先发现测试缺口：字符计数代替 UTF-8 字节时，原“只有末配置很大”的轻量页测试仍通过。新增 50 个全大 CJK 配置逐页真实 JSON 上界断言后，错误实现明确失败。最终九个文件 baseline 全通过，25 个独立内存缺陷分别检出 UTF-8、后页尺寸、媒体预算、hint revision、批准宽度写入、预览/公开宽度、后续 transport 固定、集合回退、选中项保留、输出保护和旧容量/媒体/来源版本/代次守卫，均有正常控制、0 skip、源码不变。脚本首轮正则转义错误及随后注入器未命中均不计业务证据；r5 日志逐项检查成功。46 个实际安装第三方表面经 TypeScript 声明解析及同表格单元 join 完整覆盖，精确证据见本目录 SDK-PROBE 及 output/p1h5。
+
+文字核对实际 pagination/approval/job/Preview/Review/public HTTP/website transport、集合状态/选择 reducer、原生串联和 raw/browser fixture。将“一个大配置通过”明确为“所有配置共同决定固定页宽，逐页读回不遗漏”；将“150 已通过”修正为“最终五组共 151，清理已独立核验”。未筛选来源属性或拆分存储。
+
+发布仍受原 P1—P7 门槛约束：旧已批准大数据需影子审计和分页提示迁移，兼容读端先部署、旧 writer drain 后再写大数据；云端单文档上限当前契约仍未知。P2 媒体绑定快照/生产者及服务身份/原生查询计数全选和 UI、真正超过 98 操作的媒体协议、持久操作与恢复、历史 resync、vendor race/SLO/Node20 全构建、同 SHA test 部署、三件时钟及真实 20 件发布读回和恢复均继续。未 push、应用部署或修改客户数据。

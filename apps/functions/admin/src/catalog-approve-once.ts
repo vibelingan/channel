@@ -43,7 +43,7 @@ const Review = z.object({
   detail: z.object({
     variants: z.object({
       total: z.number().int().min(0).max(CATALOG_DETAIL_VARIANT_MAX_COUNT),
-      pageSize: z.literal(50),
+      pageSize: z.number().int().min(1).max(50),
     }),
   }),
   previewMedia: z.object({ allVariantsBound: z.boolean() }),

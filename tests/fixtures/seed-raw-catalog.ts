@@ -190,6 +190,55 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
       description: 'Disposable twenty-product approval acceptance fixture.',
     });
   }
+  // A large final configuration exercises byte paging through the same raw parser,
+  // source materializer and photo preparation; no effective DTO is pre-seeded.
+  const byteAttributes = Array.from({ length: 42 }, (_, i) => ({
+    attribute_id: 2000 + i,
+    attribute_name: `Spec ${i}`,
+    values: { sku_attribute_value: [{ value_id: 1000 + i, system_value_name: '中'.repeat(1000) }] },
+  }));
+  const byteRaw = JSON.stringify({
+    alibaba_icbu_product_get_response: {
+      product: {
+        product_id: 'fixture-byte-paging',
+        subject: 'Byte Budget Headset',
+        product_type: 'wholesale',
+        wholesale_trade: { sale_type: 'normal', unit_type: 'Piece', min_order_quantity: '2' },
+        main_image: { images: { string: colorGallery } },
+        product_sku: {
+          sku_attributes: { sku_attribute: byteAttributes },
+          skus: {
+            sku_definition: Array.from({ length: 50 }, (_, i) => ({
+              sku_id: `byte-sku-${i}`,
+              attr2_value: JSON.stringify(
+                Object.fromEntries(
+                  byteAttributes
+                    .slice(0, i === 49 ? 42 : 1)
+                    .map((a, j) => [a.attribute_id, 1000 + j]),
+                ),
+              ),
+              bulk_discount_prices: {
+                bulk_discount_price: [
+                  { start_quantity: 2, price: '5.7' },
+                  { start_quantity: 500, price: '5' },
+                  { start_quantity: 1000, price: '3.8' },
+                ],
+              },
+            })),
+          },
+        },
+      },
+    },
+  });
+  const byteProduct = await seedRawObservation(db, byteRaw);
+  assert.equal(byteProduct.observation.variants.length, 50);
+  assert.equal(byteProduct.observation.variants[49]?.options.length, 42);
+  assert.ok(byteProduct.observation.variants.slice(0, 49).every((v) => v.options.length === 1));
+  assert.ok(byteProduct.observation.offers.every((o) => o.pricing.mode === 'tiered'));
+  await db.update('products', byteProduct.draft.productId, {
+    productFamily: 'headphones',
+    description: 'Disposable byte paging acceptance fixture.',
+  });
   // New drafts appear once their photos are prepared (PT-G), as after a real
   // sync. Photos stored above are reused; this disposable lane never fetches
   // from Alibaba, so any other photo counts as one Alibaba cannot provide

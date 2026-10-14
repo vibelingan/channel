@@ -873,3 +873,64 @@ test('source capacity preflight decodes generation rather than casting unknown s
     }
   }
 });
+
+test('readonly preview pages every large source configuration without exceeding the byte budget', async () => {
+  const source = {
+    _id: 'large-pages',
+    sourceKey: 'large-pages',
+    connectionId: 'fixture',
+    sourceProductId: 'external',
+    sourceTitle: 'Clock',
+    active: true,
+  };
+  const row = sourceObservationFixture(source);
+  const original = validateCatalogSourceObservation(row.observation);
+  assert.ok(original.ok);
+  row.observation = {
+    ...original.value,
+    variants: Array.from({ length: 105 }, (_, i) => ({
+      sourceVariantKey: `v${i}`,
+      sku: `SKU-${i}`,
+      media: [],
+      inventory: [],
+      options: Array.from({ length: 42 }, (_, j) => ({
+        sourceName: `Option ${j}`,
+        value: '中'.repeat(1000),
+      })),
+    })),
+    offers: [],
+  };
+  const adapter = new RecordingAdapter({
+    products: [{ _id: 'clock', name: 'Clock', alibabaPrimarySourceKey: source._id, imageIds: [] }],
+    alibabaSourceProducts: [source],
+    catalogSourceObservations: [row],
+    users: [{ _id: 'admin', role: 'admin' }],
+  });
+  setAdapter(adapter);
+  const { readCatalogDetailPreview } = await import('./catalog-detail-preview.ts');
+  const first = await readCatalogDetailPreview('admin', { action: 'preview', productId: 'clock' });
+  assert.ok(first.ok);
+  assert.ok(first.detail.variants.pageSize < 50);
+  const seen = [...first.detail.variants.items];
+  for (
+    let page = 2;
+    page <= Math.ceil(first.detail.variants.total / first.detail.variants.pageSize);
+    page++
+  ) {
+    const next = await readCatalogDetailPreview('admin', {
+      action: 'preview',
+      productId: 'clock',
+      page,
+      inputDigest: first.inputDigest,
+    });
+    assert.ok(next.ok);
+    assert.equal(next.detail.variants.pageSize, first.detail.variants.pageSize);
+    assert.ok(Buffer.byteLength(JSON.stringify({ ok: true, data: next })) < 7 * 256 * 1024);
+    seen.push(...next.detail.variants.items);
+  }
+  assert.equal(seen.length, 105);
+  assert.equal(new Set(seen.map((v) => v.id)).size, 105);
+  assert.equal(seen[104]?.sku, 'SKU-104');
+  assert.equal(seen[104]?.options.length, 42);
+  assert.deepEqual(adapter.commands, []);
+});

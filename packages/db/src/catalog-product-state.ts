@@ -40,10 +40,11 @@ const versions = [
   'catalogClassificationRevision',
 ] as const;
 
-const preparationOutputs = [
+const serverOutputs = [
   'catalogPreparationState',
   'catalogPreparationPolicy',
   'catalogPreparationReport',
+  'catalogDetailPagination',
 ] as const;
 
 export class CatalogProductStateError extends Error {}
@@ -51,7 +52,7 @@ export function isCatalogProductVersionField(field: string): boolean {
   return versions.some((key) => key === field);
 }
 export function isCatalogProductManagedField(field: string): boolean {
-  return isCatalogProductVersionField(field) || preparationOutputs.some((key) => key === field);
+  return isCatalogProductVersionField(field) || serverOutputs.some((key) => key === field);
 }
 const versionLabels = {
   catalogContentGeneration: 'catalog content generation',
@@ -75,7 +76,7 @@ export function advanceCatalogProduct(
   assertCatalogProductVersions(before);
   const next: CollectionDoc = { ...proposed, updatedAt: monotonicProductTime(before, now) };
   // These fields belong to the write layer, never to a form or provider patch.
-  for (const key of [...versions, ...preparationOutputs]) {
+  for (const key of [...versions, ...serverOutputs]) {
     if (before && Object.hasOwn(before, key)) next[key] = before[key];
     else delete next[key];
   }

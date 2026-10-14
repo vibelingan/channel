@@ -31,11 +31,11 @@ function fixture(
     detailSourceMissing: false,
     position,
     sku: `sku-${position}`,
-    optionValues: { Color: String(position) },
+    optionValues: Object.fromEntries([['Color', String(position)]]),
     imageIds: ['image'],
     detailSourceCandidate: {
       id: `v${position}`,
-      options: [],
+      options: Array<{ name: string; value: string }>(),
       images: ['/api/images/image'],
       offers: offersAt(position),
       inventory: { state: 'unknown' },
@@ -1379,4 +1379,40 @@ test('capacity preflight reserves legal actor and history identities before admi
   assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
   assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 512 * 1024 });
   assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 512 * 1024);
+});
+
+test('large complete approval persists a revision-bound public page width and keeps all immutable configurations', async () => {
+  const h = fixture(105);
+  for (const row of h.variants) {
+    const options = Array.from({ length: 42 }, (_, i) => ({
+      name: `Option ${i}`,
+      value: '中'.repeat(1000),
+    }));
+    row.detailSourceCandidate.options = options;
+    row.optionValues = Object.fromEntries(options.map((o) => [o.name, o.value]));
+  }
+  const prepared = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(h.product, h.variants) },
+    h.product,
+    h.variants,
+  );
+  assert.ok(prepared.ok);
+  assert.ok((prepared.value.publicPageSize ?? 50) < 50);
+  const start = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+  assert.ok(start.ok);
+  for (let page = 0; page < prepared.value.pageHashes.length; page++)
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', start.jobId, page))).ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', start.jobId))).ok);
+  assert.deepEqual(h.row('products', 'p').catalogDetailPagination, {
+    policyVersion: 'catalog-detail-pagination-v1',
+    revision: start.revision,
+    pageSize: prepared.value.publicPageSize,
+  });
+  assert.equal(Object.keys(h.store().catalogDetailVariants ?? {}).length, 105);
+  assert.equal(h.publication().variantCount, 105);
+  const before = structuredClone(h.store());
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', start.jobId))).ok);
+  assert.deepEqual(h.store(), before);
+  assert.equal(h.row('products', 'p').published, false);
 });

@@ -5,9 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
-import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
+import {
+  sourceMediaLinkId,
+  validateCatalogSourceObservation,
+} from '@vibelingan-channel/catalog-import/observations';
 import { manageCatalogDetailApproval, setAdapter } from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { decodeCatalogDetailView } from '@vibelingan-channel/shared/catalog-detail';
 import { approveInOneRequest } from '../../functions/admin/src/catalog-approve-once.ts';
 import { createCatalogSourcePreparer } from '../../functions/admin/src/catalog-detail-source.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
@@ -287,3 +291,111 @@ test('a real approval handed over after its last staged page resumes the same jo
   assert.equal((await visibility(false)).ok, true);
   assert.equal((await adapter.get('images', 'image-owned'))?.publishedRefCount, 0);
 });
+
+test(
+  'late large source configuration survives native approval, negotiated public paging and withdrawal',
+  { timeout: 120000 },
+  async (t) => {
+    const { adapter, product } = workspace(t, 105);
+    const { sourceObservationDocumentId } = await import(
+      '@vibelingan-channel/catalog-import/observations'
+    );
+    const observationId = sourceObservationDocumentId('alibaba', 'read-source');
+    const stored = await adapter.get('catalogSourceObservations', observationId);
+    assert.ok(stored);
+    const parsed = validateCatalogSourceObservation(stored.observation);
+    assert.ok(parsed.ok);
+    const large = {
+      ...parsed.value,
+      variants: parsed.value.variants.map((variant, index) =>
+        index === 104
+          ? {
+              ...variant,
+              options: Array.from({ length: 42 }, (_, i) => ({
+                sourceName: `Option ${i}`,
+                value: '中'.repeat(1000),
+              })),
+            }
+          : variant,
+      ),
+    };
+    await adapter.update('catalogSourceObservations', observationId, { observation: large });
+    const result = await approveInOneRequest('admin', command(product._id));
+    assert.ok(result.ok && result.status === 'approved', JSON.stringify(result));
+    const saved = await adapter.get('products', product._id);
+    assert.ok(saved);
+    const { CatalogDetailPaginationSchema } = await import(
+      '@vibelingan-channel/shared/catalog-detail-pagination'
+    );
+    const hint = CatalogDetailPaginationSchema.parse(saved.catalogDetailPagination);
+    assert.ok(hint.pageSize < 50);
+    assert.equal(hint.revision, result.revision);
+    const config = { jwtSecret: 'byte-paging-local-only', enableDetailApproval: true };
+    const token = await signSession(config.jwtSecret, {
+      sub: 'admin',
+      role: 'admin',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+    const visibility = (published: boolean) =>
+      handleAdminRequest(
+        {
+          action: 'update',
+          token,
+          data: { collection: 'products', id: product._id, values: { published } },
+        },
+        config,
+      );
+    try {
+      assert.ok((await visibility(true)).ok);
+      const { handlePublicApiEvent } = await import(
+        '../../functions/public-api/src/http-adapter.ts'
+      );
+      const readPage = async (page: number, revision?: string) => {
+        const query = new URLSearchParams({
+          page: String(page),
+          pageSize: String(hint.pageSize),
+          pagination: 'byte-budget-v1',
+          view: 'sections-media',
+        });
+        if (revision !== undefined) query.set('revision', revision);
+        const answer = await handlePublicApiEvent(
+          { httpMethod: 'GET', path: `/api/products/${product._id}/detail?${query}` },
+          { jwtSecret: config.jwtSecret, enableCatalogDetail: true },
+        );
+        assert.equal(answer.statusCode, 200, answer.body);
+        assert.ok(Buffer.byteLength(answer.body) < 2 * 1024 * 1024);
+        assert.ok(Buffer.byteLength(JSON.stringify(answer)) < 5_000_000);
+        const envelope: unknown = JSON.parse(answer.body);
+        assert.ok(envelope && typeof envelope === 'object' && 'data' in envelope);
+        const decoded = decodeCatalogDetailView(envelope.data);
+        assert.ok(decoded.ok);
+        return decoded.value;
+      };
+      const first = await readPage(1);
+      assert.equal(first.variants.pageSize, hint.pageSize);
+      const seen = [...first.variants.items];
+      for (let page = 2; page <= Math.ceil(105 / hint.pageSize); page++) {
+        const next = await readPage(page, first.revision);
+        seen.push(...next.variants.items);
+      }
+      assert.equal(seen.length, 105);
+      assert.equal(new Set(seen.map((v) => v.id)).size, 105);
+      assert.equal(seen[104]?.sku, 'SKU-104');
+      assert.equal(seen[104]?.options.length, 42);
+    } finally {
+      assert.ok((await visibility(false)).ok);
+    }
+    assert.equal((await adapter.get('products', product._id))?.published, false);
+    assert.equal((await adapter.get('images', 'image-owned'))?.publishedRefCount, 0);
+    await adapter.update('catalogSourceObservations', observationId, { observation: parsed.value });
+    const fresh = await approveInOneRequest('admin', command(product._id));
+    assert.ok(fresh.ok && fresh.status === 'approved');
+    const reset = await adapter.get('products', product._id);
+    assert.ok(reset);
+    const normal = CatalogDetailPaginationSchema.parse(reset.catalogDetailPagination);
+    assert.equal(normal.pageSize, 50);
+    assert.notEqual(normal.revision, hint.revision);
+    assert.equal(reset.published, false);
+  },
+);

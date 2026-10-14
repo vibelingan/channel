@@ -6,6 +6,7 @@ import {
   CATALOG_DETAIL_VARIANT_MAX_COUNT,
   planCatalogDetailApproval,
 } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/catalog-detail-pagination';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
@@ -254,6 +255,11 @@ export async function commitCatalogApproval(
   await tx.set('products', {
     ...product,
     catalogDetailPublication: plan.publication,
+    catalogDetailPagination: {
+      policyVersion: CATALOG_DETAIL_PAGINATION_POLICY,
+      revision,
+      pageSize: plan.publicPageSize ?? 50,
+    },
     catalogDetailApprovalReceipt: {
       operationId: command.operationId,
       revision,

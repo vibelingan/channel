@@ -6,27 +6,33 @@ import {
   type CatalogDetailView,
   decodeCatalogDetailView,
 } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  CATALOG_DETAIL_PAGE_MAX_BYTES,
+  readCatalogDetailPageSize,
+} from '@vibelingan-channel/shared/catalog-detail-pagination';
 import { resolvePublicVersion } from '@vibelingan-channel/shared/catalog-public-version';
 
 export async function getProductDetail(
   productId: string,
   page = 1,
-  pageSize = 50,
+  requestedPageSize = 50,
   expectedRevision?: string,
   structured = false,
   sections = false,
   descriptionMedia = false,
+  boundedPagination = false,
 ): Promise<ApiResult<CatalogDetailView>> {
   if (
     !Number.isSafeInteger(page) ||
     page < 1 ||
-    !Number.isInteger(pageSize) ||
-    pageSize < 1 ||
-    pageSize > 50 ||
-    !Number.isSafeInteger((page - 1) * pageSize)
+    !Number.isInteger(requestedPageSize) ||
+    requestedPageSize < 1 ||
+    requestedPageSize > 50 ||
+    !Number.isSafeInteger((page - 1) * requestedPageSize)
   ) {
     return err('VALIDATION_ERROR', 'Invalid variant pagination.');
   }
+  let pageSize = requestedPageSize;
   const product = await get('products', productId);
   if (
     !product ||
@@ -42,10 +48,20 @@ export async function getProductDetail(
     return err('NOT_FOUND', 'Detail not available');
   }
   const { revision, header, variantCount } = approved.publication;
-  const immutable = approved.publication.variantStorage === 'immutable-v1';
   if (expectedRevision !== undefined && expectedRevision !== revision) {
     return err('CONFLICT', 'Detail changed. Reload from the first page.');
   }
+  const storedPageSize = readCatalogDetailPageSize(product, revision);
+  if (boundedPagination) {
+    if (storedPageSize === null) return err('INTERNAL_ERROR', 'Invalid approved pagination.');
+    if (page > 1 && pageSize > storedPageSize)
+      return err('CONFLICT', 'Detail changed. Reload from the first page.');
+    pageSize = Math.min(pageSize, storedPageSize);
+  }
+
+  if (page > Math.max(1, Math.ceil(variantCount / pageSize)))
+    return err('VALIDATION_ERROR', 'Invalid variant pagination.');
+  const immutable = approved.publication.variantStorage === 'immutable-v1';
   const rows = await list({
     collection: immutable ? 'catalogDetailVariants' : 'productVariants',
     page,
@@ -73,6 +89,7 @@ export async function getProductDetail(
     currentApproval.publication.header._id !== productId ||
     currentApproval.publication.variantStorage !== approved.publication.variantStorage ||
     currentApproval.publication.revision !== revision ||
+    (boundedPagination && readCatalogDetailPageSize(current, revision) !== storedPageSize) ||
     rows.total !== variantCount ||
     rows.items.length !== Math.max(0, Math.min(pageSize, variantCount - (page - 1) * pageSize)) ||
     rows.items.some(
@@ -116,5 +133,9 @@ export async function getProductDetail(
       hasMore: page * pageSize < variantCount,
     },
   });
-  return decoded.ok ? ok(decoded.value) : err('INTERNAL_ERROR', 'Invalid approved detail.');
+  if (!decoded.ok) return err('INTERNAL_ERROR', 'Invalid approved detail.');
+  const result = ok(decoded.value);
+  if (Buffer.byteLength(JSON.stringify(result)) > CATALOG_DETAIL_PAGE_MAX_BYTES)
+    return err('INTERNAL_ERROR', 'Approved detail exceeds its page budget.');
+  return result;
 }
