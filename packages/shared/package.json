@@ -21,6 +21,7 @@
     "./collections": "./src/collections.ts",
     "./media": "./src/media.ts",
     "./release": "./src/release.ts",
+    "./catalog-preparation": "./src/catalog/preparation.ts",
     "./catalog-issues": "./src/catalog/issues.ts"
   },
   "scripts": {

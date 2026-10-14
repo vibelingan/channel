@@ -453,3 +453,31 @@ test('production input collection predicate routes all four catalog input kinds'
   ])
     assert.equal(isCatalogRowCollection(collection), false, collection);
 });
+
+for (const action of ['update', 'upsert', 'create'] as const) {
+  test(`Cloud ${action} cannot install a forged ready report`, async () => {
+    const h = fixture();
+    const id = action === 'create' ? 'new-report' : 'p';
+    await cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      {
+        action,
+        collection: 'products',
+        id,
+        data: {
+          name: action === 'create' ? 'New' : 'Clock p',
+          catalogPreparationState: 'ready',
+          catalogPreparationPolicy: 'forged',
+          catalogPreparationReport: { state: 'ready' },
+        },
+      },
+      now,
+    );
+    const saved = h.get('products', id);
+    assert.ok(saved);
+    assert.equal(Object.hasOwn(saved, 'catalogPreparationPolicy'), false);
+    assert.equal(Object.hasOwn(saved, 'catalogPreparationReport'), false);
+    assert.notEqual(saved.catalogPreparationPolicy, 'forged');
+    assert.equal(saved.published, action === 'create' ? undefined : false);
+  });
+}

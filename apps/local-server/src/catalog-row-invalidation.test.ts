@@ -393,3 +393,24 @@ for (const kind of [
       );
     await stale(db);
   });
+
+for (const action of ['update', 'upsert', 'create'] as const) {
+  test(`JSON ${action} cannot install a forged ready report`, async (t) => {
+    const { db } = fixture(t);
+    const values = {
+      catalogPreparationState: 'ready',
+      catalogPreparationPolicy: 'forged',
+      catalogPreparationReport: { state: 'ready' },
+    };
+    const id = action === 'create' ? 'new-report' : 'p';
+    if (action === 'create') await db.createDocWithId('products', id, { name: 'New', ...values });
+    else if (action === 'upsert') await db.upsertDocWithId('products', id, values);
+    else await db.update('products', id, values);
+    const saved = await db.get('products', id);
+    assert.ok(saved);
+    assert.equal(saved.catalogPreparationState, action === 'create' ? 'stale' : 'ready');
+    assert.equal(Object.hasOwn(saved, 'catalogPreparationPolicy'), false);
+    assert.equal(Object.hasOwn(saved, 'catalogPreparationReport'), false);
+    assert.equal(saved.published, action === 'create' ? undefined : false);
+  });
+}

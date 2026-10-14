@@ -7,7 +7,7 @@ import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import {
   CatalogProductStateError,
   advanceCatalogProduct,
-  isCatalogProductVersionField,
+  isCatalogProductManagedField,
   monotonicProductTime,
 } from './catalog-product-state.ts';
 import { planSourceInvalidation } from './catalog-source-invalidation.ts';
@@ -101,9 +101,9 @@ export async function runCatalogRowMutation(
     next = null;
   } else if (command.action === 'increment') {
     if (!before) return { status: 'missing' };
-    if (command.collection === 'products' && isCatalogProductVersionField(command.field))
+    if (command.collection === 'products' && isCatalogProductManagedField(command.field))
       throw new CatalogProductStateError(
-        'Product versions cannot be incremented as ordinary counters',
+        'Product managed state cannot be incremented as ordinary counters',
       );
     if (
       (command.collection === 'alibabaSourceProducts' ||

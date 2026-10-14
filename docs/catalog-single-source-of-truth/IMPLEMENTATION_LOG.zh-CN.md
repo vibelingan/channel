@@ -546,3 +546,16 @@ P1h2 提交 cca8a9fbdf0679e6e7fe134e10e7ba37bed987c0 已完成精确 review。�
 
 
 P1h3提交后review修正：d2add46的review withheld，明确记录并行子任务失败及误读wrapper退出的两个P2。画廊空HTML首次通过dynamic import载入harness，Vite此时才发现React/Zod依赖，优化变更触发reload；新日志捕获504。测试启动时显式预优化React、DOM/client、两种JSX及Zod，并关闭自动新依赖发现；只改变测试服务设置，原组件断言不变。独立缓存仍由本测试清理。诊断wrapper现在逐一assert两个child exit，finally清理后才接受通过。修正后同构建并行gallery0/Astro0（p1h3-gallery-startup-parallel-r1.log），最终全量2317pass/0fail/0skip（p1h3-broad-final-r4.log），site类型/实际Biome通过，再次hover故障恰好1fail/10正控。重跑没有自动retry。修改了测试文件后重新证明原探针有效；未将built150算作这次测试设置的新运行。实际修正文件为gallery测试、实施记录及SDK证据；把“外层exit0=全成功”更正为“必须逐个断言子任务”。首次原日志未录status的事实保持。
+
+### P2d1：有版本的私有检查摘要和输出保护（实施中）
+
+本单元先建立有界PreparationReport契约及唯一写入保护，尚不启用列表过滤。摘要绑定productId/inputDigest/policyVersion/contentGeneration，只含最多50条受控issues和状态/时间，不复制source/配置/图片原件。ready/preparing/blocked分别检查布尔组合与issue severity；旧字段缺失或策略/版本不匹配不能当ready。分类、权限和供应商决策仍由发布阶段即时检查，报告不授权发布。
+
+已观察普通advanceCatalogProduct会保留patch中的未知policy/report字段；必须把这些字段像内容generation一样归服务端专用提交管理，普通save/create/upsert/increment不能伪造。内容修改保留最后报告供诊断但将state置stale，generation前进；单纯lifecycle/subcategory变化不重复检查内容。正式报告生产/CAS、native查询/计数/全选与UI入口属于后续子单元，影子回填及启用之前保持现有列表行为，不能让旧商品突然全部消失。第一次测试写文件cwd错误不计红测；实际p2d1-red-r2为7fail/1正控。
+
+
+P2d1验证：红测7fail/1正控后，保护输出字段及普通increment守卫修复；189针对性测试通过，含24摘要契约、8写入保护、Cloud/JSON各3真实adapter helper入口及既有来源/link/父配置失效。首次focused命令列了不存在的local文件，实际只执行140，不能声称local已覆盖；已改为真实catalog-row-invalidation.test.ts，最终189均执行通过。完整2355 passed/0 failed/0 skipped（p2d1-broad-final-r1.log，实际画廊浏览器开启），shared/db/admin/local四消费者类型、8文件实际Biome、standingSDK通过。
+
+6个内存反证：移除report保护4fail/4正控；放开三个output计数3fail/5正控；去generation检查3fail/21正控；去商品identity/策略/ready warning守卫各1fail/23正控（p2d1-mutations-r1.log）。源码未改。19项安装Zod3.25.76方法有逐项契约与结果证据，无CloudBase新方法/shim。未为这个尚未接线的私有字段重复称built150或云验收；下一整体小流程节点重跑。
+
+文字核对：实际复核preparation schema/readCurrent、advanceCatalogProduct、runCatalogRowMutation、nativeCloud helper及JsonFileAdapter保存、旧版本输入语义及19项SDK表；把“检查通过即可发布”明确为“只描述已保存输入，不能授权分类/媒体/权限/发布”。最后报告保留以便诊断，content修改使state stale且generation变化，旧报告不重新生效；该保留不增加完整来源/配置副本。生产/CAS/查询/UI/影子回填启用仍未完成。

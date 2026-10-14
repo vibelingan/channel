@@ -166,3 +166,6 @@ Eight instrumented in-memory bundle mutants are independently observed: final ph
 P1h3：14个复用Zod3.25.76方法及1个Vite7.3.5 createServer(cacheDir)逐项证据见 .claude/sdk-probes/P1h3.md。完整计划六个摘要兼容、后页全媒体摘要/严格旧客户端、malformed review、时间边界和实际native续办均通过；13个审批mutation及独立hover mutation确实失败，正控保持。最终2317、八包类型及额外site、实际9文件Biome、standingSDK通过。built150在测试cache-only改动前通过；首次gallery模块加载失败及未证实根因完整保留，不当作已复现。无CloudBase新表面/资源或应用部署。
 
 P1h3测试启动follow-up：同createServer调用新增安装Vite7.3.5支持的optimizeDeps.include/noDiscovery；完整列出的依赖预优化，阻止动态harness首次import时的优化reload。并行两child0、最终2317/0/0、类型/lint及原hover mutation重跑通过；d2add46的错误并行通过记录已纠正，精确review在修正前未bless。SDK表面仍15项，无app runtime改动。
+
+
+P2d1：私有PreparationReport的19项Zod3.25.76表面逐项见 .claude/sdk-probes/P2d1.md。24严格契约/8managed-state及6nativeCloud/JSON保存路径、189focused、完整2355/0/0、四consumer types/实际8文件Biome/standingSDK通过；6独立mutation确实失败且正控保留。无CloudBaseSDK或shim变化。尚未生产报告/启用过滤，不把旧built150当新验收。
