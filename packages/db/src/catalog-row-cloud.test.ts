@@ -566,3 +566,37 @@ test('Cloud preparation report refuses a source update committed after its calcu
   });
   assert.deepEqual(h.snapshot(), before);
 });
+
+for (const [field, value] of [
+  ['alibabaPhotosPending', true],
+  [
+    'alibabaAutoPhotos',
+    {
+      configurations: {
+        sources: ['https://sc04.alicdn.com/a.jpg'],
+        imageIds: [],
+        missing: [],
+        unusable: [],
+      },
+    },
+  ],
+] as const) {
+  test(`Cloud photo preparation ${field} is an input even without gallery changes`, async () => {
+    const h = fixture();
+    const before = h.get('products', 'p');
+    assert.ok(before);
+    const result = await cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      { action: 'update', collection: 'products', id: 'p', data: { [field]: value } },
+      now,
+    );
+    assert.equal(result.status, 'written');
+    const saved = h.get('products', 'p');
+    assert.ok(saved);
+    assert.equal(saved.catalogContentGeneration, 5);
+    assert.equal(saved.catalogPreparationState, 'stale');
+    assert.equal(saved.detailSourceReady, false);
+    assert.equal(saved.published, before.published);
+    assert.equal(h.control.maximumOperations, 2);
+  });
+}

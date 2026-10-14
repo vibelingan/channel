@@ -514,3 +514,32 @@ test('JSON report disk failure leaves both stored and next-read product state un
     Reflect.set(db, 'persist', persist);
   }
 });
+
+for (const [field, value] of [
+  ['alibabaPhotosPending', true],
+  [
+    'alibabaAutoPhotos',
+    {
+      configurations: {
+        sources: ['https://sc04.alicdn.com/a.jpg'],
+        imageIds: [],
+        missing: [],
+        unusable: [],
+      },
+    },
+  ],
+] as const) {
+  test(`JSON photo preparation ${field} is an input even without gallery changes`, async (t) => {
+    const { db } = fixture(t);
+    const before = await db.get('products', 'p');
+    assert.ok(before);
+    await db.update('products', 'p', { [field]: value });
+    await stale(db);
+    const saved = await db.get('products', 'p');
+    assert.ok(saved);
+    assert.deepEqual(saved.imageIds, before.imageIds);
+    assert.deepEqual(saved.descriptionImageIds, before.descriptionImageIds);
+    await db.update('products', 'p', { [field]: structuredClone(value) });
+    assert.equal((await db.get('products', 'p'))?.catalogContentGeneration, 5);
+  });
+}

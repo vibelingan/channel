@@ -86,6 +86,17 @@ for (const change of [
   { imageIds: ['other'] },
   { configurationPhotos: { sku: ['image'] } },
   { productFamily: 'toys' },
+  { alibabaPhotosPending: true },
+  {
+    alibabaAutoPhotos: {
+      configurations: {
+        sources: ['https://sc04.alicdn.com/a.jpg'],
+        imageIds: [],
+        missing: [],
+        unusable: [],
+      },
+    },
+  },
 ])
   test(`stale computed check cannot overwrite a changed product: ${Object.keys(change)[0]}`, async () => {
     const h = fixture();

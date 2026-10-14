@@ -606,3 +606,16 @@ P3a0提交8a9db6058fcd26f7fb7aa963ead050627b0d6897精确inline review已完成�
 当前来源样本支持保留完整属性而无需L1拆分存储；不能据此承诺任意未来正文都可存。新SDK方法/shim为0，复用Zod3.25.76 parse/safeParse/shape三表面有安装类型及正反例表。官方Zod v3页面能打开但工具无正文，未将其算作已读契约；安装类型/实际行为为本轮精确证据，CloudBase实际standing gate另已执行。Context7不可用。
 
 文字核对实际Job构造/Review、SourcePage serializer、完整source planner、Preview回读和100/101项断言、容量盘点脚本及150runner清理。把“当前短任务能存即可”改为“完整实际任务及合法身份预算均能存”；把“38坏商品”更正为“38件配置图片尚未完整绑定”。本单元未把真正超98图片组合、public-wire整页上限、P2报告生产与原生query/count/fullselect/UI/影子启用、P3持久操作/取消/回执、P4恢复、历史修复、vendor race/SLO/Node20全构建、test同SHA部署和真实20件恢复算完成。下一继续接线；无push/应用部署/客户写入/新分支worktree/agent，未来分类属性mapping未实施。
+
+
+### P2d3a：照片准备完成也使旧检查结果失效（本地子单元完成，待精确提交review）
+
+5851cb8d4cec809d6f1bb3e0d4c87fbe9ea9093c精确inline review已完成。实际代码显示configurations照片复制的part.field=null，完成时只更新alibabaAutoPhotos配置标记；或者只清alibabaPhotosPending，图库可完全不变。原contentFields忽略两项，来源检查可能停留preparing，且同generation旧ready计算仍可写回。先红8fail/140正控，覆盖两种纯版本变化、两种最终报告CAS、Cloud及JSON实际写入各两种；不是靠UI假设推断已发生生产故障。
+
+现把既有alibabaPhotosPending/alibabaAutoPhotos纳入统一内容指纹，照片完成/状态反转推进generation并stale，旧报告保留诊断但不能复用；相同marker重放不推进，pending缺失/null/false保持完成态等价，不因清旧空字段多一次检查。异常非布尔值仍保留原值指纹而非强制变false。两字段已在原数据模型中存在，本单元没有新集合、存储副本、DB请求、worker、列表启用或授权扩展；旧公开版本/发布/分类/人工字段保持。规范化及报告输入复用同一catalogProductContentDigest，避免只有write-side失效而final CAS漏读。
+
+148focused、完整2412 passed/0 failed/0 skipped（p2d3a/red.log、focused.log、broad.log，真实图库浏览器开启），db/admin/sync/local四套实际类型、五文件真实Biome、standingSDK通过。Cloud更新在原2个doc操作中完成，JSON重复相同状态gen保持。四个改动测试文件均有独立bundle baseline11/25/61/51；分别去pending/auto字段共8项，每项恰好1fail并保留正控；去缺省兼容10pass/1fail。测试文件改动后重跑原保护探针：输出字段7/4、report CAS13/12、native ACK51/10、JSON replay50/1，均0skip、工作区源码字节不变（mutations.log）。13独立缺陷注入不把基础设施报错算业务反例。精确diff无新第三方SDK调用/类型；实际SDK门槛记录独立日志，全球无效precommit不计成功。
+
+本小单元未重算P1h4的150构建浏览器为新版证据；下一报告/query/UI整体节点再跑。文字复核实际photo-preparation中field=null/auto marker/flag清理、advanceCatalogProduct的共享fingerprint、report final CAS、native/JSON实际调用和ABA/重放测试；把“图片没换就不必重查”更正为“配置图片准备状态变化同样需要重查”，区分修复未来自动检查缺口与已观察生产故障。正常列表仍未启用PreparationReport。
+
+后续仍需解决media-link写入与检查snapshot稳定性及自动生产/后台授权、nativequery/count/fullselect/UI/影子回填启用。官方EXCEED_MAX_RESPONSE_SIZE文档本次确认云函数最大响应6MB；P1h5须覆盖整页实际HTTP封装及合法大配置分页，不能只看单配置128KiB或job512KiB。单文档平台大小尚未取得明确当前契约，不猜1MB或16MB。真正超98媒体组合/P3durable操作/P4恢复/P5历史修复/P6vendor race与SLO/Node20全构建/P7test部署与真实20件恢复继续实施；无push/应用部署/客户写入/新分支worktree/agent/属性过滤mapping或拆分存储。

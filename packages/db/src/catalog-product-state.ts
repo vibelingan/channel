@@ -9,6 +9,8 @@ const contentFields = [
   'imageIds',
   'descriptionImageIds',
   'configurationPhotos',
+  'alibabaPhotosPending',
+  'alibabaAutoPhotos',
   'supplierDecisions',
   'productFamily',
   'category',
@@ -130,6 +132,8 @@ function fingerprint(product: CollectionDoc, fields: readonly string[]): string 
 }
 function inputValue(product: CollectionDoc, key: string): unknown {
   const value = product[key];
+  if (key === 'alibabaPhotosPending' && (value === undefined || value === null || value === false))
+    return false;
   if (
     key === 'category' &&
     isProductFamily(product.productFamily) &&

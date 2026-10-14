@@ -80,3 +80,61 @@ test('lifecycle and subcategory-only saves preserve the checked content report',
   assert.equal(saved.catalogLifecycleVersion, 1);
   assert.equal(saved.catalogClassificationRevision, 1);
 });
+
+for (const field of ['alibabaPhotosPending', 'alibabaAutoPhotos'] as const) {
+  test(`photo preparation ${field} invalidates prior checks and survives ABA`, () => {
+    const oldValue =
+      field === 'alibabaPhotosPending'
+        ? true
+        : {
+            configurations: {
+              sources: ['https://sc04.alicdn.com/a.jpg'],
+              imageIds: [],
+              unusable: [],
+              missing: ['https://sc04.alicdn.com/a.jpg'],
+            },
+          };
+    const newValue =
+      field === 'alibabaPhotosPending'
+        ? false
+        : {
+            configurations: {
+              sources: ['https://sc04.alicdn.com/a.jpg'],
+              imageIds: [],
+              unusable: [],
+              missing: [],
+            },
+          };
+    const before = {
+      ...original(),
+      catalogPreparationState: 'ready',
+      detailSourceReady: true,
+      [field]: oldValue,
+    };
+    const saved = advanceCatalogProduct(before, { ...before, [field]: newValue }, now);
+    assert.equal(saved.catalogContentGeneration, 4);
+    assert.equal(saved.catalogPreparationState, 'stale');
+    assert.equal(saved.detailSourceReady, false);
+    assert.deepEqual(saved.catalogPreparationReport, before.catalogPreparationReport);
+    assert.equal(saved.published, before.published);
+    assert.equal(saved.productFamily, before.productFamily);
+    const replay = advanceCatalogProduct(
+      saved,
+      { ...saved, [field]: structuredClone(newValue) },
+      now,
+    );
+    assert.equal(replay.catalogContentGeneration, 4);
+    const reversed = advanceCatalogProduct(saved, { ...saved, [field]: oldValue }, now);
+    assert.equal(reversed.catalogContentGeneration, 5);
+    assert.equal(reversed.catalogPreparationState, 'stale');
+  });
+}
+
+test('absent null and false photo pending flags are the same completed state', () => {
+  for (const value of [undefined, null, false]) {
+    const before = { ...original(), detailSourceReady: true };
+    const saved = advanceCatalogProduct(before, { ...before, alibabaPhotosPending: value }, now);
+    assert.equal(saved.catalogContentGeneration, 3);
+    assert.equal(saved.detailSourceReady, true);
+  }
+});

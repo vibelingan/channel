@@ -183,3 +183,8 @@ No new SDK API or hand-written type. Existing staging bridge remains runTransact
 #### P1h4 complete capacity preflight
 
 Reused Zod3.25.76 surfaces: parse/safeParse/shape; exact installed types and positive/negative behavior table: .claude/sdk-probes/P1h4.md. No new CloudBase API, wrapper or shim. Unknown stored generation is decoded through existing SourcePageSchema rather than asserted. All8consumer types,2403/0/0,101focused,built150+cleanup,standingSDK and10independent mutation expectations passed. Official Zod v3 URLs opened but web tool returned no body; not counted as primary contract text. Installed version types/runtime and existing source-schema contract tests establish exact semantics; Context7 unavailable. Real cloud operation budgets/performance and feature rollout remain gates.
+
+
+#### P2d3a photo-state invalidation
+
+Precise diff adds0third-party SDK calls/types; it only includes two existing product fields in the shared content hash and normalizes legacy completed flags. Native wrapper unchanged. Standing SDK contract passed; native ACK mutation51pass/10fail and JSON idempotence50/1 preserve original boundary sensitivity after test edits.148focused/2412all/4types/5fileBiome passed. No new cloud race, app deployment or browser milestone claim.
