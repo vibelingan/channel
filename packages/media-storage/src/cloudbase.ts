@@ -10,24 +10,22 @@
  * `wx-server-sdk@4.0.2` does not expose `getUploadMetadata`, so upload credential
  * minting uses node-sdk directly via dependency injection.
  */
+import { ReadStream } from 'node:fs';
+import { type CloudBasePutOptions, checkedUploadUrl, putCloudBaseBytes } from './cloudbase-put.ts';
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
+  type PutMediaObjectOptions,
   type StoredMediaObject,
   type UploadCredential,
   objectStoragePath,
 } from './index.ts';
 
-/**
- * The exact subset of the CloudBase server SDK this adapter uses. `wx-server-sdk`'s
- * default export structurally satisfies this; the signatures match the installed
- * `@cloudbase/node-sdk@3.17.2` (notably `getTempFileURL`'s `fileList` is a
- * `(string | { fileID, maxAge? })[]` union — design §24.3 C1).
- */
+/** The injected node-sdk 3.17.2 storage surface; wx-server-sdk lacks the minter. */
 export interface CloudBaseStorageSdk {
   uploadFile(options: {
     cloudPath: string;
-    fileContent: Buffer | Uint8Array | NodeJS.ReadableStream;
+    fileContent: Buffer | ReadStream;
   }): Promise<{ fileID: string }>;
   getTempFileURL(options: {
     fileList: (string | { fileID: string; maxAge?: number })[];
@@ -41,9 +39,7 @@ export interface CloudBaseStorageSdk {
     fileID: string;
   }): Promise<{ fileContent: Buffer | string | undefined }>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
-  // Mints a single-object direct COS form credential. The node-sdk returns
-  // `{ data: { url, authorization, token, fileId, cosFileId } }` and its own
-  // `uploadFile` implementation posts those fields as multipart/form-data.
+  // Mints raw PUT header credentials; verify:cloudbase-sdk pins the sender body.
   getUploadMetadata(options: { cloudPath: string }): Promise<{
     data?: {
       url?: unknown;
@@ -111,21 +107,51 @@ function inspectDeleteEntry(entry: unknown): {
   return { fileID, ok: false, reason };
 }
 
-export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStorageAdapter {
-  return {
-    async putObject(input: PutMediaObjectInput): Promise<StoredMediaObject> {
+export function createCloudBaseMediaStorage(
+  sdk: CloudBaseStorageSdk,
+  transport: CloudBasePutOptions = {},
+): MediaStorageAdapter {
+  const storage: MediaStorageAdapter = {
+    async putObject(
+      input: PutMediaObjectInput,
+      options: PutMediaObjectOptions = {},
+    ): Promise<StoredMediaObject> {
       const storagePath = objectStoragePath(input);
-      const { fileID } = await sdk.uploadFile({
-        cloudPath: storagePath,
-        fileContent: input.content,
-      });
+      const knownSize =
+        input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {};
+      // Native uploadFile cannot checkpoint its internally minted target.
+      // Generic streams also require this path: the installed SDK only accepts
+      // Buffer or fs.ReadStream, despite the broader facade stream contract.
+      if (
+        options.beforeWrite ||
+        !(input.content instanceof Uint8Array || input.content instanceof ReadStream)
+      ) {
+        const credential = await storage.getUploadCredential(storagePath);
+        checkedUploadUrl(credential.uploadUrl);
+        const target: StoredMediaObject = {
+          storageProvider: 'cloudbase-storage',
+          storageMode: 'classic-nosql-storage',
+          storageFileId: credential.storageFileId,
+          storagePath,
+          ...knownSize,
+        };
+        await options.beforeWrite?.({ ...target });
+        await putCloudBaseBytes(credential, input.content, transport);
+        return target;
+      }
+      const content =
+        input.content instanceof Uint8Array && !Buffer.isBuffer(input.content)
+          ? Buffer.from(input.content)
+          : input.content;
+      const { fileID } = await sdk.uploadFile({ cloudPath: storagePath, fileContent: content });
+      if (typeof fileID !== 'string' || fileID.length === 0)
+        throw new Error('media-storage(cloudbase): upload returned no permanent file ID');
       return {
         storageProvider: 'cloudbase-storage',
         storageMode: 'classic-nosql-storage',
         storageFileId: fileID,
         storagePath,
-        // Buffer/Uint8Array carry a known length; a stream does not.
-        ...(input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {}),
+        ...knownSize,
       };
     },
 
@@ -218,6 +244,7 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
       }
     },
   };
+  return storage;
 }
 
 /**

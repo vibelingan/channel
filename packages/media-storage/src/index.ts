@@ -74,8 +74,18 @@ export interface UploadCredential {
   storageFileId: string;
 }
 
+export interface PutMediaObjectOptions {
+  /** Must commit the exact permanent target before the first byte is written.
+   * Rejection prevents the write; a later unknown outcome retains this target.
+   */
+  beforeWrite?: (target: Readonly<StoredMediaObject>) => Promise<void>;
+}
+
 export interface MediaStorageAdapter {
-  putObject(input: PutMediaObjectInput): Promise<StoredMediaObject>;
+  putObject(
+    input: PutMediaObjectInput,
+    options?: PutMediaObjectOptions,
+  ): Promise<StoredMediaObject>;
   getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
   getTempUrl(fileId: string, maxAgeSeconds?: number): Promise<{ url: string; expiresAt?: string }>;
   deleteObject(fileId: string): Promise<void>;

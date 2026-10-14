@@ -688,6 +688,36 @@ requireCheck(
     containsAll(uploadFileBody, ['Signature', 'x-cos-security-token', 'x-cos-meta-fileid']),
   '@cloudbase/node-sdk uploadFile carries the credential in HEADERS, with no multipart form',
 );
+requireCheck(
+  uploadFileBody.includes(
+    'if (!(fileContent instanceof fs_1.default.ReadStream) && !(fileContent instanceof Buffer))',
+  ),
+  '@cloudbase/node-sdk uploadFile accepts only fs.ReadStream or Buffer at runtime',
+);
+const trackedSender = readFileSync(
+  join(root, 'packages/media-storage/src/cloudbase-put.ts'),
+  'utf8',
+);
+const trackedSenderStart = trackedSender.indexOf('export async function putCloudBaseBytes(');
+if (trackedSenderStart < 0) throw new Error('Tracked sender function is missing');
+const trackedSenderBody = trackedSender.slice(trackedSenderStart);
+requireCheck(
+  /request\(url,\s*\{ method: 'PUT', headers: credential\.headers \}/.test(trackedSenderBody) &&
+    /pipeline\(source, destination\)/.test(trackedSenderBody) &&
+    !/FormData|formFields|method: 'POST'/.test(trackedSenderBody),
+  'tracked server uploader sends the SDK-minted PUT headers and raw bytes',
+);
+requireCheck(
+  /if \(response\.statusCode !== 200\) \{/.test(trackedSenderBody) &&
+    /response\.on\('data', \(\) => \{\s*reject\(new Error\('media-storage\(cloudbase\): unexpected upload response body'\)\);\s*response\.destroy\(\);\s*\}\)/.test(
+      trackedSenderBody,
+    ) &&
+    /setTimeout\(\s*\(\) => destination\.destroy\(new Error\('media-storage\(cloudbase\): upload timed out'\)\),\s*timeoutMs/.test(
+      trackedSenderBody,
+    ),
+  'tracked server uploader requires bounded empty HTTP 200 acknowledgement',
+);
+
 const uploadMetadataBody = sdkFunctionBody(nodeStorage, 'getUploadMetadata');
 requireCheck(
   /method:\s*['"]put['"]/.test(uploadMetadataBody),
@@ -715,6 +745,29 @@ for (const clientPath of [
     `${clientPath} sends credential headers with a raw body (no multipart form)`,
   );
 }
+
+const uploadConsumers = execFileSync(
+  'git',
+  ['ls-files', '-co', '--exclude-standard', '--', 'apps', 'packages'],
+  { cwd: root, encoding: 'utf8' },
+)
+  .split('\n')
+  .filter(
+    (file) =>
+      /\.(?:ts|tsx|astro)$/.test(file) &&
+      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
+      existsSync(join(root, file)),
+  )
+  .filter((file) =>
+    /\b(?:fetch|request)\([^;\n]{0,200}\{[\s\S]{0,200}\bheaders:\s*(?:credential\.headers|intent\.upload\.headers)/.test(
+      readFileSync(join(root, file), 'utf8'),
+    ),
+  );
+requireCheck(
+  uploadConsumers.length === 3,
+  'SDK credential sender population is exactly three clients; new senders require contract verification',
+  uploadConsumers.join(', '),
+);
 
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
 requireCheck(
@@ -1118,6 +1171,19 @@ requireCheck(
   ]) && !mediaCloudbase.includes('formFields'),
   'media-storage maps node-sdk upload metadata to PUT header credentials',
 );
+const trackedUploadStart = mediaCloudbase.indexOf('async putObject(');
+const trackedUploadEnd = mediaCloudbase.indexOf('async getObjectAsBase64(', trackedUploadStart);
+if (trackedUploadStart < 0 || trackedUploadEnd < 0)
+  throw new Error('Tracked adapter upload method is missing');
+const trackedUploadBody = mediaCloudbase.slice(trackedUploadStart, trackedUploadEnd);
+requireCheck(
+  /await options\.beforeWrite\?\.\(\{ \.\.\.target \}\)/.test(trackedUploadBody) &&
+    trackedUploadBody.indexOf('await options.beforeWrite?.({ ...target })') <
+      trackedUploadBody.indexOf('await putCloudBaseBytes(') &&
+    /Buffer\.from\(input\.content\)/.test(trackedUploadBody),
+  'tracked upload checkpoints the permanent target before bytes and adapts Uint8Array to Buffer',
+);
+
 requireCheck(
   !mediaCloudbase.includes('cloudObjectMeta') && !mediaCloudbase.includes('cloudObjectId'),
   'media-storage does not use stale top-level cloudObjectMeta/cloudObjectId fields',

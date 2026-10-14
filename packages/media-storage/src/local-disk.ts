@@ -14,6 +14,7 @@ import { pathToFileURL } from 'node:url';
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
+  type PutMediaObjectOptions,
   type StoredMediaObject,
   type UploadCredential,
   objectStoragePath,
@@ -42,9 +43,19 @@ export class LocalDiskMediaStorage implements MediaStorageAdapter {
     return fileId.startsWith(LOCAL_DISK_PREFIX) ? fileId.slice(LOCAL_DISK_PREFIX.length) : fileId;
   }
 
-  async putObject(input: PutMediaObjectInput): Promise<StoredMediaObject> {
+  async putObject(
+    input: PutMediaObjectInput,
+    options: PutMediaObjectOptions = {},
+  ): Promise<StoredMediaObject> {
     const storagePath = objectStoragePath(input);
     const abs = this.resolveSafe(storagePath);
+    await options.beforeWrite?.({
+      storageProvider: 'local-disk',
+      storageMode: 'local-disk',
+      storageFileId: this.toFileId(storagePath),
+      storagePath,
+      ...(input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {}),
+    });
     await mkdir(dirname(abs), { recursive: true });
 
     let byteSize: number;

@@ -766,3 +766,13 @@ P2d7 最后一轮实际构建暴露旧 UI race：失败回执已经出现，stag
 P2d7 review 中已观察的这个 P2 在本单元关闭；整体仍未完成媒体写入与来源绑定封存、report producer/query/UI、持久意图/大媒体协议/恢复/历史修复、vendor/P95/Node20总构建和 test真实三件时钟及20件发布恢复。未push、应用部署、云商品写入、新建分支/worktree/agent。
 
 写作实际复核 ProductClassificationEditor 的 pending/stage/inFlight/readBack/finally、BatchUpdateFeedback props/标签/原有调用方、CollectionView mutation与retryStarted、受控E2E route与Promise finally，以及组件和API测试。把“失败时可以立即重试”改成“读回结束后按钮启用，一次重试接受一次发布请求”；核对了真实旧UI失败、caller单独断开反例、实际服务写入次数、持久读回和隔离库清理。
+
+## 2026-10-15 P2d8a：上传前永久目标检查点
+
+继续原 checkout、原分支，基线 ed9eaf9。先用真实 JSON 文件数据库与本地字节存储复现导入提交 ACK 丢失导致 active 行指向已删文件、规范化 URL 绑定缺失、供应商 503 阻断已导入 URL 重试：1 个对照通过、3 个业务反例失败。原始复现保留为下一步导入状态机的验收，当前没有将它们记为已修好。
+
+上传适配器新增等待持久化回调的 permanent-target 检查点；云端单次 mint 后按安装 SDK 的 raw PUT/header 协议写字节，空 HTTP200 才确认，默认总时限60秒。SDK类型收紧到实际 Buffer/fs.ReadStream；Uint8Array 转Buffer，普通流走受限 PUT。清理和激活协议后续接入，不凭上传基础层声称整条发布流程完成。
+
+已执行：存储45项/0失败/0跳过，11次运行代码故障全部检出；SDK98检查及9次带干扰项的门禁故障全部检出；5个后端/存储类型检查、3个云函数构建通过。证据：`output/pricing-clock-repair-2026-10-13/p2d8/`，详见 [P2d8a](P2d8a_TRACKED_MEDIA_UPLOAD.zh-CN.md)。完整回归已完成2815项/0失败/0跳过，耗时119.48秒，日志为同目录 broad.log。
+
+文字复核实际阅读：`P2d8a_TRACKED_MEDIA_UPLOAD.zh-CN.md`、本条实施记录、`SDK-PROBE.md` 新增段；把旧代码注释中“wx default structurally satisfies”和“multipart/form-data”更正为实际 node-sdk 注入与 raw PUT。对照安装包输入 guard、五个凭据头、官方200/空响应体契约和实际测试计数；删除“never leak”式无法由这一步支持的保证。属性筛选想法不进入当前实现。没有 push、部署或云端业务数据改动，没有新分支/worktree/agent。
