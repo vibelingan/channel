@@ -748,10 +748,10 @@ for (const clientPath of [
 
 const uploadConsumers = execFileSync(
   'git',
-  ['ls-files', '-co', '--exclude-standard', '--', 'apps', 'packages'],
+  ['ls-files', '-z', '-co', '--exclude-standard', '--', 'apps', 'packages'],
   { cwd: root, encoding: 'utf8' },
 )
-  .split('\n')
+  .split('\0')
   .filter(
     (file) =>
       /\.(?:ts|tsx|astro)$/.test(file) &&

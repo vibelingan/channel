@@ -773,6 +773,8 @@ P2d7 review 中已观察的这个 P2 在本单元关闭；整体仍未完成媒�
 
 上传适配器新增等待持久化回调的 permanent-target 检查点；云端单次 mint 后按安装 SDK 的 raw PUT/header 协议写字节，空 HTTP200 才确认，默认总时限60秒。SDK类型收紧到实际 Buffer/fs.ReadStream；Uint8Array 转Buffer，普通流走受限 PUT。清理和激活协议后续接入，不凭上传基础层声称整条发布流程完成。
 
-已执行：存储45项/0失败/0跳过，11次运行代码故障全部检出；SDK98检查及9次带干扰项的门禁故障全部检出；5个后端/存储类型检查、3个云函数构建通过。证据：`output/pricing-clock-repair-2026-10-13/p2d8/`，详见 [P2d8a](P2d8a_TRACKED_MEDIA_UPLOAD.zh-CN.md)。完整回归已完成2815项/0失败/0跳过，耗时119.48秒，日志为同目录 broad.log。
+已执行：存储45项/0失败/0跳过，11次运行代码故障全部检出；SDK98检查及10次带干扰项的门禁故障全部检出；5个后端/存储类型检查、3个云函数构建通过。证据：`output/pricing-clock-repair-2026-10-13/p2d8/`，详见 [P2d8a](P2d8a_TRACKED_MEDIA_UPLOAD.zh-CN.md)。完整回归已完成2815项/0失败/0跳过，耗时119.48秒，日志为同目录 broad.log。
 
 文字复核实际阅读：`P2d8a_TRACKED_MEDIA_UPLOAD.zh-CN.md`、本条实施记录、`SDK-PROBE.md` 新增段；把旧代码注释中“wx default structurally satisfies”和“multipart/form-data”更正为实际 node-sdk 注入与 raw PUT。对照安装包输入 guard、五个凭据头、官方200/空响应体契约和实际测试计数；删除“never leak”式无法由这一步支持的保证。属性筛选想法不进入当前实现。没有 push、部署或云端业务数据改动，没有新分支/worktree/agent。
+
+P2d8a 独立审查：f4c0b94 的 SDK 发送方分母漏掉 Git 加引号的非 ASCII 文件名，独占临时 Unicode 发送方复现98项假通过，先将该提交标记 BLOCKED。修复采用 NUL 分隔路径；追加第10个门禁故障要求同一发送方明确失败。未修改上传运行代码，原45/2815测试、5类型和3函数构建结果仍对应同一运行代码；门禁本身重新执行。
