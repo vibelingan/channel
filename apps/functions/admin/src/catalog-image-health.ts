@@ -32,7 +32,10 @@ export function readStoredCatalogImageHealth(
     imageId,
     async (proof, bytes, mimeType): Promise<StoredCatalogImageHealth> => {
       const pixels = await decodePixels(bytes, mimeType);
-      if (pixels.status !== 'decoded') return pixels;
+      if (pixels.status !== 'decoded')
+        return pixels.status === 'invalid'
+          ? { status: 'invalid', reason: pixels.reason }
+          : { status: 'retry', reason: pixels.reason };
       if (pixels.checksumSha256 !== proof.checksumSha256)
         return { status: 'invalid', reason: 'checksum' };
       return {

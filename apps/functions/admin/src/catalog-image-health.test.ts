@@ -307,3 +307,31 @@ test('a failed final record read cannot leave a verified pixel proof', async () 
     { status: 'retry', reason: 'unavailable' },
   );
 });
+
+for (const status of ['invalid', 'retry'] as const)
+  test(`${status} decoder results cannot forward private diagnostic fields`, async () => {
+    const f = fixture();
+    const result =
+      status === 'invalid'
+        ? {
+            status: 'invalid' as const,
+            reason: 'content' as const,
+            privateFileId: 'cloud://private',
+            privateBody: f.bytes.toString('base64'),
+          }
+        : {
+            status: 'retry' as const,
+            reason: 'unavailable' as const,
+            privateFileId: 'cloud://private',
+            privateBody: f.bytes.toString('base64'),
+          };
+    assert.deepEqual(
+      await readStoredCatalogImageHealth('image', {
+        ...f.options,
+        decodePixels: async () => result,
+      }),
+      status === 'invalid'
+        ? { status: 'invalid', reason: 'content' }
+        : { status: 'retry', reason: 'unavailable' },
+    );
+  });
