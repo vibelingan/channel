@@ -483,3 +483,8 @@ Official MCP2.35.2/manager-node5.8.8 source verifies parent-path adjustment and 
 ### P2d9c2 exact overload and ordering correction
 
 PNG3 Table7 permits first fcTL before acTL when both precede IDAT; final acTL/frame consistency checks remain. No new SDK pair. Current TypeScript census resolves415calls,0unresolved;10sharp pairs cover12used overload signatures, including both toBuffer return shapes. Complete exact installed declarations/returns are in output/pricing-clock-repair-2026-10-13/p2d9/pixel-revision2-sdk-inventory.json; this supplements the initial single-signature table.40local/179Node20/3455full/19runtime faults with controls;17frozen hashes match.24Linux/default-loader cases and owned-function absence verified. Application packaging and readiness remain pending.
+
+
+### P2d9d function decoder artifact
+
+13persisted pairs: prior10Sharp methods plus esbuild@0.27.7 buildSync,tsx/cjs/api@4.22.4 require,tsup@8.5.1 defineConfig. Installed exact declarations/return evidence and runtime callable checks are recorded in pixel-pack-sdk-inventory.json. Generated child-smoke Sharp calls are executed, not claimed fully TypeScript checked. Existing CloudBase SDK106 passed, no shim/API/auth/env change. Official pnpm mapping supportedArchitectures verified; newer pnpm12platform-list syntax is not used. DefaultLinux vendor126files/20,301,236bytes/6packages, native bytes equal independently verified archives; real Linux Node20.19.3 default-loader24outcomes and3actual clock checks match. Node20local23,deploy scripts485,7actual source faults with positive controls and restored8hashes; technical probe absent afterdelete. Formal production consumer and high-image/concurrency resource budget remain pending.

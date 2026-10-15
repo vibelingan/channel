@@ -3,6 +3,10 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  smokeCatalogImageDecoder,
+  usesCatalogImageDecoder,
+} from './catalog-image-decoder-artifact.mjs';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 import { REQUIRED_NOSQL_RESOURCES } from './cloudbase-nosql-resources.mjs';
 
@@ -128,6 +132,15 @@ for (const name of functions) {
 
   assertNoUnresolvedImports(name, indexFile);
   smokeRequire(name, artifactDir);
+  if (usesCatalogImageDecoder(readFileSync(indexFile, 'utf8'))) {
+    const temp = mkdtempSync(join(tmpdir(), 'channel-pixel-smoke-'));
+    try {
+      cpSync(artifactDir, temp, { recursive: true });
+      smokeCatalogImageDecoder(temp);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  }
   if (name === 'public-api') smokePublicCatalog(artifactDir);
   console.log(`${name}: artifact smoke passed`);
 }
