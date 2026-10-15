@@ -790,3 +790,15 @@ P2d8a 独立审查：f4c0b94 的 SDK 发送方分母漏掉 Git 加引号的非 A
 文字实际复核source-media-import schema/claim/checkpoint/activate/reuse/fail/retire、native bridge与JSON queue、importCandidateImage、copiedState失败记录、cleanupSourceMediaImage和后台两lane、源测试及本单元SDK/实施文档。将“注册成功表示文件健康”改为“注册绑定可复用，文件健康须后续独立验证”；将“清理失败就没有删文件”改为“只逐项报告确认删除，未知结果保留intent继续”。核对永久目标逐字保留、旧任务nonce、真实本地PNG、部分删除回执及0skip/恢复hash。没有将metadata mock冒充云存储证明。
 
 其余MIU继续，不新增筛选属性/存储分支/worktree/agent，不push或部署。真实clock resync/load、保留现有分类的20件Assign category→Save and publish和恢复仍未完成。
+
+## 2026-10-15 P4a1：普通上传完成与过期清理
+
+0c01a98精确review通过后，先用真实本地数据库/字节/后台请求取得1控制/5失败，修旧completeUpload和cleanup各自读写的竞争。现有图片mutex先持有、后下载；原子完成校验用户、身份、目标/输入指纹及当前owner，active与严格回执一并提交。成功重试不重新下载；暂不可读保留pending，坏字节原子failed并保留目标，不执行不可靠补偿删。过期清理先terminal intent再删，所有deleted进入恢复lane，当前active/未过期/来源归属/非零引用仍由写入守卫拒绝。
+
+最终3298全量/250文件（本轮扩大消费者范围）、483Node20组合均0failed/skip；三函数构建/Node20产物加载及四实际类型通过。83baseline，24运行故障检出；SDK103检查，3接线故障及1wire null形状负控各102正常/1失败；SDK28pair已精确join，最终完整构建浏览器151通过，juwvaC隔离目录独立确认已清理。旧active直传无回执的兼容重试已补齐，首次真实读回后追加回执；引用数0/2保持，坏字节保留active并明确替换入口，损坏新回执不能退回旧模式。
+
+实际修正了return reject Promise导致finally提前释放锁；初次故障注入被本地queue掩盖，75全绿不记检出，补写入开始前受控延迟后同缺陷确实失败。completion变量漏声明和Biome格式提示不算runtime证据。旧字节上限用例只模拟低维尺寸提示，改为真实超过10MiB字节；新增低报提示场景确认以真实字节为准。
+
+文字实际复核image-upload、ImageDeletion orphan命令/runner、两adapter工厂、finalizeCatalogImageUpload、cleanupOrphanUploadImage、后台两入口、实际native/cloud测试及SDK/doc。把“浏览器multipart POST”改为“raw PUT”；把“失败就补偿删”改为“失败保留精确目标，经持久终态清理”；把“active回执证明现在COS健康”保留为尚不能成立的结论。核对身份、真实尺寸、未知ACK、源文件恢复和旧读端兼容边界。其余MIU继续；没有push、部署、云业务写入或新分支/worktree/agent。
+
+独立review先红1控制/1失败：放宽旧v1上传者会误接纳损坏旧intent，改为严格image-deletion-ownerless-v1专用版本，原v1不放宽。另旧active兼容先红1控制/2失败后修复。新增never SDK类型与真实SDK set序列化互证，根/嵌套undefined均省略，异常null负控失败。FakeRequest少data封套只算探针错误，按实际document.set转换源码修正。类型检查拦住非法顶层MEDIA_NOT_READY及测试可空row，修正为既有VALIDATION_ERROR与明确非空断言；终止自有链，重新全量3298/95.79秒、Node20483、构建与最终浏览器151通过，juwvaC已清理。15文件hash匹配。

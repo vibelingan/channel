@@ -1,3 +1,18 @@
+import { type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
+export {
+  runImageUpload,
+  imageUploadInputDigest,
+  hasImageUploadCompletion,
+  canReverifyLegacyImageUpload,
+  ImageUploadCommandSchema,
+} from './image-upload.ts';
+export type { ImageUploadCommand, ImageUploadResult } from './image-upload.ts';
+export function manageImageUpload(command: ImageUploadCommand) {
+  const input = ImageUploadCommandSchema.parse(command);
+  const adapter = db();
+  if (!adapter.manageImageUpload) throw new Error('Image upload adapter is not configured');
+  return adapter.manageImageUpload(input);
+}
 import {
   type SourceMediaImportCommand,
   SourceMediaImportCommandSchema,

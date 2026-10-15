@@ -1,3 +1,4 @@
+import { runImageUpload, type ImageUploadCommand } from './image-upload.ts';
 import { runSourceMediaImport, type SourceMediaImportCommand } from './source-media-import.ts';
 import { runImageDeletion, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
 import { randomUUID } from 'node:crypto';
@@ -460,6 +461,10 @@ export async function releaseImageMutationInCloudBase(db: Pick<NodeSdkDatabase, 
 
 export async function manageSourceMediaImportInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: SourceMediaImportCommand) {
   return db.runTransaction(transaction => runSourceMediaImport(catalogRowStore(transaction), command));
+}
+
+export async function manageImageUploadInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageUploadCommand) {
+  return db.runTransaction(transaction => runImageUpload(catalogRowStore(transaction), command));
 }
 
 export async function manageImageDeletionInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageDeletionCommand) {
@@ -987,6 +992,9 @@ export const cloudBaseAdapter: DbAdapter = {
 
   async manageSourceMediaImport(command) {
     return manageSourceMediaImportInCloudBase(cloudStorageSdk().database(), command);
+  },
+  async manageImageUpload(command) {
+    return manageImageUploadInCloudBase(cloudStorageSdk().database(), command);
   },
   async manageImageDeletion(command) {
     return manageImageDeletionInCloudBase(cloudStorageSdk().database(), command);

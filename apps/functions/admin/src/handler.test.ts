@@ -6,6 +6,7 @@ import { format } from 'node:util';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
 import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import {
   type AdapterListQuery,
@@ -182,6 +183,21 @@ class MemoryAdapter implements DbAdapter {
     return next;
   }
 
+  async manageImageUpload(command: ImageUploadCommand) {
+    return runImageUpload(
+      {
+        get: (collection, id) => this.get(collection, id),
+        set: async (collection, row) => {
+          if (!(await this.update(collection, row._id, row)))
+            throw new Error('Unconfirmed image quarantine');
+        },
+        remove: async (collection, id) => {
+          if (!(await this.remove(collection, id))) throw new Error('Unconfirmed image removal');
+        },
+      },
+      command,
+    );
+  }
   async manageImageDeletion(command: ImageDeletionCommand) {
     return runImageDeletion(
       {
@@ -2721,7 +2737,7 @@ test('completeUpload leaves the doc PENDING (retryable) when the object is not y
   assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'pending');
 });
 
-test('completeUpload: a null activation (row removed mid-flight) fails + deletes the object, never fabricates success', async () => {
+test('completeUpload: an unconfirmed activation preserves its tracked object and reports conflict', async () => {
   const store = imageStore([]);
   setup(store);
   const bytes = jpegBytes('valid image');
@@ -2731,15 +2747,15 @@ test('completeUpload: a null activation (row removed mid-flight) fails + deletes
   const intent = okData<{ imageId: string }>(
     await call('createUploadIntent', { ...validUpload, byteSize: bytes.byteLength }, token),
   );
-  const storageFileId = store.images?.find((i) => i._id === intent.imageId)
-    ?.storageFileId as string;
-  // Model the row vanishing between the pending-check and activation: update now
-  // returns null while get/media still resolve. A null activation must surface an
-  // error AND compensate the now-orphaned object (rule e603f34), not return ok.
-  setupFailingUpdate(store, 'null');
-  setMediaStorage(fake);
+  class MissingActivation extends MemoryAdapter {
+    override async manageImageUpload() {
+      return { status: 'missing' as const };
+    }
+  }
+  setAdapter(new MissingActivation(store));
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
-  assert.deepEqual(fake.deleted, [storageFileId]);
+  assert.deepEqual(fake.deleted, []);
+  assert.equal(store.images?.find((row) => row._id === intent.imageId)?.status, 'pending');
 });
 
 // --- Password reset: token issuance + consume-once (timing-safe recover) -----
@@ -3340,8 +3356,7 @@ test('completeUpload rejects an over-cap landed object (server re-checks size)',
   // Declared small at intent (passes), but the object that landed is over the cap.
   setMediaStorage(
     makeFakeMediaStorage({
-      objectBytes: Buffer.from('x'),
-      reportByteSize: CATALOG_IMAGE_MAX_BYTES + 1,
+      objectBytes: Buffer.concat([jpegBytes('over cap'), Buffer.alloc(CATALOG_IMAGE_MAX_BYTES)]),
     }),
   );
   const token = await adminToken();
@@ -3416,7 +3431,7 @@ test('completeUpload marks the doc failed on a checksum mismatch', async () => {
   assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'failed');
 });
 
-test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', async () => {
+test('completeUpload: unknown id → NOT_FOUND; finalizing twice replays the confirmed completion', async () => {
   const store = imageStore([]);
   setup(store);
   setMediaStorage(makeFakeMediaStorage({ objectBytes: jpegBytes('x') }));
@@ -3424,13 +3439,13 @@ test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', 
   expectErr(await call('completeUpload', { imageId: 'does-not-exist' }, token), 'NOT_FOUND');
   const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
   await call('completeUpload', { imageId: intent.imageId }, token); // → active
-  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
 });
 
 test('completeUpload rejects landed bytes that are not the declared image type (HTML payload)', async () => {
   // The pre-signed credential fixes only the KEY, so the browser can PUT
   // arbitrary bytes. An HTML/JS document behind photo.jpg must fail the magic-
-  // byte sniff, mark the row failed, and delete the object — otherwise it would
+  // byte sniff, mark the row failed and retain its target for cleanup — otherwise it would
   // later be served from the API origin with an attacker-useful Content-Type.
   const store = imageStore([]);
   setup(store);
@@ -3443,7 +3458,7 @@ test('completeUpload rejects landed bytes that are not the declared image type (
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
   const doc = store.images?.find((i) => i._id === intent.imageId);
   assert.equal(doc?.status, 'failed');
-  assert.deepEqual(fake.deleted, [doc?.storageFileId]);
+  assert.deepEqual(fake.deleted, [], 'failed target stays tracked for safe expiry cleanup');
 });
 
 test('completeUpload rejects bytes whose signature is a DIFFERENT image type than declared', async () => {
@@ -3462,8 +3477,8 @@ test('completeUpload rejects bytes whose signature is a DIFFERENT image type tha
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
   const doc = store.images?.find((i) => i._id === intent.imageId);
   assert.equal(doc?.status, 'failed');
-  // Same cleanup contract as the HTML-payload path: the rejected object is deleted.
-  assert.deepEqual(fake.deleted, [doc?.storageFileId]);
+  // Same contract as HTML rejection: keep the failed target for safe cleanup.
+  assert.deepEqual(fake.deleted, [], 'failed target stays tracked for safe expiry cleanup');
 });
 
 test('completeUpload ACCEPTS a valid PNG under an image/png intent (sniff does not over-reject)', async () => {

@@ -16,19 +16,37 @@ const time = z
 const base = z.object({ imageId: token, uploadedByUserId: token });
 export const ImageDeletionCommandSchema = z.discriminatedUnion('action', [
   base.extend({ action: z.literal('begin'), owner: token, startedAt: time }).strict(),
-  base.extend({ action: z.literal('finish'), operationId: token }).strict(),
+  z
+    .object({
+      action: z.literal('begin-orphan'),
+      imageId: token,
+      owner: token,
+      startedAt: time,
+      cutoff: time,
+    })
+    .strict(),
+  base
+    .extend({ action: z.literal('finish'), operationId: token, uploadedByUserId: token.optional() })
+    .strict(),
 ]);
 export type ImageDeletionCommand = z.infer<typeof ImageDeletionCommandSchema>;
-export const ImageDeletionIntentSchema = z
-  .object({
-    schemaVersion: z.literal('image-deletion-v1'),
-    operationId: token,
-    uploadedByUserId: token,
-    startedAt: time,
-    storageProvider: z.string().max(64),
-    storageFileIds: z.array(z.string().min(1).max(8192)).max(2),
-  })
-  .strict();
+const intentFields = z.object({
+  operationId: token,
+  startedAt: time,
+  storageProvider: z.string().max(64),
+  storageFileIds: z.array(z.string().min(1).max(8192)).max(2),
+});
+export const ImageDeletionIntentSchema = z.discriminatedUnion('schemaVersion', [
+  intentFields
+    .extend({ schemaVersion: z.literal('image-deletion-v1'), uploadedByUserId: token })
+    .strict(),
+  intentFields
+    .extend({
+      schemaVersion: z.literal('image-deletion-ownerless-v1'),
+      uploadedByUserId: z.never().optional(),
+    })
+    .strict(),
+]);
 export type ImageDeletionIntent = z.infer<typeof ImageDeletionIntentSchema>;
 export interface ImageDeletionStore {
   get(collection: string, id: string): Promise<CollectionDoc | null>;
@@ -85,31 +103,52 @@ export async function runImageDeletion(
   const image = await store.get('images', command.imageId);
   if (!image) return { status: 'missing' };
   if (image._id !== command.imageId) return { status: 'corrupt' };
-  if (image.uploadedByUserId !== command.uploadedByUserId) return { status: 'forbidden' };
+  if (command.action !== 'begin-orphan' && image.uploadedByUserId !== command.uploadedByUserId)
+    return { status: 'forbidden' };
   if (image.status === 'deleted') {
     const intent = readImageDeletionIntent(image);
     if (!intent) return { status: 'corrupt' };
-    if (command.action === 'begin') return { status: 'ready', intent };
+    if (command.action !== 'finish') return { status: 'ready', intent };
     if (intent.operationId !== command.operationId) return { status: 'conflict' };
     await store.remove('images', command.imageId);
     return { status: 'removed' };
   }
-  if (command.action === 'finish' || image.status !== 'active') return { status: 'conflict' };
+  if (command.action === 'finish') return { status: 'conflict' };
+  if (command.action === 'begin-orphan') {
+    if (
+      (image.status !== 'pending' && image.status !== 'failed') ||
+      Object.hasOwn(image, 'sourceMediaImport') ||
+      typeof image.createdAt !== 'string' ||
+      !Number.isFinite(Date.parse(image.createdAt)) ||
+      Date.parse(image.createdAt) >= Date.parse(command.cutoff)
+    )
+      return { status: 'conflict' };
+  } else if (image.status !== 'active') return { status: 'conflict' };
   const lock = readImageMutationState(image);
-  if (lock.state !== 'owned' || lock.owner !== command.owner || image.publishedRefCount !== 0)
+  if (
+    lock.state !== 'owned' ||
+    lock.owner !== command.owner ||
+    (command.action === 'begin-orphan'
+      ? (image.publishedRefCount ?? 0) !== 0
+      : image.publishedRefCount !== 0)
+  )
     return { status: 'conflict' };
   const storage = targets(image);
   if (!storage) return { status: 'corrupt' };
-  const intent = ImageDeletionIntentSchema.parse({
-    schemaVersion: 'image-deletion-v1',
+  const parsedIntent = ImageDeletionIntentSchema.safeParse({
+    schemaVersion:
+      image.uploadedByUserId === undefined ? 'image-deletion-ownerless-v1' : 'image-deletion-v1',
     operationId: command.owner,
-    uploadedByUserId: command.uploadedByUserId,
+    uploadedByUserId: image.uploadedByUserId,
     startedAt: command.startedAt,
     ...storage,
   });
+  if (!parsedIntent.success) return { status: 'corrupt' };
+  const intent = parsedIntent.data;
   await store.set('images', {
     ...image,
     status: 'deleted',
+    publishedRefCount: 0,
     imageDeletion: intent,
     updatedAt: command.startedAt,
   });

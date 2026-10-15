@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
 import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
 import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import {
@@ -812,6 +813,46 @@ export class JsonFileAdapter implements DbAdapter {
       docs[index] = { ...existing, [field]: next, updatedAt: new Date().toISOString() };
       this.persist();
       return next;
+    });
+  }
+
+  async manageImageUpload(command: ImageUploadCommand) {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runImageUpload(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((value) => value._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection] ?? [];
+            const index = rows.findIndex((row) => row._id === id);
+            if (index < 0) throw new Error('Image disappeared during deletion');
+            rows.splice(index, 1);
+            changed = true;
+          },
+        },
+        command,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
     });
   }
 

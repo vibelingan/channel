@@ -315,6 +315,40 @@ try {
       containsAll(nodeSdkRequester, ['return processReturn(result);']),
     '@cloudbase/node-sdk throws a coded database answer by default (throwOnCode true)',
   );
+  // Ownerless legacy intent fields must stay absent, never become null on wire.
+  const ownerlessWrites = [];
+  class OwnerlessTransactionRequest {
+    async send(api, params) {
+      if (api === 'database.startTransaction') return { transactionId: 'ownerless-probe' };
+      if (api === 'database.modifyDocument') {
+        ownerlessWrites.push(params);
+        return { data: { updated: 1, upsert_id: 'ownerless' }, requestId: 'ownerless-set' };
+      }
+      return { requestId: 'ownerless-request' };
+    }
+  }
+  databaseModule.Db.reqClass = OwnerlessTransactionRequest;
+  const ownerlessDb = new databaseModule.Db({});
+  const ownerlessTransaction = await ownerlessDb.startTransaction();
+  await ownerlessTransaction
+    .collection('probe')
+    .doc('ownerless')
+    .set({
+      uploadedByUserId: undefined,
+      imageDeletion: {
+        schemaVersion: 'image-deletion-ownerless-v1',
+        uploadedByUserId: undefined,
+        storageFileIds: ['cloud://Env.Bucket/Case%20Key '],
+      },
+    });
+  const ownerlessWire = JSON.parse(ownerlessWrites[0].data);
+  requireCheck(
+    !Object.hasOwn(ownerlessWire, 'uploadedByUserId') &&
+      !Object.hasOwn(ownerlessWire.imageDeletion, 'uploadedByUserId') &&
+      ownerlessWire.imageDeletion.schemaVersion === 'image-deletion-ownerless-v1' &&
+      ownerlessWire.imageDeletion.storageFileIds[0] === 'cloud://Env.Bucket/Case%20Key ',
+    '@cloudbase/database native set preserves absent ownerless fields and exact permanent identifiers',
+  );
   // The bare @cloudbase/database API instead ANSWERS a failed read or write with
   // { code }, not thrown; the approval wrappers rethrow it (sdkAnswer).
   class CodedTransactionRequest {
@@ -883,6 +917,21 @@ requireCheck(
       transactionFunctionCalls('manageImageDeletionInCloudBase').includes(call),
     ),
   'image deletion production bridge executes the shared state machine in one native SDK transaction',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'manageImageUpload').includes(
+    'manageImageUploadInCloudBase',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'manageImageUpload').includes(
+      'cloudStorageSdk().database',
+    ),
+  'upload finalization production adapter delegates to its tested node-sdk transaction helper',
+);
+requireCheck(
+  ['catalogRowStore', 'runImageUpload'].every((call) =>
+    transactionFunctionCalls('manageImageUploadInCloudBase').includes(call),
+  ),
+  'upload finalization executes inside one native SDK transaction callback',
 );
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'manageSourceMediaImport').includes(

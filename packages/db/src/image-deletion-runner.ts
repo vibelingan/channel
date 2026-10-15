@@ -12,7 +12,7 @@ export interface ImageDeletionPersistence {
 }
 export async function executeImageDeletion(
   persistence: ImageDeletionPersistence,
-  command: Extract<ImageDeletionCommand, { action: 'begin' }>,
+  command: Extract<ImageDeletionCommand, { action: 'begin' | 'begin-orphan' }>,
   deleteObject: (fileId: string) => Promise<void>,
 ): Promise<'deleted' | 'missing' | 'forbidden' | 'conflict' | 'corrupt' | 'failed'> {
   let result: ImageDeletionResult;
@@ -28,7 +28,8 @@ export async function executeImageDeletion(
     }
     if (!image) return 'missing';
     if (image._id !== command.imageId) return 'corrupt';
-    if (image.uploadedByUserId !== command.uploadedByUserId) return 'forbidden';
+    if (command.action === 'begin' && image.uploadedByUserId !== command.uploadedByUserId)
+      return 'forbidden';
     const intent = readImageDeletionIntent(image);
     if (!intent) return 'failed';
     result = { status: 'ready', intent };
@@ -45,7 +46,7 @@ export async function executeImageDeletion(
     const finished = await persistence.manage({
       action: 'finish',
       imageId: command.imageId,
-      uploadedByUserId: command.uploadedByUserId,
+      uploadedByUserId: result.intent.uploadedByUserId,
       operationId: result.intent.operationId,
     });
     return finished.status === 'removed' || finished.status === 'missing' ? 'deleted' : 'failed';

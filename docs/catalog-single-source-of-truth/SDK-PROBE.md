@@ -388,3 +388,42 @@ Native Node HTTPS request, IncomingMessage events, fs.ReadStream, Readable.from 
 | zod@3.25.76 | string | (params?:RawCreateParams and {coerce?:true}) → ZodString | installed v3/types.d.cts:976; source command schema actual runtime tests |
 
 真实 SDK 请求类的离线契约探针与 standing gate 验证平铺 set/update、get 两种形状及写入确认；新 CloudBase bridge 测试同时覆盖两种get形状、失败回滚、未知commit结果重放、错误ID以及同值物理写入抵御并发退休。事务 mock 仅模拟已实际探测的快照语义，不冒充新云端实验。SDK100项；新增3个AST连接故障各保留99个正常控制并确实失败。原上传基础层10项故障在98检查基线执行，不改写其分母。Node20.19打包、离线产物加载与438项关键流程通过；这不是Linux云端文件或真实批量发布验收。
+
+## P4a1 普通上传完成与过期清理协调
+
+基线0c01a98。sdk-inventory.json在探针前记录28对：checker解析19个实际Zod方法、infer类型facade和8个nativeDB依赖。所有调用绑定均来自锁定版本，未新增SDK方法/依赖/shim。Context7不可用；复用本轮已重新读取的官方transaction文档、安装node-sdk3.17.2/database1.4.3真实平铺数据和callbackRes契约，以及实际request探针。图片下载/删除沿现有media-storage已核对的downloadFile/deleteFile边界，standing gate再验证。
+
+| package@version | method | signature and return shape | evidence |
+| --- | --- | --- | --- |
+| @cloudbase/node-sdk@3.17.2 | database | (dbConfig:ICloudBaseDBConfig={}) → Db | installed types/index.d.ts:539; cloudStorageSdk().database() production AST gate |
+| @cloudbase/database@1.4.3 | runTransaction | (callback:(transaction:Transaction) → void or Promise<any>,times?:number) → Promise<any>; resolves callbackRes after commit | transaction/index.d.ts:23; actual src/transaction/index.ts; original SDK request probe and source transaction replay tests |
+| @cloudbase/database@1.4.3 | collection | (collName:string) → CollectionReference | index.d.ts:50 and transaction/index.d.ts:16; catalogRowStore callback native bridge |
+| @cloudbase/database@1.4.3 | doc | (docID:string or number) → DocumentReference | collection.d.ts:7; exact document ID/native get tests |
+| @cloudbase/database@1.4.3 | get | () → Promise<any>; observed data is object or array | document.d.ts:11; both actual bridge response shapes tested; foreign IDs rejected |
+| @cloudbase/database@1.4.3 | set | (data:Object) → Promise<any>; flat fields, updated:1 or exact upserted ID confirms | document.d.ts:7; installed transaction set and standing native payload probe; throw/code/silent/wrong-ID negative tests |
+| @cloudbase/database@1.4.3 | update | (data:Object) → Promise<any>; updated:1 confirms | document.d.ts:8; existing image mutation acquire physical write; installed flat payload probe |
+| @cloudbase/database@1.4.3 | remove | () → Promise<any>; deleted:1 confirms | document.d.ts:10; checksum reservation removal rollback and committed-ACK replay |
+| zod@3.25.76 | datetime | (options?:string or {message?,precision?,offset?,local?}) → ZodString | installed v3/types.d.cts:235; source command schema actual runtime tests |
+| zod@3.25.76 | discriminatedUnion | (discriminator,objectOptions,params?) → ZodDiscriminatedUnion | installed v3/types.d.cts:615–627,1003; source command schema actual runtime tests |
+| zod@3.25.76 | enum | (values:readonly nonempty string tuple,params?) → ZodEnum | installed v3/types.d.cts:759–760,1012; source command schema actual runtime tests |
+| zod@3.25.76 | extend | (augmentation:ZodRawShape) → extended ZodObject | installed v3/types.d.cts:544; source command schema actual runtime tests |
+| zod@3.25.76 | infer | TypeOf<T> = T["_output"]; type-only export alias | installed v3/types.d.cts:17,20; source command schema actual runtime tests |
+| zod@3.25.76 | int | (message?) → ZodNumber | installed v3/types.d.cts:325; source command schema actual runtime tests |
+| zod@3.25.76 | literal | (value:Primitive,params?) → ZodLiteral<Value> | installed v3/types.d.cts:1011; source command schema actual runtime tests |
+| zod@3.25.76 | max | (maxLength:number,message?) → ZodString; (max:number,message?) → ZodNumber | installed v3/types.d.cts:255,322; source command schema actual runtime tests |
+| zod@3.25.76 | min | (minLength:number,message?) → ZodString; (min:number,message?) → ZodNumber | installed v3/types.d.cts:254,319; source command schema actual runtime tests |
+| zod@3.25.76 | number | (params?:RawCreateParams and {coerce?:boolean}) → ZodNumber | installed v3/types.d.cts:979; source command schema actual runtime tests |
+| zod@3.25.76 | object | (shape:ZodRawShape,params?) → ZodObject with strip mode | installed v3/types.d.cts:1000; source command schema actual runtime tests |
+| zod@3.25.76 | parse | (data:unknown,params?) → Output; throws ZodError for invalid input | installed v3/types.d.cts:63; installed runtime and strict command/target tests; source command schema actual runtime tests |
+| zod@3.25.76 | refine | (check,message?) → ZodEffects<this,Output,Input> | installed v3/types.d.cts:71–72; source command schema actual runtime tests |
+| zod@3.25.76 | regex | (regex:RegExp,message?) → ZodString | installed v3/types.d.cts:247; source command schema actual runtime tests |
+| zod@3.25.76 | safeParse | (data:unknown,params?) → success/data or failure/error union | installed v3/types.d.cts:64; installed SafeParseReturnType; strict ownership/receipt tests; source command schema actual runtime tests |
+| zod@3.25.76 | strict | (message?) → ZodObject with strict unknown-key mode | installed v3/types.d.cts:536; source command schema actual runtime tests |
+| zod@3.25.76 | string | (params?:RawCreateParams and {coerce?:true}) → ZodString | installed v3/types.d.cts:976; source command schema actual runtime tests |
+| zod@3.25.76 | array | (schema:ZodTypeAny,params?) → ZodArray<El> | installed v3/types.d.cts:999; image deletion target array schema existing contract reused |
+| zod@3.25.76 | optional | () → ZodOptional<this> | installed v3/types.d.cts:80; absent uploader retained on legacy ownerless quarantine, no fabricated identity |
+| zod@3.25.76 | never | (params?:RawCreateParams) → ZodNever | installed v3/types.d.cts:997; ownerless version forbids any invented uploader, original v1 uploader remains required |
+
+新工厂/事务回调执行真实shared状态机，新增3个SDK断开/错误SDK/假decoy故障各102正常控制/1指定失败，当前standing103。两种nativeget形状、throw/silent/code/wrong-upsert写确认、未知commit重放和输入指纹均由实际bridge测试。Node20.19的483项关键组合和三函数产物加载/离线真实public读取通过。原生磁盘证明不代替CloudBase缺文件删除/像素/网关大文件或真实部署。
+
+新增实际SDK请求序列化探针：undefined上传者在顶层与intent里都被省略，永久ID的大小写、编码和尾空格逐字保留；installed serializer/datatype.ts:70–85和DocumentReference.set真实发送参数互证。注入capture阶段的异常null字段，103检查中102控制/1指定失败；这是门禁wire形状负控，另列于24个生产运行缺陷。初版FakeRequest返回少data封套导致真实SDK抛错，只算探针工具错误，已按安装document.ts:200–219修正，非生产问题。

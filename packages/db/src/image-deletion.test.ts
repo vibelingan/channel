@@ -338,3 +338,82 @@ test('unknown quarantine ACK followed by a foreign terminal readback never delet
   assert.equal(deletes, 0);
   assert.equal(f.row?.status, 'deleted');
 });
+
+test('expiry quarantine checks current status, age, source ownership and published references in the write transaction', async () => {
+  const command = {
+    action: 'begin-orphan',
+    imageId: 'i',
+    owner: 'op',
+    startedAt: now,
+    cutoff: now,
+  } as const;
+  for (const patch of [
+    { status: 'active' },
+    { createdAt: now },
+    { createdAt: 'invalid' },
+    { sourceMediaImport: { schemaVersion: 'source-media-import-v1' } },
+    { publishedRefCount: 1 },
+  ]) {
+    const f = fixture({ status: 'pending', createdAt: '2020-01-01T00:00:00.000Z', ...patch });
+    assert.equal((await runImageDeletion(f.store, command)).status, 'conflict');
+    assert.deepEqual(f.writes, []);
+  }
+});
+
+test('ownerless legacy expiry uses its own strict deletion version, not a weaker v1', async () => {
+  const f = fixture({
+    uploadedByUserId: undefined,
+    status: 'pending',
+    createdAt: '2020-01-01T00:00:00.000Z',
+  });
+  const result = await runImageDeletion(f.store, {
+    action: 'begin-orphan',
+    imageId: 'i',
+    owner: 'op',
+    startedAt: now,
+    cutoff: now,
+  });
+  assert.ok(result.status === 'ready');
+  assert.equal(result.intent.schemaVersion, 'image-deletion-ownerless-v1');
+  assert.equal(result.intent.uploadedByUserId, undefined);
+  assert.ok(f.row);
+  assert.ok(readImageDeletionIntent(f.row));
+  const before = structuredClone(f.row);
+  assert.ok(before);
+  assert.equal(
+    readImageDeletionIntent({
+      ...before,
+      imageDeletion: { ...result.intent, schemaVersion: 'image-deletion-v1' },
+    }),
+    null,
+  );
+  assert.equal(
+    readImageDeletionIntent({
+      ...before,
+      imageDeletion: { ...result.intent, uploadedByUserId: 'invented' },
+    }),
+    null,
+  );
+});
+test('malformed uploader metadata is corrupt and cannot authorize expiry byte deletion', async () => {
+  for (const uploadedByUserId of [null, [], {}, '']) {
+    const f = fixture({
+      uploadedByUserId,
+      status: 'failed',
+      createdAt: '2020-01-01T00:00:00.000Z',
+    });
+    assert.equal(
+      (
+        await runImageDeletion(f.store, {
+          action: 'begin-orphan',
+          imageId: 'i',
+          owner: 'op',
+          startedAt: now,
+          cutoff: now,
+        })
+      ).status,
+      'corrupt',
+    );
+    assert.deepEqual(f.writes, []);
+  }
+});

@@ -146,6 +146,7 @@ import {
 } from './catalog-change-audit.ts';
 import { readCatalogDetailPreview } from './catalog-detail-preview.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
+import { finalizeCatalogImageUpload } from './catalog-image-upload.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
@@ -160,6 +161,7 @@ import {
   withAdminEditsKept,
 } from './catalog-supplier-review.ts';
 import { CatalogValidationSchema, catalogValidationMessage } from './catalog-validation.ts';
+import { cleanupOrphanUploadImage } from './orphan-upload-cleanup.ts';
 import { cleanupSourceMediaImage } from './source-media-cleanup.ts';
 
 export interface AdminConfig {
@@ -2631,7 +2633,7 @@ async function auditChangesSinceApprovalAction(
 }
 
 /** Default orphan TTL: a `pending`/`failed` image older than this is treated as
- *  abandoned (the browser direct POST or completeUpload never finished). */
+ *  abandoned (the browser direct PUT or completeUpload never finished). */
 const ORPHAN_CLEANUP_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const ORPHAN_CLEANUP_MAX_LIMIT = 500;
 const ORPHAN_CLEANUP_DB_PAGE_SIZE = 100;
@@ -2663,9 +2665,6 @@ async function listOrphanCleanupCandidates(input: {
           clauses: [
             { field: 'status', op: 'in', value: retired ? ['deleted'] : ['pending', 'failed'] },
             { field: 'createdAt', op: 'lt', value: input.cutoff },
-            ...(retired
-              ? [{ field: 'uploadedByUserId', op: 'eq' as const, value: SOURCE_MEDIA_IMPORT_OWNER }]
-              : []),
           ],
         },
       });
@@ -2741,23 +2740,17 @@ async function cleanupOrphanImagesAction(
         });
       continue;
     }
-    const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
-    const storageFileId = typeof doc.storageFileId === 'string' ? doc.storageFileId : '';
-    const hasObject =
-      storageFileId.length > 0 && (provider === 'cloudbase-storage' || provider === 'local-disk');
-    if (hasObject) {
-      try {
-        await mediaStorage().deleteObject(storageFileId);
-        console.log(`[fn-admin] cleanupOrphanImages: deleted storage object ${storageFileId}`);
-        storageDeleted.push(storageFileId);
-      } catch (e) {
-        // Keep the metadata so a later sweep retries; never silently orphan bytes.
-        console.error(`[fn-admin] cleanupOrphanImages: object delete failed for ${id}`, e);
-        storageFailed.push({ id, error: e instanceof Error ? e.message : 'storage delete failed' });
-        continue;
-      }
-    }
-    if (await remove('images', id)) removed.push(id);
+    const result = await cleanupOrphanUploadImage(id, cutoff);
+    storageDeleted.push(...result.storageDeleted);
+    if (result.status === 'deleted') removed.push(id);
+    else if (result.status === 'missing') skipped.push({ id, reason: 'already-gone' });
+    else if (result.status === 'busy' || result.status === 'changed')
+      skipped.push({ id, reason: result.status === 'busy' ? 'busy' : 'state-changed' });
+    else
+      storageFailed.push({
+        id,
+        error: 'Image cleanup is incomplete; retry cleanup or inspect its recorded state.',
+      });
   }
 
   return ok({
@@ -2978,9 +2971,9 @@ async function migrateLegacyImagesAction(
 /**
  * Step 1 of the admin-brokered direct upload (MIU-Upload). Validates the file
  * metadata, mints a single-object pre-signed credential, and writes a `pending`
- * image doc. The browser then POSTs a multipart form straight to COS and calls
+ * image doc. The browser then PUTs raw bytes straight to COS and calls
  * `completeUpload`. The credential is minted FIRST so a mint failure never leaves
- * an orphan doc; the bytes don't exist until the browser direct POST, so a
+ * an orphan doc; the bytes don't exist until the browser direct PUT, so a
  * half-finished intent is just a pending (never-public) doc for orphan cleanup.
  */
 async function createUploadIntentAction(
@@ -3034,13 +3027,9 @@ async function createUploadIntentAction(
   });
 }
 
-/**
- * Step 3 of the admin-brokered upload. Verifies the bytes actually landed,
- * recomputes size + SHA-256 SERVER-SIDE (never trusts the client; §22.3-6), and
- * flips the pending doc to `active`. A SIZE or CHECKSUM verification failure marks
- * the doc `failed` (and best-effort deletes the bad object). A not-yet-retrievable
- * object leaves the doc `pending` (retryable; reaped by orphan cleanup if
- * abandoned) — it is never dead-ended. Pending/failed are never public.
+/** Verify direct-upload bytes under the existing image mutex, then atomically
+ * activate with an idempotent completion receipt. Failed verification retains
+ * its target for expiry cleanup; an unavailable object remains retryable.
  */
 async function completeUploadAction(
   req: AdminRequest,
@@ -3052,97 +3041,9 @@ async function completeUploadAction(
   const parsed = completeUploadSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'imageId is required');
 
-  const doc = await get('images', parsed.data.imageId);
-  if (!doc) return err('NOT_FOUND', 'Upload intent not found');
-  if (doc.status !== 'pending') return err('CONFLICT', 'This upload was already finalized');
-  if (typeof doc.storageFileId !== 'string') {
-    return err('INTERNAL_ERROR', 'Upload intent is missing its storage id');
-  }
-
-  const storageFileId = doc.storageFileId;
-  const imageId = parsed.data.imageId;
-
-  let object: { body: string; byteSize?: number };
-  try {
-    object = await mediaStorage().getObjectAsBase64(storageFileId);
-  } catch (e) {
-    // The bytes are not retrievable (yet). This may be a transient / eventually
-    // consistent miss OR a PUT that never happened. Either way, leave the doc
-    // PENDING (never public) and let the caller retry; a truly abandoned intent
-    // is reaped by orphan cleanup (MIU-06). Do NOT dead-end it to `failed`.
-    console.error('[fn-admin] completeUpload: object not retrievable (left pending)', e);
-    return err(
-      'NOT_FOUND',
-      'Uploaded object not found yet — retry completeUpload once the PUT finishes.',
-    );
-  }
-
-  // The object IS present but fails verification below → mark `failed` and make a
-  // best-effort delete of the bad bytes (compensation; MIU-06 also sweeps).
-  const rejectInvalid = async (message: string): Promise<ApiResult<unknown>> => {
-    await updateDoc('images', imageId, { status: 'failed' });
-    await mediaStorage()
-      .deleteObject(storageFileId)
-      .catch((e) =>
-        console.error('[fn-admin] completeUpload: could not delete rejected object', e),
-      );
-    return err('VALIDATION_ERROR', message);
-  };
-
-  const bytes = Buffer.from(object.body, 'base64');
-  const byteSize = object.byteSize ?? bytes.byteLength;
-
-  // Re-enforce the catalog size cap against the REAL bytes. The pre-signed
-  // credential is unbounded and the intent-time `byteSize` was only a
-  // client-declared hint, so the cap MUST be checked here (contract §22.3-6).
-  if (byteSize > CATALOG_IMAGE_MAX_BYTES) {
-    return rejectInvalid('Uploaded object exceeds the maximum allowed size.');
-  }
-
-  // Recompute SHA-256 server-side; if the client declared one, the bytes that
-  // landed must match it — otherwise the object was tampered with or truncated.
-  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
-  if (typeof doc.checksumSha256 === 'string' && doc.checksumSha256 !== checksumSha256) {
-    return rejectInvalid('Uploaded bytes do not match the declared checksum.');
-  }
-
-  // The pre-signed credential fixes only the object KEY, not the content, so
-  // the landed bytes may be anything the browser PUT. Require the magic bytes
-  // to match the intent's declared (allowlisted) image MIME — an HTML/JS
-  // payload behind an image name must never activate, because `mimeType` is
-  // reflected into the public delivery Content-Type. Mirrors the OEM path's
-  // `oemBytesMatchType` sniff.
-  const declaredMime = typeof doc.mimeType === 'string' ? doc.mimeType : '';
-  if (!signatureMatchesMime(sniffMagicBytes(bytes), declaredMime)) {
-    return rejectInvalid('Uploaded bytes are not a valid image of the declared type.');
-  }
-
-  const activated = await updateDoc('images', imageId, {
-    status: 'active',
-    byteSize,
-    checksumSha256,
-  });
-  if (!activated) {
-    // The row was removed between the pending-check and this activation, so the
-    // verified object is now orphaned with no doc pointer — invisible to
-    // cleanupOrphanImages. A null staging result must NEVER be reported as
-    // success (rule e603f34): best-effort delete the object and surface an error.
-    await mediaStorage()
-      .deleteObject(storageFileId)
-      .catch((e) =>
-        console.error(
-          `[fn-admin] completeUpload: LEAKED storage object ${storageFileId} for ${imageId} (compensating delete failed)`,
-          e,
-        ),
-      );
-    return err('CONFLICT', 'The image record was removed before it could be activated.');
-  }
-  return ok({
-    imageId,
-    status: 'active',
-    byteSize,
-    image: redact('images', activated),
-  });
+  const result = await finalizeCatalogImageUpload(parsed.data.imageId, claims.sub);
+  if (!result.ok) return result;
+  return ok({ ...result.data, image: redact('images', result.data.image) });
 }
 
 /**
