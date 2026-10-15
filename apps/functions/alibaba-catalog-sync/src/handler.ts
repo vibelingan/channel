@@ -475,7 +475,10 @@ export async function handleAlibabaSyncRequest(
       const payload = importImageSchema.safeParse(parsed.data.data);
       if (!payload.success) return err('VALIDATION_ERROR', 'url is required.');
       const result = await importCandidateImage(payload.data.url);
-      if (!result.ok) return err('VALIDATION_ERROR', `Import rejected: ${result.reason}.`);
+      if (!result.ok)
+        return result.reason === 'busy'
+          ? err('BUSY', 'This photo is being prepared. Try again shortly.')
+          : err('VALIDATION_ERROR', `Import rejected: ${result.reason}.`);
       return ok(result);
     }
     case 'removeImportedImage': {

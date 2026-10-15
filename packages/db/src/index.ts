@@ -1,3 +1,26 @@
+import {
+  type SourceMediaImportCommand,
+  SourceMediaImportCommandSchema,
+} from './source-media-import.ts';
+export {
+  runSourceMediaImport,
+  SOURCE_MEDIA_IMPORT_OWNER,
+  SOURCE_MEDIA_IMPORT_LEASE_MS,
+  SourceMediaImportCommandSchema,
+  SourceMediaTargetSchema,
+} from './source-media-import.ts';
+export type {
+  SourceMediaImportCommand,
+  SourceMediaImportResult,
+  SourceMediaTarget,
+} from './source-media-import.ts';
+export function manageSourceMediaImport(command: SourceMediaImportCommand) {
+  const input = SourceMediaImportCommandSchema.parse(command);
+  const adapter = db();
+  if (!adapter.manageSourceMediaImport)
+    throw new Error('Source media import adapter is not configured');
+  return adapter.manageSourceMediaImport(input);
+}
 /**
  * Repository facade. Backend code (cloud functions, local-server) imports these
  * functions and never touches a concrete database. The active `DbAdapter` is

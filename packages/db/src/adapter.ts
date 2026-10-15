@@ -22,6 +22,7 @@ import {
   validateProductPublication,
 } from '@vibelingan-channel/shared';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
+import type { SourceMediaImportCommand, SourceMediaImportResult } from './source-media-import.ts';
 export {
   alibabaPricingFingerprint,
   type AlibabaPricingEvidenceExpectation,
@@ -593,6 +594,7 @@ export interface DbAdapter {
   ): Promise<ImageMutationAcquireResult>;
   /** Atomically quarantine or finalize an image deletion; never calls storage. */
   manageImageDeletion?(command: ImageDeletionCommand): Promise<ImageDeletionResult>;
+  manageSourceMediaImport?(command: SourceMediaImportCommand): Promise<SourceMediaImportResult>;
   /** Release only when the caller still owns the image mutation lock. */
   releaseImageMutation?(imageId: string, owner: string): Promise<ImageMutationReleaseResult>;
   /**

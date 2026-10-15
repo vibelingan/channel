@@ -305,3 +305,36 @@ test('opaque storage identifiers preserve a fully URL-encoded legal COS object k
   assert.ok(result.status === 'ready');
   assert.deepEqual(result.intent.storageFileIds, [storageFileId]);
 });
+
+test('a foreign document identity cannot authorize quarantine or terminal removal', async () => {
+  const active = fixture({ _id: 'foreign' });
+  assert.deepEqual(await runImageDeletion(active.store, begin), { status: 'corrupt' });
+  assert.deepEqual(active.writes, []);
+  const terminal = fixture();
+  await runImageDeletion(terminal.store, begin);
+  terminal.patch({ _id: 'foreign' });
+  const before = structuredClone(terminal.row);
+  assert.deepEqual(await runImageDeletion(terminal.store, finish), { status: 'corrupt' });
+  assert.deepEqual(terminal.row, before);
+});
+test('unknown quarantine ACK followed by a foreign terminal readback never deletes bytes', async () => {
+  const f = fixture();
+  await runImageDeletion(f.store, begin);
+  f.patch({ _id: 'foreign' });
+  let deletes = 0;
+  const result = await executeImageDeletion(
+    {
+      manage: async () => {
+        throw new Error('quarantine outcome unknown');
+      },
+      get: async () => structuredClone(f.row),
+    },
+    begin,
+    async () => {
+      deletes++;
+    },
+  );
+  assert.equal(result, 'corrupt');
+  assert.equal(deletes, 0);
+  assert.equal(f.row?.status, 'deleted');
+});

@@ -1,0 +1,413 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { readImageDeletionIntent } from './image-deletion.ts';
+import {
+  type SourceMediaImportCommand,
+  SourceMediaImportCommandSchema,
+  runSourceMediaImport,
+} from './source-media-import.ts';
+
+const now = '2026-10-15T00:00:00.000Z';
+const later = '2026-10-15T00:03:00.000Z';
+const sourceUrl = 'https://sc04.alicdn.com/a.png';
+const base = { sourceUrl, operationId: 'operation-1', imageId: 'image-1', now };
+const claim = { ...base, action: 'claim' } as const;
+const target = {
+  storageProvider: 'local-disk',
+  storageMode: 'local-disk',
+  storageFileId: 'local-disk:Case%20Sensitive ',
+  storagePath: 'catalog/owned/a.png',
+  byteSize: 68,
+  checksumSha256: 'a'.repeat(64),
+  mimeType: 'image/png',
+  name: 'a.png',
+} as const;
+const checkpoint = { ...base, action: 'checkpoint', target } as const;
+const activate = { ...base, action: 'activate', target } as const;
+const linkId = sourceMediaLinkId('alibaba', sourceUrl);
+function fixture() {
+  let rows = new Map<string, CollectionDoc>();
+  const key = (collection: string, id: string) => `${collection}\0${id}`;
+  let maximumOperations = 0;
+  const f = {
+    get: (collection: string, id: string) => structuredClone(rows.get(key(collection, id)) ?? null),
+    put: (collection: string, row: CollectionDoc) => {
+      rows.set(key(collection, row._id), structuredClone(row));
+    },
+    snapshot: () => structuredClone(rows),
+    max: () => maximumOperations,
+    async run(command: SourceMediaImportCommand) {
+      const copy = structuredClone(rows);
+      let writes = false;
+      let operations = 0;
+      const result = await runSourceMediaImport(
+        {
+          get: async (collection, id) => {
+            assert.equal(writes, false, 'all reads precede writes');
+            operations++;
+            return structuredClone(copy.get(key(collection, id)) ?? null);
+          },
+          set: async (collection, row) => {
+            writes = true;
+            operations++;
+            copy.set(key(collection, row._id), structuredClone(row));
+          },
+          remove: async (collection, id) => {
+            writes = true;
+            operations++;
+            assert.ok(copy.delete(key(collection, id)), 'confirmed pending row removal');
+          },
+        },
+        command,
+      );
+      rows = copy;
+      maximumOperations = Math.max(maximumOperations, operations);
+      return result;
+    },
+  };
+  return f;
+}
+async function claimed() {
+  const f = fixture();
+  assert.equal((await f.run(claim)).status, 'claimed');
+  return f;
+}
+async function staged() {
+  const f = await claimed();
+  assert.equal((await f.run(checkpoint)).status, 'checkpointed');
+  return f;
+}
+async function active() {
+  const f = await staged();
+  assert.deepEqual(await f.run(activate), {
+    status: 'ready',
+    imageId: base.imageId,
+    deduplicated: false,
+  });
+  return f;
+}
+function hold(f: ReturnType<typeof fixture>, id: string, owner: string) {
+  const image = f.get('images', id);
+  assert.ok(image);
+  f.put('images', { ...image, imageMutationOwner: owner, imageMutationStartedAt: now });
+}
+
+test('claim, permanent checkpoint and atomic activation are idempotent with bounded reads and writes', async () => {
+  const f = await claimed();
+  assert.equal(f.get('images', base.imageId)?.status, 'pending');
+  assert.equal(f.get('images', base.imageId)?.storageFileId, undefined);
+  assert.equal((await f.run(claim)).status, 'claimed');
+  assert.equal((await f.run(checkpoint)).status, 'checkpointed');
+  assert.equal((await f.run(checkpoint)).status, 'checkpointed');
+  assert.equal(f.get('images', base.imageId)?.storageFileId, target.storageFileId);
+  assert.deepEqual(await f.run(activate), {
+    status: 'ready',
+    imageId: base.imageId,
+    deduplicated: false,
+  });
+  assert.equal(f.get('images', base.imageId)?.status, 'active');
+  assert.equal(f.get('catalogSourceLinks', linkId)?.imageId, base.imageId);
+  assert.equal(f.get('catalogSourceLinks', linkId)?.mediaImport, undefined);
+  assert.deepEqual(await f.run(activate), {
+    status: 'ready',
+    imageId: base.imageId,
+    deduplicated: false,
+  });
+  assert.equal((await f.run({ ...base, action: 'fail', reason: 'write-failed' })).status, 'ready');
+  assert.ok(f.max() <= 4);
+});
+test('a completed URL binding is reused without creating a second pending image', async () => {
+  const f = await active();
+  const before = f.snapshot();
+  assert.deepEqual(await f.run({ ...claim, operationId: 'other', imageId: 'other' }), {
+    status: 'ready',
+    imageId: base.imageId,
+    deduplicated: true,
+  });
+  assert.deepEqual(f.snapshot(), before);
+});
+test('busy URL has one claimant; expired takeover fences every late old write and retains old target', async () => {
+  const f = await staged();
+  const second = { ...claim, operationId: 'operation-2', imageId: 'image-2' };
+  assert.equal((await f.run(second)).status, 'busy');
+  assert.equal(f.get('images', 'image-2'), null);
+  assert.equal((await f.run({ ...second, now: later })).status, 'claimed');
+  for (const command of [
+    checkpoint,
+    activate,
+    { ...base, action: 'fail', reason: 'fetch-failed' } as const,
+  ])
+    assert.equal((await f.run({ ...command, now: later })).status, 'conflict');
+  assert.equal(f.get('images', base.imageId)?.storageFileId, target.storageFileId);
+  assert.equal(f.get('images', base.imageId)?.status, 'pending');
+  assert.equal(f.get('catalogSourceLinks', linkId)?.imageId, undefined);
+});
+test('checkpoint and activation refuse a changed permanent file or metadata', async () => {
+  const f = await claimed();
+  assert.equal((await f.run(activate)).status, 'conflict');
+  await f.run(checkpoint);
+  const before = f.snapshot();
+  assert.equal(
+    (await f.run({ ...checkpoint, target: { ...target, storageFileId: 'local-disk:other' } }))
+      .status,
+    'conflict',
+  );
+  assert.equal(
+    (await f.run({ ...activate, target: { ...target, checksumSha256: 'b'.repeat(64) } })).status,
+    'conflict',
+  );
+  assert.deepEqual(f.snapshot(), before);
+});
+test('the existing image mutex fences pending checkpoint and activation against cleanup', async () => {
+  const f = await staged();
+  hold(f, base.imageId, 'cleanup');
+  const before = f.snapshot();
+  assert.equal((await f.run(checkpoint)).status, 'busy');
+  assert.equal((await f.run(activate)).status, 'busy');
+  assert.deepEqual(f.snapshot(), before);
+});
+test('checksum reuse requires the existing image mutex, atomically binds and removes unused pending row, then replays', async () => {
+  const f = await claimed();
+  f.put('images', {
+    _id: 'existing',
+    status: 'active',
+    ...target,
+    publishedRefCount: 2,
+    uploadedByUserId: 'admin',
+  });
+  const command = {
+    ...base,
+    action: 'reuse',
+    existingImageId: 'existing',
+    checksumSha256: target.checksumSha256,
+  } as const;
+  assert.equal((await f.run(command)).status, 'busy');
+  hold(f, 'existing', base.operationId);
+  assert.deepEqual(await f.run(command), {
+    status: 'ready',
+    imageId: 'existing',
+    deduplicated: true,
+  });
+  assert.equal(f.get('images', base.imageId), null);
+  assert.equal(f.get('images', 'existing')?.publishedRefCount, 2);
+  assert.equal(f.get('catalogSourceLinks', linkId)?.imageId, 'existing');
+  assert.deepEqual(await f.run(command), {
+    status: 'ready',
+    imageId: 'existing',
+    deduplicated: true,
+  });
+  assert.ok(f.max() <= 6);
+});
+test('checksum reuse refuses inactive, wrong bytes or mismatched mutex owner', async () => {
+  for (const patch of [
+    { status: 'deleted' },
+    { checksumSha256: 'b'.repeat(64) },
+    { imageMutationOwner: 'someone-else', imageMutationStartedAt: now },
+  ]) {
+    const f = await claimed();
+    f.put('images', {
+      _id: 'existing',
+      status: 'active',
+      ...target,
+      publishedRefCount: 0,
+      imageMutationOwner: base.operationId,
+      imageMutationStartedAt: now,
+      ...patch,
+    });
+    assert.ok(
+      ['busy', 'conflict'].includes(
+        (
+          await f.run({
+            ...base,
+            action: 'reuse',
+            existingImageId: 'existing',
+            checksumSha256: target.checksumSha256,
+          })
+        ).status,
+      ),
+    );
+    assert.equal(f.get('catalogSourceLinks', linkId)?.imageId, undefined);
+    assert.equal(f.get('images', base.imageId)?.status, 'pending');
+  }
+});
+test('one owned failed fetch increments attempts once, releases the claim and keeps a tracked failed row', async () => {
+  const f = await claimed();
+  const failed = { ...base, action: 'fail', reason: 'fetch-failed' } as const;
+  assert.equal((await f.run(failed)).status, 'failed');
+  assert.equal((await f.run(failed)).status, 'failed');
+  assert.equal(f.get('catalogSourceLinks', linkId)?.failureAttempts, 1);
+  assert.equal(f.get('catalogSourceLinks', linkId)?.mediaImport, undefined);
+  assert.equal(f.get('images', base.imageId)?.status, 'failed');
+  assert.equal((await f.run({ ...claim, operationId: 'next', imageId: 'next' })).status, 'claimed');
+  assert.equal(
+    (
+      await f.run({
+        ...base,
+        operationId: 'next',
+        imageId: 'next',
+        action: 'fail',
+        reason: 'write-failed',
+      })
+    ).status,
+    'failed',
+  );
+  assert.equal(f.get('catalogSourceLinks', linkId)?.failureAttempts, 1);
+});
+test('a late failure note cannot erase a successful URL binding or another pending operation', async () => {
+  for (const f of [await active(), await claimed()]) {
+    const before = f.snapshot();
+    const result = await f.run({
+      action: 'note-failure',
+      sourceUrl,
+      operationId: 'late',
+      reason: 'not-found',
+      now,
+    });
+    assert.ok(result.status === 'ready' || result.status === 'busy');
+    assert.deepEqual(f.snapshot(), before);
+  }
+});
+test('failure notes are idempotent and normalize malformed prior counts at the atomic write', async () => {
+  for (const count of [undefined, 0, 1, 2.5, -1, '4']) {
+    const f = fixture();
+    f.put('catalogSourceLinks', {
+      _id: linkId,
+      kind: 'media',
+      provider: 'alibaba',
+      sourceUrl,
+      ...(count === undefined ? {} : { failureAttempts: count }),
+    });
+    const command = {
+      action: 'note-failure',
+      sourceUrl,
+      operationId: 'attempt',
+      reason: 'fetch-failed',
+      now,
+    } as const;
+    assert.equal((await f.run(command)).status, 'noted');
+    assert.equal((await f.run(command)).status, 'noted');
+    assert.equal(
+      f.get('catalogSourceLinks', linkId)?.failureAttempts,
+      count === undefined || count === 0 ? 1 : 2,
+    );
+  }
+});
+test('unknown ownership versions and extra ownership fields fail closed without writes', async () => {
+  for (const patch of [{ schemaVersion: 'source-media-import-v2' }, { unexpected: true }]) {
+    const f = await claimed();
+    const link = f.get('catalogSourceLinks', linkId);
+    assert.ok(link);
+    const value = link.mediaImport;
+    assert.ok(value && typeof value === 'object');
+    f.put('catalogSourceLinks', { ...link, mediaImport: { ...value, ...patch } });
+    const before = f.snapshot();
+    assert.equal(
+      (await f.run({ ...claim, operationId: 'other', imageId: 'other' })).status,
+      'corrupt',
+    );
+    assert.deepEqual(f.snapshot(), before);
+  }
+});
+test('unknown or extra receipt fields cannot fall back to legacy active binding', async () => {
+  for (const receipt of [
+    {
+      schemaVersion: 'source-media-import-v2',
+      operationId: base.operationId,
+      imageId: base.imageId,
+    },
+    {
+      schemaVersion: 'source-media-import-v1',
+      operationId: base.operationId,
+      imageId: base.imageId,
+      extra: true,
+    },
+  ]) {
+    const f = await active();
+    const link = f.get('catalogSourceLinks', linkId);
+    assert.ok(link);
+    f.put('catalogSourceLinks', { ...link, mediaImportReceipt: receipt });
+    const before = f.snapshot();
+    assert.equal(
+      (await f.run({ ...claim, operationId: 'other', imageId: 'other' })).status,
+      'corrupt',
+    );
+    assert.deepEqual(f.snapshot(), before);
+  }
+});
+test('retirement requires existing mutex and expired current claim; quarantines exact target before byte deletion', async () => {
+  const f = await staged();
+  const command = { action: 'retire', imageId: base.imageId, owner: 'cleanup', now } as const;
+  assert.equal((await f.run(command)).status, 'busy');
+  hold(f, base.imageId, 'cleanup');
+  assert.equal((await f.run(command)).status, 'busy');
+  assert.equal((await f.run({ ...command, now: later })).status, 'retired');
+  const image = f.get('images', base.imageId);
+  assert.ok(image);
+  assert.equal(image.status, 'deleted');
+  assert.deepEqual(readImageDeletionIntent(image)?.storageFileIds, [target.storageFileId]);
+  assert.equal(f.get('catalogSourceLinks', linkId)?.mediaImport, undefined);
+  assert.equal((await f.run({ ...command, now: later })).status, 'retired');
+  assert.equal((await f.run({ ...activate, now: later })).status, 'conflict');
+});
+test('retiring an old pending row cannot clear a new URL claimant', async () => {
+  const f = await staged();
+  await f.run({ ...claim, operationId: 'new', imageId: 'new', now: later });
+  hold(f, base.imageId, 'cleanup');
+  const link = f.get('catalogSourceLinks', linkId);
+  assert.equal(
+    (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later })).status,
+    'retired',
+  );
+  assert.deepEqual(f.get('catalogSourceLinks', linkId), link);
+});
+test('a stale cleanup selection cannot quarantine an image that has become active', async () => {
+  const f = await active();
+  hold(f, base.imageId, 'cleanup');
+  const before = f.snapshot();
+  assert.equal(
+    (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later })).status,
+    'conflict',
+  );
+  assert.deepEqual(f.snapshot(), before);
+});
+test('bad command fields and noncanonical URLs are validation failures, not decoder exceptions', () => {
+  for (const patch of [
+    { now: 'not-a-date' },
+    { sourceUrl: 'http://sc04.alicdn.com/a.png' },
+    { sourceUrl: 'https://SC04.alicdn.com:443/a.png#ignored' },
+    { extra: true },
+    { imageId: '' },
+  ])
+    assert.equal(SourceMediaImportCommandSchema.safeParse({ ...claim, ...patch }).success, false);
+});
+
+test('a legacy writer mixed into a pending source claim cannot be reused or cleaned as a valid phase', async () => {
+  for (const patch of [
+    { imageId: 'legacy-image' },
+    {
+      mediaImportReceipt: {
+        schemaVersion: 'source-media-import-v1',
+        operationId: 'legacy',
+        imageId: 'legacy-image',
+      },
+    },
+  ]) {
+    const f = await staged();
+    const link = f.get('catalogSourceLinks', linkId);
+    assert.ok(link);
+    f.put('catalogSourceLinks', { ...link, ...patch });
+    const before = f.snapshot();
+    assert.equal((await f.run(claim)).status, 'corrupt');
+    assert.deepEqual(f.snapshot(), before);
+    hold(f, base.imageId, 'cleanup');
+    const locked = f.snapshot();
+    assert.equal(
+      (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later }))
+        .status,
+      'corrupt',
+    );
+    assert.deepEqual(f.snapshot(), locked);
+  }
+});

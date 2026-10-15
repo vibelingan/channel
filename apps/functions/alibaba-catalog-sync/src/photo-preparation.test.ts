@@ -5,6 +5,7 @@ import {
   sourceMediaLinkId,
   sourceObservationDocumentId,
 } from '@vibelingan-channel/catalog-import/observations';
+import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
@@ -32,6 +33,43 @@ import {
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
+  private sourceMediaQueue: Promise<void> = Promise.resolve();
+  async manageSourceMediaImport(command: SourceMediaImportCommand) {
+    const operation = this.sourceMediaQueue.then(async () => {
+      if (command.action === 'claim' && this.store.__failCreate)
+        throw new Error('simulated reservation failure');
+      const copy = structuredClone(this.store);
+      const result = await runSourceMediaImport(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((row) => row._id === id) ?? -1;
+            if (!rows || index < 0) throw new Error('Unconfirmed pending image removal');
+            rows.splice(index, 1);
+          },
+        },
+        command,
+      );
+      for (const key of Object.keys(this.store)) delete this.store[key];
+      Object.assign(this.store, copy);
+      return result;
+    });
+    this.sourceMediaQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
+
   constructor(readonly store: Store) {}
   private docs(collection: string): CollectionDoc[] {
     this.store[collection] ??= [];
@@ -1130,3 +1168,109 @@ for (const state of ['missing', 'invalid', 'inactive', 'other-source'] as const)
     assert.deepEqual(importer.calls, []);
     assert.deepEqual(store.products, before);
   });
+
+test('prepare: a busy copy neither counts as a failure nor consumes the first-download progress budget', async () => {
+  const sources = [0, 1, 2, 3, 4].map((i) => url(`busy-${i}`));
+  const store: Store = {
+    products: [
+      draft('busy', {
+        alibabaSourceImageUrls: sources,
+        alibabaDescriptionImageUrls: [],
+        alibabaPhotosPending: true,
+      }),
+    ],
+  };
+  setAdapter(new MemoryAdapter(store));
+  const good = fakeImporter(store);
+  const calls: string[] = [];
+  const page = await prepareAlibabaPhotosPage({
+    budgetMs: 0,
+    importImage: async (source) => {
+      calls.push(source);
+      return source === sources[4] ? good.importImage(source) : { ok: false, reason: 'busy' };
+    },
+  });
+  assert.equal(calls.length, 5);
+  assert.equal(page.photosCopied, 1);
+  assert.equal(page.photosFailed, 0);
+  assert.equal(page.waiting, 1);
+  assert.equal(store.products?.[0]?.alibabaPhotosPending, true);
+  for (const source of sources.slice(0, 4))
+    assert.equal(
+      store.catalogSourceLinks?.find((link) => link.sourceUrl === source),
+      undefined,
+    );
+});
+test('prepare: a late failed attempt reuses the concurrent successful binding without overwriting it', async () => {
+  const source = url('late');
+  const store: Store = {
+    products: [
+      draft('late', {
+        alibabaSourceImageUrls: [source],
+        alibabaDescriptionImageUrls: [],
+        alibabaPhotosPending: true,
+      }),
+    ],
+  };
+  setAdapter(new MemoryAdapter(store));
+  const page = await prepareAlibabaPhotosPage({
+    importImage: async () => {
+      store.images = [
+        {
+          _id: 'healthy',
+          status: 'active',
+          storageProvider: 'local-disk',
+          storageFileId: 'mem://healthy',
+          publishedRefCount: 0,
+        },
+      ];
+      store.catalogSourceLinks = [
+        {
+          _id: sourceMediaLinkId('alibaba', source),
+          kind: 'media',
+          provider: 'alibaba',
+          sourceUrl: source,
+          imageId: 'healthy',
+        },
+      ];
+      return { ok: false, reason: 'not-found' };
+    },
+  });
+  assert.equal(page.prepared, 1);
+  assert.equal(page.photosReused, 1);
+  assert.equal(page.photosFailed, 0);
+  assert.deepEqual(store.products?.[0]?.imageIds, ['healthy']);
+  assert.equal(store.catalogSourceLinks?.[0]?.imageId, 'healthy');
+  assert.equal(store.catalogSourceLinks?.[0]?.failedAt, undefined);
+});
+test('prepare: a failure already recorded by the real importer is not counted a second time', async () => {
+  const source = url('recorded');
+  const store: Store = {
+    products: [
+      draft('recorded', {
+        alibabaSourceImageUrls: [source],
+        alibabaDescriptionImageUrls: [],
+        alibabaPhotosPending: true,
+      }),
+    ],
+  };
+  const adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
+  const now = '2026-10-15T00:00:00.000Z';
+  const page = await prepareAlibabaPhotosPage({
+    now: () => now,
+    importImage: async () => {
+      await adapter.manageSourceMediaImport({
+        action: 'note-failure',
+        sourceUrl: source,
+        operationId: 'owned-attempt',
+        reason: 'fetch-failed',
+        now,
+      });
+      return { ok: false, reason: 'fetch-failed', failureRecorded: true };
+    },
+  });
+  assert.equal(page.waiting, 1);
+  assert.equal(store.catalogSourceLinks?.[0]?.failureAttempts, 1);
+  assert.equal(store.products?.[0]?.alibabaPhotosPending, true);
+});

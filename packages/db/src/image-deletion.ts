@@ -84,6 +84,7 @@ export async function runImageDeletion(
   const command = ImageDeletionCommandSchema.parse(input);
   const image = await store.get('images', command.imageId);
   if (!image) return { status: 'missing' };
+  if (image._id !== command.imageId) return { status: 'corrupt' };
   if (image.uploadedByUserId !== command.uploadedByUserId) return { status: 'forbidden' };
   if (image.status === 'deleted') {
     const intent = readImageDeletionIntent(image);

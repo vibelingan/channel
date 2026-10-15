@@ -884,6 +884,21 @@ requireCheck(
     ),
   'image deletion production bridge executes the shared state machine in one native SDK transaction',
 );
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'manageSourceMediaImport').includes(
+    'manageSourceMediaImportInCloudBase',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'manageSourceMediaImport').includes(
+      'cloudStorageSdk().database',
+    ),
+  'source media production adapter delegates to its tested node-sdk transaction helper',
+);
+requireCheck(
+  ['catalogRowStore', 'runSourceMediaImport'].every((call) =>
+    transactionFunctionCalls('manageSourceMediaImportInCloudBase').includes(call),
+  ),
+  'source media state transitions execute inside one native SDK transaction callback',
+);
 // The FENCED conditional write (R1 E2) is the branch's one architecture
 // amendment, and its PRODUCTION implementations had zero coverage — every
 // lease assertion runs against a test-only adapter that re-implements the

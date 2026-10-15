@@ -778,3 +778,15 @@ P2d7 review 中已观察的这个 P2 在本单元关闭；整体仍未完成媒�
 文字复核实际阅读：`P2d8a_TRACKED_MEDIA_UPLOAD.zh-CN.md`、本条实施记录、`SDK-PROBE.md` 新增段；把旧代码注释中“wx default structurally satisfies”和“multipart/form-data”更正为实际 node-sdk 注入与 raw PUT。对照安装包输入 guard、五个凭据头、官方200/空响应体契约和实际测试计数；删除“never leak”式无法由这一步支持的保证。属性筛选想法不进入当前实现。没有 push、部署或云端业务数据改动，没有新分支/worktree/agent。
 
 P2d8a 独立审查：f4c0b94 的 SDK 发送方分母漏掉 Git 加引号的非 ASCII 文件名，独占临时 Unicode 发送方复现98项假通过，先将该提交标记 BLOCKED。修复采用 NUL 分隔路径；追加第10个门禁故障要求同一发送方明确失败。未修改上传运行代码，原45/2815测试、5类型和3函数构建结果仍对应同一运行代码；门禁本身重新执行。
+
+## 2026-10-15 P2d8b：来源图片原子绑定与恢复
+
+32b935a精确review已通过，接入上传检查点的实际caller。新增strict版本化URL归属/永久目标/回执命令，现有JSON mutation queue与native node-sdk transaction执行同一状态机；取代导入先字节后独立image/link写入及失败后盲删。校验和复用持原图片互斥并同值物理写图片行，防止快照读误作串行保证。失败记录不会覆盖并发成功，BUSY有明确重试状态；清理先退休再删，部分删除重启续接且只报告确认文件。
+
+实际完整回归2887、Node20.19关键流程438，均0failed/skip；三函数构建、Node20打包/离线产物smoke、四后端类型通过。31运行缺陷在159正控baseline全部检出，3新增SDK连接缺陷各99正控/1业务失败；源码恢复hash一致。SDK inventory25对与SDK-PROBE逐cell join无遗漏。完整重新构建浏览器151通过；含本地20件分类发布/BUSY恢复/引用数恢复，owned N6f0Ek目录独立确认不存在，19文件冻结hash匹配。这是本地样本，不是云test真实选品验收。详情和边界见P2d8b_SOURCE_MEDIA_IMPORT.zh-CN.md。
+
+复现更正：原测试误认shared规范化会去fragment；真实helper保留fragment。更正字面期望后回退旧导入实现再跑，取得1控制/3真实业务失败；旧有错误oracle不作为根因证据。初版mock写集合漏记、root Zod解析失败和shell只读status赋值仅算工具错误，最终有效探针另留完整结果。
+
+文字实际复核source-media-import schema/claim/checkpoint/activate/reuse/fail/retire、native bridge与JSON queue、importCandidateImage、copiedState失败记录、cleanupSourceMediaImage和后台两lane、源测试及本单元SDK/实施文档。将“注册成功表示文件健康”改为“注册绑定可复用，文件健康须后续独立验证”；将“清理失败就没有删文件”改为“只逐项报告确认删除，未知结果保留intent继续”。核对永久目标逐字保留、旧任务nonce、真实本地PNG、部分删除回执及0skip/恢复hash。没有将metadata mock冒充云存储证明。
+
+其余MIU继续，不新增筛选属性/存储分支/worktree/agent，不push或部署。真实clock resync/load、保留现有分类的20件Assign category→Save and publish和恢复仍未完成。

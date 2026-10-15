@@ -1,3 +1,4 @@
+import { runSourceMediaImport, type SourceMediaImportCommand } from './source-media-import.ts';
 import { runImageDeletion, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
 import { randomUUID } from 'node:crypto';
 import { withAlibabaLeaseCommit } from './alibaba-lease-commit-queue.ts';
@@ -455,6 +456,10 @@ export async function releaseImageMutationInCloudBase(db: Pick<NodeSdkDatabase, 
       }), imageId);
       return 'released';
     });
+}
+
+export async function manageSourceMediaImportInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: SourceMediaImportCommand) {
+  return db.runTransaction(transaction => runSourceMediaImport(catalogRowStore(transaction), command));
 }
 
 export async function manageImageDeletionInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageDeletionCommand) {
@@ -980,6 +985,9 @@ export const cloudBaseAdapter: DbAdapter = {
     return Number.isFinite(value) ? value : null;
   },
 
+  async manageSourceMediaImport(command) {
+    return manageSourceMediaImportInCloudBase(cloudStorageSdk().database(), command);
+  },
   async manageImageDeletion(command) {
     return manageImageDeletionInCloudBase(cloudStorageSdk().database(), command);
   },

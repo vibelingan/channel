@@ -22,6 +22,7 @@ import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password'
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   type CatalogProductSaveInput,
+  SOURCE_MEDIA_IMPORT_OWNER,
   UnknownCollectionError,
   acquireImageMutation,
   alibabaLinkRevision,
@@ -159,6 +160,7 @@ import {
   withAdminEditsKept,
 } from './catalog-supplier-review.ts';
 import { CatalogValidationSchema, catalogValidationMessage } from './catalog-validation.ts';
+import { cleanupSourceMediaImage } from './source-media-cleanup.ts';
 
 export interface AdminConfig {
   jwtSecret: string;
@@ -2645,43 +2647,52 @@ async function listOrphanCleanupCandidates(input: {
   cutoff: string;
   limit: number;
 }): Promise<{ items: CollectionDoc[]; total: number }> {
-  const items: CollectionDoc[] = [];
-  let total = 0;
-  let page = 1;
-  const pageSize = Math.min(ORPHAN_CLEANUP_DB_PAGE_SIZE, input.limit);
-
-  while (items.length < input.limit) {
-    const res = await list({
-      collection: 'images',
-      page,
-      pageSize,
-      sort: ORPHAN_CLEANUP_SORT,
-      filter: {
-        combinator: 'and',
-        clauses: [
-          { field: 'status', op: 'in', value: ['pending', 'failed'] },
-          { field: 'createdAt', op: 'lt', value: input.cutoff },
-        ],
-      },
-    });
-
-    if (page === 1) total = res.total;
-    items.push(...res.items);
-    if (res.items.length < pageSize) break;
-    page += 1;
-  }
-
-  return { items: items.slice(0, input.limit), total };
+  const collect = async (retired: boolean) => {
+    const items: CollectionDoc[] = [];
+    let total = 0;
+    let page = 1;
+    const pageSize = Math.min(ORPHAN_CLEANUP_DB_PAGE_SIZE, input.limit);
+    while (items.length < input.limit) {
+      const res = await list({
+        collection: 'images',
+        page,
+        pageSize,
+        sort: ORPHAN_CLEANUP_SORT,
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'status', op: 'in', value: retired ? ['deleted'] : ['pending', 'failed'] },
+            { field: 'createdAt', op: 'lt', value: input.cutoff },
+            ...(retired
+              ? [{ field: 'uploadedByUserId', op: 'eq' as const, value: SOURCE_MEDIA_IMPORT_OWNER }]
+              : []),
+          ],
+        },
+      });
+      if (page === 1) total = res.total;
+      items.push(...res.items);
+      if (res.items.length < pageSize) break;
+      page++;
+    }
+    return { items: items.slice(0, input.limit), total };
+  };
+  // Retired service copies need a retry lane after a partial byte deletion.
+  // Merge both bounded sorted prefixes under the same overall limit.
+  const [pending, retired] = await Promise.all([collect(false), collect(true)]);
+  const unique = new Map([...pending.items, ...retired.items].map((row) => [row._id, row]));
+  const duplicateCount = pending.items.length + retired.items.length - unique.size;
+  return {
+    items: [...unique.values()].sort((a, b) => a._id.localeCompare(b._id)).slice(0, input.limit),
+    total: pending.total + retired.total - duplicateCount,
+  };
 }
 
 /**
- * MIU-06 orphan cleanup. Reaps abandoned image documents — `pending` intents whose
- * upload never completed and `failed` rows from a rejected completeUpload — older
- * than a TTL, deleting the private storage object FIRST and only then the metadata.
- * A storage-delete failure leaves the row in place (reported, retried next sweep)
- * rather than silently orphaning bytes. Never touches `active` images (the live
- * catalog) and is admin-only. `dryRun` reports candidates without mutating. Storage
- * keys are logged; temporary URLs are not (§20.8 exit criteria).
+ * Admin-only expiry cleanup and service-copy deletion recovery. Storage deletion
+ * must succeed before row removal. Service copies first persist a terminal intent
+ * through their image mutex and state machine; partial failures resume that intent.
+ * Other pending/failed uploads retain the existing orphan-cleanup path. Temporary
+ * signed URLs are never logged or persisted here.
  */
 async function cleanupOrphanImagesAction(
   req: AdminRequest,
@@ -2705,11 +2716,29 @@ async function cleanupOrphanImagesAction(
   const removed: string[] = [];
   const storageDeleted: string[] = [];
   const storageFailed: Array<{ id: string; error: string }> = [];
+  const skipped: Array<{ id: string; reason: 'busy' | 'state-changed' | 'already-gone' }> = [];
 
   for (const doc of candidates.items) {
     const id = String(doc._id);
     if (dryRun) {
       removed.push(id);
+      continue;
+    }
+    if (
+      Object.hasOwn(doc, 'sourceMediaImport') ||
+      (doc.status === 'deleted' && doc.uploadedByUserId === SOURCE_MEDIA_IMPORT_OWNER)
+    ) {
+      const result = await cleanupSourceMediaImage(id);
+      storageDeleted.push(...result.storageDeleted);
+      if (result.status === 'deleted') removed.push(id);
+      else if (result.status === 'missing') skipped.push({ id, reason: 'already-gone' });
+      else if (result.status === 'busy' || result.status === 'changed') {
+        skipped.push({ id, reason: result.status === 'busy' ? 'busy' : 'state-changed' });
+      } else
+        storageFailed.push({
+          id,
+          error: 'Image cleanup is incomplete; retry cleanup or inspect its recorded state.',
+        });
       continue;
     }
     const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
@@ -2740,6 +2769,7 @@ async function cleanupOrphanImagesAction(
     removed,
     storageDeleted,
     storageFailed,
+    skipped,
   });
 }
 

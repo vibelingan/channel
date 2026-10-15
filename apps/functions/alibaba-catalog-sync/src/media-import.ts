@@ -8,36 +8,42 @@
  * verified by magic bytes (the MIME is DERIVED from bytes, never from
  * headers) and deduplicated by SHA-256.
  *
- * Imported candidates enter the EXISTING media lifecycle as
- * status 'active' + publishedRefCount 0 + unattached — admin-visible,
- * public-invisible ('pending' would be reaped by the 24h orphan sweep,
- * R1 M12). The fixed sentinel owner engages the reference locks; the
- * dedicated removal action below is their only delete path (R1 M13).
+ * Each copy owns a durable pending image and URL claim before uploading.
+ * A confirmed copy atomically becomes active with its URL binding, still
+ * unattached with publishedRefCount 0. Cleanup must quarantine a pending
+ * copy through the same state machine before deleting any bytes.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
+import { isDeepStrictEqual } from 'node:util';
 import {
+  SOURCE_MEDIA_IMPORT_LEASE_MS,
+  SOURCE_MEDIA_IMPORT_OWNER,
+  type SourceMediaImportCommand,
+  type SourceMediaImportResult,
+  type SourceMediaTarget,
+  SourceMediaTargetSchema,
   acquireImageMutation,
   executeImageDeletion,
-  findByField,
   list,
   manageImageDeletion,
+  manageSourceMediaImport,
+  readImageMutationState,
   releaseImageMutation,
   unfinishedApprovalUsingImage,
-  upsertDocWithId,
 } from '@vibelingan-channel/db';
-import { mediaStorage, objectStoragePath } from '@vibelingan-channel/media-storage';
+import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   COLLECTIONS,
   SIGNATURE_MIME,
+  alibabaPhotoSource,
   catalogReferencedImageIds,
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
-import { createDoc, getDoc } from './repo.ts';
+import { getDoc } from './repo.ts';
 
-export const ALIBABA_IMAGE_IMPORT_OWNER = 'alibaba-catalog-sync';
+export const ALIBABA_IMAGE_IMPORT_OWNER = SOURCE_MEDIA_IMPORT_OWNER;
 const ALLOWED_HOST_SUFFIXES = ['alicdn.com', 'alibaba.com'];
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 15_000;
@@ -62,11 +68,12 @@ export type MediaImportFailure =
   | 'not-found'
   | 'too-large'
   | 'bad-content'
-  | 'write-failed';
+  | 'write-failed'
+  | 'busy';
 
 export type MediaImportResult =
   | { ok: true; imageId: string; deduplicated: boolean }
-  | { ok: false; reason: MediaImportFailure };
+  | { ok: false; reason: MediaImportFailure; failureRecorded?: true };
 
 /** Loopback/private/link-local/CGN/multicast/reserved — v4 and v6. */
 export function isBlockedAddress(ip: string): boolean {
@@ -168,23 +175,15 @@ async function readBodyCapped(
   return Buffer.concat(chunks);
 }
 
-/** Import one remote candidate image; never attaches it to any product. */
-export async function importCandidateImage(
+type FetchCandidateResult =
+  | { ok: true; bytes: Buffer; mimeType: string }
+  | { ok: false; reason: Exclude<MediaImportFailure, 'busy'> };
+async function fetchCandidate(
   sourceUrl: string,
-  deps: MediaImportDeps = {},
-): Promise<MediaImportResult> {
+  deps: MediaImportDeps,
+): Promise<FetchCandidateResult> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const resolveDns = deps.resolveDns ?? defaultResolveDns;
-  const bind = async (imageId: string) => {
-    await upsertDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl), {
-      kind: 'media',
-      provider: 'alibaba',
-      sourceUrl,
-      imageId,
-      updatedAt: deps.now?.() ?? new Date().toISOString(),
-    });
-  };
-
   let current = allowedUrl(sourceUrl);
   if (!current) {
     return {
@@ -255,66 +254,164 @@ export async function importCandidateImage(
   const mimeType = signature === 'unknown' ? '' : (SIGNATURE_MIME[signature] ?? '');
   if (!IMPORTABLE_MIME.has(mimeType)) return { ok: false, reason: 'bad-content' };
 
-  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
-  const existing = await findByField('images', 'checksumSha256', checksumSha256);
-  if (existing?.status === 'active') {
+  return { ok: true, bytes, mimeType };
+}
+
+/** Repeat the same idempotent operation once after an unknown database ACK. */
+async function persistImport(command: SourceMediaImportCommand): Promise<SourceMediaImportResult> {
+  try {
+    return await manageSourceMediaImport(command);
+  } catch {
+    return manageSourceMediaImport(command);
+  }
+}
+
+/** Import one remote candidate image; never attaches it to any product. */
+export async function importCandidateImage(
+  rawSourceUrl: string,
+  deps: MediaImportDeps = {},
+): Promise<MediaImportResult> {
+  const validated = allowedUrl(rawSourceUrl);
+  const sourceUrl = validated ? alibabaPhotoSource(rawSourceUrl) : undefined;
+  if (!sourceUrl)
+    return {
+      ok: false,
+      reason: rawSourceUrl.toLowerCase().startsWith('https:') ? 'host-not-allowed' : 'invalid-url',
+    };
+  const operationId = randomUUID();
+  const imageId = randomUUID();
+  const now = () => deps.now?.() ?? new Date().toISOString();
+  const base = { sourceUrl, operationId, imageId };
+  const fail = async (reason: Exclude<MediaImportFailure, 'busy'>): Promise<MediaImportResult> => {
     try {
-      await bind(existing._id);
-      return { ok: true, imageId: existing._id, deduplicated: true };
+      const result = await persistImport({ ...base, action: 'fail', reason, now: now() });
+      if (result.status === 'ready')
+        return { ok: true, imageId: result.imageId, deduplicated: result.deduplicated };
+      return result.status === 'failed'
+        ? { ok: false, reason, failureRecorded: true }
+        : { ok: false, reason: 'write-failed' };
     } catch {
       return { ok: false, reason: 'write-failed' };
     }
-  }
-
-  const now = deps.now?.() ?? new Date().toISOString();
-  const logicalId = randomUUID();
-  const fileName = `alibaba-${checksumSha256.slice(0, 12)}.${mimeType.split('/')[1]}`;
+  };
   try {
-    const stored = await mediaStorage().putObject({
-      namespace: 'catalog',
-      logicalId,
-      fileName,
-      mimeType,
-      content: bytes,
-    });
-    try {
-      const doc = await createDoc('images', {
-        name: fileName,
-        mimeType,
-        purpose: 'catalog-image',
-        storageProvider: stored.storageProvider,
-        storageMode: stored.storageMode,
-        storagePath: objectStoragePath({ namespace: 'catalog', logicalId, fileName }),
-        storageFileId: stored.storageFileId,
-        status: 'active',
-        publishedRefCount: 0,
-        uploadedByUserId: ALIBABA_IMAGE_IMPORT_OWNER,
-        byteSize: bytes.byteLength,
-        checksumSha256,
-        createdAt: now,
-        updatedAt: now,
-      });
-      // Binding failure leaves a valid unreferenced image, retryable by checksum.
-      // Do not delete its bytes after a successful image-row commit.
-      try {
-        await bind(doc._id);
-      } catch {
-        return { ok: false, reason: 'write-failed' };
-      }
-      return { ok: true, imageId: doc._id, deduplicated: false };
-    } catch (docError) {
-      // Compensation order: object first, then (missing) doc — never leak.
-      await mediaStorage()
-        .deleteObject(stored.storageFileId)
-        .catch((e) =>
-          console.error('[alibaba-catalog-sync] import compensation delete failed:', e),
-        );
-      console.error('[alibaba-catalog-sync] import doc write failed:', docError);
-      return { ok: false, reason: 'write-failed' };
-    }
-  } catch (storageError) {
-    console.error('[alibaba-catalog-sync] import storage write failed:', storageError);
+    const claimed = await persistImport({ ...base, action: 'claim', now: now() });
+    if (claimed.status === 'ready')
+      return { ok: true, imageId: claimed.imageId, deduplicated: true };
+    if (claimed.status !== 'claimed')
+      return { ok: false, reason: claimed.status === 'busy' ? 'busy' : 'write-failed' };
+  } catch {
     return { ok: false, reason: 'write-failed' };
+  }
+  let fetched: FetchCandidateResult;
+  try {
+    fetched = await fetchCandidate(sourceUrl, deps);
+  } catch {
+    return fail('fetch-failed');
+  }
+  if (!fetched.ok) return fail(fetched.reason);
+  const { bytes, mimeType } = fetched;
+  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+  try {
+    const existing = (
+      await list({
+        collection: 'images',
+        page: 1,
+        pageSize: 1,
+        search: '',
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'checksumSha256', op: 'eq', value: checksumSha256 },
+            { field: 'status', op: 'eq', value: 'active' },
+          ],
+        },
+      })
+    ).items[0];
+    if (existing?.status === 'active') {
+      let acquired: boolean;
+      try {
+        acquired = (await acquireImageMutation(existing._id, operationId, now())) === 'acquired';
+      } catch {
+        const reread = await getDoc('images', existing._id);
+        const lock = reread ? readImageMutationState(reread) : null;
+        acquired = lock?.state === 'owned' && lock.owner === operationId;
+      }
+      if (!acquired) {
+        await fail('write-failed');
+        return { ok: false, reason: 'busy' };
+      }
+      try {
+        const reused = await persistImport({
+          ...base,
+          action: 'reuse',
+          existingImageId: existing._id,
+          checksumSha256,
+          now: now(),
+        });
+        if (reused.status === 'ready')
+          return { ok: true, imageId: reused.imageId, deduplicated: true };
+        if (reused.status === 'busy') {
+          await fail('write-failed');
+          return { ok: false, reason: 'busy' };
+        }
+      } finally {
+        await releaseImageMutation(existing._id, operationId)
+          .catch(() => releaseImageMutation(existing._id, operationId))
+          .catch(() => {});
+      }
+    }
+    const name = `alibaba-${checksumSha256.slice(0, 12)}.${mimeType.split('/')[1]}`;
+    let checkpoint: SourceMediaTarget | undefined;
+    const stored = await mediaStorage().putObject(
+      { namespace: 'catalog', logicalId: imageId, fileName: name, mimeType, content: bytes },
+      {
+        beforeWrite: async (target) => {
+          const startedAt = now();
+          const intended = SourceMediaTargetSchema.parse({
+            ...target,
+            name,
+            mimeType,
+            checksumSha256,
+            byteSize: bytes.byteLength,
+          });
+          const saved = await persistImport({
+            ...base,
+            action: 'checkpoint',
+            target: intended,
+            now: startedAt,
+          });
+          if (saved.status !== 'checkpointed')
+            throw new Error('Source image checkpoint was not confirmed');
+          // Leave at least one complete raw-PUT deadline inside the claim lease.
+          // A delayed DB response must not start bytes after cleanup may take over.
+          if (Date.parse(now()) - Date.parse(startedAt) >= SOURCE_MEDIA_IMPORT_LEASE_MS - 60_000)
+            throw new Error('Source image checkpoint expired before upload');
+          checkpoint = intended;
+        },
+      },
+    );
+    const returned = SourceMediaTargetSchema.parse({
+      ...stored,
+      name,
+      mimeType,
+      checksumSha256,
+      byteSize: bytes.byteLength,
+    });
+    if (!checkpoint || !isDeepStrictEqual(checkpoint, returned)) return fail('write-failed');
+    const committed = await persistImport({
+      ...base,
+      action: 'activate',
+      target: checkpoint,
+      now: now(),
+    });
+    if (committed.status === 'ready')
+      return { ok: true, imageId: committed.imageId, deduplicated: committed.deduplicated };
+    return fail('write-failed');
+  } catch {
+    // A failed/unknown upload or DB ACK retains the exact pending target.
+    // Never destroy bytes that an activation may already have committed.
+    return fail('write-failed');
   }
 }
 

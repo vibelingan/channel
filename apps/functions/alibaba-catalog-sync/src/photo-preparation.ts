@@ -35,10 +35,10 @@ import {
   alibabaLinkRevision,
   get,
   list,
+  manageSourceMediaImport,
   releaseImageMutation,
   saveCatalogProductWithIdentities,
   updateDoc,
-  upsertDocWithId,
 } from '@vibelingan-channel/db';
 import {
   type CollectionDoc,
@@ -46,7 +46,6 @@ import {
   PRODUCT_IMAGE_MAX_COUNT,
   alibabaPhotoSource,
   alibabaPhotoSources,
-  isPermanentAlibabaPhotoFailure,
   readAlibabaPhotoFailure,
 } from '@vibelingan-channel/shared';
 import { type MediaImportResult, importCandidateImage } from './media-import.ts';
@@ -324,27 +323,37 @@ async function copySources(
         );
         if (imported.ok)
           return {
-            state: { imageId: imported.imageId } as CopiedState,
+            state: { imageId: imported.imageId },
             kind: 'copied' as const,
             downloaded: true,
           };
-        // A failure on our side (storage) says nothing about the photo.
-        const attempts = imported.reason === 'write-failed' ? known.attempts : known.attempts + 1;
-        // Remembered, so other drafts and the next tries know without fetching.
-        await upsertDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', url), {
-          kind: 'media',
-          provider: 'alibaba',
-          sourceUrl: url,
-          failedAt: now(),
-          failureReason: imported.reason,
-          failureAttempts: attempts,
-        }).catch((error: unknown) =>
-          console.error('[alibaba-catalog-sync] photo failure note not saved:', error),
-        );
-        const state: CopiedState = isPermanentAlibabaPhotoFailure(imported.reason, attempts)
-          ? 'unusable'
-          : 'waiting';
-        return { state, kind: 'failed' as const, downloaded: true };
+        if (imported.reason === 'busy')
+          return { state: 'waiting' as const, kind: 'waiting' as const, downloaded: false };
+        if (!imported.failureRecorded) {
+          await manageSourceMediaImport({
+            action: 'note-failure',
+            sourceUrl: url,
+            operationId: randomUUID(),
+            reason: imported.reason,
+            now: now(),
+          }).catch((error: unknown) =>
+            console.error('[alibaba-catalog-sync] photo failure note not saved:', error),
+          );
+        }
+        // Read the atomic result: a late failure must not erase another copy's
+        // success, and an in-progress owner is not a permanent photo failure.
+        const latest = await copiedState(url, Date.parse(now()), retryBeforeMs).catch(() => null);
+        const state: CopiedState = latest?.state ?? 'waiting';
+        return {
+          state,
+          kind:
+            typeof state === 'object'
+              ? ('reused' as const)
+              : latest?.state
+                ? ('failed' as const)
+                : ('waiting' as const),
+          downloaded: true,
+        };
       }),
     );
     // Only a download attempt is progress: a resumed product re-reads its
@@ -354,7 +363,7 @@ async function copySources(
       states.push(result.state);
       if (result.kind === 'reused') counts.photosReused += 1;
       else if (result.kind === 'copied') counts.photosCopied += 1;
-      else counts.photosFailed += 1;
+      else if (result.kind === 'failed') counts.photosFailed += 1;
     }
   }
   return states;

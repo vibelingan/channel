@@ -27,6 +27,7 @@ export async function executeImageDeletion(
       return 'failed';
     }
     if (!image) return 'missing';
+    if (image._id !== command.imageId) return 'corrupt';
     if (image.uploadedByUserId !== command.uploadedByUserId) return 'forbidden';
     const intent = readImageDeletionIntent(image);
     if (!intent) return 'failed';

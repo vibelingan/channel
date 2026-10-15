@@ -354,3 +354,37 @@ Actual original UI and an independently caller-disconnected temporary Astro buil
 | @cloudbase/node-sdk@3.17.2 | deleteFile | ({fileList:string[]},opts?:ICustomReqOpts) | Promise<IDeleteFileResult>, fileList:{code:string,fileID:string}[] plus IBaseResult | d.ts:308–317,566; unchanged strict per-file confirmation tests; real cloud confirmed-absent semantics still pending |
 
 Native Node HTTPS request, IncomingMessage events, fs.ReadStream, Readable.from and pipeline are built-in runtime surfaces rather than third-party SDK rows. Their actual byte protocol is exercised against an owned HTTP server through an injected request function; production uses node:https.request and does not disable TLS verification. SDK protocol gate 98 checks; 10 injected defects fail with 96/97 other checks passing. Runtime storage tests 45; 11 runtime faults fail with controls and no skips, original files restored. This verifies the storage primitive; it does not certify importer activation, physical cloud health, Node20 runtime or 20-product acceptance.
+
+## P2d8b 来源复制的原子绑定与恢复
+
+基线32b935a，25个 package/method pair 在探针前写入 source-sdk-inventory.json。TypeScript checker 从真实调用解析16个Zod方法声明，另计实际z.infer类型facade与8个native DB依赖；不是对整个旧SDK文件重新猜测方法。Context7不可用。2026-10-15重新读取官方 `/database/transaction`：快照读取不加锁，写入加锁，最多100操作/30秒，仅文档操作。官方示例的 update({data}) 和包装返回值与安装1.4.3的平铺data及直接callbackRes不同；运行实现以锁定版本实际源码为准，未修改shim或借用wx方法。
+
+| package@version | method | signature and return shape | evidence |
+| --- | --- | --- | --- |
+| @cloudbase/node-sdk@3.17.2 | database | (dbConfig:ICloudBaseDBConfig={}) → Db | installed types/index.d.ts:539; cloudStorageSdk().database() production AST gate |
+| @cloudbase/database@1.4.3 | runTransaction | (callback:(transaction:Transaction) → void or Promise<any>,times?:number) → Promise<any>; resolves callbackRes after commit | transaction/index.d.ts:23; actual src/transaction/index.ts; original SDK request probe and source transaction replay tests |
+| @cloudbase/database@1.4.3 | collection | (collName:string) → CollectionReference | index.d.ts:50 and transaction/index.d.ts:16; catalogRowStore callback native bridge |
+| @cloudbase/database@1.4.3 | doc | (docID:string or number) → DocumentReference | collection.d.ts:7; exact document ID/native get tests |
+| @cloudbase/database@1.4.3 | get | () → Promise<any>; observed data is object or array | document.d.ts:11; both actual bridge response shapes tested; foreign IDs rejected |
+| @cloudbase/database@1.4.3 | set | (data:Object) → Promise<any>; flat fields, updated:1 or exact upserted ID confirms | document.d.ts:7; installed transaction set and standing native payload probe; throw/code/silent/wrong-ID negative tests |
+| @cloudbase/database@1.4.3 | update | (data:Object) → Promise<any>; updated:1 confirms | document.d.ts:8; existing image mutation acquire physical write; installed flat payload probe |
+| @cloudbase/database@1.4.3 | remove | () → Promise<any>; deleted:1 confirms | document.d.ts:10; checksum reservation removal rollback and committed-ACK replay |
+| zod@3.25.76 | datetime | (options?:string or {message?,precision?,offset?,local?}) → ZodString | installed v3/types.d.cts:235; source command schema actual runtime tests |
+| zod@3.25.76 | discriminatedUnion | (discriminator,objectOptions,params?) → ZodDiscriminatedUnion | installed v3/types.d.cts:615–627,1003; source command schema actual runtime tests |
+| zod@3.25.76 | enum | (values:readonly nonempty string tuple,params?) → ZodEnum | installed v3/types.d.cts:759–760,1012; source command schema actual runtime tests |
+| zod@3.25.76 | extend | (augmentation:ZodRawShape) → extended ZodObject | installed v3/types.d.cts:544; source command schema actual runtime tests |
+| zod@3.25.76 | infer | TypeOf<T> = T["_output"]; type-only export alias | installed v3/types.d.cts:17,20; source command schema actual runtime tests |
+| zod@3.25.76 | int | (message?) → ZodNumber | installed v3/types.d.cts:325; source command schema actual runtime tests |
+| zod@3.25.76 | literal | (value:Primitive,params?) → ZodLiteral<Value> | installed v3/types.d.cts:1011; source command schema actual runtime tests |
+| zod@3.25.76 | max | (maxLength:number,message?) → ZodString; (max:number,message?) → ZodNumber | installed v3/types.d.cts:255,322; source command schema actual runtime tests |
+| zod@3.25.76 | min | (minLength:number,message?) → ZodString; (min:number,message?) → ZodNumber | installed v3/types.d.cts:254,319; source command schema actual runtime tests |
+| zod@3.25.76 | number | (params?:RawCreateParams and {coerce?:boolean}) → ZodNumber | installed v3/types.d.cts:979; source command schema actual runtime tests |
+| zod@3.25.76 | object | (shape:ZodRawShape,params?) → ZodObject with strip mode | installed v3/types.d.cts:1000; source command schema actual runtime tests |
+| zod@3.25.76 | parse | (data:unknown,params?) → Output; throws ZodError for invalid input | installed v3/types.d.cts:63; installed runtime and strict command/target tests; source command schema actual runtime tests |
+| zod@3.25.76 | refine | (check,message?) → ZodEffects<this,Output,Input> | installed v3/types.d.cts:71–72; source command schema actual runtime tests |
+| zod@3.25.76 | regex | (regex:RegExp,message?) → ZodString | installed v3/types.d.cts:247; source command schema actual runtime tests |
+| zod@3.25.76 | safeParse | (data:unknown,params?) → success/data or failure/error union | installed v3/types.d.cts:64; installed SafeParseReturnType; strict ownership/receipt tests; source command schema actual runtime tests |
+| zod@3.25.76 | strict | (message?) → ZodObject with strict unknown-key mode | installed v3/types.d.cts:536; source command schema actual runtime tests |
+| zod@3.25.76 | string | (params?:RawCreateParams and {coerce?:true}) → ZodString | installed v3/types.d.cts:976; source command schema actual runtime tests |
+
+真实 SDK 请求类的离线契约探针与 standing gate 验证平铺 set/update、get 两种形状及写入确认；新 CloudBase bridge 测试同时覆盖两种get形状、失败回滚、未知commit结果重放、错误ID以及同值物理写入抵御并发退休。事务 mock 仅模拟已实际探测的快照语义，不冒充新云端实验。SDK100项；新增3个AST连接故障各保留99个正常控制并确实失败。原上传基础层10项故障在98检查基线执行，不改写其分母。Node20.19打包、离线产物加载与438项关键流程通过；这不是Linux云端文件或真实批量发布验收。

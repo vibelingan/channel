@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
 import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
@@ -170,6 +171,46 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  async manageSourceMediaImport(command: SourceMediaImportCommand) {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runSourceMediaImport(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((row) => row._id === id) ?? -1;
+            if (!rows || index < 0) throw new Error('Pending source image disappeared');
+            rows.splice(index, 1);
+            changed = true;
+          },
+        },
+        command,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
   /** Isolated UI-02 fixture preparation only; absent from DbAdapter and cloud/HTTP actions. */
   async prepareLocalDetailClone(
     input: {

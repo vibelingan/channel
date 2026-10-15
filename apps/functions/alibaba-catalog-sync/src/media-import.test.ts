@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
 import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import type {
   AdapterListQuery,
@@ -16,22 +17,71 @@ import {
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
+  type PutMediaObjectOptions,
   objectStoragePath,
   setMediaStorage,
 } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, ListResult } from '@vibelingan-channel/shared';
 import {
   ALIBABA_IMAGE_IMPORT_OWNER,
+  type MediaImportFailure,
+  type MediaImportResult,
   importCandidateImage,
   isBlockedAddress,
   removeImportedCandidate,
 } from './media-import.ts';
+
+/** These assertions check the rejection reason; persistence metadata is internal. */
+function assertImportFailure(
+  actual: MediaImportResult,
+  expected: { ok: false; reason: MediaImportFailure },
+) {
+  assert.equal(actual.ok, expected.ok);
+  if (!actual.ok) assert.equal(actual.reason, expected.reason);
+}
 
 // --- harness -----------------------------------------------------------------
 
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
+  private sourceMediaQueue: Promise<void> = Promise.resolve();
+  async manageSourceMediaImport(command: SourceMediaImportCommand) {
+    const operation = this.sourceMediaQueue.then(async () => {
+      if (command.action === 'claim' && this.store.__failCreate)
+        throw new Error('simulated reservation failure');
+      const copy = structuredClone(this.store);
+      const result = await runSourceMediaImport(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((row) => row._id === id) ?? -1;
+            if (!rows || index < 0) throw new Error('Unconfirmed pending image removal');
+            rows.splice(index, 1);
+          },
+        },
+        command,
+      );
+      for (const key of Object.keys(this.store)) delete this.store[key];
+      Object.assign(this.store, copy);
+      return result;
+    });
+    this.sourceMediaQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
+
   private nextId = 1;
   constructor(readonly store: Store) {}
   private docs(collection: string): CollectionDoc[] {
@@ -132,16 +182,19 @@ class MemoryAdapter implements DbAdapter {
 class MemoryMediaStorage implements MediaStorageAdapter {
   readonly puts: PutMediaObjectInput[] = [];
   readonly deletes: string[] = [];
-  async putObject(input: PutMediaObjectInput) {
-    this.puts.push(input);
+  async putObject(input: PutMediaObjectInput, options: PutMediaObjectOptions = {}) {
     const storagePath = objectStoragePath(input);
-    return {
+    const target = {
       storageProvider: 'local-disk' as const,
       storageMode: 'local-disk' as const,
       storageFileId: `mem://${storagePath}`,
       storagePath,
     };
+    await options.beforeWrite?.(target);
+    this.puts.push(input);
+    return target;
   }
+
   async getObjectAsBase64(): Promise<{ body: string }> {
     throw new Error('not used');
   }
@@ -174,6 +227,7 @@ const PUBLIC_DNS = async () => ['104.16.1.1'];
 
 test('each source URL retains its owned image binding, including byte-deduplicated URLs', async () => {
   setup();
+  let firstImageId: string | undefined;
   for (const sourceUrl of ['https://img.alicdn.com/one.png', 'https://img.alicdn.com/two.png']) {
     const result = await importCandidateImage(sourceUrl, {
       ...fakeImageFetch(),
@@ -181,7 +235,9 @@ test('each source URL retains its owned image binding, including byte-deduplicat
     });
     assert.equal(result.ok, true);
     const link = store.catalogSourceLinks?.find((row) => row.sourceUrl === sourceUrl);
-    assert.equal(link?.imageId, 'img-1');
+    assert.ok(result.ok);
+    firstImageId ??= result.imageId;
+    assert.equal(link?.imageId, firstImageId);
     assert.equal(link?.provider, 'alibaba');
   }
   assert.equal(storage.puts.length, 1);
@@ -242,23 +298,23 @@ test('rejects non-HTTPS, disallowed hosts, userinfo, and odd ports before any fe
   setup();
   const { fetchImpl, urls } = fakeImageFetch();
   const deps = { fetchImpl, resolveDns: PUBLIC_DNS };
-  assert.deepEqual(await importCandidateImage('http://sc04.alicdn.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('http://sc04.alicdn.com/a.png', deps), {
     ok: false,
     reason: 'invalid-url',
   });
-  assert.deepEqual(await importCandidateImage('https://evil.example.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://evil.example.com/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
-  assert.deepEqual(await importCandidateImage('https://evilalibaba.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://evilalibaba.com/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
-  assert.deepEqual(await importCandidateImage('https://user:pw@sc04.alicdn.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://user:pw@sc04.alicdn.com/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
-  assert.deepEqual(await importCandidateImage('https://sc04.alicdn.com:8443/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://sc04.alicdn.com:8443/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
@@ -272,7 +328,7 @@ test('DNS resolving to a private address blocks the fetch (rebinding defense)', 
     fetchImpl,
     resolveDns: async () => ['104.16.1.1', '10.0.0.7'],
   });
-  assert.deepEqual(result, { ok: false, reason: 'dns-blocked' });
+  assertImportFailure(result, { ok: false, reason: 'dns-blocked' });
   assert.equal(urls.length, 0);
 });
 
@@ -285,7 +341,7 @@ test('redirects are validated hop-by-hop; off-allowlist targets are blocked', as
     [start]: { status: 302, location: 'https://internal.example.com/a.png' },
   });
   const result = await importCandidateImage(start, { fetchImpl, resolveDns: PUBLIC_DNS });
-  assert.deepEqual(result, { ok: false, reason: 'host-not-allowed' });
+  assertImportFailure(result, { ok: false, reason: 'host-not-allowed' });
 });
 
 test('an allowlisted redirect chain is followed; endless chains stop', async () => {
@@ -304,7 +360,7 @@ test('an allowlisted redirect chain is followed; endless chains stop', async () 
     [loop]: { status: 302, location: loop },
   });
   const looped = await importCandidateImage(loop, { fetchImpl: loopFetch, resolveDns: PUBLIC_DNS });
-  assert.deepEqual(looped, { ok: false, reason: 'too-many-redirects' });
+  assertImportFailure(looped, { ok: false, reason: 'too-many-redirects' });
 });
 
 // --- content verification ----------------------------------------------------
@@ -313,7 +369,7 @@ test('non-image bytes are rejected regardless of headers; oversize bodies are ca
   setup();
   const html = Buffer.from('<html>not an image</html>');
   const { fetchImpl } = fakeImageFetch(html);
-  assert.deepEqual(
+  assertImportFailure(
     await importCandidateImage('https://sc04.alicdn.com/x.png', {
       fetchImpl,
       resolveDns: PUBLIC_DNS,
@@ -323,7 +379,7 @@ test('non-image bytes are rejected regardless of headers; oversize bodies are ca
 
   const huge = Buffer.concat([PNG_BYTES, Buffer.alloc(10 * 1024 * 1024, 1)]);
   const { fetchImpl: hugeFetch } = fakeImageFetch(huge);
-  assert.deepEqual(
+  assertImportFailure(
     await importCandidateImage('https://sc04.alicdn.com/big.png', {
       fetchImpl: hugeFetch,
       resolveDns: PUBLIC_DNS,
@@ -345,7 +401,7 @@ test('a download that stalls after its headers gives up instead of hanging (PT-G
       { status: 200 },
     );
   const started = Date.now();
-  assert.deepEqual(
+  assertImportFailure(
     await importCandidateImage('https://sc04.alicdn.com/slow.png', {
       fetchImpl: stalled,
       resolveDns: PUBLIC_DNS,
@@ -365,7 +421,7 @@ test('a photo gone at Alibaba is reported as not found, a server error as a pass
     [429, 'fetch-failed'],
     [503, 'fetch-failed'],
   ] as const) {
-    assert.deepEqual(
+    assertImportFailure(
       await importCandidateImage('https://sc04.alicdn.com/gone.png', {
         fetchImpl: async () => new Response('', { status }),
         resolveDns: PUBLIC_DNS,
@@ -389,7 +445,7 @@ test('a verified import lands as an ACTIVE, unreferenced, sentinel-owned candida
   if (!result.ok) return;
   assert.equal(result.deduplicated, false);
   const image = store.images?.[0] as CollectionDoc;
-  assert.equal(image.status, 'active', 'pending would be orphan-swept (R1 M12)');
+  assert.equal(image.status, 'active', 'only a confirmed copy is active');
   assert.equal(image.publishedRefCount, 0, 'public-invisible via refcount gate');
   assert.equal(image.uploadedByUserId, ALIBABA_IMAGE_IMPORT_OWNER);
   assert.equal(image.mimeType, 'image/png', 'MIME derived from magic bytes');
@@ -427,16 +483,17 @@ test('identical bytes deduplicate by checksum (one object, one row)', async () =
   assert.equal(storage.puts.length, 1);
 });
 
-test('a doc-write failure compensates by deleting the stored object first', async () => {
+test('an unconfirmed pending reservation writes no bytes and needs no compensation', async () => {
   setup();
-  store.__failCreate = [] as unknown as CollectionDoc[];
+  store.__failCreate = [];
   const { fetchImpl } = fakeImageFetch();
   const result = await importCandidateImage('https://sc04.alicdn.com/a.png', {
     fetchImpl,
     resolveDns: PUBLIC_DNS,
   });
-  assert.deepEqual(result, { ok: false, reason: 'write-failed' });
-  assert.equal(storage.deletes.length, 1, 'object compensated');
+  assertImportFailure(result, { ok: false, reason: 'write-failed' });
+  assert.equal(storage.puts.length, 0, 'reservation must precede every byte');
+  assert.equal(storage.deletes.length, 0);
   assert.equal(store.images?.length ?? 0, 0);
 });
 
