@@ -478,3 +478,8 @@ Official MCP2.35.2/manager-node5.8.8 source verifies parent-path adjustment and 
 ### P2d9c1 review correction
 
 [PNG3 fdAT](https://www.w3.org/TR/png-3/#11fdAT) permits zero-length frame_data after the4-byte sequence; minimum chunk payload is4, not5. No SDK API/method change. Legal empty IDAT/fdAT plus later bytes now pass; entire empty frame and sequence shorter than4 still fail safely.37local,176Node20 composed,3452full,18source faults with controls/0skip and restored17hashes;21real Linux/default-loader cases;57actual frozen clock images locally replayed with original byteSize/SHA. Prior48d062c review was blocked; new candidate must be reviewed. Exact10sharp pairs unchanged, installed modern declaration still dist/index.d.mts; application packaging/admission remains pending.
+
+
+### P2d9c2 exact overload and ordering correction
+
+PNG3 Table7 permits first fcTL before acTL when both precede IDAT; final acTL/frame consistency checks remain. No new SDK pair. Current TypeScript census resolves415calls,0unresolved;10sharp pairs cover12used overload signatures, including both toBuffer return shapes. Complete exact installed declarations/returns are in output/pricing-clock-repair-2026-10-13/p2d9/pixel-revision2-sdk-inventory.json; this supplements the initial single-signature table.40local/179Node20/3455full/19runtime faults with controls;17frozen hashes match.24Linux/default-loader cases and owned-function absence verified. Application packaging and readiness remain pending.

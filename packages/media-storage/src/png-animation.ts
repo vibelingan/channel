@@ -50,7 +50,7 @@ export function readPngAnimation(bytes: Buffer): PngAnimation | null | undefined
       count = data.readUInt32BE(0);
       if (!count) return null;
     } else if (kind === 'fcTL') {
-      if (count === undefined || length !== 26 || data.readUInt32BE(0) !== sequence++) return null;
+      if (length !== 26 || data.readUInt32BE(0) !== sequence++) return null;
       if (current && !current.data.length) return null;
       const width = data.readUInt32BE(4);
       const height = data.readUInt32BE(8);

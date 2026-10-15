@@ -428,3 +428,33 @@ test('fdAT shorter than its sequence field is invalid without a range exception'
     reason: 'content',
   });
 });
+
+test('the first frame control may precede animation control before IDAT', async () => {
+  const parts = pngParts(await apng());
+  const control = parts.findIndex((part) => part.kind === 'acTL');
+  const first = parts.findIndex((part) => part.kind === 'fcTL');
+  const actl = parts[control];
+  const fctl = parts[first];
+  assert.ok(actl && fctl);
+  parts[control] = fctl;
+  parts[first] = actl;
+  const bytes = packPng(parts);
+  await sharp(bytes).raw().toBuffer();
+  const result = await decodeCatalogImagePixels(bytes, 'image/png');
+  assert.equal(result.status, 'decoded');
+  if (result.status === 'decoded') assert.equal(result.pages, 2);
+});
+for (const mode of ['missing', 'late'] as const)
+  test(`animation control ${mode} cannot certify extra frames`, async () => {
+    const original = pngParts(await apng());
+    const actl = original.find((part) => part.kind === 'acTL');
+    assert.ok(actl);
+    const parts = original.filter((part) => part.kind !== 'acTL');
+    if (mode === 'late') parts.splice(parts.findIndex((part) => part.kind === 'IDAT') + 1, 0, actl);
+    const bytes = packPng(parts);
+    await sharp(bytes).raw().toBuffer();
+    assert.deepEqual(await decodeCatalogImagePixels(bytes, 'image/png'), {
+      status: 'invalid',
+      reason: 'content',
+    });
+  });
