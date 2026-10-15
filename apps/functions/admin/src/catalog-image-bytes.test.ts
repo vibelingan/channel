@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { setAdapter } from '@vibelingan-channel/db';
-import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { MediaReadError, setMediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CATALOG_IMAGE_MAX_BYTES } from '@vibelingan-channel/shared';
 import { readStoredCatalogImageBytes } from './catalog-image-bytes.ts';
@@ -324,7 +324,8 @@ test('the default service uses the real DB and storage facades without writes or
     deleteObject: unused,
     getUploadCredential: unused,
     getTempUrl: unused,
-    getObjectAsBase64: async (fileId) => {
+    getObjectAsBase64: async (fileId, limits) => {
+      assert.deepEqual(limits, { maxBytes: CATALOG_IMAGE_MAX_BYTES, timeoutMs: 5000 });
       assert.equal(fileId, before.storageFileId);
       return { body: bytes.toString('base64'), byteSize: 1 };
     },
@@ -332,4 +333,17 @@ test('the default service uses the real DB and storage facades without writes or
   assert.equal((await readStoredCatalogImageBytes('image')).status, 'verified');
   assert.deepEqual(adapter.rows.images, [before]);
   assert.deepEqual(adapter.commands, []);
+});
+
+test('an adapter stream cap violation is invalid size, after checking the same target', async () => {
+  const f = fixture();
+  assert.deepEqual(
+    await readStoredCatalogImageBytes('image', {
+      getImage: async () => structuredClone(f.image),
+      readObject: async () => {
+        throw new MediaReadError('too-large');
+      },
+    }),
+    { status: 'invalid', reason: 'size' },
+  );
 });

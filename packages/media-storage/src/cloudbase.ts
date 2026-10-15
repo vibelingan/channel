@@ -11,8 +11,10 @@
  * minting uses node-sdk directly via dependency injection.
  */
 import { ReadStream } from 'node:fs';
+import { type CloudBaseReadTransport, readCloudBaseBytes } from './cloudbase-get.ts';
 import { type CloudBasePutOptions, checkedUploadUrl, putCloudBaseBytes } from './cloudbase-put.ts';
 import {
+  type MediaObjectReadOptions,
   type MediaStorageAdapter,
   type PutMediaObjectInput,
   type PutMediaObjectOptions,
@@ -28,13 +30,10 @@ export interface CloudBaseStorageSdk {
     fileContent: Buffer | ReadStream;
   }): Promise<{ fileID: string }>;
   getTempFileURL(options: {
-    fileList: (string | { fileID: string; maxAge?: number })[];
+    fileList: (string | { fileID: string; maxAge?: number; urlType?: 'COS_URL' })[];
   }): Promise<{ fileList: { fileID: string; tempFileURL: string; code?: string }[] }>;
-  // `fileContent` is optional to match the installed SDK (a failed download
-  // yields no content); getObjectAsBase64 guards it. node-sdk 3.x types the
-  // content as `string | Buffer` (string only when an encoding is requested —
-  // this adapter never requests one), so accept the wider type and validate
-  // the runtime shape at the call site.
+  // The installed type permits missing or string content. Byte integrity
+  // requires a Buffer; the adapter checks it rather than treating text as bytes.
   downloadFile(options: {
     fileID: string;
   }): Promise<{ fileContent: Buffer | string | undefined }>;
@@ -109,7 +108,7 @@ function inspectDeleteEntry(entry: unknown): {
 
 export function createCloudBaseMediaStorage(
   sdk: CloudBaseStorageSdk,
-  transport: CloudBasePutOptions = {},
+  transport: CloudBasePutOptions & CloudBaseReadTransport = {},
 ): MediaStorageAdapter {
   const storage: MediaStorageAdapter = {
     async putObject(
@@ -155,14 +154,20 @@ export function createCloudBaseMediaStorage(
       };
     },
 
-    async getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }> {
+    async getObjectAsBase64(
+      fileId: string,
+      options?: MediaObjectReadOptions,
+    ): Promise<{ body: string; byteSize?: number }> {
+      if (options) {
+        const bytes = await readCloudBaseBytes(sdk, fileId, options, transport);
+        return { body: bytes.toString('base64'), byteSize: bytes.byteLength };
+      }
       const { fileContent } = await sdk.downloadFile({ fileID: fileId });
       if (!fileContent) {
         throw new Error(`media-storage(cloudbase): download returned no content for ${fileId}`);
       }
       if (!Buffer.isBuffer(fileContent)) {
-        // No encoding is ever requested, so a string here means the SDK
-        // contract shifted; fail loudly instead of base64-ing mojibake.
+        // Text is not byte evidence, even when the SDK type allows it.
         throw new Error(
           `media-storage(cloudbase): download returned non-buffer content for ${fileId}`,
         );

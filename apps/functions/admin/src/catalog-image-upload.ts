@@ -11,7 +11,7 @@ import {
   readImageMutationState,
   releaseImageMutation,
 } from '@vibelingan-channel/db';
-import { mediaStorage } from '@vibelingan-channel/media-storage';
+import { isMediaReadError, mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
@@ -85,11 +85,16 @@ export async function finalizeCatalogImageUpload(imageId: string, actorId: strin
     };
     let object: { body: string; byteSize?: number };
     try {
-      object = await mediaStorage().getObjectAsBase64(image.storageFileId);
-    } catch {
+      object = await mediaStorage().getObjectAsBase64(image.storageFileId, {
+        maxBytes: CATALOG_IMAGE_MAX_BYTES,
+        timeoutMs: 5000,
+      });
+    } catch (error) {
+      if (isMediaReadError(error) && error.reason === 'too-large')
+        return await reject('size', 'Uploaded object exceeds the allowed size.');
       return err(
         'NOT_FOUND',
-        'Uploaded object not found yet — retry completeUpload once the PUT finishes.',
+        'The uploaded file is not readable yet. Wait a moment, then retry the upload.',
       );
     }
     if (

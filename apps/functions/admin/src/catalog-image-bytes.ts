@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { get } from '@vibelingan-channel/db';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from '@vibelingan-channel/db/adapter';
-import { mediaStorage } from '@vibelingan-channel/media-storage';
+import { isMediaReadError, mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   CATALOG_IMAGE_MIME_TYPES,
@@ -41,7 +41,13 @@ export async function readStoredCatalogImageBytes(
   if (typeof imageId !== 'string' || !imageId || imageId.length > 200 || imageId.trim() !== imageId)
     return { status: 'invalid', reason: 'record' };
   const getImage = options.getImage ?? ((id: string) => get('images', id));
-  const readObject = options.readObject ?? ((id: string) => mediaStorage().getObjectAsBase64(id));
+  const readObject =
+    options.readObject ??
+    ((id: string) =>
+      mediaStorage().getObjectAsBase64(id, {
+        maxBytes: CATALOG_IMAGE_MAX_BYTES,
+        timeoutMs: 5000,
+      }));
   const now = options.now ?? Date.now;
   let image: CollectionDoc | null;
   try {
@@ -56,8 +62,11 @@ export async function readStoredCatalogImageBytes(
   let result: StoredCatalogImageByteCheck;
   try {
     result = checkBytes(image, await readObject(image.storageFileId), inputDigest);
-  } catch {
-    result = { status: 'retry', reason: 'unavailable' };
+  } catch (error) {
+    result =
+      isMediaReadError(error) && error.reason === 'too-large'
+        ? { status: 'invalid', reason: 'size' }
+        : { status: 'retry', reason: 'unavailable' };
   }
   let current: CollectionDoc | null;
   try {

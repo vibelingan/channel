@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import { type AdapterListQuery, type ImageUploadCommand, setAdapter } from '@vibelingan-channel/db';
-import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { type MediaObjectReadOptions, setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -32,6 +32,9 @@ async function workspace(t: TestContext) {
     unavailableOnce: false,
     bodyOverride: null as string | null,
     reads: 0,
+    completedReads: 0,
+    releaseCalls: 0,
+    readLimits: [] as (MediaObjectReadOptions | undefined)[],
     deletes: 0,
   };
   class Adapter extends JsonFileAdapter {
@@ -47,6 +50,11 @@ async function workspace(t: TestContext) {
       return result;
     }
 
+    override async releaseImageMutation(imageId: string, owner: string) {
+      controls.releaseCalls++;
+      return super.releaseImageMutation(imageId, owner);
+    }
+
     override async list(query: AdapterListQuery) {
       const result = await super.list(query);
       if (query.collection === 'images' && controls.afterSelection) {
@@ -58,7 +66,8 @@ async function workspace(t: TestContext) {
     }
   }
   class Storage extends LocalDiskMediaStorage {
-    override async getObjectAsBase64(id: string) {
+    override async getObjectAsBase64(id: string, limits?: MediaObjectReadOptions) {
+      controls.readLimits.push(limits);
       controls.reads++;
       if (controls.unavailableOnce) {
         controls.unavailableOnce = false;
@@ -66,7 +75,8 @@ async function workspace(t: TestContext) {
       }
 
       if (controls.readGate) await controls.readGate();
-      const stored = await super.getObjectAsBase64(id);
+      const stored = await super.getObjectAsBase64(id, limits);
+      controls.completedReads++;
       const object =
         controls.bodyOverride === null ? stored : { ...stored, body: controls.bodyOverride };
       if (controls.afterRead) {
@@ -428,4 +438,66 @@ test('unhealthy legacy active upload remains intact and gets an explicit replace
   assert.equal(row?.storageFileId, f.target.storageFileId);
   assert.equal(row?.imageUploadCompletion, undefined);
   assert.equal(f.controls.deletes, 0);
+});
+
+test('ordinary upload completion requests a bounded storage read', async (t) => {
+  const f = await workspace(t);
+  assert.ok((await f.call('completeUpload', { imageId: 'upload' })).ok);
+  assert.deepEqual(f.controls.readLimits, [{ maxBytes: 10 * 1024 * 1024, timeoutMs: 5000 }]);
+});
+test('a physically oversized uploaded object is rejected before an adapter body is returned', async (t) => {
+  const f = await workspace(t);
+  const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
+  bytes.copy(oversized);
+  const same = await f.storage.putObject({
+    namespace: 'smoke',
+    logicalId: 'upload',
+    fileName: 'pixel.png',
+    mimeType: 'image/png',
+    content: oversized,
+  });
+  assert.equal(same.storageFileId, f.target.storageFileId);
+  const result = await f.call('completeUpload', { imageId: 'upload' });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.error.code, 'VALIDATION_ERROR');
+  assert.equal((await f.adapter.get('images', 'upload'))?.status, 'failed');
+  assert.equal((await f.adapter.get('images', 'upload'))?.storageFileId, f.target.storageFileId);
+  assert.equal(f.controls.completedReads, 0);
+  assert.equal(f.controls.deletes, 0);
+});
+
+test('a capped physical upload keeps its mutex until rejection has committed', async (t) => {
+  const f = await workspace(t);
+  const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
+  bytes.copy(oversized);
+  await f.storage.putObject({
+    namespace: 'smoke',
+    logicalId: 'upload',
+    fileName: 'pixel.png',
+    mimeType: 'image/png',
+    content: oversized,
+  });
+  let entered = false;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  f.controls.rejectGate = async () => {
+    entered = true;
+    await gate;
+  };
+  const finishing = f.call('completeUpload', { imageId: 'upload' });
+  try {
+    for (let i = 0; i < 100 && !entered; i++)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.ok(entered);
+    assert.equal(f.controls.releaseCalls, 0);
+    assert.ok((await f.adapter.get('images', 'upload'))?.imageMutationOwner);
+  } finally {
+    release();
+    await finishing;
+  }
+  assert.equal(f.controls.releaseCalls, 1);
+  assert.equal((await f.adapter.get('images', 'upload'))?.status, 'failed');
 });

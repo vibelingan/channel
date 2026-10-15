@@ -1253,6 +1253,140 @@ requireCheck(
   'media-storage does not use stale top-level cloudObjectMeta/cloudObjectId fields',
 );
 
+// The bounded reader sends the URL itself, so pin the SDK's corresponding wire path.
+const sdkDownloadBody = sdkFunctionBody(nodeStorage, 'downloadFile');
+const sdkTempUrlBody = sdkFunctionBody(nodeStorage, 'getTempFileURL');
+requireCheck(
+  containsAll(sdkDownloadBody, [
+    "urlType === 'COS_URL' ? res.tempFileURL : encodeURI(res.tempFileURL)",
+    "method: 'get'",
+    "res.code !== 'SUCCESS'",
+    'res.statusCode === 200',
+  ]) &&
+    sdkTempUrlBody.includes('url_type: file.urlType') &&
+    nodeTypes.includes("urlType?: 'COS_URL'"),
+  'installed storage COS_URL download is raw GET requiring SUCCESS and complete HTTP 200',
+);
+const boundedGetPath = 'packages/media-storage/src/cloudbase-get.ts';
+const boundedGetAst = typescript.createSourceFile(
+  boundedGetPath,
+  readFileSync(join(root, boundedGetPath), 'utf8'),
+  typescript.ScriptTarget.Latest,
+);
+function callNodes(node) {
+  const calls = [];
+  const visit = (entry) => {
+    if (typescript.isCallExpression(entry)) calls.push(entry);
+    typescript.forEachChild(entry, visit);
+  };
+  visit(node);
+  return calls;
+}
+function assignedProperty(node, name) {
+  if (!node || !typescript.isObjectLiteralExpression(node)) return undefined;
+  return node.properties.find(
+    (item) =>
+      typescript.isPropertyAssignment(item) &&
+      (typescript.isIdentifier(item.name) || typescript.isStringLiteral(item.name)) &&
+      item.name.text === name,
+  )?.initializer;
+}
+function requestsCosUrl(node) {
+  const list = assignedProperty(node.arguments[0], 'fileList');
+  const first = list && typescript.isArrayLiteralExpression(list) ? list.elements[0] : undefined;
+  const type = assignedProperty(first, 'urlType');
+  return type && typescript.isStringLiteral(type) && type.text === 'COS_URL';
+}
+const boundedGetFunction = boundedGetAst.statements.find(
+  (node) => typescript.isFunctionDeclaration(node) && node.name?.text === 'readCloudBaseBytes',
+);
+if (!boundedGetFunction?.body) throw new Error('Missing bounded COS GET function');
+const boundedGetCalls = callNodes(boundedGetFunction.body);
+const boundedMint = boundedGetCalls.find(
+  (node) => node.expression.getText(boundedGetAst) === 'sdk.getTempFileURL',
+);
+const boundedSend = boundedGetCalls.find(
+  (node) => node.expression.getText(boundedGetAst) === 'request',
+);
+const boundedMethod = assignedProperty(boundedSend?.arguments[1], 'method');
+const mediaCloudAst = typescript.createSourceFile(
+  'cloudbase.ts',
+  mediaCloudbase,
+  typescript.ScriptTarget.Latest,
+);
+let boundedAdapterBranch;
+const inspectReadAdapter = (node) => {
+  if (
+    typescript.isMethodDeclaration(node) &&
+    node.name.getText(mediaCloudAst) === 'getObjectAsBase64'
+  ) {
+    boundedAdapterBranch = node.body?.statements.find(
+      (statement) =>
+        typescript.isIfStatement(statement) &&
+        statement.expression.getText(mediaCloudAst) === 'options',
+    );
+  }
+  typescript.forEachChild(node, inspectReadAdapter);
+};
+inspectReadAdapter(mediaCloudAst);
+requireCheck(
+  boundedMint &&
+    requestsCosUrl(boundedMint) &&
+    boundedMethod &&
+    typescript.isStringLiteral(boundedMethod) &&
+    boundedMethod.text === 'GET' &&
+    !assignedProperty(boundedSend.arguments[1], 'headers') &&
+    boundedGetCalls.some((node) => node.expression.getText(boundedGetAst) === 'readMediaBytes') &&
+    boundedAdapterBranch &&
+    callNodes(boundedAdapterBranch.thenStatement).some(
+      (node) =>
+        node.expression.getText(mediaCloudAst) === 'readCloudBaseBytes' &&
+        node.arguments.map((argument) => argument.getText(mediaCloudAst)).join(',') ===
+          'sdk,fileId,options,transport',
+    ),
+  'production bounded adapter delegates options to the exact SDK-minted COS_URL raw GET reader',
+);
+const cosUrlConsumers = execFileSync(
+  'git',
+  [
+    'ls-files',
+    '-z',
+    '-co',
+    '--exclude-standard',
+    '--',
+    'apps/functions',
+    'apps/local-server',
+    'packages',
+  ],
+  { cwd: root, encoding: 'utf8' },
+)
+  .split('\0')
+  .filter(
+    (file) =>
+      /\.[cm]?[jt]sx?$/.test(file) &&
+      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
+      !file.includes('/testing/') &&
+      existsSync(join(root, file)),
+  )
+  .filter((file) => {
+    const ast = typescript.createSourceFile(
+      file,
+      readFileSync(join(root, file), 'utf8'),
+      typescript.ScriptTarget.Latest,
+    );
+    return callNodes(ast).some(
+      (node) =>
+        typescript.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'getTempFileURL' &&
+        requestsCosUrl(node),
+    );
+  });
+requireCheck(
+  cosUrlConsumers.length === 1 && cosUrlConsumers[0] === boundedGetPath,
+  'SDK COS_URL direct-download sender population is exactly the reviewed bounded reader',
+  cosUrlConsumers.join(', '),
+);
+
 const localLeaseFile = join(root, `.cloudbase-sdk-contract-${process.pid}.json`);
 const { rmSync } = await import('node:fs');
 try {

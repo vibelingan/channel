@@ -81,12 +81,37 @@ export interface PutMediaObjectOptions {
   beforeWrite?: (target: Readonly<StoredMediaObject>) => Promise<void>;
 }
 
+export interface MediaObjectReadOptions {
+  readonly maxBytes: number;
+  readonly timeoutMs: number;
+}
+const MEDIA_READ_ERROR = Symbol.for('@vibelingan-channel/media-read-error');
+export class MediaReadError extends Error {
+  readonly [MEDIA_READ_ERROR] = true;
+  constructor(readonly reason: 'too-large' | 'timeout' | 'unavailable') {
+    super(`Media read ${reason}.`);
+    this.name = 'MediaReadError';
+  }
+}
+
+/** The package can be loaded through both CJS and ESM in the same server. */
+export function isMediaReadError(value: unknown): value is MediaReadError {
+  return (
+    value instanceof Error &&
+    Reflect.get(value, MEDIA_READ_ERROR) === true &&
+    ['too-large', 'timeout', 'unavailable'].includes(Reflect.get(value, 'reason'))
+  );
+}
+
 export interface MediaStorageAdapter {
   putObject(
     input: PutMediaObjectInput,
     options?: PutMediaObjectOptions,
   ): Promise<StoredMediaObject>;
-  getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
+  getObjectAsBase64(
+    fileId: string,
+    options?: MediaObjectReadOptions,
+  ): Promise<{ body: string; byteSize?: number }>;
   getTempUrl(fileId: string, maxAgeSeconds?: number): Promise<{ url: string; expiresAt?: string }>;
   deleteObject(fileId: string): Promise<void>;
   /**
