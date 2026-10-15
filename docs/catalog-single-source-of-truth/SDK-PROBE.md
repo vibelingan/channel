@@ -453,3 +453,23 @@ No new direct third-party SDK surface, dependency, version or shim: added produc
 | typescript@5.9.3 | Node.getText | (sourceFile?: SourceFile): string | string | node_modules/typescript/lib/typescript.d.ts:4318 |
 | @cloudbase/node-sdk@3.17.2 | getTempFileURL | ({ fileList }: IGetFileUrlOptions, opts?: ICustomReqOpts): Promise<IGetFileUrlResult> | Promise<IGetFileUrlResult>; used fileList entries: {code:string,fileID:string,tempFileURL:string} | packages/db/node_modules/@cloudbase/node-sdk/types/index.d.ts:570 |
 | @cloudbase/node-sdk@3.17.2 | downloadFile | ({ fileID, tempFilePath }: IDownloadFileOptions, opts?: ICustomReqOpts): Promise<IDownloadFileResult> | Promise<IDownloadFileResult>; fileContent:string \| Buffer \| undefined; raw no-encoding path Buffer | packages/db/node_modules/@cloudbase/node-sdk/types/index.d.ts:558 |
+
+
+## P2d9c — sharp0.35.5 actual pixels and Node20 imports
+
+Persisted .claude/sdk-surfaces-pixels-pending.txt before exact-row join;10/10 installed and runtime-callable pairs,0missing. Actual declarations are dist/index.d.mts; a preliminary lib/index.d.ts-only filter yielded0 and was corrected before acceptance. Context7 unavailable. Official references: [sharp constructor](https://sharp.pixelplumbing.com/api-constructor/), [output/timeout](https://sharp.pixelplumbing.com/api-output/#timeout), [installation](https://sharp.pixelplumbing.com/install/), [security](https://sharp.pixelplumbing.com/security/), [0.35.5](https://sharp.pixelplumbing.com/changelog/v0.35.5/), [Node20.19.0 package imports](https://nodejs.org/download/release/v20.19.0/docs/api/packages.html#subpath-imports).
+
+| package@version | method | exact installed signature | used return shape | evidence |
+| --- | --- | --- | --- | --- |
+| sharp@0.35.5 | gif | (options?: GifOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:805 |
+| sharp@0.35.5 | jpeg | (options?: JpegOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:758 |
+| sharp@0.35.5 | metadata | (): Promise<Metadata> | Promise<Metadata> | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:326 |
+| sharp@0.35.5 | png | (options?: PngOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:788 |
+| sharp@0.35.5 | raw | (options?: RawOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:838 |
+| sharp@0.35.5 | resize | (widthOrOptions?: number \| ResizeOptions \| null \| undefined, height?: number \| null \| undefined, options?: ResizeOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:919 |
+| sharp@0.35.5 | sharp | (options?: SharpOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:1993 |
+| sharp@0.35.5 | timeout | (options: TimeoutOptions): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:880 |
+| sharp@0.35.5 | toBuffer | (options?: { resolveWithObject: false; } \| undefined): Promise<Buffer<ArrayBuffer>> | Promise<Buffer<ArrayBuffer>> | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:665 |
+| sharp@0.35.5 | toFormat | (format: keyof FormatEnum \| AvailableFormatInfo \| "avif", options?: RawOptions \| OutputOptions \| JpegOptions \| PngOptions \| WebpOptions \| AvifOptions \| HeifOptions \| JxlOptions \| GifOptions \| Jp2Options \| TiffOptions \| undefined): Sharp | Sharp | node_modules/.pnpm/sharp@0.35.5_@types+node@22.19.21/node_modules/sharp/dist/index.d.mts:847 |
+
+Official MCP2.35.2/manager-node5.8.8 source verifies parent-path adjustment and Event online-install filtering of root node_modules. Runtime probe uses the default private #catalog-image-decoder import mapped to vendor/image-decoder.mjs, with pinned Linux native packages; native archives match lockfile SHA-512. Final Linux x64 Node20.19.3 glibc2.28/256MB probe18: all outcomes correct,3actual image byteSize/checksum matches,expired synchronous budget starts0native work. Promise budget does not preempt synchronous CPU or promise hard cancellation of C++/libuv queue. 34local/173Node20 composed/3449full/17source faults/SDK106; all source hashes restored. No shim/vendor DB method/auth/env change. Full application packaging and readiness authority remain pending; fullDeliveryReady=false. See P2d9c and pixel-* evidence.

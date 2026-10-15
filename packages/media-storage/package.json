@@ -15,5 +15,12 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.22.4"
+  },
+  "dependencies": {
+    "@vibelingan-channel/shared": "workspace:*",
+    "sharp": "0.35.5"
+  },
+  "imports": {
+    "#catalog-image-decoder": "sharp"
   }
 }
