@@ -390,3 +390,41 @@ test('palette and transparency remain available to every APNG frame', async () =
   base.splice(1, 0, ...replacement.filter((part) => ['PLTE', 'tRNS'].includes(part.kind)));
   assert.equal((await decodeCatalogImagePixels(packPng(base), 'image/png')).status, 'decoded');
 });
+
+test('zero-length IDAT and fdAT payload chunks remain valid when followed by frame data', async () => {
+  const parts = pngParts(await apng());
+  const idat = parts.findIndex((part) => part.kind === 'IDAT');
+  parts.splice(idat, 0, { kind: 'IDAT', data: Buffer.alloc(0) });
+  const fdat = parts.findIndex((part) => part.kind === 'fdAT');
+  const original = parts[fdat];
+  assert.ok(original);
+  const empty = Buffer.alloc(4);
+  empty.writeUInt32BE(2);
+  original.data.writeUInt32BE(3);
+  parts.splice(fdat, 0, { kind: 'fdAT', data: empty });
+  const bytes = packPng(parts);
+  await sharp(bytes).raw().toBuffer();
+  const result = await decodeCatalogImagePixels(bytes, 'image/png');
+  assert.equal(result.status, 'decoded');
+  if (result.status === 'decoded') assert.equal(result.pages, 2);
+});
+test('an entire animation frame without pixel data remains invalid', async () => {
+  const parts = pngParts(await apng());
+  const target = parts.find((part) => part.kind === 'fdAT');
+  assert.ok(target);
+  target.data = target.data.subarray(0, 4);
+  assert.deepEqual(await decodeCatalogImagePixels(packPng(parts), 'image/png'), {
+    status: 'invalid',
+    reason: 'content',
+  });
+});
+test('fdAT shorter than its sequence field is invalid without a range exception', async () => {
+  const parts = pngParts(await apng());
+  const target = parts.find((part) => part.kind === 'fdAT');
+  assert.ok(target);
+  target.data = Buffer.alloc(3);
+  assert.deepEqual(await decodeCatalogImagePixels(packPng(parts), 'image/png'), {
+    status: 'invalid',
+    reason: 'content',
+  });
+});

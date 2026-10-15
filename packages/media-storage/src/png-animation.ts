@@ -74,7 +74,7 @@ export function readPngAnimation(bytes: Buffer): PngAnimation | null | undefined
       current = { width, height, data: [] };
       frames.push(current);
     } else if (kind === 'fdAT') {
-      if (!firstData || !current || length < 5 || data.readUInt32BE(0) !== sequence++) return null;
+      if (!firstData || !current || length < 4 || data.readUInt32BE(0) !== sequence++) return null;
       current.data.push(data.subarray(4));
     } else if (kind === 'IDAT') {
       if (frames.length > 1) return null;
