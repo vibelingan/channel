@@ -30,14 +30,27 @@ export type StoredCatalogImageByteCheck =
   | { status: 'invalid'; reason: 'record' | 'size' | 'checksum' | 'content' }
   | { status: 'retry'; reason: 'busy' | 'unavailable' | 'changed' };
 
-export async function readStoredCatalogImageBytes(
+type ByteProof = Extract<StoredCatalogImageByteCheck, { status: 'verified' }>;
+type ByteFailure = Extract<StoredCatalogImageByteCheck, { status: 'invalid' | 'retry' }>;
+export type StoredImageReadOptions = {
+  getImage?: (id: string) => Promise<CollectionDoc | null>;
+  readObject?: (fileId: string) => Promise<ImageRead>;
+  now?: () => number;
+};
+
+export function readStoredCatalogImageBytes(
   imageId: string,
-  options: {
-    getImage?: (id: string) => Promise<CollectionDoc | null>;
-    readObject?: (fileId: string) => Promise<ImageRead>;
-    now?: () => number;
-  } = {},
+  options: StoredImageReadOptions = {},
 ): Promise<StoredCatalogImageByteCheck> {
+  return inspectStoredCatalogImage(imageId, (proof) => proof, options);
+}
+
+/** Inspect validated private bytes before the final current-record and mutex check. */
+export async function inspectStoredCatalogImage<T>(
+  imageId: string,
+  inspect: (proof: ByteProof, bytes: Buffer, mimeType: string) => T | Promise<T>,
+  options: StoredImageReadOptions = {},
+): Promise<T | ByteFailure> {
   if (typeof imageId !== 'string' || !imageId || imageId.length > 200 || imageId.trim() !== imageId)
     return { status: 'invalid', reason: 'record' };
   const getImage = options.getImage ?? ((id: string) => get('images', id));
@@ -59,9 +72,11 @@ export async function readStoredCatalogImageBytes(
   const initialLock = checkLock(image, now());
   if (initialLock) return initialLock;
   const inputDigest = storedCatalogImageInputDigest(image);
-  let result: StoredCatalogImageByteCheck;
+  let result: T | ByteFailure;
   try {
-    result = checkBytes(image, await readObject(image.storageFileId), inputDigest);
+    const checked = checkBytes(image, await readObject(image.storageFileId), inputDigest);
+    result =
+      'proof' in checked ? await inspect(checked.proof, checked.bytes, image.mimeType) : checked;
   } catch (error) {
     result =
       isMediaReadError(error) && error.reason === 'too-large'
@@ -104,7 +119,7 @@ function checkBytes(
   image: StoredImage,
   object: ImageRead,
   inputDigest: string,
-): StoredCatalogImageByteCheck {
+): { proof: ByteProof; bytes: Buffer } | ByteFailure {
   if (
     typeof object?.body !== 'string' ||
     object.body.length % 4 !== 0 ||
@@ -123,12 +138,15 @@ function checkBytes(
   if (!signatureMatchesMime(sniffMagicBytes(bytes), image.mimeType))
     return { status: 'invalid', reason: 'content' };
   return {
-    status: 'verified',
-    kind: 'stored-image-byte-check-v1',
-    imageId: image._id,
-    inputDigest,
-    byteSize: bytes.length,
-    checksumSha256,
+    proof: {
+      status: 'verified',
+      kind: 'stored-image-byte-check-v1',
+      imageId: image._id,
+      inputDigest,
+      byteSize: bytes.length,
+      checksumSha256,
+    },
+    bytes,
   };
 }
 
