@@ -802,3 +802,9 @@ P2d8a 独立审查：f4c0b94 的 SDK 发送方分母漏掉 Git 加引号的非 A
 文字实际复核image-upload、ImageDeletion orphan命令/runner、两adapter工厂、finalizeCatalogImageUpload、cleanupOrphanUploadImage、后台两入口、实际native/cloud测试及SDK/doc。把“浏览器multipart POST”改为“raw PUT”；把“失败就补偿删”改为“失败保留精确目标，经持久终态清理”；把“active回执证明现在COS健康”保留为尚不能成立的结论。核对身份、真实尺寸、未知ACK、源文件恢复和旧读端兼容边界。其余MIU继续；没有push、部署、云业务写入或新分支/worktree/agent。
 
 独立review先红1控制/1失败：放宽旧v1上传者会误接纳损坏旧intent，改为严格image-deletion-ownerless-v1专用版本，原v1不放宽。另旧active兼容先红1控制/2失败后修复。新增never SDK类型与真实SDK set序列化互证，根/嵌套undefined均省略，异常null负控失败。FakeRequest少data封套只算探针错误，按实际document.set转换源码修正。类型检查拦住非法顶层MEDIA_NOT_READY及测试可空row，修正为既有VALIDATION_ERROR与明确非空断言；终止自有链，重新全量3298/95.79秒、Node20483、构建与最终浏览器151通过，juwvaC已清理。15文件hash匹配。
+
+## 2026-10-15 P2d9a：存储字节只读取证与检查
+
+三件时钟57张实际云存储图片共14,124,824字节，fileId/长度/SHA全部匹配；本机sharp0.34.5严格像素解码57通过，前后图片内容元数据无变化，无云端写入。新readStoredCatalogImageBytes只读校验实际字节并核对目标读回，63行为测试、14运行故障均验证；全量251文件3361项/0fail/0skip，89.94秒，admin类型及两文件Biome、SDK103通过；Node20关键91/0fail/0skip，三函数构建及Node20裸目录离线产物smoke通过，新模块尚未由生产handler引用。类型与故障脚本计数错误不算业务检出。尚未接入服务端封印、列表或发布，下载仍须补硬截止/流式上限；不把字节签名当像素证明、不把Mac解码当Linux部署证明。详见[P2d9a](P2d9a_STORED_IMAGE_BYTES.zh-CN.md)。没有部署、现场resync/发布/分类修改、新分支/worktree/agent。
+
+文字实际复核P2d9a、新模块与测试、SDK-PROBE和本条，把“图片健康已验证”改为具体字节与本机像素观察，核对57/63/14/3361分母和零云写入。其余MIU继续。
