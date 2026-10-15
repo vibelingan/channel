@@ -864,3 +864,7 @@ P2d8a 独立审查：f4c0b94 的 SDK 发送方分母漏掉 Git 加引号的非 A
 812649b保留BLOCK：两条反例证明typed decoder的额外私有诊断会随invalid/retry透传。失败输出改为status/reason白名单，137组合（含33健康）通过；13源码缺陷检出，99–136正控保留、零跳过/取消。修订全量3488/81.68秒、Node20组合212及19源码hash通过。原3486/210/12不覆盖或重算。
 
 真实默认路径57张时钟图片当前记录、对象和像素全部通过，14,124,824字节及逐件SHA与manifest一致，服务内23,596ms/约101.6MiB；非发布P95。实际产物SHA/4调用源码hash匹配。第13轮有效临时函数删除并读回确认，业务写入0、应用部署0。文字实际复核白名单、2反例、13故障、修订回归和57实际记录，保持当前证据/准备封印/发布验收边界；其余MIU继续。
+
+### P2f1 服务调用与当前租约能力
+
+增加server-only catalog-preparation-authority子入口。独立环境/用途HMAC、30秒严格准入与5秒skew、WeakMap不可JSON复制能力、当前120秒租约与owner/version/nonce/输入/generation绑定；仅准备媒体和报告存储，无发布/审批/分类权限。66模块、165组合、Node20关键133、9真实故障检出/源码恢复，DB类型、Biome、CloudBase门禁通过。实际复核模块、测试、package出口、现有store/inspection，明确准入不代替DB原子领取，准备模块尚无正式consumer。业务写入/应用部署0；fullDeliveryReady=false，接着实现任务仓库和实际producer。

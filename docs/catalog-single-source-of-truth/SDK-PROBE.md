@@ -500,3 +500,7 @@ All resource counterexamples preserved:256MiB fourdistinct maximum PNGs had2time
 ### P2d9e1 failure result projection
 
 No SDK pair change. Structural extra fields on valid typed invalid/retry objects were reproduced in2failing tests; explicit status/reason projection removes them.137composed/33health,212Node20,3488broad,13actual runtime defects with controls99–136,19restored hashes. All57actual clock images verified via default DB/storage/decoder on Linux Node20.19.3/512MiB, original sizes/SHA match14,124,824bytes; current source/build hashes bound. Owned probe13deleted and absence verified; no application deployments/business writes. Earlier812649b remainsBLOCK history; new candidate requires exactreview.
+
+## P2f1 preparation authority
+
+Installed zod3.25.76 declarations packages/db/node_modules/zod/v3/types.d.ts (ZodType parse/safeParse/refine, ZodString regex/min/max, ZodNumber int/nonnegative/positive/max, ZodObject strict/extend, z.object/string/number/literal) match the actual module. Official version3 reference https://v3.zod.dev/ checked.66 real tests exercise strict unknown input and typed outputs; DB tsc passes without assertion shims. Node crypto createHmac/update/digest and timingSafeEqual use exact32-byte SHA256; independent signing/length negatives pass. No CloudBase SDK method/option is introduced. Existing CloudBase contract script remains green. Artifact/runtime integration is pending and not claimed by this module result.
