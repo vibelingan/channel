@@ -42,6 +42,12 @@ test('a complete unclassified candidate checks every configuration image without
   let peak = 0;
   let reads = 0;
   let sourceReads = 0;
+  let sourceQueries = 0;
+  const list = h.adapter.list.bind(h.adapter);
+  h.adapter.list = async (query) => {
+    if (query.collection === 'catalogSourceLinks') sourceQueries++;
+    return list(query);
+  };
   const get = h.adapter.get.bind(h.adapter);
   h.adapter.get = async (collection, id) => {
     if (collection === 'catalogSourceLinks') sourceReads++;
@@ -62,7 +68,8 @@ test('a complete unclassified candidate checks every configuration image without
   assert.equal(result.outcome, 'ready');
   assert.deepEqual(result.media, { scanned: 105, total: 105 });
   assert.equal(reads, 105);
-  assert.equal(sourceReads, 105);
+  assert.equal(sourceReads, 0);
+  assert.equal(sourceQueries, 2);
   assert.ok(peak > 1 && peak <= 8);
   assert.equal(CatalogPreparationReportSchema.safeParse(result).success, false);
   assert.deepEqual(h.adapter.rows, before);

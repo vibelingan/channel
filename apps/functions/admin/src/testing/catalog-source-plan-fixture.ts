@@ -33,7 +33,27 @@ export class ReadPlanAdapter implements DbAdapter {
       complete: true,
     };
   }
-  list: DbAdapter['list'] = unused;
+  list: DbAdapter['list'] = async (query) => {
+    const clause = query.filter?.clauses[0];
+    if (
+      query.collection !== 'catalogSourceLinks' ||
+      query.page !== 1 ||
+      query.pageSize !== 100 ||
+      query.filter?.combinator !== 'and' ||
+      query.filter.clauses.length !== 1 ||
+      !clause ||
+      clause.field !== '_id' ||
+      clause.op !== 'in' ||
+      !Array.isArray(clause.value) ||
+      !clause.value.every((value) => typeof value === 'string')
+    )
+      return unused();
+    const ids = new Set(clause.value);
+    const items = structuredClone(
+      (this.rows.catalogSourceLinks ?? []).filter((row) => ids.has(row._id)),
+    );
+    return { items, total: items.length, page: 1, pageSize: 100 };
+  };
   findByField = unused;
   create = unused;
   update = unused;

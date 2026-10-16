@@ -59,11 +59,21 @@ const command = (productId: string) => ({
   operationId: randomUUID(),
 });
 
-test('one-request approval resolves each source media link once for all 105 configurations and a new request reads fresh data', async (t) => {
+test('one-request approval batches all 106 source media links for 105 configurations and a new request reads fresh data', async (t) => {
   const { adapter, product } = workspace(t, 105);
   const original = adapter.get.bind(adapter);
   let reads = 0;
   let variantReads = 0;
+  let batches = 0;
+  const list = adapter.list.bind(adapter);
+  t.mock.method(adapter, 'list', async (query: Parameters<JsonFileAdapter['list']>[0]) => {
+    if (query.collection === 'catalogSourceLinks') {
+      batches++;
+      assert.equal(query.pageSize, 100);
+      assert.deepEqual(query.sort, [{ field: '_id', dir: 'asc' }]);
+    }
+    return list(query);
+  });
   let inflight = 0;
   let maximum = 0;
   t.mock.method(adapter, 'get', async (collection: string, id: string) => {
@@ -107,13 +117,14 @@ test('one-request approval resolves each source media link once for all 105 conf
     const request = command(product._id);
     const approved = await approveInOneRequest('admin', request);
     assert.ok(approved.ok && approved.status === 'approved', JSON.stringify(approved));
-    assert.equal(reads, attempt * 106, 'one bounded source lookup per distinct URL per request');
+    assert.equal(reads, 0, 'no per-photo source point reads');
+    assert.equal(batches, attempt * 2, 'two bounded batches for 106 distinct URLs per request');
     assert.equal(
       variantReads,
       attempt * 210,
       'one complete review plus a fresh complete begin read',
     );
-    assert.ok(maximum <= 8, `at most eight source lookups concurrently, observed ${maximum}`);
+    assert.equal(maximum, 0, 'batch query does not hide point reads in this adapter');
     const saved = await adapter.get('products', product._id);
     assert.equal(saved?.published, false);
     const receipt = saved?.catalogDetailApprovalReceipt;

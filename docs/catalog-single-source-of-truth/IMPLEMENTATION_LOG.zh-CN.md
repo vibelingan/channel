@@ -890,3 +890,7 @@ P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取�
 新增私有catalogImageObservations/get-image-check/put-image-check，绑定当前lease、job nonce、产品输入和图片记录digest；verified核对imageId/SHA/字节数，invalid/retry白名单诊断，目标变化/旧任务/坏锁计数闭合。公共byte reader的纯metadata hash/shape移到DB子入口保持原合约。技术job独立mutationRevision确保同毫秒也有真实写变化，不撤销当前lease。未发布协议所有新job初始化0，溢出拒绝。
 
 真实本地普通upload完成→默认存储/原生像素→观察持久化→释放/重开/新worker恢复通过；丢ACK和文件失败回滚覆盖。276组合、Node20加最终源预算343、14源码故障/正控≥273/3源码恢复；2资源故障19/17正控；广泛最终1711、487deploy、四types、9文件Biome、CloudBase106通过。新集合ADMINONLY、总数33，现场未创建。源码snapshot之后的image/blob变化仍可能发生，观察不签发ready；实际worker/目标保护/最终封印与后续全流程继续。实际文字复核纠正观察与发布许可混用，fullDeliveryReady=false。
+
+### P2f5a 来源媒体批量读取
+
+完整来源计划按最多100个确定性_id批次查询，并核对_id/provider/sourceUrl；单图helper保留点读。显式_id排序，忽略跨请求count/get差异。86组合、Node20含真实审批成本/公开读回/恢复96、8实际源码故障/41–85正控通过；广泛admin545+local352=897，0失败/跳过/取消，类型/Biome5/SDK106通过。第一轮旧106点读成本断言失败，改为2批0点读后先单独10项再全套重跑。修正组合测试相对路径；故障只移除HTTP赋值被上游规范化保护，未计检出，绕过完整规范化才是有效反例。实际复核source、fixture、inspection、真实审批成本与两adapter查询，文字明确“批次不等于单RPC”。worker、封印和完整交付继续，fullDeliveryReady=false。

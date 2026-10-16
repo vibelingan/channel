@@ -96,23 +96,59 @@ export async function sourceLinkImageId(url: string): Promise<string | undefined
   return (await sourceLinkPhoto(url))?.imageId;
 }
 
-async function sourceLinkPhoto(url: string) {
+function sourcePhotoLookupUrl(url: string) {
   const transport = new URL(alibabaPhotoSource(url) ?? url);
-  // Retain old CDN bindings outside today's copy policy without fetching them.
+  // Keep old owned CDN bindings readable without fetching them.
   if (
     transport.protocol === 'http:' &&
     (transport.hostname === 'alicdn.com' || transport.hostname.endsWith('.alicdn.com'))
   )
     transport.protocol = 'https:';
-  const sourceUrl = transport.href;
-  const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl));
-  if (link?.provider !== 'alibaba' || link.sourceUrl !== sourceUrl) return null;
+  return transport.href;
+}
+function sourcePhotoBinding(link: CollectionDoc | null, sourceUrl: string) {
+  if (
+    link?._id !== sourceMediaLinkId('alibaba', sourceUrl) ||
+    link.provider !== 'alibaba' ||
+    link.sourceUrl !== sourceUrl
+  )
+    return null;
   const failure = readAlibabaPhotoFailure(link, Date.now());
   return {
     imageId: typeof link.imageId === 'string' ? link.imageId : undefined,
     failureRecorded: failure.recorded,
     unavailable: failure.state === 'unusable',
   };
+}
+async function sourceLinkPhoto(url: string) {
+  const sourceUrl = sourcePhotoLookupUrl(url);
+  return sourcePhotoBinding(
+    await get('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl)),
+    sourceUrl,
+  );
+}
+async function sourceLinkPhotos(urls: readonly string[]) {
+  const bindings = new Map<string, ReturnType<typeof sourcePhotoBinding>>();
+  for (let offset = 0; offset < urls.length; offset += 100) {
+    const batch = urls.slice(offset, offset + 100).map((url) => {
+      const sourceUrl = sourcePhotoLookupUrl(url);
+      return { url, sourceUrl, id: sourceMediaLinkId('alibaba', sourceUrl) };
+    });
+    const ids = [...new Set(batch.map((entry) => entry.id))];
+    const rows = await list({
+      collection: 'catalogSourceLinks',
+      page: 1,
+      pageSize: 100,
+      sort: [{ field: '_id', dir: 'asc' }],
+      filter: { combinator: 'and', clauses: [{ field: '_id', op: 'in', value: ids }] },
+    });
+    const byId = new Map(
+      rows.items.filter((row) => ids.includes(row._id)).map((row) => [row._id, row]),
+    );
+    for (const entry of batch)
+      bindings.set(entry.url, sourcePhotoBinding(byId.get(entry.id) ?? null, entry.sourceUrl));
+  }
+  return bindings;
 }
 
 export async function prepareCatalogSource(actorId: string, input: unknown) {
@@ -297,20 +333,17 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
       ].map((m) => m.sourceUrl),
     ),
   ];
-  for (let offset = 0; offset < urls.length; offset += 8) {
-    await Promise.all(
-      urls.slice(offset, offset + 8).map(async (url) => {
-        const binding = await sourceLinkPhoto(url);
-        const imageId = binding?.imageId;
-        if (imageId === undefined) {
-          if (binding?.failureRecorded && variantUrls.has(url))
-            configurationFailures.push({ sourceUrl: url, unavailable: binding.unavailable });
-          return;
-        }
-        linked.set(url, imageId);
-        if (gallery.has(imageId) || variantUrls.has(url)) images.set(url, imageId);
-      }),
-    );
+  const bindings = await sourceLinkPhotos(urls);
+  for (const url of urls) {
+    const binding = bindings.get(url);
+    const imageId = binding?.imageId;
+    if (imageId === undefined) {
+      if (binding?.failureRecorded && variantUrls.has(url))
+        configurationFailures.push({ sourceUrl: url, unavailable: binding.unavailable });
+      continue;
+    }
+    linked.set(url, imageId);
+    if (gallery.has(imageId) || variantUrls.has(url)) images.set(url, imageId);
   }
   // Our image ids for the supplier's photos as an import would add them (first
   // N distinct URLs, in order); null while any is not imported (MIU-39).
