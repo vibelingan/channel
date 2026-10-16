@@ -925,3 +925,14 @@ backend catalog-sealed逻辑namespace映射catalog/sealed/imagehash/contenthash/
 实际文字复核保护模块/合约/测试、authority/jobs/source-import/upload-receipt/shared-path及两适配器测试、SDK记录与本条；把“保护完成”改为“图片目标切换”，不暗示已封印商品。测试字段删除及process.env恢复改用Reflect.deleteProperty，修正unsafe格式化产生的undefined语义。云端业务写入/应用部署0，fullDeliveryReady=false；继续接入默认worker复制及最终准备。
 
 P2f7b扩大最终：shared288+media157+db886+admin546+alibaba303+local381=2561，全部通过、0跳过/取消。local最终在新增实际竞争和所有故障恢复后重跑，73.0秒；之前380项不是最终数。六types通过，新增竞争后local类型和Node20文件12项再次通过。
+
+
+### P2f7c 默认worker实际图片复制与恢复
+
+接入P2f7b：当前租约和原图锁登记→默认有界原图字节读取→beforeWrite登记永久目标→真实目标原生像素读回→当前输入/租约原子切指针→普通默认health读回→精确锁清理。保护后重复不再PUT，targeted恢复先读已登记对象；断点写入新目标摘要。保留原对象，不改商品/分类/发布，不签发ready。
+
+review红测修复begin已落盘但丢确认后遗漏清理、目标传输失败误归为原图损坏。后者现在返回可重试，原图相同SHA字节的真实像素失败仍invalid/content。14项后补checkpoint丢ACK和原图坏SHA，最终35小流程/10源码故障全部检出并恢复，正控≥22/35，零跳过/取消。105计划只读已处理4图，facade点读28/来源批次2，九图跨三个worker步骤/重开保持完整。类型错误以局部摘要和明确状态对象修正，没有压制类型；集合混存按kind取观察。
+
+实际复核helper/worker及两测试、新文档/SDK记录，措辞将“目标错误等于原图损坏”改为“目标传输异常可重试”。首次3对象读取/2解码、已保护1次健康检查；20秒是软预算，现有PUT60秒，性能P95和完整Linux云worker仍待后续门槛。扩大套件/当前三types/显式Biome/SDK/Node20及精确构建结果完成后另记。fullDeliveryReady=false，继续来源媒体producer/当前封印及业务全流程。
+
+P2f7c最终当前证据：admin546+public131+alibaba303+local397=1377全部通过，0失败/跳过/取消；Node20组合330、三消费者types、4文件Biome、SDK106通过。目标失败归属修正后的最终故障10项，正控22–34/35；源码恢复SHA5f2819d8e1a2970545eb11e68c18dbe62ce1defd4c30ee811881f18a9f3ae31e。原33/9及修正前330保留为历史，不当最终结果。

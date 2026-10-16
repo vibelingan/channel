@@ -107,8 +107,21 @@ test('default file storage/native pixels check9 images across bounded steps and 
   assert.equal(third.media?.verified, 9);
   assert.equal(third.outcome, 'checked');
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
-  assert.equal(rows.catalogImageObservations.length, 9);
-  for (const row of rows.catalogImageObservations) {
+  const observations = rows.catalogImageObservations.filter(
+    (row: { kind: string }) => row.kind === 'unsealed-image-observation-v1',
+  );
+  assert.equal(observations.length, 9);
+  assert.equal(
+    rows.catalogImageObservations.filter(
+      (row: { kind: string }) => row.kind === 'catalog-image-protection-intent-v1',
+    ).length,
+    9,
+  );
+  for (const image of rows.images) {
+    assert.ok(image.storagePath.startsWith('catalog/sealed/'));
+    assert.equal(image.catalogStorageProtection.kind, 'catalog-protected-target-v1');
+  }
+  for (const row of observations) {
     assert.equal(row.health.width, 24);
     assert.equal(row.health.height, 16);
     assert.equal(row.health.checksumSha256, createHash('sha256').update(bytes).digest('hex'));
@@ -317,11 +330,15 @@ async function sourceWorkspace(t: { after(fn: () => void): void }, count = 105) 
 test('105 source configurations retain the full plan with metadata reads only for four processed images', async (t) => {
   const f = await sourceWorkspace(t);
   let imageReads = 0;
+  const readIds = new Set<string>();
   let batches = 0;
   const get = f.adapter.get.bind(f.adapter);
   const list = f.adapter.list.bind(f.adapter);
   f.adapter.get = async (c, id) => {
-    if (c === 'images') imageReads++;
+    if (c === 'images') {
+      imageReads++;
+      readIds.add(id);
+    }
     return get(c, id);
   };
   f.adapter.list = async (q) => {
@@ -333,7 +350,11 @@ test('105 source configurations retain the full plan with metadata reads only fo
   assert.equal(r.media.total, 105);
   assert.equal(r.media.checked, 4);
   assert.equal(r.media.verified, 4);
-  assert.equal(imageReads, 12);
+  assert.equal(imageReads, 28);
+  assert.deepEqual(
+    [...readIds].sort(),
+    f.images.slice(0, 4).map((image) => image._id),
+  );
   assert.equal(batches, 2);
   assert.equal((await f.adapter.get('products', f.productId))?.published, false);
 });
@@ -458,7 +479,9 @@ test('default worker rejects corrupt pixels even when stored length and SHA are 
   assert.equal(r.outcome, 'blocked');
   assert.equal(r.media.invalid, 1);
   assert.equal(r.media.verified, 0);
-  const stored = JSON.parse(readFileSync(f.file, 'utf8')).catalogImageObservations[0];
+  const stored = JSON.parse(readFileSync(f.file, 'utf8')).catalogImageObservations.find(
+    (row: { kind: string }) => row.kind === 'unsealed-image-observation-v1',
+  );
   assert.equal(stored.health.status, 'invalid');
   assert.equal(stored.health.reason, 'content');
 });

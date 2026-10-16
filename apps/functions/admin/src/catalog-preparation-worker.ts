@@ -8,7 +8,8 @@ import type {
 import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
-import { readStoredCatalogImageHealth } from './catalog-image-health.ts';
+import type { readStoredCatalogImageHealth } from './catalog-image-health.ts';
+import { prepareStoredCatalogImage } from './catalog-image-protection.ts';
 import { inspectCatalogPreparationJob } from './catalog-preparation-job-inspect.ts';
 type Media = Readonly<{
   total: number;
@@ -90,7 +91,7 @@ export async function runCatalogPreparationWorker(
     if (!bound.ok) return { ok: false, code: bound.code };
     if (!('media' in bound)) return { ok: false, code: 'CONFLICT' };
     let media = bound.media;
-    const checkImage = options.checkImage ?? readStoredCatalogImageHealth;
+    const checkImage = options.checkImage;
     if (candidate.previewReady && !candidate.issues.some((i) => i.severity === 'error'))
       for (let n = 0; n < maxImages && media.cursor < candidate.imageIds.length; n++) {
         if (now() - startedAt >= budget - tailBudgetMs) break;
@@ -98,9 +99,14 @@ export async function runCatalogPreparationWorker(
         if (!renewed.ok) return { ok: false, code: renewed.code };
         const imageId = candidate.imageIds[media.cursor];
         if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
-        const image = await get('images', imageId);
-        const imageInputDigest = image ? storedCatalogImageInputDigest(image) : null;
-        const health = await checkImage(imageId);
+        const checked = checkImage
+          ? await (async () => {
+              const image = await get('images', imageId);
+              const imageInputDigest = image ? storedCatalogImageInputDigest(image) : null;
+              return { imageInputDigest, health: await checkImage(imageId) };
+            })()
+          : await prepareStoredCatalogImage(authority, { jobId: progress.jobId, lease, imageId });
+        const { imageInputDigest, health } = checked;
         const advanced = await run({
           action: 'advance-media-check',
           jobId: progress.jobId,
