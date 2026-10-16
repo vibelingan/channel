@@ -6,13 +6,23 @@ import {
   readCurrentCatalogPreparation,
 } from './preparation.ts';
 const report = () => ({
-  schemaVersion: 'catalog-preparation-report-v1',
+  schemaVersion: 'catalog-preparation-report-v2',
   productId: 'p',
   inputDigest: 'a'.repeat(64),
   policyVersion: CATALOG_PREPARATION_POLICY,
   contentGeneration: 3,
   checkedAt: '2026-10-14T00:00:00.000Z',
   state: 'ready',
+  seal: {
+    kind: 'catalog-preparation-ready-seal-v1',
+    jobId: 'b'.repeat(64),
+    receiptId: 'c'.repeat(64),
+    planDigest: 'd'.repeat(64),
+    imageIdsDigest: 'e'.repeat(64),
+    imageCount: 3,
+    mediaPolicyVersion: 'catalog-protected-media-seal-v1',
+    pixelPolicyVersion: 'catalog-pixels-v1',
+  },
   previewReady: true,
   mediaReady: true,
   issues: [],
@@ -86,8 +96,9 @@ for (const patch of [
     );
   });
 test('blocked and preparing are distinct from ready and preserve safe issues', () => {
+  const { seal: _seal, ...nonready } = report();
   const blocked = {
-    ...report(),
+    ...nonready,
     state: 'blocked',
     previewReady: false,
     mediaReady: false,
@@ -95,7 +106,7 @@ test('blocked and preparing are distinct from ready and preserve safe issues', (
   };
   assert.ok(CatalogPreparationReportSchema.safeParse(blocked).success);
   assert.ok(
-    CatalogPreparationReportSchema.safeParse({ ...report(), state: 'preparing', mediaReady: false })
+    CatalogPreparationReportSchema.safeParse({ ...nonready, state: 'preparing', mediaReady: false })
       .success,
   );
   assert.equal(
@@ -123,4 +134,33 @@ test('a structurally valid older policy is not a current check', () => {
 test('a syntactically valid timestamp cannot make the private report unbounded', () => {
   const checkedAt = `2026-10-14T00:00:00.${'1'.repeat(70_000)}Z`;
   assert.equal(CatalogPreparationReportSchema.safeParse({ ...report(), checkedAt }).success, false);
+});
+
+test('a historical v1 ready snapshot cannot satisfy the new sealed-ready contract', () => {
+  assert.equal(
+    readCurrentCatalogPreparation({
+      ...product(),
+      catalogPreparationReport: { ...report(), schemaVersion: 'catalog-preparation-report-v1' },
+    }),
+    null,
+  );
+});
+test('v2 ready requires an explicit bounded media seal', () => {
+  const candidate = {
+    ...report(),
+    schemaVersion: 'catalog-preparation-report-v2',
+    seal: {
+      kind: 'catalog-preparation-ready-seal-v1',
+      jobId: 'b'.repeat(64),
+      receiptId: 'c'.repeat(64),
+      planDigest: 'd'.repeat(64),
+      imageIdsDigest: 'e'.repeat(64),
+      imageCount: 3,
+      mediaPolicyVersion: 'catalog-protected-media-seal-v1',
+      pixelPolicyVersion: 'catalog-pixels-v1',
+    },
+  };
+  assert.equal(CatalogPreparationReportSchema.safeParse(candidate).success, true);
+  const { seal: _seal, ...missing } = candidate;
+  assert.equal(CatalogPreparationReportSchema.safeParse(missing).success, false);
 });

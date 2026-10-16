@@ -500,15 +500,15 @@ async function preparationCommand(h: ReturnType<typeof fixture>, id = 'q') {
   return CatalogPreparationCommitSchema.parse({
     action: 'preparation-report',
     report: {
-      schemaVersion: 'catalog-preparation-report-v1',
+      schemaVersion: 'catalog-preparation-report-v2',
       productId: id,
       inputDigest: catalogPreparationInputDigest(inputs),
       policyVersion: CATALOG_PREPARATION_POLICY,
       contentGeneration: product.catalogContentGeneration,
       checkedAt: now,
-      state: 'ready',
+      state: 'preparing',
       previewReady: true,
-      mediaReady: true,
+      mediaReady: false,
       issues: [],
     },
   });
@@ -526,7 +526,7 @@ for (const arrayReads of [false, true])
     });
     assert.deepEqual(h.get('products', 'q'), {
       ...before,
-      catalogPreparationState: 'ready',
+      catalogPreparationState: 'preparing',
       catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
       catalogPreparationReport: command.report,
     });

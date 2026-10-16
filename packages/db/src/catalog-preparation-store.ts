@@ -24,7 +24,7 @@ import {
 export const CatalogPreparationCommitSchema = z
   .object({
     action: z.literal('preparation-report'),
-    report: CatalogPreparationReportSchema,
+    report: CatalogPreparationReportSchema.refine((report): boolean => report.state !== 'ready'),
   })
   .strict();
 export type CatalogPreparationInputs = {
@@ -82,6 +82,8 @@ export async function storeCatalogPreparationReport(
   if (actor?._id !== actorId || actor.role !== 'admin' || actor.status === 'suspended')
     return { ok: false, code: 'FORBIDDEN' };
   const report = command.report;
+  // This function can also be called directly inside trusted repository code.
+  if (report.state === 'ready') return { ok: false, code: 'VALIDATION_ERROR' };
   const product = await tx.get('products', report.productId);
   if (!product) return { ok: false, code: 'NOT_FOUND' };
   const generation = product.catalogContentGeneration ?? 0;

@@ -1,6 +1,7 @@
 /** Reusable pixel evidence for an application-owned immutable target, never product readiness. */
 import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CATALOG_PIXEL_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
@@ -17,7 +18,7 @@ import {
 } from './catalog-image-protection.ts';
 
 // Bump when the native pixel acceptance contract changes, independently of website content rules.
-export const CATALOG_PIXEL_POLICY = 'catalog-pixels-v1';
+export { CATALOG_PIXEL_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 type Verified = Extract<CatalogImageObservationHealth, { status: 'verified' }>;
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
 const recordSchema = z

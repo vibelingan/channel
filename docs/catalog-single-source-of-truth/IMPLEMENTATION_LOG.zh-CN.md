@@ -980,3 +980,11 @@ P2f9c1 关闭来源配置图在检查后被删除的前置竞态。当前租约�
 ## P2f9c2：逐张媒体核对摘要
 
 基于P2f9c1占用和既有保护回执实现bind-media-seal/attest-media-image。每命令一张、完整输入/租约/当前目标/占用/像素policy核对，常量大小的有序摘要；不再读取字节，不改商品/图片/计数。真实105张配置图完整检查和逐命令核对、本地重开、实际ACK丢失与恢复、故障/旧policy/计数编辑均测试。2427项扩大回归、Node20组合279、4types、5完整文件Biome、SDK gate通过；8个源码反例全检出并恢复；source-backed核对事务10操作。详见P2f9c2_MEDIA_ATTESTATION.zh-CN.md。尚未写ready或上线，fullDeliveryReady=false。
+
+## P2f9c3：原子就绪记录
+
+v2 ready 需显式媒体凭据；原私有快照入口双层拒绝 ready。新 finish-preparation 以当前 opaque lease、完整 cursor/attestation 和全候选根，在 7 次 source-backed 点读写事务中核对当前 product/source/observation/link，同时保存 report 与 completed job；保留用户业务字段。原 grant 支持精确丢 ACK 的只读确认，写后到期抛错回滚。
+
+211 份初始合约检查、修正夹具后 239 份集成检查通过；真实 3 图和 105 配置图均走到最终 ready，未分类/未发布保留。8 个源码反例全检出，172–218/219 正控，原字节恢复。首次夹具、类型与 formatter 失败记录完整保留，详见 P2f9c3_READY_COMMIT.zh-CN.md。扩大/最终静态与构建证据随后追加；worker 接入及后续列表/操作/UI/repair/性能/test 现场验收继续，fullDeliveryReady=false。
+
+P2f9c3 最终本地：DB1045/shared290/admin549/public131/alibaba304/local438，共2757项全部通过，0失败/跳过/取消；Node20八文件组合420通过。四消费者types、13文件显式Biome、Cloud新增块格式、SDK gate、diff检查通过。source-backed原子提交7次读写、两写ACK各4形态与两次写后到期回滚均验证。完整 MIU inline review 未留本单元引入的P1/P2；默认worker接入与全业务验收仍待继续。

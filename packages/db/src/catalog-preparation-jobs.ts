@@ -1,7 +1,10 @@
 /** Private technical jobs. Pixel work runs outside the transaction; every write is fenced inside it. */
 import { randomBytes } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
+import {
+  CATALOG_PREPARATION_POLICY,
+  type CatalogPreparationReport,
+} from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
@@ -22,6 +25,11 @@ import {
 } from './catalog-image-protection-contract.ts';
 import { runCatalogImageProtection } from './catalog-image-protection.ts';
 import type { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
+import {
+  CatalogPreparationCompletionSchema,
+  CatalogPreparationFinishCommandSchema,
+  finishCatalogPreparation,
+} from './catalog-preparation-finish.ts';
 import {
   catalogPreparationImageHold,
   matchesCatalogPreparationImageHold,
@@ -74,6 +82,7 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  CatalogPreparationFinishCommandSchema,
   z
     .object({
       action: z.literal('bind-media-seal'),
@@ -215,6 +224,7 @@ const jobSchema = z
     mutationRevision: integer,
     media: CatalogPreparationMediaProgressSchema.nullable(),
     mediaSeal: CatalogPreparationMediaSealSchema.nullable().optional(),
+    completion: CatalogPreparationCompletionSchema.nullable().optional(),
     createdAt: instantSchema,
     updatedAt: instantSchema,
   })
@@ -261,6 +271,12 @@ export type CatalogPreparationJobResult =
   | { ok: true; sourceMedia: SourceMediaImportResult }
   | { ok: true; reservation: 'reserved' }
   | { ok: true; mediaSeal: Readonly<CatalogPreparationMediaSeal> }
+  | {
+      ok: true;
+      preparation: 'ready' | 'unchanged';
+      productId: string;
+      report: CatalogPreparationReport;
+    }
   | {
       ok: true;
       protectedHealth: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
@@ -439,6 +455,7 @@ export async function runCatalogPreparationJob(
       nonce: randomBytes(32).toString('hex'),
       media: null,
       mediaSeal: null,
+      completion: null,
       state: 'queued',
       leaseVersion: job.leaseVersion + 1,
       leaseOwner: '',
@@ -452,6 +469,8 @@ export async function runCatalogPreparationJob(
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
   }
+  if (command.action === 'finish-preparation')
+    return finishCatalogPreparation(tx, authority, job, command, timestamp);
   if (command.action === 'bind-media-seal' || command.action === 'attest-media-image') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
     const media = job.media;

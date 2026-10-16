@@ -8,7 +8,10 @@ import {
 } from '@vibelingan-channel/shared/catalog-preparation';
 import { runStagedApproval } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
-import { catalogPreparationInputDigest } from './catalog-preparation-store.ts';
+import {
+  catalogPreparationInputDigest,
+  storeCatalogPreparationReport,
+} from './catalog-preparation-store.ts';
 function fixture() {
   const product: CollectionDoc = {
     _id: 'p',
@@ -27,7 +30,7 @@ function fixture() {
     'products/p': product,
   };
   const report = CatalogPreparationReportSchema.parse({
-    schemaVersion: 'catalog-preparation-report-v1',
+    schemaVersion: 'catalog-preparation-report-v2',
     productId: 'p',
     inputDigest: catalogPreparationInputDigest({
       product,
@@ -38,9 +41,9 @@ function fixture() {
     policyVersion: CATALOG_PREPARATION_POLICY,
     contentGeneration: 3,
     checkedAt: '2026-10-14T00:00:00.000Z',
-    state: 'ready',
+    state: 'preparing',
     previewReady: true,
-    mediaReady: true,
+    mediaReady: false,
     issues: [],
   });
   const writes: Array<{ collection: string; row: CollectionDoc }> = [];
@@ -66,7 +69,7 @@ test('a current private check stores only the report on its product without adva
   assert.ok(saved);
   assert.deepEqual(saved, {
     ...before,
-    catalogPreparationState: 'ready',
+    catalogPreparationState: 'preparing',
     catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
     catalogPreparationReport: h.report,
   });
@@ -134,7 +137,7 @@ for (const [field, value] of [
   ['catalogContentGeneration', '3'],
   ['catalogContentGeneration', -1],
 ] as const)
-  test('corrupt stored generations cannot receive a ready report', async () => {
+  test('corrupt stored generations cannot receive a check report', async () => {
     const h = fixture();
     Object.assign(h.records['products/p'] ?? {}, { [field]: value });
     const result = await h.run();
@@ -244,6 +247,32 @@ test('HTTP approval commands cannot submit an internal check report', async () =
     'admin',
     { action: 'preparation-report', report: h.report },
   );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
+  assert.equal(h.writes.length, 0);
+});
+
+test('the raw private report command cannot forge ready even with a valid sealed report shape', async () => {
+  const h = fixture();
+  const report = CatalogPreparationReportSchema.parse({
+    ...h.report,
+    state: 'ready',
+    mediaReady: true,
+    seal: {
+      kind: 'catalog-preparation-ready-seal-v1',
+      jobId: 'b'.repeat(64),
+      receiptId: 'c'.repeat(64),
+      planDigest: 'd'.repeat(64),
+      imageIdsDigest: 'e'.repeat(64),
+      imageCount: 0,
+      mediaPolicyVersion: 'catalog-protected-media-seal-v1',
+      pixelPolicyVersion: 'catalog-pixels-v1',
+    },
+  });
+  assert.deepEqual(
+    await storeCatalogPreparationReport(h.tx, 'admin', { action: 'preparation-report', report }),
+    { ok: false, code: 'VALIDATION_ERROR' },
+  );
+  const result = await runStagedApproval(h.tx, 'admin', { action: 'preparation-report', report });
   assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
   assert.equal(h.writes.length, 0);
 });

@@ -2,7 +2,7 @@ import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts
 import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
+import { sourceMediaLinkId, sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
@@ -1426,3 +1426,124 @@ test('expiry while reading the protected pixel receipt cannot advance attestatio
   );
   assert.deepEqual(f.store, before);
 });
+
+async function finishReadyCloudFixture() {
+  const { f, bind, attest } = await mediaSealCloudFixture();
+  assert.ok((await bind()).ok);
+  const proof = await attest();
+  assert.ok(proof.ok && 'mediaSeal' in proof);
+  const job = readCatalogPreparationJob(
+    f.store.get('catalogPreparationJobs')?.get(f.scope.jobId),
+    f.scope.jobId,
+    f.now,
+  );
+  assert.ok(job);
+  const command = {
+    action: 'finish-preparation' as const,
+    ...f.scope,
+    inputDigest: job.inputDigest,
+    contentGeneration: job.contentGeneration,
+    planDigest: proof.mediaSeal.planDigest,
+    imageIdsDigest: proof.mediaSeal.imageIdsDigest,
+    imageCount: proof.mediaSeal.total,
+    previewReady: true as const,
+    issues: [],
+  };
+  return { f, command, finish: () => f.run(command) };
+}
+test('source-backed atomic ready report and terminal job use seven read-before-write operations', async () => {
+  const { f, finish } = await finishReadyCloudFixture();
+  const before = structuredClone(f.store.get('images'));
+  const productBefore = structuredClone(f.store.get('products')?.get('p'));
+  f.controls.maximumOperations = 0;
+  const result = await finish();
+  assert.ok(result.ok && 'preparation' in result, JSON.stringify(result));
+  assert.equal(result.preparation, 'ready');
+  assert.equal(f.controls.maximumOperations, 7);
+  assert.deepEqual(f.store.get('images'), before);
+  assert.equal(f.store.get('products')?.get('p')?.published, productBefore?.published);
+  assert.equal(f.store.get('catalogPreparationJobs')?.get(f.scope.jobId)?.state, 'completed');
+  const saved = structuredClone(f.store);
+  assert.ok((await finish()).ok);
+  assert.deepEqual(f.store, saved);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const target of ['products', 'catalogPreparationJobs'] as const)
+    test(`atomic ready ${target} ${failure} rolls back both rows and safely retries`, async () => {
+      const { f, finish } = await finishReadyCloudFixture();
+      const productId = f.store.get('catalogPreparationJobs')?.get(f.scope.jobId)?.productId;
+      assert.equal(typeof productId, 'string');
+      f.controls[failure] = `${target}/${target === 'products' ? productId : f.scope.jobId}`;
+      const before = structuredClone(f.store);
+      await assert.rejects(finish());
+      assert.deepEqual(f.store, before);
+      f.controls[failure] = '';
+      assert.ok((await finish()).ok);
+    });
+for (const target of ['products', 'catalogPreparationJobs'] as const)
+  test(`lease expiry after ${target} write rolls back the entire ready transaction`, async () => {
+    const { f } = await finishReadyCloudFixture();
+    assert.ok((await f.run({ action: 'release', ...f.scope })).ok);
+    let now = f.now + 5;
+    const authority = createCatalogPreparationAuthority({
+      secret: 'ready-expiry',
+      environmentId: 'test',
+      now: () => now,
+    });
+    const run = (command: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+      manageCatalogPreparationJobInCloudBase(f.db, authority, command, now);
+    const d = await run({ action: 'dispatch', actorId: 'admin', jobId: f.scope.jobId });
+    assert.ok(d.ok && 'call' in d);
+    const c = await run({ action: 'claim', call: d.call, owner: 'ready-worker' });
+    assert.ok(c.ok && 'lease' in c);
+    const job = readCatalogPreparationJob(
+      f.store.get('catalogPreparationJobs')?.get(f.scope.jobId),
+      f.scope.jobId,
+      now,
+    );
+    assert.ok(job);
+    const proof = job.mediaSeal;
+    assert.ok(proof);
+    const command = {
+      action: 'finish-preparation' as const,
+      jobId: f.scope.jobId,
+      lease: c.lease,
+      inputDigest: job.inputDigest,
+      contentGeneration: job.contentGeneration,
+      planDigest: proof.planDigest,
+      imageIdsDigest: proof.imageIdsDigest,
+      imageCount: proof.total,
+      previewReady: true as const,
+      issues: [],
+    };
+    const before = structuredClone(f.store);
+    f.controls.afterWrite = (key) => {
+      if (key === `${target}/${target === 'products' ? job.productId : f.scope.jobId}`)
+        now += 120001;
+    };
+    await assert.rejects(run(command), /lease changed/);
+    assert.deepEqual(f.store, before);
+  });
+for (const [collection, patch] of [
+  ['products', { name: 'Edited' }],
+  ['alibabaSourceProducts', { sourceTitle: 'Edited source' }],
+  ['catalogSourceObservations', { evidenceId: 'different-capture' }],
+  ['alibabaProductLinks', { productId: 'other' }],
+] as const)
+  test(`final ready rechecks actual ${collection} state after attestation`, async () => {
+    const { f, finish } = await finishReadyCloudFixture();
+    let row = f.store.get(collection)?.values().next().value;
+    if (!row) {
+      const id =
+        collection === 'catalogSourceObservations'
+          ? sourceObservationDocumentId('alibaba', 'source')
+          : 'source';
+      row = { _id: id };
+      f.store.set(collection, new Map([[id, row]]));
+    }
+    Object.assign(row, patch);
+    const product = structuredClone(f.store.get('products'));
+    const result = await finish();
+    assert.ok(!result.ok && result.code === 'STALE', JSON.stringify(result));
+    assert.deepEqual(f.store.get('products'), product);
+  });

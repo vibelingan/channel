@@ -3,10 +3,25 @@ import { z } from 'zod';
 import { CatalogIssueSchema } from './issues.ts';
 
 export const CATALOG_PREPARATION_POLICY = 'catalog-preparation-v1';
+export const CATALOG_MEDIA_SEAL_POLICY = 'catalog-protected-media-seal-v1';
+export const CATALOG_PIXEL_POLICY = 'catalog-pixels-v1';
+const hex = z.string().regex(/^[a-f0-9]{64}$/);
+export const CatalogPreparationReadySealSchema = z
+  .object({
+    kind: z.literal('catalog-preparation-ready-seal-v1'),
+    jobId: hex,
+    receiptId: hex,
+    planDigest: hex,
+    imageIdsDigest: hex,
+    imageCount: z.number().int().nonnegative().safe(),
+    mediaPolicyVersion: z.literal(CATALOG_MEDIA_SEAL_POLICY),
+    pixelPolicyVersion: z.literal(CATALOG_PIXEL_POLICY),
+  })
+  .strict();
 const issues = z.array(CatalogIssueSchema).max(50);
 const warnings = issues.refine((items) => items.every((issue) => issue.severity === 'warning'));
 const base = z.object({
-  schemaVersion: z.literal('catalog-preparation-report-v1'),
+  schemaVersion: z.literal('catalog-preparation-report-v2'),
   productId: z.string().trim().min(1).max(200),
   inputDigest: z.string().regex(/^[a-f0-9]{64}$/),
   policyVersion: z.string().trim().min(1).max(100),
@@ -17,6 +32,7 @@ export const CatalogPreparationReportSchema = z.discriminatedUnion('state', [
   base
     .extend({
       state: z.literal('ready'),
+      seal: CatalogPreparationReadySealSchema,
       previewReady: z.literal(true),
       mediaReady: z.literal(true),
       issues: warnings,

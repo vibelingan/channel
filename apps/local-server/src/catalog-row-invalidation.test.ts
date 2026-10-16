@@ -453,15 +453,15 @@ async function localPreparationCommand(db: JsonFileAdapter) {
   return CatalogPreparationCommitSchema.parse({
     action: 'preparation-report',
     report: {
-      schemaVersion: 'catalog-preparation-report-v1',
+      schemaVersion: 'catalog-preparation-report-v2',
       productId: 'q',
       inputDigest: catalogPreparationInputDigest(input),
       policyVersion: CATALOG_PREPARATION_POLICY,
       contentGeneration: product.catalogContentGeneration,
       checkedAt: '2026-10-14T00:00:00.000Z',
-      state: 'ready',
+      state: 'preparing',
       previewReady: true,
-      mediaReady: true,
+      mediaReady: false,
       issues: [],
     },
   });

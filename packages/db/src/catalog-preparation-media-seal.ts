@@ -1,11 +1,12 @@
 /** Bounded attestation of an ordered adopted image set. This is not a product ready report. */
+import { CATALOG_MEDIA_SEAL_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import type { CatalogImageObservationHealth } from './catalog-image-observation.ts';
 import { CATALOG_PIXEL_POLICY } from './catalog-protected-pixels.ts';
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
 const integer = z.number().int().nonnegative().safe();
-export const CATALOG_MEDIA_SEAL_POLICY = 'catalog-protected-media-seal-v1';
+export { CATALOG_MEDIA_SEAL_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 export function initialCatalogImageIdsDigest() {
   return alibabaPricingFingerprint([CATALOG_MEDIA_SEAL_POLICY, 'image-ids']);
 }

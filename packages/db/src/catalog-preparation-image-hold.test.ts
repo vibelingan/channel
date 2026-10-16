@@ -194,7 +194,7 @@ test('a completed job protects only its current ready input, without approving o
     null,
   );
   const report = {
-    schemaVersion: 'catalog-preparation-report-v1',
+    schemaVersion: 'catalog-preparation-report-v2',
     productId: 'p',
     inputDigest: catalogPreparationInputDigest({
       product,
@@ -206,6 +206,16 @@ test('a completed job protects only its current ready input, without approving o
     contentGeneration: 3,
     checkedAt: new Date(h.now).toISOString(),
     state: 'ready',
+    seal: {
+      kind: 'catalog-preparation-ready-seal-v1',
+      jobId: h.scope.jobId,
+      receiptId: 'c'.repeat(64),
+      planDigest: 'd'.repeat(64),
+      imageIdsDigest: 'e'.repeat(64),
+      imageCount: 1,
+      mediaPolicyVersion: 'catalog-protected-media-seal-v1',
+      pixelPolicyVersion: 'catalog-pixels-v1',
+    },
     previewReady: true,
     mediaReady: true,
     issues: [],

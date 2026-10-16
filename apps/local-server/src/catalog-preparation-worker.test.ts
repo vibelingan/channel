@@ -9,9 +9,13 @@ import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { readCatalogPreparationJob } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
+import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
+import { readCurrentCatalogPreparation } from '@vibelingan-channel/shared/catalog-preparation';
+import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
+import { inspectCatalogPreparationJob } from '../../functions/admin/src/catalog-preparation-job-inspect.ts';
 import { runCatalogPreparationWorker } from '../../functions/admin/src/catalog-preparation-worker.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
@@ -1170,6 +1174,14 @@ test('105 adopted configuration images are all checked and attested across indep
   );
   assert.ok(Buffer.byteLength(JSON.stringify(job.mediaSeal)) < 1024);
   assert.deepEqual(await f.adapter.get('products', f.productId), before);
+  const finish = await seal.run(await currentFinishCommand(f.authority, seal.scope));
+  assert.ok(finish.ok && 'report' in finish, JSON.stringify(finish));
+  const product = await f.adapter.get('products', f.productId);
+  assert.ok(product);
+  const report = readCurrentCatalogPreparation(product);
+  assert.ok(report?.state === 'ready');
+  assert.equal(report.seal.imageCount, 105);
+  assert.equal(product.published, false);
 });
 
 test('an attestation ACK lost after commit replays the same proof without another mutation', async (t) => {
@@ -1222,4 +1234,89 @@ test('older pixel-policy attestation can be cancelled and explicitly retried ins
   );
   assert.equal(job?.mediaSeal, null);
   assert.equal(job?.media, null);
+});
+
+async function currentFinishCommand(
+  authority: ReturnType<typeof createCatalogPreparationAuthority>,
+  scope: { jobId: string; lease: object },
+) {
+  const c = await inspectCatalogPreparationJob(authority, scope.jobId, scope.lease, {
+    mediaMode: 'defer',
+  });
+  assert.ok(c.ok, JSON.stringify(c));
+  assert.equal(c.previewReady, true);
+  assert.ok(!c.issues.some((i) => i.severity === 'error'));
+  return {
+    action: 'finish-preparation' as const,
+    ...scope,
+    inputDigest: c.inputDigest,
+    contentGeneration: c.contentGeneration,
+    planDigest: sourceDigest([
+      CATALOG_PREPARATION_POLICY,
+      c.inputDigest,
+      c.contentGeneration,
+      c.imageIds,
+    ]),
+    imageIdsDigest: catalogSealedImageIdsDigest(c.imageIds),
+    imageCount: c.imageIds.length,
+    previewReady: true as const,
+    issues: c.issues,
+  };
+}
+test('real three-photo preparation finishes current ready, retains missing category and survives reopen', async (t) => {
+  const f = await fixture(t, 3, true);
+  const before = await f.adapter.get('products', 'p');
+  assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  for (const [i, image] of f.images.entries()) assert.ok((await seal.attest(i, image._id)).ok);
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('finish must not fetch bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('finish must not copy bytes');
+  };
+  const command = await currentFinishCommand(f.authority, seal.scope);
+  const result = await seal.run(command);
+  assert.ok(result.ok && 'report' in result, JSON.stringify(result));
+  const adapter = new JsonFileAdapter(f.file);
+  const product = await adapter.get('products', 'p');
+  assert.ok(product);
+  const report = readCurrentCatalogPreparation(product);
+  assert.ok(report?.state === 'ready');
+  assert.equal(report.seal.imageCount, 3);
+  assert.equal(Object.hasOwn(product, 'productFamily'), false);
+  assert.equal(product.published, false);
+  assert.deepEqual(product, {
+    ...before,
+    catalogPreparationState: 'ready',
+    catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
+    catalogPreparationReport: report,
+  });
+  assert.equal((await adapter.get('catalogPreparationJobs', f.jobId))?.state, 'completed');
+  const bytes = readFileSync(f.file, 'utf8');
+  assert.ok((await seal.run(command)).ok);
+  assert.equal(readFileSync(f.file, 'utf8'), bytes);
+});
+test('ready response lost after actual file commit recovers without duplicate writes', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  assert.ok((await seal.attest(0, f.images[0]?._id ?? '')).ok);
+  const command = await currentFinishCommand(f.authority, seal.scope);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lost = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const r = await manage(...args);
+    if (args[1].action === 'finish-preparation' && !lost) {
+      lost = true;
+      throw Error('final ACK lost');
+    }
+    return r;
+  };
+  await assert.rejects(seal.run(command), /ACK lost/);
+  const bytes = readFileSync(f.file, 'utf8');
+  const r = await seal.run(command);
+  assert.ok(r.ok && 'preparation' in r);
+  assert.equal(r.preparation, 'unchanged');
+  assert.equal(readFileSync(f.file, 'utf8'), bytes);
 });
