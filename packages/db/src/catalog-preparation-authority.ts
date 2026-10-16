@@ -141,6 +141,19 @@ export function createCatalogPreparationAuthority(config: {
       grants.set(grant, job);
       return grant;
     },
+    cleanupLeaseScope(
+      grant: unknown,
+    ): Readonly<{ jobId: string; leaseOwner: string; leaseVersion: number }> | null {
+      const key = objectKey(grant);
+      const bound = key ? grants.get(key) : undefined;
+      return bound
+        ? Object.freeze({
+            jobId: bound._id,
+            leaseOwner: bound.leaseOwner,
+            leaseVersion: bound.leaseVersion,
+          })
+        : null;
+    },
     currentLeaseScope(grant: unknown, freshJob: unknown): CatalogPreparationLeaseScope | null {
       const now = time();
       const key = objectKey(grant);

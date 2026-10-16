@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
@@ -84,9 +85,9 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
         const exists = docs.has(id);
         docs.set(id, { _id: id, ...data });
         scope.set(name, docs);
-        return exists
-          ? { updated: 1 }
-          : { upserted: [{ _id: controls.wrongUpsertId === `${name}/${id}` ? 'wrong-id' : id }] };
+        return controls.wrongUpsertId === `${name}/${id}`
+          ? { upserted: [{ _id: 'wrong-id' }] }
+          : exists ? { updated: 1 } : { upserted: [{ _id: id }] };
       },
       remove: async () => ({ deleted: 1 }),
     }),
@@ -936,3 +937,77 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
     await assert.rejects(run(step));
     assert.deepEqual(f.store, before);
   });
+
+async function protectionCloudFixture() {
+  const f = await observationCloudFixture(true);
+  const run = (cmd: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+    manageCatalogPreparationJobInCloudBase(f.db, f.authority, cmd, f.now);
+  const scope = { jobId: f.jobId, lease: f.command.lease };
+  const begun = await run({
+    action: 'begin-image-protection',
+    ...scope,
+    imageId: 'image',
+    imageInputDigest: f.command.imageInputDigest,
+  });
+  assert.ok(begun.ok && 'protection' in begun);
+  const intent = begun.protection;
+  const path = catalogProtectedStoragePath(
+    `${intent.imageIdentity}:${intent.checksumSha256}:${intent.attemptId}`,
+    'original.png',
+  );
+  const target = {
+    storageProvider: 'cloudbase-storage' as const,
+    storageMode: 'classic-nosql-storage' as const,
+    storageFileId: `cloud://test/${path}`,
+    storagePath: path,
+    byteSize: 123,
+  };
+  const checkpoint = () =>
+    run({
+      action: 'checkpoint-image-protection',
+      ...scope,
+      imageId: 'image',
+      intentId: intent._id,
+      target,
+    });
+  const image = f.store.get('images')?.get('image');
+  assert.ok(image);
+  const health = {
+    ...f.command.health,
+    inputDigest: storedCatalogImageInputDigest({ ...image, ...target }),
+  };
+  const commit = () =>
+    run({
+      action: 'commit-image-protection',
+      ...scope,
+      imageId: 'image',
+      intentId: intent._id,
+      health,
+    });
+  return { ...f, run, scope, intent, target, checkpoint, commit };
+}
+test('source-backed protection reserves and commits with ten read-before-write operations, preserving counters', async () => {
+  const f = await protectionCloudFixture();
+  assert.equal(f.controls.maximumOperations, 10);
+  assert.ok((await f.checkpoint()).ok);
+  const before = structuredClone(f.store.get('products'));
+  const committed = await f.commit();
+  assert.ok(committed.ok && 'protection' in committed);
+  assert.equal(committed.protection.state, 'committed');
+  assert.equal(f.controls.maximumOperations, 10);
+  assert.equal(f.store.get('images')?.get('image')?.storageFileId, f.target.storageFileId);
+  assert.deepEqual(f.store.get('products'), before);
+  const snapshot = structuredClone(f.store);
+  assert.deepEqual(await f.commit(), committed);
+  assert.deepEqual(f.store, snapshot);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const child of ['catalogImageObservations', 'images'] as const)
+    test(`cloud protection ${failure} on ${child} rolls back target, journal and job fence`, async () => {
+      const f = await protectionCloudFixture();
+      await f.checkpoint();
+      const before = structuredClone(f.store);
+      f.controls[failure] = `${child}/${child === 'images' ? 'image' : f.intent._id}`;
+      await assert.rejects(f.commit());
+      assert.deepEqual(f.store, before);
+    });

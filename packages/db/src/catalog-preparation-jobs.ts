@@ -16,6 +16,11 @@ import {
   CatalogImageObservationHealthSchema,
   CatalogImageObservationRecordSchema,
 } from './catalog-image-observation.ts';
+import {
+  type CatalogImageProtectionIntent,
+  CatalogProtectedTargetSchema,
+} from './catalog-image-protection-contract.ts';
+import { runCatalogImageProtection } from './catalog-image-protection.ts';
 import type { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
   type CatalogPreparationMediaProgress,
@@ -48,6 +53,44 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('begin-image-protection'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+      imageInputDigest: hex,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('checkpoint-image-protection'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+      intentId: hex,
+      target: CatalogProtectedTargetSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('commit-image-protection'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+      intentId: hex,
+      health: CatalogImageObservationHealthSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('release-image-protection'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+      intentId: hex,
+    })
+    .strict(),
   z.object({ action: z.literal('start'), actorId: id, productId: id }).strict(),
   human.extend({ action: z.literal('get') }).strict(),
   human.extend({ action: z.literal('dispatch') }).strict(),
@@ -127,6 +170,7 @@ const jobSchema = z
       (job.state !== 'running' || job.attempt > 0),
   );
 type Job = z.infer<typeof jobSchema>;
+export type CatalogPreparationJobRecord = Job;
 export type CatalogPreparationJobProgress = Readonly<{
   jobId: string;
   productId: string;
@@ -149,6 +193,7 @@ export type CatalogPreparationJobResult =
   | { ok: true; progress: CatalogPreparationJobProgress; lease: object }
   | { ok: true; call: ReturnType<CatalogPreparationAuthority['issueCall']> }
   | { ok: true; observation: CatalogImageObservation | null }
+  | { ok: true; protection: CatalogImageProtectionIntent }
   | { ok: true; media: Readonly<CatalogPreparationMediaProgress> }
   | {
       ok: false;
@@ -334,6 +379,23 @@ export async function runCatalogPreparationJob(
   if (command.action === 'dispatch') {
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
+  }
+  if (
+    command.action === 'begin-image-protection' ||
+    command.action === 'checkpoint-image-protection' ||
+    command.action === 'commit-image-protection' ||
+    command.action === 'release-image-protection'
+  ) {
+    return runCatalogImageProtection(
+      tx,
+      authority,
+      job,
+      command,
+      now,
+      timestamp,
+      readJob,
+      currentInput,
+    );
   }
   if (command.action === 'bind-media-plan') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };

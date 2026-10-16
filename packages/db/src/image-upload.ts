@@ -1,5 +1,6 @@
 /** Finalize a verified upload under the existing image mutex, without storage calls. */
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
@@ -85,6 +86,33 @@ export function hasImageUploadCompletion(image: CollectionDoc): boolean {
     parsed.data.outputDigest === imageUploadInputDigest(image)
   );
 }
+/** A verified physical move preserves completion only for the same upload identity and bytes. */
+export function retargetImageUploadCompletion(
+  previous: CollectionDoc,
+  next: CollectionDoc,
+): CollectionDoc {
+  const identity = [
+    '_id',
+    'uploadedByUserId',
+    'uploadIntentId',
+    'purpose',
+    'mimeType',
+    'byteSize',
+    'checksumSha256',
+  ];
+  if (
+    !hasImageUploadCompletion(previous) ||
+    next.status !== 'active' ||
+    identity.some((key) => !isDeepStrictEqual(previous[key], next[key]))
+  )
+    return next;
+  const saved = completion.parse(previous.imageUploadCompletion);
+  return {
+    ...next,
+    imageUploadCompletion: { ...saved, outputDigest: imageUploadInputDigest(next) },
+  };
+}
+
 /** An old direct upload needs one physical recheck; unknown new receipts never use this path. */
 export function canReverifyLegacyImageUpload(image: CollectionDoc): boolean {
   return (

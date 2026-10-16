@@ -357,9 +357,9 @@ test('actual alibaba function main handles signed worker messages before timer-s
   process.env.TCB_ENV = 'local-worker-env';
   process.env.JWT_SECRET = 'worker-local-test';
   t.after(() => {
-    if (oldEnv === undefined) process.env.TCB_ENV = undefined;
+    if (oldEnv === undefined) Reflect.deleteProperty(process.env, 'TCB_ENV');
     else process.env.TCB_ENV = oldEnv;
-    if (oldSecret === undefined) process.env.JWT_SECRET = undefined;
+    if (oldSecret === undefined) Reflect.deleteProperty(process.env, 'JWT_SECRET');
     else process.env.JWT_SECRET = oldSecret;
   });
   const { main } = await import('../../functions/alibaba-catalog-sync/src/index.ts');

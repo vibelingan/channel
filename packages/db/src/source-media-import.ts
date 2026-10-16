@@ -8,6 +8,7 @@ import {
 } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
+import { protectedImagePreservesOriginalTarget } from './catalog-image-protection.ts';
 import {
   ImageDeletionIntentSchema,
   type ImageDeletionStore,
@@ -176,6 +177,11 @@ function pendingImage(
     matchesClaim(image.sourceMediaImport, command)
   );
 }
+function activeTargetMatches(image: CollectionDoc, target: SourceMediaTarget) {
+  return Object.entries(target)
+    .filter(([key]) => key !== 'name')
+    .every(([key, value]) => isDeepStrictEqual(image[key], value));
+}
 function targetMatches(image: CollectionDoc, target: SourceMediaTarget) {
   return Object.entries(target).every(([key, value]) => isDeepStrictEqual(image[key], value));
 }
@@ -303,7 +309,9 @@ export async function runSourceMediaImport(
       if (
         (command.action === 'activate' || command.action === 'fail') &&
         receipt.data.imageId === command.imageId &&
-        (command.action === 'fail' || targetMatches(bound, command.target))
+        (command.action === 'fail' ||
+          activeTargetMatches(bound, command.target) ||
+          (await protectedImagePreservesOriginalTarget(store, bound, command.target)))
       )
         return { status: 'ready', imageId: command.imageId, deduplicated: false };
     }

@@ -912,3 +912,16 @@ P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取�
 backend catalog-sealed逻辑namespace映射catalog/sealed/imagehash/contenthash/attempthash.ext；浏览器broker拒绝reserved及escaped/traversal别名后才mint，服务器private minter保留既有PUT/rawheaders合约。两adapter要求beforeWrite回调并等待；是否真落库后续producer验证，namespace/callback自身不发ready。无真实图片迁移或业务状态变化。
 
 55+1交付小流程/完整media157/Node20关键178、8源码故障检出/44–55正控/3文件恢复、广泛admin546+public131+local375=1052、五types+新增delivery类型/Biome8/SDK106通过。实际privatepreview→public404→fixture正引用字节→恢复0再404，非商品发布验收。SDK mapper移动前后AST完全一致、1/1 probe行；重读并保留官方node/storage OpenAPI，未混用shape。实际复核8代码/测试及admin/public交付与shared只读字段，纠正checkpoint持久性措辞、撤销无关header移动。保护attempt/CAS/最终封印与全流程继续，fullDeliveryReady=false。
+
+
+### P2f7b 持久图片复制登记与目标切换
+
+在既有私有观察集合增加独立kind/目的hash的登记协议，复用图片互斥锁和技术任务事务。当前租约reserve、beforeWrite checkpoint、真实目标health commit；共享图片复用attempt，取消/过期后按旧owner证据恢复，cleanup能力只能清理自己一版锁。保留旧对象，不改商品/分类/发布；marker不是ready。
+
+跨流程红测发现来源activate ACK和普通上传finalize ACK在物理地址切换后都会冲突，现按私有已提交登记核对原始目标，并仅对同一上传者/意图/内容更新完成回执。名字可编辑；异图/异上传者/异SHA拒绝。实际双文件适配器竞争只有一个成功，另一个BUSY；故障测试恢复后重跑本地套件。
+
+40组合、313Node20及新增竞争所在文件12项通过；9种源码故障和新增竞争的BUSY故障均检出/恢复。Cloud wrapper各阶段最大10/9/10读写，8种后续写失败/ACK异常全部回滚。真实文件默认读写/原生像素覆盖checkpoint前后、中断、落盘失败、丢确认、重开和重复完成；SDK106、六types及13显式Biome通过。大旧测试仅格式化新增块。扩大套件和精确构建结果在完成后附记，不把正在运行的检查记为通过。
+
+实际文字复核保护模块/合约/测试、authority/jobs/source-import/upload-receipt/shared-path及两适配器测试、SDK记录与本条；把“保护完成”改为“图片目标切换”，不暗示已封印商品。测试字段删除及process.env恢复改用Reflect.deleteProperty，修正unsafe格式化产生的undefined语义。云端业务写入/应用部署0，fullDeliveryReady=false；继续接入默认worker复制及最终准备。
+
+P2f7b扩大最终：shared288+media157+db886+admin546+alibaba303+local381=2561，全部通过、0跳过/取消。local最终在新增实际竞争和所有故障恢复后重跑，73.0秒；之前380项不是最终数。六types通过，新增竞争后local类型和Node20文件12项再次通过。

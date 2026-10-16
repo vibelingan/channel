@@ -23,7 +23,8 @@
     "./release": "./src/release.ts",
     "./catalog-preparation": "./src/catalog/preparation.ts",
     "./catalog-issues": "./src/catalog/issues.ts",
-    "./catalog-detail-pagination": "./src/catalog/pagination.ts"
+    "./catalog-detail-pagination": "./src/catalog/pagination.ts",
+    "./catalog-media-protection": "./src/media-protection.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

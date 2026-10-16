@@ -25,7 +25,9 @@
     "./catalog-preparation-authority": "./src/catalog-preparation-authority.ts",
     "./catalog-preparation-jobs": "./src/catalog-preparation-jobs.ts",
     "./catalog-image-input": "./src/catalog-image-input.ts",
-    "./catalog-image-observation": "./src/catalog-image-observation.ts"
+    "./catalog-image-observation": "./src/catalog-image-observation.ts",
+    "./catalog-image-protection": "./src/catalog-image-protection.ts",
+    "./catalog-image-protection-contract": "./src/catalog-image-protection-contract.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",
