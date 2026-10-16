@@ -114,8 +114,16 @@ function sourcePhotoBinding(link: CollectionDoc | null, sourceUrl: string) {
   )
     return null;
   const failure = readAlibabaPhotoFailure(link, Date.now());
+  const receipt = link.mediaImportReceipt;
   return {
     imageId: typeof link.imageId === 'string' ? link.imageId : undefined,
+    completedOperationId:
+      receipt &&
+      typeof receipt === 'object' &&
+      Reflect.get(receipt, 'imageId') === link.imageId &&
+      typeof Reflect.get(receipt, 'operationId') === 'string'
+        ? String(Reflect.get(receipt, 'operationId'))
+        : null,
     failureRecorded: failure.recorded,
     unavailable: failure.state === 'unusable',
   };
@@ -475,6 +483,25 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     approvalPlan,
     detail: candidate.value,
     sourceMedia: {
+      configurationPhotos: [
+        ...new Map(
+          variantMedia.flatMap((media) =>
+            choiceFor(media.id)
+              ? []
+              : media.sources.map(
+                  (sourceUrl) =>
+                    [
+                      sourceUrl,
+                      {
+                        sourceUrl,
+                        imageId: images.get(sourceUrl) ?? null,
+                        completedOperationId: bindings.get(sourceUrl)?.completedOperationId ?? null,
+                      },
+                    ] as const,
+                ),
+          ),
+        ).values(),
+      ].sort((a, b) => a.sourceUrl.localeCompare(b.sourceUrl)),
       configurationFailures: configurationFailures.sort((a, b) =>
         a.sourceUrl.localeCompare(b.sourceUrl),
       ),

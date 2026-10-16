@@ -625,6 +625,18 @@ for (const failure of ['not-owner', 'throw'] as const)
     const url = 'https://sc05.alicdn.com/reused-after-crash.png';
     const reused = await importCandidateImage(url, deps);
     assert.ok(reused.ok && reused.imageId === first.imageId);
+    assert.equal((await f.readable(first.imageId)).imageMutationOwner, '');
+    const link = await f.adapter.get('catalogSourceLinks', sourceMediaLinkId('alibaba', url));
+    const receipt = link?.mediaImportReceipt;
+    assert.ok(receipt && typeof receipt === 'object');
+    assert.equal(
+      await f.adapter.acquireImageMutation(
+        first.imageId,
+        String(Reflect.get(receipt, 'operationId')),
+        new Date().toISOString(),
+      ),
+      'acquired',
+    );
     const locked = await f.readable(first.imageId);
     assert.ok(locked.imageMutationOwner);
     const reopened = new JsonFileAdapter(f.path);

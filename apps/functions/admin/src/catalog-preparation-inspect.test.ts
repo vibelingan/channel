@@ -556,3 +556,34 @@ test('private defer returns all105 adopted image IDs without a metadata scan; hu
   assert.equal(human.media.scanned, 105);
   assert.equal(reads, 105);
 });
+
+test('private source photo plan contains only adopted configuration URLs and never leaks into human inspection', async () => {
+  const h = sample(3);
+  const id = sourceVariantIds(h.product._id, 'read-source', h.observation).get('sku-0');
+  assert.ok(id);
+  h.product.imageIds = [h.id(0)];
+  h.product.configurationPhotos = { [id]: [h.id(0)] };
+  h.adapter.rows.catalogSourceLinks?.pop();
+  const candidate = await readCatalogPreparationCandidate(
+    { productId: h.product._id },
+    async () => ({ ok: true }),
+    { ...options, mediaMode: 'defer' },
+  );
+  assert.ok(candidate.ok);
+  assert.deepEqual(candidate.sourcePhotos, [
+    {
+      sourceUrl: 'https://sc04.alicdn.com/inspection-1.png',
+      imageId: h.id(1),
+      completedOperationId: null,
+    },
+    {
+      sourceUrl: 'https://sc04.alicdn.com/inspection-2.png',
+      imageId: null,
+      completedOperationId: null,
+    },
+  ]);
+  const human = await h.inspect();
+  assert.ok(human.ok);
+  assert.equal(Object.hasOwn(human, 'sourcePhotos'), false);
+  assert.equal(JSON.stringify(human).includes('inspection-'), false);
+});

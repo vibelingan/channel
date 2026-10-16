@@ -50,6 +50,8 @@ const FETCH_TIMEOUT_MS = 15_000;
 const IMPORTABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 export interface MediaImportDeps {
+  /** Backend-only repository callback; every phase retains the caller's current lease. */
+  persistImport?: (command: SourceMediaImportCommand) => Promise<SourceMediaImportResult>;
   fetchImpl?: typeof fetch;
   /** How long the photo body may take after its headers (default 15 s). */
   bodyTimeoutMs?: number;
@@ -258,11 +260,14 @@ async function fetchCandidate(
 }
 
 /** Repeat the same idempotent operation once after an unknown database ACK. */
-async function persistImport(command: SourceMediaImportCommand): Promise<SourceMediaImportResult> {
+async function persistImport(
+  command: SourceMediaImportCommand,
+  persist = manageSourceMediaImport,
+): Promise<SourceMediaImportResult> {
   try {
-    return await manageSourceMediaImport(command);
+    return await persist(command);
   } catch {
-    return manageSourceMediaImport(command);
+    return persist(command);
   }
 }
 
@@ -278,13 +283,14 @@ export async function importCandidateImage(
       ok: false,
       reason: rawSourceUrl.toLowerCase().startsWith('https:') ? 'host-not-allowed' : 'invalid-url',
     };
+  const persist = (command: SourceMediaImportCommand) => persistImport(command, deps.persistImport);
   const operationId = randomUUID();
   const imageId = randomUUID();
   const now = () => deps.now?.() ?? new Date().toISOString();
   const base = { sourceUrl, operationId, imageId };
   const fail = async (reason: Exclude<MediaImportFailure, 'busy'>): Promise<MediaImportResult> => {
     try {
-      const result = await persistImport({ ...base, action: 'fail', reason, now: now() });
+      const result = await persist({ ...base, action: 'fail', reason, now: now() });
       if (result.status === 'ready')
         return { ok: true, imageId: result.imageId, deduplicated: result.deduplicated };
       return result.status === 'failed'
@@ -295,7 +301,7 @@ export async function importCandidateImage(
     }
   };
   try {
-    const claimed = await persistImport({ ...base, action: 'claim', now: now() });
+    const claimed = await persist({ ...base, action: 'claim', now: now() });
     if (claimed.status === 'ready')
       return { ok: true, imageId: claimed.imageId, deduplicated: true };
     if (claimed.status !== 'claimed')
@@ -342,7 +348,7 @@ export async function importCandidateImage(
         return { ok: false, reason: 'busy' };
       }
       try {
-        const reused = await persistImport({
+        const reused = await persist({
           ...base,
           action: 'reuse',
           existingImageId: existing._id,
@@ -375,7 +381,7 @@ export async function importCandidateImage(
             checksumSha256,
             byteSize: bytes.byteLength,
           });
-          const saved = await persistImport({
+          const saved = await persist({
             ...base,
             action: 'checkpoint',
             target: intended,
@@ -399,7 +405,7 @@ export async function importCandidateImage(
       byteSize: bytes.byteLength,
     });
     if (!checkpoint || !isDeepStrictEqual(checkpoint, returned)) return fail('write-failed');
-    const committed = await persistImport({
+    const committed = await persist({
       ...base,
       action: 'activate',
       target: checkpoint,

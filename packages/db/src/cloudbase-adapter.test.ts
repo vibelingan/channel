@@ -1247,6 +1247,10 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
   test(`completed source lock ${failure} rolls back image cleanup and job fence`, async () => {
     const f = await reuseSourceCloudFixture();
     assert.ok((await f.reuse()).ok);
+    assert.equal(
+      await acquireImageMutationInCloudBase(f.db, 'existing', f.base.operationId, f.base.now),
+      'acquired',
+    );
     const before = structuredClone(f.store);
     f.controls[failure] = 'images/existing';
     await assert.rejects(
@@ -1257,6 +1261,10 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
 test('completed source cleanup expiring after the actual write rolls back, then recovers on a current lease', async () => {
   const f = await reuseSourceCloudFixture();
   assert.ok((await f.reuse()).ok);
+  assert.equal(
+    await acquireImageMutationInCloudBase(f.db, 'existing', f.base.operationId, f.base.now),
+    'acquired',
+  );
   const before = structuredClone(f.store);
   const current = f.now;
   let cleaned = false;

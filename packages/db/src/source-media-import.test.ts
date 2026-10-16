@@ -193,6 +193,11 @@ test('checksum reuse requires the existing image mutex, atomically binds and rem
   assert.equal(f.get('images', base.imageId), null);
   assert.equal(f.get('images', 'existing')?.publishedRefCount, 2);
   assert.equal(f.get('catalogSourceLinks', linkId)?.imageId, 'existing');
+  assert.equal(
+    f.get('images', 'existing')?.imageMutationOwner,
+    '',
+    'binding and its lock cleanup commit together',
+  );
   assert.deepEqual(await f.run(command), {
     status: 'ready',
     imageId: 'existing',
@@ -429,6 +434,9 @@ async function completedReuse() {
     checksumSha256: target.checksumSha256,
   };
   assert.equal((await f.run(reuse)).status, 'ready');
+  assert.equal(f.get('images', 'shared-image')?.imageMutationOwner, '');
+  // Historical completion persisted the binding before a separate release.
+  hold(f, 'shared-image', base.operationId);
   assert.equal(f.get('images', 'shared-image')?.imageMutationOwner, base.operationId);
   return { f, reuse };
 }

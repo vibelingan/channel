@@ -15,6 +15,7 @@ import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/c
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
 import type { AlibabaSyncFunctionConfig } from './config.ts';
 import { handleAlibabaSyncFunctionEvent, parseAllowedOrigins } from './http-adapter.ts';
+import { importCandidateImage } from './media-import.ts';
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
@@ -68,7 +69,10 @@ export const main = async (event: unknown): Promise<unknown> => {
     event !== null &&
     Reflect.get(event, 'kind') === 'catalog-preparation-call-v1'
   )
-    return runCatalogPreparationWorker(preparationAuthority, event);
+    return runCatalogPreparationWorker(preparationAuthority, event, {
+      importSourceImage: (sourceUrl, persistImport) =>
+        importCandidateImage(sourceUrl, { persistImport }),
+    });
   if (isTimerEvent(event)) {
     // Timer tick (production only — the test env never receives a timer,
     // MIU 14): full 720s budget under the fenced lease.

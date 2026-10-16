@@ -100,6 +100,7 @@ test('human inspection preserves its established output while private candidate 
   assert.ok(human.ok && candidate.ok);
   assert.equal(Object.hasOwn(human, 'imageIds'), false);
   assert.equal(Object.hasOwn(candidate, 'imageIds'), true);
-  const { imageIds: _ids, ...projected } = candidate;
+  assert.equal(Object.hasOwn(human, 'sourcePhotos'), false);
+  const { imageIds: _ids, sourcePhotos: _photos, ...projected } = candidate;
   assert.deepEqual(human, projected);
 });

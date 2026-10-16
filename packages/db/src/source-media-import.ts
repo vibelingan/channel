@@ -426,7 +426,7 @@ export async function runSourceMediaImport(
     const lock = readImageMutationState(existing);
     if (lock.state !== 'owned' || lock.owner !== command.operationId) return { status: 'busy' };
     // The same image row is physically fenced against deletion, not just read.
-    await store.set('images', existing);
+    await store.set('images', { ...existing, imageMutationOwner: '', imageMutationStartedAt: '' });
     await store.set(
       'catalogSourceLinks',
       readyLink(link, command.existingImageId, command.operationId, command.now),

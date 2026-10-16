@@ -81,7 +81,7 @@ export async function inspectCatalogPreparation(
     },
   );
   if (!candidate.ok) return candidate;
-  const { imageIds: _imageIds, ...inspection } = candidate;
+  const { imageIds: _imageIds, sourcePhotos: _sourcePhotos, ...inspection } = candidate;
   return inspection;
 }
 
@@ -117,6 +117,11 @@ export async function readCatalogPreparationCandidate(
   const inputDigest = catalogPreparationInputDigest(initial);
   const issues: CatalogIssue[] = [];
   let imageIds: string[] = [];
+  let sourcePhotos: {
+    sourceUrl: string;
+    imageId: string | null;
+    completedOperationId: string | null;
+  }[] = [];
   let previewReady = false;
   let unbound = false;
   let unavailable = false;
@@ -147,6 +152,7 @@ export async function readCatalogPreparationCandidate(
       else {
         previewReady = true;
         imageIds = planned.approvalPlan.imageIds;
+        sourcePhotos = planned.sourceMedia.configurationPhotos;
         sourceRevision = planned.packet.revision;
         const unboundSources = new Set(
           planned.packet.variantMedia.flatMap((media) => media.unboundSources),
@@ -262,6 +268,7 @@ export async function readCatalogPreparationCandidate(
     mediaInputDigest: sourceDigest([sourceRevision, snapshots, failureInputs]),
     media: { scanned, total: imageIds.length },
     imageIds,
+    sourcePhotos,
     issues: issues.slice(0, 50),
   };
 }

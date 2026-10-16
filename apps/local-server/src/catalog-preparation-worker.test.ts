@@ -12,6 +12,7 @@ import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-d
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
 import { runCatalogPreparationWorker } from '../../functions/admin/src/catalog-preparation-worker.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
+import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 const bytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==',
@@ -325,7 +326,7 @@ async function sourceWorkspace(t: { after(fn: () => void): void }, count = 105) 
     assert.ok(r.ok && 'call' in r);
     return r.call;
   };
-  return { ...f, adapter, dispatch, productId: h.product._id, url };
+  return { ...f, adapter, dispatch, jobId: s.progress.jobId, productId: h.product._id, url };
 }
 test('105 source configurations retain the full plan with metadata reads only for four processed images', async (t) => {
   const f = await sourceWorkspace(t);
@@ -658,4 +659,323 @@ test('a transient pixel cache read failure falls back to actual object health wi
   assert.equal(result.media.verified, 1);
   assert.equal(reads, 1);
   assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});
+
+async function unboundSourceWorkspace(t: { after(fn: () => void): void }, count = 1) {
+  const f = await sourceWorkspace(t, count);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  rows.catalogSourceLinks = [];
+  rows.images = [];
+  writeFileSync(f.file, JSON.stringify(rows));
+  const adapter = new JsonFileAdapter(f.file);
+  setAdapter(adapter);
+  const dispatch = async () => {
+    const r = await adapter.manageCatalogPreparationJob(f.authority, {
+      action: 'dispatch',
+      actorId: 'admin',
+      jobId: f.jobId,
+    });
+    assert.ok(r.ok && 'call' in r);
+    return r.call;
+  };
+  return { ...f, adapter, dispatch };
+}
+test('actual source fetch/copy binds every adopted URL before the pixel plan and survives reopen', async (t) => {
+  const f = await unboundSourceWorkspace(t, 5);
+  const before = await f.adapter.get('products', f.productId);
+  const fetched: string[] = [];
+  const source = (
+    sourceUrl: string,
+    persistImport: NonNullable<
+      NonNullable<Parameters<typeof importCandidateImage>[1]>['persistImport']
+    >,
+  ) =>
+    importCandidateImage(sourceUrl, {
+      persistImport,
+      resolveDns: async () => ['104.16.1.1'],
+      fetchImpl: async (input) => {
+        fetched.push(String(input));
+        return new Response(new Uint8Array(bytes));
+      },
+    });
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: source,
+  });
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'partial');
+  assert.equal(fetched.length, 4);
+  let rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.catalogSourceLinks.filter((l: { imageId?: string }) => l.imageId).length, 4);
+  assert.equal(
+    rows.catalogPreparationJobs.find((j: { _id: string }) => j._id === f.jobId).media,
+    null,
+  );
+  const reopened = new JsonFileAdapter(f.file);
+  setAdapter(reopened);
+  const second = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: source,
+  });
+  assert.ok(second.ok, JSON.stringify(second));
+  assert.equal(second.outcome, 'checked');
+  assert.equal(fetched.length, 5);
+  assert.deepEqual(second.media, { total: 1, checked: 1, verified: 1, invalid: 0, retry: 0 });
+  rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.images.filter((i: { status: string }) => i.status === 'active').length, 1);
+  assert.deepEqual(await reopened.get('products', f.productId), before);
+});
+test('source producer failure cannot bind an incomplete image plan or report checked', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: (url, persistImport) =>
+      importCandidateImage(url, {
+        persistImport,
+        resolveDns: async () => ['104.16.1.1'],
+        fetchImpl: async () => new Response('', { status: 503 }),
+      }),
+  });
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'retryable');
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(
+    rows.catalogPreparationJobs.find((j: { _id: string }) => j._id === f.jobId).media,
+    null,
+  );
+  assert.equal(rows.products[0].published, false);
+});
+
+async function cancelPreparation(f: Awaited<ReturnType<typeof unboundSourceWorkspace>>) {
+  const current = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'get',
+    actorId: 'admin',
+    jobId: f.jobId,
+  });
+  assert.ok(current.ok && 'progress' in current);
+  return f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'cancel',
+    actorId: 'admin',
+    jobId: f.jobId,
+    expectedLeaseVersion: current.progress.leaseVersion,
+  });
+}
+const sourceOptions = (
+  fetchImpl: typeof fetch = async () => new Response(new Uint8Array(bytes)),
+) => ({
+  importSourceImage: (
+    url: string,
+    persistImport: NonNullable<
+      NonNullable<Parameters<typeof importCandidateImage>[1]>['persistImport']
+    >,
+  ) =>
+    importCandidateImage(url, { persistImport, resolveDns: async () => ['104.16.1.1'], fetchImpl }),
+});
+test('completed source dedup cleanup failure recovers its exact adopted URL before pixels in the same worker', async (t) => {
+  const f = await unboundSourceWorkspace(t, 2);
+  f.adapter.releaseImageMutation = async () => {
+    throw Error('release unavailable');
+  };
+  let fetches = 0;
+  let injected = false;
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: async (url, persistImport) => {
+      const imported = await importCandidateImage(url, {
+        persistImport,
+        resolveDns: async () => ['104.16.1.1'],
+        fetchImpl: async () => {
+          fetches++;
+          return new Response(new Uint8Array(bytes));
+        },
+      });
+      if (imported.ok && url === f.url(1) && !injected) {
+        injected = true;
+        const link = await f.adapter.get('catalogSourceLinks', sourceMediaLinkId('alibaba', url));
+        const receipt = link?.mediaImportReceipt;
+        assert.ok(receipt && typeof receipt === 'object');
+        assert.equal(
+          await f.adapter.acquireImageMutation(
+            imported.imageId,
+            String(Reflect.get(receipt, 'operationId')),
+            new Date().toISOString(),
+          ),
+          'acquired',
+        );
+      }
+      return imported;
+    },
+  });
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'checked');
+  assert.equal(result.media.verified, 1);
+  assert.equal(fetches, 2);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.images.length, 1);
+  assert.equal(rows.images[0].imageMutationOwner, '');
+  assert.equal(rows.products[0].published, false);
+});
+test('source phase cancellation before claim never fetches or writes an image', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let canceled = false;
+  f.adapter.manageCatalogPreparationJob = async (authority, command, now) => {
+    if (command.action === 'manage-source-media' && !canceled) {
+      canceled = true;
+      assert.ok((await cancelPreparation(f)).ok);
+    }
+    return manage(authority, command, now);
+  };
+  let fetches = 0;
+  const result = await runCatalogPreparationWorker(
+    f.authority,
+    await f.dispatch(),
+    sourceOptions(async () => {
+      fetches++;
+      return new Response(new Uint8Array(bytes));
+    }),
+  );
+  assert.equal(result.ok, false);
+  assert.equal(fetches, 0);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.images.length, 0);
+  assert.equal(rows.catalogSourceLinks.length, 0);
+  assert.equal(rows.products[0].published, false);
+});
+test('source cancellation after bytes retains tracked pending target and cannot activate or publish', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  const put = f.storage.putObject.bind(f.storage);
+  let written = false;
+  f.storage.putObject = async (input, options) => {
+    const stored = await put(input, options);
+    written = true;
+    assert.ok((await cancelPreparation(f)).ok);
+    return stored;
+  };
+  const result = await runCatalogPreparationWorker(
+    f.authority,
+    await f.dispatch(),
+    sourceOptions(),
+  );
+  assert.equal(result.ok, false);
+  assert.ok(written);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.images.length, 1);
+  assert.equal(rows.images[0].status, 'pending');
+  assert.equal(typeof rows.images[0].storageFileId, 'string');
+  assert.equal(rows.catalogSourceLinks[0].imageId, undefined);
+  assert.equal(rows.products[0].published, false);
+});
+test('lost scoped source activation ACK does not fetch or put twice and continues actual pixels', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lost = false;
+  f.adapter.manageCatalogPreparationJob = async (authority, command, now) => {
+    const result = await manage(authority, command, now);
+    if (
+      command.action === 'manage-source-media' &&
+      command.command.action === 'activate' &&
+      !lost
+    ) {
+      lost = true;
+      throw Error('committed activation ACK lost');
+    }
+    return result;
+  };
+  let fetches = 0;
+  const result = await runCatalogPreparationWorker(
+    f.authority,
+    await f.dispatch(),
+    sourceOptions(async () => {
+      fetches++;
+      return new Response(new Uint8Array(bytes));
+    }),
+  );
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'checked');
+  assert.ok(lost);
+  assert.equal(fetches, 1);
+  assert.equal(JSON.parse(readFileSync(f.file, 'utf8')).images.length, 1);
+});
+test('a permanent source failure is blocked with edit fallback and never repeatedly downloaded', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  let fetches = 0;
+  const opts = sourceOptions(async () => {
+    fetches++;
+    return new Response('', { status: 404 });
+  });
+  for (let i = 0; i < 2; i++) {
+    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), opts);
+    assert.ok(result.ok);
+    assert.equal(result.outcome, 'blocked');
+    assert.ok(result.issues.some((issue) => issue.remedy === 'edit'));
+  }
+  assert.equal(fetches, 1);
+});
+test('source work respects the existing step budget before starting any fetch', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  let clock = 0;
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    ...sourceOptions(async () => {
+      throw Error('over-budget fetch');
+    }),
+    now: () => {
+      clock += 13000;
+      return clock;
+    },
+  });
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'partial');
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.images.length, 0);
+  assert.equal(
+    rows.catalogPreparationJobs.find((j: { _id: string }) => j._id === f.jobId).media,
+    null,
+  );
+});
+
+test('source phase product edit during download refuses the old checkpoint and preserves the new edit', async (t) => {
+  const f = await unboundSourceWorkspace(t);
+  let edited = false;
+  const result = await runCatalogPreparationWorker(
+    f.authority,
+    await f.dispatch(),
+    sourceOptions(async () => {
+      edited = true;
+      await f.adapter.update('products', f.productId, { name: 'Concurrent admin edit' });
+      return new Response(new Uint8Array(bytes));
+    }),
+  );
+  assert.ok(edited);
+  assert.equal(result.ok, false);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.products[0].name, 'Concurrent admin edit');
+  assert.equal(rows.products[0].published, false);
+  assert.equal(rows.images.length, 1);
+  assert.equal(rows.images[0].status, 'pending');
+  assert.equal(rows.images[0].storageFileId, undefined);
+  assert.equal(rows.catalogSourceLinks[0].imageId, undefined);
+});
+
+test('source callback rejects a different URL and retirement before any source writes', async (t) => {
+  for (const action of ['claim', 'retire'] as const) {
+    const f = await unboundSourceWorkspace(t);
+    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+      importSourceImage: async (_url, persist) => {
+        await persist(
+          action === 'retire'
+            ? { action, imageId: 'unowned', owner: 'unowned', now: new Date().toISOString() }
+            : {
+                action,
+                imageId: 'unowned',
+                operationId: 'unowned',
+                sourceUrl: 'https://sc04.alicdn.com/unselected.png',
+                now: new Date().toISOString(),
+              },
+        );
+        return { ok: true };
+      },
+    });
+    assert.deepEqual(result, { ok: false, code: 'UNAVAILABLE' });
+    const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+    assert.equal(rows.images.length, 0);
+    assert.equal(rows.catalogSourceLinks.length, 0);
+    assert.equal(rows.products[0].published, false);
+  }
 });

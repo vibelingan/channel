@@ -739,3 +739,35 @@ test('an unconfirmed row removal retains a quarantined retry target', async () =
   });
   assert.equal(store.images?.length, 0);
 });
+
+test('injected source persistence owns every import phase and retries the exact unknown ACK command', async () => {
+  setup();
+  const adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
+  const persist = adapter.manageSourceMediaImport.bind(adapter);
+  adapter.manageSourceMediaImport = async () => {
+    throw Error('unscoped source persistence forbidden');
+  };
+  const commands: SourceMediaImportCommand[] = [];
+  let lost = false;
+  const result = await importCandidateImage('https://sc04.alicdn.com/scoped.png', {
+    resolveDns: PUBLIC_DNS,
+    fetchImpl: async () => new Response(new Uint8Array(PNG_BYTES)),
+    persistImport: async (command) => {
+      commands.push(structuredClone(command));
+      const reply = await persist(command);
+      if (!lost) {
+        lost = true;
+        throw Error('committed claim ACK lost');
+      }
+      return reply;
+    },
+  });
+  assert.ok(result.ok);
+  assert.deepEqual(
+    commands.map((c) => c.action),
+    ['claim', 'claim', 'checkpoint', 'activate'],
+  );
+  assert.deepEqual(commands[0], commands[1]);
+  assert.equal(storage.puts.length, 1);
+});

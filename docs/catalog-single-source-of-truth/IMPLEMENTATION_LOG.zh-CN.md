@@ -963,3 +963,10 @@ P2f9a最终：DB933+admin548+public131+alibaba303+local406=2321全部通过，0�
 ### P2f9b1 已完成来源绑定的残留锁恢复
 
 严格完成回执绑定active URL/image和同一operation owner，claim/合法确认重放可补做清理；note-failure、错误参数、其他owner、坏/缺receipt不清锁。只改两个锁字段，不动updatedAt/目标/引用数/商品。27纯协议先红后绿；最终Node20六文件212全部通过，DB/local types、3完整Biome与diff检查通过。Cloud写ACK四形态/实际写后租约到期回滚；真实PNG导入去重、持续释放失败、文件重开、零额外网络/PUT、迟到释放已验证。测试中boolean假设已按现有字符串协议纠正后重跑。复核实现/Source lease wrapper/现有release/Cloud与JSON/importer，文案将“READY已可发布”改为“仅来源绑定完成”。没有新增SDK接口，构建和完整业务流程仍待后续集成。fullDeliveryReady=false。
+
+
+### P2f9b 来源网络producer接入实际worker
+
+复用既有SSRF安全importer，仅注入当前opaque lease的来源持久接口，限定采用URL且不允许retire；人类响应不暴露私有sourcePhotos。未绑定配置照片先完成，每阶段最多4个/20秒软预算，再重读完整候选绑定像素计划。新去重绑定与清锁同事务，历史残留按采用URL/owner严格恢复后续查像素；不改商品/分类/发布。
+
+最终Node20九文件298项，扩大DB948+admin549+public131+alibaba304+local418=2350项全部通过，0失败/跳过/取消。四types/SDK通过，7源码故障全检出123–132正控/133，原字节恢复。真实本地五URL跨步/重开/一来源PUT+保护复制/像素、503/404、取消前后、下载期间编辑、activation ACK丢失、错URL/retire、人工选图和105配置均覆盖。夹具dispatch旧闭包、取消缺leaseVersion、candidate投影预期和exactOptionalPropertyTypes错误修正后重新跑，不冒称产品bug。实际review生产和测试文件；“20秒限制”改为“软预算，现有网络deadline可能跨越”。精确构建/产物随后记，业务全流程仍未完成。
