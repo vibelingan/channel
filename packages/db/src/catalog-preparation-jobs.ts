@@ -34,10 +34,17 @@ import {
   initialCatalogMediaProgress,
 } from './catalog-preparation-media-progress.ts';
 import {
+  type CatalogPreparationMediaSeal,
+  CatalogPreparationMediaSealSchema,
+  advanceCatalogMediaSeal,
+  initialCatalogMediaSeal,
+} from './catalog-preparation-media-seal.ts';
+import {
   catalogPreparationInputDigest,
   readCatalogPreparationInputs,
 } from './catalog-preparation-store.ts';
 import {
+  CATALOG_PIXEL_POLICY,
   planCatalogProtectedPixels,
   readCatalogProtectedPixels,
 } from './catalog-protected-pixels.ts';
@@ -67,6 +74,24 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('bind-media-seal'),
+      jobId: hex,
+      lease: z.unknown(),
+      planDigest: hex,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('attest-media-image'),
+      jobId: hex,
+      lease: z.unknown(),
+      planDigest: hex,
+      index: integer,
+      imageId: id,
+    })
+    .strict(),
   z
     .object({
       action: z.literal('reserve-image-check'),
@@ -189,6 +214,7 @@ const jobSchema = z
     attempt: integer,
     mutationRevision: integer,
     media: CatalogPreparationMediaProgressSchema.nullable(),
+    mediaSeal: CatalogPreparationMediaSealSchema.nullable().optional(),
     createdAt: instantSchema,
     updatedAt: instantSchema,
   })
@@ -234,6 +260,7 @@ export type CatalogPreparationJobResult =
   | { ok: true; protection: CatalogImageProtectionIntent }
   | { ok: true; sourceMedia: SourceMediaImportResult }
   | { ok: true; reservation: 'reserved' }
+  | { ok: true; mediaSeal: Readonly<CatalogPreparationMediaSeal> }
   | {
       ok: true;
       protectedHealth: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
@@ -411,6 +438,7 @@ export async function runCatalogPreparationJob(
       mutationRevision: job.mutationRevision + 1,
       nonce: randomBytes(32).toString('hex'),
       media: null,
+      mediaSeal: null,
       state: 'queued',
       leaseVersion: job.leaseVersion + 1,
       leaseOwner: '',
@@ -423,6 +451,85 @@ export async function runCatalogPreparationJob(
   if (command.action === 'dispatch') {
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
+  }
+  if (command.action === 'bind-media-seal' || command.action === 'attest-media-image') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    const media = job.media;
+    if (
+      !media ||
+      media.planDigest !== command.planDigest ||
+      media.cursor !== media.total ||
+      media.verified !== media.total ||
+      media.invalid !== 0 ||
+      media.retry !== 0
+    )
+      return { ok: false, code: 'CONFLICT' };
+    let seal = job.mediaSeal ?? null;
+    if (seal && (seal.planDigest !== media.planDigest || seal.total !== media.total))
+      return { ok: false, code: 'CORRUPT' };
+    if (seal && seal.pixelPolicyVersion !== CATALOG_PIXEL_POLICY)
+      return { ok: false, code: 'CONFLICT' };
+    const previous = seal;
+    if (command.action === 'bind-media-seal')
+      seal = seal ?? initialCatalogMediaSeal(media.planDigest, media.total);
+    else {
+      if (
+        !seal ||
+        command.index >= seal.total ||
+        (command.index !== seal.cursor && command.index !== seal.cursor - 1)
+      )
+        return { ok: false, code: 'CONFLICT' };
+      const hold = catalogPreparationImageHold(job, command.imageId);
+      const held = await tx.get(CATALOG_IMAGE_OBSERVATIONS, hold._id);
+      if (!matchesCatalogPreparationImageHold(held, job, command.imageId))
+        return { ok: false, code: 'CONFLICT' };
+      const image = await tx.get('images', command.imageId);
+      if (!image || image._id !== command.imageId) return { ok: false, code: 'CONFLICT' };
+      const lock = readImageMutationState(image);
+      if (lock.state !== 'free')
+        return {
+          ok: false,
+          code:
+            lock.state === 'owned' && now - Date.parse(lock.startedAt) < IMAGE_MUTATION_STALE_MS
+              ? 'BUSY'
+              : 'CORRUPT',
+        };
+      const health = await readCatalogProtectedPixels(tx, image, now);
+      if (!health) return { ok: false, code: 'CONFLICT' };
+      seal = advanceCatalogMediaSeal(seal, {
+        index: command.index,
+        imageId: command.imageId,
+        imageInputDigest: storedCatalogImageInputDigest(image),
+        health,
+      });
+      if (!seal) return { ok: false, code: 'CONFLICT' };
+    }
+    const current = await currentInput(tx, job.productId);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      !current ||
+      current === 'invalid' ||
+      current.inputDigest !== job.inputDigest ||
+      current.contentGeneration !== job.contentGeneration
+    ) {
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mutationRevision: job.mutationRevision + 1,
+        state: 'stale',
+        leaseOwner: '',
+        leaseExpiresAt: 0,
+        updatedAt: timestamp,
+      });
+      return { ok: false, code: 'STALE' };
+    }
+    if (previous !== seal)
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mediaSeal: seal,
+        mutationRevision: job.mutationRevision + 1,
+        updatedAt: timestamp,
+      });
+    return { ok: true, mediaSeal: Object.freeze({ ...seal }) };
   }
   if (command.action === 'reserve-image-check') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };

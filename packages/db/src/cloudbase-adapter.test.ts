@@ -66,6 +66,7 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
     silentRemove: '',
     codedRemove: '',
     afterWrite: (_key: string): void => {},
+    afterRead: (_key: string): void => {},
     maximumOperations: 0,
   };
   type Scope = typeof store;
@@ -127,7 +128,9 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
               get: async () => {
                 operations++;
                 assert.equal(writing, false, 'all transaction reads precede writes');
-                return ref.get();
+                const result = await ref.get();
+                controls.afterRead(`${name}/${id}`);
+                return result;
               },
               update: async (data: Record<string, unknown>) => {
                 operations++;
@@ -1340,5 +1343,86 @@ test('expiry after the hold write rolls back the partial reservation', async () 
     if (key === `catalogImageObservations/${hold._id}`) f.now += 120001;
   };
   await assert.rejects(reserve(), /lease changed/);
+  assert.deepEqual(f.store, before);
+});
+
+async function mediaSealCloudFixture() {
+  const f = await protectedPixelCloudFixture();
+  assert.ok((await f.run({ action: 'reserve-image-check', ...f.scope, imageId: 'image' })).ok);
+  assert.ok((await f.run(f.step)).ok);
+  const bind = () =>
+    f.run({ action: 'bind-media-seal', ...f.scope, planDigest: f.step.planDigest });
+  const attest = () =>
+    f.run({
+      action: 'attest-media-image',
+      ...f.scope,
+      planDigest: f.step.planDigest,
+      index: 0,
+      imageId: 'image',
+    });
+  return { f, bind, attest };
+}
+test('final protected image attestation is ten read-before-write operations without image/counter/product writes', async () => {
+  const { f, bind, attest } = await mediaSealCloudFixture();
+  assert.ok((await bind()).ok);
+  f.controls.maximumOperations = 0;
+  const images = structuredClone(f.store.get('images'));
+  const products = structuredClone(f.store.get('products'));
+  const result = await attest();
+  assert.ok(result.ok && 'mediaSeal' in result);
+  assert.equal(result.mediaSeal.cursor, 1);
+  assert.equal(f.controls.maximumOperations, 10);
+  assert.deepEqual(f.store.get('images'), images);
+  assert.deepEqual(f.store.get('products'), products);
+  const before = structuredClone(f.store);
+  assert.deepEqual(await attest(), result);
+  assert.deepEqual(f.store, before);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const phase of ['bind', 'attest'] as const)
+    test(`media seal ${phase} ${failure} cannot advance durable proof`, async () => {
+      const { f, bind, attest } = await mediaSealCloudFixture();
+      if (phase === 'attest') assert.ok((await bind()).ok);
+      f.controls[failure] = `catalogPreparationJobs/${f.scope.jobId}`;
+      const before = structuredClone(f.store);
+      await assert.rejects(phase === 'attest' ? attest() : bind());
+      assert.deepEqual(f.store, before);
+    });
+
+test('expiry while reading the protected pixel receipt cannot advance attestation', async () => {
+  const { f } = await mediaSealCloudFixture();
+  assert.ok((await f.run({ action: 'release', ...f.scope })).ok);
+  let clock = f.now + 5;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'expiry-seal',
+    environmentId: 'test',
+    now: () => clock,
+  });
+  const run = (command: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+    manageCatalogPreparationJobInCloudBase(f.db, authority, command, clock);
+  const d = await run({ action: 'dispatch', actorId: 'admin', jobId: f.scope.jobId });
+  assert.ok(d.ok && 'call' in d);
+  const c = await run({ action: 'claim', call: d.call, owner: 'seal-expiry' });
+  assert.ok(c.ok && 'lease' in c);
+  const scope = { jobId: f.scope.jobId, lease: c.lease };
+  assert.ok((await run({ action: 'bind-media-seal', ...scope, planDigest: f.step.planDigest })).ok);
+  const cache = [...(f.store.get('catalogImageObservations')?.values() ?? [])].find(
+    (r) => r.kind === 'catalog-protected-image-health-v1',
+  );
+  assert.ok(cache);
+  f.controls.afterRead = (key) => {
+    if (key === `catalogImageObservations/${cache._id}`) clock += 120001;
+  };
+  const before = structuredClone(f.store);
+  assert.deepEqual(
+    await run({
+      action: 'attest-media-image',
+      ...scope,
+      planDigest: f.step.planDigest,
+      index: 0,
+      imageId: 'image',
+    }),
+    { ok: false, code: 'CONFLICT' },
+  );
   assert.deepEqual(f.store, before);
 });

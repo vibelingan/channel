@@ -7,6 +7,8 @@ import test from 'node:test';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import { readCatalogPreparationJob } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
@@ -1000,4 +1002,224 @@ test('source callback rejects a different URL and retirement before any source w
     assert.equal(rows.catalogSourceLinks.length, 0);
     assert.equal(rows.products[0].published, false);
   }
+});
+
+async function sealScope(
+  adapter: JsonFileAdapter,
+  authority: ReturnType<typeof createCatalogPreparationAuthority>,
+  jobId: string,
+) {
+  const run = (command: Parameters<typeof adapter.manageCatalogPreparationJob>[1]) =>
+    adapter.manageCatalogPreparationJob(authority, command);
+  const d = await run({ action: 'dispatch', actorId: 'admin', jobId });
+  assert.ok(d.ok && 'call' in d);
+  const c = await run({ action: 'claim', call: d.call, owner: 'seal-worker' });
+  assert.ok(c.ok && 'lease' in c);
+  const scope = { jobId, lease: c.lease };
+  const job = readCatalogPreparationJob(
+    await adapter.get('catalogPreparationJobs', jobId),
+    jobId,
+    Date.now(),
+  );
+  assert.ok(job?.media);
+  const planDigest = job.media.planDigest;
+  const bind = await run({ action: 'bind-media-seal', ...scope, planDigest });
+  assert.ok(bind.ok && 'mediaSeal' in bind, JSON.stringify(bind));
+  return {
+    run,
+    scope,
+    planDigest,
+    bind,
+    attest: (index: number, imageId: string) =>
+      run({ action: 'attest-media-image', ...scope, planDigest, index, imageId }),
+  };
+}
+test('actual protected media attestation resumes after database reopen without object IO or product mutation', async (t) => {
+  const f = await fixture(t, 3);
+  const product = await f.adapter.get('products', 'p');
+  assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const one = await seal.attest(0, f.images[0]?._id ?? '');
+  assert.ok(one.ok && 'mediaSeal' in one);
+  assert.equal(one.mediaSeal.cursor, 1);
+  assert.deepEqual(await seal.attest(0, f.images[0]?._id ?? ''), one);
+  assert.ok((await seal.run({ action: 'release', ...seal.scope })).ok);
+  const adapter = new JsonFileAdapter(f.file);
+  setAdapter(adapter);
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('attestation must reuse current protected pixels');
+  };
+  f.storage.putObject = async () => {
+    throw Error('attestation must not PUT');
+  };
+  const fresh = createCatalogPreparationAuthority({
+    secret: 'worker-local-test',
+    environmentId: 'local-worker-env',
+  });
+  const next = await sealScope(adapter, fresh, f.jobId);
+  assert.equal(next.bind.mediaSeal.cursor, 1);
+  for (let i = 1; i < 3; i++) assert.ok((await next.attest(i, f.images[i]?._id ?? '')).ok);
+  const job = readCatalogPreparationJob(
+    await adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.equal(job?.mediaSeal?.cursor, 3);
+  assert.equal(
+    job.mediaSeal.imageIdsDigest,
+    catalogSealedImageIdsDigest(f.images.map((i) => i._id)),
+  );
+  assert.deepEqual(await adapter.get('products', 'p'), product);
+});
+for (const fault of [
+  'hold',
+  'pixels',
+  'intent',
+  'target',
+  'lock',
+  'pixel-policy',
+  'cancel',
+  'edit',
+] as const)
+  test(`final media attestation rejects ${fault} after the initial cursor was checked`, async (t) => {
+    const f = await fixture(t, 1);
+    await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    const seal = await sealScope(f.adapter, f.authority, f.jobId);
+    const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+    if (fault === 'hold')
+      rows.catalogImageObservations = rows.catalogImageObservations.filter(
+        (r: { kind: string }) => r.kind !== 'catalog-preparation-image-hold-v1',
+      );
+    if (fault === 'pixels')
+      rows.catalogImageObservations = rows.catalogImageObservations.filter(
+        (r: { kind: string }) => r.kind !== 'catalog-protected-image-health-v1',
+      );
+    if (fault === 'intent')
+      rows.catalogImageObservations = rows.catalogImageObservations.filter(
+        (r: { kind: string }) => r.kind !== 'catalog-image-protection-intent-v1',
+      );
+    if (fault === 'target') rows.images[0].storageFileId = 'other';
+    if (fault === 'lock')
+      Object.assign(rows.images[0], {
+        imageMutationOwner: 'deleter',
+        imageMutationStartedAt: new Date().toISOString(),
+      });
+    if (fault === 'pixel-policy')
+      rows.catalogPreparationJobs[0].mediaSeal.pixelPolicyVersion = 'old-pixels';
+    if (fault === 'edit') rows.products[0].name = 'New name';
+    writeFileSync(f.file, JSON.stringify(rows));
+    if (fault === 'cancel')
+      assert.ok(
+        (
+          await seal.run({
+            action: 'cancel',
+            actorId: 'admin',
+            jobId: f.jobId,
+            expectedLeaseVersion: 2,
+          })
+        ).ok,
+      );
+    const result = await seal.attest(0, f.images[0]?._id ?? '');
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+    assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
+  });
+test('shared image counter/name edits survive attestation and do not force bytes or shared writes', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  Object.assign(rows.images[0], { name: 'Other editor name', publishedRefCount: 7 });
+  writeFileSync(f.file, JSON.stringify(rows));
+  const before = structuredClone(rows.images);
+  assert.ok((await seal.attest(0, f.images[0]?._id ?? '')).ok);
+  assert.deepEqual(JSON.parse(readFileSync(f.file, 'utf8')).images, before);
+});
+
+test('105 adopted configuration images are all checked and attested across independent bounded commands', async (t) => {
+  const f = await sourceWorkspace(t, 105);
+  const before = await f.adapter.get('products', f.productId);
+  let complete = false;
+  let steps = 0;
+  for (; steps < 27; steps++) {
+    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    assert.ok(result.ok, JSON.stringify(result));
+    if (result.outcome === 'checked') {
+      complete = true;
+      steps++;
+      break;
+    }
+  }
+  assert.equal(complete, true);
+  assert.equal(steps, 27);
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  for (const [index, image] of f.images.entries()) {
+    const r = await seal.attest(index, image._id);
+    assert.ok(r.ok && 'mediaSeal' in r, JSON.stringify(r));
+    assert.equal(r.mediaSeal.cursor, index + 1);
+  }
+  const job = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.equal(job?.mediaSeal?.cursor, 105);
+  assert.equal(
+    job.mediaSeal.imageIdsDigest,
+    catalogSealedImageIdsDigest(f.images.map((i) => i._id)),
+  );
+  assert.ok(Buffer.byteLength(JSON.stringify(job.mediaSeal)) < 1024);
+  assert.deepEqual(await f.adapter.get('products', f.productId), before);
+});
+
+test('an attestation ACK lost after commit replays the same proof without another mutation', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lost = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'attest-media-image' && !lost) {
+      lost = true;
+      throw Error('response lost after file commit');
+    }
+    return result;
+  };
+  await assert.rejects(seal.attest(0, f.images[0]?._id ?? ''), /response lost/);
+  const committed = readFileSync(f.file, 'utf8');
+  const result = await seal.attest(0, f.images[0]?._id ?? '');
+  assert.ok(result.ok && 'mediaSeal' in result);
+  assert.equal(result.mediaSeal.cursor, 1);
+  assert.equal(readFileSync(f.file, 'utf8'), committed);
+});
+test('older pixel-policy attestation can be cancelled and explicitly retried instead of corrupting the job', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  rows.catalogPreparationJobs[0].mediaSeal.pixelPolicyVersion = 'old-pixels';
+  writeFileSync(f.file, JSON.stringify(rows));
+  assert.equal((await seal.attest(0, f.images[0]?._id ?? '')).ok, false);
+  assert.ok(
+    (
+      await seal.run({
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: f.jobId,
+        expectedLeaseVersion: 2,
+      })
+    ).ok,
+  );
+  assert.ok(
+    (await seal.run({ action: 'retry', actorId: 'admin', jobId: f.jobId, expectedLeaseVersion: 2 }))
+      .ok,
+  );
+  const job = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.equal(job?.mediaSeal, null);
+  assert.equal(job?.media, null);
 });

@@ -976,3 +976,7 @@ P2f9a最终：DB933+admin548+public131+alibaba303+local406=2321全部通过，0�
 P2f9b 提交后精确函数产物已构建/打包并验证：Linux-x64 sharp0.35.5/126文件，显式Mac同JS profile在Node20冷启动、真实像素和bundled signed main五来源URL流程通过；4+1步仅一来源PUT+一保护PUT，warm零字节读取/网络/PUT，商品未变，隔离对象清理成功。仅本地受控DNS/fetch/LocalDisk，不计云端验收。
 
 P2f9c1 关闭来源配置图在检查后被删除的前置竞态。当前租约先写私有占用，删除持图锁先查占用；取消或输入失效自然释放。实际两删除入口、磁盘字节、反向交错、八个写ACK故障和部分写后过期回滚已覆盖。2391项扩大回归、Node20组合492、4消费者types、11文件Biome、SDK gate通过；5个源码反例均检出并恢复。详见 P2f9c1_IMAGE_HOLDS.zh-CN.md。此单元不写ready、不发布；fullDeliveryReady=false。
+
+## P2f9c2：逐张媒体核对摘要
+
+基于P2f9c1占用和既有保护回执实现bind-media-seal/attest-media-image。每命令一张、完整输入/租约/当前目标/占用/像素policy核对，常量大小的有序摘要；不再读取字节，不改商品/图片/计数。真实105张配置图完整检查和逐命令核对、本地重开、实际ACK丢失与恢复、故障/旧policy/计数编辑均测试。2427项扩大回归、Node20组合279、4types、5完整文件Biome、SDK gate通过；8个源码反例全检出并恢复；source-backed核对事务10操作。详见P2f9c2_MEDIA_ATTESTATION.zh-CN.md。尚未写ready或上线，fullDeliveryReady=false。
