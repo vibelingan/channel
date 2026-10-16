@@ -18,6 +18,13 @@ import {
 } from './catalog-image-observation.ts';
 import type { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
+  type CatalogPreparationMediaProgress,
+  CatalogPreparationMediaProgressSchema,
+  advanceCatalogMediaProgress,
+  catalogMediaStepReceipt,
+  initialCatalogMediaProgress,
+} from './catalog-preparation-media-progress.ts';
+import {
   catalogPreparationInputDigest,
   readCatalogPreparationInputs,
 } from './catalog-preparation-store.ts';
@@ -50,6 +57,27 @@ const commandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('renew'), jobId: hex, lease: z.unknown() }).strict(),
   z.object({ action: z.literal('release'), jobId: hex, lease: z.unknown() }).strict(),
   z
+    .object({
+      action: z.literal('bind-media-plan'),
+      jobId: hex,
+      lease: z.unknown(),
+      planDigest: hex,
+      total: integer,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('advance-media-check'),
+      jobId: hex,
+      lease: z.unknown(),
+      planDigest: hex,
+      index: integer,
+      imageId: id,
+      imageInputDigest: hex.nullable(),
+      health: CatalogImageObservationHealthSchema,
+    })
+    .strict(),
+  z
     .object({ action: z.literal('get-image-check'), jobId: hex, lease: z.unknown(), imageId: id })
     .strict(),
   z
@@ -79,6 +107,7 @@ const jobSchema = z
     leaseExpiresAt: integer,
     attempt: integer,
     mutationRevision: integer,
+    media: CatalogPreparationMediaProgressSchema.nullable(),
     createdAt: instantSchema,
     updatedAt: instantSchema,
   })
@@ -107,12 +136,20 @@ export type CatalogPreparationJobProgress = Readonly<{
   leaseExpiresAt: number;
   createdAt: string;
   updatedAt: string;
+  media: Readonly<{
+    total: number;
+    checked: number;
+    verified: number;
+    invalid: number;
+    retry: number;
+  }> | null;
 }>;
 export type CatalogPreparationJobResult =
   | { ok: true; progress: CatalogPreparationJobProgress }
   | { ok: true; progress: CatalogPreparationJobProgress; lease: object }
   | { ok: true; call: ReturnType<CatalogPreparationAuthority['issueCall']> }
   | { ok: true; observation: CatalogImageObservation | null }
+  | { ok: true; media: Readonly<CatalogPreparationMediaProgress> }
   | {
       ok: false;
       code:
@@ -134,6 +171,15 @@ function progress(job: Job): CatalogPreparationJobProgress {
     leaseExpiresAt: job.leaseExpiresAt,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
+    media: job.media
+      ? Object.freeze({
+          total: job.media.total,
+          checked: job.media.cursor,
+          verified: job.media.verified,
+          invalid: job.media.invalid,
+          retry: job.media.retry,
+        })
+      : null,
   });
 }
 function identity(productId: string, inputDigest: string, generation: number) {
@@ -220,6 +266,7 @@ export async function runCatalogPreparationJob(
       leaseExpiresAt: 0,
       attempt: 0,
       mutationRevision: 0,
+      media: null,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -258,7 +305,9 @@ export async function runCatalogPreparationJob(
       await tx.set(CATALOG_PREPARATION_JOBS, saved);
       return { ok: true, progress: progress(saved) };
     }
-    if (!['cancelled', 'retryable'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
+    const restartScan = job.state === 'queued' && job.media !== null;
+    if (!['cancelled', 'retryable'].includes(job.state) && !restartScan)
+      return { ok: false, code: 'CONFLICT' };
     if (!Number.isSafeInteger(job.leaseVersion + 1)) return { ok: false, code: 'CORRUPT' };
     const current = await currentInput(tx, job.productId);
     if (
@@ -272,6 +321,7 @@ export async function runCatalogPreparationJob(
       ...job,
       mutationRevision: job.mutationRevision + 1,
       nonce: randomBytes(32).toString('hex'),
+      media: null,
       state: 'queued',
       leaseVersion: job.leaseVersion + 1,
       leaseOwner: '',
@@ -285,12 +335,61 @@ export async function runCatalogPreparationJob(
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
   }
-  if (command.action === 'get-image-check' || command.action === 'put-image-check') {
+  if (command.action === 'bind-media-plan') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      job.media &&
+      (job.media.planDigest !== command.planDigest || job.media.total !== command.total)
+    )
+      return { ok: false, code: 'CONFLICT' };
+    const current = await currentInput(tx, job.productId);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      !current ||
+      current === 'invalid' ||
+      current.inputDigest !== job.inputDigest ||
+      current.contentGeneration !== job.contentGeneration
+    ) {
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mutationRevision: job.mutationRevision + 1,
+        state: 'stale',
+        leaseOwner: '',
+        leaseExpiresAt: 0,
+        updatedAt: timestamp,
+      });
+      return { ok: false, code: 'STALE' };
+    }
+    const media = job.media ?? initialCatalogMediaProgress(command.planDigest, command.total);
+    await tx.set(CATALOG_PREPARATION_JOBS, {
+      ...job,
+      media,
+      mutationRevision: job.mutationRevision + 1,
+      updatedAt: timestamp,
+    });
+    return { ok: true, media: Object.freeze({ ...media }) };
+  }
+  if (
+    command.action === 'get-image-check' ||
+    command.action === 'put-image-check' ||
+    command.action === 'advance-media-check'
+  ) {
     const scope = authority.currentLeaseScope(command.lease, job);
     if (!scope) return { ok: false, code: 'CONFLICT' };
+    const stepReceipt =
+      command.action === 'advance-media-check' ? catalogMediaStepReceipt(command) : null;
+    if (
+      command.action === 'advance-media-check' &&
+      (!job.media ||
+        job.media.planDigest !== command.planDigest ||
+        command.index >= job.media.total ||
+        (command.index !== job.media.cursor &&
+          !(command.index === job.media.cursor - 1 && job.media.lastReceipt === stepReceipt)))
+    )
+      return { ok: false, code: 'CONFLICT' };
     const image = await tx.get('images', command.imageId);
     const imageInputDigest = image ? storedCatalogImageInputDigest(image) : null;
-    if (command.action === 'put-image-check' && command.imageInputDigest !== imageInputDigest)
+    if (command.action !== 'get-image-check' && command.imageInputDigest !== imageInputDigest)
       return { ok: false, code: 'CONFLICT' };
     const observationId = alibabaPricingFingerprint([
       CATALOG_PREPARATION_POLICY,
@@ -345,7 +444,7 @@ export async function runCatalogPreparationJob(
     )
       return { ok: false, code: 'CORRUPT' };
     if (
-      command.action === 'put-image-check' &&
+      command.action !== 'get-image-check' &&
       !matchesImageObservation(command.health, image, command.imageId, imageInputDigest)
     )
       return { ok: false, code: 'CONFLICT' };
@@ -368,13 +467,26 @@ export async function runCatalogPreparationJob(
               checkedAt: timestamp,
               health: command.health,
             };
+    let media = job.media;
+    if (command.action === 'advance-media-check') {
+      if (!media || !stepReceipt || !record) return { ok: false, code: 'CORRUPT' };
+      if (command.index < media.cursor) {
+        if (!observed || !isDeepStrictEqual(observed.health, command.health))
+          return { ok: false, code: 'CORRUPT' };
+        return { ok: true, media: Object.freeze({ ...media }) };
+      }
+      media = advanceCatalogMediaProgress(media, stepReceipt, command.health.status);
+    }
     await tx.set(CATALOG_PREPARATION_JOBS, {
       ...job,
+      media,
       mutationRevision: job.mutationRevision + 1,
       updatedAt: timestamp,
     });
-    if (command.action === 'put-image-check' && record !== observed && record)
+    if (command.action !== 'get-image-check' && record !== observed && record)
       await tx.set(CATALOG_IMAGE_OBSERVATIONS, record);
+    if (command.action === 'advance-media-check' && media)
+      return { ok: true, media: Object.freeze({ ...media }) };
     return {
       ok: true,
       observation: record

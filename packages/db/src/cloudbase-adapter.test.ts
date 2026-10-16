@@ -854,7 +854,7 @@ async function observationCloudFixture(withSource = false) {
     },
   };
   const put = () => manageCatalogPreparationJobInCloudBase(f.db, authority, command, now);
-  return { ...f, put, jobId };
+  return { ...f, put, jobId, authority, command, now };
 }
 test('cloud observation transaction reads before both fenced writes and fits its operation budget', async () => {
   const f = await observationCloudFixture();
@@ -885,3 +885,54 @@ test('source-backed image observation remains bounded to nine actual transaction
   const saved = await f.put();assert.ok(saved.ok && 'observation' in saved && saved.observation);
   assert.equal(f.controls.maximumOperations, 9);
 });
+
+
+test('cloud media cursor and observation commit together within nine source-backed operations', async () => {
+  const f = await observationCloudFixture(true);
+  const planDigest = 'b'.repeat(64);
+  const run = (command: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+    manageCatalogPreparationJobInCloudBase(f.db, f.authority, command, f.now);
+  assert.ok(
+    (
+      await run({
+        action: 'bind-media-plan',
+        jobId: f.jobId,
+        lease: f.command.lease,
+        planDigest,
+        total: 1,
+      })
+    ).ok,
+  );
+  const step = { ...f.command, action: 'advance-media-check' as const, planDigest, index: 0 };
+  const result = await run(step);
+  assert.ok(result.ok && 'media' in result);
+  assert.equal(result.media.cursor, 1);
+  assert.equal(f.controls.maximumOperations, 9);
+  const before = structuredClone(f.store);
+  assert.deepEqual(await run(step), result);
+  assert.deepEqual(f.store, before);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`cloud ${failure} rolls back both media cursor and observation`, async () => {
+    const f = await observationCloudFixture(true);
+    const planDigest = 'b'.repeat(64);
+    const run = (command: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+      manageCatalogPreparationJobInCloudBase(f.db, f.authority, command, f.now);
+    await run({
+      action: 'bind-media-plan',
+      jobId: f.jobId,
+      lease: f.command.lease,
+      planDigest,
+      total: 1,
+    });
+    const before = structuredClone(f.store);
+    const step = { ...f.command, action: 'advance-media-check' as const, planDigest, index: 0 };
+    assert.ok((await run(step)).ok);
+    const observationId = f.store.get('catalogImageObservations')?.keys().next().value;
+    assert.equal(typeof observationId, 'string');
+    f.store.clear();
+    for (const [name, rows] of before) f.store.set(name, rows);
+    f.controls[failure] = `catalogImageObservations/${observationId}`;
+    await assert.rejects(run(step));
+    assert.deepEqual(f.store, before);
+  });

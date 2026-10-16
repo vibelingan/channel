@@ -894,3 +894,9 @@ P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取�
 ### P2f5a 来源媒体批量读取
 
 完整来源计划按最多100个确定性_id批次查询，并核对_id/provider/sourceUrl；单图helper保留点读。显式_id排序，忽略跨请求count/get差异。86组合、Node20含真实审批成本/公开读回/恢复96、8实际源码故障/41–85正控通过；广泛admin545+local352=897，0失败/跳过/取消，类型/Biome5/SDK106通过。第一轮旧106点读成本断言失败，改为2批0点读后先单独10项再全套重跑。修正组合测试相对路径；故障只移除HTTP赋值被上游规范化保护，未计检出，绕过完整规范化才是有效反例。实际复核source、fixture、inspection、真实审批成本与两adapter查询，文字明确“批次不等于单RPC”。worker、封印和完整交付继续，fullDeliveryReady=false。
+
+### P2f5 持久媒体断点
+
+同一技术job绑定全量媒体计划，观察与cursor/count/最后一步回执原子提交。重复相同一步返回原回执，不同数据/跳步拒绝；普通resume保留断点，queued已有计划可由当前admin显式retry轮换nonce并清空。human只看数量，不返回私有receipt/nonce/存储目标。扫描结束仍不写ready。
+
+161组合+24真实文件=185及Node20、9实际源码故障/167–184正控/2源码恢复、广泛DB848+local355=1203、四types/4显式Biome/SDK106通过。Cloudwrapper源任务9操作，4种第二写失败回滚；默认文件/原生像素流程重开继续、丢ACK、重复并发、落盘失败覆盖。fixture无变化误作损坏与private persist类型访问均修正后重跑。实际文字复核job、schema、SDKwrapper、真实adapter/测试，明确checked不是verified；worker/目标保护/封印/业务交付继续，fullDeliveryReady=false。
