@@ -411,3 +411,126 @@ test('a legacy writer mixed into a pending source claim cannot be reused or clea
     assert.deepEqual(f.snapshot(), locked);
   }
 });
+
+async function completedReuse() {
+  const f = await claimed();
+  f.put('images', {
+    _id: 'shared-image',
+    status: 'active',
+    ...target,
+    publishedRefCount: 3,
+    name: 'Current photo name',
+  });
+  hold(f, 'shared-image', base.operationId);
+  const reuse = {
+    ...base,
+    action: 'reuse' as const,
+    existingImageId: 'shared-image',
+    checksumSha256: target.checksumSha256,
+  };
+  assert.equal((await f.run(reuse)).status, 'ready');
+  assert.equal(f.get('images', 'shared-image')?.imageMutationOwner, base.operationId);
+  return { f, reuse };
+}
+test('a new claim repairs only the committed source operation lock without creating another image', async () => {
+  const { f } = await completedReuse();
+  const image = f.get('images', 'shared-image');
+  const link = f.get('catalogSourceLinks', linkId);
+  assert.ok(image);
+  assert.deepEqual(
+    await f.run({ ...claim, operationId: 'new-operation', imageId: 'unused-image' }),
+    { status: 'ready', imageId: 'shared-image', deduplicated: true },
+  );
+  assert.deepEqual(f.get('images', 'shared-image'), {
+    ...image,
+    imageMutationOwner: '',
+    imageMutationStartedAt: '',
+  });
+  assert.deepEqual(f.get('catalogSourceLinks', linkId), link);
+  assert.equal(f.get('images', 'unused-image'), null);
+  const before = f.snapshot();
+  await f.run({ ...claim, operationId: 'another', imageId: 'another' });
+  assert.deepEqual(f.snapshot(), before);
+});
+test('valid source reuse confirmation replay completes its own lock cleanup', async () => {
+  const { f, reuse } = await completedReuse();
+  assert.equal((await f.run(reuse)).status, 'ready');
+  assert.equal(f.get('images', 'shared-image')?.imageMutationOwner, '');
+  assert.equal(f.get('images', 'shared-image')?.publishedRefCount, 3);
+});
+for (const receipt of ['missing', 'different-owner', 'wrong-image', 'extra'] as const)
+  test(`source lock recovery refuses ${receipt} proof`, async () => {
+    const { f } = await completedReuse();
+    const link = f.get('catalogSourceLinks', linkId);
+    assert.ok(link);
+    const original = link.mediaImportReceipt;
+    assert.ok(original && typeof original === 'object');
+    if (receipt === 'missing') Reflect.deleteProperty(link, 'mediaImportReceipt');
+    else
+      link.mediaImportReceipt = {
+        ...original,
+        ...(receipt === 'different-owner'
+          ? { operationId: 'foreign' }
+          : receipt === 'wrong-image'
+            ? { imageId: 'foreign-image' }
+            : { extra: true }),
+      };
+    f.put('catalogSourceLinks', link);
+    const before = f.snapshot();
+    const result = await f.run({ ...claim, operationId: 'new-operation', imageId: 'unused' });
+    assert.ok(result.status === 'ready' || result.status === 'corrupt');
+    assert.equal(f.get('images', 'shared-image')?.imageMutationOwner, base.operationId);
+    assert.deepEqual(f.snapshot(), before);
+  });
+test('a completed receipt cannot release a new unrelated owner', async () => {
+  const { f } = await completedReuse();
+  hold(f, 'shared-image', 'new-unrelated-owner');
+  const before = f.snapshot();
+  assert.equal(
+    (await f.run({ ...claim, operationId: 'new-claim', imageId: 'unused' })).status,
+    'ready',
+  );
+  assert.deepEqual(f.snapshot(), before);
+});
+test('wrong replay bytes and late failure notes cannot clear a completed source lock', async () => {
+  const { f, reuse } = await completedReuse();
+  const before = f.snapshot();
+  assert.equal((await f.run({ ...reuse, checksumSha256: 'b'.repeat(64) })).status, 'conflict');
+  assert.equal(
+    (
+      await f.run({
+        action: 'note-failure',
+        sourceUrl,
+        operationId: 'late-note',
+        reason: 'fetch-failed',
+        now,
+      })
+    ).status,
+    'ready',
+  );
+  assert.deepEqual(f.snapshot(), before);
+});
+
+test('activation and late fail confirmation clean only the proven completed source owner', async () => {
+  for (const action of ['activate', 'fail'] as const) {
+    const f = await staged();
+    assert.equal((await f.run(activate)).status, 'ready');
+    hold(f, base.imageId, base.operationId);
+    const command =
+      action === 'activate' ? activate : { ...base, action, reason: 'write-failed' as const };
+    assert.equal((await f.run(command)).status, 'ready');
+    assert.equal(f.get('images', base.imageId)?.imageMutationOwner, '');
+  }
+});
+test('wrong activation target cannot clear a completed source owner', async () => {
+  const f = await staged();
+  assert.equal((await f.run(activate)).status, 'ready');
+  hold(f, base.imageId, base.operationId);
+  const before = f.snapshot();
+  assert.equal(
+    (await f.run({ ...activate, target: { ...target, storageFileId: 'local-disk:foreign' } }))
+      .status,
+    'conflict',
+  );
+  assert.deepEqual(f.snapshot(), before);
+});

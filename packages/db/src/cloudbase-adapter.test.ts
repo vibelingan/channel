@@ -1242,3 +1242,44 @@ test('lease expiry after pending deletion rolls back all dedup writes', async ()
   assert.equal(deleted, true);
   assert.deepEqual(f.store, before);
 });
+
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`completed source lock ${failure} rolls back image cleanup and job fence`, async () => {
+    const f = await reuseSourceCloudFixture();
+    assert.ok((await f.reuse()).ok);
+    const before = structuredClone(f.store);
+    f.controls[failure] = 'images/existing';
+    await assert.rejects(
+      f.source({ ...f.base, action: 'claim', operationId: 'next', imageId: 'unused' }),
+    );
+    assert.deepEqual(f.store, before);
+  });
+test('completed source cleanup expiring after the actual write rolls back, then recovers on a current lease', async () => {
+  const f = await reuseSourceCloudFixture();
+  assert.ok((await f.reuse()).ok);
+  const before = structuredClone(f.store);
+  const current = f.now;
+  let cleaned = false;
+  f.controls.afterWrite = (key) => {
+    if (key === 'images/existing') {
+      cleaned = true;
+      f.now += 120000;
+    }
+  };
+  const claim = { ...f.base, action: 'claim' as const, operationId: 'next', imageId: 'unused' };
+  await assert.rejects(f.source(claim), /lease/i);
+  assert.ok(cleaned);
+  assert.deepEqual(f.store, before);
+  f.controls.afterWrite = () => {};
+  f.now = current;
+  assert.deepEqual(await f.source(claim), {
+    ok: true,
+    sourceMedia: { status: 'ready', imageId: 'existing', deduplicated: true },
+  });
+  const image = f.store.get('images')?.get('existing');
+  assert.equal(image?.imageMutationOwner, '');
+  assert.equal(image?.imageMutationStartedAt, '');
+  assert.equal(f.store.get('images')?.has('unused'), false);
+  assert.deepEqual(f.store.get('products'), before.get('products'));
+  assert.deepEqual(f.store.get('catalogSourceLinks'), before.get('catalogSourceLinks'));
+});

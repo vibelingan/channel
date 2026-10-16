@@ -297,15 +297,27 @@ export async function runSourceMediaImport(
     if (!original || original.imageId !== bound._id) return { status: 'corrupt' };
   }
   if (typeof link?.imageId === 'string' && activeImage(bound, link.imageId)) {
-    if (command.action === 'claim' || command.action === 'note-failure')
-      return { status: 'ready', imageId: bound._id, deduplicated: true };
+    const active = bound;
+    async function ready(imageId: string, deduplicated: boolean): Promise<SourceMediaImportResult> {
+      const lock = readImageMutationState(active);
+      if (receipt?.success && lock.state === 'owned' && lock.owner === receipt.data.operationId)
+        await store.set('images', {
+          ...active,
+          imageMutationOwner: '',
+          imageMutationStartedAt: '',
+        });
+      return { status: 'ready', imageId, deduplicated };
+    }
+    if (command.action === 'note-failure')
+      return { status: 'ready', imageId: active._id, deduplicated: true };
+    if (command.action === 'claim') return ready(active._id, true);
     if (receipt?.success && receipt.data.operationId === command.operationId) {
       if (
         command.action === 'reuse' &&
         receipt.data.imageId === command.existingImageId &&
         bound.checksumSha256 === command.checksumSha256
       )
-        return { status: 'ready', imageId: command.existingImageId, deduplicated: true };
+        return ready(command.existingImageId, true);
       if (
         (command.action === 'activate' || command.action === 'fail') &&
         receipt.data.imageId === command.imageId &&
@@ -313,7 +325,7 @@ export async function runSourceMediaImport(
           activeTargetMatches(bound, command.target) ||
           (await protectedImagePreservesOriginalTarget(store, bound, command.target)))
       )
-        return { status: 'ready', imageId: command.imageId, deduplicated: false };
+        return ready(command.imageId, false);
     }
     return { status: 'conflict' };
   }

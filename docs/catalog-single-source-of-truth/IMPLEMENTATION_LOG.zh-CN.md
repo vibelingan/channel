@@ -958,3 +958,8 @@ P2f8最终补验：admin548零失败/跳过/取消；替换此前546后扩大总
 实际复核jobs、JSON、既有来源状态机/Cloudrowstore与测试、真实安装database1.4.3 remove方法3响应以及官方事务原文。文案“来源图已可用”收窄为“元数据激活，像素另验”；网络producer、最终封印/其余全流程继续。扩大/类型/SDK/Node20最终日志在读回，fullDeliveryReady=false。
 
 P2f9a最终：DB933+admin548+public131+alibaba303+local406=2321全部通过，0失败/跳过/取消；Node20组合612、四types、3完整显式Biome、SDK106通过。JSON只格式化当前manageCatalogPreparationJob方法、Cloud旧大文件仅新增块/改动控制项，不冒称整文件formatter通过。实际安装SDK remove方法3响应及源码/声明核对通过。
+
+
+### P2f9b1 已完成来源绑定的残留锁恢复
+
+严格完成回执绑定active URL/image和同一operation owner，claim/合法确认重放可补做清理；note-failure、错误参数、其他owner、坏/缺receipt不清锁。只改两个锁字段，不动updatedAt/目标/引用数/商品。27纯协议先红后绿；最终Node20六文件212全部通过，DB/local types、3完整Biome与diff检查通过。Cloud写ACK四形态/实际写后租约到期回滚；真实PNG导入去重、持续释放失败、文件重开、零额外网络/PUT、迟到释放已验证。测试中boolean假设已按现有字符串协议纠正后重跑。复核实现/Source lease wrapper/现有release/Cloud与JSON/importer，文案将“READY已可发布”改为“仅来源绑定完成”。没有新增SDK接口，构建和完整业务流程仍待后续集成。fullDeliveryReady=false。

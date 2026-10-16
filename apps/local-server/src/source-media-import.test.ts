@@ -611,3 +611,38 @@ test('native failed-copy commit ACK loss preserves one failure record and no byt
   assert.equal(link?.failureAttempts, 1);
   assert.equal(link?.failureReason, 'not-found');
 });
+
+for (const failure of ['not-owner', 'throw'] as const)
+  test(`native completed source dedup recovers after repeated ${failure} release and database reopen`, async (t) => {
+    const f = await workspace(t);
+    const first = await importCandidateImage(sourceUrl, deps);
+    assert.ok(first.ok);
+    const release = f.adapter.releaseImageMutation.bind(f.adapter);
+    f.adapter.releaseImageMutation = async () => {
+      if (failure === 'throw') throw Error('release unavailable');
+      return 'not-owner';
+    };
+    const url = 'https://sc05.alicdn.com/reused-after-crash.png';
+    const reused = await importCandidateImage(url, deps);
+    assert.ok(reused.ok && reused.imageId === first.imageId);
+    const locked = await f.readable(first.imageId);
+    assert.ok(locked.imageMutationOwner);
+    const reopened = new JsonFileAdapter(f.path);
+    setAdapter(reopened);
+    const recovered = await importCandidateImage(url, {
+      ...deps,
+      fetchImpl: async () => {
+        throw Error('ready URL must not fetch again');
+      },
+    });
+    assert.ok(recovered.ok && recovered.imageId === first.imageId);
+    const current = await reopened.get('images', first.imageId);
+    assert.deepEqual(current, { ...locked, imageMutationOwner: '', imageMutationStartedAt: '' });
+    assert.equal(f.storage.writes, 1);
+    assert.equal(
+      (await reopened.list({ collection: 'images', page: 1, pageSize: 100, search: '' })).items
+        .length,
+      1,
+    );
+    assert.equal(await release(first.imageId, String(locked.imageMutationOwner)), 'not-owner');
+  });
