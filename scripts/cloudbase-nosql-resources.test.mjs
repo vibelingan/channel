@@ -320,7 +320,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   const messages = [];
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 31);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 32);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
@@ -520,4 +520,20 @@ test('every registered collection exists in the deployed database', async () => 
     (name) => !provisioned.has(name) && !createdBeforeProvisioning.has(name),
   );
   assert.deepEqual(missing, []);
+});
+
+test('durable preparation jobs are provisioned privately before any worker can write', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (entry) => entry.collectionName === 'catalogPreparationJobs',
+  );
+  assert.ok(resource, 'a CloudBase document write cannot create its missing collection');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes, []);
+  const source = readFileSync(
+    new URL('../packages/db/src/catalog-preparation-jobs.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs'/);
+  // Background workers remain disabled until explicitly configured; provisioning is independent.
+  assert.ok(deploySource.includes('ensureNoSqlResources'));
 });

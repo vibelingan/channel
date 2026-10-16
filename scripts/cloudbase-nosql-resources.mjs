@@ -29,6 +29,11 @@ export const REQUIRED_NOSQL_RESOURCES = [
     indexes: [],
   },
   {
+    collectionName: 'catalogPreparationJobs',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
     collectionName: 'catalogDetailVariants',
     permission: 'ADMINONLY',
     indexes: [

@@ -33,3 +33,9 @@ review发现并用红测修复两个时序问题：默认时间必须在获得�
 事务文档明确快照读不获取写锁；本单元只写技术job形成job写冲突，不宣称输入在事务后永不变化。最终准备结果提交必须重新核对并原子写当前product，媒体目标保护与真正receipt producer仍待完成。服务job状态、游标或当前图片观察都不单独授权发布。
 
 最终修订广泛回归：DB792项、local-server339项，共1131项，零失败/跳过/取消；对应耗时1.99秒/72.55秒。preparation-jobs-broad-final.log为当前源码结果。113组合、Node20关键179、四后台typecheck与显式Biome结果均属同一修订。全站root lint/完整浏览器/应用部署/业务验收仍未完成。
+
+## P2f2a：部署资源漏项修复
+
+eaceace2精确review被BLOCK：虽然两个adapter已接线，新catalogPreparationJobs集合没有加入部署清单。新增ADMINONLY、按_id点查的资源声明，全集合数量31→32；部署前自动配置私有集合，不增加timer或HTTP入口。新增测试先因缺集合失败；486项部署脚本测试全部通过，零跳过/取消。实际移除集合、改为客户端可读两种配置故障均被测试检出并恢复原文件。此前三个eaceace2函数产物构建/Node20裸启动已过，不能代替这一资源修复。
+
+实际复核resource→ensureNoSqlResources→package/smoke/deploy链路与真实SDK缺集合行为，纠正“adapter可写即部署可用”的遗漏。云端尚未创建集合，业务写入和应用部署仍为0。根build脚本会经npx尝试取pnpm12.11.2，已停止自己的npm子进程并直接用已安装11.5.0递归构建；未修改仓库依赖或源文件，保留该尝试日志。
