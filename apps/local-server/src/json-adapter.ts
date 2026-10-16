@@ -189,6 +189,13 @@ export class JsonFileAdapter implements DbAdapter {
         {
           get: async (collection, id) =>
             structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          remove: async (collection, id) => {
+            const rows = copy[collection] ?? [];
+            const index = rows.findIndex((row) => row._id === id);
+            if (index < 0) throw Error('Database document removal was not confirmed');
+            rows.splice(index, 1);
+            changed = true;
+          },
           set: async (collection, row) => {
             copy[collection] ??= [];
             const rows = copy[collection];

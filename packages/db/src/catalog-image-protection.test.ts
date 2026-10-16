@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
+import { transitionImageMutationAcquire } from './adapter.ts';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { CatalogImageProtectionIntentSchema } from './catalog-image-protection-contract.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
@@ -835,3 +836,171 @@ for (const change of [{ checksumSha256: 'b'.repeat(64) }, { byteSize: 124 }])
     cache.health = { ...h.health, ...change };
     assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: null });
   });
+
+function sourceMediaFixture() {
+  const f = fixture();
+  const remove = async (c: string, id: string) => {
+    f.writes.push(c);
+    Reflect.deleteProperty(f.rows, `${c}/${id}`);
+  };
+  const run = (cmd: unknown) =>
+    runCatalogPreparationJob({ ...f.tx, remove }, f.authority, cmd, f.now);
+  const base = {
+    sourceUrl: 'https://sc04.alicdn.com/leased-clock.png',
+    operationId: 'source-worker-operation',
+    imageId: 'remote-image',
+    now: new Date(f.now).toISOString(),
+  };
+  const source = (scope: Awaited<ReturnType<typeof f.start>>, command: unknown) =>
+    run({ action: 'manage-source-media', ...scope, command });
+  return {
+    ...f,
+    run,
+    base,
+    source,
+    get now() {
+      return f.now;
+    },
+    set now(value: number) {
+      f.now = value;
+    },
+  };
+}
+test('current preparation lease runs the existing source claim/checkpoint/activate protocol without touching product', async () => {
+  const f = sourceMediaFixture();
+  const scope = await f.start();
+  const before = structuredClone(f.rows['products/p']);
+  assert.deepEqual(await f.source(scope, { ...f.base, action: 'claim' }), {
+    ok: true,
+    sourceMedia: { status: 'claimed' },
+  });
+  const target = {
+    storageProvider: 'local-disk',
+    storageMode: 'local-disk',
+    storageFileId: 'local-disk:remote.png',
+    storagePath: 'remote.png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+    mimeType: 'image/png',
+    name: 'Source clock',
+  };
+  assert.deepEqual(await f.source(scope, { ...f.base, action: 'checkpoint', target }), {
+    ok: true,
+    sourceMedia: { status: 'checkpointed' },
+  });
+  const activated = await f.source(scope, { ...f.base, action: 'activate', target });
+  assert.deepEqual(activated, {
+    ok: true,
+    sourceMedia: { status: 'ready', imageId: f.base.imageId, deduplicated: false },
+  });
+  assert.deepEqual(await f.source(scope, { ...f.base, action: 'activate', target }), activated);
+  assert.equal(f.rows['images/remote-image']?.status, 'active');
+  assert.deepEqual(f.rows['products/p'], before);
+});
+for (const invalid of ['fake', 'cancel', 'expired', 'input'] as const)
+  test(`leased source media refuses ${invalid} before source writes`, async () => {
+    const f = sourceMediaFixture();
+    const scope = await f.start();
+    if (invalid === 'cancel')
+      await f.run({
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: scope.jobId,
+        expectedLeaseVersion: 1,
+      });
+    if (invalid === 'expired') f.now += 120000;
+    if (invalid === 'input') {
+      const p = f.rows['products/p'];
+      assert.ok(p);
+      p.name = 'Changed';
+    }
+    const result = await f.source(
+      { ...scope, lease: invalid === 'fake' ? {} : scope.lease },
+      { ...f.base, action: 'claim' },
+    );
+    assert.deepEqual(result, { ok: false, code: invalid === 'input' ? 'STALE' : 'CONFLICT' });
+    assert.equal(f.rows['images/remote-image'], undefined);
+  });
+test('source claim uses server transaction time instead of a future caller timestamp', async () => {
+  const f = sourceMediaFixture();
+  const scope = await f.start();
+  assert.deepEqual(
+    await f.source(scope, { ...f.base, action: 'claim', now: '2099-01-01T00:00:00.000Z' }),
+    { ok: true, sourceMedia: { status: 'claimed' } },
+  );
+  const owned = f.rows['images/remote-image']?.sourceMediaImport;
+  assert.ok(owned && typeof owned === 'object');
+  assert.equal(Reflect.get(owned, 'startedAt'), new Date(f.now).toISOString());
+  assert.equal(Reflect.get(owned, 'expiresAt'), new Date(f.now + 120000).toISOString());
+});
+test('preparation capability cannot retire even an expired source claim eligible for cleanup', async () => {
+  const f = sourceMediaFixture();
+  const scope = await f.start();
+  assert.ok((await f.source(scope, { ...f.base, action: 'claim' })).ok);
+  f.now += 60000;
+  assert.ok((await f.run({ action: 'renew', ...scope })).ok);
+  f.now += 60000;
+  const command = {
+    action: 'retire' as const,
+    imageId: f.base.imageId,
+    owner: 'cleanup-worker',
+    now: new Date(f.now).toISOString(),
+  };
+  const image = f.rows[`images/${f.base.imageId}`];
+  assert.ok(image);
+  const acquired = transitionImageMutationAcquire(image, command.owner, command.now);
+  assert.ok(acquired.result === 'acquired');
+  Object.assign(image, acquired.patch);
+  const copy = structuredClone(f.rows);
+  const eligible = await runSourceMediaImport(
+    {
+      get: async (c, id) => copy[`${c}/${id}`] ?? null,
+      set: async (c, row) => {
+        copy[`${c}/${row._id}`] = row;
+      },
+      remove: async (c, id) => {
+        Reflect.deleteProperty(copy, `${c}/${id}`);
+      },
+    },
+    command,
+  );
+  assert.equal(eligible.status, 'retired');
+  const writes = f.writes.length;
+  assert.deepEqual(await f.source(scope, command), { ok: false, code: 'FORBIDDEN' });
+  assert.equal(f.writes.length, writes);
+  assert.equal(f.rows[`images/${f.base.imageId}`]?.status, 'pending');
+});
+
+test('lease expiry during source reads prevents the first source write', async () => {
+  const f = sourceMediaFixture();
+  const scope = await f.start();
+  const get = f.tx.get;
+  f.tx.get = async (c, id) => {
+    const row = await get(c, id);
+    if (c === 'catalogSourceLinks') f.now += 120000;
+    return row;
+  };
+  await assert.rejects(f.source(scope, { ...f.base, action: 'claim' }), /lease/i);
+  assert.equal(f.rows['images/remote-image'], undefined);
+});
+
+test('a preparation transaction missing the real remove primitive cannot admit source imports', async () => {
+  const f = fixture();
+  const scope = await f.start();
+  const writes = f.writes.length;
+  assert.deepEqual(
+    await f.run({
+      action: 'manage-source-media',
+      ...scope,
+      command: {
+        action: 'claim',
+        sourceUrl: 'https://sc04.alicdn.com/missing-remove.png',
+        operationId: 'missing-operation',
+        imageId: 'missing-primitive',
+        now: new Date(f.now).toISOString(),
+      },
+    }),
+    { ok: false, code: 'CORRUPT' },
+  );
+  assert.equal(f.writes.length, writes);
+});

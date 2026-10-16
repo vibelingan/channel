@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
+  acquireImageMutationInCloudBase,
   claimAlibabaSyncRunInCloudBase,
   manageCatalogPreparationJobInCloudBase,
   preparingProductHiddenWhere,
@@ -58,6 +60,10 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
     silentWrite: '',
     codedWrite: '',
     wrongUpsertId: '',
+    failRemove: '',
+    silentRemove: '',
+    codedRemove: '',
+    afterWrite: (_key: string): void => {},
     maximumOperations: 0,
   };
   type Scope = typeof store;
@@ -85,11 +91,20 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
         const exists = docs.has(id);
         docs.set(id, { _id: id, ...data });
         scope.set(name, docs);
+        controls.afterWrite(`${name}/${id}`);
         return controls.wrongUpsertId === `${name}/${id}`
           ? { upserted: [{ _id: 'wrong-id' }] }
           : exists ? { updated: 1 } : { upserted: [{ _id: id }] };
       },
-      remove: async () => ({ deleted: 1 }),
+      remove: async () => {
+        const key = `${name}/${id}`;
+        if (controls.failRemove === key) throw Error('forced remove failure');
+        if (controls.silentRemove === key) return {deleted:0};
+        if (controls.codedRemove === key) return {code:'REMOVE_FAILED',deleted:1};
+        const deleted = scope.get(name)?.delete(id) ? 1 : 0;
+        controls.afterWrite(key);
+        return {deleted};
+      },
     }),
   });
   return {
@@ -1060,3 +1075,170 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
     await assert.rejects(f.run(f.step));
     assert.deepEqual(f.store, before);
   });
+
+async function leasedSourceCloudFixture() {
+  const f = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [
+      {
+        _id: 'p',
+        name: 'Clock',
+        published: false,
+        productFamily: 'misc',
+        alibabaPrimarySourceKey: 'source',
+      },
+    ],
+    alibabaSourceProducts: [{ _id: 'source', sourceTitle: 'Source clock' }],
+    images: [
+      {
+        _id: 'existing',
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://test/existing.png',
+        mimeType: 'image/png',
+        byteSize: 123,
+        checksumSha256: 'a'.repeat(64),
+        publishedRefCount: 0,
+      },
+    ],
+  });
+  let clock = 1792080000000;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'leased-source-cloud',
+    environmentId: 'test',
+    now: () => clock,
+  });
+  const run = (cmd: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+    manageCatalogPreparationJobInCloudBase(f.db, authority, cmd, clock);
+  const s = await run({ action: 'start', actorId: 'admin', productId: 'p' });
+  assert.ok(s.ok && 'progress' in s);
+  const d = await run({ action: 'dispatch', actorId: 'admin', jobId: s.progress.jobId });
+  assert.ok(d.ok && 'call' in d);
+  const c = await run({ action: 'claim', call: d.call, owner: 'source-worker' });
+  assert.ok(c.ok && 'lease' in c);
+  const scope = { jobId: s.progress.jobId, lease: c.lease };
+  const base = {
+    sourceUrl: 'https://sc04.alicdn.com/leased-source.png',
+    operationId: 'source-operation',
+    imageId: 'source-image',
+    now: new Date(clock).toISOString(),
+  };
+  const source = (
+    command: Extract<Parameters<typeof run>[0], { action: 'manage-source-media' }>['command'],
+  ) => run({ action: 'manage-source-media', ...scope, command });
+  const target = {
+    storageProvider: 'cloudbase-storage' as const,
+    storageMode: 'classic-nosql-storage' as const,
+    storageFileId: 'cloud://test/leased-source.png',
+    storagePath: 'leased-source.png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+    mimeType: 'image/png' as const,
+    name: 'Source photo',
+  };
+  return {
+    ...f,
+    authority,
+    run,
+    scope,
+    base,
+    source,
+    target,
+    get now() {
+      return clock;
+    },
+    set now(v: number) {
+      clock = v;
+    },
+  };
+}
+test('source claim/checkpoint/activation and job fence remain ten source-backed operations', async () => {
+  const f = await leasedSourceCloudFixture();
+  const product = structuredClone(f.store.get('products'));
+  assert.deepEqual(await f.source({ ...f.base, action: 'claim' }), {
+    ok: true,
+    sourceMedia: { status: 'claimed' },
+  });
+  assert.ok((await f.source({ ...f.base, action: 'checkpoint', target: f.target })).ok);
+  assert.deepEqual(await f.source({ ...f.base, action: 'activate', target: f.target }), {
+    ok: true,
+    sourceMedia: { status: 'ready', imageId: 'source-image', deduplicated: false },
+  });
+  assert.equal(f.controls.maximumOperations, 10);
+  assert.deepEqual(f.store.get('products'), product);
+});
+async function reuseSourceCloudFixture() {
+  const f = await leasedSourceCloudFixture();
+  assert.ok((await f.source({ ...f.base, action: 'claim' })).ok);
+  assert.equal(
+    await acquireImageMutationInCloudBase(f.db, 'existing', f.base.operationId, f.base.now),
+    'acquired',
+  );
+  const reuse = () =>
+    f.source({
+      ...f.base,
+      action: 'reuse',
+      existingImageId: 'existing',
+      checksumSha256: 'a'.repeat(64),
+    });
+  return Object.assign(f, { reuse });
+}
+test('source dedup performs a confirmed pending deletion in twelve operations', async () => {
+  const f = await reuseSourceCloudFixture();
+  assert.deepEqual(await f.reuse(), {
+    ok: true,
+    sourceMedia: { status: 'ready', imageId: 'existing', deduplicated: true },
+  });
+  assert.equal(f.store.get('images')?.has('source-image'), false);
+  assert.equal(f.store.get('images')?.has('existing'), true);
+  assert.equal(f.controls.maximumOperations, 12);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const child of ['catalogSourceLinks', 'catalogPreparationJobs'] as const)
+    test(`leased source ${failure} on ${child} rolls back source rows and job`, async () => {
+      const f = await leasedSourceCloudFixture();
+      const before = structuredClone(f.store);
+      const id =
+        child === 'catalogSourceLinks'
+          ? sourceMediaLinkId('alibaba', f.base.sourceUrl)
+          : f.scope.jobId;
+      f.controls[failure] = `${child}/${id}`;
+      await assert.rejects(f.source({ ...f.base, action: 'claim' }));
+      assert.deepEqual(f.store, before);
+    });
+for (const failure of ['failRemove', 'silentRemove', 'codedRemove'] as const)
+  test(`source dedup ${failure} rolls back link, pending image and job`, async () => {
+    const f = await reuseSourceCloudFixture();
+    const before = structuredClone(f.store);
+    f.controls[failure] = 'images/source-image';
+    await assert.rejects(f.reuse());
+    assert.deepEqual(f.store, before);
+  });
+test('lease expiry after a source image write rolls back that write and never commits its URL', async () => {
+  const f = await leasedSourceCloudFixture();
+  const before = structuredClone(f.store);
+  let written = false;
+  f.controls.afterWrite = (key) => {
+    if (key === 'images/source-image') {
+      written = true;
+      f.now += 120000;
+    }
+  };
+  await assert.rejects(f.source({ ...f.base, action: 'claim' }), /lease/i);
+  assert.equal(written, true);
+  assert.deepEqual(f.store, before);
+});
+test('lease expiry after pending deletion rolls back all dedup writes', async () => {
+  const f = await reuseSourceCloudFixture();
+  const before = structuredClone(f.store);
+  let deleted = false;
+  f.controls.afterWrite = (key) => {
+    if (key === 'images/source-image') {
+      deleted = true;
+      f.now += 120000;
+    }
+  };
+  await assert.rejects(f.reuse(), /lease/i);
+  assert.equal(deleted, true);
+  assert.deepEqual(f.store, before);
+});

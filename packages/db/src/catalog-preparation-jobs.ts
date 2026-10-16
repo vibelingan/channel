@@ -37,6 +37,12 @@ import {
   planCatalogProtectedPixels,
   readCatalogProtectedPixels,
 } from './catalog-protected-pixels.ts';
+import type { ImageDeletionStore } from './image-deletion.ts';
+import {
+  SourceMediaImportCommandSchema,
+  type SourceMediaImportResult,
+  runSourceMediaImport,
+} from './source-media-import.ts';
 
 export const CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs';
 export type CatalogPreparationAuthority = ReturnType<typeof createCatalogPreparationAuthority>;
@@ -57,6 +63,14 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('manage-source-media'),
+      jobId: hex,
+      lease: z.unknown(),
+      command: SourceMediaImportCommandSchema,
+    })
+    .strict(),
   z
     .object({
       action: z.literal('get-protected-image-health'),
@@ -206,6 +220,7 @@ export type CatalogPreparationJobResult =
   | { ok: true; call: ReturnType<CatalogPreparationAuthority['issueCall']> }
   | { ok: true; observation: CatalogImageObservation | null }
   | { ok: true; protection: CatalogImageProtectionIntent }
+  | { ok: true; sourceMedia: SourceMediaImportResult }
   | {
       ok: true;
       protectedHealth: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
@@ -276,7 +291,7 @@ async function currentInput(tx: CatalogApprovalTransaction, productId: string) {
 }
 
 export async function runCatalogPreparationJob(
-  tx: CatalogApprovalTransaction,
+  tx: CatalogApprovalTransaction & Partial<Pick<ImageDeletionStore, 'remove'>>,
   authority: CatalogPreparationAuthority,
   input: unknown,
   now = Date.now(),
@@ -395,6 +410,56 @@ export async function runCatalogPreparationJob(
   if (command.action === 'dispatch') {
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
+  }
+  if (command.action === 'manage-source-media') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (command.command.action === 'retire') return { ok: false, code: 'FORBIDDEN' };
+    const remove = tx.remove;
+    if (!remove) return { ok: false, code: 'CORRUPT' };
+    const current = await currentInput(tx, job.productId);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      !current ||
+      current === 'invalid' ||
+      current.inputDigest !== job.inputDigest ||
+      current.contentGeneration !== job.contentGeneration
+    ) {
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mutationRevision: job.mutationRevision + 1,
+        state: 'stale',
+        leaseOwner: '',
+        leaseExpiresAt: 0,
+        updatedAt: timestamp,
+      });
+      return { ok: false, code: 'STALE' };
+    }
+    // Throw after any intervening expiry so the caller's transaction rolls back all source rows.
+    const assertLease = () => {
+      if (!authority.currentLeaseScope(command.lease, job))
+        throw Error('Catalog preparation lease changed during source media import');
+    };
+    const result = await runSourceMediaImport(
+      {
+        get: (collection, id) => tx.get(collection, id),
+        set: async (collection, row) => {
+          assertLease();
+          await tx.set(collection, row);
+        },
+        remove: async (collection, id) => {
+          assertLease();
+          await remove.call(tx, collection, id);
+        },
+      },
+      { ...command.command, now: timestamp },
+    );
+    assertLease();
+    await tx.set(CATALOG_PREPARATION_JOBS, {
+      ...job,
+      mutationRevision: job.mutationRevision + 1,
+      updatedAt: timestamp,
+    });
+    return { ok: true, sourceMedia: result };
   }
   if (command.action === 'get-protected-image-health') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };

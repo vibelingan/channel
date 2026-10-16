@@ -947,3 +947,14 @@ P2f7c最终当前证据：admin546+public131+alibaba303+local397=1377全部通�
 review红测修复缓存异常引起不必要retry，以及新保护标记/尝试ID进入普通图片响应；严格CRUD原本已拒绝改写，名字编辑仍保留marker。新增响应剔除fault被226handler测试检出并恢复。实际复核cache/jobs/producer/handler及DB、Cloudwrapper、真实文件/native/human响应测试；将“读取即许可”收窄为“像素快照，最终提交另验”。SDK新predicate refine用官方v3+安装3.25.76精确TypeScript签名，首轮探针误匹配外层调用、包版本查错根目录均保留失败，修正精确callee/依赖包归属后15调用/11方法与实际overload通过。默认Linux云权限、完整封印、来源producer、列表/操作/UI/repair/性能/test现场单件20件发布恢复继续，fullDeliveryReady=false。
 
 P2f8最终补验：admin548零失败/跳过/取消；替换此前546后扩大总数2293。4types、8完整显式Biome文件及SDK106通过，Node20最终584。大cloudbase-adapter.test.ts仅格式化新增块；SDK精确callee15调用/11方法/指定predicate overload已验证。
+
+
+### P2f9a 当前服务租约保护的来源媒体仓库
+
+复用SourceMediaImport，当前opaque lease/商品输入下执行claim/checkpoint/activate/reuse/fail/note-failure，子写入和最后同job fence前复核；途中到期抛错回滚整个事务。覆盖内部now为服务事务时间，retire明确禁止。JSON copy事务补实际remove，仅用于尚无字节的自有pending去重占位，不物理删对象/不改商品或发布。
+
+164=56协议+104Cloudwrapper+4实际JSON，9源码故障/158–163正控/2源码恢复通过。source-backed10/去重12读写，8写ACK/3删ACK失败全回滚，实际第一子写/最后删除后到期均回滚。文件落盘失败/重开/真实去重删除及双租约URL竞争通过。fake.remove原只ACK不删除Map、spread复制liveclock和retire正控缺锁三个夹具问题已校正，并保留失败记录；不冒称生产bug。实际元数据样本不代替网络复制/像素/真实发布。
+
+实际复核jobs、JSON、既有来源状态机/Cloudrowstore与测试、真实安装database1.4.3 remove方法3响应以及官方事务原文。文案“来源图已可用”收窄为“元数据激活，像素另验”；网络producer、最终封印/其余全流程继续。扩大/类型/SDK/Node20最终日志在读回，fullDeliveryReady=false。
+
+P2f9a最终：DB933+admin548+public131+alibaba303+local406=2321全部通过，0失败/跳过/取消；Node20组合612、四types、3完整显式Biome、SDK106通过。JSON只格式化当前manageCatalogPreparationJob方法、Cloud旧大文件仅新增块/改动控制项，不冒称整文件formatter通过。实际安装SDK remove方法3响应及源码/声明核对通过。
