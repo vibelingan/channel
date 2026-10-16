@@ -884,3 +884,9 @@ P2f2a：eaceace2精确review BLOCK发现私有任务集合未声明；补ADMINON
 抽取既有preview/inspection只读核心，原HTTP人类入口仍前后核对真实admin身份；新增后端job bridge通过当前租约renew取得productId，无假管理员行。私有candidate返回全量imageIds，原人类inspection保持旧输出。76组合、Node20关键183、11真实故障/正控≥71/3源码恢复通过；真实本地source/manual无admin账号、105图片、伪造/过期/取消/途中编辑取消覆盖。review的privateTrace透传反例先红后以ok/code投影修复。广泛回归与类型/SDK在读回；不把metadata ready称作像素封印或发布许可。属性筛选不扩展、分类不修改、fullDeliveryReady=false；下一步接可信像素receipt/producer。
 
 P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取消；四后台types、6文件Biome、CloudBase门禁通过。原HTTP人类入口复用同一core、服务入口仍仅backend导出；不把这一读取单元当作完整worker。
+
+### P2f4 持久图片观察与真实小流程
+
+新增私有catalogImageObservations/get-image-check/put-image-check，绑定当前lease、job nonce、产品输入和图片记录digest；verified核对imageId/SHA/字节数，invalid/retry白名单诊断，目标变化/旧任务/坏锁计数闭合。公共byte reader的纯metadata hash/shape移到DB子入口保持原合约。技术job独立mutationRevision确保同毫秒也有真实写变化，不撤销当前lease。未发布协议所有新job初始化0，溢出拒绝。
+
+真实本地普通upload完成→默认存储/原生像素→观察持久化→释放/重开/新worker恢复通过；丢ACK和文件失败回滚覆盖。276组合、Node20加最终源预算343、14源码故障/正控≥273/3源码恢复；2资源故障19/17正控；广泛最终1711、487deploy、四types、9文件Biome、CloudBase106通过。新集合ADMINONLY、总数33，现场未创建。源码snapshot之后的image/blob变化仍可能发生，观察不签发ready；实际worker/目标保护/最终封印与后续全流程继续。实际文字复核纠正观察与发布许可混用，fullDeliveryReady=false。

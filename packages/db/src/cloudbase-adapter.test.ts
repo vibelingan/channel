@@ -1,7 +1,8 @@
-import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
+import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
   claimAlibabaSyncRunInCloudBase,
   manageCatalogPreparationJobInCloudBase,
@@ -784,4 +785,103 @@ test('preparation cloud transaction callback uses a fresh clock after queue dela
   assert.ok(result.ok && 'progress' in result);
   assert.equal(result.progress.createdAt, new Date(clock).toISOString());
   assert.equal(f.store.get('catalogPreparationJobs')?.size, 1);
+});
+
+
+async function observationCloudFixture(withSource = false) {
+  const image: CollectionDoc = {
+    _id: 'image',
+    status: 'active',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storageFileId: 'cloud://test/image.png',
+    mimeType: 'image/png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+    publishedRefCount: 0,
+  };
+  const f = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [{ _id: 'p', name: 'Clock', imageIds: ['image'], ...(withSource ? { alibabaPrimarySourceKey: 'source' } : {}) }],
+    ...(withSource ? { alibabaSourceProducts: [{ _id: 'source', sourceTitle: 'Source clock' }] } : {}),
+    images: [image],
+  });
+  const now = 1792080000000;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'observation-wrapper-test',
+    environmentId: 'test',
+    now: () => now,
+  });
+  const started = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'start', actorId: 'admin', productId: 'p' },
+    now,
+  );
+  assert.ok(started.ok && 'progress' in started);
+  const jobId = started.progress.jobId;
+  const call = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'dispatch', actorId: 'admin', jobId },
+    now,
+  );
+  assert.ok(call.ok && 'call' in call);
+  const claimed = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'claim', call: call.call, owner: 'worker' },
+    now,
+  );
+  assert.ok(claimed.ok && 'lease' in claimed);
+  const imageInputDigest = storedCatalogImageInputDigest(image);
+  const command = {
+    action: 'put-image-check' as const,
+    jobId,
+    lease: claimed.lease,
+    imageId: 'image',
+    imageInputDigest,
+    health: {
+      status: 'verified' as const,
+      kind: 'stored-image-health-v1' as const,
+      imageId: 'image',
+      inputDigest: imageInputDigest,
+      byteSize: 123,
+      checksumSha256: 'a'.repeat(64),
+      width: 24,
+      height: 16,
+      pages: 1,
+    },
+  };
+  const put = () => manageCatalogPreparationJobInCloudBase(f.db, authority, command, now);
+  return { ...f, put, jobId };
+}
+test('cloud observation transaction reads before both fenced writes and fits its operation budget', async () => {
+  const f = await observationCloudFixture();
+  const saved = await f.put();
+  assert.ok(saved.ok && 'observation' in saved && saved.observation);
+  assert.equal(f.controls.maximumOperations, 6);
+  assert.equal(f.store.get('catalogPreparationJobs')?.get(f.jobId)?.mutationRevision, 2);
+  assert.equal(f.store.get('catalogImageObservations')?.size, 1);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const) {
+  test(`cloud ${failure} on observation write rolls back its prior job fence as well`, async () => {
+    const f = await observationCloudFixture(),
+      before = structuredClone(f.store),
+      saved = await f.put();
+    assert.ok(saved.ok && 'observation' in saved && saved.observation);
+    const id = saved.observation._id;
+    f.store.clear();
+    for (const [name, rows] of before) f.store.set(name, rows);
+    f.controls[failure] = `catalogImageObservations/${id}`;
+    await assert.rejects(f.put());
+    assert.deepEqual(f.store, before);
+  });
+}
+
+
+test('source-backed image observation remains bounded to nine actual transaction operations', async () => {
+  const f = await observationCloudFixture(true);
+  const saved = await f.put();assert.ok(saved.ok && 'observation' in saved && saved.observation);
+  assert.equal(f.controls.maximumOperations, 9);
 });

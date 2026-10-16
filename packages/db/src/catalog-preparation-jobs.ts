@@ -1,9 +1,21 @@
 /** Private technical jobs. Pixel work runs outside the transaction; every write is fenced inside it. */
 import { randomBytes } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
+import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
+import {
+  isStoredCatalogImageRecord,
+  storedCatalogImageInputDigest,
+} from './catalog-image-input.ts';
+import {
+  CATALOG_IMAGE_OBSERVATIONS,
+  type CatalogImageObservation,
+  CatalogImageObservationHealthSchema,
+  CatalogImageObservationRecordSchema,
+} from './catalog-image-observation.ts';
 import type { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
   catalogPreparationInputDigest,
@@ -37,6 +49,19 @@ const commandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('claim'), call: z.unknown(), owner: id }).strict(),
   z.object({ action: z.literal('renew'), jobId: hex, lease: z.unknown() }).strict(),
   z.object({ action: z.literal('release'), jobId: hex, lease: z.unknown() }).strict(),
+  z
+    .object({ action: z.literal('get-image-check'), jobId: hex, lease: z.unknown(), imageId: id })
+    .strict(),
+  z
+    .object({
+      action: z.literal('put-image-check'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+      imageInputDigest: hex.nullable(),
+      health: CatalogImageObservationHealthSchema,
+    })
+    .strict(),
 ]);
 export type CatalogPreparationJobCommand = z.infer<typeof commandSchema>;
 const jobSchema = z
@@ -53,6 +78,7 @@ const jobSchema = z
     leaseVersion: integer,
     leaseExpiresAt: integer,
     attempt: integer,
+    mutationRevision: integer,
     createdAt: instantSchema,
     updatedAt: instantSchema,
   })
@@ -86,6 +112,7 @@ export type CatalogPreparationJobResult =
   | { ok: true; progress: CatalogPreparationJobProgress }
   | { ok: true; progress: CatalogPreparationJobProgress; lease: object }
   | { ok: true; call: ReturnType<CatalogPreparationAuthority['issueCall']> }
+  | { ok: true; observation: CatalogImageObservation | null }
   | {
       ok: false;
       code:
@@ -192,6 +219,7 @@ export async function runCatalogPreparationJob(
       leaseVersion: 0,
       leaseExpiresAt: 0,
       attempt: 0,
+      mutationRevision: 0,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -212,6 +240,7 @@ export async function runCatalogPreparationJob(
   if (!job) return { ok: false, code: 'CORRUPT' };
   timestamp = new Date(Math.max(now, Date.parse(job.updatedAt))).toISOString();
   if (command.action === 'get') return { ok: true, progress: progress(job) };
+  if (!Number.isSafeInteger(job.mutationRevision + 1)) return { ok: false, code: 'CORRUPT' };
   if (command.action === 'cancel' || command.action === 'retry') {
     if (command.expectedLeaseVersion !== job.leaseVersion) return { ok: false, code: 'CONFLICT' };
     if (command.action === 'cancel') {
@@ -220,6 +249,7 @@ export async function runCatalogPreparationJob(
         return { ok: false, code: 'CONFLICT' };
       const saved: Job = {
         ...job,
+        mutationRevision: job.mutationRevision + 1,
         state: 'cancelled',
         leaseOwner: '',
         leaseExpiresAt: 0,
@@ -240,6 +270,7 @@ export async function runCatalogPreparationJob(
       return { ok: false, code: 'STALE' };
     const saved: Job = {
       ...job,
+      mutationRevision: job.mutationRevision + 1,
       nonce: randomBytes(32).toString('hex'),
       state: 'queued',
       leaseVersion: job.leaseVersion + 1,
@@ -254,6 +285,103 @@ export async function runCatalogPreparationJob(
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
   }
+  if (command.action === 'get-image-check' || command.action === 'put-image-check') {
+    const scope = authority.currentLeaseScope(command.lease, job);
+    if (!scope) return { ok: false, code: 'CONFLICT' };
+    const image = await tx.get('images', command.imageId);
+    const imageInputDigest = image ? storedCatalogImageInputDigest(image) : null;
+    if (command.action === 'put-image-check' && command.imageInputDigest !== imageInputDigest)
+      return { ok: false, code: 'CONFLICT' };
+    const observationId = alibabaPricingFingerprint([
+      CATALOG_PREPARATION_POLICY,
+      job._id,
+      job.nonce,
+      job.inputDigest,
+      command.imageId,
+      imageInputDigest,
+    ]);
+    const previous = await tx.get(CATALOG_IMAGE_OBSERVATIONS, observationId);
+    const current = await currentInput(tx, job.productId);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      !current ||
+      current === 'invalid' ||
+      current.inputDigest !== job.inputDigest ||
+      current.contentGeneration !== job.contentGeneration
+    ) {
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mutationRevision: job.mutationRevision + 1,
+        state: 'stale',
+        leaseOwner: '',
+        leaseExpiresAt: 0,
+        updatedAt: timestamp,
+      });
+      return { ok: false, code: 'STALE' };
+    }
+    if (image) {
+      const lock = readImageMutationState(image);
+      if (lock.state !== 'free')
+        return {
+          ok: false,
+          code:
+            lock.state === 'owned' && now - Date.parse(lock.startedAt) < IMAGE_MUTATION_STALE_MS
+              ? 'BUSY'
+              : 'CORRUPT',
+        };
+    }
+    const existing = previous ? CatalogImageObservationRecordSchema.safeParse(previous) : null;
+    if (
+      previous &&
+      (!existing?.success ||
+        existing.data._id !== observationId ||
+        existing.data.jobId !== job._id ||
+        existing.data.productId !== job.productId ||
+        existing.data.inputDigest !== job.inputDigest ||
+        existing.data.contentGeneration !== job.contentGeneration ||
+        existing.data.imageId !== command.imageId ||
+        existing.data.imageInputDigest !== imageInputDigest ||
+        !matchesImageObservation(existing.data.health, image, command.imageId, imageInputDigest))
+    )
+      return { ok: false, code: 'CORRUPT' };
+    if (
+      command.action === 'put-image-check' &&
+      !matchesImageObservation(command.health, image, command.imageId, imageInputDigest)
+    )
+      return { ok: false, code: 'CONFLICT' };
+    const observed = existing?.success ? existing.data : null;
+    const record: CatalogImageObservation | null =
+      command.action === 'get-image-check'
+        ? observed
+        : observed && isDeepStrictEqual(observed.health, command.health)
+          ? observed
+          : {
+              _id: observationId,
+              kind: 'unsealed-image-observation-v1',
+              policyVersion: CATALOG_PREPARATION_POLICY,
+              jobId: job._id,
+              productId: job.productId,
+              inputDigest: job.inputDigest,
+              contentGeneration: job.contentGeneration,
+              imageId: command.imageId,
+              imageInputDigest,
+              checkedAt: timestamp,
+              health: command.health,
+            };
+    await tx.set(CATALOG_PREPARATION_JOBS, {
+      ...job,
+      mutationRevision: job.mutationRevision + 1,
+      updatedAt: timestamp,
+    });
+    if (command.action === 'put-image-check' && record !== observed && record)
+      await tx.set(CATALOG_IMAGE_OBSERVATIONS, record);
+    return {
+      ok: true,
+      observation: record
+        ? Object.freeze({ ...record, health: Object.freeze({ ...record.health }) })
+        : null,
+    };
+  }
   let lease: object | null = null;
   let saved: Job;
   if (command.action === 'claim') {
@@ -261,6 +389,7 @@ export async function runCatalogPreparationJob(
       return { ok: false, code: 'CORRUPT' };
     saved = {
       ...job,
+      mutationRevision: job.mutationRevision + 1,
       state: 'running',
       leaseOwner: command.owner,
       leaseVersion: job.leaseVersion + 1,
@@ -276,6 +405,7 @@ export async function runCatalogPreparationJob(
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
     saved = {
       ...job,
+      mutationRevision: job.mutationRevision + 1,
       state: command.action === 'renew' ? 'running' : 'queued',
       leaseOwner: command.action === 'renew' ? job.leaseOwner : '',
       leaseExpiresAt: command.action === 'renew' ? now + ttl : 0,
@@ -294,6 +424,7 @@ export async function runCatalogPreparationJob(
   ) {
     await tx.set(CATALOG_PREPARATION_JOBS, {
       ...job,
+      mutationRevision: job.mutationRevision + 1,
       state: 'stale',
       leaseOwner: '',
       leaseExpiresAt: 0,
@@ -305,4 +436,20 @@ export async function runCatalogPreparationJob(
   return lease
     ? { ok: true, progress: progress(saved), lease }
     : { ok: true, progress: progress(saved) };
+}
+
+function matchesImageObservation(
+  health: CatalogImageObservation['health'],
+  image: Awaited<ReturnType<CatalogApprovalTransaction['get']>>,
+  imageId: string,
+  digest: string | null,
+) {
+  return (
+    health.status !== 'verified' ||
+    (isStoredCatalogImageRecord(image, imageId) &&
+      health.imageId === imageId &&
+      health.inputDigest === digest &&
+      health.byteSize === image.byteSize &&
+      health.checksumSha256 === image.checksumSha256)
+  );
 }

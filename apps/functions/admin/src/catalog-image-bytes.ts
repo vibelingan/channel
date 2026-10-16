@@ -2,21 +2,19 @@
 import { createHash } from 'node:crypto';
 import { get } from '@vibelingan-channel/db';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from '@vibelingan-channel/db/adapter';
+import {
+  type StoredCatalogImage as StoredImage,
+  storedCatalogImageInputDigest,
+  isStoredCatalogImageRecord as validRecord,
+} from '@vibelingan-channel/db/catalog-image-input';
 import { isMediaReadError, mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
-  CATALOG_IMAGE_MIME_TYPES,
   type CollectionDoc,
   signatureMatchesMime,
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
 
-type StoredImage = CollectionDoc & {
-  storageFileId: string;
-  mimeType: string;
-  byteSize: number;
-  checksumSha256: string;
-};
 type ImageRead = { body: string; byteSize?: number };
 export type StoredCatalogImageByteCheck =
   | {
@@ -96,25 +94,6 @@ export async function inspectStoredCatalogImage<T>(
   return currentLock ?? result;
 }
 
-/** Refcounts and mutex owners change independently of stored content. */
-export function storedCatalogImageInputDigest(image: CollectionDoc): string {
-  return createHash('sha256')
-    .update(
-      JSON.stringify([
-        image._id,
-        image.status,
-        image.storageProvider,
-        image.storageMode,
-        image.storageFileId,
-        image.storagePath,
-        image.mimeType,
-        image.byteSize,
-        image.checksumSha256,
-      ]),
-    )
-    .digest('hex');
-}
-
 function checkBytes(
   image: StoredImage,
   object: ImageRead,
@@ -148,34 +127,6 @@ function checkBytes(
     },
     bytes,
   };
-}
-
-function validRecord(image: CollectionDoc | null, imageId: string): image is StoredImage {
-  return (
-    image !== null &&
-    image._id === imageId &&
-    image.status === 'active' &&
-    (image.storageProvider === 'cloudbase-storage' || image.storageProvider === 'local-disk') &&
-    !Object.hasOwn(image, 'data') &&
-    (image.storageMode === undefined ||
-      image.storageMode ===
-        (image.storageProvider === 'local-disk' ? 'local-disk' : 'classic-nosql-storage')) &&
-    (image.storagePath === undefined || typeof image.storagePath === 'string') &&
-    typeof image.storageFileId === 'string' &&
-    image.storageFileId.length > 0 &&
-    typeof image.mimeType === 'string' &&
-    CATALOG_IMAGE_MIME_TYPES.some((mime) => mime === image.mimeType) &&
-    typeof image.byteSize === 'number' &&
-    Number.isSafeInteger(image.byteSize) &&
-    image.byteSize > 0 &&
-    image.byteSize <= CATALOG_IMAGE_MAX_BYTES &&
-    typeof image.checksumSha256 === 'string' &&
-    /^[a-f0-9]{64}$/.test(image.checksumSha256) &&
-    (!Object.hasOwn(image, 'publishedRefCount') ||
-      (typeof image.publishedRefCount === 'number' &&
-        Number.isSafeInteger(image.publishedRefCount) &&
-        image.publishedRefCount >= 0))
-  );
 }
 
 function checkLock(
