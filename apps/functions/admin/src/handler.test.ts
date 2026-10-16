@@ -6222,3 +6222,83 @@ test('abandonUpload quarantines storage before deletion and resumes an unconfirm
     false,
   );
 });
+
+test('image get and list omit private protection protocol fields for both staff roles', async () => {
+  setup({
+    users: [],
+    images: [
+      {
+        _id: 'private-protection-image',
+        name: 'Clock photo',
+        mimeType: 'image/png',
+        status: 'active',
+        storageProvider: 'local-disk',
+        storageFileId: 'local-disk:private.png',
+        catalogStorageProtection: {
+          kind: 'catalog-protected-target-v1',
+          intentId: 'private-intent',
+          attemptId: 'private-attempt',
+        },
+        catalogProtectionIntentId: 'pending-private-intent',
+      },
+    ],
+  });
+  for (const token of [await adminToken(), await contributorToken()]) {
+    const one = okData<CollectionDoc>(
+      await call('get', { collection: 'images', id: 'private-protection-image' }, token),
+    );
+    const list = okData<ListResult<CollectionDoc>>(
+      await call('list', { collection: 'images', page: 1, pageSize: 20 }, token),
+    );
+    for (const image of [one, ...list.items]) {
+      assert.equal(image.name, 'Clock photo');
+      assert.equal(Object.hasOwn(image, 'catalogStorageProtection'), false);
+      assert.equal(Object.hasOwn(image, 'catalogProtectionIntentId'), false);
+    }
+  }
+});
+test('ordinary image updates cannot forge or remove protection fields and name edits preserve the server marker', async () => {
+  const marker = {
+    kind: 'catalog-protected-target-v1',
+    intentId: 'private-intent',
+    attemptId: 'private-attempt',
+  };
+  const store = setup({
+    users: [],
+    images: [
+      {
+        _id: 'protected-edit',
+        name: 'Clock photo',
+        mimeType: 'image/png',
+        status: 'active',
+        storageProvider: 'local-disk',
+        storageFileId: 'local-disk:private.png',
+        catalogStorageProtection: marker,
+        catalogProtectionIntentId: 'pending-private-intent',
+      },
+    ],
+  });
+  const token = await adminToken();
+  for (const values of [
+    { catalogStorageProtection: null },
+    { catalogProtectionIntentId: 'forged' },
+  ]) {
+    expectErr(
+      await call('update', { collection: 'images', id: 'protected-edit', values }, token),
+      'VALIDATION_ERROR',
+    );
+    assert.deepEqual(store.images?.[0]?.catalogStorageProtection, marker);
+    assert.equal(store.images?.[0]?.catalogProtectionIntentId, 'pending-private-intent');
+  }
+  const edited = okData<CollectionDoc>(
+    await call(
+      'update',
+      { collection: 'images', id: 'protected-edit', values: { name: 'My clock photo' } },
+      token,
+    ),
+  );
+  assert.equal(edited.name, 'My clock photo');
+  assert.deepEqual(store.images?.[0]?.catalogStorageProtection, marker);
+  assert.equal(Object.hasOwn(edited, 'catalogStorageProtection'), false);
+  assert.equal(Object.hasOwn(edited, 'catalogProtectionIntentId'), false);
+});

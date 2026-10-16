@@ -646,3 +646,192 @@ for (const corruption of [
     assert.equal(h.f.writes.length, writes);
     assert.equal(h.f.rows['images/image']?.storageFileId, 'local-disk:raw.png');
   });
+
+async function withProtectedHealth() {
+  const h = await reserved();
+  await h.checkpoint();
+  const digest = storedCatalogImageInputDigest({ ...h.f.image, ...h.target });
+  const health = {
+    status: 'verified' as const,
+    kind: 'stored-image-health-v1' as const,
+    imageId: 'image',
+    inputDigest: digest,
+    checksumSha256: 'a'.repeat(64),
+    byteSize: 123,
+    width: 24,
+    height: 16,
+    pages: 1,
+  };
+  assert.ok(
+    (
+      await h.f.run({
+        action: 'commit-image-protection',
+        ...h.scope,
+        imageId: 'image',
+        intentId: h.intent._id,
+        health,
+      })
+    ).ok,
+  );
+  assert.ok(
+    (
+      await h.f.run({
+        action: 'put-image-check',
+        ...h.scope,
+        imageId: 'image',
+        imageInputDigest: digest,
+        health,
+      })
+    ).ok,
+  );
+  const getHealth = (lease = h.scope.lease) =>
+    h.f.run({ action: 'get-protected-image-health', ...h.scope, lease, imageId: 'image' });
+  return { ...h, digest, health, getHealth };
+}
+test('protected verified pixel receipt is shared across current products without extra shared writes', async () => {
+  const h = await withProtectedHealth();
+  const writes = h.f.writes.length;
+  assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: h.health });
+  assert.equal(h.f.writes.length, writes);
+  h.f.rows['products/second'] = { _id: 'second', name: 'Another clock', imageIds: ['image'] };
+  const second = await h.f.start('second-worker', 'second');
+  assert.deepEqual(
+    await h.f.run({ action: 'get-protected-image-health', ...second, imageId: 'image' }),
+    { ok: true, protectedHealth: h.health },
+  );
+  const observed = () =>
+    h.f.run({
+      action: 'put-image-check',
+      ...second,
+      imageId: 'image',
+      imageInputDigest: h.digest,
+      health: h.health,
+    });
+  assert.ok((await observed()).ok);
+  assert.equal(
+    Object.values(h.f.rows).filter((row) => row.kind === 'catalog-protected-image-health-v1')
+      .length,
+    1,
+  );
+  const sharedWrites = h.f.writes.filter((c) => c === 'catalogImageObservations').length;
+  assert.ok((await observed()).ok);
+  assert.equal(h.f.writes.filter((c) => c === 'catalogImageObservations').length, sharedWrites);
+});
+for (const change of [
+  { policyVersion: 'old-pixels' },
+  { health: { status: 'retry', reason: 'unavailable' } },
+  { imageId: 'other' },
+  { inputDigest: 'b'.repeat(64) },
+  { attemptId: 'b'.repeat(64) },
+  { intentId: 'b'.repeat(64) },
+  { checkedAt: '2099-01-01T00:00:00.000Z' },
+])
+  test(`protected pixel receipt rejects incompatible ${Object.keys(change)[0]}`, async () => {
+    const h = await withProtectedHealth();
+    const cache = Object.values(h.f.rows).find(
+      (row) => row.kind === 'catalog-protected-image-health-v1',
+    );
+    assert.ok(cache);
+    Object.assign(cache, change);
+    assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: null });
+  });
+test('unprotected historical verified observations cannot become global pixel receipts', async () => {
+  const f = fixture();
+  const scope = await f.start();
+  const digest = storedCatalogImageInputDigest(f.image);
+  await f.run({
+    action: 'put-image-check',
+    ...scope,
+    imageId: 'image',
+    imageInputDigest: digest,
+    health: {
+      status: 'verified',
+      kind: 'stored-image-health-v1',
+      imageId: 'image',
+      inputDigest: digest,
+      checksumSha256: 'a'.repeat(64),
+      byteSize: 123,
+      width: 24,
+      height: 16,
+      pages: 1,
+    },
+  });
+  assert.deepEqual(
+    await f.run({ action: 'get-protected-image-health', ...scope, imageId: 'image' }),
+    { ok: true, protectedHealth: null },
+  );
+  assert.equal(
+    Object.values(f.rows).some((row) => row.kind === 'catalog-protected-image-health-v1'),
+    false,
+  );
+});
+test('protected pixel receipt refuses copied grants and changed product inputs are stale', async () => {
+  const h = await withProtectedHealth();
+  assert.deepEqual(await h.getHealth({}), { ok: false, code: 'CONFLICT' });
+  const product = h.f.rows['products/p'];
+  assert.ok(product);
+  product.name = 'Changed';
+  assert.deepEqual(await h.getHealth(), { ok: false, code: 'STALE' });
+  assert.deepEqual(await h.getHealth(), { ok: false, code: 'CONFLICT' });
+});
+for (const change of [
+  { storageFileId: 'local-disk:replacement.png' },
+  { imageMutationOwner: 'foreign', imageMutationStartedAt: '2026-10-15T16:00:00.000Z' },
+  { catalogStorageProtection: null },
+])
+  test(`current target/lock/marker invalidates pixel receipt: ${Object.keys(change)[0]}`, async () => {
+    const h = await withProtectedHealth();
+    const image = h.f.rows['images/image'];
+    assert.ok(image);
+    Object.assign(image, change);
+    assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: null });
+  });
+
+test('cancelled or expired lease never reads a reusable protected pixel receipt', async () => {
+  for (const expired of [false, true]) {
+    const h = await withProtectedHealth();
+    if (expired) h.f.now += 120000;
+    else
+      await h.f.run({
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: h.scope.jobId,
+        expectedLeaseVersion: 1,
+      });
+    const writes = h.f.writes.length;
+    assert.deepEqual(await h.getHealth(), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.f.writes.length, writes);
+  }
+});
+test('lease expiry while a reusable receipt is being read prevents returning it', async () => {
+  const h = await withProtectedHealth();
+  const get = h.f.tx.get;
+  h.f.tx.get = async (c, id) => {
+    const row = await get(c, id);
+    if (row?.kind === 'catalog-protected-image-health-v1') h.f.now += 120000;
+    return row;
+  };
+  const writes = h.f.writes.length;
+  assert.deepEqual(await h.getHealth(), { ok: false, code: 'CONFLICT' });
+  assert.equal(h.f.writes.length, writes);
+});
+test('missing or malformed private committed protection proof invalidates the pixel receipt', async () => {
+  const h = await withProtectedHealth();
+  const key = `catalogImageObservations/${h.intent._id}`;
+  const i = h.f.rows[key];
+  assert.ok(i);
+  i.owner = 'b'.repeat(64);
+  assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: null });
+  Reflect.deleteProperty(h.f.rows, key);
+  assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: null });
+});
+for (const change of [{ checksumSha256: 'b'.repeat(64) }, { byteSize: 124 }])
+  test(`cached health must match current bytes: ${Object.keys(change)[0]}`, async () => {
+    const h = await withProtectedHealth();
+    const cache = Object.values(h.f.rows).find(
+      (r) => r.kind === 'catalog-protected-image-health-v1',
+    );
+    assert.ok(cache);
+    cache.health = { ...h.health, ...change };
+    assert.deepEqual(await h.getHealth(), { ok: true, protectedHealth: null });
+  });

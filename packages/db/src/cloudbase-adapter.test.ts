@@ -1011,3 +1011,52 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
       await assert.rejects(f.commit());
       assert.deepEqual(f.store, before);
     });
+
+async function protectedPixelCloudFixture() {
+  const f = await protectionCloudFixture();
+  await f.checkpoint();
+  assert.ok((await f.commit()).ok);
+  const image = f.store.get('images')?.get('image');
+  assert.ok(image);
+  const health = { ...f.command.health, inputDigest: storedCatalogImageInputDigest(image) };
+  const planDigest = 'e'.repeat(64);
+  assert.ok((await f.run({ action: 'bind-media-plan', ...f.scope, planDigest, total: 1 })).ok);
+  const step = {
+    action: 'advance-media-check' as const,
+    ...f.scope,
+    planDigest,
+    index: 0,
+    imageId: 'image',
+    imageInputDigest: health.inputDigest,
+    health,
+  };
+  return { ...f, health, step };
+}
+test('protected source-backed pixel receipt, observation and cursor share twelve read-before-write operations', async () => {
+  const f = await protectedPixelCloudFixture();
+  assert.ok((await f.run(f.step)).ok);
+  assert.equal(f.controls.maximumOperations, 12);
+  const before = structuredClone(f.store);
+  assert.deepEqual(
+    await f.run({ action: 'get-protected-image-health', ...f.scope, imageId: 'image' }),
+    { ok: true, protectedHealth: f.health },
+  );
+  assert.deepEqual(f.store, before);
+  assert.ok((await f.run(f.step)).ok);
+  assert.deepEqual(f.store, before);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`pixel receipt ${failure} rolls back job, observation and cursor`, async () => {
+    const f = await protectedPixelCloudFixture();
+    const before = structuredClone(f.store);
+    assert.ok((await f.run(f.step)).ok);
+    const cache = [...(f.store.get('catalogImageObservations')?.values() ?? [])].find(
+      (r) => r.kind === 'catalog-protected-image-health-v1',
+    );
+    assert.ok(cache);
+    f.store.clear();
+    for (const [name, rows] of before) f.store.set(name, rows);
+    f.controls[failure] = `catalogImageObservations/${cache._id}`;
+    await assert.rejects(f.run(f.step));
+    assert.deepEqual(f.store, before);
+  });

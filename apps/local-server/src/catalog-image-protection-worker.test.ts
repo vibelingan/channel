@@ -371,3 +371,19 @@ test('altered source bytes with unchanged metadata fail checksum before any targ
   assert.equal((await f.adapter.get('images', 'image'))?.imageMutationOwner, '');
   assert.equal(JSON.parse(readFileSync(f.file, 'utf8')).catalogImageObservations[0].target, null);
 });
+
+test('a reusable health reply for another target cannot report this image verified', async (t) => {
+  const f = await fixture(t);
+  assert.equal((await f.prepare()).health.status, 'verified');
+  const health = await readStoredCatalogImageHealth('image');
+  assert.equal(health.status, 'verified');
+  if (health.status !== 'verified') throw Error('native proof missing');
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  f.adapter.manageCatalogPreparationJob = async (a, c, n) =>
+    c.action === 'get-protected-image-health'
+      ? { ok: true, protectedHealth: { ...health, inputDigest: 'b'.repeat(64) } }
+      : manage(a, c, n);
+  const result = await f.prepare();
+  assert.deepEqual(result.health, { status: 'retry', reason: 'changed' });
+  assert.equal(result.imageInputDigest, health.inputDigest);
+});

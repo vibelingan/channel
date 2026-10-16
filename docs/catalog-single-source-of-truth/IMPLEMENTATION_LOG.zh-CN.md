@@ -936,3 +936,14 @@ review红测修复begin已落盘但丢确认后遗漏清理、目标传输失败
 实际复核helper/worker及两测试、新文档/SDK记录，措辞将“目标错误等于原图损坏”改为“目标传输异常可重试”。首次3对象读取/2解码、已保护1次健康检查；20秒是软预算，现有PUT60秒，性能P95和完整Linux云worker仍待后续门槛。扩大套件/当前三types/显式Biome/SDK/Node20及精确构建结果完成后另记。fullDeliveryReady=false，继续来源媒体producer/当前封印及业务全流程。
 
 P2f7c最终当前证据：admin546+public131+alibaba303+local397=1377全部通过，0失败/跳过/取消；Node20组合330、三消费者types、4文件Biome、SDK106通过。目标失败归属修正后的最终故障10项，正控22–34/35；源码恢复SHA5f2819d8e1a2970545eb11e68c18dbe62ce1defd4c30ee811881f18a9f3ae31e。原33/9及修正前330保留为历史，不当最终结果。
+
+
+### P2f8 受控图片像素回执复用
+
+独立pixel policy/imageId/target digest的私有verified回执，绑定当前marker和完整committed登记；未保护/错图/旧策略/坏字段/目标变化/有锁均不复用。写在既有观察/cursor事务，已相同健康不重复写共享回执；默认producer只对已受控目标尝试复用。实际共享第二商品零对象读/零PUT，旧策略真实重查1次/不再复制；缓存运输异常退回默认读图，观察提交仍复核当前lease/商品输入。
+
+176组合、11源码故障/158–175正控/3源码恢复、Cloudwrapper12操作及4种第三写失败整体回滚、4types通过。Node20组合358与补全部handler后的584通过。扩大首次DB909+admin546+public131+alibaba303+local402=2291零失败/跳过/取消；后补两个响应字段检查的最终admin、Biome/SDK日志待读回，不提前记通过。
+
+review红测修复缓存异常引起不必要retry，以及新保护标记/尝试ID进入普通图片响应；严格CRUD原本已拒绝改写，名字编辑仍保留marker。新增响应剔除fault被226handler测试检出并恢复。实际复核cache/jobs/producer/handler及DB、Cloudwrapper、真实文件/native/human响应测试；将“读取即许可”收窄为“像素快照，最终提交另验”。SDK新predicate refine用官方v3+安装3.25.76精确TypeScript签名，首轮探针误匹配外层调用、包版本查错根目录均保留失败，修正精确callee/依赖包归属后15调用/11方法与实际overload通过。默认Linux云权限、完整封印、来源producer、列表/操作/UI/repair/性能/test现场单件20件发布恢复继续，fullDeliveryReady=false。
+
+P2f8最终补验：admin548零失败/跳过/取消；替换此前546后扩大总数2293。4types、8完整显式Biome文件及SDK106通过，Node20最终584。大cloudbase-adapter.test.ts仅格式化新增块；SDK精确callee15调用/11方法/指定predicate overload已验证。

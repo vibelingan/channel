@@ -469,6 +469,8 @@ function redact(collection: string, doc: CollectionDoc): CollectionDoc {
       uploadedByUserId: _uploadedByUserId,
       imageMutationOwner: _imageMutationOwner,
       imageMutationStartedAt: _imageMutationStartedAt,
+      catalogStorageProtection: _catalogStorageProtection,
+      catalogProtectionIntentId: _catalogProtectionIntentId,
       ...rest
     } = doc;
     return rest as CollectionDoc;

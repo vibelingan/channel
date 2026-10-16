@@ -49,7 +49,10 @@ export async function prepareStoredCatalogImage(
   let beginAttempted = false;
   const checked = (health: StoredCatalogImageHealth): Checked => ({
     imageInputDigest: inputDigest,
-    health,
+    health:
+      health.status === 'verified' && health.inputDigest !== inputDigest
+        ? { status: 'retry', reason: 'changed' }
+        : health,
   });
   async function work(): Promise<Checked> {
     const original = await get('images', scope.imageId);
@@ -65,8 +68,19 @@ export async function prepareStoredCatalogImage(
     });
     if (!begun.ok) return checked(failure(begun));
     if (!('protection' in begun)) return checked({ status: 'retry', reason: 'unavailable' });
-    if (begun.protection.state === 'committed')
-      return checked(await readStoredCatalogImageHealth(scope.imageId));
+    if (begun.protection.state === 'committed') {
+      const cached = await run({ action: 'get-protected-image-health', ...scope }).catch(
+        () => null,
+      );
+      if (cached === null) {
+        console.warn('[catalog-preparation] pixel receipt unavailable; checking current object');
+        return checked(await readStoredCatalogImageHealth(scope.imageId));
+      }
+      if (!cached.ok) return checked(failure(cached));
+      if (!('protectedHealth' in cached))
+        return checked({ status: 'retry', reason: 'unavailable' });
+      return checked(cached.protectedHealth ?? (await readStoredCatalogImageHealth(scope.imageId)));
+    }
     const reserved = begun.protection;
     state.intentId = reserved._id;
     let bindingChanged = false;

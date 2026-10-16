@@ -33,6 +33,10 @@ import {
   catalogPreparationInputDigest,
   readCatalogPreparationInputs,
 } from './catalog-preparation-store.ts';
+import {
+  planCatalogProtectedPixels,
+  readCatalogProtectedPixels,
+} from './catalog-protected-pixels.ts';
 
 export const CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs';
 export type CatalogPreparationAuthority = ReturnType<typeof createCatalogPreparationAuthority>;
@@ -53,6 +57,14 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('get-protected-image-health'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+    })
+    .strict(),
   z
     .object({
       action: z.literal('begin-image-protection'),
@@ -194,6 +206,10 @@ export type CatalogPreparationJobResult =
   | { ok: true; call: ReturnType<CatalogPreparationAuthority['issueCall']> }
   | { ok: true; observation: CatalogImageObservation | null }
   | { ok: true; protection: CatalogImageProtectionIntent }
+  | {
+      ok: true;
+      protectedHealth: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
+    }
   | { ok: true; media: Readonly<CatalogPreparationMediaProgress> }
   | {
       ok: false;
@@ -380,6 +396,31 @@ export async function runCatalogPreparationJob(
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
   }
+  if (command.action === 'get-protected-image-health') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    const image = await tx.get('images', command.imageId);
+    if (image && image._id !== command.imageId) return { ok: false, code: 'CORRUPT' };
+    const health = await readCatalogProtectedPixels(tx, image, now);
+    const current = await currentInput(tx, job.productId);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      !current ||
+      current === 'invalid' ||
+      current.inputDigest !== job.inputDigest ||
+      current.contentGeneration !== job.contentGeneration
+    ) {
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mutationRevision: job.mutationRevision + 1,
+        state: 'stale',
+        leaseOwner: '',
+        leaseExpiresAt: 0,
+        updatedAt: timestamp,
+      });
+      return { ok: false, code: 'STALE' };
+    }
+    return { ok: true, protectedHealth: health ? Object.freeze({ ...health }) : null };
+  }
   if (
     command.action === 'begin-image-protection' ||
     command.action === 'checkpoint-image-protection' ||
@@ -462,6 +503,10 @@ export async function runCatalogPreparationJob(
       imageInputDigest,
     ]);
     const previous = await tx.get(CATALOG_IMAGE_OBSERVATIONS, observationId);
+    const pixelReceipt =
+      command.action === 'get-image-check'
+        ? null
+        : await planCatalogProtectedPixels(tx, image, command.health, timestamp);
     const current = await currentInput(tx, job.productId);
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
     if (
@@ -547,6 +592,7 @@ export async function runCatalogPreparationJob(
     });
     if (command.action !== 'get-image-check' && record !== observed && record)
       await tx.set(CATALOG_IMAGE_OBSERVATIONS, record);
+    if (pixelReceipt) await tx.set(CATALOG_IMAGE_OBSERVATIONS, pixelReceipt);
     if (command.action === 'advance-media-check' && media)
       return { ok: true, media: Object.freeze({ ...media }) };
     return {

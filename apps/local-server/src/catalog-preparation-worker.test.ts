@@ -510,3 +510,152 @@ test('transient image failure persists as retry, and explicit retry can rerun th
   assert.equal(recovered.media.retry, 0);
   assert.equal(recovered.media.verified, 1);
 });
+
+async function sharedProduct(f: Awaited<ReturnType<typeof fixture>>) {
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  rows.products.push({
+    _id: 'second',
+    name: 'Second clock',
+    published: false,
+    productFamily: 'misc',
+    imageIds: [f.images[0]?._id],
+  });
+  writeFileSync(f.file, JSON.stringify(rows));
+  const started = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'start',
+    actorId: 'admin',
+    productId: 'second',
+  });
+  assert.ok(started.ok && 'progress' in started);
+  const call = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'dispatch',
+    actorId: 'admin',
+    jobId: started.progress.jobId,
+  });
+  assert.ok(call.ok && 'call' in call);
+  return { call: call.call, jobId: started.progress.jobId };
+}
+test('another product reuses protected pixel evidence with zero object reads, copies or shared cache writes', async (t) => {
+  const f = await fixture(t, 1);
+  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  const first = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(
+    first.catalogImageObservations.filter(
+      (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
+    ).length,
+    1,
+  );
+  const shared = await sharedProduct(f);
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('cached protected pixels must not read object');
+  };
+  f.storage.putObject = async () => {
+    throw Error('cached target must not copy');
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'checked');
+  assert.equal(result.media.verified, 1);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(
+    rows.catalogImageObservations.filter(
+      (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
+    ).length,
+    1,
+  );
+  assert.deepEqual(
+    rows.catalogImageObservations.find(
+      (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
+    ),
+    first.catalogImageObservations.find(
+      (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
+    ),
+  );
+  assert.ok(rows.products.every((p: { published: boolean }) => p.published === false));
+});
+test('old pixel policy rereads the same protected object and replaces the stale receipt without another PUT', async (t) => {
+  const f = await fixture(t, 1);
+  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  const cached = rows.catalogImageObservations.find(
+    (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
+  );
+  assert.ok(cached);
+  cached.policyVersion = 'old';
+  writeFileSync(f.file, JSON.stringify(rows));
+  const shared = await sharedProduct(f);
+  let reads = 0;
+  const read = f.storage.getObjectAsBase64.bind(f.storage);
+  f.storage.getObjectAsBase64 = async (...args) => {
+    reads++;
+    return read(...args);
+  };
+  f.storage.putObject = async () => {
+    throw Error('policy change must not recopy immutable bytes');
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.media.verified, 1);
+  assert.equal(reads, 1);
+  const current = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.notEqual(
+    current.catalogImageObservations.find(
+      (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
+    ).policyVersion,
+    'old',
+  );
+  assert.equal(current.images[0].storageFileId, rows.images[0].storageFileId);
+});
+
+test('editing a product after a cached pixel read makes the worker stale instead of advancing the old plan', async (t) => {
+  const f = await fixture(t, 1);
+  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  const shared = await sharedProduct(f);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  f.adapter.manageCatalogPreparationJob = async (a, c, n) => {
+    const r = await manage(a, c, n);
+    if (c.action === 'get-protected-image-health') {
+      const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+      rows.products.find((p: { _id: string }) => p._id === 'second').name = 'Concurrent edit';
+      writeFileSync(f.file, JSON.stringify(rows));
+    }
+    return r;
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.deepEqual(result, { ok: false, code: 'STALE' });
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(
+    rows.products.find((p: { _id: string }) => p._id === 'second').name,
+    'Concurrent edit',
+  );
+  assert.equal(
+    rows.catalogPreparationJobs.find((j: { _id: string }) => j._id === shared.jobId).media.cursor,
+    0,
+  );
+});
+test('a transient pixel cache read failure falls back to actual object health without a false retry', async (t) => {
+  const f = await fixture(t, 1);
+  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  const shared = await sharedProduct(f);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let fail = true;
+  f.adapter.manageCatalogPreparationJob = async (a, c, n) => {
+    if (c.action === 'get-protected-image-health' && fail) {
+      fail = false;
+      throw Error('cache transport failed');
+    }
+    return manage(a, c, n);
+  };
+  let reads = 0;
+  const read = f.storage.getObjectAsBase64.bind(f.storage);
+  f.storage.getObjectAsBase64 = async (...args) => {
+    reads++;
+    return read(...args);
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'checked');
+  assert.equal(result.media.verified, 1);
+  assert.equal(reads, 1);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});
