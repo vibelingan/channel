@@ -1,8 +1,10 @@
+import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   claimAlibabaSyncRunInCloudBase,
+  manageCatalogPreparationJobInCloudBase,
   preparingProductHiddenWhere,
   unclassifiedProductWhere,
   updateDocWithAlibabaLeaseInCloudBase,
@@ -656,4 +658,130 @@ test('an unchanged generic target succeeds without requiring a redundant write A
   );
   assert.deepEqual(harness.store, before);
   assert.equal(harness.controls.maximumOperations, 2);
+});
+
+
+test('preparation cloud wrapper shares the transaction and confirms its deterministic write', async () => {
+  const f = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [{ _id: 'p', name: 'Clock' }],
+  });
+  const now = 1792080000000;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'cloud-wrapper-test',
+    environmentId: 'test',
+    now: () => now,
+  });
+  const start = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'start', actorId: 'admin', productId: 'p' },
+    now,
+  );
+  assert.ok(start.ok && 'progress' in start);
+  const replay = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'start', actorId: 'admin', productId: 'p' },
+    now,
+  );
+  assert.deepEqual(replay, start);
+  const call = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'dispatch', actorId: 'admin', jobId: start.progress.jobId },
+    now,
+  );
+  assert.ok(call.ok && 'call' in call);
+  const claimed = await manageCatalogPreparationJobInCloudBase(
+    f.db,
+    authority,
+    { action: 'claim', call: call.call, owner: 'worker' },
+    now,
+  );
+  assert.ok(claimed.ok && 'lease' in claimed);
+  assert.equal(claimed.progress.leaseVersion, 1);
+  assert.ok(f.controls.maximumOperations <= 4);
+  assert.deepEqual(f.store.get('products')?.get('p'), { _id: 'p', name: 'Clock' });
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const) {
+  test(`preparation cloud wrapper rejects ${failure} and rolls back the transaction`, async () => {
+    const f = fakeDatabase({
+      users: [{ _id: 'admin', role: 'admin' }],
+      products: [{ _id: 'p', name: 'Clock' }],
+    });
+    const now = 1792080000000;
+    const authority = createCatalogPreparationAuthority({
+      secret: 'cloud-wrapper-test',
+      environmentId: 'test',
+      now: () => now,
+    });
+    const started = await manageCatalogPreparationJobInCloudBase(
+      f.db,
+      authority,
+      { action: 'start', actorId: 'admin', productId: 'p' },
+      now,
+    );
+    assert.ok(started.ok && 'progress' in started);
+    const jobId = started.progress.jobId;
+    const before = structuredClone(f.store);
+    if (failure === 'wrongUpsertId') {
+      f.store.get('catalogPreparationJobs')?.delete(jobId);
+      f.controls.wrongUpsertId = `catalogPreparationJobs/${jobId}`;
+      const empty = structuredClone(f.store);
+      await assert.rejects(
+        manageCatalogPreparationJobInCloudBase(
+          f.db,
+          authority,
+          { action: 'start', actorId: 'admin', productId: 'p' },
+          now,
+        ),
+      );
+      assert.deepEqual(f.store, empty);
+    } else {
+      f.controls[failure] = `catalogPreparationJobs/${jobId}`;
+      await assert.rejects(
+        manageCatalogPreparationJobInCloudBase(
+          f.db,
+          authority,
+          { action: 'cancel', actorId: 'admin', jobId, expectedLeaseVersion: 0 },
+          now,
+        ),
+      );
+      assert.deepEqual(f.store, before);
+    }
+  });
+}
+
+test('preparation cloud transaction callback uses a fresh clock after queue delay and retry', async (t) => {
+  const f = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [{ _id: 'p', name: 'Clock' }],
+  });
+  let clock = 1792080000000;
+  t.mock.method(Date, 'now', () => clock);
+  const authority = createCatalogPreparationAuthority({
+    secret: 'cloud-wrapper-test',
+    environmentId: 'test',
+    now: () => clock,
+  });
+  const db = {
+    runTransaction: async <T>(operation: Parameters<typeof f.db.runTransaction<T>>[0]) => {
+      const before = structuredClone(f.store);
+      clock += 6000;
+      await f.db.runTransaction(operation);
+      f.store.clear();
+      for (const [name, rows] of before) f.store.set(name, rows);
+      clock += 6000;
+      return f.db.runTransaction(operation);
+    },
+  };
+  const result = await manageCatalogPreparationJobInCloudBase(db, authority, {
+    action: 'start',
+    actorId: 'admin',
+    productId: 'p',
+  });
+  assert.ok(result.ok && 'progress' in result);
+  assert.equal(result.progress.createdAt, new Date(clock).toISOString());
+  assert.equal(f.store.get('catalogPreparationJobs')?.size, 1);
 });

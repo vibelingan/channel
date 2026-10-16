@@ -166,6 +166,15 @@ export async function mutateAlibabaProduct(
   }
   return adapter.mutateAlibabaProduct(input);
 }
+export async function manageCatalogPreparationJob(
+  authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
+  command: import('./catalog-preparation-jobs.ts').CatalogPreparationJobCommand,
+  now?: number,
+) {
+  const adapter = db();
+  if (!adapter.manageCatalogPreparationJob) throw new Error('Preparation job persistence unavailable');
+  return adapter.manageCatalogPreparationJob(authority, command, now);
+}
 export function manageCatalogDetailApproval(actorId: string, input: unknown) {
   return runCatalogApprovalWorkflow({ get, persist: persistCatalogDetailApproval }, actorId, input);
 }

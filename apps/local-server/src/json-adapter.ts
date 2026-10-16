@@ -7,6 +7,11 @@
  * serialized and persisted by same-directory atomic rename.
  */
 import { randomUUID } from 'node:crypto';
+import {
+  type CatalogPreparationAuthority,
+  type CatalogPreparationJobCommand,
+  runCatalogPreparationJob,
+} from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
@@ -172,6 +177,45 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  async manageCatalogPreparationJob(
+    authority: CatalogPreparationAuthority,
+    command: CatalogPreparationJobCommand,
+    now?: number,
+  ) {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runCatalogPreparationJob(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+        },
+        authority,
+        command,
+        now,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
   async manageSourceMediaImport(command: SourceMediaImportCommand) {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);

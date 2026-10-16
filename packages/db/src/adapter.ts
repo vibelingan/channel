@@ -544,6 +544,11 @@ export interface DbAdapter {
   mutateAlibabaProduct?(
     input: import('./alibaba-product-identity.ts').AlibabaProductMutationInput,
   ): Promise<import('./alibaba-product-identity.ts').AlibabaProductMutationResult>;
+  manageCatalogPreparationJob?(
+    authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
+    command: import('./catalog-preparation-jobs.ts').CatalogPreparationJobCommand,
+    now?: number,
+  ): Promise<import('./catalog-preparation-jobs.ts').CatalogPreparationJobResult>;
   persistCatalogDetailApproval?(
     actorId: string,
     input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,

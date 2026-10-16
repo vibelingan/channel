@@ -1,3 +1,8 @@
+import {
+  type CatalogPreparationAuthority,
+  type CatalogPreparationJobCommand,
+  runCatalogPreparationJob,
+} from './catalog-preparation-jobs.ts';
 import { runImageUpload, type ImageUploadCommand } from './image-upload.ts';
 import { runSourceMediaImport, type SourceMediaImportCommand } from './source-media-import.ts';
 import { runImageDeletion, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
@@ -753,7 +758,26 @@ export async function mutateAlibabaProductInCloud(
   return 'guard' in input ? withAlibabaLeaseCommit(input.guard, commit) : commit();
 }
 
+export function manageCatalogPreparationJobInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  authority: CatalogPreparationAuthority,
+  command: CatalogPreparationJobCommand,
+  now?: number,
+) {
+  return db.runTransaction((transaction) =>
+    runCatalogPreparationJob(catalogRowStore(transaction), authority, command, now),
+  );
+}
+
 export const cloudBaseAdapter: DbAdapter = {
+  async manageCatalogPreparationJob(authority, command, now) {
+    return manageCatalogPreparationJobInCloudBase(
+      cloudStorageSdk().database(),
+      authority,
+      command,
+      now,
+    );
+  },
   async mutateAlibabaProduct(input) {
     return mutateAlibabaProductInCloud(cloudStorageSdk().database(), input);
   },

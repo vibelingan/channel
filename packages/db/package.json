@@ -22,7 +22,8 @@
     "./catalog-product-state": "./src/catalog-product-state.ts",
     "./catalog-row-mutation": "./src/catalog-row-mutation.ts",
     "./catalog-source-binding": "./src/catalog-source-binding.ts",
-    "./catalog-preparation-authority": "./src/catalog-preparation-authority.ts"
+    "./catalog-preparation-authority": "./src/catalog-preparation-authority.ts",
+    "./catalog-preparation-jobs": "./src/catalog-preparation-jobs.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

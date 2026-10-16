@@ -868,3 +868,11 @@ P2d8a 独立审查：f4c0b94 的 SDK 发送方分母漏掉 Git 加引号的非 A
 ### P2f1 服务调用与当前租约能力
 
 增加server-only catalog-preparation-authority子入口。独立环境/用途HMAC、30秒严格准入与5秒skew、WeakMap不可JSON复制能力、当前120秒租约与owner/version/nonce/输入/generation绑定；仅准备媒体和报告存储，无发布/审批/分类权限。66模块、165组合、Node20关键133、9真实故障检出/源码恢复，DB类型、Biome、CloudBase门禁通过。实际复核模块、测试、package出口、现有store/inspection，明确准入不代替DB原子领取，准备模块尚无正式consumer。业务写入/应用部署0；fullDeliveryReady=false，接着实现任务仓库和实际producer。
+
+### P2f2 持久任务、适配器与租约时序
+
+增加私有确定性preparation job、当前admin创建/查询/取消/显式retry、私有dispatch和服务claim/renew/release；接入DB facade、CloudBase事务及JsonFileAdapter共享锁/原子文件。nonce轮换、单调leaseVersion、当前输入复核、前后双租约校验；不修改分类、published或批准内容。
+
+review红测修复排队/重试前取旧时间和输入读取期间租约到期。113组合、Node20关键179、12源码故障/正控≥91/3hash恢复，四后台types、显式新文件Biome、CloudBase门禁通过；第一轮广泛1127，最终重跑另存broad-final待读回。实际复核新增state machine、facade、两适配器、对应测试和官方/安装SDK返回值，纠正文档示例包装形状与runtime直接返回的差异；不声称本地wrapper测试是云实测。云授权已失效，未重新申请或操作云资源；本地实现继续。fullDeliveryReady=false；下步接实际producer、媒体receipt和准备写回。
+
+P2f2最终重跑已读回：DB792+local-server339=1131，0失败/跳过/取消（1.99秒/72.55秒）。事务/字段/权限/跨文件review继续检查同一修订，不把旧1127重记为新增验收。
