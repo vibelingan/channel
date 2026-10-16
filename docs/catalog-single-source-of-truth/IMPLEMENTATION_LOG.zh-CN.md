@@ -878,3 +878,9 @@ review红测修复排队/重试前取旧时间和输入读取期间租约到期�
 P2f2最终重跑已读回：DB792+local-server339=1131，0失败/跳过/取消（1.99秒/72.55秒）。事务/字段/权限/跨文件review继续检查同一修订，不把旧1127重记为新增验收。
 
 P2f2a：eaceace2精确review BLOCK发现私有任务集合未声明；补ADMINONLY部署资源与红测，集合总数31→32。486部署脚本、2真实配置故障检出/恢复通过。原eaceace2构建/Node20裸启动通过仍不授予部署；修订后重建并精确review。源/媒体receipt producer、列表与全流程继续，fullDeliveryReady=false。
+
+### P2f3 租约候选读取
+
+抽取既有preview/inspection只读核心，原HTTP人类入口仍前后核对真实admin身份；新增后端job bridge通过当前租约renew取得productId，无假管理员行。私有candidate返回全量imageIds，原人类inspection保持旧输出。76组合、Node20关键183、11真实故障/正控≥71/3源码恢复通过；真实本地source/manual无admin账号、105图片、伪造/过期/取消/途中编辑取消覆盖。review的privateTrace透传反例先红后以ok/code投影修复。广泛回归与类型/SDK在读回；不把metadata ready称作像素封印或发布许可。属性筛选不扩展、分类不修改、fullDeliveryReady=false；下一步接可信像素receipt/producer。
+
+P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取消；四后台types、6文件Biome、CloudBase门禁通过。原HTTP人类入口复用同一core、服务入口仍仅backend导出；不把这一读取单元当作完整worker。

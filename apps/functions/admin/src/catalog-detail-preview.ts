@@ -70,9 +70,32 @@ const admin = (actor: CollectionDoc | null) =>
   actor?.role === 'admin' && actor.status !== 'suspended';
 const ids = (urls: readonly string[]) => urls.map((url) => url.slice('/api/images/'.length));
 
-export async function readCatalogDetailPreview(actorId: string, input: unknown) {
-  if (!admin(await get('users', actorId)))
-    return { ok: false as const, code: 'FORBIDDEN' as const };
+export type CatalogCandidateAccessCheck = () => Promise<
+  { ok: true } | { ok: false; code: 'FORBIDDEN' | 'CONFLICT' }
+>;
+
+/** Backend callback only; project failure fields before crossing a reader boundary. */
+export async function checkCatalogCandidateAccess(check: CatalogCandidateAccessCheck) {
+  const access = await check();
+  return access.ok ? { ok: true as const } : { ok: false as const, code: access.code };
+}
+
+export function readCatalogDetailPreview(actorId: string, input: unknown) {
+  return readCatalogDetailPreviewCandidate(input, async () => {
+    const actor = await get('users', actorId);
+    return actor?._id === actorId && admin(actor)
+      ? { ok: true as const }
+      : { ok: false as const, code: 'FORBIDDEN' as const };
+  });
+}
+
+/** Private candidate reader; the HTTP wrapper always supplies its real-user access check. */
+export async function readCatalogDetailPreviewCandidate(
+  input: unknown,
+  checkAccess: CatalogCandidateAccessCheck,
+) {
+  const access = await checkCatalogCandidateAccess(checkAccess);
+  if (!access.ok) return access;
   const parsed = commandSchema.safeParse(input);
   if (!parsed.success)
     return catalogValidationFailure(
@@ -197,8 +220,9 @@ export async function readCatalogDetailPreview(actorId: string, input: unknown) 
           remedy: 'reload',
         }),
       ]);
-    const [current, actor] = await Promise.all([get('products', productId), get('users', actorId)]);
-    if (!admin(actor)) return { ok: false as const, code: 'FORBIDDEN' as const };
+    const current = await get('products', productId);
+    const finalAccess = await checkCatalogCandidateAccess(checkAccess);
+    if (!finalAccess.ok) return finalAccess;
     if (!current || productDigest(current) !== initialProductDigest)
       return { ok: false as const, code: 'CONFLICT' as const };
     const inputDigest = sourceDigest([

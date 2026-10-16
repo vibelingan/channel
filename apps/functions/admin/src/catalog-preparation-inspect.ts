@@ -16,7 +16,11 @@ import {
   catalogIssuesFromZod,
 } from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
-import { readCatalogDetailPreview } from './catalog-detail-preview.ts';
+import {
+  type CatalogCandidateAccessCheck,
+  checkCatalogCandidateAccess,
+  readCatalogDetailPreviewCandidate,
+} from './catalog-detail-preview.ts';
 import {
   catalogSourcePreviewPagination,
   readCompleteAlibabaDetailPlan,
@@ -59,16 +63,35 @@ function hasUnavailableConfigurationPhoto(
   );
 }
 
-/** Checks all adopted images, including configurations beyond the first preview page. */
+/** Human inspection preserves its original response shape and real-user authorization. */
 export async function inspectCatalogPreparation(
   actorId: string,
   input: unknown,
   options: { now?: () => number; budgetMs?: number } = {},
 ) {
+  const candidate = await readCatalogPreparationCandidate(
+    input,
+    async () =>
+      admin(await get('users', actorId), actorId)
+        ? { ok: true as const }
+        : { ok: false as const, code: 'FORBIDDEN' as const },
+    options,
+  );
+  if (!candidate.ok) return candidate;
+  const { imageIds: _imageIds, ...inspection } = candidate;
+  return inspection;
+}
+
+/** Private plan and metadata candidate. It is neither a pixel receipt nor readiness authority. */
+export async function readCatalogPreparationCandidate(
+  input: unknown,
+  checkAccess: CatalogCandidateAccessCheck,
+  options: { now?: () => number; budgetMs?: number } = {},
+) {
   const command = Request.safeParse(input);
   if (!command.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
-  if (!admin(await get('users', actorId), actorId))
-    return { ok: false as const, code: 'FORBIDDEN' as const };
+  const access = await checkCatalogCandidateAccess(checkAccess);
+  if (!access.ok) return access;
   const product = await get('products', command.data.productId);
   if (!product) return { ok: false as const, code: 'NOT_FOUND' as const };
   const generation = Generation.safeParse(product.catalogContentGeneration ?? 0);
@@ -137,10 +160,10 @@ export async function inspectCatalogPreparation(
       }
     }
   } else if (issues.length === 0) {
-    const preview = await readCatalogDetailPreview(actorId, {
-      action: 'preview',
-      productId: product._id,
-    });
+    const preview = await readCatalogDetailPreviewCandidate(
+      { action: 'preview', productId: product._id },
+      checkAccess,
+    );
     if (!preview.ok) issues.push(...failureIssues(preview));
     else {
       previewReady = true;
@@ -206,14 +229,12 @@ export async function inspectCatalogPreparation(
     }
   }
   const current = await get('products', product._id);
-  if (!admin(await get('users', actorId), actorId))
-    return { ok: false as const, code: 'FORBIDDEN' as const };
-  if (
-    !current ||
-    catalogPreparationInputDigest(await readCatalogPreparationInputs({ get }, current)) !==
-      inputDigest
-  )
-    return { ok: false as const, code: 'CONFLICT' as const };
+  const currentDigest = current
+    ? catalogPreparationInputDigest(await readCatalogPreparationInputs({ get }, current))
+    : null;
+  const finalAccess = await checkCatalogCandidateAccess(checkAccess);
+  if (!finalAccess.ok) return finalAccess;
+  if (currentDigest !== inputDigest) return { ok: false as const, code: 'CONFLICT' as const };
   const outcome =
     mediaBlocked || issues.some((issue) => issue.severity === 'error')
       ? ('blocked' as const)
@@ -233,6 +254,7 @@ export async function inspectCatalogPreparation(
     previewReady,
     mediaInputDigest: sourceDigest([sourceRevision, snapshots, failureInputs]),
     media: { scanned, total: imageIds.length },
+    imageIds,
     issues: issues.slice(0, 50),
   };
 }
