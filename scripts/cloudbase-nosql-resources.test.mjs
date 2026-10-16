@@ -544,5 +544,12 @@ test('image observations are private coordination state provisioned with the pre
   );
   assert.ok(resource);
   assert.equal(resource.permission, 'ADMINONLY');
-  assert.deepEqual(resource.indexes, []);
+  assert.equal(resource.indexes.length, 1);
+  assert.equal(resource.indexes[0].IndexName, 'catalog_preparation_image_hold');
+  assert.deepEqual(resource.indexes[0].MgoKeySchema.MgoIndexKeys, [
+    { Name: 'kind', Direction: '1' },
+    { Name: 'imageId', Direction: '1' },
+    { Name: '_id', Direction: '1' },
+  ]);
+  assert.equal(resource.indexes[0].MgoKeySchema.MgoIsUnique, false);
 });

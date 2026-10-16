@@ -163,6 +163,13 @@ export async function runCatalogPreparationWorker(
         if (!renewed.ok) return { ok: false, code: renewed.code };
         const imageId = candidate.imageIds[media.cursor];
         if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
+        const reservation = await run({
+          action: 'reserve-image-check',
+          jobId: progress.jobId,
+          lease,
+          imageId,
+        });
+        if (!reservation.ok) return { ok: false, code: reservation.code };
         let checked = checkImage
           ? await (async () => {
               const image = await get('images', imageId);

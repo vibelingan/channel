@@ -175,7 +175,18 @@ test('cancel during default native image check fences the observation and keeps 
   assert.deepEqual(r, { ok: false, code: 'CONFLICT' });
   assert.equal(checks, 1);
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
-  assert.equal(rows.catalogImageObservations, undefined);
+  assert.equal(
+    rows.catalogImageObservations.filter(
+      (row: { kind: string }) => row.kind === 'unsealed-image-observation-v1',
+    ).length,
+    0,
+  );
+  assert.equal(
+    rows.catalogImageObservations.filter(
+      (row: { kind: string }) => row.kind === 'catalog-preparation-image-hold-v1',
+    ).length,
+    1,
+  );
   assert.equal(rows.catalogPreparationJobs[0].state, 'cancelled');
   assert.equal(rows.products[0].published, false);
 });
@@ -289,7 +300,18 @@ test('product edit during a check marks the old job stale and cannot publish old
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   assert.equal(rows.catalogPreparationJobs[0].state, 'stale');
   assert.equal(rows.products[0].published, false);
-  assert.equal(rows.catalogImageObservations, undefined);
+  assert.equal(
+    rows.catalogImageObservations.filter(
+      (row: { kind: string }) => row.kind === 'unsealed-image-observation-v1',
+    ).length,
+    0,
+  );
+  assert.equal(
+    rows.catalogImageObservations.filter(
+      (row: { kind: string }) => row.kind === 'catalog-preparation-image-hold-v1',
+    ).length,
+    1,
+  );
 });
 
 async function sourceWorkspace(t: { after(fn: () => void): void }, count = 105) {

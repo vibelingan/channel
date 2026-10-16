@@ -970,3 +970,9 @@ P2f9a最终：DB933+admin548+public131+alibaba303+local406=2321全部通过，0�
 复用既有SSRF安全importer，仅注入当前opaque lease的来源持久接口，限定采用URL且不允许retire；人类响应不暴露私有sourcePhotos。未绑定配置照片先完成，每阶段最多4个/20秒软预算，再重读完整候选绑定像素计划。新去重绑定与清锁同事务，历史残留按采用URL/owner严格恢复后续查像素；不改商品/分类/发布。
 
 最终Node20九文件298项，扩大DB948+admin549+public131+alibaba304+local418=2350项全部通过，0失败/跳过/取消。四types/SDK通过，7源码故障全检出123–132正控/133，原字节恢复。真实本地五URL跨步/重开/一来源PUT+保护复制/像素、503/404、取消前后、下载期间编辑、activation ACK丢失、错URL/retire、人工选图和105配置均覆盖。夹具dispatch旧闭包、取消缺leaseVersion、candidate投影预期和exactOptionalPropertyTypes错误修正后重新跑，不冒称产品bug。实际review生产和测试文件；“20秒限制”改为“软预算，现有网络deadline可能跨越”。精确构建/产物随后记，业务全流程仍未完成。
+
+## P2f9c1：检查期间保留配置图
+
+P2f9b 提交后精确函数产物已构建/打包并验证：Linux-x64 sharp0.35.5/126文件，显式Mac同JS profile在Node20冷启动、真实像素和bundled signed main五来源URL流程通过；4+1步仅一来源PUT+一保护PUT，warm零字节读取/网络/PUT，商品未变，隔离对象清理成功。仅本地受控DNS/fetch/LocalDisk，不计云端验收。
+
+P2f9c1 关闭来源配置图在检查后被删除的前置竞态。当前租约先写私有占用，删除持图锁先查占用；取消或输入失效自然释放。实际两删除入口、磁盘字节、反向交错、八个写ACK故障和部分写后过期回滚已覆盖。2391项扩大回归、Node20组合492、4消费者types、11文件Biome、SDK gate通过；5个源码反例均检出并恢复。详见 P2f9c1_IMAGE_HOLDS.zh-CN.md。此单元不写ready、不发布；fullDeliveryReady=false。

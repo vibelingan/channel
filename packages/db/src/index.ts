@@ -1,3 +1,5 @@
+import { findCatalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
+import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import { type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
 export {
   runImageUpload,
@@ -172,7 +174,8 @@ export async function manageCatalogPreparationJob(
   now?: number,
 ) {
   const adapter = db();
-  if (!adapter.manageCatalogPreparationJob) throw new Error('Preparation job persistence unavailable');
+  if (!adapter.manageCatalogPreparationJob)
+    throw new Error('Preparation job persistence unavailable');
   return adapter.manageCatalogPreparationJob(authority, command, now);
 }
 export function manageCatalogDetailApproval(actorId: string, input: unknown) {
@@ -828,4 +831,15 @@ export async function backfillPublishedRefCounts(
   }
 
   return { dryRun, imagesScanned, changes };
+}
+
+/** Must run under the image mutex, before ordinary reference scans. */
+export async function preparationUsingImage(imageId: string): Promise<string | null> {
+  const adapter = db();
+  return findCatalogPreparationImageHold(
+    { get: (collection, id) => adapter.get(collection, id), list: (query) => adapter.list(query) },
+    imageId,
+    Date.now(),
+    readCatalogPreparationJob,
+  );
 }

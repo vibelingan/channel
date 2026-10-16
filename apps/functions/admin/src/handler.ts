@@ -42,6 +42,7 @@ import {
   manageCatalogInquiry,
   manageImageDeletion,
   persistCatalogDetailApproval,
+  preparationUsingImage,
   releaseImageMutation,
   remove,
   saveCatalogProductWithIdentities,
@@ -1972,6 +1973,12 @@ async function abandonUploadAction(
       // unfinished jobs are checked FIRST: an approval that finishes after this
       // check has recorded the product (same transaction as its job) before the
       // reference scan below runs, and one that finishes later refuses the lock.
+      const preparing = await preparationUsingImage(imageId);
+      if (preparing)
+        return err(
+          'CONFLICT',
+          `Image is in use by product preparation/${preparing}. Cancel that preparation before removing it.`,
+        );
       const approving = await unfinishedApprovalUsingImage(imageId);
       if (approving) {
         return err(

@@ -1,3 +1,5 @@
+import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
+import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
@@ -1290,4 +1292,53 @@ test('completed source cleanup expiring after the actual write rolls back, then 
   assert.equal(f.store.get('images')?.has('unused'), false);
   assert.deepEqual(f.store.get('products'), before.get('products'));
   assert.deepEqual(f.store.get('catalogSourceLinks'), before.get('catalogSourceLinks'));
+});
+
+async function imageHoldCloudFixture() {
+  const f = await leasedSourceCloudFixture();
+  const job = readCatalogPreparationJob(
+    f.store.get('catalogPreparationJobs')?.get(f.scope.jobId),
+    f.scope.jobId,
+    f.now,
+  );
+  assert.ok(job);
+  const hold = catalogPreparationImageHold(job, 'source-only');
+  const reserve = () =>
+    f.run({ action: 'reserve-image-check', ...f.scope, imageId: 'source-only' });
+  return { f, hold, reserve };
+}
+test('source-backed hold and same-job fence use eight read-before-write operations and do not touch images/products', async () => {
+  const { f, hold, reserve } = await imageHoldCloudFixture();
+  const images = structuredClone(f.store.get('images'));
+  const products = structuredClone(f.store.get('products'));
+  f.controls.maximumOperations = 0;
+  assert.deepEqual(await reserve(), { ok: true, reservation: 'reserved' });
+  assert.equal(f.controls.maximumOperations, 8);
+  assert.deepEqual(f.store.get('catalogImageObservations')?.get(hold._id), hold);
+  assert.deepEqual(f.store.get('images'), images);
+  assert.deepEqual(f.store.get('products'), products);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const target of ['hold', 'job'] as const)
+    test(`hold ${target} ${failure} rolls back both physical writes`, async () => {
+      const { f, hold, reserve } = await imageHoldCloudFixture();
+      const key =
+        target === 'hold'
+          ? `catalogImageObservations/${hold._id}`
+          : `catalogPreparationJobs/${f.scope.jobId}`;
+      f.controls[failure] = key;
+      const before = structuredClone(f.store);
+      await assert.rejects(reserve());
+      assert.deepEqual(f.store, before);
+      f.controls[failure] = '';
+      assert.ok((await reserve()).ok);
+    });
+test('expiry after the hold write rolls back the partial reservation', async () => {
+  const { f, hold, reserve } = await imageHoldCloudFixture();
+  const before = structuredClone(f.store);
+  f.controls.afterWrite = (key) => {
+    if (key === `catalogImageObservations/${hold._id}`) f.now += 120001;
+  };
+  await assert.rejects(reserve(), /lease changed/);
+  assert.deepEqual(f.store, before);
 });

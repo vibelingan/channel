@@ -28,6 +28,7 @@ import {
   list,
   manageImageDeletion,
   manageSourceMediaImport,
+  preparationUsingImage,
   readImageMutationState,
   releaseImageMutation,
   unfinishedApprovalUsingImage,
@@ -525,6 +526,7 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
       // unfinished approval that would publish this photo still uses it. Jobs
       // first, references second: a job that finishes in between has recorded
       // its product (same transaction) before the reference scan reads it.
+      if (await preparationUsingImage(imageId)) return { ok: false, reason: 'still-referenced' };
       if (await unfinishedApprovalUsingImage(imageId))
         return { ok: false, reason: 'still-referenced' };
       const reference = await findCandidateReference(imageId);

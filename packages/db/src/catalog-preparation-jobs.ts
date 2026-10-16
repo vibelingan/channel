@@ -23,6 +23,10 @@ import {
 import { runCatalogImageProtection } from './catalog-image-protection.ts';
 import type { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
+  catalogPreparationImageHold,
+  matchesCatalogPreparationImageHold,
+} from './catalog-preparation-image-hold.ts';
+import {
   type CatalogPreparationMediaProgress,
   CatalogPreparationMediaProgressSchema,
   advanceCatalogMediaProgress,
@@ -63,6 +67,14 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('reserve-image-check'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageId: id,
+    })
+    .strict(),
   z
     .object({
       action: z.literal('manage-source-media'),
@@ -221,6 +233,7 @@ export type CatalogPreparationJobResult =
   | { ok: true; observation: CatalogImageObservation | null }
   | { ok: true; protection: CatalogImageProtectionIntent }
   | { ok: true; sourceMedia: SourceMediaImportResult }
+  | { ok: true; reservation: 'reserved' }
   | {
       ok: true;
       protectedHealth: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
@@ -266,7 +279,7 @@ function identity(productId: string, inputDigest: string, generation: number) {
     generation,
   ]);
 }
-function readJob(value: unknown, jobId: string, now: number): Job | null {
+export function readCatalogPreparationJob(value: unknown, jobId: string, now: number): Job | null {
   const checked = jobSchema.safeParse(value);
   if (!checked.success) return null;
   const job = checked.data;
@@ -321,7 +334,7 @@ export async function runCatalogPreparationJob(
     const jobId = identity(command.productId, current.inputDigest, current.contentGeneration);
     const existing = await tx.get(CATALOG_PREPARATION_JOBS, jobId);
     if (existing) {
-      const checked = readJob(existing, jobId, now);
+      const checked = readCatalogPreparationJob(existing, jobId, now);
       return checked &&
         checked.productId === command.productId &&
         checked.inputDigest === current.inputDigest &&
@@ -359,7 +372,7 @@ export async function runCatalogPreparationJob(
   } else jobId = command.jobId;
   const existing = await tx.get(CATALOG_PREPARATION_JOBS, jobId);
   if (!existing) return { ok: false, code: 'NOT_FOUND' };
-  const job = readJob(existing, jobId, now);
+  const job = readCatalogPreparationJob(existing, jobId, now);
   if (!job) return { ok: false, code: 'CORRUPT' };
   timestamp = new Date(Math.max(now, Date.parse(job.updatedAt))).toISOString();
   if (command.action === 'get') return { ok: true, progress: progress(job) };
@@ -410,6 +423,40 @@ export async function runCatalogPreparationJob(
   if (command.action === 'dispatch') {
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
+  }
+  if (command.action === 'reserve-image-check') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    const hold = catalogPreparationImageHold(job, command.imageId);
+    const existingHold = await tx.get(CATALOG_IMAGE_OBSERVATIONS, hold._id);
+    if (existingHold && !matchesCatalogPreparationImageHold(existingHold, job, command.imageId))
+      return { ok: false, code: 'CORRUPT' };
+    const current = await currentInput(tx, job.productId);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (
+      !current ||
+      current === 'invalid' ||
+      current.inputDigest !== job.inputDigest ||
+      current.contentGeneration !== job.contentGeneration
+    ) {
+      await tx.set(CATALOG_PREPARATION_JOBS, {
+        ...job,
+        mutationRevision: job.mutationRevision + 1,
+        state: 'stale',
+        leaseOwner: '',
+        leaseExpiresAt: 0,
+        updatedAt: timestamp,
+      });
+      return { ok: false, code: 'STALE' };
+    }
+    if (!existingHold) await tx.set(CATALOG_IMAGE_OBSERVATIONS, hold);
+    if (!authority.currentLeaseScope(command.lease, job))
+      throw Error('Preparation lease changed while reserving image');
+    await tx.set(CATALOG_PREPARATION_JOBS, {
+      ...job,
+      mutationRevision: job.mutationRevision + 1,
+      updatedAt: timestamp,
+    });
+    return { ok: true, reservation: 'reserved' };
   }
   if (command.action === 'manage-source-media') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
@@ -499,7 +546,7 @@ export async function runCatalogPreparationJob(
       command,
       now,
       timestamp,
-      readJob,
+      readCatalogPreparationJob,
       currentInput,
     );
   }

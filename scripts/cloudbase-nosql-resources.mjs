@@ -36,7 +36,13 @@ export const REQUIRED_NOSQL_RESOURCES = [
   {
     collectionName: 'catalogImageObservations',
     permission: 'ADMINONLY',
-    indexes: [],
+    indexes: [
+      index('catalog_preparation_image_hold', [
+        ['kind', '1'],
+        ['imageId', '1'],
+        ['_id', '1'],
+      ]),
+    ],
   },
   {
     collectionName: 'catalogDetailVariants',
