@@ -906,3 +906,9 @@ P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取�
 原fn-alibaba新增严格签名Event分支，先于timer；当前lease读取全量source/manual计划，private defer不扫未处理图片，human保留metadata检查。每步串行最多4图、20秒软预算，默认存储/原生像素观察与cursor同事务，最后复核完整采用计划，所有退出尝试release且失败不能假报成功。领取异常投影、source照片末步替换红测修复；最后release前取消仍拒绝。checked不是ready。
 
 120组合/Node20（worker19真实默认流程与main/105配置/坏像素/重试）、10源码故障在118项上检出/114–117正控/3源码恢复；广泛admin546+alibaba303+local374=1223、四types/SDK106/9显式Biome通过。相对路径38组合漏admin已用root明确文件重跑；incomplete测试期待与exactOptional字段修复。workspace importer只增link:../admin，frozen offline安装通过，第三方版本未变。Linux126文件包完整性与Mac同JS/native Node20 profile通过，wip版本不算提交产物；云端完整已打包worker与最终目标封印待验。实际复核上述代码和测试，措辞保留软预算/历史扫描边界，fullDeliveryReady=false。
+
+### P2f7a 受控媒体目标与上传凭证边界
+
+backend catalog-sealed逻辑namespace映射catalog/sealed/imagehash/contenthash/attempthash.ext；浏览器broker拒绝reserved及escaped/traversal别名后才mint，服务器private minter保留既有PUT/rawheaders合约。两adapter要求beforeWrite回调并等待；是否真落库后续producer验证，namespace/callback自身不发ready。无真实图片迁移或业务状态变化。
+
+55+1交付小流程/完整media157/Node20关键178、8源码故障检出/44–55正控/3文件恢复、广泛admin546+public131+local375=1052、五types+新增delivery类型/Biome8/SDK106通过。实际privatepreview→public404→fixture正引用字节→恢复0再404，非商品发布验收。SDK mapper移动前后AST完全一致、1/1 probe行；重读并保留官方node/storage OpenAPI，未混用shape。实际复核8代码/测试及admin/public交付与shared只读字段，纠正checkpoint持久性措辞、撤销无关header移动。保护attempt/CAS/最终封印与全流程继续，fullDeliveryReady=false。

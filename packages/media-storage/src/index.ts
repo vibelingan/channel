@@ -13,9 +13,13 @@
  * See docs/IMAGE_UPLOAD_STORAGE_DESIGN.md §20.4 (MIU-02).
  */
 
+import { catalogProtectedStoragePath } from './protected-path.ts';
+export { catalogProtectedStoragePath };
+
 /** Top-level storage namespaces; map to the path prefixes below. */
 export type MediaNamespace =
   | 'catalog'
+  | 'catalog-sealed'
   | 'oem'
   | 'marketing'
   | 'smoke'
@@ -201,6 +205,8 @@ function yearMonth(now: Date): { yyyy: string; mm: string } {
 export function objectStoragePath(
   input: Pick<PutMediaObjectInput, 'namespace' | 'logicalId' | 'fileName'> & { now?: Date },
 ): string {
+  if (input.namespace === 'catalog-sealed')
+    return catalogProtectedStoragePath(input.logicalId, input.fileName);
   const safe = safeFileName(input.fileName);
   if (input.namespace === 'smoke') return `smoke/${safe}`;
   if (input.namespace === 'alibaba-raw') return alibabaRawStoragePath(input.logicalId);

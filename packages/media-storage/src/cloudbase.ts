@@ -22,6 +22,10 @@ import {
   type UploadCredential,
   objectStoragePath,
 } from './index.ts';
+import {
+  assertBrowserWritableMediaPath,
+  assertProtectedMediaCheckpoint,
+} from './protected-path.ts';
 
 /** The injected node-sdk 3.17.2 storage surface; wx-server-sdk lacks the minter. */
 export interface CloudBaseStorageSdk {
@@ -110,11 +114,49 @@ export function createCloudBaseMediaStorage(
   sdk: CloudBaseStorageSdk,
   transport: CloudBasePutOptions & CloudBaseReadTransport = {},
 ): MediaStorageAdapter {
+  async function mintUploadCredential(cloudPath: string): Promise<UploadCredential> {
+    const meta = await sdk.getUploadMetadata({ cloudPath });
+    const data = meta?.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error(
+        `media-storage(cloudbase): incomplete upload metadata (missing data) for ${cloudPath}`,
+      );
+    }
+    const fields = data as Record<string, unknown>;
+    // Every field is either a browser request header or the durable id the
+    // image doc depends on. Treat the SDK response as untrusted at runtime so
+    // a contract mismatch fails during mint instead of returning a
+    // half-credential.
+    const uploadUrl = requireStringField(fields, 'url', cloudPath);
+    const authorization = requireStringField(fields, 'authorization', cloudPath);
+    const token = requireStringField(fields, 'token', cloudPath);
+    const cosFileId = requireStringField(fields, 'cosFileId', cloudPath);
+    const storageFileId = requireStringField(fields, 'fileId', cloudPath);
+    // Mirror the installed SDK's own `uploadFile` exactly: a raw PUT whose
+    // headers carry the credential (Signature + the lowercase `authorization`
+    // duplicate + the URI-encoded key). node-sdk 3.x requests the signature
+    // for `method: 'put'`, so a multipart POST is rejected 403
+    // SignatureDoesNotMatch.
+    return {
+      uploadUrl,
+      method: 'PUT',
+      headers: {
+        Signature: authorization,
+        'x-cos-security-token': token,
+        'x-cos-meta-fileid': cosFileId,
+        authorization,
+        key: encodeURIComponent(cloudPath),
+      },
+      storageFileId,
+    };
+  }
+
   const storage: MediaStorageAdapter = {
     async putObject(
       input: PutMediaObjectInput,
       options: PutMediaObjectOptions = {},
     ): Promise<StoredMediaObject> {
+      assertProtectedMediaCheckpoint(input.namespace, options.beforeWrite);
       const storagePath = objectStoragePath(input);
       const knownSize =
         input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {};
@@ -125,7 +167,7 @@ export function createCloudBaseMediaStorage(
         options.beforeWrite ||
         !(input.content instanceof Uint8Array || input.content instanceof ReadStream)
       ) {
-        const credential = await storage.getUploadCredential(storagePath);
+        const credential = await mintUploadCredential(storagePath);
         checkedUploadUrl(credential.uploadUrl);
         const target: StoredMediaObject = {
           storageProvider: 'cloudbase-storage',
@@ -192,40 +234,8 @@ export function createCloudBaseMediaStorage(
     },
 
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
-      const meta = await sdk.getUploadMetadata({ cloudPath });
-      const data = meta?.data;
-      if (!data || typeof data !== 'object' || Array.isArray(data)) {
-        throw new Error(
-          `media-storage(cloudbase): incomplete upload metadata (missing data) for ${cloudPath}`,
-        );
-      }
-      const fields = data as Record<string, unknown>;
-      // Every field is either a browser request header or the durable id the
-      // image doc depends on. Treat the SDK response as untrusted at runtime so
-      // a contract mismatch fails during mint instead of returning a
-      // half-credential.
-      const uploadUrl = requireStringField(fields, 'url', cloudPath);
-      const authorization = requireStringField(fields, 'authorization', cloudPath);
-      const token = requireStringField(fields, 'token', cloudPath);
-      const cosFileId = requireStringField(fields, 'cosFileId', cloudPath);
-      const storageFileId = requireStringField(fields, 'fileId', cloudPath);
-      // Mirror the installed SDK's own `uploadFile` exactly: a raw PUT whose
-      // headers carry the credential (Signature + the lowercase `authorization`
-      // duplicate + the URI-encoded key). node-sdk 3.x requests the signature
-      // for `method: 'put'`, so a multipart POST is rejected 403
-      // SignatureDoesNotMatch.
-      return {
-        uploadUrl,
-        method: 'PUT',
-        headers: {
-          Signature: authorization,
-          'x-cos-security-token': token,
-          'x-cos-meta-fileid': cosFileId,
-          authorization,
-          key: encodeURIComponent(cloudPath),
-        },
-        storageFileId,
-      };
+      assertBrowserWritableMediaPath(cloudPath);
+      return mintUploadCredential(cloudPath);
     },
 
     async deleteObject(fileId: string): Promise<void> {

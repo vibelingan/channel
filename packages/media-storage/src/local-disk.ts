@@ -20,6 +20,7 @@ import {
   type UploadCredential,
   objectStoragePath,
 } from './index.ts';
+import { assertProtectedMediaCheckpoint } from './protected-path.ts';
 
 import { readMediaBytes } from './read-limits.ts';
 
@@ -50,6 +51,7 @@ export class LocalDiskMediaStorage implements MediaStorageAdapter {
     input: PutMediaObjectInput,
     options: PutMediaObjectOptions = {},
   ): Promise<StoredMediaObject> {
+    assertProtectedMediaCheckpoint(input.namespace, options.beforeWrite);
     const storagePath = objectStoragePath(input);
     const abs = this.resolveSafe(storagePath);
     await options.beforeWrite?.({

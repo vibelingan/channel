@@ -281,3 +281,18 @@ test('cloudbase Uint8Array is converted to the installed SDK Buffer contract', a
   assert.deepEqual(sdk.uploads[0]?.fileContent, Buffer.from([1, 2, 3]));
   assert.equal(stored.byteSize, 3);
 });
+
+for (const path of [
+  'catalog/sealed/a.png',
+  '/catalog/sealed/a.png',
+  'catalog//sealed/a.png',
+  'catalog/x/../sealed/a.png',
+  'catalog/%73ealed/a.png',
+  'catalog\\sealed\\a.png',
+])
+  test(`browser upload broker refuses reserved path before mint: ${path}`, async () => {
+    const sdk = new FakeSdk();
+    const storage = createCloudBaseMediaStorage(sdk);
+    await assert.rejects(storage.getUploadCredential(path), /protected|reserved/i);
+    assert.deepEqual(sdk.uploadMetaPaths, []);
+  });

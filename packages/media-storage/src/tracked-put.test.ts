@@ -318,3 +318,44 @@ test('cloud checkpoint must finish before constructing the byte request', async 
   }
   assert.equal(f.startedRequests(), 1);
 });
+
+test('server protected upload retains tracked raw PUT while broker never reveals its credential', async (t) => {
+  const w = await wire(t);
+  let checkpoint: Readonly<StoredMediaObject> | undefined;
+  const stored = await w.store.putObject(
+    {
+      ...input,
+      namespace: 'catalog-sealed',
+      logicalId: `${'a'.repeat(64)}:${'b'.repeat(64)}:${'c'.repeat(64)}`,
+      fileName: 'original.png',
+    },
+    {
+      beforeWrite: async (target) => {
+        checkpoint = target;
+        assert.equal(w.startedRequests(), 0);
+      },
+    },
+  );
+  assert.deepEqual(stored, checkpoint);
+  assert.equal(w.received.length, 1);
+  assert.equal(w.received[0]?.method, 'PUT');
+  assert.deepEqual(w.received[0]?.body, input.content);
+  assert.deepEqual(w.counts(), { minted: 1, nativeUploads: 0 });
+  await assert.rejects(w.store.getUploadCredential(stored.storagePath), /protected|reserved/i);
+  assert.deepEqual(w.counts(), { minted: 1, nativeUploads: 0 });
+});
+
+test('CloudBase protected writes without a checkpoint refuse before metadata or byte upload', async (t) => {
+  const w = await wire(t);
+  await assert.rejects(
+    w.store.putObject({
+      ...input,
+      namespace: 'catalog-sealed',
+      logicalId: `${'a'.repeat(64)}:${'b'.repeat(64)}:${'c'.repeat(64)}`,
+      fileName: 'original.png',
+    }),
+    /checkpoint/i,
+  );
+  assert.deepEqual(w.counts(), { minted: 0, nativeUploads: 0 });
+  assert.equal(w.startedRequests(), 0);
+});
