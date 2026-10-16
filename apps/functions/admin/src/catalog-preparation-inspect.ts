@@ -75,7 +75,10 @@ export async function inspectCatalogPreparation(
       admin(await get('users', actorId), actorId)
         ? { ok: true as const }
         : { ok: false as const, code: 'FORBIDDEN' as const },
-    options,
+    {
+      ...(options.now === undefined ? {} : { now: options.now }),
+      ...(options.budgetMs === undefined ? {} : { budgetMs: options.budgetMs }),
+    },
   );
   if (!candidate.ok) return candidate;
   const { imageIds: _imageIds, ...inspection } = candidate;
@@ -86,7 +89,7 @@ export async function inspectCatalogPreparation(
 export async function readCatalogPreparationCandidate(
   input: unknown,
   checkAccess: CatalogCandidateAccessCheck,
-  options: { now?: () => number; budgetMs?: number } = {},
+  options: { now?: () => number; budgetMs?: number; mediaMode?: 'metadata' | 'defer' } = {},
 ) {
   const command = Request.safeParse(input);
   if (!command.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
@@ -183,7 +186,11 @@ export async function readCatalogPreparationCandidate(
   const snapshots: unknown[] = [];
   let scanned = 0;
   let mediaBlocked = false;
-  for (let offset = 0; offset < imageIds.length; offset += mediaConcurrency) {
+  for (
+    let offset = 0;
+    options.mediaMode !== 'defer' && offset < imageIds.length;
+    offset += mediaConcurrency
+  ) {
     if (now() - startedAt >= budget) break;
     const ids = imageIds.slice(offset, offset + mediaConcurrency);
     const images = await Promise.all(ids.map((id) => get('images', id)));

@@ -7,7 +7,9 @@
  * boots every function with stub env only).
  */
 import { setAdapter } from '@vibelingan-channel/db';
+import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { runCatalogPreparationWorker } from '@vibelingan-channel/fn-admin/catalog-preparation-worker';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
@@ -55,7 +57,18 @@ function isTimerEvent(event: unknown): boolean {
   );
 }
 
+const preparationAuthority = createCatalogPreparationAuthority({
+  secret: config.jwtSecret,
+  environmentId: requireEnv('TCB_ENV'),
+});
+
 export const main = async (event: unknown): Promise<unknown> => {
+  if (
+    typeof event === 'object' &&
+    event !== null &&
+    Reflect.get(event, 'kind') === 'catalog-preparation-call-v1'
+  )
+    return runCatalogPreparationWorker(preparationAuthority, event);
   if (isTimerEvent(event)) {
     // Timer tick (production only — the test env never receives a timer,
     // MIU 14): full 720s budget under the fenced lease.

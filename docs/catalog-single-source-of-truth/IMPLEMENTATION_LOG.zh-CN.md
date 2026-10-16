@@ -900,3 +900,9 @@ P2f3广泛回归已完成：admin535+local-server349=884，零失败/跳过/取�
 同一技术job绑定全量媒体计划，观察与cursor/count/最后一步回执原子提交。重复相同一步返回原回执，不同数据/跳步拒绝；普通resume保留断点，queued已有计划可由当前admin显式retry轮换nonce并清空。human只看数量，不返回私有receipt/nonce/存储目标。扫描结束仍不写ready。
 
 161组合+24真实文件=185及Node20、9实际源码故障/167–184正控/2源码恢复、广泛DB848+local355=1203、四types/4显式Biome/SDK106通过。Cloudwrapper源任务9操作，4种第二写失败回滚；默认文件/原生像素流程重开继续、丢ACK、重复并发、落盘失败覆盖。fixture无变化误作损坏与private persist类型访问均修正后重跑。实际文字复核job、schema、SDKwrapper、真实adapter/测试，明确checked不是verified；worker/目标保护/封印/业务交付继续，fullDeliveryReady=false。
+
+### P2f6 有界默认媒体worker和实际入口
+
+原fn-alibaba新增严格签名Event分支，先于timer；当前lease读取全量source/manual计划，private defer不扫未处理图片，human保留metadata检查。每步串行最多4图、20秒软预算，默认存储/原生像素观察与cursor同事务，最后复核完整采用计划，所有退出尝试release且失败不能假报成功。领取异常投影、source照片末步替换红测修复；最后release前取消仍拒绝。checked不是ready。
+
+120组合/Node20（worker19真实默认流程与main/105配置/坏像素/重试）、10源码故障在118项上检出/114–117正控/3源码恢复；广泛admin546+alibaba303+local374=1223、四types/SDK106/9显式Biome通过。相对路径38组合漏admin已用root明确文件重跑；incomplete测试期待与exactOptional字段修复。workspace importer只增link:../admin，frozen offline安装通过，第三方版本未变。Linux126文件包完整性与Mac同JS/native Node20 profile通过，wip版本不算提交产物；云端完整已打包worker与最终目标封印待验。实际复核上述代码和测试，措辞保留软预算/历史扫描边界，fullDeliveryReady=false。

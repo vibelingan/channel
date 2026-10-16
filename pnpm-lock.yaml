@@ -143,6 +143,9 @@ importers:
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      '@vibelingan-channel/fn-admin':
+        specifier: workspace:*
+        version: link:../admin
       '@vibelingan-channel/media-storage':
         specifier: workspace:*
         version: link:../../../packages/media-storage

@@ -17,6 +17,7 @@ export default defineConfig({
   },
   external: ['#catalog-image-decoder'],
   noExternal: [
+    '@vibelingan-channel/fn-admin',
     '@vibelingan-channel/alibaba-catalog-sync',
     '@vibelingan-channel/catalog-import',
     '@vibelingan-channel/shared',

@@ -7,7 +7,7 @@ export async function inspectCatalogPreparationJob(
   authority: CatalogPreparationAuthority,
   jobId: string,
   lease: unknown,
-  options: { now?: () => number; budgetMs?: number } = {},
+  options: { now?: () => number; budgetMs?: number; mediaMode?: 'metadata' | 'defer' } = {},
 ) {
   const renew = () =>
     manageCatalogPreparationJob(authority, { action: 'renew', jobId, lease }, options.now?.());

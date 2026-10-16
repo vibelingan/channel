@@ -4,7 +4,10 @@ import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observatio
 import { CatalogIssueSchema } from '@vibelingan-channel/shared/catalog-issues';
 import { CatalogPreparationReportSchema } from '@vibelingan-channel/shared/catalog-preparation';
 import { sourceVariantIds } from './catalog-detail-source.ts';
-import { inspectCatalogPreparation } from './catalog-preparation-inspect.ts';
+import {
+  inspectCatalogPreparation,
+  readCatalogPreparationCandidate,
+} from './catalog-preparation-inspect.ts';
 import { fixture } from './testing/catalog-source-plan-fixture.ts';
 
 const instant = Date.parse('2026-10-14T11:00:00.000Z');
@@ -527,4 +530,29 @@ test('a durable media failure transition changes its inspection digest without c
   assert.ok(exhausted.ok && exhausted.outcome === 'blocked');
   assert.equal(exhausted.inputDigest, waiting.inputDigest);
   assert.notEqual(exhausted.mediaInputDigest, waiting.mediaInputDigest);
+});
+
+test('private defer returns all105 adopted image IDs without a metadata scan; human extra option cannot defer', async () => {
+  const h = sample();
+  let reads = 0;
+  const get = h.adapter.get.bind(h.adapter);
+  h.adapter.get = async (c, id) => {
+    if (c === 'images') reads++;
+    return get(c, id);
+  };
+  const candidate = await readCatalogPreparationCandidate(
+    { productId: h.product._id },
+    async () => ({ ok: true }),
+    { ...options, mediaMode: 'defer' },
+  );
+  assert.ok(candidate.ok);
+  assert.equal(candidate.imageIds.length, 105);
+  assert.equal(candidate.media.scanned, 0);
+  assert.equal(candidate.outcome, 'incomplete');
+  assert.equal(reads, 0);
+  const extra = { ...options, mediaMode: 'defer' as const };
+  const human = await inspectCatalogPreparation('admin', { productId: h.product._id }, extra);
+  assert.ok(human.ok);
+  assert.equal(human.media.scanned, 105);
+  assert.equal(reads, 105);
 });
