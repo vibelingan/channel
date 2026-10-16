@@ -988,3 +988,11 @@ v2 ready 需显式媒体凭据；原私有快照入口双层拒绝 ready。新 f
 211 份初始合约检查、修正夹具后 239 份集成检查通过；真实 3 图和 105 配置图均走到最终 ready，未分类/未发布保留。8 个源码反例全检出，172–218/219 正控，原字节恢复。首次夹具、类型与 formatter 失败记录完整保留，详见 P2f9c3_READY_COMMIT.zh-CN.md。扩大/最终静态与构建证据随后追加；worker 接入及后续列表/操作/UI/repair/性能/test 现场验收继续，fullDeliveryReady=false。
 
 P2f9c3 最终本地：DB1045/shared290/admin549/public131/alibaba304/local438，共2757项全部通过，0失败/跳过/取消；Node20八文件组合420通过。四消费者types、13文件显式Biome、Cloud新增块格式、SDK gate、diff检查通过。source-backed原子提交7次读写、两写ACK各4形态与两次写后到期回滚均验证。完整 MIU inline review 未留本单元引入的P1/P2；默认worker接入与全业务验收仍待继续。
+
+## P2f9c4：默认准备 worker 完整就绪
+
+P2f9c3 精确提交三函数 build/package、Linux126文件完整性、同JS显式Mac profile与Node20产物/原生像素smoke均通过。默认worker接入当前 attestation/final；媒体子流程显式命名并共用租约执行器，签名main只走完整流程。每步最多4次核对，复用受控像素；完整候选再读后原子完成，最终丢ACK原grant确认，completed不再次release。
+
+60项阶段/默认小流程组合已通过。真实9图跨步/重开/无额外GET或PUT、105配置图53步、取消/编辑/来源绑定变化、明确retry与两个阶段ACK丢失均覆盖。7源码反例在选定13测试上全检出，1–12正控/1–12失败，源码恢复；完整扩大回归、最终types/Node20/构建随后记录。详见P2f9c4_READY_WORKER.zh-CN.md。人类恢复/状态快照/准入/其余组合与test现场仍需继续，fullDeliveryReady=false。
+
+P2f9c4 最终本地：admin549/alibaba304/local450，共1303项零失败/跳过/取消；源码恢复后的Node20三文件95、三消费者types、两文件Biome、SDK gate、diff检查通过。加强实际main的report/job读回后，七个反例全部重跑检出并恢复。复核active来源URL不能重定向，retire只接受pending/failed；catalogSourceLinks的adminAccess为none。最终事务不逐张读媒体，依赖已核对占用及应用受控目标/绑定；外部直接改库或对象字节不当作已验证路径。精确提交的构建与bundled main链路随后追加。

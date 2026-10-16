@@ -16,7 +16,10 @@ import { readCurrentCatalogPreparation } from '@vibelingan-channel/shared/catalo
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
 import { inspectCatalogPreparationJob } from '../../functions/admin/src/catalog-preparation-job-inspect.ts';
-import { runCatalogPreparationWorker } from '../../functions/admin/src/catalog-preparation-worker.ts';
+import {
+  runCatalogPreparationMediaWorker,
+  runCatalogPreparationWorker,
+} from '../../functions/admin/src/catalog-preparation-worker.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -93,7 +96,7 @@ async function fixture(t: { after(fn: () => void): void }, count = 9, missingCat
 test('default file storage/native pixels check9 images across bounded steps and database reopen', async (t) => {
   const f = await fixture(t);
   const before = await f.adapter.get('products', 'p');
-  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const first = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   assert.ok(first.ok, JSON.stringify(first));
   assert.equal(first.kind, 'unsealed-worker-step');
   assert.equal(first.media?.checked, 4);
@@ -105,10 +108,10 @@ test('default file storage/native pixels check9 images across bounded steps and 
     secret: 'worker-local-test',
     environmentId: 'local-worker-env',
   });
-  const second = await runCatalogPreparationWorker(fresh, await f.dispatch(reopened, fresh));
+  const second = await runCatalogPreparationMediaWorker(fresh, await f.dispatch(reopened, fresh));
   assert.ok(second.ok);
   assert.equal(second.media?.checked, 8);
-  const third = await runCatalogPreparationWorker(fresh, await f.dispatch(reopened, fresh));
+  const third = await runCatalogPreparationMediaWorker(fresh, await f.dispatch(reopened, fresh));
   assert.ok(third.ok);
   assert.equal(third.media?.checked, 9);
   assert.equal(third.media?.verified, 9);
@@ -152,7 +155,7 @@ for (const fault of ['signature', 'extra-timer', 'expired'] as const)
         : fault === 'extra-timer'
           ? { ...call, Type: 'Timer' }
           : { ...call, issuedAt: call.issuedAt - 60000, expiresAt: call.expiresAt - 60000 };
-    assert.deepEqual(await runCatalogPreparationWorker(f.authority, bad), {
+    assert.deepEqual(await runCatalogPreparationMediaWorker(f.authority, bad), {
       ok: false,
       code: 'FORBIDDEN',
     });
@@ -161,7 +164,7 @@ for (const fault of ['signature', 'extra-timer', 'expired'] as const)
 test('cancel during default native image check fences the observation and keeps product unpublished', async (t) => {
   const f = await fixture(t, 2);
   let checks = 0;
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     checkImage: async (id) => {
       checks++;
       const health = await readStoredCatalogImageHealth(id);
@@ -214,10 +217,12 @@ test('lost step ACK resumes after the committed cursor without repeating its pix
     return readStoredCatalogImageHealth(id);
   };
   assert.deepEqual(
-    await runCatalogPreparationWorker(f.authority, await f.dispatch(), { checkImage }),
+    await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), { checkImage }),
     { ok: false, code: 'UNAVAILABLE' },
   );
-  const next = await runCatalogPreparationWorker(f.authority, await f.dispatch(), { checkImage });
+  const next = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
+    checkImage,
+  });
   assert.ok(next.ok);
   assert.equal(next.media?.checked, 2);
   assert.deepEqual(seen, ['image-0000', 'image-0001']);
@@ -229,7 +234,7 @@ test('bad current image is an explicit blocked observation, never checked-as-ver
   data.images[0].checksumSha256 = 'b'.repeat(64);
   writeFileSync(f.file, JSON.stringify(data));
   setAdapter(new JsonFileAdapter(f.file));
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   assert.ok(r.ok);
   assert.equal(r.media?.checked, 1);
   assert.equal(r.media?.invalid, 1);
@@ -243,7 +248,7 @@ test('soft budget leaves a durable resumable prefix and no image check concurren
   let active = 0;
   let max = 0;
   let checks = 0;
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     now: () => time,
     checkImage: async (id) => {
       active++;
@@ -270,7 +275,7 @@ test('claim transport failure is projected without leaking an exception or inven
     if (cmd.action === 'claim') throw Error('private-cloud-endpoint');
     return manage(a, cmd, now);
   };
-  assert.deepEqual(await runCatalogPreparationWorker(f.authority, call), {
+  assert.deepEqual(await runCatalogPreparationMediaWorker(f.authority, call), {
     ok: false,
     code: 'UNAVAILABLE',
   });
@@ -283,7 +288,7 @@ test('release failure never reports a successful completed step', async (t) => {
     if (cmd.action === 'release') throw Error('private-release-endpoint');
     return manage(a, cmd, now);
   };
-  assert.deepEqual(await runCatalogPreparationWorker(f.authority, call), {
+  assert.deepEqual(await runCatalogPreparationMediaWorker(f.authority, call), {
     ok: false,
     code: 'UNAVAILABLE',
   });
@@ -293,7 +298,7 @@ test('release failure never reports a successful completed step', async (t) => {
 });
 test('product edit during a check marks the old job stale and cannot publish old data', async (t) => {
   const f = await fixture(t, 2);
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     checkImage: async (id) => {
       const health = await readStoredCatalogImageHealth(id);
       const row = await f.adapter.get('products', 'p');
@@ -374,7 +379,7 @@ test('105 source configurations retain the full plan with metadata reads only fo
     if (q.collection === 'catalogSourceLinks') batches++;
     return list(q);
   };
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   assert.ok(r.ok, JSON.stringify(r));
   assert.equal(r.media.total, 105);
   assert.equal(r.media.checked, 4);
@@ -389,7 +394,7 @@ test('105 source configurations retain the full plan with metadata reads only fo
 });
 test('source photo binding replacement during the last check cannot report the old adopted set checked', async (t) => {
   const f = await sourceWorkspace(t, 1);
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     checkImage: async (id) => {
       const health = await readStoredCatalogImageHealth(id);
       const rows = JSON.parse(readFileSync(f.file, 'utf8'));
@@ -423,19 +428,24 @@ test('actual alibaba function main handles signed worker messages before timer-s
       'ok' in result &&
       result.ok === true &&
       'kind' in result &&
-      result.kind === 'unsealed-worker-step' &&
+      result.kind === 'catalog-preparation-step' &&
       'media' in result &&
       result.media &&
       typeof result.media === 'object' &&
       'checked' in result.media,
   );
   assert.equal(result.media.checked, 1);
-  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+  assert.ok('outcome' in result && result.outcome === 'ready');
+  const product = await f.adapter.get('products', 'p');
+  assert.ok(product);
+  assert.equal(readCurrentCatalogPreparation(product)?.state, 'ready');
+  assert.equal((await f.adapter.get('catalogPreparationJobs', f.jobId))?.state, 'completed');
+  assert.equal(product.published, false);
 });
 
 test('zero-image candidate performs no pixel checks and remains unsealed', async (t) => {
   const f = await fixture(t, 0);
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     checkImage: async () => {
       throw Error('zero plan must not decode');
     },
@@ -453,7 +463,7 @@ test('service worker needs no manufactured human account and does not fill missi
   assert.equal(Object.hasOwn(before, 'productFamily'), false);
   const call = await f.dispatch();
   await f.adapter.remove('users', 'admin');
-  const r = await runCatalogPreparationWorker(f.authority, call);
+  const r = await runCatalogPreparationMediaWorker(f.authority, call);
   assert.ok(r.ok, JSON.stringify(r));
   assert.deepEqual(await f.adapter.get('products', 'p'), before);
   assert.equal(await f.adapter.get('users', 'admin'), null);
@@ -476,7 +486,7 @@ test('cancel after the last plan read but before lease release refuses success',
       );
     return manage(a, cmd, now);
   };
-  assert.deepEqual(await runCatalogPreparationWorker(f.authority, call), {
+  assert.deepEqual(await runCatalogPreparationMediaWorker(f.authority, call), {
     ok: false,
     code: 'CONFLICT',
   });
@@ -503,7 +513,7 @@ test('default worker rejects corrupt pixels even when stored length and SHA are 
     checksumSha256: createHash('sha256').update(corrupt).digest('hex'),
   });
   writeFileSync(f.file, JSON.stringify(rows));
-  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const r = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   assert.ok(r.ok);
   assert.equal(r.outcome, 'blocked');
   assert.equal(r.media.invalid, 1);
@@ -516,7 +526,7 @@ test('default worker rejects corrupt pixels even when stored length and SHA are 
 });
 test('transient image failure persists as retry, and explicit retry can rerun the actual default path', async (t) => {
   const f = await fixture(t, 1);
-  const failed = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const failed = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     checkImage: async () => ({ status: 'retry', reason: 'timeout' }),
   });
   assert.ok(failed.ok);
@@ -533,7 +543,7 @@ test('transient image failure persists as retry, and explicit retry can rerun th
       })
     ).ok,
   );
-  const recovered = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const recovered = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   assert.ok(recovered.ok);
   assert.equal(recovered.outcome, 'checked');
   assert.equal(recovered.media.retry, 0);
@@ -566,7 +576,7 @@ async function sharedProduct(f: Awaited<ReturnType<typeof fixture>>) {
 }
 test('another product reuses protected pixel evidence with zero object reads, copies or shared cache writes', async (t) => {
   const f = await fixture(t, 1);
-  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  assert.equal((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok, true);
   const first = JSON.parse(readFileSync(f.file, 'utf8'));
   assert.equal(
     first.catalogImageObservations.filter(
@@ -581,7 +591,7 @@ test('another product reuses protected pixel evidence with zero object reads, co
   f.storage.putObject = async () => {
     throw Error('cached target must not copy');
   };
-  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  const result = await runCatalogPreparationMediaWorker(f.authority, shared.call);
   assert.ok(result.ok, JSON.stringify(result));
   assert.equal(result.outcome, 'checked');
   assert.equal(result.media.verified, 1);
@@ -604,7 +614,7 @@ test('another product reuses protected pixel evidence with zero object reads, co
 });
 test('old pixel policy rereads the same protected object and replaces the stale receipt without another PUT', async (t) => {
   const f = await fixture(t, 1);
-  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  assert.equal((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok, true);
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   const cached = rows.catalogImageObservations.find(
     (r: { kind: string }) => r.kind === 'catalog-protected-image-health-v1',
@@ -622,7 +632,7 @@ test('old pixel policy rereads the same protected object and replaces the stale 
   f.storage.putObject = async () => {
     throw Error('policy change must not recopy immutable bytes');
   };
-  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  const result = await runCatalogPreparationMediaWorker(f.authority, shared.call);
   assert.ok(result.ok, JSON.stringify(result));
   assert.equal(result.media.verified, 1);
   assert.equal(reads, 1);
@@ -638,7 +648,7 @@ test('old pixel policy rereads the same protected object and replaces the stale 
 
 test('editing a product after a cached pixel read makes the worker stale instead of advancing the old plan', async (t) => {
   const f = await fixture(t, 1);
-  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  assert.equal((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok, true);
   const shared = await sharedProduct(f);
   const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
   f.adapter.manageCatalogPreparationJob = async (a, c, n) => {
@@ -650,7 +660,7 @@ test('editing a product after a cached pixel read makes the worker stale instead
     }
     return r;
   };
-  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  const result = await runCatalogPreparationMediaWorker(f.authority, shared.call);
   assert.deepEqual(result, { ok: false, code: 'STALE' });
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   assert.equal(
@@ -664,7 +674,7 @@ test('editing a product after a cached pixel read makes the worker stale instead
 });
 test('a transient pixel cache read failure falls back to actual object health without a false retry', async (t) => {
   const f = await fixture(t, 1);
-  assert.equal((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok, true);
+  assert.equal((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok, true);
   const shared = await sharedProduct(f);
   const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
   let fail = true;
@@ -681,7 +691,7 @@ test('a transient pixel cache read failure falls back to actual object health wi
     reads++;
     return read(...args);
   };
-  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  const result = await runCatalogPreparationMediaWorker(f.authority, shared.call);
   assert.ok(result.ok, JSON.stringify(result));
   assert.equal(result.outcome, 'checked');
   assert.equal(result.media.verified, 1);
@@ -726,7 +736,7 @@ test('actual source fetch/copy binds every adopted URL before the pixel plan and
         return new Response(new Uint8Array(bytes));
       },
     });
-  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const first = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     importSourceImage: source,
   });
   assert.ok(first.ok, JSON.stringify(first));
@@ -740,7 +750,7 @@ test('actual source fetch/copy binds every adopted URL before the pixel plan and
   );
   const reopened = new JsonFileAdapter(f.file);
   setAdapter(reopened);
-  const second = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const second = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     importSourceImage: source,
   });
   assert.ok(second.ok, JSON.stringify(second));
@@ -753,7 +763,7 @@ test('actual source fetch/copy binds every adopted URL before the pixel plan and
 });
 test('source producer failure cannot bind an incomplete image plan or report checked', async (t) => {
   const f = await unboundSourceWorkspace(t);
-  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     importSourceImage: (url, persistImport) =>
       importCandidateImage(url, {
         persistImport,
@@ -803,7 +813,7 @@ test('completed source dedup cleanup failure recovers its exact adopted URL befo
   };
   let fetches = 0;
   let injected = false;
-  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     importSourceImage: async (url, persistImport) => {
       const imported = await importCandidateImage(url, {
         persistImport,
@@ -851,7 +861,7 @@ test('source phase cancellation before claim never fetches or writes an image', 
     return manage(authority, command, now);
   };
   let fetches = 0;
-  const result = await runCatalogPreparationWorker(
+  const result = await runCatalogPreparationMediaWorker(
     f.authority,
     await f.dispatch(),
     sourceOptions(async () => {
@@ -876,7 +886,7 @@ test('source cancellation after bytes retains tracked pending target and cannot 
     assert.ok((await cancelPreparation(f)).ok);
     return stored;
   };
-  const result = await runCatalogPreparationWorker(
+  const result = await runCatalogPreparationMediaWorker(
     f.authority,
     await f.dispatch(),
     sourceOptions(),
@@ -907,7 +917,7 @@ test('lost scoped source activation ACK does not fetch or put twice and continue
     return result;
   };
   let fetches = 0;
-  const result = await runCatalogPreparationWorker(
+  const result = await runCatalogPreparationMediaWorker(
     f.authority,
     await f.dispatch(),
     sourceOptions(async () => {
@@ -929,7 +939,7 @@ test('a permanent source failure is blocked with edit fallback and never repeate
     return new Response('', { status: 404 });
   });
   for (let i = 0; i < 2; i++) {
-    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), opts);
+    const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), opts);
     assert.ok(result.ok);
     assert.equal(result.outcome, 'blocked');
     assert.ok(result.issues.some((issue) => issue.remedy === 'edit'));
@@ -939,7 +949,7 @@ test('a permanent source failure is blocked with edit fallback and never repeate
 test('source work respects the existing step budget before starting any fetch', async (t) => {
   const f = await unboundSourceWorkspace(t);
   let clock = 0;
-  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+  const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
     ...sourceOptions(async () => {
       throw Error('over-budget fetch');
     }),
@@ -961,7 +971,7 @@ test('source work respects the existing step budget before starting any fetch', 
 test('source phase product edit during download refuses the old checkpoint and preserves the new edit', async (t) => {
   const f = await unboundSourceWorkspace(t);
   let edited = false;
-  const result = await runCatalogPreparationWorker(
+  const result = await runCatalogPreparationMediaWorker(
     f.authority,
     await f.dispatch(),
     sourceOptions(async () => {
@@ -984,7 +994,7 @@ test('source phase product edit during download refuses the old checkpoint and p
 test('source callback rejects a different URL and retirement before any source writes', async (t) => {
   for (const action of ['claim', 'retire'] as const) {
     const f = await unboundSourceWorkspace(t);
-    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch(), {
       importSourceImage: async (_url, persist) => {
         await persist(
           action === 'retire'
@@ -1041,7 +1051,7 @@ async function sealScope(
 test('actual protected media attestation resumes after database reopen without object IO or product mutation', async (t) => {
   const f = await fixture(t, 3);
   const product = await f.adapter.get('products', 'p');
-  assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+  assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
   const seal = await sealScope(f.adapter, f.authority, f.jobId);
   const one = await seal.attest(0, f.images[0]?._id ?? '');
   assert.ok(one.ok && 'mediaSeal' in one);
@@ -1087,7 +1097,7 @@ for (const fault of [
 ] as const)
   test(`final media attestation rejects ${fault} after the initial cursor was checked`, async (t) => {
     const f = await fixture(t, 1);
-    await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
     const seal = await sealScope(f.adapter, f.authority, f.jobId);
     const rows = JSON.parse(readFileSync(f.file, 'utf8'));
     if (fault === 'hold')
@@ -1130,7 +1140,7 @@ for (const fault of [
   });
 test('shared image counter/name edits survive attestation and do not force bytes or shared writes', async (t) => {
   const f = await fixture(t, 1);
-  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   const seal = await sealScope(f.adapter, f.authority, f.jobId);
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   Object.assign(rows.images[0], { name: 'Other editor name', publishedRefCount: 7 });
@@ -1146,7 +1156,7 @@ test('105 adopted configuration images are all checked and attested across indep
   let complete = false;
   let steps = 0;
   for (; steps < 27; steps++) {
-    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
     assert.ok(result.ok, JSON.stringify(result));
     if (result.outcome === 'checked') {
       complete = true;
@@ -1186,7 +1196,7 @@ test('105 adopted configuration images are all checked and attested across indep
 
 test('an attestation ACK lost after commit replays the same proof without another mutation', async (t) => {
   const f = await fixture(t, 1);
-  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   const seal = await sealScope(f.adapter, f.authority, f.jobId);
   const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
   let lost = false;
@@ -1207,7 +1217,7 @@ test('an attestation ACK lost after commit replays the same proof without anothe
 });
 test('older pixel-policy attestation can be cancelled and explicitly retried instead of corrupting the job', async (t) => {
   const f = await fixture(t, 1);
-  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   const seal = await sealScope(f.adapter, f.authority, f.jobId);
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   rows.catalogPreparationJobs[0].mediaSeal.pixelPolicyVersion = 'old-pixels';
@@ -1266,7 +1276,7 @@ async function currentFinishCommand(
 test('real three-photo preparation finishes current ready, retains missing category and survives reopen', async (t) => {
   const f = await fixture(t, 3, true);
   const before = await f.adapter.get('products', 'p');
-  assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+  assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
   const seal = await sealScope(f.adapter, f.authority, f.jobId);
   for (const [i, image] of f.images.entries()) assert.ok((await seal.attest(i, image._id)).ok);
   f.storage.getObjectAsBase64 = async () => {
@@ -1299,7 +1309,7 @@ test('real three-photo preparation finishes current ready, retains missing categ
 });
 test('ready response lost after actual file commit recovers without duplicate writes', async (t) => {
   const f = await fixture(t, 1);
-  await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   const seal = await sealScope(f.adapter, f.authority, f.jobId);
   assert.ok((await seal.attest(0, f.images[0]?._id ?? '')).ok);
   const command = await currentFinishCommand(f.authority, seal.scope);
@@ -1319,4 +1329,319 @@ test('ready response lost after actual file commit recovers without duplicate wr
   assert.ok(r.ok && 'preparation' in r);
   assert.equal(r.preparation, 'unchanged');
   assert.equal(readFileSync(f.file, 'utf8'), bytes);
+});
+
+test('default signed worker automatically seals and commits a current ready report', async (t) => {
+  const f = await fixture(t, 3, true);
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'ready');
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  const report = readCurrentCatalogPreparation(p);
+  assert.ok(report?.state === 'ready');
+  assert.equal(report.seal.imageCount, 3);
+  assert.equal(p.published, false);
+  assert.equal(Object.hasOwn(p, 'productFamily'), false);
+});
+
+test('default worker seals at most four images per invocation and resumes across a new database and authority', async (t) => {
+  const f = await fixture(t, 9);
+  let lastSealed = 0;
+  let reads = 0;
+  const get = f.storage.getObjectAsBase64.bind(f.storage);
+  f.storage.getObjectAsBase64 = async (...args) => {
+    reads++;
+    return get(...args);
+  };
+  let authority = f.authority;
+  let adapter = f.adapter;
+  let result: Awaited<ReturnType<typeof runCatalogPreparationWorker>> | undefined;
+  const checked: number[] = [];
+  const sealed: number[] = [];
+  for (let n = 0; n < 5; n++) {
+    const d = await adapter.manageCatalogPreparationJob(authority, {
+      action: 'dispatch',
+      actorId: 'admin',
+      jobId: f.jobId,
+    });
+    assert.ok(d.ok && 'call' in d);
+    const r = await runCatalogPreparationWorker(authority, d.call);
+    assert.ok(r.ok, JSON.stringify(r));
+    result = r;
+    checked.push(r.media.checked);
+    const job = readCatalogPreparationJob(
+      await adapter.get('catalogPreparationJobs', f.jobId),
+      f.jobId,
+      Date.now(),
+    );
+    assert.ok(job);
+    const cursor = job.mediaSeal?.cursor ?? 0;
+    assert.ok(cursor - lastSealed <= 4);
+    sealed.push(cursor);
+    lastSealed = cursor;
+    if (n === 2) {
+      const pixelsReads = reads;
+      adapter = new JsonFileAdapter(f.file);
+      setAdapter(adapter);
+      authority = createCatalogPreparationAuthority({
+        secret: 'worker-local-test',
+        environmentId: 'local-worker-env',
+      });
+      f.storage.getObjectAsBase64 = async () => {
+        assert.equal(reads, pixelsReads);
+        throw Error('sealed stage must not read bytes');
+      };
+      f.storage.putObject = async () => {
+        throw Error('sealed stage must not PUT');
+      };
+    }
+  }
+  assert.deepEqual(checked, [4, 8, 9, 9, 9]);
+  assert.deepEqual(sealed, [0, 0, 4, 8, 9]);
+  assert.ok(result?.ok);
+  assert.equal(result.outcome, 'ready');
+  const p = await adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'ready');
+  assert.equal(p.published, false);
+});
+test('default worker metadata budget leaves an exact durable prefix and later finishes without object IO', async (t) => {
+  const f = await fixture(t, 3);
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let clock = Date.now();
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const r = await manage(...args);
+    if (args[1].action === 'attest-media-image') clock += 20000;
+    return r;
+  };
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    now: () => clock,
+  });
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'partial');
+  assert.equal(first.attestation?.checked, 1);
+  assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
+  f.adapter.manageCatalogPreparationJob = manage;
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('no repeated bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('no repeated copy');
+  };
+  const next = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(next.ok, JSON.stringify(next));
+  assert.equal(next.outcome, 'ready');
+  assert.equal(next.attestation?.checked, 3);
+});
+test('default worker resumes a committed attestation whose response was lost without decoding again', async (t) => {
+  const f = await fixture(t, 3);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lost = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const r = await manage(...args);
+    if (args[1].action === 'attest-media-image' && !lost) {
+      lost = true;
+      throw Error('attestation ACK lost');
+    }
+    return r;
+  };
+  assert.deepEqual(await runCatalogPreparationWorker(f.authority, await f.dispatch()), {
+    ok: false,
+    code: 'UNAVAILABLE',
+  });
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('resume must use checked pixels');
+  };
+  f.storage.putObject = async () => {
+    throw Error('resume must use existing target');
+  };
+  const next = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(next.ok, JSON.stringify(next));
+  assert.equal(next.outcome, 'ready');
+  assert.equal(next.attestation?.checked, 3);
+});
+test('default worker confirms a lost final ACK using the original grant and never releases a completed job', async (t) => {
+  const f = await fixture(t, 1);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let finishes = 0;
+  let releases = 0;
+  let committed = '';
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const r = await manage(...args);
+    if (args[1].action === 'release') releases++;
+    if (args[1].action === 'finish-preparation') {
+      finishes++;
+      if (finishes === 1) {
+        committed = readFileSync(f.file, 'utf8');
+        throw Error('ready ACK lost');
+      }
+    }
+    return r;
+  };
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'ready');
+  assert.equal(finishes, 2);
+  assert.equal(releases, 0);
+  assert.equal(readFileSync(f.file, 'utf8'), committed);
+});
+for (const phase of [
+  'before-attest',
+  'after-attest',
+  'before-finish',
+  'edit-before-finish',
+] as const)
+  test(`default worker ${phase} cannot race cancellation or edit into ready`, async (t) => {
+    const f = await fixture(t, 1);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let injected = false;
+    async function change() {
+      if (injected) return;
+      injected = true;
+      if (phase === 'edit-before-finish') {
+        await f.adapter.update('products', 'p', { name: 'User edited' });
+        return;
+      }
+      const job = readCatalogPreparationJob(
+        await f.adapter.get('catalogPreparationJobs', f.jobId),
+        f.jobId,
+        Date.now(),
+      );
+      assert.ok(job);
+      assert.ok(
+        (
+          await manage(f.authority, {
+            action: 'cancel',
+            actorId: 'admin',
+            jobId: f.jobId,
+            expectedLeaseVersion: job.leaseVersion,
+          })
+        ).ok,
+      );
+    }
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      if (
+        (phase === 'before-attest' && args[1].action === 'attest-media-image') ||
+        ((phase === 'before-finish' || phase === 'edit-before-finish') &&
+          args[1].action === 'finish-preparation')
+      )
+        await change();
+      const r = await manage(...args);
+      if (phase === 'after-attest' && args[1].action === 'attest-media-image') await change();
+      return r;
+    };
+    const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(injected, true);
+    const p = await f.adapter.get('products', 'p');
+    assert.ok(p);
+    assert.equal(readCurrentCatalogPreparation(p), null);
+    assert.equal(p.published, false);
+    if (phase === 'edit-before-finish') assert.equal(p.name, 'User edited');
+  });
+test('full candidate reread catches adopted source binding changes after attestation and explicit retry recovers', async (t) => {
+  const f = await sourceWorkspace(t, 2);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let changed = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const r = await manage(...args);
+    if (args[1].action === 'attest-media-image' && args[1].index === 1 && !changed) {
+      changed = true;
+      const data = JSON.parse(readFileSync(f.file, 'utf8'));
+      data.catalogSourceLinks[0].imageId = f.images[1]?._id;
+      writeFileSync(f.file, JSON.stringify(data));
+    }
+    return r;
+  };
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.deepEqual(result, { ok: false, code: 'CONFLICT' });
+  assert.equal(changed, true);
+  const p = await f.adapter.get('products', f.productId);
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p), null);
+  assert.equal(p.published, false);
+  const job = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.ok(job);
+  assert.ok(
+    (
+      await manage(f.authority, {
+        action: 'retry',
+        actorId: 'admin',
+        jobId: f.jobId,
+        expectedLeaseVersion: job.leaseVersion,
+      })
+    ).ok,
+  );
+  const recovered = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(recovered.ok, JSON.stringify(recovered));
+  assert.equal(recovered.outcome, 'ready');
+  assert.equal(recovered.media.total, 1);
+});
+test('default worker checks and seals all 105 independent configuration photos without changing publication or classification', async (t) => {
+  const f = await sourceWorkspace(t, 105);
+  const before = await f.adapter.get('products', f.productId);
+  let complete = false;
+  let steps = 0;
+  let previous = 0;
+  for (; steps < 54; steps++) {
+    const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    assert.ok(r.ok, JSON.stringify(r));
+    const job = readCatalogPreparationJob(
+      await f.adapter.get('catalogPreparationJobs', f.jobId),
+      f.jobId,
+      Date.now(),
+    );
+    assert.ok(job);
+    const sealed = job.mediaSeal?.cursor ?? 0;
+    assert.ok(sealed - previous <= 4);
+    previous = sealed;
+    if (r.media.checked === 105) {
+      f.storage.getObjectAsBase64 = async () => {
+        throw Error('attestation reuses protected bytes');
+      };
+      f.storage.putObject = async () => {
+        throw Error('attestation must not copy');
+      };
+    }
+    if (r.outcome === 'ready') {
+      complete = true;
+      steps++;
+      break;
+    }
+  }
+  assert.equal(complete, true);
+  assert.equal(steps, 53);
+  const p = await f.adapter.get('products', f.productId);
+  assert.ok(p);
+  const report = readCurrentCatalogPreparation(p);
+  assert.ok(report?.state === 'ready');
+  assert.equal(report.seal.imageCount, 105);
+  assert.deepEqual(p, {
+    ...before,
+    catalogPreparationState: 'ready',
+    catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
+    catalogPreparationReport: report,
+  });
+});
+test('default worker zero-image preview can finish without a pixel check while an unprotected injected check cannot grant ready', async (t) => {
+  const zero = await fixture(t, 0);
+  const result = await runCatalogPreparationWorker(zero.authority, await zero.dispatch(), {
+    checkImage: async () => {
+      throw Error('zero must not decode');
+    },
+  });
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'ready');
+  const f = await fixture(t, 1);
+  const unprotected = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    checkImage: readStoredCatalogImageHealth,
+  });
+  assert.deepEqual(unprotected, { ok: false, code: 'CONFLICT' });
+  assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
 });

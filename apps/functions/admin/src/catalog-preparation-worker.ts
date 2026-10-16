@@ -11,6 +11,7 @@ import type {
   CatalogPreparationAuthority,
   CatalogPreparationJobResult,
 } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import { alibabaPhotoSource } from '@vibelingan-channel/shared';
 import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
@@ -33,8 +34,9 @@ type WorkerResult =
   | { ok: false; code: Extract<CatalogPreparationJobResult, { ok: false }>['code'] | 'UNAVAILABLE' }
   | {
       ok: true;
-      kind: 'unsealed-worker-step';
-      outcome: 'partial' | 'checked' | 'blocked' | 'retryable';
+      kind: 'unsealed-worker-step' | 'catalog-preparation-step';
+      outcome: 'partial' | 'checked' | 'blocked' | 'retryable' | 'ready';
+      attestation?: Readonly<{ total: number; checked: number }>;
       jobId: string;
       productId: string;
       media: Media;
@@ -54,16 +56,33 @@ function candidatePlanDigest(candidate: {
 }
 const maxImages = 4;
 const tailBudgetMs = 8000;
-/** Backend-only bounded consumer. Historical checks and cursor never grant ready or publish. */
-export async function runCatalogPreparationWorker(
+type WorkerOptions = {
+  now?: () => number;
+  budgetMs?: number;
+  checkImage?: typeof readStoredCatalogImageHealth;
+  importSourceImage?: CatalogSourceImageImporter;
+};
+/** Signed default consumer: media, bounded attestation, then atomic current readiness. */
+export function runCatalogPreparationWorker(
   authority: CatalogPreparationAuthority,
   call: unknown,
-  options: {
-    now?: () => number;
-    budgetMs?: number;
-    checkImage?: typeof readStoredCatalogImageHealth;
-    importSourceImage?: CatalogSourceImageImporter;
-  } = {},
+  options: WorkerOptions = {},
+): Promise<WorkerResult> {
+  return runCatalogPreparationStages(authority, call, options, true);
+}
+/** Media subflow: preserve a resumable checked cursor without granting product readiness. */
+export function runCatalogPreparationMediaWorker(
+  authority: CatalogPreparationAuthority,
+  call: unknown,
+  options: WorkerOptions = {},
+): Promise<WorkerResult> {
+  return runCatalogPreparationStages(authority, call, options, false);
+}
+async function runCatalogPreparationStages(
+  authority: CatalogPreparationAuthority,
+  call: unknown,
+  options: WorkerOptions,
+  ready: boolean,
 ): Promise<WorkerResult> {
   const now = options.now ?? Date.now;
   const startedAt = now();
@@ -86,6 +105,82 @@ export async function runCatalogPreparationWorker(
   const { lease, progress } = claimed;
   const run = (command: Parameters<typeof manageCatalogPreparationJob>[1]) =>
     manageCatalogPreparationJob(authority, command);
+  async function finishMedia(checked: Extract<WorkerResult, { ok: true }>): Promise<WorkerResult> {
+    let partial = { ...checked, outcome: 'partial' as const };
+    if (now() - startedAt >= budget - tailBudgetMs) return partial;
+    const candidate = await inspectCatalogPreparationJob(authority, progress.jobId, lease, {
+      mediaMode: 'defer',
+    });
+    if (!candidate.ok) return { ok: false, code: candidate.code };
+    if (
+      !candidate.previewReady ||
+      candidate.issues.some((i) => i.severity === 'error') ||
+      candidate.sourcePhotos.some((p) => p.imageId === null)
+    )
+      return { ok: false, code: 'CONFLICT' };
+    const planDigest = candidatePlanDigest(candidate);
+    const bound = await run({
+      action: 'bind-media-seal',
+      jobId: progress.jobId,
+      lease,
+      planDigest,
+    });
+    if (!bound.ok) return { ok: false, code: bound.code };
+    if (!('mediaSeal' in bound)) return { ok: false, code: 'CONFLICT' };
+    let seal = bound.mediaSeal;
+    for (let n = 0; n < maxImages && seal.cursor < seal.total; n++) {
+      if (now() - startedAt >= budget - tailBudgetMs) break;
+      const renewed = await run({ action: 'renew', jobId: progress.jobId, lease });
+      if (!renewed.ok) return { ok: false, code: renewed.code };
+      const imageId = candidate.imageIds[seal.cursor];
+      if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
+      const attested = await run({
+        action: 'attest-media-image',
+        jobId: progress.jobId,
+        lease,
+        planDigest,
+        index: seal.cursor,
+        imageId,
+      });
+      if (!attested.ok) return { ok: false, code: attested.code };
+      if (!('mediaSeal' in attested)) return { ok: false, code: 'CONFLICT' };
+      seal = attested.mediaSeal;
+    }
+    partial = { ...partial, attestation: { total: seal.total, checked: seal.cursor } };
+    if (seal.cursor !== seal.total || now() - startedAt >= budget - tailBudgetMs) return partial;
+    const current = await inspectCatalogPreparationJob(authority, progress.jobId, lease, {
+      mediaMode: 'defer',
+    });
+    if (!current.ok) return { ok: false, code: current.code };
+    if (
+      !current.previewReady ||
+      current.issues.some((i) => i.severity === 'error') ||
+      current.sourcePhotos.some((p) => p.imageId === null) ||
+      candidatePlanDigest(current) !== planDigest
+    )
+      return { ok: false, code: 'CONFLICT' };
+    const command = {
+      action: 'finish-preparation' as const,
+      jobId: progress.jobId,
+      lease,
+      inputDigest: current.inputDigest,
+      contentGeneration: current.contentGeneration,
+      planDigest,
+      imageIdsDigest: catalogSealedImageIdsDigest(current.imageIds),
+      imageCount: current.imageIds.length,
+      previewReady: true as const,
+      issues: current.issues,
+    };
+    let finished: CatalogPreparationJobResult;
+    try {
+      finished = await run(command);
+    } catch {
+      finished = await run(command);
+    }
+    if (!finished.ok) return { ok: false, code: finished.code };
+    if (!('preparation' in finished)) return { ok: false, code: 'CONFLICT' };
+    return { ...partial, outcome: 'ready', issues: finished.report.issues };
+  }
   async function work(): Promise<WorkerResult> {
     let candidate = await inspectCatalogPreparationJob(authority, progress.jobId, lease, {
       mediaMode: 'defer',
@@ -225,7 +320,7 @@ export async function runCatalogPreparationWorker(
       if (candidatePlanDigest(current) !== planDigest) return { ok: false, code: 'CONFLICT' };
       inspection = current;
     }
-    return {
+    const checked: Extract<WorkerResult, { ok: true }> = {
       ok: true,
       kind: 'unsealed-worker-step',
       jobId: progress.jobId,
@@ -249,6 +344,15 @@ export async function runCatalogPreparationWorker(
                 ? 'retryable'
                 : 'checked',
     };
+    return ready &&
+      inspection.previewReady &&
+      !inspection.issues.some((i) => i.severity === 'error') &&
+      media.cursor === media.total &&
+      media.verified === media.total &&
+      media.invalid === 0 &&
+      media.retry === 0
+      ? finishMedia(checked)
+      : checked;
   }
   let result: WorkerResult;
   try {
@@ -257,10 +361,12 @@ export async function runCatalogPreparationWorker(
     result = { ok: false, code: 'UNAVAILABLE' };
   }
   try {
-    const released = await run({ action: 'release', jobId: progress.jobId, lease });
-    if (result.ok && !released.ok) return { ok: false, code: released.code };
+    if (!(result.ok && result.outcome === 'ready')) {
+      const released = await run({ action: 'release', jobId: progress.jobId, lease });
+      if (result.ok && !released.ok) return { ok: false, code: released.code };
+    }
   } catch {
     return { ok: false, code: 'UNAVAILABLE' };
   }
-  return result;
+  return ready && result.ok ? { ...result, kind: 'catalog-preparation-step' } : result;
 }
