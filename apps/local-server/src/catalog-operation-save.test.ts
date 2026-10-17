@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import { catalogApprovalDigest } from '@vibelingan-channel/db/catalog-detail-commit';
 import { prepareStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
@@ -283,7 +284,7 @@ test('bound JSON save freezes the patch and binding before waiting for its stora
   assert.equal((await h.adapter.get('products', 'p'))?.description, values.description);
 });
 
-for (const intent of ['publish', 'refresh-live', 'unpublish', 'archive'] as const)
+for (const intent of ['refresh-live', 'unpublish', 'archive'] as const)
   test(`the draft stage cannot execute a reserved ${intent} intent`, async (t) => {
     const h = fixture(t, intent === 'refresh-live' ? { published: true } : {});
     const answer = await h.adapter.persistCatalogDetailApproval('admin', { ...start, intent });
@@ -851,5 +852,293 @@ test('an old saved receipt missing the approval binding stays readable and refus
   assert.equal(status.record.state, 'saved');
   assert.equal(status.current, false);
   assert.equal((await reopened.saveCatalogProductWithIdentities(input)).result, 'stale');
+  assert.equal(h.bytes(), before);
+});
+
+for (const linked of [false, true])
+  test(`a publish intent saves only its own unpublished draft and retains the source binding: linked=${linked}`, async (t) => {
+    const h = fixture(t);
+    const raw = JSON.parse(h.bytes());
+    if (linked) {
+      Object.assign(raw.products[0], { alibabaPrimarySourceKey: 's', alibabaLinkRevision: 1 });
+      raw.alibabaSourceProducts = [
+        {
+          _id: 's',
+          sourceKey: 's',
+          connectionId: 'c',
+          sourceProductId: 'ext',
+          sourceCategoryId: '100',
+          contentHash: 'a'.repeat(64),
+          active: true,
+        },
+      ];
+      raw.alibabaProductLinks = [
+        {
+          _id: 's',
+          sourceKey: 's',
+          connectionId: 'c',
+          sourceProductId: 'ext',
+          productId: 'p',
+          linkedAt: at,
+        },
+      ];
+      raw.catalogSourceObservations = [];
+      writeFileSync(h.file, JSON.stringify(raw));
+    }
+    const adapter = new JsonFileAdapter(h.file);
+    const begun = await adapter.persistCatalogDetailApproval('admin', {
+      ...start,
+      intent: 'publish',
+    });
+    assert.ok(begun.ok && 'record' in begun);
+    const input = {
+      mode: 'update' as const,
+      productId: 'p',
+      data: structuredClone(values),
+      expectedUpdatedAt: at,
+      expectedOperation: {
+        actorId: 'admin',
+        operationId,
+        inputDigest: begun.record.operation.inputDigest,
+      },
+    };
+    assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+    const product = await adapter.get('products', 'p');
+    assert.equal(product?.published, false);
+    assert.equal(product?.description, values.description);
+    assert.equal(product?.catalogDetailApprovalReceipt, undefined);
+    assert.equal(product?.catalogDetailPublication, undefined);
+    const status = await adapter.persistCatalogDetailApproval('admin', query);
+    assert.ok(status.ok && 'record' in status && status.current && status.revisionCurrent);
+    assert.equal(status.record.state, 'saved');
+    if (status.record.state !== 'saved') return;
+    assert.deepEqual(status.record.operation.base, begun.record.operation.base);
+    assert.deepEqual(status.record.saved.snapshot.source, begun.record.operation.base.source);
+    assert.equal(Boolean(status.record.saved.snapshot.source), linked);
+    const before = h.bytes();
+    assert.equal(
+      (await new JsonFileAdapter(h.file).saveCatalogProductWithIdentities(input)).result,
+      'saved',
+    );
+    assert.equal(h.bytes(), before);
+  });
+
+function linkedPublishFixture(t: { after(callback: () => void): void }) {
+  const h = fixture(t, { alibabaPrimarySourceKey: 's', alibabaLinkRevision: 1 });
+  const raw = JSON.parse(h.bytes());
+  raw.alibabaSourceProducts = [
+    {
+      _id: 's',
+      sourceKey: 's',
+      connectionId: 'c',
+      sourceProductId: 'ext',
+      sourceCategoryId: '100',
+      contentHash: 'a'.repeat(64),
+      active: true,
+    },
+  ];
+  raw.alibabaProductLinks = [
+    {
+      _id: 's',
+      sourceKey: 's',
+      connectionId: 'c',
+      sourceProductId: 'ext',
+      productId: 'p',
+      linkedAt: at,
+    },
+  ];
+  raw.catalogSourceObservations = [
+    {
+      _id: sourceObservationDocumentId('alibaba', 's'),
+      sourceContentHash: 'a'.repeat(64),
+      observation: {
+        source: {
+          provider: 'alibaba',
+          sourceProductKey: 's',
+          externalProductId: 'ext',
+          observedAt: at,
+        },
+        attributes: [{ name: 'Size', value: '10' }],
+      },
+    },
+  ];
+  writeFileSync(h.file, JSON.stringify(raw));
+  return { ...h, adapter: new JsonFileAdapter(h.file) };
+}
+async function reservePublish(adapter: JsonFileAdapter) {
+  const answer = await adapter.persistCatalogDetailApproval('admin', {
+    ...start,
+    intent: 'publish',
+  });
+  assert.ok(answer.ok && 'record' in answer);
+  return {
+    answer,
+    input: {
+      mode: 'update' as const,
+      productId: 'p',
+      data: structuredClone(values),
+      expectedUpdatedAt: at,
+      expectedOperation: {
+        actorId: 'admin',
+        operationId,
+        inputDigest: answer.record.operation.inputDigest,
+      },
+    },
+  };
+}
+for (const afterSave of [false, true])
+  for (const collection of [
+    'alibabaSourceProducts',
+    'catalogSourceObservations',
+    'alibabaProductLinks',
+  ])
+    test(`publish draft refuses changed frozen ${collection} with no partial save: saved=${afterSave}`, async (t) => {
+      const h = linkedPublishFixture(t);
+      const { input, answer } = await reservePublish(h.adapter);
+      if (afterSave)
+        assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+      const raw = JSON.parse(h.bytes());
+      const row = raw[collection][0];
+      if (collection === 'alibabaSourceProducts') row.sourceCategoryId = '200';
+      else if (collection === 'catalogSourceObservations')
+        row.observation.attributes = [{ name: 'Size', value: '20' }];
+      else row.productId = 'another-product';
+      writeFileSync(h.file, JSON.stringify(raw));
+      const adapter = new JsonFileAdapter(h.file);
+      const before = h.bytes();
+      const status = await adapter.persistCatalogDetailApproval('admin', query);
+      assert.ok(status.ok && 'record' in status);
+      assert.equal(status.current, false);
+      assert.deepEqual(status.record.operation.base, answer.record.operation.base);
+      assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'stale');
+      assert.equal(h.bytes(), before);
+    });
+test('capture-only source metadata permits a publish draft save and durable replay', async (t) => {
+  const h = linkedPublishFixture(t);
+  const { input, answer } = await reservePublish(h.adapter);
+  const raw = JSON.parse(h.bytes());
+  raw.alibabaSourceProducts[0].lastSeenAt = '2026-10-18T00:01:00.000Z';
+  raw.alibabaProductLinks[0].updatedAt = '2026-10-18T00:01:00.000Z';
+  raw.catalogSourceObservations[0].observation.source.observedAt = '2026-10-18T00:01:00.000Z';
+  writeFileSync(h.file, JSON.stringify(raw));
+  const adapter = new JsonFileAdapter(h.file);
+  assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  const status = await adapter.persistCatalogDetailApproval('admin', query);
+  assert.ok(status.ok && 'record' in status && status.current);
+  assert.equal(status.record.state, 'saved');
+  if (status.record.state !== 'saved') return;
+  assert.deepEqual(status.record.saved.snapshot.source, answer.record.operation.base.source);
+  const before = h.bytes();
+  assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  assert.equal(h.bytes(), before);
+});
+test('two adapters resume one publish draft without a second lifecycle barrier', async (t) => {
+  const h = linkedPublishFixture(t);
+  const { input } = await reservePublish(h.adapter);
+  const results = await Promise.allSettled([
+    h.adapter.saveCatalogProductWithIdentities(input),
+    new JsonFileAdapter(h.file).saveCatalogProductWithIdentities(input),
+  ]);
+  for (const result of results) {
+    assert.equal(result.status, 'fulfilled');
+    if (result.status === 'fulfilled') assert.equal(result.value.result, 'saved');
+  }
+  const product = await new JsonFileAdapter(h.file).get('products', 'p');
+  assert.equal(product?.published, false);
+  assert.equal(product?.catalogLifecycleVersion, 1);
+  assert.equal(product?.catalogContentGeneration, 1);
+  const raw = JSON.parse(h.bytes());
+  assert.equal(raw.catalogDetailApprovals.length, 1);
+  assert.equal(raw.catalogDetailApprovals[0].state, 'saved');
+});
+
+test('publish draft stage preserves missing classification and visibility fields', async (t) => {
+  const h = fixture(t, {
+    productFamily: undefined,
+    subcategoryIds: undefined,
+    published: undefined,
+    archived: undefined,
+  });
+  const { input } = await reservePublish(h.adapter);
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  const row = await h.adapter.get('products', 'p');
+  assert.ok(row);
+  for (const key of ['productFamily', 'subcategoryIds', 'published', 'archived'])
+    assert.equal(Object.hasOwn(row, key), false, key);
+  const before = h.bytes();
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  assert.equal(h.bytes(), before);
+});
+test('publish draft stage refuses an existing live product before attempting a save', async (t) => {
+  const h = fixture(t, { published: true });
+  const { input } = await reservePublish(h.adapter);
+  const before = h.bytes();
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'stale');
+  assert.equal(h.bytes(), before);
+});
+test('publish draft stage refuses new configuration media without partially saving text', async (t) => {
+  const h = fixture(t);
+  const patch = { ...values, configurationPhotos: { sku: ['new-owned'] } };
+  const begun = await h.adapter.persistCatalogDetailApproval('admin', {
+    ...start,
+    intent: 'publish',
+    values: patch,
+  });
+  assert.ok(begun.ok && 'record' in begun);
+  const before = h.bytes();
+  const result = await h.adapter.saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'p',
+    data: patch,
+    expectedUpdatedAt: at,
+    expectedOperation: {
+      actorId: 'admin',
+      operationId,
+      inputDigest: begun.record.operation.inputDigest,
+    },
+  });
+  assert.equal(result.result, 'invalid-product');
+  if (result.result !== 'invalid-product') return;
+  assert.ok(result.issues.some((issue) => issue.field === 'configurationPhotos'));
+  assert.equal(h.bytes(), before);
+});
+test('an unchanged source-bound publish draft cancels old intent without invalidating ready content', async (t) => {
+  const h = linkedPublishFixture(t);
+  const raw = JSON.parse(h.bytes());
+  Object.assign(raw.products[0], {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+  });
+  writeFileSync(h.file, JSON.stringify(raw));
+  const adapter = new JsonFileAdapter(h.file);
+  const begun = await adapter.persistCatalogDetailApproval('admin', {
+    ...start,
+    intent: 'publish',
+    values: {},
+  });
+  assert.ok(begun.ok && 'record' in begun);
+  const input = {
+    mode: 'update' as const,
+    productId: 'p',
+    data: {},
+    expectedUpdatedAt: at,
+    expectedOperation: {
+      actorId: 'admin',
+      operationId,
+      inputDigest: begun.record.operation.inputDigest,
+    },
+  };
+  assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  const product = await adapter.get('products', 'p');
+  assert.equal(product?.detailSourceReady, true);
+  assert.equal(product?.catalogContentGeneration ?? 0, 0);
+  assert.equal(product?.catalogLifecycleVersion, 1);
+  assert.equal(product?.published, false);
+  const status = await adapter.persistCatalogDetailApproval('admin', query);
+  assert.ok(status.ok && 'record' in status && status.current && status.revisionCurrent);
+  const before = h.bytes();
+  assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
   assert.equal(h.bytes(), before);
 });

@@ -307,14 +307,8 @@ async function snapshot(
   product: CollectionDoc,
   writeIntent: Intent,
 ) {
-  try {
-    assertCatalogProductVersions(product);
-  } catch (error) {
-    if (error instanceof CatalogProductStateError) return null;
-    throw error;
-  }
-  const website = Object.fromEntries(fields.map((field) => [field, product[field]]));
-  if (!fitsJsonBudget(website, SNAPSHOT_MAX_BYTES, 24)) return null;
+  const current = productSnapshot(product, null);
+  if (!current) return null;
   let source: z.infer<typeof SnapshotSchema>['source'] = null;
   // Broken supplier data must never prevent a withdrawal or a valid draft save.
   if (writeIntent === 'publish' || writeIntent === 'refresh-live') {
@@ -355,6 +349,19 @@ async function snapshot(
       };
     }
   }
+  const parsed = SnapshotSchema.safeParse({ ...current, source });
+  return parsed.success ? parsed.data : null;
+}
+
+function productSnapshot(product: CollectionDoc, source: z.infer<typeof SnapshotSchema>['source']) {
+  try {
+    assertCatalogProductVersions(product);
+  } catch (error) {
+    if (error instanceof CatalogProductStateError) return null;
+    throw error;
+  }
+  const website = Object.fromEntries(fields.map((field) => [field, product[field]]));
+  if (!fitsJsonBudget(website, SNAPSHOT_MAX_BYTES, 24)) return null;
   const approval = {
     publication: approvalFields(product.catalogDetailPublication, ['state', 'revision']),
     receipt: approvalFields(product.catalogDetailApprovalReceipt, [
@@ -466,7 +473,7 @@ export async function prepareProductOperationSave(
     : null;
   if (
     !record ||
-    record.operation.intent !== 'save-draft' ||
+    (record.operation.intent !== 'save-draft' && record.operation.intent !== 'publish') ||
     input.expectedUpdatedAt !== record.operation.expectedUpdatedAt ||
     binding.inputDigest !== record.operation.inputDigest ||
     alibabaPricingFingerprint(input.data) !== alibabaPricingFingerprint(record.operation.values) ||
@@ -479,7 +486,7 @@ export async function prepareProductOperationSave(
     age < 0 ||
     age > APPROVAL_JOB_MAX_AGE_MS ||
     !matchesProductRevision(record, product.updatedAt) ||
-    !matchesCurrent(record, await snapshot(tx, product, 'save-draft'))
+    !matchesCurrent(record, await snapshot(tx, product, record.operation.intent))
   )
     return { result: 'stale' };
   if (record.state === 'saved') return { result: 'replay' };
@@ -518,12 +525,12 @@ export async function prepareProductOperationSave(
   return { result: 'ready', record };
 }
 
-export async function productOperationSaveReceipt(
-  tx: CatalogApprovalTransaction,
+export function productOperationSaveReceipt(
   record: ReservedProductOperation,
   product: CollectionDoc,
-): Promise<SavedProductOperation> {
-  const saved = await snapshot(tx, product, 'save-draft');
+): SavedProductOperation {
+  // Reuse the source binding checked before any product or alias write.
+  const saved = productSnapshot(product, record.operation.base.source);
   if (!saved) throw new Error('Saved product cannot be bound to its operation');
   const receipt = SavedSchema.parse({
     ...record,

@@ -351,7 +351,7 @@ export async function saveCatalogProductInCloudBase(
     if (operation.result === 'ready')
       await setAcknowledged(
         'catalogDetailApprovals',
-        await productOperationSaveReceipt(operationTx, operation.record, plan.doc),
+        productOperationSaveReceipt(operation.record, plan.doc),
       );
     return { result: 'saved', doc: plan.doc, previous: existing };
   });

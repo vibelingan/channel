@@ -694,3 +694,8 @@ Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse�
 ## P3e2c：另一审批完成后的实际SDK对照
 
 0新第三方方法/依赖/类型shim。Node20精确native保存/staging+installedSDK仅HTTP替换，另一审批在reserved/saved两顺序正式finish且保持updatedAt，旧操作查询current=false/revisionCurrent=true、写入stale及零后续写入通过；基线5526871编译bundle同一探针有效红。actualSDK/control/probe均在approval-binding-*输出。standing SDK与19types通过，Context7不可用，原SDK合约未变。四进程sample1386bytes，初始基线保持，重复零写、fixture清理；不代替adminHTTP/云MVCC。全局仍P1且fullDeliveryReady=false。
+
+
+## P3e3：来源绑定与写后零读取
+
+0新外部SDK方法/shim/dependency。内部productOperationSaveReceipt由异步含tx参数改为纯函数，所有两个生产调用点同步更新，原facade保持导出。Node20精确native/staging+installedSDK仅HTTP替换验证publish draft-only、source绑定、首写后无读取、16docops、10坏ACK回滚/重试、6源冲突、采集变化允许及零重复写。基线1feb275对新增阶段拒绝stale是范围负控，不冒充生产缺陷。四来源进程1917byte样本/四普通草稿进程恢复通过。477Node20/19types/standingSDK通过；Context7不可用，原官方/安装合约未变。未证明云MVCC/adminHTTP/实际P95；原发布P1保留。

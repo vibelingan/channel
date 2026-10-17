@@ -2233,7 +2233,11 @@ test('unchanged review preserves an explicitly requested valid classification fe
   assert.deepEqual(h.store.get('products')?.get('p'), product);
 });
 
-async function ownDraftFixture(patch: Record<string, unknown> = {}) {
+async function ownDraftFixture(
+  patch: Record<string, unknown> = {},
+  intent: 'save-draft' | 'publish' = 'save-draft',
+  extra: Record<string, CollectionDoc[]> = {},
+) {
   const product = {
     _id: 'p',
     name: 'Clock',
@@ -2255,13 +2259,14 @@ async function ownDraftFixture(patch: Record<string, unknown> = {}) {
       normalizedValue: 'old-clock',
       productId: 'p',
     })),
+    ...extra,
   });
   const operationId = '12345678-1234-4234-8234-123456789012';
   const started = await persistStagedApprovalInCloud(h.db, 'admin', {
     action: 'operation-start',
     productId: 'p',
     operationId,
-    intent: 'save-draft',
+    intent,
     expectedUpdatedAt: product.updatedAt,
     values: {
       description: 'Reviewed own draft',
@@ -2561,4 +2566,194 @@ for (const afterOwnSave of [false, true])
     assert.equal(query.revisionCurrent, true);
     assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'stale');
     assert.deepEqual(h.store, before);
+  });
+
+test('native publish intent saves its own source-bound draft with all reads before writes', async () => {
+  const h = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [
+      {
+        _id: 'p',
+        name: 'Clock',
+        description: '',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: '2026-10-18T00:00:00.000Z',
+        alibabaPrimarySourceKey: 's',
+        alibabaLinkRevision: 1,
+      },
+    ],
+    alibabaSourceProducts: [
+      {
+        _id: 's',
+        sourceKey: 's',
+        connectionId: 'c',
+        sourceProductId: 'ext',
+        sourceCategoryId: '100',
+        contentHash: 'a'.repeat(64),
+        active: true,
+      },
+    ],
+    alibabaProductLinks: [
+      {
+        _id: 's',
+        sourceKey: 's',
+        connectionId: 'c',
+        sourceProductId: 'ext',
+        productId: 'p',
+        linkedAt: '2026-10-18T00:00:00.000Z',
+      },
+    ],
+    catalogSourceObservations: [],
+  });
+  const command = {
+    action: 'operation-start' as const,
+    productId: 'p',
+    operationId: '12345678-1234-4234-8234-123456789012',
+    intent: 'publish' as const,
+    expectedUpdatedAt: '2026-10-18T00:00:00.000Z',
+    values: { description: 'Own publish draft' },
+  };
+  const begun = await persistStagedApprovalInCloud(h.db, 'admin', command);
+  assert.ok(begun.ok && 'record' in begun);
+  const input = {
+    mode: 'update' as const,
+    productId: 'p',
+    data: command.values,
+    expectedUpdatedAt: command.expectedUpdatedAt,
+    expectedOperation: {
+      actorId: 'admin',
+      operationId: command.operationId,
+      inputDigest: begun.record.operation.inputDigest,
+    },
+  };
+  assert.equal((await saveCatalogProductInCloudBase(h.db, input)).result, 'saved');
+  const status = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-get',
+    productId: 'p',
+    operationId: command.operationId,
+  });
+  assert.ok(status.ok && 'record' in status && status.current && status.revisionCurrent);
+  assert.equal(status.record.state, 'saved');
+  if (status.record.state !== 'saved') return;
+  assert.deepEqual(status.record.saved.snapshot.source, begun.record.operation.base.source);
+  assert.ok(status.record.saved.snapshot.source);
+  const product = h.store.get('products')?.get('p');
+  assert.equal(product?.published, false);
+  assert.equal(product?.catalogDetailPublication, undefined);
+  assert.equal(product?.catalogDetailApprovalReceipt, undefined);
+  const before = structuredClone(h.store);
+  assert.equal((await saveCatalogProductInCloudBase(h.db, input)).result, 'saved');
+  assert.deepEqual(h.store, before);
+  assert.ok(h.controls.maximumOperations <= 16);
+});
+
+async function nativeLinkedPublishFixture() {
+  return ownDraftFixture({}, 'publish', {
+    products: [
+      {
+        _id: 'p',
+        name: 'Clock',
+        description: '',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: '2026-10-18T00:00:00.000Z',
+        slug: 'old-clock',
+        skuCode: 'old-clock',
+        alibabaPrimarySourceKey: 's',
+        alibabaLinkRevision: 1,
+      },
+    ],
+    alibabaSourceProducts: [
+      {
+        _id: 's',
+        sourceKey: 's',
+        connectionId: 'c',
+        sourceProductId: 'ext',
+        sourceCategoryId: '100',
+        contentHash: 'a'.repeat(64),
+        active: true,
+      },
+    ],
+    alibabaProductLinks: [
+      {
+        _id: 's',
+        sourceKey: 's',
+        connectionId: 'c',
+        sourceProductId: 'ext',
+        productId: 'p',
+        linkedAt: '2026-10-18T00:00:00.000Z',
+      },
+    ],
+    catalogSourceObservations: [
+      {
+        _id: sourceObservationDocumentId('alibaba', 's'),
+        sourceContentHash: 'a'.repeat(64),
+        observation: {
+          source: {
+            provider: 'alibaba',
+            sourceProductKey: 's',
+            externalProductId: 'ext',
+            observedAt: '2026-10-18T00:00:00.000Z',
+          },
+          attributes: [{ name: 'Size', value: '10' }],
+        },
+      },
+    ],
+  });
+}
+for (const afterSave of [false, true])
+  for (const collection of [
+    'alibabaSourceProducts',
+    'catalogSourceObservations',
+    'alibabaProductLinks',
+  ])
+    test(`native publish draft refuses changed ${collection} before any write: saved=${afterSave}`, async () => {
+      const h = await nativeLinkedPublishFixture();
+      if (afterSave)
+        assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+      const row = [...(h.store.get(collection)?.values() ?? [])][0];
+      assert.ok(row);
+      if (collection === 'alibabaSourceProducts') row.sourceCategoryId = '200';
+      else if (collection === 'catalogSourceObservations') row.sourceContentHash = 'b'.repeat(64);
+      else row.productId = 'another-product';
+      const before = structuredClone(h.store);
+      assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'stale');
+      assert.deepEqual(h.store, before);
+    });
+test('native publish draft permits capture metadata, keeps source hashes and replays without writes', async () => {
+  const h = await nativeLinkedPublishFixture();
+  const source = h.store.get('alibabaSourceProducts')?.get('s');
+  const link = h.store.get('alibabaProductLinks')?.get('s');
+  assert.ok(source && link);
+  source.lastSeenAt = '2026-10-18T00:01:00.000Z';
+  link.updatedAt = '2026-10-18T00:01:00.000Z';
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+  const status = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-get',
+    productId: 'p',
+    operationId: h.input.expectedOperation.operationId,
+  });
+  assert.ok(status.ok && 'record' in status && status.current);
+  assert.equal(status.record.state, 'saved');
+  if (status.record.state !== 'saved') return;
+  assert.deepEqual(status.record.saved.snapshot.source, h.record.operation.base.source);
+  const before = structuredClone(h.store);
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+  assert.deepEqual(h.store, before);
+  assert.ok(h.controls.maximumOperations <= 16);
+});
+for (const mode of ['silentWrite', 'failWrite'] as const)
+  test(`native publish draft rolls back its product aliases and source-bound receipt on ${mode}`, async () => {
+    const h = await nativeLinkedPublishFixture();
+    const before = structuredClone(h.store);
+    h.controls[mode] = `catalogDetailApprovals/${h.record._id}`;
+    await assert.rejects(saveCatalogProductInCloudBase(h.db, h.input));
+    assert.deepEqual(h.store, before);
+    h.controls[mode] = '';
+    assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+    assert.equal(h.store.get('products')?.get('p')?.published, false);
+    assert.ok(h.controls.maximumOperations <= 16);
   });

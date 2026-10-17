@@ -1193,7 +1193,7 @@ export class JsonFileAdapter implements DbAdapter {
       if (operation.result === 'ready')
         await operationTx.set(
           'catalogDetailApprovals',
-          await productOperationSaveReceipt(operationTx, operation.record, plan.doc),
+          productOperationSaveReceipt(operation.record, plan.doc),
         );
       const previous = this.store;
       this.store = copy;

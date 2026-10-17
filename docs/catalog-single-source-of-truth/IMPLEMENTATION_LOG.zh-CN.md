@@ -1192,3 +1192,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e2c：冻结启动时批准身份
 
 基线5526871，真实另一审批完成且时间戳不变时旧操作仍current。新snapshot的固定approvalDigest绑定批准版本/自身回执身份，查询和写入共同拒绝旧操作；价格摘要真实回填保持有效。旧reserved/saved历史可读但不可继续。20新增用例、六源码反例39重叠失败、实际SDK旧红/新绿、四进程零重复写通过。最终4638全量、DB1389最终重跑、相关377/Node20451、19types及四文件Biome/SDK/diff通过。详见[P3e2c](P3e2c_APPROVAL_VERSION_BINDING.zh-CN.md)。本次冻结原批准身份，自身审批阶段还未接入；原发布恢复P1保留，fullDeliveryReady=false。
+
+
+## P3e3：publish先保存自己的草稿阶段
+
+基线1feb275，扩展未发布商品publish意图的内部草稿保存；仍不批准/上线，不接入HTTP/UI。按实际intent核对源/observation/link，纯保存后快照复用已验证source，防写后再读。20/50/100分批保存/重开及零重复写通过；六源码反例69重叠失败，另去回执写让三个batch红。Node20实际SDK16文档操作/10坏ACK回滚/6源冲突和来源商品四进程恢复通过。最终七包+scripts4664，Node20477，19types、显式Biome/native函数actor比对、SDK/diff通过。详见[P3e3](P3e3_PUBLISH_DRAFT_STAGE.zh-CN.md)。代码注释限定已验证source绑定，明确内部草稿不等于客户发布；原formal P1和fullDeliveryReady=false保留。
