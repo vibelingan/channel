@@ -536,3 +536,98 @@ for (const [index, fixture] of hashFixtures.entries())
     assert.equal(normalizedSourceInputDigest(fixture.source), fixture.sourceHash);
     assert.equal(sourceInputDigest(fixture.observation), fixture.observationHash);
   });
+
+const approvedBinding = () => ({
+  catalogDetailPublication: {
+    revision: 'reviewed-r1',
+    priceSummary: {
+      source: 'product',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: 200 },
+    },
+  },
+  catalogDetailApprovalReceipt: {
+    operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    revision: 'reviewed-r1',
+    requestDigest: 'a'.repeat(64),
+    contentFingerprint: 'b'.repeat(64),
+    actorId: 'admin',
+    variantCount: 0,
+    approvedAt: at,
+    sourceDigest: 'c'.repeat(64),
+    supplierParts: { description: false, gallery: true, descriptionImages: false },
+  },
+});
+const receiptChanges: Record<string, unknown> = {
+  operationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  revision: 'another-r2',
+  requestDigest: 'd'.repeat(64),
+  contentFingerprint: 'e'.repeat(64),
+  actorId: 'other',
+  variantCount: 1,
+  approvedAt: '2026-10-18T00:01:00.000Z',
+  sourceDigest: 'f'.repeat(64),
+  supplierParts: { description: true, gallery: true, descriptionImages: false },
+};
+for (const changed of [
+  'publication',
+  'operationId',
+  'revision',
+  'contentFingerprint',
+  'requestDigest',
+  'actorId',
+  'supplierParts',
+  'sourceDigest',
+  'variantCount',
+  'approvedAt',
+  'state',
+  'removed',
+])
+  test(`operation freezes prior approval identity: ${changed}`, async () => {
+    const h = fixture(approvedBinding());
+    const reserved = stored(await h.invoke(request()));
+    const product = h.row('products', 'p');
+    assert.ok(product);
+    if (changed === 'state') object(product.catalogDetailPublication).state = 'invalid';
+    else if (changed === 'publication')
+      object(product.catalogDetailPublication).revision = 'another-r2';
+    else if (changed === 'removed') {
+      Reflect.deleteProperty(product, 'catalogDetailPublication');
+      Reflect.deleteProperty(product, 'catalogDetailApprovalReceipt');
+    } else {
+      assert.ok(Object.hasOwn(receiptChanges, changed));
+      object(product.catalogDetailApprovalReceipt)[changed] = receiptChanges[changed];
+    }
+    const before = h.snapshot();
+    const queried = object(await h.invoke(query));
+    assert.equal(queried.current, false);
+    assert.equal(queried.revisionCurrent, true);
+    assert.deepEqual(queried.record, reserved);
+    assert.equal(h.snapshot(), before);
+    assert.equal(h.counts().writes, 1);
+  });
+test('a price-summary cache backfill leaves the frozen approval identity current', async () => {
+  const h = fixture(approvedBinding());
+  stored(await h.invoke(request()));
+  const product = h.row('products', 'p');
+  assert.ok(product);
+  object(product.catalogDetailPublication).priceSummary = {
+    source: 'product',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 300 },
+  };
+  assert.equal(object(await h.invoke(query)).current, true);
+  assert.equal(h.counts().writes, 1);
+});
+test('a historical operation without approval binding remains readable but cannot continue', async () => {
+  const h = fixture();
+  const reserved = stored(await h.invoke(request()));
+  const row = h.row('catalogDetailApprovals', String(reserved._id));
+  assert.ok(row);
+  Reflect.deleteProperty(object(object(row.operation).base), 'approvalDigest');
+  const before = h.snapshot();
+  const queried = object(await h.invoke(query));
+  assert.equal(queried.ok, true);
+  assert.equal(queried.current, false);
+  assert.equal(queried.revisionCurrent, true);
+  assert.equal(h.snapshot(), before);
+  assert.equal(h.counts().writes, 1);
+});

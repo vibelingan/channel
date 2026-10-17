@@ -66,6 +66,7 @@ const SnapshotSchema = z
     classificationRevision: counter,
     websiteDigest: digest,
     identityDigest: digest,
+    approvalDigest: digest.optional(),
     source: z
       .object({
         key: id,
@@ -354,7 +355,23 @@ async function snapshot(
       };
     }
   }
+  const approval = {
+    publication: approvalFields(product.catalogDetailPublication, ['state', 'revision']),
+    receipt: approvalFields(product.catalogDetailApprovalReceipt, [
+      'contentFingerprint',
+      'operationId',
+      'revision',
+      'requestDigest',
+      'actorId',
+      'variantCount',
+      'approvedAt',
+      'sourceDigest',
+      'supplierParts',
+    ]),
+  };
+  if (!fitsJsonBudget(approval, SNAPSHOT_MAX_BYTES, 24)) return null;
   const parsed = SnapshotSchema.safeParse({
+    approvalDigest: alibabaPricingFingerprint(approval),
     contentGeneration: product.catalogContentGeneration ?? 0,
     lifecycleVersion: product.catalogLifecycleVersion ?? 0,
     classificationRevision: product.catalogClassificationRevision ?? 0,
@@ -374,6 +391,12 @@ async function snapshot(
     source,
   });
   return parsed.success ? parsed.data : null;
+}
+
+function approvalFields(value: unknown, keys: readonly string[]): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const row = value as Record<string, unknown>;
+  return Object.fromEntries(keys.map((key) => [key, row[key]]));
 }
 
 function matchesCurrent(

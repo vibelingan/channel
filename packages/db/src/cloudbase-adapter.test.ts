@@ -2499,3 +2499,66 @@ test('native unchanged own draft save fences an older unfinished approval withou
   assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
   assert.deepEqual(h.store, before);
 });
+
+for (const afterOwnSave of [false, true])
+  test(`native save refuses another completed approval with the same row timestamp: saved=${afterOwnSave}`, async () => {
+    const h = await ownDraftFixture({ description: '', slug: 'old-clock', skuCode: 'old-clock' });
+    const product = h.store.get('products')?.get('p');
+    assert.ok(product);
+    Object.assign(product, {
+      detailSourceReady: true,
+      detailSourceOwner: 'owned-source',
+      detailSourceRevision: 'source-r1',
+      detailSourceContentGeneration: 0,
+      detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+      detailSourceCandidate: {
+        _id: 'p',
+        name: 'Clock',
+        schemaVersion: 'catalog-product-detail-v1',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+    });
+    if (afterOwnSave)
+      assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+    const current = h.store.get('products')?.get('p');
+    assert.ok(current);
+    const prepared = prepareStagedApproval(
+      'admin',
+      {
+        productId: 'p',
+        operationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        expectedRevision: null,
+        expectedDigest: catalogApprovalDigest(current, []),
+      },
+      current,
+      [],
+    );
+    assert.ok(prepared.ok);
+    assert.equal(
+      (
+        await persistStagedApprovalInCloud(h.db, 'admin', {
+          action: 'begin',
+          prepared: prepared.value,
+        })
+      ).ok,
+      true,
+    );
+    const done = await persistStagedApprovalInCloud(h.db, 'admin', {
+      action: 'finish',
+      jobId: prepared.value._id,
+    });
+    assert.ok(done.ok && 'complete' in done && done.complete);
+    const before = structuredClone(h.store);
+    const query = await persistStagedApprovalInCloud(h.db, 'admin', {
+      action: 'operation-get',
+      productId: 'p',
+      operationId: h.input.expectedOperation.operationId,
+    });
+    assert.ok(query.ok && 'record' in query);
+    assert.equal(query.current, false);
+    assert.equal(query.revisionCurrent, true);
+    assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'stale');
+    assert.deepEqual(h.store, before);
+  });

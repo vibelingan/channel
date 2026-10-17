@@ -689,3 +689,8 @@ Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse�
 ## P3e2b：草稿取消旧审批的实际SDK对照
 
 基线ae3dd28旧bundle在Node20有效红：新的空草稿保存后旧finish仍complete。新精确源码 native/staging+installedSDK仅HTTP替换，Node20确认旧finish CONFLICT、来源ready保留、10坏ACK回滚/重试、2字段错误、6正常描述和重复零写。0新第三方surface/shim/dependency；Context7未提供，复用此前已验证的官方合约与安装包surface，standing SDK gate重跑通过。源码7反例还原SHA、最终4618测试/19types、Node20相关431、独立4进程证据见P3e2b文档与own-draft-cancel输出。不是云端事务并发或adminHTTP验收，fullDeliveryReady=false。
+
+
+## P3e2c：另一审批完成后的实际SDK对照
+
+0新第三方方法/依赖/类型shim。Node20精确native保存/staging+installedSDK仅HTTP替换，另一审批在reserved/saved两顺序正式finish且保持updatedAt，旧操作查询current=false/revisionCurrent=true、写入stale及零后续写入通过；基线5526871编译bundle同一探针有效红。actualSDK/control/probe均在approval-binding-*输出。standing SDK与19types通过，Context7不可用，原SDK合约未变。四进程sample1386bytes，初始基线保持，重复零写、fixture清理；不代替adminHTTP/云MVCC。全局仍P1且fullDeliveryReady=false。

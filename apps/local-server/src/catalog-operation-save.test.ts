@@ -685,3 +685,171 @@ for (const patch of [{}, { description: '' }])
     assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
     assert.equal(h.bytes(), before, 'replay must not add a second cancellation barrier');
   });
+
+for (const afterOwnSave of [false, true])
+  test(`another completed approval invalidates the frozen own draft despite unchanged timestamp: saved=${afterOwnSave}`, async (t) => {
+    const h = fixture(t, {
+      detailSourceReady: true,
+      detailSourceOwner: 'owned-source',
+      detailSourceRevision: 'source-r1',
+      detailSourceContentGeneration: 0,
+      detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+      detailSourceCandidate: {
+        _id: 'p',
+        name: 'Clock',
+        schemaVersion: 'catalog-product-detail-v1',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+    });
+    const command = { ...start, values: {} };
+    const begun = await h.adapter.persistCatalogDetailApproval('admin', command);
+    assert.ok(begun.ok && 'record' in begun);
+    const input = {
+      mode: 'update' as const,
+      productId: 'p',
+      data: {},
+      expectedUpdatedAt: at,
+      expectedOperation: {
+        actorId: 'admin',
+        operationId,
+        inputDigest: begun.record.operation.inputDigest,
+      },
+    };
+    if (afterOwnSave)
+      assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+    const product = await h.adapter.get('products', 'p');
+    assert.ok(product);
+    const next = prepareStagedApproval(
+      'admin',
+      {
+        productId: 'p',
+        operationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        expectedRevision: null,
+        expectedDigest: catalogApprovalDigest(product, []),
+      },
+      product,
+      [],
+    );
+    assert.ok(next.ok);
+    assert.equal(
+      (
+        await h.adapter.persistCatalogDetailApproval('admin', {
+          action: 'begin',
+          prepared: next.value,
+        })
+      ).ok,
+      true,
+    );
+    const finished = await h.adapter.persistCatalogDetailApproval('admin', {
+      action: 'finish',
+      jobId: next.value._id,
+    });
+    assert.ok(finished.ok && 'complete' in finished && finished.complete);
+    assert.equal((await h.adapter.get('products', 'p'))?.updatedAt, product.updatedAt);
+    const bytes = h.bytes();
+    const queried = await h.adapter.persistCatalogDetailApproval('admin', query);
+    assert.ok(queried.ok && 'record' in queried);
+    assert.equal(queried.current, false, 'another approval is not this operation stage');
+    assert.equal(queried.revisionCurrent, true, 'timestamp alone misses the approval replacement');
+    assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'stale');
+    assert.equal(h.bytes(), bytes);
+  });
+
+test('a real price-summary backfill preserves an own saved stage and its zero-write replay', async (t) => {
+  const h = fixture(t, {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+  });
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(prepared.ok);
+  assert.equal(
+    (
+      await h.adapter.persistCatalogDetailApproval('admin', {
+        action: 'begin',
+        prepared: prepared.value,
+      })
+    ).ok,
+    true,
+  );
+  const done = await h.adapter.persistCatalogDetailApproval('admin', {
+    action: 'finish',
+    jobId: prepared.value._id,
+  });
+  assert.ok(done.ok && 'complete' in done && done.complete);
+  const approved = await h.adapter.get('products', 'p');
+  assert.ok(approved);
+  const command = { ...start, expectedUpdatedAt: String(approved.updatedAt), values: {} };
+  const reserved = await h.adapter.persistCatalogDetailApproval('admin', command);
+  assert.ok(reserved.ok && 'record' in reserved);
+  const input = {
+    mode: 'update' as const,
+    productId: 'p',
+    data: {},
+    expectedUpdatedAt: command.expectedUpdatedAt,
+    expectedOperation: {
+      actorId: 'admin',
+      operationId,
+      inputDigest: reserved.record.operation.inputDigest,
+    },
+  };
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  const backfill = await h.adapter.persistCatalogDetailApproval('admin', {
+    action: 'price-summary-backfill',
+    productId: 'p',
+    revision: prepared.value.revision,
+    priceSummary: {
+      source: 'product',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: 300 },
+    },
+  });
+  assert.deepEqual(backfill, { ok: true, backfill: 'applied' });
+  const before = h.bytes();
+  const status = await h.adapter.persistCatalogDetailApproval('admin', query);
+  assert.ok(status.ok && 'record' in status && status.current && status.revisionCurrent);
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  assert.equal(h.bytes(), before);
+});
+
+test('an old saved receipt missing the approval binding stays readable and refuses replay', async (t) => {
+  const h = fixture(t);
+  const { input } = await reserve(h.adapter);
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  const raw = JSON.parse(h.bytes());
+  const receipt = raw.catalogDetailApprovals[0];
+  Reflect.deleteProperty(receipt.operation.base, 'approvalDigest');
+  Reflect.deleteProperty(receipt.saved.snapshot, 'approvalDigest');
+  writeFileSync(h.file, JSON.stringify(raw));
+  const reopened = new JsonFileAdapter(h.file);
+  const before = h.bytes();
+  const status = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(status.ok && 'record' in status);
+  assert.equal(status.record.state, 'saved');
+  assert.equal(status.current, false);
+  assert.equal((await reopened.saveCatalogProductWithIdentities(input)).result, 'stale');
+  assert.equal(h.bytes(), before);
+});

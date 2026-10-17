@@ -1187,3 +1187,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e2b：空草稿保存阻止旧审批提交
 
 基线ae3dd28，JSON与实际SDK复现旧finish成功。只在新绑定草稿保存时沿原生命周期推进一次，重试零写，保留来源ready与历史字段缺省。7源码反例检出26重叠失败，源文件SHA还原。最终4618测试、Node20相关431、19types、显式Biome/native函数格式、SDK/diff通过；跨进程和实际SDK独立证明通过。详见[P3e2b](P3e2b_DRAFT_CANCELS_OLD_APPROVAL.zh-CN.md)。原发布恢复P1与全局后续项保留，未部署，fullDeliveryReady=false。措辞将“取消旧审批”限定为“拒绝旧finish”，不声称旧暂存占用已回收。
+
+
+## P3e2c：冻结启动时批准身份
+
+基线5526871，真实另一审批完成且时间戳不变时旧操作仍current。新snapshot的固定approvalDigest绑定批准版本/自身回执身份，查询和写入共同拒绝旧操作；价格摘要真实回填保持有效。旧reserved/saved历史可读但不可继续。20新增用例、六源码反例39重叠失败、实际SDK旧红/新绿、四进程零重复写通过。最终4638全量、DB1389最终重跑、相关377/Node20451、19types及四文件Biome/SDK/diff通过。详见[P3e2c](P3e2c_APPROVAL_VERSION_BINDING.zh-CN.md)。本次冻结原批准身份，自身审批阶段还未接入；原发布恢复P1保留，fullDeliveryReady=false。
