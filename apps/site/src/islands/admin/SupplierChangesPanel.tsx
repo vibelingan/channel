@@ -65,6 +65,7 @@ export function SupplierChangesPanel({
   review,
   choices,
   busyPart,
+  disabled = false,
   error,
   onKeep,
   onUseIncoming,
@@ -72,6 +73,7 @@ export function SupplierChangesPanel({
   review: SupplierReview;
   choices: SupplierChoices;
   busyPart: SupplierReviewPartName | null;
+  disabled?: boolean;
   error: string;
   onKeep: (part: SupplierReviewPart) => void;
   onUseIncoming: (part: SupplierReviewPart) => void;
@@ -140,7 +142,7 @@ export function SupplierChangesPanel({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={busyPart !== null}
+                disabled={disabled || busyPart !== null}
                 onClick={() => onKeep(part)}
                 aria-pressed={chosen === 'keep'}
                 className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand-600"
@@ -149,7 +151,7 @@ export function SupplierChangesPanel({
               </button>
               <button
                 type="button"
-                disabled={busyPart !== null}
+                disabled={disabled || busyPart !== null}
                 onClick={() => onUseIncoming(part)}
                 aria-pressed={chosen === 'incoming'}
                 className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand-600"

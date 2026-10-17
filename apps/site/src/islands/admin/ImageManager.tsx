@@ -7,6 +7,8 @@ interface Props {
   value: string[];
   onChange: (ids: string[]) => void;
   maxItems?: number;
+  /** A source photo being copied outside this manager still needs a place. */
+  reservedSlots?: number;
   inputId?: string;
   errorId?: string;
   onBusyChange?: (busy: boolean) => void;
@@ -99,7 +101,7 @@ export function reorderImageIds(value: readonly string[], id: string, direction:
 
 /**
  * Inline image manager for the catalog edit form. Uploads files through the
- * admin-brokered direct-upload flow (`uploadImage`: intent → direct COS POST → complete)
+ * admin-brokered direct-upload flow (`uploadImage`: intent → direct COS PUT → complete)
  * and stores their ids. Previews come from the admin-authenticated
  * `getImagePreview` (the public `/api/images/:id` is `publishedRefCount`-gated and
  * would 404 unpublished images); just-uploaded files preview from a local object
@@ -109,6 +111,7 @@ export function ImageManager({
   value,
   onChange,
   maxItems,
+  reservedSlots = 0,
   inputId = 'imageIds',
   errorId,
   onBusyChange,
@@ -234,7 +237,11 @@ export function ImageManager({
     if (!files || files.length === 0) return;
     const selected = boundedSelectedFiles(
       Array.from(files),
-      availableImageSlots(maxItems, valueRef.current.length, pendingRef.current.length),
+      availableImageSlots(
+        maxItems,
+        valueRef.current.length,
+        pendingRef.current.length + reservedSlots,
+      ),
     );
     const omittedCount = files.length - selected.length;
     setSelectionNotice(
@@ -300,13 +307,18 @@ export function ImageManager({
 
   const uploading = pending.filter((item) => item.status === 'uploading');
   const failed = pending.filter((item) => item.status === 'failed');
-  const availableSlots = availableImageSlots(maxItems, value.length, pending.length);
+  const availableSlots = availableImageSlots(
+    maxItems,
+    value.length,
+    pending.length + reservedSlots,
+  );
+  const occupiedSlots = value.length + pending.length + reservedSlots;
   const capacityText =
     maxItems === undefined
       ? ''
-      : value.length + pending.length >= maxItems
-        ? `${value.length + pending.length} of ${maxItems} images. Remove an image to add another.`
-        : `${value.length + pending.length} of ${maxItems} images.`;
+      : occupiedSlots >= maxItems
+        ? `${occupiedSlots} of ${maxItems} images. Remove an image to add another.`
+        : `${occupiedSlots} of ${maxItems} images.`;
   const failureNotice =
     failed.length === 0
       ? ''
@@ -376,6 +388,11 @@ export function ImageManager({
           </div>
         ))}
 
+        {reservedSlots > 0 && (
+          <div className="grid h-20 w-20 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-center text-[11px] text-slate-400">
+            Adding Alibaba photo…
+          </div>
+        )}
         {uploading.map((p) => (
           <div
             key={p.key}

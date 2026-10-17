@@ -33,11 +33,23 @@ for (const scenario of [
   'description-capacity',
   'gallery-duplicate',
   'description-duplicate',
+  'gallery-upload-late',
+  'description-upload-late',
+  'gallery-upload-first',
+  'description-upload-first',
+  'gallery-upload-start-first',
+  'description-upload-start-first',
+  'gallery-import-retry',
+  'description-import-retry',
 ] as const) {
   const overlapping = scenario === 'overlapping';
   const mediaRace = scenario.startsWith('gallery') || scenario.startsWith('description');
+  const uploadLate = scenario.endsWith('-upload-late');
+  const uploadStartFirst = scenario.endsWith('-upload-start-first');
+  const concurrent = uploadLate || scenario.endsWith('-upload-first');
   const capacity = scenario.endsWith('-capacity');
   const duplicate = scenario.endsWith('-duplicate');
+  const importRetry = scenario.endsWith('-import-retry');
   const purpose = scenario.startsWith('description') ? 'description' : 'gallery';
   test(
     `broken preview opens real editor; ${scenario} reads or photo completion preserve current edits and draft state`,
@@ -97,8 +109,21 @@ for (const scenario of [
       })
         .png()
         .toBuffer();
+      const uploadPixels = await sharp({
+        create: { width: 2, height: 2, channels: 3, background: '#fafafa' },
+      })
+        .png()
+        .toBuffer();
       if (mediaRace) {
-        const count = capacity ? (purpose === 'gallery' ? 8 : 17) : 3;
+        const count = capacity
+          ? purpose === 'gallery'
+            ? 8
+            : 17
+          : concurrent
+            ? purpose === 'gallery'
+              ? 7
+              : 16
+            : 3;
         for (let index = 0; index < count; index++) {
           const color = `#${((index + 1) * 121177).toString(16).padStart(6, '0')}`;
           const oldPixels = await sharp({
@@ -207,7 +232,9 @@ for (const scenario of [
       assert.ok(origin);
       const browser = await chromium.launch({ headless: true });
       closeBrowser = () => browser.close();
-      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const page = await browser.newPage({
+        viewport: { width: importRetry ? 390 : 1280, height: 900 },
+      });
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
       const counts = new Map<string, number>();
@@ -217,7 +244,9 @@ for (const scenario of [
       let failSupplier = !mediaRace;
       let failPhotos = !mediaRace;
       let releaseImport: (() => Promise<void>) | undefined;
+      let releaseUpload: (() => Promise<void>) | undefined;
       let copiedId = '';
+      let uploadedId = '';
       let importRequests = 0;
       await page.route('https://sc04.alicdn.com/**', (route) =>
         route.fulfill({ contentType: 'image/png', body: pixels }),
@@ -237,6 +266,18 @@ for (const scenario of [
         const body = route.request().postData();
         assert.ok(body);
         assert.equal(JSON.parse(body).action, 'importSourceImage');
+        assert.equal(JSON.parse(body).data.url, sourceUrl);
+        assert.equal(JSON.parse(body).token, token);
+        if (importRetry && importRequests === 1) {
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Owned temporary copy failure' },
+            },
+          });
+          return;
+        }
         const imported = await importCandidateImage(sourceUrl, {
           resolveDns: async () => ['104.16.1.1'],
           fetchImpl: async () => new Response(new Uint8Array(pixels)),
@@ -300,6 +341,16 @@ for (const scenario of [
           return;
         }
         const r = await invoke(bodyText);
+        if (action === 'completeUpload') {
+          assert.equal(r.statusCode, 200, r.body);
+          uploadedId = JSON.parse(r.body).data.imageId;
+        }
+        if ((uploadLate || uploadStartFirst) && action === 'completeUpload') {
+          assert.equal(r.statusCode, 200, r.body);
+          releaseUpload = () =>
+            route.fulfill({ status: r.statusCode, headers: r.headers, body: r.body });
+          return;
+        }
         if (r.statusCode === 200 && JSON.parse(r.body).ok === true)
           successes.set(action, (successes.get(action) ?? 0) + 1);
         if (overlapping && action === 'supplier-review') {
@@ -330,59 +381,142 @@ for (const scenario of [
       await expect.poll(() => counts.get('photo-sources') ?? 0).toBeGreaterThan(0);
       if (mediaRace) {
         const manager = form.locator(`[data-image-manager="${purpose}"]`);
+        const fileInput = manager.locator('input[type="file"]');
         const ids = () =>
           manager
             .locator('[data-image-id]')
             .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-image-id')));
-        await expect.poll(ids).toEqual(oldIds);
-        await form
-          .getByRole('button', {
-            name: purpose === 'gallery' ? 'Add Alibaba photo 1' : 'Add Alibaba description photo 1',
-            exact: true,
-          })
-          .click();
-        await expect.poll(() => releaseImport !== undefined).toBe(true);
-        await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
-        await expect(
-          form.getByRole('button', { name: 'Close editor', exact: true }),
-        ).toBeDisabled();
-        let expected: string[];
-        if (capacity) {
-          await manager.locator('input[type="file"]').setInputFiles({
-            name: 'last-slot.png',
-            mimeType: 'image/png',
-            buffer: pixels,
-          });
-          await expect.poll(async () => (await ids()).length).toBe(oldIds.length + 1);
-          assert.equal(counts.get('createUploadIntent'), 1);
-          assert.equal(counts.get('completeUpload'), 1);
-          const fullSelection = await ids();
-          assert.ok(fullSelection.every((id): id is string => typeof id === 'string'));
+        const add = form.getByRole('button', {
+          name: purpose === 'gallery' ? 'Add Alibaba photo 1' : 'Add Alibaba description photo 1',
+          exact: true,
+        });
+        const keep = form
+          .getByRole('button', { name: 'Keep website version', exact: true })
+          .first();
+        const useIncoming = form.getByRole('button', { name: /^Use Alibaba/ }).first();
+        const save = form.getByRole('button', { name: 'Save', exact: true });
+        const chooseFiles = (count: number) =>
+          fileInput.setInputFiles(
+            Array.from({ length: count }, (_, index) => ({
+              name: `owned-${index}.png`,
+              mimeType: 'image/png',
+              buffer: uploadPixels,
+            })),
+          );
+        const finishSource = async () => {
           const release = releaseImport;
           assert.ok(release);
           await release();
+          await expect(manager.getByText('Adding Alibaba photo…', { exact: true })).toHaveCount(0);
           await expect(
             form.getByText(
-              `Photo copied. All ${oldIds.length + 1} places are taken. Remove a photo, then add this one again.`,
+              duplicate
+                ? 'Photo is already selected. Save to keep it.'
+                : 'Photo added. Save to keep it.',
               { exact: true },
             ),
           ).toBeVisible();
-          await expect.poll(ids).toEqual(fullSelection);
+        };
+        await expect.poll(ids).toEqual(oldIds);
+        await expect(keep).toBeVisible();
+        await expect(keep).toBeEnabled();
+        await expect(add).toBeEnabled();
+        if (uploadStartFirst) {
+          await chooseFiles(1);
+          await expect.poll(() => releaseUpload !== undefined).toBe(true);
+          await expect(add).toBeDisabled();
+          await expect(keep).toBeDisabled();
+          await expect(useIncoming).toBeDisabled();
+          await form.locator('#name').fill('Editing during pending upload');
+          const release = releaseUpload;
+          assert.ok(release);
+          await release();
+          await expect(save).toBeEnabled();
+          await expect(add).toBeEnabled();
+          await expect.poll(ids).toEqual([...oldIds, uploadedId]);
+        }
+        if (importRetry) await form.locator('#name').fill('Draft retained across photo retry');
+        await add.click();
+        if (importRetry) {
+          await expect(
+            form.getByText('Owned temporary copy failure', { exact: true }),
+          ).toBeVisible();
+          await expect(manager.getByText('Adding Alibaba photo…', { exact: true })).toHaveCount(0);
+          await expect(add).toBeEnabled();
+          await expect(fileInput).toBeEnabled();
+          await expect(keep).toBeEnabled();
+          await expect(useIncoming).toBeEnabled();
+          await expect(form.locator('#name')).toHaveValue('Draft retained across photo retry');
+          await expect.poll(ids).toEqual(oldIds);
+          assert.equal(counts.get('update') ?? 0, 0);
+          await add.click();
+          await expect(form.locator('#name')).toHaveValue('Draft retained across photo retry');
+        }
+        await expect.poll(() => releaseImport !== undefined).toBe(true);
+        await expect(save).toBeDisabled();
+        await expect(
+          form.getByRole('button', { name: 'Close editor', exact: true }),
+        ).toBeDisabled();
+        await expect(keep).toBeDisabled();
+        await expect(useIncoming).toBeDisabled();
+        await expect(manager.getByText('Adding Alibaba photo…', { exact: true })).toBeVisible();
+        let expected: string[];
+        if (capacity) {
+          await expect(fileInput).toBeDisabled();
+          assert.equal(counts.get('createUploadIntent') ?? 0, 0);
+          await finishSource();
+          expected = [...oldIds, copiedId];
+          await expect.poll(ids).toEqual(expected);
+          // Free and reuse the source copy without another request.
+          await manager
+            .locator(`[data-image-id="${copiedId}"]`)
+            .getByRole('button', { name: 'Remove image', exact: true })
+            .click();
+          await expect(fileInput).toBeEnabled();
+          await add.click();
+          await expect.poll(ids).toEqual(expected);
+          assert.equal(importRequests, 1);
           await manager
             .locator(`[data-image-id="${oldIds[0]}"]`)
             .getByRole('button', { name: 'Remove image', exact: true })
             .click();
-          await form
-            .getByRole('button', {
-              name:
-                purpose === 'gallery' ? 'Add Alibaba photo 1' : 'Add Alibaba description photo 1',
-              exact: true,
-            })
-            .click();
-          expected = [...fullSelection.slice(1), copiedId];
+          await chooseFiles(1);
+          await expect(save).toBeEnabled();
+          await expect.poll(() => uploadedId !== '').toBe(true);
+          expected = [...oldIds.slice(1), copiedId, uploadedId];
+          await expect.poll(ids).toEqual(expected);
+        } else if (concurrent) {
+          await expect(fileInput).toBeEnabled();
+          await chooseFiles(2);
           await expect(
-            form.getByText('Photo added. Save to keep it.', { exact: true }),
+            manager.getByText('1 file not selected. Remove an image to add more.', {
+              exact: false,
+            }),
           ).toBeVisible();
+          if (uploadLate) {
+            await expect.poll(() => releaseUpload !== undefined).toBe(true);
+            await finishSource();
+            await expect(
+              form.getByRole('button', { name: 'Waiting for uploads…', exact: true }),
+            ).toBeDisabled();
+            await expect(keep).toBeDisabled();
+            const release = releaseUpload;
+            assert.ok(release);
+            await release();
+            await expect(save).toBeEnabled();
+            expected = [...oldIds, copiedId, uploadedId];
+          } else {
+            await expect.poll(() => uploadedId !== '').toBe(true);
+            await expect.poll(ids).toEqual([...oldIds, uploadedId]);
+            await finishSource();
+            await expect(save).toBeEnabled();
+            expected = [...oldIds, uploadedId, copiedId];
+          }
+          await expect.poll(ids).toEqual(expected);
+          assert.equal(expected.length, purpose === 'gallery' ? 9 : 18);
+        } else if (uploadStartFirst) {
+          await finishSource();
+          expected = [...oldIds, uploadedId, copiedId];
           await expect.poll(ids).toEqual(expected);
         } else {
           await manager
@@ -396,36 +530,41 @@ for (const scenario of [
           await form.locator('#name').fill('Edited while source photo imports');
           await form.locator('#description').fill('Description retained during photo import');
           await expect.poll(ids).toEqual([oldIds[2], oldIds[1]]);
-          const release = releaseImport;
-          assert.ok(release);
-          await release();
-          await expect(
-            form.getByText(
-              duplicate
-                ? 'Photo is already selected. Save to keep it.'
-                : 'Photo added. Save to keep it.',
-              { exact: true },
-            ),
-          ).toBeVisible();
+          await finishSource();
           expected = duplicate ? [oldIds[2], oldIds[1]] : [oldIds[2], oldIds[1], copiedId];
           if (duplicate) assert.equal(copiedId, oldIds[2]);
           await expect.poll(ids).toEqual(expected);
         }
-        if (capacity) {
+        if (capacity || concurrent || uploadStartFirst) {
           await form.locator('#name').fill('Edited while source photo imports');
           await form.locator('#description').fill('Description retained during photo import');
+          assert.equal(counts.get('createUploadIntent'), 1);
+          assert.equal(counts.get('completeUpload'), 1);
         }
+        await expect(keep).toBeEnabled();
+        await expect(useIncoming).toBeEnabled();
+        await keep.click();
+        await expect(keep).toHaveAttribute('aria-pressed', 'true');
         await expect(form.locator('#name')).toHaveValue('Edited while source photo imports');
+        await expect(form.locator('#description')).toHaveValue(
+          'Description retained during photo import',
+        );
         const beforeSave = JSON.parse(await readFile(file, 'utf8'));
         assert.deepEqual(
           beforeSave.products,
           before.products,
-          'Import and unsaved selection edits do not save product content',
+          'Imports and unsaved selections do not save product content',
         );
         assert.deepEqual(beforeSave[APPROVAL_JOBS] ?? [], []);
         assert.deepEqual(beforeSave[APPROVED_VARIANTS] ?? [], []);
         assert.equal(counts.get('update') ?? 0, 0);
-        await form.getByRole('button', { name: 'Save', exact: true }).click();
+        if (importRetry) {
+          const width = await form
+            .locator('[data-record-form-body]')
+            .evaluate((element) => ({ scroll: element.scrollWidth, client: element.clientWidth }));
+          assert.ok(width.scroll <= width.client + 1, JSON.stringify(width));
+        }
+        await save.click();
         await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
         const after = JSON.parse(await readFile(file, 'utf8'));
         const saved = after.products.find((row: { _id: string }) => row._id === original._id);
@@ -448,14 +587,15 @@ for (const scenario of [
           assert.equal(counts.get(action) ?? 0, 0);
         assert.equal((after.catalogPreparationJobs ?? []).length, 0);
         assert.equal(new Set(saved[field]).size, saved[field].length);
+        assert.ok(saved[field].length <= (purpose === 'gallery' ? 9 : 18));
         assert.deepEqual(after.catalogSourceObservations, before.catalogSourceObservations);
         assert.deepEqual(after[APPROVAL_JOBS] ?? [], []);
         assert.deepEqual(after[APPROVED_VARIANTS] ?? [], []);
         assert.equal(counts.get('update'), 1);
-        assert.equal(importRequests, 1);
+        assert.equal(importRequests, importRetry ? 2 : 1);
         assert.deepEqual(errors, []);
         t.diagnostic(
-          `Actual candidate import/native disk -> signed syncHTTP dedup ACK delayed -> real ImageManager ${capacity ? 'upload/finalize fills capacity, Remove/Add reuses copy' : 'remove/reorder/text'} -> guarded save; ${duplicate ? 'same-content copy is selected once' : 'no lost selection'}, no premature save or publication. Upload credential/PUT target are fixture-owned; no CloudBase transport claim.`,
+          `Actual native source/signed HTTP + upload intent/fixture PUT/real finalization -> ${scenario} -> explicit Keep and guarded draft save; current selection/order/capacity retained, no premature save or publish. No live COS claim.`,
         );
         return;
       }

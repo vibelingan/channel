@@ -14,6 +14,7 @@ interface Props {
   limit: number;
   /** The photo being copied right now. */
   busyUrl: string | null;
+  disabled?: boolean;
   onAdd: (source: AlibabaPhotoSource) => void;
 }
 
@@ -22,7 +23,15 @@ interface Props {
  * Add button for the others (owner 2026-10-09: listings with more photos than
  * the website shows get the first ones automatically; the rest can be added).
  */
-export function AlibabaPhotoPicker({ title, sources, currentIds, limit, busyUrl, onAdd }: Props) {
+export function AlibabaPhotoPicker({
+  title,
+  sources,
+  currentIds,
+  limit,
+  busyUrl,
+  disabled = false,
+  onAdd,
+}: Props) {
   if (!sources || sources.length === 0) return null;
   const full = currentIds.length >= limit;
   const noun = title.replace(/^Alibaba /, '');
@@ -57,7 +66,7 @@ export function AlibabaPhotoPicker({ title, sources, currentIds, limit, busyUrl,
               ) : (
                 <button
                   type="button"
-                  disabled={full || busyUrl !== null}
+                  disabled={disabled || full || busyUrl !== null}
                   onClick={() => onAdd(source)}
                   aria-label={`Add ${title.replace(/s$/, '')} ${index + 1}`}
                   className="mt-1 min-h-8 w-full rounded border border-slate-300 bg-white text-xs font-medium text-brand-700 disabled:opacity-50"

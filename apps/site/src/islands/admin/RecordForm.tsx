@@ -66,6 +66,8 @@ interface RecordFormProps {
   readOnlyReason?: string;
 }
 
+type PhotoField = 'imageIds' | 'descriptionImageIds';
+
 type FormState = Record<string, string | boolean>;
 
 interface ProductFormSection {
@@ -254,7 +256,7 @@ export function RecordForm({
   const [photoSourcesState, setPhotoSourcesState] = useState<
     'idle' | 'loading' | 'error' | 'ready'
   >('idle');
-  const [photoAddBusy, setPhotoAddBusy] = useState<string | null>(null);
+  const [photoAddBusy, setPhotoAddBusy] = useState<{ field: PhotoField; url: string } | null>(null);
   useEffect(() => {
     if (!canReviewSupplier || linkedProductId === undefined) {
       setPhotoSources(null);
@@ -346,6 +348,7 @@ export function RecordForm({
   const photoField = (part: SupplierReviewPartName) =>
     part === 'gallery' ? 'imageIds' : 'descriptionImageIds';
   function keepWebsite(part: SupplierReviewPart) {
+    if (busy || discardRequested || readOnlyReason) return;
     // Undo an earlier "Use Alibaba's" in this form; other edits stay.
     if (supplierChoices[part.part]?.choice === 'incoming') {
       if (part.part === 'description') setField('description', part.website.text ?? '');
@@ -357,6 +360,7 @@ export function RecordForm({
     }));
   }
   async function useIncoming(part: SupplierReviewPart) {
+    if (busy || discardRequested || readOnlyReason) return;
     setSupplierError('');
     if (part.part === 'description') {
       setField('description', part.incoming.text ?? '');
@@ -404,7 +408,7 @@ export function RecordForm({
     initial?.configurationPhotos ?? {},
   );
 
-  const fieldIds = (field: 'imageIds' | 'descriptionImageIds') => {
+  const fieldIds = (field: PhotoField) => {
     try {
       const parsed: unknown = JSON.parse(String(photoValuesRef.current[field] || '[]'));
       return Array.isArray(parsed)
@@ -415,13 +419,15 @@ export function RecordForm({
     }
   };
   /** Adds one Alibaba photo: our copy when we have it, otherwise copied first. */
-  async function addSourcePhoto(
-    field: 'imageIds' | 'descriptionImageIds',
-    source: AlibabaPhotoSource,
-  ) {
+  async function addSourcePhoto(field: PhotoField, source: AlibabaPhotoSource) {
     const limit = field === 'imageIds' ? 9 : 18;
-    if (photoAddBusy || fieldIds(field).length >= limit) return;
-    setPhotoAddBusy(source.url);
+    if (
+      photoAddBusy ||
+      (field === 'imageIds' ? imageBusy : descriptionImageBusy) ||
+      fieldIds(field).length >= limit
+    )
+      return;
+    setPhotoAddBusy({ field, url: source.url });
     setSourceImageNotice('');
     try {
       let imageId = source.imageId;
@@ -593,6 +599,7 @@ export function RecordForm({
                 review={supplierReview.data}
                 choices={supplierChoices}
                 busyPart={supplierBusy}
+                disabled={busy || discardRequested || Boolean(readOnlyReason)}
                 error={supplierError}
                 onKeep={keepWebsite}
                 onUseIncoming={(part) => void useIncoming(part)}
@@ -700,6 +707,7 @@ export function RecordForm({
                                     }
                                     value={state[field.name]}
                                     error={fieldErrors[field.name]}
+                                    reservedSlots={photoAddBusy?.field === field.name ? 1 : 0}
                                     onBusyChange={
                                       field.name === 'imageIds'
                                         ? setImageBusy
@@ -760,7 +768,8 @@ export function RecordForm({
                               sources={photoSources?.gallery ?? null}
                               currentIds={galleryIds}
                               limit={9}
-                              busyUrl={photoAddBusy}
+                              disabled={imageBusy}
+                              busyUrl={photoAddBusy?.url ?? null}
                               onAdd={(source) => void addSourcePhoto('imageIds', source)}
                             />
                           </div>
@@ -796,7 +805,8 @@ export function RecordForm({
                               sources={photoSources?.description ?? null}
                               currentIds={fieldIds('descriptionImageIds')}
                               limit={18}
-                              busyUrl={photoAddBusy}
+                              disabled={descriptionImageBusy}
+                              busyUrl={photoAddBusy?.url ?? null}
                               onAdd={(source) => void addSourcePhoto('descriptionImageIds', source)}
                             />
                           </div>
@@ -1068,6 +1078,7 @@ function Field({
   error,
   onBusyChange,
   onValidityChange,
+  reservedSlots = 0,
   onChange,
 }: {
   field: FieldDef;
@@ -1075,6 +1086,7 @@ function Field({
   error?: string;
   onBusyChange?: (busy: boolean) => void;
   onValidityChange?: (invalid: boolean) => void;
+  reservedSlots?: number;
   onChange: (value: string | boolean) => void;
 }) {
   const label = (
@@ -1110,6 +1122,7 @@ function Field({
             purpose={field.name === 'descriptionImageIds' ? 'description' : 'gallery'}
             inputId={field.name}
             maxItems={field.maxItems}
+            reservedSlots={reservedSlots}
             errorId={describedBy}
             onBusyChange={onBusyChange}
             onChange={(next) => onChange(JSON.stringify(next))}
