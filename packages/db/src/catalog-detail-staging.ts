@@ -41,6 +41,11 @@ import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 import { sdkAnswer } from './cloudbase-sdk-answer.ts';
 export { approvedVariantDocumentId } from './catalog-detail-storage.ts';
+export {
+  captureProductOperationSave,
+  prepareProductOperationSave,
+  productOperationSaveReceipt,
+} from './catalog-product-operation.ts';
 import {
   CatalogApprovalCommandSchema,
   type CatalogApprovalTransaction,

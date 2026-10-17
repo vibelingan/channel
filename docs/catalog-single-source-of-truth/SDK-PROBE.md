@@ -677,3 +677,10 @@ Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse�
 公开[Node更新文档](https://docs.cloudbase.net/api-reference/server/node-sdk/database/update)未详列ACK，精确形状由安装源码与新默认scripts/product-write-artifact-probe.cjs实际sender验证。该探针保留编译handler/native adapter/SDK，仅HTTP由内存假后端回答；正确create/upsert/update/remove、13拒绝回执及事务回滚/重试通过，默认驱动去掉ACK则失败。Node20后台274与驱动24、standing SDK通过。没有云端网络或真实写入，不据此声称CloudBase并发验收完成。
 
 新增测试工具表面esbuild0.27.7 build与PluginBuild.onLoad。按真实admin的tsup resolve到0.27.7，安装lib/main.d.ts553声明build→Promise<BuildResult>，322声明onLoad(options,callback)，434/443定义path与contents/loader结果。与官方[build](https://esbuild.github.io/api/#build)、[onLoad](https://esbuild.github.io/plugins/#on-load-callbacks)核对，实际编译ACK故障模块，其他源模块/SDK保持原状。Context7不可用；未用另一个esbuild实例或同步buildSync插件替代。默认驱动删除接线22正控/2失败，防止新增检查成为可跳过步骤。
+
+
+## P3e2：既有事务原语承载自身草稿回执
+
+没有新增CloudBase方法、依赖、shim或资源。沿NodeSdkDatabase.runTransaction与doc.get/set/update/remove及b43fa82强制ACK；新增record/body由现有Zod3.25.76与共享网站字段合约解析。描述的空/trim语义与实际planCatalogDetailApproval逐值对照；原文保留。root门面导出ProductOperationRecord/ProductOperationResult让跨包推断可命名，未修改SDK声明。
+
+离线compiled-source探针将真实native保存/审批原语和installed node-sdk3.17.2/database1.4.3一起编译，只有HTTP替换为内存事务后端；Node20完成10种产品/身份/receipt拒绝回执、rollback/retry、两类具体字段错误、6种正常描述和重复零写。该探针不声称已走生产admin HTTP或云端MVCC。四个独立Node24/20进程禁网写入/重开同一saved JSON回执、重复零写与fixture清理通过，样本record1218bytes。Node20最终小组合374通过，含模拟事务提交后丢答复的get/retry零写。Context7不可用；既有官方SDK文档及实际sender依据保持，standing SDK、19项目types与相关七包/脚本4613通过。精确提交产物在审查后补录。

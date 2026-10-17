@@ -49,6 +49,9 @@ import {
 } from '@vibelingan-channel/db/catalog-detail-commit';
 import {
   type ApprovalPersistenceCommand,
+  captureProductOperationSave,
+  prepareProductOperationSave,
+  productOperationSaveReceipt,
   runStagedApproval,
 } from '@vibelingan-channel/db/catalog-detail-staging';
 import {
@@ -1056,9 +1059,11 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async saveCatalogProductWithIdentities(
-    input: CatalogProductSaveInput,
+    request: CatalogProductSaveInput,
   ): Promise<CatalogProductSaveResult> {
-    return this.withMutationLock(() => {
+    const input = captureProductOperationSave(request);
+    if (!input) return { result: 'stale' };
+    return this.withMutationLock(async () => {
       const expectedSuggestion =
         input.expectedSuggestion === undefined
           ? undefined
@@ -1071,6 +1076,20 @@ export class JsonFileAdapter implements DbAdapter {
       const productIndex = products.findIndex((document) => document._id === input.productId);
       const existing = productIndex >= 0 ? (products[productIndex] as CollectionDoc) : null;
       if (expectedSuggestion && !existing) return catalogSuggestionChanged();
+      const operationTx = {
+        get: async (collection: string, id: string) =>
+          copy[collection]?.find((row) => row._id === id) ?? null,
+        set: async (collection: string, row: CollectionDoc) => {
+          copy[collection] ??= [];
+          const index = copy[collection].findIndex((existing) => existing._id === row._id);
+          if (index < 0) copy[collection].push(row);
+          else copy[collection][index] = row;
+        },
+      };
+      const operation = await prepareProductOperationSave(operationTx, existing, input);
+      if (operation.result === 'stale' || operation.result === 'invalid-product') return operation;
+      if (operation.result === 'replay' && existing)
+        return { result: 'saved', doc: existing, previous: existing };
       const plan = planCatalogProductSave(existing, input, new Date().toISOString());
       if (plan.result !== 'ready') return plan;
 
@@ -1108,6 +1127,7 @@ export class JsonFileAdapter implements DbAdapter {
       const classification = planProductSubcategorySave(existing, input, registry, actor);
       if (classification.result !== 'ready') return classification;
       if (
+        operation.result === 'unbound' &&
         plan.doc === existing &&
         !actor &&
         !classification.registryFence &&
@@ -1168,6 +1188,11 @@ export class JsonFileAdapter implements DbAdapter {
         );
         if (index >= 0) identityDocs.splice(index, 1);
       }
+      if (operation.result === 'ready')
+        await operationTx.set(
+          'catalogDetailApprovals',
+          await productOperationSaveReceipt(operationTx, operation.record, plan.doc),
+        );
       const previous = this.store;
       this.store = copy;
       try {

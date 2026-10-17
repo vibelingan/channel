@@ -96,6 +96,8 @@ export interface CatalogProductSaveInput {
   requireDetailApproval?: boolean | 'publication-or-pricing';
   /** Refuse (as stale) when the product was approved, published or archived (PT-G photo job). */
   requireUnapprovedDraft?: boolean;
+  /** Server-only binding to the immutable input reserved by this actor. */
+  expectedOperation?: { actorId: string; operationId: string; inputDigest: string };
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
     productUpdatedAt: string | null;
@@ -123,7 +125,10 @@ export type CatalogProductSaveResult =
       result: 'invalid-product';
       issues: Array<
         | ReturnType<typeof validateProductPublication>[number]
-        | { field: 'catalogPreparationState'; message: string }
+        | {
+            field: 'catalogPreparationState' | 'descriptionImageIds' | 'configurationPhotos';
+            message: string;
+          }
       >;
     }
   | { result: 'missing' | 'exists' | 'stale' };

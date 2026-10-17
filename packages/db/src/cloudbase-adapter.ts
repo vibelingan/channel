@@ -20,6 +20,7 @@ import {
   runCatalogRowMutation,
 } from './catalog-row-mutation.ts';
 import { sdkAnswer, assertDocumentWrite } from './cloudbase-sdk-answer.ts';
+import { captureProductOperationSave, prepareProductOperationSave, productOperationSaveReceipt } from './catalog-product-operation.ts';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
@@ -184,10 +185,21 @@ export interface NodeSdkDatabase {
 
 export async function saveCatalogProductInCloudBase(
   db: NodeSdkDatabase,
-  input: CatalogProductSaveInput,
+  request: CatalogProductSaveInput,
   now = new Date().toISOString(),
 ): Promise<CatalogProductSaveResult> {
+  const input = captureProductOperationSave(request);
+  if (!input) return { result: 'stale' };
   return db.runTransaction(async (transaction) => {
+    const setAcknowledged = async (collection: string, doc: CollectionDoc) => {
+      const { _id: id, ...data } = doc;
+      assertDocumentWrite(await transaction.collection(collection).doc(id).set(data), id, 'set');
+    };
+    const operationTx = {
+      get: async (collection: string, id: string) =>
+        normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+      set: setAcknowledged,
+    };
     const expectedSuggestion =
       input.expectedSuggestion === undefined
         ? undefined
@@ -195,8 +207,12 @@ export async function saveCatalogProductInCloudBase(
     if (expectedSuggestion === null || (expectedSuggestion && input.mode !== 'update'))
       return catalogSuggestionChanged();
     const productRef = transaction.collection('products').doc(input.productId);
-    const existing = normalizeSingle((await productRef.get()).data);
+    const existing = normalizeSingle(sdkAnswer(await productRef.get()).data);
     if (expectedSuggestion && !existing) return catalogSuggestionChanged();
+    const operation = await prepareProductOperationSave(operationTx, existing, input);
+    if (operation.result === 'stale' || operation.result === 'invalid-product') return operation;
+    if (operation.result === 'replay' && existing)
+      return { result: 'saved', doc: existing, previous: existing };
     const plan = planCatalogProductSave(existing, input, now);
     if (plan.result !== 'ready') return plan;
 
@@ -280,10 +296,6 @@ export async function saveCatalogProductInCloudBase(
       }
     }
 
-    const setAcknowledged = async (collection: string, doc: CollectionDoc) => {
-      const { _id: id, ...data } = doc;
-      assertDocumentWrite(await transaction.collection(collection).doc(id).set(data), id, 'set');
-    };
     if (actorRef) {
       const acknowledgement = await actorRef.update({ classificationAuthFence: randomUUID() });
       if (
@@ -334,6 +346,11 @@ export async function saveCatalogProductInCloudBase(
         );
       }
     }
+    if (operation.result === 'ready')
+      await setAcknowledged(
+        'catalogDetailApprovals',
+        await productOperationSaveReceipt(operationTx, operation.record, plan.doc),
+      );
     return { result: 'saved', doc: plan.doc, previous: existing };
   });
 }

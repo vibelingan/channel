@@ -67,6 +67,10 @@ import type {
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
+export type {
+  ProductOperationRecord,
+  ProductOperationResult,
+} from './catalog-product-operation.ts';
 import { APPROVAL_JOB_DELETE_MARGIN_MS, APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import { type ImageDeletionCommand, ImageDeletionCommandSchema } from './image-deletion.ts';
 export { executeImageDeletion } from './image-deletion-runner.ts';

@@ -7,6 +7,7 @@ import {
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
 import { readCurrentCatalogPreparationRequest } from '@vibelingan-channel/shared/catalog-preparation';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
@@ -2229,4 +2230,221 @@ test('unchanged review preserves an explicitly requested valid classification fe
   assert.equal(result.result, 'saved');
   assert.equal(typeof h.store.get('users')?.get('admin')?.classificationAuthFence, 'string');
   assert.deepEqual(h.store.get('products')?.get('p'), product);
+});
+
+async function ownDraftFixture(patch: Record<string, unknown> = {}) {
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    description: '',
+    productFamily: 'misc',
+    published: false,
+    archived: false,
+    imageIds: [],
+    slug: 'old-clock',
+    skuCode: 'old-clock',
+    updatedAt: '2026-10-18T00:00:00.000Z',
+  };
+  const h = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [product],
+    catalogProductIdentities: ['slug', 'sku'].map((kind) => ({
+      _id: `${kind}:old-clock`,
+      kind,
+      normalizedValue: 'old-clock',
+      productId: 'p',
+    })),
+  });
+  const operationId = '12345678-1234-4234-8234-123456789012';
+  const started = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-start',
+    productId: 'p',
+    operationId,
+    intent: 'save-draft',
+    expectedUpdatedAt: product.updatedAt,
+    values: {
+      description: 'Reviewed own draft',
+      slug: 'new-clock',
+      skuCode: 'new-clock',
+      ...patch,
+    },
+  });
+  assert.ok(started.ok && 'record' in started);
+  const input = {
+    mode: 'update' as const,
+    productId: 'p',
+    data: structuredClone(started.record.operation.values),
+    expectedUpdatedAt: product.updatedAt,
+    expectedOperation: {
+      actorId: 'admin',
+      operationId,
+      inputDigest: started.record.operation.inputDigest,
+    },
+  };
+  return { ...h, input, record: started.record };
+}
+
+test('native product, aliases and own save receipt commit together; replay is readonly', async () => {
+  const h = await ownDraftFixture();
+  const result = await saveCatalogProductInCloudBase(h.db, h.input);
+  assert.equal(result.result, 'saved');
+  const saved = h.store.get('catalogDetailApprovals')?.get(h.record._id);
+  assert.equal(saved?.state, 'saved');
+  assert.ok(saved?.operation && typeof saved.operation === 'object');
+  assert.deepEqual(Reflect.get(saved.operation, 'base'), h.record.operation.base);
+  assert.equal(h.store.get('products')?.get('p')?.description, 'Reviewed own draft');
+  assert.deepEqual([...(h.store.get('catalogProductIdentities')?.keys() ?? [])].sort(), [
+    'sku:new-clock',
+    'slug:new-clock',
+  ]);
+  const snapshot = structuredClone(h.store);
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+  assert.deepEqual(h.store, snapshot);
+  const query = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-get',
+    productId: 'p',
+    operationId: h.input.expectedOperation.operationId,
+  });
+  assert.ok(query.ok && 'record' in query && query.current);
+  assert.equal(query.record.state, 'saved');
+  assert.ok(h.controls.maximumOperations <= 13, 'sample uses bounded existing per-document writes');
+});
+
+for (const point of ['receipt', 'product', 'new-identity', 'old-identity'] as const)
+  for (const failure of ['throw', 'zero', 'coded', 'wrong-upsert'] as const) {
+    if (failure === 'wrong-upsert' && (point === 'product' || point === 'old-identity')) continue;
+    test(`native own draft ${point} ${failure} rolls back all stages and can retry`, async () => {
+      const h = await ownDraftFixture();
+      const key =
+        point === 'receipt'
+          ? `catalogDetailApprovals/${h.record._id}`
+          : point === 'product'
+            ? 'products/p'
+            : point === 'new-identity'
+              ? 'catalogProductIdentities/slug:new-clock'
+              : 'catalogProductIdentities/slug:old-clock';
+      const control =
+        point === 'old-identity'
+          ? failure === 'throw'
+            ? 'failRemove'
+            : failure === 'zero'
+              ? 'silentRemove'
+              : 'codedRemove'
+          : failure === 'throw'
+            ? 'failWrite'
+            : failure === 'zero'
+              ? 'silentWrite'
+              : failure === 'coded'
+                ? 'codedWrite'
+                : 'wrongUpsertId';
+      const before = structuredClone(h.store);
+      h.controls[control] = key;
+      await assert.rejects(saveCatalogProductInCloudBase(h.db, h.input));
+      assert.deepEqual(
+        h.store,
+        before,
+        'product, old/new aliases and reserved receipt stay unchanged',
+      );
+      h.controls[control] = '';
+      assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+      assert.equal(h.store.get('catalogDetailApprovals')?.get(h.record._id)?.state, 'saved');
+    });
+  }
+
+test('native bound save freezes the entire patch and binding before the first storage read', async () => {
+  const h = await ownDraftFixture();
+  const input = structuredClone(h.input);
+  const promise = saveCatalogProductInCloudBase(h.db, input);
+  input.data.description = 'Caller changed after dispatch';
+  input.expectedOperation.inputDigest = '0'.repeat(64);
+  assert.equal((await promise).result, 'saved');
+  assert.equal(h.store.get('products')?.get('p')?.description, 'Reviewed own draft');
+  assert.equal(h.store.get('catalogDetailApprovals')?.get(h.record._id)?.state, 'saved');
+});
+
+test('native identity conflict leaves the operation reserved without product or alias changes', async () => {
+  const h = await ownDraftFixture();
+  h.store.get('catalogProductIdentities')?.set('sku:new-clock', {
+    _id: 'sku:new-clock',
+    kind: 'sku',
+    normalizedValue: 'new-clock',
+    productId: 'other',
+  });
+  const before = structuredClone(h.store);
+  const result = await saveCatalogProductInCloudBase(h.db, h.input);
+  assert.equal(result.result, 'conflict');
+  assert.deepEqual(h.store, before);
+  h.store.get('catalogProductIdentities')?.delete('sku:new-clock');
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+});
+for (const saved of [false, true])
+  test(`a revoked actor cannot resume its ${saved ? 'saved' : 'reserved'} native operation`, async () => {
+    const h = await ownDraftFixture();
+    if (saved) assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+    h.store.get('users')?.set('admin', { _id: 'admin', role: 'admin', status: 'suspended' });
+    const before = structuredClone(h.store);
+    assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'stale');
+    assert.deepEqual(h.store, before);
+  });
+
+for (const [field, value] of [
+  ['name', 'n'.repeat(1001)],
+  ['description', 'd'.repeat(30001)],
+] as const)
+  test(`native own save exposes the ${field} validation issue without writes`, async () => {
+    const h = await ownDraftFixture({ [field]: value });
+    const before = structuredClone(h.store);
+    const result = await saveCatalogProductInCloudBase(h.db, h.input);
+    assert.equal(result.result, 'invalid-product');
+    assert.ok(
+      result.result === 'invalid-product' && result.issues.some((issue) => issue.field === field),
+    );
+    assert.deepEqual(h.store, before);
+  });
+
+for (const [index, description] of [
+  '',
+  '   ',
+  '  Reviewed note  ',
+  '\nReviewed note\n',
+  'd'.repeat(30000),
+  `  ${'d'.repeat(30000)}  `,
+].entries())
+  test(`native normal description ${index} can save without changing editor text`, async () => {
+    const h = await ownDraftFixture({ description });
+    assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+    assert.equal(h.store.get('products')?.get('p')?.description, description);
+    assert.equal(h.store.get('catalogDetailApprovals')?.get(h.record._id)?.state, 'saved');
+  });
+
+test('a lost transaction commit answer is recovered through the own receipt with zero duplicate writes', async () => {
+  const h = await ownDraftFixture();
+  let loseAnswer = true;
+  const uncertain = {
+    ...h.db,
+    runTransaction: async <T>(operation: Parameters<typeof h.db.runTransaction<T>>[0]) => {
+      const result = await h.db.runTransaction(operation);
+      if (loseAnswer) {
+        loseAnswer = false;
+        throw new Error('injected lost answer after transaction committed');
+      }
+      return result;
+    },
+  };
+  await assert.rejects(
+    saveCatalogProductInCloudBase(uncertain, h.input),
+    /after transaction committed/,
+  );
+  assert.equal(h.store.get('products')?.get('p')?.catalogContentGeneration, 1);
+  assert.equal(h.store.get('catalogDetailApprovals')?.get(h.record._id)?.state, 'saved');
+  const before = structuredClone(h.store);
+  const query = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-get',
+    productId: 'p',
+    operationId: h.input.expectedOperation.operationId,
+  });
+  assert.ok(query.ok && 'record' in query && query.current && query.revisionCurrent);
+  assert.equal(query.record.state, 'saved');
+  assert.equal((await saveCatalogProductInCloudBase(uncertain, h.input)).result, 'saved');
+  assert.deepEqual(h.store, before);
 });

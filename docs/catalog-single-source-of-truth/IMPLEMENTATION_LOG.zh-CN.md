@@ -1173,3 +1173,12 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 默认smoke:functions强制实际native写路径，正确创建/改名/身份移除，13种失败回执均拒绝且rollback/store不变；默认驱动编译去ACK模块必败，删接线也必败。16源码反例全检出，51重叠失败断言，4文件finally恢复核SHA。恢复后后台3244+脚本488通过，Node20后台274/驱动24通过；19项目types、Astro216零error/warning8hint、8完整文件Biome与忽略原生源段格式、SDK/diff通过。站点全量797通过（含实际浏览器组件），相关全量合计4529。精确构建在本单元后续证据续记，未提前归为通过。
 
 实际复核9代码/测试路径及3证据文档、原保存/分类/建议/事务/JSON/HTTP/default smoke消费者。文案明确ACK不是云端验收；无真实网络、客户数据、test部署、新分支/worktree/agent/PR/push。原发布丢响应P1保留；后续继续同事务保存自身回执，fullDeliveryReady=false。详见P3e2a_PRODUCT_WRITE_ACK.zh-CN.md。
+
+
+## P3e2：草稿自身保存阶段
+
+基线b43fa82精确三函数/15页5.00秒/默认Node20 native ACK与下架、检查修复组合通过，原发布恢复P1仍阻断。继续原引擎：冻结server-only操作绑定，在原native事务/JSON锁内同时保存产品、slug/SKU身份与saved回执。初始base不变，另存自身snapshot/revision；重复零写，外部修改/下架/关联变化/旧策略/过期/撤权均拒绝覆盖，保留历史。旧调用无额外IO，原actor分类fence字节相同。没有HTTP/UI接线或新存储集合。
+
+审查红测补齐配置照片新引用、live误用、字段错误被误作过期、空描述误用展示层非空合约及metadata-only状态差异。按实际审批投影检查描述同时保留原文，字段问题回具体path；保留原capture-only断言，增加revisionCurrent并与内容current/年龄分别检查。没有删除旧集成断言。27源码反例全部检出178重叠失败断言，3文件finally恢复核SHA；小组合373/Node20同373通过。实际compiled native原语+SDK受控HTTP10种回执故障与2类字段/6正常描述通过；四独立Node24/20进程同saved回执/零重复写、fixture清理通过。
+
+早期全量业务3305/4594与类型失败、夹具/类型推断问题、冗余guard删除仍绿的尝试均保留，不当最终结果。最终七包+脚本4613（309/1370/797/637/577/131/304+488）0fail/skip/cancel；DB因新增提交后丢答复测试完整重跑1370，Node20小组合374。19项目types、Astro216零error/warning8hint、7完整文件Biome与忽略native源段/actor字节检查、standing SDK/diff通过。精确提交产物在review侧车补录。具体边界/回归见P3e2_DRAFT_STAGE_RECEIPT.zh-CN.md；新媒体、分类上下文/supplier计划冻结、create/live/approval/final及UI统一继续，fullDeliveryReady=false。无test部署/客户数据/新分支worktree/agent/PR/push。
