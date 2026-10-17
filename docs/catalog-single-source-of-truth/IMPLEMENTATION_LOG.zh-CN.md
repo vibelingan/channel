@@ -1004,3 +1004,11 @@ P2f9c4精确提交三函数产物与实际bundled main通过：五URL跨4+1导�
 新claim在完成任务上验证有效签名同nonce、当前输入与完整服务凭据，只读返回原ready；重启无需原WeakMap，五次source-backed点读，无租约/计数/商品/文件变更。即时丢ACK与重启共用报告检查。初始245项串联通过；补独立报告时间和禁止bindLease断言，8源码反例全部检出，21–30正控/31，字节恢复。完整扩大、最终types/Node20/SDK和精确产物随后记录。人类过期恢复与余下准入/UI/修复/现场验收继续，fullDeliveryReady=false。
 
 P2f9c5 最终本地：DB1064/admin549/alibaba304/local452，共2369项全部通过，0失败/跳过/取消；Node20四文件288、四消费者types、五文件显式Biome、Cloud新增块格式、SDK gate、diff检查通过。反例恢复后完成扩大验证；无线上资源/业务写入。精确提交及模块重启的bundled main验证随后记。
+
+## P2f10a：当前非就绪快照合约
+
+P2f9c5 精确三函数 build/package、Linux126依赖完整性、同JS显式Macprofile与Node20产物smoke通过。bundled main冷模块/authority重建后，同一有效签名请求零IO、零改盘恢复原ready。初次重载夹具未重新注入local adapter误走默认云SDK，修正注入后同产物通过；失败夹具按时刻/假商品ID/五测试URL/本地存储确认后清理。bundle SHA e98c0fa377b2e013f380d4aecc2355abad53417009fa71cfa181e2244cb06500，不冒称云端验证。
+
+checkpoint-preparation 当前服务lease下派生安全blocked/preparing报告并同job写fence，七次source-backed点读写；保留业务字段/公开版本。首轮244项、补两分支后选定48正控均通过，八源码反例均检出且41–47正控保留，原字节恢复。初次类型check因ES2023数组方法不在项目ES2022而失败，已改有界倒序循环；最终类型/扩大回归/Node20/SDK/产物随后记录。默认producer接线及后续状态/准入/UI/真实验收继续，fullDeliveryReady=false。
+
+P2f10a 最终本地：DB1098/admin549/alibaba304/local454，共2405项全部通过，0失败/跳过/取消；Node20五文件324、四消费者types、四完整文件显式Biome、Cloud新增块格式、SDK gate、diff检查通过。八反例在48项中检出且41–47正控保留。精确构建随后记；默认worker接线及其完整非就绪状态流程仍待下一单元。

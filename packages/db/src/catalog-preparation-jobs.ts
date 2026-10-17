@@ -26,6 +26,10 @@ import {
 import { runCatalogImageProtection } from './catalog-image-protection.ts';
 import type { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import {
+  CatalogPreparationCheckpointCommandSchema,
+  checkpointCatalogPreparation,
+} from './catalog-preparation-checkpoint.ts';
+import {
   CatalogPreparationCompletionSchema,
   CatalogPreparationFinishCommandSchema,
   finishCatalogPreparation,
@@ -83,6 +87,7 @@ const instantSchema = z
   });
 const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
+  CatalogPreparationCheckpointCommandSchema,
   CatalogPreparationFinishCommandSchema,
   z
     .object({
@@ -274,7 +279,7 @@ export type CatalogPreparationJobResult =
   | { ok: true; mediaSeal: Readonly<CatalogPreparationMediaSeal> }
   | {
       ok: true;
-      preparation: 'ready' | 'unchanged';
+      preparation: 'ready' | 'unchanged' | 'checkpointed';
       productId: string;
       report: CatalogPreparationReport;
     }
@@ -477,6 +482,8 @@ export async function runCatalogPreparationJob(
     if (!['queued', 'running'].includes(job.state)) return { ok: false, code: 'CONFLICT' };
     return { ok: true, call: authority.issueCall({ jobId, nonce: job.nonce }) };
   }
+  if (command.action === 'checkpoint-preparation')
+    return checkpointCatalogPreparation(tx, authority, job, command, timestamp);
   if (command.action === 'finish-preparation')
     return finishCatalogPreparation(tx, authority, job, command, timestamp);
   if (command.action === 'bind-media-seal' || command.action === 'attest-media-image') {

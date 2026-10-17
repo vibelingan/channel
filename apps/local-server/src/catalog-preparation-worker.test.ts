@@ -1691,3 +1691,62 @@ test('completed default retry preserves later lifecycle changes and refuses late
   assert.equal(readFileSync(f.file, 'utf8'), edited);
   assert.equal((await f.adapter.get('products', 'p'))?.name, 'User edited after ready');
 });
+
+test('nonready repository checkpoint persists readable diagnostics after real image checking and file reopen', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  const before = await f.adapter.get('products', 'p');
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('checkpoint must not read pixels');
+  };
+  f.storage.putObject = async () => {
+    throw Error('checkpoint must not copy');
+  };
+  const r = await seal.run({
+    action: 'checkpoint-preparation',
+    ...seal.scope,
+    previewReady: false,
+    issues: [
+      {
+        code: 'INVALID_VALUE',
+        stage: 'effective-content',
+        path: 'name',
+        severity: 'error',
+        remedy: 'edit',
+      },
+    ],
+  });
+  assert.ok(r.ok && 'report' in r, JSON.stringify(r));
+  assert.equal(r.report.state, 'blocked');
+  const adapter = new JsonFileAdapter(f.file);
+  const p = await adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'blocked');
+  assert.deepEqual(p, {
+    ...before,
+    catalogPreparationState: 'blocked',
+    catalogPreparationPolicy: r.report.policyVersion,
+    catalogPreparationReport: r.report,
+  });
+  assert.equal(p.published, false);
+});
+test('actual checkpoint disk persistence failure leaves the product and same-job fence unchanged', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const before = readFileSync(f.file, 'utf8');
+  const persist = Reflect.get(f.adapter, 'persist');
+  Reflect.set(f.adapter, 'persist', () => {
+    throw Error('checkpoint disk failure');
+  });
+  try {
+    await assert.rejects(
+      seal.run({ action: 'checkpoint-preparation', ...seal.scope, previewReady: true, issues: [] }),
+      /disk failure/,
+    );
+    assert.equal(readFileSync(f.file, 'utf8'), before);
+  } finally {
+    Reflect.set(f.adapter, 'persist', persist);
+  }
+});

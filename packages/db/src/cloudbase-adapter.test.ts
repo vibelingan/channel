@@ -1606,3 +1606,83 @@ test('completed native claim rechecks signed admission after asynchronous reads'
   );
   assert.deepEqual(f.store, before);
 });
+
+async function nonreadyCloudFixture(invalid = false) {
+  const f = await protectedPixelCloudFixture();
+  assert.ok(
+    (
+      await f.run({
+        ...f.step,
+        health: invalid ? { status: 'invalid', reason: 'content' } : f.step.health,
+      })
+    ).ok,
+  );
+  const command = {
+    action: 'checkpoint-preparation' as const,
+    ...f.scope,
+    previewReady: true,
+    issues: [],
+  };
+  return { f, command, checkpoint: () => f.run(command) };
+}
+test('source-backed nonready diagnostic and same-job fence use seven point operations without image or lifecycle writes', async () => {
+  const { f, checkpoint } = await nonreadyCloudFixture(true);
+  const before = structuredClone(f.store.get('images'));
+  const product = structuredClone(f.store.get('products')?.get('p'));
+  f.controls.maximumOperations = 0;
+  const r = await checkpoint();
+  assert.ok(r.ok && 'report' in r, JSON.stringify(r));
+  assert.equal(r.report.state, 'blocked');
+  assert.equal(f.controls.maximumOperations, 7);
+  assert.deepEqual(f.store.get('images'), before);
+  assert.deepEqual(f.store.get('products')?.get('p'), {
+    ...product,
+    catalogPreparationState: 'blocked',
+    catalogPreparationPolicy: r.report.policyVersion,
+    catalogPreparationReport: r.report,
+  });
+  const saved = structuredClone(f.store);
+  assert.ok((await checkpoint()).ok);
+  assert.deepEqual(f.store, saved);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const target of ['products', 'catalogPreparationJobs'] as const)
+    test(`nonready checkpoint ${target} ${failure} rolls back both diagnostic and fence`, async () => {
+      const { f, checkpoint } = await nonreadyCloudFixture();
+      f.controls[failure] = `${target}/${target === 'products' ? 'p' : f.scope.jobId}`;
+      const before = structuredClone(f.store);
+      await assert.rejects(checkpoint());
+      assert.deepEqual(f.store, before);
+    });
+for (const target of ['products', 'catalogPreparationJobs'] as const)
+  test(`checkpoint expiry after ${target} write rolls back both rows`, async () => {
+    const { f } = await nonreadyCloudFixture();
+    assert.ok((await f.run({ action: 'release', ...f.scope })).ok);
+    let now = f.now + 5;
+    const authority = createCatalogPreparationAuthority({
+      secret: 'checkpoint-expiry',
+      environmentId: 'test',
+      now: () => now,
+    });
+    const run = (cmd: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+      manageCatalogPreparationJobInCloudBase(f.db, authority, cmd, now);
+    const d = await run({ action: 'dispatch', actorId: 'admin', jobId: f.scope.jobId });
+    assert.ok(d.ok && 'call' in d);
+    const c = await run({ action: 'claim', call: d.call, owner: 'checkpoint-worker' });
+    assert.ok(c.ok && 'lease' in c);
+    const before = structuredClone(f.store);
+    f.controls.afterWrite = (key) => {
+      if (key === `${target}/${target === 'products' ? 'p' : f.scope.jobId}`) now += 120001;
+    };
+    await assert.rejects(
+      run({
+        action: 'checkpoint-preparation',
+        jobId: f.scope.jobId,
+        lease: c.lease,
+        previewReady: true,
+        issues: [],
+      }),
+      /lease changed/,
+    );
+    assert.deepEqual(f.store, before);
+  });
