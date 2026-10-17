@@ -137,6 +137,7 @@ import {
   inquiryErrorMessages,
 } from '@vibelingan-channel/shared/catalog-inquiry';
 import { catalogFailureIssue } from '@vibelingan-channel/shared/catalog-issues';
+import { CatalogReadinessSchema } from '@vibelingan-channel/shared/catalog-preparation';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
 import { approveInOneRequest } from './catalog-approve-once.ts';
@@ -264,6 +265,7 @@ const listSchema = z.object({
   collection: z.string(),
   productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
   needsClassification: z.boolean().optional(),
+  catalogReadiness: CatalogReadinessSchema.optional(),
   subcategoryIds: z.array(z.string()).min(1).max(MAX_PRODUCT_SUBCATEGORIES).optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
@@ -1496,10 +1498,21 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   ) {
     return err('BAD_REQUEST', 'Product family filtering is only available for products.');
   }
+  if (parsed.data.catalogReadiness && parsed.data.collection !== 'products') {
+    return err('BAD_REQUEST', 'Readiness filtering is only available for products.');
+  }
   if (parsed.data.productFamily && parsed.data.needsClassification) {
     return err('BAD_REQUEST', 'Choose a product family or the unclassified queue, not both.');
   }
-  const { filter, productFamily, needsClassification, subcategoryIds, sort, ...rest } = parsed.data;
+  const {
+    filter,
+    productFamily,
+    needsClassification,
+    subcategoryIds,
+    catalogReadiness,
+    sort,
+    ...rest
+  } = parsed.data;
   let productSubcategories: ProductSubcategoryScope | undefined;
   if (subcategoryIds) {
     const scope = await productSubcategoryScope(
@@ -1526,8 +1539,9 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
       : sort;
   const result = await list({
     ...rest,
-    // A new draft appears once its Alibaba photos are in (PT-G).
-    ...(parsed.data.collection === 'products' ? { hidePreparing: true } : {}),
+    // Explicit recovery scopes also show drafts whose photo preparation has not finished.
+    ...(parsed.data.collection === 'products' && !catalogReadiness ? { hidePreparing: true } : {}),
+    ...(catalogReadiness ? { catalogReadiness } : {}),
     ...(productFamily ? { productFamily } : {}),
     ...(needsClassification ? { needsClassification: true } : {}),
     ...(productSubcategories ? { productSubcategories } : {}),

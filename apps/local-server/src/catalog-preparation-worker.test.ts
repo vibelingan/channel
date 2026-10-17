@@ -2860,3 +2860,59 @@ test('authenticated source503 remains manual, then continuation of the same job 
   assert.equal(fetches, before + 1);
   assert.equal((await f.adapter.get('products', f.productId))?.published, false);
 });
+
+for (const missingCategory of [false, true])
+  test(`actual prepare/edit/blocked/repair chain moves native list scopes without publication, missingCategory=${missingCategory}`, async (t) => {
+    const f = await fixture(t, 1, missingCategory);
+    const ids = async (catalogReadiness: 'normal' | 'issues' | 'preparing' | 'unchecked') =>
+      (
+        await f.adapter.list({
+          collection: 'products',
+          catalogReadiness,
+          page: 1,
+          pageSize: 20,
+          search: '',
+        })
+      ).items.map((p) => p._id);
+    assert.deepEqual(await ids('preparing'), ['p']);
+    assert.deepEqual(await ids('normal'), []);
+    const first = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    assert.ok(first.ok && first.outcome === 'ready', JSON.stringify(first));
+    assert.deepEqual(await ids('normal'), ['p']);
+    assert.deepEqual(await ids('preparing'), []);
+    // Inject a bad stored input through the real write layer, as a legacy/source repair case.
+    await f.adapter.update('products', 'p', { name: '' });
+    assert.deepEqual(await ids('normal'), []);
+    assert.deepEqual(await ids('unchecked'), ['p']);
+    const execute = async () => {
+      const start = await f.adapter.manageCatalogPreparationJob(f.authority, {
+        action: 'start',
+        actorId: 'admin',
+        productId: 'p',
+      });
+      assert.ok(start.ok && 'progress' in start);
+      const dispatch = await f.adapter.manageCatalogPreparationJob(f.authority, {
+        action: 'dispatch',
+        actorId: 'admin',
+        jobId: start.progress.jobId,
+      });
+      assert.ok(dispatch.ok && 'call' in dispatch);
+      assert.deepEqual(await ids('preparing'), ['p']);
+      return runCatalogPreparationWorker(f.authority, dispatch.call);
+    };
+    const bad = await execute();
+    assert.ok(bad.ok && bad.outcome === 'blocked', JSON.stringify(bad));
+    assert.deepEqual(await ids('issues'), ['p']);
+    assert.deepEqual(await ids('normal'), []);
+    await f.adapter.update('products', 'p', { name: 'Repaired clock' });
+    assert.deepEqual(await ids('unchecked'), ['p']);
+    const repaired = await execute();
+    assert.ok(repaired.ok && repaired.outcome === 'ready', JSON.stringify(repaired));
+    assert.deepEqual(await ids('normal'), ['p']);
+    assert.deepEqual(await ids('issues'), []);
+    const saved = await new JsonFileAdapter(f.file).get('products', 'p');
+    assert.equal(saved?.published, false);
+    assert.equal(saved?.productFamily, missingCategory ? undefined : 'misc');
+    assert.equal(saved?.subcategoryIds, undefined);
+    assert.equal(readCurrentCatalogPreparation(saved ?? {})?.state, 'ready');
+  });

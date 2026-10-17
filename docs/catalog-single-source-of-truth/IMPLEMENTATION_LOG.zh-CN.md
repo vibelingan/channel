@@ -1078,3 +1078,12 @@ P4b2精确site构建15页5.76秒通过。反向完成顺序在真实浏览器得
 P4b3精确site构建15页5.63秒通过。任务开始/显式重试在原事务中同步checking与严格有界请求，重复同输入零额外写入；当前检查点保留，取消只清理自身当前状态。受管字段与代次/策略读取校验保持，业务字段/批准/分类/发布不变。手工5操作、来源8操作，两个写点8类失败原子回滚，丢ACK后读回同对，实际JSON重开/取消/重试和公开私有字段检查通过。
 
 10实际源码反例全部检出，298项/次保留正控，恢复SHA核对；随后仅将模块注释归位。最终DB1175/shared305/admin637/local487/public131/sync304/site691共3730项、Node20五文件394项，零失败/跳过/取消；六后端类型、Astro213零错误警告8hint、14完整代码文件显式Biome、SDK/diff通过。早期22个旧状态基线失败和脚本错误保留，未将跳过或旧失败当通过。详见P2g1_REQUEST_PROJECTION.zh-CN.md。精确三函数/站点产物随后记录；继续原生列表准入/计数/分页/全选，不部署或改真实商品，fullDeliveryReady=false。
+
+
+## P2g2：原生准备范围与列表读回
+
+P2g1精确5df99a1三函数build/package、Linux126闭包、同JS Macprofile与Node20 smoke、bundled admin→实际SDK→sync的5URL4+1流程通过；checking请求/重复start零写、warm零IO、阻断修复、模块重启/失ACK恢复和rollout拒绝通过，全未发布，fixture清理。site15页5.29秒。
+
+新增可选normal/issues/preparing/unchecked，复用受管摘要与代次/身份/策略标量expr，分类/子分类/搜索/OR筛选在count/page前同一条件组合；公开行保留，旧数据仍可查，默认目录未切换。新范围补唯一_id尾排序。列表不确定count/坏行红测13正控9失败，修成明确失败而非空成功；三合法空目录/排序正控保留。实际worker有/无分类的checking→ready→编辑失效→blocked→修复ready小流程不改分类或发布。
+
+双安装SDK serializer与官方/安装源码核对；当前云只读原生查询和31条查询内合成数据×4范围=124比较，四反控均通过，零合成数据/商品写入。13源码反例最终均断言检出且恢复哈希匹配；首轮TypeError夹具和探针/类型/格式工具错误留日志，不当通过。最终DB1200/shared305/admin637/local499/public131/sync304/site691共3767、Node20三文件133，零失败/跳过/取消。六后端types、Astro213零错误警告8hint、13完整文件Biome和被忽略adapter新列表主体独立检查、SDK/diff通过。详见P2g2_NATIVE_READINESS_QUERIES.zh-CN.md。精确产物随后；继续UI/计数/选品集成及P5审计后启用，fullDeliveryReady=false。

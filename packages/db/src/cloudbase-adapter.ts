@@ -1,3 +1,4 @@
+import { catalogReadinessSort, catalogReadinessWhere } from './catalog-readiness-query.ts';
 import {
   type CatalogPreparationAuthority,
   type CatalogPreparationJobCommand,
@@ -56,6 +57,7 @@ import {
   runAlibabaProductMutation,
 } from './alibaba-product-identity.ts';
 import type {
+  AdapterListQuery,
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaSyncRunClaimResult,
@@ -769,6 +771,100 @@ export function manageCatalogPreparationJobInCloudBase(
   );
 }
 
+/** Native list implementation shared by the production adapter and contract tests. */
+export async function listDocumentsInCloudBase(
+  db: WxDatabase,
+  query: AdapterListQuery,
+): Promise<ListResult<CollectionDoc>> {
+  const def = getCollection(query.collection);
+  const collection = db.collection(query.collection);
+  const _ = db.command;
+
+  const ands: Record<string, unknown>[] = [];
+
+  if (query.needsClassification) ands.push(unclassifiedProductWhere(_));
+  if (query.hidePreparing) ands.push(preparingProductHiddenWhere(_));
+  if (query.catalogReadiness) {
+    if (query.collection !== 'products')
+      throw Error('Readiness scope is only available for products');
+    ands.push(catalogReadinessWhere(_, query.catalogReadiness));
+  }
+
+  if (query.productFamily) {
+    ands.push(
+      clauseToWhere(db, _, {
+        field: 'productFamily',
+        op: 'matchesProductFamily',
+        value: query.productFamily,
+      }) ?? { _id: _.exists(false) },
+    );
+  }
+
+  if (query.productSubcategories) {
+    ands.push(productSubcategoryWhere(_, query.productSubcategories));
+  }
+
+  // Free-text search across the collection's searchable fields (or the
+  // narrower set the caller asked for, e.g. the public storefront's).
+  const searchFields = listSearchFields(query, def);
+  if (query.search && def && searchFields.length > 0) {
+    const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });
+    ands.push(_.or(searchFields.map((field) => ({ [field]: term }))));
+  }
+
+  // Structured filter (field/operator/value clauses combined with AND/OR).
+  if (query.filter && query.filter.clauses.length > 0) {
+    const clauseWheres = query.filter.clauses
+      .map((c) => clauseToWhere(db, _, c))
+      .filter((w): w is Record<string, unknown> => w !== null);
+    if (clauseWheres.length > 0) {
+      ands.push(query.filter.combinator === 'or' ? _.or(clauseWheres) : _.and(clauseWheres));
+    }
+  }
+
+  const where = ands.length === 0 ? undefined : ands.length === 1 ? ands[0] : _.and(ands);
+
+  const base = where ? collection.where(where) : collection;
+  const countRes = sdkAnswer(await base.count());
+  if (!countRes || !Number.isSafeInteger(countRes.total) || countRes.total < 0)
+    throw Error('Catalog list count was not confirmed');
+  const total = countRes.total;
+
+  // Apply sort (default: newest first), then page.
+  let q = base;
+  const sort = query.catalogReadiness
+    ? catalogReadinessSort(query.sort)
+    : query.sort && query.sort.length > 0
+      ? query.sort
+      : [{ field: 'createdAt', dir: 'desc' as const }];
+  for (const s of sort) {
+    q = q.orderBy(s.field, s.dir);
+  }
+
+  const skip = (query.page - 1) * query.pageSize;
+  const res = sdkAnswer(await q.skip(skip).limit(query.pageSize).get());
+  if (
+    !res ||
+    !Array.isArray(res.data) ||
+    res.data.some(
+      (row) =>
+        !row ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        typeof row._id !== 'string' ||
+        row._id.length === 0,
+    )
+  )
+    throw Error('Catalog list rows were not confirmed');
+
+  return {
+    items: (res.data as Record<string, unknown>[]).map(normalize),
+    total,
+    page: query.page,
+    pageSize: query.pageSize,
+  };
+}
+
 export const cloudBaseAdapter: DbAdapter = {
   async manageCatalogPreparationJob(authority, command, now) {
     return manageCatalogPreparationJobInCloudBase(
@@ -840,73 +936,7 @@ export const cloudBaseAdapter: DbAdapter = {
     };
   },
   async list(query): Promise<ListResult<CollectionDoc>> {
-    const db = database();
-    const def = getCollection(query.collection);
-    const collection = db.collection(query.collection);
-    const _ = db.command;
-
-    const ands: Record<string, unknown>[] = [];
-
-    if (query.needsClassification) ands.push(unclassifiedProductWhere(_));
-    if (query.hidePreparing) ands.push(preparingProductHiddenWhere(_));
-
-    if (query.productFamily) {
-      ands.push(
-        clauseToWhere(db, _, {
-          field: 'productFamily',
-          op: 'matchesProductFamily',
-          value: query.productFamily,
-        }) ?? { _id: _.exists(false) },
-      );
-    }
-
-    if (query.productSubcategories) {
-      ands.push(productSubcategoryWhere(_, query.productSubcategories));
-    }
-
-    // Free-text search across the collection's searchable fields (or the
-    // narrower set the caller asked for, e.g. the public storefront's).
-    const searchFields = listSearchFields(query, def);
-    if (query.search && def && searchFields.length > 0) {
-      const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });
-      ands.push(_.or(searchFields.map((field) => ({ [field]: term }))));
-    }
-
-    // Structured filter (field/operator/value clauses combined with AND/OR).
-    if (query.filter && query.filter.clauses.length > 0) {
-      const clauseWheres = query.filter.clauses
-        .map((c) => clauseToWhere(db, _, c))
-        .filter((w): w is Record<string, unknown> => w !== null);
-      if (clauseWheres.length > 0) {
-        ands.push(query.filter.combinator === 'or' ? _.or(clauseWheres) : _.and(clauseWheres));
-      }
-    }
-
-    const where = ands.length === 0 ? undefined : ands.length === 1 ? ands[0] : _.and(ands);
-
-    const base = where ? collection.where(where) : collection;
-    const countRes = await base.count();
-    const total = countRes.total ?? 0;
-
-    // Apply sort (default: newest first), then page.
-    let q = base;
-    const sort =
-      query.sort && query.sort.length > 0
-        ? query.sort
-        : [{ field: 'createdAt', dir: 'desc' as const }];
-    for (const s of sort) {
-      q = q.orderBy(s.field, s.dir);
-    }
-
-    const skip = (query.page - 1) * query.pageSize;
-    const res = await q.skip(skip).limit(query.pageSize).get();
-
-    return {
-      items: (res.data as Record<string, unknown>[]).map(normalize),
-      total,
-      page: query.page,
-      pageSize: query.pageSize,
-    };
+    return listDocumentsInCloudBase(database(), query);
   },
 
   async get(collection, id): Promise<CollectionDoc | null> {

@@ -56,6 +56,8 @@ export interface AdapterListQuery {
   needsClassification?: boolean;
   /** Leave out new drafts still waiting for their Alibaba photos (PT-G). */
   hidePreparing?: boolean;
+  /** Opt-in server summary scope; default admission requires the historical-data audit. */
+  catalogReadiness?: import('@vibelingan-channel/shared/catalog-preparation').CatalogReadiness;
   productSubcategories?: ProductSubcategoryScope;
   page: number;
   pageSize: number;

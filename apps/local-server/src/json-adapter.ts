@@ -7,11 +7,6 @@
  * serialized and persisted by same-directory atomic rename.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  type CatalogPreparationAuthority,
-  type CatalogPreparationJobCommand,
-  runCatalogPreparationJob,
-} from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
@@ -60,12 +55,21 @@ import {
   approvedVariantTarget,
   canonicalApprovedVariant,
 } from '@vibelingan-channel/db/catalog-detail-storage';
+import {
+  type CatalogPreparationAuthority,
+  type CatalogPreparationJobCommand,
+  runCatalogPreparationJob,
+} from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { assertCatalogProductVersions } from '@vibelingan-channel/db/catalog-product-state';
 import {
   hashQuoteValue,
   planCatalogQuote,
   quoteFingerprint,
 } from '@vibelingan-channel/db/catalog-quote';
+import {
+  catalogReadinessSort,
+  matchesCatalogReadiness,
+} from '@vibelingan-channel/db/catalog-readiness-query';
 import {
   type CatalogRowMutation,
   type CatalogRowMutationResult,
@@ -610,6 +614,12 @@ export class JsonFileAdapter implements DbAdapter {
       let docs = [...this.docs(query.collection)];
 
       if (query.hidePreparing) docs = docs.filter((doc) => doc.alibabaPhotosPending !== true);
+      if (query.catalogReadiness) {
+        if (query.collection !== 'products')
+          throw Error('Readiness scope is only available for products');
+        const scope = query.catalogReadiness;
+        docs = docs.filter((doc) => matchesCatalogReadiness(doc, scope));
+      }
       if (query.needsClassification) {
         docs = docs.filter((doc) =>
           matchesFilter(doc, {
@@ -665,8 +675,8 @@ export class JsonFileAdapter implements DbAdapter {
         docs = docs.filter((doc) => matchesFilter(doc, filter));
       }
 
-      if (query.sort && query.sort.length > 0) {
-        const sort = query.sort;
+      const sort = query.catalogReadiness ? catalogReadinessSort(query.sort) : query.sort;
+      if (sort && sort.length > 0) {
         docs.sort((a, b) => compareBySort(a, b, sort));
       } else {
         docs.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));

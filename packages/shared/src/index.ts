@@ -26,6 +26,8 @@ export interface ListQuery {
   needsClassification?: boolean;
   /** Leave out new drafts still waiting for their Alibaba photos (PT-G). */
   hidePreparing?: boolean;
+  /** Opt-in server summary scope; default admission requires the historical-data audit. */
+  catalogReadiness?: import('./catalog/preparation.ts').CatalogReadiness;
   /** Built by the server from the saved registry; never accepted from a client. */
   productSubcategories?: ProductSubcategoryScope;
   page?: number;
