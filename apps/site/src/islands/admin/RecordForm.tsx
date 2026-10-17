@@ -180,6 +180,15 @@ export function RecordForm({
   readOnlyReason,
 }: RecordFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
+  // Async imports must include selection changes that have not rendered yet.
+  const photoValuesRef = useRef({
+    imageIds: state.imageIds,
+    descriptionImageIds: state.descriptionImageIds,
+  });
+  photoValuesRef.current = {
+    imageIds: state.imageIds,
+    descriptionImageIds: state.descriptionImageIds,
+  };
   const [localError, setLocalError] = useState('');
   const [fieldAnnouncement, setFieldAnnouncement] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
@@ -285,6 +294,7 @@ export function RecordForm({
     configurationPhotos !== undefined;
 
   function setField(name: string, value: string | boolean) {
+    if (name === 'imageIds' || name === 'descriptionImageIds') photoValuesRef.current[name] = value;
     if (collection.name === 'sourceCategoryMappings' && name === 'productFamily') {
       if (value === state.productFamily) return;
       setFieldAnnouncement(
@@ -396,7 +406,7 @@ export function RecordForm({
 
   const fieldIds = (field: 'imageIds' | 'descriptionImageIds') => {
     try {
-      const parsed: unknown = JSON.parse(String(state[field] || '[]'));
+      const parsed: unknown = JSON.parse(String(photoValuesRef.current[field] || '[]'));
       return Array.isArray(parsed)
         ? parsed.filter((value): value is string => typeof value === 'string')
         : [];
@@ -432,8 +442,16 @@ export function RecordForm({
         );
       }
       const ids = fieldIds(field);
-      if (!ids.includes(imageId)) setField(field, JSON.stringify([...ids, imageId]));
-      setSourceImageNotice('Photo added. Save to keep it.');
+      if (ids.includes(imageId)) {
+        setSourceImageNotice('Photo is already selected. Save to keep it.');
+      } else if (ids.length >= limit) {
+        setSourceImageNotice(
+          `Photo copied. All ${limit} places are taken. Remove a photo, then add this one again.`,
+        );
+      } else {
+        setField(field, JSON.stringify([...ids, imageId]));
+        setSourceImageNotice('Photo added. Save to keep it.');
+      }
     } catch (error) {
       setSourceImageNotice(
         error instanceof Error ? error.message : 'The Alibaba photo could not be added.',

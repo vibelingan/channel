@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parseDocument } from 'yaml';
@@ -12,16 +12,35 @@ import {
   APPROVED_VARIANTS,
 } from '../../../../../packages/db/src/catalog-detail-staging.ts';
 import { setAdapter } from '../../../../../packages/db/src/index.ts';
-import { setMediaStorage } from '../../../../../packages/media-storage/src/index.ts';
+import {
+  type UploadCredential,
+  setMediaStorage,
+} from '../../../../../packages/media-storage/src/index.ts';
 import { LocalDiskMediaStorage } from '../../../../../packages/media-storage/src/local-disk.ts';
 import { handleAdminRequest } from '../../../../functions/admin/src/handler.ts';
 import { handleAdminFunctionEvent } from '../../../../functions/admin/src/http-adapter.ts';
 import { fixture as sourceFixture } from '../../../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
+import { handleAlibabaSyncFunctionEvent } from '../../../../functions/alibaba-catalog-sync/src/http-adapter.ts';
+import { importCandidateImage } from '../../../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from '../../../../local-server/src/json-adapter.ts';
 
-for (const overlapping of [false, true]) {
+for (const scenario of [
+  'independent',
+  'overlapping',
+  'gallery',
+  'description',
+  'gallery-capacity',
+  'description-capacity',
+  'gallery-duplicate',
+  'description-duplicate',
+] as const) {
+  const overlapping = scenario === 'overlapping';
+  const mediaRace = scenario.startsWith('gallery') || scenario.startsWith('description');
+  const capacity = scenario.endsWith('-capacity');
+  const duplicate = scenario.endsWith('-duplicate');
+  const purpose = scenario.startsWith('description') ? 'description' : 'gallery';
   test(
-    `broken preview opens the real raw editor; ${overlapping ? 'overlapping' : 'independent'} read retries retain edits and save an unclassified draft`,
+    `broken preview opens real editor; ${scenario} reads or photo completion preserve current edits and draft state`,
     { timeout: 90000 },
     async (t) => {
       const dir = await mkdtemp(join(tmpdir(), 'channel-editor-recovery-'));
@@ -43,7 +62,67 @@ for (const overlapping of [false, true]) {
       await writeFile(file, JSON.stringify(h.adapter.rows));
       const adapter = new JsonFileAdapter(file);
       setAdapter(adapter);
-      setMediaStorage(new LocalDiskMediaStorage(join(dir, 'media')));
+      const mediaDirectory = join(dir, 'media');
+      const uploadPaths = new Map<string, string>();
+      class BrowserStorage extends LocalDiskMediaStorage {
+        override async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
+          const uploadUrl = `https://owned-upload.invalid/${encodeURIComponent(cloudPath)}`;
+          uploadPaths.set(uploadUrl, cloudPath);
+          return {
+            uploadUrl,
+            method: 'PUT',
+            storageFileId: `local-disk:${cloudPath}`,
+            headers: {
+              Signature: 'fixture',
+              'x-cos-security-token': 'fixture',
+              'x-cos-meta-fileid': 'fixture',
+              authorization: 'fixture',
+              key: encodeURIComponent(cloudPath),
+            },
+          };
+        }
+      }
+      setMediaStorage(new BrowserStorage(mediaDirectory));
+      const sourceUrl = 'https://sc04.alicdn.com/editor-new.png';
+      const oldIds: string[] = [];
+      const field = purpose === 'description' ? 'descriptionImageIds' : 'imageIds';
+      const sharp = (await import('sharp')).default;
+      const pixels = await sharp({
+        create: {
+          width: 2,
+          height: 2,
+          channels: 3,
+          background: duplicate ? `#${(3 * 121177).toString(16).padStart(6, '0')}` : '#778899',
+        },
+      })
+        .png()
+        .toBuffer();
+      if (mediaRace) {
+        const count = capacity ? (purpose === 'gallery' ? 8 : 17) : 3;
+        for (let index = 0; index < count; index++) {
+          const color = `#${((index + 1) * 121177).toString(16).padStart(6, '0')}`;
+          const oldPixels = await sharp({
+            create: { width: 2, height: 2, channels: 3, background: color },
+          })
+            .png()
+            .toBuffer();
+          const imported = await importCandidateImage(
+            `https://sc04.alicdn.com/editor-old-${index}.png`,
+            {
+              resolveDns: async () => ['104.16.1.1'],
+              fetchImpl: async () => new Response(new Uint8Array(oldPixels)),
+            },
+          );
+          assert.ok(imported.ok, JSON.stringify(imported));
+          oldIds.push(imported.imageId);
+        }
+        await adapter.update('products', original._id, {
+          [field]: oldIds,
+          [purpose === 'description' ? 'alibabaDescriptionImageUrls' : 'alibabaSourceImageUrls']: [
+            sourceUrl,
+          ],
+        });
+      }
       const before = JSON.parse(await readFile(file, 'utf8'));
       const config = { jwtSecret: 'owned-editor-recovery', enableDetailApproval: true };
       const token = await signSession(config.jwtSecret, {
@@ -135,8 +214,42 @@ for (const overlapping of [false, true]) {
       const successes = new Map<string, number>();
       let releaseSupplier: (() => Promise<void>) | undefined;
       const heldSupplier = () => releaseSupplier;
-      let failSupplier = true;
-      let failPhotos = true;
+      let failSupplier = !mediaRace;
+      let failPhotos = !mediaRace;
+      let releaseImport: (() => Promise<void>) | undefined;
+      let copiedId = '';
+      let importRequests = 0;
+      await page.route('https://sc04.alicdn.com/**', (route) =>
+        route.fulfill({ contentType: 'image/png', body: pixels }),
+      );
+      await page.route('https://owned-upload.invalid/**', async (route) => {
+        assert.equal(route.request().method(), 'PUT');
+        const path = uploadPaths.get(route.request().url());
+        assert.ok(path, 'Only a credential from the real intent handler may accept bytes');
+        const bytes = route.request().postDataBuffer();
+        assert.ok(bytes);
+        await mkdir(dirname(join(mediaDirectory, path)), { recursive: true });
+        await writeFile(join(mediaDirectory, path), bytes);
+        await route.fulfill({ status: 200, body: '' });
+      });
+      await page.route('**/api/alibaba-catalog-sync', async (route) => {
+        importRequests++;
+        const body = route.request().postData();
+        assert.ok(body);
+        assert.equal(JSON.parse(body).action, 'importSourceImage');
+        const imported = await importCandidateImage(sourceUrl, {
+          resolveDns: async () => ['104.16.1.1'],
+          fetchImpl: async () => new Response(new Uint8Array(pixels)),
+        });
+        assert.ok(imported.ok, JSON.stringify(imported));
+        copiedId = imported.imageId;
+        const result = await handleAlibabaSyncFunctionEvent({ httpMethod: 'POST', body }, config);
+        assert.ok('statusCode' in result);
+        assert.equal(result.statusCode, 200, result.body);
+        assert.equal(JSON.parse(result.body).data.imageId, copiedId);
+        releaseImport = () =>
+          route.fulfill({ status: result.statusCode, headers: result.headers, body: result.body });
+      });
       await page.route('**/api/admin', async (route) => {
         const bodyText = route.request().postData();
         assert.ok(bodyText);
@@ -215,6 +328,137 @@ for (const overlapping of [false, true]) {
       await expect(form.locator('#name')).toHaveValue('Website title');
       await expect.poll(() => counts.get('supplier-review') ?? 0).toBeGreaterThan(0);
       await expect.poll(() => counts.get('photo-sources') ?? 0).toBeGreaterThan(0);
+      if (mediaRace) {
+        const manager = form.locator(`[data-image-manager="${purpose}"]`);
+        const ids = () =>
+          manager
+            .locator('[data-image-id]')
+            .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-image-id')));
+        await expect.poll(ids).toEqual(oldIds);
+        await form
+          .getByRole('button', {
+            name: purpose === 'gallery' ? 'Add Alibaba photo 1' : 'Add Alibaba description photo 1',
+            exact: true,
+          })
+          .click();
+        await expect.poll(() => releaseImport !== undefined).toBe(true);
+        await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+        await expect(
+          form.getByRole('button', { name: 'Close editor', exact: true }),
+        ).toBeDisabled();
+        let expected: string[];
+        if (capacity) {
+          await manager.locator('input[type="file"]').setInputFiles({
+            name: 'last-slot.png',
+            mimeType: 'image/png',
+            buffer: pixels,
+          });
+          await expect.poll(async () => (await ids()).length).toBe(oldIds.length + 1);
+          assert.equal(counts.get('createUploadIntent'), 1);
+          assert.equal(counts.get('completeUpload'), 1);
+          const fullSelection = await ids();
+          assert.ok(fullSelection.every((id): id is string => typeof id === 'string'));
+          const release = releaseImport;
+          assert.ok(release);
+          await release();
+          await expect(
+            form.getByText(
+              `Photo copied. All ${oldIds.length + 1} places are taken. Remove a photo, then add this one again.`,
+              { exact: true },
+            ),
+          ).toBeVisible();
+          await expect.poll(ids).toEqual(fullSelection);
+          await manager
+            .locator(`[data-image-id="${oldIds[0]}"]`)
+            .getByRole('button', { name: 'Remove image', exact: true })
+            .click();
+          await form
+            .getByRole('button', {
+              name:
+                purpose === 'gallery' ? 'Add Alibaba photo 1' : 'Add Alibaba description photo 1',
+              exact: true,
+            })
+            .click();
+          expected = [...fullSelection.slice(1), copiedId];
+          await expect(
+            form.getByText('Photo added. Save to keep it.', { exact: true }),
+          ).toBeVisible();
+          await expect.poll(ids).toEqual(expected);
+        } else {
+          await manager
+            .locator(`[data-image-id="${oldIds[0]}"]`)
+            .getByRole('button', { name: 'Remove image', exact: true })
+            .click();
+          await manager
+            .locator(`[data-image-id="${oldIds[2]}"]`)
+            .getByRole('button', { name: 'Move left', exact: true })
+            .click();
+          await form.locator('#name').fill('Edited while source photo imports');
+          await form.locator('#description').fill('Description retained during photo import');
+          await expect.poll(ids).toEqual([oldIds[2], oldIds[1]]);
+          const release = releaseImport;
+          assert.ok(release);
+          await release();
+          await expect(
+            form.getByText(
+              duplicate
+                ? 'Photo is already selected. Save to keep it.'
+                : 'Photo added. Save to keep it.',
+              { exact: true },
+            ),
+          ).toBeVisible();
+          expected = duplicate ? [oldIds[2], oldIds[1]] : [oldIds[2], oldIds[1], copiedId];
+          if (duplicate) assert.equal(copiedId, oldIds[2]);
+          await expect.poll(ids).toEqual(expected);
+        }
+        if (capacity) {
+          await form.locator('#name').fill('Edited while source photo imports');
+          await form.locator('#description').fill('Description retained during photo import');
+        }
+        await expect(form.locator('#name')).toHaveValue('Edited while source photo imports');
+        const beforeSave = JSON.parse(await readFile(file, 'utf8'));
+        assert.deepEqual(
+          beforeSave.products,
+          before.products,
+          'Import and unsaved selection edits do not save product content',
+        );
+        assert.deepEqual(beforeSave[APPROVAL_JOBS] ?? [], []);
+        assert.deepEqual(beforeSave[APPROVED_VARIANTS] ?? [], []);
+        assert.equal(counts.get('update') ?? 0, 0);
+        await form.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
+        const after = JSON.parse(await readFile(file, 'utf8'));
+        const saved = after.products.find((row: { _id: string }) => row._id === original._id);
+        assert.deepEqual(saved[field], expected);
+        const otherField = field === 'imageIds' ? 'descriptionImageIds' : 'imageIds';
+        assert.deepEqual(saved[otherField], before.products[0][otherField]);
+        assert.equal(saved.name, 'Edited while source photo imports');
+        assert.equal(saved.description, 'Description retained during photo import');
+        assert.equal(saved.published, false);
+        assert.equal(saved.productFamily, undefined);
+        assert.deepEqual(
+          saved.catalogDetailPublication,
+          before.products[0].catalogDetailPublication,
+        );
+        assert.deepEqual(
+          saved.catalogDetailApprovalReceipt,
+          before.products[0].catalogDetailApprovalReceipt,
+        );
+        for (const action of ['create', 'prepare', 'begin', 'page', 'finish'])
+          assert.equal(counts.get(action) ?? 0, 0);
+        assert.equal((after.catalogPreparationJobs ?? []).length, 0);
+        assert.equal(new Set(saved[field]).size, saved[field].length);
+        assert.deepEqual(after.catalogSourceObservations, before.catalogSourceObservations);
+        assert.deepEqual(after[APPROVAL_JOBS] ?? [], []);
+        assert.deepEqual(after[APPROVED_VARIANTS] ?? [], []);
+        assert.equal(counts.get('update'), 1);
+        assert.equal(importRequests, 1);
+        assert.deepEqual(errors, []);
+        t.diagnostic(
+          `Actual candidate import/native disk -> signed syncHTTP dedup ACK delayed -> real ImageManager ${capacity ? 'upload/finalize fills capacity, Remove/Add reuses copy' : 'remove/reorder/text'} -> guarded save; ${duplicate ? 'same-content copy is selected once' : 'no lost selection'}, no premature save or publication. Upload credential/PUT target are fixture-owned; no CloudBase transport claim.`,
+        );
+        return;
+      }
       const supplierRetry = form.getByRole('button', {
         name: 'Retry Alibaba changes',
         exact: true,
