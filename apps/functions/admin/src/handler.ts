@@ -150,6 +150,7 @@ import { readCatalogDetailPreview } from './catalog-detail-preview.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
 import { finalizeCatalogImageUpload } from './catalog-image-upload.ts';
 import { manageHumanCatalogPreparation } from './catalog-preparation-api.ts';
+import type { CatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
@@ -174,6 +175,7 @@ export interface AdminConfig {
   enableDetailApproval?: boolean;
   /** Server-only control authority; never returned in capabilities or product data. */
   preparationAuthority?: CatalogPreparationAuthority;
+  preparationInvoke?: CatalogPreparationInvoker;
   /** Absolute URL of the login page, used in emails. */
   loginUrl?: string;
   /** Absolute URL of the password-reset page; the reset token is appended as `?token=`. */
@@ -629,10 +631,18 @@ export async function handleAdminRequest(
           return err('FORBIDDEN', 'Product preparation is not enabled.');
         if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
           return err('VALIDATION_ERROR', 'Preparation request is too large.');
+        if (
+          req.data &&
+          typeof req.data === 'object' &&
+          Reflect.get(req.data, 'action') === 'continue' &&
+          !config.preparationInvoke
+        )
+          return err('FORBIDDEN', 'Product preparation execution is not enabled.');
         const result = await manageHumanCatalogPreparation(
           config.preparationAuthority,
           claims.sub,
           req.data,
+          config.preparationInvoke,
         );
         if (result.ok) return ok(result);
         const messages = {

@@ -712,6 +712,90 @@ function sdkFunctionBody(source, name) {
   const end = source.indexOf(`exports.${name} =`, start);
   return end > start ? source.slice(start, end) : source.slice(start);
 }
+const nodeFunctionBody = sdkFunctionBody(
+  readPackageFile(nodeSdk, 'dist/functions/index.js'),
+  'callFunction',
+);
+requireCheck(
+  typeof storageApp.callFunction === 'function' &&
+    containsAll(nodeTypes, [
+      'ICallFunctionOptions',
+      'ICustomReqOpts',
+      'CallFunctionResult',
+      'retryOptions?: IRetryOptions',
+    ]),
+  'installed node-sdk exposes the typed function invocation and per-request retry options',
+);
+requireCheck(
+  containsAll(nodeFunctionBody, [
+    "action: 'functions.invokeFunction'",
+    'function_name: name',
+    'request_data: transformData',
+    'JSON.stringify(data)',
+    "method: 'post'",
+    'opts,',
+    'JSON.parse(res.data.response_data)',
+    'requestId: res.requestId',
+    'if (res.code)',
+  ]),
+  'installed callFunction body serializes data and returns result or provider error in its actual envelope',
+);
+const preparationInvocationConsumers = execFileSync(
+  'git',
+  ['ls-files', '--cached', '--others', '--exclude-standard', 'apps', 'packages'],
+  { cwd: root, encoding: 'utf8' },
+)
+  .split('\n')
+  .filter(
+    (file) =>
+      /\.(?:ts|tsx|astro|js|mjs)$/.test(file) &&
+      !/\.test\.[cm]?[jt]sx?$/.test(file) &&
+      existsSync(join(root, file)) &&
+      /\bcallFunction\b/.test(readFileSync(join(root, file), 'utf8')),
+  )
+  .sort();
+requireCheck(
+  isDeepStrictEqual(preparationInvocationConsumers, [
+    'apps/functions/admin/src/catalog-preparation-invoker.ts',
+  ]),
+  'server SDK function invocation consumer population is acknowledged',
+  preparationInvocationConsumers.join(', '),
+);
+const invocationLoader = join(
+  dirname(localServerRequire.resolve('tsx/package.json')),
+  'dist/loader.mjs',
+);
+const invocationProbe = execFileSync(
+  process.execPath,
+  [
+    '--import',
+    invocationLoader,
+    '--test',
+    '--test-reporter=tap',
+    'apps/functions/admin/src/catalog-preparation-invoker.test.ts',
+  ],
+  { cwd: root, encoding: 'utf8', timeout: 20000, maxBuffer: 4 * 1024 * 1024 },
+);
+const invocationCounts =
+  /# tests (\d+)[\s\S]*# pass (\d+)[\s\S]*# fail (\d+)[\s\S]*# cancelled (\d+)[\s\S]*# skipped (\d+)/.exec(
+    invocationProbe,
+  );
+requireCheck(
+  invocationCounts !== null &&
+    Number(invocationCounts[1]) >= 12 &&
+    invocationCounts[1] === invocationCounts[2] &&
+    invocationCounts.slice(3).every((value) => value === '0') &&
+    [
+      'installed SDK invocation encodes only the signed server call with fixed target deadline and no retries',
+      'installed SDK may return a provider error object instead of throwing',
+      'installed SDK keeps non-JSON response_data as a string instead of granting a worker result',
+      'installed SDK uses zero retries even when its configured default permits retries',
+      'installed SDK streaming bytes cannot extend the total preparation deadline',
+      'preparation deadline handles a late rejection without repeating the invocation',
+    ].every((name) => invocationProbe.includes(name)),
+  'actual installed function SDK encoding, error envelope, zero retry and streaming total deadline probes pass without skips',
+);
+
 const uploadFileBody = sdkFunctionBody(nodeStorage, 'uploadFile');
 requireCheck(
   uploadFileBody.length > 0 && /method:\s*['"]put['"]/.test(uploadFileBody),

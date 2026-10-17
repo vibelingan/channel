@@ -11,12 +11,15 @@ import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalo
 import { readCatalogPreparationJob } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
+import { runCatalogPreparationCall } from '@vibelingan-channel/fn-alibaba-catalog-sync/catalog-preparation';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
+import { productFamilyForDoc, validateProductPublication } from '@vibelingan-channel/shared';
 import { readCurrentCatalogPreparation } from '@vibelingan-channel/shared/catalog-preparation';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
+import type { CatalogPreparationInvoker } from '../../functions/admin/src/catalog-preparation-invoker.ts';
 import { inspectCatalogPreparationJob } from '../../functions/admin/src/catalog-preparation-job-inspect.ts';
 import {
   runCatalogPreparationMediaWorker,
@@ -26,6 +29,7 @@ import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { handleAdminFunctionEvent } from '../../functions/admin/src/http-adapter.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
+import { createLocalCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 const bytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==',
@@ -2534,4 +2538,305 @@ test('human write confirmation rechecks revoked permission and never returns pri
   assert.equal(JSON.stringify(r).includes(f.jobId), false);
   assert.equal((await f.adapter.get('catalogPreparationJobs', f.jobId))?.state, 'cancelled');
   assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+
+test('authenticated continue brokers real bounded worker steps and reads current readiness', async (t) => {
+  const f = await fixture(t, 5);
+  let calls = 0;
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+    preparationInvoke: async (call: unknown) => {
+      calls++;
+      return { result: await runCatalogPreparationWorker(f.authority, call) };
+    },
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const request = {
+    action: 'catalogPreparation',
+    token,
+    data: { action: 'continue', jobId: f.jobId },
+  };
+  const first = await handleAdminRequest(request, config);
+  assert.ok(first.ok, JSON.stringify(first));
+  const Step = z.object({
+    ok: z.literal(true),
+    status: z.object({
+      nextAction: z.string(),
+      report: z.object({ state: z.string() }).nullable(),
+    }),
+    followUp: z.enum(['continue', 'poll', 'none']),
+  });
+  const partial = Step.parse(first.data);
+  assert.equal(partial.status.report?.state, 'preparing');
+  assert.equal(partial.followUp, 'continue');
+  let ready = false;
+  for (let n = 0; n < 4; n++) {
+    const r = await handleAdminRequest(request, config);
+    assert.ok(r.ok, JSON.stringify(r));
+    const step = Step.parse(r.data);
+    if (step.status.nextAction === 'ready') {
+      assert.equal(step.followUp, 'none');
+      ready = true;
+      break;
+    }
+    assert.equal(step.followUp, 'continue');
+  }
+  assert.equal(ready, true);
+  const before = calls;
+  const same = await handleAdminRequest(request, config);
+  assert.ok(same.ok);
+  assert.equal(Step.parse(same.data).status.nextAction, 'ready');
+  assert.equal(calls, before);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('authenticated continue never invokes a current blocked candidate', async (t) => {
+  const f = await fixture(t, 1);
+  await f.adapter.update('products', 'p', { name: '' });
+  const current = await currentWorkerCall(f);
+  assert.ok((await runCatalogPreparationWorker(f.authority, current.call)).ok);
+  let calls = 0;
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+    preparationInvoke: async () => {
+      calls++;
+      throw Error('must not invoke');
+    },
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const r = await handleAdminRequest(
+    { action: 'catalogPreparation', token, data: { action: 'continue', jobId: current.jobId } },
+    config,
+  );
+  assert.ok(r.ok, JSON.stringify(r));
+  const data = z
+    .object({
+      ok: z.literal(true),
+      followUp: z.literal('none'),
+      status: z.object({ nextAction: z.literal('edit') }),
+    })
+    .parse(r.data);
+  assert.equal(data.status.nextAction, 'edit');
+  assert.equal(calls, 0);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+
+async function humanContinue(
+  f: Pick<Awaited<ReturnType<typeof fixture>>, 'authority' | 'jobId'>,
+  invoke: CatalogPreparationInvoker = createLocalCatalogPreparationInvoker((call) =>
+    runCatalogPreparationCall(f.authority, call),
+  ),
+) {
+  const config = {
+    jwtSecret: 'human-continue-session',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+    preparationInvoke: invoke,
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  return () =>
+    handleAdminRequest(
+      { action: 'catalogPreparation', token, data: { action: 'continue', jobId: f.jobId } },
+      config,
+    );
+}
+const ContinueView = z.object({
+  ok: z.literal(true),
+  followUp: z.enum(['continue', 'poll', 'none']),
+  invocation: z.string(),
+  status: z.object({
+    current: z.boolean(),
+    nextAction: z.string(),
+    progress: z.object({ state: z.string() }),
+    report: z.object({ state: z.string() }).nullable(),
+  }),
+});
+test('authenticated continue cannot turn a forged SDK ready response into actual readiness', async (t) => {
+  const f = await fixture(t, 1);
+  const api = await humanContinue(f, async () => ({
+    result: {
+      ok: true,
+      kind: 'catalog-preparation-step',
+      jobId: f.jobId,
+      productId: 'p',
+      outcome: 'ready',
+      media: { total: 1, checked: 1, verified: 1, invalid: 0, retry: 0 },
+      attestation: { total: 1, checked: 1 },
+      issues: [],
+    },
+  }));
+  const before = readFileSync(f.file, 'utf8');
+  const r = await api();
+  assert.ok(r.ok);
+  const result = ContinueView.parse(r.data);
+  assert.equal(result.invocation, 'unconfirmed');
+  assert.equal(result.followUp, 'poll');
+  assert.equal(result.status.nextAction, 'continue');
+  assert.equal(result.status.report, null);
+  assert.equal(readFileSync(f.file, 'utf8'), before);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('authenticated continue recovers actual completed proof after an invocation ACK is lost', async (t) => {
+  const f = await fixture(t, 1);
+  const api = await humanContinue(f, async (call) => {
+    const r = await runCatalogPreparationCall(f.authority, call);
+    assert.ok(r.ok && r.outcome === 'ready');
+    throw Object.assign(Error('owned ACK timeout'), { code: 'ETIMEDOUT' });
+  });
+  const r = await api();
+  assert.ok(r.ok);
+  const result = ContinueView.parse(r.data);
+  assert.equal(result.invocation, 'recovered');
+  assert.equal(result.status.report?.state, 'ready');
+  assert.equal(result.followUp, 'none');
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('authenticated continue times out its local wait then the same durable worker remains resumable', async (t) => {
+  const f = await fixture(t, 5);
+  let work: ReturnType<typeof runCatalogPreparationCall> | undefined;
+  const api = await humanContinue(
+    f,
+    createLocalCatalogPreparationInvoker((call) => {
+      work = runCatalogPreparationCall(f.authority, call);
+      return work;
+    }, 1),
+  );
+  try {
+    const r = await api();
+    assert.ok(r.ok);
+    const result = ContinueView.parse(r.data);
+    assert.equal(result.invocation, 'unconfirmed');
+    assert.equal(result.followUp, 'poll');
+    assert.ok(work);
+    const completed = await work;
+    assert.ok(completed.ok && completed.outcome === 'partial');
+    const resume = await humanContinue(f);
+    let ready = false;
+    for (let step = 0; step < 4; step++) {
+      const next = await resume();
+      assert.ok(next.ok, JSON.stringify(next));
+      const status = ContinueView.parse(next.data);
+      if (status.status.nextAction === 'ready') {
+        ready = true;
+        break;
+      }
+      assert.equal(status.followUp, 'continue');
+    }
+    assert.equal(ready, true);
+    assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+  } finally {
+    if (work) await Promise.allSettled([work]);
+  }
+});
+for (const change of ['edit', 'cancel', 'revoke'] as const)
+  test(`authenticated continue reads a real concurrent ${change} after execution`, async (t) => {
+    const f = await fixture(t, 5);
+    const api = await humanContinue(f, async (call) => {
+      const step = await runCatalogPreparationCall(f.authority, call);
+      assert.ok(step.ok && step.outcome === 'partial');
+      if (change === 'edit') await f.adapter.update('products', 'p', { name: 'Concurrent input' });
+      if (change === 'revoke') await f.adapter.update('users', 'admin', { status: 'suspended' });
+      if (change === 'cancel') {
+        const job = readCatalogPreparationJob(
+          await f.adapter.get('catalogPreparationJobs', f.jobId),
+          f.jobId,
+          Date.now(),
+        );
+        assert.ok(job);
+        assert.ok(
+          (
+            await f.adapter.manageCatalogPreparationJob(f.authority, {
+              action: 'cancel',
+              actorId: 'admin',
+              jobId: f.jobId,
+              expectedLeaseVersion: job.leaseVersion,
+            })
+          ).ok,
+        );
+      }
+      return { result: step };
+    });
+    const r = await api();
+    if (change === 'revoke') {
+      assert.ok(!r.ok);
+      assert.equal(r.error.code, 'FORBIDDEN');
+    } else {
+      assert.ok(r.ok);
+      const result = ContinueView.parse(r.data);
+      assert.equal(result.followUp, 'none');
+      assert.equal(result.status.nextAction, change === 'edit' ? 'restart' : 'retry');
+      assert.equal(result.status.report, null);
+    }
+    assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+  });
+test('authenticated continue preserves an unclassified product while current publication validation still rejects it', async (t) => {
+  const f = await fixture(t, 1, true);
+  const api = await humanContinue(f);
+  const r = await api();
+  assert.ok(r.ok, JSON.stringify(r));
+  const result = ContinueView.parse(r.data);
+  assert.equal(result.status.nextAction, 'ready');
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(Object.hasOwn(p, 'productFamily'), false);
+  assert.equal(p.published, false);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'ready');
+  assert.equal(productFamilyForDoc(p), null);
+  assert.ok(
+    validateProductPublication({ ...p, published: true }).some(
+      (issue) => issue.field === 'productFamily',
+    ),
+  );
+});
+test('authenticated source503 remains manual, then continuation of the same job reaches ready', async (t) => {
+  const f = await unboundSourceWorkspace(t, 1);
+  let failing = true;
+  let fetches = 0;
+  const api = await humanContinue(f, async (call) => ({
+    result: await runCatalogPreparationWorker(f.authority, call, {
+      importSourceImage: (url, persistImport) =>
+        importCandidateImage(url, {
+          persistImport,
+          resolveDns: async () => ['104.16.1.1'],
+          fetchImpl: async () => {
+            fetches++;
+            return failing
+              ? new Response('owned temporary', { status: 503 })
+              : new Response(new Uint8Array(bytes));
+          },
+        }),
+    }),
+  }));
+  const first = await api();
+  assert.ok(first.ok, JSON.stringify(first));
+  const result = ContinueView.parse(first.data);
+  assert.equal(result.invocation, 'acknowledged');
+  assert.equal(result.followUp, 'none');
+  assert.equal(result.status.nextAction, 'continue');
+  assert.equal(result.status.report?.state, 'preparing');
+  const before = fetches;
+  failing = false;
+  const second = await api();
+  assert.ok(second.ok, JSON.stringify(second));
+  assert.equal(ContinueView.parse(second.data).status.nextAction, 'ready');
+  assert.equal(fetches, before + 1);
+  assert.equal((await f.adapter.get('products', f.productId))?.published, false);
 });

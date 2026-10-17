@@ -6,6 +6,11 @@ import type {
   CatalogPreparationJobStatus,
 } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { z } from 'zod';
+import {
+  type CatalogPreparationContinuationResult,
+  continueHumanCatalogPreparation,
+} from './catalog-preparation-continue.ts';
+import type { CatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 const id = z
   .string()
   .min(1)
@@ -16,10 +21,12 @@ const expectedLeaseVersion = z.number().int().nonnegative().safe();
 const humanCommand = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start'), productId: id }).strict(),
   z.object({ action: z.literal('status'), jobId }).strict(),
+  z.object({ action: z.literal('continue'), jobId }).strict(),
   z.object({ action: z.literal('cancel'), jobId, expectedLeaseVersion }).strict(),
   z.object({ action: z.literal('retry'), jobId, expectedLeaseVersion }).strict(),
 ]);
 type HumanResult =
+  | CatalogPreparationContinuationResult
   | Extract<CatalogPreparationJobResult, { ok: false }>
   | { ok: true; progress: CatalogPreparationJobProgress }
   | { ok: true; status: CatalogPreparationJobStatus; recovery?: 'status' };
@@ -28,9 +35,14 @@ export async function manageHumanCatalogPreparation(
   authority: CatalogPreparationAuthority,
   actorId: string,
   input: unknown,
+  invoke?: CatalogPreparationInvoker,
 ): Promise<HumanResult> {
   const parsed = humanCommand.safeParse(input);
   if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
+  if (parsed.data.action === 'continue')
+    return invoke
+      ? continueHumanCatalogPreparation(authority, actorId, parsed.data.jobId, invoke)
+      : { ok: false, code: 'FORBIDDEN' };
   const command = { ...parsed.data, actorId };
   let result: CatalogPreparationJobResult;
   try {

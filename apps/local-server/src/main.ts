@@ -12,6 +12,7 @@ import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
+import { runCatalogPreparationCall } from '@vibelingan-channel/fn-alibaba-catalog-sync/catalog-preparation';
 import {
   type AlibabaSyncFunctionConfig,
   handleAlibabaSyncRequest,
@@ -25,6 +26,7 @@ import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-d
 import { optionalEnv } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import express from 'express';
+import { createLocalCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import { registerCatalogRoutes } from './catalog-routes.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
@@ -45,10 +47,14 @@ const config: AdminConfig = {
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
 };
 
-config.preparationAuthority = createCatalogPreparationAuthority({
+const preparationAuthority = createCatalogPreparationAuthority({
   secret: config.jwtSecret,
   environmentId: TCB_ENV || 'local-catalog-preparation',
 });
+config.preparationAuthority = preparationAuthority;
+config.preparationInvoke = createLocalCatalogPreparationInvoker((call) =>
+  runCatalogPreparationCall(preparationAuthority, call),
+);
 
 const adapter = new JsonFileAdapter(DB_FILE, config.enableInquiries === true);
 setAdapter(adapter);

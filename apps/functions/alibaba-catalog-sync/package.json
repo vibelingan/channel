@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "exports": {
     ".": "./src/index.ts",
-    "./handler": "./src/handler.ts"
+    "./handler": "./src/handler.ts",
+    "./catalog-preparation": "./src/catalog-preparation.ts"
   },
   "scripts": {
     "build": "tsup",

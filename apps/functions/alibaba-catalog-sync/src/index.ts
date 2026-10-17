@@ -9,13 +9,12 @@
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
-import { runCatalogPreparationWorker } from '@vibelingan-channel/fn-admin/catalog-preparation-worker';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import { runCatalogPreparationCall } from './catalog-preparation.ts';
 import type { AlibabaSyncFunctionConfig } from './config.ts';
 import { handleAlibabaSyncFunctionEvent, parseAllowedOrigins } from './http-adapter.ts';
-import { importCandidateImage } from './media-import.ts';
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
@@ -69,10 +68,7 @@ export const main = async (event: unknown): Promise<unknown> => {
     event !== null &&
     Reflect.get(event, 'kind') === 'catalog-preparation-call-v1'
   )
-    return runCatalogPreparationWorker(preparationAuthority, event, {
-      importSourceImage: (sourceUrl, persistImport) =>
-        importCandidateImage(sourceUrl, { persistImport }),
-    });
+    return runCatalogPreparationCall(preparationAuthority, event);
   if (isTimerEvent(event)) {
     // Timer tick (production only — the test env never receives a timer,
     // MIU 14): full 720s budget under the fenced lease.

@@ -10,6 +10,7 @@ import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-ch
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import { createCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import { handleAdminRequest } from './handler.ts';
 import {
   type AdminHttpConfig,
@@ -27,6 +28,7 @@ const config: AdminHttpConfig = {
     secret: requireEnv('JWT_SECRET'),
     environmentId: requireEnv('TCB_ENV'),
   }),
+  preparationInvoke: createCatalogPreparationInvoker(cloudStorageSdk()),
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   enableDetailApproval: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   ...(optionalEnv('LOGIN_URL') ? { loginUrl: optionalEnv('LOGIN_URL') } : {}),

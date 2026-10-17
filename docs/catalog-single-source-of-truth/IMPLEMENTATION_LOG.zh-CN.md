@@ -1032,3 +1032,9 @@ P2f10c 精确三函数build/package、Linux126闭包、同JS Macprofile、Node20
 新catalogPreparation API绑定重新验证的会话actor，只开放四人工动作；生产/本地配置authority，role/rollout/大小/strict输入和私有投影均校验。业务复核补有界ACK确认：start/status确认一次；cancel/retry只读恢复带recovery=status，不假报动作完成。HTTP+真实JSON/像素流程、丢ACK、未到达、两次不可用与中途撤权均通过。十源码反例检出，22–31正控/32选定；源码字节恢复后DB1156/admin574/alibaba304/local476=2510、Node20六文件429、三个直接消费者types、六完整文件显式Biome、SDK/diff通过。夹具Role/可选字段和import排序问题均已修正，失败记录保留。
 
 管理auth只读刷新READY，原环境三Event Nodejs20.19函数已确认；admin20s/256MiB与sync900s/512MiB为当前观察，未改云端。官方/安装SDK callFunction合约已查；下一单元仍须解决worker调用预算/未知结果，不直接等待20sworker嵌在20sadmin。精确产物HTTP与review随后记录，完整准备执行/UI、其余发布与真实验收继续，fullDeliveryReady=false。
+
+## P2f10e：有界继续准备
+
+P2f10d精确三函数build/package、Linux126原生闭包、同JS Macprofile和Node20 smoke通过。实际bundled admin HTTP确认启动丢ACK后同任务、取消/重试/只读状态、rollout禁用无写；bundled worker的5URL4+1、warm零IO、阻断编辑修复和模块重启重放通过，商品全未发布，临时目录清理。admin SHA72b55dc9cda09af72758c0d910d46f610802fa735ed9c8681a681174dd1f70bd，sync SHA d35505d6911dfd2a48e49e1d5f40c41c5691d9a24c32c79075e98631f78a74f6。
+
+新continue人工API先当前状态再申请签名，固定目标/$LATEST、8秒总调用期限、零SDK重试，并重新读取完成证明。只有匹配的partial/currentqueued/preparing才自动继续；来源503保留手动入口，未知结果查询，丢ACK可恢复实际ready，中途撤权拒绝。官方SDK与安装源码验证发现socket timeout可被持续收包延长，补共享总时长保护及真实loopback反例；未改云端配置。18源码反例检出并恢复字节，DB1156/admin637/alibaba304/local486=2583、Node20七文件279、三消费者types、14完整文件Biome、SDK新增块/语法、SDK/diff通过。最初分类warning测试预期与批准方案不符已改正；Node20首次错误文件名命令保留，未算通过。详见P2f10e_HUMAN_CONTINUE及SDK探针，精确产物随后审查记录，fullDeliveryReady=false。

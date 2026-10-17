@@ -257,3 +257,47 @@ test('human preparation API exposes the safe readonly status response', async ()
   assert.ok(r.ok);
   assert.deepEqual(r.data, { ok: true, status });
 });
+
+test('authenticated continue requires a server invoker and never issues a browser admission', async () => {
+  const f = await apiFixture();
+  const r = await f.call({ action: 'continue', jobId: f.progress.jobId });
+  assert.ok(!r.ok);
+  assert.equal(r.error.code, 'FORBIDDEN');
+  assert.match(r.error.message, /execution.*not enabled/);
+  assert.equal(f.commands.length, 0);
+});
+
+test('authenticated continue rejects browser invocation controls before reading the task', async () => {
+  const f = await apiFixture();
+  let invokes = 0;
+  const config = {
+    ...f.config,
+    preparationInvoke: async () => {
+      invokes++;
+      return {};
+    },
+  };
+  for (const extra of [
+    { actorId: 'other' },
+    { call: {} },
+    { nonce: 'b'.repeat(64) },
+    { lease: {} },
+    { functionName: 'admin' },
+    { qualifier: 'other' },
+    { timeoutMs: 100000 },
+    { budgetMs: 100000 },
+  ]) {
+    const r = await handleAdminRequest(
+      {
+        action: 'catalogPreparation',
+        token: f.token,
+        data: { action: 'continue', jobId: f.progress.jobId, ...extra },
+      },
+      config,
+    );
+    assert.ok(!r.ok);
+    assert.equal(r.error.code, 'VALIDATION_ERROR');
+  }
+  assert.equal(f.commands.length, 0);
+  assert.equal(invokes, 0);
+});
