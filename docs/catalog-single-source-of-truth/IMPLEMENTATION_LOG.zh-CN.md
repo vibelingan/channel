@@ -1044,3 +1044,9 @@ P2f10d精确三函数build/package、Linux126原生闭包、同JS Macprofile和N
 P2f10e精确三函数build/package、Linux126闭包、同JS Macprofile和Node20产物/native smoke通过。实际bundled admin→安装SDK编解码/传输→同bundled sync按5URL4+1执行，两次调用ready；已ready继续零新增调用/零写盘，warm零IO、阻断编辑修复、模块重启只读重放仍通过，全未发布且临时目录清理。admin SHA4397de103f9e7dc0f6cf79a343735e41a542ebb8c929e2ddf1a16c712b09bd33，sync SHA971818adf33b42a5067c0191b1563d624d166c1e4fe96b0345d9ff3409ccf739。
 
 新增前端严格五人工动作传输及单商品有界控制，冻结选品/任务、零未知写重发、实际状态恢复、角色失效停止、来源失败不循环，64请求/120秒及4次退避轮询可暂停继续。33行为+2真实HTTP/JSON/像素来源4+1组合在Node24/20通过，最终响应丢失只读恢复；11源码反例检出且原字节恢复。site662含显式真实无头图库、local486，共1148零失败/跳过/取消；Astro/types/四文件Biome/SDK/diff通过。TS异步收窄、Node25存储夹具、错误HTTP接线、跨包浏览器类型及复制observation夹具均已修正，初次失败保留。尚未接UI/列表/发布，精确站点构建审查随后记录，fullDeliveryReady=false。
+
+## P2f11b：现有预览准备与恢复控件
+
+P2f11a精确SHA站点构建15页通过；原单元仅提供前端控制器，未冒称已有界面。当前AdminDetailPreview三分支接控件，首次只读；actor/product隔离定位、同步动作互斥、当前controller/挂载/actor防旧响应、只在认证变化重置、手工响应product/job双绑定。明确查询/继续/停止等待/取消/重试，未知动作只读恢复，错指任务可直接检查当前商品；不改分类、批准或发布，raw Edit回调始终可用。
+
+三真实浏览器红测检出并修复重新登录仍禁用、手工状态错商品与无关storage打断。双商品恢复用例补齐后，最终14源码反例全检出（9–12正控/13），字节恢复；首组未检出的反例及脚本定位错误日志完整保留。site675零失败/跳过/取消，含两个实际无头浏览器流；Node20五文件48、Astro212零错误/警告8既有hint、七文件Biome/SDK/diff通过。最终仅用户照片提示替换binding术语，13项再通过且formatter对比确认无逻辑变化。Markdown/CJS隔离宿主、SSR JSX配置、清理顺序与测试类型夹具均已修正，失败过程记录见P2f11b_RECOVERY_CONTROLS。精确构建审查随后追加；实际RecordForm子面板、原生列表/意图/大媒体/现场20件仍继续，fullDeliveryReady=false。

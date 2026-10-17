@@ -6,6 +6,7 @@ import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../../catalog/presentation/CatalogVariantGallery.tsx';
 import { getSharedDetailContent } from '../../i18n/catalog.ts';
 import { CatalogIssuesPanel } from './CatalogIssuesPanel.tsx';
+import { CatalogPreparationControls } from './CatalogPreparationControls.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { type DetailPreview, readDetailPreview } from './catalog-detail-approval-api.ts';
 import { catalogPreviewFailure } from './catalog-preview-failure.ts';
@@ -67,20 +68,37 @@ export default function AdminDetailPreview({
       });
     return () => controller.abort();
   }, [productId, requestPage]);
+  const controls = (
+    <CatalogPreparationControls
+      key={productId}
+      productId={productId}
+      onEdit={onEdit}
+      onReady={() => {
+        digest.current = undefined;
+        setRequestPage({ page: 1 });
+      }}
+    />
+  );
   if (error)
     return (
-      <CatalogIssuesPanel
-        message={error.message}
-        issues={error.issues}
-        onRetry={() => setRequestPage({ page: 1 })}
-        onEdit={onEdit}
-      />
+      <>
+        {controls}
+        <CatalogIssuesPanel
+          message={error.message}
+          issues={error.issues}
+          onRetry={() => setRequestPage({ page: 1 })}
+          onEdit={onEdit}
+        />
+      </>
     );
   if (busy || !review)
     return (
-      <output className="block p-8 text-sm text-slate-600">
-        Loading product images, configurations and prices…
-      </output>
+      <>
+        {controls}
+        <output className="block p-8 text-sm text-slate-600">
+          Loading product images, configurations and prices…
+        </output>
+      </>
     );
   const pages: DetailPages = {
     mode: review.detail.variants.hasMore || page > 1 ? 'paged' : 'complete',
@@ -101,6 +119,7 @@ export default function AdminDetailPreview({
     : descriptionImages;
   return (
     <>
+      {controls}
       <p className="mx-6 mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
         Preview of saved changes using the website layout. Viewing does not publish this product or
         submit an inquiry.
