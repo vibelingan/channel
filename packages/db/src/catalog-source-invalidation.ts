@@ -69,5 +69,5 @@ export async function planSourceInvalidation(
     // same-value product write serializes that change without advancing content.
     if (!observed || observed.sourceContentHash !== undefined) return product;
   }
-  return advanceCatalogProduct(product, product, now, true);
+  return advanceCatalogProduct(product, product, now, { forceContent: true });
 }

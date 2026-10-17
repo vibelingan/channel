@@ -126,7 +126,10 @@ export async function runCatalogRowMutation(
       next = { ...next, ...categorySyncBaseline(before, patch) };
   }
   const parents: CollectionDoc[] = [];
-  if (command.collection === 'products' && next) next = advanceCatalogProduct(before, next, now);
+  if (command.collection === 'products' && next)
+    next = advanceCatalogProduct(before, next, now, {
+      ...('data' in command ? { lifecyclePatch: command.data } : {}),
+    });
   if (command.collection === 'productVariants') {
     if (next) next = { ...next, updatedAt: monotonicProductTime(before, now) };
     if (variantInput(before) !== variantInput(next)) {
@@ -140,7 +143,7 @@ export async function runCatalogRowMutation(
         if (!parent) continue;
         if (parent._id !== parentId)
           throw new CatalogProductStateError('Parent product identity changed');
-        parents.push(advanceCatalogProduct(parent, parent, now, true));
+        parents.push(advanceCatalogProduct(parent, parent, now, { forceContent: true }));
       }
     }
   }

@@ -1127,3 +1127,14 @@ P2g3精确364e3bb site15页5.83秒、三函数build/package、Linux126闭包、�
 真实浏览器完成Preview→分类保存→Edit与核心不足→Edit修复→原选品恢复操作；1440/390和截图验证，无force点击。25源码反例全检出，8文件finally还原/哈希一致，修改过的旧完整读取/协议断言经原故障再证。常驻Node20原生admin产物烟测保留真实bundle/SDK仅替换HTTP，旧2594a53在预算断言失败，新精确产物在审查后构建；原CI/部署命令无开关包含，删除接线真实驱动失败。
 
 最终相关全量4359（309/1215/637/510/131/304/766+487脚本）0fail/skip/cancel；反例后65后台/72客户端通过。Node20 26+45通过，驱动4目标通过/19未选。全部相关类型、Astro216零错误警告8既有hint、16完整文件Biome+忽略原生函数源段比较、SDK/diff通过。路径0匹配、前置tsc/SDK未运行、夹具及格式首轮错误留档，不当通过。20文件与消费者复核，写作将性能结论限定HTTP预算；详见P2g4b2_LIST_BYTE_BUDGET.zh-CN.md。无test部署/真实写入/新分支/worktree/PR/push；P3及整体交付继续，fullDeliveryReady=false。
+
+
+## P3d1：同状态下架也取消较早审批
+
+P2g4b2精确97cb542已完成20文件inline审查、三函数/15页5.98秒构建、Linux126闭包/同JS Darwin Node20默认smoke（含真实原生列表SDK）、三个health SHA和检查修复/双协议只读列表组合，fixture清理；无云部署。
+
+11项先红（98正控）证明draft再次Disable没有生命周期屏障，旧begin/page/finish仍成功。写入层以显式patch识别published:false或archived:true，即使同状态也只推进一次生命周期；保留内容检查和批准历史，旧unfinished审批经原指纹拒绝。forceContent迁为明确options，全部调用/来源及SKU父级失效复验；不增加事务IO或存储。
+
+真实admin/JSON重启、原生事务失败回滚、两并发顺序与1440/390实际Batch Disable通过；初次夹具API/只读字段错误、手机summary重复定位、类型声明修复均留档。浏览器也确认批量初次写缺选品CAS，继续P3d2，未冒称已修。8新+4旧源码反例全检出，finally恢复/核SHA；529恢复正控及Node20各通过。相关全量3896（309/1231/637/516/131/304/768）0fail/skip/cancel；全部相关types、Astro216零error/warning8hint、9完整文件Biome、SDK/diff通过，未把未重跑487脚本当本单元结果。
+
+旧97cb542真实打包native handler/SDK经受控HTTP事务实际在“Disable缺版本屏障”业务断言失败；首轮merge模拟错误保留，不当业务红。精确新提交产物在审查后验证。12路径与消费者逐段复核，措辞限定旧unfinished审批，不把历史批准称当前live。详见P3d1_WITHDRAWAL_BARRIER.zh-CN.md。稳定操作、所有重试/CAS及其余P3–P7继续，无test部署/真实写入/新分支worktree/agent/PR/push，fullDeliveryReady=false。

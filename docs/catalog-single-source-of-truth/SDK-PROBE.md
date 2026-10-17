@@ -641,3 +641,10 @@ Official CloudBase /api-reference/server/node-sdk/database/fetch freshly read vi
 官方[Locator.boundingBox](https://playwright.dev/docs/api/class-locator#locator-bounding-box)、[scrollIntoViewIfNeeded](https://playwright.dev/docs/api/class-locator#locator-scroll-into-view-if-needed)及[esbuild API](https://esbuild.github.io/api/#build)本轮已读。当前Playwright文档有1.62/1.63新增参数，应用不调用这些新参数；以安装1.61.1声明和实际运行确认。Context7不可用。初次esbuild从根或直接函数node_modules查找失败，改按真实test的admin package→realpath(tsup)解析，观察0.27.7，未把另一安装0.28.1冒当实际实例。
 
 无CloudBase方法/类型shim/版本变更，原固定Query.field/get和事务合约门槛重跑通过。新纯CJS烟测通过实际编译原生adapter→实际SDK→受控HTTP，保留EJSON投影与响应解析，拒绝一切写入和真实socket；自建HS256只用于独立假环境用户fixture，按packages/auth/src/jwt.ts既有issuer/audience生成，不改变应用认证。Node20新烟测旧产物在有效业务断言失败，新精确提交证据在审查侧车；不可把受控transport称为云部署验收。
+
+
+## P3d1：下架屏障无新增第三方表面
+
+生产变更只调整内部advanceCatalogProduct的options及两类写入层原patch传入；无SDK方法、依赖、shim、配置或资源变化。9代码/测试路径交叉检查，沿用既有NodeSdkDatabase.runTransaction及产品update/get、JSON锁、Playwright定位/点击/expect.poll，既有声明和probe仍覆盖，standingSDK重跑通过。Context7不可用。
+
+额外离线产物探针按安装@cloudbase/database1.4.3实际入口index.js→transaction/index.js（不是邻近旧transaction.js）读init/commit/abort，实际document.update sender的merge:true/upsert:false/$set EJSON和当前saveCatalogProductInCloudBase源码对应。首轮把这个入口误按set模拟，夹具失败留档；修正假后端后旧真实bundle通过认证/事务/更新，在缺少生命周期屏障的有效断言失败。该探针不替换源adapter，全部凭据是假值/网络禁止；新SHA编译产物证据随后补review侧车，不当云端并发验收。

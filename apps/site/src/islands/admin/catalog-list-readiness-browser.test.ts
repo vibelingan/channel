@@ -1205,3 +1205,45 @@ for (const width of [1440, 390])
     );
     assert.deepEqual(f.errors, []);
   });
+
+for (const width of [1440, 390])
+  test(
+    `selected draft Disable creates a withdrawal barrier at ${width}px`,
+    { timeout: 90000 },
+    async (t) => {
+      const f = await fixture(t, width);
+      const before = JSON.parse(await readFile(f.file, 'utf8'));
+      const original = await f.adapter.get('products', 'ready');
+      assert.ok(original);
+      await productRow(f, 'Clock ready')
+        .getByRole('checkbox', { name: 'Select row', exact: true })
+        .check();
+      if (width === 390)
+        await f.page
+          .locator('summary')
+          .filter({ hasText: /^Actions$/ })
+          .click();
+      await f.page.getByRole('button', { name: 'Disable', exact: true }).click();
+      await f.expect
+        .poll(async () => (await f.adapter.get('products', 'ready'))?.catalogLifecycleVersion)
+        .toBe(1);
+      const saved = await f.adapter.get('products', 'ready');
+      assert.ok(saved);
+      assert.equal(saved.published, false);
+      assert.equal(saved.catalogContentGeneration, original.catalogContentGeneration);
+      assert.deepEqual(saved.catalogPreparationReport, original.catalogPreparationReport);
+      assert.deepEqual(saved.subcategoryIds, original.subcategoryIds);
+      assert.notEqual(saved.updatedAt, original.updatedAt);
+      const after = JSON.parse(await readFile(f.file, 'utf8'));
+      assert.deepEqual(
+        after.products.filter((row: { _id: string }) => row._id !== 'ready'),
+        before.products.filter((row: { _id: string }) => row._id !== 'ready'),
+      );
+      const writes = f.requests.filter((r) => r.action === 'update');
+      assert.equal(writes.length, 1);
+      assert.equal(writes[0]?.data?.id, 'ready');
+      assert.deepEqual(writes[0]?.data?.values, { published: false });
+      // Captured batch CAS is the next P3 unit; this test covers the write-layer barrier.
+      assert.deepEqual(f.errors, []);
+    },
+  );

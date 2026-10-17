@@ -6,6 +6,7 @@ import {
   CatalogDetailVariantSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
 import { CatalogValidationReportSchema } from '@vibelingan-channel/shared/catalog-issues';
+import { planCatalogProductSave } from './adapter.ts';
 import { catalogApprovalDigest, prepareCatalogApprovalPlan } from './catalog-detail-commit.ts';
 import {
   beginStagedApproval,
@@ -16,6 +17,7 @@ import {
   stageApprovalPage,
 } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import { runCatalogRowMutation } from './catalog-row-mutation.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 
 function fixture(
@@ -1430,4 +1432,96 @@ for (const provider of [['cloudbase-storage'], ['local-disk'], [['local-disk']],
       code: 'MEDIA_NOT_READY',
     });
     assert.deepEqual(h.store(), before);
+  });
+
+for (const writer of ['save-plan', 'ordinary-row-update'] as const)
+  for (const step of ['begin', 'page', 'finish'] as const)
+    test(`same-state Disable invalidates older approval at ${step} through ${writer}`, async () => {
+      const h = fixture(1);
+      if (step !== 'begin')
+        assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok);
+      if (step === 'finish')
+        assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', h.prepared._id, 0))).ok);
+      const old = structuredClone(h.row('products', 'p'));
+      const imagesBefore = structuredClone(h.store().images);
+      await h.run(async (tx) => {
+        if (writer === 'save-plan') {
+          const saved = planCatalogProductSave(
+            await tx.get('products', 'p'),
+            { mode: 'update', productId: 'p', data: { published: false } },
+            '2026-10-18T00:00:00.000Z',
+          );
+          assert.equal(saved.result, 'ready');
+          if (saved.result === 'ready') await tx.set('products', saved.doc);
+        } else {
+          await runCatalogRowMutation(
+            {
+              ...tx,
+              remove: async () => {
+                throw Error('No removal expected');
+              },
+            },
+            { action: 'update', collection: 'products', id: 'p', data: { published: false } },
+            '2026-10-18T00:00:00.000Z',
+          );
+        }
+      });
+      const after = h.row('products', 'p');
+      assert.equal(after.published, false);
+      assert.deepEqual(after.catalogDetailPublication, old.catalogDetailPublication);
+      const beforeAttempt = structuredClone(h.store());
+      const refused = await h.run((tx) =>
+        step === 'begin'
+          ? beginStagedApproval(tx, 'admin', h.prepared)
+          : step === 'page'
+            ? stageApprovalPage(tx, 'admin', h.prepared._id, 0)
+            : finishStagedApproval(tx, 'admin', h.prepared._id),
+      );
+      assert.deepEqual(refused, { ok: false, code: 'CONFLICT' });
+      assert.deepEqual(h.store(), beforeAttempt);
+      assert.deepEqual(h.store().images, imagesBefore);
+      assert.equal(after.catalogLifecycleVersion, 1);
+      assert.equal(after.detailSourceReady, old.detailSourceReady);
+    });
+
+for (const first of ['withdraw', 'finish'] as const)
+  test(`concurrent approval and same-state withdrawal serialize safely: ${first} starts first`, async () => {
+    const h = fixture(1);
+    assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', h.prepared._id, 0))).ok);
+    const withdraw = () =>
+      h.run(async (tx) => {
+        const saved = planCatalogProductSave(
+          await tx.get('products', 'p'),
+          { mode: 'update', productId: 'p', data: { published: false } },
+          '2026-10-18T00:00:00.000Z',
+        );
+        assert.equal(saved.result, 'ready');
+        if (saved.result === 'ready') await tx.set('products', saved.doc);
+        return saved;
+      });
+    const finish = () => h.run((tx) => finishStagedApproval(tx, 'admin', h.prepared._id));
+    const work = first === 'withdraw' ? [withdraw(), finish()] : [finish(), withdraw()];
+    const settled = await Promise.allSettled(work);
+    assert.ok(settled.every((result) => result.status === 'fulfilled'));
+    const finished = settled[first === 'withdraw' ? 1 : 0];
+    assert.ok(finished?.status === 'fulfilled');
+    assert.deepEqual(
+      finished.value,
+      first === 'withdraw'
+        ? { ok: false, code: 'CONFLICT' }
+        : {
+            ok: true,
+            jobId: h.prepared._id,
+            revision: h.prepared.revision,
+            nextPage: 1,
+            pages: 1,
+            complete: true,
+          },
+    );
+    const current = h.row('products', 'p');
+    assert.equal(current.published, false);
+    assert.equal(current.catalogLifecycleVersion, 1);
+    assert.equal(h.row('images', 'image').publishedRefCount, 0);
+    assert.equal(h.publication().revision, first === 'withdraw' ? 'old' : h.prepared.revision);
   });

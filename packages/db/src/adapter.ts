@@ -277,7 +277,7 @@ export function planCatalogProductSave(
     doc.category = '';
   }
   try {
-    doc = advanceCatalogProduct(existing, doc, now);
+    doc = advanceCatalogProduct(existing, doc, now, { lifecyclePatch: data });
   } catch (error) {
     if (!(error instanceof CatalogProductStateError)) throw error;
     return {

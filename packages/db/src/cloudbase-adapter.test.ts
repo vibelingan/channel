@@ -15,7 +15,9 @@ import {
   acquireImageMutationInCloudBase,
   claimAlibabaSyncRunInCloudBase,
   manageCatalogPreparationJobInCloudBase,
+  mutateCatalogRowInCloudBase,
   preparingProductHiddenWhere,
+  saveCatalogProductInCloudBase,
   unclassifiedProductWhere,
   updateDocWithAlibabaLeaseInCloudBase,
   upsertCatalogSourceObservationInCloudBase,
@@ -1998,3 +2000,41 @@ test('lost transaction ACK retains both request and job; explicit same-input ret
   assert.deepEqual(f.store, before);
   assert.equal(f.store.get('catalogPreparationJobs')?.size, 1);
 });
+
+for (const writer of ['save', 'row'] as const)
+  test(`native withdrawal barrier commits once and rolls back a failed same-state write: ${writer}`, async () => {
+    const product = {
+      _id: 'p',
+      name: 'Clock',
+      productFamily: 'misc',
+      published: false,
+      archived: false,
+      catalogContentGeneration: 3,
+      catalogLifecycleVersion: 4,
+      detailSourceReady: true,
+    };
+    const h = fakeDatabase({ products: [product] });
+    const write = () =>
+      writer === 'save'
+        ? saveCatalogProductInCloudBase(
+            h.db,
+            { mode: 'update', productId: 'p', data: { published: false } },
+            '2026-10-18T00:00:00.000Z',
+          )
+        : mutateCatalogRowInCloudBase(
+            h.db,
+            { action: 'update', collection: 'products', id: 'p', data: { published: false } },
+            '2026-10-18T00:00:00.000Z',
+          );
+    h.controls.failWrite = 'products/p';
+    await assert.rejects(write(), /injected write failure/);
+    assert.deepEqual(h.store.get('products')?.get('p'), product);
+    h.controls.failWrite = '';
+    await write();
+    const saved = h.store.get('products')?.get('p');
+    assert.equal(saved?.catalogLifecycleVersion, 5);
+    assert.equal(saved?.catalogContentGeneration, 3);
+    assert.equal(saved?.detailSourceReady, true);
+    assert.equal(saved?.published, false);
+    assert.ok(h.controls.maximumOperations <= 3, 'no extra read/write for the barrier');
+  });

@@ -70,7 +70,10 @@ export function advanceCatalogProduct(
   before: CollectionDoc | null,
   proposed: CollectionDoc,
   now: string,
-  forceContent = false,
+  options: {
+    forceContent?: boolean;
+    lifecyclePatch?: Readonly<Record<string, unknown>>;
+  } = {},
 ): CollectionDoc {
   if (before && before._id !== proposed._id)
     throw new CatalogProductStateError('Product identity changed while advancing its state');
@@ -83,13 +86,21 @@ export function advanceCatalogProduct(
   }
   const contentChanged =
     !before ||
-    forceContent ||
+    options.forceContent === true ||
     fingerprint(before, contentFields) !== fingerprint(next, contentFields);
   const classificationChanged =
     !before ||
     fingerprint(before, classificationFields) !== fingerprint(next, classificationFields);
+  // A repeated Disable/Archive cancels an older pending publication too.
+  // Inspect the explicit patch, not a merged row that already contains these values.
+  const patch = options.lifecyclePatch;
+  const cancelsPublication =
+    patch !== undefined &&
+    ((Object.hasOwn(patch, 'published') && patch.published === false) ||
+      (Object.hasOwn(patch, 'archived') && patch.archived === true));
   const lifecycleChanged =
     !before ||
+    cancelsPublication ||
     (before.published === true) !== (next.published === true) ||
     (before.archived === true) !== (next.archived === true);
   if (!contentChanged && before) {

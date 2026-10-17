@@ -651,3 +651,65 @@ for (const [field, patch] of [
     });
   }
 }
+
+for (const patch of [
+  { published: false },
+  { archived: true },
+  { published: false, archived: true },
+])
+  test(`explicit withdrawal cancels pending publication even in the same state: ${JSON.stringify(patch)}`, () => {
+    const before: CollectionDoc = { ...readyVersionedProduct(), archived: patch.archived === true };
+    const after = savedVersion(before, patch);
+    assert.equal(after.catalogLifecycleVersion, 5);
+    assert.equal(after.catalogContentGeneration, 3);
+    assert.equal(after.detailSourceReady, true);
+    assert.equal(after.catalogDetailPublication, before.catalogDetailPublication);
+    assert.equal(after.published, false);
+    const repeated = savedVersion(after, patch);
+    assert.equal(repeated.catalogLifecycleVersion, 6);
+    assert.equal(before.catalogLifecycleVersion, 4);
+  });
+test('legacy missing publication state is fenced by explicit Disable without fabricating live state', () => {
+  const before = readyVersionedProduct();
+  Reflect.deleteProperty(before, 'published');
+  Reflect.deleteProperty(before, 'catalogLifecycleVersion');
+  const unchanged = savedVersion(before, { alibabaSourceLastSyncedAt: 'capture' });
+  assert.equal(Object.hasOwn(unchanged, 'published'), false);
+  assert.equal(Object.hasOwn(unchanged, 'catalogLifecycleVersion'), false);
+  const disabled = savedVersion(before, { published: false });
+  assert.equal(disabled.catalogLifecycleVersion, 1);
+  assert.equal(disabled.published, false);
+  assert.equal(disabled.catalogContentGeneration, 3);
+  assert.equal(disabled.detailSourceReady, true);
+});
+test('same-state withdrawal refuses an exhausted version instead of accepting an ineffective barrier', () => {
+  const before = { ...readyVersionedProduct(), catalogLifecycleVersion: Number.MAX_SAFE_INTEGER };
+  const result = planCatalogProductSave(
+    before,
+    { mode: 'update', productId: before._id, data: { published: false } },
+    '2026-10-18T00:00:00.000Z',
+  );
+  assert.equal(result.result, 'invalid-product');
+  assert.equal(before.catalogLifecycleVersion, Number.MAX_SAFE_INTEGER);
+});
+
+test('ordinary draft saves and same-live saves do not invent withdrawal commands', () => {
+  for (const [current, patch] of [
+    [readyVersionedProduct(), {}],
+    [readyVersionedProduct(), { archived: false }],
+    [{ ...readyVersionedProduct(), published: true }, { published: true }],
+  ] as const) {
+    assert.equal(savedVersion(current, patch).catalogLifecycleVersion, 4);
+  }
+  const initial = planCatalogProductSave(
+    null,
+    {
+      mode: 'create',
+      productId: 'new',
+      data: { name: 'Clock', productFamily: 'misc', published: false, archived: true },
+    },
+    '2026-10-18T00:00:00.000Z',
+  );
+  assert.equal(initial.result, 'ready');
+  if (initial.result === 'ready') assert.equal(initial.doc.catalogLifecycleVersion, 0);
+});
