@@ -68,6 +68,9 @@ async function fixture() {
     scope,
     command,
     job,
+    advance(ms: number) {
+      now += ms;
+    },
     get now() {
       return now;
     },
@@ -436,6 +439,68 @@ test('completed claim never binds a new opaque lease', async () => {
   const before = structuredClone(f.rows);
   const result = await runCatalogPreparationJob(f.tx, authority, f.claim, f.now);
   assert.ok(result.ok && 'preparation' in result);
+  assert.deepEqual(f.rows, before);
+  assert.equal(f.writes.length, 0);
+});
+
+test('human completed status confirms ready after admission expiry with no lease or writes', async () => {
+  const f = await completed();
+  f.advance(120001);
+  assert.equal(f.authority.verifyCall(f.claim.call), null);
+  f.job.mutationRevision = Number.MAX_SAFE_INTEGER;
+  const before = structuredClone(f.rows);
+  const r = await f.run({ action: 'status', actorId: 'admin', jobId: f.scope.jobId });
+  assert.ok(r.ok && 'status' in r, JSON.stringify(r));
+  assert.equal(r.status.nextAction, 'ready');
+  assert.equal(r.status.current, true);
+  assert.equal(r.status.report?.state, 'ready');
+  assert.deepEqual(r.status.attestation, { total: 0, checked: 0 });
+  assert.equal(JSON.stringify(r).includes('nonce'), false);
+  assert.equal(JSON.stringify(r).includes('leaseOwner'), false);
+  assert.deepEqual(f.rows, before);
+  assert.equal(f.writes.length, 0);
+});
+
+for (const fault of ['receipt', 'source', 'product'] as const)
+  test(`human completed status cannot confirm ${fault} with an old ready report`, async () => {
+    const f = await completed();
+    if (fault === 'receipt') f.job.completion = null;
+    else if (fault === 'product') {
+      const p = f.rows['products/p'];
+      assert.ok(p);
+      p.name = 'New input';
+    } else {
+      const p = f.rows['products/p'];
+      assert.ok(p);
+      p.alibabaPrimarySourceKey = 'new-source';
+    }
+    const before = structuredClone(f.rows);
+    const r = await f.run({ action: 'status', actorId: 'admin', jobId: f.scope.jobId });
+    if (fault === 'receipt') assert.deepEqual(r, { ok: false, code: 'CONFLICT' });
+    else {
+      assert.ok(r.ok && 'status' in r);
+      assert.equal(r.status.current, false);
+      assert.equal(r.status.report, null);
+      assert.equal(r.status.attestation, null);
+      assert.equal(r.status.nextAction, 'restart');
+    }
+    assert.deepEqual(f.rows, before);
+    assert.equal(f.writes.length, 0);
+  });
+
+test('retry never invalidates a current ready report even when a job state was changed', async () => {
+  const f = await completed();
+  f.job.state = 'queued';
+  const before = structuredClone(f.rows);
+  assert.deepEqual(
+    await f.run({
+      action: 'retry',
+      actorId: 'admin',
+      jobId: f.scope.jobId,
+      expectedLeaseVersion: 1,
+    }),
+    { ok: false, code: 'CONFLICT' },
+  );
   assert.deepEqual(f.rows, before);
   assert.equal(f.writes.length, 0);
 });

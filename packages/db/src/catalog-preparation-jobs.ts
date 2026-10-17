@@ -172,6 +172,7 @@ const commandSchema = z.discriminatedUnion('action', [
     .strict(),
   z.object({ action: z.literal('start'), actorId: id, productId: id }).strict(),
   human.extend({ action: z.literal('get') }).strict(),
+  human.extend({ action: z.literal('status') }).strict(),
   human.extend({ action: z.literal('dispatch') }).strict(),
   human.extend({ action: z.literal('cancel'), expectedLeaseVersion: integer }).strict(),
   human.extend({ action: z.literal('retry'), expectedLeaseVersion: integer }).strict(),
@@ -269,8 +270,16 @@ export type CatalogPreparationJobProgress = Readonly<{
     retry: number;
   }> | null;
 }>;
+export type CatalogPreparationJobStatus = Readonly<{
+  progress: CatalogPreparationJobProgress;
+  current: boolean;
+  report: CatalogPreparationReport | null;
+  attestation: Readonly<{ total: number; checked: number }> | null;
+  nextAction: 'continue' | 'retry' | 'edit' | 'restart' | 'wait' | 'ready';
+}>;
 export type CatalogPreparationJobResult =
   | { ok: true; progress: CatalogPreparationJobProgress }
+  | { ok: true; status: CatalogPreparationJobStatus }
   | { ok: true; progress: CatalogPreparationJobProgress; lease: object }
   | { ok: true; call: ReturnType<CatalogPreparationAuthority['issueCall']> }
   | { ok: true; observation: CatalogImageObservation | null }
@@ -428,6 +437,80 @@ export async function runCatalogPreparationJob(
   if (!job) return { ok: false, code: 'CORRUPT' };
   timestamp = new Date(Math.max(now, Date.parse(job.updatedAt))).toISOString();
   if (command.action === 'get') return { ok: true, progress: progress(job) };
+  if (command.action === 'status') {
+    let current = false;
+    let report: CatalogPreparationReport | null = null;
+    if (job.state === 'completed') {
+      const completed = await readCompletedCatalogPreparation(tx, job);
+      if (!completed.ok) {
+        if (completed.code !== 'STALE') return completed;
+      } else {
+        if (!('report' in completed) || completed.report.state !== 'ready')
+          return { ok: false, code: 'CONFLICT' };
+        current = true;
+        report = completed.report;
+      }
+    } else {
+      const product = await tx.get('products', job.productId);
+      if (!product) return { ok: false, code: 'NOT_FOUND' };
+      if (
+        product._id !== job.productId ||
+        !integer.safeParse(product.catalogContentGeneration ?? 0).success
+      )
+        return { ok: false, code: 'CORRUPT' };
+      current =
+        (product.catalogContentGeneration ?? 0) === job.contentGeneration &&
+        catalogPreparationInputDigest(await readCatalogPreparationInputs(tx, product)) ===
+          job.inputDigest;
+      const saved = current ? readCurrentCatalogPreparation(product) : null;
+      if (saved && saved.state !== 'ready' && saved.inputDigest === job.inputDigest) report = saved;
+    }
+    const media = job.media;
+    const seal = current ? job.mediaSeal : null;
+    if (
+      seal &&
+      (!media ||
+        seal.planDigest !== media.planDigest ||
+        seal.total !== media.total ||
+        media.cursor !== media.total ||
+        media.verified !== media.total ||
+        media.invalid !== 0 ||
+        media.retry !== 0)
+    )
+      return { ok: false, code: 'CORRUPT' };
+    const obsoletePixels = Boolean(seal && seal.pixelPolicyVersion !== CATALOG_PIXEL_POLICY);
+    const attestation =
+      seal && !obsoletePixels ? Object.freeze({ total: seal.total, checked: seal.cursor }) : null;
+    const nextAction: CatalogPreparationJobStatus['nextAction'] = !current
+      ? 'restart'
+      : report?.state === 'ready'
+        ? 'ready'
+        : job.state === 'running'
+          ? job.leaseExpiresAt > now
+            ? 'wait'
+            : 'continue'
+          : job.state === 'cancelled' || job.state === 'retryable'
+            ? 'retry'
+            : report?.state === 'blocked' || (media?.invalid ?? 0) > 0
+              ? 'edit'
+              : obsoletePixels ||
+                  (media?.retry ?? 0) > 0 ||
+                  job.state === 'stale' ||
+                  job.state === 'blocked'
+                ? 'retry'
+                : 'continue';
+    return {
+      ok: true,
+      status: Object.freeze({
+        progress: progress(job),
+        current,
+        report,
+        attestation,
+        nextAction,
+      }),
+    };
+  }
+
   if (command.action === 'claim' && job.state === 'completed') {
     if (ticketNonce !== job.nonce) return { ok: false, code: 'FORBIDDEN' };
     const completed = await readCompletedCatalogPreparation(tx, job);
@@ -465,17 +548,23 @@ export async function runCatalogPreparationJob(
       return { ok: true, progress: progress(saved) };
     }
     const restartScan = job.state === 'queued' && job.media !== null;
-    if (!['cancelled', 'retryable'].includes(job.state) && !restartScan)
+    if (!['cancelled', 'retryable', 'stale', 'blocked'].includes(job.state) && !restartScan)
       return { ok: false, code: 'CONFLICT' };
     if (!Number.isSafeInteger(job.leaseVersion + 1)) return { ok: false, code: 'CORRUPT' };
-    const current = await currentInput(tx, job.productId);
+    const product = await tx.get('products', job.productId);
     if (
-      !current ||
-      current === 'invalid' ||
-      current.inputDigest !== job.inputDigest ||
-      current.contentGeneration !== job.contentGeneration
+      !product ||
+      product._id !== job.productId ||
+      !integer.safeParse(product.catalogContentGeneration ?? 0).success ||
+      (product.catalogContentGeneration ?? 0) !== job.contentGeneration ||
+      catalogPreparationInputDigest(await readCatalogPreparationInputs(tx, product)) !==
+        job.inputDigest
     )
       return { ok: false, code: 'STALE' };
+    const report = readCurrentCatalogPreparation(product);
+    if (report?.state === 'ready' && report.inputDigest === job.inputDigest)
+      return { ok: false, code: 'CONFLICT' };
+    const clearCheckpoint = report !== null && report.inputDigest === job.inputDigest;
     const saved: Job = {
       ...job,
       mutationRevision: job.mutationRevision + 1,
@@ -489,6 +578,7 @@ export async function runCatalogPreparationJob(
       leaseExpiresAt: 0,
       updatedAt: timestamp,
     };
+    if (clearCheckpoint) await tx.set('products', { ...product, catalogPreparationState: 'stale' });
     await tx.set(CATALOG_PREPARATION_JOBS, saved);
     return { ok: true, progress: progress(saved) };
   }

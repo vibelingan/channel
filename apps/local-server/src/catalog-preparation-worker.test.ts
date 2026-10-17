@@ -2101,3 +2101,85 @@ test('default invalid pixel prefix returns blocked diagnostics before checking t
   assert.equal(readCurrentCatalogPreparation(p)?.state, 'blocked');
   assert.equal(p.published, false);
 });
+
+test('human status reopens actual partial worker progress after admission expiry then continues to ready', async (t) => {
+  const f = await fixture(t, 5);
+  const call = await f.dispatch();
+  assert.ok((await runCatalogPreparationWorker(f.authority, call)).ok);
+  const reopened = new JsonFileAdapter(f.file);
+  setAdapter(reopened);
+  const fresh = createCatalogPreparationAuthority({
+    secret: 'worker-local-test',
+    environmentId: 'local-worker-env',
+    now: () => Date.now() + 31000,
+  });
+  assert.equal(fresh.verifyCall(call), null);
+  const before = readFileSync(f.file, 'utf8');
+  const status = await reopened.manageCatalogPreparationJob(fresh, {
+    action: 'status',
+    actorId: 'admin',
+    jobId: f.jobId,
+  });
+  assert.ok(status.ok && 'status' in status, JSON.stringify(status));
+  assert.equal(status.status.nextAction, 'continue');
+  assert.equal(status.status.report?.state, 'preparing');
+  assert.equal(status.status.progress.media?.checked, 4);
+  assert.equal(readFileSync(f.file, 'utf8'), before);
+  let r = await runCatalogPreparationWorker(f.authority, await f.dispatch(reopened));
+  assert.ok(r.ok);
+  if (r.outcome === 'partial')
+    r = await runCatalogPreparationWorker(f.authority, await f.dispatch(reopened));
+  assert.ok(r.ok && r.outcome === 'ready');
+  const ready = await reopened.manageCatalogPreparationJob(fresh, {
+    action: 'status',
+    actorId: 'admin',
+    jobId: f.jobId,
+  });
+  assert.ok(ready.ok && 'status' in ready);
+  assert.equal(ready.status.nextAction, 'ready');
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+});
+test('actual default retry clears consumed diagnostic and human status offers continuation before ready', async (t) => {
+  const f = await fixture(t, 1);
+  assert.ok(
+    (
+      await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+        checkImage: async () => ({ status: 'retry', reason: 'timeout' }),
+      })
+    ).ok,
+  );
+  const status = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'status',
+    actorId: 'admin',
+    jobId: f.jobId,
+  });
+  assert.ok(status.ok && 'status' in status);
+  assert.equal(status.status.nextAction, 'retry');
+  assert.ok(status.status.report?.issues.some((i) => i.remedy === 'retry-media'));
+  const before = await f.adapter.get('products', 'p');
+  assert.ok(
+    (
+      await f.adapter.manageCatalogPreparationJob(f.authority, {
+        action: 'retry',
+        actorId: 'admin',
+        jobId: f.jobId,
+        expectedLeaseVersion: status.status.progress.leaseVersion,
+      })
+    ).ok,
+  );
+  const next = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'status',
+    actorId: 'admin',
+    jobId: f.jobId,
+  });
+  assert.ok(next.ok && 'status' in next);
+  assert.equal(next.status.nextAction, 'continue');
+  assert.equal(next.status.report, null);
+  assert.deepEqual(await f.adapter.get('products', 'p'), {
+    ...before,
+    catalogPreparationState: 'stale',
+  });
+  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(r.ok && r.outcome === 'ready');
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});

@@ -1018,3 +1018,9 @@ P2f10a 最终本地：DB1098/admin549/alibaba304/local454，共2405项全部通�
 P2f10a 精确三函数 build/package、Linux126依赖完整性、同JS显式Macprofile与Node20产物smoke已通过。当前单元接入默认 worker 的来源/像素/确认阶段非就绪快照，并让取消原子撤销仍属于该任务的当前诊断状态；保持公开版本、分类、计数和用户字段。明确失败不能报成功，丢ACK确认与后续cursor恢复均有实际JSON测试。
 
 31项选择基线通过；8个实际源码反例全部检出，21–30正控保留，恢复原字节后完成DB1107/admin549/alibaba304/local467=2427项及Node20五文件346项。四消费者类型、显式Biome三文件和原生新增块格式、SDK gate、diff检查通过。最初旧预算断言仍要求无报告而失败，按本单元实际新增preparing行为修正；失败日志保留，最终无跳过。来源取消最多8次事务操作和8个写ACK故障验证双行回滚。精确产物小流程随后记录。用户状态API、过期恢复、列表/UI、合法大事务、历史修复和test真实20件验收继续，fullDeliveryReady=false。
+
+## P2f10c：当前人工进度与重试诊断
+
+P2f10b 精确三函数构建/打包、Linux126闭包完整性、同JS显式Macprofile、Node20产物smoke与bundled main小流程全部通过。五来源URL按4+1继续，一个来源PUT和一个保护PUT；preparing/blocked可读、编辑后新任务ready，共享图片热路径零IO；模块重启后原完成调用不改盘。所有商品未发布，测试目录已清理。bundle SHA cb6da257b3af0d6e9d3349ac945e6830bf790edc014273284938344dfebf93f4，仅本地证据。
+
+P2f10c 仓库status命令以当前admin、完整输入和完成证明投影安全状态，不依赖旧签名；六点读零写。显式retry八操作原子清除当前非就绪状态并重置，保留历史和全部业务字段。十源码反例均检出，33–41正控/42选定；恢复字节后DB1156/admin549/alibaba304/local469=2478、Node20五文件397、四消费者类型、显式Biome/原生新增块、SDK/diff通过。最初红测、重复导入、夹具时间方法错误均保留；额外流程反例发现“过期运行+媒体重试”的推荐动作不合法，修正并验证接管/释放/重试串联。尚无新HTTP/UI入口；精确产物随后记录，fullDeliveryReady=false。

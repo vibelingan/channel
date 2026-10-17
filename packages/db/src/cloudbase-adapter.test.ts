@@ -1733,3 +1733,113 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
       await assert.rejects(cancel());
       assert.deepEqual(f.store, before);
     });
+
+test('source-backed human status is six point reads and no writes or object scans', async () => {
+  const { f, checkpoint } = await nonreadyCloudFixture(true);
+  assert.ok((await checkpoint()).ok);
+  assert.ok((await f.run({ action: 'release', ...f.scope })).ok);
+  const before = structuredClone(f.store);
+  f.controls.maximumOperations = 0;
+  const r = await f.run({ action: 'status', actorId: 'admin', jobId: f.scope.jobId });
+  assert.ok(r.ok && 'status' in r, JSON.stringify(r));
+  assert.equal(r.status.current, true);
+  assert.equal(r.status.nextAction, 'edit');
+  assert.equal(r.status.report?.state, 'blocked');
+  assert.equal(f.controls.maximumOperations, 6);
+  assert.deepEqual(f.store, before);
+});
+test('source-backed completed human status verifies the receipt in six readonly operations', async () => {
+  const { f } = await completedClaimCloudFixture();
+  const before = structuredClone(f.store);
+  f.controls.maximumOperations = 0;
+  const r = await f.run({ action: 'status', actorId: 'admin', jobId: f.scope.jobId });
+  assert.ok(r.ok && 'status' in r, JSON.stringify(r));
+  assert.equal(r.status.nextAction, 'ready');
+  assert.equal(f.controls.maximumOperations, 6);
+  assert.deepEqual(f.store, before);
+});
+async function retryDiagnosticCloudFixture() {
+  const { f, checkpoint } = await nonreadyCloudFixture(true);
+  assert.ok((await checkpoint()).ok);
+  assert.ok((await f.run({ action: 'release', ...f.scope })).ok);
+  const job = readCatalogPreparationJob(
+    f.store.get('catalogPreparationJobs')?.get(f.scope.jobId),
+    f.scope.jobId,
+    f.now,
+  );
+  assert.ok(job);
+  const command = {
+    action: 'retry' as const,
+    actorId: 'admin',
+    jobId: f.scope.jobId,
+    expectedLeaseVersion: job.leaseVersion,
+  };
+  return { f, command, retry: () => f.run(command) };
+}
+test('source-backed retry and diagnostic invalidation commit together within eight operations', async () => {
+  const { f, retry } = await retryDiagnosticCloudFixture();
+  const before = structuredClone(f.store.get('products')?.get('p'));
+  const images = structuredClone(f.store.get('images'));
+  f.controls.maximumOperations = 0;
+  const r = await retry();
+  assert.ok(r.ok && 'progress' in r, JSON.stringify(r));
+  assert.equal(r.progress.state, 'queued');
+  assert.equal(r.progress.media, null);
+  assert.equal(f.controls.maximumOperations, 8);
+  assert.deepEqual(f.store.get('products')?.get('p'), {
+    ...before,
+    catalogPreparationState: 'stale',
+  });
+  assert.deepEqual(f.store.get('images'), images);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const target of ['products', 'catalogPreparationJobs'] as const)
+    test(`retry ${target} ${failure} rolls back reset and diagnostic invalidation`, async () => {
+      const { f, retry } = await retryDiagnosticCloudFixture();
+      f.controls[failure] = `${target}/${target === 'products' ? 'p' : f.scope.jobId}`;
+      const before = structuredClone(f.store);
+      await assert.rejects(retry());
+      assert.deepEqual(f.store, before);
+    });
+
+for (const completed of [false, true])
+  for (const [collection, patch] of [
+    ['products', { name: 'New user input' }],
+    ['alibabaSourceProducts', { sourceTitle: 'New supplier input' }],
+    ['catalogSourceObservations', { evidenceId: 'new-capture' }],
+    ['alibabaProductLinks', { productId: 'other' }],
+  ] as const)
+    test(`human ${completed ? 'completed' : 'nonready'} status rechecks actual ${collection} and hides old proof`, async () => {
+      const f = completed
+        ? (await completedClaimCloudFixture()).f
+        : (await nonreadyCloudFixture()).f;
+      if (!completed)
+        assert.ok(
+          (
+            await f.run({
+              action: 'checkpoint-preparation',
+              ...f.scope,
+              previewReady: true,
+              issues: [],
+            })
+          ).ok,
+        );
+      let row = f.store.get(collection)?.values().next().value;
+      if (!row) {
+        const id =
+          collection === 'catalogSourceObservations'
+            ? sourceObservationDocumentId('alibaba', 'source')
+            : 'source';
+        row = { _id: id };
+        f.store.set(collection, new Map([[id, row]]));
+      }
+      Object.assign(row, patch);
+      const before = structuredClone(f.store);
+      const r = await f.run({ action: 'status', actorId: 'admin', jobId: f.scope.jobId });
+      assert.ok(r.ok && 'status' in r, JSON.stringify(r));
+      assert.equal(r.status.current, false);
+      assert.equal(r.status.nextAction, 'restart');
+      assert.equal(r.status.report, null);
+      assert.equal(r.status.attestation, null);
+      assert.deepEqual(f.store, before);
+    });
