@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { signSession } from '@vibelingan-channel/auth/jwt';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
@@ -14,12 +15,15 @@ import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { readCurrentCatalogPreparation } from '@vibelingan-channel/shared/catalog-preparation';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
+import { z } from 'zod';
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
 import { inspectCatalogPreparationJob } from '../../functions/admin/src/catalog-preparation-job-inspect.ts';
 import {
   runCatalogPreparationMediaWorker,
   runCatalogPreparationWorker,
 } from '../../functions/admin/src/catalog-preparation-worker.ts';
+import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
+import { handleAdminFunctionEvent } from '../../functions/admin/src/http-adapter.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -2181,5 +2185,353 @@ test('actual default retry clears consumed diagnostic and human status offers co
   });
   const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
   assert.ok(r.ok && r.outcome === 'ready');
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+
+test('authenticated HTTP preparation start/status/cancel/retry joins the actual worker and preserves categories/publication', async (t) => {
+  const f = await fixture(t, 5);
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const command = (data: unknown) => ({ action: 'catalogPreparation', token, data });
+  async function api(data: unknown) {
+    const response = await handleAdminFunctionEvent(
+      { httpMethod: 'POST', headers: {}, body: JSON.stringify(command(data)) },
+      config,
+      handleAdminRequest,
+    );
+    assert.ok('statusCode' in response);
+    assert.equal(response.statusCode, 200, response.body);
+    return z.object({ ok: z.literal(true), data: z.unknown() }).parse(JSON.parse(response.body))
+      .data;
+  }
+  const started = z
+    .object({ ok: z.literal(true), progress: z.object({ jobId: z.string() }) })
+    .parse(await api({ action: 'start', productId: 'p' }));
+  assert.equal(started.progress.jobId, f.jobId);
+  assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+  const Status = z.object({
+    ok: z.literal(true),
+    status: z.object({
+      current: z.boolean(),
+      nextAction: z.string(),
+      report: z.object({ state: z.string() }).nullable(),
+      progress: z.object({
+        leaseVersion: z.number(),
+        media: z.object({ checked: z.number() }).nullable(),
+      }),
+    }),
+  });
+  const beforeStatus = readFileSync(f.file, 'utf8');
+  const partial = Status.parse(await api({ action: 'status', jobId: f.jobId }));
+  assert.equal(partial.status.nextAction, 'continue');
+  assert.equal(partial.status.report?.state, 'preparing');
+  assert.equal(partial.status.progress.media?.checked, 4);
+  assert.equal(readFileSync(f.file, 'utf8'), beforeStatus);
+  const beforeCancel = await f.adapter.get('products', 'p');
+  await api({
+    action: 'cancel',
+    jobId: f.jobId,
+    expectedLeaseVersion: partial.status.progress.leaseVersion,
+  });
+  assert.deepEqual(await f.adapter.get('products', 'p'), {
+    ...beforeCancel,
+    catalogPreparationState: 'stale',
+  });
+  const cancelled = Status.parse(await api({ action: 'status', jobId: f.jobId }));
+  assert.equal(cancelled.status.nextAction, 'retry');
+  assert.equal(cancelled.status.report, null);
+  await api({
+    action: 'retry',
+    jobId: f.jobId,
+    expectedLeaseVersion: cancelled.status.progress.leaseVersion,
+  });
+  let ready = false;
+  for (let step = 0; step < 4; step++) {
+    const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    assert.ok(r.ok, JSON.stringify(r));
+    if (r.outcome === 'ready') {
+      ready = true;
+      break;
+    }
+    assert.equal(r.outcome, 'partial');
+  }
+  assert.equal(ready, true);
+  const status = Status.parse(await api({ action: 'status', jobId: f.jobId }));
+  assert.equal(status.status.nextAction, 'ready');
+  assert.equal(status.status.report?.state, 'ready');
+  const product = await f.adapter.get('products', 'p');
+  assert.ok(product);
+  assert.equal(product.published, false);
+  assert.equal(product.productFamily, 'misc');
+  for (const key of ['nonce', 'signature', 'leaseOwner', 'storageFileId'])
+    assert.equal(JSON.stringify(status).includes(key), false);
+  await f.adapter.update('products', 'p', { name: 'New user input' });
+  const stale = Status.parse(await api({ action: 'status', jobId: f.jobId }));
+  assert.equal(stale.status.current, false);
+  assert.equal(stale.status.report, null);
+  assert.equal(stale.status.nextAction, 'restart');
+  const fresh = z
+    .object({ ok: z.literal(true), progress: z.object({ jobId: z.string() }) })
+    .parse(await api({ action: 'start', productId: 'p' }));
+  assert.notEqual(fresh.progress.jobId, f.jobId);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('lost authenticated start response is confirmed without surfacing an error or duplicating a job', async (t) => {
+  const f = await fixture(t, 1);
+  t.mock.method(console, 'error', () => {});
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  rows.products.push({
+    _id: 'second',
+    name: 'Other clock',
+    published: false,
+    productFamily: 'misc',
+    imageIds: [],
+  });
+  writeFileSync(f.file, JSON.stringify(rows));
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lost = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'start' && args[1].productId === 'second' && !lost) {
+      lost = true;
+      throw Error('owned fixture committed start ACK lost');
+    }
+    return result;
+  };
+  const request = {
+    action: 'catalogPreparation',
+    token,
+    data: { action: 'start', productId: 'second' },
+  };
+  const unknown = await handleAdminRequest(request, config);
+  assert.ok(unknown.ok, JSON.stringify(unknown));
+  const retry = await handleAdminRequest(request, config);
+  assert.ok(retry.ok, JSON.stringify(retry));
+  const progress = z
+    .object({ ok: z.literal(true), progress: z.object({ jobId: z.string() }) })
+    .parse(retry.data);
+  const saved = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(
+    saved.catalogPreparationJobs.filter((j: { productId: string }) => j.productId === 'second')
+      .length,
+    1,
+  );
+  const status = await handleAdminRequest(
+    {
+      action: 'catalogPreparation',
+      token,
+      data: { action: 'status', jobId: progress.progress.jobId },
+    },
+    config,
+  );
+  assert.ok(status.ok);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});
+
+for (const action of ['cancel', 'retry'] as const)
+  test(`lost authenticated ${action} ACK returns observed current status without repeating the write`, async (t) => {
+    const f = await fixture(t, 5);
+    assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+    const config = {
+      jwtSecret: 'worker-local-test',
+      enableDetailApproval: true,
+      preparationAuthority: f.authority,
+    };
+    const token = await signSession(config.jwtSecret, {
+      sub: 'admin',
+      email: 'admin@example.test',
+      name: 'Admin',
+      role: 'admin',
+    });
+    const job = readCatalogPreparationJob(
+      await f.adapter.get('catalogPreparationJobs', f.jobId),
+      f.jobId,
+      Date.now(),
+    );
+    assert.ok(job);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let attempts = 0;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const r = await manage(...args);
+      if (args[1].action === action && ++attempts === 1)
+        throw Error('owned fixture write ACK lost');
+      return r;
+    };
+    t.mock.method(console, 'error', () => {});
+    const r = await handleAdminRequest(
+      {
+        action: 'catalogPreparation',
+        token,
+        data: { action, jobId: f.jobId, expectedLeaseVersion: job.leaseVersion },
+      },
+      config,
+    );
+    assert.ok(r.ok, JSON.stringify(r));
+    const recovered = z
+      .object({
+        ok: z.literal(true),
+        recovery: z.literal('status'),
+        status: z.object({
+          nextAction: z.string(),
+          report: z.unknown().nullable(),
+          progress: z.object({ state: z.string(), leaseVersion: z.number() }),
+        }),
+      })
+      .parse(r.data);
+    assert.equal(attempts, 1);
+    assert.equal(recovered.status.progress.state, action === 'cancel' ? 'cancelled' : 'queued');
+    assert.equal(
+      recovered.status.progress.leaseVersion,
+      job.leaseVersion + (action === 'retry' ? 1 : 0),
+    );
+    assert.equal(recovered.status.nextAction, action === 'cancel' ? 'retry' : 'continue');
+    assert.equal(recovered.status.report, null);
+    assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+  });
+
+test('unconfirmed cancel returns explicit observed state and never reports a cancelled job', async (t) => {
+  const f = await fixture(t, 1);
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let writes = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (args[1].action === 'cancel') {
+      writes++;
+      throw Error('owned fixture transport failed before write');
+    }
+    return manage(...args);
+  };
+  const r = await handleAdminRequest(
+    {
+      action: 'catalogPreparation',
+      token,
+      data: { action: 'cancel', jobId: f.jobId, expectedLeaseVersion: 0 },
+    },
+    config,
+  );
+  assert.ok(r.ok);
+  const observed = z
+    .object({
+      ok: z.literal(true),
+      recovery: z.literal('status'),
+      status: z.object({
+        progress: z.object({ state: z.string(), leaseVersion: z.number() }),
+        nextAction: z.string(),
+      }),
+    })
+    .parse(r.data);
+  assert.equal(observed.status.progress.state, 'queued');
+  assert.equal(observed.status.progress.leaseVersion, 0);
+  assert.equal(observed.status.nextAction, 'continue');
+  assert.equal(writes, 1);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('two unavailable start acknowledgements stop bounded confirmation while retaining one queryable job', async (t) => {
+  const f = await fixture(t, 1);
+  t.mock.method(console, 'error', () => {});
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let attempts = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'start') {
+      attempts++;
+      throw Error('owned fixture ACK unavailable');
+    }
+    return result;
+  };
+  const request = {
+    action: 'catalogPreparation',
+    token,
+    data: { action: 'start', productId: 'p' },
+  };
+  const failed = await handleAdminRequest(request, config);
+  assert.ok(!failed.ok);
+  assert.equal(failed.error.code, 'INTERNAL_ERROR');
+  assert.equal(attempts, 2);
+  f.adapter.manageCatalogPreparationJob = manage;
+  const recovered = await handleAdminRequest(request, config);
+  assert.ok(recovered.ok);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(
+    rows.catalogPreparationJobs.filter((j: { productId: string }) => j.productId === 'p').length,
+    1,
+  );
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('human write confirmation rechecks revoked permission and never returns private progress', async (t) => {
+  const f = await fixture(t, 1);
+  const config = {
+    jwtSecret: 'worker-local-test',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'cancel') {
+      await f.adapter.update('users', 'admin', { status: 'suspended' });
+      throw Error('owned fixture ACK lost after revocation');
+    }
+    return result;
+  };
+  const r = await handleAdminRequest(
+    {
+      action: 'catalogPreparation',
+      token,
+      data: { action: 'cancel', jobId: f.jobId, expectedLeaseVersion: 0 },
+    },
+    config,
+  );
+  assert.ok(!r.ok);
+  assert.equal(r.error.code, 'FORBIDDEN');
+  assert.equal(JSON.stringify(r).includes(f.jobId), false);
+  assert.equal((await f.adapter.get('catalogPreparationJobs', f.jobId))?.state, 'cancelled');
   assert.equal((await f.adapter.get('products', 'p'))?.published, false);
 });

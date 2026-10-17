@@ -1024,3 +1024,11 @@ P2f10a 精确三函数 build/package、Linux126依赖完整性、同JS显式Macp
 P2f10b 精确三函数构建/打包、Linux126闭包完整性、同JS显式Macprofile、Node20产物smoke与bundled main小流程全部通过。五来源URL按4+1继续，一个来源PUT和一个保护PUT；preparing/blocked可读、编辑后新任务ready，共享图片热路径零IO；模块重启后原完成调用不改盘。所有商品未发布，测试目录已清理。bundle SHA cb6da257b3af0d6e9d3349ac945e6830bf790edc014273284938344dfebf93f4，仅本地证据。
 
 P2f10c 仓库status命令以当前admin、完整输入和完成证明投影安全状态，不依赖旧签名；六点读零写。显式retry八操作原子清除当前非就绪状态并重置，保留历史和全部业务字段。十源码反例均检出，33–41正控/42选定；恢复字节后DB1156/admin549/alibaba304/local469=2478、Node20五文件397、四消费者类型、显式Biome/原生新增块、SDK/diff通过。最初红测、重复导入、夹具时间方法错误均保留；额外流程反例发现“过期运行+媒体重试”的推荐动作不合法，修正并验证接管/释放/重试串联。尚无新HTTP/UI入口；精确产物随后记录，fullDeliveryReady=false。
+
+## P2f10d：后台人工准备控制
+
+P2f10c 精确三函数build/package、Linux126闭包、同JS Macprofile、Node20 smoke与bundled worker小流程全部通过；源码仓库status在真实bundle流程旁验证preparing/edit/ready和签名过期后只读ready恢复。bundle SHA ded0b61b28b6e8fbe65ecdc1c8c1d625a34219134baf5a942e53ab176025439e，目录清理、商品均未发布。该SHA没有新HTTP入口，未作此宣称。
+
+新catalogPreparation API绑定重新验证的会话actor，只开放四人工动作；生产/本地配置authority，role/rollout/大小/strict输入和私有投影均校验。业务复核补有界ACK确认：start/status确认一次；cancel/retry只读恢复带recovery=status，不假报动作完成。HTTP+真实JSON/像素流程、丢ACK、未到达、两次不可用与中途撤权均通过。十源码反例检出，22–31正控/32选定；源码字节恢复后DB1156/admin574/alibaba304/local476=2510、Node20六文件429、三个直接消费者types、六完整文件显式Biome、SDK/diff通过。夹具Role/可选字段和import排序问题均已修正，失败记录保留。
+
+管理auth只读刷新READY，原环境三Event Nodejs20.19函数已确认；admin20s/256MiB与sync900s/512MiB为当前观察，未改云端。官方/安装SDK callFunction合约已查；下一单元仍须解决worker调用预算/未知结果，不直接等待20sworker嵌在20sadmin。精确产物HTTP与review随后记录，完整准备执行/UI、其余发布与真实验收继续，fullDeliveryReady=false。

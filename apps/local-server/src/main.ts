@@ -9,6 +9,7 @@
 import { renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
+import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import {
@@ -43,6 +44,11 @@ const config: AdminConfig = {
   enableDetailApproval: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
 };
+
+config.preparationAuthority = createCatalogPreparationAuthority({
+  secret: config.jwtSecret,
+  environmentId: TCB_ENV || 'local-catalog-preparation',
+});
 
 const adapter = new JsonFileAdapter(DB_FILE, config.enableInquiries === true);
 setAdapter(adapter);

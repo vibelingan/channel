@@ -5,6 +5,7 @@
  * adapter-agnostic `handleAdminRequest`.
  */
 import { setAdapter } from '@vibelingan-channel/db';
+import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -22,6 +23,10 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
+  preparationAuthority: createCatalogPreparationAuthority({
+    secret: requireEnv('JWT_SECRET'),
+    environmentId: requireEnv('TCB_ENV'),
+  }),
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   enableDetailApproval: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   ...(optionalEnv('LOGIN_URL') ? { loginUrl: optionalEnv('LOGIN_URL') } : {}),

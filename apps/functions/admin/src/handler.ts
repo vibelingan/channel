@@ -50,6 +50,7 @@ import {
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
+import type { CatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import {
   type PriceSummaryBackfillReader,
   planPriceSummaryBackfill,
@@ -148,6 +149,7 @@ import {
 import { readCatalogDetailPreview } from './catalog-detail-preview.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
 import { finalizeCatalogImageUpload } from './catalog-image-upload.ts';
+import { manageHumanCatalogPreparation } from './catalog-preparation-api.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
@@ -170,6 +172,8 @@ export interface AdminConfig {
   enableInquiries?: boolean;
   /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
   enableDetailApproval?: boolean;
+  /** Server-only control authority; never returned in capabilities or product data. */
+  preparationAuthority?: CatalogPreparationAuthority;
   /** Absolute URL of the login page, used in emails. */
   loginUrl?: string;
   /** Absolute URL of the password-reset page; the reset token is appended as `?token=`. */
@@ -619,6 +623,32 @@ export async function handleAdminRequest(
       case 'inquiryCapabilities':
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
         return ok({ enabled: config.enableInquiries === true, notification: 'disabled' });
+      case 'catalogPreparation': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (config.enableDetailApproval !== true || !config.preparationAuthority)
+          return err('FORBIDDEN', 'Product preparation is not enabled.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
+          return err('VALIDATION_ERROR', 'Preparation request is too large.');
+        const result = await manageHumanCatalogPreparation(
+          config.preparationAuthority,
+          claims.sub,
+          req.data,
+        );
+        if (result.ok) return ok(result);
+        const messages = {
+          FORBIDDEN: 'Admin permission is required. Sign in again to continue.',
+          VALIDATION_ERROR: 'Check the preparation request and refresh its current state.',
+          NOT_FOUND: 'This product or preparation was not found. Refresh the product list.',
+          CORRUPT: 'Preparation data needs repair. Refresh its state before trying again.',
+          CONFLICT: 'Preparation changed. Refresh its state to choose the next action.',
+          BUSY: 'Preparation is already running. Check its progress before continuing.',
+          STALE: 'Product data changed. Start preparation for the current product.',
+        };
+        return err(
+          result.code === 'CORRUPT' || result.code === 'STALE' ? 'CONFLICT' : result.code,
+          messages[result.code],
+        );
+      }
       case 'catalogDetailCapabilities':
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
         return ok({ enabled: config.enableDetailApproval === true });
