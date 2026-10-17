@@ -1197,3 +1197,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e3：publish先保存自己的草稿阶段
 
 基线1feb275，扩展未发布商品publish意图的内部草稿保存；仍不批准/上线，不接入HTTP/UI。按实际intent核对源/observation/link，纯保存后快照复用已验证source，防写后再读。20/50/100分批保存/重开及零重复写通过；六源码反例69重叠失败，另去回执写让三个batch红。Node20实际SDK16文档操作/10坏ACK回滚/6源冲突和来源商品四进程恢复通过。最终七包+scripts4664，Node20477，19types、显式Biome/native函数actor比对、SDK/diff通过。详见[P3e3](P3e3_PUBLISH_DRAFT_STAGE.zh-CN.md)。代码注释限定已验证source绑定，明确内部草稿不等于客户发布；原formal P1和fullDeliveryReady=false保留。
+
+
+## P3e3b：外层等待前冻结完整命令
+
+基线62dddaa，发现SDK事务启动/文件锁前的caller引用窗口；8unit红、4实际SDK延迟响应红，旧legacy finish会批准晚改标题。用同一个捕获函数在两入口等待前复制所有持久化命令，保留原schema/容量，失败受控反馈且不写。16新增用例；六源码反例51重叠失败、2源文件SHA还原；5实际SDK正控、完整legacy旧红新绿、两种草稿SDK/四进程回归通过。七包+scripts4680、Node20493、19types和显式Biome/SDK/diff通过。详见[P3e3b](P3e3b_ASYNC_COMMAND_CAPTURE.zh-CN.md)。措辞把“事务内冻结”纠正为“SDK/锁等待前冻结”，原完整发布恢复P1保留，fullDeliveryReady=false。

@@ -2757,3 +2757,213 @@ for (const mode of ['silentWrite', 'failWrite'] as const)
     assert.equal(h.store.get('products')?.get('p')?.published, false);
     assert.ok(h.controls.maximumOperations <= 16);
   });
+
+function pauseApprovalTransaction(h: ReturnType<typeof fakeDatabase>) {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return {
+    release: () => release(),
+    db: {
+      ...h.db,
+      runTransaction: async <T>(operation: Parameters<typeof h.db.runTransaction<T>>[0]) => {
+        await gate;
+        return h.db.runTransaction(operation);
+      },
+    },
+  };
+}
+for (const intent of ['save-draft', 'publish'] as const)
+  test(`native operation reservation captures nested input before transaction startup: ${intent}`, async () => {
+    const h = fakeDatabase({
+      users: [{ _id: 'admin', role: 'admin' }],
+      products: [
+        {
+          _id: 'p',
+          name: 'Clock',
+          description: '',
+          productFamily: 'misc',
+          published: false,
+          archived: false,
+          updatedAt: '2026-10-18T00:00:00.000Z',
+        },
+      ],
+    });
+    const paused = pauseApprovalTransaction(h);
+    const command = {
+      action: 'operation-start' as const,
+      productId: 'p',
+      operationId: '12345678-1234-4234-8234-123456789012',
+      intent,
+      expectedUpdatedAt: '2026-10-18T00:00:00.000Z',
+      values: {
+        description: 'Original submitted draft',
+        configurationPhotos: { sku: ['original-image'] },
+      },
+    };
+    const pending = persistStagedApprovalInCloud(paused.db, 'admin', command);
+    command.values.description = 'Changed after dispatch';
+    command.values.configurationPhotos.sku[0] = 'changed-image';
+    paused.release();
+    const result = await pending;
+    assert.ok(result.ok && 'record' in result);
+    assert.equal(result.record.operation.values.description, 'Original submitted draft');
+    assert.deepEqual(result.record.operation.values.configurationPhotos, {
+      sku: ['original-image'],
+    });
+  });
+test('native operation-get captures its selector before transaction startup', async () => {
+  const h = await ownDraftFixture();
+  const otherId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const second = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-start',
+    productId: 'p',
+    operationId: otherId,
+    intent: 'save-draft',
+    expectedUpdatedAt: h.input.expectedUpdatedAt ?? null,
+    values: { description: 'Another selected job' },
+  });
+  assert.ok(second.ok && 'record' in second);
+  const paused = pauseApprovalTransaction(h);
+  const command = {
+    action: 'operation-get' as const,
+    productId: 'p',
+    operationId: h.input.expectedOperation.operationId,
+  };
+  const pending = persistStagedApprovalInCloud(paused.db, 'admin', command);
+  command.operationId = otherId;
+  paused.release();
+  const result = await pending;
+  assert.ok(result.ok && 'record' in result);
+  assert.deepEqual(result.record, h.record);
+});
+test('native legacy begin captures the reviewed approval before transaction startup', async () => {
+  const h = await ownDraftFixture();
+  const product = h.store.get('products')?.get('p');
+  assert.ok(product);
+  Object.assign(product, {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+  });
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(prepared.ok);
+  const reviewed = structuredClone(prepared.value);
+  const paused = pauseApprovalTransaction(h);
+  const pending = persistStagedApprovalInCloud(paused.db, 'admin', {
+    action: 'begin',
+    prepared: prepared.value,
+  });
+  prepared.value.publication.header.name = 'Changed after dispatch';
+  paused.release();
+  assert.equal((await pending).ok, true);
+  assert.deepEqual(h.store.get('catalogDetailApprovals')?.get(reviewed._id), reviewed);
+});
+
+for (const [label, value] of [
+  ['function', () => 'unsupported'],
+  ['symbol', Symbol('unsupported')],
+  ['weak-map', new WeakMap<object, unknown>()],
+] as const)
+  test(`native unclonable ${label} command refuses before opening a transaction`, async () => {
+    const h = fakeDatabase({
+      users: [{ _id: 'admin', role: 'admin' }],
+      products: [
+        { _id: 'p', name: 'Clock', published: false, updatedAt: '2026-10-18T00:00:00.000Z' },
+      ],
+    });
+    let starts = 0;
+    const tracked = {
+      ...h.db,
+      runTransaction: async <T>(operation: Parameters<typeof h.db.runTransaction<T>>[0]) => {
+        starts++;
+        return h.db.runTransaction(operation);
+      },
+    };
+    const before = structuredClone(h.store);
+    const result = await persistStagedApprovalInCloud(tracked, 'admin', {
+      action: 'operation-start',
+      productId: 'p',
+      operationId: '12345678-1234-4234-8234-123456789012',
+      intent: 'save-draft',
+      expectedUpdatedAt: '2026-10-18T00:00:00.000Z',
+      values: { description: value },
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'VALIDATION_ERROR');
+    assert.equal(result.validation?.issues[0]?.remedy, 'reload');
+    assert.equal(starts, 0);
+    assert.deepEqual(h.store, before);
+  });
+test('native capture keeps all facts of a legal UTF-8 approval larger than the start-command budget', async () => {
+  const h = await ownDraftFixture();
+  const product = h.store.get('products')?.get('p');
+  assert.ok(product);
+  const facts = Array.from({ length: 256 }, (_, i) => ({
+    name: `Fact ${i}`,
+    value: '中'.repeat(600),
+  }));
+  Object.assign(product, {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts,
+      offers: [],
+    },
+  });
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(prepared.ok);
+  const reviewed = structuredClone(prepared.value);
+  const bytes = Buffer.byteLength(JSON.stringify(reviewed));
+  assert.ok(bytes > 256 * 1024 && bytes < 512 * 1024);
+  const paused = pauseApprovalTransaction(h);
+  const pending = persistStagedApprovalInCloud(paused.db, 'admin', {
+    action: 'begin',
+    prepared: prepared.value,
+  });
+  const first = prepared.value.publication.header.facts[0];
+  assert.ok(first);
+  first.value = 'Changed after dispatch';
+  paused.release();
+  assert.equal((await pending).ok, true);
+  assert.deepEqual(h.store.get('catalogDetailApprovals')?.get(reviewed._id), reviewed);
+});

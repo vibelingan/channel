@@ -1142,3 +1142,152 @@ test('an unchanged source-bound publish draft cancels old intent without invalid
   assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
   assert.equal(h.bytes(), before);
 });
+
+for (const intent of ['save-draft', 'publish'] as const)
+  test(`operation reservation captures nested inputs before the file lock: ${intent}`, async (t) => {
+    const h = fixture(t);
+    const input = {
+      ...start,
+      intent,
+      values: {
+        description: 'Original submitted draft',
+        configurationPhotos: { sku: ['original-image'] },
+      },
+    };
+    const pending = h.adapter.persistCatalogDetailApproval('admin', input);
+    input.values.description = 'Changed after dispatch';
+    input.values.configurationPhotos.sku[0] = 'changed-image';
+    const result = await pending;
+    assert.ok(result.ok && 'record' in result);
+    assert.equal(result.record.operation.values.description, 'Original submitted draft');
+    assert.deepEqual(result.record.operation.values.configurationPhotos, {
+      sku: ['original-image'],
+    });
+    const queryResult = await h.adapter.persistCatalogDetailApproval('admin', query);
+    assert.ok(queryResult.ok && 'record' in queryResult);
+    assert.deepEqual(queryResult.record, result.record);
+  });
+test('operation-get captures its selector before the file lock instead of following another selected job', async (t) => {
+  const h = fixture(t);
+  const first = await h.adapter.persistCatalogDetailApproval('admin', start);
+  assert.ok(first.ok && 'record' in first);
+  const otherId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const second = await h.adapter.persistCatalogDetailApproval('admin', {
+    ...start,
+    operationId: otherId,
+    values: { description: 'Another selected job' },
+  });
+  assert.ok(second.ok && 'record' in second);
+  const input = { ...query };
+  const pending = h.adapter.persistCatalogDetailApproval('admin', input);
+  input.operationId = otherId;
+  const result = await pending;
+  assert.ok(result.ok && 'record' in result);
+  assert.deepEqual(result.record, first.record);
+});
+test('legacy approval begin captures the reviewed header before waiting for the file lock', async (t) => {
+  const h = fixture(t, {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+  });
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(prepared.ok);
+  const reviewed = JSON.parse(JSON.stringify(prepared.value));
+  const pending = h.adapter.persistCatalogDetailApproval('admin', {
+    action: 'begin',
+    prepared: prepared.value,
+  });
+  prepared.value.publication.header.name = 'Changed after dispatch';
+  assert.equal((await pending).ok, true);
+  const job = await h.adapter.get('catalogDetailApprovals', reviewed._id);
+  assert.deepEqual(job, reviewed);
+});
+
+for (const [label, value] of [
+  ['function', () => 'unsupported'],
+  ['symbol', Symbol('unsupported')],
+  ['weak-map', new WeakMap<object, unknown>()],
+] as const)
+  test(`unclonable ${label} command is an actionable validation error without local writes`, async (t) => {
+    const h = fixture(t);
+    const before = h.bytes();
+    const result = await h.adapter.persistCatalogDetailApproval('admin', {
+      ...start,
+      values: { description: value },
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'VALIDATION_ERROR');
+    assert.equal(result.validation?.issues[0]?.remedy, 'reload');
+    assert.equal(h.bytes(), before);
+  });
+test('capturing a large legal UTF-8 legacy approval does not apply the smaller operation-start budget', async (t) => {
+  const facts = Array.from({ length: 256 }, (_, i) => ({
+    name: `Fact ${i}`,
+    value: '中'.repeat(600),
+  }));
+  const h = fixture(t, {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts,
+      offers: [],
+    },
+  });
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(prepared.ok);
+  const reviewed = JSON.parse(JSON.stringify(prepared.value));
+  const bytes = Buffer.byteLength(JSON.stringify(reviewed));
+  assert.ok(bytes > 256 * 1024 && bytes < 512 * 1024);
+  const pending = h.adapter.persistCatalogDetailApproval('admin', {
+    action: 'begin',
+    prepared: prepared.value,
+  });
+  const first = prepared.value.publication.header.facts[0];
+  assert.ok(first);
+  first.value = 'Changed after dispatch';
+  assert.equal((await pending).ok, true);
+  assert.deepEqual(await h.adapter.get('catalogDetailApprovals', reviewed._id), reviewed);
+});

@@ -699,3 +699,8 @@ Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse�
 ## P3e3：来源绑定与写后零读取
 
 0新外部SDK方法/shim/dependency。内部productOperationSaveReceipt由异步含tx参数改为纯函数，所有两个生产调用点同步更新，原facade保持导出。Node20精确native/staging+installedSDK仅HTTP替换验证publish draft-only、source绑定、首写后无读取、16docops、10坏ACK回滚/重试、6源冲突、采集变化允许及零重复写。基线1feb275对新增阶段拒绝stale是范围负控，不冒充生产缺陷。四来源进程1917byte样本/四普通草稿进程恢复通过。477Node20/19types/standingSDK通过；Context7不可用，原官方/安装合约未变。未证明云MVCC/adminHTTP/实际P95；原发布P1保留。
+
+
+## P3e3b：真实transaction startup等待窗口
+
+没有新第三方surface/shim/dependency。Native/helper与installedSDK Node20只替换HTTP，实际startTransaction响应暂停后改caller对象，四种旧bundle场景分别业务红；新bundle5场景通过，包括无法复制输入不调用SDK。另legacy完整begin/finish旧批准标题被晚改，新保留原审阅标题，商品均未发布。捕获在SDK之前，原事务方法/ACK形状不变。来源草稿16docops/10ACK故障/6源冲突与普通草稿10ACK/2字段/6正常描述回归；两个四进程流程通过。standingSDK、19types、493Node20通过，Context7不可用。structuredClone为既有Node20运行时能力，由实际Node20探针确认；无新增容量cap。全局P1与fullDeliveryReady=false保留。

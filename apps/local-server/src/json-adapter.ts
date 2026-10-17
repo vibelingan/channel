@@ -49,6 +49,7 @@ import {
 } from '@vibelingan-channel/db/catalog-detail-commit';
 import {
   type ApprovalPersistenceCommand,
+  captureApprovalPersistenceCommand,
   captureProductOperationSave,
   prepareProductOperationSave,
   productOperationSaveReceipt,
@@ -389,6 +390,8 @@ export class JsonFileAdapter implements DbAdapter {
     });
   }
   async persistCatalogDetailApproval(actorId: string, input: ApprovalPersistenceCommand) {
+    const captured = captureApprovalPersistenceCommand(input);
+    if (!captured.ok) return captured;
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
       let changed = false;
@@ -406,7 +409,7 @@ export class JsonFileAdapter implements DbAdapter {
           },
         },
         actorId,
-        input,
+        captured.command,
       );
       if (result.ok && changed) {
         const previous = this.store;

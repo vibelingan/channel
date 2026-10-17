@@ -148,6 +148,25 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
 ]);
 /** Internal adapter command. HTTP handlers must never forward a submitted `prepared` object. */
 export type ApprovalPersistenceCommand = z.infer<typeof PersistenceCommandSchema>;
+
+/** Capture before transaction startup or a local lock can yield to the caller. */
+export function captureApprovalPersistenceCommand(
+  input: ApprovalPersistenceCommand,
+): { ok: true; command: ApprovalPersistenceCommand } | Failure {
+  try {
+    return { ok: true, command: structuredClone(input) };
+  } catch {
+    return catalogValidationFailure('commit', [
+      CatalogIssueSchema.parse({
+        code: 'INVALID_VALUE',
+        stage: 'commit',
+        path: 'data',
+        severity: 'error',
+        remedy: 'reload',
+      }),
+    ]);
+  }
+}
 const fail = (code: Failure['code']): Failure => ({ ok: false, code });
 const progress = (job: PreparedApproval): Progress => ({
   ok: true,
@@ -679,6 +698,8 @@ export function persistStagedApprovalInCloud(
   actorId: string,
   input: ApprovalPersistenceCommand,
 ): Promise<ApprovalStageResult> {
+  const captured = captureApprovalPersistenceCommand(input);
+  if (!captured.ok) return Promise.resolve(captured);
   return db.runTransaction((tx) =>
     runStagedApproval(
       {
@@ -700,7 +721,7 @@ export function persistStagedApprovalInCloud(
         },
       },
       actorId,
-      input,
+      captured.command,
     ),
   );
 }
