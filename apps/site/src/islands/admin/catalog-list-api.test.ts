@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AdminApiError, listRecords } from './api.ts';
+import { AdminApiError, getRecord, listRecords } from './api.ts';
 function storage(t: { after(fn: () => void): void }) {
   const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   Object.defineProperty(globalThis, 'localStorage', {
@@ -75,5 +75,20 @@ test('duplicate IDs are rejected even when they fit inside the requested page', 
   await assert.rejects(
     listRecords({ collection: 'products' }),
     (error) => error instanceof AdminApiError && error.code === 'INVALID_RESPONSE',
+  );
+});
+
+test('getRecord forwards cancellation to its HTTP read', async (t) => {
+  storage(t);
+  const controller = new AbortController();
+  const reason = new DOMException('Owned cancelled product read', 'AbortError');
+  controller.abort(reason);
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    assert.equal(init.signal?.aborted, true);
+    throw init.signal?.reason;
+  });
+  await assert.rejects(
+    getRecord('products', 'owned-product', controller.signal),
+    (error) => error === reason,
   );
 });

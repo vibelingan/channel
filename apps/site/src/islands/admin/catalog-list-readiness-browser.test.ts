@@ -18,7 +18,15 @@ import { runCatalogPreparationCall } from '../../../../functions/alibaba-catalog
 import { createLocalCatalogPreparationInvoker } from '../../../../local-server/src/catalog-preparation-invoker.ts';
 import { JsonFileAdapter } from '../../../../local-server/src/json-adapter.ts';
 
-async function fixture(t: { after(fn: () => Promise<void>): void }, width = 1440) {
+async function fixture(
+  t: { after(fn: () => Promise<void>): void },
+  width = 1440,
+  options: {
+    summarizeList?: boolean;
+    ignoreProductAbort?: boolean;
+    products?: Record<string, Record<string, unknown>>;
+  } = {},
+) {
   const directory = await mkdtemp(join(tmpdir(), 'channel-list-readiness-'));
   let closeBrowser = async () => {};
   let closeServer = async () => {};
@@ -32,6 +40,7 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, width = 1440
     ...row,
     updatedAt: '2026-10-17T00:00:00.000Z',
     ...(['ready', 'blocked'].includes(String(row._id)) ? { subcategoryIds: ['clock'] } : {}),
+    ...options.products?.[String(row._id)],
   }));
   const taxonomy = CatalogTaxonomySchema.parse({
     ...initialCatalogTaxonomy('misc'),
@@ -128,6 +137,10 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, width = 1440
     failList: 0,
     failCount: 0,
     invalidList: 0,
+    failGet: 0,
+    wrongGet: 0,
+    holdGetId: null as string | null,
+    releaseGet: null as (() => Promise<void>) | null,
     holdListScope: null as string | null,
     holdCountScope: null as string | null,
     releaseList: null as (() => Promise<void>) | null,
@@ -141,6 +154,18 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, width = 1440
     requests.push({ action: parsed.action, data: parsed.data });
     const list = parsed.action === 'list' && parsed.data?.collection === 'products';
     const count = list && parsed.data.pageSize === 1;
+    const productGet = parsed.action === 'get' && parsed.data?.collection === 'products';
+    if (productGet && controls.failGet > 0) {
+      controls.failGet--;
+      await route.fulfill({
+        status: 503,
+        json: {
+          ok: false,
+          error: { code: 'UNAVAILABLE', message: 'Owned temporary product read failure' },
+        },
+      });
+      return;
+    }
     if (list && ((count && controls.failCount > 0) || (!count && controls.failList > 0))) {
       if (count) controls.failCount--;
       else controls.failList--;
@@ -159,12 +184,40 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, width = 1440
       handleAdminRequest,
     );
     assert.ok('statusCode' in response);
+    let responseBody = response.body;
+    if (list && options.summarizeList) {
+      const wire = JSON.parse(responseBody);
+      assert.equal(wire.ok, true);
+      wire.data.items = wire.data.items.map((row: Record<string, unknown>) => {
+        const {
+          description: _description,
+          series: _series,
+          modName: _model,
+          imageIds: _images,
+          manualCatalogPricing: _manual,
+          ...summary
+        } = row;
+        return summary;
+      });
+      responseBody = JSON.stringify(wire);
+    }
+    if (productGet && controls.wrongGet > 0) {
+      controls.wrongGet--;
+      const wire = JSON.parse(responseBody);
+      assert.equal(wire.ok, true);
+      wire.data._id = 'wrong-record';
+      responseBody = JSON.stringify(wire);
+    }
     const fulfill = () =>
       route.fulfill({
         status: response.statusCode,
         headers: response.headers,
-        body: response.body,
+        body: responseBody,
       });
+    if (productGet && controls.holdGetId === parsed.data.id) {
+      controls.releaseGet = fulfill;
+      return;
+    }
     if (list && !count && controls.invalidList > 0) {
       controls.invalidList--;
       const wire = JSON.parse(response.body);
@@ -185,6 +238,27 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, width = 1440
     }
     await fulfill();
   });
+  if (options.ignoreProductAbort) {
+    await page.addInitScript(() => {
+      const originalFetch = window.fetch.bind(window);
+      const completed: Record<string, number> = {};
+      Reflect.set(window, 'ownedProductReadCompletions', completed);
+      window.fetch = async (input, init) => {
+        if (typeof init?.body !== 'string') return originalFetch(input, init);
+        const body = JSON.parse(init.body);
+        if (body.action !== 'get' || body.data?.collection !== 'products')
+          return originalFetch(input, init);
+        // This negative transport ignores abort but preserves real response bytes.
+        const { signal: _signal, ...request } = init;
+        const response = await originalFetch(input, request);
+        const bytes = await response.arrayBuffer();
+        setTimeout(() => {
+          completed[body.data.id] = (completed[body.data.id] ?? 0) + 1;
+        }, 0);
+        return new Response(bytes, { status: response.status, headers: response.headers });
+      };
+    });
+  }
   await page.goto(`${origin}catalog-list-test`);
   await page.evaluate(
     async ({ token, harness }) => {
@@ -682,6 +756,247 @@ test(
       JSON.stringify(menu),
     );
     assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+    assert.deepEqual(f.errors, []);
+  },
+);
+
+test(
+  'a list summary never seeds or overwrites omitted saved fields in Edit',
+  { timeout: 90000 },
+  async (t) => {
+    const full = {
+      description: 'Full saved description, absent from a list row.',
+      series: 'Saved series',
+      modName: 'Complete model',
+    };
+    const f = await fixture(t, 1440, { summarizeList: true, products: { blocked: full } });
+    await productRow(f, 'Clock blocked').getByRole('button', { name: 'Edit', exact: true }).click();
+    const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await f.expect(form.locator('#description')).toHaveValue(full.description);
+    await f.expect(form.locator('#series')).toHaveValue(full.series);
+    await f.expect(form.locator('#modName')).toHaveValue(full.modName);
+    await form.locator('#name').fill('Safe summary edit');
+    await form.getByRole('button', { name: 'Save', exact: true }).click();
+    await f.expect(form).toHaveCount(0);
+    const saved = await f.adapter.get('products', 'blocked');
+    assert.ok(saved);
+    for (const [field, value] of Object.entries(full)) assert.equal(saved[field], value, field);
+    assert.equal(saved.name, 'Safe summary edit');
+    assert.equal(saved.published, false);
+    assert.deepEqual(saved.subcategoryIds, ['clock']);
+    assert.ok(f.requests.some((r) => r.action === 'get' && r.data?.id === 'blocked'));
+    assert.equal(f.requests.filter((r) => r.action === 'update').length, 1);
+    assert.deepEqual(f.errors, []);
+  },
+);
+
+test(
+  'opening Edit uses the current saved version after its list row becomes stale',
+  { timeout: 90000 },
+  async (t) => {
+    const f = await fixture(t, 1440, { summarizeList: true });
+    await f.adapter.update('products', 'blocked', {
+      description: 'New saved version',
+      series: 'New series',
+    });
+    await productRow(f, 'Clock blocked').getByRole('button', { name: 'Edit', exact: true }).click();
+    const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await f.expect(form.locator('#description')).toHaveValue('New saved version');
+    await form.locator('#name').fill('Current version edit');
+    await form.getByRole('button', { name: 'Save', exact: true }).click();
+    await f.expect(form).toHaveCount(0);
+    const saved = await f.adapter.get('products', 'blocked');
+    assert.equal(saved?.description, 'New saved version');
+    assert.equal(saved?.series, 'New series');
+    assert.equal(saved?.name, 'Current version edit');
+    assert.equal(saved?.published, false);
+    assert.deepEqual(f.errors, []);
+  },
+);
+
+for (const mode of ['Edit', 'Preview'] as const)
+  for (const failure of ['failGet', 'wrongGet'] as const)
+    test(
+      `full product read ${failure} has a read-only retry before ${mode} can open`,
+      { timeout: 90000 },
+      async (t) => {
+        const f = await fixture(t, 1440, {
+          summarizeList: true,
+          products: { blocked: { description: 'Read-only retry content' } },
+        });
+        f.controls[failure] = 100;
+        await productRow(f, 'Clock blocked')
+          .getByRole('button', { name: mode, exact: true })
+          .click();
+        const loading = f.page.getByRole('dialog', { name: 'Load product', exact: true });
+        const target = f.page.getByRole('dialog', {
+          name: mode === 'Edit' ? 'Edit Product' : 'Product preview',
+          exact: true,
+        });
+        await f
+          .expect(loading.getByRole('button', { name: 'Retry load', exact: true }))
+          .toBeVisible();
+        await f.expect(target).toHaveCount(0);
+        if (mode === 'Edit' && failure === 'wrongGet') {
+          await f.page.setViewportSize({ width: 390, height: 900 });
+          const geometry = await f.page.evaluate(() => ({
+            page: document.documentElement.scrollWidth,
+            viewport: innerWidth,
+          }));
+          assert.ok(geometry.page <= geometry.viewport, JSON.stringify(geometry));
+          const directory = fileURLToPath(
+            new URL(
+              '../../../../../output/pricing-clock-repair-2026-10-13/p2g4a/',
+              import.meta.url,
+            ),
+          );
+          await mkdir(directory, { recursive: true });
+          await f.page.screenshot({
+            path: join(directory, 'product-read-mobile-error.png'),
+            fullPage: true,
+          });
+        }
+        assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+        f.controls[failure] = 0;
+        await loading.getByRole('button', { name: 'Retry load', exact: true }).click();
+        await f.expect(target).toBeVisible();
+        if (mode === 'Edit') {
+          await f.expect(target.locator('#description')).toHaveValue('Read-only retry content');
+          await target.getByRole('button', { name: 'Cancel', exact: true }).click();
+        } else {
+          await target.getByRole('button', { name: 'Close', exact: true }).first().click();
+        }
+        await f.expect(target).toHaveCount(0);
+        assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+        assert.deepEqual(f.errors, []);
+      },
+    );
+
+test(
+  'closing a slow product open cannot replace another form or a reopened product',
+  { timeout: 90000 },
+  async (t) => {
+    const f = await fixture(t, 1440, { summarizeList: true, ignoreProductAbort: true });
+    f.controls.holdGetId = 'blocked';
+    await productRow(f, 'Clock blocked').getByRole('button', { name: 'Edit', exact: true }).click();
+    await f.expect.poll(() => Boolean(f.controls.releaseGet)).toBe(true);
+    f.controls.holdGetId = null;
+    await f.page
+      .getByRole('dialog', { name: 'Load product', exact: true })
+      .getByRole('button', { name: 'Close', exact: true })
+      .click();
+    await productRow(f, 'Clock ready').getByRole('button', { name: 'Edit', exact: true }).click();
+    const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await f.expect(form.locator('#name')).toHaveValue('Clock ready');
+    await form.locator('#name').fill('Unsaved user input');
+    const release = f.controls.releaseGet;
+    assert.ok(release);
+    await release();
+    await f.expect
+      .poll(() =>
+        f.page.evaluate(() => Reflect.get(window, 'ownedProductReadCompletions')?.blocked ?? 0),
+      )
+      .toBeGreaterThan(0);
+    await f.expect(form.locator('#name')).toHaveValue('Unsaved user input');
+    await form.getByRole('button', { name: 'Save', exact: true }).click();
+    await f.expect(form).toHaveCount(0);
+    assert.equal(f.requests.filter((r) => r.action === 'update').at(-1)?.data?.id, 'ready');
+    const savedReady = await f.adapter.get('products', 'ready');
+    assert.equal(savedReady?.name, 'Unsaved user input');
+    assert.equal(savedReady?.published, false);
+    assert.deepEqual(savedReady?.subcategoryIds, ['clock']);
+    await productRow(f, 'Clock blocked').getByRole('button', { name: 'Edit', exact: true }).click();
+    await f.expect(form.locator('#name')).toHaveValue('Clock blocked');
+    await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const stored = JSON.parse(await readFile(f.file, 'utf8'));
+    assert.deepEqual(
+      stored.products.filter((row: { _id: string }) => row._id !== 'ready'),
+      JSON.parse(f.initialBytes).products.filter((row: { _id: string }) => row._id !== 'ready'),
+    );
+    assert.equal(f.requests.filter((r) => r.action === 'update').length, 1);
+    assert.deepEqual(f.errors, []);
+  },
+);
+
+test(
+  'a flagged row Publish waits for the full Edit record and never publishes implicitly',
+  { timeout: 90000 },
+  async (t) => {
+    const f = await fixture(t, 1440, {
+      summarizeList: true,
+      products: {
+        blocked: {
+          alibabaReviewPending: true,
+          alibabaReviewReason: 'changed',
+          description: 'Full flagged content',
+        },
+      },
+    });
+    f.controls.failGet = 100;
+    await productRow(f, 'Clock blocked')
+      .getByRole('button', { name: 'Disabled', exact: true })
+      .click();
+    const loading = f.page.getByRole('dialog', { name: 'Load product', exact: true });
+    await f.expect(loading.getByRole('button', { name: 'Retry load', exact: true })).toBeVisible();
+    assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+    f.controls.failGet = 0;
+    await loading.getByRole('button', { name: 'Retry load', exact: true }).click();
+    const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await f.expect(form.locator('#description')).toHaveValue('Full flagged content');
+    await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await f.expect(form).toHaveCount(0);
+    assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+    assert.equal(
+      f.requests.filter((r) =>
+        ['update', 'batchUpdate', 'catalogDetailApproval'].includes(r.action),
+      ).length,
+      0,
+    );
+    assert.deepEqual(f.errors, []);
+  },
+);
+
+test(
+  'Preview Review changes re-reads the full record before opening Edit',
+  { timeout: 90000 },
+  async (t) => {
+    const f = await fixture(t, 1440, {
+      summarizeList: true,
+      products: {
+        blocked: {
+          published: true,
+          alibabaReviewPending: true,
+          alibabaReviewReason: 'changed',
+          description: 'Full review content',
+        },
+      },
+    });
+    await productRow(f, 'Clock blocked')
+      .getByRole('button', { name: 'Preview', exact: true })
+      .click();
+    const preview = f.page.getByRole('dialog', { name: 'Product preview', exact: true });
+    await f.expect(preview).toBeVisible();
+    f.controls.wrongGet = 100;
+    await preview.getByRole('button', { name: 'Review changes', exact: true }).click();
+    const loading = f.page.getByRole('dialog', { name: 'Load product', exact: true });
+    await f.expect(loading.getByRole('button', { name: 'Retry load', exact: true })).toBeVisible();
+    await f.expect(preview).toHaveCount(0);
+    await f
+      .expect(f.page.getByRole('dialog', { name: 'Edit Product', exact: true }))
+      .toHaveCount(0);
+    f.controls.wrongGet = 0;
+    await loading.getByRole('button', { name: 'Retry load', exact: true }).click();
+    const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await f.expect(form.locator('#description')).toHaveValue('Full review content');
+    await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await f.expect(form).toHaveCount(0);
+    assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+    assert.equal(
+      f.requests.filter((r) =>
+        ['update', 'batchUpdate', 'catalogDetailApproval'].includes(r.action),
+      ).length,
+      0,
+    );
     assert.deepEqual(f.errors, []);
   },
 );

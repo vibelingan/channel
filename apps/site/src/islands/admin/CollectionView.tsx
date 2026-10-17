@@ -44,6 +44,7 @@ import {
   type UnresolvedClassificationSnapshot,
   matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
+import { ProductRecordLoader } from './ProductRecordLoader.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
@@ -96,6 +97,12 @@ export interface ProductClassificationReview {
   beforeProducts: readonly CollectionDoc[];
 }
 
+interface ProductOpenRequest {
+  productId: string;
+  kind: 'edit' | 'preview';
+  sequence: number;
+}
+
 interface Props {
   collection: CollectionDef;
   section: DashboardSection;
@@ -128,6 +135,9 @@ export function CollectionView({
   const currentSelectionRef = useRef(rowSelection);
   currentSelectionRef.current = rowSelection;
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
+  const [openingProduct, setOpeningProduct] = useState<ProductOpenRequest | null>(null);
+  const currentOpening = useRef<ProductOpenRequest | null>(null);
+  const openSequence = useRef(0);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
   // Batch Publish where every selected product was skipped: no request, just the notice.
@@ -265,6 +275,30 @@ export function CollectionView({
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', collection.name] });
     if (isProducts) queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
+  }
+
+  function openRecord(doc: CollectionDoc, kind: ProductOpenRequest['kind']) {
+    if (!isProducts) {
+      if (kind === 'edit') setEditing(doc);
+      else setPreviewing(doc);
+      return;
+    }
+    const request = { productId: doc._id, kind, sequence: ++openSequence.current };
+    currentOpening.current = request;
+    setOpeningProduct(request);
+  }
+
+  function closeProductOpen() {
+    currentOpening.current = null;
+    setOpeningProduct(null);
+  }
+
+  function finishProductOpen(request: ProductOpenRequest, product: CollectionDoc) {
+    // Cancellation can race a response even when the transport ignores abort.
+    if (currentOpening.current !== request) return;
+    closeProductOpen();
+    if (request.kind === 'edit') setEditing(product);
+    else setPreviewing(product);
   }
 
   function clearSelection() {
@@ -594,7 +628,7 @@ export function CollectionView({
               // Publishing a flagged product goes through its review in Edit (DEC-19).
               row.original.published !== true &&
               ['Changed', 'Removed'].includes(String(reviewLabel(row.original)))
-                ? setEditing(row.original)
+                ? openRecord(row.original, 'edit')
                 : patch(row.original, { published: !(row.original.published === true) })
             }
           />
@@ -628,7 +662,7 @@ export function CollectionView({
             {isCatalog && (
               <button
                 type="button"
-                onClick={() => setPreviewing(doc)}
+                onClick={() => openRecord(doc, 'preview')}
                 className="text-sm font-medium text-brand-700 hover:text-brand-900"
               >
                 Preview
@@ -637,7 +671,7 @@ export function CollectionView({
             <button
               type="button"
               disabled={recordWritePending}
-              onClick={() => setEditing(doc)}
+              onClick={() => openRecord(doc, 'edit')}
               className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
               Edit
@@ -1249,6 +1283,15 @@ export function CollectionView({
         />
       )}
 
+      {openingProduct && (
+        <ProductRecordLoader
+          key={openingProduct.sequence}
+          productId={openingProduct.productId}
+          onLoaded={(product) => finishProductOpen(openingProduct, product)}
+          onClose={closeProductOpen}
+        />
+      )}
+
       {editing && (
         <RecordForm
           collection={collection}
@@ -1285,7 +1328,7 @@ export function CollectionView({
           onMarkReviewed={() => reviewMutation.mutate(previewing._id)}
           // Supplier changes are reviewed side by side in the edit form (DEC-19).
           onReviewChanges={() => {
-            setEditing(previewing);
+            openRecord(previewing, 'edit');
             setPreviewing(null);
           }}
           onUnpublish={() => unpublishFromReviewMutation.mutate(previewing._id)}
@@ -1294,7 +1337,7 @@ export function CollectionView({
             invalidate();
           }}
           onEdit={() => {
-            setEditing(previewing);
+            openRecord(previewing, 'edit');
             setPreviewing(null);
           }}
         />

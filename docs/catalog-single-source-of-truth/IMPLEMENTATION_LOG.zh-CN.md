@@ -1098,3 +1098,14 @@ P2g2精确181625d三函数build/package、Linux126闭包、同JS Macprofile与No
 实际红测检出失败PageJump、移动Publish漏保护；视觉检查又发现展开菜单429/390溢出，修成以整条选品栏为锚点，同时覆盖375px/20选品换行。最终12浏览器流程通过，12项源码反例均检出；首轮选品反例曾存活，补零选品及切回范围断言后检出，不算首轮通过。所有源码故障finally恢复并核对哈希。分类夹具缺版本、Select水合等待、可选data类型、旧Select清单4→5和短文案格式问题分别留日志，不当业务红测。
 
 最终DB1202/shared305/admin637/local501/public131/sync304/site719共3799，零失败/跳过/取消；Node20后台39及客户端16通过。六后端类型、Astro215文件零错误/警告8既有hint、15完整文件Biome、SDK/diff通过；精确构建见提交review侧车。逐一审查15代码/测试与选择、分类CAS、原编辑和Preview接缝；文案把通用Product list改为The list，核对字段缺失和未发布语义。全部列表夹具已清理。详见P2g3_LIST_READINESS_UI.zh-CN.md。继续有界列表/完整Edit读取、稳定操作/大媒体、旧数据审计及现场实际20件发布恢复；无部署/客户写入，fullDeliveryReady=false。
+
+
+## P2g4a：完整商品读取后再打开表单
+
+P2g3精确364e3bb site15页5.83秒、三函数build/package、Linux126闭包、同JS Macprofile和Node20 smoke通过；实际bundled admin→安装SDK→sync、5URL4+1、warm零IO、阻断修复、模块重启/失ACK和取消重试通过。各阶段实际五范围读回正确且只读，未发布、未强补分类，fixture清理。
+
+列表row不再直接作为产品表单/预览初始记录。读取对话框可Retry/Close，当前请求对象+序号、子组件active和HTTP取消一起隔离晚到结果；完整同ID商品读回后才挂载既有组件，保持原CAS和供应商规则。行Edit/Preview、带标记Publish、Preview Review changes/Edit均改接；非产品集合不变。此单元仍未收紧服务端列表字段，继续P2g4b。
+
+初始12正控5失败及取消13正控1失败。最终21浏览器/48组合通过；8源码反例检出并恢复哈希。组合移除两个旧完成保护时，文字不变但实际update目标从ready串到blocked，已由真实请求和DB读回检出。StrictMode故障夹具、脏表单Cancel确认、旧源码正则及定位脚本错误分别留记录；没有改产品行为来迁就错误测试。手机390错误弹窗有几何/截图，错ID原反例再次检出。
+
+最终site729零失败/跳过/取消、Node20客户端17、Astro216零错误/警告8既有hint、6完整文件Biome/diff通过；本单元无后端源改动，未重报整套后端。实际复核六代码/测试与Shell、表单、modal、保存接缝；取消措辞收紧到HTTP，不暗示服务端回滚。详见P2g4a_FULL_RECORD_OPEN.zh-CN.md，精确提交构建另记侧车。没有部署、客户写入、新分支/worktree/PR/push，fullDeliveryReady=false。

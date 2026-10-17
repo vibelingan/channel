@@ -313,8 +313,12 @@ export async function listRecords(args: ListArgs): Promise<ListResult<Collection
   return checked.data;
 }
 
-export async function getRecord(collection: string, id: string): Promise<CollectionDoc> {
-  const record = await call<CollectionDoc>('get', { collection, id });
+export async function getRecord(
+  collection: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<CollectionDoc> {
+  const record = await call<CollectionDoc>('get', { collection, id }, signal);
   if (record?._id !== id)
     throw new AdminApiError(
       'INVALID_RESPONSE',
