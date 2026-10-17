@@ -704,3 +704,7 @@ Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse�
 ## P3e3b：真实transaction startup等待窗口
 
 没有新第三方surface/shim/dependency。Native/helper与installedSDK Node20只替换HTTP，实际startTransaction响应暂停后改caller对象，四种旧bundle场景分别业务红；新bundle5场景通过，包括无法复制输入不调用SDK。另legacy完整begin/finish旧批准标题被晚改，新保留原审阅标题，商品均未发布。捕获在SDK之前，原事务方法/ACK形状不变。来源草稿16docops/10ACK故障/6源冲突与普通草稿10ACK/2字段/6正常描述回归；两个四进程流程通过。standingSDK、19types、493Node20通过，Context7不可用。structuredClone为既有Node20运行时能力，由实际Node20探针确认；无新增容量cap。全局P1与fullDeliveryReady=false保留。
+
+## P3e4 same-root approval start
+
+No new SDK methods/shims/dependencies; same existing point-get/set transaction contract. Pure legacy schema/fingerprint/decoder source equivalent to58be04d after export renames; native adapter and original actor fence source untouched. Node20 installed SDK, only HTTP transport replaced:6cases, begin4document operations, delayed actual start capture, three badACK rollbacks, own cursor get/start/save/begin zero-write replay and stale lifecycle refusal. Four independent Node24/20 JSON processes recover discarded begin response; test directories removed. Context7 unavailable; no changed external contract requiring a new surface inference. Standing SDK gate/535relatedNode20/19types/4723package+script checks pass. 1MiB combined root is an application budget, not a vendor limit claim; raw256KiB and legacyjob512KiB component limits retained. No cloudMVCC/deploy/real20 acceptance proof. Exact-SHA artifacts follow commit review.

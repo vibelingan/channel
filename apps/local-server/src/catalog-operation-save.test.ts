@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import { setAdapter, unfinishedApprovalUsingImage } from '@vibelingan-channel/db';
 import { catalogApprovalDigest } from '@vibelingan-channel/db/catalog-detail-commit';
 import { prepareStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
@@ -1290,4 +1291,81 @@ test('capturing a large legal UTF-8 legacy approval does not apply the smaller o
   first.value = 'Changed after dispatch';
   assert.equal((await pending).ok, true);
   assert.deepEqual(await h.adapter.get('catalogDetailApprovals', reviewed._id), reviewed);
+});
+
+async function jsonOwnApprovalFixture(
+  t: { after(callback: () => void): void },
+  extra: Record<string, unknown> = {},
+) {
+  const h = fixture(t, {
+    ...values,
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+    ...extra,
+  });
+  const { input, answer } = await reservePublish(h.adapter);
+  assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const planned = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId,
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(planned.ok, JSON.stringify(planned));
+  return {
+    ...h,
+    input,
+    command: {
+      action: 'operation-approval-begin' as const,
+      productId: 'p',
+      operationId,
+      inputDigest: answer.record.operation.inputDigest,
+      prepared: planned.value,
+    },
+  };
+}
+test('own approval cursor survives an adapter reopen and a repeat saved-draft request without rewriting the file', async (t) => {
+  const h = await jsonOwnApprovalFixture(t);
+  const begun = await h.adapter.persistCatalogDetailApproval('admin', h.command);
+  assert.ok(begun.ok && 'record' in begun, JSON.stringify(begun));
+  assert.equal(begun.record.state, 'staging');
+  assert.equal(begun.current, true);
+  const reopened = new JsonFileAdapter(h.file);
+  const bytes = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  // JSON persistence omits optional undefined publication fields.
+  const persisted = JSON.parse(JSON.stringify(begun));
+  assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', query), persisted);
+  assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', h.command), persisted);
+  assert.equal((await reopened.saveCatalogProductWithIdentities(h.input)).result, 'saved');
+  assert.equal(h.bytes(), bytes);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+});
+test('unfinished image deletion guard recognises the publication inside an owned staging root', async (t) => {
+  const h = await jsonOwnApprovalFixture(t, { imageIds: ['held-own'] });
+  assert.deepEqual(h.command.prepared.publication.header.images, ['/api/images/held-own']);
+  const begun = await h.adapter.persistCatalogDetailApproval('admin', h.command);
+  assert.ok(begun.ok);
+  setAdapter(new JsonFileAdapter(h.file));
+  assert.equal(await unfinishedApprovalUsingImage('held-own'), 'p');
+  assert.equal(await unfinishedApprovalUsingImage('unrelated'), null);
 });

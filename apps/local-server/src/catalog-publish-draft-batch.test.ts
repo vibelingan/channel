@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type { CatalogProductSaveInput } from '@vibelingan-channel/db/adapter';
+import { catalogApprovalDigest } from '@vibelingan-channel/db/catalog-detail-commit';
+import { prepareStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { JsonFileAdapter } from './json-adapter.ts';
 
@@ -198,3 +200,120 @@ for (const total of [20, 50, 100])
       }),
     );
   });
+
+test('20 independent owned approval starts survive lost responses and four concurrent callers without publishing', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'channel-owned-approval20-'));
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true });
+    assert.equal(existsSync(dir), false);
+  });
+  const file = join(dir, 'db.json');
+  const products = Array.from({ length: 20 }, (_, i) => ({
+    _id: `p-${i}`,
+    name: `Clock ${i}`,
+    description: '',
+    productFamily: 'misc',
+    subcategoryIds: [],
+    published: false,
+    archived: false,
+    imageIds: [],
+    updatedAt: at,
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: `p-${i}`,
+      name: `Clock ${i}`,
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+  }));
+  writeFileSync(file, JSON.stringify({ users: [{ _id: 'admin', role: 'admin' }], products }));
+  const adapter = new JsonFileAdapter(file);
+  let next = 0;
+  const ids = new Set<string>();
+  const workers = await Promise.allSettled(
+    Array.from({ length: 4 }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= 20) return;
+        const product = products[i];
+        assert.ok(product);
+        const operationId = `12345678-1234-4234-8234-${String(i).padStart(12, '0')}`;
+        const command = {
+          action: 'operation-start' as const,
+          productId: product._id,
+          operationId,
+          intent: 'publish' as const,
+          expectedUpdatedAt: at,
+          values: {},
+        };
+        const first = await adapter.persistCatalogDetailApproval('admin', command);
+        assert.ok(first.ok && 'record' in first);
+        const input = {
+          mode: 'update' as const,
+          productId: product._id,
+          data: {},
+          expectedUpdatedAt: at,
+          expectedOperation: {
+            actorId: 'admin',
+            operationId,
+            inputDigest: first.record.operation.inputDigest,
+          },
+        };
+        assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+        const saved = await adapter.get('products', product._id);
+        assert.ok(saved);
+        const prepared = prepareStagedApproval(
+          'admin',
+          {
+            productId: product._id,
+            operationId,
+            expectedRevision: null,
+            expectedDigest: catalogApprovalDigest(saved, []),
+          },
+          saved,
+          [],
+        );
+        assert.ok(prepared.ok, JSON.stringify(prepared));
+        const begin = {
+          action: 'operation-approval-begin' as const,
+          productId: product._id,
+          operationId,
+          inputDigest: first.record.operation.inputDigest,
+          prepared: prepared.value,
+        };
+        assert.equal((await adapter.persistCatalogDetailApproval('admin', begin)).ok, true);
+        const reopened = new JsonFileAdapter(file);
+        const own = await reopened.persistCatalogDetailApproval('admin', {
+          action: 'operation-get',
+          productId: product._id,
+          operationId,
+        });
+        assert.ok(own.ok && 'record' in own && own.current && own.revisionCurrent);
+        assert.equal(own.record.state, 'staging');
+        assert.equal(own.record.operationId, operationId);
+        assert.equal(own.record.productId, product._id);
+        ids.add(own.record._id);
+        assert.equal((await reopened.saveCatalogProductWithIdentities(input)).result, 'saved');
+        assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', begin), own);
+      }
+    }),
+  );
+  for (const worker of workers) if (worker.status === 'rejected') throw worker.reason;
+  assert.equal(ids.size, 20);
+  const stored = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(stored.catalogDetailApprovals.length, 20);
+  for (const row of stored.products) {
+    assert.equal(row.published, false);
+    assert.equal(row.catalogLifecycleVersion, 1);
+    assert.equal(row.catalogDetailApprovalReceipt, undefined);
+    assert.equal(row.catalogDetailPublication, undefined);
+    assert.equal(row.productFamily, 'misc');
+    assert.deepEqual(row.subcategoryIds, []);
+  }
+});

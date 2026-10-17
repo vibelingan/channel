@@ -2967,3 +2967,86 @@ test('native capture keeps all facts of a legal UTF-8 approval larger than the s
   assert.equal((await pending).ok, true);
   assert.deepEqual(h.store.get('catalogDetailApprovals')?.get(reviewed._id), reviewed);
 });
+
+async function nativeOwnApprovalFixture() {
+  const h = await ownDraftFixture({}, 'publish', {
+    products: [
+      {
+        _id: 'p',
+        name: 'Clock',
+        description: 'Reviewed own draft',
+        slug: 'new-clock',
+        skuCode: 'new-clock',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        imageIds: [],
+        updatedAt: '2026-10-18T00:00:00.000Z',
+        detailSourceReady: true,
+        detailSourceOwner: 'owned-source',
+        detailSourceRevision: 'r1',
+        detailSourceContentGeneration: 0,
+        detailSourceManifest: { revision: 'r1', variantIds: [] },
+        detailSourceCandidate: {
+          _id: 'p',
+          name: 'Clock',
+          schemaVersion: 'catalog-product-detail-v1',
+          images: [],
+          facts: [],
+          offers: [],
+        },
+      },
+    ],
+  });
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+  const product = h.store.get('products')?.get('p');
+  assert.ok(product);
+  const plan = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: h.record.operationId,
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(plan.ok, JSON.stringify(plan));
+  const command = {
+    action: 'operation-approval-begin' as const,
+    productId: 'p',
+    operationId: h.record.operationId,
+    inputDigest: h.record.operation.inputDigest,
+    prepared: plan.value,
+  };
+  return { ...h, command };
+}
+test('native own approval saves its cursor in the original root; get and saved-draft retries perform no writes', async () => {
+  const h = await nativeOwnApprovalFixture();
+  const begun = await persistStagedApprovalInCloud(h.db, 'admin', h.command);
+  assert.ok(begun.ok && 'record' in begun, JSON.stringify(begun));
+  assert.equal(begun.record.state, 'staging');
+  assert.equal(begun.current, true);
+  assert.equal(h.store.get('catalogDetailApprovals')?.size, 1);
+  const before = structuredClone(h.store);
+  const get = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-get',
+    productId: 'p',
+    operationId: h.record.operationId,
+  });
+  assert.deepEqual(get, begun);
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+  assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', h.command), begun);
+  assert.deepEqual(h.store, before);
+  assert.ok(h.controls.maximumOperations <= 10);
+  assert.equal(h.store.get('products')?.get('p')?.published, false);
+});
+for (const mode of ['silentWrite', 'codedWrite', 'failWrite'] as const)
+  test(`native own approval refuses ${mode} without a partially written cursor`, async () => {
+    const h = await nativeOwnApprovalFixture();
+    const before = structuredClone(h.store);
+    h.controls[mode] = `catalogDetailApprovals/${h.record._id}`;
+    await assert.rejects(persistStagedApprovalInCloud(h.db, 'admin', h.command));
+    assert.deepEqual(h.store, before);
+  });

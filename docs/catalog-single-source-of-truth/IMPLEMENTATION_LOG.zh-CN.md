@@ -1202,3 +1202,7 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e3b：外层等待前冻结完整命令
 
 基线62dddaa，发现SDK事务启动/文件锁前的caller引用窗口；8unit红、4实际SDK延迟响应红，旧legacy finish会批准晚改标题。用同一个捕获函数在两入口等待前复制所有持久化命令，保留原schema/容量，失败受控反馈且不写。16新增用例；六源码反例51重叠失败、2源文件SHA还原；5实际SDK正控、完整legacy旧红新绿、两种草稿SDK/四进程回归通过。七包+scripts4680、Node20493、19types和显式Biome/SDK/diff通过。详见[P3e3b](P3e3b_ASYNC_COMMAND_CAPTURE.zh-CN.md)。措辞把“事务内冻结”纠正为“SDK/锁等待前冻结”，原完整发布恢复P1保留，fullDeliveryReady=false。
+
+## P3e4：同一操作的审批起点与查询
+
+同一key由saved进入staging，保留初始输入/保存回执/TTL，get/start/重复begin恢复原游标，旧page/finish保持关闭。43新增测试；10源码反例28重叠失败并还原；安装SDK6组/4进程/隔离20起点串联通过。七包+scripts4723、Node20535、19types、显式Biome/SDK/diff通过。[P3e4](P3e4_OWN_APPROVAL_CURSOR.zh-CN.md)记录边界和最大根读取接缝。措辞纠正“审批成功”为“审批游标已保存”；整体验收fullDeliveryReady=false，原完整发布恢复P1保留。
