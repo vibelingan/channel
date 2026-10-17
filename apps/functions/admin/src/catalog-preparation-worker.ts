@@ -101,6 +101,21 @@ async function runCatalogPreparationStages(
     return { ok: false, code: 'UNAVAILABLE' };
   }
   if (!claimed.ok) return { ok: false, code: claimed.code };
+  if ('preparation' in claimed) {
+    const report = claimed.report;
+    if (!ready || report.state !== 'ready') return { ok: false, code: 'CONFLICT' };
+    const total = report.seal.imageCount;
+    return {
+      ok: true,
+      kind: 'catalog-preparation-step',
+      outcome: 'ready',
+      jobId: report.seal.jobId,
+      productId: claimed.productId,
+      media: { total, checked: total, verified: total, invalid: 0, retry: 0 },
+      attestation: { total, checked: total },
+      issues: report.issues,
+    };
+  }
   if (!('lease' in claimed)) return { ok: false, code: 'CONFLICT' };
   const { lease, progress } = claimed;
   const run = (command: Parameters<typeof manageCatalogPreparationJob>[1]) =>

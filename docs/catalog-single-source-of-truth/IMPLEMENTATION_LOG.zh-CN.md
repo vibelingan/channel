@@ -996,3 +996,11 @@ P2f9c3 精确提交三函数 build/package、Linux126文件完整性、同JS显�
 60项阶段/默认小流程组合已通过。真实9图跨步/重开/无额外GET或PUT、105配置图53步、取消/编辑/来源绑定变化、明确retry与两个阶段ACK丢失均覆盖。7源码反例在选定13测试上全检出，1–12正控/1–12失败，源码恢复；完整扩大回归、最终types/Node20/构建随后记录。详见P2f9c4_READY_WORKER.zh-CN.md。人类恢复/状态快照/准入/其余组合与test现场仍需继续，fullDeliveryReady=false。
 
 P2f9c4 最终本地：admin549/alibaba304/local450，共1303项零失败/跳过/取消；源码恢复后的Node20三文件95、三消费者types、两文件Biome、SDK gate、diff检查通过。加强实际main的report/job读回后，七个反例全部重跑检出并恢复。复核active来源URL不能重定向，retire只接受pending/failed；catalogSourceLinks的adminAccess为none。最终事务不逐张读媒体，依赖已核对占用及应用受控目标/绑定；外部直接改库或对象字节不当作已验证路径。精确提交的构建与bundled main链路随后追加。
+
+## P2f9c5：已完成任务只读恢复
+
+P2f9c4精确提交三函数产物与实际bundled main通过：五URL跨4+1导入、一来源PUT+一保护PUT，当前ready/completed读回；第二商品共享图零额外IO也ready，未发布保留，隔离对象清理完成。bundle SHA c3fbb44e768b6756700d4e96679e6963519bbe994204d9f6b0f2d099acb076d1，仅受控本地网络/真实磁盘/native，非test现场。
+
+新claim在完成任务上验证有效签名同nonce、当前输入与完整服务凭据，只读返回原ready；重启无需原WeakMap，五次source-backed点读，无租约/计数/商品/文件变更。即时丢ACK与重启共用报告检查。初始245项串联通过；补独立报告时间和禁止bindLease断言，8源码反例全部检出，21–30正控/31，字节恢复。完整扩大、最终types/Node20/SDK和精确产物随后记录。人类过期恢复与余下准入/UI/修复/现场验收继续，fullDeliveryReady=false。
+
+P2f9c5 最终本地：DB1064/admin549/alibaba304/local452，共2369项全部通过，0失败/跳过/取消；Node20四文件288、四消费者types、五文件显式Biome、Cloud新增块格式、SDK gate、diff检查通过。反例恢复后完成扩大验证；无线上资源/业务写入。精确提交及模块重启的bundled main验证随后记。

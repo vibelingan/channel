@@ -1547,3 +1547,62 @@ for (const [collection, patch] of [
     assert.ok(!result.ok && result.code === 'STALE', JSON.stringify(result));
     assert.deepEqual(f.store.get('products'), product);
   });
+
+async function completedClaimCloudFixture() {
+  const { f, finish } = await finishReadyCloudFixture();
+  assert.ok((await finish()).ok);
+  const job = readCatalogPreparationJob(
+    f.store.get('catalogPreparationJobs')?.get(f.scope.jobId),
+    f.scope.jobId,
+    f.now,
+  );
+  assert.ok(job);
+  const call = f.authority.issueCall({ jobId: f.scope.jobId, nonce: job.nonce });
+  const command = { action: 'claim' as const, call, owner: 'new-worker' };
+  return { f, job, command, claim: () => f.run(command) };
+}
+test('source-backed completed claim is five point reads and zero writes or new lease', async () => {
+  const { f, claim } = await completedClaimCloudFixture();
+  const before = structuredClone(f.store);
+  f.controls.maximumOperations = 0;
+  const result = await claim();
+  assert.ok(result.ok && 'preparation' in result, JSON.stringify(result));
+  assert.equal(result.preparation, 'unchanged');
+  assert.equal(f.controls.maximumOperations, 5);
+  assert.deepEqual(f.store, before);
+});
+for (const patch of [{ sourceTitle: 'New source' }, null] as const)
+  test('completed claim refuses changed or missing source without rewriting terminal state', async () => {
+    const { f, claim } = await completedClaimCloudFixture();
+    const source = f.store.get('alibabaSourceProducts')?.get('source');
+    assert.ok(source);
+    if (patch) Object.assign(source, patch);
+    else f.store.get('alibabaSourceProducts')?.delete('source');
+    const before = structuredClone(f.store);
+    assert.deepEqual(await claim(), { ok: false, code: 'STALE' });
+    assert.deepEqual(f.store, before);
+  });
+test('completed native claim rechecks signed admission after asynchronous reads', async () => {
+  const { f, job } = await completedClaimCloudFixture();
+  let now = f.now + 5;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'completed-expiry',
+    environmentId: 'test',
+    now: () => now,
+  });
+  const call = authority.issueCall({ jobId: job._id, nonce: job.nonce });
+  f.controls.afterRead = (key) => {
+    if (key === 'products/p') now += 30001;
+  };
+  const before = structuredClone(f.store);
+  assert.deepEqual(
+    await manageCatalogPreparationJobInCloudBase(
+      f.db,
+      authority,
+      { action: 'claim', call, owner: 'replacement' },
+      now,
+    ),
+    { ok: false, code: 'FORBIDDEN' },
+  );
+  assert.deepEqual(f.store, before);
+});

@@ -251,6 +251,10 @@ test('completed readback cannot replay after content changed or after the saved 
     assert.ok(p);
     if (fault === 'edit') p.name = 'New';
     if (fault === 'report') p.catalogPreparationReport = null;
+    if (fault === 'report-timestamp') {
+      assert.ok(p.catalogPreparationReport && typeof p.catalogPreparationReport === 'object');
+      Reflect.set(p.catalogPreparationReport, 'checkedAt', '2026-10-14T00:00:01.000Z');
+    }
     if (fault === 'receipt')
       Object.assign(f.rows[`catalogPreparationJobs/${f.scope.jobId}`] ?? {}, { completion: null });
     const before = structuredClone(f.rows);
@@ -292,4 +296,146 @@ test('ready input accepts only safe bounded warnings and a validated preview', a
     });
     assert.equal(f.writes.length, 0);
   }
+});
+
+async function completed() {
+  const f = await fixture();
+  assert.ok((await f.run(f.command)).ok);
+  const job = f.rows[`catalogPreparationJobs/${f.scope.jobId}`];
+  assert.ok(job);
+  assert.equal(typeof job.nonce, 'string');
+  const call = f.authority.issueCall({ jobId: f.scope.jobId, nonce: String(job.nonce) });
+  const claim = { action: 'claim', call, owner: 'replacement' };
+  f.writes.length = 0;
+  return { ...f, job, claim };
+}
+test('signed completed claim is readonly even when no further mutation revision can be allocated', async () => {
+  const f = await completed();
+  f.job.mutationRevision = Number.MAX_SAFE_INTEGER;
+  const before = structuredClone(f.rows);
+  const result = await f.run(f.claim);
+  assert.ok(result.ok && 'preparation' in result);
+  assert.equal(result.preparation, 'unchanged');
+  assert.deepEqual(f.rows, before);
+  assert.equal(f.writes.length, 0);
+});
+for (const fault of [
+  'edited-product',
+  'missing-product',
+  'report',
+  'receipt',
+  'receipt-owner',
+  'report-timestamp',
+  'seal-policy',
+  'seal-root',
+  'media',
+  'nonce',
+] as const)
+  test(`completed claim refuses ${fault} without changing any saved row`, async () => {
+    const f = await completed();
+    const p = f.rows['products/p'];
+    assert.ok(p);
+    if (fault === 'edited-product') p.name = 'User edit';
+    if (fault === 'missing-product') Reflect.deleteProperty(f.rows, 'products/p');
+    if (fault === 'report') p.catalogPreparationReport = null;
+    if (fault === 'report-timestamp') {
+      assert.ok(p.catalogPreparationReport && typeof p.catalogPreparationReport === 'object');
+      Reflect.set(p.catalogPreparationReport, 'checkedAt', '2026-10-14T00:00:01.000Z');
+    }
+    if (fault === 'receipt') f.job.completion = null;
+    if (fault === 'receipt-owner') {
+      assert.ok(f.job.completion && typeof f.job.completion === 'object');
+      Reflect.set(f.job.completion, 'leaseOwner', 'other-owner');
+    }
+    if (fault === 'seal-policy') {
+      assert.ok(f.job.mediaSeal && typeof f.job.mediaSeal === 'object');
+      Reflect.set(f.job.mediaSeal, 'pixelPolicyVersion', 'old-pixels');
+    }
+    if (fault === 'seal-root') {
+      assert.ok(p.catalogPreparationReport && typeof p.catalogPreparationReport === 'object');
+      const seal = Reflect.get(p.catalogPreparationReport, 'seal');
+      assert.ok(seal && typeof seal === 'object');
+      Reflect.set(seal, 'imageIdsDigest', 'f'.repeat(64));
+    }
+    if (fault === 'media') f.job.media = null;
+    if (fault === 'nonce') f.job.nonce = 'f'.repeat(64);
+    const before = structuredClone(f.rows);
+    const result = await f.run(f.claim);
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.deepEqual(f.rows, before);
+    assert.equal(f.writes.length, 0);
+  });
+test('a signed wrong-attempt nonce refuses before reading the completed product', async () => {
+  const f = await completed();
+  let productReads = 0;
+  const tx = {
+    ...f.tx,
+    get: async (c: string, id: string) => {
+      if (c === 'products') productReads++;
+      return f.tx.get(c, id);
+    },
+  };
+  const call = f.authority.issueCall({ jobId: f.scope.jobId, nonce: 'f'.repeat(64) });
+  assert.deepEqual(await runCatalogPreparationJob(tx, f.authority, { ...f.claim, call }, f.now), {
+    ok: false,
+    code: 'FORBIDDEN',
+  });
+  assert.equal(productReads, 0);
+  assert.equal(f.writes.length, 0);
+});
+test('completed readonly claim preserves current lifecycle and subcategories', async () => {
+  const f = await completed();
+  Object.assign(f.rows['products/p'] ?? {}, {
+    archived: true,
+    published: false,
+    catalogLifecycleVersion: 3,
+    subcategoryIds: ['latest'],
+  });
+  const before = structuredClone(f.rows);
+  assert.ok((await f.run(f.claim)).ok);
+  assert.deepEqual(f.rows, before);
+  assert.equal(f.writes.length, 0);
+});
+test('expiry during completed input reads cannot return ready data', async () => {
+  const f = await fixture();
+  assert.ok((await f.run(f.command)).ok);
+  f.writes.length = 0;
+  const job = f.rows[`catalogPreparationJobs/${f.scope.jobId}`];
+  assert.ok(job);
+  const call = f.authority.issueCall({ jobId: f.scope.jobId, nonce: String(job.nonce) });
+  const tx = {
+    ...f.tx,
+    get: async (c: string, id: string) => {
+      const r = await f.tx.get(c, id);
+      if (c === 'products') f.now += 30001;
+      return r;
+    },
+  };
+  const before = structuredClone(f.rows);
+  assert.deepEqual(
+    await runCatalogPreparationJob(
+      tx,
+      f.authority,
+      { action: 'claim', call, owner: 'replacement' },
+      f.now,
+    ),
+    { ok: false, code: 'FORBIDDEN' },
+  );
+  assert.deepEqual(f.rows, before);
+  assert.equal(f.writes.length, 0);
+});
+
+test('completed claim never binds a new opaque lease', async () => {
+  const f = await completed();
+  const authority = {
+    ...f.authority,
+    bindLease: () => {
+      throw Error('completed readonly must not bind');
+    },
+  };
+  const before = structuredClone(f.rows);
+  const result = await runCatalogPreparationJob(f.tx, authority, f.claim, f.now);
+  assert.ok(result.ok && 'preparation' in result);
+  assert.deepEqual(f.rows, before);
+  assert.equal(f.writes.length, 0);
 });

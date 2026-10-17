@@ -1645,3 +1645,49 @@ test('default worker zero-image preview can finish without a pixel check while a
   assert.deepEqual(unprotected, { ok: false, code: 'CONFLICT' });
   assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
 });
+
+test('duplicate signed default call after database and authority restart reads current ready without writes or IO', async (t) => {
+  const f = await fixture(t, 1);
+  const call = await f.dispatch();
+  const first = await runCatalogPreparationWorker(f.authority, call);
+  assert.ok(first.ok && first.outcome === 'ready');
+  const saved = readFileSync(f.file, 'utf8');
+  const adapter = new JsonFileAdapter(f.file);
+  setAdapter(adapter);
+  const authority = createCatalogPreparationAuthority({
+    secret: 'worker-local-test',
+    environmentId: 'local-worker-env',
+  });
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('completed call must not read objects');
+  };
+  f.storage.putObject = async () => {
+    throw Error('completed call must not copy');
+  };
+  const result = await runCatalogPreparationWorker(authority, call, {
+    checkImage: async () => {
+      throw Error('completed call must not check');
+    },
+  });
+  assert.deepEqual(result, first);
+  assert.equal(readFileSync(f.file, 'utf8'), saved);
+});
+
+test('completed default retry preserves later lifecycle changes and refuses later user content edits', async (t) => {
+  const f = await fixture(t, 1);
+  const call = await f.dispatch();
+  assert.ok((await runCatalogPreparationWorker(f.authority, call)).ok);
+  await f.adapter.update('products', 'p', { archived: true, subcategoryIds: ['latest'] });
+  const before = readFileSync(f.file, 'utf8');
+  const replay = await runCatalogPreparationWorker(f.authority, call);
+  assert.ok(replay.ok && replay.outcome === 'ready');
+  assert.equal(readFileSync(f.file, 'utf8'), before);
+  await f.adapter.update('products', 'p', { name: 'User edited after ready' });
+  const edited = readFileSync(f.file, 'utf8');
+  assert.deepEqual(await runCatalogPreparationWorker(f.authority, call), {
+    ok: false,
+    code: 'STALE',
+  });
+  assert.equal(readFileSync(f.file, 'utf8'), edited);
+  assert.equal((await f.adapter.get('products', 'p'))?.name, 'User edited after ready');
+});

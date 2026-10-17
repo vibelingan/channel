@@ -1,3 +1,4 @@
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CatalogIssueSchema } from '@vibelingan-channel/shared/catalog-issues';
 /** Atomic readiness for current sealed inputs. This command never approves or publishes. */
 import {
@@ -126,16 +127,8 @@ export async function finishCatalogPreparation(
     return { ok: false, code: 'STALE' };
   }
   if (replay) {
-    const report = readCurrentCatalogPreparation(product);
-    if (
-      !completion ||
-      report?.state !== 'ready' ||
-      report.inputDigest !== job.inputDigest ||
-      report.seal.jobId !== job._id ||
-      report.seal.receiptId !== completion.receiptId ||
-      alibabaPricingFingerprint(report) !== completion.reportDigest
-    )
-      return { ok: false, code: 'CONFLICT' };
+    const report = completedPreparationReport(job, product);
+    if (!report) return { ok: false, code: 'CONFLICT' };
     return { ok: true, preparation: 'unchanged', productId: job.productId, report };
   }
   if (!active) return { ok: false, code: 'CONFLICT' };
@@ -197,4 +190,65 @@ export async function finishCatalogPreparation(
   if (!authority.currentLeaseScope(command.lease, job))
     throw Error('Preparation lease changed during readiness commit');
   return { ok: true, preparation: 'ready', productId: job.productId, report };
+}
+
+/** Check a saved server receipt without granting a new lease. */
+function completedPreparationReport(job: CatalogPreparationJobRecord, product: CollectionDoc) {
+  const report = readCurrentCatalogPreparation(product);
+  const done = job.completion;
+  const media = job.media;
+  const seal = job.mediaSeal;
+  if (
+    job.state !== 'completed' ||
+    !done ||
+    report?.state !== 'ready' ||
+    !media ||
+    !seal ||
+    report.inputDigest !== job.inputDigest ||
+    report.seal.jobId !== job._id ||
+    report.seal.receiptId !== done.receiptId ||
+    done.leaseVersion !== job.leaseVersion ||
+    alibabaPricingFingerprint(report) !== done.reportDigest ||
+    done.receiptId !==
+      alibabaPricingFingerprint([
+        'catalog-preparation-completion-v1',
+        job._id,
+        job.nonce,
+        done.leaseOwner,
+        done.leaseVersion,
+        done.commandDigest,
+      ]) ||
+    media.cursor !== media.total ||
+    media.verified !== media.total ||
+    media.invalid !== 0 ||
+    media.retry !== 0 ||
+    seal.cursor !== seal.total ||
+    seal.total !== media.total ||
+    seal.policyVersion !== CATALOG_MEDIA_SEAL_POLICY ||
+    seal.pixelPolicyVersion !== CATALOG_PIXEL_POLICY ||
+    report.seal.planDigest !== media.planDigest ||
+    report.seal.planDigest !== seal.planDigest ||
+    report.seal.imageIdsDigest !== seal.imageIdsDigest ||
+    report.seal.imageCount !== seal.total
+  )
+    return null;
+  return report;
+}
+export async function readCompletedCatalogPreparation(
+  tx: CatalogApprovalTransaction,
+  job: CatalogPreparationJobRecord,
+): Promise<CatalogPreparationJobResult> {
+  const product = await tx.get('products', job.productId);
+  if (!product) return { ok: false, code: 'STALE' };
+  if (product._id !== job.productId) return { ok: false, code: 'CORRUPT' };
+  if (
+    (product.catalogContentGeneration ?? 0) !== job.contentGeneration ||
+    catalogPreparationInputDigest(await readCatalogPreparationInputs(tx, product)) !==
+      job.inputDigest
+  )
+    return { ok: false, code: 'STALE' };
+  const report = completedPreparationReport(job, product);
+  return report
+    ? { ok: true, preparation: 'unchanged', productId: job.productId, report }
+    : { ok: false, code: 'CONFLICT' };
 }

@@ -29,6 +29,7 @@ import {
   CatalogPreparationCompletionSchema,
   CatalogPreparationFinishCommandSchema,
   finishCatalogPreparation,
+  readCompletedCatalogPreparation,
 } from './catalog-preparation-finish.ts';
 import {
   catalogPreparationImageHold,
@@ -406,12 +407,14 @@ export async function runCatalogPreparationJob(
     return { ok: true, progress: progress(job) };
   }
   let ticket: object | null = null;
+  let ticketNonce: string | null = null;
   let jobId: string;
   if (command.action === 'claim') {
     ticket = authority.verifyCall(command.call);
-    const locator = z.object({ jobId: hex }).safeParse(command.call);
+    const locator = z.object({ jobId: hex, nonce: hex }).safeParse(command.call);
     if (!ticket || !locator.success) return { ok: false, code: 'FORBIDDEN' };
     jobId = locator.data.jobId;
+    ticketNonce = locator.data.nonce;
   } else jobId = command.jobId;
   const existing = await tx.get(CATALOG_PREPARATION_JOBS, jobId);
   if (!existing) return { ok: false, code: 'NOT_FOUND' };
@@ -419,6 +422,11 @@ export async function runCatalogPreparationJob(
   if (!job) return { ok: false, code: 'CORRUPT' };
   timestamp = new Date(Math.max(now, Date.parse(job.updatedAt))).toISOString();
   if (command.action === 'get') return { ok: true, progress: progress(job) };
+  if (command.action === 'claim' && job.state === 'completed') {
+    if (ticketNonce !== job.nonce) return { ok: false, code: 'FORBIDDEN' };
+    const completed = await readCompletedCatalogPreparation(tx, job);
+    return authority.verifyCall(command.call) ? completed : { ok: false, code: 'FORBIDDEN' };
+  }
   if (!Number.isSafeInteger(job.mutationRevision + 1)) return { ok: false, code: 'CORRUPT' };
   if (command.action === 'cancel' || command.action === 'retry') {
     if (command.expectedLeaseVersion !== job.leaseVersion) return { ok: false, code: 'CONFLICT' };
