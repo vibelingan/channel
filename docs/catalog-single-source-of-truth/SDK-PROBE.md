@@ -659,3 +659,12 @@ Official CloudBase /api-reference/server/node-sdk/database/fetch freshly read vi
 官方[Request.postDataBuffer](https://playwright.dev/docs/api/class-request#request-post-data-buffer)与安装1.61.1声明核对，返回二进制原始body或null，不把表单字段当字节。既有Request.method/headers、Page.once、Locator.press/click/fill及React19.2.7 useEffect/useRef沿用既有安装/实际probe，未新增依赖/shim/CloudBase资源或SDK方法。Context7不可用。DOM事件为原生pointerdown/keydown/input捕获，三个取消路径独立测试；StrictMode保持开启。
 
 完整site797与原生产构建公开41/目录90/正式11通过，完整visibility在原“丢发布响应自动确认”断言失败：此失败属于操作回执尚未实现，不能归咎SDK或删改断言。SDK合约通过与该发布验收失败分别记录；不能用类型/构建绿替代业务绿。21反例全部由行为断言检出并还原SHA；standingsdk与恢复后检查另见单元记录。
+
+
+## P3e1：现有事务表面承载版本化预约
+
+没有新增CloudBase方法、手写SDK声明、依赖或资源；新增均为本应用内部命令/结果及共享hash输入投影。沿用NodeSdkDatabase.runTransaction、事务doc.get/set和安装SDK的upserted/updated回执。原生包装以object/array读取、准确插入、缺ACK/错ID/错误码/抛错回滚执行，手工预约4文档操作，旧finish拒绝reserved。没有把模拟事务等同云端MVCC。
+
+Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse与Node20既有crypto/JSON/structuredClone/fs.utimesSync执行通过；无新第三方表面，Context7不可用。旧hash固定样本与含无关Date/深层/大段档案的新反例证明投影语义保持，源属性没有截断或搬入job。Node24/20四个独立进程直接JsonFileAdapter的同回执/零重写通过，网络禁止；这里只是预约，不是已批准或已上线。
+
+最终相关3986、Node20 242、16项目types、Astro216零error/warning8hint、8文件显式Biome和standing SDK通过。原BUSY测试的5秒不足以覆盖代码允许约5.04秒退避；15秒等待保留原断言，修改后两项真实UI版本故障重新检出。当前完整发布恢复P1仍未关闭，精确产物在审查后记录，不能凭SDK/构建绿给发布许可。

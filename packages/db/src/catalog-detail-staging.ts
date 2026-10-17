@@ -30,6 +30,12 @@ import {
   type CatalogPreparationStoreResult,
   storeCatalogPreparationReport,
 } from './catalog-preparation-store.ts';
+import {
+  ProductOperationGetSchema,
+  type ProductOperationResult,
+  ProductOperationStartSchema,
+  runProductOperation,
+} from './catalog-product-operation.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
@@ -104,6 +110,7 @@ type Backfill = {
   reason?: 'revision-changed' | 'already-present' | 'not-approved' | 'archived';
 };
 export type ApprovalStageResult =
+  | ProductOperationResult
   | Progress
   | Failure
   | Backfill
@@ -117,6 +124,8 @@ const PriceSummaryBackfillSchema = z
   })
   .strict();
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
+  ProductOperationStartSchema,
+  ProductOperationGetSchema,
   SourcePageSchema,
   CatalogPreparationCommitSchema,
   z.object({ action: z.literal('begin'), prepared: JobSchema }).strict(),
@@ -646,6 +655,8 @@ export async function runStagedApproval(
       }),
     );
   const command = parsed.data;
+  if (command.action === 'operation-start' || command.action === 'operation-get')
+    return runProductOperation(tx, actorId, command);
   if (command.action === 'preparation-report')
     return storeCatalogPreparationReport(tx, actorId, command);
   if (command.action === 'source-page') return stageSourcePage(tx, actorId, command);

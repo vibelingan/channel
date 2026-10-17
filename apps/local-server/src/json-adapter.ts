@@ -388,11 +388,13 @@ export class JsonFileAdapter implements DbAdapter {
   async persistCatalogDetailApproval(actorId: string, input: ApprovalPersistenceCommand) {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
+      let changed = false;
       const result = await runStagedApproval(
         {
           get: async (collection, id) =>
             structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
           set: async (collection, row) => {
+            changed = true;
             copy[collection] ??= [];
             const rows = copy[collection];
             const index = rows.findIndex((existing) => existing._id === row._id);
@@ -403,7 +405,7 @@ export class JsonFileAdapter implements DbAdapter {
         actorId,
         input,
       );
-      if (result.ok && !('preparation' in result && result.preparation === 'unchanged')) {
+      if (result.ok && changed) {
         const previous = this.store;
         this.store = copy;
         try {

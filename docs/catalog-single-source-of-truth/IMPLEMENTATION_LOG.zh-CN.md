@@ -1153,3 +1153,14 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 实际复核6代码/测试路径、分类/Modal/审批/最终update/原生CAS/JSON/DTO/媒体消费者及4证据文档；把“安全重试完成”收紧为“固定原输入，未知结果仍需持久回执”。详见P3d2_FROZEN_BATCH_INPUT.zh-CN.md与P4b4_PRODUCT_DIALOG_FOCUS.zh-CN.md。后续沿既有catalogDetailApprovals扩展稳定操作/阶段回执，不新增第二套审批存储。无部署、客户写入、新分支worktree/agent/PR/push，fullDeliveryReady=false。
 
 恢复后复核：4项旧摘要/完整GET反例均检出（88项/次，分别84/4、86/2、80/8、82/6正控/失败），8源文件还原核SHA；本轮合计25种故障、67项重叠失败断言，不是67个独立缺陷。随后Node24与Node20同4文件132项各通过，0fail/skip/cancel。Astro216文件0error/warning、8既有hint；E2E类型、standing SDK、6完整代码/测试文件显式Biome及diff检查通过。本单元未改后端源，没有把旧后端/脚本全量数加进本轮。完整集成红测仍在，审查保留一项必须修复的操作恢复缺口，不发版。
+
+
+## P3e1：稳定操作输入预约与只读查询
+
+基线a0cf8b5已逐项review10路径，明确保留1个自动发布恢复P1、未bless；精确site15页5.01秒不改变阻断。继续原目录分支。既有catalogDetailApprovals新增严格reserved协议，绑定actor/product/UUID、intent、原revision、深拷贝网站补丁及内容/生命周期/分类/来源/链接摘要；同ID相同输入不额外写，不同输入拒绝，get保留原基线并返回current/expired。没有新HTTP入口，没有复制整段来源或另建审批存储，没有改商品/批准/发布。
+
+初红7正控/34失败；首次实现子分类摘要遗漏100正控/1失败，修复后继续。真实JSON的只读mtime红1正控/1失败，改为有tx.set才persist；双实例竞争、重开查询、native object/array插入及4种不可靠回执回滚通过。忽略采集元数据的预算反例48正控/3失败后，预算改用原hash的实际输入投影，旧hash固定样本保持。当前相关小组合199通过。19源码故障全检出、4文件复原核SHA；两项旧UI重试版本反例均7正控/2失败、4文件复原。
+
+首轮七包全量在BUSY重试测试5秒等待超时，保留失败；退避代码允许约5.04秒，改两处等待15秒，所有请求数/原guard/冲突/字节断言保留并重证故障。最终七包全量3986（309/1290/637/518/131/304/797）0fail/skip/cancel；Node20后台199+浏览器43=242通过。16相关项目types、Astro216零错误警告8hint、8完整代码/测试文件Biome、SDK/diff通过。初次缺validation类型、错fn-admin筛选及格式错误留档，不当通过。
+
+四个独立Node24/20进程在禁止网络的自有JSON库写预约/查询/重复，同612字节样本回执，零额外记录/查询文件写/商品写，fixture清理。不是云端实际操作或完整阶段重启。8代码/测试路径及3文档复核，文案把“恢复完成”收紧到“预约/查询已验证”，保持原visibility丢发布响应P1及全部P3-P7门槛。详见P3e1_OPERATION_RESERVATION.zh-CN.md；无部署、客户数据、新分支worktree/agent/PR/push，fullDeliveryReady=false。

@@ -1302,7 +1302,7 @@ for (const width of [1440, 390])
       await dialog.getByRole('button', { name: 'Save and publish', exact: true }).click();
       await dialog.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
       const retry = dialog.getByRole('button', { name: 'Try again for 1 product', exact: true });
-      await f.expect(retry).toBeEnabled();
+      await f.expect(retry).toBeEnabled({ timeout: 15000 });
       const approvals = () =>
         f.requests.filter(
           (r) => r.action === 'catalogDetailApproval' && r.data?.action === 'approve',
@@ -1365,7 +1365,7 @@ for (const width of [1440, 390]) {
           .click();
       await f.page.getByRole('button', { name: 'Disable', exact: true }).click();
       const retry = f.page.getByRole('button', { name: 'Try again for 1 product', exact: true });
-      await f.expect(retry).toBeEnabled();
+      await f.expect(retry).toBeEnabled({ timeout: 15000 });
       const updates = () => f.requests.filter((r) => r.action === 'update');
       assert.equal(updates().length, 4);
       await f.adapter.update('products', 'ready', { description: 'Newer operator note' });

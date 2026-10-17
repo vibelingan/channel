@@ -20,11 +20,15 @@ const sourceFields = [
   'sourceUpdatedAt',
   'contentHash',
 ] as const;
-export function sourceBindingHash(source: CollectionDoc): string {
-  return alibabaPricingFingerprint([
+/** Fields used by the binding hash; capture archives stay outside its budget. */
+export function sourceBindingInputs(source: CollectionDoc | null) {
+  return [
     'catalog-source-binding-v1',
-    Object.fromEntries(sourceFields.map((field) => [field, source[field]])),
-  ]);
+    source ? Object.fromEntries(sourceFields.map((field) => [field, source[field]])) : null,
+  ];
+}
+export function sourceBindingHash(source: CollectionDoc): string {
+  return alibabaPricingFingerprint(sourceBindingInputs(source));
 }
 
 function stable(value: unknown): unknown {
@@ -38,34 +42,28 @@ function stable(value: unknown): unknown {
   );
 }
 
-/** Capture timestamps and raw evidence IDs do not change the effective source input. */
-export function sourceInputDigest(row: CollectionDoc | null): string {
+/** Capture timestamps and raw evidence do not change the effective source input. */
+export function sourceObservationInputs(row: CollectionDoc | null) {
   const observation = record(row?.observation);
   const source = record(observation?.source);
   const { observedAt: _at, ...identity } = source ?? {};
   const { evidence: _evidence, source: _source, ...content } = observation ?? {};
+  return {
+    active: row?.active !== false,
+    ...(row?.sourceContentHash === undefined ? {} : { sourceContentHash: row.sourceContentHash }),
+    ...(row?.sourceContentHash === undefined && row?.evidenceId !== undefined
+      ? { legacyEvidenceId: row.evidenceId }
+      : {}),
+    observation: observation ? { ...content, source: identity } : null,
+  };
+}
+export function sourceInputDigest(row: CollectionDoc | null): string {
   return createHash('sha256')
-    .update(
-      JSON.stringify(
-        stable({
-          active: row?.active !== false,
-          ...(row?.sourceContentHash === undefined
-            ? {}
-            : { sourceContentHash: row.sourceContentHash }),
-          ...(row?.sourceContentHash === undefined && row?.evidenceId !== undefined
-            ? { legacyEvidenceId: row.evidenceId }
-            : {}),
-          observation: observation ? { ...content, source: identity } : null,
-        }),
-      ),
-    )
+    .update(JSON.stringify(stable(sourceObservationInputs(row))))
     .digest('hex');
 }
-
 export function normalizedSourceInputDigest(row: CollectionDoc | null): string {
-  return row
-    ? sourceBindingHash(row)
-    : alibabaPricingFingerprint(['catalog-source-binding-v1', null]);
+  return alibabaPricingFingerprint(sourceBindingInputs(row));
 }
 
 /** New captures pair by business hash; older captures pair by exact raw evidence. */

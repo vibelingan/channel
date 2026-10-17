@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
@@ -86,6 +87,7 @@ function fixture(seed: Record<string, CollectionDoc> = {}) {
     wrongId: '',
     arrayReads: false,
     maximumOperations: 0,
+    totalWrites: 0,
   };
   const collection = (name: string, copy: typeof store) => ({
     doc: (id: string) => {
@@ -139,16 +141,19 @@ function fixture(seed: Record<string, CollectionDoc> = {}) {
               return ref.get();
             },
             update: async (patch: Record<string, unknown>) => {
+              control.totalWrites++;
               writes = true;
               operations++;
               return ref.update(patch);
             },
             set: async (data: Record<string, unknown>) => {
+              control.totalWrites++;
               writes = true;
               operations++;
               return ref.set(data);
             },
             remove: async () => {
+              control.totalWrites++;
               writes = true;
               operations++;
               return ref.remove();
@@ -600,3 +605,86 @@ for (const [field, value] of [
     assert.equal(h.control.maximumOperations, 2);
   });
 }
+
+for (const arrayReads of [false, true])
+  test(`native operation reservation accepts exact insert acknowledgement and reads without writes: arrays=${arrayReads}`, async () => {
+    const h = fixture({
+      'users/admin': { _id: 'admin', role: 'admin' },
+      'products/p': {
+        _id: 'p',
+        name: 'Clock',
+        description: '',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: now,
+      },
+    });
+    h.control.arrayReads = arrayReads;
+    const before = h.get('products', 'p');
+    const input = {
+      action: 'operation-start',
+      productId: 'p',
+      operationId: '12345678-1234-4234-8234-123456789012',
+      intent: 'publish',
+      expectedUpdatedAt: now,
+      values: { description: 'Reviewed' },
+    } as const;
+    const begun = await persistStagedApprovalInCloud(h.db, 'admin', input);
+    assert.ok(begun.ok && 'record' in begun);
+    assert.equal(begun.current, true);
+    assert.equal(h.control.maximumOperations, 4);
+    assert.equal(h.control.totalWrites, 1);
+    const snapshot = h.snapshot();
+    const read = await persistStagedApprovalInCloud(h.db, 'admin', {
+      action: 'operation-get',
+      productId: 'p',
+      operationId: input.operationId,
+    });
+    assert.ok(read.ok && 'record' in read);
+    assert.deepEqual(read.record, begun.record);
+    assert.ok((await persistStagedApprovalInCloud(h.db, 'admin', input)).ok);
+    assert.deepEqual(
+      await persistStagedApprovalInCloud(h.db, 'admin', {
+        action: 'finish',
+        jobId: begun.record._id,
+      }),
+      { ok: false, code: 'NOT_FOUND' },
+      'a reservation cannot be finished as an approval',
+    );
+    assert.equal(h.control.totalWrites, 1);
+    assert.deepEqual(h.snapshot(), snapshot);
+    assert.deepEqual(h.get('products', 'p'), before);
+  });
+for (const fault of ['silent', 'wrongId', 'coded', 'fail'] as const)
+  test(`native operation reservation refuses ${fault} write and rolls back`, async () => {
+    const h = fixture({
+      'users/admin': { _id: 'admin', role: 'admin' },
+      'products/p': {
+        _id: 'p',
+        name: 'Clock',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: now,
+      },
+    });
+    const operationId = '12345678-1234-4234-8234-123456789012';
+    const key = createHash('sha256')
+      .update(JSON.stringify(['admin', 'p', operationId]))
+      .digest('hex');
+    h.control[fault] = `catalogDetailApprovals/${key}`;
+    const before = h.snapshot();
+    await assert.rejects(
+      persistStagedApprovalInCloud(h.db, 'admin', {
+        action: 'operation-start',
+        productId: 'p',
+        operationId,
+        intent: 'unpublish',
+        expectedUpdatedAt: now,
+        values: {},
+      }),
+    );
+    assert.deepEqual(h.snapshot(), before);
+    assert.ok(h.control.maximumOperations <= 4);
+  });
