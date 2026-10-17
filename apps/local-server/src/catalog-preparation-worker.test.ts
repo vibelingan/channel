@@ -1422,7 +1422,9 @@ test('default worker metadata budget leaves an exact durable prefix and later fi
   assert.ok(first.ok, JSON.stringify(first));
   assert.equal(first.outcome, 'partial');
   assert.equal(first.attestation?.checked, 1);
-  assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
+  const preparing = await f.adapter.get('products', 'p');
+  assert.ok(preparing);
+  assert.equal(readCurrentCatalogPreparation(preparing)?.state, 'preparing');
   f.adapter.manageCatalogPreparationJob = manage;
   f.storage.getObjectAsBase64 = async () => {
     throw Error('no repeated bytes');
@@ -1749,4 +1751,353 @@ test('actual checkpoint disk persistence failure leaves the product and same-job
   } finally {
     Reflect.set(f.adapter, 'persist', persist);
   }
+});
+
+test('default partial preparation saves a current preparing report before returning', async (t) => {
+  const f = await fixture(t, 9);
+  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(r.ok && r.outcome === 'partial');
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'preparing');
+  assert.equal(p.published, false);
+});
+test('cancel after a diagnostic checkpoint clears current preparation without changing user data', async (t) => {
+  const f = await fixture(t, 1);
+  await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  assert.ok(
+    (
+      await seal.run({
+        action: 'checkpoint-preparation',
+        ...seal.scope,
+        previewReady: true,
+        issues: [],
+      })
+    ).ok,
+  );
+  const before = await f.adapter.get('products', 'p');
+  assert.ok(before);
+  const job = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.ok(job);
+  assert.ok(
+    (
+      await seal.run({
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: f.jobId,
+        expectedLeaseVersion: job.leaseVersion,
+      })
+    ).ok,
+  );
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p), null);
+  assert.deepEqual(p, { ...before, catalogPreparationState: 'stale' });
+});
+
+async function currentWorkerCall(
+  f: { adapter: JsonFileAdapter; authority: ReturnType<typeof createCatalogPreparationAuthority> },
+  productId = 'p',
+) {
+  const s = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'start',
+    actorId: 'admin',
+    productId,
+  });
+  assert.ok(s.ok && 'progress' in s);
+  const d = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'dispatch',
+    actorId: 'admin',
+    jobId: s.progress.jobId,
+  });
+  assert.ok(d.ok && 'call' in d);
+  return { jobId: s.progress.jobId, call: d.call };
+}
+test('default invalid preview remains diagnosable, then an edit prepares the new version successfully', async (t) => {
+  const f = await fixture(t, 1);
+  await f.adapter.update('products', 'p', { name: '' });
+  const bad = await currentWorkerCall(f);
+  const blocked = await runCatalogPreparationWorker(f.authority, bad.call);
+  assert.ok(blocked.ok, JSON.stringify(blocked));
+  assert.equal(blocked.outcome, 'blocked');
+  assert.ok(blocked.issues.some((i) => i.severity === 'error'));
+  let p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'blocked');
+  assert.equal(p.name, '');
+  assert.equal(p.published, false);
+  await f.adapter.update('products', 'p', { name: 'Repaired clock' });
+  const next = await currentWorkerCall(f);
+  assert.notEqual(next.jobId, bad.jobId);
+  const fixed = await runCatalogPreparationWorker(f.authority, next.call);
+  assert.ok(fixed.ok, JSON.stringify(fixed));
+  assert.equal(fixed.outcome, 'ready');
+  p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'ready');
+  assert.equal(p.name, 'Repaired clock');
+  assert.equal(p.published, false);
+});
+test('default consumed pixel retry stores a remedy and explicit reset reaches ready', async (t) => {
+  const f = await fixture(t, 1);
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    checkImage: async () => ({ status: 'retry', reason: 'timeout' }),
+  });
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'retryable');
+  assert.ok(first.issues.some((i) => i.remedy === 'retry-media'));
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'preparing');
+  const job = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.ok(job);
+  assert.ok(
+    (
+      await f.adapter.manageCatalogPreparationJob(f.authority, {
+        action: 'retry',
+        actorId: 'admin',
+        jobId: f.jobId,
+        expectedLeaseVersion: job.leaseVersion,
+      })
+    ).ok,
+  );
+  const next = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(next.ok, JSON.stringify(next));
+  assert.equal(next.outcome, 'ready');
+  assert.equal(next.media.retry, 0);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+test('default source503 stores retry diagnostics and resumes the same queued job without a fabricated media plan', async (t) => {
+  const f = await unboundSourceWorkspace(t, 1);
+  let failed = true;
+  let fetches = 0;
+  const importer = (
+    url: string,
+    persistImport: NonNullable<
+      NonNullable<Parameters<typeof importCandidateImage>[1]>['persistImport']
+    >,
+  ) =>
+    importCandidateImage(url, {
+      persistImport,
+      resolveDns: async () => ['104.16.1.1'],
+      fetchImpl: async () => {
+        fetches++;
+        return failed
+          ? new Response('temporary', { status: 503 })
+          : new Response(new Uint8Array(bytes));
+      },
+    });
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: importer,
+  });
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'retryable');
+  assert.ok(first.issues.some((i) => i.remedy === 'retry-media'));
+  const p = await f.adapter.get('products', f.productId);
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'preparing');
+  assert.equal((await f.adapter.get('catalogPreparationJobs', f.jobId))?.media, null);
+  const before = fetches;
+  failed = false;
+  const next = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: importer,
+  });
+  assert.ok(next.ok, JSON.stringify(next));
+  assert.equal(next.outcome, 'ready');
+  assert.equal(fetches, before + 1);
+  assert.equal((await f.adapter.get('products', f.productId))?.published, false);
+});
+test('default permanent source404 stores blocked edit guidance and never repeats its download', async (t) => {
+  const f = await unboundSourceWorkspace(t, 1);
+  let fetches = 0;
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: (url, persistImport) =>
+      importCandidateImage(url, {
+        persistImport,
+        resolveDns: async () => ['104.16.1.1'],
+        fetchImpl: async () => {
+          fetches++;
+          return new Response('gone', { status: 404 });
+        },
+      }),
+  });
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'blocked');
+  assert.ok(first.issues.some((i) => i.severity === 'error' && i.remedy === 'edit'));
+  const p = await f.adapter.get('products', f.productId);
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'blocked');
+  const before = fetches;
+  const next = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
+    importSourceImage: async () => {
+      throw Error('permanent source must remain editable instead of downloading again');
+    },
+  });
+  assert.ok(next.ok, JSON.stringify(next));
+  assert.equal(next.outcome, 'blocked');
+  assert.equal(fetches, before);
+  assert.equal((await f.adapter.get('products', f.productId))?.published, false);
+});
+test('default lost diagnostic ACK retries the same grant and keeps one resumable job without public changes', async (t) => {
+  const f = await fixture(t, 5);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let checkpoints = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const r = await manage(...args);
+    if (args[1].action === 'checkpoint-preparation' && ++checkpoints === 1)
+      throw Error('checkpoint ACK lost');
+    return r;
+  };
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'partial');
+  assert.equal(checkpoints, 2);
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'preparing');
+  assert.equal(p.published, false);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(rows.catalogPreparationJobs.length, 1);
+  assert.equal(rows.catalogPreparationJobs[0].media.cursor, 4);
+});
+test('diagnostic transport failure keeps the checked prefix for a later default continuation', async (t) => {
+  const f = await fixture(t, 5);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let attempts = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (args[1].action === 'checkpoint-preparation') {
+      attempts++;
+      throw Error('checkpoint unavailable');
+    }
+    return manage(...args);
+  };
+  assert.deepEqual(await runCatalogPreparationWorker(f.authority, await f.dispatch()), {
+    ok: false,
+    code: 'UNAVAILABLE',
+  });
+  assert.equal(attempts, 2);
+  const job = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.ok(job);
+  assert.equal(job.media?.cursor, 4);
+  assert.equal(job.state, 'queued');
+  f.adapter.manageCatalogPreparationJob = manage;
+  let result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'partial');
+  result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(result.ok);
+  assert.equal(result.outcome, 'ready');
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});
+for (const phase of ['before', 'after'] as const)
+  test(`default cancellation ${phase} checkpoint cannot leave a current preparing report`, async (t) => {
+    const f = await fixture(t, 5);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let cancelled = false;
+    async function cancel() {
+      if (cancelled) return;
+      cancelled = true;
+      const job = readCatalogPreparationJob(
+        await f.adapter.get('catalogPreparationJobs', f.jobId),
+        f.jobId,
+        Date.now(),
+      );
+      assert.ok(job);
+      assert.ok(
+        (
+          await manage(f.authority, {
+            action: 'cancel',
+            actorId: 'admin',
+            jobId: f.jobId,
+            expectedLeaseVersion: job.leaseVersion,
+          })
+        ).ok,
+      );
+    }
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      if (phase === 'before' && args[1].action === 'checkpoint-preparation') await cancel();
+      const r = await manage(...args);
+      if (phase === 'after' && args[1].action === 'checkpoint-preparation') await cancel();
+      return r;
+    };
+    const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+    assert.equal(r.ok, false);
+    assert.equal(cancelled, true);
+    const p = await f.adapter.get('products', 'p');
+    assert.ok(p);
+    assert.equal(readCurrentCatalogPreparation(p), null);
+    assert.equal(p.published, false);
+    assert.equal((await f.adapter.get('catalogPreparationJobs', f.jobId))?.state, 'cancelled');
+  });
+test('cancelling an old input leaves the newer input preparation snapshot intact', async (t) => {
+  const f = await fixture(t, 9);
+  assert.ok((await runCatalogPreparationWorker(f.authority, await f.dispatch())).ok);
+  await f.adapter.update('products', 'p', { name: 'New user input' });
+  const next = await currentWorkerCall(f);
+  assert.notEqual(next.jobId, f.jobId);
+  assert.ok((await runCatalogPreparationWorker(f.authority, next.call)).ok);
+  const before = await f.adapter.get('products', 'p');
+  assert.ok(before);
+  assert.equal(readCurrentCatalogPreparation(before)?.state, 'preparing');
+  const old = readCatalogPreparationJob(
+    await f.adapter.get('catalogPreparationJobs', f.jobId),
+    f.jobId,
+    Date.now(),
+  );
+  assert.ok(old);
+  assert.ok(
+    (
+      await f.adapter.manageCatalogPreparationJob(f.authority, {
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: f.jobId,
+        expectedLeaseVersion: old.leaseVersion,
+      })
+    ).ok,
+  );
+  assert.deepEqual(await f.adapter.get('products', 'p'), before);
+});
+
+test('a rejected diagnostic checkpoint cannot be reported as a successful default step', async (t) => {
+  const f = await fixture(t, 5);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  f.adapter.manageCatalogPreparationJob = async (...args) =>
+    args[1].action === 'checkpoint-preparation' ? { ok: false, code: 'BUSY' } : manage(...args);
+  assert.deepEqual(await runCatalogPreparationWorker(f.authority, await f.dispatch()), {
+    ok: false,
+    code: 'BUSY',
+  });
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p), null);
+  assert.equal(p.published, false);
+});
+test('default invalid pixel prefix returns blocked diagnostics before checking the remaining photos', async (t) => {
+  const f = await fixture(t, 5);
+  const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+  rows.images[0].checksumSha256 = 'b'.repeat(64);
+  writeFileSync(f.file, JSON.stringify(rows));
+  const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(r.outcome, 'blocked');
+  assert.equal(r.media.checked, 4);
+  assert.equal(r.media.invalid, 1);
+  assert.ok(r.issues.some((i) => i.severity === 'error' && i.stage === 'media'));
+  const p = await f.adapter.get('products', 'p');
+  assert.ok(p);
+  assert.equal(readCurrentCatalogPreparation(p)?.state, 'blocked');
+  assert.equal(p.published, false);
 });

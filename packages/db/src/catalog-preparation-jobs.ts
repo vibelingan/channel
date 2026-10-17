@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   CATALOG_PREPARATION_POLICY,
   type CatalogPreparationReport,
+  readCurrentCatalogPreparation,
 } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
@@ -439,6 +440,17 @@ export async function runCatalogPreparationJob(
       if (job.state === 'cancelled') return { ok: true, progress: progress(job) };
       if (!['queued', 'running', 'retryable'].includes(job.state))
         return { ok: false, code: 'CONFLICT' };
+      const product = await tx.get('products', job.productId);
+      if (product && product._id !== job.productId) return { ok: false, code: 'CORRUPT' };
+      const report = product ? readCurrentCatalogPreparation(product) : null;
+      const clearCheckpoint =
+        product !== null &&
+        report !== null &&
+        report.state !== 'ready' &&
+        report.inputDigest === job.inputDigest &&
+        report.contentGeneration === job.contentGeneration &&
+        catalogPreparationInputDigest(await readCatalogPreparationInputs(tx, product)) ===
+          job.inputDigest;
       const saved: Job = {
         ...job,
         mutationRevision: job.mutationRevision + 1,
@@ -447,6 +459,8 @@ export async function runCatalogPreparationJob(
         leaseExpiresAt: 0,
         updatedAt: timestamp,
       };
+      if (clearCheckpoint && product)
+        await tx.set('products', { ...product, catalogPreparationState: 'stale' });
       await tx.set(CATALOG_PREPARATION_JOBS, saved);
       return { ok: true, progress: progress(saved) };
     }

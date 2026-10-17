@@ -1686,3 +1686,50 @@ for (const target of ['products', 'catalogPreparationJobs'] as const)
     );
     assert.deepEqual(f.store, before);
   });
+
+async function cancelDiagnosticCloudFixture() {
+  const { f, checkpoint } = await nonreadyCloudFixture();
+  assert.ok((await checkpoint()).ok);
+  const job = readCatalogPreparationJob(
+    f.store.get('catalogPreparationJobs')?.get(f.scope.jobId),
+    f.scope.jobId,
+    f.now,
+  );
+  assert.ok(job);
+  const command = {
+    action: 'cancel' as const,
+    actorId: 'admin',
+    jobId: f.scope.jobId,
+    expectedLeaseVersion: job.leaseVersion,
+  };
+  return { f, cancel: () => f.run(command) };
+}
+test('source-backed cancellation and current nonready invalidation commit together within eight operations', async () => {
+  const { f, cancel } = await cancelDiagnosticCloudFixture();
+  const images = structuredClone(f.store.get('images'));
+  const product = f.store.get('products')?.get('p');
+  assert.ok(product);
+  const before = structuredClone(product);
+  f.controls.maximumOperations = 0;
+  const r = await cancel();
+  assert.ok(r.ok && 'progress' in r);
+  assert.equal(r.progress.state, 'cancelled');
+  assert.equal(f.controls.maximumOperations, 8);
+  assert.deepEqual(f.store.get('products')?.get('p'), {
+    ...before,
+    catalogPreparationState: 'stale',
+  });
+  assert.deepEqual(f.store.get('images'), images);
+  const saved = structuredClone(f.store);
+  assert.ok((await cancel()).ok);
+  assert.deepEqual(f.store, saved);
+});
+for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const target of ['products', 'catalogPreparationJobs'] as const)
+    test(`cancellation ${target} ${failure} rolls back both job and current preparation state`, async () => {
+      const { f, cancel } = await cancelDiagnosticCloudFixture();
+      f.controls[failure] = `${target}/${target === 'products' ? 'p' : f.scope.jobId}`;
+      const before = structuredClone(f.store);
+      await assert.rejects(cancel());
+      assert.deepEqual(f.store, before);
+    });

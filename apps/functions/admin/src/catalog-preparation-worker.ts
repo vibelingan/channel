@@ -196,6 +196,39 @@ async function runCatalogPreparationStages(
     if (!('preparation' in finished)) return { ok: false, code: 'CONFLICT' };
     return { ...partial, outcome: 'ready', issues: finished.report.issues };
   }
+  async function checkpointStep(
+    step: Extract<WorkerResult, { ok: true }>,
+    previewReady: boolean,
+  ): Promise<WorkerResult> {
+    const command = {
+      action: 'checkpoint-preparation' as const,
+      jobId: progress.jobId,
+      lease,
+      previewReady,
+      issues: [...step.issues],
+    };
+    let saved: CatalogPreparationJobResult;
+    try {
+      saved = await run(command);
+    } catch {
+      saved = await run(command);
+    }
+    if (!saved.ok) return { ok: false, code: saved.code };
+    if (!('report' in saved) || saved.report.state === 'ready')
+      return { ok: false, code: 'CONFLICT' };
+    return {
+      ...step,
+      issues: saved.report.issues,
+      outcome:
+        saved.report.state === 'blocked'
+          ? 'blocked'
+          : step.media.retry > 0
+            ? 'retryable'
+            : step.outcome === 'checked'
+              ? 'partial'
+              : step.outcome,
+    };
+  }
   async function work(): Promise<WorkerResult> {
     let candidate = await inspectCatalogPreparationJob(authority, progress.jobId, lease, {
       mediaMode: 'defer',
@@ -239,8 +272,8 @@ async function runCatalogPreparationStages(
       });
       if (!candidate.ok) return { ok: false, code: candidate.code };
     }
-    if (candidate.sourcePhotos.some((photo) => photo.imageId === null))
-      return {
+    if (candidate.sourcePhotos.some((photo) => photo.imageId === null)) {
+      const step: Extract<WorkerResult, { ok: true }> = {
         ok: true,
         kind: 'unsealed-worker-step',
         jobId: progress.jobId,
@@ -253,6 +286,8 @@ async function runCatalogPreparationStages(
             ? 'retryable'
             : 'partial',
       };
+      return ready ? checkpointStep(step, candidate.previewReady) : step;
+    }
     const planDigest = candidatePlanDigest(candidate);
     let inspection = candidate;
     const bound = await run({
@@ -359,15 +394,19 @@ async function runCatalogPreparationStages(
                 ? 'retryable'
                 : 'checked',
     };
-    return ready &&
+    const step =
+      ready &&
       inspection.previewReady &&
       !inspection.issues.some((i) => i.severity === 'error') &&
       media.cursor === media.total &&
       media.verified === media.total &&
       media.invalid === 0 &&
       media.retry === 0
-      ? finishMedia(checked)
-      : checked;
+        ? await finishMedia(checked)
+        : checked;
+    return ready && step.ok && step.outcome !== 'ready'
+      ? checkpointStep(step, inspection.previewReady)
+      : step;
   }
   let result: WorkerResult;
   try {
