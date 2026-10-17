@@ -1087,3 +1087,14 @@ P2g1精确5df99a1三函数build/package、Linux126闭包、同JS Macprofile与No
 新增可选normal/issues/preparing/unchecked，复用受管摘要与代次/身份/策略标量expr，分类/子分类/搜索/OR筛选在count/page前同一条件组合；公开行保留，旧数据仍可查，默认目录未切换。新范围补唯一_id尾排序。列表不确定count/坏行红测13正控9失败，修成明确失败而非空成功；三合法空目录/排序正控保留。实际worker有/无分类的checking→ready→编辑失效→blocked→修复ready小流程不改分类或发布。
 
 双安装SDK serializer与官方/安装源码核对；当前云只读原生查询和31条查询内合成数据×4范围=124比较，四反控均通过，零合成数据/商品写入。13源码反例最终均断言检出且恢复哈希匹配；首轮TypeError夹具和探针/类型/格式工具错误留日志，不当通过。最终DB1200/shared305/admin637/local499/public131/sync304/site691共3767、Node20三文件133，零失败/跳过/取消。六后端types、Astro213零错误警告8hint、13完整文件Biome和被忽略adapter新列表主体独立检查、SDK/diff通过。详见P2g2_NATIVE_READINESS_QUERIES.zh-CN.md。精确产物随后；继续UI/计数/选品集成及P5审计后启用，fullDeliveryReady=false。
+
+
+## P2g3：列表检查范围、选品与恢复
+
+P2g2精确181625d三函数build/package、Linux126闭包、同JS Macprofile与Node20 smoke、bundled admin→安装SDK→sync及四范围逐阶段只读核对通过，所有产品未发布且fixture清理；site15页5.29秒。
+
+现有CollectionView接入all/normal/issues/preparing/unchecked，UI在历史影子阶段显式all，旧省略scope协议不变。主表/分类计数共用范围、搜索、过滤，URL历史/分页/排序清理选品；坏或失败读回有独立重试，不报假0、不允许缓存页继续写。Preview准备或Edit修复后刷新范围；问题范围仍可只保存分类，禁用桌面/移动行与批量发布及分类Save and publish。列表有界字段投影尚未完成，继续P2g4，不能以条件轻量冒称响应有界。
+
+实际红测检出失败PageJump、移动Publish漏保护；视觉检查又发现展开菜单429/390溢出，修成以整条选品栏为锚点，同时覆盖375px/20选品换行。最终12浏览器流程通过，12项源码反例均检出；首轮选品反例曾存活，补零选品及切回范围断言后检出，不算首轮通过。所有源码故障finally恢复并核对哈希。分类夹具缺版本、Select水合等待、可选data类型、旧Select清单4→5和短文案格式问题分别留日志，不当业务红测。
+
+最终DB1202/shared305/admin637/local501/public131/sync304/site719共3799，零失败/跳过/取消；Node20后台39及客户端16通过。六后端类型、Astro215文件零错误/警告8既有hint、15完整文件Biome、SDK/diff通过；精确构建见提交review侧车。逐一审查15代码/测试与选择、分类CAS、原编辑和Preview接缝；文案把通用Product list改为The list，核对字段缺失和未发布语义。全部列表夹具已清理。详见P2g3_LIST_READINESS_UI.zh-CN.md。继续有界列表/完整Edit读取、稳定操作/大媒体、旧数据审计及现场实际20件发布恢复；无部署/客户写入，fullDeliveryReady=false。

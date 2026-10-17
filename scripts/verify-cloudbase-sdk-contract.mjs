@@ -202,18 +202,18 @@ const readinessProbe = `
   wxSdk.init({ env: 'offline-readiness-contract' });
   const commands = [nodeSdk.init({ env: 'offline-readiness-contract' }).database().command, wxSdk.database().command];
   const plain = { and: c => ({$and:c}), or: c => ({$or:c}), eq: v => ({$eq:v}), in: v => ({$in:v}), expr: v => ({$expr:v}) };
-  for (const scope of ['normal','issues','preparing','unchecked']) {
+  for (const scope of ['all','normal','issues','preparing','unchecked']) {
     const expected = catalogReadinessWhere(plain,scope);
     for (const command of commands) assert.deepEqual(QuerySerializer.encode(catalogReadinessWhere(command,scope)),expected);
   }
-  console.log('four native readiness scopes preserved by both installed SDK serializers');
+  console.log('five native readiness scopes preserved by both installed SDK serializers');
 `;
 requireCheck(
   execFileSync(
     process.execPath,
     ['--experimental-strip-types', '--input-type=module', '--eval', readinessProbe],
     { cwd: root, encoding: 'utf8' },
-  ).includes('four native readiness scopes preserved'),
+  ).includes('five native readiness scopes preserved'),
   'node and wx serializers preserve readiness identity, scalar, guarded numeric and before-page expressions',
 );
 

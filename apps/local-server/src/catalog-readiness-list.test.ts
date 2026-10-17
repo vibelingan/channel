@@ -221,3 +221,14 @@ test('equal primary sort values paginate deterministically by identity', async (
   assert.deepEqual(defaultIds, ['a', 'b']);
   assert.deepEqual(ids, ['a', 'b']);
 });
+
+test('explicit all scope exposes pending legacy products without changing omitted-scope compatibility', async (t) => {
+  const f = await fixture(t);
+  const all = await f.api({ collection: 'products', catalogReadiness: 'all', pageSize: 100 });
+  assert.ok(all.ok, JSON.stringify(all));
+  assert.equal((all.data as { total: number }).total, rows().length);
+  assert.ok((all.data as { items: { _id: string }[] }).items.some((row) => row._id === 'waiting'));
+  const legacy = await f.api({ collection: 'products', pageSize: 100 });
+  assert.ok(legacy.ok);
+  assert.equal((legacy.data as { total: number }).total, rows().length - 1);
+});

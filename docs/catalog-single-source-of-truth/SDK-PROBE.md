@@ -576,3 +576,26 @@ No new SDK method/shim/version/resource. The existing catalogRowStore get/set/co
 Source-backed claim/checkpoint/activate max10 operations; dedup12, reads before writes. Eight URL/job write ACK faults, three delete faults, expiry after actual first child write and expiry after actual pending delete all roll back. Do not catch expiry inside the callback after a partial write; throw to native transaction/file-copy boundary. Current grant/input checked, each child write and final job fence checked; caller inner timestamp replaced by server transaction time. Retire is forbidden even when an independent real source state-machine control proves the expired/locked claim eligible.
 
 Context7 unavailable. Official classic document transaction page reread via MCP and saved in leased-source-official-transaction.json; generic search surfaced unrelated PG docs, which were not used. Official examples are not copied over installed set/update wrapper semantics. SDK source and actual method probe establish remove's exact name/return fields; live MVCC acceptance still pending.
+
+## P2g3 list query/retry and actual browser checks
+
+Installed react-query/query-core5.101.0, table-core8.21.3, React19.2.7, Zod3.25.76 and Playwright1.61.1 were resolved from the consuming site package. No dependency or ambient SDK declaration changed. Context7 unavailable. Official TanStack v5 useQuery URL redirects to the latest v5 functions page; the older QueryClient reference returned an error, so the linked current class reference was read. Installed types/runtime determine this checkout, not newer documentation overloads.
+
+| Package/version | Exact surface | Installed contract | Executed proof |
+| --- | --- | --- | --- |
+| zod@3.25.76 | safeParse | v3/types.d.ts:65 success/data or failure/error union | 13 list response cases, malformed/empty/page identity/duplicate controls |
+| zod@3.25.76 | ZodNumber.safe | v3/types.d.ts:334 returns this | safe count/page runtime schemas, existing integer boundaries |
+| @tanstack/react-query@5.101.0 | useQuery | useQuery export; QueryObserverResult has isFetching boolean at query-core rollup:1500 | real cached503, invalid200, independent count retry and late response browser scenarios |
+| @tanstack/query-core@5.101.0 | QueryObserver.refetch | rollup:1553 Promise<QueryObserverResult>; implementation queryObserver.ts:297 | Retry list/Retry count actually execute and settle |
+| @tanstack/query-core@5.101.0 | QueryClient.invalidateQueries | rollup:1308 Promise<void>, existing prefix filters | Preview close triggers actual scoped reads and repaired/ready rows move scopes |
+| @tanstack/query-core@5.101.0 | QueryClient.getQueryCache | rollup:1316 returns QueryCache | actual late response tests await query cache success and idle, not arbitrary sleep |
+| @tanstack/query-core@5.101.0 | QueryCache.findAll | rollup:1265 QueryFilters -> Query array | scoped main/count fixture waits; MutationCache.findAll at720 is deliberately not used as evidence |
+| @tanstack/table-core@8.21.3 | SortingOptions.onSortingChange | RowSorting.d.ts:194 OnChangeFn<SortingState>; updater at234 | existing table callback remains typed; final site types/runtime suite |
+| playwright-core@1.61.1 | Locator.and | types/types.d.ts:13018 Locator -> Locator | actual hydrated shared Select intersection avoids clicking transitional native select |
+| playwright-core@1.61.1 | Locator.boundingBox | Locator declaration returns box or null | 375/390px actual Publish button left/right bounds; two menu source faults detected |
+| playwright-core@1.61.1 | Page.goBack | types/types.d.ts:3157 Promise<Response or null> | actual family/subcategory history state and exact backend query |
+| playwright-core@1.61.1 | Page.goForward | types/types.d.ts:3187 Promise<Response or null> | same forward recovery and read-only DB bytes |
+
+Existing Playwright Route/page/expect/test facades, React hooks/StrictMode and Zod array/object/string/enum/number/int/min/max/passthrough surfaces are inherited from the prior table rows and executed by the same real fixture. The new explicit all predicate uses existing CloudBase command.expr with scalar true equality; both installed SDK serializers preserve the exact tree, the actual production list function and Node20 cases execute it. It introduces no aggregate.type method or SDK shim.
+
+References actually opened: [useQuery](https://tanstack.com/query/latest/docs/framework/react/reference/functions/useQuery), [QueryClient](https://tanstack.com/query/latest/docs/framework/react/reference/classes/QueryClient), [Locator](https://playwright.dev/docs/api/class-locator), [Page history](https://playwright.dev/docs/api/class-page#page-go-back). Test-only HTTP interception controls transport failures, while JWT, handler, JSON store, preparation worker and actual DOM remain production code. Final719 site and39+16 Node20 cases pass; source-fault restoration and full3799 evidence are recorded in P2g3. No live deployment/20-product acceptance claim.

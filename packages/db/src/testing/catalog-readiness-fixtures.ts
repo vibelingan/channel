@@ -151,6 +151,9 @@ export function rows(): Record<string, unknown>[] {
   ];
 }
 export const expected = {
+  all: rows()
+    .map((row) => String(row._id))
+    .sort(),
   normal: ['legacy-ready', 'live-blocked', 'ready', 'unclassified'],
   issues: ['array-published', 'blocked'],
   preparing: ['checking', 'preparing'],

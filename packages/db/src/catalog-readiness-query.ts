@@ -21,6 +21,7 @@ const record = (value: unknown): Row | null =>
 /** Query only the server-written summary. Full content validation still owns readiness. */
 export function matchesCatalogReadiness(product: Row, scope: CatalogReadiness): boolean {
   CatalogReadinessSchema.parse(scope);
+  if (scope === 'all') return true;
   const generation = product.catalogContentGeneration ?? 0;
   const validIdentity = typeof product._id === 'string' && product._id.length > 0;
   const validGeneration =
@@ -67,6 +68,7 @@ export function matchesCatalogReadiness(product: Row, scope: CatalogReadiness): 
 /** Same bounded summary predicate before native count, sorting and pagination; no source joins. */
 export function catalogReadinessWhere(command: Command, scope: CatalogReadiness): Row {
   CatalogReadinessSchema.parse(scope);
+  if (scope === 'all') return command.expr({ $eq: [true, true] });
   const eq = (left: unknown, right: unknown): Row => ({ $eq: [left, right] });
   const and = (...parts: Row[]): Row => ({ $and: parts });
   const or = (...parts: Row[]): Row => ({ $or: parts });

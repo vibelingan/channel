@@ -20,6 +20,7 @@ import {
   isProductFamily,
 } from '@vibelingan-channel/shared';
 import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
+import type { CatalogReadiness } from '@vibelingan-channel/shared/catalog-preparation';
 /**
  * Browser API client for the admin dashboard.
  *
@@ -279,6 +280,7 @@ export interface ListArgs {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  catalogReadiness?: CatalogReadiness;
   /** Admin-only; valid only with `productFamily`, resolved against the saved registry by the server. */
   subcategoryIds?: string[];
   page?: number;
@@ -288,8 +290,27 @@ export interface ListArgs {
   sort?: SortClause[];
 }
 
-export function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
-  return call<ListResult<CollectionDoc>>('list', args);
+const ListResponseSchema = z
+  .object({
+    items: z.array(z.object({ _id: z.string().min(1) }).passthrough()).max(100),
+    total: z.number().int().nonnegative().safe(),
+    page: z.number().int().positive().safe(),
+    pageSize: z.number().int().positive().max(100),
+  })
+  .passthrough();
+
+export async function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
+  const checked = ListResponseSchema.safeParse(await call<unknown>('list', args));
+  if (
+    !checked.success ||
+    checked.data.page !== (args.page ?? 1) ||
+    checked.data.pageSize !== (args.pageSize ?? 20) ||
+    checked.data.items.length > checked.data.pageSize ||
+    new Set(checked.data.items.map((row) => row._id)).size !== checked.data.items.length
+  ) {
+    throw new AdminApiError('INVALID_RESPONSE', 'The list could not be checked. Retry the list.');
+  }
+  return checked.data;
 }
 
 export async function getRecord(collection: string, id: string): Promise<CollectionDoc> {

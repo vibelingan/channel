@@ -35,6 +35,7 @@ export interface ProductClassificationEditorProps {
   products: readonly CollectionDoc[];
   busy?: boolean;
   publishOnSave?: boolean;
+  publishBlockReason?: string;
   onBusyChange?: (busy: boolean) => void;
   onUnresolved?: (snapshot: UnresolvedClassificationSnapshot) => void;
   onVerified?: (submittedIds: readonly string[]) => void;
@@ -197,6 +198,7 @@ export function publicationMessage(outcome: BatchUpdateResult): string {
 export function ProductClassificationEditor({
   products,
   busy = false,
+  publishBlockReason,
   onBusyChange,
   onUnresolved,
   onVerified,
@@ -286,7 +288,8 @@ export function ProductClassificationEditor({
   const locked = busy || pending || finished || suggestionQuery.isFetching;
   const publicCount = products.filter((product) => product.published === true).length;
   const draftCount = products.filter((product) => product.published === false).length;
-  const canPublish = draftCount > 0 && draftCount === products.length && !appliedSuggestion;
+  const canPublish =
+    !publishBlockReason && draftCount > 0 && draftCount === products.length && !appliedSuggestion;
   const unresolvedSnapshot = submittedCommand
     ? unresolvedClassificationSnapshot(submittedCommand, results, publicationResult)
     : null;
@@ -856,6 +859,9 @@ export function ProductClassificationEditor({
             </button>
           </div>
         </div>
+      )}
+      {publishBlockReason && (
+        <output className="block text-sm text-slate-600">{publishBlockReason}</output>
       )}
       <div className="flex flex-wrap gap-2">
         <button

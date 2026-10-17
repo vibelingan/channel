@@ -20,6 +20,10 @@ import {
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
 import {
+  type CatalogReadiness,
+  CatalogReadinessSchema,
+} from '@vibelingan-channel/shared/catalog-preparation';
+import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
@@ -58,6 +62,14 @@ import {
   updateProductFromEditor,
   updateRecord,
 } from './api.ts';
+import {
+  PRODUCT_CHECK_LABELS,
+  productCheckFromSearch,
+  productCheckListArgs,
+  productCheckPublishBlock,
+  productCheckSearch,
+  productClassificationCountArgs,
+} from './product-check-status.ts';
 import {
   ADMIN_PRODUCT_FAMILY_LABELS,
   type AdminProductFamily,
@@ -170,6 +182,13 @@ export function CollectionView({
       ? adminSubcategoryFromSearch(window.location.search)
       : null,
   );
+  const [checkStatus, setCheckStatus] = useState<CatalogReadiness>(() =>
+    isProducts && typeof window !== 'undefined'
+      ? productCheckFromSearch(window.location.search)
+      : 'all',
+  );
+  const publishBlockReason = isProducts ? productCheckPublishBlock(checkStatus) : null;
+  const showGlobalReviewHints = checkStatus === 'all' && !search && !filter && !subcategoryId;
   const isUsers = collection.name === 'users';
   const inlineEdit = useMemo(() => new Set(section.inlineEdit ?? []), [section.inlineEdit]);
   const singular = section.label.replace(/s$/, '');
@@ -184,26 +203,30 @@ export function CollectionView({
     collection.name,
     productFamily,
     subcategoryId,
+    isProducts ? checkStatus : null,
     page,
     search,
     filter,
     sortClauses,
   ] as const;
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
     queryFn: () =>
       listRecords(
-        productFamilyListArgs(
-          {
-            collection: collection.name,
-            page,
-            pageSize: PAGE_SIZE,
-            search,
-            ...(filter ? { filter } : {}),
-            ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
-          },
-          productFamily,
-          subcategoryId,
+        productCheckListArgs(
+          productFamilyListArgs(
+            {
+              collection: collection.name,
+              page,
+              pageSize: PAGE_SIZE,
+              search,
+              ...(filter ? { filter } : {}),
+              ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
+            },
+            productFamily,
+            subcategoryId,
+          ),
+          checkStatus,
         ),
       ),
   });
@@ -214,13 +237,30 @@ export function CollectionView({
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
-  const { data: unclassifiedSummary } = useQuery({
-    queryKey: ['list', 'products', 'unclassified-count'],
+  const {
+    data: unclassifiedSummary,
+    error: unclassifiedError,
+    isFetching: countFetching,
+    refetch: refetchCount,
+  } = useQuery({
+    queryKey: ['list', 'products', 'unclassified-count', checkStatus, search, filter],
     queryFn: () =>
-      listRecords({ collection: 'products', needsClassification: true, page: 1, pageSize: 1 }),
+      listRecords(
+        productClassificationCountArgs(
+          {
+            collection: 'products',
+            search,
+            ...(filter ? { filter } : {}),
+          },
+          checkStatus,
+        ),
+      ),
     enabled: isProducts,
     staleTime: 15_000,
   });
+  const classificationCount =
+    !unclassifiedError && unclassifiedSummary ? ` (${unclassifiedSummary.total})` : '';
+  const listUnavailable = isLoading || isFetching || Boolean(error);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', collection.name] });
@@ -346,7 +386,8 @@ export function CollectionView({
     updateMutation.isPending ||
     removeMutation.isPending ||
     batchUpdateMutation.isPending ||
-    batchRemoveMutation.isPending;
+    batchRemoveMutation.isPending ||
+    (isProducts && listUnavailable);
 
   const visibleMutationError =
     (!creating && createMutation.error instanceof DraftSavedError && createMutation.error) ||
@@ -366,7 +407,7 @@ export function CollectionView({
         ? Object.fromEntries(classificationReview.snapshot.submittedIds.map((id) => [id, true]))
         : {},
     );
-  }, [search, filter, page, productFamily, subcategoryId]);
+  }, [search, filter, page, productFamily, subcategoryId, checkStatus, sorting]);
 
   useEffect(() => {
     if (!classifying && classificationReview && document.activeElement === document.body)
@@ -387,6 +428,16 @@ export function CollectionView({
     pushProductScope(next, null);
   }
 
+  function changeCheckStatus(next: CatalogReadiness) {
+    setCheckStatus(next);
+    setPage(1);
+    clearSelection();
+    if (typeof window !== 'undefined') {
+      const nextUrl = `${window.location.pathname}${productCheckSearch(window.location.search, next)}${window.location.hash}`;
+      window.history.pushState(null, '', nextUrl);
+    }
+  }
+
   function changeSubcategory(next: string | null) {
     setSubcategoryId(next);
     setPage(1);
@@ -398,6 +449,7 @@ export function CollectionView({
     if (!isProducts) return;
     const recoverFamily = () => {
       setProductFamily(adminProductFamilyFromSearch(window.location.search));
+      setCheckStatus(productCheckFromSearch(window.location.search));
       setSubcategoryId(
         canReadSubcategories ? adminSubcategoryFromSearch(window.location.search) : null,
       );
@@ -535,6 +587,9 @@ export function CollectionView({
           <PublishToggle
             published={row.original.published === true}
             busy={recordWritePending}
+            {...(publishBlockReason && row.original.published !== true
+              ? { blockReason: publishBlockReason }
+              : {})}
             onToggle={() =>
               // Publishing a flagged product goes through its review in Edit (DEC-19).
               row.original.published !== true &&
@@ -615,6 +670,7 @@ export function CollectionView({
     inlineEdit,
     classificationBlocked,
     recordWritePending,
+    publishBlockReason,
   ]);
 
   const table = useReactTable({
@@ -622,7 +678,11 @@ export function CollectionView({
     columns,
     state: { sorting, rowSelection },
     getRowId: (row) => row._id,
-    onSortingChange: setSorting,
+    onSortingChange: (next) => {
+      setSorting(next);
+      setPage(1);
+      clearSelection();
+    },
     onRowSelectionChange: setRowSelection,
     manualSorting: true,
     manualPagination: true,
@@ -663,11 +723,11 @@ export function CollectionView({
               label="All products"
               value={null}
               selected={productFamily === null}
-              pendingCount={reviewSummary?.pendingTotal ?? 0}
+              pendingCount={showGlobalReviewHints ? (reviewSummary?.pendingTotal ?? 0) : 0}
               onSelect={changeProductFamily}
             />
             <ProductFamilyTab
-              label={`Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`}
+              label={`Needs classification${classificationCount}`}
               value="unclassified"
               selected={productFamily === 'unclassified'}
               pendingCount={0}
@@ -679,7 +739,7 @@ export function CollectionView({
                 label={productFamilyLabel(value)}
                 value={value}
                 selected={productFamily === value}
-                pendingCount={reviewSummary?.byFamily[value] ?? 0}
+                pendingCount={showGlobalReviewHints ? (reviewSummary?.byFamily[value] ?? 0) : 0}
                 onSelect={changeProductFamily}
               />
             ))}
@@ -687,15 +747,15 @@ export function CollectionView({
           <Select
             ariaLabel="Product family"
             value={productFamily ?? ''}
-            placeholder={`All products${(reviewSummary?.pendingTotal ?? 0) > 0 ? ' • Needs review' : ''}`}
+            placeholder={`All products${showGlobalReviewHints && (reviewSummary?.pendingTotal ?? 0) > 0 ? ' • Needs review' : ''}`}
             options={[
               {
                 value: 'unclassified',
-                label: `Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`,
+                label: `Needs classification${classificationCount}`,
               },
               ...PRODUCT_FAMILY_OPTIONS.map((value) => ({
                 value,
-                label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • Needs review' : ''}`,
+                label: `${productFamilyLabel(value)}${showGlobalReviewHints && (reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • Needs review' : ''}`,
               })),
             ]}
             className="block xl:hidden"
@@ -704,6 +764,40 @@ export function CollectionView({
               changeProductFamily(isProductFamily(value) || value === 'unclassified' ? value : null)
             }
           />
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Select
+              label="Check status"
+              ariaLabel="Check status"
+              value={checkStatus}
+              placeholder=""
+              options={CatalogReadinessSchema.options.map((value) => ({
+                value,
+                label: PRODUCT_CHECK_LABELS[value],
+              }))}
+              className="w-full sm:w-80"
+              triggerClassName="mt-1"
+              onChange={(value) => {
+                const checked = CatalogReadinessSchema.safeParse(value);
+                changeCheckStatus(checked.success ? checked.data : 'all');
+              }}
+            />
+            {unclassifiedError && (
+              <output className="block text-sm text-red-700">
+                Classification count unavailable.{' '}
+                <button
+                  type="button"
+                  disabled={countFetching}
+                  onClick={() => void refetchCount()}
+                  className="min-h-11 font-medium underline"
+                >
+                  Retry count
+                </button>
+              </output>
+            )}
+          </div>
+          {publishBlockReason && (
+            <p className="mt-2 text-sm text-slate-600">{publishBlockReason}</p>
+          )}
           {productFamily === 'unclassified' && (
             <p className="mt-3 text-sm text-slate-600">
               These products have no website category. Their source categories are preserved. Open a
@@ -843,6 +937,7 @@ export function CollectionView({
           isUsers={isUsers}
           canClassify={isProducts && role === 'admin'}
           classifyBlocked={classificationBlocked}
+          {...(publishBlockReason ? { publishBlockReason } : {})}
           collection={collection}
           busy={recordWritePending}
           onClear={() => {
@@ -855,6 +950,7 @@ export function CollectionView({
             })
           }
           onSetValues={(values) => {
+            if (isProducts && values.published === true && publishBlockReason) return;
             const names = Object.fromEntries(
               rows.map((row) => [row._id, String(row.name ?? row._id)]),
             );
@@ -1028,7 +1124,17 @@ export function CollectionView({
             {error && (
               <tr>
                 <td colSpan={colCount} className="px-4 py-8 text-center text-red-600">
-                  {(error as Error).message}
+                  <div role="alert">
+                    <p>{(error as Error).message}</p>
+                    <button
+                      type="button"
+                      disabled={isFetching}
+                      onClick={() => void refetch()}
+                      className="mt-2 min-h-11 font-medium underline"
+                    >
+                      Retry list
+                    </button>
+                  </div>
                 </td>
               </tr>
             )}
@@ -1046,7 +1152,7 @@ export function CollectionView({
                   ))}
                 </tr>
               ))}
-            {data && rows.length === 0 && !isLoading && (
+            {data && rows.length === 0 && !isLoading && !error && (
               <tr>
                 <td colSpan={colCount} className="px-4 py-8 text-center text-slate-400">
                   No records.
@@ -1059,12 +1165,16 @@ export function CollectionView({
 
       <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
         <span>
-          {total} record{total === 1 ? '' : 's'}
+          {error
+            ? 'Record count unavailable'
+            : isLoading
+              ? 'Loading records…'
+              : `${total} record${total === 1 ? '' : 's'}`}
         </span>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled={page <= 1}
+            disabled={listUnavailable || page <= 1}
             onClick={() => setPage((p) => p - 1)}
             className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40"
           >
@@ -1075,13 +1185,15 @@ export function CollectionView({
           </span>
           <button
             type="button"
-            disabled={page >= pageCount}
+            disabled={listUnavailable || page >= pageCount}
             onClick={() => setPage((p) => p + 1)}
             className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40"
           >
             Next
           </button>
-          {pageCount > 1 && <PageJump page={page} pageCount={pageCount} onJump={setPage} />}
+          {!listUnavailable && pageCount > 1 && (
+            <PageJump page={page} pageCount={pageCount} onJump={setPage} />
+          )}
         </div>
       </div>
 
@@ -1089,6 +1201,7 @@ export function CollectionView({
         <ClassificationDialog
           products={classifying.products}
           publishOnSave={classifying.publishOnSave}
+          {...(publishBlockReason ? { publishBlockReason } : {})}
           onClose={() => setClassifying(null)}
           onUnresolved={(snapshot) => {
             setReviewMessage('');
@@ -1176,7 +1289,10 @@ export function CollectionView({
             setPreviewing(null);
           }}
           onUnpublish={() => unpublishFromReviewMutation.mutate(previewing._id)}
-          onClose={() => setPreviewing(null)}
+          onClose={() => {
+            setPreviewing(null);
+            invalidate();
+          }}
           onEdit={() => {
             setEditing(previewing);
             setPreviewing(null);
@@ -1348,6 +1464,7 @@ function BatchBar({
   isUsers,
   canClassify,
   classifyBlocked,
+  publishBlockReason,
   collection,
   busy,
   onClear,
@@ -1360,6 +1477,7 @@ function BatchBar({
   isUsers: boolean;
   canClassify: boolean;
   classifyBlocked: boolean;
+  publishBlockReason?: string;
   collection: CollectionDef;
   busy: boolean;
   onClear: () => void;
@@ -1372,14 +1490,15 @@ function BatchBar({
   const compactActions = collection.name === 'products';
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+    <div className="relative mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
       <span className="text-sm font-semibold text-brand-900">{count} selected</span>
 
       {isCatalog && (
         <>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || Boolean(publishBlockReason)}
+            title={publishBlockReason}
             onClick={() => onSetValues({ published: true })}
             className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50`}
           >
@@ -1438,16 +1557,17 @@ function BatchBar({
       </button>
 
       {compactActions && (
-        <details className="relative xl:hidden">
+        <details className="xl:hidden">
           <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700">
             Actions
           </summary>
-          <div className="absolute left-0 z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md sm:left-auto sm:right-0">
+          <div className="absolute right-0 z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md">
             {isCatalog && (
               <>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || Boolean(publishBlockReason)}
+                  title={publishBlockReason}
                   onClick={() => onSetValues({ published: true })}
                   className="min-h-11 rounded-lg bg-green-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
                 >
@@ -1678,14 +1798,16 @@ function PublishToggle({
   published,
   busy,
   onToggle,
-}: { published: boolean; busy: boolean; onToggle: () => void }) {
+  blockReason,
+}: { published: boolean; busy: boolean; onToggle: () => void; blockReason?: string }) {
   return (
     <button
       type="button"
-      disabled={busy}
+      disabled={busy || Boolean(blockReason)}
       onClick={onToggle}
       title={
-        published ? 'Click to disable (hide from public)' : 'Click to publish (show to public)'
+        blockReason ??
+        (published ? 'Click to disable (hide from public)' : 'Click to publish (show to public)')
       }
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition ${
         published

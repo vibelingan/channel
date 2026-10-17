@@ -102,5 +102,5 @@ export function readCurrentCatalogPreparationRequest(
     : null;
 }
 
-export const CatalogReadinessSchema = z.enum(['normal', 'issues', 'preparing', 'unchecked']);
+export const CatalogReadinessSchema = z.enum(['all', 'normal', 'issues', 'preparing', 'unchecked']);
 export type CatalogReadiness = z.infer<typeof CatalogReadinessSchema>;
