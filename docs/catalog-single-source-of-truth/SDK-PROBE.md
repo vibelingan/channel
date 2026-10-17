@@ -684,3 +684,8 @@ Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse�
 没有新增CloudBase方法、依赖、shim或资源。沿NodeSdkDatabase.runTransaction与doc.get/set/update/remove及b43fa82强制ACK；新增record/body由现有Zod3.25.76与共享网站字段合约解析。描述的空/trim语义与实际planCatalogDetailApproval逐值对照；原文保留。root门面导出ProductOperationRecord/ProductOperationResult让跨包推断可命名，未修改SDK声明。
 
 离线compiled-source探针将真实native保存/审批原语和installed node-sdk3.17.2/database1.4.3一起编译，只有HTTP替换为内存事务后端；Node20完成10种产品/身份/receipt拒绝回执、rollback/retry、两类具体字段错误、6种正常描述和重复零写。该探针不声称已走生产admin HTTP或云端MVCC。四个独立Node24/20进程禁网写入/重开同一saved JSON回执、重复零写与fixture清理通过，样本record1218bytes。Node20最终小组合374通过，含模拟事务提交后丢答复的get/retry零写。Context7不可用；既有官方SDK文档及实际sender依据保持，standing SDK、19项目types与相关七包/脚本4613通过。精确提交产物在审查后补录。
+
+
+## P3e2b：草稿取消旧审批的实际SDK对照
+
+基线ae3dd28旧bundle在Node20有效红：新的空草稿保存后旧finish仍complete。新精确源码 native/staging+installedSDK仅HTTP替换，Node20确认旧finish CONFLICT、来源ready保留、10坏ACK回滚/重试、2字段错误、6正常描述和重复零写。0新第三方surface/shim/dependency；Context7未提供，复用此前已验证的官方合约与安装包surface，standing SDK gate重跑通过。源码7反例还原SHA、最终4618测试/19types、Node20相关431、独立4进程证据见P3e2b文档与own-draft-cancel输出。不是云端事务并发或adminHTTP验收，fullDeliveryReady=false。

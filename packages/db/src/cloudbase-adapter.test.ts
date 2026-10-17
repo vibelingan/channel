@@ -7,7 +7,8 @@ import {
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
 import { readCurrentCatalogPreparationRequest } from '@vibelingan-channel/shared/catalog-preparation';
-import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import { catalogApprovalDigest } from './catalog-detail-commit.ts';
+import { persistStagedApprovalInCloud, prepareStagedApproval } from './catalog-detail-staging.ts';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
@@ -2446,5 +2447,55 @@ test('a lost transaction commit answer is recovered through the own receipt with
   assert.ok(query.ok && 'record' in query && query.current && query.revisionCurrent);
   assert.equal(query.record.state, 'saved');
   assert.equal((await saveCatalogProductInCloudBase(uncertain, h.input)).result, 'saved');
+  assert.deepEqual(h.store, before);
+});
+
+test('native unchanged own draft save fences an older unfinished approval without resetting ready source', async () => {
+  const h = await ownDraftFixture({ description: '', slug: 'old-clock', skuCode: 'old-clock' });
+  const product = h.store.get('products')?.get('p');
+  assert.ok(product);
+  Object.assign(product, {
+    detailSourceReady: true,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'source-r1',
+    detailSourceContentGeneration: 0,
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      _id: 'p',
+      name: 'Clock',
+      schemaVersion: 'catalog-product-detail-v1',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+  });
+  const older = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(older.ok);
+  assert.equal(
+    (await persistStagedApprovalInCloud(h.db, 'admin', { action: 'begin', prepared: older.value }))
+      .ok,
+    true,
+  );
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
+  const saved = h.store.get('products')?.get('p');
+  assert.equal(saved?.catalogLifecycleVersion, 1);
+  assert.equal(saved?.catalogContentGeneration ?? 0, 0);
+  assert.equal(saved?.detailSourceReady, true);
+  const before = structuredClone(h.store);
+  assert.deepEqual(
+    await persistStagedApprovalInCloud(h.db, 'admin', { action: 'finish', jobId: older.value._id }),
+    { ok: false, code: 'CONFLICT' },
+  );
+  assert.equal((await saveCatalogProductInCloudBase(h.db, h.input)).result, 'saved');
   assert.deepEqual(h.store, before);
 });

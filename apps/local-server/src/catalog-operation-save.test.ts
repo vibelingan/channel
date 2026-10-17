@@ -12,6 +12,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { catalogApprovalDigest } from '@vibelingan-channel/db/catalog-detail-commit';
+import { prepareStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -610,4 +612,76 @@ for (const afterSave of [false, true])
     assert.equal(read.revisionCurrent, true);
     assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'stale');
     assert.equal(h.bytes(), before);
+  });
+
+for (const patch of [{}, { description: '' }])
+  test(`an acknowledged unchanged own draft save cancels an older unfinished approval: ${Object.keys(patch).join(',') || 'empty patch'}`, async (t) => {
+    const h = fixture(t, {
+      detailSourceReady: true,
+      detailSourceOwner: 'owned-source',
+      detailSourceRevision: 'source-r1',
+      detailSourceContentGeneration: 0,
+      detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+      detailSourceCandidate: {
+        _id: 'p',
+        name: 'Clock',
+        schemaVersion: 'catalog-product-detail-v1',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+    });
+    const product = await h.adapter.get('products', 'p');
+    assert.ok(product);
+    const older = prepareStagedApproval(
+      'admin',
+      {
+        productId: 'p',
+        operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        expectedRevision: null,
+        expectedDigest: catalogApprovalDigest(product, []),
+      },
+      product,
+      [],
+    );
+    assert.ok(older.ok);
+    assert.equal(
+      (
+        await h.adapter.persistCatalogDetailApproval('admin', {
+          action: 'begin',
+          prepared: older.value,
+        })
+      ).ok,
+      true,
+    );
+    const newer = await h.adapter.persistCatalogDetailApproval('admin', {
+      ...start,
+      values: patch,
+    });
+    assert.ok(newer.ok && 'record' in newer);
+    const input = {
+      mode: 'update' as const,
+      productId: 'p',
+      data: patch,
+      expectedUpdatedAt: at,
+      expectedOperation: {
+        actorId: 'admin',
+        operationId,
+        inputDigest: newer.record.operation.inputDigest,
+      },
+    };
+    assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+    const row = await h.adapter.get('products', 'p');
+    assert.equal(row?.catalogContentGeneration ?? 0, 0, 'no content change is invented');
+    const before = h.bytes();
+    assert.deepEqual(
+      await h.adapter.persistCatalogDetailApproval('admin', {
+        action: 'finish',
+        jobId: older.value._id,
+      }),
+      { ok: false, code: 'CONFLICT' },
+    );
+    assert.equal(h.bytes(), before);
+    assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+    assert.equal(h.bytes(), before, 'replay must not add a second cancellation barrier');
   });

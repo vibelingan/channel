@@ -1182,3 +1182,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 审查红测补齐配置照片新引用、live误用、字段错误被误作过期、空描述误用展示层非空合约及metadata-only状态差异。按实际审批投影检查描述同时保留原文，字段问题回具体path；保留原capture-only断言，增加revisionCurrent并与内容current/年龄分别检查。没有删除旧集成断言。27源码反例全部检出178重叠失败断言，3文件finally恢复核SHA；小组合373/Node20同373通过。实际compiled native原语+SDK受控HTTP10种回执故障与2类字段/6正常描述通过；四独立Node24/20进程同saved回执/零重复写、fixture清理通过。
 
 早期全量业务3305/4594与类型失败、夹具/类型推断问题、冗余guard删除仍绿的尝试均保留，不当最终结果。最终七包+脚本4613（309/1370/797/637/577/131/304+488）0fail/skip/cancel；DB因新增提交后丢答复测试完整重跑1370，Node20小组合374。19项目types、Astro216零error/warning8hint、7完整文件Biome与忽略native源段/actor字节检查、standing SDK/diff通过。精确提交产物在review侧车补录。具体边界/回归见P3e2_DRAFT_STAGE_RECEIPT.zh-CN.md；新媒体、分类上下文/supplier计划冻结、create/live/approval/final及UI统一继续，fullDeliveryReady=false。无test部署/客户数据/新分支worktree/agent/PR/push。
+
+
+## P3e2b：空草稿保存阻止旧审批提交
+
+基线ae3dd28，JSON与实际SDK复现旧finish成功。只在新绑定草稿保存时沿原生命周期推进一次，重试零写，保留来源ready与历史字段缺省。7源码反例检出26重叠失败，源文件SHA还原。最终4618测试、Node20相关431、19types、显式Biome/native函数格式、SDK/diff通过；跨进程和实际SDK独立证明通过。详见[P3e2b](P3e2b_DRAFT_CANCELS_OLD_APPROVAL.zh-CN.md)。原发布恢复P1与全局后续项保留，未部署，fullDeliveryReady=false。措辞将“取消旧审批”限定为“拒绝旧finish”，不声称旧暂存占用已回收。

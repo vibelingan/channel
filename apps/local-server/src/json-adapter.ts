@@ -1090,7 +1090,9 @@ export class JsonFileAdapter implements DbAdapter {
       if (operation.result === 'stale' || operation.result === 'invalid-product') return operation;
       if (operation.result === 'replay' && existing)
         return { result: 'saved', doc: existing, previous: existing };
-      const plan = planCatalogProductSave(existing, input, new Date().toISOString());
+      const plan = planCatalogProductSave(existing, input, new Date().toISOString(), {
+        cancelPendingPublication: operation.result === 'ready',
+      });
       if (plan.result !== 'ready') return plan;
 
       const family = expectedSuggestion

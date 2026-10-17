@@ -198,6 +198,7 @@ export function planCatalogProductSave(
   existing: CollectionDoc | null,
   input: CatalogProductSaveInput,
   now: string,
+  options: { cancelPendingPublication?: boolean } = {},
 ): CatalogProductSavePlan {
   if (input.mode === 'create' && existing) return { result: 'exists' };
   const expected = input.expectedAlibabaIdentity;
@@ -243,7 +244,7 @@ export function planCatalogProductSave(
       ...remainingData
     } = data;
     data = remainingData;
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && !options.cancelPendingPublication) {
       return { result: 'ready', doc: existing, identities: [], staleIdentities: [] };
     }
   }
@@ -282,7 +283,9 @@ export function planCatalogProductSave(
     doc.category = '';
   }
   try {
-    doc = advanceCatalogProduct(existing, doc, now, { lifecyclePatch: data });
+    doc = advanceCatalogProduct(existing, doc, now, {
+      lifecyclePatch: options.cancelPendingPublication ? { ...data, published: false } : data,
+    });
   } catch (error) {
     if (!(error instanceof CatalogProductStateError)) throw error;
     return {

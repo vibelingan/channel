@@ -713,3 +713,34 @@ test('ordinary draft saves and same-live saves do not invent withdrawal commands
   assert.equal(initial.result, 'ready');
   if (initial.result === 'ready') assert.equal(initial.doc.catalogLifecycleVersion, 0);
 });
+
+test('an explicit own-draft cancellation advances only lifecycle and preserves missing publication fields', () => {
+  const product = readyVersionedProduct();
+  Reflect.deleteProperty(product, 'published');
+  Reflect.deleteProperty(product, 'archived');
+  const result = planCatalogProductSave(
+    product,
+    { mode: 'update', productId: product._id, data: {} },
+    '2026-10-18T00:00:00.000Z',
+    { cancelPendingPublication: true },
+  );
+  assert.equal(result.result, 'ready');
+  if (result.result !== 'ready') return;
+  assert.equal(result.doc.catalogLifecycleVersion, 5);
+  assert.equal(result.doc.catalogContentGeneration, product.catalogContentGeneration);
+  assert.equal(result.doc.detailSourceReady, product.detailSourceReady);
+  assert.equal(Object.hasOwn(result.doc, 'published'), false);
+  assert.equal(Object.hasOwn(result.doc, 'archived'), false);
+});
+
+test('an explicit own-draft cancellation cannot disappear through the acknowledged-review no-op shortcut', () => {
+  const product = reviewProduct({ alibabaReviewPending: false, catalogLifecycleVersion: 4 });
+  const result = planCatalogProductSave(product, reviewSave(), '2026-10-18T00:00:00.000Z', {
+    cancelPendingPublication: true,
+  });
+  assert.equal(result.result, 'ready');
+  if (result.result !== 'ready') return;
+  assert.notEqual(result.doc, product);
+  assert.equal(result.doc.catalogLifecycleVersion, 5);
+  assert.equal(result.doc.catalogContentGeneration ?? 0, product.catalogContentGeneration ?? 0);
+});

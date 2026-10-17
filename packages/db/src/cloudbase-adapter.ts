@@ -213,7 +213,9 @@ export async function saveCatalogProductInCloudBase(
     if (operation.result === 'stale' || operation.result === 'invalid-product') return operation;
     if (operation.result === 'replay' && existing)
       return { result: 'saved', doc: existing, previous: existing };
-    const plan = planCatalogProductSave(existing, input, now);
+    const plan = planCatalogProductSave(existing, input, now, {
+      cancelPendingPublication: operation.result === 'ready',
+    });
     if (plan.result !== 'ready') return plan;
 
     const actorId = input.expectedClassification?.actorId;
