@@ -648,3 +648,14 @@ Official CloudBase /api-reference/server/node-sdk/database/fetch freshly read vi
 生产变更只调整内部advanceCatalogProduct的options及两类写入层原patch传入；无SDK方法、依赖、shim、配置或资源变化。9代码/测试路径交叉检查，沿用既有NodeSdkDatabase.runTransaction及产品update/get、JSON锁、Playwright定位/点击/expect.poll，既有声明和probe仍覆盖，standingSDK重跑通过。Context7不可用。
 
 额外离线产物探针按安装@cloudbase/database1.4.3实际入口index.js→transaction/index.js（不是邻近旧transaction.js）读init/commit/abort，实际document.update sender的merge:true/upsert:false/$set EJSON和当前saveCatalogProductInCloudBase源码对应。首轮把这个入口误按set模拟，夹具失败留档；修正假后端后旧真实bundle通过认证/事务/更新，在缺少生命周期屏障的有效断言失败。该探针不替换源adapter，全部凭据是假值/网络禁止；新SHA编译产物证据随后补review侧车，不当云端并发验收。
+
+
+## P3d2 / P4b4：冻结输入、当前DOM焦点与实际上传夹具
+
+| Package/version | Exact surface | Installed contract | Executed proof |
+| --- | --- | --- | --- |
+| playwright-core@1.61.1 | Request.postDataBuffer | types/types.d.ts:20318 postDataBuffer():null or Buffer | 实际生产构建容量流程检查PUT、签名headers及首8字节PNG，原20文件/9位置断言保留；强制POST和绕过接纳容量均检出，独立无JS认证正控通过 |
+
+官方[Request.postDataBuffer](https://playwright.dev/docs/api/class-request#request-post-data-buffer)与安装1.61.1声明核对，返回二进制原始body或null，不把表单字段当字节。既有Request.method/headers、Page.once、Locator.press/click/fill及React19.2.7 useEffect/useRef沿用既有安装/实际probe，未新增依赖/shim/CloudBase资源或SDK方法。Context7不可用。DOM事件为原生pointerdown/keydown/input捕获，三个取消路径独立测试；StrictMode保持开启。
+
+完整site797与原生产构建公开41/目录90/正式11通过，完整visibility在原“丢发布响应自动确认”断言失败：此失败属于操作回执尚未实现，不能归咎SDK或删改断言。SDK合约通过与该发布验收失败分别记录；不能用类型/构建绿替代业务绿。21反例全部由行为断言检出并还原SHA；standingsdk与恢复后检查另见单元记录。

@@ -1138,3 +1138,18 @@ P2g4b2精确97cb542已完成20文件inline审查、三函数/15页5.98秒构建�
 真实admin/JSON重启、原生事务失败回滚、两并发顺序与1440/390实际Batch Disable通过；初次夹具API/只读字段错误、手机summary重复定位、类型声明修复均留档。浏览器也确认批量初次写缺选品CAS，继续P3d2，未冒称已修。8新+4旧源码反例全检出，finally恢复/核SHA；529恢复正控及Node20各通过。相关全量3896（309/1231/637/516/131/304/768）0fail/skip/cancel；全部相关types、Astro216零error/warning8hint、9完整文件Biome、SDK/diff通过，未把未重跑487脚本当本单元结果。
 
 旧97cb542真实打包native handler/SDK经受控HTTP事务实际在“Disable缺版本屏障”业务断言失败；首轮merge模拟错误保留，不当业务红。精确新提交产物在审查后验证。12路径与消费者逐段复核，措辞限定旧unfinished审批，不把历史批准称当前live。详见P3d1_WITHDRAWAL_BARRIER.zh-CN.md。稳定操作、所有重试/CAS及其余P3–P7继续，无test部署/真实写入/新分支worktree/agent/PR/push，fullDeliveryReady=false。
+
+
+## P3d2 / P4b4：冻结批量输入与弹窗焦点，集成仍红
+
+基线dd4780d，原目录分支单人继续。批量初次和人工重试保留原ID/补丁/每件updatedAt（legacy明确null）；缺映射或坏guard在任何请求前拒绝，复制异步输入，分类retry沿原分类保存回执，不重取他人新行作为自己的版本。带冻结guard的丢响应保持未确认，不能用published相同冒充本操作回执。实际桌面/手机Disable、Archive、分类保存后外部编辑/重试冲突与Edit核对通过。
+
+完整site797通过，0fail/skip/cancel。完整生产构建公开41、目录90、正式11与visibility6通过；visibility丢发布响应自动确认仍1失败/1未运行，taxonomy未运行。保留原断言作为P3后续持久操作的集成红测，review/部署被此缺口阻断，不能称全流程完成。隔离20件Assign category→Save and publish、BUSY与共享图片恢复通过52.4秒（含setup/assert/restore，不是云端发布P95或真实20件）。
+
+首轮全流程还暴露Preview关闭刷新后旧按钮DOM已脱离，修复按产品/动作定位当前节点、缺目标回标题；等待期间新pointer/keyboard/input取消该次延后焦点。先红5正控/2焦点失败，第一实现仍抢输入焦点6正控/1失败，修正后8场景+1控制9通过，原Preview E2E断言恢复通过。
+
+public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按现有实际协议修正夹具，保留原容量/移除重试/去重断言，完整GET恰一次。21源码反例全部检出（12批量/7焦点/2生产上传容量），4文件finally还原核SHA。旧摘要/完整GET反例和恢复后运行结果另续；不将重复失败断言当独立缺陷数。所有工具/定位/StrictMode夹具错误与完整流程红测保留。
+
+实际复核6代码/测试路径、分类/Modal/审批/最终update/原生CAS/JSON/DTO/媒体消费者及4证据文档；把“安全重试完成”收紧为“固定原输入，未知结果仍需持久回执”。详见P3d2_FROZEN_BATCH_INPUT.zh-CN.md与P4b4_PRODUCT_DIALOG_FOCUS.zh-CN.md。后续沿既有catalogDetailApprovals扩展稳定操作/阶段回执，不新增第二套审批存储。无部署、客户写入、新分支worktree/agent/PR/push，fullDeliveryReady=false。
+
+恢复后复核：4项旧摘要/完整GET反例均检出（88项/次，分别84/4、86/2、80/8、82/6正控/失败），8源文件还原核SHA；本轮合计25种故障、67项重叠失败断言，不是67个独立缺陷。随后Node24与Node20同4文件132项各通过，0fail/skip/cancel。Astro216文件0error/warning、8既有hint；E2E类型、standing SDK、6完整代码/测试文件显式Biome及diff检查通过。本单元未改后端源，没有把旧后端/脚本全量数加进本轮。完整集成红测仍在，审查保留一项必须修复的操作恢复缺口，不发版。

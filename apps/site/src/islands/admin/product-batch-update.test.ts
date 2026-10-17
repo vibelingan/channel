@@ -751,3 +751,214 @@ test('after a refused sign-in, untried products offer no Try again', async (t) =
   assert.ok(untried.every((row) => row.retryable === false));
   assert.ok(calls <= 4);
 });
+
+function retryableBatch(id = 'a'): BatchUpdateResult {
+  return {
+    updated: 0,
+    items: [],
+    failures: [
+      {
+        id,
+        code: 'BUSY',
+        message: 'Retry the same operation.',
+        outcome: 'rejected',
+        retryable: true,
+      },
+    ],
+  };
+}
+test('frozen batch input with a missing product revision refuses before all requests', async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    requests++;
+    const body = JSON.parse(String(init.body));
+    return Response.json({
+      ok: true,
+      data: { _id: body.data.id, published: false, updatedAt: 'new' },
+    });
+  });
+  await assert.rejects(
+    batchUpdateRecords('products', ['a', 'b'], { published: false }, new Map([['a', 'original']])),
+    /revision|snapshot/i,
+  );
+  assert.equal(requests, 0);
+});
+test('frozen batch input preserves an explicit legacy null revision', async (t) => {
+  const sent: Record<string, unknown>[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    sent.push(body.data);
+    return Response.json({ ok: true, data: { _id: 'a', published: false, updatedAt: 'new' } });
+  });
+  const result = await batchUpdateRecords(
+    'products',
+    ['a'],
+    { published: false },
+    new Map<string, string | null>([['a', null]]),
+  );
+  assert.equal(result.updated, 1);
+  assert.equal(sent[0]?.expectedUpdatedAt, null);
+});
+for (const change of ['revisions', 'patch'] as const)
+  test(`frozen batch input ignores external ${change} changes while four requests run`, async (t) => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sent: Record<string, unknown>[] = [];
+    const revisions = new Map(Array.from({ length: 5 }, (_, i) => [String(i), `original-${i}`]));
+    const values = { published: false };
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: false } });
+      if (body.action === 'get')
+        return Response.json({
+          ok: true,
+          data: { _id: body.data.id, published: false, updatedAt: 'current' },
+        });
+      sent.push(body.data);
+      if (Number(body.data.id) < 4) await gate;
+      return Response.json({
+        ok: true,
+        data: { _id: body.data.id, ...body.data.values, updatedAt: 'saved' },
+      });
+    });
+    const pending = batchUpdateRecords('products', [...revisions.keys()], values, revisions);
+    assert.equal(sent.length, 4);
+    if (change === 'revisions') revisions.set('4', 'another-operation');
+    else values.published = true;
+    release();
+    await pending;
+    assert.equal(sent.length, 5);
+    for (const request of sent) {
+      assert.deepEqual(request.values, { published: false });
+      assert.equal(request.expectedUpdatedAt, `original-${request.id}`);
+    }
+  });
+for (const published of [true, false])
+  test(`frozen retry retains the original revision for published=${published}`, async (t) => {
+    const sent: Record<string, unknown>[] = [];
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: false } });
+      if (body.action === 'get')
+        return Response.json({
+          ok: true,
+          data: { _id: 'a', published: !published, updatedAt: 'later-version' },
+        });
+      sent.push(body.data);
+      return Response.json({ ok: true, data: { _id: 'a', published, updatedAt: 'saved' } });
+    });
+    const result = await retryBatchUpdate(
+      retryableBatch(),
+      ['a'],
+      { published },
+      new Map([['a', 'selected-version']]),
+    );
+    assert.equal(result.updated, 1);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0]?.expectedUpdatedAt, 'selected-version');
+  });
+test('frozen retry never counts another actor matching publication as this operation success', async (t) => {
+  let writes = 0;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'get')
+      return Response.json({
+        ok: true,
+        data: { _id: 'a', published: true, updatedAt: 'other-actor' },
+      });
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: false } });
+    writes++;
+    return Response.json(
+      { ok: false, error: { code: 'CONFLICT', message: 'The selected product changed.' } },
+      { status: 409 },
+    );
+  });
+  const result = await retryBatchUpdate(
+    retryableBatch(),
+    ['a'],
+    { published: true },
+    new Map([['a', 'original']]),
+  );
+  assert.equal(result.updated, 0);
+  assert.equal(result.failures[0]?.code, 'CONFLICT');
+  assert.equal(writes, 1);
+});
+test('frozen Disable with a lost answer cannot use an already-draft row as its receipt', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'update') throw new TypeError('Failed to fetch');
+    return Response.json({ ok: true, data: { _id: 'a', published: false, updatedAt: 'original' } });
+  });
+  const result = await batchUpdateRecords(
+    'products',
+    ['a'],
+    { published: false },
+    new Map([['a', 'original']]),
+  );
+  assert.equal(result.updated, 0);
+  assert.equal(result.failures[0]?.outcome, 'unconfirmed');
+});
+
+for (const invalid of [undefined, '', '   ', 42, false])
+  test(`frozen batch refuses invalid explicit revision ${String(invalid)} before requests`, async (t) => {
+    let requests = 0;
+    t.mock.method(globalThis, 'fetch', async () => {
+      requests++;
+      return Response.json({ ok: true, data: { _id: 'a', published: false } });
+    });
+    const revisions = new Map([['a', 'original']]);
+    Reflect.apply(revisions.set, revisions, ['a', invalid]);
+    await assert.rejects(
+      batchUpdateRecords('products', ['a'], { published: false }, revisions),
+      /revision|snapshot/i,
+    );
+    assert.equal(requests, 0);
+  });
+test('frozen retry preserves a null legacy base instead of omitting its guard', async (t) => {
+  let sent: Record<string, unknown> | undefined;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    sent = body.data;
+    return Response.json({ ok: true, data: { _id: 'a', published: false, updatedAt: 'saved' } });
+  });
+  const result = await retryBatchUpdate(
+    retryableBatch(),
+    ['a'],
+    { published: false },
+    new Map<string, string | null>([['a', null]]),
+  );
+  assert.equal(result.updated, 1);
+  assert.equal(sent?.expectedUpdatedAt, null);
+});
+test('frozen batch IDs cannot expand while earlier products are in flight', async (t) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  const sent: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    sent.push(body.data.id);
+    if (sent.length <= 4) await gate;
+    return Response.json({
+      ok: true,
+      data: { _id: body.data.id, published: false, updatedAt: 'saved' },
+    });
+  });
+  const pending = batchUpdateRecords(
+    'products',
+    ids,
+    { published: false },
+    new Map(ids.map((id) => [id, 'original'])),
+  );
+  ids.push('not-selected');
+  release();
+  await pending;
+  assert.deepEqual(sent, ['a', 'b', 'c', 'd', 'e']);
+});

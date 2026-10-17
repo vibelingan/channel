@@ -121,6 +121,10 @@ interface Props {
   onProductReviewChange: Dispatch<SetStateAction<ProductClassificationReview | null>>;
 }
 
+function recordFocusKey(collection: string, id: string, action: string): string {
+  return JSON.stringify([collection, id, action]);
+}
+
 export function CollectionView({
   collection,
   section,
@@ -146,6 +150,8 @@ export function CollectionView({
   const [openingProduct, setOpeningProduct] = useState<ProductOpenRequest | null>(null);
   const currentOpening = useRef<ProductOpenRequest | null>(null);
   const openSequence = useRef(0);
+  const recordFocusRoot = useRef<HTMLDivElement>(null);
+  const recordFocusReturn = useRef<{ key: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
   // Batch Publish where every selected product was skipped: no request, just the notice.
@@ -297,6 +303,16 @@ export function CollectionView({
   }
 
   function openRecord(doc: CollectionDoc, kind: ProductOpenRequest['kind']) {
+    if (isProducts) {
+      const active = document.activeElement;
+      const key =
+        active instanceof HTMLElement && recordFocusRoot.current?.contains(active)
+          ? active.dataset.recordFocusKey
+          : undefined;
+      if (key) recordFocusReturn.current = { key };
+      else if (!recordFocusReturn.current)
+        recordFocusReturn.current = { key: recordFocusKey(collection.name, doc._id, kind) };
+    }
     if (!isProducts) {
       if (kind === 'edit') setEditing(doc);
       else setPreviewing(doc);
@@ -398,12 +414,13 @@ export function CollectionView({
       values: Record<string, unknown>;
       names: Record<string, string>;
       skipped?: string[];
+      expectedRevisions?: ReadonlyMap<string, string | null>;
       /** Set when trying again: the answers are folded into this result. */
       previous?: BatchUpdateResult;
     }) =>
       vars.previous
-        ? retryBatchUpdate(vars.previous, vars.ids, vars.values)
-        : batchUpdateRecords(collection.name, vars.ids, vars.values),
+        ? retryBatchUpdate(vars.previous, vars.ids, vars.values, vars.expectedRevisions)
+        : batchUpdateRecords(collection.name, vars.ids, vars.values, vars.expectedRevisions),
     onSuccess: (result) => {
       const completed = new Set(result.items.map((item) => item._id));
       setRowSelection((current) =>
@@ -435,12 +452,57 @@ export function CollectionView({
       invalidate();
     },
   });
-  const recordWritePending =
+  const recordMutationPending =
     updateMutation.isPending ||
     removeMutation.isPending ||
     batchUpdateMutation.isPending ||
-    batchRemoveMutation.isPending ||
-    (isProducts && listUnavailable);
+    batchRemoveMutation.isPending;
+  const recordWritePending = recordMutationPending || (isProducts && listUnavailable);
+
+  useEffect(() => {
+    if (!isProducts) {
+      recordFocusReturn.current = null;
+      return;
+    }
+    if (openingProduct || editing || previewing) return;
+    const pending = recordFocusReturn.current;
+    if (!pending) return;
+    if (recordMutationPending || isLoading || isFetching) {
+      // New user input takes precedence over a delayed return from a closed dialog.
+      const cleanup = () => {
+        document.removeEventListener('pointerdown', cancel, true);
+        document.removeEventListener('keydown', cancel, true);
+        document.removeEventListener('input', cancel, true);
+      };
+      const cancel = () => {
+        if (recordFocusReturn.current === pending) recordFocusReturn.current = null;
+        cleanup();
+      };
+      document.addEventListener('pointerdown', cancel, true);
+      document.addEventListener('keydown', cancel, true);
+      document.addEventListener('input', cancel, true);
+      return cleanup;
+    }
+    recordFocusReturn.current = null;
+    const root = recordFocusRoot.current;
+    const opener = Array.from(
+      root?.querySelectorAll<HTMLButtonElement>('button[data-record-focus-key]') ?? [],
+    ).find(
+      (button) =>
+        button.dataset.recordFocusKey === pending.key &&
+        !button.disabled &&
+        button.getClientRects().length > 0,
+    );
+    (opener ?? root?.querySelector<HTMLElement>('[data-record-focus-fallback]'))?.focus();
+  }, [
+    isProducts,
+    openingProduct,
+    editing,
+    previewing,
+    recordMutationPending,
+    isLoading,
+    isFetching,
+  ]);
 
   const visibleMutationError =
     (!creating && createMutation.error instanceof DraftSavedError && createMutation.error) ||
@@ -581,6 +643,7 @@ export function CollectionView({
                 <button
                   type="button"
                   disabled={recordWritePending}
+                  data-record-focus-key={recordFocusKey(collection.name, doc._id, 'summary')}
                   onClick={() =>
                     openRecord(doc, productListCoreIncomplete(doc) ? 'edit' : 'preview')
                   }
@@ -664,6 +727,7 @@ export function CollectionView({
             <PublishToggle
               published={row.original.published === true}
               busy={recordWritePending}
+              focusKey={recordFocusKey(collection.name, row.original._id, 'status')}
               {...(publishBlockReason && row.original.published !== true
                 ? { blockReason: publishBlockReason }
                 : {})}
@@ -712,6 +776,7 @@ export function CollectionView({
             {isCatalog && (
               <button
                 type="button"
+                data-record-focus-key={recordFocusKey(collection.name, doc._id, 'preview')}
                 onClick={() => openRecord(doc, 'preview')}
                 className="text-sm font-medium text-brand-700 hover:text-brand-900"
               >
@@ -721,6 +786,7 @@ export function CollectionView({
             <button
               type="button"
               disabled={recordWritePending}
+              data-record-focus-key={recordFocusKey(collection.name, doc._id, 'edit')}
               onClick={() => openRecord(doc, 'edit')}
               className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
@@ -751,6 +817,7 @@ export function CollectionView({
     return cols;
   }, [
     tableFields,
+    collection.name,
     isCatalog,
     isProducts,
     canReadSubcategories,
@@ -780,16 +847,29 @@ export function CollectionView({
   });
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original._id);
+  const selectedRevisions = isProducts
+    ? new Map(
+        table
+          .getSelectedRowModel()
+          .rows.map(({ original }) => [original._id, original.updatedAt ?? null] as const),
+      )
+    : undefined;
   const selectedCoreIncomplete =
     isProducts &&
     table.getSelectedRowModel().rows.some((row) => productListCoreIncomplete(row.original));
   const colCount = columns.length;
 
   return (
-    <div className="min-w-0 p-4 sm:p-8">
+    <div ref={recordFocusRoot} className="min-w-0 p-4 sm:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">{section.label}</h1>
+          <h1
+            data-record-focus-fallback={isProducts || undefined}
+            tabIndex={isProducts ? -1 : undefined}
+            className="text-xl font-semibold text-slate-900"
+          >
+            {section.label}
+          </h1>
           {collection.description && (
             <p className="mt-1 text-sm text-slate-500">{collection.description}</p>
           )}
@@ -1067,10 +1147,16 @@ export function CollectionView({
                 values,
                 names,
                 ...(skipped.length ? { skipped } : {}),
+                ...(selectedRevisions ? { expectedRevisions: selectedRevisions } : {}),
               });
               return;
             }
-            batchUpdateMutation.mutate({ ids: selectedIds, values, names });
+            batchUpdateMutation.mutate({
+              ids: selectedIds,
+              values,
+              names,
+              ...(selectedRevisions ? { expectedRevisions: selectedRevisions } : {}),
+            });
           }}
           onDelete={() => {
             if (selectedCoreIncomplete) return;
@@ -1081,6 +1167,7 @@ export function CollectionView({
                 batchUpdateMutation.mutate({
                   ids: selectedIds,
                   values: { archived: true, published: false },
+                  ...(selectedRevisions ? { expectedRevisions: selectedRevisions } : {}),
                   names: Object.fromEntries(
                     rows.map((row) => [row._id, String(row.name ?? row._id)]),
                   ),
@@ -1909,11 +1996,19 @@ function PublishToggle({
   busy,
   onToggle,
   blockReason,
-}: { published: boolean; busy: boolean; onToggle: () => void; blockReason?: string }) {
+  focusKey,
+}: {
+  published: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  blockReason?: string;
+  focusKey?: string;
+}) {
   return (
     <button
       type="button"
       disabled={busy || Boolean(blockReason)}
+      data-record-focus-key={focusKey}
       onClick={onToggle}
       title={
         blockReason ??

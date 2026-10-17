@@ -139,6 +139,8 @@ async function fixture(
     failCount: 0,
     invalidList: 0,
     failGet: 0,
+    busyApprovals: 0,
+    busyUpdates: 0,
     wrongGet: 0,
     summaryGet: 0,
     invalidView: 0,
@@ -158,6 +160,32 @@ async function fixture(
     const list = parsed.action === 'list' && parsed.data?.collection === 'products';
     const count = list && parsed.data.pageSize === 1;
     const productGet = parsed.action === 'get' && parsed.data?.collection === 'products';
+    if (parsed.action === 'update' && controls.busyUpdates > 0) {
+      controls.busyUpdates--;
+      await route.fulfill({
+        status: 409,
+        json: {
+          ok: false,
+          error: { code: 'BUSY', message: 'Owned product transaction did not write.' },
+        },
+      });
+      return;
+    }
+    if (
+      parsed.action === 'catalogDetailApproval' &&
+      parsed.data?.action === 'approve' &&
+      controls.busyApprovals > 0
+    ) {
+      controls.busyApprovals--;
+      await route.fulfill({
+        status: 409,
+        json: {
+          ok: false,
+          error: { code: 'BUSY', message: 'Owned approval transaction did not write.' },
+        },
+      });
+      return;
+    }
     if (productGet && controls.failGet > 0) {
       controls.failGet--;
       await route.fulfill({
@@ -1243,7 +1271,229 @@ for (const width of [1440, 390])
       assert.equal(writes.length, 1);
       assert.equal(writes[0]?.data?.id, 'ready');
       assert.deepEqual(writes[0]?.data?.values, { published: false });
-      // Captured batch CAS is the next P3 unit; this test covers the write-layer barrier.
+      assert.equal(writes[0]?.data?.expectedUpdatedAt, original.updatedAt);
+      assert.deepEqual(f.errors, []);
+    },
+  );
+
+for (const width of [1440, 390])
+  test(
+    `classification retry keeps the saved version after another edit at ${width}px`,
+    { timeout: 90000 },
+    async (t) => {
+      const f = await fixture(t, width, {
+        products: {
+          ready: {
+            imageIds: ['image'],
+            description: 'Original reviewed description',
+            unitPrice: 5,
+          },
+        },
+      });
+      f.controls.busyApprovals = 4;
+      await productRow(f, 'Clock ready')
+        .getByRole('checkbox', { name: 'Select row', exact: true })
+        .check();
+      await f.page.getByRole('button', { name: 'Assign category', exact: true }).click();
+      const dialog = f.page.getByRole('dialog', {
+        name: 'Edit website classification',
+        exact: true,
+      });
+      await dialog.getByRole('button', { name: 'Save and publish', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
+      const retry = dialog.getByRole('button', { name: 'Try again for 1 product', exact: true });
+      await f.expect(retry).toBeEnabled();
+      const approvals = () =>
+        f.requests.filter(
+          (r) => r.action === 'catalogDetailApproval' && r.data?.action === 'approve',
+        );
+      assert.equal(approvals().length, 4);
+      const changed = await f.adapter.update('products', 'ready', {
+        description: 'Another operator changed this after classification',
+      });
+      assert.ok(changed);
+      const beforeRetry = await readFile(f.file, 'utf8');
+      await retry.click();
+      await f
+        .expect(f.page.getByRole('list', { name: 'Products needing attention', exact: true }))
+        .toContainText(
+          'Product changed since classification or editing. Keep your edits and reload before saving.',
+        );
+      assert.equal(approvals().length, 4, 'retry cannot approve the newer product');
+      assert.equal(await readFile(f.file, 'utf8'), beforeRetry);
+      assert.deepEqual((await f.adapter.get('products', 'ready'))?.subcategoryIds, ['clock']);
+      assert.equal((await f.adapter.get('products', 'ready'))?.published, false);
+      const assignments = f.requests.filter(
+        (r) => r.action === 'catalogCategories' && r.data?.operation === 'replace',
+      );
+      assert.equal(assignments.length, 1, 'saved classification is not repeated or discarded');
+      await f
+        .expect(dialog.getByRole('button', { name: 'Check later', exact: true }))
+        .toBeEnabled();
+      await dialog.getByRole('button', { name: 'Check later', exact: true }).click();
+      await f.expect(dialog).toHaveCount(0);
+      const edit = productRow(f, 'Clock ready').getByRole('button', { name: 'Edit', exact: true });
+      await f.expect(edit).toBeEnabled();
+      await edit.click();
+      const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+      await f
+        .expect(form.locator('#description'))
+        .toHaveValue('Another operator changed this after classification');
+      await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await f.expect(form).toHaveCount(0);
+      assert.equal(await readFile(f.file, 'utf8'), beforeRetry);
+      assert.deepEqual(f.errors, []);
+    },
+  );
+
+for (const width of [1440, 390]) {
+  test(
+    `batch Disable retry retains the selected version at ${width}px`,
+    { timeout: 90000 },
+    async (t) => {
+      const f = await fixture(t, width);
+      const original = await f.adapter.get('products', 'ready');
+      assert.ok(original);
+      f.controls.busyUpdates = 4;
+      await productRow(f, 'Clock ready')
+        .getByRole('checkbox', { name: 'Select row', exact: true })
+        .check();
+      if (width === 390)
+        await f.page
+          .locator('summary')
+          .filter({ hasText: /^Actions$/ })
+          .click();
+      await f.page.getByRole('button', { name: 'Disable', exact: true }).click();
+      const retry = f.page.getByRole('button', { name: 'Try again for 1 product', exact: true });
+      await f.expect(retry).toBeEnabled();
+      const updates = () => f.requests.filter((r) => r.action === 'update');
+      assert.equal(updates().length, 4);
+      await f.adapter.update('products', 'ready', { description: 'Newer operator note' });
+      const beforeRetry = await readFile(f.file, 'utf8');
+      await retry.click();
+      await f.expect.poll(() => updates().length).toBe(5);
+      for (const update of updates())
+        assert.equal(update.data?.expectedUpdatedAt, original.updatedAt);
+      await f
+        .expect(
+          f.page.getByRole('alert').filter({ hasText: 'Product changed since classification.' }),
+        )
+        .toBeVisible();
+      assert.equal(await readFile(f.file, 'utf8'), beforeRetry);
+      assert.equal((await f.adapter.get('products', 'ready'))?.published, false);
+      assert.deepEqual(f.errors, []);
+    },
+  );
+  test(
+    `batch Archive retains the selected version and classification at ${width}px`,
+    { timeout: 90000 },
+    async (t) => {
+      const f = await fixture(t, width);
+      const original = await f.adapter.get('products', 'ready');
+      assert.ok(original);
+      await productRow(f, 'Clock ready')
+        .getByRole('checkbox', { name: 'Select row', exact: true })
+        .check();
+      if (width === 390)
+        await f.page
+          .locator('summary')
+          .filter({ hasText: /^Actions$/ })
+          .click();
+      f.page.once('dialog', (prompt) => prompt.accept());
+      await f.page.getByRole('button', { name: 'Archive', exact: true }).first().click();
+      await f.expect
+        .poll(async () => (await f.adapter.get('products', 'ready'))?.archived)
+        .toBe(true);
+      const updates = f.requests.filter((r) => r.action === 'update');
+      assert.equal(updates.length, 1);
+      assert.equal(updates[0]?.data?.expectedUpdatedAt, original.updatedAt);
+      assert.deepEqual(updates[0]?.data?.values, { archived: true, published: false });
+      const current = await f.adapter.get('products', 'ready');
+      assert.ok(current);
+      assert.equal(current.published, false);
+      assert.equal(current.catalogLifecycleVersion, 1);
+      assert.deepEqual(current.subcategoryIds, original.subcategoryIds);
+      assert.deepEqual(f.errors, []);
+    },
+  );
+}
+
+for (const scenario of [
+  'preview-close',
+  'edit-cancel',
+  'loader-error',
+  'preview-to-edit',
+  'list-error',
+  'new-search',
+  'new-pointer',
+  'new-keyboard',
+] as const)
+  test(
+    `record dialog focus returns to current opener without stealing new work: ${scenario}`,
+    { timeout: 90000 },
+    async (t) => {
+      const f = await fixture(t);
+      const kind = scenario === 'edit-cancel' ? 'Edit' : 'Preview';
+      const opener = productRow(f, 'Clock ready').getByRole('button', { name: kind, exact: true });
+      if (scenario === 'loader-error') f.controls.failGet = 100;
+      await opener.click();
+      if (scenario === 'loader-error') {
+        const loader = f.page.getByRole('dialog', { name: 'Load product', exact: true });
+        await f
+          .expect(loader.getByRole('button', { name: 'Retry load', exact: true }))
+          .toBeVisible();
+        await loader.getByRole('button', { name: 'Close', exact: true }).click();
+        await f.expect(loader).toHaveCount(0);
+      } else if (scenario === 'edit-cancel') {
+        const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+        await f.expect(form.locator('#name')).toHaveValue('Clock ready');
+        await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await f.expect(form).toHaveCount(0);
+      } else {
+        const preview = f.page.getByRole('dialog', { name: 'Product preview', exact: true });
+        await f.expect(preview).toBeVisible();
+        if (scenario === 'preview-to-edit') {
+          await preview.getByRole('button', { name: 'Edit item', exact: true }).click();
+          const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+          await f.expect(form.locator('#name')).toHaveValue('Clock ready');
+          await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+          await f.expect(form).toHaveCount(0);
+        } else {
+          if (scenario === 'list-error') f.controls.failList = 1;
+          if (scenario.startsWith('new-')) f.controls.holdListScope = 'all';
+          await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+          await f.expect(preview).toHaveCount(0);
+        }
+      }
+      if (scenario === 'list-error') {
+        await f
+          .expect(f.page.getByRole('button', { name: 'Retry list', exact: true }))
+          .toBeVisible();
+        await f
+          .expect(f.page.getByRole('heading', { name: 'Products', exact: true }))
+          .toBeFocused();
+      } else if (scenario.startsWith('new-')) {
+        await f.expect.poll(() => Boolean(f.controls.releaseList)).toBe(true);
+        const search = f.page.getByRole('textbox', { name: /^Search name/ });
+        if (scenario === 'new-pointer') await search.click();
+        else if (scenario === 'new-keyboard') await search.press('Tab');
+        else await search.fill('new work');
+        const release = f.controls.releaseList;
+        assert.ok(release);
+        await release();
+        await f.expect.poll(() => f.settled('all')).toBe(true);
+        await f
+          .expect(
+            scenario === 'new-keyboard'
+              ? f.page.getByRole('button', { name: 'Search', exact: true })
+              : search,
+          )
+          .toBeFocused();
+      } else {
+        await f.expect.poll(() => f.settled('all')).toBe(true);
+        await f.expect(opener).toBeFocused();
+      }
+      assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
       assert.deepEqual(f.errors, []);
     },
   );

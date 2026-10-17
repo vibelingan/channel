@@ -792,9 +792,10 @@ export const BATCH_CONCURRENCY = 4;
 export async function batchUpdateRecords(
   collection: string,
   ids: string[],
-  values: Record<string, unknown>,
-  expectedRevisions?: ReadonlyMap<string, string>,
+  inputValues: Record<string, unknown>,
+  expectedRevisions?: ReadonlyMap<string, string | null>,
 ): Promise<BatchUpdateResult> {
+  const values = { ...inputValues };
   if (collection !== 'products') {
     const result = await call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
       collection,
@@ -804,6 +805,7 @@ export async function batchUpdateRecords(
     return { ...result, failures: [] };
   }
   const uniqueIds = [...new Set(ids)];
+  const revisions = expectedRevisions === undefined ? undefined : new Map(expectedRevisions);
   const isArchive =
     Object.keys(values).length === 2 && values.archived === true && values.published === false;
   const isSingleFieldUpdate =
@@ -820,6 +822,20 @@ export async function batchUpdateRecords(
       'Select up to 20 products to publish, disable, classify or archive.',
     );
   }
+  if (
+    revisions !== undefined &&
+    uniqueIds.some((id) => {
+      const revision = revisions.get(id);
+      return (
+        !revisions.has(id) ||
+        (revision !== null && (typeof revision !== 'string' || revision.trim() === ''))
+      );
+    })
+  )
+    throw new AdminApiError(
+      'BAD_REQUEST',
+      'Product snapshot revisions were incomplete. Refresh products before trying again.',
+    );
   // Each product is its own request chain, and most of its time is gateway
   // latency, so a few run at once. One unclear result (no answer, an
   // unexpected answer) affects only its own product: the batch carries on and
@@ -847,7 +863,7 @@ export async function batchUpdateRecords(
         continue;
       }
       try {
-        const item = await updateRecord(collection, id, values, expectedRevisions?.get(id));
+        const item = await updateRecord(collection, id, values, revisions?.get(id));
         if (
           !item ||
           item._id !== id ||
@@ -909,7 +925,9 @@ export async function batchUpdateRecords(
         };
         return;
       }
-      const proof = readbackProves(current, values);
+      // A matching row cannot identify a frozen operation after its answer was lost.
+      // Its durable receipt is required before claiming this attempt succeeded.
+      const proof = revisions === undefined ? readbackProves(current, values) : 'unproven';
       outcomes[index] =
         proof === 'done'
           ? { item: current }
@@ -921,7 +939,12 @@ export async function batchUpdateRecords(
                       message: "Didn't go through: the server didn't answer in time. Try again.",
                       outcome: 'rejected' as const,
                     }
-                  : { message: "Couldn't confirm the website shows this change. Try again." }),
+                  : {
+                      message:
+                        revisions === undefined
+                          ? "Couldn't confirm the website shows this change. Try again."
+                          : "Couldn't confirm this operation. Try again, or open Edit to check the product.",
+                    }),
                 retryable: true,
               },
             };
@@ -932,27 +955,23 @@ export async function batchUpdateRecords(
   return { updated: items.length, items, failures };
 }
 
-/**
- * Try again for products a batch did not change, folding the answers into the
- * earlier result. Only retryable failures are sent. Publishing reads each
- * product first: one proven done (readbackProves) is counted, not sent again,
- * and the rest carry the revision just read, so a product flagged with
- * Alibaba changes since (DEC-19) or edited in between is refused, not
- * overwritten. Other changes (disable, category, archive) are harmless to
- * repeat and are sent as they are.
- */
+/** Retry frozen product inputs without replacing the user's base with a newer row. */
 export async function retryBatchUpdate(
   previous: BatchUpdateResult,
   ids: readonly string[],
-  values: Record<string, unknown>,
+  inputValues: Record<string, unknown>,
+  expectedRevisions?: ReadonlyMap<string, string | null>,
 ): Promise<BatchUpdateResult> {
+  const values = { ...inputValues };
   const wanted = new Set(ids);
   const retry = previous.failures.filter((failure) => failure.retryable && wanted.has(failure.id));
   const done: CollectionDoc[] = [];
   const unreadable = new Map<string, BatchUpdateFailure>();
   let send = retry.map((failure) => failure.id);
-  let revisions: Map<string, string> | undefined;
-  if (values.published === true) {
+  let revisions: Map<string, string | null> | undefined =
+    expectedRevisions === undefined ? undefined : new Map(expectedRevisions);
+  // Retained for callers not yet migrated to frozen operation inputs.
+  if (values.published === true && revisions === undefined) {
     revisions = new Map();
     send = [];
     const reads = await Promise.all(

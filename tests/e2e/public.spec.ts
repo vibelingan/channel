@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { type Browser, type Page, expect, test } from '@playwright/test';
 import type { CatalogPage } from '../../apps/site/src/islands/shop/catalog-types.ts';
+import { projectProductListResult } from '../../packages/db/src/catalog-product-list-view.ts';
 import type { SessionUser } from '../../packages/shared/src/auth.ts';
 import { isProductFamily } from '../../packages/shared/src/catalog-product.ts';
 import { initialCatalogTaxonomy } from '../../packages/shared/src/catalog-taxonomy.ts';
@@ -1192,6 +1193,14 @@ test.describe('public browser smoke', () => {
       (_, index) => `existing-image-${index + 1}`,
     );
 
+    const existingProduct = {
+      _id: 'existing-over-limit-product',
+      name: 'Existing Over-Limit Product',
+      category: 'wired',
+      imageIds: existingImageIds,
+    };
+    let completeReads = 0;
+
     await page.addInitScript((user) => {
       localStorage.setItem('channel.token', 'miu8-admin-token');
       localStorage.setItem('channel.user', JSON.stringify(user));
@@ -1218,23 +1227,32 @@ test.describe('public browser smoke', () => {
             byFamily: { headphones: 0, 'ai-gadgets': 0, toys: 0, misc: 0 },
           };
           break;
-        case 'list':
+        case 'list': {
+          const products = payload.data?.collection === 'products';
+          const matches =
+            products &&
+            payload.data?.needsClassification !== true &&
+            (payload.data?.productFamily === undefined ||
+              payload.data.productFamily === 'headphones');
+          const pageNumber = typeof payload.data?.page === 'number' ? payload.data.page : 1;
+          const pageSize = typeof payload.data?.pageSize === 'number' ? payload.data.pageSize : 20;
+          const result = {
+            items: matches && pageNumber === 1 ? [existingProduct] : [],
+            total: matches ? 1 : 0,
+            page: pageNumber,
+            pageSize,
+          };
           data =
-            payload.data?.collection === 'products'
-              ? {
-                  items: [
-                    {
-                      _id: 'existing-over-limit-product',
-                      name: 'Existing Over-Limit Product',
-                      category: 'wired',
-                      imageIds: existingImageIds,
-                    },
-                  ],
-                  total: 1,
-                  page: 1,
-                  pageSize: 20,
-                }
-              : { items: [], total: 0, page: 1, pageSize: 20 };
+            products && payload.data?.catalogListView === 'admin-product-list-v1'
+              ? projectProductListResult(result)
+              : result;
+          break;
+        }
+        case 'get':
+          expect(payload.data?.collection).toBe('products');
+          expect(payload.data?.id).toBe(existingProduct._id);
+          completeReads++;
+          data = existingProduct;
           break;
         case 'getImagePreview':
           {
@@ -1260,9 +1278,9 @@ test.describe('public browser smoke', () => {
             uploadIntentId: `intent-${imageSequence}`,
             storageFileId: `cloud://miu8/${imageSequence}`,
             upload: {
-              method: 'POST',
+              method: 'PUT',
               url: `${e2e.siteUrl}/__miu8-upload?fileName=${encodeURIComponent(fileName)}&attempt=${attempt}`,
-              fields: {},
+              headers: { 'x-owned-capacity-upload': '1' },
             },
           };
           break;
@@ -1295,6 +1313,11 @@ test.describe('public browser smoke', () => {
       });
     });
     await page.route('**/__miu8-upload?**', (route) => {
+      expect(route.request().method()).toBe('PUT');
+      expect(route.request().headers()['x-owned-capacity-upload']).toBe('1');
+      expect(route.request().postDataBuffer()?.subarray(0, 8)).toEqual(
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      );
       const url = new URL(route.request().url());
       const fileName = url.searchParams.get('fileName') ?? '';
       const attempt = Number(url.searchParams.get('attempt') ?? '1');
@@ -1319,6 +1342,7 @@ test.describe('public browser smoke', () => {
     expect(previewCounts.size).toBe(10);
     expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
     await expect(existingManager.locator('#imageIds-capacity')).toContainText('10 of 9 images');
+    expect(completeReads).toBe(1);
     await expect(existingInput).toBeDisabled();
     const existingRemove = existingManager
       .getByRole('button', { name: 'Remove image', exact: true })

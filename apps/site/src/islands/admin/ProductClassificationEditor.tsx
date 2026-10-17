@@ -518,10 +518,16 @@ export function ProductClassificationEditor({
     busyCallback.current?.(true);
     let outcome = previous;
     try {
-      // Each product is read again and published from the revision just read
-      // (retryBatchUpdate): the first attempt may have imported its photos,
-      // which moved the revision this classification saved.
-      outcome = await retryBatchUpdate(previous, ids, { published: true });
+      // The saved classification receipt is the reviewed base, even after a retry.
+      // Own intermediate writes need a continuation receipt; a newer GET is not one.
+      const revisions = new Map(
+        assignment.flatMap((item) =>
+          item.status === 'saved' && typeof item.updatedAt === 'string'
+            ? [[item.productId, item.updatedAt] as const]
+            : [],
+        ),
+      );
+      outcome = await retryBatchUpdate(previous, ids, { published: true }, revisions);
       if (mounted.current) {
         setPublicationResult(outcome);
         setMessage(publicationMessage(outcome));
