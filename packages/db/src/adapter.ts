@@ -578,6 +578,8 @@ export interface DbAdapter {
     actorId: string,
     input: unknown,
   ): Promise<import('@vibelingan-channel/shared/catalog-inquiry').InquiryResult>;
+  /** Internal targeted query; older adapters retain the paged full-job fallback. */
+  findUnfinishedApprovalUsingImage?(imageId: string, startedAfter: string): Promise<string | null>;
   list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   /** Find the first document where `field` exactly equals `value`. */

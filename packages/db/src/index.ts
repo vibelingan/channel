@@ -727,6 +727,9 @@ export async function unfinishedApprovalUsingImage(imageId: string): Promise<str
   const startedAfter = new Date(
     Date.now() - APPROVAL_JOB_MAX_AGE_MS - APPROVAL_JOB_DELETE_MARGIN_MS,
   ).toISOString();
+  const adapter = db();
+  if (adapter.findUnfinishedApprovalUsingImage)
+    return adapter.findUnfinishedApprovalUsingImage(imageId, startedAfter);
   let afterId = '';
   for (;;) {
     const page = await list({

@@ -1206,3 +1206,7 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e4：同一操作的审批起点与查询
 
 同一key由saved进入staging，保留初始输入/保存回执/TTL，get/start/重复begin恢复原游标，旧page/finish保持关闭。43新增测试；10源码反例28重叠失败并还原；安装SDK6组/4进程/隔离20起点串联通过。七包+scripts4723、Node20535、19types、显式Biome/SDK/diff通过。[P3e4](P3e4_OWN_APPROVAL_CURSOR.zh-CN.md)记录边界和最大根读取接缝。措辞纠正“审批成功”为“审批游标已保存”；整体验收fullDeliveryReady=false，原完整发布恢复P1保留。
+
+## P3e4b：未完成审批的定向图片保护读取
+
+解决P3e4新增大根的媒体检查读取接缝：服务端先匹配待删图片，只取两个ID，1get/0count/0写，JSON同语义且保留旧adapter分页fallback。61新增；14源码反例31重叠失败、3源文件还原；Node/wx/真实adapter12组实发参数通过。完整4784、Node20672、19types/显式Biome/SDK/diff与原保存保护块一致检查通过。[P3e4b](P3e4b_TARGETED_MEDIA_HOLD.zh-CN.md)保留云端执行/P95未测的边界。措辞从“返回图片清单/变快”改为“两个ID/减少回传”，global fullDeliveryReady=false，继续P3原P1。

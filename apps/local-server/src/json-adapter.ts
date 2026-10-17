@@ -43,6 +43,7 @@ import {
   planProductSubcategorySave,
   runAlibabaProductMutation,
 } from '@vibelingan-channel/db/adapter';
+import { firstApprovalImageHold } from '@vibelingan-channel/db/catalog-approval-image-hold';
 import {
   CatalogApprovalManifestSchema,
   commitCatalogApproval,
@@ -618,6 +619,15 @@ export class JsonFileAdapter implements DbAdapter {
       release?.();
       if (mutationQueues.get(this.file) === tail) mutationQueues.delete(this.file);
     }
+  }
+
+  async findUnfinishedApprovalUsingImage(
+    imageId: string,
+    startedAfter: string,
+  ): Promise<string | null> {
+    return this.withMutationLock(() =>
+      firstApprovalImageHold(this.docs('catalogDetailApprovals'), imageId, startedAfter),
+    );
   }
 
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {

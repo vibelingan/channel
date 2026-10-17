@@ -1,3 +1,9 @@
+import {
+  APPROVAL_IMAGE_HOLD_PROJECTION,
+  approvalImageHoldWhere,
+  approvalImageHoldAnswer,
+  isApprovalImageId,
+} from './catalog-approval-image-hold.ts';
 import { ADMIN_PRODUCT_LIST_PROJECTION, projectProductListResult, usesProductListView } from './catalog-product-list-view.ts';
 import { catalogReadinessSort, catalogReadinessWhere } from './catalog-readiness-query.ts';
 import {
@@ -798,6 +804,26 @@ export function manageCatalogPreparationJobInCloudBase(
   );
 }
 
+/** Query only the unfinished approval protecting this image. */
+export async function findUnfinishedApprovalImageInCloudBase(
+  db: Pick<WxDatabase, 'collection' | 'command'>,
+  imageId: string,
+  startedAfter: string,
+): Promise<string | null> {
+  if (!isApprovalImageId(imageId)) return null;
+  const where = approvalImageHoldWhere(db.command, imageId, startedAfter);
+  const response = sdkAnswer(
+    await db
+      .collection('catalogDetailApprovals')
+      .where(where)
+      .orderBy('_id', 'asc')
+      .limit(1)
+      .field(APPROVAL_IMAGE_HOLD_PROJECTION)
+      .get(),
+  );
+  return approvalImageHoldAnswer(response.data);
+}
+
 /** Native list implementation shared by the production adapter and contract tests. */
 export async function listDocumentsInCloudBase(
   db: WxDatabase,
@@ -896,6 +922,9 @@ export async function listDocumentsInCloudBase(
 }
 
 export const cloudBaseAdapter: DbAdapter = {
+  async findUnfinishedApprovalUsingImage(imageId, startedAfter) {
+    return findUnfinishedApprovalImageInCloudBase(database(), imageId, startedAfter);
+  },
   async manageCatalogPreparationJob(authority, command, now) {
     return manageCatalogPreparationJobInCloudBase(
       cloudStorageSdk().database(),
