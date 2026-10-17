@@ -19,7 +19,14 @@ import {
   isProductFamily,
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
-import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
+import {
+  ADMIN_PRODUCT_LIST_VIEW,
+  PRODUCT_LIST_CORE_MESSAGE,
+  PRODUCT_LIST_DETAILS_LABEL,
+  PRODUCT_LIST_SELECTION_MESSAGE,
+  productListCoreIncomplete,
+  productListLimited,
+} from '@vibelingan-channel/shared/admin-product-list';
 import {
   type CatalogReadiness,
   CatalogReadinessSchema,
@@ -443,6 +450,7 @@ export function CollectionView({
     batchRemoveMutation.error;
 
   function patch(opened: CollectionDoc, values: Record<string, unknown>) {
+    if (isProducts && productListCoreIncomplete(opened)) return;
     updateMutation.mutate({ id: opened._id, values, ...(isProducts ? { opened } : {}) });
   }
 
@@ -566,7 +574,27 @@ export function CollectionView({
           isProducts && field.name === 'productFamily' ? 'Website main category' : field.label,
         cell: ({ row }) => {
           const doc = row.original;
+          if (isProducts && field.name === 'name' && productListLimited(doc))
+            return (
+              <div className="max-w-56">
+                <TextCell field={field.name} value={doc.name} />
+                <button
+                  type="button"
+                  disabled={recordWritePending}
+                  onClick={() =>
+                    openRecord(doc, productListCoreIncomplete(doc) ? 'edit' : 'preview')
+                  }
+                  className="mt-1 block text-left text-xs text-brand-700 underline disabled:opacity-50"
+                >
+                  {productListCoreIncomplete(doc)
+                    ? PRODUCT_LIST_CORE_MESSAGE
+                    : 'More details in Preview.'}
+                </button>
+              </div>
+            );
           if (isProducts && field.name === 'productFamily') {
+            if (productListCoreIncomplete(doc))
+              return <TextCell field={field.name} value={PRODUCT_LIST_DETAILS_LABEL} />;
             const family = productFamilyForDoc(doc);
             return (
               <TextCell
@@ -629,22 +657,25 @@ export function CollectionView({
         id: 'status',
         header: 'Status',
         enableSorting: false,
-        cell: ({ row }) => (
-          <PublishToggle
-            published={row.original.published === true}
-            busy={recordWritePending}
-            {...(publishBlockReason && row.original.published !== true
-              ? { blockReason: publishBlockReason }
-              : {})}
-            onToggle={() =>
-              // Publishing a flagged product goes through its review in Edit (DEC-19).
-              row.original.published !== true &&
-              ['Changed', 'Removed'].includes(String(reviewLabel(row.original)))
-                ? openRecord(row.original, 'edit')
-                : patch(row.original, { published: !(row.original.published === true) })
-            }
-          />
-        ),
+        cell: ({ row }) =>
+          isProducts && productListCoreIncomplete(row.original) ? (
+            <TextCell field="status" value={PRODUCT_LIST_DETAILS_LABEL} />
+          ) : (
+            <PublishToggle
+              published={row.original.published === true}
+              busy={recordWritePending}
+              {...(publishBlockReason && row.original.published !== true
+                ? { blockReason: publishBlockReason }
+                : {})}
+              onToggle={() =>
+                // Publishing a flagged product goes through its review in Edit (DEC-19).
+                row.original.published !== true &&
+                ['Changed', 'Removed'].includes(String(reviewLabel(row.original)))
+                  ? openRecord(row.original, 'edit')
+                  : patch(row.original, { published: !(row.original.published === true) })
+              }
+            />
+          ),
       });
     }
 
@@ -659,13 +690,20 @@ export function CollectionView({
             {isProducts && role === 'admin' && (
               <button
                 type="button"
-                disabled={classificationBlocked || recordWritePending}
-                title={
-                  classificationBlocked
-                    ? 'Resolve the pending classification result before starting another'
-                    : undefined
+                disabled={
+                  classificationBlocked || recordWritePending || productListCoreIncomplete(doc)
                 }
-                onClick={() => setClassifying({ products: [doc], publishOnSave: false })}
+                title={
+                  productListCoreIncomplete(doc)
+                    ? PRODUCT_LIST_CORE_MESSAGE
+                    : classificationBlocked
+                      ? 'Resolve the pending classification result before starting another'
+                      : undefined
+                }
+                onClick={() => {
+                  if (!productListCoreIncomplete(doc))
+                    setClassifying({ products: [doc], publishOnSave: false });
+                }}
                 className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
               >
                 Classify
@@ -690,9 +728,13 @@ export function CollectionView({
             </button>
             <button
               type="button"
-              disabled={recordWritePending || (isProducts && doc.archived === true)}
+              disabled={
+                recordWritePending ||
+                (isProducts && (doc.archived === true || productListCoreIncomplete(doc)))
+              }
               onClick={() => {
                 if (isProducts) {
+                  if (productListCoreIncomplete(doc)) return;
                   if (confirm('Archive this product? It will no longer be published.'))
                     patch(doc, { archived: true, published: false });
                 } else if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
@@ -738,6 +780,9 @@ export function CollectionView({
   });
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original._id);
+  const selectedCoreIncomplete =
+    isProducts &&
+    table.getSelectedRowModel().rows.some((row) => productListCoreIncomplete(row.original));
   const colCount = columns.length;
 
   return (
@@ -976,6 +1021,11 @@ export function CollectionView({
         />
       </div>
 
+      {selectedCoreIncomplete && (
+        <output className="mt-4 block text-sm text-slate-600">
+          {PRODUCT_LIST_SELECTION_MESSAGE}
+        </output>
+      )}
       {selectedIds.length > 0 && (
         <BatchBar
           count={selectedIds.length}
@@ -985,17 +1035,19 @@ export function CollectionView({
           classifyBlocked={classificationBlocked}
           {...(publishBlockReason ? { publishBlockReason } : {})}
           collection={collection}
-          busy={recordWritePending}
+          busy={recordWritePending || selectedCoreIncomplete}
           onClear={() => {
             clearSelection();
           }}
-          onClassify={() =>
+          onClassify={() => {
+            if (selectedCoreIncomplete) return;
             setClassifying({
               products: rows.filter((row) => selectedIds.includes(row._id)),
               publishOnSave: true,
-            })
-          }
+            });
+          }}
           onSetValues={(values) => {
+            if (selectedCoreIncomplete) return;
             if (isProducts && values.published === true && publishBlockReason) return;
             const names = Object.fromEntries(
               rows.map((row) => [row._id, String(row.name ?? row._id)]),
@@ -1021,6 +1073,7 @@ export function CollectionView({
             batchUpdateMutation.mutate({ ids: selectedIds, values, names });
           }}
           onDelete={() => {
+            if (selectedCoreIncomplete) return;
             if (isProducts) {
               if (
                 confirm(`Archive ${selectedIds.length} products? They will no longer be published.`)
@@ -1374,11 +1427,13 @@ function productFamilyLabel(productFamily: ProductFamily): string {
 
 /** Read-only: rows show what the website uses; nothing here writes product data. */
 function SavedSubcategoriesCell({ doc }: { doc: CollectionDoc }) {
-  const family = productFamilyForDoc(doc);
+  const family = productListCoreIncomplete(doc) ? null : productFamilyForDoc(doc);
   const registry = useQuery({
     ...taxonomyQuery(family ?? 'headphones'),
     enabled: family !== null,
   });
+  if (productListCoreIncomplete(doc))
+    return <TextCell field="websiteSubcategories" value={PRODUCT_LIST_DETAILS_LABEL} />;
   if (!family) return <TextCell field="websiteSubcategories" value="" />;
   if (registry.error) {
     return (
@@ -1616,7 +1671,7 @@ function BatchBar({
           <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700">
             Actions
           </summary>
-          <div className="absolute right-0 z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md">
+          <div className="absolute right-0 top-full z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md">
             {isCatalog && (
               <>
                 <button

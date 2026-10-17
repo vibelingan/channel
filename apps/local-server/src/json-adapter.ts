@@ -61,7 +61,7 @@ import {
   runCatalogPreparationJob,
 } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import {
-  projectProductListRow,
+  projectProductListResult,
   usesProductListView,
 } from '@vibelingan-channel/db/catalog-product-list-view';
 import { assertCatalogProductVersions } from '@vibelingan-channel/db/catalog-product-state';
@@ -92,7 +92,6 @@ import {
   normalizeProductSlug,
   normalizeSkuCode,
 } from '@vibelingan-channel/shared';
-import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import type { InquiryResult } from '@vibelingan-channel/shared/catalog-inquiry';
 import { CatalogQuoteSubmissionSchema } from '@vibelingan-channel/shared/catalog-quote';
@@ -690,15 +689,9 @@ export class JsonFileAdapter implements DbAdapter {
 
       const total = docs.length;
       const start = (query.page - 1) * query.pageSize;
-      const page = docs.slice(start, start + query.pageSize);
-      const items = summary ? page.map(projectProductListRow) : page;
-      return {
-        items,
-        total,
-        page: query.page,
-        pageSize: query.pageSize,
-        ...(summary ? { catalogListView: ADMIN_PRODUCT_LIST_VIEW } : {}),
-      };
+      const items = docs.slice(start, start + query.pageSize);
+      const result = { items, total, page: query.page, pageSize: query.pageSize };
+      return summary ? projectProductListResult(result) : result;
     });
   }
 

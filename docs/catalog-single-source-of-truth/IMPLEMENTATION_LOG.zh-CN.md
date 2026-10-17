@@ -1118,3 +1118,12 @@ P2g3精确364e3bb site15页5.83秒、三函数build/package、Linux126闭包、�
 先红后绿，真实admin/adapter/浏览器覆盖；10项故障均被断言检测，四源文件恢复核哈希。全量3844（305/1206/637/508/131/304/753）0fail/skip/cancel，Node20 46、全部后端相关类型、Astro216零error/warning8hint、standing双SDK实际field/get sender通过。首次图库flag错误留下1skip，正确flag全量重跑；类型替身/精确optional/复制字典、EJSON探针预期和测试delete提示均修正并留首轮记录。只读三件时钟按实际字段表得约3KB/行，但无P95和硬上限结论。
 
 实际复核共享协议/类型/exports、DB固定投影与原生查询/JSON/facade、admin校验和客户端完整记录隔离/CollectionView两个列表/测试，以及分类/价格/审核/图片/表单/公共读取接缝。正文“描述搜索”更正为真实series搜索，“有界完成”更正为固定字段投影；文档P2g4b_LIST_PROJECTION.zh-CN.md含具体证据。P2g4b2字节预算继续，无部署、客户写入、新branch/worktree/PR/push，fullDeliveryReady=false。
+
+
+## P2g4b2：列表字节预算与可操作恢复
+
+基线2594a53，原目录/分支/单人继续。共享迭代JSON字节预算使v1摘要每行≤8KiB、页含包络≤1MiB；普通小行保持逐值，大附属元数据保留核心和来源身份并显示完整Preview入口，核心摘要不足禁用行/已选批量快捷写且保留Edit/Preview/清选。原始get、来源数据和缺published语义不变，不强补分类，不持久化DTO标记。实际发现深度预留导致整页失败及手机菜单遮住清选，均先红测后修复。
+
+真实浏览器完成Preview→分类保存→Edit与核心不足→Edit修复→原选品恢复操作；1440/390和截图验证，无force点击。25源码反例全检出，8文件finally还原/哈希一致，修改过的旧完整读取/协议断言经原故障再证。常驻Node20原生admin产物烟测保留真实bundle/SDK仅替换HTTP，旧2594a53在预算断言失败，新精确产物在审查后构建；原CI/部署命令无开关包含，删除接线真实驱动失败。
+
+最终相关全量4359（309/1215/637/510/131/304/766+487脚本）0fail/skip/cancel；反例后65后台/72客户端通过。Node20 26+45通过，驱动4目标通过/19未选。全部相关类型、Astro216零错误警告8既有hint、16完整文件Biome+忽略原生函数源段比较、SDK/diff通过。路径0匹配、前置tsc/SDK未运行、夹具及格式首轮错误留档，不当通过。20文件与消费者复核，写作将性能结论限定HTTP预算；详见P2g4b2_LIST_BYTE_BUDGET.zh-CN.md。无test部署/真实写入/新分支/worktree/PR/push；P3及整体交付继续，fullDeliveryReady=false。

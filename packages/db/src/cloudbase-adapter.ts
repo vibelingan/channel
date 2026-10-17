@@ -1,5 +1,4 @@
-import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
-import { ADMIN_PRODUCT_LIST_PROJECTION, projectProductListRow, usesProductListView } from './catalog-product-list-view.ts';
+import { ADMIN_PRODUCT_LIST_PROJECTION, projectProductListResult, usesProductListView } from './catalog-product-list-view.ts';
 import { catalogReadinessSort, catalogReadinessWhere } from './catalog-readiness-query.ts';
 import {
   type CatalogPreparationAuthority,
@@ -862,15 +861,13 @@ export async function listDocumentsInCloudBase(
   )
     throw Error('Catalog list rows were not confirmed');
 
-  return {
-    items: (res.data as Record<string, unknown>[]).map((row) =>
-      summary ? projectProductListRow(normalize(row)) : normalize(row),
-    ),
-    ...(summary ? { catalogListView: ADMIN_PRODUCT_LIST_VIEW } : {}),
+  const result = {
+    items: (res.data as Record<string, unknown>[]).map(normalize),
     total,
     page: query.page,
     pageSize: query.pageSize,
   };
+  return summary ? projectProductListResult(result) : result;
 }
 
 export const cloudBaseAdapter: DbAdapter = {

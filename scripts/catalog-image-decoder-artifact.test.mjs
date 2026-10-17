@@ -201,27 +201,31 @@ for (const damage of ['none', 'missing-manifest', 'broken-loader', 'wrong-import
         );
         writeFileSync(join(target, 'index.js'), 'exports.main = () => ({ok:true});');
       }
-      const config = tsxRequire(
-        '../apps/functions/public-api/tsup.config.ts',
-        import.meta.url,
-      ).default;
-      buildSync({
-        entryPoints: [
-          fileURLToPath(new URL('../apps/functions/public-api/src/index.ts', import.meta.url)),
-        ],
-        outfile: join(dir, 'public-api/index.js'),
-        bundle: true,
-        platform: 'node',
-        target: 'node20',
-        format: 'cjs',
-        minify: true,
-        define: config.define,
-        external: config.external,
-      });
+      for (const name of ['public-api', 'admin']) {
+        const config = tsxRequire(
+          `../apps/functions/${name}/tsup.config.ts`,
+          import.meta.url,
+        ).default;
+        buildSync({
+          entryPoints: [
+            fileURLToPath(new URL(`../apps/functions/${name}/src/index.ts`, import.meta.url)),
+          ],
+          outfile: join(dir, name, 'index.js'),
+          bundle: true,
+          platform: 'node',
+          target: 'node20',
+          format: 'cjs',
+          minify: true,
+          define: config.define,
+          external: config.external,
+        });
+      }
       const admin = join(dir, 'admin');
+      // This fixture marks admin as a decoder consumer while keeping its real API and SDK.
+      const adminEntry = join(admin, 'index.js');
       writeFileSync(
-        join(admin, 'index.js'),
-        'exports.main = () => import("#catalog-image-decoder");',
+        adminEntry,
+        `${readFileSync(adminEntry, 'utf8')}\nmodule.exports.__decoderProbe = () => import("#catalog-image-decoder");\n`,
       );
       packageCatalogImageDecoder(admin, { target: host });
       if (damage === 'missing-manifest') rmSync(join(admin, 'image-decoder-manifest.json'));
@@ -253,6 +257,7 @@ for (const damage of ['none', 'missing-manifest', 'broken-loader', 'wrong-import
       if (damage === 'none') {
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /alibaba-catalog-sync: artifact smoke passed/);
+        assert.match(result.stdout, /"actualBundledNativeAdapter":true/);
       } else {
         assert.notEqual(result.status, 0);
         assert.match(result.stderr, /decoder|Decoder|ENOENT/);

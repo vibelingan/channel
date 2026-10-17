@@ -123,6 +123,27 @@ function smokePublicCatalog(artifactDir) {
   }
 }
 
+function smokeAdminProductList(artifactDir) {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-admin-list-behavior-'));
+  try {
+    cpSync(artifactDir, tempRoot, { recursive: true });
+    const result = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/admin-list-artifact-probe.cjs'), join(tempRoot, 'index.js')],
+      { env: { ...process.env }, encoding: 'utf8', timeout: 15000 },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `admin native list artifact smoke failed\n${result.stdout}\n${result.stderr}`,
+      );
+    console.log(
+      `admin: native list budget + full GET + fixed SDK projection passed\n${result.stdout.trim()}`,
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
 for (const name of functions) {
   const artifactDir = join(artifactRoot, name);
   const indexFile = join(artifactDir, 'index.js');
@@ -141,6 +162,7 @@ for (const name of functions) {
       rmSync(temp, { recursive: true, force: true });
     }
   }
+  if (name === 'admin') smokeAdminProductList(artifactDir);
   if (name === 'public-api') smokePublicCatalog(artifactDir);
   console.log(`${name}: artifact smoke passed`);
 }

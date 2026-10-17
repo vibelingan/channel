@@ -21,8 +21,11 @@ import {
 } from '@vibelingan-channel/shared';
 import {
   ADMIN_PRODUCT_LIST_MARKER,
+  ADMIN_PRODUCT_LIST_PAGE_MAX_BYTES,
   ADMIN_PRODUCT_LIST_VIEW,
   type AdminProductListView,
+  fitsJsonBudget,
+  isAdminProductListRow,
 } from '@vibelingan-channel/shared/admin-product-list';
 import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
 import type { CatalogReadiness } from '@vibelingan-channel/shared/catalog-preparation';
@@ -316,7 +319,8 @@ export async function listRecords(args: ListArgs): Promise<ListResult<Collection
     !checked.success ||
     (summary
       ? checked.data.catalogListView !== ADMIN_PRODUCT_LIST_VIEW ||
-        checked.data.items.some((row) => row[ADMIN_PRODUCT_LIST_MARKER] !== ADMIN_PRODUCT_LIST_VIEW)
+        checked.data.items.some((row) => !isAdminProductListRow(row)) ||
+        !fitsJsonBudget({ ok: true, data: checked.data }, ADMIN_PRODUCT_LIST_PAGE_MAX_BYTES)
       : Object.hasOwn(checked.data, 'catalogListView') ||
         checked.data.items.some((row) => Object.hasOwn(row, ADMIN_PRODUCT_LIST_MARKER))) ||
     checked.data.page !== (args.page ?? 1) ||

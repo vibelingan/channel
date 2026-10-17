@@ -1,4 +1,5 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { productListLimited } from '@vibelingan-channel/shared/admin-product-list';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { getImagePreview } from './api.ts';
 
@@ -38,6 +39,7 @@ function copiedFrom(doc: CollectionDoc, ids: readonly string[]): string | undefi
 }
 
 export function productThumbnailSource(doc: CollectionDoc): ThumbnailSource {
+  if (productListLimited(doc)) return null;
   const ids = strings(doc.imageIds) ?? [];
   const first = ids[0];
   if (first) {

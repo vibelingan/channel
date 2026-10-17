@@ -177,3 +177,61 @@ test('legacy list client never silently accepts product summaries', async (t) =>
     (e) => e instanceof AdminApiError && e.code === 'INVALID_RESPONSE',
   );
 });
+
+for (const response of [
+  {
+    items: [{ _id: 'p', [listMarker]: listView, name: 'a'.repeat(8192) }],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+    catalogListView: listView,
+  },
+  {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+    catalogListView: listView,
+    extra: 'a'.repeat(1024 * 1024),
+  },
+  {
+    items: [{ _id: 'p', [listMarker]: listView, _adminProductListLimited: 'yes' }],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+    catalogListView: listView,
+  },
+  {
+    items: [{ _id: 'p', [listMarker]: listView, _adminProductListCoreIncomplete: true }],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+    catalogListView: listView,
+  },
+])
+  test(`product summary refuses oversized or inconsistent limited DTO: ${JSON.stringify(response).slice(0, 160)}`, async (t) => {
+    storage(t);
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () => new Response(JSON.stringify({ ok: true, data: response })),
+    );
+    await assert.rejects(
+      listRecords({ collection: 'products', catalogListView: listView }),
+      (error) => error instanceof AdminApiError && error.code === 'INVALID_RESPONSE',
+    );
+  });
+test('complete product GET keeps large original metadata rather than applying the list budget', async (t) => {
+  storage(t);
+  const raw = {
+    _id: 'p',
+    description: '中'.repeat(100000),
+    alibabaSourceReview: { modelNumbers: Array.from({ length: 100 }, () => '中'.repeat(256)) },
+  };
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () => new Response(JSON.stringify({ ok: true, data: raw })),
+  );
+  assert.deepEqual(await getRecord('products', 'p'), raw);
+});

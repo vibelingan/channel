@@ -133,6 +133,7 @@ async function fixture(
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const requests: { action: string; data?: Record<string, unknown> }[] = [];
+  const listPayloads: { items: Record<string, unknown>[] }[] = [];
   const controls = {
     failList: 0,
     failCount: 0,
@@ -217,6 +218,10 @@ async function fixture(
       wire.data._adminProductListView = 'admin-product-list-v1';
       responseBody = JSON.stringify(wire);
     }
+    if (list) {
+      const wire = JSON.parse(responseBody);
+      if (wire.ok) listPayloads.push(wire.data);
+    }
     if (productGet && controls.wrongGet > 0) {
       controls.wrongGet--;
       const wire = JSON.parse(responseBody);
@@ -284,7 +289,11 @@ async function fixture(
     { token, harness: '/src/islands/admin/testing/catalog-list-readiness-browser-harness.tsx' },
   );
   await expect(page.getByRole('heading', { name: 'Products', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Clock ready', exact: true })).toBeVisible();
+  if (options.products?.ready)
+    await expect(
+      page.getByRole('checkbox', { name: 'Select row', exact: true }).first(),
+    ).toBeVisible();
+  else await expect(page.getByRole('cell', { name: 'Clock ready', exact: true })).toBeVisible();
   const settled = async (scope: string, kind: 'main' | 'count' = 'main') =>
     page.evaluate(
       async ({ scope, kind, harness }) => {
@@ -298,7 +307,18 @@ async function fixture(
       },
     );
   await expect.poll(() => settled('all', 'count')).toBe(true);
-  return { page, expect, file, adapter, requests, errors, controls, initialBytes, settled };
+  return {
+    page,
+    expect,
+    file,
+    adapter,
+    requests,
+    listPayloads,
+    errors,
+    controls,
+    initialBytes,
+    settled,
+  };
 }
 
 test(
@@ -1062,3 +1082,126 @@ test('unconfirmed summary version leaves a readable retry instead of an empty or
   assert.equal(await readFile(f.file, 'utf8'), before);
   assert.deepEqual(f.errors, []);
 });
+
+test('large list metadata opens the complete record and saves without losing source details', async (t) => {
+  const review = {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: 'clock-source',
+    sourceCategoryId: 'source-category',
+    sourceListingStatus: 'published',
+    variantCount: 3,
+    offerCount: 4,
+    modelNumbers: Array.from({ length: 100 }, () => '中'.repeat(256)),
+    optionNames: Array.from({ length: 100 }, () => '中'.repeat(256)),
+  };
+  const f = await fixture(t, 1440, { products: { ready: { alibabaSourceReview: review } } });
+  const row = f.page
+    .getByRole('row')
+    .filter({ has: f.page.getByRole('cell', { name: /Clock ready/ }) });
+  await f.expect(row.getByText('More details in Preview.', { exact: true })).toBeVisible();
+  await f.expect(row.getByText('View in Preview', { exact: true })).toHaveCount(6);
+  for (const payload of f.listPayloads)
+    for (const item of payload.items) assert.ok(Buffer.byteLength(JSON.stringify(item)) <= 8192);
+  await row.getByRole('button', { name: 'More details in Preview.', exact: true }).click();
+  const preview = f.page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await f.expect(preview).toBeVisible();
+  await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await row.getByRole('button', { name: 'Classify', exact: true }).click();
+  const classification = f.page.getByRole('dialog', {
+    name: 'Edit website classification',
+    exact: true,
+  });
+  await f.expect(classification).toBeVisible();
+  await classification.getByRole('button', { name: 'Save classification', exact: true }).click();
+  await classification.getByRole('button', { name: 'Confirm save', exact: true }).click();
+  await f.expect(classification).toHaveCount(0);
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  await f.expect(form.locator('#name')).toHaveValue('Clock ready');
+  await form.locator('#name').fill('Metadata preserved');
+  await form.getByRole('button', { name: 'Save', exact: true }).click();
+  await f.expect(form).toHaveCount(0);
+  const saved = await f.adapter.get('products', 'ready');
+  assert.deepEqual(saved?.alibabaSourceReview, review);
+  assert.equal(saved?.published, false);
+  assert.deepEqual(saved?.subcategoryIds, ['clock']);
+  assert.equal(Object.hasOwn(saved ?? {}, '_adminProductListLimited'), false);
+  assert.deepEqual(f.errors, []);
+});
+for (const width of [1440, 390])
+  test(`core summary fallback blocks all quick writes and has a usable complete edit at ${width}`, async (t) => {
+    const fullName = `Core name ${'中'.repeat(5000)}`;
+    const f = await fixture(t, width, { products: { ready: { name: fullName } } });
+    const row = f.page
+      .getByRole('row')
+      .filter({ has: f.page.getByRole('cell', { name: /^Core name / }) });
+    await f
+      .expect(row.getByText('Open Edit for full product details.', { exact: true }))
+      .toBeVisible();
+    await f.expect(row.getByRole('button', { name: 'Classify', exact: true })).toBeDisabled();
+    await f.expect(row.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled();
+    await f.expect(row.getByRole('button', { name: 'Disabled', exact: true })).toHaveCount(0);
+    await row.getByRole('checkbox', { name: 'Select row', exact: true }).check();
+    await f
+      .expect(
+        f.page.getByText(
+          'Use Edit or Preview for the selected products, or remove them from the selection.',
+          {
+            exact: true,
+          },
+        ),
+      )
+      .toBeVisible();
+    await f
+      .expect(f.page.getByRole('button', { name: 'Assign category', exact: true }))
+      .toBeDisabled();
+    const bar = f.page.getByText('1 selected', { exact: true }).locator('..');
+    if (width < 1280) {
+      await bar.scrollIntoViewIfNeeded();
+      await bar.getByText('Actions', { exact: true }).click();
+      const barBox = await bar.boundingBox();
+      const menuBox = await bar.locator('details > div').boundingBox();
+      assert.ok(barBox && menuBox && menuBox.y >= barBox.y + barBox.height - 1);
+      assert.ok(menuBox.x >= 0 && menuBox.x + menuBox.width <= width + 1);
+      await f.page.screenshot({
+        path: '../../output/pricing-clock-repair-2026-10-13/p2g4b2/core-summary-mobile.png',
+      });
+    }
+    for (const name of ['Publish', 'Disable', 'Archive'])
+      await f
+        .expect(bar.locator('button:visible').filter({ hasText: new RegExp(`^${name}$`) }))
+        .toBeDisabled();
+    if (width < 1280)
+      await bar.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    assert.equal(
+      f.requests.some((r) => ['update', 'batchUpdate', 'catalogDetailApproval'].includes(r.action)),
+      false,
+    );
+    await row
+      .getByRole('button', { name: 'Open Edit for full product details.', exact: true })
+      .click();
+    const form = f.page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await f.expect(form.locator('#name')).toHaveValue(fullName);
+    await form.locator('#name').fill('Repaired core summary');
+    await form.getByRole('button', { name: 'Save', exact: true }).click();
+    await f.expect(form).toHaveCount(0);
+    const saved = await f.adapter.get('products', 'ready');
+    assert.equal(saved?.name, 'Repaired core summary');
+    assert.equal(saved?.published, false);
+    assert.deepEqual(saved?.subcategoryIds, ['clock']);
+    assert.equal(Object.hasOwn(saved ?? {}, '_adminProductListCoreIncomplete'), false);
+    if (width >= 1280) {
+      await f
+        .expect(f.page.getByRole('button', { name: 'Assign category', exact: true }))
+        .toBeEnabled();
+      await bar.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    }
+    const initialProducts = JSON.parse(f.initialBytes).products;
+    const finalProducts = JSON.parse(await readFile(f.file, 'utf8')).products;
+    assert.deepEqual(
+      finalProducts.filter((p: { _id: string }) => p._id !== 'ready'),
+      initialProducts.filter((p: { _id: string }) => p._id !== 'ready'),
+    );
+    assert.deepEqual(f.errors, []);
+  });

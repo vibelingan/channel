@@ -9,11 +9,14 @@ import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 const view = 'admin-product-list-v1';
 const marker = '_adminProductListView';
-async function fixture(t: { after(fn: () => void): void }) {
+async function fixture(
+  t: { after(fn: () => void): void },
+  options: { count?: number; extra?: Record<string, unknown> } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), 'channel-product-list-view-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'db.json');
-  const products = Array.from({ length: 25 }, (_, i) => ({
+  const products = Array.from({ length: options.count ?? 25 }, (_, i) => ({
     _id: `p-${String(i).padStart(2, '0')}`,
     name: `Clock ${i}`,
     productFamily: 'misc',
@@ -39,6 +42,7 @@ async function fixture(t: { after(fn: () => void): void }) {
     alibabaReviewReason: 'new',
     alibabaSourceReview: { privateTest: 'metadata-must-remain-exact' },
     manualCatalogPricing: { privateTest: 'pricing-must-remain-exact' },
+    ...options.extra,
   }));
   writeFileSync(file, JSON.stringify({ users: [{ _id: 'admin', role: 'admin' }], products }));
   const adapter = new JsonFileAdapter(file);
@@ -164,3 +168,59 @@ for (const [collection, catalogListView] of [
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error.code, 'BAD_REQUEST');
   });
+
+test('100 actual admin summary rows stay bounded without losing IDs count or raw recovery', async (t) => {
+  const review = {
+    sourceCategoryId: 'source-category',
+    modelNumbers: Array.from({ length: 100 }, () => '中'.repeat(96)),
+    optionNames: Array.from({ length: 100 }, () => '中'.repeat(96)),
+  };
+  const f = await fixture(t, { count: 100, extra: { alibabaSourceReview: review } });
+  const before = readFileSync(f.file, 'utf8');
+  const response = await f.request('list', {
+    collection: 'products',
+    catalogListView: view,
+    catalogReadiness: 'all',
+    pageSize: 100,
+    sort: [{ field: '_id', dir: 'asc' }],
+  });
+  assert.ok(response.ok, JSON.stringify(response).slice(0, 200));
+  const data = response.data as { items: Record<string, unknown>[]; total: number };
+  assert.equal(data.total, 100);
+  assert.equal(data.items.length, 100);
+  assert.deepEqual(
+    data.items.map((row) => row._id),
+    f.products.map((row) => row._id),
+  );
+  assert.ok(Buffer.byteLength(JSON.stringify(response)) <= 1024 * 1024);
+  for (const row of data.items) {
+    assert.ok(Buffer.byteLength(JSON.stringify(row)) <= 8 * 1024);
+    assert.equal(row._adminProductListLimited, true);
+    assert.equal(Object.hasOwn(row, '_adminProductListCoreIncomplete'), false);
+    const projectedReview = row.alibabaSourceReview;
+    assert.ok(projectedReview && typeof projectedReview === 'object');
+    assert.equal(Reflect.get(projectedReview, 'sourceCategoryId'), review.sourceCategoryId);
+  }
+  const full = await f.request('get', { collection: 'products', id: 'p-00' });
+  assert.ok(full.ok);
+  assert.deepEqual(full.data, f.products[0]);
+  assert.equal(readFileSync(f.file, 'utf8'), before);
+});
+
+test('deep JSON metadata cannot turn a small product row into a failed list page', async (t) => {
+  let nested: unknown = 'value';
+  for (let i = 0; i < 30; i++) nested = { nested };
+  const f = await fixture(t, { count: 2, extra: { alibabaSourceReview: { extra: nested } } });
+  const before = readFileSync(f.file, 'utf8');
+  const response = await f.request('list', {
+    collection: 'products',
+    catalogListView: view,
+    catalogReadiness: 'all',
+  });
+  assert.ok(response.ok, JSON.stringify(response));
+  const data = response.data as { items: Record<string, unknown>[]; total: number };
+  assert.equal(data.total, 2);
+  assert.equal(data.items.length, 2);
+  for (const row of data.items) assert.equal(row._adminProductListLimited, true);
+  assert.equal(readFileSync(f.file, 'utf8'), before);
+});

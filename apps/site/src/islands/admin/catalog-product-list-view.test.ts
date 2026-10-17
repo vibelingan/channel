@@ -3,6 +3,7 @@ import test from 'node:test';
 import { type CollectionDoc, productFamilyForDoc } from '@vibelingan-channel/shared';
 import { projectProductListRow } from '../../../../../packages/db/src/catalog-product-list-view.ts';
 import { productReviewCellValue } from './alibaba-source-review.ts';
+import { categorySuggestionMatchesProduct } from './api.ts';
 import { productThumbnailSource } from './product-thumbnail.ts';
 import { reviewLabel, splitForBatchPublish } from './review-reason.ts';
 const url = (id: string) => `https://sc04.alicdn.com/kf/${id}.jpg`;
@@ -124,4 +125,45 @@ for (const [name, values] of Object.entries(cases))
     assert.equal(projected.description, undefined);
     assert.equal(projected.catalogPublication, undefined);
     assert.equal(JSON.stringify(raw), before);
+  });
+
+test('limited list metadata is labelled as full-read details rather than a false price or photo', () => {
+  const row = { ...projectProductListRow(base), _adminProductListLimited: true };
+  for (const cell of ['identity', 'category', 'model', 'variants', 'moq', 'pricing'] as const)
+    assert.equal(productReviewCellValue(row, cell), 'View in Preview');
+  assert.equal(productThumbnailSource(row), null);
+});
+for (const mode of ['nested-only', 'direct-only', 'matching', 'mismatch'] as const)
+  test(`limited metadata retains exact source suggestion identity: ${mode}`, () => {
+    const reviewData = {
+      ...sourceReview,
+      sourceCategoryId: '123',
+      modelNumbers: Array.from({ length: 100 }, () => '中'.repeat(256)),
+      optionNames: Array.from({ length: 100 }, () => '中'.repeat(256)),
+    };
+    const raw: CollectionDoc = {
+      ...base,
+      updatedAt: '2026-10-18T00:00:00.000Z',
+      alibabaSourceReview: reviewData,
+    };
+    if (mode === 'direct-only') Reflect.deleteProperty(reviewData, 'sourceCategoryId');
+    if (mode !== 'nested-only')
+      Reflect.set(raw, 'alibabaSourceCategoryId', mode === 'mismatch' ? '456' : '123');
+    const row = projectProductListRow(raw);
+    const suggestion: Parameters<typeof categorySuggestionMatchesProduct>[0] = {
+      kind: 'suggestion',
+      status: 'ready',
+      productId: raw._id,
+      productUpdatedAt: '2026-10-18T00:00:00.000Z',
+      source: { primarySourceKey: 'source-key', sourceCategoryId: '123' },
+      mapping: { id: 'mapping', revision: 'a'.repeat(64) },
+      family: 'misc',
+      subcategoryIds: ['clock'],
+      taxonomyRevision: 1,
+    };
+    assert.equal(
+      categorySuggestionMatchesProduct(suggestion, row),
+      categorySuggestionMatchesProduct(suggestion, raw),
+    );
+    assert.equal(categorySuggestionMatchesProduct(suggestion, row), mode !== 'mismatch');
   });

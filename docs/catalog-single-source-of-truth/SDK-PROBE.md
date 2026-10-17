@@ -628,3 +628,16 @@ Official [useEffect](https://react.dev/reference/react/useEffect), [useRef](http
 | zod@3.25.76 | optional | v3/types.d.ts:80 optional():ZodOptional<this> | old omitted view stays complete; exact optional forwarding does not add undefined protocol keys |
 
 Official CloudBase /api-reference/server/node-sdk/database/fetch freshly read via MCP docs; bool field documented, code/runtime sender verified above. Context7 unavailable. Raw object pass-through does not establish array $slice; not used. Standing verify-cloudbase-sdk-contract imports the actual allowlist, executes both SDK field/get paths with a controlled sender and confirms base immutability. First expanded probe expected ordinary JSON numbers, failed on actual EJSON; corrected only the probe after reading installed stringifyByEJSON. No SDK/shim/version/resource change. Node20 46 and existing all-package types pass; exact built artifact proof follows review.
+
+
+## P2g4b2：有界列表和原生产物烟测
+
+| Package/version | Exact surface | Installed contract | Executed proof |
+| --- | --- | --- | --- |
+| playwright-core@1.61.1 | Locator.boundingBox | types/types.d.ts:13135 options?:{timeout?:number}, Promise<null or x/y/width/height> | 390实际展开菜单与整条BatchBar/viewport几何比较，菜单不得遮住Clear；移除top-full反例失败 |
+| playwright-core@1.61.1 | Locator.scrollIntoViewIfNeeded | types/types.d.ts:14813 options?:{timeout?:number}, Promise<void> | 实际Clear在滚动后正常点击，不force；3新流程及27浏览器组合 |
+| esbuild@0.27.7 | buildSync | lib/main.d.ts:609 BuildOptions→BuildResult; entryPoints/outfile/bundle/platform/target/format/minify/define/external | 由真实admin的tsup解析精确安装实例，驱动使用实际admin/public handler与tsup配置编译，4损坏模式通过；删除native smoke接线3正控/1失败 |
+
+官方[Locator.boundingBox](https://playwright.dev/docs/api/class-locator#locator-bounding-box)、[scrollIntoViewIfNeeded](https://playwright.dev/docs/api/class-locator#locator-scroll-into-view-if-needed)及[esbuild API](https://esbuild.github.io/api/#build)本轮已读。当前Playwright文档有1.62/1.63新增参数，应用不调用这些新参数；以安装1.61.1声明和实际运行确认。Context7不可用。初次esbuild从根或直接函数node_modules查找失败，改按真实test的admin package→realpath(tsup)解析，观察0.27.7，未把另一安装0.28.1冒当实际实例。
+
+无CloudBase方法/类型shim/版本变更，原固定Query.field/get和事务合约门槛重跑通过。新纯CJS烟测通过实际编译原生adapter→实际SDK→受控HTTP，保留EJSON投影与响应解析，拒绝一切写入和真实socket；自建HS256只用于独立假环境用户fixture，按packages/auth/src/jwt.ts既有issuer/audience生成，不改变应用认证。Node20新烟测旧产物在有效业务断言失败，新精确提交证据在审查侧车；不可把受控transport称为云部署验收。
