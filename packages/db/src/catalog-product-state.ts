@@ -44,6 +44,7 @@ const serverOutputs = [
   'catalogPreparationState',
   'catalogPreparationPolicy',
   'catalogPreparationReport',
+  'catalogPreparationRequest',
   'catalogDetailPagination',
 ] as const;
 

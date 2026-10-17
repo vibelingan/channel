@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { readCurrentCatalogPreparation } from '@vibelingan-channel/shared/catalog-preparation';
+import {
+  CatalogPreparationRequestSchema,
+  readCurrentCatalogPreparation,
+  readCurrentCatalogPreparationRequest,
+} from '@vibelingan-channel/shared/catalog-preparation';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 async function fixture() {
@@ -382,7 +386,18 @@ test('explicit retry atomically invalidates its old blocked diagnostics before t
   });
   assert.ok(reset.ok && 'progress' in reset, JSON.stringify(reset));
   assert.equal(reset.progress.media, null);
-  assert.deepEqual(f.rows['products/p'], { ...before, catalogPreparationState: 'stale' });
+  assert.deepEqual(f.rows['products/p'], {
+    ...before,
+    catalogPreparationState: 'checking',
+    catalogPreparationRequest: {
+      ...CatalogPreparationRequestSchema.parse(before?.catalogPreparationRequest),
+      requestedAt: f.rows[`catalogPreparationJobs/${f.scope.jobId}`]?.updatedAt,
+    },
+  });
+  assert.equal(
+    readCurrentCatalogPreparationRequest(f.rows['products/p'] ?? {})?.jobId,
+    f.scope.jobId,
+  );
   const r = await f.run({ action: 'status', actorId: 'admin', jobId: f.scope.jobId });
   assert.ok(r.ok && 'status' in r);
   assert.equal(r.status.report, null);
@@ -560,7 +575,18 @@ for (const state of ['stale', 'blocked'] as const)
         })
       ).ok,
     );
-    assert.deepEqual(f.rows['products/p'], { ...before, catalogPreparationState: 'stale' });
+    assert.deepEqual(f.rows['products/p'], {
+      ...before,
+      catalogPreparationState: 'checking',
+      catalogPreparationRequest: {
+        ...CatalogPreparationRequestSchema.parse(before?.catalogPreparationRequest),
+        requestedAt: f.rows[`catalogPreparationJobs/${f.scope.jobId}`]?.updatedAt,
+      },
+    });
+    assert.equal(
+      readCurrentCatalogPreparationRequest(f.rows['products/p'] ?? {})?.jobId,
+      f.scope.jobId,
+    );
   });
 
 test('human status for an expired running scan offers the supported continuation before explicit retry', async () => {

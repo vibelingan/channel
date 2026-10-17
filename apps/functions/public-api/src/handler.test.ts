@@ -69,6 +69,17 @@ test('public products never expose private source-review or preparation state', 
       catalogLifecycleVersion: 2,
       catalogClassificationRevision: 4,
       catalogPreparationState: 'stale',
+      catalogPreparationPolicy: 'catalog-preparation-v1',
+      catalogPreparationRequest: {
+        schemaVersion: 'catalog-preparation-request-v1',
+        productId: 'alibaba-draft-1',
+        jobId: 'b'.repeat(64),
+        inputDigest: 'a'.repeat(64),
+        contentGeneration: 3,
+        policyVersion: 'catalog-preparation-v1',
+        requestedAt: '2026-10-17T00:00:00.000Z',
+      },
+      catalogPreparationReport: { state: 'blocked', privateDiagnostic: 'owned-private-fixture' },
       detailSourceReady: false,
       alibabaSourceReview: {
         schemaVersion: 'alibaba-source-review-v1',
@@ -91,12 +102,16 @@ test('public products never expose private source-review or preparation state', 
     config,
   );
 
+  assert.equal(projected.name, 'Supplier draft');
   for (const key of [
     'alibabaSourceReview',
     'catalogContentGeneration',
     'catalogLifecycleVersion',
     'catalogClassificationRevision',
     'catalogPreparationState',
+    'catalogPreparationPolicy',
+    'catalogPreparationRequest',
+    'catalogPreparationReport',
     'detailSourceReady',
   ]) {
     assert.equal(Object.hasOwn(projected, key), false, key);

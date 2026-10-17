@@ -1,12 +1,16 @@
-import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
-import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sourceMediaLinkId, sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import {
+  sourceMediaLinkId,
+  sourceObservationDocumentId,
+} from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
+import { readCurrentCatalogPreparationRequest } from '@vibelingan-channel/shared/catalog-preparation';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
+import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
+import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import {
   acquireImageMutationInCloudBase,
   claimAlibabaSyncRunInCloudBase,
@@ -97,16 +101,18 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
         controls.afterWrite(`${name}/${id}`);
         return controls.wrongUpsertId === `${name}/${id}`
           ? { upserted: [{ _id: 'wrong-id' }] }
-          : exists ? { updated: 1 } : { upserted: [{ _id: id }] };
+          : exists
+            ? { updated: 1 }
+            : { upserted: [{ _id: id }] };
       },
       remove: async () => {
         const key = `${name}/${id}`;
         if (controls.failRemove === key) throw Error('forced remove failure');
-        if (controls.silentRemove === key) return {deleted:0};
-        if (controls.codedRemove === key) return {code:'REMOVE_FAILED',deleted:1};
+        if (controls.silentRemove === key) return { deleted: 0 };
+        if (controls.codedRemove === key) return { code: 'REMOVE_FAILED', deleted: 1 };
         const deleted = scope.get(name)?.delete(id) ? 1 : 0;
         controls.afterWrite(key);
-        return {deleted};
+        return { deleted };
       },
     }),
   });
@@ -682,7 +688,6 @@ test('an unchanged generic target succeeds without requiring a redundant write A
   assert.equal(harness.controls.maximumOperations, 2);
 });
 
-
 test('preparation cloud wrapper shares the transaction and confirms its deterministic write', async () => {
   const f = fakeDatabase({
     users: [{ _id: 'admin', role: 'admin' }],
@@ -723,8 +728,21 @@ test('preparation cloud wrapper shares the transaction and confirms its determin
   );
   assert.ok(claimed.ok && 'lease' in claimed);
   assert.equal(claimed.progress.leaseVersion, 1);
-  assert.ok(f.controls.maximumOperations <= 4);
-  assert.deepEqual(f.store.get('products')?.get('p'), { _id: 'p', name: 'Clock' });
+  assert.equal(f.controls.maximumOperations, 5);
+  const product = f.store.get('products')?.get('p');
+  assert.ok(product);
+  assert.equal(readCurrentCatalogPreparationRequest(product)?.jobId, start.progress.jobId);
+  const business = Object.fromEntries(
+    Object.entries(product).filter(
+      ([key]) =>
+        ![
+          'catalogPreparationState',
+          'catalogPreparationPolicy',
+          'catalogPreparationRequest',
+        ].includes(key),
+    ),
+  );
+  assert.deepEqual(business, { _id: 'p', name: 'Clock' });
 });
 for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const) {
   test(`preparation cloud wrapper rejects ${failure} and rolls back the transaction`, async () => {
@@ -808,7 +826,6 @@ test('preparation cloud transaction callback uses a fresh clock after queue dela
   assert.equal(f.store.get('catalogPreparationJobs')?.size, 1);
 });
 
-
 async function observationCloudFixture(withSource = false) {
   const image: CollectionDoc = {
     _id: 'image',
@@ -823,8 +840,17 @@ async function observationCloudFixture(withSource = false) {
   };
   const f = fakeDatabase({
     users: [{ _id: 'admin', role: 'admin' }],
-    products: [{ _id: 'p', name: 'Clock', imageIds: ['image'], ...(withSource ? { alibabaPrimarySourceKey: 'source' } : {}) }],
-    ...(withSource ? { alibabaSourceProducts: [{ _id: 'source', sourceTitle: 'Source clock' }] } : {}),
+    products: [
+      {
+        _id: 'p',
+        name: 'Clock',
+        imageIds: ['image'],
+        ...(withSource ? { alibabaPrimarySourceKey: 'source' } : {}),
+      },
+    ],
+    ...(withSource
+      ? { alibabaSourceProducts: [{ _id: 'source', sourceTitle: 'Source clock' }] }
+      : {}),
     images: [image],
   });
   const now = 1792080000000;
@@ -887,9 +913,9 @@ test('cloud observation transaction reads before both fenced writes and fits its
 });
 for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const) {
   test(`cloud ${failure} on observation write rolls back its prior job fence as well`, async () => {
-    const f = await observationCloudFixture(),
-      before = structuredClone(f.store),
-      saved = await f.put();
+    const f = await observationCloudFixture();
+    const before = structuredClone(f.store);
+    const saved = await f.put();
     assert.ok(saved.ok && 'observation' in saved && saved.observation);
     const id = saved.observation._id;
     f.store.clear();
@@ -900,13 +926,12 @@ for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'
   });
 }
 
-
 test('source-backed image observation remains bounded to nine actual transaction operations', async () => {
   const f = await observationCloudFixture(true);
-  const saved = await f.put();assert.ok(saved.ok && 'observation' in saved && saved.observation);
+  const saved = await f.put();
+  assert.ok(saved.ok && 'observation' in saved && saved.observation);
   assert.equal(f.controls.maximumOperations, 9);
 });
-
 
 test('cloud media cursor and observation commit together within nine source-backed operations', async () => {
   const f = await observationCloudFixture(true);
@@ -1776,7 +1801,7 @@ async function retryDiagnosticCloudFixture() {
   };
   return { f, command, retry: () => f.run(command) };
 }
-test('source-backed retry and diagnostic invalidation commit together within eight operations', async () => {
+test('source-backed retry and new checking request commit together within eight operations', async () => {
   const { f, retry } = await retryDiagnosticCloudFixture();
   const before = structuredClone(f.store.get('products')?.get('p'));
   const images = structuredClone(f.store.get('images'));
@@ -1788,8 +1813,11 @@ test('source-backed retry and diagnostic invalidation commit together within eig
   assert.equal(f.controls.maximumOperations, 8);
   assert.deepEqual(f.store.get('products')?.get('p'), {
     ...before,
-    catalogPreparationState: 'stale',
+    catalogPreparationState: 'checking',
   });
+  const product = f.store.get('products')?.get('p');
+  assert.ok(product);
+  assert.equal(readCurrentCatalogPreparationRequest(product)?.jobId, r.progress.jobId);
   assert.deepEqual(f.store.get('images'), images);
 });
 for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
@@ -1843,3 +1871,130 @@ for (const completed of [false, true])
       assert.equal(r.status.attestation, null);
       assert.deepEqual(f.store, before);
     });
+
+for (const withSource of [false, true])
+  test(`request projection start operation budget with source=${withSource}`, async (t) => {
+    const initial = {
+      users: [{ _id: 'admin', role: 'admin' }],
+      products: [
+        {
+          _id: 'p',
+          name: 'Clock',
+          published: false,
+          ...(withSource ? { alibabaPrimarySourceKey: 'source' } : {}),
+        },
+      ],
+    };
+    const f = fakeDatabase(initial);
+    const now = 1792080000000;
+    const authority = createCatalogPreparationAuthority({
+      secret: 'projection-budget',
+      environmentId: 'test',
+      now: () => now,
+    });
+    const result = await manageCatalogPreparationJobInCloudBase(
+      f.db,
+      authority,
+      { action: 'start', actorId: 'admin', productId: 'p' },
+      now,
+    );
+    assert.ok(result.ok && 'progress' in result);
+    assert.equal(f.controls.maximumOperations, withSource ? 8 : 5);
+    const before = structuredClone(f.store);
+    await manageCatalogPreparationJobInCloudBase(
+      f.db,
+      authority,
+      { action: 'start', actorId: 'admin', productId: 'p' },
+      now,
+    );
+    assert.deepEqual(f.store, before);
+    t.diagnostic(
+      `Measured transaction operations: ${f.controls.maximumOperations}; reads precede both writes.`,
+    );
+  });
+
+for (const phase of ['product', 'job'] as const)
+  for (const failure of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+    test(`request ${phase} ${failure} rolls back product and job together`, async () => {
+      const initial = {
+        users: [{ _id: 'admin', role: 'admin' }],
+        products: [{ _id: 'p', name: 'Clock', published: false, productFamily: 'misc' }],
+      };
+      const now = 1792080000000;
+      const authority = createCatalogPreparationAuthority({
+        secret: 'projection-rollback',
+        environmentId: 'test',
+        now: () => now,
+      });
+      const control = fakeDatabase(initial);
+      const started = await manageCatalogPreparationJobInCloudBase(
+        control.db,
+        authority,
+        { action: 'start', actorId: 'admin', productId: 'p' },
+        now,
+      );
+      assert.ok(started.ok && 'progress' in started);
+      const f = fakeDatabase(initial);
+      const before = structuredClone(f.store);
+      f.controls[failure] =
+        phase === 'product' ? 'products/p' : `catalogPreparationJobs/${started.progress.jobId}`;
+      await assert.rejects(
+        manageCatalogPreparationJobInCloudBase(
+          f.db,
+          authority,
+          { action: 'start', actorId: 'admin', productId: 'p' },
+          now,
+        ),
+      );
+      assert.deepEqual(f.store, before);
+      assert.equal(f.store.get('catalogPreparationJobs')?.size ?? 0, 0);
+    });
+
+test('lost transaction ACK retains both request and job; explicit same-input retry is read-only', async () => {
+  const f = fakeDatabase({
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [{ _id: 'p', name: 'Clock', published: false }],
+  });
+  const now = 1792080000000;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'projection-ack',
+    environmentId: 'test',
+    now: () => now,
+  });
+  let loseAck = true;
+  const db = {
+    runTransaction: async <T>(operation: Parameters<typeof f.db.runTransaction<T>>[0]) => {
+      const value = await f.db.runTransaction(operation);
+      if (loseAck) {
+        loseAck = false;
+        throw Error('Committed transaction ACK lost');
+      }
+      return value;
+    },
+  };
+  await assert.rejects(
+    manageCatalogPreparationJobInCloudBase(
+      db,
+      authority,
+      { action: 'start', actorId: 'admin', productId: 'p' },
+      now,
+    ),
+    /ACK lost/,
+  );
+  const product = f.store.get('products')?.get('p');
+  assert.ok(product);
+  const request = readCurrentCatalogPreparationRequest(product);
+  assert.ok(request);
+  assert.ok(f.store.get('catalogPreparationJobs')?.get(request.jobId));
+  const before = structuredClone(f.store);
+  const retried = await manageCatalogPreparationJobInCloudBase(
+    db,
+    authority,
+    { action: 'start', actorId: 'admin', productId: 'p' },
+    now,
+  );
+  assert.ok(retried.ok && 'progress' in retried);
+  assert.equal(retried.progress.jobId, request.jobId);
+  assert.deepEqual(f.store, before);
+  assert.equal(f.store.get('catalogPreparationJobs')?.size, 1);
+});

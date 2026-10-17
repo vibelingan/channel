@@ -527,6 +527,9 @@ test('two actual file adapters preparing a shared image admit exactly one owner'
   assert.ok(dispatch.ok && 'call' in dispatch);
   const claimed = await f.run({ action: 'claim', call: dispatch.call, owner: 'second-worker' });
   assert.ok(claimed.ok && 'lease' in claimed);
+  const beforeProtection = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.equal(beforeProtection.products[1]._id, 'second');
+  assert.equal(beforeProtection.products[1].catalogPreparationRequest.productId, 'second');
   const other = new JsonFileAdapter(f.file);
   const imageInputDigest = f.health.inputDigest;
   const outcomes = await Promise.allSettled([
@@ -555,5 +558,5 @@ test('two actual file adapters preparing a shared image admit exactly one owner'
   assert.equal(reopened.catalogImageObservations.length, 1);
   assert.equal(reopened.catalogImageObservations[0].owner, reopened.images[0].imageMutationOwner);
   assert.equal(reopened.images[0].storageFileId, saved.images[0].storageFileId);
-  assert.deepEqual(reopened.products, saved.products);
+  assert.deepEqual(reopened.products, beforeProtection.products);
 });

@@ -243,6 +243,8 @@ for (const health of [
 ])
   test(`missing-image ${health.status} observation remains diagnostic only`, async () => {
     const f = await prepared();
+    const beforeProduct = structuredClone(f.rows['products/p']);
+    assert.equal(beforeProduct?.catalogPreparationState, 'checking');
     Reflect.deleteProperty(f.rows, 'images/image');
     const result = await f.run({
       action: 'put-image-check',
@@ -254,7 +256,7 @@ for (const health of [
     assert.ok(result.ok && 'observation' in result && result.observation);
     assert.equal(result.observation.health.status, health.status);
     assert.equal(CatalogPreparationReportSchema.safeParse(result.observation).success, false);
-    assert.equal(Object.hasOwn(f.rows['products/p'] ?? {}, 'catalogPreparationState'), false);
+    assert.deepEqual(f.rows['products/p'], beforeProduct);
   });
 test('private health fields reject before any database operation', async () => {
   const f = await prepared();

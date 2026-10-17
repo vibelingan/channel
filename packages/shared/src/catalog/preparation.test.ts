@@ -3,7 +3,9 @@ import test from 'node:test';
 import {
   CATALOG_PREPARATION_POLICY,
   CatalogPreparationReportSchema,
+  CatalogPreparationRequestSchema,
   readCurrentCatalogPreparation,
+  readCurrentCatalogPreparationRequest,
 } from './preparation.ts';
 const report = () => ({
   schemaVersion: 'catalog-preparation-report-v2',
@@ -163,4 +165,56 @@ test('v2 ready requires an explicit bounded media seal', () => {
   assert.equal(CatalogPreparationReportSchema.safeParse(candidate).success, true);
   const { seal: _seal, ...missing } = candidate;
   assert.equal(CatalogPreparationReportSchema.safeParse(missing).success, false);
+});
+
+const request = () => ({
+  schemaVersion: 'catalog-preparation-request-v1',
+  productId: 'p',
+  jobId: 'b'.repeat(64),
+  inputDigest: 'a'.repeat(64),
+  contentGeneration: 3,
+  policyVersion: CATALOG_PREPARATION_POLICY,
+  requestedAt: '2026-10-17T00:00:00.000Z',
+});
+const checking = () => ({
+  _id: 'p',
+  catalogContentGeneration: 3,
+  catalogPreparationState: 'checking',
+  catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
+  catalogPreparationRequest: request(),
+});
+test('checking request is bounded and readable but cannot grant preview or publication readiness', () => {
+  const row = checking();
+  const before = structuredClone(row);
+  assert.deepEqual(readCurrentCatalogPreparationRequest(row), request());
+  assert.equal(readCurrentCatalogPreparation(row), null);
+  assert.deepEqual(row, before);
+});
+for (const patch of [
+  { catalogPreparationRequest: undefined },
+  { catalogPreparationRequest: null },
+  { catalogPreparationRequest: { ...request(), nonce: 'secret' } },
+  { catalogPreparationRequest: { ...request(), jobId: 'wrong' } },
+  { catalogPreparationRequest: { ...request(), requestedAt: 'wrong' } },
+  { catalogPreparationRequest: { ...request(), policyVersion: 'old' } },
+  { catalogPreparationRequest: { ...request(), productId: 'other' } },
+  { catalogPreparationState: 'ready' },
+  { catalogPreparationState: 'preparing' },
+  { catalogPreparationPolicy: 'old' },
+  { catalogContentGeneration: 4 },
+  { catalogContentGeneration: '3' },
+  { _id: 'other' },
+])
+  test(`unverified request remains unreadable: ${JSON.stringify(patch)}`, () => {
+    assert.equal(readCurrentCatalogPreparationRequest({ ...checking(), ...patch }), null);
+  });
+test('request cannot retain a credential or unbounded metadata', () => {
+  assert.equal(
+    CatalogPreparationRequestSchema.safeParse({ ...request(), token: 'secret' }).success,
+    false,
+  );
+  assert.equal(
+    CatalogPreparationRequestSchema.safeParse({ ...request(), productId: 'p'.repeat(201) }).success,
+    false,
+  );
 });

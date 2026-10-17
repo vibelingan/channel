@@ -1,10 +1,13 @@
 /** Private technical jobs. Pixel work runs outside the transaction; every write is fenced inside it. */
 import { randomBytes } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   CATALOG_PREPARATION_POLICY,
   type CatalogPreparationReport,
+  CatalogPreparationRequestSchema,
   readCurrentCatalogPreparation,
+  readCurrentCatalogPreparationRequest,
 } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
@@ -354,11 +357,40 @@ async function currentInput(tx: CatalogApprovalTransaction, productId: string) {
   const product = await tx.get('products', productId);
   if (!product) return null;
   if (product._id !== productId) return 'invalid';
+  return currentProductInput(tx, product);
+}
+async function currentProductInput(tx: CatalogApprovalTransaction, product: CollectionDoc) {
   const generation = integer.safeParse(product.catalogContentGeneration ?? 0);
   if (!generation.success) return 'invalid';
   return {
     inputDigest: catalogPreparationInputDigest(await readCatalogPreparationInputs(tx, product)),
     contentGeneration: generation.data,
+  };
+}
+
+function requestedByJob(product: CollectionDoc, job: Job): boolean {
+  const request = readCurrentCatalogPreparationRequest(product);
+  return (
+    request !== null &&
+    request.jobId === job._id &&
+    request.inputDigest === job.inputDigest &&
+    request.contentGeneration === job.contentGeneration
+  );
+}
+function productWithRequest(product: CollectionDoc, job: Job): CollectionDoc {
+  return {
+    ...product,
+    catalogPreparationState: 'checking',
+    catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
+    catalogPreparationRequest: CatalogPreparationRequestSchema.parse({
+      schemaVersion: 'catalog-preparation-request-v1',
+      productId: job.productId,
+      jobId: job._id,
+      inputDigest: job.inputDigest,
+      contentGeneration: job.contentGeneration,
+      policyVersion: job.policyVersion,
+      requestedAt: job.updatedAt,
+    }),
   };
 }
 
@@ -387,19 +419,31 @@ export async function runCatalogPreparationJob(
       return { ok: false, code: 'FORBIDDEN' };
   }
   if (command.action === 'start') {
-    const current = await currentInput(tx, command.productId);
-    if (!current) return { ok: false, code: 'NOT_FOUND' };
+    const product = await tx.get('products', command.productId);
+    if (!product) return { ok: false, code: 'NOT_FOUND' };
+    if (product._id !== command.productId) return { ok: false, code: 'CORRUPT' };
+    const current = await currentProductInput(tx, product);
     if (current === 'invalid') return { ok: false, code: 'CORRUPT' };
     const jobId = identity(command.productId, current.inputDigest, current.contentGeneration);
     const existing = await tx.get(CATALOG_PREPARATION_JOBS, jobId);
     if (existing) {
       const checked = readCatalogPreparationJob(existing, jobId, now);
-      return checked &&
-        checked.productId === command.productId &&
-        checked.inputDigest === current.inputDigest &&
-        checked.contentGeneration === current.contentGeneration
-        ? { ok: true, progress: progress(checked) }
-        : { ok: false, code: 'CORRUPT' };
+      if (
+        !checked ||
+        checked.productId !== command.productId ||
+        checked.inputDigest !== current.inputDigest ||
+        checked.contentGeneration !== current.contentGeneration
+      )
+        return { ok: false, code: 'CORRUPT' };
+      const report = readCurrentCatalogPreparation(product);
+      const currentCheckpoint = report !== null && report.inputDigest === checked.inputDigest;
+      if (
+        ['queued', 'running', 'retryable'].includes(checked.state) &&
+        !currentCheckpoint &&
+        !requestedByJob(product, checked)
+      )
+        await tx.set('products', productWithRequest(product, checked));
+      return { ok: true, progress: progress(checked) };
     }
     const job: Job = {
       schemaVersion: 'catalog-preparation-job-v1',
@@ -418,6 +462,7 @@ export async function runCatalogPreparationJob(
       createdAt: timestamp,
       updatedAt: timestamp,
     };
+    await tx.set('products', productWithRequest(product, job));
     await tx.set(CATALOG_PREPARATION_JOBS, job);
     return { ok: true, progress: progress(job) };
   }
@@ -528,10 +573,11 @@ export async function runCatalogPreparationJob(
       const report = product ? readCurrentCatalogPreparation(product) : null;
       const clearCheckpoint =
         product !== null &&
-        report !== null &&
-        report.state !== 'ready' &&
-        report.inputDigest === job.inputDigest &&
-        report.contentGeneration === job.contentGeneration &&
+        ((report !== null &&
+          report.state !== 'ready' &&
+          report.inputDigest === job.inputDigest &&
+          report.contentGeneration === job.contentGeneration) ||
+          requestedByJob(product, job)) &&
         catalogPreparationInputDigest(await readCatalogPreparationInputs(tx, product)) ===
           job.inputDigest;
       const saved: Job = {
@@ -564,7 +610,7 @@ export async function runCatalogPreparationJob(
     const report = readCurrentCatalogPreparation(product);
     if (report?.state === 'ready' && report.inputDigest === job.inputDigest)
       return { ok: false, code: 'CONFLICT' };
-    const clearCheckpoint = report !== null && report.inputDigest === job.inputDigest;
+
     const saved: Job = {
       ...job,
       mutationRevision: job.mutationRevision + 1,
@@ -578,7 +624,7 @@ export async function runCatalogPreparationJob(
       leaseExpiresAt: 0,
       updatedAt: timestamp,
     };
-    if (clearCheckpoint) await tx.set('products', { ...product, catalogPreparationState: 'stale' });
+    await tx.set('products', productWithRequest(product, saved));
     await tx.set(CATALOG_PREPARATION_JOBS, saved);
     return { ok: true, progress: progress(saved) };
   }

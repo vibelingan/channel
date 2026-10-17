@@ -72,3 +72,32 @@ export function readCurrentCatalogPreparation(
     ? report
     : null;
 }
+
+/** A requested check is diagnostic; it is not a content or publication approval. */
+export const CatalogPreparationRequestSchema = z
+  .object({
+    schemaVersion: z.literal('catalog-preparation-request-v1'),
+    productId: z.string().trim().min(1).max(200),
+    jobId: hex,
+    inputDigest: hex,
+    contentGeneration: z.number().int().nonnegative().safe(),
+    policyVersion: z.string().trim().min(1).max(100),
+    requestedAt: z.string().max(40).datetime(),
+  })
+  .strict();
+export type CatalogPreparationRequest = z.infer<typeof CatalogPreparationRequestSchema>;
+
+export function readCurrentCatalogPreparationRequest(
+  product: Record<string, unknown>,
+): CatalogPreparationRequest | null {
+  const checked = CatalogPreparationRequestSchema.safeParse(product.catalogPreparationRequest);
+  if (!checked.success) return null;
+  const request = checked.data;
+  return product.catalogPreparationState === 'checking' &&
+    product._id === request.productId &&
+    product.catalogPreparationPolicy === CATALOG_PREPARATION_POLICY &&
+    request.policyVersion === CATALOG_PREPARATION_POLICY &&
+    request.contentGeneration === (product.catalogContentGeneration ?? 0)
+    ? request
+    : null;
+}

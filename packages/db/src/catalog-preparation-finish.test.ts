@@ -243,7 +243,17 @@ test('concurrent lifecycle and subcategory changes survive readiness without bei
     catalogPreparationPolicy: _p,
     ...saved
   } = current;
-  assert.deepEqual(saved, before);
+  const expected = Object.fromEntries(
+    Object.entries(before).filter(
+      ([key]) =>
+        ![
+          'catalogPreparationReport',
+          'catalogPreparationState',
+          'catalogPreparationPolicy',
+        ].includes(key),
+    ),
+  );
+  assert.deepEqual(saved, expected);
 });
 test('completed readback cannot replay after content changed or after the saved report was replaced', async () => {
   for (const fault of ['edit', 'report', 'receipt']) {

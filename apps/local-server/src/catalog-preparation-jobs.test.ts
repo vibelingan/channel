@@ -5,6 +5,10 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { manageCatalogPreparationJob, setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import {
+  CatalogPreparationRequestSchema,
+  readCurrentCatalogPreparationRequest,
+} from '@vibelingan-channel/shared/catalog-preparation';
 import { JsonFileAdapter } from './json-adapter.ts';
 function fixture(t: { after(fn: () => void): void }) {
   const directory = mkdtempSync(join(tmpdir(), 'channel-preparation-jobs-'));
@@ -57,6 +61,24 @@ test('actual file adapter persists one deterministic job through reopen and lost
   const f = fixture(t);
   const before = await f.adapter.get('products', 'p');
   const p = await f.start();
+  const afterStart = await f.adapter.get('products', 'p');
+  assert.ok(afterStart);
+  const request = CatalogPreparationRequestSchema.parse(afterStart.catalogPreparationRequest);
+  assert.equal(readCurrentCatalogPreparationRequest(afterStart)?.jobId, p.jobId);
+  assert.equal(request.contentGeneration, 0);
+  assert.equal(request.requestedAt, new Date(f.now).toISOString());
+  const business = Object.fromEntries(
+    Object.entries(afterStart).filter(
+      ([key]) =>
+        ![
+          'catalogPreparationState',
+          'catalogPreparationPolicy',
+          'catalogPreparationRequest',
+        ].includes(key),
+    ),
+  );
+  assert.deepEqual(business, before);
+  const bytes = readFileSync(f.file, 'utf8');
   const reopened = new JsonFileAdapter(f.file);
   const r = await reopened.manageCatalogPreparationJob(
     f.authority,
@@ -65,7 +87,8 @@ test('actual file adapter persists one deterministic job through reopen and lost
   );
   assert.ok(r.ok && 'progress' in r);
   assert.deepEqual(r.progress, p);
-  assert.deepEqual(await reopened.get('products', 'p'), before);
+  assert.deepEqual(await reopened.get('products', 'p'), afterStart);
+  assert.equal(readFileSync(f.file, 'utf8'), bytes);
   assert.equal(
     Object.keys(r.progress).some((x) => /nonce|signature|secret/.test(x)),
     false,
@@ -191,4 +214,38 @@ test('default job clock starts after the actual mutation queue is acquired', asy
   const result = await pending;
   assert.ok(result.ok && 'progress' in result);
   assert.equal(result.progress.createdAt, new Date(clock).toISOString());
+});
+
+test('actual request survives reopen through cancel and retry without changing classification or publication', async (t) => {
+  const f = fixture(t);
+  const started = await f.start();
+  f.now += 1000;
+  assert.ok(
+    (
+      await f.run({
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: started.jobId,
+        expectedLeaseVersion: 0,
+      })
+    ).ok,
+  );
+  const cancelled = await f.adapter.get('products', 'p');
+  assert.ok(cancelled);
+  assert.equal(cancelled.catalogPreparationState, 'stale');
+  assert.equal(readCurrentCatalogPreparationRequest(cancelled), null);
+  f.now += 1000;
+  const reopened = new JsonFileAdapter(f.file);
+  const retried = await reopened.manageCatalogPreparationJob(
+    f.authority,
+    { action: 'retry', actorId: 'admin', jobId: started.jobId, expectedLeaseVersion: 0 },
+    f.now,
+  );
+  assert.ok(retried.ok);
+  const current = await reopened.get('products', 'p');
+  assert.ok(current);
+  assert.equal(readCurrentCatalogPreparationRequest(current)?.jobId, started.jobId);
+  assert.equal(current.published, false);
+  assert.equal(current.productFamily, 'misc');
+  assert.equal(current.catalogContentGeneration, undefined);
 });

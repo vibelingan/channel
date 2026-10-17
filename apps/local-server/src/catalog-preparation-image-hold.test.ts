@@ -9,6 +9,7 @@ import { preparationUsingImage, setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
+import { readCurrentCatalogPreparationRequest } from '@vibelingan-channel/shared/catalog-preparation';
 import { prepareStoredCatalogImage } from '../../functions/admin/src/catalog-image-protection.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import {
@@ -94,6 +95,9 @@ async function fixture(t: { after(fn: () => void): void }, kind: 'admin' | 'sour
       { jwtSecret: 'hold-admin-secret' },
     );
   }
+  const startedProduct = await adapter.get('products', 'p');
+  assert.ok(startedProduct);
+  assert.equal(readCurrentCatalogPreparationRequest(startedProduct)?.jobId, jobId);
   return {
     adapter,
     run,
@@ -101,7 +105,7 @@ async function fixture(t: { after(fn: () => void): void }, kind: 'admin' | 'sour
     authority,
     storage,
     file,
-    product,
+    product: startedProduct,
     deleteImage,
     get deletes() {
       return deletes;
@@ -132,7 +136,10 @@ for (const kind of ['admin', 'source'] as const)
     assert.equal((await f.deleteImage()).ok, true);
     assert.equal(f.deletes, 1);
     assert.equal(await f.adapter.get('images', 'source-only'), null);
-    assert.deepEqual(await f.adapter.get('products', 'p'), f.product);
+    assert.deepEqual(await f.adapter.get('products', 'p'), {
+      ...f.product,
+      catalogPreparationState: 'stale',
+    });
   });
 for (const kind of ['admin', 'source'] as const)
   test(`${kind} delete that already scanned before reservation keeps its mutex visible to the late checker`, async (t) => {

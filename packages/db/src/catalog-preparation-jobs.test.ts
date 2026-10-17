@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import {
+  CATALOG_PREPARATION_POLICY,
+  CatalogPreparationRequestSchema,
+} from '@vibelingan-channel/shared/catalog-preparation';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
+import { advanceCatalogProduct, isCatalogProductManagedField } from './catalog-product-state.ts';
 function fixture() {
   let now = 1792080000000;
   const authority = createCatalogPreparationAuthority({
@@ -58,14 +63,24 @@ function fixture() {
     },
   };
 }
-test('same input creation survives lost ACK without modifying product or duplicating job', async () => {
+test('same input creation survives lost ACK with unchanged business fields and one job', async () => {
   const f = fixture();
   const before = structuredClone(f.records['products/p']);
   const a = await f.start();
   const b = await f.start();
   assert.deepEqual(a, b);
-  assert.equal(f.writes, 1);
-  assert.deepEqual(f.records['products/p'], before);
+  assert.equal(f.writes, 2);
+  const business = Object.fromEntries(
+    Object.entries(f.records['products/p'] ?? {}).filter(
+      ([key]) =>
+        ![
+          'catalogPreparationState',
+          'catalogPreparationPolicy',
+          'catalogPreparationRequest',
+        ].includes(key),
+    ),
+  );
+  assert.deepEqual(business, before);
   assert.equal(JSON.stringify(a).includes('nonce'), false);
   assert.equal(JSON.stringify(a).includes('signature'), false);
 });
@@ -373,4 +388,183 @@ test('forged lease is rejected before expensive product and source lookups', asy
     { ok: false, code: 'CONFLICT' },
   );
   assert.equal(productReads, 0);
+});
+
+test('requested check is projected on product without changing any business field', async () => {
+  const f = fixture();
+  const before = structuredClone(f.records['products/p']);
+  const started = await f.start();
+  const product = f.records['products/p'];
+  const job = f.records[`catalogPreparationJobs/${started.jobId}`];
+  assert.ok(product && job);
+  assert.equal(product.catalogPreparationState, 'checking');
+  assert.equal(product.catalogPreparationPolicy, CATALOG_PREPARATION_POLICY);
+  assert.deepEqual(product.catalogPreparationRequest, {
+    schemaVersion: 'catalog-preparation-request-v1',
+    productId: 'p',
+    jobId: started.jobId,
+    inputDigest: job.inputDigest,
+    contentGeneration: 3,
+    policyVersion: CATALOG_PREPARATION_POLICY,
+    requestedAt: job.updatedAt,
+  });
+  const business = Object.fromEntries(
+    Object.entries(product).filter(
+      ([key]) =>
+        ![
+          'catalogPreparationState',
+          'catalogPreparationPolicy',
+          'catalogPreparationRequest',
+        ].includes(key),
+    ),
+  );
+  assert.deepEqual(business, before);
+  const projected = structuredClone(product);
+  const writes = f.writes;
+  assert.deepEqual(await f.start(), started);
+  assert.equal(f.writes, writes);
+  assert.deepEqual(f.records['products/p'], projected);
+  assert.equal(Object.hasOwn(job, 'product'), false);
+});
+
+test('explicit start repairs a legacy active job missing its product request', async () => {
+  const f = fixture();
+  const started = await f.start();
+  const product = f.records['products/p'];
+  assert.ok(product);
+  for (const key of [
+    'catalogPreparationState',
+    'catalogPreparationPolicy',
+    'catalogPreparationRequest',
+  ])
+    Reflect.deleteProperty(product, key);
+  await f.start();
+  assert.equal(f.records['products/p']?.catalogPreparationState, 'checking');
+  assert.equal(
+    CatalogPreparationRequestSchema.parse(f.records['products/p']?.catalogPreparationRequest).jobId,
+    started.jobId,
+  );
+});
+
+test('cancel retires a current checking request and explicit retry requests the same input again', async () => {
+  const f = fixture();
+  const started = await f.start();
+  assert.equal(f.records['products/p']?.catalogPreparationState, 'checking');
+  f.now += 1000;
+  assert.ok(
+    (
+      await f.run({
+        action: 'cancel',
+        actorId: 'admin',
+        jobId: started.jobId,
+        expectedLeaseVersion: 0,
+      })
+    ).ok,
+  );
+  assert.equal(f.records['products/p']?.catalogPreparationState, 'stale');
+  f.now += 1000;
+  assert.ok(
+    (
+      await f.run({
+        action: 'retry',
+        actorId: 'admin',
+        jobId: started.jobId,
+        expectedLeaseVersion: 0,
+      })
+    ).ok,
+  );
+  assert.equal(f.records['products/p']?.catalogPreparationState, 'checking');
+  assert.equal(
+    CatalogPreparationRequestSchema.parse(f.records['products/p']?.catalogPreparationRequest)
+      .requestedAt,
+    new Date(f.now).toISOString(),
+  );
+  assert.equal(f.records['products/p']?.published, false);
+  assert.equal(f.records['products/p']?.catalogContentGeneration, 3);
+});
+
+test('a late old cancellation cannot clear the newer input requested check', async () => {
+  const f = fixture();
+  const old = await f.start();
+  const product = f.records['products/p'];
+  assert.ok(product);
+  Object.assign(product, {
+    name: 'Edited clock',
+    catalogContentGeneration: 4,
+    catalogPreparationState: 'stale',
+  });
+  f.now += 1000;
+  const current = await f.start();
+  assert.notEqual(current.jobId, old.jobId);
+  assert.equal(f.records['products/p']?.catalogPreparationState, 'checking');
+  const before = structuredClone(f.records['products/p']);
+  assert.ok(
+    (await f.run({ action: 'cancel', actorId: 'admin', jobId: old.jobId, expectedLeaseVersion: 0 }))
+      .ok,
+  );
+  assert.deepEqual(f.records['products/p'], before);
+});
+
+test('request projection belongs to the protected write layer', () => {
+  assert.equal(isCatalogProductManagedField('catalogPreparationRequest'), true);
+});
+
+for (const state of ['preparing', 'blocked'] as const)
+  test(`start preserves current ${state} checkpoint instead of replacing it with checking`, async () => {
+    const f = fixture();
+    const started = await f.start();
+    await f.claim(started.jobId);
+    const job = f.records[`catalogPreparationJobs/${started.jobId}`];
+    const product = f.records['products/p'];
+    assert.ok(job && product);
+    const report = {
+      schemaVersion: 'catalog-preparation-report-v2',
+      productId: 'p',
+      inputDigest: job.inputDigest,
+      contentGeneration: 3,
+      policyVersion: CATALOG_PREPARATION_POLICY,
+      checkedAt: new Date(f.now).toISOString(),
+      state,
+      previewReady: state === 'preparing',
+      mediaReady: false,
+      issues:
+        state === 'blocked'
+          ? [
+              {
+                code: 'INVALID_VALUE',
+                stage: 'effective-content',
+                path: 'name',
+                severity: 'error',
+                remedy: 'edit',
+              },
+            ]
+          : [],
+    };
+    Object.assign(product, { catalogPreparationState: state, catalogPreparationReport: report });
+    const before = structuredClone(product);
+    const writes = f.writes;
+    assert.equal((await f.start()).state, 'running');
+    assert.equal(f.writes, writes);
+    assert.deepEqual(f.records['products/p'], before);
+  });
+
+test('ordinary product mutations preserve the managed request but invalidate it after an edit', async () => {
+  const f = fixture();
+  await f.start();
+  const product = f.records['products/p'];
+  assert.ok(product);
+  const request = CatalogPreparationRequestSchema.parse(product.catalogPreparationRequest);
+  const saved = advanceCatalogProduct(
+    product,
+    {
+      ...product,
+      name: 'Edited',
+      catalogPreparationRequest: { ...request, jobId: 'f'.repeat(64) },
+    },
+    new Date(f.now + 1000).toISOString(),
+  );
+  assert.deepEqual(saved.catalogPreparationRequest, request);
+  assert.equal(saved.catalogPreparationState, 'stale');
+  assert.equal(saved.catalogContentGeneration, 4);
+  assert.equal(saved.published, false);
 });

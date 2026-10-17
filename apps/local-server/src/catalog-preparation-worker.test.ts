@@ -15,7 +15,11 @@ import { runCatalogPreparationCall } from '@vibelingan-channel/fn-alibaba-catalo
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { productFamilyForDoc, validateProductPublication } from '@vibelingan-channel/shared';
-import { readCurrentCatalogPreparation } from '@vibelingan-channel/shared/catalog-preparation';
+import {
+  CatalogPreparationRequestSchema,
+  readCurrentCatalogPreparation,
+  readCurrentCatalogPreparationRequest,
+} from '@vibelingan-channel/shared/catalog-preparation';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { readStoredCatalogImageHealth } from '../../functions/admin/src/catalog-image-health.ts';
@@ -1141,10 +1145,16 @@ for (const fault of [
           })
         ).ok,
       );
+    const beforeAttestation = await f.adapter.get('products', 'p');
     const result = await seal.attest(0, f.images[0]?._id ?? '');
     assert.equal(result.ok, false, JSON.stringify(result));
     assert.equal((await f.adapter.get('products', 'p'))?.published, false);
-    assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
+    assert.deepEqual(await f.adapter.get('products', 'p'), beforeAttestation);
+    assert.equal(
+      readCurrentCatalogPreparation((await f.adapter.get('products', 'p')) ?? {})?.state ===
+        'ready',
+      false,
+    );
   });
 test('shared image counter/name edits survive attestation and do not force bytes or shared writes', async (t) => {
   const f = await fixture(t, 1);
@@ -1649,11 +1659,13 @@ test('default worker zero-image preview can finish without a pixel check while a
   assert.ok(result.ok);
   assert.equal(result.outcome, 'ready');
   const f = await fixture(t, 1);
+  const beforeUnprotected = await f.adapter.get('products', 'p');
   const unprotected = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
     checkImage: readStoredCatalogImageHealth,
   });
   assert.deepEqual(unprotected, { ok: false, code: 'CONFLICT' });
-  assert.equal((await f.adapter.get('products', 'p'))?.catalogPreparationState, undefined);
+  assert.deepEqual(await f.adapter.get('products', 'p'), beforeUnprotected);
+  assert.equal(readCurrentCatalogPreparation((await f.adapter.get('products', 'p')) ?? {}), null);
 });
 
 test('duplicate signed default call after database and authority restart reads current ready without writes or IO', async (t) => {
@@ -2185,8 +2197,16 @@ test('actual default retry clears consumed diagnostic and human status offers co
   assert.equal(next.status.report, null);
   assert.deepEqual(await f.adapter.get('products', 'p'), {
     ...before,
-    catalogPreparationState: 'stale',
+    catalogPreparationState: 'checking',
+    catalogPreparationRequest: {
+      ...CatalogPreparationRequestSchema.parse(before?.catalogPreparationRequest),
+      requestedAt: next.status.progress.updatedAt,
+    },
   });
+  assert.equal(
+    readCurrentCatalogPreparationRequest((await f.adapter.get('products', 'p')) ?? {})?.jobId,
+    f.jobId,
+  );
   const r = await runCatalogPreparationWorker(f.authority, await f.dispatch());
   assert.ok(r.ok && r.outcome === 'ready');
   assert.equal((await f.adapter.get('products', 'p'))?.published, false);
