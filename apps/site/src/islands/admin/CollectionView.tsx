@@ -19,6 +19,7 @@ import {
   isProductFamily,
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
+import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import {
   type CatalogReadiness,
   CatalogReadinessSchema,
@@ -218,6 +219,7 @@ export function CollectionView({
     search,
     filter,
     sortClauses,
+    isProducts ? ADMIN_PRODUCT_LIST_VIEW : null,
   ] as const;
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
@@ -227,6 +229,7 @@ export function CollectionView({
           productFamilyListArgs(
             {
               collection: collection.name,
+              ...(isProducts ? { catalogListView: ADMIN_PRODUCT_LIST_VIEW } : {}),
               page,
               pageSize: PAGE_SIZE,
               search,
@@ -253,12 +256,21 @@ export function CollectionView({
     isFetching: countFetching,
     refetch: refetchCount,
   } = useQuery({
-    queryKey: ['list', 'products', 'unclassified-count', checkStatus, search, filter],
+    queryKey: [
+      'list',
+      'products',
+      'unclassified-count',
+      checkStatus,
+      search,
+      filter,
+      ADMIN_PRODUCT_LIST_VIEW,
+    ],
     queryFn: () =>
       listRecords(
         productClassificationCountArgs(
           {
             collection: 'products',
+            catalogListView: ADMIN_PRODUCT_LIST_VIEW,
             search,
             ...(filter ? { filter } : {}),
           },

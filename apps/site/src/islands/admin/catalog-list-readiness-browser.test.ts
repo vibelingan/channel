@@ -139,6 +139,8 @@ async function fixture(
     invalidList: 0,
     failGet: 0,
     wrongGet: 0,
+    summaryGet: 0,
+    invalidView: 0,
     holdGetId: null as string | null,
     releaseGet: null as (() => Promise<void>) | null,
     holdListScope: null as string | null,
@@ -199,6 +201,20 @@ async function fixture(
         } = row;
         return summary;
       });
+      responseBody = JSON.stringify(wire);
+    }
+    if (list && !count && controls.invalidView > 0) {
+      controls.invalidView--;
+      const wire = JSON.parse(responseBody);
+      assert.equal(wire.ok, true);
+      Reflect.deleteProperty(wire.data, 'catalogListView');
+      responseBody = JSON.stringify(wire);
+    }
+    if (productGet && controls.summaryGet > 0) {
+      controls.summaryGet--;
+      const wire = JSON.parse(responseBody);
+      assert.equal(wire.ok, true);
+      wire.data._adminProductListView = 'admin-product-list-v1';
       responseBody = JSON.stringify(wire);
     }
     if (productGet && controls.wrongGet > 0) {
@@ -1000,3 +1016,49 @@ test(
     assert.deepEqual(f.errors, []);
   },
 );
+
+test('actual collection main and classification count opt into the product summary protocol', async (t) => {
+  const f = await fixture(t);
+  await f.settled('all');
+  await f.settled('all', 'count');
+  const lists = f.requests.filter((r) => r.action === 'list' && r.data?.collection === 'products');
+  assert.ok(lists.some((r) => r.data?.pageSize === 1));
+  assert.ok(lists.some((r) => r.data?.pageSize === 20));
+  for (const request of lists) assert.equal(request.data?.catalogListView, 'admin-product-list-v1');
+});
+
+test('summary returned from complete GET has a usable retry and never opens a writable form', async (t) => {
+  const f = await fixture(t);
+  f.controls.summaryGet = 100;
+  const row = f.page
+    .getByRole('row')
+    .filter({ has: f.page.getByRole('cell', { name: 'Clock ready', exact: true }) });
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const loader = f.page.getByRole('dialog', { name: 'Load product' });
+  await f.expect(loader.getByRole('button', { name: 'Retry load' })).toBeVisible();
+  await f.expect(f.page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+  f.controls.summaryGet = 0;
+  await loader.getByRole('button', { name: 'Retry load' }).click();
+  await f.expect(f.page.getByRole('dialog', { name: 'Edit Product' })).toBeVisible();
+  await f.page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
+  assert.equal(
+    f.requests.some((r) => ['update', 'batchUpdate', 'catalogDetailApproval'].includes(r.action)),
+    false,
+  );
+  assert.deepEqual(f.errors, []);
+});
+
+test('unconfirmed summary version leaves a readable retry instead of an empty or writable list', async (t) => {
+  const f = await fixture(t);
+  const before = await readFile(f.file, 'utf8');
+  f.controls.invalidView = 1;
+  await scope(f, 'Data issues');
+  await f.expect(f.page.getByRole('button', { name: 'Retry list', exact: true })).toBeVisible();
+  await f.expect(f.page.getByText('0 records', { exact: true })).toHaveCount(0);
+  await f.expect(f.page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0);
+  await f.page.getByRole('button', { name: 'Retry list', exact: true }).click();
+  await f.expect(f.page.getByText('2 records', { exact: true })).toBeVisible();
+  assert.equal(await readFile(f.file, 'utf8'), before);
+  assert.deepEqual(f.errors, []);
+});

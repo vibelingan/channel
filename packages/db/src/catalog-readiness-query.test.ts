@@ -154,6 +154,9 @@ for (const scope of scopes)
     let limit = 0;
     const data = rows();
     const query = {
+      field: (_fields: Readonly<Record<string, boolean>>): never => {
+        throw Error('Unexpected projection in legacy query');
+      },
       where: (where: Row) => {
         assert.equal(saved, undefined);
         saved = where;
@@ -240,6 +243,9 @@ for (const answer of [
   test(`uncertain native count cannot become a successful empty or partial list: ${JSON.stringify(answer)}`, async () => {
     let gets = 0;
     const query = {
+      field: (_fields: Readonly<Record<string, boolean>>): never => {
+        throw Error('Unexpected projection in legacy query');
+      },
       where: () => query,
       orderBy: () => query,
       skip: () => query,
@@ -284,6 +290,9 @@ for (const answer of [
 ])
   test(`uncertain native rows cannot masquerade as a valid result: ${JSON.stringify(answer)}`, async () => {
     const query = {
+      field: (_fields: Readonly<Record<string, boolean>>): never => {
+        throw Error('Unexpected projection in legacy query');
+      },
       where: () => query,
       orderBy: () => query,
       skip: () => query,
@@ -335,6 +344,9 @@ for (const input of [
   test(`native scoped sort has one identity tie break: ${JSON.stringify(input.sort)}`, async () => {
     const sorts: unknown[] = [];
     const query = {
+      field: (_fields: Readonly<Record<string, boolean>>): never => {
+        throw Error('Unexpected projection in legacy query');
+      },
       where: () => query,
       count: async () => ({ total: 0 }),
       orderBy: (key: string, direction: string) => {

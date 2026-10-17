@@ -615,3 +615,16 @@ React19.2.7 useEffect/useRef/useState signatures and StrictMode are inherited fr
 | playwright-core@1.61.1 | Page.setViewportSize | types/types.d.ts:4501 width/height object -> Promise<void> | new error dialog at390, real width assertion, screenshot and successful retry/cancel |
 
 Official [useEffect](https://react.dev/reference/react/useEffect), [useRef](https://react.dev/reference/react/useRef), [useState](https://react.dev/reference/react/useState) and prior actual Page API references read. Latest React docs identify19.3, so exact19.2.7 behavior is established by installed types/runtime and executed cases. Context7 unavailable. Current verify:cloudbase-sdk rerun passes; no newer hook or native API is assumed.
+
+
+## P2g4b1：原生字段投影
+
+| Package/version | Exact surface | Installed contract | Executed proof |
+| --- | --- | --- | --- |
+| wx-server-sdk@4.0.2 | Query.field | index.js:1548 returns new wrapper over underlying Query.field(object) | actual fixed allowlist; different query identity; base projection absent; native get called after count |
+| @cloudbase/database@1.4.3 via @cloudbase/node-sdk@3.17.2 | Query.field | query.d.ts:33 field(any):Query; query.js:178 bool→1/0, copies apiOptions | both installed SDKs encode all actual allowlist fields as1 and gallery dot path, no description/parent blob |
+| @cloudbase/database@1.4.3 | Query.get | query.d.ts:24 Promise<GetRes>; query.js:44–76 EJSON projection sent to database.getDocument | actual sender intercepted locally, exact $numberInt1 parameter and one send, no network or hand-written encoding |
+| zod@3.25.76 | literal | v3/types.d.ts:1011 literal(Primitive, params?):ZodLiteral | actual list rejects wrong/null/false/object/nonproduct view; client exact header/row marker incl empty page |
+| zod@3.25.76 | optional | v3/types.d.ts:80 optional():ZodOptional<this> | old omitted view stays complete; exact optional forwarding does not add undefined protocol keys |
+
+Official CloudBase /api-reference/server/node-sdk/database/fetch freshly read via MCP docs; bool field documented, code/runtime sender verified above. Context7 unavailable. Raw object pass-through does not establish array $slice; not used. Standing verify-cloudbase-sdk-contract imports the actual allowlist, executes both SDK field/get paths with a controlled sender and confirms base immutability. First expanded probe expected ordinary JSON numbers, failed on actual EJSON; corrected only the probe after reading installed stringifyByEJSON. No SDK/shim/version/resource change. Node20 46 and existing all-package types pass; exact built artifact proof follows review.

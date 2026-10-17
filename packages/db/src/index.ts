@@ -232,6 +232,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
     ...(query.needsClassification ? { needsClassification: true } : {}),
     ...(query.hidePreparing ? { hidePreparing: true } : {}),
     ...(query.catalogReadiness ? { catalogReadiness: query.catalogReadiness } : {}),
+    ...(query.catalogListView !== undefined ? { catalogListView: query.catalogListView } : {}),
     ...(query.productSubcategories ? { productSubcategories: query.productSubcategories } : {}),
     page,
     pageSize,

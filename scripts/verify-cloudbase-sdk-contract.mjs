@@ -94,6 +94,48 @@ requireCheck(
   'If this changes in a future SDK, update the design and integration intentionally.',
 );
 const wxDatabase = wx.database();
+
+const listFieldProbe = `
+  import assert from 'node:assert/strict';
+  import { createRequire } from 'node:module';
+  import { ADMIN_PRODUCT_LIST_PROJECTION } from './packages/db/src/catalog-product-list-view.ts';
+  const require = createRequire(new URL('./packages/db/package.json', import.meta.url));
+  const wx = require('wx-server-sdk'); wx.init({ env: 'offline-admin-list-field' });
+  const node = require('@cloudbase/node-sdk');
+  for (const [name, db] of [['wx', wx.database()], ['node', node.init({ env: 'offline-admin-list-field' }).database()]]) {
+    const base = db.collection('products').where({ _id: 'owned-projection' });
+    const projected = base.field(ADMIN_PRODUCT_LIST_PROJECTION);
+    const options = query => (query._query ?? query)._apiOptions;
+    assert.notEqual(projected, base);
+    assert.equal(options(base).projection, undefined);
+    assert.deepEqual(options(projected).projection,
+      Object.fromEntries(Object.keys(ADMIN_PRODUCT_LIST_PROJECTION).map(field => [field, 1])));
+    assert.equal(options(projected).projection['alibabaAutoPhotos.gallery'], 1);
+    assert.equal(Object.hasOwn(options(projected).projection, 'description'), false);
+    const query = projected._query ?? projected;
+    let sent = 0;
+    query._request.send = async (api, params) => {
+      assert.equal(api, 'database.getDocument');
+      assert.deepEqual(JSON.parse(params.projection),
+        Object.fromEntries(Object.keys(ADMIN_PRODUCT_LIST_PROJECTION).map(field => [field, { $numberInt: '1' }])));
+      sent++;
+      return { data: { list: [] }, requestId: 'owned-field-send' };
+    };
+    await projected.get();
+    assert.equal(sent, 1);
+    console.log(name + ':fixed-product-list-field-ok');
+  }
+`;
+const listFieldEvidence = execFileSync(
+  process.execPath,
+  ['--experimental-strip-types', '--input-type=module', '--eval', listFieldProbe],
+  { cwd: root, encoding: 'utf8' },
+);
+requireCheck(
+  listFieldEvidence.includes('wx:fixed-product-list-field-ok') &&
+    listFieldEvidence.includes('node:fixed-product-list-field-ok'),
+  'both installed SDKs encode the actual fixed admin list projection without mutating the base query',
+);
 requireCheck(
   typeof wxDatabase.command.exists === 'function' && wxDatabase.command.exists(false) !== undefined,
   'wx-server-sdk command exposes exists(false) for strict missing-field queries',

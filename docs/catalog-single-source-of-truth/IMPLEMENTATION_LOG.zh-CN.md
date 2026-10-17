@@ -1109,3 +1109,12 @@ P2g3精确364e3bb site15页5.83秒、三函数build/package、Linux126闭包、�
 初始12正控5失败及取消13正控1失败。最终21浏览器/48组合通过；8源码反例检出并恢复哈希。组合移除两个旧完成保护时，文字不变但实际update目标从ready串到blocked，已由真实请求和DB读回检出。StrictMode故障夹具、脏表单Cancel确认、旧源码正则及定位脚本错误分别留记录；没有改产品行为来迁就错误测试。手机390错误弹窗有几何/截图，错ID原反例再次检出。
 
 最终site729零失败/跳过/取消、Node20客户端17、Astro216零错误/警告8既有hint、6完整文件Biome/diff通过；本单元无后端源改动，未重报整套后端。实际复核六代码/测试与Shell、表单、modal、保存接缝；取消措辞收紧到HTTP，不暗示服务端回滚。详见P2g4a_FULL_RECORD_OPEN.zh-CN.md，精确提交构建另记侧车。没有部署、客户写入、新分支/worktree/PR/push，fullDeliveryReady=false。
+
+
+## P2g4b1：原生固定列表投影与完整读取隔离
+
+基线850372b，原目录/分支/单人实施。P2g4a精确站点15页5.84秒已审查通过。显式admin-product-list-v1仅支持products；固定field投影在同where count之后/原生get之前，JSON先筛选排序分页再拷贝白名单，原get/旧协议/公开调用不变。详情/批准/任务/未来字段及autoPhotos描述/SKU结构不传列表；保留价格/审核/分类/图库来源与原CAS缺字段语义。每行与响应均有版本标记，客户端拒绝摘要进入完整GET；主表/计数cache key均含协议版本。
+
+先红后绿，真实admin/adapter/浏览器覆盖；10项故障均被断言检测，四源文件恢复核哈希。全量3844（305/1206/637/508/131/304/753）0fail/skip/cancel，Node20 46、全部后端相关类型、Astro216零error/warning8hint、standing双SDK实际field/get sender通过。首次图库flag错误留下1skip，正确flag全量重跑；类型替身/精确optional/复制字典、EJSON探针预期和测试delete提示均修正并留首轮记录。只读三件时钟按实际字段表得约3KB/行，但无P95和硬上限结论。
+
+实际复核共享协议/类型/exports、DB固定投影与原生查询/JSON/facade、admin校验和客户端完整记录隔离/CollectionView两个列表/测试，以及分类/价格/审核/图片/表单/公共读取接缝。正文“描述搜索”更正为真实series搜索，“有界完成”更正为固定字段投影；文档P2g4b_LIST_PROJECTION.zh-CN.md含具体证据。P2g4b2字节预算继续，无部署、客户写入、新branch/worktree/PR/push，fullDeliveryReady=false。

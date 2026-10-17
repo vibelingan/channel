@@ -24,7 +24,8 @@
     "./catalog-preparation": "./src/catalog/preparation.ts",
     "./catalog-issues": "./src/catalog/issues.ts",
     "./catalog-detail-pagination": "./src/catalog/pagination.ts",
-    "./catalog-media-protection": "./src/media-protection.ts"
+    "./catalog-media-protection": "./src/media-protection.ts",
+    "./admin-product-list": "./src/catalog/admin-product-list.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

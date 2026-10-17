@@ -28,6 +28,8 @@ export interface ListQuery {
   hidePreparing?: boolean;
   /** Opt-in server summary scope; default admission requires the historical-data audit. */
   catalogReadiness?: import('./catalog/preparation.ts').CatalogReadiness;
+  /** Explicit admin summary DTO; complete reads must still use get(). */
+  catalogListView?: import('./catalog/admin-product-list.ts').AdminProductListView;
   /** Built by the server from the saved registry; never accepted from a client. */
   productSubcategories?: ProductSubcategoryScope;
   page?: number;
@@ -47,4 +49,5 @@ export interface ListResult<T> {
   total: number;
   page: number;
   pageSize: number;
+  catalogListView?: import('./catalog/admin-product-list.ts').AdminProductListView;
 }

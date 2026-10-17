@@ -60,6 +60,10 @@ import {
   type CatalogPreparationJobCommand,
   runCatalogPreparationJob,
 } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import {
+  projectProductListRow,
+  usesProductListView,
+} from '@vibelingan-channel/db/catalog-product-list-view';
 import { assertCatalogProductVersions } from '@vibelingan-channel/db/catalog-product-state';
 import {
   hashQuoteValue,
@@ -88,6 +92,7 @@ import {
   normalizeProductSlug,
   normalizeSkuCode,
 } from '@vibelingan-channel/shared';
+import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import type { InquiryResult } from '@vibelingan-channel/shared/catalog-inquiry';
 import { CatalogQuoteSubmissionSchema } from '@vibelingan-channel/shared/catalog-quote';
@@ -609,6 +614,7 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
+    const summary = usesProductListView(query);
     return this.withMutationLock(() => {
       const def = getCollection(query.collection);
       let docs = [...this.docs(query.collection)];
@@ -684,8 +690,15 @@ export class JsonFileAdapter implements DbAdapter {
 
       const total = docs.length;
       const start = (query.page - 1) * query.pageSize;
-      const items = docs.slice(start, start + query.pageSize);
-      return { items, total, page: query.page, pageSize: query.pageSize };
+      const page = docs.slice(start, start + query.pageSize);
+      const items = summary ? page.map(projectProductListRow) : page;
+      return {
+        items,
+        total,
+        page: query.page,
+        pageSize: query.pageSize,
+        ...(summary ? { catalogListView: ADMIN_PRODUCT_LIST_VIEW } : {}),
+      };
     });
   }
 

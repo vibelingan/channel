@@ -131,6 +131,8 @@ import {
   toRole,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
+
+import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogPriceSummarySchema } from '@vibelingan-channel/shared/catalog-detail';
 import {
   type InquiryEnvelope,
@@ -266,6 +268,7 @@ const listSchema = z.object({
   productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
   needsClassification: z.boolean().optional(),
   catalogReadiness: CatalogReadinessSchema.optional(),
+  catalogListView: z.literal(ADMIN_PRODUCT_LIST_VIEW).optional(),
   subcategoryIds: z.array(z.string()).min(1).max(MAX_PRODUCT_SUBCATEGORIES).optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
@@ -1498,6 +1501,9 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   ) {
     return err('BAD_REQUEST', 'Product family filtering is only available for products.');
   }
+  if (parsed.data.catalogListView !== undefined && parsed.data.collection !== 'products') {
+    return err('BAD_REQUEST', 'The product list view is only available for products.');
+  }
   if (parsed.data.catalogReadiness && parsed.data.collection !== 'products') {
     return err('BAD_REQUEST', 'Readiness filtering is only available for products.');
   }
@@ -1510,6 +1516,7 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
     needsClassification,
     subcategoryIds,
     catalogReadiness,
+    catalogListView,
     sort,
     ...rest
   } = parsed.data;
@@ -1542,6 +1549,7 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
     // Explicit recovery scopes also show drafts whose photo preparation has not finished.
     ...(parsed.data.collection === 'products' && !catalogReadiness ? { hidePreparing: true } : {}),
     ...(catalogReadiness ? { catalogReadiness } : {}),
+    ...(catalogListView !== undefined ? { catalogListView } : {}),
     ...(productFamily ? { productFamily } : {}),
     ...(needsClassification ? { needsClassification: true } : {}),
     ...(productSubcategories ? { productSubcategories } : {}),

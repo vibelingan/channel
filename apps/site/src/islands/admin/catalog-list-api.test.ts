@@ -92,3 +92,88 @@ test('getRecord forwards cancellation to its HTTP read', async (t) => {
     (error) => error === reason,
   );
 });
+
+const listView = 'admin-product-list-v1' as const;
+const listMarker = '_adminProductListView';
+test('product list validates requested summary protocol including empty pages', async (t) => {
+  storage(t);
+  for (const items of [[], [{ _id: 'p', [listMarker]: listView }]]) {
+    const response = {
+      items,
+      total: items.length,
+      page: 1,
+      pageSize: 20,
+      catalogListView: listView,
+    };
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      assert.equal(JSON.parse(String(init.body)).data.catalogListView, listView);
+      return new Response(JSON.stringify({ ok: true, data: response }));
+    });
+    assert.deepEqual(
+      await listRecords({ collection: 'products', catalogListView: listView }),
+      response,
+    );
+  }
+});
+for (const response of [
+  { items: [], total: 0, page: 1, pageSize: 20 },
+  { items: [], total: 0, page: 1, pageSize: 20, catalogListView: 'wrong' },
+  { items: [{ _id: 'p' }], total: 1, page: 1, pageSize: 20, catalogListView: listView },
+  {
+    items: [{ _id: 'p', [listMarker]: 'wrong' }],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+    catalogListView: listView,
+  },
+])
+  test(`requested list view refuses unconfirmed summary ${JSON.stringify(response)}`, async (t) => {
+    storage(t);
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () => new Response(JSON.stringify({ ok: true, data: response })),
+    );
+    await assert.rejects(
+      listRecords({ collection: 'products', catalogListView: listView }),
+      (e) => e instanceof AdminApiError && e.code === 'INVALID_RESPONSE',
+    );
+  });
+for (const marker of [listView, null, false])
+  test(`raw product get refuses summary marker even when ID matches: ${marker}`, async (t) => {
+    storage(t);
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ ok: true, data: { _id: 'p', [listMarker]: marker } })),
+    );
+    await assert.rejects(
+      getRecord('products', 'p'),
+      (e) => e instanceof AdminApiError && e.code === 'INVALID_RESPONSE',
+    );
+  });
+test('legacy list client never silently accepts product summaries', async (t) => {
+  storage(t);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            items: [{ _id: 'p', [listMarker]: listView }],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+            catalogListView: listView,
+          },
+        }),
+      ),
+  );
+  await assert.rejects(
+    listRecords({ collection: 'products' }),
+    (e) => e instanceof AdminApiError && e.code === 'INVALID_RESPONSE',
+  );
+});

@@ -19,6 +19,11 @@ import {
   type SortClause,
   isProductFamily,
 } from '@vibelingan-channel/shared';
+import {
+  ADMIN_PRODUCT_LIST_MARKER,
+  ADMIN_PRODUCT_LIST_VIEW,
+  type AdminProductListView,
+} from '@vibelingan-channel/shared/admin-product-list';
 import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
 import type { CatalogReadiness } from '@vibelingan-channel/shared/catalog-preparation';
 /**
@@ -281,6 +286,7 @@ export interface ListArgs {
   productFamily?: ProductFamily;
   needsClassification?: boolean;
   catalogReadiness?: CatalogReadiness;
+  catalogListView?: AdminProductListView;
   /** Admin-only; valid only with `productFamily`, resolved against the saved registry by the server. */
   subcategoryIds?: string[];
   page?: number;
@@ -296,13 +302,23 @@ const ListResponseSchema = z
     total: z.number().int().nonnegative().safe(),
     page: z.number().int().positive().safe(),
     pageSize: z.number().int().positive().max(100),
+    catalogListView: z.literal(ADMIN_PRODUCT_LIST_VIEW).optional(),
   })
   .passthrough();
 
 export async function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
+  const summary =
+    args.catalogListView === ADMIN_PRODUCT_LIST_VIEW && args.collection === 'products';
+  if (args.catalogListView !== undefined && !summary)
+    throw new AdminApiError('INVALID_RESPONSE', 'The product list view is invalid.');
   const checked = ListResponseSchema.safeParse(await call<unknown>('list', args));
   if (
     !checked.success ||
+    (summary
+      ? checked.data.catalogListView !== ADMIN_PRODUCT_LIST_VIEW ||
+        checked.data.items.some((row) => row[ADMIN_PRODUCT_LIST_MARKER] !== ADMIN_PRODUCT_LIST_VIEW)
+      : Object.hasOwn(checked.data, 'catalogListView') ||
+        checked.data.items.some((row) => Object.hasOwn(row, ADMIN_PRODUCT_LIST_MARKER))) ||
     checked.data.page !== (args.page ?? 1) ||
     checked.data.pageSize !== (args.pageSize ?? 20) ||
     checked.data.items.length > checked.data.pageSize ||
@@ -319,7 +335,10 @@ export async function getRecord(
   signal?: AbortSignal,
 ): Promise<CollectionDoc> {
   const record = await call<CollectionDoc>('get', { collection, id }, signal);
-  if (record?._id !== id)
+  if (
+    record?._id !== id ||
+    (collection === 'products' && Object.hasOwn(record, ADMIN_PRODUCT_LIST_MARKER))
+  )
     throw new AdminApiError(
       'INVALID_RESPONSE',
       'Product status response did not match the request.',

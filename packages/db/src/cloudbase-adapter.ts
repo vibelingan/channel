@@ -1,3 +1,5 @@
+import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
+import { ADMIN_PRODUCT_LIST_PROJECTION, projectProductListRow, usesProductListView } from './catalog-product-list-view.ts';
 import { catalogReadinessSort, catalogReadinessWhere } from './catalog-readiness-query.ts';
 import {
   type CatalogPreparationAuthority,
@@ -115,6 +117,7 @@ interface WxQuery {
   orderBy(field: string, order: 'asc' | 'desc'): WxQuery;
   skip(offset: number): WxQuery;
   limit(count: number): WxQuery;
+  field(projection: Readonly<Record<string, boolean>>): WxQuery;
   get(): Promise<{ data: Record<string, unknown>[] }>;
   count(): Promise<{ total: number }>;
 }
@@ -776,6 +779,7 @@ export async function listDocumentsInCloudBase(
   db: WxDatabase,
   query: AdapterListQuery,
 ): Promise<ListResult<CollectionDoc>> {
+  const summary = usesProductListView(query);
   const def = getCollection(query.collection);
   const collection = db.collection(query.collection);
   const _ = db.command;
@@ -842,7 +846,8 @@ export async function listDocumentsInCloudBase(
   }
 
   const skip = (query.page - 1) * query.pageSize;
-  const res = sdkAnswer(await q.skip(skip).limit(query.pageSize).get());
+  const paged = q.skip(skip).limit(query.pageSize);
+  const res = sdkAnswer(await (summary ? paged.field(ADMIN_PRODUCT_LIST_PROJECTION) : paged).get());
   if (
     !res ||
     !Array.isArray(res.data) ||
@@ -858,7 +863,10 @@ export async function listDocumentsInCloudBase(
     throw Error('Catalog list rows were not confirmed');
 
   return {
-    items: (res.data as Record<string, unknown>[]).map(normalize),
+    items: (res.data as Record<string, unknown>[]).map((row) =>
+      summary ? projectProductListRow(normalize(row)) : normalize(row),
+    ),
+    ...(summary ? { catalogListView: ADMIN_PRODUCT_LIST_VIEW } : {}),
     total,
     page: query.page,
     pageSize: query.pageSize,

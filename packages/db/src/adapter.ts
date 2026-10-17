@@ -58,6 +58,8 @@ export interface AdapterListQuery {
   hidePreparing?: boolean;
   /** Opt-in server summary scope; default admission requires the historical-data audit. */
   catalogReadiness?: import('@vibelingan-channel/shared/catalog-preparation').CatalogReadiness;
+  /** Explicit admin summary DTO; complete reads must still use get(). */
+  catalogListView?: import('@vibelingan-channel/shared/admin-product-list').AdminProductListView;
   productSubcategories?: ProductSubcategoryScope;
   page: number;
   pageSize: number;
