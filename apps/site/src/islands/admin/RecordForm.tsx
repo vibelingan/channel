@@ -206,43 +206,71 @@ export function RecordForm({
     collection.name === 'products' && initial && typeof initial.alibabaPrimarySourceKey === 'string'
       ? initial._id
       : undefined;
+  const [supplierReviewAttempt, setSupplierReviewAttempt] = useState(0);
+  const supplierReviewAttemptRef = useRef(supplierReviewAttempt);
+  supplierReviewAttemptRef.current = supplierReviewAttempt;
   const [supplierReview, setSupplierReview] = useState<{
     data?: SupplierReview;
     isError?: boolean;
+    loading?: boolean;
   }>({});
   useEffect(() => {
-    if (!canReviewSupplier || linkedProductId === undefined) return;
+    if (!canReviewSupplier || linkedProductId === undefined) {
+      setSupplierReview({});
+      return;
+    }
     let cancelled = false;
+    setSupplierReview({ loading: true });
     fetchSupplierReview(linkedProductId).then(
       (data) => {
-        if (!cancelled) setSupplierReview({ data });
+        if (!cancelled && supplierReviewAttemptRef.current === supplierReviewAttempt)
+          setSupplierReview({ data });
       },
       () => {
-        if (!cancelled) setSupplierReview({ isError: true });
+        if (!cancelled && supplierReviewAttemptRef.current === supplierReviewAttempt)
+          setSupplierReview({ isError: true });
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [canReviewSupplier, linkedProductId]);
+  }, [canReviewSupplier, linkedProductId, supplierReviewAttempt]);
   // Every Alibaba photo, for adding ones beyond those filled automatically.
   const [photoSources, setPhotoSources] = useState<Awaited<
     ReturnType<typeof fetchPhotoSources>
   > | null>(null);
+  const [photoSourcesAttempt, setPhotoSourcesAttempt] = useState(0);
+  const photoSourcesAttemptRef = useRef(photoSourcesAttempt);
+  photoSourcesAttemptRef.current = photoSourcesAttempt;
+  const [photoSourcesState, setPhotoSourcesState] = useState<
+    'idle' | 'loading' | 'error' | 'ready'
+  >('idle');
   const [photoAddBusy, setPhotoAddBusy] = useState<string | null>(null);
   useEffect(() => {
-    if (!canReviewSupplier || linkedProductId === undefined) return;
+    if (!canReviewSupplier || linkedProductId === undefined) {
+      setPhotoSources(null);
+      setPhotoSourcesState('idle');
+      return;
+    }
     let cancelled = false;
+    setPhotoSources(null);
+    setPhotoSourcesState('loading');
     fetchPhotoSources(linkedProductId).then(
       (data) => {
-        if (!cancelled) setPhotoSources(data);
+        if (!cancelled && photoSourcesAttemptRef.current === photoSourcesAttempt) {
+          setPhotoSources(data);
+          setPhotoSourcesState('ready');
+        }
       },
-      () => {},
+      () => {
+        if (!cancelled && photoSourcesAttemptRef.current === photoSourcesAttempt)
+          setPhotoSourcesState('error');
+      },
     );
     return () => {
       cancelled = true;
     };
-  }, [canReviewSupplier, linkedProductId]);
+  }, [canReviewSupplier, linkedProductId, photoSourcesAttempt]);
   const [supplierChoices, setSupplierChoices] = useState<SupplierChoices>({});
   const [supplierBusy, setSupplierBusy] = useState<SupplierReviewPartName | null>(null);
   const [supplierError, setSupplierError] = useState('');
@@ -541,7 +569,7 @@ export function RecordForm({
               {readOnlyReason}
             </p>
           )}
-          {flaggedForSupplier && supplierReview.data && (
+          {canReviewSupplier && flaggedForSupplier && supplierReview.data && (
             <div className="mb-6">
               <SupplierChangesPanel
                 review={supplierReview.data}
@@ -553,10 +581,43 @@ export function RecordForm({
               />
             </div>
           )}
-          {flaggedForSupplier && supplierReview.isError && (
-            <p role="alert" className="mb-4 text-sm text-red-700">
-              The Alibaba changes could not be loaded. Close and open the product again.
-            </p>
+          {canReviewSupplier && flaggedForSupplier && supplierReview.loading && (
+            <output className="mb-4 block text-sm text-slate-600">Loading Alibaba changes…</output>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.isError && (
+            <div role="alert" className="mb-4 text-sm text-red-700">
+              <p>The Alibaba changes could not be loaded. Your edits are still in this form.</p>
+              <button
+                type="button"
+                className="min-h-11 underline"
+                onClick={() => {
+                  setSupplierReview({ loading: true });
+                  setSupplierReviewAttempt((attempt) => attempt + 1);
+                }}
+              >
+                Retry Alibaba changes
+              </button>
+            </div>
+          )}
+          {canReviewSupplier &&
+            linkedProductId !== undefined &&
+            photoSourcesState === 'loading' && (
+              <output className="mb-4 block text-sm text-slate-600">Loading Alibaba photos…</output>
+            )}
+          {canReviewSupplier && linkedProductId !== undefined && photoSourcesState === 'error' && (
+            <div role="alert" className="mb-4 text-sm text-red-700">
+              <p>Alibaba photos could not be loaded. Your edits are still in this form.</p>
+              <button
+                type="button"
+                className="min-h-11 underline"
+                onClick={() => {
+                  setPhotoSourcesState('loading');
+                  setPhotoSourcesAttempt((attempt) => attempt + 1);
+                }}
+              >
+                Retry Alibaba photos
+              </button>
+            </div>
           )}
           {sections.length > 0 ? (
             <div className="grid min-w-0 gap-6 lg:grid-cols-2">
@@ -727,19 +788,21 @@ export function RecordForm({
                             {sourceImageNotice}
                           </output>
                         )}
-                        {section.heading === 'Media' && supplierReview.data && (
-                          <ConfigurationPhotosEditor
-                            configurations={supplierReview.data.configurations}
-                            galleryIds={galleryIds}
-                            value={
-                              configurationPhotos ??
-                              (savedConfigurationPhotos.success
-                                ? savedConfigurationPhotos.data
-                                : {})
-                            }
-                            onChange={setConfigurationPhotos}
-                          />
-                        )}
+                        {canReviewSupplier &&
+                          section.heading === 'Media' &&
+                          supplierReview.data && (
+                            <ConfigurationPhotosEditor
+                              configurations={supplierReview.data.configurations}
+                              galleryIds={galleryIds}
+                              value={
+                                configurationPhotos ??
+                                (savedConfigurationPhotos.success
+                                  ? savedConfigurationPhotos.data
+                                  : {})
+                              }
+                              onChange={setConfigurationPhotos}
+                            />
+                          )}
                       </fieldset>
                     ))}
                   </div>
