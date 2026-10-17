@@ -2038,3 +2038,195 @@ for (const writer of ['save', 'row'] as const)
     assert.equal(saved?.published, false);
     assert.ok(h.controls.maximumOperations <= 3, 'no extra read/write for the barrier');
   });
+
+for (const mode of ['create', 'update'] as const)
+  for (const fault of ['silentWrite', 'codedWrite', 'wrongUpsertId'] as const) {
+    if (mode === 'update' && fault === 'wrongUpsertId') continue;
+    test(`product ${mode} never returns saved after ${fault} and rolls back identity writes`, async () => {
+      const initial = {
+        _id: 'ack-product',
+        name: 'Original',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: '2026-10-18T00:00:00.000Z',
+      };
+      const h = fakeDatabase({ products: mode === 'update' ? [initial] : [] });
+      h.controls[fault] = 'products/ack-product';
+      const before = structuredClone(h.store);
+      await assert.rejects(
+        saveCatalogProductInCloudBase(
+          h.db,
+          {
+            mode,
+            productId: 'ack-product',
+            data: {
+              name: 'Reviewed',
+              productFamily: 'misc',
+              slug: 'ack-owned-product',
+              skuCode: 'ACK-OWNED',
+            },
+          },
+          '2026-10-18T00:00:01.000Z',
+        ),
+      );
+      assert.deepEqual(
+        h.store,
+        before,
+        'no product or identity can commit without its acknowledged product write',
+      );
+      h.controls[fault] = '';
+      const retry = await saveCatalogProductInCloudBase(
+        h.db,
+        {
+          mode,
+          productId: 'ack-product',
+          data: {
+            name: 'Reviewed',
+            productFamily: 'misc',
+            slug: 'ack-owned-product',
+            skuCode: 'ACK-OWNED',
+          },
+        },
+        '2026-10-18T00:00:02.000Z',
+      );
+      assert.equal(retry.result, 'saved');
+      assert.equal(h.store.get('products')?.get('ack-product')?.name, 'Reviewed');
+    });
+  }
+
+for (const kind of ['slug', 'sku'] as const)
+  for (const fault of ['silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+    test(`product identity ${kind} ${fault} cannot commit a partial rename`, async () => {
+      const product = {
+        _id: 'p',
+        name: 'Clock',
+        productFamily: 'misc',
+        published: false,
+        slug: 'old-owned',
+        skuCode: 'old-owned',
+      };
+      const old = ['slug', 'sku'].map((type) => ({
+        _id: `${type}:old-owned`,
+        kind: type,
+        normalizedValue: 'old-owned',
+        productId: 'p',
+      }));
+      const h = fakeDatabase({ products: [product], catalogProductIdentities: old });
+      const before = structuredClone(h.store);
+      h.controls[fault] = `catalogProductIdentities/${kind}:new-owned`;
+      await assert.rejects(
+        saveCatalogProductInCloudBase(h.db, {
+          mode: 'update',
+          productId: 'p',
+          data: { slug: 'new-owned', skuCode: 'new-owned' },
+        }),
+      );
+      assert.deepEqual(h.store, before);
+    });
+for (const fault of ['failRemove', 'silentRemove', 'codedRemove'] as const)
+  test(`stale product identity ${fault} rolls back the entire rename`, async () => {
+    const product = {
+      _id: 'p',
+      name: 'Clock',
+      productFamily: 'misc',
+      published: false,
+      slug: 'old-owned',
+      skuCode: 'old-owned',
+    };
+    const old = ['slug', 'sku'].map((kind) => ({
+      _id: `${kind}:old-owned`,
+      kind,
+      normalizedValue: 'old-owned',
+      productId: 'p',
+    }));
+    const h = fakeDatabase({ products: [product], catalogProductIdentities: old });
+    const before = structuredClone(h.store);
+    h.controls[fault] = 'catalogProductIdentities/slug:old-owned';
+    await assert.rejects(
+      saveCatalogProductInCloudBase(h.db, {
+        mode: 'update',
+        productId: 'p',
+        data: { slug: 'new-owned', skuCode: 'new-owned' },
+      }),
+    );
+    assert.deepEqual(h.store, before);
+  });
+test('an already acknowledged supplier review does not issue an empty product write', async () => {
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    productFamily: 'misc',
+    published: false,
+    alibabaPrimarySourceKey: 'source',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: false,
+  };
+  const h = fakeDatabase({ products: [product] });
+  const before = structuredClone(h.store);
+  const result = await saveCatalogProductInCloudBase(h.db, {
+    mode: 'update',
+    productId: 'p',
+    data: { alibabaReviewPending: false },
+    expectedAlibabaIdentity: { revision: 1, primarySourceKey: 'source' },
+  });
+  assert.equal(result.result, 'saved');
+  assert.deepEqual(h.store, before);
+  assert.equal(h.controls.maximumOperations, 1, 'the existing no-op plan only reads the product');
+});
+
+test('an empty acknowledged review still validates requested classification authority', async () => {
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    productFamily: 'misc',
+    published: false,
+    updatedAt: '2026-10-18T00:00:00.000Z',
+    alibabaPrimarySourceKey: 'source',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: false,
+  };
+  const h = fakeDatabase({ products: [product], users: [{ _id: 'guest', role: 'member' }] });
+  const before = structuredClone(h.store);
+  const result = await saveCatalogProductInCloudBase(h.db, {
+    mode: 'update',
+    productId: 'p',
+    data: { alibabaReviewPending: false },
+    expectedAlibabaIdentity: { revision: 1, primarySourceKey: 'source' },
+    expectedClassification: {
+      productUpdatedAt: product.updatedAt,
+      taxonomyRevision: 0,
+      actorId: 'guest',
+    },
+  });
+  assert.equal(result.result, 'invalid-product');
+  assert.deepEqual(h.store, before);
+});
+
+test('unchanged review preserves an explicitly requested valid classification fence', async () => {
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    productFamily: 'misc',
+    published: false,
+    updatedAt: '2026-10-18T00:00:00.000Z',
+    alibabaPrimarySourceKey: 'source',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: false,
+  };
+  const h = fakeDatabase({ products: [product], users: [{ _id: 'admin', role: 'admin' }] });
+  const result = await saveCatalogProductInCloudBase(h.db, {
+    mode: 'update',
+    productId: 'p',
+    data: { alibabaReviewPending: false },
+    expectedAlibabaIdentity: { revision: 1, primarySourceKey: 'source' },
+    expectedClassification: {
+      productUpdatedAt: product.updatedAt,
+      taxonomyRevision: 0,
+      actorId: 'admin',
+    },
+  });
+  assert.equal(result.result, 'saved');
+  assert.equal(typeof h.store.get('users')?.get('admin')?.classificationAuthFence, 'string');
+  assert.deepEqual(h.store.get('products')?.get('p'), product);
+});

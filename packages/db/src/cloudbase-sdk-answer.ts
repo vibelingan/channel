@@ -20,3 +20,23 @@ export function sdkAnswer<T>(response: T): T {
   }
   return response;
 }
+
+/** A single-document write must confirm that document before its transaction continues. */
+export function assertDocumentWrite(
+  response: unknown,
+  id: string,
+  operation: 'set' | 'update' | 'remove',
+): void {
+  const answer = sdkAnswer(response);
+  if (answer && typeof answer === 'object' && !Array.isArray(answer)) {
+    if (Reflect.get(answer, operation === 'remove' ? 'deleted' : 'updated') === 1) return;
+    if (operation === 'set') {
+      const upserted = Reflect.get(answer, 'upserted');
+      if (Array.isArray(upserted) && upserted.length === 1) {
+        const entry: unknown = upserted[0];
+        if (entry && typeof entry === 'object' && Reflect.get(entry, '_id') === id) return;
+      }
+    }
+  }
+  throw new Error(`Database ${operation} write for ${id} was not acknowledged`);
+}

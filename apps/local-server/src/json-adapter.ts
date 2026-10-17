@@ -1107,6 +1107,13 @@ export class JsonFileAdapter implements DbAdapter {
       if (suggestion.result !== 'ready') return suggestion;
       const classification = planProductSubcategorySave(existing, input, registry, actor);
       if (classification.result !== 'ready') return classification;
+      if (
+        plan.doc === existing &&
+        !actor &&
+        !classification.registryFence &&
+        suggestion.fences.length === 0
+      )
+        return { result: 'saved', doc: existing, previous: existing };
 
       copy.catalogProductIdentities ??= [];
       const identityDocs = copy.catalogProductIdentities;

@@ -144,6 +144,27 @@ function smokeAdminProductList(artifactDir) {
   }
 }
 
+function smokeAdminProductWrites(artifactDir) {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-admin-write-behavior-'));
+  try {
+    cpSync(artifactDir, tempRoot, { recursive: true });
+    const result = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/product-write-artifact-probe.cjs'), join(tempRoot, 'index.js')],
+      { env: { ...process.env }, encoding: 'utf8', timeout: 15000 },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `admin native product write artifact smoke failed\n${result.stdout}\n${result.stderr}`,
+      );
+    console.log(
+      `admin: native product write ACK + rollback + retry passed\n${result.stdout.trim()}`,
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
 for (const name of functions) {
   const artifactDir = join(artifactRoot, name);
   const indexFile = join(artifactDir, 'index.js');
@@ -162,7 +183,10 @@ for (const name of functions) {
       rmSync(temp, { recursive: true, force: true });
     }
   }
-  if (name === 'admin') smokeAdminProductList(artifactDir);
+  if (name === 'admin') {
+    smokeAdminProductList(artifactDir);
+    smokeAdminProductWrites(artifactDir);
+  }
   if (name === 'public-api') smokePublicCatalog(artifactDir);
   console.log(`${name}: artifact smoke passed`);
 }

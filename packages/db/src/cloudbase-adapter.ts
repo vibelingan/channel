@@ -19,7 +19,7 @@ import {
   isCatalogRowCollection,
   runCatalogRowMutation,
 } from './catalog-row-mutation.ts';
-import { sdkAnswer } from './cloudbase-sdk-answer.ts';
+import { sdkAnswer, assertDocumentWrite } from './cloudbase-sdk-answer.ts';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
@@ -213,7 +213,9 @@ export async function saveCatalogProductInCloudBase(
         : existing?.productFamily;
     const registry =
       (expectedSuggestion || Object.hasOwn(input.data, 'subcategoryIds')) && isProductFamily(family)
-        ? normalizeSingle((await transaction.collection('catalogTaxonomies').doc(family).get()).data)
+        ? normalizeSingle(
+            (await transaction.collection('catalogTaxonomies').doc(family).get()).data,
+          )
         : null;
     const source = expectedSuggestion
       ? normalizeSingle(
@@ -270,22 +272,17 @@ export async function saveCatalogProductInCloudBase(
           existingIdentity.kind !== identity.kind ||
           existingIdentity.normalizedValue !== identity.normalizedValue)
       ) {
-        return { result: 'conflict', kind: identity.kind, normalizedValue: identity.normalizedValue };
+        return {
+          result: 'conflict',
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+        };
       }
     }
 
     const setAcknowledged = async (collection: string, doc: CollectionDoc) => {
       const { _id: id, ...data } = doc;
-      const acknowledgement = await transaction.collection(collection).doc(id).set(data);
-      if (
-        !(
-          typeof acknowledgement?.updated === 'number' &&
-          Number.isSafeInteger(acknowledgement.updated) &&
-          acknowledgement.updated > 0
-        ) &&
-        !acknowledgement?.upserted?.some((entry) => entry._id === id)
-      )
-        throw new Error(`Classification ${collection} write was not acknowledged`);
+      assertDocumentWrite(await transaction.collection(collection).doc(id).set(data), id, 'set');
     };
     if (actorRef) {
       const acknowledgement = await actorRef.update({ classificationAuthFence: randomUUID() });
@@ -301,7 +298,8 @@ export async function saveCatalogProductInCloudBase(
     }
     for (const identity of plan.identities) {
       if (!identityById.get(identity.id)) {
-        await transaction.collection('catalogProductIdentities').doc(identity.id).set({
+        await setAcknowledged('catalogProductIdentities', {
+          _id: identity.id,
           kind: identity.kind,
           normalizedValue: identity.normalizedValue,
           productId: input.productId,
@@ -316,16 +314,24 @@ export async function saveCatalogProductInCloudBase(
     for (const { collection, doc } of suggestion.fences) await setAcknowledged(collection, doc);
     const { _id, ...productData } = plan.doc;
     if (input.mode === 'create') {
-      await productRef.set(productData);
-    } else {
+      assertDocumentWrite(await productRef.set(productData), input.productId, 'set');
+    } else if (plan.doc !== existing) {
       if (existing?.createdAt !== undefined && existing.createdAt !== null) {
         delete productData.createdAt;
       }
-      await productRef.update(replaceNestedObjects(productData, db.command));
+      assertDocumentWrite(
+        await productRef.update(replaceNestedObjects(productData, db.command)),
+        input.productId,
+        'update',
+      );
     }
     for (const identity of plan.staleIdentities) {
       if (identityById.get(identity.id)?.productId === input.productId) {
-        await transaction.collection('catalogProductIdentities').doc(identity.id).remove();
+        assertDocumentWrite(
+          await transaction.collection('catalogProductIdentities').doc(identity.id).remove(),
+          identity.id,
+          'remove',
+        );
       }
     }
     return { result: 'saved', doc: plan.doc, previous: existing };

@@ -22,7 +22,7 @@ const source = new URL('./catalog-image-decoder-artifact.mjs', import.meta.url);
 const load = () => import(source.href);
 const req = createRequire(new URL('../apps/functions/admin/package.json', import.meta.url));
 const { require: tsxRequire } = req('tsx/cjs/api');
-const { buildSync } = createRequire(realpathSync(req.resolve('tsup')))('esbuild');
+const { buildSync, build } = createRequire(realpathSync(req.resolve('tsup')))('esbuild');
 const host = `${process.platform}-${process.arch}`;
 function fixture(run) {
   const dir = mkdtempSync(join(tmpdir(), 'channel-decoder-artifact-test-'));
@@ -258,6 +258,7 @@ for (const damage of ['none', 'missing-manifest', 'broken-loader', 'wrong-import
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /alibaba-catalog-sync: artifact smoke passed/);
         assert.match(result.stdout, /"actualBundledNativeAdapter":true/);
+        assert.match(result.stdout, /"productWriteAcknowledgements":true/);
       } else {
         assert.notEqual(result.status, 0);
         assert.match(result.stderr, /decoder|Decoder|ENOENT/);
@@ -311,3 +312,86 @@ for (const name of FUNCTION_NAMES)
       assert.equal(result.status, 0, result.stderr);
     });
   });
+
+test('the default artifact command rejects a native SDK write without acknowledgement', async () => {
+  const { packageCatalogImageDecoder } = await load();
+  const dir = mkdtempSync(join(tmpdir(), 'channel-write-artifact-test-'));
+  let mutated = 0;
+  try {
+    for (const name of FUNCTION_NAMES) {
+      const target = join(dir, name);
+      mkdirSync(target, { recursive: true });
+      writeFileSync(
+        join(target, 'package.json'),
+        JSON.stringify({ private: true, dependencies: {} }),
+      );
+      writeFileSync(join(target, 'index.js'), 'exports.main = () => ({ok:true});');
+    }
+    for (const name of ['admin', 'public-api']) {
+      const config = tsxRequire(
+        `../apps/functions/${name}/tsup.config.ts`,
+        import.meta.url,
+      ).default;
+      await build({
+        entryPoints: [
+          fileURLToPath(new URL(`../apps/functions/${name}/src/index.ts`, import.meta.url)),
+        ],
+        outfile: join(dir, name, 'index.js'),
+        bundle: true,
+        platform: 'node',
+        target: 'node20',
+        format: 'cjs',
+        minify: true,
+        define: config.define,
+        external: config.external,
+        plugins:
+          name === 'admin'
+            ? [
+                {
+                  name: 'remove-product-write-ack',
+                  setup(builder) {
+                    builder.onLoad({ filter: /cloudbase-sdk-answer\.ts$/ }, ({ path }) => {
+                      const source = readFileSync(path, 'utf8');
+                      const marker = '): void {\n  const answer = sdkAnswer(response);';
+                      assert.equal(source.split(marker).length, 2);
+                      mutated++;
+                      return {
+                        contents: source.replace(
+                          marker,
+                          '): void {\n  return;\n  const answer = sdkAnswer(response);',
+                        ),
+                        loader: 'ts',
+                      };
+                    });
+                  },
+                },
+              ]
+            : [],
+      });
+      const entry = readFileSync(join(dir, name, 'index.js'), 'utf8');
+      const { usesCatalogImageDecoder } = await load();
+      if (usesCatalogImageDecoder(entry))
+        packageCatalogImageDecoder(join(dir, name), { target: host });
+    }
+    assert.equal(mutated, 1);
+    const result = spawnSync(
+      process.execPath,
+      [new URL('./smoke-function-artifacts.mjs', import.meta.url).pathname],
+      {
+        env: { ...process.env, CHANNEL_FUNCTION_ARTIFACT_ROOT: dir },
+        encoding: 'utf8',
+        timeout: 20000,
+      },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout, /native list budget/);
+    assert.match(result.stderr, /admin native product write artifact smoke failed/);
+    assert.match(
+      result.stderr,
+      /unacknowledged products database.modifyDocument zero must not return success/,
+    );
+    assert.doesNotMatch(result.stdout, /admin: artifact smoke passed/);
+  } finally {
+    rmSync(dir, { force: true, recursive: true });
+  }
+});

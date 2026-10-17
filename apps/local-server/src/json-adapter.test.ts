@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -627,4 +627,99 @@ test('observation recapture cannot overwrite its private binding fence', async (
   );
   assert.equal(result.doc.catalogBindingGeneration, 3);
   assert.equal((await adapter.get('catalogSourceObservations', 'o'))?.catalogBindingGeneration, 3);
+});
+
+test('already acknowledged supplier review does not rewrite JSON storage', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    productFamily: 'misc',
+    published: false,
+    alibabaPrimarySourceKey: 'source',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: false,
+  };
+  writeFileSync(file, JSON.stringify({ products: [product] }));
+  const adapter = new JsonFileAdapter(file);
+  const before = readFileSync(file, 'utf8');
+  utimesSync(file, new Date(1000), new Date(1000));
+  const result = await adapter.saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'p',
+    data: { alibabaReviewPending: false },
+    expectedAlibabaIdentity: { revision: 1, primarySourceKey: 'source' },
+  });
+  assert.equal(result.result, 'saved');
+  assert.equal(readFileSync(file, 'utf8'), before);
+  assert.equal(statSync(file).mtimeMs, 1000);
+});
+
+test('an unchanged JSON review cannot bypass requested classification authority', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    productFamily: 'misc',
+    published: false,
+    updatedAt: '2026-10-18T00:00:00.000Z',
+    alibabaPrimarySourceKey: 'source',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: false,
+  };
+  writeFileSync(
+    file,
+    JSON.stringify({ products: [product], users: [{ _id: 'guest', role: 'member' }] }),
+  );
+  const before = readFileSync(file, 'utf8');
+  const adapter = new JsonFileAdapter(file);
+  const result = await adapter.saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'p',
+    data: { alibabaReviewPending: false },
+    expectedAlibabaIdentity: { revision: 1, primarySourceKey: 'source' },
+    expectedClassification: {
+      productUpdatedAt: product.updatedAt,
+      taxonomyRevision: 0,
+      actorId: 'guest',
+    },
+  });
+  assert.equal(result.result, 'invalid-product');
+  assert.equal(readFileSync(file, 'utf8'), before);
+});
+
+test('unchanged JSON review preserves an explicitly requested valid classification fence', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const product = {
+    _id: 'p',
+    name: 'Clock',
+    productFamily: 'misc',
+    published: false,
+    updatedAt: '2026-10-18T00:00:00.000Z',
+    alibabaPrimarySourceKey: 'source',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: false,
+  };
+  writeFileSync(
+    file,
+    JSON.stringify({ products: [product], users: [{ _id: 'admin', role: 'admin' }] }),
+  );
+  const adapter = new JsonFileAdapter(file);
+  const result = await adapter.saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'p',
+    data: { alibabaReviewPending: false },
+    expectedAlibabaIdentity: { revision: 1, primarySourceKey: 'source' },
+    expectedClassification: {
+      productUpdatedAt: product.updatedAt,
+      taxonomyRevision: 0,
+      actorId: 'admin',
+    },
+  });
+  assert.equal(result.result, 'saved');
+  assert.equal(typeof (await adapter.get('users', 'admin'))?.classificationAuthFence, 'string');
+  assert.deepEqual(await adapter.get('products', 'p'), product);
 });

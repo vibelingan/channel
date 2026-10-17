@@ -1164,3 +1164,12 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 首轮七包全量在BUSY重试测试5秒等待超时，保留失败；退避代码允许约5.04秒，改两处等待15秒，所有请求数/原guard/冲突/字节断言保留并重证故障。最终七包全量3986（309/1290/637/518/131/304/797）0fail/skip/cancel；Node20后台199+浏览器43=242通过。16相关项目types、Astro216零错误警告8hint、8完整代码/测试文件Biome、SDK/diff通过。初次缺validation类型、错fn-admin筛选及格式错误留档，不当通过。
 
 四个独立Node24/20进程在禁止网络的自有JSON库写预约/查询/重复，同612字节样本回执，零额外记录/查询文件写/商品写，fixture清理。不是云端实际操作或完整阶段重启。8代码/测试路径及3文档复核，文案把“恢复完成”收紧到“预约/查询已验证”，保持原visibility丢发布响应P1及全部P3-P7门槛。详见P3e1_OPERATION_RESERVATION.zh-CN.md；无部署、客户数据、新分支worktree/agent/PR/push，fullDeliveryReady=false。
+
+
+## P3e2a：写入确认先于自身保存回执
+
+准备P3e2时发现产品set/update、新slug/SKU身份set与旧身份remove忽略ACK，可无实际写入而返回saved。旧精确4b88e49打包native handler/SDK经过假HTTP，在有效业务断言失败。原事务统一检查updated=1、单个目标upsert或deleted=1，coded结果保留code；失败整笔回滚，重试成功。既有分类actor fence原段保持字节相同，自动审批误判为新增的失败尝试未执行。no-op仍完整检查分类/建议，只省空产品写；JSON省无fence文件重写，审查两次各2项红测后补齐权限与明确fence保护。
+
+默认smoke:functions强制实际native写路径，正确创建/改名/身份移除，13种失败回执均拒绝且rollback/store不变；默认驱动编译去ACK模块必败，删接线也必败。16源码反例全检出，51重叠失败断言，4文件finally恢复核SHA。恢复后后台3244+脚本488通过，Node20后台274/驱动24通过；19项目types、Astro216零error/warning8hint、8完整文件Biome与忽略原生源段格式、SDK/diff通过。站点全量797通过（含实际浏览器组件），相关全量合计4529。精确构建在本单元后续证据续记，未提前归为通过。
+
+实际复核9代码/测试路径及3证据文档、原保存/分类/建议/事务/JSON/HTTP/default smoke消费者。文案明确ACK不是云端验收；无真实网络、客户数据、test部署、新分支/worktree/agent/PR/push。原发布丢响应P1保留；后续继续同事务保存自身回执，fullDeliveryReady=false。详见P3e2a_PRODUCT_WRITE_ACK.zh-CN.md。

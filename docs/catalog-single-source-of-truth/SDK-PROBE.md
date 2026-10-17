@@ -668,3 +668,12 @@ Official CloudBase /api-reference/server/node-sdk/database/fetch freshly read vi
 Zod3.25.76的既有object/record/discriminatedUnion/omit/strict/safeParse/parse与Node20既有crypto/JSON/structuredClone/fs.utimesSync执行通过；无新第三方表面，Context7不可用。旧hash固定样本与含无关Date/深层/大段档案的新反例证明投影语义保持，源属性没有截断或搬入job。Node24/20四个独立进程直接JsonFileAdapter的同回执/零重写通过，网络禁止；这里只是预约，不是已批准或已上线。
 
 最终相关3986、Node20 242、16项目types、Astro216零error/warning8hint、8文件显式Biome和standing SDK通过。原BUSY测试的5秒不足以覆盖代码允许约5.04秒退避；15秒等待保留原断言，修改后两项真实UI版本故障重新检出。当前完整发布恢复P1仍未关闭，精确产物在审查后记录，不能凭SDK/构建绿给发布许可。
+
+
+## P3e2a：单文档写回执与实际打包SDK
+
+沿用@cloudbase/node-sdk3.17.2→@cloudbase/database1.4.3已安装实际transaction/index.js、collection.js、document.js。事务doc.set使用modifyDocument/merge:false/upsert:true，ACK为updated或目标upserted[0]._id；doc.update使用modifyDocument/merge:true/upsert:false，SDK返回updated，包括不抛错的0；remove返回deleted。node-sdk coded answer默认throw，底层裸DB coded answer由sdkAnswer保留code后抛出。没有新增SDK方法/shim/版本/资源。
+
+公开[Node更新文档](https://docs.cloudbase.net/api-reference/server/node-sdk/database/update)未详列ACK，精确形状由安装源码与新默认scripts/product-write-artifact-probe.cjs实际sender验证。该探针保留编译handler/native adapter/SDK，仅HTTP由内存假后端回答；正确create/upsert/update/remove、13拒绝回执及事务回滚/重试通过，默认驱动去掉ACK则失败。Node20后台274与驱动24、standing SDK通过。没有云端网络或真实写入，不据此声称CloudBase并发验收完成。
+
+新增测试工具表面esbuild0.27.7 build与PluginBuild.onLoad。按真实admin的tsup resolve到0.27.7，安装lib/main.d.ts553声明build→Promise<BuildResult>，322声明onLoad(options,callback)，434/443定义path与contents/loader结果。与官方[build](https://esbuild.github.io/api/#build)、[onLoad](https://esbuild.github.io/plugins/#on-load-callbacks)核对，实际编译ACK故障模块，其他源模块/SDK保持原状。Context7不可用；未用另一个esbuild实例或同步buildSync插件替代。默认驱动删除接线22正控/2失败，防止新增检查成为可跳过步骤。
