@@ -131,6 +131,11 @@ async function callOnce<T>(action: string, data?: unknown, signal?: AbortSignal)
   return result.data;
 }
 
+/** An unknown worker invocation must be queried before another write is considered. */
+export function catalogPreparationCall(data: unknown, signal?: AbortSignal) {
+  return callOnce<unknown>('catalogPreparation', data, signal);
+}
+
 export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
   return call<unknown>('catalogDetailApproval', data, signal);
 }

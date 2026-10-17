@@ -1038,3 +1038,9 @@ P2f10c 精确三函数build/package、Linux126闭包、同JS Macprofile、Node20
 P2f10d精确三函数build/package、Linux126原生闭包、同JS Macprofile和Node20 smoke通过。实际bundled admin HTTP确认启动丢ACK后同任务、取消/重试/只读状态、rollout禁用无写；bundled worker的5URL4+1、warm零IO、阻断编辑修复和模块重启重放通过，商品全未发布，临时目录清理。admin SHA72b55dc9cda09af72758c0d910d46f610802fa735ed9c8681a681174dd1f70bd，sync SHA d35505d6911dfd2a48e49e1d5f40c41c5691d9a24c32c79075e98631f78a74f6。
 
 新continue人工API先当前状态再申请签名，固定目标/$LATEST、8秒总调用期限、零SDK重试，并重新读取完成证明。只有匹配的partial/currentqueued/preparing才自动继续；来源503保留手动入口，未知结果查询，丢ACK可恢复实际ready，中途撤权拒绝。官方SDK与安装源码验证发现socket timeout可被持续收包延长，补共享总时长保护及真实loopback反例；未改云端配置。18源码反例检出并恢复字节，DB1156/admin637/alibaba304/local486=2583、Node20七文件279、三消费者types、14完整文件Biome、SDK新增块/语法、SDK/diff通过。最初分类warning测试预期与批准方案不符已改正；Node20首次错误文件名命令保留，未算通过。详见P2f10e_HUMAN_CONTINUE及SDK探针，精确产物随后审查记录，fullDeliveryReady=false。
+
+## P2f11a：前端有界继续控制
+
+P2f10e精确三函数build/package、Linux126闭包、同JS Macprofile和Node20产物/native smoke通过。实际bundled admin→安装SDK编解码/传输→同bundled sync按5URL4+1执行，两次调用ready；已ready继续零新增调用/零写盘，warm零IO、阻断编辑修复、模块重启只读重放仍通过，全未发布且临时目录清理。admin SHA4397de103f9e7dc0f6cf79a343735e41a542ebb8c929e2ddf1a16c712b09bd33，sync SHA971818adf33b42a5067c0191b1563d624d166c1e4fe96b0345d9ff3409ccf739。
+
+新增前端严格五人工动作传输及单商品有界控制，冻结选品/任务、零未知写重发、实际状态恢复、角色失效停止、来源失败不循环，64请求/120秒及4次退避轮询可暂停继续。33行为+2真实HTTP/JSON/像素来源4+1组合在Node24/20通过，最终响应丢失只读恢复；11源码反例检出且原字节恢复。site662含显式真实无头图库、local486，共1148零失败/跳过/取消；Astro/types/四文件Biome/SDK/diff通过。TS异步收窄、Node25存储夹具、错误HTTP接线、跨包浏览器类型及复制observation夹具均已修正，初次失败保留。尚未接UI/列表/发布，精确站点构建审查随后记录，fullDeliveryReady=false。
