@@ -5,15 +5,18 @@ import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
+  manageCatalogPreparationJob,
   manageCatalogProductOperation,
   persistCatalogDetailApproval,
   prepareCatalogProductOperationApproval,
   setAdapter,
 } from '@vibelingan-channel/db';
+import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import {
   type CatalogProductOperationBinding,
   CatalogProductOperationStatusSchema,
 } from '@vibelingan-channel/shared/catalog-product-operation';
+import { finishOwnedMediaFixture } from '../../../packages/db/src/catalog-owned-media.fixture.ts';
 import {
   createCatalogSourcePreparer,
   createOwnedCatalogSourcePreparer,
@@ -241,6 +244,7 @@ test('source preparation stops after a completed page at its time budget and res
     { ...scope, action: 'product-operation-continue' },
     {
       operation: manageCatalogProductOperation,
+      media: bindMedia,
       configuration: stageConfiguration,
       seed: prepareCatalogProductOperationApproval,
       now: () => now,
@@ -274,6 +278,7 @@ test('zero time budget performs no save or preparation and returns the original 
     { ...scope, action: 'product-operation-continue' },
     {
       operation: manageCatalogProductOperation,
+      media: bindMedia,
       configuration: stageConfiguration,
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
@@ -307,6 +312,7 @@ test('candidate reading drains its current batch but starts no new batch or appr
     { ...scope, action: 'product-operation-continue' },
     {
       operation: manageCatalogProductOperation,
+      media: bindMedia,
       configuration: stageConfiguration,
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
@@ -884,6 +890,7 @@ test('configuration continuation stops after its committed page exhausts the req
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
       now: () => now,
+      media: bindMedia,
       configuration: async (actor, binding, page) => {
         pages.push(page);
         const result = await persistCatalogDetailApproval(actor, {
@@ -988,6 +995,7 @@ test('an OK configuration reply without persisted cursor progress cannot loop or
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
       now: () => 0,
+      media: bindMedia,
       configuration: async () => {
         calls++;
         return { ok: true };
@@ -1039,6 +1047,7 @@ test('configuration continuation never starts a page when seed completion has ex
         now = 13000;
         return result;
       },
+      media: bindMedia,
       configuration: async (...args) => {
         pages++;
         return stageConfiguration(...args);
@@ -1092,6 +1101,7 @@ test('the controller dispatches the maximum legal 500 pages with server progress
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
       now: () => 0,
+      media: bindMedia,
       configuration: async (_actor, binding, page) => {
         assert.deepEqual(binding, scope);
         assert.equal(page, pages.length);
@@ -1134,3 +1144,295 @@ test('two actual Admin continuations of the same configuration operation converg
   assert.equal(final.products[0].published, false);
   assert.equal(final.images[0].publishedRefCount, 0);
 });
+
+async function warmOwnedMedia(h: Awaited<ReturnType<typeof workspace>>, seedBeforeMedia = true) {
+  const rows = JSON.parse(h.bytes());
+  Object.assign(rows.images[0], {
+    name: 'original.png',
+    storageProvider: 'local-disk',
+    storageMode: 'local-disk',
+    storageFileId: 'local-disk:source/original.png',
+    storagePath: 'source/original.png',
+    mimeType: 'image/png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+  });
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  assert.ok(
+    (await manageCatalogProductOperation('admin', { ...scope, action: 'product-operation-save' }))
+      .ok,
+  );
+  assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page: 0 })).ok);
+  if (seedBeforeMedia) {
+    const seeded = await seedCurrent(scope);
+    assert.ok(seeded.ok && seeded.state === 'staging', JSON.stringify(seeded));
+  }
+  const authority = createCatalogPreparationAuthority({
+    secret: 'owned-media-metadata-fixture',
+    environmentId: 'owned-media-metadata-fixture',
+  });
+  // This fixture declares pixel health for protocol tests; it never reads image bytes.
+  await finishOwnedMediaFixture(
+    (command) =>
+      manageCatalogPreparationJob(
+        authority,
+        command.action === 'start' ? { ...command, productId: h.productId } : command,
+      ),
+    h.adapter.get.bind(h.adapter),
+    ['image'],
+  );
+  return scope;
+}
+
+test('actual Admin continuation transfers an existing ready media receipt into its original approval root', async (t) => {
+  const h = await workspace(t);
+  const scope = await warmOwnedMedia(h);
+  const originalRoot = JSON.parse(h.bytes()).catalogDetailApprovals[0];
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  assert.equal(status.approval.references.prepared, false);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals.length, 1);
+  assert.equal(final.catalogDetailApprovals[0].revision, originalRoot.revision);
+  assert.deepEqual(final.catalogDetailApprovals[0].operation, originalRoot.operation);
+  assert.deepEqual(final.catalogDetailApprovals[0].saved, originalRoot.saved);
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.images[0].publishedRefCount, 0);
+  assert.doesNotMatch(
+    JSON.stringify(response),
+    /receiptId|bindingDigest|checksumSha256|storageFileId/,
+  );
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  assert.deepEqual(await h.invoke({ ...scope, action: 'product-operation-continue' }), response);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+});
+
+async function bindMedia(actorId: string, scope: CatalogProductOperationBinding) {
+  return persistCatalogDetailApproval(actorId, { ...scope, action: 'operation-approval-media' });
+}
+
+for (const fault of ['missing-job', 'wrong-image-set', 'corrupt-completion'])
+  test(`media continuation cannot authorize a ${fault} preparation receipt`, async (t) => {
+    const h = await workspace(t);
+    const scope = await warmOwnedMedia(h);
+    const rows = JSON.parse(h.bytes());
+    if (fault === 'missing-job') rows.catalogPreparationJobs = [];
+    else if (fault === 'wrong-image-set')
+      rows.products[0].catalogPreparationReport.seal.imageIdsDigest = 'f'.repeat(64);
+    else rows.catalogPreparationJobs[0].completion.reportDigest = 'f'.repeat(64);
+    writeFileSync(h.file, JSON.stringify(rows));
+    const before = h.bytes();
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.equal(status.approval.mediaReady, false);
+    assert.equal(status.approval.references.prepared, false);
+    assert.equal(h.bytes(), before);
+    assert.equal(rows.products[0].published, false);
+    assert.equal(rows.images[0].publishedRefCount, 0);
+  });
+
+for (const change of ['cancel', 'edit', 'revoke'])
+  test(`media continuation refuses stale progress after a concurrent ${change}`, async (t) => {
+    const h = await workspace(t);
+    const scope = await warmOwnedMedia(h);
+    const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+    let bindings = 0;
+    h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+      const result = await original(actor, input);
+      if (input.action === 'operation-approval-media') {
+        assert.ok(result.ok);
+        bindings++;
+        if (change === 'cancel')
+          assert.ok((await original(actor, { ...scope, action: 'operation-cancel' })).ok);
+        else if (change === 'edit') {
+          const product = await h.adapter.get('products', h.productId);
+          assert.ok(product);
+          assert.equal(
+            (
+              await h.adapter.saveCatalogProductWithIdentities({
+                mode: 'update',
+                productId: h.productId,
+                expectedUpdatedAt: typeof product.updatedAt === 'string' ? product.updatedAt : null,
+                data: { description: 'Later media editor' },
+              })
+            ).result,
+            'saved',
+          );
+        } else {
+          const rows = JSON.parse(h.bytes());
+          rows.users[0].role = 'member';
+          writeFileSync(h.file, JSON.stringify(rows));
+        }
+      }
+      return result;
+    };
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(
+      !response.ok && response.error.code === (change === 'revoke' ? 'FORBIDDEN' : 'CONFLICT'),
+      JSON.stringify(response),
+    );
+    assert.equal(bindings, 1);
+    const final = JSON.parse(h.bytes());
+    assert.equal(final.products[0].published, false);
+    assert.equal(final.images[0].publishedRefCount, 0);
+    assert.equal(final.catalogDetailApprovals[0].references, undefined);
+  });
+
+test('a committed media binding with its answer lost reopens without repeating a media write', async (t) => {
+  const h = await workspace(t);
+  const scope = await warmOwnedMedia(h);
+  const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  let bindings = 0;
+  h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+    const result = await original(actor, input);
+    if (input.action === 'operation-approval-media') {
+      bindings++;
+      throw Error('media committed, answer lost');
+    }
+    return result;
+  };
+  assert.equal((await h.invoke({ ...scope, action: 'product-operation-continue' })).ok, false);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  assert.equal(bindings, 1);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+});
+
+test('media binding I/O failures are never guessed as pending or ready', async (t) => {
+  const h = await workspace(t);
+  const scope = await warmOwnedMedia(h);
+  const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+    if (input.action === 'operation-approval-media') throw Error('media persistence unavailable');
+    return original(actor, input);
+  };
+  const before = h.bytes();
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.equal(response.ok, false);
+  assert.equal(h.bytes(), before);
+  h.adapter.persistCatalogDetailApproval = original;
+  const resumed = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(resumed.ok);
+  const status = CatalogProductOperationStatusSchema.parse(resumed.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+});
+
+test('an OK media reply without a persisted media binding is rejected', async (t) => {
+  const h = await workspace(t);
+  const scope = await warmOwnedMedia(h);
+  const before = h.bytes();
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: manageCatalogProductOperation,
+      seed: prepareCatalogProductOperationApproval,
+      prepare: createCatalogSourcePreparer(),
+      configuration: stageConfiguration,
+      media: async () => ({ ok: true }),
+      now: () => 0,
+    },
+  );
+  assert.ok(!response.ok && response.code === 'CONFLICT', JSON.stringify(response));
+  assert.equal(h.bytes(), before);
+});
+
+test('budget exhausted during saved-status readback does not start a ready media transfer', async (t) => {
+  const h = await workspace(t);
+  const scope = await warmOwnedMedia(h);
+  let bindings = 0;
+  let now = 0;
+  const before = h.bytes();
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: async (...args) => {
+        const result = await manageCatalogProductOperation(...args);
+        const command = args[1];
+        if (
+          command &&
+          typeof command === 'object' &&
+          Reflect.get(command, 'action') === 'product-operation-save'
+        )
+          now = 13000;
+        return result;
+      },
+      seed: prepareCatalogProductOperationApproval,
+      prepare: createCatalogSourcePreparer(),
+      configuration: stageConfiguration,
+      media: async (...args) => {
+        bindings++;
+        return bindMedia(...args);
+      },
+      now: () => now,
+    },
+  );
+  assert.ok(response.ok && response.state === 'staging', JSON.stringify(response));
+  assert.equal(response.approval.mediaReady, false);
+  assert.equal(bindings, 0);
+  assert.equal(h.bytes(), before);
+});
+
+for (const rebuildSource of [false, true])
+  test(`a saved operation with ready media seeds and transfers the receipt (rebuild source=${rebuildSource})`, async (t) => {
+    const h = await workspace(t);
+    const scope = await warmOwnedMedia(h, false);
+    const before = JSON.parse(h.bytes());
+    assert.equal(before.catalogDetailApprovals[0].state, 'saved');
+    if (rebuildSource) {
+      before.products[0].detailSourceReady = false;
+      writeFileSync(h.file, JSON.stringify(before));
+    }
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.equal(status.approval.mediaReady, true);
+    assert.equal(status.approval.references.prepared, false);
+    const final = JSON.parse(h.bytes());
+    assert.equal(final.catalogDetailApprovals.length, 1);
+    assert.deepEqual(
+      final.catalogDetailApprovals[0].operation,
+      before.catalogDetailApprovals[0].operation,
+    );
+    assert.deepEqual(final.catalogDetailApprovals[0].saved, before.catalogDetailApprovals[0].saved);
+    assert.equal(final.products[0].published, false);
+    assert.equal(final.images[0].publishedRefCount, 0);
+  });
+
+for (const code of ['FORBIDDEN', 'CONFLICT', 'SOURCE_NOT_READY'])
+  test(`media continuation preserves a native ${code} failure instead of reporting pending progress`, async (t) => {
+    const h = await workspace(t);
+    const scope = await warmOwnedMedia(h);
+    const before = h.bytes();
+    const response = await continueAdminCatalogProductOperation(
+      'admin',
+      { ...scope, action: 'product-operation-continue' },
+      {
+        operation: manageCatalogProductOperation,
+        seed: prepareCatalogProductOperationApproval,
+        prepare: createCatalogSourcePreparer(),
+        configuration: stageConfiguration,
+        media: async () => ({ ok: false, code }),
+        now: () => 0,
+      },
+    );
+    assert.ok(!response.ok && response.code === code, JSON.stringify(response));
+    assert.equal(h.bytes(), before);
+  });

@@ -1345,3 +1345,8 @@ Admin start调用既有keep规则；新save仅接受原scope/digest，从根取�
 ## P3e7c4 自动推进原操作配置页
 
 continue在原saved seed和staging重开均按持久cursor调用原native配置页；页后读回scope/current/进展，超时不追加，无进展ok拒绝。13新增/82相关/5852完整覆盖（5851全包后新增并发，受影响local913及Node202887重跑）、19types/E2E/standingSDK/两Biome通过；9故障71重叠失败/controllerSHA恢复，578SDK含六ACK回滚/页提交丢确认从下一页续接。cold0/21/105全页、同根双续接收敛21唯一配置、取消/编辑/撤权/预算与controller500合成边界通过。旧seed阶段断言按新行为调整且保留初始化独立检查和actualHTTP坏/缺缓存拒绝。人工核对两代码/测试和原native页/DTO/源绑定，纠正500与零写范围，详见[P3e7c4](P3e7c4_OWNED_CONFIGURATION_CONTINUE.zh-CN.md)。精确构建/12+2进程补充待提交后执行；完整媒体/引用/最终发布及真实验收继续，fullDeliveryReady=false。
+
+
+## P3e7c5a 已有媒体就绪回执转交
+
+全配置后通过原native命令转已有ready媒体回执，真实小状态读回才确认；缺ready保留staging，其他失败/未知IO不吞，已mediaReady跳过、预算到期不追加。16新增/98相关/5868当前完整覆盖（5863全包后补5例，受影响local929及Node202903重跑）/19types/E2E/standingSDK/两Biome通过；11故障40重叠/controllerSHA恢复，587SDK含6/12/6事务/root三ACK回滚和media丢commit零写重开。暖缓存/重建source后从saved seed转交、取消/编辑/撤权、坏/缺回执、原生错误原因与预算分支验证。metadata声明只验协议，实际PNG另用精确编译worker补充；SDKmock漏集合和预算初例冗余均已记录。人工核对两改动文件及native媒体/finish/DTO/源/worker，纠正“媒体完成”与实际字节范围，详见[P3e7c5 A段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)。冷媒体必须先准备再seed；completed旧seal与当前映射不符的恢复尚待复现，不能假称retry可解。精确产物后补，原UI/完整发布及真实验收继续，fullDeliveryReady=false。

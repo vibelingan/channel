@@ -1,0 +1,26 @@
+# P3e7c5 原操作媒体准备与就绪回执
+
+基线23c74121：5852完整覆盖/2887Node20/578SDK/9故障71重叠/精确三函数site+14进程补充已通过，实际编译Admin cold105/6配置页→Node24重开零写/取消、原始来源/分类保留，所有自有夹具清理。原UI P1与完整发布仍未关闭。
+
+A段先转交已有ready receipt：配置全完成、预算允许且原根mediaReady=false时，调用原operation-approval-media。native从当前product report和真实completed准备job核对seal与相同adopted图片集合、原根/版本/来源；controller不合成receipt、不直接改媒体或引用。明确MEDIA_NOT_READY保留staging，重新读当前小状态；其余失败保留原因/未知IO抛出。成功也必须读回，拒绝取消/编辑后的失效状态。已mediaReady重开不得重复写。无媒体导入、无发布/引用激活、无强加分类。
+
+B段接现有准备job和签名worker：检查发现prepareStagedApproval对未绑定的供应商SKU照片返回MEDIA_NOT_READY，所以不能一律等建根后才导入照片。应在saved阶段发现未绑定或缺ready时先沿原preparation start/continue/status及8秒签名调用准备，完成后用新的source图片绑定重投影，再seed/config和转交回执；已seed且图片ID未变时也可复用同一准备机制。worker回应仅线索，真实completed job及当前输入seal才是许可。父请求12秒预算需为8秒invoker和状态读回留余量，不能在用完配置预算后直接再启动8秒调用。job可在审批取消后完成私有准备，但不能使原已取消操作发布。
+
+缺失、blocked/retryable、租约running/wait、超时/丢回应的浏览器fallback和有界进度需在B段及UI结合时明确；不把“返回staging”说成“已发布”。准备authority/invoker仅服务器配置，不加入浏览器body。保留raw-source/evidence、原用户patch/分类，选择性属性mapping不在范围内。大量来源/图片链接的初始化预算与真实P95仍需验证，不能用4096缺缓存测试替代。
+
+A先红测：现有ready媒体回执转同根、重开零写、篡改/缺失回执不授权、media提交丢回应重开、media后取消/编辑、预算耗尽不追加、私有数据和计数保持。metadata夹具只验协议，实际像素通过精确编译worker/PNG独立验证；不把metadata声明冒充字节校验。
+
+
+## A段实施与验证
+
+已接通已有ready回执：新seed（现成缓存或重建source）与staging重开均在全配置完成后调用原native media命令；已有mediaReady直接返回，单调预算不足不发起转交。仅明确MEDIA_NOT_READY视为尚未ready并重新读当前小状态，其他code保留，未知IO抛出；成功也读回，原scope/current及mediaReady必须成立，不能接受无持久变化的ok。不会新建准备job、导入、发布或写引用。
+
+16新增、98相关；5868当前完整覆盖：初次5863整包通过后补5个seed/错误分支用例并强化预算用例，源码SHA未变，受影响local929与实际Node20全选定范围2903重跑通过，其他包结果保留。19包types/E2E/standingSDK通过，新测试localtypes再验；两文件Biome/diff通过。11故障全检出、40重叠断言失败/controller单SHA恢复，98与587SDK重建绿。预算初例只覆盖budget0早退，不能单独证明新媒体预算分支；改成初次saved-status异步读回后耗尽预算，独立删媒体预算守卫确实失败，原reserved零预算用例保留。
+
+587安装SDK=原578+9媒体边界：实际Admin转原根仅写root，事务6/12/6；同根operation/saved/revision保留/重开零写，三个root坏ACK整事务回滚、job coded/malformed读错误不吞、已提交media丢commit回应后零写重开、缺失job和错图片集合不授权。保留全套最高98。新增SDK夹具是零图metadata协议，local正例也是声明健康的metadata fixture；不得叫实际字节校验。真实保护PNG及编译worker→Admin转交由精确产物补充独立验证。初次SDK扩展忘建mock catalogPreparationJobs/catalogImageObservations空集合导致mock断言，补正确资源集合后587完成，不计业务反例。
+
+人工review/simplify/humanizer核对两改动代码/测试及原catalog-operation-media、native current/bind、preparation-finish/current输入、shared DTO、source planner、准备API/worker/invoker；native root与receipt判定未改。已确认未绑定SKU图会在seed前被MEDIA_NOT_READY拒绝，B段必须先完成源图片准备再重建候选，不能把媒体调用简单放在所有seed之后。另列B段待验证情形：已完成job的seal图片集合与当前adopted集合不符时，当前retry不接受completed；必须实际复现后提供清楚修复路径，不能承诺随便retry就能恢复。此项为调查问题，未认定为已复现bug。
+
+文案把“媒体完成”限定为“原根已绑定就绪回执，仍未公开”，把metadata健康声明与实际PNG证据分开；预算断言与真实分支故障互证，字段/原根/分类/公开计数0核对。缺/坏回执当前只保留staging拒绝授权，完整用户fallback由B段/P5/UI补齐，不能据此启用客户producer。原UI P1、冷媒体job串联、引用/final、live/新图/review/DataIssues/大来源P95与三时钟resync/真实20件发布回退开放，fullDeliveryReady=false。
+
+提交review后构建精确三函数/site、14进程基础补充；其中编译Admin continue必须直接返回mediaReady=true（使用原编译worker真实PNG已ready对象），再接原引用满槽/取消；额外105配置两进程仍未公开并清理。只在执行成功后加入verification。

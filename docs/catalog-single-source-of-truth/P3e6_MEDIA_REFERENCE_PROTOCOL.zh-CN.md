@@ -169,3 +169,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c4 同根配置有界推进
 
 现有continue在source seed后或staging重开时，按服务器小DTO已提交页号推进原operation-approval-page；native校验来源/版本/角色/TTL/页hash，后续小状态必须current且cursor向前。预算到期保留已提交cursor；页提交回应丢失可重开，从未完成页继续，无第二根或revision。配置结束仍staging，媒体/引用/final接线继续。13新增/578SDK及同根并发和坏/缺缓存拒绝范围见[P3e7c4](P3e7c4_OWNED_CONFIGURATION_CONTINUE.zh-CN.md)，不等于客户完整发布验收。
+
+
+## P3e7c5a 已有ready媒体回执
+
+实际continue配置完成后转交原media命令；native读取当前ready product report/completed准备job并与原根adopted集合及policy精确核对，不直接制造seal。成功和明确MEDIA_NOT_READY都重新取当前scoped状态，只有成功必须读到mediaReady；其他拒绝保留/未知IO抛出。已有mediaReady不重写，预算不足不追加。旧/缺回执不获授权，完整诊断fallback/B冷源图准备仍继续。16新增/587SDK与实际PNG独立证据范围见[P3e7c5 A段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)，未接公开引用或最终发布。

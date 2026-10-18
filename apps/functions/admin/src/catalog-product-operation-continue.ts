@@ -45,6 +45,7 @@ export interface OwnedContinuationDeps {
     scope: CatalogProductOperationBinding,
     page: number,
   ) => Promise<unknown>;
+  media: (actorId: string, scope: CatalogProductOperationBinding) => Promise<unknown>;
   now: () => number;
 }
 function failure(value: unknown) {
@@ -93,6 +94,8 @@ export async function continueAdminCatalogProductOperation(
         action: 'operation-approval-page',
         page,
       }),
+    media: (actorId, scope) =>
+      persistCatalogDetailApproval(actorId, { ...scope, action: 'operation-approval-media' }),
     now: () => performance.now(),
   },
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
@@ -137,6 +140,29 @@ export async function continueAdminCatalogProductOperation(
     }
     return current;
   };
+  const advance = async (initial: Awaited<ReturnType<typeof get>>) => {
+    const configured = await configure(initial);
+    if (
+      !configured.ok ||
+      configured.state !== 'staging' ||
+      configured.approval.mediaReady ||
+      configured.approval.configurations.completed !== configured.approval.configurations.total ||
+      deps.now() >= deadline
+    )
+      return configured;
+    const raw = await deps.media(actorId, scope);
+    const success = raw && typeof raw === 'object' && Reflect.get(raw, 'ok') === true;
+    const pending =
+      raw &&
+      typeof raw === 'object' &&
+      Reflect.get(raw, 'ok') === false &&
+      Reflect.get(raw, 'code') === 'MEDIA_NOT_READY';
+    if (!success && !pending) return failure(raw);
+    const current = await get();
+    if (success && current.ok && current.state === 'staging' && !current.approval.mediaReady)
+      return { ok: false as const, code: 'CONFLICT' as const };
+    return current;
+  };
   if (deps.now() >= deadline) return get();
   let current = status(
     await deps.operation(actorId, { ...scope, action: 'product-operation-save' }),
@@ -145,12 +171,12 @@ export async function continueAdminCatalogProductOperation(
   if (!current.ok) return current;
   if (current.state === 'complete') return current;
   if (current.intent === 'save-draft') return current;
-  if (current.state === 'staging') return configure(current);
+  if (current.state === 'staging') return advance(current);
   if (current.intent !== 'publish' || current.state !== 'saved')
     return { ok: false as const, code: 'CONFLICT' as const };
   if (deps.now() >= deadline) return current;
   let seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);
-  if (seeded.ok) return configure(status(seeded, scope));
+  if (seeded.ok) return advance(status(seeded, scope));
   if (seeded.code !== 'SOURCE_NOT_READY') return seeded;
   for (let page = 0, attempt = 0; attempt < 500; attempt++) {
     if (deps.now() >= deadline) return get();
@@ -173,7 +199,7 @@ export async function continueAdminCatalogProductOperation(
     if (progress.data.complete) {
       if (deps.now() >= deadline) return current;
       seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);
-      return seeded.ok ? configure(status(seeded, scope)) : seeded;
+      return seeded.ok ? advance(status(seeded, scope)) : seeded;
     }
     if (progress.data.nextPage <= page || progress.data.nextPage >= progress.data.pages)
       return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
