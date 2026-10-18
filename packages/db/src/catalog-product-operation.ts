@@ -6,6 +6,9 @@ import {
   buildWriteSchema,
   catalogReferencedImageIds,
   getCollection,
+  productFamilyForDoc,
+  readProductSubcategories,
+  storedCatalogTaxonomy,
   validateProductPublication,
   writableFields,
 } from '@vibelingan-channel/shared';
@@ -1178,6 +1181,20 @@ async function publishOperation(
         }),
       ),
     );
+  const family = productFamilyForDoc(next);
+  const registry = family
+    ? storedCatalogTaxonomy(family, await tx.get('catalogTaxonomies', family))
+    : null;
+  if (!registry || readProductSubcategories(next, registry).status !== 'valid')
+    return catalogValidationFailure('commit', [
+      CatalogIssueSchema.parse({
+        code: 'INVALID_VALUE',
+        stage: 'classification',
+        path: 'subcategoryIds',
+        severity: 'error',
+        remedy: registry ? 'classify' : 'system-repair',
+      }),
+    ]);
   next = {
     ...next,
     catalogDetailPublication: CatalogDetailPublicationSchema.parse({

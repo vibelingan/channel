@@ -1360,3 +1360,8 @@ continue在原saved seed和staging重开均按持久cursor调用原native配置�
 ## P3e7c6 原任务引用页续接
 
 实际continue在媒体ready后冻结原引用承诺、按真实staged逐页暂存，继承父剩余预算。明确MEDIA_BUSY返回有界恢复游标，下一请求携回，服务端重验实际页/账本摘要；客户端不控制图片列表、增量或预算。54新增/521相关/5979全包+脚本/Node20 3014/19类型+E2E/9Biome/standing SDK通过；11故障12重叠另1SDK、5SHA恢复，604安装SDK含88/36页事务、6ACK回滚、提交丢回应、证据读错误和实际Admin满80槽offset3续第四成员。真实21PNG20+1、零图、并发、取消/预算和公开HTTP404已测；105图组合保留。旧媒体阶段断言按新增引用阶段调整并保留无重复媒体写；相对路径/冗余类型判断/探针漏ID及变量范围错误记录于[P3e7c6](P3e7c6_OWNED_REFERENCE_CONTINUE.zh-CN.md)。当前仍只暂存私有引用，最终发布/UI/现场验收未关闭，fullDeliveryReady=false。
+
+
+## P3e7c7a 最终事务核对分类目录
+
+原native最终3写之前读取当前taxonomy，复用shared归属校验；非法赋值classify、损坏目录system-repair、未知IO不当缺行。空归属/已有archive/显式Headphones旧wired保留，目录不写入且不新增锁。3红→8新增/326native/529相关/5987全包/3022Node20/19类型+E2E/两Biome/standing SDK通过；5故障10重叠/单SHA恢复，610安装SDK含6分类控制，最终16文档操作仍3写，全套98。实际核对两文件、shared taxonomy及原分类保存/目录管理与最终回执，澄清旧Headphones正例带主分类，缺主类不自动补。精确产物停留d67cf6ab，下一完整caller小流程一并构建；未启用客户UI/未部署/真实验收未完成，详见[P3e7c7a](P3e7c7a_FINAL_CLASSIFICATION.zh-CN.md)。

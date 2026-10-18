@@ -184,3 +184,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c6 实际continue的私有引用页
 
 原任务媒体ready后，实际Admin开始承诺并按服务端游标暂存private pending页，父剩余预算向下传递，不重新获得12秒；每页读回且单调前进，完成零写。满槽恢复用原cursor的小型响应与下一请求携回，原原生成员/账本/角色校验保留。实际SDK满80前三成员不能回收、offset3续第四个真实旧根并回到原页，unknown79不清空；88/36页事务/global98。54新增/604SDK/真实21PNG20+1与公开HTTP404/105组合详见[P3e7c6](P3e7c6_OWNED_REFERENCE_CONTINUE.zh-CN.md)。只完成私有暂存，最终公开权利仍待唯一发布事务，fullDeliveryReady=false。
+
+
+## P3e7c7a 最后分类校验
+
+原native最终提交读当前taxonomy验证归属；没有共享目录写/assignmentFence变化，原product/root/proof3写保留，最终文档预算16、全套最高98。8新增/610安装SDK/5故障10重叠已验证，已有archive及空归属保持，损坏目录不猜默认；具体覆盖与显式主分类边界见[P3e7c7a](P3e7c7a_FINAL_CLASSIFICATION.zh-CN.md)。完整continue最终caller仍未接，精确产物仍d67cf6ab，fullDeliveryReady=false。

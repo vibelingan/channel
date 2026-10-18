@@ -3536,3 +3536,100 @@ test('reference recovery inherits a short parent budget after reading the pendin
   assert.equal(f.calls.recoveries.length, 0);
   assert.equal(f.h.bytes(), before);
 });
+
+for (const subcategoryIds of [['missing-child'], 'bad-assignment'])
+  test(`final owned publication refuses invalid existing subcategories ${JSON.stringify(subcategoryIds)}`, async () => {
+    const h = await ownPublishFixture({ subcategoryIds });
+    const before = h.bytes();
+    const writes = h.writes();
+    const result = object(await h.invoke(h.finishCommand));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'VALIDATION_ERROR');
+    const validation = object(result.validation);
+    assert.ok(Array.isArray(validation.issues));
+    assert.ok(
+      validation.issues.some(
+        (issue) => object(issue).path === 'subcategoryIds' && object(issue).remedy === 'classify',
+      ),
+    );
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  });
+
+test('a corrupt current taxonomy cannot be guessed as the default during final owned publication', async () => {
+  const h = await ownPublishFixture({ subcategoryIds: [] });
+  h.rows.catalogTaxonomies = [
+    { _id: 'misc', family: 'toys', revision: 0, name: 'Corrupt', children: [] },
+  ];
+  const before = h.bytes();
+  const result = object(await h.invoke(h.finishCommand));
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'VALIDATION_ERROR');
+  const validation = object(result.validation);
+  assert.ok(Array.isArray(validation.issues));
+  assert.ok(validation.issues.some((issue) => object(issue).remedy === 'system-repair'));
+  assert.equal(h.bytes(), before);
+});
+
+for (const subcategoryIds of [undefined, []])
+  test(`final owned publication preserves valid unassigned classifications ${JSON.stringify(subcategoryIds)}`, async () => {
+    const h = await ownPublishFixture(subcategoryIds === undefined ? {} : { subcategoryIds });
+    const before = h.rows.products?.[0];
+    assert.ok(before);
+    const result = object(await h.invoke(h.finishCommand));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const product = h.rows.products?.[0];
+    assert.ok(product);
+    assert.equal(Object.hasOwn(product, 'subcategoryIds'), Object.hasOwn(before, 'subcategoryIds'));
+    assert.deepEqual(product.subcategoryIds, before.subcategoryIds);
+    assert.equal(h.rows.catalogTaxonomies, undefined);
+  });
+
+test('final owned publication keeps an existing archived subcategory and does not write a shared registry fence', async () => {
+  const h = await ownPublishFixture({ productFamily: 'toys', subcategoryIds: ['toy-archived'] });
+  h.rows.catalogTaxonomies = [
+    {
+      _id: 'toys',
+      family: 'toys',
+      revision: 4,
+      name: 'Toys',
+      children: [
+        {
+          id: 'toy-archived',
+          name: 'Archived toys',
+          slug: 'archived-toys',
+          order: 0,
+          status: 'archived',
+        },
+      ],
+      assignmentFence: 7,
+    },
+  ];
+  const registry = JSON.stringify(h.rows.catalogTaxonomies);
+  const writes = h.writes();
+  const result = object(await h.invoke(h.finishCommand));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(h.rows.products?.[0]?.subcategoryIds, ['toy-archived']);
+  assert.equal(JSON.stringify(h.rows.catalogTaxonomies), registry);
+  assert.equal(h.writes() - writes, 3);
+});
+
+test('final owned publication preserves an existing legacy Headphones category without assigning new child IDs', async () => {
+  const h = await ownPublishFixture({ productFamily: 'headphones', category: 'wired' });
+  const result = object(await h.invoke(h.finishCommand));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(h.rows.products?.[0]?.category, 'wired');
+  assert.equal(Object.hasOwn(h.rows.products?.[0] ?? {}, 'subcategoryIds'), false);
+});
+
+test('taxonomy I/O during final owned publication is never guessed as a missing default registry', async () => {
+  const h = await ownPublishFixture({ subcategoryIds: [] });
+  const get = h.tx.get;
+  h.tx.get = async (c, id) => {
+    if (c === 'catalogTaxonomies') throw Error('taxonomy unavailable');
+    return get(c, id);
+  };
+  const before = h.bytes();
+  await assert.rejects(h.invoke(h.finishCommand), /taxonomy unavailable/);
+  assert.equal(h.bytes(), before);
+});
