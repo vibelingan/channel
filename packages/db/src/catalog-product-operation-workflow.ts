@@ -1,7 +1,9 @@
-/** Public start/get/cancel only; private approval steps remain server-owned. */
+/** Public owned draft operations; approval and final publication remain server-owned. */
+import { canonicalizeCatalogProductIdentities } from '@vibelingan-channel/shared';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogDetailHeaderSchema } from '@vibelingan-channel/shared/catalog-detail';
 import {
+  CatalogIssueSchema,
   catalogIssuesFromZod,
   catalogValidationFailure,
 } from '@vibelingan-channel/shared/catalog-issues';
@@ -10,6 +12,7 @@ import {
   CatalogProductOperationStatusSchema,
 } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
+import type { CatalogProductSaveInput, CatalogProductSaveResult } from './adapter.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import type { ApprovalStageResult } from './catalog-detail-staging.ts';
 import { captureApprovalPersistenceCommand } from './catalog-detail-staging.ts';
@@ -21,6 +24,7 @@ import {
   ProductOperationGetSchema,
   ProductOperationStartSchema,
   cleanProductOperationValues,
+  submittedProductOperationDigest,
 } from './catalog-product-operation.ts';
 const SubmittedTextSchema = z.object({
   name: CatalogDetailHeaderSchema.shape.name.optional(),
@@ -32,6 +36,7 @@ const RequestSchema = z.discriminatedUnion('action', [
   }),
   ProductOperationGetSchema.extend({ action: z.literal('product-operation-get') }),
   ProductOperationCancelSchema.extend({ action: z.literal('product-operation-cancel') }),
+  ProductOperationCancelSchema.extend({ action: z.literal('product-operation-save') }),
 ]);
 export type ProductOperationStartNormalizer = (
   values: Record<string, unknown>,
@@ -39,7 +44,9 @@ export type ProductOperationStartNormalizer = (
   { ok: true; values: Record<string, unknown> } | Extract<ApprovalStageResult, { ok: false }>
 >;
 export async function runProductOperationWorkflow(
-  store: Pick<CatalogApprovalStore, 'persist'>,
+  store: Pick<CatalogApprovalStore, 'persist'> & {
+    save?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>;
+  },
   actorId: string,
   input: unknown,
   normalizeStart?: ProductOperationStartNormalizer,
@@ -54,7 +61,13 @@ export async function runProductOperationWorkflow(
       ? { ...request, action: 'operation-start' as const }
       : request.action === 'product-operation-get'
         ? { ...request, action: 'operation-get' as const }
-        : { ...request, action: 'operation-cancel' as const };
+        : request.action === 'product-operation-cancel'
+          ? { ...request, action: 'operation-cancel' as const }
+          : {
+              action: 'operation-get' as const,
+              productId: request.productId,
+              operationId: request.operationId,
+            };
   const captured = captureApprovalPersistenceCommand(command);
   if (!captured.ok) return captured;
   let result: ApprovalStageResult;
@@ -62,6 +75,8 @@ export async function runProductOperationWorkflow(
     const start = captured.command;
     const values = cleanProductOperationValues(start.values);
     if (values === null) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+    const canonical = canonicalizeCatalogProductIdentities(values);
+    if (!canonical.ok) return saveFailure({ result: 'invalid', kind: canonical.kind });
     const textInput = {
       ...values,
       ...(Object.hasOwn(values, 'description') && typeof values.description === 'string'
@@ -74,14 +89,7 @@ export async function runProductOperationWorkflow(
         'commit',
         catalogIssuesFromZod(text.error.issues, textInput, { stage: 'commit', remedy: 'edit' }),
       );
-    const submittedInputDigest = alibabaPricingFingerprint([
-      actorId,
-      start.productId,
-      start.operationId,
-      start.intent,
-      start.expectedUpdatedAt,
-      values,
-    ]);
+    const submittedInputDigest = submittedProductOperationDigest(actorId, start, values);
     if (normalizeStart) {
       const previous = await store.persist(actorId, {
         action: 'operation-get',
@@ -108,7 +116,7 @@ export async function runProductOperationWorkflow(
         } else result = await store.persist(actorId, { ...start, values, submittedInputDigest });
       } else if (previous.code !== 'NOT_FOUND') return previous;
       else {
-        const normalized = await normalizeStart(structuredClone(values));
+        const normalized = await normalizeStart(structuredClone(canonical.values));
         if (!normalized.ok) return normalized;
         const frozen = cleanProductOperationValues(
           normalized.values,
@@ -118,14 +126,65 @@ export async function runProductOperationWorkflow(
         const withoutDecisions = (patch: Record<string, unknown>) =>
           Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'supplierDecisions'));
         if (
-          alibabaPricingFingerprint(withoutDecisions(values)) !==
+          alibabaPricingFingerprint(withoutDecisions(canonical.values)) !==
           alibabaPricingFingerprint(withoutDecisions(frozen))
         )
           return { ok: false as const, code: 'CONFLICT' as const };
         result = await store.persist(actorId, { ...start, values: frozen, submittedInputDigest });
       }
-    } else result = await store.persist(actorId, { ...start, values, submittedInputDigest });
+    } else
+      result = await store.persist(actorId, {
+        ...start,
+        values: canonical.values,
+        submittedInputDigest,
+      });
   } else result = await store.persist(actorId, captured.command);
+  if (request.action === 'product-operation-save') {
+    if (!result.ok) return result;
+    if (
+      !('record' in result) ||
+      result.record.actorId !== actorId ||
+      result.record.productId !== request.productId ||
+      result.record.operationId !== request.operationId ||
+      result.record.operation.inputDigest !== request.inputDigest ||
+      !['save-draft', 'publish'].includes(result.record.operation.intent) ||
+      Object.hasOwn(result.record.operation, 'cancelledAt')
+    )
+      return { ok: false as const, code: 'CONFLICT' as const };
+    if (result.record.state === 'reserved') {
+      const identity = canonicalizeCatalogProductIdentities(result.record.operation.values);
+      if (!identity.ok) return saveFailure({ result: 'invalid', kind: identity.kind });
+      if (
+        alibabaPricingFingerprint(identity.values) !==
+        alibabaPricingFingerprint(result.record.operation.values)
+      )
+        return catalogValidationFailure('commit', [
+          {
+            code: 'INPUT_CHANGED',
+            stage: 'commit',
+            path: 'product',
+            severity: 'error',
+            remedy: 'reload',
+          },
+        ]);
+      if (!result.current || !result.revisionCurrent || result.expired)
+        return { ok: false as const, code: 'CONFLICT' as const };
+      if (!store.save) throw new Error('Owned product save persistence unavailable');
+      const saved = await store.save({
+        mode: 'update',
+        productId: request.productId,
+        data: result.record.operation.values,
+        expectedUpdatedAt: result.record.operation.expectedUpdatedAt,
+        expectedOperation: {
+          actorId,
+          operationId: request.operationId,
+          inputDigest: request.inputDigest,
+        },
+      });
+      if (saved.result !== 'saved') return saveFailure(saved);
+      result = await store.persist(actorId, captured.command);
+    }
+  }
   if (!result.ok) return result;
   if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
   const record = result.record;
@@ -183,4 +242,32 @@ export async function runProductOperationWorkflow(
     fitsJsonBudget(checked.data, CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES, 12)
     ? checked.data
     : { ok: false as const, code: 'CONFLICT' as const };
+}
+
+function saveFailure(result: Exclude<CatalogProductSaveResult, { result: 'saved' }>) {
+  const fields =
+    result.result === 'invalid-product'
+      ? result.issues.map((issue) => issue.field)
+      : result.result === 'conflict' || result.result === 'invalid'
+        ? [result.kind === 'sku' ? 'skuCode' : 'slug']
+        : [];
+  if (fields.length)
+    return catalogValidationFailure(
+      'commit',
+      fields.map((field) => {
+        const issue = {
+          code: 'INVALID_VALUE' as const,
+          stage: 'commit' as const,
+          path: field,
+          severity: 'error' as const,
+          remedy: 'edit' as const,
+        };
+        const parsed = CatalogIssueSchema.safeParse(issue);
+        return parsed.success ? parsed.data : { ...issue, path: 'product' };
+      }),
+    );
+  return {
+    ok: false as const,
+    code: result.result === 'missing' ? ('NOT_FOUND' as const) : ('CONFLICT' as const),
+  };
 }

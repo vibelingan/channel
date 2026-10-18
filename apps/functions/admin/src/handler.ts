@@ -41,7 +41,6 @@ import {
   list,
   manageCatalogDetailApproval,
   manageCatalogInquiry,
-  manageCatalogProductOperation,
   manageImageDeletion,
   persistCatalogDetailApproval,
   preparationUsingImage,
@@ -134,6 +133,7 @@ import {
   withinPendingCap,
 } from '@vibelingan-channel/shared';
 import { CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-product-operation';
+import { manageAdminCatalogProductOperation } from './catalog-product-operation.ts';
 
 import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogPriceSummarySchema } from '@vibelingan-channel/shared/catalog-detail';
@@ -697,7 +697,7 @@ export async function handleAdminRequest(
                   : action === 'approve'
                     ? await approveInOneRequest(claims.sub, req.data)
                     : typeof action === 'string' && action.startsWith('product-operation-')
-                      ? await manageCatalogProductOperation(claims.sub, req.data)
+                      ? await manageAdminCatalogProductOperation(claims.sub, req.data)
                       : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         const validation =

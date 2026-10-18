@@ -5,8 +5,7 @@ import {
 } from '@vibelingan-channel/db';
 import {
   type CollectionDoc,
-  normalizeProductSlug,
-  normalizeSkuCode,
+  canonicalizeCatalogProductIdentities,
 } from '@vibelingan-channel/shared';
 
 export type CatalogProductWriteErrorCode =
@@ -36,39 +35,13 @@ function canonicalizeIdentityFields(values: unknown): Record<string, unknown> {
   if (!values || typeof values !== 'object' || Array.isArray(values)) {
     throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product values are invalid.');
   }
-  const record = values as Record<string, unknown>;
-  const canonical = { ...record };
-  if (Object.hasOwn(record, 'slug')) {
-    if (
-      record.slug === undefined ||
-      record.slug === null ||
-      (typeof record.slug === 'string' && record.slug.trim() === '')
-    ) {
-      canonical.slug = typeof record.slug === 'string' ? '' : record.slug;
-    } else {
-      const slug = normalizeProductSlug(record.slug);
-      if (slug === null) {
-        throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product slug is invalid.');
-      }
-      canonical.slug = slug;
-    }
-  }
-  if (Object.hasOwn(record, 'skuCode')) {
-    if (
-      record.skuCode === undefined ||
-      record.skuCode === null ||
-      (typeof record.skuCode === 'string' && record.skuCode.trim() === '')
-    ) {
-      canonical.skuCode = typeof record.skuCode === 'string' ? '' : record.skuCode;
-    } else {
-      const skuCode = normalizeSkuCode(record.skuCode);
-      if (skuCode === null) {
-        throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product SKU code is invalid.');
-      }
-      canonical.skuCode = skuCode;
-    }
-  }
-  return canonical;
+  const canonical = canonicalizeCatalogProductIdentities(values as Record<string, unknown>);
+  if (!canonical.ok)
+    throw new CatalogProductWriteError(
+      'INVALID_IDENTITY',
+      canonical.kind === 'slug' ? 'Product slug is invalid.' : 'Product SKU code is invalid.',
+    );
+  return canonical.values;
 }
 
 async function saveCatalogProduct(input: {

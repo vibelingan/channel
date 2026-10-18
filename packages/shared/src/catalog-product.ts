@@ -87,6 +87,28 @@ export function normalizeSkuCode(value: unknown): string | null {
   return normalized && normalized.length <= 120 ? normalized : null;
 }
 
+/** The canonical website fields and identity ownership keys must use the same values. */
+export function canonicalizeCatalogProductIdentities(
+  values: Record<string, unknown>,
+): { ok: true; values: Record<string, unknown> } | { ok: false; kind: 'slug' | 'sku' } {
+  const canonical = { ...values };
+  for (const [field, kind, normalize] of [
+    ['slug', 'slug', normalizeProductSlug],
+    ['skuCode', 'sku', normalizeSkuCode],
+  ] as const) {
+    if (!Object.hasOwn(values, field)) continue;
+    const value = values[field];
+    if (value === undefined || value === null || (typeof value === 'string' && value.trim() === ''))
+      canonical[field] = typeof value === 'string' ? '' : value;
+    else {
+      const normalized = normalize(value);
+      if (normalized === null) return { ok: false, kind };
+      canonical[field] = normalized;
+    }
+  }
+  return { ok: true, values: canonical };
+}
+
 export function productFamilyForDoc(doc: Record<string, unknown>): ProductFamily | null {
   if (isProductFamily(doc.productFamily)) return doc.productFamily;
   if (Object.hasOwn(doc, 'productFamily')) return null;

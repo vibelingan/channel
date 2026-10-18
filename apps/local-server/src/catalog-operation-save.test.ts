@@ -2805,19 +2805,19 @@ test('racing normalizers retain the first frozen choices for the same submitted 
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const decisions = (digest: string) => ({
-    ...start.values,
+  const decisions = (digest: string, original: Record<string, unknown> = start.values) => ({
+    ...original,
     supplierDecisions: { description: { choice: 'keep', incomingDigest: digest.repeat(64) } },
   });
-  const pending = manageCatalogProductOperation('admin', input, async () => {
+  const pending = manageCatalogProductOperation('admin', input, async (original) => {
     entered();
     await gate;
-    return { ok: true, values: decisions('a') };
+    return { ok: true, values: decisions('a', original) };
   });
   await reached;
-  const firstCommitted = await manageCatalogProductOperation('admin', input, async () => ({
+  const firstCommitted = await manageCatalogProductOperation('admin', input, async (original) => ({
     ok: true,
-    values: decisions('b'),
+    values: decisions('b', original),
   }));
   assert.ok(firstCommitted.ok);
   const before = h.bytes();
@@ -2976,88 +2976,149 @@ test('legacy roots replay through public start without adding submitted metadata
   );
 });
 
-test('full legal submitted byte budget retains room for server-only supplier metadata without a second patch copy', async (t) => {
+for (const identity of [{}, { slug: 'ﬄ'.repeat(40), skuCode: '㌖'.repeat(20) }])
+  test(`full legal submitted byte budget retains server-only metadata without a second patch copy ${Object.keys(identity).join(',')}`, async (t) => {
+    const h = fixture(t);
+    setAdapter(h.adapter);
+    const photos: Record<string, string[]> = {};
+    const values = { name: 'C', configurationPhotos: photos, ...identity };
+    const input = { ...start, action: 'product-operation-start', values };
+    const bytes = () => Buffer.byteLength(JSON.stringify(input));
+    let index = 0;
+    for (; index < 500; index++) {
+      photos[`v${index}`] = Array.from({ length: 9 }, () => 'x'.repeat(200));
+      if (bytes() > PRODUCT_OPERATION_INPUT_MAX_BYTES) {
+        Reflect.deleteProperty(photos, `v${index}`);
+        break;
+      }
+    }
+    const finalPhotos: string[] = [];
+    photos[`v${index}`] = finalPhotos;
+    while (finalPhotos.length < 9) {
+      finalPhotos.push('x'.repeat(200));
+      if (bytes() > PRODUCT_OPERATION_INPUT_MAX_BYTES) {
+        finalPhotos.pop();
+        break;
+      }
+    }
+    const remaining = PRODUCT_OPERATION_INPUT_MAX_BYTES - bytes();
+    assert.ok(remaining >= 0 && remaining < 1000);
+    const namePadding = Math.min(remaining, 199);
+    if (remaining > namePadding) {
+      const lastKey = `v${index}`;
+      photos[lastKey + 'k'.repeat(remaining - namePadding)] = finalPhotos;
+      Reflect.deleteProperty(photos, lastKey);
+    }
+    values.name += 'x'.repeat(namePadding);
+    assert.equal(bytes(), PRODUCT_OPERATION_INPUT_MAX_BYTES);
+    const supplierDecisions = Object.fromEntries(
+      ['description', 'gallery', 'descriptionImages'].map((part) => [
+        part,
+        { choice: 'keep', incomingDigest: 'a'.repeat(64) },
+      ]),
+    );
+    const maximumServerMetadataBytes = Buffer.byteLength(
+      JSON.stringify({
+        supplierDecisions: Object.fromEntries(
+          ['description', 'gallery', 'descriptionImages'].map((part) => [
+            part,
+            { choice: 'incoming', incomingDigest: 'a'.repeat(64) },
+          ]),
+        ),
+        submittedInputDigest: 'a'.repeat(64),
+      }),
+    );
+    assert.ok(
+      maximumServerMetadataBytes <
+        PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES - PRODUCT_OPERATION_INPUT_MAX_BYTES,
+    );
+    const opened = await manageCatalogProductOperation('admin', input, async (original) => ({
+      ok: true,
+      values: { ...original, supplierDecisions },
+    }));
+    assert.ok(opened.ok, JSON.stringify(opened));
+    const root = JSON.parse(h.bytes()).catalogDetailApprovals[0];
+    assert.ok(Buffer.byteLength(JSON.stringify(root)) < 512 * 1024);
+    assert.equal(
+      Object.keys(root.operation).filter((key) =>
+        ['rawValues', 'submittedValues', 'originalValues'].includes(key),
+      ).length,
+      0,
+    );
+    assert.deepEqual(root.operation.values.configurationPhotos, photos);
+    assert.deepEqual(root.operation.values.supplierDecisions, supplierDecisions);
+    assert.equal('submittedInputDigest' in opened, false);
+    assert.ok(
+      captureProductOperationSave({
+        mode: 'update',
+        productId: 'p',
+        data: root.operation.values,
+        expectedUpdatedAt: at,
+        expectedOperation: { actorId: 'admin', operationId, inputDigest: opened.inputDigest },
+      }),
+    );
+    const before = h.bytes();
+    const rejected = await manageCatalogProductOperation(
+      'admin',
+      { ...input, values: { ...values, name: `${values.name}x` } },
+      async () => {
+        throw Error('over-budget input reached normalization');
+      },
+    );
+    assert.ok(!rejected.ok && rejected.code === 'VALIDATION_ERROR');
+    assert.equal(h.bytes(), before);
+  });
+
+test('raw legacy identity patch replays without a normalizer after canonical identity freezing is added', async (t) => {
   const h = fixture(t);
   setAdapter(h.adapter);
-  const photos: Record<string, string[]> = {};
-  const values = { name: 'C', configurationPhotos: photos };
-  const input = { ...start, action: 'product-operation-start', values };
-  const bytes = () => Buffer.byteLength(JSON.stringify(input));
-  let index = 0;
-  for (; index < 500; index++) {
-    photos[`v${index}`] = Array.from({ length: 9 }, () => 'x'.repeat(200));
-    if (bytes() > PRODUCT_OPERATION_INPUT_MAX_BYTES) {
-      Reflect.deleteProperty(photos, `v${index}`);
-      break;
-    }
-  }
-  const finalPhotos: string[] = [];
-  photos[`v${index}`] = finalPhotos;
-  while (finalPhotos.length < 9) {
-    finalPhotos.push('x'.repeat(200));
-    if (bytes() > PRODUCT_OPERATION_INPUT_MAX_BYTES) {
-      finalPhotos.pop();
-      break;
-    }
-  }
-  const remaining = PRODUCT_OPERATION_INPUT_MAX_BYTES - bytes();
-  assert.ok(remaining >= 0 && remaining < 1000);
-  values.name += 'x'.repeat(remaining);
-  assert.equal(bytes(), PRODUCT_OPERATION_INPUT_MAX_BYTES);
-  const supplierDecisions = Object.fromEntries(
-    ['description', 'gallery', 'descriptionImages'].map((part) => [
-      part,
-      { choice: 'keep', incomingDigest: 'a'.repeat(64) },
-    ]),
-  );
-  const maximumServerMetadataBytes = Buffer.byteLength(
-    JSON.stringify({
-      supplierDecisions: Object.fromEntries(
-        ['description', 'gallery', 'descriptionImages'].map((part) => [
-          part,
-          { choice: 'incoming', incomingDigest: 'a'.repeat(64) },
-        ]),
-      ),
-      submittedInputDigest: 'a'.repeat(64),
-    }),
-  );
-  assert.ok(
-    maximumServerMetadataBytes <
-      PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES - PRODUCT_OPERATION_INPUT_MAX_BYTES,
-  );
-  const opened = await manageCatalogProductOperation('admin', input, async (original) => ({
-    ok: true,
-    values: { ...original, supplierDecisions },
-  }));
+  const beforeStart = await persistCatalogDetailApproval('admin', start);
+  assert.ok(beforeStart.ok && 'record' in beforeStart);
+  const before = h.bytes();
+  const response = await manageCatalogProductOperation('admin', {
+    ...start,
+    action: 'product-operation-start',
+  });
+  assert.ok(response.ok, JSON.stringify(response));
+  assert.equal(response.inputDigest, beforeStart.record.operation.inputDigest);
+  assert.equal(h.bytes(), before);
+  const changed = await manageCatalogProductOperation('admin', {
+    ...start,
+    action: 'product-operation-start',
+    values: { ...values, skuCode: 'Another' },
+  });
+  assert.ok(!changed.ok && changed.code === 'CONFLICT');
+  assert.equal(h.bytes(), before);
+});
+
+test('public facade without a supplier normalizer freezes canonical identity fields and retains raw replay identity', async (t) => {
+  const h = fixture(t);
+  setAdapter(h.adapter);
+  const input = {
+    ...start,
+    action: 'product-operation-start',
+    values: { slug: '  Clock URL ', skuCode: '  Ab-120 ' },
+  };
+  const opened = await manageCatalogProductOperation('admin', input);
   assert.ok(opened.ok, JSON.stringify(opened));
   const root = JSON.parse(h.bytes()).catalogDetailApprovals[0];
-  assert.ok(Buffer.byteLength(JSON.stringify(root)) < 512 * 1024);
-  assert.equal(
-    Object.keys(root.operation).filter((key) =>
-      ['rawValues', 'submittedValues', 'originalValues'].includes(key),
-    ).length,
-    0,
-  );
-  assert.deepEqual(root.operation.values.configurationPhotos, photos);
-  assert.deepEqual(root.operation.values.supplierDecisions, supplierDecisions);
-  assert.equal('submittedInputDigest' in opened, false);
-  assert.ok(
-    captureProductOperationSave({
-      mode: 'update',
-      productId: 'p',
-      data: root.operation.values,
-      expectedUpdatedAt: at,
-      expectedOperation: { actorId: 'admin', operationId, inputDigest: opened.inputDigest },
-    }),
-  );
+  assert.deepEqual(root.operation.values, { slug: 'clock-url', skuCode: 'ab-120' });
+  const saved = await h.adapter.saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'p',
+    data: root.operation.values,
+    expectedUpdatedAt: at,
+    expectedOperation: { actorId: 'admin', operationId, inputDigest: opened.inputDigest },
+  });
+  assert.equal(saved.result, 'saved');
   const before = h.bytes();
-  const rejected = await manageCatalogProductOperation(
-    'admin',
-    { ...input, values: { ...values, name: `${values.name}x` } },
-    async () => {
-      throw Error('over-budget input reached normalization');
-    },
-  );
-  assert.ok(!rejected.ok && rejected.code === 'VALIDATION_ERROR');
+  const replayed = await manageCatalogProductOperation('admin', input);
+  assert.ok(replayed.ok && replayed.state === 'saved', JSON.stringify(replayed));
+  assert.equal(h.bytes(), before);
+  const changed = await manageCatalogProductOperation('admin', {
+    ...input,
+    values: { slug: 'clock-url', skuCode: 'ab-120' },
+  });
+  assert.ok(!changed.ok && changed.code === 'CONFLICT', JSON.stringify(changed));
   assert.equal(h.bytes(), before);
 });

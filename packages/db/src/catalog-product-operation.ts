@@ -77,7 +77,7 @@ import {
 } from './catalog-source-inputs.ts';
 
 export const PRODUCT_OPERATION_INPUT_MAX_BYTES = CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES;
-export const PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES = PRODUCT_OPERATION_INPUT_MAX_BYTES + 1024;
+export const PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES = PRODUCT_OPERATION_INPUT_MAX_BYTES + 2048;
 export const PRODUCT_OPERATION_RECORD_MAX_BYTES = 512 * 1024;
 export const PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES = 1024 * 1024;
 const SNAPSHOT_MAX_BYTES = 2 * 1024 * 1024;
@@ -353,8 +353,20 @@ export async function runProductOperation(
         record.operation.expectedUpdatedAt === command.expectedUpdatedAt;
       const legacyReplay =
         record.operation.submittedInputDigest === undefined &&
-        record.operation.inputDigest ===
-          requestDigest(actorId, { ...command, submittedInputDigest: undefined }, values);
+        (record.operation.inputDigest ===
+          requestDigest(actorId, { ...command, submittedInputDigest: undefined }, values) ||
+          (command.submittedInputDigest !== undefined &&
+            command.submittedInputDigest ===
+              submittedProductOperationDigest(
+                actorId,
+                {
+                  productId: record.productId,
+                  operationId: record.operationId,
+                  intent: record.operation.intent,
+                  expectedUpdatedAt: record.operation.expectedUpdatedAt,
+                },
+                record.operation.values,
+              )));
       if (!sameSubmitted && !legacyReplay) return fail('CONFLICT');
     }
     return inspect(tx, record);
@@ -424,6 +436,23 @@ export function cleanProductOperationValues(
   } catch {
     return null;
   }
+}
+export function submittedProductOperationDigest(
+  actorId: string,
+  command: Pick<
+    z.infer<typeof ProductOperationStartSchema>,
+    'productId' | 'operationId' | 'intent' | 'expectedUpdatedAt'
+  >,
+  values: Record<string, unknown>,
+) {
+  return alibabaPricingFingerprint([
+    actorId,
+    command.productId,
+    command.operationId,
+    command.intent,
+    command.expectedUpdatedAt,
+    values,
+  ]);
 }
 function requestDigest(
   actorId: string,

@@ -149,3 +149,8 @@ product-operation-start/get/cancel经现有Admin鉴权与开关，由独立DB fa
 ## P3e7c1 原提交与补全决定
 
 公开开始请求的原提交摘要与冻结后的 patch 同根保存，摘要进入 inputDigest；只有可信服务器可以补 supplierDecisions。重试返回首次冻结的决定，保存仍与冻结 patch 精确相等。原请求256KiB完整保留，内部仅增加有界元数据；无第二份 patch、新库或锁。旧根严格重放、篡改与公众摘要注入拒绝。实际 helper/SDK/容量/最终发布元数据链的范围见 [P3e7c1](P3e7c1_OWNED_START_NORMALIZATION.zh-CN.md)，Admin/UI 接线及真实验收继续。
+
+
+## P3e7c2 实际 Admin 的冻结草稿保存
+
+公开start调用实际keep helper，原身份规范化成为shared规则并在冻结前执行；原提交摘要保留规范化前原稿身份。save只带scope/digest，服务器从根取patch，原生expectedOperation+版本事务才是写入许可。保存后查询小回执，saved/staging/complete重试只读，取消不可恢复；publish意图在该步骤不发布。旧未规范reserved不改冻结原稿，返回reload。完整256KiB公开预算、内部有界2048B余量以及根512KiB/1MiB上限保留。实际Admin/API/SDK/竞争与容量证据见[P3e7c2](P3e7c2_ADMIN_OWNED_DRAFT_SAVE.zh-CN.md)；客户continue/UI、live候选/review/真实验收仍待完成。

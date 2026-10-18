@@ -214,7 +214,7 @@ export function manageCatalogProductOperation(
   normalizeStart?: ProductOperationStartNormalizer,
 ) {
   return runProductOperationWorkflow(
-    { persist: persistCatalogDetailApproval },
+    { persist: persistCatalogDetailApproval, save: saveCatalogProductWithIdentities },
     actorId,
     input,
     normalizeStart,

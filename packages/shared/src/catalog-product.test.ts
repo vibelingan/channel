@@ -298,3 +298,26 @@ test('unclassified queue includes empty/invalid families but preserves absent-on
   }
   assert.equal((FILTER_OPERATORS as readonly string[]).includes('hasNoProductFamily'), false);
 });
+
+test('shared product identity canonicalization keeps website fields and ownership keys aligned', async () => {
+  const { canonicalizeCatalogProductIdentities: canonicalize } = await import(
+    './catalog-product.ts'
+  );
+  const input = { name: 'Clock', slug: '  Clock URL ', skuCode: '  Ab-120 ' };
+  assert.deepEqual(canonicalize(input), {
+    ok: true,
+    values: { name: 'Clock', slug: 'clock-url', skuCode: 'ab-120' },
+  });
+  assert.deepEqual(input, { name: 'Clock', slug: '  Clock URL ', skuCode: '  Ab-120 ' });
+  assert.deepEqual(canonicalize({ name: 'Clock' }), { ok: true, values: { name: 'Clock' } });
+  assert.deepEqual(canonicalize({ slug: '  ', skuCode: '\t' }), {
+    ok: true,
+    values: { slug: '', skuCode: '' },
+  });
+  assert.deepEqual(canonicalize({ slug: null, skuCode: undefined }), {
+    ok: true,
+    values: { slug: null, skuCode: undefined },
+  });
+  assert.deepEqual(canonicalize({ slug: 'admin' }), { ok: false, kind: 'slug' });
+  assert.deepEqual(canonicalize({ skuCode: 123 }), { ok: false, kind: 'sku' });
+});

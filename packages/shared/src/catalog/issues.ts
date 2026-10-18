@@ -2,7 +2,7 @@
 import { type ZodIssue, z } from 'zod';
 
 const fields = new Set(
-  `data field product source schemaVersion _id id name description descriptionText
+  `data field product source schemaVersion _id id name slug description descriptionText
 facts value specifications packaging notes noteBlocks content kind text variants items total page pageSize
 hasMore sku options images imageIds descriptionImages descriptionImageIds offers pricing currency mode
 basis amountMinor unitAmountMinor minimumQuantity maximumQuantity minimumOrderQuantity tiers inventory

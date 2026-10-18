@@ -1325,3 +1325,8 @@ index真实调用恢复封装器，仅PENDING_FULL hint触发；重查自身scop
 ## P3e7c1 原提交与服务器补全冻结
 
 公开 start 记录原提交摘要，可信服务器仅补 supplierDecisions，冻结实际 withAdminEditsKept 输出；精确保存约束保留。同原提交重放首次决定，来源变化/并发/提交丢回应均不重算；旧根严格兼容，公开摘要注入拒绝。原 256 KiB 容量完整保留，独立最坏元数据 475 字节，无第二份大 patch。27 新增、495 相关/5751 全量/2763 Node20、19types/E2E/standingSDK/六文件Biome 通过。9 故障（15 重叠失败+1 SDK-only）/三源码 SHA 恢复，498 安装 SDK 控制通过。网站描述超限反例已提前到补全前并保留字段原因。人工核对三生产/三测试/四记录，纠正无 normalizer 摘要与旧类型诊断数量措辞；详见 [P3e7c1](P3e7c1_OWNED_START_NORMALIZATION.zh-CN.md)。精确产物后补，下一步接实际 Admin，原 UI P1/真实云/P95/三时钟20验收未关闭，fullDeliveryReady=false。
+
+
+## P3e7c2 实际 Admin 开始与绑定草稿保存
+
+Admin start调用既有keep规则；新save仅接受原scope/digest，从根取冻结patch并经原生事务保存商品/身份+回执，再返回小状态。已保存历史只读，publish意图仍只存草稿；无分类可保存。实际URL反例暴露底层只规范占用键，已提取原Admin纯身份规则到shared并在冻结前共用，旧根保留原稿/未规范reserved拒绝重写。37新增、555串联/5788整包/2823Node20、19types/E2E/SDK/11Biome通过；9故障33重叠失败+2SDK-only/四SHA恢复，518SDK含六ACK回滚和提交丢回应，普通无新图保存3笔事务3/7/3操作。独立无normalizer故障曾幸存，补真实facade控制后全重跑。详见[P3e7c2](P3e7c2_ADMIN_OWNED_DRAFT_SAVE.zh-CN.md)，保留测试路径/夹具/类型修正与真实云界限。人工检查11代码/测试及四记录，纠正字段规范化归属。精确提交产物后补；原UI P1/continue/live/review/真实provider/P95/三时钟20件验收未关闭，fullDeliveryReady=false。
