@@ -21,6 +21,7 @@ import { type SessionClaims, signSession, verifySession } from '@vibelingan-chan
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
   type CatalogProductSaveInput,
   SOURCE_MEDIA_IMPORT_OWNER,
   UnknownCollectionError,
@@ -2057,9 +2058,10 @@ async function abandonUploadAction(
       }
 
       if (
-        typeof current.publishedRefCount !== 'number' ||
-        !Number.isFinite(current.publishedRefCount) ||
-        current.publishedRefCount !== 0
+        !Object.hasOwn(current, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD) &&
+        (typeof current.publishedRefCount !== 'number' ||
+          !Number.isFinite(current.publishedRefCount) ||
+          current.publishedRefCount !== 0)
       ) {
         return err('CONFLICT', 'Image reference count must be reconciled before abandonment.');
       }
@@ -2079,7 +2081,21 @@ async function abandonUploadAction(
       (fileId) => mediaStorage().deleteObject(fileId),
     );
     deleted = result === 'deleted' || result === 'missing';
-    if (!deleted) return err('INTERNAL_ERROR', 'Image deletion is incomplete; retry abandonment.');
+    if (!deleted) {
+      if (result === 'forbidden')
+        return err('FORBIDDEN', 'Only the uploader may abandon this image.');
+      if (result === 'conflict')
+        return err(
+          'CONFLICT',
+          'Image has active or unfinished references. Finish or cancel the related product operation, then try again.',
+        );
+      if (result === 'corrupt')
+        return err(
+          'CONFLICT',
+          'Image data needs to be repaired before removal. The image has been kept.',
+        );
+      return err('INTERNAL_ERROR', 'Image deletion is incomplete; retry abandonment.');
+    }
     return ok({ deleted: true });
   } finally {
     if (!deleted) await releaseImageReferenceLocks(locks.imageIds, locks.owner);

@@ -26,6 +26,7 @@ import {
   claimAlibabaSyncRunInCloudBase,
   incrementCatalogImageReferenceInCloudBase,
   manageCatalogPreparationJobInCloudBase,
+  manageImageDeletionInCloudBase,
   mutateCatalogRowInCloudBase,
   preparingProductHiddenWhere,
   saveCatalogProductInCloudBase,
@@ -3242,4 +3243,99 @@ test('native invalid reference delta is refused before starting a transaction', 
     incrementCatalogImageReferenceInCloudBase(h.db, { imageId: 'image', delta: 0.5 }),
   );
   assert.equal(h.controls.maximumOperations, 0);
+});
+
+function deletionReferenceFixture(base: number, delta: 1 | -1, committed = true) {
+  const plan = buildCatalogImageReferencePlan(
+    '1'.repeat(64),
+    delta === -1 ? ['image'] : [],
+    delta === 1 ? ['image'] : [],
+  );
+  return fakeDatabase({
+    images: [
+      {
+        _id: 'image',
+        status: 'active',
+        uploadedByUserId: 'u',
+        publishedRefCount: base,
+        imageMutationOwner: 'op',
+        imageMutationStartedAt: '2026-10-18T00:00:00.000Z',
+        storageProvider: 'local-disk',
+        storageFileId: 'local://one',
+        catalogPublishedReferenceLedger: {
+          version: 'catalog-image-reference-ledger-v1',
+          epoch: 4,
+          pending: [catalogImageReferenceEntry(plan, 0)],
+        },
+      },
+    ],
+    catalogDetailApprovals: committed ? [plan.proof] : [],
+  });
+}
+const referenceDeletionBegin = {
+  action: 'begin',
+  imageId: 'image',
+  uploadedByUserId: 'u',
+  owner: 'op',
+  startedAt: '2026-10-18T00:00:00.000Z',
+} as const;
+for (const mode of ['public', 'removed', 'unresolved'] as const)
+  test(`native deletion checks complete reference state ${mode}`, async () => {
+    const h = deletionReferenceFixture(
+      mode === 'removed' ? 1 : 0,
+      mode === 'removed' ? -1 : 1,
+      mode !== 'unresolved',
+    );
+    const before = structuredClone(h.store);
+    const result = await manageImageDeletionInCloudBase(h.db, referenceDeletionBegin);
+    assert.equal(result.status, mode === 'removed' ? 'ready' : 'conflict');
+    if (mode === 'removed') {
+      assert.equal(h.controls.maximumOperations, 4);
+      const image = h.store.get('images')?.get('image');
+      assert.ok(image);
+      assert.equal(image.status, 'deleted');
+      assert.equal(image.publishedRefCount, 0);
+      assert.deepEqual(image.catalogPublishedReferenceLedger, {
+        version: 'catalog-image-reference-ledger-v1',
+        epoch: 5,
+        pending: [],
+      });
+    } else assert.deepEqual(h.store, before);
+  });
+for (const fault of ['silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`native deletion reference quarantine rolls back ${fault}`, async () => {
+    const h = deletionReferenceFixture(1, -1);
+    const before = structuredClone(h.store);
+    h.controls[fault] = 'images/image';
+    await assert.rejects(manageImageDeletionInCloudBase(h.db, referenceDeletionBegin));
+    assert.deepEqual(h.store, before);
+    h.controls[fault] = '';
+    assert.equal(
+      (await manageImageDeletionInCloudBase(h.db, referenceDeletionBegin)).status,
+      'ready',
+    );
+  });
+test('native deletion captures the original owner/image command before asynchronous transaction startup', async () => {
+  const h = deletionReferenceFixture(1, -1);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const database: typeof h.db = {
+    ...h.db,
+    runTransaction: async (operation) => {
+      await gate;
+      return h.db.runTransaction(operation);
+    },
+  };
+  const command: Parameters<typeof manageImageDeletionInCloudBase>[1] = {
+    ...referenceDeletionBegin,
+  };
+  const pending = manageImageDeletionInCloudBase(database, command);
+  command.imageId = 'other';
+  command.owner = 'other';
+  command.uploadedByUserId = 'other';
+  release();
+  assert.equal((await pending).status, 'ready');
+  assert.equal(h.store.get('images')?.get('image')?.status, 'deleted');
 });

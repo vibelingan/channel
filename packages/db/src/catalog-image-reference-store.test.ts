@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
+  planCatalogImageReferenceSettlement,
   runCatalogImageReferenceIncrement,
   runCatalogImageReferenceRead,
 } from './catalog-image-reference-store.ts';
@@ -533,6 +534,32 @@ test('zero delta cleans terminal proofs once and subsequent zero adjustment is r
   h.reset();
   const before = h.bytes();
   assert.equal(await runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta: 0 }), 1);
+  assert.deepEqual(h.calls, ['get:images:image']);
+  assert.equal(h.bytes(), before);
+});
+
+test('settlement planning reads one snapshot without writing or changing the input image', async () => {
+  const h = fixture([{ delta: 1, committed: true }]);
+  const before = h.bytes();
+  const plan = await planCatalogImageReferenceSettlement(h.tx, { imageId: 'image' });
+  assert.ok(plan.snapshot.state === 'counted');
+  assert.equal(plan.snapshot.effectiveCount, 1);
+  assert.equal(plan.snapshot.image.publishedRefCount, 0);
+  assert.equal(plan.settlement?.publishedRefCount, 1);
+  assert.deepEqual(
+    Reflect.get(Object(plan.settlement?.catalogPublishedReferenceLedger), 'pending'),
+    [],
+  );
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.bytes(), before);
+});
+test('settlement planning reserves the caller write even though planning itself is read-only', async () => {
+  const h = fixture([{ delta: 1, committed: true }]);
+  const before = h.bytes();
+  await assert.rejects(
+    planCatalogImageReferenceSettlement(h.tx, { imageId: 'image', maxDocumentOperations: 2 }),
+    /DOCUMENT_BUDGET_EXCEEDED/,
+  );
   assert.deepEqual(h.calls, ['get:images:image']);
   assert.equal(h.bytes(), before);
 });

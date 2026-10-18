@@ -3,6 +3,15 @@ import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
+import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  emptyCatalogImageReferenceCount,
+  planCatalogImageReferenceSettlement,
+} from './catalog-image-reference-store.ts';
+import {
+  CatalogImageReferenceError,
+  catalogImageReferenceProofIds,
+} from './catalog-image-references.ts';
 
 const token = z
   .string()
@@ -79,6 +88,13 @@ function targets(image: CollectionDoc) {
 /** Only a persisted terminal row with unchanged storage identity may be resumed. */
 export function readImageDeletionIntent(image: CollectionDoc): ImageDeletionIntent | null {
   if (image.status !== 'deleted') return null;
+  if (Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
+    try {
+      if (emptyCatalogImageReferenceCount(image) !== 0) return null;
+    } catch {
+      return null;
+    }
+  }
   const parsed = ImageDeletionIntentSchema.safeParse(image.imageDeletion);
   if (!parsed.success || parsed.data.uploadedByUserId !== image.uploadedByUserId) return null;
   const current = targets(image);
@@ -100,7 +116,7 @@ export async function runImageDeletion(
   input: ImageDeletionCommand,
 ): Promise<ImageDeletionResult> {
   const command = ImageDeletionCommandSchema.parse(input);
-  const image = await store.get('images', command.imageId);
+  let image = await store.get('images', command.imageId);
   if (!image) return { status: 'missing' };
   if (image._id !== command.imageId) return { status: 'corrupt' };
   if (command.action !== 'begin-orphan' && image.uploadedByUserId !== command.uploadedByUserId)
@@ -128,11 +144,38 @@ export async function runImageDeletion(
   if (
     lock.state !== 'owned' ||
     lock.owner !== command.owner ||
-    (command.action === 'begin-orphan'
-      ? (image.publishedRefCount ?? 0) !== 0
-      : image.publishedRefCount !== 0)
+    (!Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD) &&
+      (command.action === 'begin-orphan'
+        ? (image.publishedRefCount ?? 0) !== 0
+        : image.publishedRefCount !== 0))
   )
     return { status: 'conflict' };
+  if (Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
+    try {
+      let count = emptyCatalogImageReferenceCount(image);
+      if (count === null) {
+        // Reserve the initial owner/lock read; no settlement write precedes quarantine.
+        const plan = await planCatalogImageReferenceSettlement(store, {
+          imageId: command.imageId,
+          maxDocumentOperations: 97,
+        });
+        if (plan.snapshot.state !== 'counted' || !isDeepStrictEqual(image, plan.snapshot.image))
+          return { status: 'corrupt' };
+        image = plan.settlement ?? plan.snapshot.image;
+        count = plan.snapshot.effectiveCount;
+      }
+      if (
+        count !== 0 ||
+        catalogImageReferenceProofIds(image._id, image[CATALOG_IMAGE_REFERENCE_LEDGER_FIELD])
+          .length > 0
+      )
+        return { status: 'conflict' };
+    } catch (error) {
+      if (error instanceof CatalogImageReferenceError || error instanceof z.ZodError)
+        return { status: 'corrupt' };
+      throw error;
+    }
+  }
   const storage = targets(image);
   if (!storage) return { status: 'corrupt' };
   const parsedIntent = ImageDeletionIntentSchema.safeParse({

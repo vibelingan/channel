@@ -7,6 +7,11 @@ import { signSession } from '@vibelingan-channel/auth/jwt';
 import { executeImageDeletion, setAdapter } from '@vibelingan-channel/db';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from '../../../packages/db/src/catalog-image-references.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
@@ -283,4 +288,114 @@ test('native deletion preserves spaces inside an opaque legacy storage identifie
   );
   assert.equal(await f.adapter.get('images', 'i'), null);
   await assert.rejects(f.storage.getObjectAsBase64(storageFileId), { code: 'ENOENT' });
+});
+
+for (const kind of ['addition', 'removal', 'cancel', 'missing', 'corrupt'] as const)
+  test(`admin abandonment uses complete reference state ${kind} and preserves or deletes actual bytes`, async (t) => {
+    const f = await workspace(t);
+    const before = JSON.parse(readFileSync(f.path, 'utf8'));
+    const image = before.images[0];
+    const removing = kind === 'removal';
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      removing ? ['i'] : [],
+      removing ? [] : ['i'],
+    );
+    image.publishedRefCount = removing ? 1 : 0;
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    before.catalogDetailApprovals =
+      kind === 'missing'
+        ? []
+        : [
+            kind === 'cancel'
+              ? catalogImageReferenceCancelProof(plan.proof)
+              : kind === 'corrupt'
+                ? { ...plan.proof, kind: 'unknown' }
+                : plan.proof,
+          ];
+    writeFileSync(f.path, JSON.stringify(before));
+    const adapter = new JsonFileAdapter(f.path);
+    setAdapter(adapter);
+    const token = await signSession(config.jwtSecret, {
+      sub: 'u',
+      role: 'admin',
+      name: 'u',
+      email: 'u@example.test',
+    });
+    const response = await handleAdminRequest(
+      { action: 'abandonUpload', token, data: { imageId: 'i' } },
+      config,
+    );
+    if (kind === 'removal' || kind === 'cancel') {
+      assert.ok(response.ok, JSON.stringify(response));
+      assert.equal(await adapter.get('images', 'i'), null);
+      await assert.rejects(f.storage.getObjectAsBase64(f.primary), { code: 'ENOENT' });
+      await assert.rejects(f.storage.getObjectAsBase64(f.secondary), { code: 'ENOENT' });
+      assert.equal(
+        (
+          await handleAdminRequest(
+            { action: 'abandonUpload', token, data: { imageId: 'i' } },
+            config,
+          )
+        ).ok,
+        true,
+      );
+    } else {
+      assert.ok(!response.ok);
+      assert.equal(response.error.code, 'CONFLICT');
+      assert.equal((await adapter.get('images', 'i'))?.status, 'active');
+      assert.equal(
+        (await f.storage.getObjectAsBase64(f.primary)).body,
+        Buffer.from('one').toString('base64'),
+      );
+      assert.equal(
+        (await f.storage.getObjectAsBase64(f.secondary)).body,
+        Buffer.from('two').toString('base64'),
+      );
+    }
+  });
+
+test('JSON deletion captures its original command while queued behind the existing file lock', async (t) => {
+  const f = await workspace(t);
+  const rows = JSON.parse(readFileSync(f.path, 'utf8'));
+  const plan = buildCatalogImageReferencePlan('1'.repeat(64), ['i'], []);
+  rows.images[0].publishedRefCount = 1;
+  rows.images[0].catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [catalogImageReferenceEntry(plan, 0)],
+  };
+  rows.catalogDetailApprovals = [plan.proof];
+  writeFileSync(f.path, JSON.stringify(rows));
+  const adapter = new JsonFileAdapter(f.path);
+  const lock = Reflect.get(adapter, 'withMutationLock');
+  assert.equal(typeof lock, 'function');
+  let release = () => {};
+  let entered = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const holding = Reflect.apply(lock, adapter, [
+    async () => {
+      entered();
+      await gate;
+    },
+  ]);
+  await ready;
+  const command: Parameters<JsonFileAdapter['manageImageDeletion']>[0] = { ...begin };
+  const pending = adapter.manageImageDeletion(command);
+  command.imageId = 'other';
+  command.owner = 'other';
+  command.uploadedByUserId = 'other';
+  release();
+  await holding;
+  assert.equal((await pending).status, 'ready');
+  assert.equal((await new JsonFileAdapter(f.path).get('images', 'i'))?.status, 'deleted');
 });

@@ -1,6 +1,6 @@
 # P3e6 大媒体提交协议复核与最小实现
 
-状态：纯计划、同快照读/结算、取消读端、公开消费与旧increment增减已通过各自本地检查；真实账本producer和最终发布仍未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
+状态：纯计划、同快照读/结算、取消读端、公开消费、旧increment增减与删除已通过各自本地检查；真实账本producer和最终发布仍未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
 
 ## 运行问题与边界
 
@@ -79,3 +79,8 @@ commit与cancel共用由root/treeRoot/leafCount派生的同一终局行ID。取�
 ## P3e6d1旧增减路径
 
 images.publishedRefCount的既有incrementField改用同快照全体终局结算加delta、唯一图片set；legacy缺counter保持未知并返回null。其他字段不受影响。尚未接入旧审批、删除、回填和普通writer，不因此启用producer；没有操作ID的旧delta丢回执后不可盲重试。详见[P3e6d1](P3e6d1_LEGACY_REFERENCE_ADJUST.zh-CN.md)。
+
+
+## P3e6d2删除兼容
+
+普通/孤儿隔离先核对完整有效引用，未决或正数不删；只读规划把终局清理合并进同一次隔离写入，80项83docops。后台abandon也交给事务判定ledger，保留无ledger路径，冲突给继续/取消后重试提示。source retire/upload和其余writer不在此步完成，producer仍关闭。详见[P3e6d2](P3e6d2_IMAGE_DELETION_REFERENCES.zh-CN.md)。

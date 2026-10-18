@@ -90,7 +90,11 @@ export type {
 import { APPROVAL_JOB_DELETE_MARGIN_MS, APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import { type ImageDeletionCommand, ImageDeletionCommandSchema } from './image-deletion.ts';
 export { executeImageDeletion } from './image-deletion-runner.ts';
-export { runImageDeletion, readImageDeletionIntent } from './image-deletion.ts';
+export {
+  runImageDeletion,
+  readImageDeletionIntent,
+  ImageDeletionCommandSchema,
+} from './image-deletion.ts';
 export type {
   ImageDeletionCommand,
   ImageDeletionResult,

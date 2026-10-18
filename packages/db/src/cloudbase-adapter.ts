@@ -21,7 +21,7 @@ import {
 } from './catalog-image-reference-store.ts';
 import { runImageUpload, type ImageUploadCommand } from './image-upload.ts';
 import { runSourceMediaImport, type SourceMediaImportCommand } from './source-media-import.ts';
-import { runImageDeletion, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
+import { runImageDeletion, ImageDeletionCommandSchema, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
 import { randomUUID } from 'node:crypto';
 import { withAlibabaLeaseCommit } from './alibaba-lease-commit-queue.ts';
 import { isDeepStrictEqual } from 'node:util';
@@ -516,7 +516,8 @@ export async function manageImageUploadInCloudBase(db: Pick<NodeSdkDatabase, 'ru
 }
 
 export async function manageImageDeletionInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageDeletionCommand) {
-  return db.runTransaction((transaction) => runImageDeletion(catalogRowStore(transaction), command));
+  const input = ImageDeletionCommandSchema.parse(command);
+  return db.runTransaction((transaction) => runImageDeletion(catalogRowStore(transaction), input));
 }
 
 /** Generic catalog input writes share one bounded child/parent transaction. */

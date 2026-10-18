@@ -1253,3 +1253,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e6d1：旧图片计数增减兼容
 
 images.publishedRefCount走共用同快照加载、结算全体终局再加delta，一次完整set；80pending82ops。缺counter的legacy返回null且不初始化，其他字段沿原inc。44新增，8业务红；最终各包/脚本5156、Node202098、19types/E2E/standingSDK通过，新增持久化测试后补整个local661/Node20。18源码反例（16测试79重叠失败+2SDK-only）及三SHA恢复，实际SDK29组同transactionId/严格ACK/提前capture、四独立进程丢回执读回通过；非幂等delta不盲重放。[说明](P3e6d1_LEGACY_REFERENCE_ADJUST.zh-CN.md)保留unsafe夹具自动修改与同步parse探针断言修正，均非产品反例。实际review四生产模块/三测试、接口、MIU/协议/SDK/本记录；null说明补legacy未知基数语义。原保存actor/classification fence块byte-equalad383a8。旧审批/删除/回填/其他writer和final/UI/真实云验收未完成，producer关闭，原P1/fullDeliveryReady=false。
+
+
+## P3e6d2：图片删除读取完整引用状态
+
+底层/孤儿删除复用只读settlement计划，权限/锁先拒，非空ledger同事务重读image+proof、比对快照、有效0且无未决才合成唯一隔离set；80项83docops，空/无ledger原1读路径。已隔离intent有pending不可恢复。后台abandon旧base预检查和冲突误报也修复，真实本地字节覆盖保留/正常删除及重试。36新增/441聚焦；完整5192/Node202142/19types/E2E/standingSDK通过，17反例16测试75重叠失败+1SDK-only，五SHA恢复。实际SDK43组严格ACK/捕获/丢ACK恢复，四独立进程两实际文件恢复/0重放写通过。[说明](P3e6d2_IMAGE_DELETION_REFERENCES.zh-CN.md)记录SDK脚本变量重复与asconst测试类型修正，非业务反例。实际文字review源码/三测试模块与协议记录，将统一incomplete改为未完成引用的完成/取消后重试，核对code和字节状态。producer关闭，其他写端和final/云验收未完成，原P1/fullDeliveryReady=false。

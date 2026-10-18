@@ -11,7 +11,11 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { dirname, resolve } from 'node:path';
 import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
 import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
-import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
+import {
+  type ImageDeletionCommand,
+  ImageDeletionCommandSchema,
+  runImageDeletion,
+} from '@vibelingan-channel/db';
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   type AdapterListQuery,
@@ -988,6 +992,7 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async manageImageDeletion(command: ImageDeletionCommand) {
+    const input = ImageDeletionCommandSchema.parse(command);
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
       let changed = false;
@@ -1011,7 +1016,7 @@ export class JsonFileAdapter implements DbAdapter {
             changed = true;
           },
         },
-        command,
+        input,
       );
       if (changed) {
         const previous = this.store;

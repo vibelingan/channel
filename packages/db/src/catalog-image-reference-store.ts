@@ -44,11 +44,10 @@ export function emptyCatalogImageReferenceCount(image: CollectionDoc): number | 
     .effectiveCount;
 }
 
-export const CatalogImageReferenceIncrementSchema = CatalogImageReferenceReadSchema.omit({
-  action: true,
-})
-  .extend({ delta: z.number().int().safe() })
-  .strict();
+const ReferenceImageSchema = CatalogImageReferenceReadSchema.omit({ action: true });
+export const CatalogImageReferenceIncrementSchema = ReferenceImageSchema.extend({
+  delta: z.number().int().safe(),
+}).strict();
 export type CatalogImageReferenceIncrementCommand = z.input<
   typeof CatalogImageReferenceIncrementSchema
 >;
@@ -68,6 +67,15 @@ export async function runCatalogImageReferenceRead(
     return loaded.snapshot;
   await tx.set('images', loaded.settlement);
   return { ...loaded.snapshot, image: loaded.settlement, settled: true };
+}
+
+/** Read-only settlement plan for callers combining cleanup with another write in this transaction. */
+export function planCatalogImageReferenceSettlement(
+  tx: CatalogImageReferenceStore,
+  input: unknown,
+): Promise<LoadedImageReferences> {
+  const command = ReferenceImageSchema.parse(input);
+  return loadImageReferences(tx, command, 'settle');
 }
 
 /** Merge old counter maintenance and all resolved proofs in one image write. Legacy absence stays unknown. */
