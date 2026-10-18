@@ -164,3 +164,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c3b 同请求来源候选
 
 实际Admin的内部seed reader复用现有mapper构造canonical product/rows，与原根source绑定精确匹配后才begin。原shared/source/Preview不增加私有候选字段；浏览器仍仅scope/digest。审批准备省去逐条缓存SKU外读，实际配置仍由原native页hash和版本/角色/source事务验收。cold105/warm21全页、坏/缺缓存拒绝及567安装SDK证明详见[P3e7c3b](P3e7c3b_SOURCE_CANDIDATE_REUSE.zh-CN.md)；原生配置自动推进/后续媒体/引用/最终发布及实际云时延仍在下一步。
+
+
+## P3e7c4 同根配置有界推进
+
+现有continue在source seed后或staging重开时，按服务器小DTO已提交页号推进原operation-approval-page；native校验来源/版本/角色/TTL/页hash，后续小状态必须current且cursor向前。预算到期保留已提交cursor；页提交回应丢失可重开，从未完成页继续，无第二根或revision。配置结束仍staging，媒体/引用/final接线继续。13新增/578SDK及同根并发和坏/缺缓存拒绝范围见[P3e7c4](P3e7c4_OWNED_CONFIGURATION_CONTINUE.zh-CN.md)，不等于客户完整发布验收。

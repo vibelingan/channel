@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import {
   manageCatalogProductOperation,
+  persistCatalogDetailApproval,
   prepareCatalogProductOperationApproval,
 } from '@vibelingan-channel/db';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
@@ -39,6 +40,11 @@ export interface OwnedContinuationDeps {
   operation: typeof manageCatalogProductOperation;
   seed: typeof prepareCatalogProductOperationApproval;
   prepare: (actorId: string, input: unknown, canBegin?: () => boolean) => Promise<unknown>;
+  configuration: (
+    actorId: string,
+    scope: CatalogProductOperationBinding,
+    page: number,
+  ) => Promise<unknown>;
   now: () => number;
 }
 function failure(value: unknown) {
@@ -81,6 +87,12 @@ export async function continueAdminCatalogProductOperation(
   deps: OwnedContinuationDeps = {
     operation: manageCatalogProductOperation,
     ...ownedSourceDependencies(),
+    configuration: (actorId, scope, page) =>
+      persistCatalogDetailApproval(actorId, {
+        ...scope,
+        action: 'operation-approval-page',
+        page,
+      }),
     now: () => performance.now(),
   },
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
@@ -105,6 +117,26 @@ export async function continueAdminCatalogProductOperation(
       }),
       scope,
     );
+  const configure = async (initial: Awaited<ReturnType<typeof get>>) => {
+    let current = initial;
+    for (let attempt = 0; attempt < 500; attempt++) {
+      if (
+        !current.ok ||
+        current.state !== 'staging' ||
+        current.approval.configurations.completed === current.approval.configurations.total
+      )
+        return current;
+      if (deps.now() >= deadline) return current;
+      const page = current.approval.configurations.completed;
+      const raw = await deps.configuration(actorId, scope, page);
+      if (!raw || typeof raw !== 'object' || Reflect.get(raw, 'ok') !== true) return failure(raw);
+      current = await get();
+      if (!current.ok || current.state === 'complete') return current;
+      if (current.state !== 'staging' || current.approval.configurations.completed <= page)
+        return { ok: false as const, code: 'CONFLICT' as const };
+    }
+    return current;
+  };
   if (deps.now() >= deadline) return get();
   let current = status(
     await deps.operation(actorId, { ...scope, action: 'product-operation-save' }),
@@ -112,12 +144,13 @@ export async function continueAdminCatalogProductOperation(
   );
   if (!current.ok) return current;
   if (current.state === 'complete') return current;
-  if (current.intent === 'save-draft' || current.state === 'staging') return current;
+  if (current.intent === 'save-draft') return current;
+  if (current.state === 'staging') return configure(current);
   if (current.intent !== 'publish' || current.state !== 'saved')
     return { ok: false as const, code: 'CONFLICT' as const };
   if (deps.now() >= deadline) return current;
   let seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);
-  if (seeded.ok) return status(seeded, scope);
+  if (seeded.ok) return configure(status(seeded, scope));
   if (seeded.code !== 'SOURCE_NOT_READY') return seeded;
   for (let page = 0, attempt = 0; attempt < 500; attempt++) {
     if (deps.now() >= deadline) return get();
@@ -140,7 +173,7 @@ export async function continueAdminCatalogProductOperation(
     if (progress.data.complete) {
       if (deps.now() >= deadline) return current;
       seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);
-      return seeded.ok ? status(seeded, scope) : seeded;
+      return seeded.ok ? configure(status(seeded, scope)) : seeded;
     }
     if (progress.data.nextPage <= page || progress.data.nextPage >= progress.data.pages)
       return { ok: false as const, code: 'SOURCE_NOT_READY' as const };

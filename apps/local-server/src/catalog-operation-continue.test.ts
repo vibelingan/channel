@@ -10,7 +10,10 @@ import {
   prepareCatalogProductOperationApproval,
   setAdapter,
 } from '@vibelingan-channel/db';
-import { CatalogProductOperationStatusSchema } from '@vibelingan-channel/shared/catalog-product-operation';
+import {
+  type CatalogProductOperationBinding,
+  CatalogProductOperationStatusSchema,
+} from '@vibelingan-channel/shared/catalog-product-operation';
 import {
   createCatalogSourcePreparer,
   createOwnedCatalogSourcePreparer,
@@ -133,7 +136,7 @@ for (const count of [0, 21, 105])
     const status = CatalogProductOperationStatusSchema.parse(response.data);
     assert.ok(status.state === 'staging');
     assert.equal(status.approval.configurations.total, Math.ceil(count / 20));
-    assert.equal(status.approval.configurations.completed, 0);
+    assert.equal(status.approval.configurations.completed, Math.ceil(count / 20));
     assert.equal(variants, 0);
     const root = JSON.parse(h.bytes()).catalogDetailApprovals.find(
       (row: { operationId?: string }) => row.operationId === operationId,
@@ -238,6 +241,7 @@ test('source preparation stops after a completed page at its time budget and res
     { ...scope, action: 'product-operation-continue' },
     {
       operation: manageCatalogProductOperation,
+      configuration: stageConfiguration,
       seed: prepareCatalogProductOperationApproval,
       now: () => now,
       prepare: async (actor, input) => {
@@ -270,6 +274,7 @@ test('zero time budget performs no save or preparation and returns the original 
     { ...scope, action: 'product-operation-continue' },
     {
       operation: manageCatalogProductOperation,
+      configuration: stageConfiguration,
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
       now: () => 0,
@@ -302,6 +307,7 @@ test('candidate reading drains its current batch but starts no new batch or appr
     { ...scope, action: 'product-operation-continue' },
     {
       operation: manageCatalogProductOperation,
+      configuration: stageConfiguration,
       seed: prepareCatalogProductOperationApproval,
       prepare: createCatalogSourcePreparer(),
       now: () => now,
@@ -420,7 +426,7 @@ test('bad source remains a readable saved draft with a repair issue rather than 
   assert.equal(CatalogProductOperationStatusSchema.parse(query.data).state, 'saved');
 });
 
-test('a committed approval seed whose answer is lost reopens as the same staging operation without writes', async (t) => {
+test('a committed approval seed whose answer is lost resumes its original configuration revision without reseeding', async (t) => {
   const h = await workspace(t, 21);
   const scope = await h.start();
   const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
@@ -433,12 +439,20 @@ test('a committed approval seed whose answer is lost reopens as the same staging
   const first = await h.invoke({ ...scope, action: 'product-operation-continue' });
   assert.ok(!first.ok);
   assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals[0].state, 'staging');
-  const before = h.bytes();
+  const beforeRoot = JSON.parse(h.bytes()).catalogDetailApprovals[0];
   utimesSync(h.file, new Date(1000), new Date(1000));
   setAdapter(new JsonFileAdapter(h.file));
   const resumed = await h.invoke({ ...scope, action: 'product-operation-continue' });
   assert.ok(resumed.ok, JSON.stringify(resumed));
   assert.equal(CatalogProductOperationStatusSchema.parse(resumed.data).state, 'staging');
+  const finalRoot = JSON.parse(h.bytes()).catalogDetailApprovals[0];
+  assert.equal(finalRoot.revision, beforeRoot.revision);
+  assert.deepEqual(finalRoot.operation, beforeRoot.operation);
+  assert.deepEqual(finalRoot.saved, beforeRoot.saved);
+  assert.equal(finalRoot.nextPage, 2);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  assert.deepEqual(await h.invoke({ ...scope, action: 'product-operation-continue' }), resumed);
   assert.equal(h.bytes(), before);
   assert.equal(statSync(h.file).mtimeMs, 1000);
 });
@@ -548,7 +562,7 @@ for (const warm of [false, true])
         staged.ok && 'record' in staged && staged.record.state === 'staging',
         JSON.stringify(staged),
       );
-      assert.equal(staged.record.nextPage, page + 1);
+      assert.equal(staged.record.nextPage, Math.ceil(count / 20));
     }
     assert.equal((await h.adapter.get('products', h.productId))?.published, false);
   });
@@ -565,9 +579,9 @@ test('a tampered cached configuration cannot become the authoritative frozen app
   variant.optionValues[variant.detailSourceCandidate.options[0].name] = 'Tampered cached option';
   writeFileSync(h.file, JSON.stringify(rows));
   const scope = await h.start('publish', {});
-  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  const response = await seedCurrent(scope);
   assert.ok(response.ok, JSON.stringify(response));
-  assert.equal(CatalogProductOperationStatusSchema.parse(response.data).state, 'staging');
+  assert.equal(CatalogProductOperationStatusSchema.parse(response).state, 'staging');
   const before = h.bytes();
   const staged = await persistCatalogDetailApproval('admin', {
     ...scope,
@@ -575,6 +589,8 @@ test('a tampered cached configuration cannot become the authoritative frozen app
     page: 0,
   });
   assert.ok(!staged.ok && staged.code === 'CONFLICT', JSON.stringify(staged));
+  const continued = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.equal(continued.ok, false);
   assert.equal(h.bytes(), before);
   assert.equal((await h.adapter.get('products', h.productId))?.published, false);
 });
@@ -705,7 +721,7 @@ test('a missing cached configuration is rejected by its native page after canoni
   rows.productVariants.shift();
   writeFileSync(h.file, JSON.stringify(rows));
   const scope = await h.start('publish', {});
-  assert.ok((await h.invoke({ ...scope, action: 'product-operation-continue' })).ok);
+  assert.ok((await seedCurrent(scope)).ok);
   const before = h.bytes();
   const result = await persistCatalogDetailApproval('admin', {
     ...scope,
@@ -713,6 +729,8 @@ test('a missing cached configuration is rejected by its native page after canoni
     page: 0,
   });
   assert.ok(!result.ok && result.code === 'SOURCE_NOT_READY', JSON.stringify(result));
+  const continued = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.equal(continued.ok, false);
   assert.equal(h.bytes(), before);
 });
 
@@ -741,9 +759,9 @@ test('a valid 4096-SKU source initializes without reading missing cache rows, wh
     }
     return original(collection, id);
   };
-  const result = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  const result = await seedCurrent(scope);
   assert.ok(result.ok, JSON.stringify(result));
-  const status = CatalogProductOperationStatusSchema.parse(result.data);
+  const status = CatalogProductOperationStatusSchema.parse(result);
   assert.ok(status.state === 'staging');
   assert.equal(status.approval.configurations.total, 205);
   assert.equal(cacheReads, 0);
@@ -776,4 +794,343 @@ test('owned source reading starts no next provider read after the observation ex
   assert.ok(!result.ok && result.code === 'SOURCE_NOT_READY');
   assert.deepEqual(calls, ['products', 'catalogSourceObservations']);
   assert.equal(h.bytes(), before);
+});
+
+for (const count of [0, 21, 105])
+  test(`actual Admin continuation stages all configuration pages of its original operation (${count})`, async (t) => {
+    const h = await workspace(t, count);
+    const scope = await h.start();
+    const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+    const pages: number[] = [];
+    h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+      if (input.action === 'operation-approval-page') pages.push(input.page);
+      return original(actor, input);
+    };
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.deepEqual(status.approval.configurations, {
+      completed: Math.ceil(count / 20),
+      total: Math.ceil(count / 20),
+    });
+    assert.deepEqual(
+      pages,
+      Array.from({ length: Math.ceil(count / 20) }, (_, page) => page),
+    );
+    assert.equal(status.approval.mediaReady, false);
+    assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals.length, 1);
+    assert.equal((await h.adapter.get('products', h.productId))?.published, false);
+  });
+
+async function readySeed(h: Awaited<ReturnType<typeof workspace>>) {
+  for (let page = 0; page < 2; page++)
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+  const scope = await h.start('publish', {});
+  assert.ok(
+    (await manageCatalogProductOperation('admin', { ...scope, action: 'product-operation-save' }))
+      .ok,
+  );
+  const source = createOwnedCatalogSourcePreparer();
+  const result = await prepareCatalogProductOperationApproval(
+    'admin',
+    scope,
+    () => true,
+    source.readCandidate,
+  );
+  assert.ok(result.ok && result.state === 'staging', JSON.stringify(result));
+  return scope;
+}
+
+test('reopened configuration continuation starts at the first uncommitted page', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  assert.ok(
+    (
+      await persistCatalogDetailApproval('admin', {
+        ...scope,
+        action: 'operation-approval-page',
+        page: 0,
+      })
+    ).ok,
+  );
+  const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  const pages: number[] = [];
+  h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+    if (input.action === 'operation-approval-page') pages.push(input.page);
+    return original(actor, input);
+  };
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.configurations.completed, 2);
+  assert.deepEqual(pages, [1]);
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke({ ...scope, action: 'product-operation-continue' }), response);
+  assert.equal(h.bytes(), before);
+});
+
+test('configuration continuation stops after its committed page exhausts the request budget', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  let now = 0;
+  const pages: number[] = [];
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: manageCatalogProductOperation,
+      seed: prepareCatalogProductOperationApproval,
+      prepare: createCatalogSourcePreparer(),
+      now: () => now,
+      configuration: async (actor, binding, page) => {
+        pages.push(page);
+        const result = await persistCatalogDetailApproval(actor, {
+          ...binding,
+          action: 'operation-approval-page',
+          page,
+        });
+        now = 13000;
+        return result;
+      },
+    },
+  );
+  assert.ok(response.ok && response.state === 'staging', JSON.stringify(response));
+  assert.equal(response.approval.configurations.completed, 1);
+  assert.deepEqual(pages, [0]);
+  const resumed = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(resumed.ok);
+  const status = CatalogProductOperationStatusSchema.parse(resumed.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.configurations.completed, 2);
+});
+
+for (const change of ['cancel', 'edit'])
+  test(`configuration continuation starts no next page after a concurrent ${change}`, async (t) => {
+    const h = await workspace(t, 21);
+    const scope = await readySeed(h);
+    const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+    const pages: number[] = [];
+    h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+      const result = await original(actor, input);
+      if (input.action === 'operation-approval-page') {
+        pages.push(input.page);
+        if (change === 'cancel')
+          assert.ok((await original(actor, { ...scope, action: 'operation-cancel' })).ok);
+        else {
+          const product = await h.adapter.get('products', h.productId);
+          assert.ok(product);
+          assert.equal(
+            (
+              await h.adapter.saveCatalogProductWithIdentities({
+                mode: 'update',
+                productId: h.productId,
+                expectedUpdatedAt: typeof product.updatedAt === 'string' ? product.updatedAt : null,
+                data: { description: 'Concurrent editor' },
+              })
+            ).result,
+            'saved',
+          );
+        }
+      }
+      return result;
+    };
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(!response.ok && response.error.code === 'CONFLICT', JSON.stringify(response));
+    assert.deepEqual(pages, [0]);
+    assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals[0].nextPage, 1);
+    assert.equal((await h.adapter.get('products', h.productId))?.published, false);
+  });
+
+test('a committed configuration page with a lost answer resumes the same revision without repeating its write', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  const pages: number[] = [];
+  const revision = JSON.parse(h.bytes()).catalogDetailApprovals[0].revision;
+  let lost = false;
+  h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+    const result = await original(actor, input);
+    if (input.action === 'operation-approval-page') {
+      pages.push(input.page);
+      if (!lost) {
+        lost = true;
+        throw Error('page committed, answer lost');
+      }
+    }
+    return result;
+  };
+  assert.equal((await h.invoke({ ...scope, action: 'product-operation-continue' })).ok, false);
+  assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals[0].nextPage, 1);
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals[0].nextPage, 2);
+  assert.equal(final.catalogDetailApprovals[0].revision, revision);
+  assert.equal(final.catalogDetailApprovals.length, 1);
+  assert.deepEqual(pages, [0, 1]);
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke({ ...scope, action: 'product-operation-continue' }), response);
+  assert.equal(h.bytes(), before);
+});
+
+test('an OK configuration reply without persisted cursor progress cannot loop or report success', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  const before = h.bytes();
+  let calls = 0;
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: manageCatalogProductOperation,
+      seed: prepareCatalogProductOperationApproval,
+      prepare: createCatalogSourcePreparer(),
+      now: () => 0,
+      configuration: async () => {
+        calls++;
+        return { ok: true };
+      },
+    },
+  );
+  assert.ok(!response.ok && response.code === 'CONFLICT', JSON.stringify(response));
+  assert.equal(calls, 1);
+  assert.equal(h.bytes(), before);
+});
+
+async function seedCurrent(scope: CatalogProductOperationBinding) {
+  assert.ok(
+    (await manageCatalogProductOperation('admin', { ...scope, action: 'product-operation-save' }))
+      .ok,
+  );
+  const source = createOwnedCatalogSourcePreparer();
+  return prepareCatalogProductOperationApproval('admin', scope, () => true, source.readCandidate);
+}
+
+async function stageConfiguration(
+  actorId: string,
+  scope: CatalogProductOperationBinding,
+  page: number,
+) {
+  return persistCatalogDetailApproval(actorId, {
+    ...scope,
+    action: 'operation-approval-page',
+    page,
+  });
+}
+
+test('configuration continuation never starts a page when seed completion has exhausted the request budget', async (t) => {
+  const h = await workspace(t, 21);
+  for (let page = 0; page < 2; page++)
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+  const scope = await h.start('publish', {});
+  let now = 0;
+  let pages = 0;
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: manageCatalogProductOperation,
+      prepare: createCatalogSourcePreparer(),
+      now: () => now,
+      seed: async (...args) => {
+        const result = await prepareCatalogProductOperationApproval(...args);
+        now = 13000;
+        return result;
+      },
+      configuration: async (...args) => {
+        pages++;
+        return stageConfiguration(...args);
+      },
+    },
+  );
+  assert.ok(response.ok && response.state === 'staging', JSON.stringify(response));
+  assert.equal(response.approval.configurations.completed, 0);
+  assert.equal(pages, 0);
+});
+
+test('configuration continuation stops after the actor loses the stored admin role', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  const pages: number[] = [];
+  h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+    const result = await original(actor, input);
+    if (input.action === 'operation-approval-page') {
+      pages.push(input.page);
+      const rows = JSON.parse(h.bytes());
+      rows.users[0].role = 'member';
+      writeFileSync(h.file, JSON.stringify(rows));
+    }
+    return result;
+  };
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(!response.ok && response.error.code === 'FORBIDDEN', JSON.stringify(response));
+  assert.deepEqual(pages, [0]);
+  assert.equal(JSON.parse(h.bytes()).products[0].published, false);
+});
+
+test('the controller dispatches the maximum legal 500 pages with server progress and no off-by-one call', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  const raw = await manageCatalogProductOperation('admin', {
+    productId: scope.productId,
+    operationId: scope.operationId,
+    action: 'product-operation-get',
+  });
+  const current = CatalogProductOperationStatusSchema.parse(raw);
+  assert.ok(current.state === 'staging');
+  current.approval.configurations = { completed: 0, total: 500 };
+  const before = h.bytes();
+  const pages: number[] = [];
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: async () => structuredClone(current),
+      seed: prepareCatalogProductOperationApproval,
+      prepare: createCatalogSourcePreparer(),
+      now: () => 0,
+      configuration: async (_actor, binding, page) => {
+        assert.deepEqual(binding, scope);
+        assert.equal(page, pages.length);
+        pages.push(page);
+        current.approval.configurations.completed++;
+        return { ok: true };
+      },
+    },
+  );
+  assert.ok(response.ok && response.state === 'staging', JSON.stringify(response));
+  assert.equal(response.approval.configurations.completed, 500);
+  assert.equal(pages.length, 500);
+  assert.equal(pages.at(-1), 499);
+  assert.equal(h.bytes(), before);
+});
+
+test('two actual Admin continuations of the same configuration operation converge on one complete cursor', async (t) => {
+  const h = await workspace(t, 21);
+  const scope = await readySeed(h);
+  const results = await Promise.allSettled([
+    h.invoke({ ...scope, action: 'product-operation-continue' }),
+    h.invoke({ ...scope, action: 'product-operation-continue' }),
+  ]);
+  for (const result of results) {
+    assert.equal(result.status, 'fulfilled');
+    assert.ok(result.status === 'fulfilled');
+    assert.ok(result.value.ok, JSON.stringify(result.value));
+    const status = CatalogProductOperationStatusSchema.parse(result.value.data);
+    assert.ok(status.state === 'staging');
+    assert.equal(status.approval.configurations.completed, 2);
+  }
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals.length, 1);
+  assert.equal(final.catalogDetailApprovals[0].nextPage, 2);
+  assert.equal(final.catalogDetailVariants.length, 21);
+  assert.equal(
+    new Set(final.catalogDetailVariants.map((row: { _id: string }) => row._id)).size,
+    21,
+  );
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.images[0].publishedRefCount, 0);
 });
