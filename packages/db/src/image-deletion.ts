@@ -110,6 +110,42 @@ export function readImageDeletionIntent(image: CollectionDoc): ImageDeletionInte
   return parsed.data;
 }
 
+/** Caller checked lifecycle, owner and mutex; no-ledger count rules remain with that caller. */
+export async function planImageReferenceDeletion(
+  store: ImageDeletionStore,
+  inputImage: CollectionDoc,
+  maxDocumentOperations = 97,
+): Promise<{ status: 'ready'; image: CollectionDoc } | { status: 'conflict' | 'corrupt' }> {
+  let image = inputImage;
+  if (Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
+    try {
+      let count = emptyCatalogImageReferenceCount(image);
+      if (count === null) {
+        // The caller reserves its other document operations before this read-only plan.
+        const plan = await planCatalogImageReferenceSettlement(store, {
+          imageId: image._id,
+          maxDocumentOperations,
+        });
+        if (plan.snapshot.state !== 'counted' || !isDeepStrictEqual(image, plan.snapshot.image))
+          return { status: 'corrupt' };
+        image = plan.settlement ?? plan.snapshot.image;
+        count = plan.snapshot.effectiveCount;
+      }
+      if (
+        count !== 0 ||
+        catalogImageReferenceProofIds(image._id, image[CATALOG_IMAGE_REFERENCE_LEDGER_FIELD])
+          .length > 0
+      )
+        return { status: 'conflict' };
+    } catch (error) {
+      if (error instanceof CatalogImageReferenceError || error instanceof z.ZodError)
+        return { status: 'corrupt' };
+      throw error;
+    }
+  }
+  return { status: 'ready', image };
+}
+
 /** Caller holds the existing image mutex and has scanned references before begin. */
 export async function runImageDeletion(
   store: ImageDeletionStore,
@@ -150,32 +186,9 @@ export async function runImageDeletion(
         : image.publishedRefCount !== 0))
   )
     return { status: 'conflict' };
-  if (Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
-    try {
-      let count = emptyCatalogImageReferenceCount(image);
-      if (count === null) {
-        // Reserve the initial owner/lock read; no settlement write precedes quarantine.
-        const plan = await planCatalogImageReferenceSettlement(store, {
-          imageId: command.imageId,
-          maxDocumentOperations: 97,
-        });
-        if (plan.snapshot.state !== 'counted' || !isDeepStrictEqual(image, plan.snapshot.image))
-          return { status: 'corrupt' };
-        image = plan.settlement ?? plan.snapshot.image;
-        count = plan.snapshot.effectiveCount;
-      }
-      if (
-        count !== 0 ||
-        catalogImageReferenceProofIds(image._id, image[CATALOG_IMAGE_REFERENCE_LEDGER_FIELD])
-          .length > 0
-      )
-        return { status: 'conflict' };
-    } catch (error) {
-      if (error instanceof CatalogImageReferenceError || error instanceof z.ZodError)
-        return { status: 'corrupt' };
-      throw error;
-    }
-  }
+  const references = await planImageReferenceDeletion(store, image);
+  if (references.status !== 'ready') return references;
+  image = references.image;
   const storage = targets(image);
   if (!storage) return { status: 'corrupt' };
   const parsedIntent = ImageDeletionIntentSchema.safeParse({

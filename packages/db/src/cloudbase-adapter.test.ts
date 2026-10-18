@@ -27,6 +27,7 @@ import {
   incrementCatalogImageReferenceInCloudBase,
   manageCatalogPreparationJobInCloudBase,
   manageImageDeletionInCloudBase,
+  manageSourceMediaImportInCloudBase,
   mutateCatalogRowInCloudBase,
   preparingProductHiddenWhere,
   saveCatalogProductInCloudBase,
@@ -3339,3 +3340,63 @@ test('native deletion captures the original owner/image command before asynchron
   assert.equal((await pending).status, 'ready');
   assert.equal(h.store.get('images')?.get('image')?.status, 'deleted');
 });
+
+for (const action of ['claim', 'checkpoint'] as const)
+  test(`native source ${action} captures nested input before asynchronous SDK startup`, async () => {
+    const h = fakeDatabase({ images: [], catalogSourceLinks: [] });
+    const base = {
+      sourceUrl: 'https://sc04.alicdn.com/capture.png',
+      operationId: 'source-op',
+      imageId: 'source-image',
+      now: '2026-10-18T00:00:00.000Z',
+    };
+    if (action === 'checkpoint')
+      assert.equal(
+        (await manageSourceMediaImportInCloudBase(h.db, { ...base, action: 'claim' })).status,
+        'claimed',
+      );
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const database: typeof h.db = {
+      ...h.db,
+      runTransaction: async (operation) => {
+        await gate;
+        return h.db.runTransaction(operation);
+      },
+    };
+    const command: Parameters<typeof manageSourceMediaImportInCloudBase>[1] =
+      action === 'claim'
+        ? { ...base, action: 'claim' }
+        : {
+            ...base,
+            action: 'checkpoint',
+            target: {
+              storageProvider: 'local-disk',
+              storageMode: 'local-disk',
+              storageFileId: 'local://original',
+              storagePath: 'smoke/original.png',
+              byteSize: 68,
+              checksumSha256: 'a'.repeat(64),
+              mimeType: 'image/png',
+              name: 'original.png',
+            },
+          };
+    const pending = manageSourceMediaImportInCloudBase(database, command);
+    command.imageId = 'changed';
+    command.operationId = 'changed';
+    if (command.action === 'checkpoint') {
+      command.target.name = 'changed.png';
+      command.target.storageFileId = 'local://changed';
+    }
+    release();
+    assert.equal((await pending).status, action === 'claim' ? 'claimed' : 'checkpointed');
+    const image = h.store.get('images')?.get(base.imageId);
+    assert.ok(image);
+    assert.equal(h.store.get('images')?.has('changed'), false);
+    if (action === 'checkpoint') {
+      assert.equal(image.name, 'original.png');
+      assert.equal(image.storageFileId, 'local://original');
+    }
+  });

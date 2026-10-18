@@ -17,6 +17,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
   SOURCE_MEDIA_IMPORT_LEASE_MS,
   SOURCE_MEDIA_IMPORT_OWNER,
   type SourceMediaImportCommand,
@@ -516,9 +517,10 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
       return { ok: false, reason: 'not-active' };
     if (current.status === 'active') {
       if (
-        typeof current.publishedRefCount !== 'number' ||
-        !Number.isFinite(current.publishedRefCount) ||
-        current.publishedRefCount !== 0
+        !Object.hasOwn(current, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD) &&
+        (typeof current.publishedRefCount !== 'number' ||
+          !Number.isFinite(current.publishedRefCount) ||
+          current.publishedRefCount !== 0)
       ) {
         return { ok: false, reason: 'still-referenced' };
       }
@@ -547,7 +549,17 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
       (fileId) => mediaStorage().deleteObject(fileId),
     );
     if (result !== 'deleted')
-      return { ok: false, reason: result === 'missing' ? 'not-found' : 'delete-failed' };
+      return {
+        ok: false,
+        reason:
+          result === 'missing'
+            ? 'not-found'
+            : result === 'conflict'
+              ? 'still-referenced'
+              : result === 'forbidden'
+                ? 'not-imported'
+                : 'delete-failed',
+      };
     deleted = true;
     return { ok: true, imageId };
   } finally {

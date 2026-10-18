@@ -23,6 +23,11 @@ import {
 } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, ListResult } from '@vibelingan-channel/shared';
 import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from '../../../../packages/db/src/catalog-image-references.ts';
+import {
   ALIBABA_IMAGE_IMPORT_OWNER,
   type MediaImportFailure,
   type MediaImportResult,
@@ -771,3 +776,43 @@ test('injected source persistence owns every import phase and retries the exact 
   assert.deepEqual(commands[0], commands[1]);
   assert.equal(storage.puts.length, 1);
 });
+
+for (const kind of ['addition', 'removal', 'missing', 'cancel'] as const)
+  test(`imported candidate cleanup respects complete reference state ${kind}`, async () => {
+    setup();
+    const { fetchImpl } = fakeImageFetch();
+    const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+      fetchImpl,
+      resolveDns: PUBLIC_DNS,
+    });
+    assert.ok(imported.ok);
+    const image = store.images?.find((row) => row._id === imported.imageId);
+    assert.ok(image);
+    const removing = kind === 'removal';
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      removing ? [imported.imageId] : [],
+      removing ? [] : [imported.imageId],
+    );
+    image.publishedRefCount = removing ? 1 : 0;
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    store.catalogDetailApprovals =
+      kind === 'missing'
+        ? []
+        : [kind === 'cancel' ? catalogImageReferenceCancelProof(plan.proof) : plan.proof];
+    const result = await removeImportedCandidate(imported.imageId);
+    if (kind === 'removal' || kind === 'cancel') {
+      assert.deepEqual(result, { ok: true, imageId: imported.imageId });
+      assert.equal(store.images?.length, 0);
+      assert.equal(storage.deletes.length, 1);
+      assert.ok(store.catalogDetailApprovals.some((row) => row._id === plan.proof._id));
+    } else {
+      assert.deepEqual(result, { ok: false, reason: 'still-referenced' });
+      assert.equal(store.images?.length, 1);
+      assert.equal(storage.deletes.length, 0);
+    }
+  });

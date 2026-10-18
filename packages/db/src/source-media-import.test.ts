@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from './catalog-image-references.ts';
 import { readImageDeletionIntent } from './image-deletion.ts';
 import {
   type SourceMediaImportCommand,
@@ -542,3 +547,254 @@ test('wrong activation target cannot clear a completed source owner', async () =
   );
   assert.deepEqual(f.snapshot(), before);
 });
+
+for (const kind of ['addition', 'removal', 'cancel', 'missing', 'corrupt'] as const)
+  test(`source retirement respects complete reference state ${kind}`, async () => {
+    const f = await staged();
+    hold(f, base.imageId, 'cleanup');
+    const image = f.get('images', base.imageId);
+    assert.ok(image);
+    const removing = kind === 'removal';
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      removing ? [base.imageId] : [],
+      removing ? [] : [base.imageId],
+    );
+    image.publishedRefCount = removing ? 1 : 0;
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    f.put('images', image);
+    if (kind !== 'missing')
+      f.put(
+        'catalogDetailApprovals',
+        kind === 'cancel'
+          ? catalogImageReferenceCancelProof(plan.proof)
+          : kind === 'corrupt'
+            ? { ...plan.proof, kind: 'unknown' }
+            : plan.proof,
+      );
+    const before = f.snapshot();
+    const result = await f.run({
+      action: 'retire',
+      imageId: base.imageId,
+      owner: 'cleanup',
+      now: later,
+    });
+    if (kind === 'removal' || kind === 'cancel') {
+      assert.equal(result.status, 'retired');
+      const actual = f.get('images', base.imageId);
+      assert.ok(actual);
+      assert.equal(actual.publishedRefCount, 0);
+      assert.deepEqual(actual.catalogPublishedReferenceLedger, {
+        version: 'catalog-image-reference-ledger-v1',
+        epoch: 5,
+        pending: [],
+      });
+      assert.deepEqual(readImageDeletionIntent(actual)?.storageFileIds, [target.storageFileId]);
+      assert.equal(f.get('catalogSourceLinks', linkId)?.mediaImport, undefined);
+      assert.ok(f.get('catalogDetailApprovals', plan.proof._id));
+    } else {
+      assert.equal(result.status, kind === 'corrupt' ? 'corrupt' : 'conflict');
+      assert.deepEqual(f.snapshot(), before);
+    }
+  });
+for (const action of ['checkpoint', 'activate', 'fail'] as const)
+  test(`pending source ${action} refuses unresolved reference state`, async () => {
+    const f = await staged();
+    const image = f.get('images', base.imageId);
+    assert.ok(image);
+    const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], [base.imageId]);
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    f.put('images', image);
+    const before = f.snapshot();
+    const command =
+      action === 'checkpoint'
+        ? checkpoint
+        : action === 'activate'
+          ? activate
+          : ({ ...base, action: 'fail', reason: 'write-failed' } as const);
+    assert.equal((await f.run(command)).status, 'conflict');
+    assert.deepEqual(f.snapshot(), before);
+  });
+
+test('source retirement clears 80 cancelled slots with its URL note in 85 document operations', async () => {
+  const f = await staged();
+  hold(f, base.imageId, 'cleanup');
+  const image = f.get('images', base.imageId);
+  assert.ok(image);
+  const plans = Array.from({ length: 80 }, (_, index) =>
+    buildCatalogImageReferencePlan((index + 1).toString(16).padStart(64, '0'), [], [base.imageId]),
+  );
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: plans.map((plan) => catalogImageReferenceEntry(plan, 0)),
+  };
+  f.put('images', image);
+  for (const plan of plans)
+    f.put('catalogDetailApprovals', catalogImageReferenceCancelProof(plan.proof));
+  assert.equal(
+    (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later })).status,
+    'retired',
+  );
+  assert.equal(f.max(), 85);
+  assert.equal(f.get('catalogSourceLinks', linkId)?.mediaImport, undefined);
+  for (const plan of plans) assert.ok(f.get('catalogDetailApprovals', plan.proof._id));
+});
+for (const action of ['checkpoint', 'activate', 'fail'] as const)
+  test(`pending source ${action} allows a valid empty zero ledger`, async () => {
+    const f = await staged();
+    const image = f.get('images', base.imageId);
+    assert.ok(image);
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [],
+    };
+    f.put('images', image);
+    const command: SourceMediaImportCommand =
+      action === 'checkpoint'
+        ? checkpoint
+        : action === 'activate'
+          ? activate
+          : { ...base, action: 'fail', reason: 'write-failed' };
+    assert.equal(
+      (await f.run(command)).status,
+      action === 'checkpoint' ? 'checkpointed' : action === 'activate' ? 'ready' : 'failed',
+    );
+    assert.deepEqual(
+      f.get('images', base.imageId)?.catalogPublishedReferenceLedger,
+      image.catalogPublishedReferenceLedger,
+    );
+  });
+for (const damage of ['version', 'epoch', 'counter'] as const)
+  test(`pending source rejects corrupt empty reference ${damage}`, async () => {
+    const f = await staged();
+    const image = f.get('images', base.imageId);
+    assert.ok(image);
+    image.catalogPublishedReferenceLedger = {
+      version: damage === 'version' ? 'unknown' : 'catalog-image-reference-ledger-v1',
+      epoch: damage === 'epoch' ? -1 : 4,
+      pending: [],
+    };
+    if (damage === 'counter') image.publishedRefCount = '0';
+    f.put('images', image);
+    const before = f.snapshot();
+    assert.equal((await f.run(activate)).status, 'conflict');
+    assert.deepEqual(f.snapshot(), before);
+  });
+test('retirement with cancelled references leaves a later URL claimant intact', async () => {
+  const f = await staged();
+  await f.run({ ...claim, operationId: 'new', imageId: 'new', now: later });
+  hold(f, base.imageId, 'cleanup');
+  const image = f.get('images', base.imageId);
+  assert.ok(image);
+  const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], [base.imageId]);
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [catalogImageReferenceEntry(plan, 0)],
+  };
+  f.put('images', image);
+  f.put('catalogDetailApprovals', catalogImageReferenceCancelProof(plan.proof));
+  const link = f.get('catalogSourceLinks', linkId);
+  assert.equal(
+    (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later })).status,
+    'retired',
+  );
+  assert.deepEqual(f.get('catalogSourceLinks', linkId), link);
+});
+
+for (const guard of ['mutex-owner', 'lease', 'uploader', 'claim'] as const)
+  test(`source retirement refuses ${guard} before reading80 proofs`, async () => {
+    const f = await staged();
+    hold(f, base.imageId, guard === 'mutex-owner' ? 'other' : 'cleanup');
+    const image = f.get('images', base.imageId);
+    assert.ok(image);
+    const plans = Array.from({ length: 80 }, (_, index) =>
+      buildCatalogImageReferencePlan(
+        (index + 1).toString(16).padStart(64, '0'),
+        [],
+        [base.imageId],
+      ),
+    );
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: plans.map((plan) => catalogImageReferenceEntry(plan, 0)),
+    };
+    if (guard === 'uploader') image.uploadedByUserId = 'other';
+    if (guard === 'claim')
+      image.sourceMediaImport = { ...Object(image.sourceMediaImport), imageId: 'other' };
+    f.put('images', image);
+    for (const plan of plans)
+      f.put('catalogDetailApprovals', catalogImageReferenceCancelProof(plan.proof));
+    const before = f.snapshot();
+    const outcome = await f.run({
+      action: 'retire',
+      imageId: base.imageId,
+      owner: 'cleanup',
+      now: guard === 'lease' ? now : later,
+    });
+    assert.equal(outcome.status, guard === 'mutex-owner' || guard === 'lease' ? 'busy' : 'corrupt');
+    assert.deepEqual(f.snapshot(), before);
+    assert.equal(f.max(), 4);
+  });
+
+for (const action of ['warm', 'reuse'] as const)
+  test(`active source ${action} preserves a nonempty reference ledger without resolving it`, async () => {
+    const f = await active();
+    const image = f.get('images', base.imageId);
+    assert.ok(image);
+    const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], [base.imageId]);
+    const ledger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    image.catalogPublishedReferenceLedger = ledger;
+    f.put('images', image);
+    f.put('catalogDetailApprovals', plan.proof);
+    if (action === 'warm') {
+      hold(f, base.imageId, base.operationId);
+      assert.deepEqual(await f.run({ ...claim, operationId: 'new-op', imageId: 'new-image' }), {
+        status: 'ready',
+        imageId: base.imageId,
+        deduplicated: true,
+      });
+    } else {
+      const next = {
+        ...base,
+        sourceUrl: 'https://sc04.alicdn.com/b.png',
+        operationId: 'new-op',
+        imageId: 'new-image',
+      };
+      assert.equal((await f.run({ ...next, action: 'claim' })).status, 'claimed');
+      hold(f, base.imageId, next.operationId);
+      assert.deepEqual(
+        await f.run({
+          ...next,
+          action: 'reuse',
+          existingImageId: base.imageId,
+          checksumSha256: target.checksumSha256,
+        }),
+        { status: 'ready', imageId: base.imageId, deduplicated: true },
+      );
+      assert.equal(f.get('images', next.imageId), null);
+    }
+    const current = f.get('images', base.imageId);
+    assert.ok(current);
+    assert.equal(current.publishedRefCount, 0);
+    assert.deepEqual(current.catalogPublishedReferenceLedger, ledger);
+    assert.equal(current.storageFileId, target.storageFileId);
+    assert.equal(current.checksumSha256, target.checksumSha256);
+    assert.equal(current.imageMutationOwner, '');
+    assert.deepEqual(f.get('catalogDetailApprovals', plan.proof._id), plan.proof);
+  });

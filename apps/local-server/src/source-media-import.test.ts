@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -16,6 +17,11 @@ import {
   setMediaStorage,
 } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from '../../../packages/db/src/catalog-image-references.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -658,3 +664,118 @@ for (const failure of ['not-owner', 'throw'] as const)
     );
     assert.equal(await release(first.imageId, String(locked.imageMutationOwner)), 'not-owner');
   });
+
+for (const kind of ['addition', 'removal', 'cancel', 'missing', 'corrupt'] as const)
+  test(`actual source cleanup API preserves or deletes PNG bytes for reference state ${kind}`, async (t) => {
+    const f = await workspace(t);
+    f.controls.loseUploadAck = true;
+    await importCandidateImage(sourceUrl, { ...deps, now: () => '2026-10-01T00:00:00.000Z' });
+    const image = (await f.images())[0];
+    assert.ok(image);
+    const removing = kind === 'removal';
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      removing ? [image._id] : [],
+      removing ? [] : [image._id],
+    );
+    await f.adapter.update('images', image._id, {
+      publishedRefCount: removing ? 1 : 0,
+      catalogPublishedReferenceLedger: {
+        version: 'catalog-image-reference-ledger-v1',
+        epoch: 4,
+        pending: [catalogImageReferenceEntry(plan, 0)],
+      },
+    });
+    if (kind !== 'missing') {
+      const proof =
+        kind === 'cancel'
+          ? catalogImageReferenceCancelProof(plan.proof)
+          : kind === 'corrupt'
+            ? { ...plan.proof, kind: 'unknown' }
+            : plan.proof;
+      // Terminal proofs are exact internal rows; generic CRUD timestamps are outside their contract.
+      const rows = JSON.parse(await readFile(f.path, 'utf8'));
+      rows.catalogDetailApprovals ??= [];
+      rows.catalogDetailApprovals.push(proof);
+      await writeFile(f.path, JSON.stringify(rows));
+    }
+    const call = await cleanupCaller(f);
+    const result = await call();
+    const successful = kind === 'removal' || kind === 'cancel';
+    assert.equal(Reflect.get(result, 'docsRemoved'), successful ? 1 : 0, JSON.stringify(result));
+    if (successful) {
+      assert.equal(await f.adapter.get('images', image._id), null);
+      await assert.rejects(f.storage.getObjectAsBase64(String(image.storageFileId)), {
+        code: 'ENOENT',
+      });
+      assert.ok(await f.adapter.get('catalogDetailApprovals', plan.proof._id));
+      assert.equal(Reflect.get(await call(), 'docsRemoved'), 0);
+    } else {
+      assert.equal((await f.adapter.get('images', image._id))?.status, 'failed');
+      assert.equal(
+        (await f.storage.getObjectAsBase64(String(image.storageFileId))).body,
+        pixels.toString('base64'),
+      );
+      assert.deepEqual(f.storage.deletes, []);
+      assert.deepEqual(Reflect.get(result, 'storageDeleted'), []);
+    }
+  });
+
+test('JSON source checkpoint captures nested target while queued behind the existing lock', async (t) => {
+  const f = await workspace(t);
+  const now = '2026-10-18T00:00:00.000Z';
+  const base = { sourceUrl, operationId: 'source-op', imageId: 'source-image', now };
+  assert.equal(
+    (await f.adapter.manageSourceMediaImport({ ...base, action: 'claim' })).status,
+    'claimed',
+  );
+  const object = await f.storage.putObject({
+    namespace: 'smoke',
+    logicalId: 'source-capture',
+    fileName: 'original.png',
+    mimeType: 'image/png',
+    content: pixels,
+  });
+  const command: SourceMediaImportCommand = {
+    ...base,
+    action: 'checkpoint',
+    target: {
+      storageProvider: 'local-disk',
+      storageMode: 'local-disk',
+      storageFileId: object.storageFileId,
+      storagePath: object.storagePath,
+      byteSize: pixels.length,
+      checksumSha256: createHash('sha256').update(pixels).digest('hex'),
+      mimeType: 'image/png',
+      name: 'original.png',
+    },
+  };
+  const lock = Reflect.get(f.adapter, 'withMutationLock');
+  assert.equal(typeof lock, 'function');
+  let release = () => {};
+  let entered = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const holding = Reflect.apply(lock, f.adapter, [
+    async () => {
+      entered();
+      await gate;
+    },
+  ]);
+  await ready;
+  const pending = f.adapter.manageSourceMediaImport(command);
+  command.imageId = 'changed';
+  command.target.name = 'changed.png';
+  command.target.storageFileId = 'local://changed';
+  release();
+  await holding;
+  assert.equal((await pending).status, 'checkpointed');
+  const image = await new JsonFileAdapter(f.path).get('images', base.imageId);
+  assert.ok(image);
+  assert.equal(image.name, 'original.png');
+  assert.equal(image.storageFileId, object.storageFileId);
+});

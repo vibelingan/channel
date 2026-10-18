@@ -10,8 +10,13 @@ import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import { protectedImagePreservesOriginalTarget } from './catalog-image-protection.ts';
 import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  emptyCatalogImageReferenceCount,
+} from './catalog-image-reference-store.ts';
+import {
   ImageDeletionIntentSchema,
   type ImageDeletionStore,
+  planImageReferenceDeletion,
   readImageDeletionIntent,
 } from './image-deletion.ts';
 
@@ -168,14 +173,21 @@ function pendingImage(
   image: CollectionDoc | null,
   command: z.infer<typeof base>,
 ): image is CollectionDoc {
-  return (
-    !!image &&
-    image._id === command.imageId &&
-    image.status === 'pending' &&
-    image.uploadedByUserId === SOURCE_MEDIA_IMPORT_OWNER &&
-    image.publishedRefCount === 0 &&
-    matchesClaim(image.sourceMediaImport, command)
-  );
+  if (
+    !image ||
+    image._id !== command.imageId ||
+    image.status !== 'pending' ||
+    image.uploadedByUserId !== SOURCE_MEDIA_IMPORT_OWNER ||
+    image.publishedRefCount !== 0 ||
+    !matchesClaim(image.sourceMediaImport, command)
+  )
+    return false;
+  if (!Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) return true;
+  try {
+    return emptyCatalogImageReferenceCount(image) === 0;
+  } catch {
+    return false;
+  }
 }
 function activeTargetMatches(image: CollectionDoc, target: SourceMediaTarget) {
   return Object.entries(target)
@@ -206,7 +218,7 @@ export async function runSourceMediaImport(
 ): Promise<SourceMediaImportResult> {
   const command = SourceMediaImportCommandSchema.parse(input);
   if (command.action === 'retire') {
-    const image = await store.get('images', command.imageId);
+    let image = await store.get('images', command.imageId);
     if (!image) return { status: 'missing' };
     if (image._id !== command.imageId) return { status: 'corrupt' };
     if (image.status === 'deleted')
@@ -216,7 +228,7 @@ export async function runSourceMediaImport(
       !owned ||
       owned.imageId !== image._id ||
       image.uploadedByUserId !== SOURCE_MEDIA_IMPORT_OWNER ||
-      image.publishedRefCount !== 0
+      (!Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD) && image.publishedRefCount !== 0)
     )
       return { status: 'corrupt' };
     if (image.status !== 'pending' && image.status !== 'failed') return { status: 'conflict' };
@@ -249,6 +261,10 @@ export async function runSourceMediaImport(
       image.storageProvider !== 'cloudbase-storage'
     )
       return { status: 'corrupt' };
+    // Reserve the original image/link reads and the possible link write.
+    const references = await planImageReferenceDeletion(store, image, 95);
+    if (references.status !== 'ready') return references;
+    image = references.image;
     const intent = ImageDeletionIntentSchema.parse({
       schemaVersion: 'image-deletion-v1',
       operationId: command.owner,

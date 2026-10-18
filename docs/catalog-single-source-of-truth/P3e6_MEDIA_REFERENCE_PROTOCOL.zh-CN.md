@@ -1,6 +1,6 @@
 # P3e6 大媒体提交协议复核与最小实现
 
-状态：纯计划、同快照读/结算、取消读端、公开消费、旧increment增减与删除已通过各自本地检查；真实账本producer和最终发布仍未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
+状态：纯计划、同快照读/结算、取消读端、公开消费、旧increment增减、删除与来源清理已通过各自本地检查；真实账本producer和最终发布仍未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
 
 ## 运行问题与边界
 
@@ -84,3 +84,8 @@ images.publishedRefCount的既有incrementField改用同快照全体终局结算
 ## P3e6d2删除兼容
 
 普通/孤儿隔离先核对完整有效引用，未决或正数不删；只读规划把终局清理合并进同一次隔离写入，80项83docops。后台abandon也交给事务判定ledger，保留无ledger路径，冲突给继续/取消后重试提示。source retire/upload和其余writer不在此步完成，producer仍关闭。详见[P3e6d2](P3e6d2_IMAGE_DELETION_REFERENCES.zh-CN.md)。
+
+
+## P3e6d3来源清理兼容
+
+普通删除与来源退役共用同一只读零引用规划；source含URL note最大85docops，pending写只接受无ledger或合法空0，active复用保留原ledger/count/storage。候选清理旧base预检查/错误原因已对齐事务，所有准备/审批hold和引用扫描保留。其他writer与最终提交仍未接入，producer关闭。详见[P3e6d3](P3e6d3_SOURCE_CLEANUP_REFERENCES.zh-CN.md)。

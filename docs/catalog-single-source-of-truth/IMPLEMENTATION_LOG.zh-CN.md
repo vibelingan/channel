@@ -1258,3 +1258,8 @@ images.publishedRefCount走共用同快照加载、结算全体终局再加delta
 ## P3e6d2：图片删除读取完整引用状态
 
 底层/孤儿删除复用只读settlement计划，权限/锁先拒，非空ledger同事务重读image+proof、比对快照、有效0且无未决才合成唯一隔离set；80项83docops，空/无ledger原1读路径。已隔离intent有pending不可恢复。后台abandon旧base预检查和冲突误报也修复，真实本地字节覆盖保留/正常删除及重试。36新增/441聚焦；完整5192/Node202142/19types/E2E/standingSDK通过，17反例16测试75重叠失败+1SDK-only，五SHA恢复。实际SDK43组严格ACK/捕获/丢ACK恢复，四独立进程两实际文件恢复/0重放写通过。[说明](P3e6d2_IMAGE_DELETION_REFERENCES.zh-CN.md)记录SDK脚本变量重复与asconst测试类型修正，非业务反例。实际文字review源码/三测试模块与协议记录，将统一incomplete改为未完成引用的完成/取消后重试，核对code和字节状态。producer关闭，其他写端和final/云验收未完成，原P1/fullDeliveryReady=false。
+
+
+## P3e6d3：来源退役、pending与候选清理兼容
+
+来源退役复用d2唯一只读零引用规划，所有权/租期/锁/link先拒、image+URL note两写至多85docops；pending仅允许无ledger/合法空0，active热命中/复用不增减计数且整行解锁保留ledger和字节身份。候选移除有ledger交给删除事务，冲突映射still-referenced；native/JSON提前复制含target输入。34新增，12入口11业务红+1取消控制；最终各包5226（首次5224后只补2DB正常控制并补整个DB1831）、Node202196/19types/E2E/standingSDK通过。source15反例14测试139重叠失败+1SDK-only；共享模块提取后d2原17反例75失败+1SDK-only重证，五SHA恢复。实际SDK66组/双写6坏ACK/丢ACK恢复，四独立进程真实PNG删除恢复/0重放写，真实API五态保留/删除通过。[说明](P3e6d3_SOURCE_CLEANUP_REFERENCES.zh-CN.md)保留通用upsert自动时间字段导致proof夹具拒绝、提取与SDK脚本错误，不冒称产品反例。review九代码/测试与四记录，措辞“不写计数”改为“不增减计数且整行保留”，依实际两个active写点/正控。producer关闭，其他writer/final/UI/真实云P95和三时钟20件验收未完成，原P1/fullDeliveryReady=false。
