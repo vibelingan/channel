@@ -8,6 +8,7 @@ import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
   catalogImageReferenceEntry,
 } from '../../../../packages/db/src/catalog-image-references.ts';
 import { LocalDiskMediaStorage } from '../../../../packages/media-storage/src/local-disk.ts';
@@ -433,4 +434,62 @@ test('an inherited counter does not make an empty ledger canonical', async (t) =
   const response = await request();
   assert.equal(response.statusCode, 404, response.body);
   assert.equal(h.listReads(), 0);
+});
+
+for (const provider of ['legacy-base64', 'local-disk', 'cloudbase-storage'] as const)
+  for (const delta of [1, -1] as const)
+    test(`a cancelled ${delta} reference is normal for public ${provider} delivery`, async (t) => {
+      let errors = 0;
+      t.mock.method(console, 'error', () => {
+        errors++;
+      });
+      const base = delta === 1 ? 0 : 1;
+      const h = await fixture(t, provider, base, [{ delta, committed: true }]);
+      const plan = h.plans[0];
+      assert.ok(plan);
+      h.rows.catalogDetailApprovals = [catalogImageReferenceCancelProof(plan.proof)];
+      h.save();
+      const before = h.bytes();
+      const response = await request();
+      assert.equal(response.statusCode, base > 0 ? 200 : 404, response.body);
+      assert.equal(errors, 0);
+      assert.equal(h.snapshotReads(), 1);
+      assert.equal(h.listReads(), 0);
+      assert.equal(h.bytes(), before);
+      const settled = await h.adapter.readCatalogImageReference({
+        action: 'settle',
+        imageId: 'image',
+      });
+      assert.ok(settled.state === 'counted' && settled.settled);
+      assert.equal(settled.effectiveCount, base);
+      const reads = h.snapshotReads();
+      const after = h.bytes();
+      assert.equal((await request()).statusCode, base > 0 ? 200 : 404);
+      assert.equal(h.snapshotReads(), reads);
+      assert.equal(h.bytes(), after);
+      assert.equal(errors, 0);
+    });
+
+test('cancelling one shared operation preserves the other committed public reference', async (t) => {
+  let errors = 0;
+  t.mock.method(console, 'error', () => {
+    errors++;
+  });
+  const h = await fixture(t, 'local-disk', 0, [
+    { delta: 1, committed: true },
+    { delta: -1, committed: true },
+    { delta: 1, committed: false },
+  ]);
+  const plan = h.plans[1];
+  assert.ok(plan);
+  const proofs = h.rows.catalogDetailApprovals;
+  assert.ok(proofs);
+  proofs[1] = catalogImageReferenceCancelProof(plan.proof);
+  h.save();
+  const before = h.bytes();
+  const response = await request();
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(h.bytes(), before);
+  assert.equal(errors, 0);
+  assert.equal(h.storageReads(), 1);
 });

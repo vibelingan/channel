@@ -79,7 +79,7 @@ for (const size of [0, 1, 2, 3, 5, 20, 21, 105, 10000, 20126])
         new Map([[plan.proof._id, plan.proof]]),
       );
       assert.equal(result.effectiveCount, 1);
-      assert.deepEqual(result.appliedProofIds, [plan.proof._id]);
+      assert.deepEqual(result.resolvedProofIds, [plan.proof._id]);
       assert.equal(result.settlement?.ledger.epoch, 1);
       assert.deepEqual(result.settlement?.ledger.pending, []);
     }
@@ -97,7 +97,7 @@ test('uncommitted work cannot expose private images and an explicit missing-proo
   );
   assert.equal(result.effectiveCount, 0);
   assert.equal(result.settlement, null);
-  assert.deepEqual(result.appliedProofIds, []);
+  assert.deepEqual(result.resolvedProofIds, []);
   assert.deepEqual(before, ledger([pending], 17));
   failure(
     () => planImageReferenceSettlement('private-image', 0, before, new Map()),
@@ -122,7 +122,7 @@ test('all committed deltas settle together, including a later unpublish, without
     publishedRefCount: 0,
     ledger: ledger([entry(c, 'shared')], 6),
   });
-  assert.deepEqual(new Set(result.appliedProofIds), new Set([a.proof._id, b.proof._id]));
+  assert.deepEqual(new Set(result.resolvedProofIds), new Set([a.proof._id, b.proof._id]));
   assert.deepEqual(before, ledger(pending, 5));
   assert.ok(result.settlement);
   assert.equal(
@@ -327,7 +327,7 @@ test('80 shared operations fit a bounded ledger; the 81st must be settled/queued
 test('absent/empty ledgers perform no writes; invalid versions and saturated epochs reject safely', () => {
   assert.deepEqual(planImageReferenceSettlement('a', 7, undefined, new Map()), {
     effectiveCount: 7,
-    appliedProofIds: [],
+    resolvedProofIds: [],
     settlement: null,
   });
   assert.equal(planImageReferenceSettlement('a', 7, ledger([], 3), new Map()).settlement, null);

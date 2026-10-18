@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
   catalogImageReferenceEntry,
 } from '../../../packages/db/src/catalog-image-references.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -37,7 +38,12 @@ function fixture(t: { after(callback: () => void): void }, shared = false) {
       catalogDetailApprovals: [plan.proof],
     }),
   );
-  return { file, adapter: new JsonFileAdapter(file), bytes: () => readFileSync(file, 'utf8') };
+  return {
+    file,
+    plan,
+    adapter: new JsonFileAdapter(file),
+    bytes: () => readFileSync(file, 'utf8'),
+  };
 }
 const read = { action: 'read' as const, imageId: 'image' };
 const settle = { ...read, action: 'settle' as const };
@@ -155,4 +161,46 @@ for (const damaged of ['counter', 'ledger', 'proof'] as const)
     const before = h.bytes();
     await assert.rejects(new JsonFileAdapter(h.file).readCatalogImageReference(settle));
     assert.equal(h.bytes(), before);
+  });
+
+test('JSON cancelled-reference settlement releases its slot and preserves the counter across reopen', async (t) => {
+  const h = fixture(t);
+  const rows = JSON.parse(h.bytes());
+  rows.catalogDetailApprovals = [catalogImageReferenceCancelProof(h.plan.proof)];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const result = await h.adapter.readCatalogImageReference(settle);
+  assert.ok(result.state === 'counted' && result.settled);
+  assert.equal(result.effectiveCount, 0);
+  assert.equal(result.image.publishedRefCount, 0);
+  const ledger = result.image.catalogPublishedReferenceLedger;
+  assert.ok(ledger && typeof ledger === 'object');
+  assert.deepEqual(Reflect.get(ledger, 'pending'), []);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const replay = await new JsonFileAdapter(h.file).readCatalogImageReference(settle);
+  assert.equal(replay.settled, false);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal(JSON.parse(before).catalogDetailApprovals.length, 1);
+});
+
+for (const action of ['read', 'settle'] as const)
+  test(`JSON cancelled-reference settle/${action} keeps a cancelled addition inactive`, async (t) => {
+    const h = fixture(t);
+    const rows = JSON.parse(h.bytes());
+    rows.catalogDetailApprovals = [catalogImageReferenceCancelProof(h.plan.proof)];
+    writeFileSync(h.file, JSON.stringify(rows));
+    const other = new JsonFileAdapter(h.file);
+    const results = await Promise.allSettled([
+      h.adapter.readCatalogImageReference(settle),
+      other.readCatalogImageReference({ ...read, action }),
+    ]);
+    let writes = 0;
+    for (const result of results) {
+      assert.ok(result.status === 'fulfilled' && result.value.state === 'counted');
+      assert.equal(result.value.effectiveCount, 0);
+      if (result.value.settled) writes++;
+    }
+    assert.equal(writes, 1);
+    assert.equal((await new JsonFileAdapter(h.file).get('images', 'image'))?.publishedRefCount, 0);
   });

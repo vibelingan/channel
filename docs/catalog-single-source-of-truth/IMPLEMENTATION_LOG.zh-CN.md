@@ -1243,3 +1243,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 非空ledger走只读一致快照，采用整张metadata与effectiveCount；无ledger及完整验证的空ledger保留1get，count0不误开事务。坏proof/能力/返回值拒绝而非fallback，日志不含私有错误/URL。44新增、19反例122重叠失败并恢复SHA，实际Node/Wx SDK编译HTTP11组/同transactionId/0公开写/单get通过；真实文件字节在独立HTTP单测覆盖。DB/public1907/Node201907/19types/E2E/standingSDK通过。[说明](P3e6c2a_PUBLIC_REFERENCE_READ.zh-CN.md)保留首版夹具缺config及错误proof根的修正，不算产品bug。review三生产模块/测试与三文档；将“有ledger必须事务”具体改为非空proof事务/有效空行快照，未冒称P95。继续旧写端兼容与final，原P1/fullDeliveryReady=false。
 
 提交初审追加修复own-counter存在性，两个非法adapter HTTP反例从200expected404转绿，再删两个guard各自失败；真实adapter原检查保留，消费者不再走legacy fallback。上述最终计数均按该修复重跑。
+
+
+## P3e6c1b：取消引用证明的统一读端
+
+沿相同小型终局proof ID识别commit/cancel，取消清理自身pending但不变计数，未决仍保留。严格判别union及纯引擎由native/JSON/public共用；真实producer继续关闭。28新增/182聚焦；DB1750+local644+public182=2576，Node201945，19types/E2E/standingSDK/Biome通过。27反例253重叠失败且SHA恢复，实际安装SDK15组/82docops，四进程重开及0重复文件写通过。[说明](P3e6c1b_CANCELLED_REFERENCE_PROOF.zh-CN.md)明确读端不证明终局写入原子性。实际文字复核源码/三测试/协议及两记录，把aborted addition改为cancelled addition inactive，计数0并非撤销已提交事实；不把取消factory当不可变写端。原P1/fullDeliveryReady=false保留，继续旧writer及最终流程。

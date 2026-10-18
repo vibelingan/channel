@@ -21,10 +21,14 @@ const PendingSchema = CommitmentSchema.extend({
   delta: z.union([z.literal(-1), z.literal(1)]),
   siblings: z.array(digest).max(MAX_DEPTH),
 }).strict();
-const ProofSchema = CommitmentSchema.extend({
+const CommitProofSchema = CommitmentSchema.extend({
   _id: digest,
   kind: z.literal('catalog-image-reference-commit-v1'),
 }).strict();
+const CancelProofSchema = CommitProofSchema.extend({
+  kind: z.literal('catalog-image-reference-cancel-v1'),
+}).strict();
+const ProofSchema = z.discriminatedUnion('kind', [CommitProofSchema, CancelProofSchema]);
 const LedgerSchema = z
   .object({
     version: z.literal('catalog-image-reference-ledger-v1'),
@@ -38,7 +42,7 @@ export type CatalogImageReferenceProof = z.infer<typeof ProofSchema>;
 export type CatalogImageReferenceLedger = z.infer<typeof LedgerSchema>;
 type ReferenceChange = { imageId: string; delta: -1 | 1 };
 export interface CatalogImageReferencePlan {
-  readonly proof: CatalogImageReferenceProof;
+  readonly proof: z.infer<typeof CommitProofSchema>;
   readonly changes: readonly ReferenceChange[];
   readonly levels: readonly (readonly string[])[];
 }
@@ -148,6 +152,19 @@ export function catalogImageReferenceProofId(commitment: CatalogImageReferenceCo
   ]);
 }
 
+/** The same immutable terminal slot can record cancellation of an uncommitted plan. */
+export function catalogImageReferenceCancelProof(
+  input: CatalogImageReferenceCommitment,
+): z.infer<typeof CancelProofSchema> {
+  const parsed = CommitmentSchema.safeParse(input);
+  if (!parsed.success) throw new CatalogImageReferenceError('INVALID_PLAN');
+  return {
+    ...parsed.data,
+    _id: catalogImageReferenceProofId(parsed.data),
+    kind: 'catalog-image-reference-cancel-v1',
+  };
+}
+
 /** Missing map keys mean a missing database read; null means this snapshot read a missing proof. */
 export function planImageReferenceSettlement(
   id: string,
@@ -156,14 +173,15 @@ export function planImageReferenceSettlement(
   proofs: ReadonlyMap<string, unknown>,
 ): {
   effectiveCount: number;
-  appliedProofIds: string[];
+  resolvedProofIds: string[];
   settlement: { publishedRefCount: number; ledger: CatalogImageReferenceLedger } | null;
 } {
   if (!integer.safeParse(publishedRefCount).success || typeof publishedRefCount !== 'number')
     throw new CatalogImageReferenceError('INVALID_COUNT');
   const current = readReferenceLedger(id, inputLedger);
-  if (!current) return { effectiveCount: publishedRefCount, appliedProofIds: [], settlement: null };
-  const appliedProofIds: string[] = [];
+  if (!current)
+    return { effectiveCount: publishedRefCount, resolvedProofIds: [], settlement: null };
+  const resolvedProofIds: string[] = [];
   const pending: CatalogImageReferencePending[] = [];
   let sum = 0;
   for (const item of current.pending) {
@@ -183,19 +201,19 @@ export function planImageReferenceSettlement(
       proof.data.leafCount !== item.leafCount
     )
       throw new CatalogImageReferenceError('INVALID_PROOF');
-    sum += item.delta;
-    appliedProofIds.push(proofId);
+    if (proof.data.kind === 'catalog-image-reference-commit-v1') sum += item.delta;
+    resolvedProofIds.push(proofId);
   }
   // Sum small signed deltas first, so a valid net-zero change at MAX_SAFE_INTEGER does not overflow.
   const effectiveCount = publishedRefCount + sum;
   if (!integer.safeParse(effectiveCount).success)
     throw new CatalogImageReferenceError('INVALID_COUNT');
-  if (appliedProofIds.length === 0) return { effectiveCount, appliedProofIds, settlement: null };
+  if (resolvedProofIds.length === 0) return { effectiveCount, resolvedProofIds, settlement: null };
   if (!Number.isSafeInteger(current.epoch + 1))
     throw new CatalogImageReferenceError('INVALID_LEDGER');
   return {
     effectiveCount,
-    appliedProofIds,
+    resolvedProofIds,
     settlement: {
       publishedRefCount: effectiveCount,
       ledger: { ...current, epoch: current.epoch + 1, pending },

@@ -69,3 +69,8 @@ P3e6a：纯计划、证明、同快照计数/全体结算；红测→实现→�
 本步实际review两个源码/测试文件、本MIU文档、IMPLEMENTATION_LOG与SDK-PROBE；另核对public图片门禁、admin旧counter维护、native/JSON increment、backfill、image-deletion/upload/source-media-import、catalog-image-protection、media引用提取与publication schema。人工审阅和程序检查分别记录：测试名称删去“lost answers”，改为“线性化模型”，因为这里没有真实HTTP回执恢复；以原formal P1仍开放、无新的DB调用点及测试只直接调用纯函数核对事实。
 
 风险仍未解除：真实事务快照与写冲突、80槽续接和P95、所有旧writer/backfill兼容、永久取消与expiry hold、全体媒体seal和最终activate原子性，均是启用前硬门槛。原P3/P4/P5/P6/P7未完成。不得用本步通过宣称用户发布已修好；fullDeliveryReady=false。
+
+
+## P3e6c1b取消读端补齐
+
+commit与cancel共用由root/treeRoot/leafCount派生的同一终局行ID。取消差值为0、结算移除本pending，缺证明仍保留；80项仍81读+1写。已提交结果不能被取消，取消只针对尚未提交的操作；后续producer必须在原根事务精确重放或写唯一终局，禁止翻转kind。此时只有factory与统一读端已验证，真实producer仍关闭。详见[P3e6c1b](P3e6c1b_CANCELLED_REFERENCE_PROOF.zh-CN.md)。
