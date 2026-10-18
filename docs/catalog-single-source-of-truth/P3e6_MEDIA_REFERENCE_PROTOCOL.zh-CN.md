@@ -134,3 +134,8 @@ stage转换在合法明确base与完整旧账本上验证并追加根成员，�
 ## P3e6e4 原根可信恢复
 
 内部恢复只永久取消已验证失效的原操作，不接管旧owner发布。过期/撤权恢复不读取坏supplier；当前admin/原scope/输入/codec/终局与最后时钟校验保留。原根与cancel proof同事务、可信审计首次保存，精确重放0写，已complete需原proof且永不翻转。实际80root满槽组合证明退役一项后原页可续接；自动有界caller尚未接入，不能称满槽自动恢复。详见[P3e6e4](P3e6e4_TRUSTED_OPERATION_RECOVERY.zh-CN.md)。原UI P1、liveedit/review/provider/P95及真实三时钟20件发布回退仍开放，fullDeliveryReady=false。
+
+
+## P3e7a 浏览器可用的小状态
+
+product-operation-start/get/cancel经现有Admin鉴权与开关，由独立DB facade转换到原内部命令，拒绝浏览器prepare/proof/recover/publish。只读status4096字节不返回大根；原完成回执与current分离，过期和取消仍可检查，重复取消零写。接口与315本地/459实际SDK控制已通过；客户UI尚未调用、有界满槽caller尚未完成。详见[P3e7a](P3e7a_OPERATION_STATUS_API.zh-CN.md)，原P1及真实验收未关闭。

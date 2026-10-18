@@ -25,6 +25,7 @@ import {
   CATALOG_PIXEL_POLICY,
   CATALOG_PREPARATION_POLICY,
 } from '@vibelingan-channel/shared/catalog-preparation';
+import { CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import type { CatalogProductSaveInput, CatalogProductSaveResult } from './adapter.ts';
 import { parseAlibabaProductLink } from './alibaba-link-identity.ts';
@@ -74,7 +75,7 @@ import {
   sourceObservationInputs,
 } from './catalog-source-inputs.ts';
 
-export const PRODUCT_OPERATION_INPUT_MAX_BYTES = 256 * 1024;
+export const PRODUCT_OPERATION_INPUT_MAX_BYTES = CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES;
 export const PRODUCT_OPERATION_RECORD_MAX_BYTES = 512 * 1024;
 export const PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES = 1024 * 1024;
 const SNAPSHOT_MAX_BYTES = 2 * 1024 * 1024;

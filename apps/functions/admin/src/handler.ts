@@ -41,6 +41,7 @@ import {
   list,
   manageCatalogDetailApproval,
   manageCatalogInquiry,
+  manageCatalogProductOperation,
   manageImageDeletion,
   persistCatalogDetailApproval,
   preparationUsingImage,
@@ -132,6 +133,7 @@ import {
   toRole,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
+import { CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-product-operation';
 
 import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogPriceSummarySchema } from '@vibelingan-channel/shared/catalog-detail';
@@ -677,10 +679,12 @@ export async function handleAdminRequest(
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
         if (config.enableDetailApproval !== true)
           return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
-        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
-          return err('VALIDATION_ERROR', 'Approval request is too large.');
         const action =
           req.data && typeof req.data === 'object' ? Reflect.get(req.data, 'action') : undefined;
+        const requestLimit =
+          action === 'product-operation-start' ? CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES : 4096;
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > requestLimit)
+          return err('VALIDATION_ERROR', 'Approval request is too large.');
         const result =
           action === 'preview'
             ? await readCatalogDetailPreview(claims.sub, req.data)
@@ -692,7 +696,9 @@ export async function handleAdminRequest(
                   ? await readPhotoSources(claims.sub, req.data)
                   : action === 'approve'
                     ? await approveInOneRequest(claims.sub, req.data)
-                    : await manageCatalogDetailApproval(claims.sub, req.data);
+                    : typeof action === 'string' && action.startsWith('product-operation-')
+                      ? await manageCatalogProductOperation(claims.sub, req.data)
+                      : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         const validation =
           'validation' in result ? CatalogValidationSchema.safeParse(result.validation) : undefined;

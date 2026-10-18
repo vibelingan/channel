@@ -1310,3 +1310,8 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 ## P3e6e4 原根可信永久退役
 
 当前admin按原scope核对服务器owner/root/input，仅过期、撤权/缺失owner、输入失效可退役；健康只读、complete核对commit proof历史只读，原owner不会被替换。原根首次cancel与唯一cancel proof同事务，审计actor/reason/at仅服务器产生，精确重复0写。review补了资格读与最后product/proof读两处时钟窗口，共四反例先红后修。48新增（DB40/JSON8），394相关/5633全量/2645Node20，19types/E2E/standingSDK/四文件Biome通过。最终30故障85重叠失败+3SDK-only、四SHA恢复，441安装SDK恢复后重跑通过；真实80root满槽→可信退役一项→原第81页续接保留80pending/effective0，不冒充自动清理。四进程真实PNG重开审计/旧owner拒绝/分类私有字节保留及夹具清理通过。详见[P3e6e4](P3e6e4_TRUSTED_OPERATION_RECOVERY.zh-CN.md)，记录冗余保护未检出反例与类型收窄修正。人工审阅两生产/两测试/四文档并纠正恢复≠接管发布的措辞。精确构建待提交后补充；原UI P1、server caller、liveedit/review/真实provider/P95/三时钟20件验收继续，fullDeliveryReady=false。
+
+
+## P3e7a 有界操作状态入口
+
+既有鉴权/rollout下增加独立公开start/get/cancel，DB index facade严格映射到原内核；旧workflow不改，全部内部命令拒绝保留。start沿原256KiB预算支持正常长描述；shared响应白名单4096字节，仅进度/身份/时间/小回执，无大根/来源/patch。complete与current分开、cancelledAt/expired可查询，取消与查询不保存或发布。53新增（17shared/9DB/27实际Admin+JSON），315相关、5686全量、Node202698、19types/E2E/SDK/九文件Biome通过；12故障46重叠失败/四SHA恢复，459安装SDK包含18新raw+真实indexfacade ACK/丢回应/捕获与历史控制。初版旧workflow类型扩散、两个错误夹具、strict/进度反例与实际原版Zod3合约核对详见[P3e7a](P3e7a_OPERATION_STATUS_API.zh-CN.md)。人工审阅九代码/测试/配置与四文档并纠正历史完成措辞。精确编译产物后补；客户UI接线、满槽caller/liveedit/review/provider/P95/三时钟20件及原UI P1继续，fullDeliveryReady=false。

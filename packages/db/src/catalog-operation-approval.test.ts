@@ -25,6 +25,7 @@ import { finishOwnedMediaFixture } from './catalog-owned-media.fixture.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import { catalogSealedImageIdsDigest } from './catalog-preparation-media-seal.ts';
+import { runProductOperationWorkflow } from './catalog-product-operation-workflow.ts';
 import {
   prepareProductOperationSave,
   productOperationSaveReceipt,
@@ -2764,3 +2765,140 @@ for (const correction of ['before-creation', 'no-longer-expired'])
       Date.now = realNow;
     }
   });
+
+for (const phase of ['staging', 'complete', 'cancelled'] as const)
+  test(`bounded operation workflow projects ${phase} without the private root`, async () => {
+    const h = await ownPublishFixture();
+    if (phase === 'complete') assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+    if (phase === 'cancelled')
+      assert.equal(
+        object(await h.invoke({ ...h.finishCommand, action: 'operation-cancel' })).ok,
+        true,
+      );
+    const workflow = () =>
+      runProductOperationWorkflow(
+        { persist: (actor, command) => runProductOperation(h.tx, actor, command) },
+        'admin',
+        { ...query, action: 'product-operation-get' },
+      );
+    const before = h.bytes();
+    const first = object(await workflow());
+    assert.equal(first.ok, true, JSON.stringify(first));
+    assert.equal(first.kind, 'product-operation');
+    assert.equal(first.productId, 'p');
+    assert.equal(first.state, phase === 'cancelled' ? 'staging' : phase);
+    assert.equal('record' in first, false);
+    assert.equal('operation' in first, false);
+    assert.equal('publication' in first, false);
+    assert.ok(Buffer.byteLength(JSON.stringify(first)) <= 4096);
+    assert.equal(h.bytes(), before);
+    if (phase === 'complete') {
+      const receipt = object(first.completion);
+      assert.equal(receipt.revision, object(object(await h.invoke(query)).record).revision);
+      assert.equal(receipt.published, true);
+      assert.equal(first.current, true);
+      object(h.rows.products?.[0]).published = false;
+      const historical = object(await workflow());
+      assert.equal(historical.state, 'complete');
+      assert.deepEqual(historical.completion, first.completion);
+      assert.equal(historical.current, false);
+      assert.equal(object(h.rows.products?.[0]).published, false);
+    }
+    if (phase === 'cancelled') assert.equal(typeof first.cancelledAt, 'string');
+  });
+
+test('status projects a large saved private operation into a bounded read-only response', async () => {
+  const h = await fixture('publish', true, true);
+  const before = h.bytes();
+  const result = object(
+    await runProductOperationWorkflow(
+      { persist: (actor, command) => runProductOperation(h.tx, actor, command) },
+      'admin',
+      { ...query, action: 'product-operation-get' },
+    ),
+  );
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.state, 'saved');
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) < 4096);
+  assert.equal('values' in result, false);
+  assert.equal('snapshot' in result, false);
+  assert.equal(h.bytes(), before);
+});
+
+for (const field of ['actorId', 'productId', 'operationId'] as const)
+  test(`public status rejects a mismatched persistence ${field} result`, async () => {
+    const h = await ownPublishFixture();
+    const result = await runProductOperation(h.tx, 'admin', query);
+    assert.ok(result.ok);
+    const before = h.bytes();
+    const projected = await runProductOperationWorkflow(
+      {
+        persist: async () => ({
+          ...result,
+          record: {
+            ...result.record,
+            [field]: field === 'operationId' ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : 'other',
+          },
+        }),
+      },
+      'admin',
+      { ...query, action: 'product-operation-get' },
+    );
+    assert.deepEqual(projected, { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), before);
+  });
+test('public status cannot mistake a legacy approval progress receipt for its own operation', async () => {
+  const projected = await runProductOperationWorkflow(
+    {
+      persist: async () => ({
+        ok: true,
+        jobId: 'legacy',
+        revision: 'r1',
+        nextPage: 1,
+        pages: 1,
+        complete: true,
+      }),
+    },
+    'admin',
+    { ...query, action: 'product-operation-get' },
+  );
+  assert.deepEqual(projected, { ok: false, code: 'CONFLICT' });
+});
+test('public facade freezes nested input before a deferred persistence call', async () => {
+  const h = await fixture();
+  const product = object(h.rows.products?.[0]);
+  let release: () => void = () => {
+    throw Error('gate not initialized');
+  };
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const command = {
+    ...query,
+    action: 'product-operation-start',
+    operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    intent: 'save-draft',
+    expectedUpdatedAt: product.updatedAt,
+    values: { configurationPhotos: { v: ['original-photo'] } },
+  };
+  const pending = runProductOperationWorkflow(
+    {
+      persist: async (actor, input) => {
+        await gate;
+        return runProductOperation(h.tx, actor, input);
+      },
+    },
+    'admin',
+    command,
+  );
+  command.values.configurationPhotos.v[0] = 'late-photo';
+  release();
+  const result = await pending;
+  assert.ok(result.ok, JSON.stringify(result));
+  const stored = object(
+    h.rows.catalogDetailApprovals?.find((row) => row.operationId === command.operationId),
+  );
+  assert.deepEqual(object(object(stored.operation).values).configurationPhotos, {
+    v: ['original-photo'],
+  });
+});
