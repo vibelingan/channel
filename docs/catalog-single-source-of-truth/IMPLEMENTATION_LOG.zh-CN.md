@@ -1288,3 +1288,8 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 ## P3e6e1：同一操作根冻结服务器引用计划
 
 内部 references 步骤复用原 actor/source/版本/策略/取消/TTL，只在所有页和 media 完成后，以当前商品 canonical 集合与 seal 完全相等生成 Merkle 承诺，绑定到原根；不写图片 pending、计数、终局 proof 或 published。重复/页/media/begin/cancel 保留绑定，读回重新推导树，坏页进度拒绝。新增 62 项，最终聚焦 286；实际基线复证 12 业务红，补 codec 反例先红。24 故障检出（22 测试组 201 重叠失败+2 SDK-only），连基线共 25 项/213 失败，五 SHA 恢复。安装 SDK 277/22 新、关联来源 7 实际操作/唯一根写/严格 ACK/丢确认和输入冻结，四进程重开/页/取消/零重复文件写与夹具清理通过。全量 5,450、Node 20 2,462、19 types/E2E/standing SDK/六文件 Biome/diff 通过。审查三生产/三测试与四记录，按真实头生成器推翻新增 retained IDs 的猜测，保留原规则并加集合门槛；[说明](P3e6e1_OWN_REFERENCE_PLAN.zh-CN.md)区分测试夹具修正、冗余取消保护、纯容量与云 P95。native/JSON adapter 和原权限/分类 fence 全文件未改。精确三函数/site 与非空 PNG worker 组合随后补证；pending stage/final activation/UI/历史/真实云/P95/三时钟与20发布恢复及原整条发布丢回执 P1 仍开放，producer 关闭/fullDeliveryReady=false。
+
+
+## P3e6e2a：纯pending暂存及满槽分类
+
+原引用纯模块新增stage转换：验证明确base、完整旧账本和成员，同根完全重复零变化、重绑定拒绝，保留未知root、推进epoch并以原80/128KiB预算控制。PENDING_FULL与坏账本区分，实际自动恢复尚未接通。30新增初始为缺函数结构红；原20/50/100和2,000步真值模型的两处手工数组改接实际转换，原真值断言不变。152聚焦、15反例43重叠失败/源码SHA恢复、实际Node20单模块与Python独立3转换/hash验证、现有SDK277重新构建通过。全量5,480/Node202,492、19types/E2E/standingSDK/三文件Biome/diff通过。审查转换/新测试/模型/C1与四记录，明确抽象undefined不得替代真实字段存在性检查、满槽仍需持久化续接，而非已经实现恢复。[说明](P3e6e2a_PENDING_STAGE_TRANSITION.zh-CN.md)保留结构红/格式修正和冗余门槛事实。无DB/SDK新调用、native/JSON/原root/fence未改；暂存producer/final/UI/历史/云P95与实际三时钟20件验收仍开放，原P1/fullDeliveryReady=false。

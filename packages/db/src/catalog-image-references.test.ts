@@ -10,6 +10,7 @@ import {
   catalogImageReferenceEntry,
   catalogImageReferenceProofId,
   planImageReferenceSettlement,
+  stageCatalogImageReference,
 } from './catalog-image-references.ts';
 
 const root = (n = 1) => n.toString(16).padStart(64, '0');
@@ -413,10 +414,12 @@ test('20/50/100 sequential product transitions with arbitrary settlement order m
             assert.ok(change);
             const row = rows.get(change.imageId);
             assert.ok(row);
-            row.ledger = ledger(
-              [...row.ledger.pending, catalogImageReferenceEntry(plan, index)],
-              row.ledger.epoch,
-            );
+            row.ledger = stageCatalogImageReference(
+              change.imageId,
+              row.count,
+              row.ledger,
+              catalogImageReferenceEntry(plan, index),
+            ).ledger;
           }
           batch.push({ i, after, plan });
           check();
@@ -607,10 +610,12 @@ test('a deterministic linearized model covers stale/cancelled intents and arbitr
         assert.ok(change);
         const row = rows.get(change.imageId);
         assert.ok(row);
-        row.ledger = ledger(
-          [...row.ledger.pending, catalogImageReferenceEntry(plan, i)],
-          row.ledger.epoch,
-        );
+        row.ledger = stageCatalogImageReference(
+          change.imageId,
+          row.count,
+          row.ledger,
+          catalogImageReferenceEntry(plan, i),
+        ).ledger;
       }
     } else if (choice === 2) {
       const pending = intents.filter((intent) => intent.state === 'pending');

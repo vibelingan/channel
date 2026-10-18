@@ -52,7 +52,8 @@ type ErrorCode =
   | 'INVALID_PROOF'
   | 'INVALID_COUNT'
   | 'MISSING_SNAPSHOT_READ'
-  | 'DOCUMENT_BUDGET_EXCEEDED';
+  | 'DOCUMENT_BUDGET_EXCEEDED'
+  | 'PENDING_FULL';
 export class CatalogImageReferenceError extends Error {
   constructor(readonly code: ErrorCode) {
     super(`Image reference check failed: ${code}`);
@@ -163,6 +164,48 @@ export function catalogImageReferenceCancelProof(
     _id: catalogImageReferenceProofId(parsed.data),
     kind: 'catalog-image-reference-cancel-v1',
   };
+}
+
+/** Append only after the caller has loaded/settled the actual image in its transaction snapshot. */
+export function stageCatalogImageReference(
+  id: string,
+  publishedRefCount: unknown,
+  inputLedger: unknown,
+  inputPending: unknown,
+): { ledger: CatalogImageReferenceLedger; staged: boolean } {
+  if (!integer.safeParse(publishedRefCount).success)
+    throw new CatalogImageReferenceError('INVALID_COUNT');
+  const current = readReferenceLedger(id, inputLedger) ?? {
+    version: 'catalog-image-reference-ledger-v1' as const,
+    epoch: 0,
+    pending: [],
+  };
+  const parsed = PendingSchema.safeParse(inputPending);
+  if (!parsed.success) throw new CatalogImageReferenceError('INVALID_PLAN');
+  const pending = parsed.data;
+  try {
+    verifyMembership(id, pending);
+  } catch (error) {
+    if (error instanceof CatalogImageReferenceError)
+      throw new CatalogImageReferenceError('INVALID_PLAN');
+    throw error;
+  }
+  const existing = current.pending.find((item) => item.operationRootId === pending.operationRootId);
+  if (existing) {
+    if (hash(existing) !== hash(pending)) throw new CatalogImageReferenceError('INVALID_PLAN');
+    return { ledger: current, staged: false };
+  }
+  if (current.pending.length >= CATALOG_IMAGE_REFERENCE_MAX_PENDING)
+    throw new CatalogImageReferenceError('PENDING_FULL');
+  if (!Number.isSafeInteger(current.epoch + 1))
+    throw new CatalogImageReferenceError('INVALID_LEDGER');
+  const ledger: CatalogImageReferenceLedger = {
+    ...current,
+    epoch: current.epoch + 1,
+    pending: [...current.pending, pending],
+  };
+  readReferenceLedger(id, ledger);
+  return { ledger, staged: true };
 }
 
 /** Missing map keys mean a missing database read; null means this snapshot read a missing proof. */

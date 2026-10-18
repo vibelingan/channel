@@ -114,3 +114,8 @@ pending 激活/标失败仅接受无账本合法旧状态或合法空零账本�
 ## P3e6e1 冻结引用承诺
 
 同一 staging 根在全部页与媒体回执完成后，从服务端冻结 publication 生成完整 Merkle 计划，并要求当前商品 canonical raw+approved 集合与媒体 seal 数量/摘要完全一致。正常 header 生成会保留图库/详情图，容量正控证明这一前提；不新增 retained IDs 或改变计数规则。小 references 绑定保留原身份/版本/策略/媒体/TTL 条件，读回重算树，重复零写、取消保留历史。实际关联来源7文档操作，只写原根，不暂存任何图片差值或终局证明。详见 [P3e6e1](P3e6e1_OWN_REFERENCE_PLAN.zh-CN.md)。后续必须实现按预算暂存、80槽续接与唯一终局 product/root/proof 原子激活；当前 producer 仍关闭。
+
+
+## P3e6e2a 纯差值暂存转换
+
+stage转换在合法明确base与完整旧账本上验证并追加根成员，完全重复只读、同根不同计划拒绝，未知项保留，epoch安全递增；满80槽报PENDING_FULL供后续真实持久化续接。原C1先结算全部终局，随后本转换加入新项；二者尚未接到新的图片/root写事务。抽象undefined账本参数不替代真实字段存在性检查。详见[P3e6e2a](P3e6e2a_PENDING_STAGE_TRANSITION.zh-CN.md)。真实producer、取消/过期/满槽恢复与最终提交仍关闭/未完成。
