@@ -10,8 +10,15 @@ import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
-import { buildCatalogImageReferencePlan } from './catalog-image-references.ts';
+import { runCatalogImageReferenceRead } from './catalog-image-reference-store.ts';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from './catalog-image-references.ts';
 import { readOwnedApprovalMedia } from './catalog-operation-media.ts';
+import { planOwnedReferenceStagePage } from './catalog-operation-reference-stage.ts';
+import { finishOwnedMediaFixture } from './catalog-owned-media.fixture.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import { catalogSealedImageIdsDigest } from './catalog-preparation-media-seal.ts';
@@ -1541,4 +1548,568 @@ test('reference freezing checks the service deadline again before its final root
   } finally {
     Date.now = realNow;
   }
+});
+
+async function ownReferencePageFixture(imageCount = 1) {
+  const ids = Array.from({ length: imageCount }, (_, i) => `image${String(i).padStart(2, '0')}`);
+  const h = await fixture('publish', true, false, false, 21, {
+    imageIds: ids.slice(0, 9),
+    descriptionImageIds: ids.slice(9),
+  });
+  h.rows.images = ids.map((_id) => ({
+    _id,
+    status: 'active',
+    storageProvider: 'local-disk',
+    storageMode: 'local-disk',
+    storageFileId: `local-disk:${_id}.png`,
+    storagePath: `${_id}.png`,
+    mimeType: 'image/png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+    publishedRefCount: 0,
+  }));
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  for (const page of [0, 1])
+    assert.equal(
+      object(
+        await h.invoke({
+          ...query,
+          action: 'operation-approval-page',
+          inputDigest: h.command.inputDigest,
+          page,
+        }),
+      ).ok,
+      true,
+    );
+  const now = Date.now();
+  const authority = createCatalogPreparationAuthority({
+    secret: 'own-reference-page-unit',
+    environmentId: 'own-reference-page-unit',
+    now: () => now,
+  });
+  const run = (command: unknown) => runCatalogPreparationJob(h.tx, authority, command, now);
+  await finishOwnedMediaFixture(run, h.tx.get, ids);
+  assert.equal(
+    object(await h.invoke({ ...mediaCommand, inputDigest: h.command.inputDigest })).ok,
+    true,
+  );
+  const bound = object(
+    await h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest }),
+  );
+  assert.equal(bound.ok, true, JSON.stringify(bound));
+  return {
+    ...h,
+    ids,
+    pageCommand: {
+      ...query,
+      action: 'operation-approval-reference-page' as const,
+      inputDigest: h.command.inputDigest,
+      cursor: 0,
+    },
+  };
+}
+test('reference-page fixture completes real server preparation and freezing for27 metadata images', async () => {
+  const h = await ownReferencePageFixture(27);
+  const current = object(await h.invoke(query));
+  assert.equal(current.ok, true);
+  const record = object(current.record);
+  assert.equal(object(record.references).leafCount, 27);
+  assert.equal(record.nextPage, 2);
+  assert.equal(h.rows.images?.length, 27);
+  assert.equal(h.rows.products?.[0]?.published, false);
+  assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+});
+
+for (const count of [1, 27])
+  test(`own reference pages keep ${count} images private and acknowledge durable20-item prefixes`, async () => {
+    const h = await ownReferencePageFixture(count);
+    const rowsBefore = structuredClone(h.rows.images);
+    const writes = h.writes();
+    const first = object(await h.invoke(h.pageCommand));
+    assert.equal(first.ok, true, JSON.stringify(first));
+    const firstRoot = object(first.record);
+    assert.equal(object(firstRoot.referenceStage).cursor, Math.min(count, 20));
+    assert.equal(h.writes() - writes, Math.min(count, 20) + 1);
+    for (const image of h.rows.images ?? []) assert.equal(image.publishedRefCount, 0);
+    assert.equal(h.rows.products?.[0]?.published, false);
+    assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+    const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+    for (let index = 0; index < Math.min(count, 20); index++) {
+      const image = h.rows.images?.find((row) => row._id === h.ids[index]);
+      assert.ok(image);
+      const ledger = object(image.catalogPublishedReferenceLedger);
+      assert.deepEqual(ledger.pending, [catalogImageReferenceEntry(plan, index)]);
+      const read = await runCatalogImageReferenceRead(h.tx, { action: 'read', imageId: image._id });
+      assert.ok(read.state === 'counted');
+      assert.equal(read.effectiveCount, 0);
+    }
+    if (count > 20) {
+      const next = object(await h.invoke({ ...h.pageCommand, cursor: 20 }));
+      assert.equal(next.ok, true, JSON.stringify(next));
+      assert.equal(object(object(next.record).referenceStage).cursor, count);
+    }
+    const before = h.bytes();
+    const beforeWrites = h.writes();
+    const done = object(await h.invoke(query));
+    assert.equal(object(object(done.record).referenceStage).cursor, count);
+    assert.deepEqual(await h.invoke(h.pageCommand), done);
+    assert.deepEqual(await h.invoke({ ...h.pageCommand, cursor: count }), done);
+    assert.deepEqual(await h.invoke(h.command), done);
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), beforeWrites);
+    assert.equal(h.rows.catalogDetailVariants?.length, 21);
+    for (const image of h.rows.images ?? []) {
+      const old = rowsBefore?.find((row) => row._id === image._id);
+      assert.ok(old);
+      for (const key of [
+        'storageFileId',
+        'storagePath',
+        'mimeType',
+        'checksumSha256',
+        'byteSize',
+        'catalogStorageProtection',
+      ])
+        assert.deepEqual(image[key], old[key]);
+    }
+  });
+test('a reference page rejects an ahead cursor without any image or root writes', async () => {
+  const h = await ownReferencePageFixture();
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke({ ...h.pageCommand, cursor: 1 }), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.equal(h.bytes(), before);
+});
+for (const fault of [
+  'fresh-lock',
+  'stale-lock',
+  'missing-base',
+  'null-base',
+  'undefined-ledger',
+  'missing-pixels',
+  'wrong-image-id',
+] as const)
+  test(`own reference page refuses ${fault} with its whole prefix unchanged`, async () => {
+    const h = await ownReferencePageFixture(2);
+    const image = h.rows.images?.[1];
+    assert.ok(image);
+    if (fault === 'fresh-lock' || fault === 'stale-lock') {
+      image.imageMutationOwner = 'other';
+      image.imageMutationStartedAt = new Date(
+        Date.now() - (fault === 'stale-lock' ? 3600000 : 0),
+      ).toISOString();
+    }
+    if (fault === 'missing-base') Reflect.deleteProperty(image, 'publishedRefCount');
+    if (fault === 'null-base') image.publishedRefCount = null;
+    if (fault === 'undefined-ledger') image.catalogPublishedReferenceLedger = undefined;
+    if (fault === 'missing-pixels')
+      h.rows.catalogImageObservations =
+        h.rows.catalogImageObservations?.filter(
+          (row) => !(row.kind === 'catalog-protected-image-health-v1' && row.imageId === image._id),
+        ) ?? [];
+    if (fault === 'wrong-image-id') {
+      const get = h.tx.get;
+      h.tx.get = async (collection, id) => {
+        const row = await get(collection, id);
+        return collection === 'images' && id === image._id && row ? { ...row, _id: 'other' } : row;
+      };
+    }
+    const before = h.bytes();
+    const writes = h.writes();
+    assert.deepEqual(await h.invoke(h.pageCommand), {
+      ok: false,
+      code: fault === 'fresh-lock' ? 'MEDIA_BUSY' : 'MEDIA_NOT_READY',
+    });
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  });
+test('own reference page propagates real vendor failure without reporting media corruption', async () => {
+  const h = await ownReferencePageFixture();
+  const get = h.tx.get;
+  h.tx.get = async (collection, id) => {
+    if (collection === 'images') throw Error('reference page vendor unavailable');
+    return get(collection, id);
+  };
+  const before = h.bytes();
+  await assert.rejects(h.invoke(h.pageCommand), /reference page vendor unavailable/);
+  assert.equal(h.bytes(), before);
+});
+for (const completed of [false, true])
+  test(`full80 slot page is retryable and cancellation frees its next stage, completed=${completed}`, async () => {
+    const h = await ownReferencePageFixture(27);
+    const image = h.rows.images?.[0];
+    assert.ok(image);
+    const plans = Array.from({ length: 80 }, (_, i) =>
+      buildCatalogImageReferencePlan((i + 500).toString(16).padStart(64, '0'), [], [image._id]),
+    );
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: plans.map((plan) => catalogImageReferenceEntry(plan, 0)),
+    };
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(h.pageCommand), { ok: false, code: 'MEDIA_BUSY' });
+    assert.equal(h.bytes(), before);
+    const released = completed ? plans : plans.slice(0, 1);
+    h.rows.catalogDetailApprovals?.push(
+      ...released.map((plan) => catalogImageReferenceCancelProof(plan.proof)),
+    );
+    const calls: string[] = [];
+    const get = h.tx.get;
+    const set = h.tx.set;
+    h.tx.get = async (c, id) => {
+      calls.push(`get:${c}/${id}`);
+      return get(c, id);
+    };
+    h.tx.set = async (c, row) => {
+      calls.push(`set:${c}/${row._id}`);
+      await set(c, row);
+    };
+    const result = object(await h.invoke(h.pageCommand));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const cursor = object(object(result.record).referenceStage).cursor;
+    assert.ok(typeof cursor === 'number' && cursor > 0 && cursor <= 20);
+    assert.ok(calls.length <= 98, JSON.stringify(calls));
+    let writing = false;
+    for (const call of calls) {
+      if (call.startsWith('set:')) writing = true;
+      else assert.equal(writing, false, 'all page reads must precede image/root writes');
+    }
+    const current = h.rows.images?.[0];
+    assert.ok(current);
+    assert.equal(current.publishedRefCount, 0);
+    const pending = object(current.catalogPublishedReferenceLedger).pending;
+    assert.ok(Array.isArray(pending));
+    assert.equal(pending.length, completed ? 1 : 80);
+    assert.equal(h.rows.products?.[0]?.published, false);
+  });
+test('replaying an acknowledged prefix skips image reads even while a photo is temporarily busy', async () => {
+  const h = await ownReferencePageFixture();
+  assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+  const image = h.rows.images?.[0];
+  assert.ok(image);
+  image.imageMutationOwner = 'other';
+  image.imageMutationStartedAt = new Date().toISOString();
+  const get = h.tx.get;
+  h.tx.get = async (c, id) => {
+    if (c === 'images') throw Error('acknowledged prefix reread image');
+    return get(c, id);
+  };
+  const before = h.bytes();
+  assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+  assert.equal(h.bytes(), before);
+});
+test('cancelling staged references atomically records a permanent cancel proof and preserves unknown peers', async () => {
+  const h = await ownReferencePageFixture();
+  const image = h.rows.images?.[0];
+  assert.ok(image);
+  const peer = buildCatalogImageReferencePlan('f'.repeat(64), [], [image._id]);
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [catalogImageReferenceEntry(peer, 0)],
+  };
+  assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+  const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+  const result = object(
+    await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.current, false);
+  assert.deepEqual(
+    await h.tx.get('catalogDetailApprovals', plan.proof._id),
+    catalogImageReferenceCancelProof(plan.proof),
+  );
+  const saved = object(result.record);
+  assert.equal(object(saved.referenceStage).cursor, 1);
+  assert.ok(saved.media && saved.references);
+  const before = h.bytes();
+  assert.deepEqual(
+    await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+    result,
+  );
+  assert.equal(h.bytes(), before);
+  const settled = await runCatalogImageReferenceRead(h.tx, {
+    action: 'settle',
+    imageId: image._id,
+  });
+  assert.ok(settled.state === 'counted');
+  assert.equal(settled.effectiveCount, 0);
+  assert.deepEqual(object(settled.image.catalogPublishedReferenceLedger).pending, [
+    catalogImageReferenceEntry(peer, 0),
+  ]);
+  assert.equal(h.rows.products?.[0]?.published, false);
+});
+for (const kind of ['commit', 'wrong-cancel'] as const)
+  test(`cancel cannot overwrite the immutable ${kind} terminal slot`, async () => {
+    const h = await ownReferencePageFixture();
+    assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+    const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+    const proof =
+      kind === 'commit'
+        ? plan.proof
+        : { ...catalogImageReferenceCancelProof(plan.proof), treeRoot: 'f'.repeat(64) };
+    h.rows.catalogDetailApprovals?.push(proof);
+    const before = h.bytes();
+    assert.deepEqual(
+      await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+      { ok: false, code: 'CONFLICT' },
+    );
+    assert.equal(h.bytes(), before);
+  });
+test('an expired staged operation can cancel without reading newly broken supplier data', async () => {
+  const h = await ownReferencePageFixture();
+  assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+  const root = h.rows.catalogDetailApprovals?.[0];
+  const product = h.rows.products?.[0];
+  assert.ok(root && product);
+  root.createdAt = new Date(Date.now() - 3600001).toISOString();
+  product.alibabaPrimarySourceKey = 'broken-source';
+  const get = h.tx.get;
+  h.tx.get = async (c, id) => {
+    if (['alibabaSourceProducts', 'catalogSourceObservations', 'alibabaProductLinks'].includes(c))
+      throw Error('cancel fetched broken source');
+    return get(c, id);
+  };
+  const result = object(
+    await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.current, false);
+  assert.equal(result.expired, true);
+});
+
+for (const corrupt of [
+  'undefined',
+  'null',
+  'binding',
+  'cursor',
+  'prefix',
+  'no-references',
+] as const)
+  test(`reference-page codec refuses persisted ${corrupt} progress`, async () => {
+    const h = await ownReferencePageFixture();
+    assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    if (corrupt === 'undefined') root.referenceStage = undefined;
+    if (corrupt === 'null') root.referenceStage = null;
+    if (corrupt === 'binding') object(root.referenceStage).bindingDigest = 'f'.repeat(64);
+    if (corrupt === 'cursor') object(root.referenceStage).cursor = 0;
+    if (corrupt === 'prefix') object(root.referenceStage).prefixDigest = 'f'.repeat(64);
+    if (corrupt === 'no-references') Reflect.deleteProperty(root, 'references');
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(query), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), before);
+  });
+test('an empty reference plan acknowledges completion without a stage record or terminal proof', async () => {
+  const h = await ownReferenceFixture();
+  const bound = object(
+    await h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest }),
+  );
+  assert.equal(bound.ok, true);
+  const before = h.bytes();
+  const writes = h.writes();
+  assert.deepEqual(
+    await h.invoke({
+      ...query,
+      action: 'operation-approval-reference-page',
+      inputDigest: h.command.inputDigest,
+      cursor: 0,
+    }),
+    bound,
+  );
+  assert.equal(h.bytes(), before);
+  assert.equal(h.writes(), writes);
+  assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+});
+test('deadline crossed after image reads refuses the complete private page before any writes', async () => {
+  const h = await ownReferencePageFixture();
+  const realNow = Date.now;
+  const inTime = realNow();
+  let checks = 0;
+  const before = h.bytes();
+  const writes = h.writes();
+  try {
+    Date.now = () => (++checks === 1 ? inTime : inTime + 3600001);
+    assert.deepEqual(await h.invoke(h.pageCommand), { ok: false, code: 'APPROVAL_EXPIRED' });
+    assert.ok(checks >= 3);
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  } finally {
+    Date.now = realNow;
+  }
+});
+test('reference-page planner includes its image write in a four-operation remaining window', async () => {
+  const h = await ownReferencePageFixture(2);
+  const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+  let reads = 0;
+  const before = h.bytes();
+  const result = await planOwnedReferenceStagePage(
+    {
+      get: async (c, id) => {
+        reads++;
+        return h.tx.get(c, id);
+      },
+      set: async () => {
+        throw Error('read-only planning wrote a row');
+      },
+    },
+    plan,
+    0,
+    4,
+  );
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.nextCursor, 1);
+  assert.equal(result.images.length, 1);
+  assert.equal(result.documentOperations, 4);
+  assert.equal(reads, 3);
+  assert.equal(h.bytes(), before);
+});
+test('reference-page commits a bounded prefix before an expensive next image and reads none of its proofs', async () => {
+  const h = await ownReferencePageFixture(2);
+  const first = h.rows.images?.[0];
+  const second = h.rows.images?.[1];
+  assert.ok(first && second);
+  const plans = (imageId: string, count: number, offset: number) =>
+    Array.from({ length: count }, (_, i) =>
+      buildCatalogImageReferencePlan((i + offset).toString(16).padStart(64, '0'), [], [imageId]),
+    );
+  const firstPlans = plans(first._id, 49, 500);
+  const secondPlans = plans(second._id, 80, 1000);
+  first.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: firstPlans.map((plan) => catalogImageReferenceEntry(plan, 0)),
+  };
+  second.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: secondPlans.map((plan) => catalogImageReferenceEntry(plan, 0)),
+  };
+  const expensive = new Set(secondPlans.map((plan) => plan.proof._id));
+  const get = h.tx.get;
+  let forbiddenProofReads = 0;
+  let imageReads = 0;
+  h.tx.get = async (c, id) => {
+    if (c === 'images') imageReads++;
+    if (expensive.has(id)) forbiddenProofReads++;
+    return get(c, id);
+  };
+  const oldSecond = structuredClone(second);
+  const result = object(await h.invoke(h.pageCommand));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(object(object(result.record).referenceStage).cursor, 1);
+  assert.equal(imageReads, 2);
+  assert.equal(forbiddenProofReads, 0);
+  assert.deepEqual(h.rows.images?.[1], oldSecond);
+  assert.equal(h.rows.products?.[0]?.published, false);
+});
+
+for (const field of ['imageIds', 'proof', 'health', 'prefixDigest', 'published'])
+  test(`reference-page accepts no client-supplied ${field} evidence`, async () => {
+    const h = await ownReferencePageFixture();
+    const before = h.bytes();
+    const result = object(await h.invoke({ ...h.pageCommand, [field]: 'client-assertion' }));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'VALIDATION_ERROR');
+    assert.ok(Array.isArray(object(result.validation).issues));
+    assert.equal(h.bytes(), before);
+  });
+test('the legacy HTTP workflow refuses an internal reference-page command', async () => {
+  let persisted = 0;
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async () => ({ _id: 'admin', role: 'admin' }),
+      persist: async () => {
+        persisted++;
+        throw Error('internal page entered HTTP workflow');
+      },
+    },
+    'admin',
+    {
+      ...query,
+      action: 'operation-approval-reference-page',
+      inputDigest: 'a'.repeat(64),
+      cursor: 0,
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(persisted, 0);
+});
+
+test('private staging preserves an already committed peer reference while adding no public count for itself', async () => {
+  const h = await ownReferencePageFixture();
+  const image = h.rows.images?.[0];
+  assert.ok(image);
+  const peer = buildCatalogImageReferencePlan('f'.repeat(64), [], [image._id]);
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [catalogImageReferenceEntry(peer, 0)],
+  };
+  h.rows.catalogDetailApprovals?.push(peer.proof);
+  const result = object(await h.invoke(h.pageCommand));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const current = h.rows.images?.[0];
+  assert.ok(current);
+  assert.equal(current.publishedRefCount, 1);
+  const own = buildCatalogImageReferencePlan(h.key, [], h.ids);
+  assert.deepEqual(object(current.catalogPublishedReferenceLedger).pending, [
+    catalogImageReferenceEntry(own, 0),
+  ]);
+  const read = await runCatalogImageReferenceRead(h.tx, { action: 'read', imageId: image._id });
+  assert.ok(read.state === 'counted');
+  assert.equal(read.effectiveCount, 1);
+  assert.equal(h.rows.products?.[0]?.published, false);
+});
+test('reference-page reserves both pixel reads and counts a refused next-image point read', async () => {
+  const h = await ownReferencePageFixture(2);
+  const first = h.rows.images?.[0];
+  const second = h.rows.images?.[1];
+  assert.ok(first && second);
+  const pending = (id: string, count: number, offset: number) =>
+    Array.from({ length: count }, (_, i) =>
+      buildCatalogImageReferencePlan((i + offset).toString(16).padStart(64, '0'), [], [id]),
+    );
+  const firstPlans = pending(first._id, 49, 500);
+  const secondPlans = pending(second._id, 34, 1000);
+  first.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: firstPlans.map((p) => catalogImageReferenceEntry(p, 0)),
+  };
+  second.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: secondPlans.map((p) => catalogImageReferenceEntry(p, 0)),
+  };
+  const forbidden = new Set(secondPlans.map((p) => p.proof._id));
+  let reads = 0;
+  let forbiddenReads = 0;
+  const before = h.bytes();
+  const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+  const result = await planOwnedReferenceStagePage(
+    {
+      get: async (c, id) => {
+        reads++;
+        if (forbidden.has(id)) forbiddenReads++;
+        return h.tx.get(c, id);
+      },
+      set: async () => {
+        throw Error('planning wrote a row');
+      },
+    },
+    plan,
+    0,
+    90,
+  );
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.nextCursor, 1);
+  assert.equal(result.images.length, 1);
+  assert.equal(result.documentOperations, 54);
+  assert.equal(reads, 53);
+  assert.equal(forbiddenReads, 0);
+  assert.equal(h.bytes(), before);
 });

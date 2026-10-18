@@ -1293,3 +1293,10 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 ## P3e6e2a：纯pending暂存及满槽分类
 
 原引用纯模块新增stage转换：验证明确base、完整旧账本和成员，同根完全重复零变化、重绑定拒绝，保留未知root、推进epoch并以原80/128KiB预算控制。PENDING_FULL与坏账本区分，实际自动恢复尚未接通。30新增初始为缺函数结构红；原20/50/100和2,000步真值模型的两处手工数组改接实际转换，原真值断言不变。152聚焦、15反例43重叠失败/源码SHA恢复、实际Node20单模块与Python独立3转换/hash验证、现有SDK277重新构建通过。全量5,480/Node202,492、19types/E2E/standingSDK/三文件Biome/diff通过。审查转换/新测试/模型/C1与四记录，明确抽象undefined不得替代真实字段存在性检查、满槽仍需持久化续接，而非已经实现恢复。[说明](P3e6e2a_PENDING_STAGE_TRANSITION.zh-CN.md)保留结构红/格式修正和冗余门槛事实。无DB/SDK新调用、native/JSON/原root/fence未改；暂存producer/final/UI/历史/云P95与实际三时钟20件验收仍开放，原P1/fullDeliveryReady=false。
+
+
+## P3e6e2b 原根图片暂存及取消终局
+
+同一事务按预算暂存图片与原根hash/cursor；全体终局结算、当前pixel证据与锁/actor/source/TTL检查保留。取消只写自身永久标记+同一不可变cancel槽，不翻转commit或删除他人pending。49新增/相关365、完整5529、Node202541、19types/E2E/standingSDK/六文件Biome通过；38故障全部检出、198重叠unit失败+三SDK-only/五SHA恢复；329安装SDK最大98文档操作。真实PNG四进程暂存丢回应/重开/取消结算通过，匿名始终404且分类/字节保留；采用独立快照，父文件未改。P3e6e1 的两项旧 late-capture 负例把复制结果字段写成 value，实际入口读取 command，因而当时失败不能单独证明等待期间改写输入。保留旧日志与历史计数，本轮改为 command 后重证：正常 JSON27 流程仍通过，JSON 锁等待输入用例失败；安装 SDK 的正常用例先完成261项，随后真实 startTransaction 等待输入用例失败。恢复后329项 SDK 与完整回归通过。新证据替代旧两项的因果解释，不改写原日志。
+
+详见[P3e6e2b](P3e6e2b_OWN_REFERENCE_PAGES.zh-CN.md)。人工审阅六代码/测试文件和四记录文档；改正自动恢复/metadata/进程范围的表述。精确构建随后补跑，原整笔发布P1/全局fullDeliveryReady=false保留，继续最终提交与恢复。

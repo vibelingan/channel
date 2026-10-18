@@ -51,6 +51,7 @@ import {
   ProductOperationCancelSchema,
   ProductOperationGetSchema,
   ProductOperationMediaSchema,
+  ProductOperationReferencePageSchema,
   ProductOperationReferencesSchema,
   type ProductOperationResult,
   ProductOperationStartSchema,
@@ -114,6 +115,7 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationGetSchema,
   ProductOperationMediaSchema,
   ProductOperationReferencesSchema,
+  ProductOperationReferencePageSchema,
   SourcePageSchema,
   CatalogPreparationCommitSchema,
   z.object({ action: z.literal('begin'), prepared: JobSchema }).strict(),
@@ -553,7 +555,8 @@ export async function runStagedApproval(
     command.action === 'operation-approval-page' ||
     command.action === 'operation-cancel' ||
     command.action === 'operation-approval-media' ||
-    command.action === 'operation-approval-references'
+    command.action === 'operation-approval-references' ||
+    command.action === 'operation-approval-reference-page'
   )
     return runProductOperation(tx, actorId, command);
   if (command.action === 'preparation-report')

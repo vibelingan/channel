@@ -20,6 +20,7 @@ import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalo
 import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { finishOwnedMediaFixture } from '../../../packages/db/src/catalog-owned-media.fixture.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 const at = '2026-10-18T00:00:00.000Z';
@@ -1835,6 +1836,261 @@ for (const value of ['null', 'wrong-tree'] as const)
     const rows = JSON.parse(h.bytes());
     if (value === 'null') rows.catalogDetailApprovals[0].references = null;
     else rows.catalogDetailApprovals[0].references.treeRoot = 'f'.repeat(64);
+    writeFileSync(h.file, JSON.stringify(rows));
+    const before = h.bytes();
+    utimesSync(h.file, new Date(1000), new Date(1000));
+    const reopened = new JsonFileAdapter(h.file);
+    assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', query), {
+      ok: false,
+      code: 'CONFLICT',
+    });
+    assert.equal(h.bytes(), before);
+    assert.equal(statSync(h.file).mtimeMs, 1000);
+  });
+
+async function jsonOwnReferencePageFixture(t: { after(callback: () => void): void }, count = 1) {
+  const ids = Array.from({ length: count }, (_, i) => `image${String(i).padStart(2, '0')}`);
+  const h = await jsonOwnApprovalFixture(
+    t,
+    { imageIds: ids.slice(0, 9), descriptionImageIds: ids.slice(9) },
+    21,
+  );
+  const rows = JSON.parse(h.bytes());
+  rows.images = ids.map((_id) => ({
+    _id,
+    status: 'active',
+    storageProvider: 'local-disk',
+    storageMode: 'local-disk',
+    storageFileId: `local-disk:${_id}.png`,
+    storagePath: `${_id}.png`,
+    mimeType: 'image/png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+    publishedRefCount: 0,
+  }));
+  writeFileSync(h.file, JSON.stringify(rows));
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.command)).ok, true);
+  const scope = { ...query, inputDigest: h.command.inputDigest };
+  for (const page of [0, 1])
+    assert.equal(
+      (
+        await h.adapter.persistCatalogDetailApproval('admin', {
+          ...scope,
+          action: 'operation-approval-page',
+          page,
+        })
+      ).ok,
+      true,
+    );
+  const authority = createCatalogPreparationAuthority({
+    secret: 'json-reference-page-metadata',
+    environmentId: 'json-reference-page-metadata',
+  });
+  await finishOwnedMediaFixture(
+    (command) => h.adapter.manageCatalogPreparationJob(authority, command),
+    h.adapter.get.bind(h.adapter),
+    ids,
+  );
+  assert.equal(
+    (
+      await h.adapter.persistCatalogDetailApproval('admin', {
+        ...scope,
+        action: 'operation-approval-media',
+      })
+    ).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await h.adapter.persistCatalogDetailApproval('admin', {
+        ...scope,
+        action: 'operation-approval-references',
+      })
+    ).ok,
+    true,
+  );
+  return {
+    ...h,
+    ids,
+    pageCommand: { ...scope, action: 'operation-approval-reference-page' as const, cursor: 0 },
+    cancelCommand: { ...scope, action: 'operation-cancel' as const },
+    mediaCommand: { ...scope, action: 'operation-approval-media' as const },
+  };
+}
+test('JSON27 private images recover the20+7 cursor after lost answers and permanent cancellation', async (t) => {
+  const h = await jsonOwnReferencePageFixture(t, 27);
+  await h.adapter.persistCatalogDetailApproval('admin', h.pageCommand);
+  const reopened = new JsonFileAdapter(h.file);
+  const first = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(
+    first.ok &&
+      'record' in first &&
+      first.record.state === 'staging' &&
+      first.record.referenceStage,
+  );
+  assert.equal(first.record.referenceStage.cursor, 20);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', h.pageCommand), first);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  const next = await reopened.persistCatalogDetailApproval('admin', {
+    ...h.pageCommand,
+    cursor: 20,
+  });
+  assert.ok(
+    next.ok && 'record' in next && next.record.state === 'staging' && next.record.referenceStage,
+  );
+  assert.equal(next.record.referenceStage.cursor, 27);
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+  const cancelled = await reopened.persistCatalogDetailApproval('admin', h.cancelCommand);
+  assert.ok(cancelled.ok && 'record' in cancelled && !cancelled.current);
+  const proofs = JSON.parse(h.bytes()).catalogDetailApprovals;
+  assert.equal(proofs.length, 2);
+  assert.equal(
+    proofs.filter((row: { kind?: unknown }) => row.kind === 'catalog-image-reference-cancel-v1')
+      .length,
+    1,
+  );
+  for (const imageId of h.ids) {
+    const settled = await reopened.readCatalogImageReference({ action: 'settle', imageId });
+    assert.ok(settled.state === 'counted');
+    assert.equal(settled.effectiveCount, 0);
+    const ledger = settled.image.catalogPublishedReferenceLedger;
+    assert.ok(ledger && typeof ledger === 'object');
+    assert.deepEqual(Reflect.get(ledger, 'pending'), []);
+  }
+  const final = h.bytes();
+  assert.deepEqual(
+    await reopened.persistCatalogDetailApproval('admin', h.cancelCommand),
+    cancelled,
+  );
+  assert.equal(h.bytes(), final);
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+});
+for (const concurrent of ['page', 'cancel', 'media', 'begin'] as const)
+  test(`JSON two adapters serialize reference-page/${concurrent} without lost progress or revived cancellation`, async (t) => {
+    const h = await jsonOwnReferencePageFixture(t);
+    const other = new JsonFileAdapter(h.file);
+    const command =
+      concurrent === 'page'
+        ? h.pageCommand
+        : concurrent === 'cancel'
+          ? h.cancelCommand
+          : concurrent === 'media'
+            ? h.mediaCommand
+            : h.command;
+    const results = await Promise.allSettled([
+      h.adapter.persistCatalogDetailApproval('admin', h.pageCommand),
+      other.persistCatalogDetailApproval('admin', command),
+    ]);
+    assert.ok(results.every((result) => result.status === 'fulfilled'));
+    const reopened = new JsonFileAdapter(h.file);
+    const status = await reopened.persistCatalogDetailApproval('admin', query);
+    assert.ok(status.ok && 'record' in status && status.record.state === 'staging');
+    if (concurrent === 'cancel') {
+      assert.equal(status.current, false);
+      assert.equal(typeof status.record.operation.cancelledAt, 'string');
+      const before = h.bytes();
+      assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', h.pageCommand), {
+        ok: false,
+        code: 'CONFLICT',
+      });
+      assert.equal(h.bytes(), before);
+    } else {
+      assert.equal(status.current, true);
+      assert.equal(status.record.referenceStage?.cursor, 1);
+      for (const result of results) {
+        assert.equal(result.status, 'fulfilled');
+        if (result.status === 'fulfilled') assert.equal(result.value.ok, true);
+      }
+    }
+    const image = await reopened.readCatalogImageReference({
+      action: 'read',
+      imageId: h.ids[0] ?? '',
+    });
+    assert.ok(image.state === 'counted');
+    assert.equal(image.effectiveCount, 0);
+    assert.equal((await reopened.get('products', 'p'))?.published, false);
+  });
+for (const phase of ['page', 'cancel'] as const)
+  test(`JSON ${phase} disk failure rolls back root/proof/images in memory and on disk`, async (t) => {
+    const h = await jsonOwnReferencePageFixture(t);
+    if (phase === 'cancel')
+      assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.pageCommand)).ok, true);
+    const command = phase === 'page' ? h.pageCommand : h.cancelCommand;
+    const before = h.bytes();
+    const persist = Reflect.get(h.adapter, 'persist');
+    assert.equal(typeof persist, 'function');
+    try {
+      Reflect.set(h.adapter, 'persist', () => {
+        throw Error('owned reference disk unavailable');
+      });
+      await assert.rejects(
+        h.adapter.persistCatalogDetailApproval('admin', command),
+        /owned reference disk unavailable/,
+      );
+      assert.equal(h.bytes(), before);
+      assert.equal(
+        JSON.stringify(Reflect.get(h.adapter, 'store')),
+        JSON.stringify(JSON.parse(before)),
+      );
+    } finally {
+      Reflect.set(h.adapter, 'persist', persist);
+    }
+    assert.equal((await h.adapter.persistCatalogDetailApproval('admin', command)).ok, true);
+    assert.equal((await h.adapter.get('products', 'p'))?.published, false);
+  });
+for (const phase of ['page', 'cancel'] as const)
+  test(`JSON applied ${phase} with lost confirmation recovers once after reopen`, async (t) => {
+    const h = await jsonOwnReferencePageFixture(t);
+    if (phase === 'cancel')
+      assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.pageCommand)).ok, true);
+    const command = phase === 'page' ? h.pageCommand : h.cancelCommand;
+    const persist = Reflect.get(h.adapter, 'persist');
+    assert.ok(typeof persist === 'function');
+    try {
+      Reflect.set(h.adapter, 'persist', function (this: JsonFileAdapter) {
+        Reflect.apply(persist, this, []);
+        throw Error('owned reference applied answer lost');
+      });
+      await assert.rejects(
+        h.adapter.persistCatalogDetailApproval('admin', command),
+        /owned reference applied answer lost/,
+      );
+    } finally {
+      Reflect.set(h.adapter, 'persist', persist);
+    }
+    const before = h.bytes();
+    utimesSync(h.file, new Date(1000), new Date(1000));
+    const reopened = new JsonFileAdapter(h.file);
+    const status = await reopened.persistCatalogDetailApproval('admin', query);
+    assert.ok(status.ok && 'record' in status && status.record.state === 'staging');
+    assert.equal(status.record.referenceStage?.cursor, 1);
+    assert.equal(status.current, phase !== 'cancel');
+    assert.equal((await reopened.persistCatalogDetailApproval('admin', command)).ok, true);
+    assert.equal(h.bytes(), before);
+    assert.equal(statSync(h.file).mtimeMs, 1000);
+    assert.equal((await reopened.get('products', 'p'))?.published, false);
+  });
+test('JSON reference-page input is copied before its existing mutation lock yields', async (t) => {
+  const h = await jsonOwnReferencePageFixture(t);
+  const command = { ...h.pageCommand };
+  const pending = h.adapter.persistCatalogDetailApproval('admin', command);
+  command.cursor = 1000;
+  command.productId = 'other';
+  const result = await pending;
+  assert.ok(result.ok && 'record' in result && result.record.state === 'staging');
+  assert.equal(result.record.referenceStage?.cursor, 1);
+  assert.equal(result.record.productId, 'p');
+});
+for (const corrupt of ['null', 'cursor'] as const)
+  test(`JSON reopened ${corrupt} reference progress is refused without a file write`, async (t) => {
+    const h = await jsonOwnReferencePageFixture(t);
+    assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.pageCommand)).ok, true);
+    const rows = JSON.parse(h.bytes());
+    if (corrupt === 'null') rows.catalogDetailApprovals[0].referenceStage = null;
+    else rows.catalogDetailApprovals[0].referenceStage.cursor = 0;
     writeFileSync(h.file, JSON.stringify(rows));
     const before = h.bytes();
     utimesSync(h.file, new Date(1000), new Date(1000));
