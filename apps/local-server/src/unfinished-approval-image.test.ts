@@ -94,3 +94,25 @@ test('jobs beyond the first page of 100 are checked too', async (t) => {
     });
   assert.equal(await unfinishedApprovalUsingImage('photo-119'), 'p-119');
 });
+
+for (const [ageMinutes, expected] of [
+  [65, 'p-margin'],
+  [69, 'p-margin'],
+  [71, null],
+] as const)
+  test(`the original ten-minute deletion margin remains active at age ${ageMinutes} minutes`, async (t) => {
+    const dir = mkdtempSync(join(tmpdir(), 'channel-approval-margin-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const adapter = new JsonFileAdapter(join(dir, 'db.json'));
+    const now = Date.parse('2026-10-18T00:00:00.000Z');
+    t.mock.method(Date, 'now', () => now);
+    await adapter.createDocWithId('catalogDetailApprovals', 'margin-job', {
+      productId: 'p-margin',
+      state: 'staging',
+      createdAt: new Date(now - ageMinutes * 60 * 1000).toISOString(),
+      publication: publication('p-margin', ['photo-margin']),
+    });
+    // createDocWithId preserves the explicit creation time on this fixture.
+    setAdapter(adapter);
+    assert.equal(await unfinishedApprovalUsingImage('photo-margin'), expected);
+  });

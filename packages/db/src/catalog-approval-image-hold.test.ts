@@ -27,6 +27,7 @@ const command = {
   and: (conditions: Record<string, unknown>[]) => ({ $and: conditions }),
   eq: (value: unknown) => ({ $eq: value }),
   gt: (value: unknown) => ({ $gt: value }),
+  exists: (value: boolean) => ({ $exists: value }),
   expr: (expression: Record<string, unknown>) => ({ $expr: expression }),
 };
 for (const id of ['gallery', 'description', 'variant'])
@@ -236,6 +237,18 @@ function expression(input: unknown, doc: unknown): unknown {
   }
   throw new Error(`Unsupported test operator ${op}`);
 }
+function fieldExists(value: unknown, keys: readonly string[]): boolean {
+  if (keys.length === 0) return true;
+  if (Array.isArray(value)) return value.some((item) => fieldExists(item, keys));
+  const key = keys[0];
+  return (
+    key !== undefined &&
+    value !== null &&
+    typeof value === 'object' &&
+    Object.hasOwn(value, key) &&
+    fieldExists(Reflect.get(value, key), keys.slice(1))
+  );
+}
 function mongoMatch(query: Record<string, unknown>, doc: CollectionDoc): boolean {
   return Object.entries(query).every(([key, value]) => {
     if (key === '$and') {
@@ -244,6 +257,8 @@ function mongoMatch(query: Record<string, unknown>, doc: CollectionDoc): boolean
     }
     if (key === '$expr') return Boolean(expression(value, doc));
     assert.ok(value && typeof value === 'object');
+    if (Object.hasOwn(value, '$exists'))
+      return fieldExists(doc, key.split('.')) === Reflect.get(value, '$exists');
     if (Object.hasOwn(value, '$eq')) return readField(doc, key) === Reflect.get(value, '$eq');
     if (Object.hasOwn(value, '$gt'))
       return String(readField(doc, key) ?? '') > String(Reflect.get(value, '$gt'));
@@ -302,3 +317,35 @@ for (const [place, index, expected] of [
     assert.equal(firstApprovalImageHold([value], 'target', after) !== null, expected);
     assert.equal(mongoMatch(approvalImageHoldWhere(command, 'target', after), value), expected);
   });
+
+for (const [label, metadata, expected] of [
+  ['absent', undefined, true],
+  ['normal operation', { protocolVersion: 2 }, true],
+  ['cancelled', { protocolVersion: 2, cancelledAt: after }, false],
+  ['null marker', { cancelledAt: null }, false],
+  ['undefined marker', { cancelledAt: undefined }, false],
+  ['array marker', [{ cancelledAt: after }], false],
+  ['nested array marker', [[{ cancelledAt: after }]], false],
+  ['nonobject metadata', 'broken', true],
+] as const)
+  for (const imageId of ['gallery', 'description', 'variant'])
+    test(`cancellation presence agrees between native predicate and JSON for ${imageId}/${label}`, () => {
+      const value: CollectionDoc = { ...row() };
+      if (metadata !== undefined) value.operation = metadata;
+      assert.equal(firstApprovalImageHold([value], imageId, after) !== null, expected);
+      assert.equal(mongoMatch(approvalImageHoldWhere(command, imageId, after), value), expected);
+    });
+
+test('cancelling one root does not release another root holding the same image', () => {
+  const cancelled = { ...row(), _id: 'a', operation: { cancelledAt: after } };
+  const other = {
+    ...row(),
+    _id: 'b',
+    productId: 'other',
+    publication: { ...row().publication, header: { ...row().publication.header, _id: 'other' } },
+  };
+  assert.equal(firstApprovalImageHold([cancelled, other], 'gallery', after), 'other');
+  assert.equal(mongoMatch(approvalImageHoldWhere(command, 'gallery', after), other), true);
+  assert.equal(mongoMatch(approvalImageHoldWhere(command, 'gallery', after), cancelled), false);
+  assert.equal(firstApprovalImageHold([{ ...row(), cancelledAt: after }], 'gallery', after), 'p');
+});

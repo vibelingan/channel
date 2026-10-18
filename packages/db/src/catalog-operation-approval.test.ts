@@ -4,10 +4,16 @@ import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { CATALOG_APPROVAL_JOB_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { firstApprovalImageHold } from './catalog-approval-image-hold.ts';
 import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job.ts';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
-import { productOperationSaveReceipt, runProductOperation } from './catalog-product-operation.ts';
+import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import {
+  prepareProductOperationSave,
+  productOperationSaveReceipt,
+  runProductOperation,
+} from './catalog-product-operation.ts';
 
 const uuid = '12345678-1234-4234-8234-123456789012';
 const query = { action: 'operation-get', productId: 'p', operationId: uuid };
@@ -173,6 +179,7 @@ async function fixture(
   return {
     product,
     rows,
+    tx,
     start,
     command,
     key: result.record._id,
@@ -645,4 +652,223 @@ test('an empty owned approval and an unsaved approval have no page to commit', a
     false,
   );
   assert.equal(unbegun.bytes(), bytes);
+});
+
+for (const phase of ['reserved', 'saved', 'staging'] as const)
+  test(`cancel permanently stops its own ${phase} operation and preserves all prior work`, async () => {
+    const h = await fixture('publish', phase !== 'reserved', false, false, 21, {
+      imageIds: ['gallery'],
+      descriptionImageIds: ['description'],
+    });
+    if (phase === 'staging') {
+      assert.equal(object(await h.invoke(h.command)).ok, true);
+      assert.equal(
+        object(
+          await h.invoke({
+            ...query,
+            action: 'operation-approval-page',
+            inputDigest: h.command.inputDigest,
+            page: 0,
+          }),
+        ).ok,
+        true,
+      );
+    }
+    const previous = structuredClone(h.rows.catalogDetailApprovals?.[0]);
+    assert.ok(previous);
+    const otherRows = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(h.rows).filter(([key]) => key !== 'catalogDetailApprovals'),
+      ),
+    );
+    const beforeWrites = h.writes();
+    const cancelled = object(
+      await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+    );
+    assert.equal(cancelled.ok, true, JSON.stringify(cancelled));
+    assert.equal(cancelled.current, false);
+    const current = object(cancelled.record);
+    const metadata = object(current.operation);
+    assert.equal(typeof metadata.cancelledAt, 'string');
+    assert.ok(Number.isFinite(Date.parse(String(metadata.cancelledAt))));
+    const { cancelledAt: _timestamp, ...input } = metadata;
+    assert.deepEqual(input, previous.operation);
+    assert.deepEqual({ ...current, operation: input }, previous);
+    assert.equal(h.writes(), beforeWrites + 1);
+    assert.equal(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(h.rows).filter(([key]) => key !== 'catalogDetailApprovals'),
+        ),
+      ),
+      otherRows,
+    );
+    const bytes = h.bytes();
+    for (const command of [
+      query,
+      h.start,
+      { ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest },
+    ]) {
+      const answer = object(await h.invoke(command));
+      assert.equal(answer.ok, true, JSON.stringify(answer));
+      assert.equal(answer.current, false);
+      assert.deepEqual(answer.record, current);
+    }
+    assert.deepEqual(await h.invoke(h.command), { ok: false, code: 'CONFLICT' });
+    assert.deepEqual(
+      await h.invoke({
+        ...query,
+        action: 'operation-approval-page',
+        inputDigest: h.command.inputDigest,
+        page: 0,
+      }),
+      { ok: false, code: 'CONFLICT' },
+    );
+    assert.equal(h.bytes(), bytes);
+    assert.equal(h.writes(), beforeWrites + 1);
+    if (phase === 'staging') {
+      const cutoff = new Date(Date.now() - 70 * 60 * 1000).toISOString();
+      for (const imageId of ['gallery', 'description']) {
+        assert.equal(firstApprovalImageHold([previous], imageId, cutoff), 'p');
+        assert.equal(
+          firstApprovalImageHold(h.rows.catalogDetailApprovals ?? [], imageId, cutoff),
+          null,
+        );
+      }
+    }
+  });
+
+for (const change of ['source-changed', 'expired', 'missing-product', 'already-live'] as const)
+  test(`cancel can stop a noncurrent operation without reapproving its data: ${change}`, async () => {
+    const h = await fixture('publish', true, false, true);
+    assert.equal(object(await h.invoke(h.command)).ok, true);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    if (change === 'source-changed') {
+      const source = h.rows.alibabaSourceProducts?.[0];
+      assert.ok(source);
+      source.contentHash = 'b'.repeat(64);
+    } else if (change === 'expired')
+      root.createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    else if (change === 'already-live') h.product.published = true;
+    else h.rows.products = [];
+    const before = h.writes();
+    const result = object(
+      await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+    );
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.current, false);
+    assert.equal(h.writes(), before + 1);
+    if (change === 'already-live')
+      assert.equal(h.rows.products?.find((row) => row._id === 'p')?.published, true);
+  });
+
+for (const change of ['wrong-digest', 'other-actor', 'revoked', 'client-time'] as const)
+  test(`cancel refuses ${change} without changing its root`, async () => {
+    const h = await fixture();
+    assert.equal(object(await h.invoke(h.command)).ok, true);
+    const command: Record<string, unknown> = {
+      ...query,
+      action: 'operation-cancel',
+      inputDigest: h.command.inputDigest,
+    };
+    if (change === 'wrong-digest') command.inputDigest = '0'.repeat(64);
+    if (change === 'client-time') command.cancelledAt = new Date().toISOString();
+    if (change === 'revoked') {
+      const actor = h.rows.users?.find((row) => row._id === 'admin');
+      assert.ok(actor);
+      actor.status = 'suspended';
+    }
+    const bytes = h.bytes();
+    const writes = h.writes();
+    const result = object(await h.invoke(command, change === 'other-actor' ? 'other' : 'admin'));
+    assert.equal(result.ok, false);
+    assert.equal(h.bytes(), bytes);
+    assert.equal(h.writes(), writes);
+  });
+
+test('failed cancellation leaves the root active and queryable rather than reporting false success', async () => {
+  const h = await fixture();
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  const bytes = h.bytes();
+  h.fail();
+  await assert.rejects(
+    h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+    /unacknowledged owned approval/,
+  );
+  assert.equal(h.bytes(), bytes);
+  assert.equal(object(await h.invoke(query)).current, true);
+});
+
+for (const marker of [undefined, null, 'bad-time'])
+  test(`a malformed persisted cancellation cannot be treated as active: ${String(marker)}`, async () => {
+    const h = await fixture();
+    assert.equal(object(await h.invoke(h.command)).ok, true);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    object(root.operation).cancelledAt = marker;
+    const bytes = h.bytes();
+    assert.equal(object(await h.invoke(query)).ok, false);
+    assert.deepEqual(await h.invoke(h.command), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), bytes);
+  });
+
+test('the legacy HTTP workflow cannot forward an internal cancellation command', async () => {
+  let persisted = 0;
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async () => ({ _id: 'admin', role: 'admin' }),
+      persist: async () => {
+        persisted++;
+        throw new Error('Internal command reached HTTP persistence');
+      },
+    },
+    'admin',
+    { ...query, action: 'operation-cancel', inputDigest: 'a'.repeat(64) },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(persisted, 0);
+});
+
+test('an old save after cancellation refuses before loading a broken supplier source', async () => {
+  const h = await fixture('publish', true, false, true);
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  assert.equal(
+    object(
+      await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+    ).ok,
+    true,
+  );
+  const expectedUpdatedAt = h.start.expectedUpdatedAt;
+  assert.ok(typeof expectedUpdatedAt === 'string');
+  const sourceCollections = new Set([
+    'alibabaSourceProducts',
+    'catalogSourceObservations',
+    'alibabaProductLinks',
+  ]);
+  const writes = h.writes();
+  const result = await prepareProductOperationSave(
+    {
+      ...h.tx,
+      get: async (collection, id) => {
+        if (sourceCollections.has(collection))
+          throw new Error('Cancelled save fetched supplier data');
+        return h.tx.get(collection, id);
+      },
+    },
+    h.product,
+    {
+      mode: 'update',
+      productId: 'p',
+      data: h.start.values,
+      expectedUpdatedAt,
+      expectedOperation: {
+        actorId: 'admin',
+        operationId: uuid,
+        inputDigest: h.command.inputDigest,
+      },
+    },
+  );
+  assert.deepEqual(result, { result: 'stale' });
+  assert.equal(h.writes(), writes);
 });

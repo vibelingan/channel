@@ -6,6 +6,7 @@ interface Command {
   and(conditions: Record<string, unknown>[]): Record<string, unknown>;
   eq(value: unknown): unknown;
   gt(value: unknown): unknown;
+  exists(value: boolean): unknown;
   expr(expression: Record<string, unknown>): Record<string, unknown>;
 }
 export const APPROVAL_IMAGE_HOLD_PROJECTION: Readonly<Record<string, boolean>> = Object.freeze({
@@ -39,6 +40,7 @@ export function approvalImageHoldWhere(
   });
   return command.and([
     { state: command.eq('staging') },
+    { 'operation.cancelledAt': command.exists(false) },
     { createdAt: command.gt(startedAfter) },
     command.expr({
       $and: [
@@ -71,6 +73,7 @@ export function firstApprovalImageHold(
     const productId = typeof row.productId === 'string' ? row.productId : '';
     if (
       row.state === 'staging' &&
+      !approvalImageHoldCancelled(row) &&
       typeof row.createdAt === 'string' &&
       row.createdAt > startedAfter &&
       productId &&
@@ -100,4 +103,15 @@ export function approvalImageHoldAnswer(value: unknown): string | null {
   )
     throw new Error('Approval image lookup was not confirmed');
   return row.productId;
+}
+
+/** A present cancellation marker is terminal; malformed markers cannot revive a job. */
+export function approvalImageHoldCancelled(row: CollectionDoc): boolean {
+  const present = (operation: unknown): boolean =>
+    Array.isArray(operation)
+      ? operation.some(present)
+      : operation !== null &&
+        typeof operation === 'object' &&
+        Object.hasOwn(operation, 'cancelledAt');
+  return present(row.operation);
 }

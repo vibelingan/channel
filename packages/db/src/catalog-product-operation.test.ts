@@ -631,3 +631,15 @@ test('a historical operation without approval binding remains readable but canno
   assert.equal(h.snapshot(), before);
   assert.equal(h.counts().writes, 1);
 });
+
+test('a disappeared historical product cannot report its missing timestamp as a current revision', async () => {
+  const h = fixture({ updatedAt: undefined });
+  stored(await h.invoke(request({ expectedUpdatedAt: null })));
+  const product = h.row('products', 'p');
+  assert.ok(product);
+  product._id = 'moved-away';
+  const result = object(await h.invoke(query));
+  assert.equal(result.ok, true);
+  assert.equal(result.current, false);
+  assert.equal(result.revisionCurrent, false);
+});

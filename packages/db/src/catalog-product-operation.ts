@@ -79,11 +79,15 @@ export const ProductOperationApprovalPageSchema = identifiers
     page: z.number().int().min(0).max(499),
   })
   .strict();
+export const ProductOperationCancelSchema = identifiers
+  .extend({ action: z.literal('operation-cancel'), inputDigest: digest })
+  .strict();
 const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationGetSchema,
   ProductOperationApprovalBeginSchema,
   ProductOperationApprovalPageSchema,
+  ProductOperationCancelSchema,
 ]);
 const SnapshotSchema = z
   .object({
@@ -128,6 +132,7 @@ const ReservedSchema = z
         policy: PolicySchema,
         values: z.record(z.unknown()),
         base: SnapshotSchema,
+        cancelledAt: z.string().datetime().optional(),
       })
       .strict(),
   })
@@ -212,6 +217,10 @@ export async function runProductOperation(
   if (previous) {
     const record = readReservation(previous, actorId, command);
     if (!record) return fail('CONFLICT');
+    if (command.action === 'operation-cancel') {
+      if (command.inputDigest !== record.operation.inputDigest) return fail('CONFLICT');
+      return cancelOperation(tx, record);
+    }
     if (
       command.action === 'operation-start' &&
       record.operation.inputDigest !== requestDigest(actorId, command, values)
@@ -219,7 +228,8 @@ export async function runProductOperation(
       return fail('CONFLICT');
     return inspect(tx, record);
   }
-  if (command.action === 'operation-get') return fail('NOT_FOUND');
+  if (command.action === 'operation-get' || command.action === 'operation-cancel')
+    return fail('NOT_FOUND');
   const product = await tx.get('products', command.productId);
   if (!product) return fail('NOT_FOUND');
   if (
@@ -300,6 +310,8 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   const parsed = RecordSchema.safeParse(row);
   if (!parsed.success) return null;
   const record = parsed.data;
+  if (Object.hasOwn(record.operation, 'cancelledAt') && record.operation.cancelledAt === undefined)
+    return null;
   if (record.state === 'staging') {
     const { operation: _operation, saved: _saved, ...job } = record;
     if (!readApprovalJob(job) || !fitsApprovalJobBudget(job)) return null;
@@ -328,6 +340,34 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
     return null;
   return record;
 }
+/** A cancellation stops future work; it never rolls back an acknowledged business write. */
+async function cancelOperation(
+  tx: CatalogApprovalTransaction,
+  record: ProductOperationRecord,
+): Promise<ProductOperationResult> {
+  const product = await tx.get('products', record.productId);
+  const now = new Date().toISOString();
+  const cancelled = Object.hasOwn(record.operation, 'cancelledAt')
+    ? record
+    : RecordSchema.parse({
+        ...record,
+        operation: { ...record.operation, cancelledAt: now },
+      });
+  if (!fitsJsonBudget(cancelled, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
+    return fail('VALIDATION_ERROR');
+  const age = Date.parse(now) - Date.parse(record.createdAt);
+  const result = {
+    ok: true as const,
+    record: cancelled,
+    current: false,
+    revisionCurrent:
+      product?._id === record.productId && matchesProductRevision(record, product.updatedAt),
+    expired: age < 0 || age > APPROVAL_JOB_MAX_AGE_MS,
+  };
+  if (cancelled !== record) await tx.set(collection, cancelled);
+  return result;
+}
+
 async function inspect(
   tx: CatalogApprovalTransaction,
   record: ProductOperationRecord,
@@ -336,7 +376,9 @@ async function inspect(
   const product =
     currentProduct === undefined ? await tx.get('products', record.productId) : currentProduct;
   const current =
-    product?._id === record.productId ? await snapshot(tx, product, record.operation.intent) : null;
+    !Object.hasOwn(record.operation, 'cancelledAt') && product?._id === record.productId
+      ? await snapshot(tx, product, record.operation.intent)
+      : null;
   const age = Date.now() - Date.parse(record.createdAt);
   return {
     ok: true,
@@ -344,7 +386,8 @@ async function inspect(
     current:
       matchesCurrent(record, current) &&
       (record.state !== 'staging' || sameApprovalProduct(product, record)),
-    revisionCurrent: matchesProductRevision(record, product?.updatedAt),
+    revisionCurrent:
+      product?._id === record.productId && matchesProductRevision(record, product.updatedAt),
     expired: age < 0 || age > APPROVAL_JOB_MAX_AGE_MS,
   };
 }
@@ -457,6 +500,7 @@ function matchesCurrent(
   current: z.infer<typeof SnapshotSchema> | null,
 ) {
   return (
+    !Object.hasOwn(record.operation, 'cancelledAt') &&
     current !== null &&
     alibabaPricingFingerprint(record.operation.policy) ===
       alibabaPricingFingerprint(currentPolicy()) &&
@@ -519,6 +563,7 @@ export async function prepareProductOperationSave(
     : null;
   if (
     !record ||
+    Object.hasOwn(record.operation, 'cancelledAt') ||
     (record.operation.intent !== 'save-draft' && record.operation.intent !== 'publish') ||
     input.expectedUpdatedAt !== record.operation.expectedUpdatedAt ||
     binding.inputDigest !== record.operation.inputDigest ||

@@ -1,3 +1,4 @@
+import { approvalImageHoldCancelled } from './catalog-approval-image-hold.ts';
 import { findCatalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
 import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import { type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
@@ -749,6 +750,7 @@ export async function unfinishedApprovalUsingImage(imageId: string): Promise<str
       },
     });
     for (const job of page.items) {
+      if (approvalImageHoldCancelled(job)) continue;
       const productId = typeof job.productId === 'string' ? job.productId : '';
       if (
         productId &&

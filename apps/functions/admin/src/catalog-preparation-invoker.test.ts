@@ -99,28 +99,68 @@ test('installed SDK uses zero retries even when its configured default permits r
 });
 
 test(
-  'installed SDK streaming bytes cannot extend the total preparation deadline',
+  'installed SDK startup remains inside the total deadline before any response exists',
+  { timeout: 5000 },
+  async (t) => {
+    let release = () => {};
+    let entered = () => {};
+    let attempts = 0;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const transport = new Promise<unknown>((resolve) => {
+      release = () => resolve({ data: { response_data: '{}' }, requestId: 'owned-late-startup' });
+    });
+    t.mock.method(requester, 'request', () => {
+      attempts++;
+      entered();
+      return transport;
+    });
+    try {
+      await assert.rejects(
+        createCatalogPreparationInvoker(cloudStorageSdk(), { timeoutMs: 5 })(admission()),
+        (error) => {
+          assert.ok(error && typeof error === 'object');
+          return Reflect.get(error, 'code') === 'PREPARATION_RESULT_TIMEOUT';
+        },
+      );
+      await started;
+      assert.equal(attempts, 1);
+    } finally {
+      release();
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(attempts, 1);
+  },
+);
+
+test(
+  'an already-streaming installed SDK request cannot extend the total preparation wait',
   { timeout: 5000 },
   async (t) => {
     const sdk = cloudStorageSdk();
     const oldConfig: unknown = Reflect.get(sdk, 'config');
     assert.ok(oldConfig && typeof oldConfig === 'object');
     let received = 0;
+    let chunks = 0;
+    let completeResponse = () => {};
+    let entered = () => {};
+    const streaming = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
     const server = createServer((request, response) => {
       received++;
       request.resume();
       response.writeHead(200, { 'content-type': 'application/json' });
       response.write(' ');
-      const stream = setInterval(() => response.write(' '), 10);
-      const finish = setTimeout(
-        () =>
-          response.end(JSON.stringify({ data: { response_data: '{}' }, requestId: 'owned-slow' })),
-        350,
-      );
-      response.on('close', () => {
-        clearInterval(stream);
-        clearTimeout(finish);
-      });
+      const stream = setInterval(() => {
+        chunks++;
+        response.write(' ');
+      }, 10);
+      completeResponse = () =>
+        response.end(JSON.stringify({ data: { response_data: '{}' }, requestId: 'owned-slow' }));
+      response.on('close', () => clearInterval(stream));
+      entered();
     });
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
@@ -142,19 +182,32 @@ test(
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     });
-    const started = performance.now();
-    await assert.rejects(
-      createCatalogPreparationInvoker(sdk, { timeoutMs: 80 })(admission()),
-      (error) => {
-        assert.ok(error && typeof error === 'object');
-        return Reflect.get(error, 'code') === 'PREPARATION_RESULT_TIMEOUT';
-      },
+    const call = admission();
+    const inFlight = sdk.callFunction(
+      { name: 'alibaba-catalog-sync', qualifier: '$LATEST', data: call },
+      { timeout: CATALOG_PREPARATION_INVOKE_TIMEOUT_MS, retryOptions: { retries: 0 } },
     );
+    await Promise.race([
+      streaming,
+      inFlight.then(() => {
+        throw Error('SDK completed before the streaming test began');
+      }),
+    ]);
+    // Establish the streaming condition before measuring this part of the deadline.
+    const waited = withCatalogPreparationDeadline(() => inFlight, 80)(call);
+    let completed = false;
+    const finish = setTimeout(() => {
+      completed = true;
+      completeResponse();
+    }, 350);
+    t.after(() => clearTimeout(finish));
+    await assert.rejects(waited, (error) => {
+      assert.ok(error && typeof error === 'object');
+      return Reflect.get(error, 'code') === 'PREPARATION_RESULT_TIMEOUT';
+    });
     assert.equal(received, 1);
-    assert.ok(
-      performance.now() - started < 300,
-      'continuous socket activity must not extend total wait',
-    );
+    assert.ok(chunks > 0, 'the server actually streamed bytes before the deadline');
+    assert.equal(completed, false, 'the hard deadline must stop waiting before the full response');
   },
 );
 for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 8001, 1.5])

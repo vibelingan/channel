@@ -1428,3 +1428,134 @@ test('own pages resume after file reopen and duplicate requests leave21immutable
   assert.equal(raw.products[0].catalogDetailPublication, undefined);
   assert.equal(raw.products[0].catalogDetailApprovalReceipt, undefined);
 });
+
+for (const stage of ['reserved', 'saved', 'staging'] as const)
+  test(`cancelled ${stage} operation survives JSON reopen and cannot replay its draft save`, async (t) => {
+    const approval =
+      stage === 'staging' ? await jsonOwnApprovalFixture(t, { imageIds: ['held-own'] }, 21) : null;
+    const h = approval ?? fixture(t);
+    const reserved = approval === null ? await reserve(h.adapter) : null;
+    if (stage === 'saved') {
+      assert.ok(reserved);
+      assert.equal(
+        (await h.adapter.saveCatalogProductWithIdentities(reserved.input)).result,
+        'saved',
+      );
+    }
+    if (approval)
+      assert.equal(
+        (await h.adapter.persistCatalogDetailApproval('admin', approval.command)).ok,
+        true,
+      );
+    const current = await h.adapter.persistCatalogDetailApproval('admin', query);
+    assert.ok(current.ok && 'record' in current);
+    const command = {
+      ...query,
+      action: 'operation-cancel' as const,
+      inputDigest: current.record.operation.inputDigest,
+    };
+    const beforeProduct = await h.adapter.get('products', 'p');
+    await h.adapter.persistCatalogDetailApproval('admin', command); // Discard the response before reopening.
+    const reopened = new JsonFileAdapter(h.file);
+    setAdapter(reopened);
+    const result = await reopened.persistCatalogDetailApproval('admin', query);
+    assert.ok(result.ok && 'record' in result && !result.current);
+    assert.equal(typeof result.record.operation.cancelledAt, 'string');
+    const input = approval?.input ?? reserved?.input;
+    assert.ok(input);
+    const bytes = h.bytes();
+    utimesSync(h.file, new Date(1000), new Date(1000));
+    assert.equal((await reopened.saveCatalogProductWithIdentities(input)).result, 'stale');
+    assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', command), result);
+    if (approval) {
+      assert.equal(
+        (await reopened.persistCatalogDetailApproval('admin', approval.command)).ok,
+        false,
+      );
+      assert.equal(await unfinishedApprovalUsingImage('held-own'), null);
+    }
+    assert.deepEqual(await reopened.get('products', 'p'), beforeProduct);
+    assert.equal(h.bytes(), bytes);
+    assert.equal(statSync(h.file).mtimeMs, 1000);
+  });
+
+test('concurrent JSON page/cancel serialize on the original root and preserve permanent cancellation', async (t) => {
+  const h = await jsonOwnApprovalFixture(t, {}, 21);
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.command)).ok, true);
+  const page = {
+    ...query,
+    action: 'operation-approval-page' as const,
+    inputDigest: h.command.inputDigest,
+    page: 0,
+  };
+  const cancel = {
+    ...query,
+    action: 'operation-cancel' as const,
+    inputDigest: h.command.inputDigest,
+  };
+  const other = new JsonFileAdapter(h.file);
+  const answers = await Promise.allSettled([
+    h.adapter.persistCatalogDetailApproval('admin', page),
+    other.persistCatalogDetailApproval('admin', cancel),
+  ]);
+  assert.ok(answers.every((answer) => answer.status === 'fulfilled'));
+  const reopened = new JsonFileAdapter(h.file);
+  const result = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(result.ok && 'record' in result && !result.current);
+  assert.equal(typeof result.record.operation.cancelledAt, 'string');
+  const bytes = h.bytes();
+  assert.equal(
+    (await reopened.persistCatalogDetailApproval('admin', { ...page, page: 1 })).ok,
+    false,
+  );
+  assert.equal((await reopened.saveCatalogProductWithIdentities(h.input)).result, 'stale');
+  assert.equal(h.bytes(), bytes);
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+});
+
+test('concurrent JSON draft save/cancel keep the cancellation barrier without reverting a saved draft', async (t) => {
+  const h = fixture(t);
+  const reserved = await reserve(h.adapter);
+  const command = {
+    ...query,
+    action: 'operation-cancel' as const,
+    inputDigest: reserved.answer.record.operation.inputDigest,
+  };
+  const other = new JsonFileAdapter(h.file);
+  const answers = await Promise.allSettled([
+    h.adapter.saveCatalogProductWithIdentities(reserved.input),
+    other.persistCatalogDetailApproval('admin', command),
+  ]);
+  assert.ok(answers.every((answer) => answer.status === 'fulfilled'));
+  const reopened = new JsonFileAdapter(h.file);
+  const status = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(status.ok && 'record' in status && !status.current);
+  assert.equal(typeof status.record.operation.cancelledAt, 'string');
+  const product = await reopened.get('products', 'p');
+  assert.equal(product?.published, false);
+  assert.ok(product?.description === '' || product?.description === values.description);
+  const bytes = h.bytes();
+  assert.equal((await reopened.saveCatalogProductWithIdentities(reserved.input)).result, 'stale');
+  assert.equal(h.bytes(), bytes);
+});
+
+test('a new explicit operation can continue after cancellation without reusing the cancelled identity', async (t) => {
+  const h = fixture(t);
+  const reserved = await reserve(h.adapter);
+  const command = {
+    ...query,
+    action: 'operation-cancel' as const,
+    inputDigest: reserved.answer.record.operation.inputDigest,
+  };
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', command)).ok, true);
+  const newer = await h.adapter.persistCatalogDetailApproval('admin', {
+    ...start,
+    operationId: '22345678-1234-4234-8234-123456789012',
+  });
+  assert.ok(newer.ok && 'record' in newer && newer.current);
+  assert.notEqual(newer.record._id, reserved.answer.record._id);
+  assert.equal(newer.record.operation.cancelledAt, undefined);
+  const old = await h.adapter.persistCatalogDetailApproval('admin', query);
+  assert.ok(old.ok && 'record' in old && !old.current);
+  assert.equal(typeof old.record.operation.cancelledAt, 'string');
+});

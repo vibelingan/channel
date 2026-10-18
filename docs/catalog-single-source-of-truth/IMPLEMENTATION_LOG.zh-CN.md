@@ -1219,3 +1219,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e6a：大媒体引用协议与纯计算
 
 复核全部计数消费者后，选同根协调、待提交差值与小型不可变证明；明确非快照读和单root结算反例，永久hold/旧writer/backfill仍是启用前门槛。本步只实现未接DB的计划/成员证明/一致快照结算纯函数。51新增、18故障134重叠失败并SHA恢复；完整4876、Node20 DB1594、19types/E2E/显式Biome/SDK/diff通过。独立Node20构建6计划、Python13成员路径交叉核对。详见[P3e6](P3e6_MEDIA_REFERENCE_PROTOCOL.zh-CN.md)。实际措辞修正：测试名去掉“lost answers”，限定线性化模型，不冒称HTTP或真实云恢复。原正式P1、真实三时钟/20件验收及fullDeliveryReady=false继续。
+
+
+## P3e6b1：同根永久取消与图片hold释放
+
+原操作根增加服务器cancelledAt，4文档操作、重复0写，保留草稿/页且旧save/begin/page不能继续；三种hold路径排除仅本取消根。原expiry一小时+十分钟余量保留并补65/69/71分钟检查，修正此前未读完整入口的假设。55新增、20取消反例156重叠失败+1SDK-only检出、11真实安装SDK取消/12发送层条件、四进程重开/清理。全量曾在旧流式测试出现1失败，控制启动延迟复现错误假设后修正测试并以硬截止十倍反例重证；生产8秒逻辑未改。最终4931全量/Node201742+invoker15/19types及admin补跑/Biome/SDK/diff通过。[P3e6b1](P3e6b1_OWN_OPERATION_CANCELLATION.zh-CN.md)记录完整证据。措辞“取消停止后续步骤”区别于回滚既有业务写入；原formal P1/fullDeliveryReady=false保留。

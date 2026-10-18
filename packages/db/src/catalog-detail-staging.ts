@@ -47,6 +47,7 @@ import {
 import {
   ProductOperationApprovalBeginSchema,
   ProductOperationApprovalPageSchema,
+  ProductOperationCancelSchema,
   ProductOperationGetSchema,
   type ProductOperationResult,
   ProductOperationStartSchema,
@@ -105,6 +106,7 @@ const PriceSummaryBackfillSchema = z
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationApprovalPageSchema,
+  ProductOperationCancelSchema,
   ProductOperationApprovalBeginSchema,
   ProductOperationGetSchema,
   SourcePageSchema,
@@ -544,7 +546,8 @@ export async function runStagedApproval(
     command.action === 'operation-start' ||
     command.action === 'operation-get' ||
     command.action === 'operation-approval-begin' ||
-    command.action === 'operation-approval-page'
+    command.action === 'operation-approval-page' ||
+    command.action === 'operation-cancel'
   )
     return runProductOperation(tx, actorId, command);
   if (command.action === 'preparation-report')

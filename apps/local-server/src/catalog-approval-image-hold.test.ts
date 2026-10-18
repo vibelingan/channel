@@ -90,3 +90,29 @@ test('older adapters retain the complete stable-page fallback', async (t) => {
   assert.equal(await unfinishedApprovalUsingImage('target'), 'p');
   assert.equal(pages, 2);
 });
+
+for (const fallback of [false, true])
+  test(`cancelled approvals release only their own image hold with fallback=${fallback}`, async (t) => {
+    const dir = mkdtempSync(join(tmpdir(), 'channel-cancelled-hold-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, 'db.json');
+    const make = (id: string, imageId: string): CollectionDoc => ({
+      _id: id,
+      productId: id,
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication: { state: 'approved', header: { _id: id, images: [`/api/images/${imageId}`] } },
+    });
+    const cancelled = {
+      ...make('a', 'shared'),
+      operation: { cancelledAt: new Date().toISOString() },
+    };
+    const active = make('b', 'shared');
+    writeFileSync(file, JSON.stringify({ catalogDetailApprovals: [cancelled, active] }));
+    const adapter = new JsonFileAdapter(file);
+    if (fallback) Reflect.set(adapter, 'findUnfinishedApprovalUsingImage', undefined);
+    setAdapter(adapter);
+    assert.equal(await unfinishedApprovalUsingImage('shared'), 'b');
+    await adapter.remove('catalogDetailApprovals', 'b');
+    assert.equal(await unfinishedApprovalUsingImage('shared'), null);
+  });
