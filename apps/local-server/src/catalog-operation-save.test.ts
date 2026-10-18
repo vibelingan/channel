@@ -2102,3 +2102,160 @@ for (const corrupt of ['null', 'cursor'] as const)
     assert.equal(h.bytes(), before);
     assert.equal(statSync(h.file).mtimeMs, 1000);
   });
+
+async function jsonOwnPublishFixture(t: { after(callback: () => void): void }, count = 1) {
+  const h = await jsonOwnReferencePageFixture(t, count);
+  for (let cursor = 0; cursor < count; cursor += 20)
+    assert.equal(
+      (await h.adapter.persistCatalogDetailApproval('admin', { ...h.pageCommand, cursor })).ok,
+      true,
+    );
+  const { cursor: _cursor, ...scope } = h.pageCommand;
+  return { ...h, finishCommand: { ...scope, action: 'operation-publish' as const } };
+}
+test('JSON own publish recovers the committed operation after a discarded response with zero writes', async (t) => {
+  const h = await jsonOwnPublishFixture(t, 27);
+  await h.adapter.persistCatalogDetailApproval('admin', h.finishCommand);
+  const reopened = new JsonFileAdapter(h.file);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const recovered = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(recovered.ok && 'record' in recovered && recovered.record.state === 'complete');
+  assert.equal(recovered.current, true);
+  assert.deepEqual(
+    await reopened.persistCatalogDetailApproval('admin', h.finishCommand),
+    recovered,
+  );
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal((await reopened.get('products', 'p'))?.published, true);
+  for (const imageId of h.ids) {
+    const image = await reopened.readCatalogImageReference({ action: 'read', imageId });
+    assert.ok(image.state === 'counted');
+    assert.equal(image.effectiveCount, 1);
+  }
+});
+for (const lost of [false, true])
+  test(`JSON own publication ${lost ? 'applied but answer lost' : 'disk failure'} never leaves a partial proof/root/product`, async (t) => {
+    const h = await jsonOwnPublishFixture(t);
+    const before = h.bytes();
+    const persist = Reflect.get(h.adapter, 'persist');
+    assert.ok(typeof persist === 'function');
+    try {
+      Reflect.set(h.adapter, 'persist', function (this: JsonFileAdapter) {
+        if (lost) Reflect.apply(persist, this, []);
+        throw Error('owned publication disk response lost');
+      });
+      await assert.rejects(
+        h.adapter.persistCatalogDetailApproval('admin', h.finishCommand),
+        /owned publication disk response lost/,
+      );
+      if (!lost) {
+        assert.equal(h.bytes(), before);
+        assert.deepEqual(Reflect.get(h.adapter, 'store'), JSON.parse(before));
+      }
+    } finally {
+      Reflect.set(h.adapter, 'persist', persist);
+    }
+    const reopened = new JsonFileAdapter(h.file);
+    if (lost) {
+      const committed = h.bytes();
+      utimesSync(h.file, new Date(1000), new Date(1000));
+      assert.equal(
+        (await reopened.persistCatalogDetailApproval('admin', h.finishCommand)).ok,
+        true,
+      );
+      assert.equal(h.bytes(), committed);
+      assert.equal(statSync(h.file).mtimeMs, 1000);
+    } else
+      assert.equal(
+        (await reopened.persistCatalogDetailApproval('admin', h.finishCommand)).ok,
+        true,
+      );
+    assert.equal((await reopened.get('products', 'p'))?.published, true);
+    const rows = JSON.parse(h.bytes());
+    assert.equal(
+      rows.catalogDetailApprovals.filter(
+        (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-commit-v1',
+      ).length,
+      1,
+    );
+  });
+for (const first of ['publish', 'cancel'] as const)
+  test(`JSON own publication/cancel race with ${first} queued first has one immutable terminal result`, async (t) => {
+    const h = await jsonOwnPublishFixture(t);
+    const other = new JsonFileAdapter(h.file);
+    const operations =
+      first === 'publish' ? [h.finishCommand, h.cancelCommand] : [h.cancelCommand, h.finishCommand];
+    const results = await Promise.allSettled(
+      operations.map((command, i) =>
+        (i === 0 ? h.adapter : other).persistCatalogDetailApproval('admin', command),
+      ),
+    );
+    assert.ok(results.every((result) => result.status === 'fulfilled'));
+    const values = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    assert.equal(values.filter((value) => value.ok).length, 1);
+    const rows = JSON.parse(h.bytes());
+    const committed = rows.catalogDetailApprovals.filter(
+      (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-commit-v1',
+    );
+    const cancelled = rows.catalogDetailApprovals.filter(
+      (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-cancel-v1',
+    );
+    assert.equal(committed.length + cancelled.length, 1);
+    assert.equal((await other.get('products', 'p'))?.published, committed.length === 1);
+    const image = await other.readCatalogImageReference({
+      action: 'read',
+      imageId: h.ids[0] ?? '',
+    });
+    assert.ok(image.state === 'counted');
+    assert.equal(image.effectiveCount, committed.length);
+  });
+test('JSON simultaneous own publication replay commits one proof and one lifecycle increment', async (t) => {
+  const h = await jsonOwnPublishFixture(t);
+  const other = new JsonFileAdapter(h.file);
+  const before = await other.get('products', 'p');
+  const results = await Promise.allSettled([
+    h.adapter.persistCatalogDetailApproval('admin', h.finishCommand),
+    other.persistCatalogDetailApproval('admin', h.finishCommand),
+  ]);
+  assert.ok(results.every((result) => result.status === 'fulfilled' && result.value.ok));
+  const product = await other.get('products', 'p');
+  assert.equal(product?.catalogLifecycleVersion, Number(before?.catalogLifecycleVersion ?? 0) + 1);
+  assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals.length, 2);
+});
+test('JSON own publication captures its input before waiting for the file mutation lock', async (t) => {
+  const h = await jsonOwnPublishFixture(t);
+  const command = { ...h.finishCommand };
+  const pending = h.adapter.persistCatalogDetailApproval('admin', command);
+  command.productId = 'other';
+  command.inputDigest = 'f'.repeat(64);
+  const result = await pending;
+  assert.ok(result.ok && 'record' in result && result.record.state === 'complete');
+  assert.equal(result.record.productId, 'p');
+});
+
+test('JSON a concurrent ordinary image write cannot invalidate the staged bytes before own publication', async (t) => {
+  const h = await jsonOwnPublishFixture(t);
+  const other = new JsonFileAdapter(h.file);
+  const imageId = h.ids[0] ?? '';
+  const original = await h.adapter.get('images', imageId);
+  const results = await Promise.allSettled([
+    other.update('images', imageId, {
+      status: 'failed',
+      storageFileId: 'local-disk:replacement.png',
+    }),
+    h.adapter.persistCatalogDetailApproval('admin', h.finishCommand),
+  ]);
+  assert.equal(results[0]?.status, 'rejected');
+  assert.ok(results[1]?.status === 'fulfilled' && results[1].value.ok);
+  const image = await other.get('images', imageId);
+  assert.equal(image?.status, original?.status);
+  assert.equal(image?.storageFileId, original?.storageFileId);
+  const effective = await other.readCatalogImageReference({ action: 'read', imageId });
+  assert.ok(effective.state === 'counted');
+  assert.equal(effective.effectiveCount, 1);
+  assert.equal((await other.get('products', 'p'))?.published, true);
+});

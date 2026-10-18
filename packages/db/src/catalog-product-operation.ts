@@ -1,4 +1,4 @@
-/** Persistent operation inputs and acknowledged draft stages; no stage here publishes. */
+/** One durable operation binds draft, private approval pages and the atomic publication receipt. */
 import { createHash } from 'node:crypto';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
@@ -6,11 +6,20 @@ import {
   buildWriteSchema,
   catalogReferencedImageIds,
   getCollection,
+  validateProductPublication,
   writableFields,
 } from '@vibelingan-channel/shared';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
-import { CatalogDetailHeaderSchema } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  CatalogDetailHeaderSchema,
+  CatalogDetailPublicationSchema,
+} from '@vibelingan-channel/shared/catalog-detail';
 import { CATALOG_APPROVAL_JOB_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/catalog-detail-pagination';
+import {
+  CatalogIssueSchema,
+  catalogValidationFailure,
+} from '@vibelingan-channel/shared/catalog-issues';
 import {
   CATALOG_MEDIA_SEAL_POLICY,
   CATALOG_PIXEL_POLICY,
@@ -52,7 +61,12 @@ import {
   prepareOwnedApprovalReferences,
   readOwnedApprovalReferencePlan,
 } from './catalog-operation-references.ts';
-import { CatalogProductStateError, assertCatalogProductVersions } from './catalog-product-state.ts';
+import {
+  CatalogProductStateError,
+  advanceCatalogProduct,
+  assertCatalogProductVersions,
+} from './catalog-product-state.ts';
+import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import {
   normalizedSourceInputDigest,
   sourceBindingInputs,
@@ -115,6 +129,9 @@ export const ProductOperationReferencePageSchema = identifiers
     cursor: counter.max(CATALOG_IMAGE_REFERENCE_MAX_LEAVES),
   })
   .strict();
+export const ProductOperationPublishSchema = identifiers
+  .extend({ action: z.literal('operation-publish'), inputDigest: digest })
+  .strict();
 const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationGetSchema,
@@ -124,6 +141,7 @@ const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationMediaSchema,
   ProductOperationReferencesSchema,
   ProductOperationReferencePageSchema,
+  ProductOperationPublishSchema,
 ]);
 const SnapshotSchema = z
   .object({
@@ -189,10 +207,25 @@ const ApprovalOperationSchema = SavedSchema.merge(ApprovalJobSchema).extend({
   references: CatalogOwnedApprovalReferencesSchema.optional(),
   referenceStage: CatalogOwnedReferenceStageSchema.optional(),
 });
+const CompleteOperationSchema = ApprovalOperationSchema.extend({
+  state: z.literal('complete'),
+  media: CatalogOwnedApprovalMediaSchema,
+  references: CatalogOwnedApprovalReferencesSchema,
+  referenceStage: CatalogOwnedReferenceStageSchema,
+  completion: z
+    .object({
+      at: z.string().datetime(),
+      productUpdatedAt: z.string().datetime(),
+      published: z.literal(true),
+      snapshot: SnapshotSchema,
+    })
+    .strict(),
+});
 const RecordSchema = z.discriminatedUnion('state', [
   ReservedSchema,
   SavedSchema,
   ApprovalOperationSchema,
+  CompleteOperationSchema,
 ]);
 export type SavedProductOperation = z.infer<typeof SavedSchema>;
 export type ProductOperationRecord = z.infer<typeof RecordSchema>;
@@ -257,12 +290,14 @@ export async function runProductOperation(
     return bindOperationApprovalReferences(tx, actorId, command);
   if (command.action === 'operation-approval-reference-page')
     return stageOperationReferences(tx, actorId, command);
+  if (command.action === 'operation-publish') return publishOperation(tx, actorId, command);
   const key = operationKey(actorId, command.productId, command.operationId);
   const previous = await tx.get(collection, key);
   if (previous) {
     const record = readReservation(previous, actorId, command);
     if (!record) return fail('CONFLICT');
     if (command.action === 'operation-cancel') {
+      if (record.state === 'complete') return fail('CONFLICT');
       if (command.inputDigest !== record.operation.inputDigest) return fail('CONFLICT');
       return cancelOperation(tx, record);
     }
@@ -357,15 +392,19 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   const record = parsed.data;
   if (Object.hasOwn(record.operation, 'cancelledAt') && record.operation.cancelledAt === undefined)
     return null;
-  if (record.state === 'staging') {
+  if (record.state === 'staging' || record.state === 'complete') {
     const {
       operation: _operation,
       saved: _saved,
       media: _media,
       references: _references,
       referenceStage: _referenceStage,
-      ...job
+      ...storedJob
     } = record;
+    const { completion: _completion, ...job } = {
+      ...storedJob,
+      completion: record.state === 'complete' ? record.completion : undefined,
+    };
     if (!readApprovalJob(job) || !fitsApprovalJobBudget(job)) return null;
     if (Object.hasOwn(record, 'media') && !readOwnedApprovalMedia(record, record.media))
       return null;
@@ -383,11 +422,13 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
         record.referenceStage === undefined ||
         !record.references ||
         !plan ||
-        !readOwnedReferenceStage(record.references, plan, record.referenceStage)
+        !readOwnedReferenceStage(record.references, plan, record.referenceStage) ||
+        (record.state === 'complete' && record.referenceStage.cursor !== plan.changes.length)
       )
         return null;
     }
   } else if (!fitsJsonBudget(record, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
+  if (record.state === 'complete' && Object.hasOwn(record.operation, 'cancelledAt')) return null;
   const values = cleanValues(record.operation.values);
   if (
     record.actorId !== actorId ||
@@ -460,9 +501,37 @@ async function inspect(
   tx: CatalogApprovalTransaction,
   record: ProductOperationRecord,
   currentProduct?: CollectionDoc | null,
-): Promise<Extract<ProductOperationResult, { ok: true }>> {
+): Promise<ProductOperationResult> {
   const product =
     currentProduct === undefined ? await tx.get('products', record.productId) : currentProduct;
+  if (record.state === 'complete') {
+    const plan = readOwnedApprovalReferencePlan(record, record.references);
+    if (
+      !plan ||
+      alibabaPricingFingerprint(await tx.get(collection, plan.proof._id)) !==
+        alibabaPricingFingerprint(plan.proof)
+    )
+      return fail('CONFLICT');
+    const current =
+      product?._id === record.productId
+        ? await snapshot(tx, product, record.operation.intent)
+        : null;
+    const age = Date.now() - Date.parse(record.createdAt);
+    return {
+      ok: true,
+      record,
+      current:
+        product?.published === true &&
+        product.archived !== true &&
+        current !== null &&
+        alibabaPricingFingerprint(current) ===
+          alibabaPricingFingerprint(record.completion.snapshot),
+      revisionCurrent:
+        product?._id === record.productId &&
+        (product.updatedAt ?? null) === record.completion.productUpdatedAt,
+      expired: age < 0 || age > APPROVAL_JOB_MAX_AGE_MS,
+    };
+  }
   const current =
     !Object.hasOwn(record.operation, 'cancelledAt') && product?._id === record.productId
       ? await snapshot(tx, product, record.operation.intent)
@@ -766,7 +835,7 @@ async function beginOperationApproval(
   if (!current.ok) return current;
   const { record, product, inspection } = current;
   if (!sameApprovalProduct(product, prepared)) return fail('CONFLICT');
-  if (record.state === 'staging') {
+  if (record.state === 'staging' || record.state === 'complete') {
     const {
       operation: _operation,
       saved: _saved,
@@ -810,7 +879,8 @@ async function currentApprovalOperation(
     | z.infer<typeof ProductOperationApprovalPageSchema>
     | z.infer<typeof ProductOperationMediaSchema>
     | z.infer<typeof ProductOperationReferencesSchema>
-    | z.infer<typeof ProductOperationReferencePageSchema>,
+    | z.infer<typeof ProductOperationReferencePageSchema>
+    | z.infer<typeof ProductOperationPublishSchema>,
 ): Promise<
   | {
       ok: true;
@@ -832,6 +902,11 @@ async function currentApprovalOperation(
     return fail('CONFLICT');
   const product = await tx.get('products', record.productId);
   const inspection = await inspect(tx, record, product);
+  if (!inspection.ok) return inspection;
+  if (record.state === 'complete')
+    return command.action === 'operation-publish' && product
+      ? { ok: true, record, product, inspection }
+      : fail('CONFLICT');
   if (
     !inspection.current ||
     !inspection.revisionCurrent ||
@@ -936,4 +1011,95 @@ async function stageOperationReferences(
   for (const image of page.images) await tx.set('images', image);
   await tx.set(collection, next);
   return { ...inspection, record: next };
+}
+
+/** Product, operation success and public reference rights become visible in this one transaction. */
+async function publishOperation(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command: z.infer<typeof ProductOperationPublishSchema>,
+): Promise<ProductOperationResult> {
+  const current = await currentApprovalOperation(tx, actorId, command);
+  if (!current.ok) return current;
+  const { record, product, inspection } = current;
+  if (record.state === 'complete') return inspection;
+  if (record.state !== 'staging' || !record.references || !record.media) return fail('CONFLICT');
+  if (
+    product.alibabaReviewPending === true &&
+    ['changed', 'removed'].includes(String(product.alibabaReviewReason))
+  )
+    return fail('SOURCE_NOT_READY');
+  const plan = readOwnedApprovalReferencePlan(record, record.references);
+  const progress = plan && readOwnedReferenceStage(record.references, plan, record.referenceStage);
+  if (!plan || !progress) return fail('CONFLICT');
+  if (record.nextPage !== record.pageHashes.length || progress.cursor !== plan.changes.length)
+    return fail('SOURCE_NOT_READY');
+  if (await tx.get(collection, plan.proof._id)) return fail('CONFLICT');
+  const media = await prepareOwnedApprovalMedia(tx, record, product);
+  if (!media || alibabaPricingFingerprint(media) !== alibabaPricingFingerprint(record.media))
+    return fail('MEDIA_NOT_READY');
+  const now = new Date().toISOString();
+  let next: CollectionDoc;
+  try {
+    next = advanceCatalogProduct(product, { ...product, published: true }, now);
+  } catch (error) {
+    if (!(error instanceof CatalogProductStateError)) throw error;
+    return fail('CONFLICT');
+  }
+  const issues = validateProductPublication(next);
+  if (issues.length)
+    return catalogValidationFailure(
+      'commit',
+      issues.map((issue) =>
+        CatalogIssueSchema.parse({
+          code: issue.field === 'productFamily' ? 'MISSING_CATEGORY' : 'INVALID_VALUE',
+          stage: issue.field === 'productFamily' ? 'classification' : 'commit',
+          path: issue.field,
+          severity: 'error',
+          remedy: issue.field === 'productFamily' ? 'classify' : 'edit',
+        }),
+      ),
+    );
+  next = {
+    ...next,
+    catalogDetailPublication: CatalogDetailPublicationSchema.parse({
+      ...record.publication,
+      variantStorage: 'immutable-v1',
+    }),
+    catalogDetailPagination: {
+      policyVersion: CATALOG_DETAIL_PAGINATION_POLICY,
+      revision: record.revision,
+      pageSize: record.publicPageSize ?? 50,
+    },
+    catalogDetailApprovalReceipt: {
+      contentFingerprint: publicationContentFingerprint(next),
+      operationId: record.operationId,
+      revision: record.revision,
+      requestDigest: record.requestDigest,
+      actorId,
+      variantCount: record.variantIds.length,
+      approvedAt: now,
+      ...(record.sourceDigest === undefined ? {} : { sourceDigest: record.sourceDigest }),
+      ...(record.supplierParts === undefined ? {} : { supplierParts: record.supplierParts }),
+    },
+  };
+  const completed = CompleteOperationSchema.parse({
+    ...record,
+    state: 'complete',
+    referenceStage: progress,
+    completion: {
+      at: now,
+      productUpdatedAt: next.updatedAt,
+      published: true,
+      snapshot: productSnapshot(next, record.saved.snapshot.source),
+    },
+  });
+  if (!fitsJsonBudget(completed, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
+    return fail('VALIDATION_ERROR');
+  const age = Date.now() - Date.parse(record.createdAt);
+  if (age < 0 || age > APPROVAL_JOB_MAX_AGE_MS) return fail('APPROVAL_EXPIRED');
+  await tx.set('products', next);
+  await tx.set(collection, completed);
+  await tx.set(collection, plan.proof);
+  return { ok: true, record: completed, current: true, revisionCurrent: true, expired: false };
 }

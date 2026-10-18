@@ -1300,3 +1300,8 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 同一事务按预算暂存图片与原根hash/cursor；全体终局结算、当前pixel证据与锁/actor/source/TTL检查保留。取消只写自身永久标记+同一不可变cancel槽，不翻转commit或删除他人pending。49新增/相关365、完整5529、Node202541、19types/E2E/standingSDK/六文件Biome通过；38故障全部检出、198重叠unit失败+三SDK-only/五SHA恢复；329安装SDK最大98文档操作。真实PNG四进程暂存丢回应/重开/取消结算通过，匿名始终404且分类/字节保留；采用独立快照，父文件未改。P3e6e1 的两项旧 late-capture 负例把复制结果字段写成 value，实际入口读取 command，因而当时失败不能单独证明等待期间改写输入。保留旧日志与历史计数，本轮改为 command 后重证：正常 JSON27 流程仍通过，JSON 锁等待输入用例失败；安装 SDK 的正常用例先完成261项，随后真实 startTransaction 等待输入用例失败。恢复后329项 SDK 与完整回归通过。新证据替代旧两项的因果解释，不改写原日志。
 
 详见[P3e6e2b](P3e6e2b_OWN_REFERENCE_PAGES.zh-CN.md)。人工审阅六代码/测试文件和四记录文档；改正自动恢复/metadata/进程范围的表述。精确构建随后补跑，原整笔发布P1/全局fullDeliveryReady=false保留，继续最终提交与恢复。
+
+
+## P3e6e3 原操作最终发布及完成回执
+
+同事务写product、原根complete+completion及唯一commit proof；复核当前媒体、全部暂存、原版本/actor/source/TTL，未决Changed/Removed拒绝。历史重放经原proof核对，只读且不会使已下架商品重新上线。补普通managed图片内容稳定守卫，名称和既有mutex保留。56新增，381相关、5585全量、Node202597、19types/E2E/SDK/六文件Biome通过；27源码故障101重叠失败+2SDK-only/五SHA恢复，399实际SDK最终15操作/三写及九ACK回滚、丢确认恢复。真实PNG五进程发布200/重开0写/编译admin下架404/分类字节保留及自有夹具清理通过；移除保护另实际复现商品200/图404。首次缺主图夹具被正确拒绝；改用完整warm手工夹具，不冒充来源时钟。SDK递归脚本别名、截止测试时点和冗余codec负例缺口均有记录。详见[P3e6e3](P3e6e3_OWN_PUBLICATION.zh-CN.md)。人工审阅六代码/测试文件与四文档，把当前成功/历史完成分开。精确产物后补，正式UI原P1、fullDeliveryReady=false及真实验收继续。

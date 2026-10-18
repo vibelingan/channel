@@ -90,3 +90,48 @@ test('managed conflict recognition is bounded and works across error serializati
   ])
     assert.equal(isImageReferenceWriteConflict(value), false);
 });
+
+for (const field of [
+  'status',
+  'storageProvider',
+  'storageMode',
+  'storageFileId',
+  'storagePath',
+  'mimeType',
+  'byteSize',
+  'checksumSha256',
+  'data',
+  'catalogStorageProtection',
+  'catalogProtectionIntentId',
+])
+  test(`ordinary metadata cannot replace managed image content field ${field}`, () => {
+    const current = { ...image, [field]: 'original' };
+    const before = structuredClone(current);
+    assert.throws(
+      () => assertOrdinaryImageReferenceWrite(current, { [field]: 'replacement' }),
+      ImageReferenceWriteError,
+    );
+    assert.deepEqual(current, before);
+    assert.doesNotThrow(() => assertOrdinaryImageReferenceWrite(current, { [field]: 'original' }));
+    assert.doesNotThrow(() => assertOrdinaryImageReferenceWrite(null, { [field]: 'replacement' }));
+  });
+for (const field of ['storagePath.value', 'catalogStorageProtection.intentId', 'storageFileId[0]'])
+  test(`ordinary managed metadata refuses a nested content path ${field}`, () => {
+    assert.throws(
+      () => assertOrdinaryImageReferenceWrite(image, { [field]: 'replacement' }),
+      ImageReferenceWriteError,
+    );
+  });
+test('managed content field presence is preserved while names and the existing mutex remain editable', () => {
+  assert.throws(
+    () => assertOrdinaryImageReferenceWrite(image, { storagePath: undefined }),
+    ImageReferenceWriteError,
+  );
+  assert.doesNotThrow(() =>
+    assertOrdinaryImageReferenceWrite(image, {
+      name: 'Renamed',
+      imageMutationOwner: 'existing-lock',
+      imageMutationStartedAt: '2026-10-18T00:00:00.000Z',
+    }),
+  );
+});

@@ -1,7 +1,9 @@
 /** Ordinary image writes cannot replace the publication protocol's ledger or managed base. */
+import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CATALOG_IMAGE_REFERENCE_LEDGER_FIELD } from './catalog-image-reference-store.ts';
 type Code =
+  | 'IMAGE_REFERENCE_CONTENT_WRITE_FORBIDDEN'
   | 'IMAGE_REFERENCE_DELETION_REQUIRED'
   | 'IMAGE_REFERENCE_WRITE_CONFLICT'
   | 'IMAGE_REFERENCE_LEDGER_WRITE_FORBIDDEN'
@@ -9,11 +11,13 @@ type Code =
 export class ImageReferenceWriteError extends Error {
   constructor(readonly code: Code) {
     super(
-      code === 'IMAGE_REFERENCE_WRITE_CONFLICT'
-        ? 'Image reference count belongs to a product operation.'
-        : code === 'IMAGE_REFERENCE_DELETION_REQUIRED'
-          ? 'Images with managed references require the deletion workflow.'
-          : 'Invalid ordinary image reference write.',
+      code === 'IMAGE_REFERENCE_CONTENT_WRITE_FORBIDDEN'
+        ? 'Stored image content requires the media workflow.'
+        : code === 'IMAGE_REFERENCE_WRITE_CONFLICT'
+          ? 'Image reference count belongs to a product operation.'
+          : code === 'IMAGE_REFERENCE_DELETION_REQUIRED'
+            ? 'Images with managed references require the deletion workflow.'
+            : 'Invalid ordinary image reference write.',
     );
     this.name = 'ImageReferenceWriteError';
   }
@@ -49,6 +53,33 @@ export function assertOrdinaryImageReferenceWrite(
     )
   )
     throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+  // Private staged references rely on these bytes staying valid until their root commits.
+  if (current && Object.hasOwn(current, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
+    const content = new Set([
+      'status',
+      'storageProvider',
+      'storageMode',
+      'storageFileId',
+      'storagePath',
+      'mimeType',
+      'byteSize',
+      'checksumSha256',
+      'data',
+      'catalogStorageProtection',
+      'catalogProtectionIntentId',
+    ]);
+    for (const key of keys) {
+      const root = key.split(/[.\[]/u)[0];
+      if (
+        root &&
+        content.has(root) &&
+        (root !== key ||
+          !Object.hasOwn(current, key) ||
+          !isDeepStrictEqual(current[key], patch[key]))
+      )
+        throw new ImageReferenceWriteError('IMAGE_REFERENCE_CONTENT_WRITE_FORBIDDEN');
+    }
+  }
   if (!Object.hasOwn(patch, 'publishedRefCount')) return;
   const count = patch.publishedRefCount;
   if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0)

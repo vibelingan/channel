@@ -17,7 +17,10 @@ import {
   catalogImageReferenceEntry,
 } from './catalog-image-references.ts';
 import { readOwnedApprovalMedia } from './catalog-operation-media.ts';
-import { planOwnedReferenceStagePage } from './catalog-operation-reference-stage.ts';
+import {
+  ownedReferenceStageProgress,
+  planOwnedReferenceStagePage,
+} from './catalog-operation-reference-stage.ts';
 import { finishOwnedMediaFixture } from './catalog-owned-media.fixture.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
@@ -1550,11 +1553,12 @@ test('reference freezing checks the service deadline again before its final root
   }
 });
 
-async function ownReferencePageFixture(imageCount = 1) {
+async function ownReferencePageFixture(imageCount = 1, extra: Record<string, unknown> = {}) {
   const ids = Array.from({ length: imageCount }, (_, i) => `image${String(i).padStart(2, '0')}`);
   const h = await fixture('publish', true, false, false, 21, {
     imageIds: ids.slice(0, 9),
     descriptionImageIds: ids.slice(9),
+    ...extra,
   });
   h.rows.images = ids.map((_id) => ({
     _id,
@@ -2113,3 +2117,272 @@ test('reference-page reserves both pixel reads and counts a refused next-image p
   assert.equal(forbiddenReads, 0);
   assert.equal(h.bytes(), before);
 });
+
+async function ownPublishFixture(extra: Record<string, unknown> = {}, imageCount = 1) {
+  const h = await ownReferencePageFixture(imageCount, {
+    description: 'Ready description',
+    ...extra,
+  });
+  let cursor = 0;
+  while (cursor < imageCount) {
+    const staged = object(await h.invoke({ ...h.pageCommand, cursor }));
+    assert.equal(staged.ok, true, JSON.stringify(staged));
+    cursor = Number(object(object(staged.record).referenceStage).cursor);
+  }
+  const { cursor: _cursor, ...scope } = h.pageCommand;
+  return { ...h, finishCommand: { ...scope, action: 'operation-publish' } };
+}
+for (const count of [1, 27])
+  test(`owned publish commits product root and unique reference proof together for${count} images`, async () => {
+    const h = await ownPublishFixture({}, count);
+    const before = h.writes();
+    const answer = object(await h.invoke(h.finishCommand));
+    assert.equal(answer.ok, true, JSON.stringify(answer));
+    const root = object(answer.record);
+    assert.equal(root.state, 'complete');
+    assert.equal(answer.current, true);
+    assert.equal(answer.revisionCurrent, true);
+    assert.equal(h.product.published, false, 'original input snapshot remains unchanged');
+    const product = h.rows.products?.[0];
+    assert.ok(product);
+    assert.equal(product.published, true);
+    assert.equal(product.catalogLifecycleVersion, 2);
+    assert.equal(
+      product.catalogDetailPublication && object(product.catalogDetailPublication).revision,
+      root.revision,
+    );
+    assert.equal(object(product.catalogDetailApprovalReceipt).operationId, uuid);
+    assert.equal(object(product.catalogDetailApprovalReceipt).actorId, 'admin');
+    assert.equal(object(root.completion).published, true);
+    assert.equal(h.writes() - before, 3);
+    assert.equal(
+      h.rows.catalogDetailApprovals?.filter(
+        (row) => row.kind === 'catalog-image-reference-commit-v1',
+      ).length,
+      1,
+    );
+    for (const id of h.ids) {
+      const effective = await runCatalogImageReferenceRead(h.tx, { action: 'read', imageId: id });
+      assert.ok(effective.state === 'counted');
+      assert.equal(effective.effectiveCount, 1);
+      assert.equal(effective.image.publishedRefCount, 0);
+    }
+    const bytes = h.bytes();
+    assert.deepEqual(await h.invoke(h.finishCommand), answer);
+    assert.equal(h.bytes(), bytes);
+    assert.equal(h.writes() - before, 3);
+    const queried = object(await h.invoke(query));
+    assert.equal(object(queried.record).state, 'complete');
+    assert.equal(queried.current, true);
+    assert.equal(h.bytes(), bytes);
+  });
+
+test('own publication requires the last private reference page and never trusts client completion', async () => {
+  const h = await ownReferencePageFixture(27, { description: 'Ready' });
+  assert.equal(object(await h.invoke(h.pageCommand)).ok, true);
+  const { cursor: _cursor, ...scope } = h.pageCommand;
+  const command = { ...scope, action: 'operation-publish' };
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke(command), { ok: false, code: 'SOURCE_NOT_READY' });
+  assert.equal(h.bytes(), before);
+  assert.equal(object(await h.invoke({ ...command, complete: true })).ok, false);
+  assert.equal(h.bytes(), before);
+});
+for (const kind of ['commit', 'cancel', 'wrong'] as const)
+  test(`own publication cannot replace an existing ${kind} proof slot`, async () => {
+    const h = await ownPublishFixture();
+    const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+    h.rows.catalogDetailApprovals?.push(
+      kind === 'cancel'
+        ? catalogImageReferenceCancelProof(plan.proof)
+        : kind === 'wrong'
+          ? { ...plan.proof, leafCount: 2 }
+          : plan.proof,
+    );
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(h.finishCommand), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), before);
+  });
+for (const kind of [
+  'disabled',
+  'archived',
+  'edited',
+  'classified',
+  'identity',
+  'revoked',
+  'cancelled',
+  'expired',
+  'media',
+  'progress',
+  'saved',
+] as const)
+  test(`own publication refuses ${kind} after reference staging without a partial success`, async () => {
+    const h = await ownPublishFixture();
+    const product = h.rows.products?.[0];
+    const root = h.rows.catalogDetailApprovals?.find((row) => row._id === h.key);
+    assert.ok(product && root);
+    if (kind === 'disabled')
+      product.catalogLifecycleVersion = Number(product.catalogLifecycleVersion) + 1;
+    if (kind === 'archived') product.archived = true;
+    if (kind === 'edited') product.name = 'Unreviewed';
+    if (kind === 'classified') product.catalogClassificationRevision = 1;
+    if (kind === 'identity') product.alibabaPrimarySourceKey = 'other';
+    if (kind === 'revoked') object(h.rows.users?.[0]).status = 'suspended';
+    if (kind === 'cancelled')
+      assert.equal(
+        object(await h.invoke({ ...h.finishCommand, action: 'operation-cancel' })).ok,
+        true,
+      );
+    if (kind === 'expired') root.createdAt = new Date(Date.now() - 3600001).toISOString();
+    if (kind === 'media') object(product.catalogPreparationReport).state = 'blocked';
+    if (kind === 'progress') object(root.referenceStage).cursor = 0;
+    if (kind === 'saved') Reflect.deleteProperty(root, 'media');
+    const before = h.bytes();
+    assert.equal(object(await h.invoke(h.finishCommand)).ok, false);
+    assert.equal(h.bytes(), before);
+    assert.equal(product.published, false);
+    assert.equal(
+      h.rows.catalogDetailApprovals?.some(
+        (row) => row.kind === 'catalog-image-reference-commit-v1',
+      ),
+      false,
+    );
+  });
+for (const patch of [{ productFamily: undefined }, { description: '' }])
+  test(`own publication validates current website fields ${JSON.stringify(patch)} before all writes`, async () => {
+    const h = await ownPublishFixture(patch);
+    const before = h.bytes();
+    const result = object(await h.invoke(h.finishCommand));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'VALIDATION_ERROR');
+    assert.equal(h.bytes(), before);
+  });
+test('a committed own operation is historical after withdrawal and cannot republish by replay', async () => {
+  const h = await ownPublishFixture();
+  assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+  const product = h.rows.products?.[0];
+  assert.ok(product);
+  product.published = false;
+  product.catalogLifecycleVersion = Number(product.catalogLifecycleVersion) + 1;
+  const before = h.bytes();
+  const result = object(await h.invoke(h.finishCommand));
+  assert.equal(result.ok, true);
+  assert.equal(object(result.record).state, 'complete');
+  assert.equal(result.current, false);
+  assert.equal(h.bytes(), before);
+  assert.deepEqual(await h.invoke({ ...h.finishCommand, action: 'operation-cancel' }), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.equal(h.bytes(), before);
+});
+for (const corrupt of [
+  'missing-proof',
+  'cancel-proof',
+  'wrong-proof',
+  'completion',
+  'unfinished-page',
+  'variant-count',
+  'unfinished-reference',
+  'cancelled-root',
+  'undefined-completion',
+])
+  test(`completed own publication refuses corrupted ${corrupt} instead of inventing success`, async () => {
+    const h = await ownPublishFixture();
+    assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+    const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+    const root = object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key));
+    if (corrupt === 'unfinished-page') root.nextPage = 0;
+    if (corrupt === 'variant-count')
+      root.variantIds = [...h.command.prepared.variantIds, 'unexpected'];
+    if (corrupt === 'unfinished-reference') {
+      const binding = object(root.references);
+      root.referenceStage = ownedReferenceStageProgress(
+        {
+          kind: 'catalog-owned-approval-references-v1',
+          operationRootId: String(binding.operationRootId),
+          treeRoot: String(binding.treeRoot),
+          leafCount: Number(binding.leafCount),
+          bindingDigest: String(binding.bindingDigest),
+        },
+        plan,
+        0,
+      );
+    }
+    if (corrupt === 'cancelled-root') object(root.operation).cancelledAt = new Date().toISOString();
+    if (corrupt === 'undefined-completion') root.completion = undefined;
+    if (corrupt === 'missing-proof')
+      h.rows.catalogDetailApprovals =
+        h.rows.catalogDetailApprovals?.filter((row) => row._id !== plan.proof._id) ?? [];
+    if (corrupt === 'cancel-proof')
+      Object.assign(
+        object(h.rows.catalogDetailApprovals?.find((row) => row._id === plan.proof._id)),
+        catalogImageReferenceCancelProof(plan.proof),
+      );
+    if (corrupt === 'wrong-proof')
+      object(h.rows.catalogDetailApprovals?.find((row) => row._id === plan.proof._id)).treeRoot =
+        'f'.repeat(64);
+    if (corrupt === 'completion')
+      Reflect.deleteProperty(
+        object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key)),
+        'completion',
+      );
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(h.finishCommand), { ok: false, code: 'CONFLICT' });
+    assert.deepEqual(await h.invoke(query), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), before);
+  });
+
+test('own publication rechecks the original deadline after media reads before any writes', async () => {
+  const h = await ownPublishFixture();
+  const before = h.bytes();
+  const realNow = Date.now;
+  const at = realNow();
+  const get = h.tx.get;
+  let late = false;
+  let productReads = 0;
+  try {
+    h.tx.get = async (collection, id) => {
+      const row = await get(collection, id);
+      if (collection === 'products' && ++productReads === 2) late = true;
+      return row;
+    };
+    Date.now = () => (late ? at + 3600001 : at);
+    const result = object(await h.invoke(h.finishCommand));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'APPROVAL_EXPIRED');
+    assert.equal(h.bytes(), before);
+  } finally {
+    h.tx.get = get;
+    Date.now = realNow;
+  }
+});
+test('a complete receipt stays readable after its original deadline without redoing publication', async () => {
+  const h = await ownPublishFixture();
+  assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+  const realNow = Date.now;
+  const at = realNow();
+  try {
+    Date.now = () => at + 3600001;
+    const before = h.bytes();
+    const result = object(await h.invoke(h.finishCommand));
+    assert.equal(result.ok, true);
+    assert.equal(object(result.record).state, 'complete');
+    assert.equal(result.expired, true);
+    assert.equal(h.bytes(), before);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+for (const reason of ['changed', 'removed'])
+  test(`own publication cannot silently approve a pending supplier ${reason} review`, async () => {
+    const h = await ownPublishFixture();
+    const product = h.rows.products?.[0];
+    assert.ok(product);
+    product.alibabaReviewPending = true;
+    product.alibabaReviewReason = reason;
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(h.finishCommand), { ok: false, code: 'SOURCE_NOT_READY' });
+    assert.equal(h.bytes(), before);
+  });

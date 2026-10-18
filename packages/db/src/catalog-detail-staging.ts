@@ -1,4 +1,4 @@
-/** Server-only, bounded approval staging. No stage publishes a product. */
+/** Server-only bounded approval staging and owned-operation publication persistence. */
 import { createHash, randomUUID } from 'node:crypto';
 import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
 import {
@@ -51,6 +51,7 @@ import {
   ProductOperationCancelSchema,
   ProductOperationGetSchema,
   ProductOperationMediaSchema,
+  ProductOperationPublishSchema,
   ProductOperationReferencePageSchema,
   ProductOperationReferencesSchema,
   type ProductOperationResult,
@@ -116,6 +117,7 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationMediaSchema,
   ProductOperationReferencesSchema,
   ProductOperationReferencePageSchema,
+  ProductOperationPublishSchema,
   SourcePageSchema,
   CatalogPreparationCommitSchema,
   z.object({ action: z.literal('begin'), prepared: JobSchema }).strict(),
@@ -556,7 +558,8 @@ export async function runStagedApproval(
     command.action === 'operation-cancel' ||
     command.action === 'operation-approval-media' ||
     command.action === 'operation-approval-references' ||
-    command.action === 'operation-approval-reference-page'
+    command.action === 'operation-approval-reference-page' ||
+    command.action === 'operation-publish'
   )
     return runProductOperation(tx, actorId, command);
   if (command.action === 'preparation-report')
