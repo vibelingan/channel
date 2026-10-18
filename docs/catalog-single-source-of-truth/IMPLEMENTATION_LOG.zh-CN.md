@@ -1315,3 +1315,8 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 ## P3e7a 有界操作状态入口
 
 既有鉴权/rollout下增加独立公开start/get/cancel，DB index facade严格映射到原内核；旧workflow不改，全部内部命令拒绝保留。start沿原256KiB预算支持正常长描述；shared响应白名单4096字节，仅进度/身份/时间/小回执，无大根/来源/patch。complete与current分开、cancelledAt/expired可查询，取消与查询不保存或发布。53新增（17shared/9DB/27实际Admin+JSON），315相关、5686全量、Node202698、19types/E2E/SDK/九文件Biome通过；12故障46重叠失败/四SHA恢复，459安装SDK包含18新raw+真实indexfacade ACK/丢回应/捕获与历史控制。初版旧workflow类型扩散、两个错误夹具、strict/进度反例与实际原版Zod3合约核对详见[P3e7a](P3e7a_OPERATION_STATUS_API.zh-CN.md)。人工审阅九代码/测试/配置与四文档并纠正历史完成措辞。精确编译产物后补；客户UI接线、满槽caller/liveedit/review/provider/P95/三时钟20件及原UI P1继续，fullDeliveryReady=false。
+
+
+## P3e7b 生产入口的有界满槽恢复
+
+index真实调用恢复封装器，仅PENDING_FULL hint触发；重查自身scope/版本/冻结页，完整验证实际图账本，每次最多3根，原可信恢复事务判资格，终局后只重试原页。完整ledger哈希游标可续接，变化重置，未知IO/权限失败停止，12s单调预算覆盖所有异步边界。38新增（DB37/JSON1），441相关/5724全量/2736Node20/19types/E2E/SDK/七文件Biome通过；20故障56重叠失败+2SDK-only/五SHA恢复，474安装SDK含正常页88操作零发现、六ACK回滚、取消提交丢回应及候选读故障。actualJSON80根自动旧根退役→原81页续接保持80pending/effective0；物理PNG四进程为2真实根+79合成，重开与取消回退/privateSHA/category/fixturecleanup通过。首次脚本把inputDigest带入get被正确拒绝，修正夹具后通过。详见[P3e7b](P3e7b_BOUNDED_REFERENCE_RECOVERY.zh-CN.md)并保留模拟调度/实际资格/混合编译/真实云的界限。人工审阅五生产/两测试/四文档，纠正全部自动清理措辞；客户continue/UI仍未接，原UI P1/fullDeliveryReady=false继续。

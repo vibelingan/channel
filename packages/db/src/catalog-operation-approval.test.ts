@@ -9,6 +9,7 @@ import { firstApprovalImageHold } from './catalog-approval-image-hold.ts';
 import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job.ts';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
+import type { ApprovalPersistenceCommand, ApprovalStageResult } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 import { runCatalogImageReferenceRead } from './catalog-image-reference-store.ts';
 import {
@@ -17,6 +18,10 @@ import {
   catalogImageReferenceEntry,
 } from './catalog-image-references.ts';
 import { readOwnedApprovalMedia } from './catalog-operation-media.ts';
+import {
+  REFERENCE_RECOVERY_BUDGET_MS,
+  persistOwnedReferencePageWithRecovery,
+} from './catalog-operation-reference-recovery.ts';
 import {
   ownedReferenceStageProgress,
   planOwnedReferenceStagePage,
@@ -1754,7 +1759,11 @@ for (const completed of [false, true])
       pending: plans.map((plan) => catalogImageReferenceEntry(plan, 0)),
     };
     const before = h.bytes();
-    assert.deepEqual(await h.invoke(h.pageCommand), { ok: false, code: 'MEDIA_BUSY' });
+    assert.deepEqual(await h.invoke(h.pageCommand), {
+      ok: false,
+      code: 'MEDIA_BUSY',
+      pendingReferenceImageId: image._id,
+    });
     assert.equal(h.bytes(), before);
     const released = completed ? plans : plans.slice(0, 1);
     h.rows.catalogDetailApprovals?.push(
@@ -2901,4 +2910,491 @@ test('public facade freezes nested input before a deferred persistence call', as
   assert.deepEqual(object(object(stored.operation).values).configurationPhotos, {
     v: ['original-photo'],
   });
+});
+
+test('full reference slots identify only their actual blocked image for trusted server recovery', async () => {
+  const h = await ownReferencePageFixture(27);
+  const image = h.rows.images?.[0];
+  assert.ok(image);
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: Array.from({ length: 80 }, (_, i) =>
+      catalogImageReferenceEntry(
+        buildCatalogImageReferencePlan((i + 500).toString(16).padStart(64, '0'), [], [image._id]),
+        0,
+      ),
+    ),
+  };
+  const before = h.bytes();
+  const result = object(await h.invoke(h.pageCommand));
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'MEDIA_BUSY');
+  assert.equal(result.pendingReferenceImageId, image._id);
+  assert.equal(h.bytes(), before);
+});
+
+async function boundedRecoveryFixture() {
+  const h = await ownReferencePageFixture(27);
+  const image = h.rows.images?.[0];
+  assert.ok(image);
+  const own = await runProductOperation(h.tx, 'admin', query);
+  assert.ok(own.ok);
+  const plans = Array.from({ length: 80 }, (_, i) =>
+    buildCatalogImageReferencePlan((i + 500).toString(16).padStart(64, '0'), [], [image._id]),
+  );
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: plans.map((plan) => catalogImageReferenceEntry(plan, 0)),
+  };
+  for (const plan of plans)
+    h.rows.catalogDetailApprovals?.push({
+      _id: plan.proof.operationRootId,
+      productId: 'peer',
+      operationId: uuid,
+      operation: { inputDigest: 'a'.repeat(64) },
+      references: {
+        kind: 'catalog-owned-approval-references-v1',
+        operationRootId: plan.proof.operationRootId,
+        treeRoot: plan.proof.treeRoot,
+        leafCount: plan.proof.leafCount,
+        bindingDigest: 'a'.repeat(64),
+      },
+    });
+  const calls: {
+    roots: string[];
+    recoveries: ApprovalPersistenceCommand[];
+    pages: number;
+    time: number;
+    commands: string[];
+  } = { roots: [], recoveries: [], pages: 0, time: 0, commands: [] };
+  const store = {
+    get: async (collection: string, id: string) => {
+      if (collection === 'catalogDetailApprovals') calls.roots.push(id);
+      return h.tx.get(collection, id);
+    },
+    persist: async (
+      actor: string,
+      command: ApprovalPersistenceCommand,
+    ): Promise<ApprovalStageResult> => {
+      calls.commands.push(command.action);
+      if (command.action === 'operation-approval-reference-page') calls.pages++;
+      if (command.action === 'operation-recover') {
+        calls.recoveries.push(command);
+        return { ...own, recovery: 'not-needed' };
+      }
+      return runProductOperation(h.tx, actor, command);
+    },
+  };
+  return { h, image, plans, calls, store, now: () => calls.time };
+}
+
+test('recovery never starts a page retry after its image read spends the remaining time budget', async () => {
+  const f = await boundedRecoveryFixture();
+  const original = f.store.get;
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) => {
+    if (command.action === 'operation-approval-reference-page' && f.calls.pages === 0) {
+      f.calls.pages++;
+      return { ok: false, code: 'MEDIA_BUSY', pendingReferenceImageId: f.image._id };
+    }
+    return persist(actor, command);
+  };
+  const ledger = object(f.image.catalogPublishedReferenceLedger);
+  const pending = ledger.pending;
+  assert.ok(Array.isArray(pending));
+  pending.pop();
+  f.store.get = async (c, id) => {
+    const row = await original(c, id);
+    if (c === 'images') f.calls.time = REFERENCE_RECOVERY_BUDGET_MS + 1;
+    return row;
+  };
+  const before = f.h.bytes();
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.equal(result.ok, false);
+  assert.equal(f.calls.pages, 1);
+  assert.equal(f.calls.recoveries.length, 0);
+  assert.equal(f.h.bytes(), before);
+});
+test('recovery keeps an acknowledged retirement but never starts its next page write after the time budget', async () => {
+  const f = await boundedRecoveryFixture();
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) => {
+    const result = await persist(actor, command);
+    if (command.action === 'operation-recover') {
+      f.calls.time = REFERENCE_RECOVERY_BUDGET_MS + 1;
+      assert.ok(result.ok);
+      return { ...result, recovery: 'cancelled' };
+    }
+    return result;
+  };
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.equal(result.ok, false);
+  assert.equal(f.calls.pages, 1);
+  assert.equal(f.calls.recoveries.length, 1);
+  assert.ok('referenceRecovery' in result);
+  assert.equal(object(result.referenceRecovery).nextOffset, 1);
+});
+
+test('bounded recovery checks at most three actual ledger roots and its continuation scans the next three', async () => {
+  const f = await boundedRecoveryFixture();
+  const before = f.h.bytes();
+  const first = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.ok(!first.ok && 'referenceRecovery' in first);
+  assert.equal(object(first.referenceRecovery).nextOffset, 3);
+  assert.deepEqual(
+    f.calls.roots,
+    f.plans.slice(0, 3).map((p) => p.proof.operationRootId),
+  );
+  assert.equal(f.calls.recoveries.length, 3);
+  f.calls.roots = [];
+  f.calls.recoveries = [];
+  const second = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    first.referenceRecovery,
+    f.now,
+  );
+  assert.ok(!second.ok && 'referenceRecovery' in second);
+  assert.equal(object(second.referenceRecovery).nextOffset, 6);
+  assert.deepEqual(
+    f.calls.roots,
+    f.plans.slice(3, 6).map((p) => p.proof.operationRootId),
+  );
+  assert.equal(f.h.bytes(), before);
+});
+for (const changed of ['ledger', 'image', 'digest'])
+  test(`bounded recovery resets a ${changed} continuation to the actual current ledger`, async () => {
+    const f = await boundedRecoveryFixture();
+    const first = await persistOwnedReferencePageWithRecovery(
+      f.store,
+      'admin',
+      f.h.pageCommand,
+      undefined,
+      f.now,
+    );
+    assert.ok(!first.ok && 'referenceRecovery' in first);
+    const cursor = { ...object(first.referenceRecovery) };
+    if (changed === 'ledger') object(f.image.catalogPublishedReferenceLedger).epoch = 5;
+    if (changed === 'image') cursor.imageId = 'other-image';
+    if (changed === 'digest') cursor.ledgerDigest = 'f'.repeat(64);
+    f.calls.roots = [];
+    await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand, cursor, f.now);
+    assert.deepEqual(
+      f.calls.roots,
+      f.plans.slice(0, 3).map((p) => p.proof.operationRootId),
+    );
+  });
+test('bounded recovery tail checks only the remaining entry and wraps its cursor without exceeding the cap', async () => {
+  const f = await boundedRecoveryFixture();
+  const first = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.ok(!first.ok && 'referenceRecovery' in first);
+  f.calls.roots = [];
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    { ...object(first.referenceRecovery), nextOffset: 79 },
+    f.now,
+  );
+  assert.ok(!result.ok && 'referenceRecovery' in result);
+  assert.equal(object(result.referenceRecovery).nextOffset, 0);
+  assert.deepEqual(f.calls.roots, [f.plans[79]?.proof.operationRootId]);
+});
+test('a fresh media mutex busy result never triggers root discovery or recovery', async () => {
+  const f = await boundedRecoveryFixture();
+  f.store.get = async () => {
+    throw Error('unexpected root discovery');
+  };
+  f.store.persist = async () => ({ ok: false, code: 'MEDIA_BUSY' });
+  assert.deepEqual(await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand), {
+    ok: false,
+    code: 'MEDIA_BUSY',
+  });
+  assert.deepEqual(f.calls.recoveries, []);
+});
+for (const hinted of ['unrelated-image', 'image26'])
+  test(`a forged or off-page full-slot hint ${hinted} cannot select recovery objects`, async () => {
+    const f = await boundedRecoveryFixture();
+    const persist = f.store.persist;
+    f.store.persist = async (actor, command) =>
+      command.action === 'operation-approval-reference-page'
+        ? { ok: false, code: 'MEDIA_BUSY', pendingReferenceImageId: hinted }
+        : persist(actor, command);
+    const before = f.h.bytes();
+    assert.deepEqual(
+      await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand),
+      { ok: false, code: 'CONFLICT' },
+    );
+    assert.deepEqual(f.calls.roots, []);
+    assert.equal(f.h.bytes(), before);
+  });
+test('changed own product stops full-slot recovery before unrelated roots are read', async () => {
+  const f = await boundedRecoveryFixture();
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) =>
+    command.action === 'operation-approval-reference-page'
+      ? { ok: false, code: 'MEDIA_BUSY', pendingReferenceImageId: f.image._id }
+      : persist(actor, command);
+  object(f.h.rows.products?.[0]).name = 'Changed during original request';
+  const before = f.h.bytes();
+  assert.deepEqual(await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.deepEqual(f.calls.roots, []);
+  assert.equal(f.h.bytes(), before);
+});
+for (const failure of ['root-read', 'recovery-write'])
+  test(`unknown ${failure} IO failure propagates instead of authorizing a guessed cancellation`, async () => {
+    const f = await boundedRecoveryFixture();
+    if (failure === 'root-read') {
+      const get = f.store.get;
+      f.store.get = async (c, id) => {
+        if (c === 'catalogDetailApprovals') throw Error('unknown recovery IO');
+        return get(c, id);
+      };
+    } else {
+      const persist = f.store.persist;
+      f.store.persist = async (actor, command) => {
+        if (command.action === 'operation-recover') throw Error('unknown recovery IO');
+        return persist(actor, command);
+      };
+    }
+    const before = f.h.bytes();
+    await assert.rejects(
+      persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand),
+      /unknown recovery IO/,
+    );
+    assert.equal(f.h.bytes(), before);
+    assert.equal(f.calls.pages, 1);
+  });
+for (const invalid of ['missing', 'different-tree', 'different-count', 'bad-input'])
+  test(`bounded recovery preserves ${invalid} candidate roots without creating terminal proofs`, async () => {
+    const f = await boundedRecoveryFixture();
+    const ids = new Set(f.plans.slice(0, 3).map((p) => p.proof.operationRootId));
+    if (invalid === 'missing')
+      f.h.rows.catalogDetailApprovals =
+        f.h.rows.catalogDetailApprovals?.filter((row) => !ids.has(row._id)) ?? [];
+    else
+      for (const row of f.h.rows.catalogDetailApprovals ?? [])
+        if (ids.has(row._id)) {
+          if (invalid === 'bad-input') object(row.operation).inputDigest = 'invalid';
+          else
+            object(row.references)[invalid === 'different-tree' ? 'treeRoot' : 'leafCount'] =
+              invalid === 'different-tree' ? 'f'.repeat(64) : 2;
+        }
+    const before = f.h.bytes();
+    const result = await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand);
+    assert.ok(!result.ok && 'referenceRecovery' in result);
+    assert.equal(object(result.referenceRecovery).nextOffset, 3);
+    assert.equal(f.calls.recoveries.length, 0);
+    assert.equal(f.h.bytes(), before);
+  });
+for (const cursor of [
+  null,
+  {},
+  { imageId: 'image00', ledgerDigest: 'a'.repeat(64), nextOffset: -1 },
+  { imageId: 'image00', ledgerDigest: 'a'.repeat(64), nextOffset: 80 },
+  { imageId: 'image00', ledgerDigest: 'a'.repeat(64), nextOffset: 1.5 },
+  {
+    imageId: 'image00',
+    ledgerDigest: 'a'.repeat(64),
+    nextOffset: 1,
+    operationRootId: 'f'.repeat(64),
+  },
+])
+  test(`untrusted continuation ${JSON.stringify(cursor)} is rejected before persistence`, async () => {
+    const f = await boundedRecoveryFixture();
+    f.store.persist = async () => {
+      throw Error('invalid cursor reached persistence');
+    };
+    assert.deepEqual(
+      await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand, cursor),
+      { ok: false, code: 'VALIDATION_ERROR' },
+    );
+  });
+test('permission loss during recovery stops the batch and never retries the original write', async () => {
+  const f = await boundedRecoveryFixture();
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) => {
+    if (command.action === 'operation-recover') return { ok: false, code: 'FORBIDDEN' };
+    return persist(actor, command);
+  };
+  const before = f.h.bytes();
+  assert.deepEqual(await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand), {
+    ok: false,
+    code: 'FORBIDDEN',
+  });
+  assert.equal(f.calls.roots.length, 1);
+  assert.equal(f.calls.pages, 1);
+  assert.equal(f.h.bytes(), before);
+});
+test('deadline after a candidate read starts no retirement and keeps that candidate resumable', async () => {
+  const f = await boundedRecoveryFixture();
+  const get = f.store.get;
+  f.store.get = async (c, id) => {
+    const row = await get(c, id);
+    if (c === 'catalogDetailApprovals') f.calls.time = REFERENCE_RECOVERY_BUDGET_MS + 1;
+    return row;
+  };
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.ok(!result.ok && 'referenceRecovery' in result);
+  assert.equal(object(result.referenceRecovery).nextOffset, 0);
+  assert.equal(f.calls.recoveries.length, 0);
+});
+test('a slot released before discovery retries the original page without retiring any root', async () => {
+  const f = await boundedRecoveryFixture();
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) => {
+    if (command.action === 'operation-approval-reference-page' && f.calls.pages === 0) {
+      f.calls.pages++;
+      return { ok: false, code: 'MEDIA_BUSY', pendingReferenceImageId: f.image._id };
+    }
+    return persist(actor, command);
+  };
+  const pending = object(f.image.catalogPublishedReferenceLedger).pending;
+  assert.ok(Array.isArray(pending));
+  pending.pop();
+  const result = await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand);
+  assert.ok(
+    result.ok &&
+      'record' in result &&
+      result.record.state === 'staging' &&
+      (result.record.referenceStage?.cursor ?? 0) > 0,
+    JSON.stringify(result),
+  );
+  assert.equal(f.calls.recoveries.length, 0);
+  assert.equal(f.calls.pages, 2);
+});
+
+for (const field of ['actorId', 'productId', 'operationId', 'inputDigest'])
+  test(`reference recovery refuses a mismatched own ${field} snapshot before selecting peers`, async () => {
+    const f = await boundedRecoveryFixture();
+    const persist = f.store.persist;
+    f.store.persist = async (actor, command) => {
+      const result = await persist(actor, command);
+      if (command.action === 'operation-get' && result.ok && 'record' in result) {
+        const record =
+          field === 'inputDigest'
+            ? {
+                ...result.record,
+                operation: { ...result.record.operation, inputDigest: 'f'.repeat(64) },
+              }
+            : {
+                ...result.record,
+                [field]: field === 'operationId' ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : 'other',
+              };
+        return { ...result, record };
+      }
+      return result;
+    };
+    const before = f.h.bytes();
+    assert.deepEqual(
+      await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand),
+      { ok: false, code: 'CONFLICT' },
+    );
+    assert.deepEqual(f.calls.roots, []);
+    assert.equal(f.h.bytes(), before);
+  });
+test('a first page that consumes the entire time budget triggers no discovery or extra request', async () => {
+  const f = await boundedRecoveryFixture();
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) => {
+    const result = await persist(actor, command);
+    f.calls.time = REFERENCE_RECOVERY_BUDGET_MS + 1;
+    return result;
+  };
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.ok(!result.ok && result.code === 'MEDIA_BUSY');
+  assert.equal(f.calls.pages, 1);
+  assert.deepEqual(f.calls.commands, ['operation-approval-reference-page']);
+  assert.deepEqual(f.calls.roots, []);
+  assert.equal(f.calls.recoveries.length, 0);
+});
+
+for (const invalid of ['bad-membership', 'duplicate-root', 'undefined-ledger', 'bad-base'])
+  test(`discovery revalidates a concurrently changed ${invalid} image before reading any holder`, async () => {
+    const f = await boundedRecoveryFixture();
+    const persist = f.store.persist;
+    f.store.persist = async (actor, command) =>
+      command.action === 'operation-approval-reference-page'
+        ? { ok: false, code: 'MEDIA_BUSY', pendingReferenceImageId: f.image._id }
+        : persist(actor, command);
+    const ledger = object(f.image.catalogPublishedReferenceLedger);
+    const pending = ledger.pending;
+    assert.ok(Array.isArray(pending));
+    if (invalid === 'bad-membership') object(pending[0]).siblings = ['f'.repeat(64)];
+    if (invalid === 'duplicate-root') pending[1] = structuredClone(pending[0]);
+    if (invalid === 'undefined-ledger') f.image.catalogPublishedReferenceLedger = undefined;
+    if (invalid === 'bad-base') f.image.publishedRefCount = '0';
+    const before = f.h.bytes();
+    assert.deepEqual(
+      await persistOwnedReferencePageWithRecovery(f.store, 'admin', f.h.pageCommand),
+      { ok: false, code: 'MEDIA_NOT_READY' },
+    );
+    assert.deepEqual(f.calls.roots, []);
+    assert.equal(f.h.bytes(), before);
+  });
+
+test('deadline after checking the original operation starts no further image lookup', async () => {
+  const f = await boundedRecoveryFixture();
+  const persist = f.store.persist;
+  f.store.persist = async (actor, command) => {
+    const result = await persist(actor, command);
+    if (command.action === 'operation-get') f.calls.time = REFERENCE_RECOVERY_BUDGET_MS + 1;
+    return result;
+  };
+  f.store.get = async () => {
+    throw Error('image discovery started after deadline');
+  };
+  const before = f.h.bytes();
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+  );
+  assert.ok(!result.ok && result.code === 'MEDIA_BUSY');
+  assert.equal(f.h.bytes(), before);
+  assert.deepEqual(f.calls.commands, ['operation-approval-reference-page', 'operation-get']);
 });

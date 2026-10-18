@@ -13,7 +13,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
-import { setAdapter, unfinishedApprovalUsingImage } from '@vibelingan-channel/db';
+import {
+  persistCatalogDetailApproval,
+  setAdapter,
+  unfinishedApprovalUsingImage,
+} from '@vibelingan-channel/db';
 import { catalogApprovalDigest } from '@vibelingan-channel/db/catalog-detail-commit';
 import { prepareStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
@@ -2391,7 +2395,7 @@ test('JSON trusted recovery captures its scope before the original file lock yie
   assert.equal(result.record.productId, 'p');
 });
 
-test('JSON80 actual staged roots recover one obsolete operation and resume the original full-slot page', async (t) => {
+async function jsonFullReferenceSlotFixture(t: { after(callback: () => void): void }) {
   const h = await jsonOwnPublishFixture(t);
   const initial = await h.adapter.persistCatalogDetailApproval('admin', query);
   assert.ok(initial.ok && 'record' in initial && initial.record.state === 'staging');
@@ -2480,11 +2484,21 @@ test('JSON80 actual staged roots recover one obsolete operation and resume the o
     const result = await h.adapter.persistCatalogDetailApproval('admin', command);
     if (index < 80) assert.equal(result.ok, true, JSON.stringify(result));
     else {
-      assert.deepEqual(result, { ok: false, code: 'MEDIA_BUSY' });
+      assert.deepEqual(result, {
+        ok: false,
+        code: 'MEDIA_BUSY',
+        pendingReferenceImageId: h.ids[0],
+      });
       assert.equal(h.bytes(), beforePage);
       lastPage = command;
     }
   }
+  assert.ok(lastPage);
+  return { h, initial, originalProduct, lastPage };
+}
+
+test('JSON80 actual staged roots recover one obsolete operation and resume the original full-slot page', async (t) => {
+  const { h, initial, originalProduct, lastPage } = await jsonFullReferenceSlotFixture(t);
   assert.ok(lastPage);
   const recovery = await h.adapter.persistCatalogDetailApproval('reviewer', {
     ...query,
@@ -2523,4 +2537,68 @@ test('JSON80 actual staged roots recover one obsolete operation and resume the o
     0,
   );
   t.after(() => assert.throws(() => readFileSync(h.file), { code: 'ENOENT' }));
+});
+
+test('JSON80 production index automatically retires an obsolete holder and resumes the original full-slot page', async (t) => {
+  const { h, initial, originalProduct, lastPage } = await jsonFullReferenceSlotFixture(t);
+  setAdapter(h.adapter);
+  const imageBefore = await h.adapter.get('images', h.ids[0] ?? '');
+  assert.ok(imageBefore);
+  const beforeLedger = imageBefore.catalogPublishedReferenceLedger;
+  assert.ok(beforeLedger && typeof beforeLedger === 'object');
+  const beforePending: unknown = Reflect.get(beforeLedger, 'pending');
+  assert.ok(Array.isArray(beforePending));
+  const expectedRoots = beforePending
+    .map((entry) => {
+      assert.ok(entry && typeof entry === 'object');
+      return Reflect.get(entry, 'operationRootId');
+    })
+    .filter((id) => id !== initial.record._id);
+  const result = await persistCatalogDetailApproval('admin', lastPage);
+  assert.ok(
+    result.ok && 'record' in result && result.record.state === 'staging',
+    JSON.stringify(result),
+  );
+  assert.equal(result.record.operationId, lastPage.operationId);
+  assert.equal(result.record.referenceStage?.cursor, 1);
+  const old = await h.adapter.get('catalogDetailApprovals', initial.record._id);
+  assert.ok(old);
+  const operation = old.operation;
+  assert.ok(operation && typeof operation === 'object');
+  assert.equal(typeof Reflect.get(operation, 'cancelledAt'), 'string');
+  const audit = Reflect.get(operation, 'recovery');
+  assert.ok(audit && typeof audit === 'object');
+  assert.equal(Reflect.get(audit, 'actorId'), 'admin');
+  assert.equal(Reflect.get(audit, 'reason'), 'input-changed');
+  const image = await h.adapter.readCatalogImageReference({
+    action: 'read',
+    imageId: h.ids[0] ?? '',
+  });
+  assert.ok(image.state === 'counted');
+  assert.equal(image.effectiveCount, 0);
+  const ledger = image.image.catalogPublishedReferenceLedger;
+  assert.ok(ledger && typeof ledger === 'object');
+  const pending: unknown = Reflect.get(ledger, 'pending');
+  assert.ok(Array.isArray(pending));
+  assert.equal(pending.length, 80);
+  assert.deepEqual(
+    new Set(pending.map((entry) => Reflect.get(entry, 'operationRootId'))),
+    new Set([...expectedRoots, result.record._id]),
+  );
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  assert.equal(product.published, false);
+  for (const field of ['productFamily', 'category', 'subcategoryIds']) {
+    assert.equal(Object.hasOwn(product, field), Object.hasOwn(originalProduct, field));
+    assert.deepEqual(product[field], originalProduct[field]);
+  }
+  const before = h.bytes();
+  assert.deepEqual(await persistCatalogDetailApproval('admin', lastPage), result);
+  assert.equal(h.bytes(), before);
+  assert.equal(
+    JSON.parse(h.bytes()).catalogDetailApprovals.filter(
+      (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-commit-v1',
+    ).length,
+    0,
+  );
 });

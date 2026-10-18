@@ -111,6 +111,7 @@ export function manageImageDeletion(command: ImageDeletionCommand) {
 }
 
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
 import { runProductOperationWorkflow } from './catalog-product-operation-workflow.ts';
 export function manageCatalogCategory(actorId: string, input: unknown) {
   const adapter = db();
@@ -213,10 +214,21 @@ export function manageCatalogDetailApproval(actorId: string, input: unknown) {
 export async function persistCatalogDetailApproval(
   actorId: string,
   input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
+  referenceRecovery?: unknown,
 ) {
   const adapter = db();
   if (!adapter.persistCatalogDetailApproval)
     throw new Error('Staged approval persistence unavailable');
+  if (input.action === 'operation-approval-reference-page')
+    return persistOwnedReferencePageWithRecovery(
+      {
+        get: adapter.get.bind(adapter),
+        persist: adapter.persistCatalogDetailApproval.bind(adapter),
+      },
+      actorId,
+      input,
+      referenceRecovery,
+    );
   return adapter.persistCatalogDetailApproval(actorId, input);
 }
 export async function approveCatalogDetail(actorId: string, input: unknown) {

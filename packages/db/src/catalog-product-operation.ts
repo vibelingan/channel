@@ -53,6 +53,7 @@ import {
 } from './catalog-operation-media.ts';
 import {
   CatalogOwnedReferenceStageSchema,
+  type OwnedReferenceStageFailure,
   ownedReferenceStageProgress,
   planOwnedReferenceStagePage,
   readOwnedReferenceStage,
@@ -254,7 +255,7 @@ export type ProductOperationResult =
       expired: boolean;
       recovery?: 'not-needed' | 'cancelled' | 'already-cancelled' | 'already-complete';
     }
-  | ApprovalFailure;
+  | OwnedReferenceStageFailure;
 const fail = (
   code: Extract<ProductOperationResult, { ok: false }>['code'],
 ): Extract<ProductOperationResult, { ok: false }> => ({ ok: false, code });

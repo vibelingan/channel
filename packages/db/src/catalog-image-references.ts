@@ -268,6 +268,13 @@ export function planImageReferenceSettlement(
 export function catalogImageReferenceProofIds(id: string, inputLedger: unknown): string[] {
   return readReferenceLedger(id, inputLedger)?.pending.map(catalogImageReferenceProofId) ?? [];
 }
+/** Return only members of the fully validated image ledger for bounded trusted recovery. */
+export function catalogImageReferencePendingEntries(
+  id: string,
+  inputLedger: unknown,
+): CatalogImageReferencePending[] {
+  return readReferenceLedger(id, inputLedger)?.pending ?? [];
+}
 function readReferenceLedger(id: string, inputLedger: unknown): CatalogImageReferenceLedger | null {
   if (!imageId.safeParse(id).success) throw new CatalogImageReferenceError('INVALID_LEDGER');
   if (inputLedger === undefined) return null;

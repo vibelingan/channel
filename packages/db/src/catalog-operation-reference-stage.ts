@@ -20,6 +20,7 @@ import {
 } from './catalog-image-references.ts';
 import type { CatalogOwnedApprovalReferences } from './catalog-operation-references.ts';
 import { readCatalogProtectedPixels } from './catalog-protected-pixels.ts';
+export type OwnedReferenceStageFailure = ApprovalFailure & { pendingReferenceImageId?: string };
 const kind = 'catalog-owned-reference-stage-v1';
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 export const CatalogOwnedReferenceStageSchema = z
@@ -67,7 +68,7 @@ export async function planOwnedReferenceStagePage(
   maxDocumentOperations: number,
 ): Promise<
   | { ok: true; images: CollectionDoc[]; nextCursor: number; documentOperations: number }
-  | ApprovalFailure
+  | OwnedReferenceStageFailure
 > {
   const images: CollectionDoc[] = [];
   let used = 0;
@@ -117,7 +118,8 @@ export async function planOwnedReferenceStagePage(
         used++;
         break;
       }
-      if (error.code === 'PENDING_FULL') return { ok: false, code: 'MEDIA_BUSY' };
+      if (error.code === 'PENDING_FULL')
+        return { ok: false, code: 'MEDIA_BUSY', pendingReferenceImageId: change.imageId };
       return { ok: false, code: 'MEDIA_NOT_READY' };
     }
   }

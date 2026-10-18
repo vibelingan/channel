@@ -139,3 +139,8 @@ stage转换在合法明确base与完整旧账本上验证并追加根成员，�
 ## P3e7a 浏览器可用的小状态
 
 product-operation-start/get/cancel经现有Admin鉴权与开关，由独立DB facade转换到原内部命令，拒绝浏览器prepare/proof/recover/publish。只读status4096字节不返回大根；原完成回执与current分离，过期和取消仍可检查，重复取消零写。接口与315本地/459实际SDK控制已通过；客户UI尚未调用、有界满槽caller尚未完成。详见[P3e7a](P3e7a_OPERATION_STATUS_API.zh-CN.md)，原P1及真实验收未关闭。
+
+
+## P3e7b 有界满槽调用
+
+真实DB index reference-page入口仅在完整pending满槽hint时重查own-root/实际本页图片/全成员，再每批最多3候选调用原trusted recovery。游标绑定实际ledger并可续接；新鲜mutex不清理，未知/坏根不猜取消。终局后只重试原页，原C1结算与root/image写耦合；正常20图仍88文档操作且无额外发现。三处等待后时间预算反例已修，实际80根与物理PNG范围详见[P3e7b](P3e7b_BOUNDED_REFERENCE_RECOVERY.zh-CN.md)。客户continue/UI仍需接线，无法可信退役的损坏全满账本保留并需明确fallback；原UI P1及真实验收未关闭。
