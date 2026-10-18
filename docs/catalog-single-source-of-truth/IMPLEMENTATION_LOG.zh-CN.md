@@ -1370,3 +1370,8 @@ continue在原saved seed和staging重开均按持久cursor调用原native配置�
 ## P3e7c7b 原任务最终发布调用
 
 默认 manager 在配置/媒体/引用完成后调用原 native 最终事务，完成必须读回同 scope 和批准 revision；丢回应查原根，未知结果不猜成功，历史完成不重新发布。30 新增、584 相关、7 包和部署脚本 6017、Node20 3052、19 包类型/E2E/7 文件 Biome/standing SDK 通过。11 故障检出 16 重叠失败，3 源码 SHA 恢复；626 安装 SDK 保留最高 98 文档预算，最终仍 16 操作/3 写。实际 PNG 的本地 20 隔离手工商品 4 并发发布、逐件公开读回、实际 Admin 下架、共享引用归零及历史任务不复活通过；allSettled 确保清理前工作者全部结束。人工逐项核对 7 文件及 native/handler/DTO，把本地 20 与真实选品、准入预算与网络性能分开。精确产物留在本提交后按 SHA 验证；原 UI P1、review/live/新图/P5 和真实现场门槛未关闭，详见 [P3e7c7b](P3e7c7b_OWNED_FINAL_CONTINUE.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7c8 最终事务同步确认供应商审阅
+
+New/旧首次、手工 Edited、完整当前来源的 Changed/Removed 使用原最终事务同步确认标记与批准；当前 Keep 可批准，未应用 incoming/旧决定/新来源摘要拒绝并带 remedy。Admin/native 共享比较与 URL 规则；正常无标记零新增读，来源首次/已链接 Edited17 文档操作、27 照片44，仍3写/全套最高98。45新增/638关联/6062相关包和脚本/3097Node20/19类型+E2E/7Biome/standingSDK通过。人工review发现并修复已链接 Edited 误走手工提前返回的P2，先红再绿，受影响包重测；14故障25重叠/三SHA恢复，651安装SDK含9坏ACK整体验证及丢回应。实际审阅7文件、DEC规则、原快照/媒体/引用，澄清完整来源草稿与所有Removed、文档操作与读次数的范围。精确产物留本提交后；UI P1及其余交付门槛未关闭，详见[P3e7c8](P3e7c8_OWNED_SOURCE_REVIEW.zh-CN.md)，fullDeliveryReady=false。

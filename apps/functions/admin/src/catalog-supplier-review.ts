@@ -10,7 +10,6 @@
  *   Alibaba as they are: old → new against the approved version.
  * - Each configuration with its supplier photos and the admin's choice.
  */
-import { createHash } from 'node:crypto';
 import {
   type CatalogSourceObservation,
   sourceObservationDocumentId,
@@ -23,8 +22,6 @@ import {
   ConfigurationPhotosSchema,
   SupplierDecisionsSchema,
   type SupplierReview,
-  type SupplierReviewPart,
-  type SupplierReviewPartName,
 } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { z } from 'zod';
 import { type ChangeAuditReader, compareWithApproved } from './catalog-change-audit.ts';
@@ -34,120 +31,14 @@ const RequestSchema = z
   .object({ action: z.literal('supplier-review'), productId: z.string().trim().min(1).max(200) })
   .strict();
 
-const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
-const ids = (value: unknown) =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
-const paths = (value: unknown) => ids(value).map((id) => `/api/images/${id}`);
+export {
+  incomingDigest,
+  pendingSupplierParts,
+} from '@vibelingan-channel/db/catalog-supplier-review';
+import { readSupplierParts } from '@vibelingan-channel/db/catalog-supplier-review';
 
-/** Ties a decision to one exact incoming value: a newer value asks again. */
-export function incomingDigest(part: SupplierReviewPartName, value: unknown): string {
-  return createHash('sha256')
-    .update(JSON.stringify([part, value]))
-    .digest('hex');
-}
-
-/** Parts still waiting for the admin's Keep or Use incoming. */
-export function pendingSupplierParts(parts: readonly SupplierReviewPart[]) {
-  return parts.filter((part) => !part.decision).map((part) => part.part);
-}
-
-/** The first N distinct supplier URLs, in the supplier's order, as an import adds them. */
-const firstUrls = (urls: readonly string[], limit: number) => [...new Set(urls)].slice(0, limit);
-
-/**
- * Where the website value came from. A recorded baseline (MIU-39) says
- * whether the part was Alibaba's at the last approval; an edit since then
- * makes it the admin's. Before baselines: the description was Alibaba's when
- * the approved version kept its layout (only kept when the texts matched).
- */
-function origin(
-  product: CollectionDoc,
-  part: SupplierReviewPartName,
-  unedited: boolean,
-): SupplierReviewPart['origin'] {
-  const receipt = product.catalogDetailApprovalReceipt;
-  const parts =
-    receipt && typeof receipt === 'object' ? Reflect.get(receipt, 'supplierParts') : undefined;
-  const recorded = parts && typeof parts === 'object' ? Reflect.get(parts, part) : undefined;
-  if (!unedited || recorded === false) return 'admin';
-  if (recorded === true) return 'supplier';
-  if (part === 'description') {
-    const publication = product.catalogDetailPublication;
-    const kept =
-      publication &&
-      typeof publication === 'object' &&
-      (Reflect.get(publication, 'content') != null ||
-        Reflect.get(publication, 'noteBlocks') != null);
-    if (kept) return 'supplier';
-  }
-  return 'unknown';
-}
-
-/** The admin-owned parts whose incoming supplier value differs from the website's. */
-export async function supplierParts(
-  product: CollectionDoc,
-  observation: CatalogSourceObservation,
-): Promise<SupplierReviewPart[]> {
-  const publication = CatalogDetailPublicationSchema.safeParse(product.catalogDetailPublication);
-  const header = publication.success ? publication.data.header : undefined;
-  const decisions = SupplierDecisionsSchema.safeParse(product.supplierDecisions);
-  const decided = (part: SupplierReviewPartName, digest: string) => {
-    const decision = decisions.success ? decisions.data[part] : undefined;
-    return decision?.incomingDigest === digest ? { decision: decision.choice } : {};
-  };
-  const parts: SupplierReviewPart[] = [];
-
-  const incomingText = text(observation.content.description?.text);
-  const websiteText = text(product.description);
-  if (incomingText !== '' && incomingText !== websiteText) {
-    const digest = incomingDigest('description', incomingText);
-    parts.push({
-      part: 'description',
-      website: { text: websiteText },
-      incoming: { text: incomingText },
-      origin: origin(product, 'description', websiteText === text(header?.descriptionText)),
-      incomingDigest: digest,
-      ...decided('description', digest),
-    });
-  }
-
-  const photoParts = [
-    {
-      part: 'gallery' as const,
-      urls: firstUrls(
-        [...observation.content.media]
-          .sort((a, b) => a.position - b.position)
-          .map((media) => media.sourceUrl),
-        9,
-      ),
-      website: ids(product.imageIds),
-      approved: header?.images ?? [],
-    },
-    {
-      part: 'descriptionImages' as const,
-      urls: firstUrls(observation.content.description?.imageUrls ?? [], 18),
-      website: ids(product.descriptionImageIds),
-      approved: header?.descriptionImages ?? [],
-    },
-  ];
-  for (const { part, urls, website, approved } of photoParts) {
-    if (urls.length === 0) continue;
-    const linked = await Promise.all(
-      urls.map(async (url) => (await sourceLinkImageId(url)) ?? null),
-    );
-    if (same(linked, website)) continue;
-    const digest = incomingDigest(part, urls);
-    parts.push({
-      part,
-      website: { imageIds: website },
-      incoming: { urls, imageIds: linked },
-      origin: origin(product, part, same(paths(website), approved)),
-      incomingDigest: digest,
-      ...decided(part, digest),
-    });
-  }
-  return parts;
+export function supplierParts(product: CollectionDoc, observation: CatalogSourceObservation) {
+  return readSupplierParts(product, observation, sourceLinkImageId);
 }
 
 /**

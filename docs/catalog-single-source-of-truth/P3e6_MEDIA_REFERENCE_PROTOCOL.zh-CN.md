@@ -194,3 +194,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c7b 默认 continue 接最终事务
 
 媒体和私有引用暂存完整后，实际 Admin manager 默认调用原最终 3 写事务，只有真实完成回执及同批准 revision 才确认。历史 complete/current=false 不再发布；丢回应同根确认，未知失败保持可查询 scope。服务端依赖可延后阶段测试，客户请求没有此开关。本地 20 个隔离手工对象共用实际 PNG，4 并发发布并逐件读回、下架、引用归零及旧完成任务不复活已验证；不是浏览器或真实云选品。626 SDK/final16 操作与 3 写/最高98，详见 [P3e7c7b](P3e7c7b_OWNED_FINAL_CONTINUE.zh-CN.md)。慢媒体 fallback、来源审阅及其他原门槛未关闭。
+
+
+## P3e7c8 审阅标记与最终三写
+
+原最终商品写入同步确认当前来源审阅；不新增发布后任务或共享写入锁。44 文档操作的 Changed/Removed 最坏照片样本仍只写商品/根/唯一终局证明；未知读错误和不匹配决定拒绝，不发放引用权利。New/旧首次/关联 Edited17、正常16、全套98，651 SDK/14故障/真实默认API详见[P3e7c8](P3e7c8_OWNED_SOURCE_REVIEW.zh-CN.md)。来源缺失/live/照片编辑和真实网络性能仍在后续门槛。

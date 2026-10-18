@@ -78,6 +78,7 @@ import {
   sourceInputDigest,
   sourceObservationInputs,
 } from './catalog-source-inputs.ts';
+import { publicationReview } from './catalog-supplier-review.ts';
 
 export const PRODUCT_OPERATION_INPUT_MAX_BYTES = CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES;
 export const PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES = PRODUCT_OPERATION_INPUT_MAX_BYTES + 2048;
@@ -1145,11 +1146,13 @@ async function publishOperation(
   const { record, product, inspection } = current;
   if (record.state === 'complete') return inspection;
   if (record.state !== 'staging' || !record.references || !record.media) return fail('CONFLICT');
-  if (
-    product.alibabaReviewPending === true &&
-    ['changed', 'removed'].includes(String(product.alibabaReviewReason))
-  )
-    return fail('SOURCE_NOT_READY');
+  const review = await publicationReview(
+    tx,
+    product,
+    record.saved.snapshot.source?.key ?? null,
+    record.sourceDigest,
+  );
+  if (!review.ok) return review;
   const plan = readOwnedApprovalReferencePlan(record, record.references);
   const progress = plan && readOwnedReferenceStage(record.references, plan, record.referenceStage);
   if (!plan || !progress) return fail('CONFLICT');
@@ -1217,6 +1220,14 @@ async function publishOperation(
       ...(record.sourceDigest === undefined ? {} : { sourceDigest: record.sourceDigest }),
       ...(record.supplierParts === undefined ? {} : { supplierParts: record.supplierParts }),
     },
+    ...(review.acknowledge
+      ? {
+          alibabaReviewPending: false,
+          alibabaReviewReason: null,
+          alibabaReviewedAt: now,
+          alibabaReviewedByUserId: actorId,
+        }
+      : {}),
   };
   const completed = CompleteOperationSchema.parse({
     ...record,

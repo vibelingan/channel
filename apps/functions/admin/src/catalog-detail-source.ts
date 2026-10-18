@@ -35,9 +35,9 @@ import {
   sourceDigest,
   sourceGalleryDigest,
 } from '@vibelingan-channel/db/catalog-source-staging';
+import { sourcePhotoLookupUrl } from '@vibelingan-channel/db/catalog-supplier-review';
 import {
   type CollectionDoc,
-  alibabaPhotoSource,
   isProductFamily,
   readAlibabaPhotoFailure,
 } from '@vibelingan-channel/shared';
@@ -107,16 +107,6 @@ export async function sourceLinkImageId(url: string): Promise<string | undefined
   return (await sourceLinkPhoto(url))?.imageId;
 }
 
-function sourcePhotoLookupUrl(url: string) {
-  const transport = new URL(alibabaPhotoSource(url) ?? url);
-  // Keep old owned CDN bindings readable without fetching them.
-  if (
-    transport.protocol === 'http:' &&
-    (transport.hostname === 'alicdn.com' || transport.hostname.endsWith('.alicdn.com'))
-  )
-    transport.protocol = 'https:';
-  return transport.href;
-}
 function sourcePhotoBinding(link: CollectionDoc | null, sourceUrl: string) {
   if (
     link?._id !== sourceMediaLinkId('alibaba', sourceUrl) ||
