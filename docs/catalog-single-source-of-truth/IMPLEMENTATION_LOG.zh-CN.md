@@ -1268,3 +1268,8 @@ images.publishedRefCount走共用同快照加载、结算全体终局再加delta
 ## P3e6d4：普通创建/更新与旧回填计数保护
 
 新增一处共享守卫供native/JSON普通create、deterministic create、update、upsert和租约写入使用：禁止写ledger/路径/operator、非法count与已有ledger的基数覆盖，metadata保持原值、createOnly只在实际创建时应用，输入在首个异步边界前复制。普通nativeupdate同事务get+局部update/严格ACK，不上传已有大image字段；租约fence保留。回填扫描与实际写入双重保护，managed/missing明确skip，未知供应商错误继续失败。新增59项/385聚焦，完整5285、Node202255/19types/E2E/standingSDK通过；20反例含16测试96重叠失败+4SDK-only，四SHA恢复；实际SDK137组及四进程PNG公开→回填→改名→下架→重开404/0重放文件写通过。[说明](P3e6d4_ORDINARY_IMAGE_WRITES.zh-CN.md)保留错误导入/格式/类型及注入器分类失败，不算业务红。review八源/测试和package、既有generic接口/调用者及三文档；“所有图片输入”改为本步创建/更新入口，并修正原回填注释，避免把跳过或维护窗口说成全目录原子修复。普通remove/条件remove/其他increment、上传/保护及旧审批原始计数/最终激活、UI/历史/provider/P95/test三时钟和20件发布回退仍开放；producer关闭，原formal P1/fullDeliveryReady=false。
+
+
+## P3e6d5：通用删除、条件删除与保留字段增量
+
+通用images remove/条件remove在既有事务/JSON锁中只允许无ledger旧路径，有任意own ledger要求既有持久删除；条件不匹配/missing仍false。非publishedRefCount增量先复用d4保留字段守卫，精确counter继续d1。native沿既有rowstore严格ACK，legacy1get+1remove，实际专属删除不经过该通用入口。27新增/19入口13业务红+6正控/426聚焦；10反例7测试30重叠失败+3SDK-only/三SHA恢复；实际SDK169、四独立进程真实PNG公开/拒绝/下架/quarantine持久恢复与删除、proof保留/0重放写通过。[说明](P3e6d5_ORDINARY_IMAGE_DELETION.zh-CN.md)保留第一版错误删除动作控制/格式失败，不冒充业务红。review五代码/测试、原rowstore与后台删除入口和四记录，将供应商写冲突表述限定为契约设计，真实竞争未验证。最终5312全量、Node202282/19types/E2E/standingSDK/显式Biome/diff通过；精确build在commit review后，旧审批/lifecycle/final/UI/历史/真实三时钟20发布回退及原formal P1保持开放，producer关闭/fullDeliveryReady=false。

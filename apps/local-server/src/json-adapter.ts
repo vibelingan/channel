@@ -76,7 +76,10 @@ import {
   runCatalogImageReferenceIncrement,
   runCatalogImageReferenceRead,
 } from '@vibelingan-channel/db/catalog-image-reference-store';
-import { assertOrdinaryImageReferenceWrite } from '@vibelingan-channel/db/catalog-image-reference-write';
+import {
+  assertOrdinaryImageReferenceRemoval,
+  assertOrdinaryImageReferenceWrite,
+} from '@vibelingan-channel/db/catalog-image-reference-write';
 import {
   type CatalogPreparationAuthority,
   type CatalogPreparationJobCommand,
@@ -922,6 +925,8 @@ export class JsonFileAdapter implements DbAdapter {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
       if (index === -1) return false;
+      if (collection === 'images')
+        assertOrdinaryImageReferenceRemoval(docs[index] as CollectionDoc);
       docs.splice(index, 1);
       this.persist();
       return true;
@@ -938,6 +943,7 @@ export class JsonFileAdapter implements DbAdapter {
       const command = CatalogImageReferenceIncrementSchema.parse({ imageId: id, delta });
       return this.imageReferenceTransaction((tx) => runCatalogImageReferenceIncrement(tx, command));
     }
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, { [field]: delta });
     if (isCatalogRowCollection(collection))
       return this.withMutationLock(async () => {
         const result = await this.catalogRowMutation(
@@ -1129,6 +1135,8 @@ export class JsonFileAdapter implements DbAdapter {
         (document) => document._id === id && document[field] === expectedValue,
       );
       if (index < 0) return false;
+      if (collection === 'images')
+        assertOrdinaryImageReferenceRemoval(docs[index] as CollectionDoc);
       docs.splice(index, 1);
       this.persist();
       return true;

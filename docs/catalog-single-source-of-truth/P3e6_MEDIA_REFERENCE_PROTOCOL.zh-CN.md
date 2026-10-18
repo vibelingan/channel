@@ -94,3 +94,8 @@ images.publishedRefCount的既有incrementField改用同快照全体终局结算
 ## P3e6d4创建/更新与回填兼容
 
 普通图片创建、deterministic create、update/upsert和租约写入共用保留字段守卫，已受ledger管理的base不能被绝对覆盖；metadata以原局部更新语义保存。回填报告managed/missing skip，写时再次核对，不吞未知供应商错误。只覆盖这些入口，其他通用remove/条件remove/非计数increment、生命周期writer和旧审批/最终原子激活仍待核验，producer关闭。详见[P3e6d4](P3e6d4_ORDINARY_IMAGE_WRITES.zh-CN.md)。
+
+
+## P3e6d5剩余通用入口
+
+managed图片不得经通用remove/条件remove删除，实际持久删除流程继续通过其原transaction rowstore；missing/未匹配/旧无ledger语义保留。image非专属计数increment不能改ledger/保留路径或operator，专属publishedRefCount仍按d1结算。handler原有Images must be removed through abandonUpload及batchRemove拒绝保留。lifecycle、旧审批和最终激活仍待核验，producer关闭。详见[P3e6d5](P3e6d5_ORDINARY_IMAGE_DELETION.zh-CN.md)。

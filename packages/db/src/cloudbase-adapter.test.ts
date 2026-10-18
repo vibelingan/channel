@@ -30,6 +30,7 @@ import {
   manageSourceMediaImportInCloudBase,
   mutateCatalogRowInCloudBase,
   preparingProductHiddenWhere,
+  removeImageInCloudBase,
   saveCatalogProductInCloudBase,
   unclassifiedProductWhere,
   updateDocWithAlibabaLeaseInCloudBase,
@@ -3529,4 +3530,77 @@ test('native image lease metadata does not rename the referenced document', asyn
   assert.equal(image._id, 'image');
   assert.equal(image.name, 'new');
   assert.equal(image.publishedRefCount, 0);
+});
+
+for (const conditional of [false, true])
+  test(`native ordinary managed image remove conditional=${conditional} is refused before writes`, async () => {
+    const h = ordinaryImageFixture();
+    const before = structuredClone(h.store);
+    await assert.rejects(
+      removeImageInCloudBase(
+        h.db,
+        'image',
+        conditional ? { field: 'name', value: 'old' } : undefined,
+      ),
+      { name: 'ImageReferenceWriteError', code: 'IMAGE_REFERENCE_DELETION_REQUIRED' },
+    );
+    assert.deepEqual(h.store, before);
+    assert.equal(h.controls.maximumOperations, 1);
+  });
+test('native ordinary unmatched and missing image removals do not write', async () => {
+  const h = ordinaryImageFixture();
+  const before = structuredClone(h.store);
+  assert.equal(
+    await removeImageInCloudBase(h.db, 'image', { field: 'name', value: 'different' }),
+    false,
+  );
+  assert.equal(await removeImageInCloudBase(h.db, 'missing'), false);
+  assert.deepEqual(h.store, before);
+  assert.equal(h.controls.maximumOperations, 1);
+});
+for (const fault of ['failRemove', 'silentRemove', 'codedRemove'] as const)
+  test(`native ordinary legacy image removal rolls back ${fault}`, async () => {
+    const h = ordinaryImageFixture();
+    Reflect.deleteProperty(
+      h.store.get('images')?.get('image') ?? {},
+      'catalogPublishedReferenceLedger',
+    );
+    const before = structuredClone(h.store);
+    h.controls[fault] = 'images/image';
+    await assert.rejects(removeImageInCloudBase(h.db, 'image'));
+    assert.deepEqual(h.store, before);
+  });
+test('native ordinary legacy image removal keeps one-read one-remove contract', async () => {
+  const h = ordinaryImageFixture();
+  Reflect.deleteProperty(
+    h.store.get('images')?.get('image') ?? {},
+    'catalogPublishedReferenceLedger',
+  );
+  assert.equal(await removeImageInCloudBase(h.db, 'image'), true);
+  assert.equal(h.store.get('images')?.has('image'), false);
+  assert.equal(h.controls.maximumOperations, 2);
+});
+test('native conditional image removal captures expected fields before transaction startup', async () => {
+  const h = ordinaryImageFixture();
+  Reflect.deleteProperty(
+    h.store.get('images')?.get('image') ?? {},
+    'catalogPublishedReferenceLedger',
+  );
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const database: typeof h.db = {
+    ...h.db,
+    runTransaction: async (operation) => {
+      await gate;
+      return h.db.runTransaction(operation);
+    },
+  };
+  const expected = { field: 'name', value: 'old' };
+  const pending = removeImageInCloudBase(database, 'image', expected);
+  expected.value = 'changed';
+  release();
+  assert.equal(await pending, true);
+  assert.equal(h.store.get('images')?.has('image'), false);
 });

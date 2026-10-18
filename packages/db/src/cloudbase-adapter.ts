@@ -1,4 +1,4 @@
-import { assertOrdinaryImageReferenceWrite, ImageReferenceWriteError } from './catalog-image-reference-write.ts';
+import { assertOrdinaryImageReferenceWrite, assertOrdinaryImageReferenceRemoval, ImageReferenceWriteError } from './catalog-image-reference-write.ts';
 import {
   APPROVAL_IMAGE_HOLD_PROJECTION,
   approvalImageHoldWhere,
@@ -832,6 +832,24 @@ export function updateImageInCloudBase(
   });
 }
 
+export function removeImageInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  id: string,
+  expected?: { field: string; value: unknown },
+): Promise<boolean> {
+  const condition = expected === undefined ? undefined : structuredClone(expected);
+  return db.runTransaction(async (transaction) => {
+    const store = catalogRowStore(transaction);
+    const image = await store.get('images', id);
+    if (!image) return false;
+    if (image._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    if (condition && image[condition.field] !== condition.value) return false;
+    assertOrdinaryImageReferenceRemoval(image);
+    await store.remove('images', id);
+    return true;
+  });
+}
+
 export function readCatalogImageReferenceInCloudBase(
   db: Pick<NodeSdkDatabase, 'runTransaction'>,
   input: CatalogImageReferenceReadCommand,
@@ -1120,6 +1138,7 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async remove(collection, id): Promise<boolean> {
+    if (collection === 'images') return removeImageInCloudBase(cloudStorageSdk().database(), id);
     if (isCatalogRowCollection(collection)) {
       const result = await mutateCatalogRowInCloudBase(
         cloudStorageSdk().database() as unknown as NodeSdkDatabase,
@@ -1135,6 +1154,7 @@ export const cloudBaseAdapter: DbAdapter = {
   async incrementField(collection, id, field, delta): Promise<number | null> {
     if (collection === 'images' && field === 'publishedRefCount')
       return incrementCatalogImageReferenceInCloudBase(cloudStorageSdk().database(), { imageId: id, delta });
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, { [field]: delta });
     if (isCatalogRowCollection(collection)) {
       const result = await mutateCatalogRowInCloudBase(
         cloudStorageSdk().database() as unknown as NodeSdkDatabase,
@@ -1223,6 +1243,7 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async removeDocIfFieldEquals(collection, id, field, expectedValue): Promise<boolean> {
+    if (collection === 'images') return removeImageInCloudBase(cloudStorageSdk().database(), id, { field, value: expectedValue });
     if (isCatalogRowCollection(collection)) {
       const result = await mutateCatalogRowInCloudBase(
         cloudStorageSdk().database() as unknown as NodeSdkDatabase,

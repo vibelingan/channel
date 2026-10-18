@@ -2,6 +2,7 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CATALOG_IMAGE_REFERENCE_LEDGER_FIELD } from './catalog-image-reference-store.ts';
 type Code =
+  | 'IMAGE_REFERENCE_DELETION_REQUIRED'
   | 'IMAGE_REFERENCE_WRITE_CONFLICT'
   | 'IMAGE_REFERENCE_LEDGER_WRITE_FORBIDDEN'
   | 'INVALID_IMAGE_REFERENCE_WRITE';
@@ -10,7 +11,9 @@ export class ImageReferenceWriteError extends Error {
     super(
       code === 'IMAGE_REFERENCE_WRITE_CONFLICT'
         ? 'Image reference count belongs to a product operation.'
-        : 'Invalid ordinary image reference write.',
+        : code === 'IMAGE_REFERENCE_DELETION_REQUIRED'
+          ? 'Images with managed references require the deletion workflow.'
+          : 'Invalid ordinary image reference write.',
     );
     this.name = 'ImageReferenceWriteError';
   }
@@ -56,4 +59,10 @@ export function assertOrdinaryImageReferenceWrite(
     (!Object.hasOwn(current, 'publishedRefCount') || current.publishedRefCount !== count)
   )
     throw new ImageReferenceWriteError('IMAGE_REFERENCE_WRITE_CONFLICT');
+}
+
+/** Managed references may only be removed by the existing durable deletion workflow. */
+export function assertOrdinaryImageReferenceRemoval(image: CollectionDoc): void {
+  if (Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD))
+    throw new ImageReferenceWriteError('IMAGE_REFERENCE_DELETION_REQUIRED');
 }
