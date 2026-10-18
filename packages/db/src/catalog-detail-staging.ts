@@ -40,6 +40,7 @@ import { isApprovalPage, prepareApprovalPage, storeApprovalPage } from './catalo
 import { ChangeAuditMarkSchema, markChangeAudit } from './catalog-change-audit-store.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import { ManualSourceSchema, prepareManualSource } from './catalog-manual-staging.ts';
+export { projectManualSourceProduct } from './catalog-manual-staging.ts';
 import {
   CatalogPreparationCommitSchema,
   type CatalogPreparationStoreResult,

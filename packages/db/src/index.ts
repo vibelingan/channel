@@ -112,7 +112,14 @@ export function manageImageDeletion(command: ImageDeletionCommand) {
 
 import { CatalogProductOperationBindingSchema } from '@vibelingan-channel/shared/catalog-product-operation';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
-import { prepareOwnedApprovalSeed } from './catalog-operation-approval-seed.ts';
+import {
+  type OwnedApprovalCandidateReader,
+  prepareOwnedApprovalSeed,
+} from './catalog-operation-approval-seed.ts';
+export type {
+  OwnedApprovalCandidate,
+  OwnedApprovalCandidateReader,
+} from './catalog-operation-approval-seed.ts';
 import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
 import {
   type ProductOperationStartNormalizer,
@@ -214,6 +221,7 @@ export async function prepareCatalogProductOperationApproval(
   actorId: string,
   input: unknown,
   canBegin: () => boolean = () => true,
+  readCandidate?: OwnedApprovalCandidateReader,
 ) {
   const parsed = CatalogProductOperationBindingSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
@@ -223,6 +231,7 @@ export async function prepareCatalogProductOperationApproval(
     actorId,
     scope,
     canBegin,
+    readCandidate,
   );
   if (!result.ok) return result;
   return manageCatalogProductOperation(actorId, {

@@ -159,3 +159,8 @@ product-operation-start/get/cancel经现有Admin鉴权与开关，由独立DB fa
 ## P3e7c3 服务器准备同根审批
 
 continue仅scope/digest：先精确保存，再优先当前ready source候选、否则准备共享派生source页。服务器读manifest全部配置、计算旧统一网站计划并调用原owned begin，浏览器不带prepared/新快照；仍同一operationId/inputDigest。保存后来源缓存未改变原根operation/saved或网站/分类/lifecycle字段；已经提交的共享缓存不因取消删除，原生owned事务仍拒绝取消/失效scope。每次async状态读回统一校验current，历史查询另留。35项/551SDK/预算与大候选点读无持久游标的边界见[P3e7c3](P3e7c3_OWNED_APPROVAL_SEED.zh-CN.md)，C3b与完整发布/实际验收继续。
+
+
+## P3e7c3b 同请求来源候选
+
+实际Admin的内部seed reader复用现有mapper构造canonical product/rows，与原根source绑定精确匹配后才begin。原shared/source/Preview不增加私有候选字段；浏览器仍仅scope/digest。审批准备省去逐条缓存SKU外读，实际配置仍由原native页hash和版本/角色/source事务验收。cold105/warm21全页、坏/缺缓存拒绝及567安装SDK证明详见[P3e7c3b](P3e7c3b_SOURCE_CANDIDATE_REUSE.zh-CN.md)；原生配置自动推进/后续媒体/引用/最终发布及实际云时延仍在下一步。

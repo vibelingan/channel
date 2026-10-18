@@ -6,11 +6,16 @@ import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
   manageCatalogProductOperation,
+  persistCatalogDetailApproval,
   prepareCatalogProductOperationApproval,
   setAdapter,
 } from '@vibelingan-channel/db';
 import { CatalogProductOperationStatusSchema } from '@vibelingan-channel/shared/catalog-product-operation';
-import { createCatalogSourcePreparer } from '../../functions/admin/src/catalog-detail-source.ts';
+import {
+  createCatalogSourcePreparer,
+  createOwnedCatalogSourcePreparer,
+  readCompleteAlibabaDetailPlan,
+} from '../../functions/admin/src/catalog-detail-source.ts';
 import { continueAdminCatalogProductOperation } from '../../functions/admin/src/catalog-product-operation-continue.ts';
 import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
@@ -129,7 +134,7 @@ for (const count of [0, 21, 105])
     assert.ok(status.state === 'staging');
     assert.equal(status.approval.configurations.total, Math.ceil(count / 20));
     assert.equal(status.approval.configurations.completed, 0);
-    assert.equal(variants, count);
+    assert.equal(variants, 0);
     const root = JSON.parse(h.bytes()).catalogDetailApprovals.find(
       (row: { operationId?: string }) => row.operationId === operationId,
     );
@@ -506,3 +511,269 @@ for (const reason of ['changed', 'removed'])
     assert.equal(Object.hasOwn(final.products[0], 'alibabaReviewedAt'), false);
     assert.equal(Object.hasOwn(final.products[0], 'alibabaReviewedByUserId'), false);
   });
+
+for (const warm of [false, true])
+  test(`owned initialization uses the canonical full source plan without cached SKU point reads (warm=${warm})`, async (t) => {
+    const count = warm ? 21 : 105;
+    const h = await workspace(t, count);
+    if (warm)
+      for (let page = 0; page < Math.ceil(count / 20); page++)
+        assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+    const scope = await h.start('publish', warm ? {} : { description: 'My saved draft' });
+    const original = h.adapter.get.bind(h.adapter);
+    let skuReads = 0;
+    let observationReads = 0;
+    h.adapter.get = async (collection, id) => {
+      if (collection === 'productVariants') {
+        skuReads++;
+        throw Error('initialization must not read each cached SKU');
+      }
+      if (collection === 'catalogSourceObservations') observationReads++;
+      return original(collection, id);
+    };
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.equal(status.approval.configurations.total, Math.ceil(count / 20));
+    assert.equal(skuReads, 0);
+    assert.equal(observationReads, 1);
+    for (let page = 0; page < Math.ceil(count / 20); page++) {
+      const staged = await persistCatalogDetailApproval('admin', {
+        ...scope,
+        action: 'operation-approval-page',
+        page,
+      });
+      assert.ok(
+        staged.ok && 'record' in staged && staged.record.state === 'staging',
+        JSON.stringify(staged),
+      );
+      assert.equal(staged.record.nextPage, page + 1);
+    }
+    assert.equal((await h.adapter.get('products', h.productId))?.published, false);
+  });
+
+test('a tampered cached configuration cannot become the authoritative frozen approval plan', async (t) => {
+  const h = await workspace(t, 21);
+  for (let page = 0; page < 2; page++)
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+  const rows = JSON.parse(h.bytes());
+  const id = rows.products[0].detailSourceManifest.variantIds[0];
+  const variant = rows.productVariants.find((row: { _id: string }) => row._id === id);
+  assert.ok(variant);
+  variant.detailSourceCandidate.options[0].value = 'Tampered cached option';
+  variant.optionValues[variant.detailSourceCandidate.options[0].name] = 'Tampered cached option';
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  assert.equal(CatalogProductOperationStatusSchema.parse(response.data).state, 'staging');
+  const before = h.bytes();
+  const staged = await persistCatalogDetailApproval('admin', {
+    ...scope,
+    action: 'operation-approval-page',
+    page: 0,
+  });
+  assert.ok(!staged.ok && staged.code === 'CONFLICT', JSON.stringify(staged));
+  assert.equal(h.bytes(), before);
+  assert.equal((await h.adapter.get('products', h.productId))?.published, false);
+});
+
+test('new source data with a stale ready cache is projected before seeding the original operation', async (t) => {
+  const h = await workspace(t, 21);
+  for (let page = 0; page < 2; page++)
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+  const rows = JSON.parse(h.bytes());
+  rows.catalogSourceObservations[0].observation.variants[0].options[0].value = 'New source color';
+  rows.alibabaSourceProducts[0].contentHash = 'b'.repeat(64);
+  rows.catalogSourceObservations[0].sourceContentHash = 'b'.repeat(64);
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  const final = JSON.parse(h.bytes());
+  const id = final.products[0].detailSourceManifest.variantIds[0];
+  const variant = final.productVariants.find((row: { _id: string }) => row._id === id);
+  assert.ok(variant);
+  assert.equal(variant.detailSourceCandidate.options[0].value, 'New source color');
+  const staged = await persistCatalogDetailApproval('admin', {
+    ...scope,
+    action: 'operation-approval-page',
+    page: 0,
+  });
+  assert.ok(staged.ok && 'record' in staged, JSON.stringify(staged));
+  assert.equal((await h.adapter.get('products', h.productId))?.published, false);
+});
+
+test('a warm manual source cache cannot hide subsequently added manual configurations', async (t) => {
+  const h = await workspace(t);
+  assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page: 0 })).ok);
+  const rows = JSON.parse(h.bytes());
+  rows.productVariants = [{ _id: 'manual-sku', productId: h.productId, archived: false }];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(
+    !response.ok && /manual|configuration/i.test(response.error.message),
+    JSON.stringify(response),
+  );
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals[0].state, 'saved');
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.productVariants[0]._id, 'manual-sku');
+});
+
+for (const field of [
+  'key',
+  'linkRevision',
+  'sourceHash',
+  'observationHash',
+  'linkHash',
+  'productId',
+])
+  test(`a trusted candidate with a mismatched ${field} cannot seed the original operation`, async (t) => {
+    const h = await workspace(t, 0);
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page: 0 })).ok);
+    const scope = await h.start('publish', {});
+    assert.ok(
+      (await manageCatalogProductOperation('admin', { ...scope, action: 'product-operation-save' }))
+        .ok,
+    );
+    const source = createOwnedCatalogSourcePreparer();
+    const before = h.bytes();
+    const result = await prepareCatalogProductOperationApproval(
+      'admin',
+      scope,
+      () => true,
+      async (...args) => {
+        const candidate = await source.readCandidate(...args);
+        assert.ok(candidate.ok);
+        assert.ok(candidate.source);
+        if (field === 'productId') candidate.product._id = 'another-product';
+        else
+          Reflect.set(
+            candidate.source,
+            field,
+            field === 'linkRevision' ? candidate.source.linkRevision + 1 : 'f'.repeat(64),
+          );
+        return candidate;
+      },
+    );
+    assert.ok(!result.ok && result.code === 'CONFLICT', JSON.stringify(result));
+    assert.equal(h.bytes(), before);
+  });
+
+test('candidate provenance excludes capture evidence and timestamps exactly as the original operation does', async (t) => {
+  const h = await workspace(t, 21);
+  for (let page = 0; page < 2; page++)
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+  const scope = await h.start('publish', {});
+  const rows = JSON.parse(h.bytes());
+  rows.catalogSourceObservations[0].observation.source.observedAt = '2026-10-19T00:00:00.000Z';
+  rows.catalogSourceObservations[0].observation.evidence = [
+    { kind: 'raw-payload', evidenceId: 'b'.repeat(64) },
+  ];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(response.ok, JSON.stringify(response));
+  assert.equal(CatalogProductOperationStatusSchema.parse(response.data).state, 'staging');
+  assert.doesNotMatch(JSON.stringify(response), /raw-only|rows|sourceHash|linkHash|candidate/);
+});
+
+test('legacy source plan results expose no owned approval candidate or provenance', async (t) => {
+  const h = await workspace(t, 21);
+  const product = await h.adapter.get('products', h.productId);
+  assert.ok(product);
+  const result = await readCompleteAlibabaDetailPlan(h.productId, product);
+  assert.ok(result.ok);
+  assert.deepEqual(Object.keys(result).sort(), [
+    'approvalPlan',
+    'detail',
+    'ok',
+    'packet',
+    'sourceMedia',
+  ]);
+  assert.equal(Object.hasOwn(result, 'candidate'), false);
+  assert.equal(Object.hasOwn(result, 'rows'), false);
+});
+
+test('a missing cached configuration is rejected by its native page after canonical initialization', async (t) => {
+  const h = await workspace(t, 21);
+  for (let page = 0; page < 2; page++)
+    assert.ok((await h.invoke({ action: 'prepare', productId: h.productId, page })).ok);
+  const rows = JSON.parse(h.bytes());
+  rows.productVariants.shift();
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  assert.ok((await h.invoke({ ...scope, action: 'product-operation-continue' })).ok);
+  const before = h.bytes();
+  const result = await persistCatalogDetailApproval('admin', {
+    ...scope,
+    action: 'operation-approval-page',
+    page: 0,
+  });
+  assert.ok(!result.ok && result.code === 'SOURCE_NOT_READY', JSON.stringify(result));
+  assert.equal(h.bytes(), before);
+});
+
+test('a valid 4096-SKU source initializes without reading missing cache rows, which its native page still rejects', async (t) => {
+  const count = 4096;
+  const h = await workspace(t, count);
+  const product = await h.adapter.get('products', h.productId);
+  assert.ok(product);
+  let preparedProduct: typeof product | undefined;
+  const planned = await readCompleteAlibabaDetailPlan(h.productId, product, (candidate) => {
+    preparedProduct = candidate.product;
+  });
+  assert.ok(planned.ok);
+  assert.ok(preparedProduct);
+  const rows = JSON.parse(h.bytes());
+  rows.products[0] = preparedProduct;
+  rows.productVariants = [];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  const original = h.adapter.get.bind(h.adapter);
+  let cacheReads = 0;
+  h.adapter.get = async (collection, id) => {
+    if (collection === 'productVariants') {
+      cacheReads++;
+      throw Error('not an initialization read');
+    }
+    return original(collection, id);
+  };
+  const result = await h.invoke({ ...scope, action: 'product-operation-continue' });
+  assert.ok(result.ok, JSON.stringify(result));
+  const status = CatalogProductOperationStatusSchema.parse(result.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.configurations.total, 205);
+  assert.equal(cacheReads, 0);
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) < 4096);
+  const before = h.bytes();
+  const staged = await persistCatalogDetailApproval('admin', {
+    ...scope,
+    action: 'operation-approval-page',
+    page: 0,
+  });
+  assert.ok(!staged.ok && staged.code === 'SOURCE_NOT_READY', JSON.stringify(staged));
+  assert.equal(h.bytes(), before);
+  assert.equal((await original('products', h.productId))?.published, false);
+});
+
+test('owned source reading starts no next provider read after the observation exhausts its budget', async (t) => {
+  const h = await workspace(t, 21);
+  let allowed = true;
+  const original = h.adapter.get.bind(h.adapter);
+  const calls: string[] = [];
+  h.adapter.get = async (collection, id) => {
+    calls.push(collection);
+    const row = await original(collection, id);
+    if (collection === 'catalogSourceObservations') allowed = false;
+    return row;
+  };
+  const source = createOwnedCatalogSourcePreparer();
+  const before = h.bytes();
+  const result = await source.readCandidate('admin', h.productId, () => allowed);
+  assert.ok(!result.ok && result.code === 'SOURCE_NOT_READY');
+  assert.deepEqual(calls, ['products', 'catalogSourceObservations']);
+  assert.equal(h.bytes(), before);
+});

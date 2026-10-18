@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 /**
  * Prepare for a manual product (MIU-28): the same approval pipeline as a synced
  * product, with an empty candidate the planner fills from the row (MIU-27). One
@@ -49,15 +50,9 @@ export async function prepareManualSource(
   const linked =
     typeof product.alibabaPrimarySourceKey === 'string' && product.alibabaPrimarySourceKey !== '';
   if (linked || product.archived === true) return { ok: false, code: 'CONFLICT' };
-  const generation = product.catalogContentGeneration ?? 0;
-  if (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 0)
-    return { ok: false, code: 'VALIDATION_ERROR' };
-  const revision = sourceDigest([
-    'manual',
-    product._id,
-    'v1',
-    ...(product.catalogContentGeneration == null ? [] : ['content-generation', generation]),
-  ]);
+  const projection = projectManualSourceProduct(product);
+  if (!projection) return { ok: false, code: 'VALIDATION_ERROR' };
+  const { revision, product: prepared } = projection;
   const done = {
     ok: true as const,
     jobId: revision,
@@ -66,6 +61,31 @@ export async function prepareManualSource(
     pages: 1,
     complete: true,
   };
+  try {
+    planCatalogDetailApproval({ product: prepared, variants: [], revision: 'manual-validation' });
+  } catch (error) {
+    if (error instanceof CatalogValidationError)
+      return catalogValidationFailure('manual-source', error.issues);
+    throw error;
+  }
+  // Already prepared exactly so: confirm without writing (CloudBase may answer
+  // an identical write with "0 updated", which the adapter treats as failure).
+  if (isDeepStrictEqual(prepared, product)) return done;
+  await tx.set('products', prepared);
+  return done;
+}
+
+/** The same manual projection used by native preparation and owned candidate reads. */
+export function projectManualSourceProduct(product: CollectionDoc) {
+  const generation = product.catalogContentGeneration ?? 0;
+  if (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 0)
+    return null;
+  const revision = sourceDigest([
+    'manual',
+    product._id,
+    'v1',
+    ...(product.catalogContentGeneration == null ? [] : ['content-generation', generation]),
+  ]);
   // A product unlinked from Alibaba must not carry its old source fingerprint
   // into a manual approval.
   const {
@@ -90,16 +110,5 @@ export async function prepareManualSource(
     detailSourceContentCandidate: null,
     detailSourceNoteBlocksCandidate: null,
   };
-  try {
-    planCatalogDetailApproval({ product: prepared, variants: [], revision: 'manual-validation' });
-  } catch (error) {
-    if (error instanceof CatalogValidationError)
-      return catalogValidationFailure('manual-source', error.issues);
-    throw error;
-  }
-  // Already prepared exactly so: confirm without writing (CloudBase may answer
-  // an identical write with "0 updated", which the adapter treats as failure).
-  if (isDeepStrictEqual(prepared, product)) return done;
-  await tx.set('products', prepared);
-  return done;
+  return { revision, product: prepared };
 }

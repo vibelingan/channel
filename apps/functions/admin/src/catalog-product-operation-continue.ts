@@ -11,7 +11,7 @@ import {
   CatalogProductOperationStatusSchema,
 } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
-import { createCatalogSourcePreparer } from './catalog-detail-source.ts';
+import { createOwnedCatalogSourcePreparer } from './catalog-detail-source.ts';
 
 const RequestSchema = CatalogProductOperationBindingSchema.extend({
   action: z.literal('product-operation-continue'),
@@ -38,7 +38,7 @@ export const OWNED_CONTINUATION_BUDGET_MS = 12_000;
 export interface OwnedContinuationDeps {
   operation: typeof manageCatalogProductOperation;
   seed: typeof prepareCatalogProductOperationApproval;
-  prepare: (actorId: string, input: unknown) => Promise<unknown>;
+  prepare: (actorId: string, input: unknown, canBegin?: () => boolean) => Promise<unknown>;
   now: () => number;
 }
 function failure(value: unknown) {
@@ -80,8 +80,7 @@ export async function continueAdminCatalogProductOperation(
   input: unknown,
   deps: OwnedContinuationDeps = {
     operation: manageCatalogProductOperation,
-    seed: prepareCatalogProductOperationApproval,
-    prepare: createCatalogSourcePreparer(),
+    ...ownedSourceDependencies(),
     now: () => performance.now(),
   },
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
@@ -122,11 +121,16 @@ export async function continueAdminCatalogProductOperation(
   if (seeded.code !== 'SOURCE_NOT_READY') return seeded;
   for (let page = 0, attempt = 0; attempt < 500; attempt++) {
     if (deps.now() >= deadline) return get();
-    const raw = await deps.prepare(actorId, {
-      action: 'prepare',
-      productId: scope.productId,
-      page,
-    });
+    const raw = await deps.prepare(
+      actorId,
+      {
+        action: 'prepare',
+        productId: scope.productId,
+        page,
+      },
+      () => deps.now() < deadline,
+    );
+    if (deps.now() >= deadline) return get();
     if (raw && typeof raw === 'object' && Reflect.get(raw, 'ok') === false) return failure(raw);
     const progress = ProgressSchema.safeParse(raw);
     if (!progress.success) return { ok: false as const, code: 'CONFLICT' as const };
@@ -143,4 +147,13 @@ export async function continueAdminCatalogProductOperation(
     page = progress.data.nextPage;
   }
   return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+}
+
+function ownedSourceDependencies() {
+  const source = createOwnedCatalogSourcePreparer();
+  return {
+    prepare: source.prepare,
+    seed: (actorId: string, input: unknown, canBegin?: () => boolean) =>
+      prepareCatalogProductOperationApproval(actorId, input, canBegin, source.readCandidate),
+  };
 }

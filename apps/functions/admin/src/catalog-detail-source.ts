@@ -10,9 +10,20 @@ import {
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
-import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
+import {
+  type OwnedApprovalCandidate,
+  type OwnedApprovalCandidateReader,
+  alibabaLinkRevision,
+  get,
+  list,
+  persistCatalogDetailApproval,
+} from '@vibelingan-channel/db';
 import { prepareCatalogApprovalPlan } from '@vibelingan-channel/db/catalog-detail-commit';
-import { catalogStagedApprovalCapacityIssues } from '@vibelingan-channel/db/catalog-detail-staging';
+import {
+  approvalProductFingerprint,
+  catalogStagedApprovalCapacityIssues,
+  projectManualSourceProduct,
+} from '@vibelingan-channel/db/catalog-detail-staging';
 import {
   primarySourceLinkSnapshot,
   sourceBindingSnapshot,
@@ -135,9 +146,10 @@ async function sourceLinkPhoto(url: string) {
     sourceUrl,
   );
 }
-async function sourceLinkPhotos(urls: readonly string[]) {
+async function sourceLinkPhotos(urls: readonly string[], canRead: () => boolean = () => true) {
   const bindings = new Map<string, ReturnType<typeof sourcePhotoBinding>>();
   for (let offset = 0; offset < urls.length; offset += 100) {
+    if (!canRead()) return undefined;
     const batch = urls.slice(offset, offset + 100).map((url) => {
       const sourceUrl = sourcePhotoLookupUrl(url);
       return { url, sourceUrl, id: sourceMediaLinkId('alibaba', sourceUrl) };
@@ -150,6 +162,7 @@ async function sourceLinkPhotos(urls: readonly string[]) {
       sort: [{ field: '_id', dir: 'asc' }],
       filter: { combinator: 'and', clauses: [{ field: '_id', op: 'in', value: ids }] },
     });
+    if (!canRead()) return undefined;
     const byId = new Map(
       rows.items.filter((row) => ids.includes(row._id)).map((row) => [row._id, row]),
     );
@@ -169,6 +182,8 @@ type CompleteSourcePlan = Extract<
 >;
 interface PreparationScope {
   cached: { actorId: string; productId: string; plan: CompleteSourcePlan } | undefined;
+  reuseFirstPage?: boolean;
+  capture?: (actorId: string, productId: string, candidate: OwnedApprovalCandidate) => void;
 }
 
 /** Reuse a source snapshot only within one server request; every page still has native CAS. */
@@ -177,7 +192,14 @@ export function createCatalogSourcePreparer() {
   return (actorId: string, input: unknown) => prepareSourcePage(actorId, input, scope);
 }
 
-async function prepareSourcePage(actorId: string, input: unknown, scope?: PreparationScope) {
+async function prepareSourcePage(
+  actorId: string,
+  input: unknown,
+  scope?: PreparationScope,
+  canRead: () => boolean = () => true,
+) {
+  const missing = { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  if (!canRead()) return missing;
   const parsed = command.safeParse(input);
   if (!parsed.success)
     return catalogValidationFailure(
@@ -186,61 +208,34 @@ async function prepareSourcePage(actorId: string, input: unknown, scope?: Prepar
     );
   const { productId, page } = parsed.data;
   let complete: CompleteSourcePlan;
-  if (scope?.cached?.actorId === actorId && scope.cached.productId === productId && page > 0) {
+  if (
+    scope?.cached?.actorId === actorId &&
+    scope.cached.productId === productId &&
+    (page > 0 || scope.reuseFirstPage)
+  ) {
     complete = scope.cached.plan;
   } else {
     if (scope) scope.cached = undefined;
     const product = await get('products', productId);
+    if (!canRead()) return missing;
     if (!product) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
     if (product.archived === true) return { ok: false as const, code: 'CONFLICT' as const };
     const sourceKey = product.alibabaPrimarySourceKey;
     if (typeof sourceKey !== 'string' || sourceKey === '') {
-      // Manual product (MIU-30): approval reads configuration rows only from the
-      // prepare manifest, which is empty here, so manual configuration rows (the
-      // Excel import) would be dropped silently. Refuse instead (DESIGN §5.2).
-      // Rows left by an earlier Alibaba link are not the admin's and do not block.
-      for (let page = 1; page <= 100; page++) {
-        const rows = await list({
-          collection: 'productVariants',
-          page,
-          pageSize: 100,
-          filter: {
-            combinator: 'and',
-            clauses: [
-              { field: 'productId', op: 'eq', value: productId },
-              { field: 'archived', op: 'ne', value: true },
-            ],
-          },
-        });
-        if (rows.total > CATALOG_DETAIL_VARIANT_MAX_COUNT)
-          return catalogValidationFailure('source-candidate', [
-            CatalogIssueSchema.parse({
-              code: 'TOO_MANY',
-              stage: 'effective-content',
-              path: 'variants.items',
-              severity: 'error',
-              remedy: 'system-repair',
-              expected: { maxCount: CATALOG_DETAIL_VARIANT_MAX_COUNT },
-              observed: { count: rows.total },
-            }),
-          ]);
-        const manualRow = rows.items.some(
-          (row) =>
-            !(
-              typeof row.detailSourceOwner === 'string' &&
-              row.detailSourceOwner.startsWith('alibaba:')
-            ),
-        );
-        if (manualRow) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
-        if (rows.items.length === 0 || page * 100 >= rows.total) break;
-      }
+      const issue = await manualConfigurationIssue(productId, canRead);
+      if (issue) return issue;
       return persistCatalogDetailApproval(actorId, {
         action: 'manual-source',
         productId,
         configurationRowIds: [],
       });
     }
-    const planned = await readCompleteAlibabaDetailPlan(productId, product);
+    const planned = await readCompleteAlibabaDetailPlan(
+      productId,
+      product,
+      (candidate) => scope?.capture?.(actorId, productId, candidate),
+      canRead,
+    );
     if (!planned.ok) return planned;
     complete = planned;
     if (scope) scope.cached = { actorId, productId, plan: complete };
@@ -257,6 +252,7 @@ async function prepareSourcePage(actorId: string, input: unknown, scope?: Prepar
         remedy: 'system-repair',
       }),
     );
+  if (!canRead()) return missing;
   const result = await persistCatalogDetailApproval(actorId, sourcePage.data);
   if (scope && (!result.ok || ('complete' in result && result.complete))) scope.cached = undefined;
   return !result.ok && result.code === 'VALIDATION_ERROR'
@@ -277,7 +273,14 @@ export async function readAlibabaDetailPlan(
   return complete.ok ? sourcePlanPage(complete, page, pageSize) : complete;
 }
 
-export async function readCompleteAlibabaDetailPlan(productId: string, product: CollectionDoc) {
+export async function readCompleteAlibabaDetailPlan(
+  productId: string,
+  product: CollectionDoc,
+  capture?: (candidate: OwnedApprovalCandidate) => void,
+  canRead: () => boolean = () => true,
+) {
+  const missing = { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  if (!canRead()) return missing;
   const generation = SourcePageSchema.shape.contentGeneration.safeParse(
     product.catalogContentGeneration ?? undefined,
   );
@@ -295,7 +298,9 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const observationId = sourceObservationDocumentId('alibaba', sourceKey);
   const row = await get('catalogSourceObservations', observationId);
+  if (!canRead()) return missing;
   const normalized = await get('alibabaSourceProducts', sourceKey);
+  if (!canRead()) return missing;
   if (!normalized || row?.active === false)
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const snapshot = sourceBindingSnapshot(normalized, row);
@@ -311,6 +316,7 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
     await get('alibabaProductLinks', sourceKey),
     productId,
   );
+  if (!canRead()) return missing;
   if (!primaryLink.ok) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const chosen = ConfigurationPhotosSchema.safeParse(product.configurationPhotos ?? {});
   if (!chosen.success)
@@ -341,7 +347,8 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
       ].map((m) => m.sourceUrl),
     ),
   ];
-  const bindings = await sourceLinkPhotos(urls);
+  const bindings = await sourceLinkPhotos(urls, canRead);
+  if (!bindings || !canRead()) return missing;
   for (const url of urls) {
     const binding = bindings.get(url);
     const imageId = binding?.imageId;
@@ -456,22 +463,52 @@ export async function readCompleteAlibabaDetailPlan(productId: string, product: 
   };
   let approvalPlan: ReturnType<typeof prepareCatalogApprovalPlan>['plan'];
   try {
-    const stagedProduct = projectCatalogSourceProduct(
-      product,
-      {
-        ...packet,
-        page: Math.max(1, Math.ceil(packet.variantIds.length / 20)) - 1,
-      },
-      row?.observation,
-    );
+    // Native source pages parse these fields before storing them. Keep identical
+    // schema order here because approval fingerprints and page hashes use JSON.
+    const canonical = SourcePageSchema.safeParse({
+      ...packet,
+      page: Math.max(1, Math.ceil(packet.variantIds.length / 20)) - 1,
+      variants: [],
+      variantMedia: [],
+    });
+    if (!canonical.success)
+      return catalogValidationFailure(
+        'source-page',
+        catalogIssuesFromZod(canonical.error.issues, packet, {
+          stage: 'source',
+          remedy: 'system-repair',
+        }),
+      );
+    const canonicalPacket = canonical.data;
+    const stagedProduct = projectCatalogSourceProduct(product, canonicalPacket, row?.observation);
     const mediaById = new Map(packet.variantMedia.map((media) => [media.id, media]));
     const stagedRows = packet.variants.map((variant, position) =>
-      projectCatalogSourceVariantRow(null, packet, position, variant, mediaById.get(variant.id)),
+      projectCatalogSourceVariantRow(
+        null,
+        canonicalPacket,
+        position,
+        SourcePageSchema.shape.variants.element.parse(variant),
+        mediaById.get(variant.id),
+      ),
     );
     const effective = prepareCatalogApprovalPlan(stagedProduct, stagedRows);
     approvalPlan = effective.plan;
     const capacity = catalogStagedApprovalCapacityIssues(stagedProduct, effective.plan);
     if (capacity.length) return catalogValidationFailure('source-candidate', capacity);
+    const linkRevision = alibabaLinkRevision(product);
+    if (linkRevision === null) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+    if (!canRead()) return missing;
+    capture?.({
+      product: stagedProduct,
+      rows: stagedRows,
+      source: {
+        key: sourceKey,
+        linkRevision,
+        sourceHash: packet.expectedBinding.sourceHash,
+        observationHash: packet.expectedBinding.observationHash,
+        linkHash: packet.expectedBinding.linkHash,
+      },
+    });
   } catch (error) {
     if (error instanceof CatalogValidationError)
       return catalogValidationFailure('source-candidate', error.issues);
@@ -604,6 +641,116 @@ function sourcePlanPage(complete: CompleteSourcePlan, page: number, pageSize: nu
         total: variants.length,
         hasMore: offset + pageSize < variants.length,
       },
+    },
+  };
+}
+
+async function manualConfigurationIssue(productId: string, canRead: () => boolean = () => true) {
+  for (let page = 1; page <= 100; page++) {
+    if (!canRead()) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+    const rows = await list({
+      collection: 'productVariants',
+      page,
+      pageSize: 100,
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'productId', op: 'eq', value: productId },
+          { field: 'archived', op: 'ne', value: true },
+        ],
+      },
+    });
+    if (!canRead()) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+    if (rows.total > CATALOG_DETAIL_VARIANT_MAX_COUNT)
+      return catalogValidationFailure('source-candidate', [
+        CatalogIssueSchema.parse({
+          code: 'TOO_MANY',
+          stage: 'effective-content',
+          path: 'variants.items',
+          severity: 'error',
+          remedy: 'system-repair',
+          expected: { maxCount: CATALOG_DETAIL_VARIANT_MAX_COUNT },
+          observed: { count: rows.total },
+        }),
+      ]);
+    const manualRow = rows.items.some(
+      (row) =>
+        !(
+          typeof row.detailSourceOwner === 'string' && row.detailSourceOwner.startsWith('alibaba:')
+        ),
+    );
+    if (manualRow) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
+    if (rows.items.length === 0 || page * 100 >= rows.total) break;
+  }
+  return null;
+}
+
+/** One request owns both the source page plan and its private, canonical approval candidate. */
+export function createOwnedCatalogSourcePreparer() {
+  let memo: { actorId: string; productId: string; candidate: OwnedApprovalCandidate } | undefined;
+  const scope: PreparationScope = {
+    cached: undefined,
+    reuseFirstPage: true,
+    capture: (actorId, productId, candidate) => {
+      memo = { actorId, productId, candidate };
+    },
+  };
+  const readCandidate: OwnedApprovalCandidateReader = async (actorId, productId, canRead) => {
+    const missing = { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+    if (!canRead()) return missing;
+    const product = await get('products', productId);
+    if (!canRead()) return missing;
+    if (!product) return { ok: false, code: 'NOT_FOUND' };
+    if (product.archived === true) return { ok: false, code: 'CONFLICT' };
+    if (memo?.actorId !== actorId || memo.productId !== productId) {
+      memo = undefined;
+      scope.cached = undefined;
+      if (
+        typeof product.alibabaPrimarySourceKey !== 'string' ||
+        product.alibabaPrimarySourceKey === ''
+      ) {
+        const issue = await manualConfigurationIssue(productId, canRead);
+        if (!canRead()) return missing;
+        if (issue) return issue.code === 'MANUAL_CONFIGURATIONS' ? missing : issue;
+        const projected = projectManualSourceProduct(product);
+        if (!projected) return { ok: false, code: 'VALIDATION_ERROR' };
+        memo = {
+          actorId,
+          productId,
+          candidate: { product: projected.product, rows: [], source: null },
+        };
+      } else {
+        const planned = await readCompleteAlibabaDetailPlan(
+          productId,
+          product,
+          (candidate) => scope.capture?.(actorId, productId, candidate),
+          canRead,
+        );
+        if (!planned.ok) return planned;
+        scope.cached = { actorId, productId, plan: planned };
+      }
+    }
+    if (!canRead()) return missing;
+    const current = await get('products', productId);
+    if (!canRead()) return missing;
+    const candidate = memo?.candidate;
+    if (
+      !candidate ||
+      !current ||
+      approvalProductFingerprint(current) !== approvalProductFingerprint(candidate.product)
+    )
+      return missing;
+    return { ok: true, ...candidate };
+  };
+  return {
+    readCandidate,
+    prepare: async (actorId: string, input: unknown, canRead: () => boolean = () => true) => {
+      const result = await prepareSourcePage(actorId, input, scope, canRead);
+      if (!result.ok) {
+        memo = undefined;
+        scope.cached = undefined;
+      }
+      return result;
     },
   };
 }

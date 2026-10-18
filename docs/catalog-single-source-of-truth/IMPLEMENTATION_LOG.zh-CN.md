@@ -1335,3 +1335,8 @@ Admin start调用既有keep规则；新save仅接受原scope/digest，从根取�
 ## P3e7c3 来源准备接同根审批seed
 
 实际Admin continue复用C2保存和source共享派生缓存，服务器完整读候选并在原根begin，不另起job；save-draft止于saved、publish止于staging，不发布/清审/导入新图。35新增（shared7/local28），593相关/5823整包/2858Node20、19types/E2E/standingSDK/八Biome通过；13故障15重叠失败+7SDK-only/五注入文件恢复及一读取文件SHA保持，551SDK保留原518且验证6/7(+6)事务操作与21配置外读。postseed取消/编辑曾返回失效进度，已红绿修复；facts夹具100假设按真实256契约改成101正例/257负例。manual/0/21/105SKU、原根/网站字段保留、预算8读/源码页续接、坏来源与丢回应恢复覆盖。详见[P3e7c3](P3e7c3_OWNED_APPROVAL_SEED.zh-CN.md)。人工review八代码/测试及四记录，明确整候选点读尚无跨请求游标，C3b需在启用客户producer前解决；原UI P1及真实验收未关闭/fullDeliveryReady=false。精确提交产物后补。
+
+
+## P3e7c3b 复用完整来源候选
+
+实际Admin seed复用本请求canonical来源计划，核对原根source五元组/商品，原native配置页继续核对实际数据。16新增/69相关/5839全包/Node202874/19types/E2E/standingSDK/七Biome通过；10故障76重叠失败/四SHA恢复，567SDK覆盖cold0/warm21/cold105及全native配置页、ACK/丢确认/坏读/篡改。修正native字段顺序导致指纹不同和新增parse丢失旧source-page原因两处回退；确认optionValues为生效选项后补真实篡改断言，未改业务规则。4096只验证初始化及缺缓存拒绝，不是全发布/P95。人工逐一核对七代码/测试及原native/root/只读SKU注册，具体措辞和未完成项见[P3e7c3b](P3e7c3b_SOURCE_CANDIDATE_REUSE.zh-CN.md)。全部源码恢复，完整来源/大量照片链接的真实provider预算仍未证实；原UI P1与完整continue/真实验收开放，fullDeliveryReady=false，精确产物后补。
