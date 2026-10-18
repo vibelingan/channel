@@ -1224,3 +1224,10 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e6b1：同根永久取消与图片hold释放
 
 原操作根增加服务器cancelledAt，4文档操作、重复0写，保留草稿/页且旧save/begin/page不能继续；三种hold路径排除仅本取消根。原expiry一小时+十分钟余量保留并补65/69/71分钟检查，修正此前未读完整入口的假设。55新增、20取消反例156重叠失败+1SDK-only检出、11真实安装SDK取消/12发送层条件、四进程重开/清理。全量曾在旧流式测试出现1失败，控制启动延迟复现错误假设后修正测试并以硬截止十倍反例重证；生产8秒逻辑未改。最终4931全量/Node201742+invoker15/19types及admin补跑/Biome/SDK/diff通过。[P3e6b1](P3e6b1_OWN_OPERATION_CANCELLATION.zh-CN.md)记录完整证据。措辞“取消停止后续步骤”区别于回滚既有业务写入；原formal P1/fullDeliveryReady=false保留。
+
+
+## P3e6b2：完成媒体准备回执交接
+
+直接复用服务端completed证明，仅原审批根增加小绑定，12文档操作、重复0写；页/取消/历史codec保留其语义，不接HTTP/最终发布。50新增、14源码反例96重叠失败并SHA恢复；实际SDK11组/3坏ACK/commit丢确认、四独立进程及非空worker图片/读端hold衔接通过。全量4981、Node201792+invoker15、19types/E2E/显式Biome/diff通过。[本步说明](P3e6b2_MEDIA_RECEIPT_HANDOFF.zh-CN.md)记录夹具共享图first-match修正和证据边界。
+
+更正P3e6b1门禁证据：旧绿色日志不能证明4cf5101最终新测试名与旧门禁名称组合通过；本轮门禁实际失败。同步启动/流式两项名称并要求至少15全通过，硬截止十倍反例使完整SDK门禁失败，恢复SHA再通过，生产逻辑未改。实际审阅三生产模块/两测试/门禁脚本与四文档；把“图片保护交接已证明”改为“本地读端交接检查通过”，依据实际worker/hold读端与未测字节删除/provider并发区分。原formal P1/fullDeliveryReady=false保留，继续最终提交与所有消费者。

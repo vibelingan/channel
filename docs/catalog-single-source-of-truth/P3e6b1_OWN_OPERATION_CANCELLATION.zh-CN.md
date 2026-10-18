@@ -44,3 +44,8 @@ reserved/saved/staging+已暂存页逐阶段取消，原内容和回执不丢；
 SDK边界：没有新库、SDK方法或shim。exists是原SDK已有方法；对应官方exists页面的MCP Markdown不可读，网页抓取也不可用，未冒称文档确认。已核对installed database1.4.3 command.js:39、command.d.ts:17与Node3.17.2/wx4.0.2真实wire。Context7不可用。后续provider执行/并发/P95仍是硬门槛。
 
 实际review四个生产文件、七个测试和本MIU/主媒体协议/IMPLEMENTATION_LOG/SDK-PROBE；明确cancelledAt不在原inputDigest内，以命令归属校验和服务器时间保护；人工措辞从“取消回滚”改为“取消停止后续步骤”，用原产品/分类/已暂存行/首次marker不变的断言核对。对十分钟余量的前述假设已按真实源码修正，未把设计条件写成现网缺陷。整体验收仍未完成，原正式丢发布响应P1与fullDeliveryReady=false保留。
+
+
+### P3e6b2核对更正
+
+4cf5101的SDK绿色归档未覆盖最终invoker新测试名与门禁旧名称的组合；本轮实际门禁因此失败。此前“standing SDK通过”不能视为该SHA的完整证据。P3e6b2已同步两项测试名和最低15条、保留实际失败，再用硬截止十倍反例确认门禁拒绝，恢复生产源码并重跑通过；生产8秒逻辑未变。其他已记录测试计数/产物不据此变成SDK门禁通过，真实云验收仍未完成。

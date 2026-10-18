@@ -16,6 +16,8 @@ import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/
 import { setAdapter, unfinishedApprovalUsingImage } from '@vibelingan-channel/db';
 import { catalogApprovalDigest } from '@vibelingan-channel/db/catalog-detail-commit';
 import { prepareStagedApproval } from '@vibelingan-channel/db/catalog-detail-staging';
+import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -1559,3 +1561,122 @@ test('a new explicit operation can continue after cancellation without reusing t
   assert.ok(old.ok && 'record' in old && !old.current);
   assert.equal(typeof old.record.operation.cancelledAt, 'string');
 });
+
+async function readyJsonOwnMedia(adapter: JsonFileAdapter) {
+  const authority = createCatalogPreparationAuthority({
+    secret: 'own-json-media-test',
+    environmentId: 'own-json-media-test',
+  });
+  const run = (input: Parameters<JsonFileAdapter['manageCatalogPreparationJob']>[1]) =>
+    adapter.manageCatalogPreparationJob(authority, input);
+  const start = await run({ action: 'start', actorId: 'admin', productId: 'p' });
+  assert.ok(start.ok && 'progress' in start);
+  const jobId = start.progress.jobId;
+  const dispatched = await run({ action: 'dispatch', actorId: 'admin', jobId });
+  assert.ok(dispatched.ok && 'call' in dispatched);
+  const claimed = await run({ action: 'claim', call: dispatched.call, owner: 'own-json-worker' });
+  assert.ok(claimed.ok && 'lease' in claimed);
+  const scope = { jobId, lease: claimed.lease };
+  const planDigest = 'f'.repeat(64);
+  assert.equal((await run({ ...scope, action: 'bind-media-plan', planDigest, total: 0 })).ok, true);
+  assert.equal((await run({ ...scope, action: 'bind-media-seal', planDigest })).ok, true);
+  const job = await adapter.get('catalogPreparationJobs', jobId);
+  assert.ok(
+    job && typeof job.inputDigest === 'string' && typeof job.contentGeneration === 'number',
+  );
+  const done = await run({
+    ...scope,
+    action: 'finish-preparation',
+    inputDigest: job.inputDigest,
+    contentGeneration: job.contentGeneration,
+    planDigest,
+    imageIdsDigest: catalogSealedImageIdsDigest([]),
+    imageCount: 0,
+    previewReady: true,
+    issues: [],
+  });
+  assert.ok(done.ok && 'report' in done && done.report.state === 'ready');
+  return done.report;
+}
+
+test('owned media receipt survives JSON reopen, lost answer and both configuration pages', async (t) => {
+  const h = await jsonOwnApprovalFixture(t, {}, 21);
+  const report = await readyJsonOwnMedia(h.adapter);
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.command)).ok, true);
+  const command = {
+    ...query,
+    action: 'operation-approval-media' as const,
+    inputDigest: h.command.inputDigest,
+  };
+  await h.adapter.persistCatalogDetailApproval('admin', command); // Discard the answer before reopening.
+  const reopened = new JsonFileAdapter(h.file);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const status = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(
+    status.ok && 'record' in status && status.record.state === 'staging' && status.record.media,
+  );
+  assert.equal(status.record.media.ready.receiptId, report.seal.receiptId);
+  assert.equal((await reopened.persistCatalogDetailApproval('admin', command)).ok, true);
+  assert.equal((await reopened.persistCatalogDetailApproval('admin', h.command)).ok, true);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  for (const page of [0, 1])
+    assert.equal(
+      (
+        await reopened.persistCatalogDetailApproval('admin', {
+          ...command,
+          action: 'operation-approval-page',
+          page,
+        })
+      ).ok,
+      true,
+    );
+  const last = await new JsonFileAdapter(h.file).persistCatalogDetailApproval('admin', query);
+  assert.ok(last.ok && 'record' in last && last.record.state === 'staging');
+  assert.deepEqual(last.record.media, status.record.media);
+  assert.equal(last.record.nextPage, 2);
+  assert.equal(JSON.parse(h.bytes()).catalogDetailVariants.length, 21);
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+});
+
+for (const concurrent of ['media', 'page', 'cancel'] as const)
+  test(`concurrent JSON media/${concurrent} serialize without losing receipt or progress`, async (t) => {
+    const h = await jsonOwnApprovalFixture(t, {}, 21);
+    await readyJsonOwnMedia(h.adapter);
+    assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.command)).ok, true);
+    const command = {
+      ...query,
+      action: 'operation-approval-media' as const,
+      inputDigest: h.command.inputDigest,
+    };
+    const other = new JsonFileAdapter(h.file);
+    const second =
+      concurrent === 'media'
+        ? command
+        : concurrent === 'page'
+          ? { ...command, action: 'operation-approval-page' as const, page: 0 }
+          : { ...command, action: 'operation-cancel' as const };
+    const settled = await Promise.allSettled([
+      h.adapter.persistCatalogDetailApproval('admin', command),
+      other.persistCatalogDetailApproval('admin', second),
+    ]);
+    assert.ok(settled.every((answer) => answer.status === 'fulfilled'));
+    const reopened = new JsonFileAdapter(h.file);
+    const status = await reopened.persistCatalogDetailApproval('admin', query);
+    assert.ok(status.ok && 'record' in status && status.record.state === 'staging');
+    assert.equal(status.current, concurrent !== 'cancel');
+    if (concurrent === 'cancel') {
+      assert.equal(typeof status.record.operation.cancelledAt, 'string');
+      const before = h.bytes();
+      assert.equal((await reopened.persistCatalogDetailApproval('admin', command)).ok, false);
+      assert.equal(h.bytes(), before);
+    } else {
+      assert.ok(status.record.media);
+      assert.equal(status.record.nextPage, concurrent === 'page' ? 1 : 0);
+      const before = h.bytes();
+      assert.equal((await reopened.persistCatalogDetailApproval('admin', command)).ok, true);
+      assert.equal(h.bytes(), before);
+    }
+    assert.equal((await reopened.get('products', 'p'))?.published, false);
+  });

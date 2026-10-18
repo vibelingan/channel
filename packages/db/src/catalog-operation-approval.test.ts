@@ -4,11 +4,16 @@ import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { CATALOG_APPROVAL_JOB_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import { firstApprovalImageHold } from './catalog-approval-image-hold.ts';
 import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job.ts';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import { readOwnedApprovalMedia } from './catalog-operation-media.ts';
+import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
+import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
+import { catalogSealedImageIdsDigest } from './catalog-preparation-media-seal.ts';
 import {
   prepareProductOperationSave,
   productOperationSaveReceipt,
@@ -872,3 +877,404 @@ test('an old save after cancellation refuses before loading a broken supplier so
   assert.deepEqual(result, { result: 'stale' });
   assert.equal(h.writes(), writes);
 });
+
+async function finishEmptyMedia(h: Awaited<ReturnType<typeof fixture>>) {
+  const now = Date.now();
+  const authority = createCatalogPreparationAuthority({
+    secret: 'owned-media-handoff-test',
+    environmentId: 'owned-media-handoff-test',
+    now: () => now,
+  });
+  const run = (input: unknown) => runCatalogPreparationJob(h.tx, authority, input, now);
+  const started = await run({ action: 'start', actorId: 'admin', productId: 'p' });
+  assert.ok(started.ok && 'progress' in started);
+  const jobId = started.progress.jobId;
+  const dispatched = await run({ action: 'dispatch', actorId: 'admin', jobId });
+  assert.ok(dispatched.ok && 'call' in dispatched);
+  const claimed = await run({
+    action: 'claim',
+    call: dispatched.call,
+    owner: 'owned-media-worker',
+  });
+  assert.ok(claimed.ok && 'lease' in claimed);
+  const scope = { jobId, lease: claimed.lease };
+  const planDigest = 'f'.repeat(64);
+  assert.equal((await run({ ...scope, action: 'bind-media-plan', planDigest, total: 0 })).ok, true);
+  assert.equal((await run({ ...scope, action: 'bind-media-seal', planDigest })).ok, true);
+  const job = await h.tx.get('catalogPreparationJobs', jobId);
+  assert.ok(
+    job && typeof job.inputDigest === 'string' && typeof job.contentGeneration === 'number',
+  );
+  const done = await run({
+    ...scope,
+    action: 'finish-preparation',
+    inputDigest: job.inputDigest,
+    contentGeneration: job.contentGeneration,
+    planDigest,
+    imageIdsDigest: catalogSealedImageIdsDigest([]),
+    imageCount: 0,
+    previewReady: true,
+    issues: [],
+  });
+  assert.ok(done.ok && 'report' in done && done.report.state === 'ready', JSON.stringify(done));
+  return { jobId, report: done.report };
+}
+
+for (const readyBeforeBegin of [true, false])
+  test(`own media accepts a server-completed empty receipt with readyBeforeBegin=${readyBeforeBegin}`, async () => {
+    const h = await fixture('publish', true, false, true, 21);
+    if (!readyBeforeBegin) assert.equal(object(await h.invoke(h.command)).ok, true);
+    const ready = await finishEmptyMedia(h);
+    if (readyBeforeBegin) assert.equal(object(await h.invoke(h.command)).ok, true);
+    const previous = structuredClone(h.rows.catalogDetailApprovals?.[0]);
+    assert.ok(previous);
+    const others = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(h.rows).filter(([key]) => key !== 'catalogDetailApprovals'),
+      ),
+    );
+    const writes = h.writes();
+    const command = {
+      ...query,
+      action: 'operation-approval-media',
+      inputDigest: h.command.inputDigest,
+    };
+    const result = object(await h.invoke(command));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const record = object(result.record);
+    const media = object(record.media);
+    assert.equal(media.kind, 'catalog-owned-approval-media-v1');
+    assert.equal(media.preparationInputDigest, ready.report.inputDigest);
+    assert.deepEqual(media.ready, ready.report.seal);
+    assert.match(String(media.bindingDigest), /^[a-f0-9]{64}$/);
+    const { media: _binding, ...withoutMedia } = record;
+    assert.deepEqual(withoutMedia, previous);
+    assert.equal(record.state, 'staging');
+    assert.equal(result.current, true);
+    assert.equal(h.writes(), writes + 1);
+    assert.equal(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(h.rows).filter(([key]) => key !== 'catalogDetailApprovals'),
+        ),
+      ),
+      others,
+    );
+    const bytes = h.bytes();
+    assert.deepEqual(await h.invoke(command), result);
+    assert.deepEqual(await h.invoke(query), result);
+    assert.deepEqual(await h.invoke(h.command), result);
+    assert.equal(h.bytes(), bytes);
+    assert.equal(h.writes(), writes + 1);
+    assert.equal(h.rows.products?.[0]?.published, false);
+  });
+
+const mediaCommand = { ...query, action: 'operation-approval-media' as const };
+const mediaFailures = [
+  'not-ready',
+  'missing-job',
+  'other-job-product',
+  'incomplete-job',
+  'changed-nonce',
+  'missing-completion',
+  'changed-command',
+  'changed-report',
+  'changed-receipt',
+  'incomplete-media',
+  'invalid-media',
+  'retry-media',
+  'incomplete-seal',
+  'changed-plan',
+  'changed-seal-ids',
+  'changed-image-count',
+  'old-media-policy',
+  'old-pixel-policy',
+  'other-report-product',
+  'old-preparation-policy',
+  'changed-generation',
+  'changed-source',
+  'changed-link',
+  'revoked-actor',
+  'cancelled-operation',
+  'expired-operation',
+  'future-operation',
+  'missing-product',
+] as const;
+for (const change of mediaFailures)
+  test(`own media rejects ${change} without any writes`, async () => {
+    const h = await fixture('publish', true, false, true);
+    assert.equal(object(await h.invoke(h.command)).ok, true);
+    const ready = await finishEmptyMedia(h);
+    const product = h.rows.products?.[0];
+    const job = h.rows.catalogPreparationJobs?.find((row) => row._id === ready.jobId);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(product && job && root);
+    const report = object(product.catalogPreparationReport);
+    const seal = object(report.seal);
+    if (change === 'not-ready') product.catalogPreparationState = 'unchecked';
+    if (change === 'missing-job') h.rows.catalogPreparationJobs = [];
+    if (change === 'other-job-product') job.productId = 'other';
+    if (change === 'incomplete-job') job.state = 'running';
+    if (change === 'changed-nonce') job.nonce = 'b'.repeat(64);
+    if (change === 'missing-completion') Reflect.deleteProperty(job, 'completion');
+    if (change === 'changed-command') object(job.completion).commandDigest = 'b'.repeat(64);
+    if (change === 'changed-report') object(job.completion).reportDigest = 'b'.repeat(64);
+    if (change === 'changed-receipt') seal.receiptId = 'b'.repeat(64);
+    if (change === 'incomplete-media') object(job.media).total = 1;
+    if (change === 'invalid-media') object(job.media).invalid = 1;
+    if (change === 'retry-media') object(job.media).retry = 1;
+    if (change === 'incomplete-seal') object(job.mediaSeal).total = 1;
+    if (change === 'changed-plan') object(job.mediaSeal).planDigest = 'b'.repeat(64);
+    if (change === 'changed-seal-ids') object(job.mediaSeal).imageIdsDigest = 'b'.repeat(64);
+    if (change === 'changed-image-count') seal.imageCount = 1;
+    if (change === 'old-media-policy') seal.mediaPolicyVersion = 'previous-media-policy';
+    if (change === 'old-pixel-policy') seal.pixelPolicyVersion = 'previous-pixel-policy';
+    if (change === 'other-report-product') report.productId = 'other';
+    if (change === 'old-preparation-policy') report.policyVersion = 'previous-preparation-policy';
+    if (change === 'changed-generation') product.catalogContentGeneration = 1;
+    if (change === 'changed-source') {
+      const source = h.rows.alibabaSourceProducts?.[0];
+      assert.ok(source);
+      source.contentHash = 'b'.repeat(64);
+    }
+    if (change === 'changed-link') {
+      const link = h.rows.alibabaProductLinks?.[0];
+      assert.ok(link);
+      link.productId = 'other';
+    }
+    if (change === 'revoked-actor') {
+      const actor = h.rows.users?.find((row) => row._id === 'admin');
+      assert.ok(actor);
+      actor.status = 'suspended';
+    }
+    if (change === 'cancelled-operation')
+      assert.equal(
+        object(
+          await h.invoke({
+            ...query,
+            action: 'operation-cancel',
+            inputDigest: h.command.inputDigest,
+          }),
+        ).ok,
+        true,
+      );
+    if (change === 'expired-operation' || change === 'future-operation')
+      root.createdAt = new Date(
+        Date.now() + (change === 'future-operation' ? 60000 : -7200000),
+      ).toISOString();
+    if (change === 'missing-product') h.rows.products = [];
+    const before = h.bytes();
+    const writes = h.writes();
+    const result = object(await h.invoke({ ...mediaCommand, inputDigest: h.command.inputDigest }));
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  });
+
+test('own media requires a completed server receipt, refusing a browser-shaped ready report', async () => {
+  const h = await fixture();
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  await finishEmptyMedia(h);
+  const before = h.bytes();
+  assert.equal(
+    object(
+      await h.invoke({
+        ...mediaCommand,
+        inputDigest: h.command.inputDigest,
+        report: h.rows.products?.[0]?.catalogPreparationReport,
+      }),
+    ).ok,
+    false,
+  );
+  assert.equal(h.bytes(), before);
+});
+
+test('own media transfer stays bounded with21 configurations and survives both approval pages', async () => {
+  const h = await fixture('publish', true, false, true, 21);
+  await finishEmptyMedia(h);
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  let reads = 0;
+  let writes = 0;
+  const tx = {
+    get: async (collection: string, id: string) => {
+      reads++;
+      return h.tx.get(collection, id);
+    },
+    set: async (collection: string, row: CollectionDoc) => {
+      writes++;
+      return h.tx.set(collection, row);
+    },
+  };
+  const command = { ...mediaCommand, inputDigest: h.command.inputDigest };
+  const result = await runStagedApproval(tx, 'admin', command);
+  assert.ok(
+    result.ok && 'record' in result && result.record.state === 'staging',
+    JSON.stringify(result),
+  );
+  const bound = result.record;
+  assert.equal(reads, 11);
+  assert.equal(writes, 1);
+  assert.equal(bound.nextPage, 0);
+  assert.ok(bound.media);
+  assert.equal(
+    ApprovalJobSchema.safeParse(bound).success,
+    false,
+    'legacy cannot consume an owned root',
+  );
+  for (const page of [0, 1]) {
+    const staged = object(await h.invoke({ ...command, action: 'operation-approval-page', page }));
+    assert.equal(staged.ok, true, JSON.stringify(staged));
+    assert.equal(object(staged.record).nextPage, page + 1);
+    assert.deepEqual(object(staged.record).media, bound.media);
+  }
+  assert.equal(h.rows.catalogDetailVariants?.length, 21);
+  const before = h.bytes();
+  const replay = object(await h.invoke(command));
+  assert.equal(replay.ok, true);
+  assert.equal(object(replay.record).nextPage, 2);
+  assert.deepEqual(object(replay.record).media, bound.media);
+  assert.equal(h.bytes(), before);
+  const cancelled = object(await h.invoke({ ...command, action: 'operation-cancel' }));
+  assert.equal(cancelled.ok, true);
+  assert.equal(cancelled.current, false);
+  assert.deepEqual(object(cancelled.record).media, bound.media);
+  const afterCancel = h.bytes();
+  assert.equal(object(await h.invoke(command)).ok, false);
+  assert.equal(h.bytes(), afterCancel);
+  assert.equal(h.rows.products?.[0]?.published, false);
+});
+
+for (const damage of [
+  'undefined',
+  'hash',
+  'owner',
+  'images',
+  'input',
+  'policy',
+  'receipt',
+  'bytes',
+] as const)
+  test(`own media codec refuses altered ${damage} on get and repeated begin`, async () => {
+    const h = await fixture();
+    await finishEmptyMedia(h);
+    assert.equal(object(await h.invoke(h.command)).ok, true);
+    assert.equal(
+      object(await h.invoke({ ...mediaCommand, inputDigest: h.command.inputDigest })).ok,
+      true,
+    );
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    const media = object(root.media);
+    if (damage === 'undefined') root.media = undefined;
+    if (damage === 'hash') media.bindingDigest = 'b'.repeat(64);
+    if (damage === 'owner') root.revision = 'another-revision';
+    if (damage === 'images') object(object(root.publication).header).images = ['extra-image'];
+    if (damage === 'input') media.preparationInputDigest = 'b'.repeat(64);
+    if (damage === 'policy') object(media.ready).mediaPolicyVersion = 'previous-media-policy';
+    if (damage === 'receipt') object(media.ready).receiptId = 'b'.repeat(64);
+    if (damage === 'bytes') media.extra = 'x'.repeat(2049);
+    const before = h.bytes();
+    const writes = h.writes();
+    assert.equal(object(await h.invoke(query)).ok, false);
+    assert.equal(object(await h.invoke(h.command)).ok, false);
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  });
+
+test('media transfer rechecks operation expiry after asynchronous preparation reads', async () => {
+  const h = await fixture();
+  await finishEmptyMedia(h);
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  const before = h.bytes();
+  const originalNow = Date.now;
+  const now = Date.now();
+  try {
+    const tx = {
+      ...h.tx,
+      get: async (collection: string, id: string) => {
+        const row = await h.tx.get(collection, id);
+        if (collection === 'catalogPreparationJobs') Date.now = () => now + 7200000;
+        return row;
+      },
+    };
+    assert.deepEqual(
+      await runStagedApproval(tx, 'admin', { ...mediaCommand, inputDigest: h.command.inputDigest }),
+      { ok: false, code: 'APPROVAL_EXPIRED' },
+    );
+    assert.equal(h.bytes(), before);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test('owned media history remains readable under a later policy while eligibility stays stale', async () => {
+  const h = await fixture();
+  await finishEmptyMedia(h);
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  const result = await runStagedApproval(h.tx, 'admin', {
+    ...mediaCommand,
+    inputDigest: h.command.inputDigest,
+  });
+  assert.ok(
+    result.ok && 'record' in result && result.record.state === 'staging' && result.record.media,
+  );
+  const root = result.record;
+  assert.ok(root.media);
+  root.operation.policy.media = 'previous-media-policy';
+  root.operation.policy.pixels = 'previous-pixel-policy';
+  root.media.ready.mediaPolicyVersion = root.operation.policy.media;
+  root.media.ready.pixelPolicyVersion = root.operation.policy.pixels;
+  const { bindingDigest: _digest, ...body } = root.media;
+  root.media.bindingDigest = alibabaPricingFingerprint([
+    'catalog-owned-approval-media-v1',
+    root._id,
+    root.productId,
+    root.operation.inputDigest,
+    root.operation.policy,
+    root.revision,
+    root.productFingerprint,
+    body,
+  ]);
+  assert.ok(readOwnedApprovalMedia(root, root.media));
+  await h.tx.set('catalogDetailApprovals', root);
+  const before = h.bytes();
+  const read = object(await h.invoke(query));
+  assert.equal(read.ok, true);
+  assert.equal(read.current, false);
+  assert.deepEqual(object(read.record).media, root.media);
+  assert.equal(
+    object(await h.invoke({ ...mediaCommand, inputDigest: h.command.inputDigest })).ok,
+    false,
+  );
+  assert.equal(h.bytes(), before);
+});
+
+for (const mismatch of ['count', 'ids', 'media-policy', 'pixel-policy'] as const)
+  test(`owned media refuses a self-consistent binding with different adopted ${mismatch}`, async () => {
+    const h = await fixture();
+    await finishEmptyMedia(h);
+    assert.equal(object(await h.invoke(h.command)).ok, true);
+    const result = await runStagedApproval(h.tx, 'admin', {
+      ...mediaCommand,
+      inputDigest: h.command.inputDigest,
+    });
+    assert.ok(result.ok && 'record' in result && result.record.state === 'staging');
+    const root = result.record;
+    assert.ok(root.media);
+    if (mismatch === 'count') root.media.ready.imageCount = 1;
+    if (mismatch === 'ids') root.media.ready.imageIdsDigest = 'b'.repeat(64);
+    if (mismatch === 'media-policy') root.media.ready.mediaPolicyVersion = 'other-policy';
+    if (mismatch === 'pixel-policy') root.media.ready.pixelPolicyVersion = 'other-policy';
+    const { bindingDigest: _digest, ...body } = root.media;
+    root.media.bindingDigest = alibabaPricingFingerprint([
+      'catalog-owned-approval-media-v1',
+      root._id,
+      root.productId,
+      root.operation.inputDigest,
+      root.operation.policy,
+      root.revision,
+      root.productFingerprint,
+      body,
+    ]);
+    assert.equal(readOwnedApprovalMedia(root, root.media), null);
+  });

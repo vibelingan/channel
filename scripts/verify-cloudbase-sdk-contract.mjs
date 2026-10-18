@@ -852,7 +852,7 @@ const invocationCounts =
   );
 requireCheck(
   invocationCounts !== null &&
-    Number(invocationCounts[1]) >= 12 &&
+    Number(invocationCounts[1]) >= 15 &&
     invocationCounts[1] === invocationCounts[2] &&
     invocationCounts.slice(3).every((value) => value === '0') &&
     [
@@ -860,7 +860,8 @@ requireCheck(
       'installed SDK may return a provider error object instead of throwing',
       'installed SDK keeps non-JSON response_data as a string instead of granting a worker result',
       'installed SDK uses zero retries even when its configured default permits retries',
-      'installed SDK streaming bytes cannot extend the total preparation deadline',
+      'installed SDK startup remains inside the total deadline before any response exists',
+      'an already-streaming installed SDK request cannot extend the total preparation wait',
       'preparation deadline handles a late rejection without repeating the invocation',
     ].every((name) => invocationProbe.includes(name)),
   'actual installed function SDK encoding, error envelope, zero retry and streaming total deadline probes pass without skips',
