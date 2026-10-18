@@ -146,6 +146,7 @@ for (const action of [
   });
 for (const extra of [
   { actorId: 'other' },
+  { submittedInputDigest: 'a'.repeat(64) },
   { record: {} },
   { inputDigest: 'a'.repeat(64) },
   { prepared: {} },
@@ -276,4 +277,17 @@ test('reusing an operation ID with a different reviewed edit conflicts without c
     JSON.parse(h.bytes()).catalogDetailApprovals[0].operation.values.description,
     start.values.description,
   );
+});
+
+test('operation start reports the website description limit as a field issue before any write', async (t) => {
+  const h = await fixture(t);
+  const before = h.bytes();
+  const result = await h.invoke({ ...start, values: { description: 'x'.repeat(30001) } });
+  assert.ok(!result.ok, JSON.stringify(result));
+  assert.equal(result.error.code, 'VALIDATION_ERROR');
+  assert.match(result.error.message, /description/i);
+  const issues = object(result.error).issues;
+  assert.ok(Array.isArray(issues));
+  assert.ok(issues.some((issue) => issue.path === 'description' && issue.code === 'TOO_LONG'));
+  assert.equal(h.bytes(), before);
 });

@@ -144,3 +144,8 @@ product-operation-start/get/cancel经现有Admin鉴权与开关，由独立DB fa
 ## P3e7b 有界满槽调用
 
 真实DB index reference-page入口仅在完整pending满槽hint时重查own-root/实际本页图片/全成员，再每批最多3候选调用原trusted recovery。游标绑定实际ledger并可续接；新鲜mutex不清理，未知/坏根不猜取消。终局后只重试原页，原C1结算与root/image写耦合；正常20图仍88文档操作且无额外发现。三处等待后时间预算反例已修，实际80根与物理PNG范围详见[P3e7b](P3e7b_BOUNDED_REFERENCE_RECOVERY.zh-CN.md)。客户continue/UI仍需接线，无法可信退役的损坏全满账本保留并需明确fallback；原UI P1及真实验收未关闭。
+
+
+## P3e7c1 原提交与补全决定
+
+公开开始请求的原提交摘要与冻结后的 patch 同根保存，摘要进入 inputDigest；只有可信服务器可以补 supplierDecisions。重试返回首次冻结的决定，保存仍与冻结 patch 精确相等。原请求256KiB完整保留，内部仅增加有界元数据；无第二份 patch、新库或锁。旧根严格重放、篡改与公众摘要注入拒绝。实际 helper/SDK/容量/最终发布元数据链的范围见 [P3e7c1](P3e7c1_OWNED_START_NORMALIZATION.zh-CN.md)，Admin/UI 接线及真实验收继续。

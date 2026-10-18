@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
+  manageCatalogProductOperation,
   persistCatalogDetailApproval,
   setAdapter,
   unfinishedApprovalUsingImage,
@@ -25,6 +26,12 @@ import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-prep
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { finishOwnedMediaFixture } from '../../../packages/db/src/catalog-owned-media.fixture.ts';
+import {
+  PRODUCT_OPERATION_INPUT_MAX_BYTES,
+  PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES,
+  captureProductOperationSave,
+} from '../../../packages/db/src/catalog-product-operation.ts';
+import { withAdminEditsKept } from '../../functions/admin/src/catalog-supplier-review.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 const at = '2026-10-18T00:00:00.000Z';
@@ -2601,4 +2608,456 @@ test('JSON80 production index automatically retires an obsolete holder and resum
     ).length,
     0,
   );
+});
+
+function ownSupplierEditFixture(t: { after(callback: () => void): void }) {
+  const h = fixture(t, {
+    description: 'Supplier text',
+    alibabaPrimarySourceKey: 's',
+    alibabaReviewPending: true,
+    alibabaReviewReason: 'changed',
+    catalogDetailPublication: {
+      state: 'approved',
+      revision: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      header: {
+        _id: 'p',
+        schemaVersion: 'catalog-product-detail-v1',
+        name: 'Clock',
+        categoryLabel: 'Misc',
+        descriptionText: 'Old supplier text',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+      variantCount: 0,
+    },
+    catalogDetailApprovalReceipt: {
+      supplierParts: { description: true, gallery: true, descriptionImages: true },
+    },
+  });
+  const rows = JSON.parse(h.bytes());
+  rows.catalogSourceObservations = [
+    {
+      _id: sourceObservationDocumentId('alibaba', 's'),
+      observation: {
+        schemaVersion: 'catalog-source-observation-v1',
+        source: {
+          provider: 'alibaba',
+          sourceProductKey: 's',
+          externalProductId: 'external-s',
+          observedAt: at,
+          captureMode: 'selected',
+          completeness: 'full-product',
+        },
+        identity: { title: 'Supplier clock', matchHints: {}, attributes: [] },
+        content: {
+          description: {
+            text: 'Supplier text',
+            placeholder: false,
+            sanitized: true,
+            provenance: 'provider-description',
+          },
+          media: [],
+        },
+        lifecycle: { sourceListingStatus: 'published' },
+        variants: [],
+        offers: [],
+        evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+        warnings: [],
+      },
+    },
+  ];
+  writeFileSync(h.file, JSON.stringify(rows));
+  setAdapter(h.adapter);
+  return h;
+}
+
+test('owned start freezes the actual Admin keep-decision before the exact bound draft save', async (t) => {
+  const h = ownSupplierEditFixture(t);
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const values = { description: 'My edited description' };
+  const normalized = await withAdminEditsKept(product, values);
+  const decisions = normalized.supplierDecisions;
+  assert.ok(decisions && typeof decisions === 'object');
+  assert.equal(Reflect.get(Reflect.get(decisions, 'description'), 'choice'), 'keep');
+  const input = { ...start, action: 'product-operation-start', values };
+  const opened = await manageCatalogProductOperation('admin', input, async () => ({
+    ok: true,
+    values: normalized,
+  }));
+  assert.ok(opened.ok, JSON.stringify(opened));
+  const saved = await h.adapter.saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'p',
+    data: normalized,
+    expectedUpdatedAt: at,
+    expectedOperation: { actorId: 'admin', operationId, inputDigest: opened.inputDigest },
+  });
+  assert.equal(saved.result, 'saved', JSON.stringify(saved));
+  const root = JSON.parse(h.bytes()).catalogDetailApprovals[0];
+  assert.deepEqual(root.operation.values, normalized);
+  assert.match(root.operation.submittedInputDigest, /^[a-f0-9]{64}$/);
+  const row = await h.adapter.get('products', 'p');
+  assert.equal(row?.description, values.description);
+  assert.deepEqual(row?.supplierDecisions, decisions);
+  assert.equal(row?.published, false);
+});
+
+test('same submitted edit replays its frozen normalization without recalculating newer supplier choices', async (t) => {
+  const h = ownSupplierEditFixture(t);
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const values = { description: 'My edited description' };
+  let normalizations = 0;
+  const normalize = async () => {
+    normalizations++;
+    return { ok: true as const, values: await withAdminEditsKept(product, values) };
+  };
+  const input = { ...start, action: 'product-operation-start', values };
+  const first = await manageCatalogProductOperation('admin', input, normalize);
+  assert.ok(first.ok);
+  assert.equal(normalizations, 1);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const repeated = await manageCatalogProductOperation('admin', input, async () => {
+    throw Error('do not recompute an existing operation');
+  });
+  assert.deepEqual(repeated, first);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  const conflict = await manageCatalogProductOperation(
+    'admin',
+    { ...input, values: { description: 'Different submitted edit' } },
+    normalize,
+  );
+  assert.ok(!conflict.ok && conflict.code === 'CONFLICT');
+  assert.equal(normalizations, 1);
+  assert.equal(h.bytes(), before);
+});
+
+test('trusted normalization cannot change a submitted website field other than supplier decisions', async (t) => {
+  const h = fixture(t);
+  setAdapter(h.adapter);
+  const before = h.bytes();
+  const result = await manageCatalogProductOperation(
+    'admin',
+    { ...start, action: 'product-operation-start' },
+    async () => ({ ok: true, values: { ...start.values, name: 'Unexpected replacement' } }),
+  );
+  assert.ok(!result.ok && result.code === 'CONFLICT', JSON.stringify(result));
+  assert.equal(h.bytes(), before);
+});
+
+test('a normalized saved operation replays the original raw submission even without a normalizer', async (t) => {
+  const h = ownSupplierEditFixture(t);
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const values = { description: 'My edited description' };
+  const normalized = await withAdminEditsKept(product, values);
+  const input = { ...start, action: 'product-operation-start', values };
+  const first = await manageCatalogProductOperation('admin', input, async () => ({
+    ok: true,
+    values: normalized,
+  }));
+  assert.ok(first.ok);
+  assert.equal(
+    (
+      await h.adapter.saveCatalogProductWithIdentities({
+        mode: 'update',
+        productId: 'p',
+        data: normalized,
+        expectedUpdatedAt: at,
+        expectedOperation: { actorId: 'admin', operationId, inputDigest: first.inputDigest },
+      })
+    ).result,
+    'saved',
+  );
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const again = await manageCatalogProductOperation('admin', input);
+  assert.ok(again.ok && again.state === 'saved');
+  assert.equal(again.inputDigest, first.inputDigest);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  const rows = JSON.parse(h.bytes());
+  rows.catalogSourceObservations[0].observation.content.description.text = 'Newer supplier text';
+  writeFileSync(h.file, JSON.stringify(rows));
+  const changed = h.bytes();
+  assert.deepEqual(
+    await manageCatalogProductOperation('admin', input, async () => {
+      throw Error('new incoming values must not rewrite an existing operation');
+    }),
+    again,
+  );
+  assert.equal(h.bytes(), changed);
+});
+
+test('racing normalizers retain the first frozen choices for the same submitted edit', async (t) => {
+  const h = fixture(t);
+  setAdapter(h.adapter);
+  const input = { ...start, action: 'product-operation-start' };
+  let entered: () => void = () => {};
+  let release: () => void = () => {};
+  const reached = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const decisions = (digest: string) => ({
+    ...start.values,
+    supplierDecisions: { description: { choice: 'keep', incomingDigest: digest.repeat(64) } },
+  });
+  const pending = manageCatalogProductOperation('admin', input, async () => {
+    entered();
+    await gate;
+    return { ok: true, values: decisions('a') };
+  });
+  await reached;
+  const firstCommitted = await manageCatalogProductOperation('admin', input, async () => ({
+    ok: true,
+    values: decisions('b'),
+  }));
+  assert.ok(firstCommitted.ok);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  release();
+  assert.deepEqual(await pending, firstCommitted);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.deepEqual(
+    JSON.parse(before).catalogDetailApprovals[0].operation.values.supplierDecisions,
+    decisions('b').supplierDecisions,
+  );
+});
+
+test('a committed normalized start with a lost answer is recovered after reopen without recomputing', async (t) => {
+  const h = ownSupplierEditFixture(t);
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  const input = {
+    ...start,
+    action: 'product-operation-start',
+    values: { description: 'My edited description' },
+  };
+  const normalized = await withAdminEditsKept(product, input.values);
+  const persist = Reflect.get(h.adapter, 'persist');
+  assert.ok(typeof persist === 'function');
+  try {
+    Reflect.set(h.adapter, 'persist', function (this: JsonFileAdapter) {
+      Reflect.apply(persist, this, []);
+      throw Error('normalized start answer lost');
+    });
+    await assert.rejects(
+      manageCatalogProductOperation('admin', input, async () => ({ ok: true, values: normalized })),
+      /normalized start answer lost/,
+    );
+  } finally {
+    Reflect.set(h.adapter, 'persist', persist);
+  }
+  setAdapter(new JsonFileAdapter(h.file));
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const result = await manageCatalogProductOperation('admin', input, async () => {
+    throw Error('do not repeat normalized start');
+  });
+  assert.ok(result.ok && result.state === 'reserved');
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal(JSON.parse(before).catalogDetailApprovals.length, 1);
+});
+
+for (const values of [
+  { published: true },
+  { archived: true },
+  { unknownField: 'bad' },
+  { description: 'x'.repeat(30001) },
+])
+  test(`invalid raw patch is rejected before normalization ${Object.keys(values).join(',')}`, async (t) => {
+    const h = fixture(t);
+    setAdapter(h.adapter);
+    let invoked = false;
+    const before = h.bytes();
+    const result = await manageCatalogProductOperation(
+      'admin',
+      { ...start, action: 'product-operation-start', values },
+      async () => {
+        invoked = true;
+        return { ok: true, values: {} };
+      },
+    );
+    assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
+    assert.equal(invoked, false);
+    assert.equal(h.bytes(), before);
+  });
+for (const patch of [
+  { description: 'Replacement' },
+  { imageIds: ['other-image'] },
+  { slug: 'other-slug' },
+  { skuCode: 'OTHER' },
+])
+  test(`normalization cannot replace submitted ${Object.keys(patch).join(',')}`, async (t) => {
+    const h = fixture(t);
+    setAdapter(h.adapter);
+    const before = h.bytes();
+    const result = await manageCatalogProductOperation(
+      'admin',
+      { ...start, action: 'product-operation-start' },
+      async () => ({ ok: true, values: { ...start.values, ...patch } }),
+    );
+    assert.ok(!result.ok && result.code === 'CONFLICT', JSON.stringify(result));
+    assert.equal(h.bytes(), before);
+  });
+test('mutating the normalizer argument cannot mutate the frozen original comparison', async (t) => {
+  const h = fixture(t);
+  setAdapter(h.adapter);
+  const before = h.bytes();
+  const result = await manageCatalogProductOperation(
+    'admin',
+    { ...start, action: 'product-operation-start' },
+    async (values) => {
+      values.description = 'Mutated in place';
+      return { ok: true, values };
+    },
+  );
+  assert.ok(!result.ok && result.code === 'CONFLICT');
+  assert.equal(h.bytes(), before);
+});
+for (const failure of ['throw', 'decline', 'revoked'])
+  test(`normalizer ${failure} never saves a partial operation`, async (t) => {
+    const h = fixture(t);
+    setAdapter(h.adapter);
+    const before = h.bytes();
+    const input = { ...start, action: 'product-operation-start' };
+    if (failure === 'throw')
+      await assert.rejects(
+        manageCatalogProductOperation('admin', input, async () => {
+          throw Error('normalizer source unavailable');
+        }),
+        /normalizer source unavailable/,
+      );
+    else {
+      const result = await manageCatalogProductOperation('admin', input, async (values) => {
+        if (failure === 'decline') return { ok: false, code: 'SOURCE_NOT_READY' };
+        const rows = JSON.parse(h.bytes());
+        rows.users[0].status = 'suspended';
+        writeFileSync(h.file, JSON.stringify(rows));
+        return { ok: true, values };
+      });
+      assert.ok(
+        !result.ok && result.code === (failure === 'decline' ? 'SOURCE_NOT_READY' : 'FORBIDDEN'),
+      );
+    }
+    if (failure !== 'revoked') assert.equal(h.bytes(), before);
+    assert.deepEqual(JSON.parse(h.bytes()).catalogDetailApprovals ?? [], []);
+    assert.equal((await h.adapter.get('products', 'p'))?.description, '');
+  });
+
+test('legacy roots replay through public start without adding submitted metadata or rerunning normalization', async (t) => {
+  const h = fixture(t);
+  await reserve(h.adapter);
+  setAdapter(h.adapter);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const result = await manageCatalogProductOperation(
+    'admin',
+    { ...start, action: 'product-operation-start' },
+    async () => {
+      throw Error('old root is already frozen');
+    },
+  );
+  assert.ok(result.ok);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal(
+    'submittedInputDigest' in JSON.parse(before).catalogDetailApprovals[0].operation,
+    false,
+  );
+});
+
+test('full legal submitted byte budget retains room for server-only supplier metadata without a second patch copy', async (t) => {
+  const h = fixture(t);
+  setAdapter(h.adapter);
+  const photos: Record<string, string[]> = {};
+  const values = { name: 'C', configurationPhotos: photos };
+  const input = { ...start, action: 'product-operation-start', values };
+  const bytes = () => Buffer.byteLength(JSON.stringify(input));
+  let index = 0;
+  for (; index < 500; index++) {
+    photos[`v${index}`] = Array.from({ length: 9 }, () => 'x'.repeat(200));
+    if (bytes() > PRODUCT_OPERATION_INPUT_MAX_BYTES) {
+      Reflect.deleteProperty(photos, `v${index}`);
+      break;
+    }
+  }
+  const finalPhotos: string[] = [];
+  photos[`v${index}`] = finalPhotos;
+  while (finalPhotos.length < 9) {
+    finalPhotos.push('x'.repeat(200));
+    if (bytes() > PRODUCT_OPERATION_INPUT_MAX_BYTES) {
+      finalPhotos.pop();
+      break;
+    }
+  }
+  const remaining = PRODUCT_OPERATION_INPUT_MAX_BYTES - bytes();
+  assert.ok(remaining >= 0 && remaining < 1000);
+  values.name += 'x'.repeat(remaining);
+  assert.equal(bytes(), PRODUCT_OPERATION_INPUT_MAX_BYTES);
+  const supplierDecisions = Object.fromEntries(
+    ['description', 'gallery', 'descriptionImages'].map((part) => [
+      part,
+      { choice: 'keep', incomingDigest: 'a'.repeat(64) },
+    ]),
+  );
+  const maximumServerMetadataBytes = Buffer.byteLength(
+    JSON.stringify({
+      supplierDecisions: Object.fromEntries(
+        ['description', 'gallery', 'descriptionImages'].map((part) => [
+          part,
+          { choice: 'incoming', incomingDigest: 'a'.repeat(64) },
+        ]),
+      ),
+      submittedInputDigest: 'a'.repeat(64),
+    }),
+  );
+  assert.ok(
+    maximumServerMetadataBytes <
+      PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES - PRODUCT_OPERATION_INPUT_MAX_BYTES,
+  );
+  const opened = await manageCatalogProductOperation('admin', input, async (original) => ({
+    ok: true,
+    values: { ...original, supplierDecisions },
+  }));
+  assert.ok(opened.ok, JSON.stringify(opened));
+  const root = JSON.parse(h.bytes()).catalogDetailApprovals[0];
+  assert.ok(Buffer.byteLength(JSON.stringify(root)) < 512 * 1024);
+  assert.equal(
+    Object.keys(root.operation).filter((key) =>
+      ['rawValues', 'submittedValues', 'originalValues'].includes(key),
+    ).length,
+    0,
+  );
+  assert.deepEqual(root.operation.values.configurationPhotos, photos);
+  assert.deepEqual(root.operation.values.supplierDecisions, supplierDecisions);
+  assert.equal('submittedInputDigest' in opened, false);
+  assert.ok(
+    captureProductOperationSave({
+      mode: 'update',
+      productId: 'p',
+      data: root.operation.values,
+      expectedUpdatedAt: at,
+      expectedOperation: { actorId: 'admin', operationId, inputDigest: opened.inputDigest },
+    }),
+  );
+  const before = h.bytes();
+  const rejected = await manageCatalogProductOperation(
+    'admin',
+    { ...input, values: { ...values, name: `${values.name}x` } },
+    async () => {
+      throw Error('over-budget input reached normalization');
+    },
+  );
+  assert.ok(!rejected.ok && rejected.code === 'VALIDATION_ERROR');
+  assert.equal(h.bytes(), before);
 });

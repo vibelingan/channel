@@ -112,7 +112,10 @@ export function manageImageDeletion(command: ImageDeletionCommand) {
 
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
-import { runProductOperationWorkflow } from './catalog-product-operation-workflow.ts';
+import {
+  type ProductOperationStartNormalizer,
+  runProductOperationWorkflow,
+} from './catalog-product-operation-workflow.ts';
 export function manageCatalogCategory(actorId: string, input: unknown) {
   const adapter = db();
   if (!adapter.manageCatalogCategory)
@@ -205,8 +208,17 @@ export async function manageCatalogPreparationJob(
     throw new Error('Preparation job persistence unavailable');
   return adapter.manageCatalogPreparationJob(authority, command, now);
 }
-export function manageCatalogProductOperation(actorId: string, input: unknown) {
-  return runProductOperationWorkflow({ persist: persistCatalogDetailApproval }, actorId, input);
+export function manageCatalogProductOperation(
+  actorId: string,
+  input: unknown,
+  normalizeStart?: ProductOperationStartNormalizer,
+) {
+  return runProductOperationWorkflow(
+    { persist: persistCatalogDetailApproval },
+    actorId,
+    input,
+    normalizeStart,
+  );
 }
 export function manageCatalogDetailApproval(actorId: string, input: unknown) {
   return runCatalogApprovalWorkflow({ get, persist: persistCatalogDetailApproval }, actorId, input);

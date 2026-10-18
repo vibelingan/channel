@@ -77,6 +77,7 @@ import {
 } from './catalog-source-inputs.ts';
 
 export const PRODUCT_OPERATION_INPUT_MAX_BYTES = CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES;
+export const PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES = PRODUCT_OPERATION_INPUT_MAX_BYTES + 1024;
 export const PRODUCT_OPERATION_RECORD_MAX_BYTES = 512 * 1024;
 export const PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES = 1024 * 1024;
 const SNAPSHOT_MAX_BYTES = 2 * 1024 * 1024;
@@ -96,6 +97,7 @@ export const ProductOperationStartSchema = identifiers
     intent,
     expectedUpdatedAt: z.string().datetime().nullable(),
     values: z.record(z.unknown()),
+    submittedInputDigest: digest.optional(),
   })
   .strict();
 export const ProductOperationGetSchema = identifiers
@@ -196,6 +198,7 @@ const ReservedSchema = z
         intent,
         expectedUpdatedAt: z.string().datetime().nullable(),
         inputDigest: digest,
+        submittedInputDigest: digest.optional(),
         policy: PolicySchema,
         values: z.record(z.unknown()),
         base: SnapshotSchema,
@@ -283,15 +286,37 @@ export async function runProductOperation(
   const parsed = CommandSchema.safeParse(input);
   if (!parsed.success) return fail('VALIDATION_ERROR');
   const command = parsed.data;
+  const normalizedStart =
+    command.action === 'operation-start' && command.submittedInputDigest !== undefined;
+  if (
+    command.action === 'operation-start' &&
+    Object.hasOwn(command, 'submittedInputDigest') &&
+    command.submittedInputDigest === undefined
+  )
+    return fail('VALIDATION_ERROR');
   if (
     command.action !== 'operation-approval-begin' &&
-    !fitsJsonBudget(input, PRODUCT_OPERATION_INPUT_MAX_BYTES, 24)
+    !fitsJsonBudget(
+      input,
+      normalizedStart
+        ? PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES
+        : PRODUCT_OPERATION_INPUT_MAX_BYTES,
+      24,
+    )
   )
     return fail('VALIDATION_ERROR');
   const actor = id.safeParse(actorId);
   if (!actor.success) return fail('FORBIDDEN');
   // Clone the entire JSON patch before the first await, including unknown JSON fields.
-  const values = command.action === 'operation-start' ? cleanValues(command.values) : {};
+  const values =
+    command.action === 'operation-start'
+      ? cleanProductOperationValues(
+          command.values,
+          normalizedStart
+            ? PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES
+            : PRODUCT_OPERATION_INPUT_MAX_BYTES,
+        )
+      : {};
   if (values === null) return fail('VALIDATION_ERROR');
   const user = await tx.get('users', actorId);
   if (user?.role !== 'admin' || user.status === 'suspended') return fail('FORBIDDEN');
@@ -320,8 +345,18 @@ export async function runProductOperation(
     if (
       command.action === 'operation-start' &&
       record.operation.inputDigest !== requestDigest(actorId, command, values)
-    )
-      return fail('CONFLICT');
+    ) {
+      const sameSubmitted =
+        command.submittedInputDigest !== undefined &&
+        record.operation.submittedInputDigest === command.submittedInputDigest &&
+        record.operation.intent === command.intent &&
+        record.operation.expectedUpdatedAt === command.expectedUpdatedAt;
+      const legacyReplay =
+        record.operation.submittedInputDigest === undefined &&
+        record.operation.inputDigest ===
+          requestDigest(actorId, { ...command, submittedInputDigest: undefined }, values);
+      if (!sameSubmitted && !legacyReplay) return fail('CONFLICT');
+    }
     return inspect(tx, record);
   }
   if (command.action === 'operation-get' || command.action === 'operation-cancel')
@@ -354,6 +389,7 @@ export async function runProductOperation(
       intent: command.intent,
       expectedUpdatedAt: command.expectedUpdatedAt,
       inputDigest: requestDigest(actorId, command, values),
+      ...(normalizedStart ? { submittedInputDigest: command.submittedInputDigest } : {}),
       policy: currentPolicy(),
       values,
       base,
@@ -365,8 +401,11 @@ export async function runProductOperation(
   return { ok: true, record, current: true, revisionCurrent: true, expired: false };
 }
 
-function cleanValues(value: Record<string, unknown>): Record<string, unknown> | null {
-  if (!fitsJsonBudget(value, PRODUCT_OPERATION_INPUT_MAX_BYTES, 24)) return null;
+export function cleanProductOperationValues(
+  value: Record<string, unknown>,
+  maxBytes = PRODUCT_OPERATION_INPUT_MAX_BYTES,
+): Record<string, unknown> | null {
+  if (!fitsJsonBudget(value, maxBytes, 24)) return null;
   const parsed = ValuesSchema.safeParse(value);
   if (!parsed.success) return null;
   try {
@@ -391,7 +430,7 @@ function requestDigest(
   command: z.infer<typeof ProductOperationStartSchema>,
   values: Record<string, unknown>,
 ) {
-  return alibabaPricingFingerprint([
+  const parts = [
     'catalog-product-operation-v2',
     actorId,
     command.productId,
@@ -399,13 +438,21 @@ function requestDigest(
     command.intent,
     command.expectedUpdatedAt,
     values,
-  ]);
+  ];
+  if (command.submittedInputDigest !== undefined)
+    parts.push({ submittedInputDigest: command.submittedInputDigest });
+  return alibabaPricingFingerprint(parts);
 }
 function readReservation(row: CollectionDoc, actorId: string, command: Command) {
   if (!fitsJsonBudget(row, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32)) return null;
   const parsed = RecordSchema.safeParse(row);
   if (!parsed.success) return null;
   const record = parsed.data;
+  if (
+    Object.hasOwn(record.operation, 'submittedInputDigest') &&
+    record.operation.submittedInputDigest === undefined
+  )
+    return null;
   if (Object.hasOwn(record.operation, 'cancelledAt') && record.operation.cancelledAt === undefined)
     return null;
   if (
@@ -450,7 +497,12 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
     }
   } else if (!fitsJsonBudget(record, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
   if (record.state === 'complete' && Object.hasOwn(record.operation, 'cancelledAt')) return null;
-  const values = cleanValues(record.operation.values);
+  const values = cleanProductOperationValues(
+    record.operation.values,
+    record.operation.submittedInputDigest === undefined
+      ? PRODUCT_OPERATION_INPUT_MAX_BYTES
+      : PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES,
+  );
   if (
     record.actorId !== actorId ||
     record.productId !== command.productId ||
@@ -466,6 +518,9 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
           operationId: record.operationId,
           intent: record.operation.intent,
           expectedUpdatedAt: record.operation.expectedUpdatedAt,
+          ...(record.operation.submittedInputDigest === undefined
+            ? {}
+            : { submittedInputDigest: record.operation.submittedInputDigest }),
           values,
         },
         values,
@@ -709,7 +764,10 @@ export function captureProductOperationSave(
   if (input.expectedOperation === undefined) return input;
   if (!fitsJsonBudget(input, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
   const binding = BindingSchema.safeParse(input.expectedOperation);
-  const values = cleanValues(input.data);
+  const values = cleanProductOperationValues(
+    input.data,
+    PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES,
+  );
   if (!binding.success || values === null) return null;
   try {
     return { ...structuredClone(input), data: values, expectedOperation: binding.data };

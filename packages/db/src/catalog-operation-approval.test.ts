@@ -50,6 +50,7 @@ async function fixture(
   linked = false,
   variantCount = 0,
   extra: Record<string, unknown> = {},
+  submittedInputDigest?: string,
 ) {
   const product: CollectionDoc = {
     _id: 'p',
@@ -167,6 +168,7 @@ async function fixture(
     intent,
     expectedUpdatedAt: product.updatedAt,
     values: { description: product.description },
+    ...(submittedInputDigest === undefined ? {} : { submittedInputDigest }),
   };
   const result = await runProductOperation(tx, 'admin', start);
   assert.ok(result.ok && result.record.state === 'reserved');
@@ -1559,13 +1561,25 @@ test('reference freezing checks the service deadline again before its final root
   }
 });
 
-async function ownReferencePageFixture(imageCount = 1, extra: Record<string, unknown> = {}) {
+async function ownReferencePageFixture(
+  imageCount = 1,
+  extra: Record<string, unknown> = {},
+  submittedInputDigest?: string,
+) {
   const ids = Array.from({ length: imageCount }, (_, i) => `image${String(i).padStart(2, '0')}`);
-  const h = await fixture('publish', true, false, false, 21, {
-    imageIds: ids.slice(0, 9),
-    descriptionImageIds: ids.slice(9),
-    ...extra,
-  });
+  const h = await fixture(
+    'publish',
+    true,
+    false,
+    false,
+    21,
+    {
+      imageIds: ids.slice(0, 9),
+      descriptionImageIds: ids.slice(9),
+      ...extra,
+    },
+    submittedInputDigest,
+  );
   h.rows.images = ids.map((_id) => ({
     _id,
     status: 'active',
@@ -2128,11 +2142,19 @@ test('reference-page reserves both pixel reads and counts a refused next-image p
   assert.equal(h.bytes(), before);
 });
 
-async function ownPublishFixture(extra: Record<string, unknown> = {}, imageCount = 1) {
-  const h = await ownReferencePageFixture(imageCount, {
-    description: 'Ready description',
-    ...extra,
-  });
+async function ownPublishFixture(
+  extra: Record<string, unknown> = {},
+  imageCount = 1,
+  submittedInputDigest?: string,
+) {
+  const h = await ownReferencePageFixture(
+    imageCount,
+    {
+      description: 'Ready description',
+      ...extra,
+    },
+    submittedInputDigest,
+  );
   let cursor = 0;
   while (cursor < imageCount) {
     const staged = object(await h.invoke({ ...h.pageCommand, cursor }));
@@ -3397,4 +3419,80 @@ test('deadline after checking the original operation starts no further image loo
   assert.ok(!result.ok && result.code === 'MEDIA_BUSY');
   assert.equal(f.h.bytes(), before);
   assert.deepEqual(f.calls.commands, ['operation-approval-reference-page', 'operation-get']);
+});
+
+for (const field of ['submittedInputDigest', 'undefined-submittedInputDigest'])
+  test(`normalized operation codec refuses stored ${field} tampering`, async () => {
+    const h = await fixture('save-draft', false);
+    const command = {
+      action: 'operation-start',
+      productId: 'p',
+      operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      intent: 'save-draft',
+      expectedUpdatedAt: h.rows.products?.[0]?.updatedAt ?? null,
+      values: { description: 'Original' },
+      submittedInputDigest: 'a'.repeat(64),
+    };
+    const first = await runProductOperation(h.tx, 'admin', command);
+    assert.ok(first.ok);
+    const stored = object(
+      h.rows.catalogDetailApprovals?.find((row) => row.operationId === command.operationId),
+    );
+    object(stored.operation).submittedInputDigest =
+      field === 'submittedInputDigest' ? 'b'.repeat(64) : undefined;
+    const before = h.bytes();
+    assert.deepEqual(
+      await runProductOperation(h.tx, 'admin', {
+        action: 'operation-get',
+        productId: 'p',
+        operationId: command.operationId,
+      }),
+      { ok: false, code: 'CONFLICT' },
+    );
+    assert.equal(h.bytes(), before);
+  });
+for (const patch of [{ submittedInputDigest: undefined }, { submittedInputDigest: 'invalid' }])
+  test(`internal start refuses malformed submitted digest ${Object.keys(patch).join(',')}:${String(patch.submittedInputDigest)}`, async () => {
+    const h = await fixture('save-draft', false);
+    const before = h.bytes();
+    assert.deepEqual(
+      await runProductOperation(h.tx, 'admin', {
+        action: 'operation-start',
+        productId: 'p',
+        operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        intent: 'save-draft',
+        expectedUpdatedAt: h.rows.products?.[0]?.updatedAt ?? null,
+        values: {},
+        ...patch,
+      }),
+      { ok: false, code: 'VALIDATION_ERROR' },
+    );
+    assert.equal(h.bytes(), before);
+  });
+
+test('submitted digest survives genuine owned pages, media, pending stage, publication and historical replay', async () => {
+  const submittedInputDigest = 'a'.repeat(64);
+  const h = await ownPublishFixture({}, 1, submittedInputDigest);
+  const finished = object(await h.invoke(h.finishCommand));
+  assert.equal(finished.ok, true, JSON.stringify(finished));
+  assert.equal(
+    object(object(finished.record).operation).submittedInputDigest,
+    submittedInputDigest,
+  );
+  assert.equal(object(finished.record).state, 'complete');
+  const before = h.bytes();
+  const writes = h.writes();
+  assert.deepEqual(await h.invoke(h.finishCommand), finished);
+  assert.equal(h.bytes(), before);
+  assert.equal(h.writes(), writes);
+  object(h.rows.products?.[0]).published = false;
+  const afterWithdraw = h.bytes();
+  const historical = object(await h.invoke(query));
+  assert.equal(historical.current, false);
+  assert.equal(
+    object(object(historical.record).operation).submittedInputDigest,
+    submittedInputDigest,
+  );
+  assert.equal(object(h.rows.products?.[0]).published, false);
+  assert.equal(h.bytes(), afterWithdraw);
 });

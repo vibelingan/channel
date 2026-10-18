@@ -1320,3 +1320,8 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 ## P3e7b 生产入口的有界满槽恢复
 
 index真实调用恢复封装器，仅PENDING_FULL hint触发；重查自身scope/版本/冻结页，完整验证实际图账本，每次最多3根，原可信恢复事务判资格，终局后只重试原页。完整ledger哈希游标可续接，变化重置，未知IO/权限失败停止，12s单调预算覆盖所有异步边界。38新增（DB37/JSON1），441相关/5724全量/2736Node20/19types/E2E/SDK/七文件Biome通过；20故障56重叠失败+2SDK-only/五SHA恢复，474安装SDK含正常页88操作零发现、六ACK回滚、取消提交丢回应及候选读故障。actualJSON80根自动旧根退役→原81页续接保持80pending/effective0；物理PNG四进程为2真实根+79合成，重开与取消回退/privateSHA/category/fixturecleanup通过。首次脚本把inputDigest带入get被正确拒绝，修正夹具后通过。详见[P3e7b](P3e7b_BOUNDED_REFERENCE_RECOVERY.zh-CN.md)并保留模拟调度/实际资格/混合编译/真实云的界限。人工审阅五生产/两测试/四文档，纠正全部自动清理措辞；客户continue/UI仍未接，原UI P1/fullDeliveryReady=false继续。
+
+
+## P3e7c1 原提交与服务器补全冻结
+
+公开 start 记录原提交摘要，可信服务器仅补 supplierDecisions，冻结实际 withAdminEditsKept 输出；精确保存约束保留。同原提交重放首次决定，来源变化/并发/提交丢回应均不重算；旧根严格兼容，公开摘要注入拒绝。原 256 KiB 容量完整保留，独立最坏元数据 475 字节，无第二份大 patch。27 新增、495 相关/5751 全量/2763 Node20、19types/E2E/standingSDK/六文件Biome 通过。9 故障（15 重叠失败+1 SDK-only）/三源码 SHA 恢复，498 安装 SDK 控制通过。网站描述超限反例已提前到补全前并保留字段原因。人工核对三生产/三测试/四记录，纠正无 normalizer 摘要与旧类型诊断数量措辞；详见 [P3e7c1](P3e7c1_OWNED_START_NORMALIZATION.zh-CN.md)。精确产物后补，下一步接实际 Admin，原 UI P1/真实云/P95/三时钟20验收未关闭，fullDeliveryReady=false。

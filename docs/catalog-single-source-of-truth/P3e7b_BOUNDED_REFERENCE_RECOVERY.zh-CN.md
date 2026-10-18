@@ -25,7 +25,7 @@
 
 四个独立Node24/20进程使用真实worker保护24x16 PNG及编译Admin start/status/cancel：原私有暂存404，创建并保存第二个真实操作、放入79合成未知占槽，index自动退役旧失效根/原页续接，丢回答后重开同页零写，原取消状态可查，取消第二操作并C1结算保留79未知项，商品/图始终404、私有SHA/尺寸和分类保留，owned夹具清理/父owned文件未改。此物理链为2个真实根+79合成peer，不冒充actualJSON80全真实根或80客户商品。混合编译产物d7835de配当前JSON/index；精确本提交产物需随后补记。R1脚本把inputDigest误传入严格get，正确被拒；改成显式productId/operationId后R2通过，未放宽生产schema。
 
-人工审阅五生产、两测试及四记录，沿index→hint→own-get→image/member→候选→原可信恢复→同页C1/ACK/公开图追踪；native/JSON完整文件、原save actor/classification fence和legacyworkflow未改。文案把“自动清理全部满槽”纠正为“有界扫描可信候选并续接原页”，核对actual80、两真根79合成、472/474 SDK和真实PNG范围。首轮隐式any及三个测试可选集合/状态收窄错误均用实际类型修正，无unsafe fix。precommit lint--silent已知错误不作为证据。
+人工审阅五生产、两测试及四记录，沿index→hint→own-get→image/member→候选→原可信恢复→同页C1/ACK/公开图追踪；native/JSON完整文件、原save actor/classification fence和legacyworkflow未改。文案把“自动清理全部满槽”纠正为“有界扫描可信候选并续接原页”，核对actual80、两真根79合成、472/474 SDK和真实PNG范围。首轮隐式any及两项测试类型收窄错误（其中一项修正前重复报告）均用实际类型修正，无unsafe fix。precommit lint--silent已知错误不作为证据。
 
 ## 仍然开放的边界
 
