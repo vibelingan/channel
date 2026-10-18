@@ -259,6 +259,7 @@ export async function persistCatalogDetailApproval(
   actorId: string,
   input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
   referenceRecovery?: unknown,
+  referenceBudgetMs?: number,
 ) {
   const adapter = db();
   if (!adapter.persistCatalogDetailApproval)
@@ -272,6 +273,8 @@ export async function persistCatalogDetailApproval(
       actorId,
       input,
       referenceRecovery,
+      undefined,
+      referenceBudgetMs,
     );
   return adapter.persistCatalogDetailApproval(actorId, input);
 }

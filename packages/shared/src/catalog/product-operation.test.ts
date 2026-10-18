@@ -4,6 +4,7 @@ import {
   CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES,
   CatalogProductOperationBindingSchema,
   CatalogProductOperationStatusSchema,
+  CatalogReferenceRecoveryCursorSchema,
 } from './product-operation.ts';
 const at = '2026-10-18T00:00:00.000Z';
 const base = {
@@ -213,5 +214,90 @@ test('largest legal media preparation status stays inside the original small res
   assert.ok(CatalogProductOperationStatusSchema.safeParse(status).success);
   assert.ok(
     Buffer.byteLength(JSON.stringify(status)) <= CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES,
+  );
+});
+
+const referenceCursor = { imageId: 'image', ledgerDigest: 'a'.repeat(64), nextOffset: 79 };
+const referenceWaiting = {
+  ...base,
+  state: 'staging',
+  saved,
+  approval: { ...approval, references: { prepared: true, staged: 20, total: 21 } },
+  referenceRecovery: { nextAction: 'wait', cursor: referenceCursor },
+};
+test('a reference wait exposes only a bounded original recovery cursor', () => {
+  assert.ok(CatalogProductOperationStatusSchema.safeParse(referenceWaiting).success);
+  for (const patch of [
+    { nextOffset: 80 },
+    { nextOffset: -1 },
+    { ledgerDigest: 'bad' },
+    { imageId: '' },
+    { root: {} },
+    { nextOffset: 1.1 },
+  ])
+    assert.equal(
+      CatalogReferenceRecoveryCursorSchema.safeParse({ ...referenceCursor, ...patch }).success,
+      false,
+    );
+  assert.ok(
+    CatalogProductOperationStatusSchema.safeParse({
+      ...referenceWaiting,
+      referenceRecovery: { nextAction: 'wait', cursor: null },
+    }).success,
+  );
+});
+for (const patch of [
+  { state: 'reserved' },
+  { state: 'saved' },
+  { current: false },
+  { revisionCurrent: false },
+  { expired: true },
+  { cancelledAt: at },
+  { approval: { ...referenceWaiting.approval, mediaReady: false } },
+  {
+    approval: {
+      ...referenceWaiting.approval,
+      references: { prepared: false, staged: 0, total: 0 },
+    },
+  },
+  { approval },
+  { ...complete },
+])
+  test(`reference recovery cannot decorate stale or completed work ${JSON.stringify(patch)}`, () =>
+    assert.equal(
+      CatalogProductOperationStatusSchema.safeParse({ ...referenceWaiting, ...patch }).success,
+      false,
+    ));
+test('largest reference wait and legal cursor stay within the response budget', () => {
+  const value = {
+    ...referenceWaiting,
+    productId: '\u0000'.repeat(200),
+    approval: { ...referenceWaiting.approval, revision: '\u0000'.repeat(200) },
+    referenceRecovery: {
+      nextAction: 'wait',
+      cursor: { ...referenceCursor, imageId: '中'.repeat(200) },
+    },
+  };
+  assert.ok(CatalogProductOperationStatusSchema.safeParse(value).success);
+  assert.ok(Buffer.byteLength(JSON.stringify(value)) < 4096);
+});
+
+test('reference recovery cursor enforces its existing 1024-byte encoded input budget', () => {
+  assert.equal(
+    CatalogReferenceRecoveryCursorSchema.safeParse({
+      ...referenceCursor,
+      imageId: '\u0000'.repeat(200),
+    }).success,
+    false,
+  );
+});
+
+test('reference recovery requires every configuration page to be completed', () => {
+  assert.equal(
+    CatalogProductOperationStatusSchema.safeParse({
+      ...referenceWaiting,
+      approval: { ...referenceWaiting.approval, configurations: { completed: 1, total: 2 } },
+    }).success,
+    false,
   );
 });

@@ -179,3 +179,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c5b 冷媒体准备
 
 实际continue在未seed时可先沿原签名job导入照片，下一请求重投影后同根seed；已seed则分段推进同job并转真实ready回执。shared状态只给有界下一动作与job/进度，权限仍在原角色API。未知IO不猜状态；取消/编辑/撤权后不能再启动worker或转交，已发出的调用只能完成私有准备。57新增/154相关/5925当前完整覆盖/2960Node20/592SDK，105实图和503恢复/丢回应/并发都保持未公开。旧completed seal与来源图映射改变已实际复现为repair，P5恢复仍要接线，详见[P3e7c5 B段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)。没有接引用激活或最终发布，fullDeliveryReady=false。
+
+
+## P3e7c6 实际continue的私有引用页
+
+原任务媒体ready后，实际Admin开始承诺并按服务端游标暂存private pending页，父剩余预算向下传递，不重新获得12秒；每页读回且单调前进，完成零写。满槽恢复用原cursor的小型响应与下一请求携回，原原生成员/账本/角色校验保留。实际SDK满80前三成员不能回收、offset3续第四个真实旧根并回到原页，unknown79不清空；88/36页事务/global98。54新增/604SDK/真实21PNG20+1与公开HTTP404/105组合详见[P3e7c6](P3e7c6_OWNED_REFERENCE_CONTINUE.zh-CN.md)。只完成私有暂存，最终公开权利仍待唯一发布事务，fullDeliveryReady=false。

@@ -10,13 +10,16 @@ import {
   type CatalogProductOperationBinding,
   CatalogProductOperationBindingSchema,
   CatalogProductOperationStatusSchema,
+  CatalogReferenceRecoveryCursorSchema,
 } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import { createOwnedCatalogSourcePreparer } from './catalog-detail-source.ts';
 import type { OwnedMediaPreparationStep } from './catalog-operation-media-preparation.ts';
+import type { OwnedReferenceContinuationStep } from './catalog-operation-reference-continue.ts';
 
 const RequestSchema = CatalogProductOperationBindingSchema.extend({
   action: z.literal('product-operation-continue'),
+  referenceRecovery: CatalogReferenceRecoveryCursorSchema.optional(),
 });
 const ProgressSchema = z.object({
   ok: z.literal(true),
@@ -101,6 +104,7 @@ export async function continueAdminCatalogProductOperation(
   },
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
   prepareMedia?: OwnedMediaPreparationStep,
+  prepareReferences?: OwnedReferenceContinuationStep,
 ) {
   if (
     !fitsJsonBudget(input, 4096, 12) ||
@@ -111,7 +115,7 @@ export async function continueAdminCatalogProductOperation(
     return { ok: false as const, code: 'VALIDATION_ERROR' as const };
   const parsed = RequestSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
-  const { action: _action, ...scope } = parsed.data;
+  const { action: _action, referenceRecovery, ...scope } = parsed.data;
   const deadline = deps.now() + budgetMs;
   const get = async () =>
     status(
@@ -192,13 +196,32 @@ export async function continueAdminCatalogProductOperation(
       : { ok: false as const, code: 'CONFLICT' as const };
   };
   const resume = async (initial: Awaited<ReturnType<typeof get>>) => {
-    const current = await advance(initial);
-    return current.ok &&
+    let current = await advance(initial);
+    if (
+      current.ok &&
       current.state === 'staging' &&
       !current.approval.mediaReady &&
       current.approval.configurations.completed === current.approval.configurations.total
-      ? prepareMissingMedia(current)
-      : current;
+    )
+      current = await prepareMissingMedia(current);
+    if (
+      prepareReferences &&
+      current.ok &&
+      current.state === 'staging' &&
+      current.approval.mediaReady &&
+      (!current.approval.references.prepared ||
+        current.approval.references.staged < current.approval.references.total) &&
+      deps.now() < deadline
+    ) {
+      const result = await prepareReferences(
+        actorId,
+        scope,
+        Math.max(0, deadline - deps.now()),
+        referenceRecovery,
+      );
+      return result.ok ? status(result, scope) : failure(result);
+    }
+    return current;
   };
   if (deps.now() >= deadline) return get();
   let current = status(

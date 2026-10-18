@@ -3496,3 +3496,43 @@ test('submitted digest survives genuine owned pages, media, pending stage, publi
   assert.equal(object(h.rows.products?.[0]).published, false);
   assert.equal(h.bytes(), afterWithdraw);
 });
+
+for (const budget of [0, -1, 12001, Number.NaN])
+  test(`reference recovery refuses to start a page with invalid or exhausted budget ${budget}`, async () => {
+    const f = await boundedRecoveryFixture();
+    const before = f.h.bytes();
+    const result = await persistOwnedReferencePageWithRecovery(
+      f.store,
+      'admin',
+      f.h.pageCommand,
+      undefined,
+      f.now,
+      budget,
+    );
+    assert.ok(!result.ok && result.code === (budget === 0 ? 'MEDIA_BUSY' : 'VALIDATION_ERROR'));
+    assert.equal(f.calls.pages, 0);
+    assert.equal(f.h.bytes(), before);
+  });
+
+test('reference recovery inherits a short parent budget after reading the pending image', async () => {
+  const f = await boundedRecoveryFixture();
+  const original = f.store.get;
+  f.store.get = async (c, id) => {
+    const row = await original(c, id);
+    if (c === 'images') f.calls.time = 101;
+    return row;
+  };
+  const before = f.h.bytes();
+  const result = await persistOwnedReferencePageWithRecovery(
+    f.store,
+    'admin',
+    f.h.pageCommand,
+    undefined,
+    f.now,
+    100,
+  );
+  assert.equal(result.ok, false);
+  assert.equal(f.calls.pages, 1);
+  assert.equal(f.calls.recoveries.length, 0);
+  assert.equal(f.h.bytes(), before);
+});

@@ -1,9 +1,26 @@
 /** Bounded browser status; the private operation root is never a response DTO. */
 import { z } from 'zod';
+import { fitsJsonBudget } from './admin-product-list.ts';
 export const CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES = 256 * 1024;
 export const CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES = 4096;
 const id = z.string().min(1).max(200);
 const count = z.number().int().nonnegative().safe();
+export const CatalogReferenceRecoveryCursorSchema = z
+  .object({
+    imageId: id,
+    ledgerDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    nextOffset: count.max(79),
+  })
+  .strict()
+  .refine((value) => fitsJsonBudget(value, 1024, 8));
+export type CatalogReferenceRecoveryCursor = z.infer<typeof CatalogReferenceRecoveryCursorSchema>;
+export const CatalogProductOperationReferenceRecoverySchema = z
+  .object({
+    nextAction: z.literal('wait'),
+    cursor: CatalogReferenceRecoveryCursorSchema.nullable(),
+  })
+  .strict();
+
 export const CatalogProductOperationPreparationSchema = z
   .object({
     nextAction: z.enum(['continue', 'wait', 'retry', 'edit', 'repair']),
@@ -40,6 +57,7 @@ const base = z
     expired: z.boolean(),
     cancelledAt: z.string().datetime().optional(),
     preparation: CatalogProductOperationPreparationSchema.optional(),
+    referenceRecovery: CatalogProductOperationReferenceRecoverySchema.optional(),
   })
   .strict();
 export const CatalogProductOperationBindingSchema = base.pick({
@@ -93,6 +111,25 @@ export const CatalogProductOperationStatusSchema = z
         code: z.ZodIssueCode.custom,
         path: ['preparation'],
         message: 'Preparation requires the current saved operation.',
+      });
+
+    if (
+      status.referenceRecovery &&
+      (status.intent !== 'publish' ||
+        status.state !== 'staging' ||
+        !status.current ||
+        !status.revisionCurrent ||
+        status.expired ||
+        ('cancelledAt' in status && status.cancelledAt !== undefined) ||
+        !status.approval.mediaReady ||
+        status.approval.configurations.completed !== status.approval.configurations.total ||
+        !status.approval.references.prepared ||
+        status.approval.references.staged >= status.approval.references.total)
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['referenceRecovery'],
+        message: 'Reference recovery requires the current unfinished reference page.',
       });
     if (status.state !== 'staging' && status.state !== 'complete') return;
     const { configurations, references } = status.approval;

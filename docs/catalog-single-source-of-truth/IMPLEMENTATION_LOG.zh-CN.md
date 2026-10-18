@@ -1355,3 +1355,8 @@ continue在原saved seed和staging重开均按持久cursor调用原native配置�
 ## P3e7c5b 冷媒体与原审批任务串联
 
 实际Admin continue复用签名preparation start/status/continue；先导入未绑定来源照片，下一请求重投影后同根seed，staging时同job分段检查并转真实ready回执。严格scope/current/TTL、10秒启动余量，异步等待后及invoke前重查；取消后已发出的worker最多写私有结果。共享响应增加4096预算内的continue/wait/retry/edit/repair提示，浏览器不能指定authority/invoker。57新增/154相关/5925完整覆盖（105图补例后local980、Node20 2960重跑）/19包类型+E2E类型/8Biome/standing SDK通过；10故障21重叠/三SHA恢复，592安装SDK通过。实际PNG105图与并发、503后原job恢复、丢回应和旧seal错集合已测试。修正文案“adapter restart”及错误retry断言，SDK零图、实际PNG、真实云范围分开，详见[P3e7c5 B段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)。旧seal需P5修复、慢DB wait需fallback，客户UI/最终发布与真实验收未关闭，fullDeliveryReady=false。
+
+
+## P3e7c6 原任务引用页续接
+
+实际continue在媒体ready后冻结原引用承诺、按真实staged逐页暂存，继承父剩余预算。明确MEDIA_BUSY返回有界恢复游标，下一请求携回，服务端重验实际页/账本摘要；客户端不控制图片列表、增量或预算。54新增/521相关/5979全包+脚本/Node20 3014/19类型+E2E/9Biome/standing SDK通过；11故障12重叠另1SDK、5SHA恢复，604安装SDK含88/36页事务、6ACK回滚、提交丢回应、证据读错误和实际Admin满80槽offset3续第四成员。真实21PNG20+1、零图、并发、取消/预算和公开HTTP404已测；105图组合保留。旧媒体阶段断言按新增引用阶段调整并保留无重复媒体写；相对路径/冗余类型判断/探针漏ID及变量范围错误记录于[P3e7c6](P3e7c6_OWNED_REFERENCE_CONTINUE.zh-CN.md)。当前仍只暂存私有引用，最终发布/UI/现场验收未关闭，fullDeliveryReady=false。

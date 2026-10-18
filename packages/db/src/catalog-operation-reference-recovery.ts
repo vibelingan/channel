@@ -1,6 +1,7 @@
 /** Bounded recovery on the real private reference-page entry; cancellation eligibility remains transactional. */
 import { performance } from 'node:perf_hooks';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
+import { CatalogReferenceRecoveryCursorSchema as ReferenceRecoveryCursorSchema } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import type { ApprovalStageResult } from './catalog-detail-staging.ts';
@@ -22,17 +23,7 @@ import {
 } from './catalog-product-operation.ts';
 export const REFERENCE_RECOVERY_MAX_CANDIDATES = 3;
 export const REFERENCE_RECOVERY_BUDGET_MS = 12000;
-export const ReferenceRecoveryCursorSchema = z
-  .object({
-    imageId: z.string().min(1).max(200),
-    ledgerDigest: z.string().regex(/^[a-f0-9]{64}$/),
-    nextOffset: z
-      .number()
-      .int()
-      .nonnegative()
-      .max(CATALOG_IMAGE_REFERENCE_MAX_PENDING - 1),
-  })
-  .strict();
+export { CatalogReferenceRecoveryCursorSchema as ReferenceRecoveryCursorSchema } from '@vibelingan-channel/shared/catalog-product-operation';
 export type ReferenceRecoveryCursor = z.infer<typeof ReferenceRecoveryCursorSchema>;
 export type ReferenceRecoveryPageResult =
   | ApprovalStageResult
@@ -47,7 +38,10 @@ export async function persistOwnedReferencePageWithRecovery(
   input: unknown,
   cursor?: unknown,
   now: () => number = () => performance.now(),
+  budgetMs = REFERENCE_RECOVERY_BUDGET_MS,
 ): Promise<ReferenceRecoveryPageResult> {
+  if (!Number.isFinite(budgetMs) || budgetMs < 0 || budgetMs > REFERENCE_RECOVERY_BUDGET_MS)
+    return fail('VALIDATION_ERROR');
   const parsed = ProductOperationReferencePageSchema.safeParse(input);
   if (!parsed.success || !fitsJsonBudget(input, 4096, 8)) return fail('VALIDATION_ERROR');
   const command = parsed.data;
@@ -55,7 +49,8 @@ export async function persistOwnedReferencePageWithRecovery(
     cursor === undefined ? undefined : ReferenceRecoveryCursorSchema.safeParse(cursor);
   if (continuation && (!continuation.success || !fitsJsonBudget(cursor, 1024, 8)))
     return fail('VALIDATION_ERROR');
-  const deadline = now() + REFERENCE_RECOVERY_BUDGET_MS;
+  const deadline = now() + budgetMs;
+  if (now() >= deadline) return { ok: false, code: 'MEDIA_BUSY' };
   const first = await store.persist(actorId, command);
   if (
     first.ok ||

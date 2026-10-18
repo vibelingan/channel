@@ -26,11 +26,16 @@ import {
   createOwnedCatalogSourcePreparer,
   readCompleteAlibabaDetailPlan,
 } from '../../functions/admin/src/catalog-detail-source.ts';
+import {
+  type OwnedReferenceContinuationDeps,
+  continueOwnedCatalogReferences,
+} from '../../functions/admin/src/catalog-operation-reference-continue.ts';
 import { runCatalogPreparationWorker } from '../../functions/admin/src/catalog-preparation-worker.ts';
 import { continueAdminCatalogProductOperation } from '../../functions/admin/src/catalog-product-operation-continue.ts';
 import { type AdminConfig, handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
+import { handlePublicApiEvent } from '../../functions/public-api/src/http-adapter.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 const at = '2026-10-18T00:00:00.000Z';
@@ -1209,7 +1214,7 @@ test('actual Admin continuation transfers an existing ready media receipt into i
   const status = CatalogProductOperationStatusSchema.parse(response.data);
   assert.ok(status.state === 'staging');
   assert.equal(status.approval.mediaReady, true);
-  assert.equal(status.approval.references.prepared, false);
+  assert.equal(status.approval.references.prepared, true);
   const final = JSON.parse(h.bytes());
   assert.equal(final.catalogDetailApprovals.length, 1);
   assert.equal(final.catalogDetailApprovals[0].revision, originalRoot.revision);
@@ -1323,7 +1328,12 @@ test('a committed media binding with its answer lost reopens without repeating a
   assert.ok(status.state === 'staging');
   assert.equal(status.approval.mediaReady, true);
   assert.equal(bindings, 1);
-  assert.equal(h.bytes(), before);
+  assert.notEqual(h.bytes(), before);
+  assert.equal(status.approval.references.prepared, true);
+  const settled = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  assert.deepEqual(await h.invoke({ ...scope, action: 'product-operation-continue' }), response);
+  assert.equal(h.bytes(), settled);
   assert.equal(statSync(h.file).mtimeMs, 1000);
 });
 
@@ -1419,7 +1429,7 @@ for (const rebuildSource of [false, true])
     const status = CatalogProductOperationStatusSchema.parse(response.data);
     assert.ok(status.state === 'staging');
     assert.equal(status.approval.mediaReady, true);
-    assert.equal(status.approval.references.prepared, false);
+    assert.equal(status.approval.references.prepared, true);
     const final = JSON.parse(h.bytes());
     assert.equal(final.catalogDetailApprovals.length, 1);
     assert.deepEqual(
@@ -1523,7 +1533,7 @@ test('actual Admin continuation runs the existing signed worker for a cold store
   const status = CatalogProductOperationStatusSchema.parse(response.data);
   assert.ok(status.state === 'staging');
   assert.equal(status.approval.mediaReady, true);
-  assert.equal(status.approval.references.prepared, false);
+  assert.equal(status.approval.references.prepared, true);
   assert.equal(media.invocations(), 1);
   const final = JSON.parse(h.bytes());
   assert.equal(final.catalogPreparationJobs.length, 1);
@@ -1912,3 +1922,529 @@ test('an unreadable real image yields edit guidance and cannot authorize media r
   assert.equal(JSON.parse(h.bytes()).products[0].published, false);
   assert.equal(JSON.parse(h.bytes()).images[0].publishedRefCount, 0);
 });
+
+test('actual Admin continuation prepares original private image references after the real cold worker', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  assert.deepEqual(status.approval.references, { prepared: true, staged: 1, total: 1 });
+  const rows = JSON.parse(h.bytes());
+  assert.equal(rows.catalogDetailApprovals.length, 1);
+  assert.equal(rows.products[0].published, false);
+  assert.equal(rows.images[0].publishedRefCount, 0);
+  assert.equal(rows.images[0].catalogPublishedReferenceLedger.pending.length, 1);
+  assert.equal(
+    (
+      await handlePublicApiEvent(
+        { httpMethod: 'GET', path: `/api/products/${h.productId}` },
+        { enableCatalogDetail: true },
+      )
+    ).statusCode,
+    404,
+  );
+  assert.equal(
+    (await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/images/image' }, {})).statusCode,
+    404,
+  );
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  assert.deepEqual(
+    await h.invokeWithConfig({ ...scope, action: 'product-operation-continue' }, media.config),
+    response,
+  );
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal(media.invocations(), 1);
+});
+
+test('cancelling an actual continued reference page leaves the product and all image rights private', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging' && status.approval.references.staged === 1);
+  assert.ok((await h.invoke({ ...scope, action: 'product-operation-cancel' })).ok);
+  const before = h.bytes();
+  assert.equal(
+    (await h.invokeWithConfig({ ...scope, action: 'product-operation-continue' }, media.config)).ok,
+    false,
+  );
+  assert.equal(h.bytes(), before);
+  const rows = JSON.parse(h.bytes());
+  assert.equal(rows.products[0].published, false);
+  assert.equal(rows.images[0].publishedRefCount, 0);
+});
+
+async function referenceReady(h: Awaited<ReturnType<typeof workspace>>) {
+  const scope = await warmOwnedMedia(h);
+  assert.ok((await bindMedia('admin', scope)).ok);
+  return scope;
+}
+
+for (const budget of [0, 12000])
+  test(`reference continuation with budget ${budget} pauses before a new write after its root lookup`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    const before = h.bytes();
+    let writes = 0;
+    let now = 0;
+    const result = await continueOwnedCatalogReferences('admin', scope, budget, undefined, {
+      operation: async (...args) => {
+        const result = await manageCatalogProductOperation(...args);
+        now = 13000;
+        return result;
+      },
+      persist: async (...args) => {
+        writes++;
+        return persistCatalogDetailApproval(...args);
+      },
+      now: () => now,
+    });
+    assert.ok(result.ok && result.state === 'staging');
+    assert.equal(result.approval.references.prepared, false);
+    assert.equal(writes, 0);
+    assert.equal(h.bytes(), before);
+  });
+
+test('reference child receives only the remaining parent budget and a scoped recovery cursor', async (t) => {
+  const h = await workspace(t);
+  const scope = await referenceReady(h);
+  let now = 0;
+  const budgets: number[] = [];
+  const recovery = { imageId: 'image', ledgerDigest: 'a'.repeat(64), nextOffset: 3 };
+  const deps: OwnedReferenceContinuationDeps = {
+    operation: async (...args) => {
+      const result = await manageCatalogProductOperation(...args);
+      now += 100;
+      return result;
+    },
+    persist: async (actor, input, cursor, budget) => {
+      if (input.action === 'operation-approval-reference-page') {
+        assert.equal(cursor, undefined);
+        assert.equal(typeof budget, 'number');
+        if (typeof budget === 'number') budgets.push(budget);
+        return { ok: false, code: 'MEDIA_BUSY', referenceRecovery: recovery };
+      }
+      return persistCatalogDetailApproval(actor, input, cursor, budget);
+    },
+    now: () => now,
+  };
+  const result = await continueOwnedCatalogReferences('admin', scope, 12000, undefined, deps);
+  assert.ok(result.ok && result.state === 'staging');
+  assert.deepEqual(result.referenceRecovery, { nextAction: 'wait', cursor: recovery });
+  assert.deepEqual(budgets, [11800]);
+  let captured: unknown;
+  const resumed = await continueOwnedCatalogReferences(
+    'admin',
+    scope,
+    12000,
+    result.referenceRecovery?.cursor ?? undefined,
+    {
+      operation: manageCatalogProductOperation,
+      persist: async (...args) => {
+        captured = args[2];
+        return persistCatalogDetailApproval(...args);
+      },
+      now: () => 0,
+    },
+  );
+  assert.ok(resumed.ok && resumed.state === 'staging');
+  assert.equal(resumed.approval.references.staged, 1);
+  assert.deepEqual(captured, recovery);
+  assert.equal(resumed.referenceRecovery, undefined);
+  assert.equal(JSON.parse(h.bytes()).products[0].published, false);
+});
+
+test('a reference mutex wait without a recovery cursor remains a bounded waiting state', async (t) => {
+  const h = await workspace(t);
+  const scope = await referenceReady(h);
+  const result = await continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+    operation: manageCatalogProductOperation,
+    persist: async (...args) =>
+      args[1].action === 'operation-approval-reference-page'
+        ? { ok: false, code: 'MEDIA_BUSY' }
+        : persistCatalogDetailApproval(...args),
+    now: () => 0,
+  });
+  assert.ok(result.ok && result.state === 'staging');
+  assert.deepEqual(result.referenceRecovery, { nextAction: 'wait', cursor: null });
+  assert.equal(result.approval.references.staged, 0);
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) < 4096);
+});
+
+for (const phase of ['freeze', 'page'])
+  test(`reference ${phase} OK without durable progress is refused`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    if (phase === 'page')
+      assert.ok(
+        (
+          await persistCatalogDetailApproval('admin', {
+            ...scope,
+            action: 'operation-approval-references',
+          })
+        ).ok,
+      );
+    const before = h.bytes();
+    const result = await continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+      operation: manageCatalogProductOperation,
+      persist: async (actor, input, ...args) =>
+        input.action ===
+        (phase === 'freeze' ? 'operation-approval-references' : 'operation-approval-reference-page')
+          ? persistCatalogDetailApproval(actor, {
+              action: 'operation-get',
+              productId: scope.productId,
+              operationId: scope.operationId,
+            })
+          : persistCatalogDetailApproval(actor, input, ...args),
+      now: () => 0,
+    });
+    assert.ok(!result.ok && result.code === 'CONFLICT', JSON.stringify(result));
+    assert.equal(h.bytes(), before);
+  });
+
+for (const phase of ['root', 'freeze', 'page'])
+  test(`unknown reference ${phase} I/O cannot become waiting or completed progress`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    if (phase === 'page')
+      assert.ok(
+        (
+          await persistCatalogDetailApproval('admin', {
+            ...scope,
+            action: 'operation-approval-references',
+          })
+        ).ok,
+      );
+    const before = h.bytes();
+    await assert.rejects(
+      continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+        operation: async (...args) => {
+          if (phase === 'root') throw Error('reference unavailable');
+          return manageCatalogProductOperation(...args);
+        },
+        persist: async (...args) => {
+          if (
+            args[1].action ===
+            (phase === 'freeze'
+              ? 'operation-approval-references'
+              : 'operation-approval-reference-page')
+          )
+            throw Error('reference unavailable');
+          return persistCatalogDetailApproval(...args);
+        },
+        now: () => 0,
+      }),
+      /reference unavailable/,
+    );
+    assert.equal(h.bytes(), before);
+  });
+
+for (const phase of ['freeze', 'page'])
+  for (const change of ['cancel', 'edit', 'revoke'])
+    test(`reference ${phase} refuses stale progress after ${change}`, async (t) => {
+      const h = await workspace(t);
+      const scope = await referenceReady(h);
+      let changed = false;
+      const result = await continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+        operation: manageCatalogProductOperation,
+        persist: async (...args) => {
+          const result = await persistCatalogDetailApproval(...args);
+          if (
+            args[1].action ===
+            (phase === 'freeze'
+              ? 'operation-approval-references'
+              : 'operation-approval-reference-page')
+          ) {
+            changed = true;
+            if (change === 'cancel')
+              assert.ok(
+                (
+                  await manageCatalogProductOperation('admin', {
+                    ...scope,
+                    action: 'product-operation-cancel',
+                  })
+                ).ok,
+              );
+            else if (change === 'edit') {
+              const row = await h.adapter.get('products', h.productId);
+              assert.ok(row);
+              assert.equal(
+                (
+                  await h.adapter.saveCatalogProductWithIdentities({
+                    mode: 'update',
+                    productId: h.productId,
+                    expectedUpdatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : null,
+                    data: { description: 'Later saved edit' },
+                  })
+                ).result,
+                'saved',
+              );
+            } else {
+              const rows = JSON.parse(h.bytes());
+              rows.users[0].role = 'member';
+              writeFileSync(h.file, JSON.stringify(rows));
+            }
+          }
+          return result;
+        },
+        now: () => 0,
+      });
+      assert.ok(
+        !result.ok && result.code === (change === 'revoke' ? 'FORBIDDEN' : 'CONFLICT'),
+        JSON.stringify(result),
+      );
+      assert.equal(changed, true);
+      assert.equal(JSON.parse(h.bytes()).products[0].published, false);
+      assert.equal(JSON.parse(h.bytes()).images[0].publishedRefCount, 0);
+    });
+
+test('a reference page committed before a BUSY answer is confirmed without returning an old recovery cursor', async (t) => {
+  const h = await workspace(t);
+  const scope = await referenceReady(h);
+  let pages = 0;
+  const result = await continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+    operation: manageCatalogProductOperation,
+    persist: async (...args) => {
+      const result = await persistCatalogDetailApproval(...args);
+      if (args[1].action === 'operation-approval-reference-page') {
+        pages++;
+        return {
+          ok: false,
+          code: 'MEDIA_BUSY',
+          referenceRecovery: { imageId: 'image', ledgerDigest: 'a'.repeat(64), nextOffset: 3 },
+        };
+      }
+      return result;
+    },
+    now: () => 0,
+  });
+  assert.ok(result.ok && result.state === 'staging');
+  assert.equal(result.approval.references.staged, 1);
+  assert.equal(result.referenceRecovery, undefined);
+  assert.equal(pages, 1);
+});
+
+test('actual Admin continuation stages 21 real images in a twenty-image page and one-image tail', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const rows = JSON.parse(h.bytes());
+  for (let index = 1; index < 21; index++) {
+    const id = `reference-${index}`;
+    const object = await media.storage.putObject({
+      namespace: 'catalog',
+      logicalId: id,
+      fileName: 'sample.png',
+      mimeType: 'image/png',
+      content: ownedColdPng,
+    });
+    rows.images.push({ ...rows.images[0], ...object, _id: id });
+    if (index < 9) rows.products[0].imageIds.push(id);
+    else {
+      rows.products[0].descriptionImageIds ??= [];
+      rows.products[0].descriptionImageIds.push(id);
+    }
+  }
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  const cursors: number[] = [];
+  h.adapter.persistCatalogDetailApproval = async (...args) => {
+    if (args[1].action === 'operation-approval-reference-page') cursors.push(args[1].cursor);
+    return original(...args);
+  };
+  let staged = false;
+  for (let n = 0; n < 20 && !staged; n++) {
+    const response = await h.invokeWithConfig(
+      { ...scope, action: 'product-operation-continue' },
+      media.config,
+    );
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    staged = status.approval.references.prepared && status.approval.references.staged === 21;
+    if (staged)
+      assert.deepEqual(status.approval.references, { prepared: true, staged: 21, total: 21 });
+  }
+  assert.equal(staged, true);
+  assert.deepEqual(cursors, [0, 20]);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.products[0].published, false);
+  assert.ok(
+    final.images.every((image: { publishedRefCount: number }) => image.publishedRefCount === 0),
+  );
+  assert.equal(final.catalogDetailApprovals.length, 1);
+});
+
+for (const budget of [-1, 12001, Number.NaN, Number.POSITIVE_INFINITY])
+  test(`reference continuation refuses invalid parent budget ${budget}`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    const before = h.bytes();
+    let reads = 0;
+    const result = await continueOwnedCatalogReferences('admin', scope, budget, undefined, {
+      operation: async (...args) => {
+        reads++;
+        return manageCatalogProductOperation(...args);
+      },
+      persist: persistCatalogDetailApproval,
+      now: () => 0,
+    });
+    assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
+    assert.equal(reads, 0);
+    assert.equal(h.bytes(), before);
+  });
+
+for (const fault of ['product', 'digest', 'actor', 'extra', 'cursor'])
+  test(`reference continuation refuses a ${fault} scope mismatch without a write`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    const before = h.bytes();
+    const input = {
+      ...scope,
+      ...(fault === 'product' ? { productId: 'other' } : {}),
+      ...(fault === 'digest' ? { inputDigest: 'f'.repeat(64) } : {}),
+      ...(fault === 'extra' ? { imageIds: ['forged'] } : {}),
+    };
+    const result = await continueOwnedCatalogReferences(
+      fault === 'actor' ? 'other' : 'admin',
+      input,
+      12000,
+      fault === 'cursor'
+        ? { imageId: 'image', ledgerDigest: 'a'.repeat(64), nextOffset: 80 }
+        : undefined,
+    );
+    assert.equal(result.ok, false);
+    assert.equal(h.bytes(), before);
+  });
+
+test('a reference freeze that consumes the remaining budget leaves a resumable original commitment', async (t) => {
+  const h = await workspace(t);
+  const scope = await referenceReady(h);
+  let now = 0;
+  let pages = 0;
+  const result = await continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+    operation: manageCatalogProductOperation,
+    persist: async (...args) => {
+      if (args[1].action === 'operation-approval-reference-page') pages++;
+      const result = await persistCatalogDetailApproval(...args);
+      if (args[1].action === 'operation-approval-references') now = 13000;
+      return result;
+    },
+    now: () => now,
+  });
+  assert.ok(result.ok && result.state === 'staging');
+  assert.deepEqual(result.approval.references, { prepared: true, staged: 0, total: 1 });
+  assert.equal(pages, 0);
+  const resumed = await continueOwnedCatalogReferences('admin', scope, 12000);
+  assert.ok(resumed.ok && resumed.state === 'staging');
+  assert.equal(resumed.approval.references.staged, 1);
+});
+
+for (const phase of ['freeze', 'page'])
+  test(`an actual ${phase} commit with its answer lost reopens without repeating completed reference writes`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    const original = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+    let writes = 0;
+    h.adapter.persistCatalogDetailApproval = async (...args) => {
+      const result = await original(...args);
+      if (
+        args[1].action ===
+        (phase === 'freeze' ? 'operation-approval-references' : 'operation-approval-reference-page')
+      ) {
+        writes++;
+        throw Error('reference committed, answer lost');
+      }
+      return result;
+    };
+    assert.equal((await h.invoke({ ...scope, action: 'product-operation-continue' })).ok, false);
+    h.adapter.persistCatalogDetailApproval = original;
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue' });
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.deepEqual(status.approval.references, { prepared: true, staged: 1, total: 1 });
+    assert.equal(writes, 1);
+    const before = h.bytes();
+    utimesSync(h.file, new Date(1000), new Date(1000));
+    assert.deepEqual(await h.invoke({ ...scope, action: 'product-operation-continue' }), response);
+    assert.equal(h.bytes(), before);
+    assert.equal(statSync(h.file).mtimeMs, 1000);
+  });
+
+test('simultaneous actual reference continuations converge on one original pending entry', async (t) => {
+  const h = await workspace(t);
+  const scope = await referenceReady(h);
+  const results = await Promise.all([
+    h.invoke({ ...scope, action: 'product-operation-continue' }),
+    h.invoke({ ...scope, action: 'product-operation-continue' }),
+  ]);
+  for (const response of results) {
+    assert.ok(response.ok, JSON.stringify(response));
+    const status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.deepEqual(status.approval.references, { prepared: true, staged: 1, total: 1 });
+  }
+  const rows = JSON.parse(h.bytes());
+  assert.equal(rows.catalogDetailApprovals.length, 1);
+  assert.equal(rows.images[0].catalogPublishedReferenceLedger.pending.length, 1);
+  assert.equal(rows.images[0].publishedRefCount, 0);
+  assert.equal(rows.products[0].published, false);
+});
+
+test('zero-image actual continuation freezes an empty reference plan without a page write', async (t) => {
+  const h = await workspace(t);
+  const rows = JSON.parse(h.bytes());
+  rows.products[0].imageIds = [];
+  rows.images = [];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const authority = createCatalogPreparationAuthority({
+    secret: 'zero-ref',
+    environmentId: 'zero-ref',
+  });
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    {
+      preparationAuthority: authority,
+      preparationInvoke: async (call) => ({
+        result: await runCatalogPreparationWorker(authority, call),
+      }),
+    },
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.deepEqual(status.approval.references, { prepared: true, staged: 0, total: 0 });
+  assert.equal(JSON.parse(h.bytes()).products[0].published, false);
+});
+
+for (const clock of [Number.NaN, -1])
+  test(`invalid reference clock ${clock} cannot start a write`, async (t) => {
+    const h = await workspace(t);
+    const scope = await referenceReady(h);
+    const before = h.bytes();
+    await assert.rejects(
+      continueOwnedCatalogReferences('admin', scope, 12000, undefined, {
+        operation: manageCatalogProductOperation,
+        persist: persistCatalogDetailApproval,
+        now: () => clock,
+      }),
+      /Invalid reference continuation clock/,
+    );
+    assert.equal(h.bytes(), before);
+  });
