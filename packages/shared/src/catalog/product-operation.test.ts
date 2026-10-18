@@ -126,3 +126,92 @@ for (const extra of [
       false,
     );
   });
+
+for (const state of ['saved', 'staging'])
+  test(`a ${state} operation accepts only bounded media preparation progress`, () => {
+    const value = {
+      ...base,
+      state,
+      saved,
+      ...(state === 'staging' ? { approval: { ...approval, mediaReady: false } } : {}),
+      preparation: {
+        nextAction: 'wait',
+        job: { id: 'b'.repeat(64), leaseVersion: 1 },
+        progress: { checked: 4, total: 105 },
+      },
+    };
+    assert.ok(CatalogProductOperationStatusSchema.safeParse(value).success);
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(value)) < CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES,
+    );
+    for (const patch of [
+      { record: {} },
+      { nextAction: 'ready' },
+      { progress: { checked: 106, total: 105 } },
+      { job: { id: 'bad', leaseVersion: 1 } },
+    ])
+      assert.equal(
+        CatalogProductOperationStatusSchema.safeParse({
+          ...value,
+          preparation: { ...value.preparation, ...patch },
+        }).success,
+        false,
+      );
+  });
+for (const value of [base, complete])
+  test(`a ${value.state} operation cannot carry an active preparation hint`, () => {
+    assert.equal(
+      CatalogProductOperationStatusSchema.safeParse({
+        ...value,
+        preparation: { nextAction: 'continue', job: null, progress: null },
+      }).success,
+      false,
+    );
+  });
+
+test('media preparation hints reject stale operations, ready-media stages and unscoped progress', () => {
+  const hint = {
+    nextAction: 'wait',
+    job: { id: 'b'.repeat(64), leaseVersion: 1 },
+    progress: { checked: 4, total: 105 },
+  };
+  const status = {
+    ...base,
+    state: 'staging',
+    saved,
+    approval: { ...approval, mediaReady: false },
+    preparation: hint,
+  };
+  for (const patch of [
+    { current: false },
+    { revisionCurrent: false },
+    { expired: true },
+    { cancelledAt: at },
+    { intent: 'save-draft' },
+    { approval },
+    { preparation: { ...hint, job: null } },
+    { preparation: { nextAction: 'retry', job: null, progress: null } },
+  ])
+    assert.equal(
+      CatalogProductOperationStatusSchema.safeParse({ ...status, ...patch }).success,
+      false,
+    );
+});
+test('largest legal media preparation status stays inside the original small response budget', () => {
+  const status = {
+    ...base,
+    productId: '\u0001'.repeat(200),
+    state: 'staging',
+    saved,
+    approval: { ...approval, revision: '\u0001'.repeat(200), mediaReady: false },
+    preparation: {
+      nextAction: 'wait',
+      job: { id: 'f'.repeat(64), leaseVersion: Number.MAX_SAFE_INTEGER },
+      progress: { checked: 65536, total: 65536 },
+    },
+  };
+  assert.ok(CatalogProductOperationStatusSchema.safeParse(status).success);
+  assert.ok(
+    Buffer.byteLength(JSON.stringify(status)) <= CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES,
+  );
+});

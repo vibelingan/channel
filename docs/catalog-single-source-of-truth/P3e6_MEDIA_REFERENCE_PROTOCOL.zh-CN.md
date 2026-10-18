@@ -174,3 +174,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c5a 已有ready媒体回执
 
 实际continue配置完成后转交原media命令；native读取当前ready product report/completed准备job并与原根adopted集合及policy精确核对，不直接制造seal。成功和明确MEDIA_NOT_READY都重新取当前scoped状态，只有成功必须读到mediaReady；其他拒绝保留/未知IO抛出。已有mediaReady不重写，预算不足不追加。旧/缺回执不获授权，完整诊断fallback/B冷源图准备仍继续。16新增/587SDK与实际PNG独立证据范围见[P3e7c5 A段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)，未接公开引用或最终发布。
+
+
+## P3e7c5b 冷媒体准备
+
+实际continue在未seed时可先沿原签名job导入照片，下一请求重投影后同根seed；已seed则分段推进同job并转真实ready回执。shared状态只给有界下一动作与job/进度，权限仍在原角色API。未知IO不猜状态；取消/编辑/撤权后不能再启动worker或转交，已发出的调用只能完成私有准备。57新增/154相关/5925当前完整覆盖/2960Node20/592SDK，105实图和503恢复/丢回应/并发都保持未公开。旧completed seal与来源图映射改变已实际复现为repair，P5恢复仍要接线，详见[P3e7c5 B段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)。没有接引用激活或最终发布，fullDeliveryReady=false。

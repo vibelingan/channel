@@ -4,6 +4,28 @@ export const CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES = 256 * 1024;
 export const CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES = 4096;
 const id = z.string().min(1).max(200);
 const count = z.number().int().nonnegative().safe();
+export const CatalogProductOperationPreparationSchema = z
+  .object({
+    nextAction: z.enum(['continue', 'wait', 'retry', 'edit', 'repair']),
+    job: z
+      .object({ id: z.string().regex(/^[a-f0-9]{64}$/), leaseVersion: count })
+      .strict()
+      .nullable(),
+    progress: z
+      .object({ checked: count.max(65536), total: count.max(65536) })
+      .strict()
+      .nullable(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.progress === null ||
+        (value.job !== null && value.progress.checked <= value.progress.total)) &&
+      (value.nextAction !== 'retry' || value.job !== null),
+  );
+export type CatalogProductOperationPreparation = z.infer<
+  typeof CatalogProductOperationPreparationSchema
+>;
 const base = z
   .object({
     ok: z.literal(true),
@@ -17,6 +39,7 @@ const base = z
     revisionCurrent: z.boolean(),
     expired: z.boolean(),
     cancelledAt: z.string().datetime().optional(),
+    preparation: CatalogProductOperationPreparationSchema.optional(),
   })
   .strict();
 export const CatalogProductOperationBindingSchema = base.pick({
@@ -57,6 +80,20 @@ const complete = base.omit({ cancelledAt: true }).extend({
 export const CatalogProductOperationStatusSchema = z
   .discriminatedUnion('state', [reserved, savedStatus, staging, complete])
   .superRefine((status, ctx) => {
+    if (
+      status.preparation &&
+      (status.intent !== 'publish' ||
+        (status.state !== 'saved' && (status.state !== 'staging' || status.approval.mediaReady)) ||
+        !status.current ||
+        !status.revisionCurrent ||
+        status.expired ||
+        ('cancelledAt' in status && status.cancelledAt !== undefined))
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['preparation'],
+        message: 'Preparation requires the current saved operation.',
+      });
     if (status.state !== 'staging' && status.state !== 'complete') return;
     const { configurations, references } = status.approval;
     if (

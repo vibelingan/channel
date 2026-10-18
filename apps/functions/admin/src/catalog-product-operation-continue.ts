@@ -13,6 +13,7 @@ import {
 } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import { createOwnedCatalogSourcePreparer } from './catalog-detail-source.ts';
+import type { OwnedMediaPreparationStep } from './catalog-operation-media-preparation.ts';
 
 const RequestSchema = CatalogProductOperationBindingSchema.extend({
   action: z.literal('product-operation-continue'),
@@ -99,6 +100,7 @@ export async function continueAdminCatalogProductOperation(
     now: () => performance.now(),
   },
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
+  prepareMedia?: OwnedMediaPreparationStep,
 ) {
   if (
     !fitsJsonBudget(input, 4096, 12) ||
@@ -163,6 +165,41 @@ export async function continueAdminCatalogProductOperation(
       return { ok: false as const, code: 'CONFLICT' as const };
     return current;
   };
+  const prepareMissingMedia = async (initial: Awaited<ReturnType<typeof get>>) => {
+    if (!prepareMedia || !initial.ok || (initial.state !== 'saved' && initial.state !== 'staging'))
+      return initial;
+    const step = await prepareMedia(actorId, scope, Math.max(0, deadline - deps.now()));
+    const current = await get();
+    if (!current.ok || current.state === 'complete') return current;
+    if (!step.ok) return failure(step);
+    if (current.state !== 'saved' && current.state !== 'staging')
+      return { ok: false as const, code: 'CONFLICT' as const };
+    const prepared = current.state === 'staging' && step.ready ? await advance(current) : current;
+    if (
+      !prepared.ok ||
+      prepared.state === 'complete' ||
+      (prepared.state === 'staging' && prepared.approval.mediaReady)
+    )
+      return prepared;
+    const preparation =
+      step.ready && prepared.state === 'staging'
+        ? { ...step.preparation, nextAction: 'repair' as const }
+        : step.preparation;
+    const hinted = { ...prepared, preparation };
+    const parsed = CatalogProductOperationStatusSchema.safeParse(hinted);
+    return parsed.success && fitsJsonBudget(parsed.data, 4096, 12)
+      ? parsed.data
+      : { ok: false as const, code: 'CONFLICT' as const };
+  };
+  const resume = async (initial: Awaited<ReturnType<typeof get>>) => {
+    const current = await advance(initial);
+    return current.ok &&
+      current.state === 'staging' &&
+      !current.approval.mediaReady &&
+      current.approval.configurations.completed === current.approval.configurations.total
+      ? prepareMissingMedia(current)
+      : current;
+  };
   if (deps.now() >= deadline) return get();
   let current = status(
     await deps.operation(actorId, { ...scope, action: 'product-operation-save' }),
@@ -171,12 +208,13 @@ export async function continueAdminCatalogProductOperation(
   if (!current.ok) return current;
   if (current.state === 'complete') return current;
   if (current.intent === 'save-draft') return current;
-  if (current.state === 'staging') return advance(current);
+  if (current.state === 'staging') return resume(current);
   if (current.intent !== 'publish' || current.state !== 'saved')
     return { ok: false as const, code: 'CONFLICT' as const };
   if (deps.now() >= deadline) return current;
   let seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);
-  if (seeded.ok) return advance(status(seeded, scope));
+  if (seeded.ok) return resume(status(seeded, scope));
+  if (seeded.code === 'MEDIA_NOT_READY' && prepareMedia) return prepareMissingMedia(await get());
   if (seeded.code !== 'SOURCE_NOT_READY') return seeded;
   for (let page = 0, attempt = 0; attempt < 500; attempt++) {
     if (deps.now() >= deadline) return get();
@@ -199,7 +237,10 @@ export async function continueAdminCatalogProductOperation(
     if (progress.data.complete) {
       if (deps.now() >= deadline) return current;
       seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);
-      return seeded.ok ? advance(status(seeded, scope)) : seeded;
+      if (seeded.ok) return resume(status(seeded, scope));
+      return seeded.code === 'MEDIA_NOT_READY' && prepareMedia
+        ? prepareMissingMedia(await get())
+        : seeded;
     }
     if (progress.data.nextPage <= page || progress.data.nextPage >= progress.data.pages)
       return { ok: false as const, code: 'SOURCE_NOT_READY' as const };

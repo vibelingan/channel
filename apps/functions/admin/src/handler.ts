@@ -697,7 +697,12 @@ export async function handleAdminRequest(
                   : action === 'approve'
                     ? await approveInOneRequest(claims.sub, req.data)
                     : typeof action === 'string' && action.startsWith('product-operation-')
-                      ? await manageAdminCatalogProductOperation(claims.sub, req.data)
+                      ? await manageAdminCatalogProductOperation(claims.sub, req.data, {
+                          ...(config.preparationAuthority
+                            ? { authority: config.preparationAuthority }
+                            : {}),
+                          ...(config.preparationInvoke ? { invoke: config.preparationInvoke } : {}),
+                        })
                       : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         const validation =

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
+import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import {
   manageCatalogPreparationJob,
   manageCatalogProductOperation,
@@ -12,6 +14,8 @@ import {
   setAdapter,
 } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import {
   type CatalogProductOperationBinding,
   CatalogProductOperationStatusSchema,
@@ -22,9 +26,11 @@ import {
   createOwnedCatalogSourcePreparer,
   readCompleteAlibabaDetailPlan,
 } from '../../functions/admin/src/catalog-detail-source.ts';
+import { runCatalogPreparationWorker } from '../../functions/admin/src/catalog-preparation-worker.ts';
 import { continueAdminCatalogProductOperation } from '../../functions/admin/src/catalog-product-operation-continue.ts';
-import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
+import { type AdminConfig, handleAdminRequest } from '../../functions/admin/src/handler.ts';
 import { fixture as sourceFixture } from '../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
+import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 const at = '2026-10-18T00:00:00.000Z';
@@ -95,7 +101,16 @@ async function workspace(t: TestContext, count?: number) {
     const status = CatalogProductOperationStatusSchema.parse(response.data);
     return { productId, operationId, inputDigest: status.inputDigest };
   };
-  return { adapter, file, productId, invoke, start, bytes: () => readFileSync(file, 'utf8') };
+  return {
+    adapter,
+    file,
+    productId,
+    invoke,
+    start,
+    invokeWithConfig: (data: unknown, extra: Partial<AdminConfig>) =>
+      handleAdminRequest({ action: 'catalogDetailApproval', token, data }, { ...config, ...extra }),
+    bytes: () => readFileSync(file, 'utf8'),
+  };
 }
 
 test('actual Admin continue saves a manual draft and attaches preparation to the same immutable operation', async (t) => {
@@ -1436,3 +1451,464 @@ for (const code of ['FORBIDDEN', 'CONFLICT', 'SOURCE_NOT_READY'])
     assert.ok(!response.ok && response.code === code, JSON.stringify(response));
     assert.equal(h.bytes(), before);
   });
+
+const ownedColdPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==',
+  'base64',
+);
+async function coldOwnedMedia(h: Awaited<ReturnType<typeof workspace>>, importSource = false) {
+  const storage = new LocalDiskMediaStorage(join(dirname(h.file), 'cold-media'));
+  setMediaStorage(storage);
+  const object = await storage.putObject({
+    namespace: 'catalog',
+    logicalId: 'image',
+    fileName: 'sample.png',
+    mimeType: 'image/png',
+    content: ownedColdPng,
+  });
+  const rows = JSON.parse(h.bytes());
+  Object.assign(rows.images[0], object, {
+    mimeType: 'image/png',
+    byteSize: ownedColdPng.length,
+    checksumSha256: createHash('sha256').update(ownedColdPng).digest('hex'),
+  });
+  if (importSource)
+    rows.catalogSourceObservations[0].observation.variants[0].media = [
+      { sourceUrl: 'https://sc04.alicdn.com/owned-cold-sku.png', position: 0, role: 'variant' },
+    ];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const authority = createCatalogPreparationAuthority({
+    secret: 'owned-cold-media',
+    environmentId: 'owned-cold-media',
+  });
+  let invocations = 0;
+  let fetches = 0;
+  const config: Partial<AdminConfig> = {
+    preparationAuthority: authority,
+    preparationInvoke: async (call) => {
+      invocations++;
+      return {
+        result: await runCatalogPreparationWorker(
+          authority,
+          call,
+          importSource
+            ? {
+                importSourceImage: (url, persistImport) =>
+                  importCandidateImage(url, {
+                    persistImport,
+                    resolveDns: async () => ['104.16.1.1'],
+                    fetchImpl: async () => {
+                      fetches++;
+                      return new Response(new Uint8Array(ownedColdPng));
+                    },
+                  }),
+              }
+            : {},
+        ),
+      };
+    },
+  };
+  return { storage, config, invocations: () => invocations, fetches: () => fetches };
+}
+
+test('actual Admin continuation runs the existing signed worker for a cold stored PNG and binds its real ready receipt', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  assert.equal(status.approval.references.prepared, false);
+  assert.equal(media.invocations(), 1);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogPreparationJobs.length, 1);
+  assert.equal(final.catalogPreparationJobs[0].state, 'completed');
+  assert.ok(
+    final.catalogImageObservations.some(
+      (row: { kind: string }) => row.kind === 'catalog-protected-image-health-v1',
+    ),
+  );
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.images[0].publishedRefCount, 0);
+  const object = await media.storage.getObjectAsBase64(final.images[0].storageFileId);
+  assert.equal(Buffer.from(object.body, 'base64').readUInt32BE(16), 24);
+});
+
+test('unbound supplier photos prepare before seed and the next actual request rebuilds fresh source bindings', async (t) => {
+  const h = await workspace(t, 1);
+  const media = await coldOwnedMedia(h, true);
+  const scope = await h.start('publish', {});
+  const before = JSON.parse(h.bytes());
+  const first = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(first.ok, JSON.stringify(first));
+  const pending = CatalogProductOperationStatusSchema.parse(first.data);
+  assert.equal(pending.state, 'saved');
+  assert.equal(pending.preparation?.nextAction, 'continue');
+  assert.equal(media.fetches(), 1);
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  assert.equal(status.approval.configurations.completed, 1);
+  assert.equal(media.invocations(), 1);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals.length, 1);
+  assert.equal(final.catalogPreparationJobs.length, 1);
+  assert.deepEqual(
+    final.catalogSourceObservations[0].observation,
+    before.catalogSourceObservations[0].observation,
+  );
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.products[0].productFamily, before.products[0].productFamily);
+  assert.deepEqual(final.products[0].category, before.products[0].category);
+  assert.ok(
+    final.images.every((image: { publishedRefCount: number }) => image.publishedRefCount === 0),
+  );
+  assert.ok(final.catalogDetailVariants[0].catalogDetailApproved.images.length > 0);
+});
+
+for (const extra of [
+  { preparation: {} },
+  { authority: {} },
+  { invoke: 'client-function' },
+  { budgetMs: 999999 },
+])
+  test(`browser continuation cannot inject preparation runtime ${JSON.stringify(extra)}`, async (t) => {
+    const h = await workspace(t);
+    const scope = await h.start();
+    const before = h.bytes();
+    const response = await h.invoke({ ...scope, action: 'product-operation-continue', ...extra });
+    assert.ok(!response.ok && response.error.code === 'VALIDATION_ERROR', JSON.stringify(response));
+    assert.equal(h.bytes(), before);
+  });
+
+test('forged ready worker output cannot complete an original operation or create media authority', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    {
+      ...media.config,
+      preparationInvoke: async (call) => ({
+        result: {
+          ok: true,
+          kind: 'catalog-preparation-step',
+          jobId: Reflect.get(call, 'jobId'),
+          productId: h.productId,
+          outcome: 'ready',
+          media: { total: 1, checked: 1, verified: 1, invalid: 0, retry: 0 },
+          attestation: { total: 1, checked: 1 },
+          issues: [],
+        },
+      }),
+    },
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, false);
+  assert.equal(status.preparation?.nextAction, 'wait');
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogPreparationJobs[0].state, 'queued');
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.images[0].publishedRefCount, 0);
+});
+
+test('a lost signed worker answer is confirmed through real job state before original media binding', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const execute = media.config.preparationInvoke;
+  assert.ok(execute);
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    {
+      ...media.config,
+      preparationInvoke: async (call) => {
+        await execute(call);
+        throw Object.assign(Error('worker committed, answer lost'), { code: 'ETIMEDOUT' });
+      },
+    },
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  assert.equal(media.invocations(), 1);
+  const before = h.bytes();
+  assert.deepEqual(
+    await h.invokeWithConfig({ ...scope, action: 'product-operation-continue' }, media.config),
+    response,
+  );
+  assert.equal(h.bytes(), before);
+});
+
+for (const imageCount of [5, 105])
+  test(`${imageCount} cold real images resume the same root and job after an adapter restart with bounded progress`, async (t) => {
+    const h = await workspace(t, imageCount === 105 ? 105 : undefined);
+    const media = await coldOwnedMedia(h);
+    const rows = JSON.parse(h.bytes());
+    rows.catalogSourceLinks ??= [];
+    for (let index = 1; index < imageCount; index++) {
+      const id = `cold-${index}`;
+      const object = await media.storage.putObject({
+        namespace: 'catalog',
+        logicalId: id,
+        fileName: 'sample.png',
+        mimeType: 'image/png',
+        content: ownedColdPng,
+      });
+      rows.images.push({ ...rows.images[0], ...object, _id: id });
+      if (imageCount === 105) {
+        const sourceUrl = `https://sc04.alicdn.com/cold-${index}.png`;
+        rows.catalogSourceObservations[0].observation.variants[index - 1].media = [
+          { sourceUrl, position: 0, role: 'variant' },
+        ];
+        rows.catalogSourceLinks.push({
+          _id: sourceMediaLinkId('alibaba', sourceUrl),
+          provider: 'alibaba',
+          sourceUrl,
+          imageId: id,
+        });
+      } else rows.products[0].imageIds.push(id);
+    }
+    writeFileSync(h.file, JSON.stringify(rows));
+    const scope = await h.start('publish', {});
+    let response = await h.invokeWithConfig(
+      { ...scope, action: 'product-operation-continue' },
+      media.config,
+    );
+    assert.ok(response.ok, JSON.stringify(response));
+    let status = CatalogProductOperationStatusSchema.parse(response.data);
+    assert.ok(status.state === 'staging');
+    assert.equal(status.approval.mediaReady, false);
+    assert.equal(status.preparation?.nextAction, 'continue');
+    assert.deepEqual(status.preparation.progress, { checked: 4, total: imageCount });
+    const rootId = JSON.parse(h.bytes()).catalogDetailApprovals[0]._id;
+    const jobId = status.preparation.job?.id;
+    assert.ok(jobId);
+    setAdapter(new JsonFileAdapter(h.file));
+    const authority = createCatalogPreparationAuthority({
+      secret: 'owned-cold-media',
+      environmentId: 'owned-cold-media',
+    });
+    let calls = 0;
+    for (
+      let attempt = 0;
+      attempt < Math.ceil(imageCount / 4) * 2 + 2 && !status.approval.mediaReady;
+      attempt++
+    ) {
+      response = await h.invokeWithConfig(
+        { ...scope, action: 'product-operation-continue' },
+        {
+          preparationAuthority: authority,
+          preparationInvoke: async (call) => {
+            calls++;
+            return { result: await runCatalogPreparationWorker(authority, call) };
+          },
+        },
+      );
+      assert.ok(response.ok, JSON.stringify(response));
+      status = CatalogProductOperationStatusSchema.parse(response.data);
+      assert.ok(status.state === 'staging');
+      if (status.preparation) {
+        assert.equal(status.preparation.job?.id, jobId);
+        assert.ok(Buffer.byteLength(JSON.stringify(status)) <= 4096);
+        assert.ok(status.preparation.progress);
+        assert.equal(status.preparation.progress.total, imageCount);
+      }
+    }
+    assert.equal(status.approval.mediaReady, true);
+    assert.ok(calls >= Math.ceil(imageCount / 4) - 1 && calls <= Math.ceil(imageCount / 4) * 2 + 2);
+    const final = JSON.parse(h.bytes());
+    assert.equal(final.catalogDetailApprovals.length, 1);
+    assert.equal(final.catalogDetailApprovals[0]._id, rootId);
+    assert.equal(final.catalogPreparationJobs.length, 1);
+    assert.equal(final.catalogPreparationJobs[0]._id, jobId);
+    assert.equal(final.products[0].published, false);
+    assert.ok(
+      final.images.every((image: { publishedRefCount: number }) => image.publishedRefCount === 0),
+    );
+  });
+
+test('a completed old media seal with a newly adopted source image yields repair instead of an endless ready loop', async (t) => {
+  const h = await workspace(t, 1);
+  const url = 'https://sc04.alicdn.com/changed-owned-binding.png';
+  const rows = JSON.parse(h.bytes());
+  rows.catalogSourceObservations[0].observation.variants[0].media = [
+    { sourceUrl: url, position: 0, role: 'variant' },
+  ];
+  rows.catalogSourceLinks = [
+    {
+      _id: sourceMediaLinkId('alibaba', url),
+      provider: 'alibaba',
+      sourceUrl: url,
+      imageId: 'image',
+    },
+  ];
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await warmOwnedMedia(h, false);
+  const changed = JSON.parse(h.bytes());
+  changed.images.push({ ...changed.images[0], _id: 'replacement-image' });
+  changed.catalogSourceLinks[0].imageId = 'replacement-image';
+  writeFileSync(h.file, JSON.stringify(changed));
+  let invocations = 0;
+  const authority = createCatalogPreparationAuthority({
+    secret: 'owned-media-metadata-fixture',
+    environmentId: 'owned-media-metadata-fixture',
+  });
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    {
+      preparationAuthority: authority,
+      preparationInvoke: async () => {
+        invocations++;
+        throw Error('completed job cannot be invoked');
+      },
+    },
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, false);
+  assert.equal(status.preparation?.nextAction, 'repair');
+  assert.equal(invocations, 0);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogPreparationJobs.length, 1);
+  assert.equal(final.products[0].published, false);
+  assert.ok(
+    final.images.every((image: { publishedRefCount: number }) => image.publishedRefCount === 0),
+  );
+});
+
+test('two actual cold-media continuations converge without duplicate approval or preparation jobs', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  const results = await Promise.allSettled([
+    h.invokeWithConfig({ ...scope, action: 'product-operation-continue' }, media.config),
+    h.invokeWithConfig({ ...scope, action: 'product-operation-continue' }, media.config),
+  ]);
+  for (const result of results) {
+    assert.ok(result.status === 'fulfilled');
+    assert.ok(result.value.ok, JSON.stringify(result.value));
+    CatalogProductOperationStatusSchema.parse(result.value.data);
+  }
+  const queried = await h.invoke({
+    action: 'product-operation-get',
+    productId: h.productId,
+    operationId,
+  });
+  assert.ok(queried.ok);
+  const status = CatalogProductOperationStatusSchema.parse(queried.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals.length, 1);
+  assert.equal(final.catalogPreparationJobs.length, 1);
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.images[0].publishedRefCount, 0);
+});
+
+test('a transient source photo failure waits and resumes through the same original operation after the network recovers', async (t) => {
+  const h = await workspace(t, 1);
+  const media = await coldOwnedMedia(h, true);
+  const authority = media.config.preparationAuthority;
+  assert.ok(authority);
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    {
+      ...media.config,
+      preparationInvoke: async (call) => ({
+        result: await runCatalogPreparationWorker(authority, call, {
+          importSourceImage: (url, persistImport) =>
+            importCandidateImage(url, {
+              persistImport,
+              resolveDns: async () => ['104.16.1.1'],
+              fetchImpl: async () => new Response('', { status: 503 }),
+            }),
+        }),
+      }),
+    },
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.equal(status.state, 'saved');
+  assert.equal(status.preparation?.nextAction, 'wait');
+  assert.ok(status.preparation.job);
+  const queued = JSON.parse(h.bytes());
+  assert.equal(queued.catalogPreparationJobs[0].state, 'queued');
+  assert.equal(queued.catalogPreparationJobs[0].media, null);
+  assert.equal(queued.catalogDetailApprovals[0].state, 'saved');
+  assert.equal(queued.products[0].published, false);
+  assert.equal(queued.images[0].publishedRefCount, 0);
+  const recovered = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(recovered.ok, JSON.stringify(recovered));
+  const imported = CatalogProductOperationStatusSchema.parse(recovered.data);
+  assert.equal(imported.state, 'saved');
+  assert.equal(imported.preparation?.nextAction, 'continue');
+  assert.equal(imported.preparation?.job?.id, status.preparation.job.id);
+  const resumed = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(resumed.ok, JSON.stringify(resumed));
+  const ready = CatalogProductOperationStatusSchema.parse(resumed.data);
+  assert.ok(ready.state === 'staging');
+  assert.equal(ready.approval.mediaReady, true);
+  assert.equal(ready.operationId, scope.operationId);
+  assert.equal(media.fetches(), 1);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogDetailApprovals[0].state, 'staging');
+  assert.equal(final.catalogPreparationJobs.length, 1);
+  assert.equal(final.products[0].published, false);
+  assert.equal(final.images[0].publishedRefCount, 0);
+});
+
+test('an unreadable real image yields edit guidance and cannot authorize media readiness', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const invalid = Buffer.from('not a PNG image');
+  const object = await media.storage.putObject({
+    namespace: 'catalog',
+    logicalId: 'invalid',
+    fileName: 'broken.png',
+    mimeType: 'image/png',
+    content: invalid,
+  });
+  const rows = JSON.parse(h.bytes());
+  Object.assign(rows.images[0], object, {
+    byteSize: invalid.length,
+    checksumSha256: createHash('sha256').update(invalid).digest('hex'),
+  });
+  writeFileSync(h.file, JSON.stringify(rows));
+  const scope = await h.start('publish', {});
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const status = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, false);
+  assert.equal(status.preparation?.nextAction, 'edit');
+  assert.equal(JSON.parse(h.bytes()).products[0].published, false);
+  assert.equal(JSON.parse(h.bytes()).images[0].publishedRefCount, 0);
+});

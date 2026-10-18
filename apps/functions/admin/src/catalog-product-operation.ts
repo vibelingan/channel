@@ -1,15 +1,30 @@
 import { get, manageCatalogProductOperation } from '@vibelingan-channel/db';
+import type { CatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import { createOwnedMediaPreparation } from './catalog-operation-media-preparation.ts';
+import type { CatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import { continueAdminCatalogProductOperation } from './catalog-product-operation-continue.ts';
 import { withAdminEditsKept } from './catalog-supplier-review.ts';
 
 /** Freeze the same supplier keep choices as the existing Admin edit flow. */
-export function manageAdminCatalogProductOperation(actorId: string, input: unknown) {
+export function manageAdminCatalogProductOperation(
+  actorId: string,
+  input: unknown,
+  preparation?: { authority?: CatalogPreparationAuthority; invoke?: CatalogPreparationInvoker },
+) {
   if (
     input &&
     typeof input === 'object' &&
     Reflect.get(input, 'action') === 'product-operation-continue'
   )
-    return continueAdminCatalogProductOperation(actorId, input);
+    return continueAdminCatalogProductOperation(
+      actorId,
+      input,
+      undefined,
+      undefined,
+      preparation?.authority && preparation.invoke
+        ? createOwnedMediaPreparation(preparation.authority, preparation.invoke)
+        : undefined,
+    );
   const productId =
     input && typeof input === 'object' ? Reflect.get(input, 'productId') : undefined;
   return manageCatalogProductOperation(actorId, input, async (values) => {

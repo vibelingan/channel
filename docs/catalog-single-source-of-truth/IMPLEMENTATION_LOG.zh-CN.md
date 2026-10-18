@@ -1350,3 +1350,8 @@ continue在原saved seed和staging重开均按持久cursor调用原native配置�
 ## P3e7c5a 已有媒体就绪回执转交
 
 全配置后通过原native命令转已有ready媒体回执，真实小状态读回才确认；缺ready保留staging，其他失败/未知IO不吞，已mediaReady跳过、预算到期不追加。16新增/98相关/5868当前完整覆盖（5863全包后补5例，受影响local929及Node202903重跑）/19types/E2E/standingSDK/两Biome通过；11故障40重叠/controllerSHA恢复，587SDK含6/12/6事务/root三ACK回滚和media丢commit零写重开。暖缓存/重建source后从saved seed转交、取消/编辑/撤权、坏/缺回执、原生错误原因与预算分支验证。metadata声明只验协议，实际PNG另用精确编译worker补充；SDKmock漏集合和预算初例冗余均已记录。人工核对两改动文件及native媒体/finish/DTO/源/worker，纠正“媒体完成”与实际字节范围，详见[P3e7c5 A段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)。冷媒体必须先准备再seed；completed旧seal与当前映射不符的恢复尚待复现，不能假称retry可解。精确产物后补，原UI/完整发布及真实验收继续，fullDeliveryReady=false。
+
+
+## P3e7c5b 冷媒体与原审批任务串联
+
+实际Admin continue复用签名preparation start/status/continue；先导入未绑定来源照片，下一请求重投影后同根seed，staging时同job分段检查并转真实ready回执。严格scope/current/TTL、10秒启动余量，异步等待后及invoke前重查；取消后已发出的worker最多写私有结果。共享响应增加4096预算内的continue/wait/retry/edit/repair提示，浏览器不能指定authority/invoker。57新增/154相关/5925完整覆盖（105图补例后local980、Node20 2960重跑）/19包类型+E2E类型/8Biome/standing SDK通过；10故障21重叠/三SHA恢复，592安装SDK通过。实际PNG105图与并发、503后原job恢复、丢回应和旧seal错集合已测试。修正文案“adapter restart”及错误retry断言，SDK零图、实际PNG、真实云范围分开，详见[P3e7c5 B段](P3e7c5_OWNED_MEDIA_CONTINUE.zh-CN.md)。旧seal需P5修复、慢DB wait需fallback，客户UI/最终发布与真实验收未关闭，fullDeliveryReady=false。
