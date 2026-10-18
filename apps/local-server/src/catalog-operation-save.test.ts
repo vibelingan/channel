@@ -2259,3 +2259,268 @@ test('JSON a concurrent ordinary image write cannot invalidate the staged bytes 
   assert.equal(effective.effectiveCount, 1);
   assert.equal((await other.get('products', 'p'))?.published, true);
 });
+
+async function jsonTrustedRecoveryFixture(
+  t: { after(callback: () => void): void },
+  expired = true,
+) {
+  const h = await jsonOwnPublishFixture(t);
+  const rows = JSON.parse(h.bytes());
+  rows.users.push({ _id: 'reviewer', role: 'admin' }, { _id: 'reviewer2', role: 'admin' });
+  const root = rows.catalogDetailApprovals.find(
+    (row: { state?: unknown }) => row.state === 'staging',
+  );
+  assert.ok(root);
+  if (expired) root.createdAt = new Date(Date.now() - 3600001).toISOString();
+  writeFileSync(h.file, JSON.stringify(rows));
+  const operationRootId: unknown = root._id;
+  assert.ok(typeof operationRootId === 'string');
+  return {
+    ...h,
+    recoveryCommand: {
+      ...query,
+      action: 'operation-recover' as const,
+      operationRootId,
+      inputDigest: h.finishCommand.inputDigest,
+    },
+  };
+}
+test('JSON trusted recovery persists the original owner and first recovering actor after reopen', async (t) => {
+  const h = await jsonTrustedRecoveryFixture(t);
+  const beforeProduct = await h.adapter.get('products', 'p');
+  const result = await h.adapter.persistCatalogDetailApproval('reviewer', h.recoveryCommand);
+  assert.ok(result.ok && 'record' in result && result.recovery === 'cancelled');
+  assert.equal(result.record.actorId, 'admin');
+  assert.equal(result.record.operation.recovery?.actorId, 'reviewer');
+  const reopened = new JsonFileAdapter(h.file);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const repeated = await reopened.persistCatalogDetailApproval('reviewer2', h.recoveryCommand);
+  assert.ok(repeated.ok && 'record' in repeated && repeated.recovery === 'already-cancelled');
+  assert.deepEqual(repeated.record, result.record);
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.deepEqual(await reopened.get('products', 'p'), beforeProduct);
+  const effective = await reopened.readCatalogImageReference({
+    action: 'read',
+    imageId: h.ids[0] ?? '',
+  });
+  assert.ok(effective.state === 'counted');
+  assert.equal(effective.effectiveCount, 0);
+});
+for (const lost of [false, true])
+  test(`JSON trusted recovery ${lost ? 'applied but lost answer' : 'disk failure'} keeps cancellation root and proof atomic`, async (t) => {
+    const h = await jsonTrustedRecoveryFixture(t);
+    const before = h.bytes();
+    const persist = Reflect.get(h.adapter, 'persist');
+    assert.ok(typeof persist === 'function');
+    try {
+      Reflect.set(h.adapter, 'persist', function (this: JsonFileAdapter) {
+        if (lost) Reflect.apply(persist, this, []);
+        throw Error('recovery disk result unavailable');
+      });
+      await assert.rejects(
+        h.adapter.persistCatalogDetailApproval('reviewer', h.recoveryCommand),
+        /recovery disk result unavailable/,
+      );
+      if (!lost) {
+        assert.equal(h.bytes(), before);
+        assert.deepEqual(Reflect.get(h.adapter, 'store'), JSON.parse(before));
+      }
+    } finally {
+      Reflect.set(h.adapter, 'persist', persist);
+    }
+    const reopened = new JsonFileAdapter(h.file);
+    const applied = h.bytes();
+    const result = await reopened.persistCatalogDetailApproval('reviewer', h.recoveryCommand);
+    assert.ok(
+      result.ok &&
+        'record' in result &&
+        result.recovery === (lost ? 'already-cancelled' : 'cancelled'),
+    );
+    if (lost) assert.equal(h.bytes(), applied);
+    assert.equal(
+      JSON.parse(h.bytes()).catalogDetailApprovals.filter(
+        (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-cancel-v1',
+      ).length,
+      1,
+    );
+  });
+for (const peer of ['owner-cancel', 'other-recovery'] as const)
+  test(`JSON trusted recovery/${peer} race retains one immutable cancellation`, async (t) => {
+    const h = await jsonTrustedRecoveryFixture(t);
+    const other = new JsonFileAdapter(h.file);
+    const results = await Promise.allSettled([
+      h.adapter.persistCatalogDetailApproval('reviewer', h.recoveryCommand),
+      peer === 'owner-cancel'
+        ? other.persistCatalogDetailApproval('admin', h.cancelCommand)
+        : other.persistCatalogDetailApproval('reviewer2', h.recoveryCommand),
+    ]);
+    assert.ok(results.every((result) => result.status === 'fulfilled' && result.value.ok));
+    const rows = JSON.parse(h.bytes());
+    assert.equal(
+      rows.catalogDetailApprovals.filter(
+        (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-cancel-v1',
+      ).length,
+      1,
+    );
+    assert.equal(rows.products[0].published, false);
+    const before = h.bytes();
+    const repeated = await other.persistCatalogDetailApproval('reviewer2', h.recoveryCommand);
+    assert.ok(repeated.ok && 'record' in repeated && repeated.recovery === 'already-cancelled');
+    assert.equal(h.bytes(), before);
+  });
+test('JSON healthy trusted recovery is read-only and does not prevent the original publication', async (t) => {
+  const h = await jsonTrustedRecoveryFixture(t, false);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const result = await h.adapter.persistCatalogDetailApproval('reviewer', h.recoveryCommand);
+  assert.ok(result.ok && 'record' in result && result.recovery === 'not-needed');
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.finishCommand)).ok, true);
+});
+test('JSON trusted recovery captures its scope before the original file lock yields', async (t) => {
+  const h = await jsonTrustedRecoveryFixture(t);
+  const command = { ...h.recoveryCommand };
+  const pending = h.adapter.persistCatalogDetailApproval('reviewer', command);
+  command.productId = 'other';
+  command.operationRootId = 'f'.repeat(64);
+  const result = await pending;
+  assert.ok(result.ok && 'record' in result && result.recovery === 'cancelled');
+  assert.equal(result.record.productId, 'p');
+});
+
+test('JSON80 actual staged roots recover one obsolete operation and resume the original full-slot page', async (t) => {
+  const h = await jsonOwnPublishFixture(t);
+  const initial = await h.adapter.persistCatalogDetailApproval('admin', query);
+  assert.ok(initial.ok && 'record' in initial && initial.record.state === 'staging');
+  const originalProduct = await h.adapter.get('products', 'p');
+  assert.ok(originalProduct);
+  const rows = JSON.parse(h.bytes());
+  rows.users.push({ _id: 'reviewer', role: 'admin' });
+  writeFileSync(h.file, JSON.stringify(rows));
+  let lastPage: typeof h.pageCommand | undefined;
+  for (let index = 1; index <= 80; index++) {
+    const current = await h.adapter.get('products', 'p');
+    assert.ok(current);
+    const operationId = `12345678-1234-4234-8234-${String(index).padStart(12, '0')}`;
+    const expectedUpdatedAt = typeof current.updatedAt === 'string' ? current.updatedAt : null;
+    const started = await h.adapter.persistCatalogDetailApproval('admin', {
+      action: 'operation-start',
+      productId: 'p',
+      operationId,
+      intent: 'publish',
+      expectedUpdatedAt,
+      values: {},
+    });
+    assert.ok(started.ok && 'record' in started && started.record.state === 'reserved');
+    const inputDigest = started.record.operation.inputDigest;
+    assert.equal(
+      (
+        await h.adapter.saveCatalogProductWithIdentities({
+          mode: 'update',
+          productId: 'p',
+          data: {},
+          expectedUpdatedAt,
+          expectedOperation: { actorId: 'admin', operationId, inputDigest },
+        })
+      ).result,
+      'saved',
+    );
+    const product = await h.adapter.get('products', 'p');
+    assert.ok(product);
+    const variants: CollectionDoc[] = [];
+    for (const id of initial.record.variantIds) {
+      const row = await h.adapter.get('productVariants', id);
+      assert.ok(row);
+      variants.push(row);
+    }
+    const prepared = prepareStagedApproval(
+      'admin',
+      {
+        productId: 'p',
+        operationId,
+        expectedRevision: null,
+        expectedDigest: catalogApprovalDigest(product, variants),
+      },
+      product,
+      variants,
+    );
+    assert.ok(prepared.ok, JSON.stringify(prepared));
+    const scope = { productId: 'p', operationId, inputDigest };
+    assert.equal(
+      (
+        await h.adapter.persistCatalogDetailApproval('admin', {
+          ...scope,
+          action: 'operation-approval-begin',
+          prepared: prepared.value,
+        })
+      ).ok,
+      true,
+    );
+    for (let page = 0; page < prepared.value.pageHashes.length; page++)
+      assert.equal(
+        (
+          await h.adapter.persistCatalogDetailApproval('admin', {
+            ...scope,
+            action: 'operation-approval-page',
+            page,
+          })
+        ).ok,
+        true,
+      );
+    for (const action of ['operation-approval-media', 'operation-approval-references'] as const)
+      assert.equal(
+        (await h.adapter.persistCatalogDetailApproval('admin', { ...scope, action })).ok,
+        true,
+      );
+    const command = { ...scope, action: 'operation-approval-reference-page' as const, cursor: 0 };
+    const beforePage = h.bytes();
+    const result = await h.adapter.persistCatalogDetailApproval('admin', command);
+    if (index < 80) assert.equal(result.ok, true, JSON.stringify(result));
+    else {
+      assert.deepEqual(result, { ok: false, code: 'MEDIA_BUSY' });
+      assert.equal(h.bytes(), beforePage);
+      lastPage = command;
+    }
+  }
+  assert.ok(lastPage);
+  const recovery = await h.adapter.persistCatalogDetailApproval('reviewer', {
+    ...query,
+    action: 'operation-recover',
+    operationRootId: initial.record._id,
+    inputDigest: initial.record.operation.inputDigest,
+  });
+  assert.ok(recovery.ok && 'record' in recovery && recovery.recovery === 'cancelled');
+  assert.equal(recovery.record.operation.recovery?.reason, 'input-changed');
+  const resumed = await h.adapter.persistCatalogDetailApproval('admin', lastPage);
+  assert.ok(resumed.ok && 'record' in resumed && resumed.record.state === 'staging');
+  assert.equal(resumed.record.operationId, lastPage.operationId);
+  assert.equal(resumed.record.referenceStage?.cursor, 1);
+  const image = await h.adapter.readCatalogImageReference({
+    action: 'read',
+    imageId: h.ids[0] ?? '',
+  });
+  assert.ok(image.state === 'counted');
+  assert.equal(image.effectiveCount, 0);
+  const ledger = image.image.catalogPublishedReferenceLedger;
+  assert.ok(ledger && typeof ledger === 'object');
+  const pending: unknown = Reflect.get(ledger, 'pending');
+  assert.ok(Array.isArray(pending));
+  assert.equal(pending.length, 80);
+  const product = await h.adapter.get('products', 'p');
+  assert.ok(product);
+  assert.equal(product.published, false);
+  for (const field of ['productFamily', 'category', 'subcategoryIds']) {
+    assert.equal(Object.hasOwn(product, field), Object.hasOwn(originalProduct, field));
+    assert.deepEqual(product[field], originalProduct[field]);
+  }
+  assert.equal(
+    JSON.parse(h.bytes()).catalogDetailApprovals.filter(
+      (row: { kind?: unknown }) => row.kind === 'catalog-image-reference-commit-v1',
+    ).length,
+    0,
+  );
+  t.after(() => assert.throws(() => readFileSync(h.file), { code: 'ENOENT' }));
+});

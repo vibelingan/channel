@@ -1305,3 +1305,8 @@ pending 上传激活/拒绝与 source pending 共用合法零引用校验；无�
 ## P3e6e3 原操作最终发布及完成回执
 
 同事务写product、原根complete+completion及唯一commit proof；复核当前媒体、全部暂存、原版本/actor/source/TTL，未决Changed/Removed拒绝。历史重放经原proof核对，只读且不会使已下架商品重新上线。补普通managed图片内容稳定守卫，名称和既有mutex保留。56新增，381相关、5585全量、Node202597、19types/E2E/SDK/六文件Biome通过；27源码故障101重叠失败+2SDK-only/五SHA恢复，399实际SDK最终15操作/三写及九ACK回滚、丢确认恢复。真实PNG五进程发布200/重开0写/编译admin下架404/分类字节保留及自有夹具清理通过；移除保护另实际复现商品200/图404。首次缺主图夹具被正确拒绝；改用完整warm手工夹具，不冒充来源时钟。SDK递归脚本别名、截止测试时点和冗余codec负例缺口均有记录。详见[P3e6e3](P3e6e3_OWN_PUBLICATION.zh-CN.md)。人工审阅六代码/测试文件与四文档，把当前成功/历史完成分开。精确产物后补，正式UI原P1、fullDeliveryReady=false及真实验收继续。
+
+
+## P3e6e4 原根可信永久退役
+
+当前admin按原scope核对服务器owner/root/input，仅过期、撤权/缺失owner、输入失效可退役；健康只读、complete核对commit proof历史只读，原owner不会被替换。原根首次cancel与唯一cancel proof同事务，审计actor/reason/at仅服务器产生，精确重复0写。review补了资格读与最后product/proof读两处时钟窗口，共四反例先红后修。48新增（DB40/JSON8），394相关/5633全量/2645Node20，19types/E2E/standingSDK/四文件Biome通过。最终30故障85重叠失败+3SDK-only、四SHA恢复，441安装SDK恢复后重跑通过；真实80root满槽→可信退役一项→原第81页续接保留80pending/effective0，不冒充自动清理。四进程真实PNG重开审计/旧owner拒绝/分类私有字节保留及夹具清理通过。详见[P3e6e4](P3e6e4_TRUSTED_OPERATION_RECOVERY.zh-CN.md)，记录冗余保护未检出反例与类型收窄修正。人工审阅两生产/两测试/四文档并纠正恢复≠接管发布的措辞。精确构建待提交后补充；原UI P1、server caller、liveedit/review/真实provider/P95/三时钟20件验收继续，fullDeliveryReady=false。

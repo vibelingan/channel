@@ -1,6 +1,6 @@
 # P3e6 大媒体提交协议复核与最小实现
 
-状态：纯计划、同快照读/结算、取消读端、公开消费、旧increment增减、删除与来源清理已通过各自本地检查；真实账本producer和最终发布仍未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
+状态：纯计划、同快照读/结算、取消读端、公开消费、旧计数/删除/来源/上传写入保护，以及内部原根暂存、最终发布和可信恢复已通过各自本地检查；客户流程尚未接入，producer未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
 
 ## 运行问题与边界
 
@@ -129,3 +129,8 @@ stage转换在合法明确base与完整旧账本上验证并追加根成员，�
 ## P3e6e3 内核唯一发布提交
 
 原根完成页/完整前缀/媒体回执/原输入版本全部匹配且终局槽为空后，原产品上线、同根complete回执与commit proof在一个事务提交，关联来源15操作/三写，不随图片数扩大。普通managed图片的内容身份也禁止经metadata替换，名称/原锁仍可用；生命周期仍由原媒体流程控制。完成历史查询必须读同proof，后续下架后current=false且重复无写。详见[P3e6e3](P3e6e3_OWN_PUBLICATION.zh-CN.md)。客户接口未接线，可信过期/撤权恢复、live-edit、历史/provider/P95/test真实验收仍为启用门槛，不能据内核完成关闭原正式UI P1。
+
+
+## P3e6e4 原根可信恢复
+
+内部恢复只永久取消已验证失效的原操作，不接管旧owner发布。过期/撤权恢复不读取坏supplier；当前admin/原scope/输入/codec/终局与最后时钟校验保留。原根与cancel proof同事务、可信审计首次保存，精确重放0写，已complete需原proof且永不翻转。实际80root满槽组合证明退役一项后原页可续接；自动有界caller尚未接入，不能称满槽自动恢复。详见[P3e6e4](P3e6e4_TRUSTED_OPERATION_RECOVERY.zh-CN.md)。原UI P1、liveedit/review/provider/P95及真实三时钟20件发布回退仍开放，fullDeliveryReady=false。

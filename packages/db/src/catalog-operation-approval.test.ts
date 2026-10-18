@@ -2386,3 +2386,381 @@ for (const reason of ['changed', 'removed'])
     assert.deepEqual(await h.invoke(h.finishCommand), { ok: false, code: 'SOURCE_NOT_READY' });
     assert.equal(h.bytes(), before);
   });
+
+function trustedRecoveryCommand(h: Awaited<ReturnType<typeof ownPublishFixture>>) {
+  return {
+    ...query,
+    action: 'operation-recover',
+    operationRootId: h.key,
+    inputDigest: h.finishCommand.inputDigest,
+  };
+}
+test('trusted recovery leaves a healthy original operation available to its owner without writes', async () => {
+  const h = await ownPublishFixture();
+  const before = h.bytes();
+  const result = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.recovery, 'not-needed');
+  assert.equal(h.bytes(), before);
+  assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+});
+for (const reason of [
+  'expired',
+  'suspended',
+  'member',
+  'missing-owner',
+  'content-changed',
+  'lifecycle-changed',
+  'revision-changed',
+])
+  test(`trusted recovery cancels only the original ${reason} operation and releases its own pending reference`, async () => {
+    const h = await ownPublishFixture();
+    const root = object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key));
+    const product = h.rows.products?.[0];
+    assert.ok(product);
+    if (reason === 'expired') root.createdAt = new Date(Date.now() - 3600001).toISOString();
+    if (reason === 'suspended') object(h.rows.users?.[0]).status = 'suspended';
+    if (reason === 'member') object(h.rows.users?.[0]).role = 'member';
+    if (reason === 'missing-owner')
+      h.rows.users = h.rows.users?.filter((row) => row._id !== 'admin') ?? [];
+    if (reason === 'content-changed') product.name = 'New input';
+    if (reason === 'lifecycle-changed')
+      product.catalogLifecycleVersion = Number(product.catalogLifecycleVersion) + 1;
+    if (reason === 'revision-changed') product.updatedAt = new Date(Date.now() + 10).toISOString();
+    const productBefore = structuredClone(product);
+    const imageBefore = structuredClone(h.rows.images);
+    const result = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.recovery, 'cancelled');
+    const record = object(result.record);
+    assert.equal(record.actorId, 'admin');
+    const operation = object(record.operation);
+    assert.equal(typeof operation.cancelledAt, 'string');
+    const audit = object(operation.recovery);
+    assert.equal(audit.actorId, 'other');
+    assert.equal(
+      audit.reason,
+      reason === 'expired'
+        ? 'expired'
+        : ['suspended', 'member', 'missing-owner'].includes(reason)
+          ? 'owner-unavailable'
+          : 'input-changed',
+    );
+    assert.equal(typeof audit.at, 'string');
+    assert.deepEqual(h.rows.products?.[0], productBefore);
+    assert.deepEqual(h.rows.images, imageBefore, 'recovery does not rewrite images or their peers');
+    const effective = await runCatalogImageReferenceRead(h.tx, {
+      action: 'read',
+      imageId: h.ids[0] ?? '',
+    });
+    assert.ok(effective.state === 'counted');
+    assert.equal(effective.effectiveCount, 0);
+    assert.equal(
+      h.rows.catalogDetailApprovals?.filter(
+        (row) => row.kind === 'catalog-image-reference-cancel-v1',
+      ).length,
+      1,
+    );
+    const before = h.bytes();
+    const repeated = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+    assert.equal(repeated.ok, true);
+    assert.equal(repeated.recovery, 'already-cancelled');
+    assert.equal(h.bytes(), before);
+  });
+test('trusted recovery does not flip an expired completed publication even when its owner was revoked', async () => {
+  const h = await ownPublishFixture();
+  assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+  const root = object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key));
+  root.createdAt = new Date(Date.now() - 3600001).toISOString();
+  object(h.rows.users?.[0]).status = 'suspended';
+  const before = h.bytes();
+  const result = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.recovery, 'already-complete');
+  assert.equal(object(result.record).state, 'complete');
+  assert.equal(h.bytes(), before);
+  assert.equal(h.rows.products?.[0]?.published, true);
+  const effective = await runCatalogImageReferenceRead(h.tx, {
+    action: 'read',
+    imageId: h.ids[0] ?? '',
+  });
+  assert.ok(effective.state === 'counted');
+  assert.equal(effective.effectiveCount, 1);
+});
+test('an already cancelled operation is a read-only trusted recovery without replacing its audit', async () => {
+  const h = await ownPublishFixture();
+  assert.equal(object(await h.invoke({ ...h.finishCommand, action: 'operation-cancel' })).ok, true);
+  const before = h.bytes();
+  const result = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+  assert.equal(result.ok, true);
+  assert.equal(result.recovery, 'already-cancelled');
+  assert.equal(h.bytes(), before);
+});
+for (const actor of ['guest', 'suspended-reviewer'])
+  test(`trusted recovery refuses current requester ${actor}`, async () => {
+    const h = await ownPublishFixture();
+    if (actor === 'suspended-reviewer')
+      h.rows.users?.push({ _id: actor, role: 'admin', status: 'suspended' });
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(trustedRecoveryCommand(h), actor), {
+      ok: false,
+      code: 'FORBIDDEN',
+    });
+    assert.equal(h.bytes(), before);
+  });
+for (const field of ['productId', 'operationId', 'operationRootId', 'inputDigest'])
+  test(`trusted recovery refuses a different ${field} without looking up another owner`, async () => {
+    const h = await ownPublishFixture();
+    const command = trustedRecoveryCommand(h);
+    const before = h.bytes();
+    const patch =
+      field === 'operationId'
+        ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+        : field === 'productId'
+          ? 'other'
+          : 'f'.repeat(64);
+    const result = object(await h.invoke({ ...command, [field]: patch }, 'other'));
+    assert.equal(result.ok, false);
+    assert.equal(h.bytes(), before);
+  });
+for (const field of ['actorId', 'reason', 'recoveredBy', 'cancelledAt', 'proof'])
+  test(`trusted recovery accepts no client-supplied ${field} evidence`, async () => {
+    const h = await ownPublishFixture();
+    const before = h.bytes();
+    assert.equal(
+      object(await h.invoke({ ...trustedRecoveryCommand(h), [field]: 'forged' }, 'other')).ok,
+      false,
+    );
+    assert.equal(h.bytes(), before);
+  });
+test('unknown owner lookup failure is not interpreted as a revoked owner or permission to cancel', async () => {
+  const h = await ownPublishFixture();
+  const before = h.bytes();
+  const get = h.tx.get;
+  try {
+    h.tx.get = async (collection, id) => {
+      if (collection === 'users' && id === 'admin') throw Error('owner database unavailable');
+      return get(collection, id);
+    };
+    await assert.rejects(
+      h.invoke(trustedRecoveryCommand(h), 'other'),
+      /owner database unavailable/,
+    );
+    assert.equal(h.bytes(), before);
+  } finally {
+    h.tx.get = get;
+  }
+});
+test('a future-dated operation is not treated as expired by trusted recovery', async () => {
+  const h = await ownPublishFixture();
+  object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key)).createdAt = new Date(
+    Date.now() + 60000,
+  ).toISOString();
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke(trustedRecoveryCommand(h), 'other'), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.equal(h.bytes(), before);
+});
+
+test('trusted recovery notices expiry crossed while checking a healthy owner before returning not-needed', async () => {
+  const h = await ownPublishFixture();
+  const get = h.tx.get;
+  const realNow = Date.now;
+  const at = realNow();
+  let late = false;
+  try {
+    h.tx.get = async (collection, id) => {
+      const row = await get(collection, id);
+      if (collection === 'users' && id === 'admin') late = true;
+      return row;
+    };
+    Date.now = () => (late ? at + 3600001 : at);
+    const result = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+    assert.equal(result.ok, true);
+    assert.equal(result.recovery, 'cancelled');
+    assert.equal(object(object(object(result.record).operation).recovery).reason, 'expired');
+  } finally {
+    h.tx.get = get;
+    Date.now = realNow;
+  }
+});
+for (const kind of ['expired', 'owner-unavailable'])
+  test(`trusted ${kind} recovery does not read a newly broken supplier`, async () => {
+    const h = await ownPublishFixture();
+    const root = object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key));
+    if (kind === 'expired') root.createdAt = new Date(Date.now() - 3600001).toISOString();
+    else object(h.rows.users?.[0]).status = 'suspended';
+    const product = h.rows.products?.[0];
+    assert.ok(product);
+    product.alibabaPrimarySourceKey = 'broken';
+    const get = h.tx.get;
+    try {
+      h.tx.get = async (collection, id) => {
+        if (
+          ['alibabaSourceProducts', 'catalogSourceObservations', 'alibabaProductLinks'].includes(
+            collection,
+          )
+        )
+          throw Error('broken supplier must not block retirement');
+        return get(collection, id);
+      };
+      assert.equal(
+        object(await h.invoke(trustedRecoveryCommand(h), 'other')).recovery,
+        'cancelled',
+      );
+    } finally {
+      h.tx.get = get;
+    }
+  });
+for (const kind of ['commit', 'wrong-cancel'])
+  test(`trusted recovery cannot overwrite a ${kind} terminal slot`, async () => {
+    const h = await ownPublishFixture();
+    object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key)).createdAt = new Date(
+      Date.now() - 3600001,
+    ).toISOString();
+    const plan = buildCatalogImageReferencePlan(h.key, [], h.ids);
+    h.rows.catalogDetailApprovals?.push(
+      kind === 'commit'
+        ? plan.proof
+        : { ...catalogImageReferenceCancelProof(plan.proof), leafCount: 2 },
+    );
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(trustedRecoveryCommand(h), 'other'), {
+      ok: false,
+      code: 'CONFLICT',
+    });
+    assert.equal(h.bytes(), before);
+  });
+for (const kind of ['undefined', 'undefined-cancelled', 'no-cancel', 'invalid-actor'])
+  test(`recovery audit codec refuses stored ${kind} metadata`, async () => {
+    const h = await ownPublishFixture();
+    const root = object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key));
+    const operation = object(root.operation);
+    if (kind === 'undefined' || kind === 'undefined-cancelled') operation.recovery = undefined;
+    else
+      operation.recovery = {
+        actorId: kind === 'invalid-actor' ? '' : 'other',
+        reason: 'expired',
+        at: new Date().toISOString(),
+      };
+    if (kind === 'invalid-actor' || kind === 'undefined-cancelled')
+      operation.cancelledAt = new Date().toISOString();
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(query), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), before);
+  });
+
+test('trusted recovery does not retire an operation when the service clock moves before its creation during checks', async () => {
+  const h = await ownPublishFixture();
+  const get = h.tx.get;
+  const realNow = Date.now;
+  const at = realNow();
+  let changed = false;
+  const before = h.bytes();
+  try {
+    h.tx.get = async (collection, id) => {
+      const row = await get(collection, id);
+      if (collection === 'users' && id === 'admin') changed = true;
+      return row;
+    };
+    Date.now = () => (changed ? at - 60000 : at);
+    assert.deepEqual(await h.invoke(trustedRecoveryCommand(h), 'other'), {
+      ok: false,
+      code: 'CONFLICT',
+    });
+    assert.equal(h.bytes(), before);
+  } finally {
+    h.tx.get = get;
+    Date.now = realNow;
+  }
+});
+
+test('trusted recovery verifies the immutable proof before reporting an already-complete operation', async () => {
+  const h = await ownPublishFixture();
+  assert.equal(object(await h.invoke(h.finishCommand)).ok, true);
+  h.rows.catalogDetailApprovals =
+    h.rows.catalogDetailApprovals?.filter((row) => row._id === h.key) ?? [];
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke(trustedRecoveryCommand(h), 'other'), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.equal(h.bytes(), before);
+});
+
+for (const saved of [false, true]) {
+  const phase = saved ? 'saved' : 'reserved';
+  test(`trusted recovery retires an expired ${phase} without inventing a reference proof or saving the draft`, async () => {
+    const h = await fixture('publish', saved);
+    const root = object(h.rows.catalogDetailApprovals?.[0]);
+    root.createdAt = new Date(Date.now() - 3600001).toISOString();
+    const product = structuredClone(h.rows.products?.[0]);
+    const result = object(
+      await h.invoke(
+        {
+          ...query,
+          action: 'operation-recover',
+          operationRootId: h.key,
+          inputDigest: h.command.inputDigest,
+        },
+        'other',
+      ),
+    );
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.recovery, 'cancelled');
+    assert.equal(object(result.record).state, phase);
+    assert.equal(object(object(object(result.record).operation).recovery).actorId, 'other');
+    assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+    assert.deepEqual(h.rows.products?.[0], product);
+  });
+  test(`trusted recovery leaves a healthy ${phase} operation unchanged`, async () => {
+    const h = await fixture('publish', saved);
+    const before = h.bytes();
+    const result = object(
+      await h.invoke(
+        {
+          ...query,
+          action: 'operation-recover',
+          operationRootId: h.key,
+          inputDigest: h.command.inputDigest,
+        },
+        'other',
+      ),
+    );
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.recovery, 'not-needed');
+    assert.equal(object(result.record).state, phase);
+    assert.equal(h.bytes(), before);
+  });
+}
+
+for (const correction of ['before-creation', 'no-longer-expired'])
+  test(`trusted recovery rechecks ${correction} after cancellation proof reads before writing`, async () => {
+    const h = await ownPublishFixture();
+    const root = object(h.rows.catalogDetailApprovals?.find((row) => row._id === h.key));
+    const realNow = Date.now;
+    const at = realNow();
+    root.createdAt = new Date(at - 7200000).toISOString();
+    const get = h.tx.get;
+    let corrected = false;
+    const before = h.bytes();
+    try {
+      h.tx.get = async (collection, id) => {
+        const row = await get(collection, id);
+        if (collection === 'catalogDetailApprovals' && id !== h.key) corrected = true;
+        return row;
+      };
+      Date.now = () =>
+        corrected ? at - (correction === 'before-creation' ? 10800000 : 5400000) : at;
+      assert.deepEqual(await h.invoke(trustedRecoveryCommand(h), 'other'), {
+        ok: false,
+        code: 'CONFLICT',
+      });
+      assert.equal(h.bytes(), before);
+    } finally {
+      h.tx.get = get;
+      Date.now = realNow;
+    }
+  });

@@ -132,6 +132,9 @@ export const ProductOperationReferencePageSchema = identifiers
 export const ProductOperationPublishSchema = identifiers
   .extend({ action: z.literal('operation-publish'), inputDigest: digest })
   .strict();
+export const ProductOperationRecoverSchema = identifiers
+  .extend({ action: z.literal('operation-recover'), operationRootId: digest, inputDigest: digest })
+  .strict();
 const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationGetSchema,
@@ -142,6 +145,7 @@ const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationReferencesSchema,
   ProductOperationReferencePageSchema,
   ProductOperationPublishSchema,
+  ProductOperationRecoverSchema,
 ]);
 const SnapshotSchema = z
   .object({
@@ -169,6 +173,13 @@ const currentPolicy = () => ({
   media: CATALOG_MEDIA_SEAL_POLICY,
   pixels: CATALOG_PIXEL_POLICY,
 });
+const RecoveryAuditSchema = z
+  .object({
+    actorId: id,
+    reason: z.enum(['expired', 'owner-unavailable', 'input-changed']),
+    at: z.string().datetime(),
+  })
+  .strict();
 const ReservedSchema = z
   .object({
     _id: digest,
@@ -187,6 +198,7 @@ const ReservedSchema = z
         values: z.record(z.unknown()),
         base: SnapshotSchema,
         cancelledAt: z.string().datetime().optional(),
+        recovery: RecoveryAuditSchema.optional(),
       })
       .strict(),
   })
@@ -239,6 +251,7 @@ export type ProductOperationResult =
       current: boolean;
       revisionCurrent: boolean;
       expired: boolean;
+      recovery?: 'not-needed' | 'cancelled' | 'already-cancelled' | 'already-complete';
     }
   | ApprovalFailure;
 const fail = (
@@ -291,6 +304,7 @@ export async function runProductOperation(
   if (command.action === 'operation-approval-reference-page')
     return stageOperationReferences(tx, actorId, command);
   if (command.action === 'operation-publish') return publishOperation(tx, actorId, command);
+  if (command.action === 'operation-recover') return recoverOperation(tx, actorId, command);
   const key = operationKey(actorId, command.productId, command.operationId);
   const previous = await tx.get(collection, key);
   if (previous) {
@@ -392,6 +406,11 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   const record = parsed.data;
   if (Object.hasOwn(record.operation, 'cancelledAt') && record.operation.cancelledAt === undefined)
     return null;
+  if (
+    Object.hasOwn(record.operation, 'recovery') &&
+    (record.operation.recovery === undefined || !Object.hasOwn(record.operation, 'cancelledAt'))
+  )
+    return null;
   if (record.state === 'staging' || record.state === 'complete') {
     const {
       operation: _operation,
@@ -457,6 +476,7 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
 async function cancelOperation(
   tx: CatalogApprovalTransaction,
   record: ProductOperationRecord,
+  recovery?: Pick<z.infer<typeof RecoveryAuditSchema>, 'actorId' | 'reason'>,
 ): Promise<ProductOperationResult> {
   const product = await tx.get('products', record.productId);
   let cancelProof: ReturnType<typeof catalogImageReferenceCancelProof> | null = null;
@@ -474,12 +494,21 @@ async function cancelOperation(
       return fail('CONFLICT');
     if (!previous) cancelProof = expected;
   }
+  if (recovery) {
+    const age = Date.now() - Date.parse(record.createdAt);
+    if (age < 0 || (recovery.reason === 'expired' && age <= APPROVAL_JOB_MAX_AGE_MS))
+      return fail('CONFLICT');
+  }
   const now = new Date().toISOString();
   const cancelled = Object.hasOwn(record.operation, 'cancelledAt')
     ? record
     : RecordSchema.parse({
         ...record,
-        operation: { ...record.operation, cancelledAt: now },
+        operation: {
+          ...record.operation,
+          cancelledAt: now,
+          ...(recovery ? { recovery: { ...recovery, at: now } } : {}),
+        },
       });
   if (!fitsJsonBudget(cancelled, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
@@ -1102,4 +1131,63 @@ async function publishOperation(
   await tx.set(collection, completed);
   await tx.set(collection, plan.proof);
   return { ok: true, record: completed, current: true, revisionCurrent: true, expired: false };
+}
+
+/** Trusted recovery retires an unusable operation; it never continues another actor's publication. */
+async function recoverOperation(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command: z.infer<typeof ProductOperationRecoverSchema>,
+): Promise<ProductOperationResult> {
+  const stored = await tx.get(collection, command.operationRootId);
+  if (!stored) return fail('NOT_FOUND');
+  const ownerId = id.safeParse(stored.actorId);
+  const record = ownerId.success
+    ? readReservation(stored, ownerId.data, {
+        action: 'operation-get',
+        productId: command.productId,
+        operationId: command.operationId,
+      })
+    : null;
+  if (
+    !record ||
+    record._id !== command.operationRootId ||
+    record.operation.inputDigest !== command.inputDigest
+  )
+    return fail('CONFLICT');
+  if (record.state === 'complete') {
+    const result = await inspect(tx, record);
+    return result.ok ? { ...result, recovery: 'already-complete' } : result;
+  }
+  if (Object.hasOwn(record.operation, 'cancelledAt')) {
+    const result = await cancelOperation(tx, record);
+    return result.ok ? { ...result, recovery: 'already-cancelled' } : result;
+  }
+  const age = Date.now() - Date.parse(record.createdAt);
+  if (age < 0) return fail('CONFLICT');
+  let reason: z.infer<typeof RecoveryAuditSchema>['reason'] | undefined;
+  let inspection: Extract<ProductOperationResult, { ok: true }> | undefined;
+  if (age > APPROVAL_JOB_MAX_AGE_MS) reason = 'expired';
+  else {
+    const owner = await tx.get('users', record.actorId);
+    if (!owner || owner.role !== 'admin' || owner.status === 'suspended')
+      reason = 'owner-unavailable';
+    else {
+      const current = await inspect(tx, record);
+      if (!current.ok) return current;
+      inspection = current;
+      if (!current.current || !current.revisionCurrent) reason = 'input-changed';
+    }
+  }
+  // Reads may cross expiry or a clock correction; decide eligibility immediately before retiring.
+  const finalAge = Date.now() - Date.parse(record.createdAt);
+  if (finalAge < 0) return fail('CONFLICT');
+  if (finalAge > APPROVAL_JOB_MAX_AGE_MS) reason = 'expired';
+  else if (reason === 'expired') return fail('CONFLICT');
+  if (!reason) return inspection ? { ...inspection, recovery: 'not-needed' } : fail('CONFLICT');
+  const result = await cancelOperation(tx, record, {
+    actorId,
+    reason,
+  });
+  return result.ok ? { ...result, recovery: 'cancelled' } : result;
 }
