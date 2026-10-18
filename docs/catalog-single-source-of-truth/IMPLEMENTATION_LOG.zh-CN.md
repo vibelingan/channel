@@ -1231,3 +1231,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 直接复用服务端completed证明，仅原审批根增加小绑定，12文档操作、重复0写；页/取消/历史codec保留其语义，不接HTTP/最终发布。50新增、14源码反例96重叠失败并SHA恢复；实际SDK11组/3坏ACK/commit丢确认、四独立进程及非空worker图片/读端hold衔接通过。全量4981、Node201792+invoker15、19types/E2E/显式Biome/diff通过。[本步说明](P3e6b2_MEDIA_RECEIPT_HANDOFF.zh-CN.md)记录夹具共享图first-match修正和证据边界。
 
 更正P3e6b1门禁证据：旧绿色日志不能证明4cf5101最终新测试名与旧门禁名称组合通过；本轮门禁实际失败。同步启动/流式两项名称并要求至少15全通过，硬截止十倍反例使完整SDK门禁失败，恢复SHA再通过，生产逻辑未改。实际审阅三生产模块/两测试/门禁脚本与四文档；把“图片保护交接已证明”改为“本地读端交接检查通过”，依据实际worker/hold读端与未测字节删除/provider并发区分。原formal P1/fullDeliveryReady=false保留，继续最终提交与所有消费者。
+
+
+## P3e6c1：图片引用快照与全部结算
+
+一个事务体读取图片和全部小proof，4并行点读、最大81读+1写；native/JSON共用，严格区分缺失/失败读取，排空并发失败，保留原metadata/未提交项与legacy缺counter语义。59新增、110聚焦；实际SDK生产接线12组/三坏ACK/commit丢确认、四进程文件恢复通过。原引擎18反例134重叠失败重跑，另17反例52失败+2SDK-only检出，恢复SHA。相关五包3446/Node201742/19types/E2E/standingSDK通过。[本步说明](P3e6c1_REFERENCE_SNAPSHOT.zh-CN.md)保留未启用consumer/producer及provider/P95边界。review pure/helper/两adapter/接口/出口、两测试与三文档；把初稿imageId200字符限制改为沿现有字符语法、无新增长度业务上限，对照isApprovalImageId及非法换行测试；区分单图80证明/82文档操作与UI批量验收。继续旧消费者与最终提交；原formal P1/fullDeliveryReady=false。

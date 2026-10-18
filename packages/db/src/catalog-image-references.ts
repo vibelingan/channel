@@ -47,7 +47,8 @@ type ErrorCode =
   | 'INVALID_LEDGER'
   | 'INVALID_PROOF'
   | 'INVALID_COUNT'
-  | 'MISSING_SNAPSHOT_READ';
+  | 'MISSING_SNAPSHOT_READ'
+  | 'DOCUMENT_BUDGET_EXCEEDED';
 export class CatalogImageReferenceError extends Error {
   constructor(readonly code: ErrorCode) {
     super(`Image reference check failed: ${code}`);
@@ -160,22 +161,12 @@ export function planImageReferenceSettlement(
 } {
   if (!integer.safeParse(publishedRefCount).success || typeof publishedRefCount !== 'number')
     throw new CatalogImageReferenceError('INVALID_COUNT');
-  if (!imageId.safeParse(id).success) throw new CatalogImageReferenceError('INVALID_LEDGER');
-  if (inputLedger === undefined)
-    return { effectiveCount: publishedRefCount, appliedProofIds: [], settlement: null };
-  if (!fitsJsonBudget(inputLedger, CATALOG_IMAGE_REFERENCE_LEDGER_MAX_BYTES))
-    throw new CatalogImageReferenceError('INVALID_LEDGER');
-  const parsed = LedgerSchema.safeParse(inputLedger);
-  if (!parsed.success) throw new CatalogImageReferenceError('INVALID_LEDGER');
-  const current = parsed.data;
-  const roots = new Set<string>();
+  const current = readReferenceLedger(id, inputLedger);
+  if (!current) return { effectiveCount: publishedRefCount, appliedProofIds: [], settlement: null };
   const appliedProofIds: string[] = [];
   const pending: CatalogImageReferencePending[] = [];
   let sum = 0;
   for (const item of current.pending) {
-    if (roots.has(item.operationRootId)) throw new CatalogImageReferenceError('INVALID_LEDGER');
-    roots.add(item.operationRootId);
-    verifyMembership(id, item);
     const proofId = catalogImageReferenceProofId(item);
     if (!proofs.has(proofId)) throw new CatalogImageReferenceError('MISSING_SNAPSHOT_READ');
     const row = proofs.get(proofId);
@@ -210,6 +201,26 @@ export function planImageReferenceSettlement(
       ledger: { ...current, epoch: current.epoch + 1, pending },
     },
   };
+}
+
+/** Validate the entire bounded ledger before a caller starts its proof reads. */
+export function catalogImageReferenceProofIds(id: string, inputLedger: unknown): string[] {
+  return readReferenceLedger(id, inputLedger)?.pending.map(catalogImageReferenceProofId) ?? [];
+}
+function readReferenceLedger(id: string, inputLedger: unknown): CatalogImageReferenceLedger | null {
+  if (!imageId.safeParse(id).success) throw new CatalogImageReferenceError('INVALID_LEDGER');
+  if (inputLedger === undefined) return null;
+  if (!fitsJsonBudget(inputLedger, CATALOG_IMAGE_REFERENCE_LEDGER_MAX_BYTES))
+    throw new CatalogImageReferenceError('INVALID_LEDGER');
+  const parsed = LedgerSchema.safeParse(inputLedger);
+  if (!parsed.success) throw new CatalogImageReferenceError('INVALID_LEDGER');
+  const roots = new Set<string>();
+  for (const item of parsed.data.pending) {
+    if (roots.has(item.operationRootId)) throw new CatalogImageReferenceError('INVALID_LEDGER');
+    roots.add(item.operationRootId);
+    verifyMembership(id, item);
+  }
+  return parsed.data;
 }
 
 function verifyMembership(id: string, pending: CatalogImageReferencePending): void {

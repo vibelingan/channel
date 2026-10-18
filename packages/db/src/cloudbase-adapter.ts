@@ -11,6 +11,11 @@ import {
   type CatalogPreparationJobCommand,
   runCatalogPreparationJob,
 } from './catalog-preparation-jobs.ts';
+import {
+  CatalogImageReferenceReadSchema,
+  type CatalogImageReferenceReadCommand,
+  runCatalogImageReferenceRead,
+} from './catalog-image-reference-store.ts';
 import { runImageUpload, type ImageUploadCommand } from './image-upload.ts';
 import { runSourceMediaImport, type SourceMediaImportCommand } from './source-media-import.ts';
 import { runImageDeletion, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
@@ -793,6 +798,16 @@ export async function mutateAlibabaProductInCloud(
   return 'guard' in input ? withAlibabaLeaseCommit(input.guard, commit) : commit();
 }
 
+export function readCatalogImageReferenceInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  input: CatalogImageReferenceReadCommand,
+) {
+  const command = CatalogImageReferenceReadSchema.parse(input);
+  return db.runTransaction((transaction) =>
+    runCatalogImageReferenceRead(catalogRowStore(transaction), command),
+  );
+}
+
 export function manageCatalogPreparationJobInCloudBase(
   db: Pick<NodeSdkDatabase, 'runTransaction'>,
   authority: CatalogPreparationAuthority,
@@ -924,6 +939,9 @@ export async function listDocumentsInCloudBase(
 export const cloudBaseAdapter: DbAdapter = {
   async findUnfinishedApprovalUsingImage(imageId, startedAfter) {
     return findUnfinishedApprovalImageInCloudBase(database(), imageId, startedAfter);
+  },
+  async readCatalogImageReference(command) {
+    return readCatalogImageReferenceInCloudBase(cloudStorageSdk().database(), command);
   },
   async manageCatalogPreparationJob(authority, command, now) {
     return manageCatalogPreparationJobInCloudBase(

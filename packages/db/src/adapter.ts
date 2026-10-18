@@ -556,6 +556,10 @@ export interface DbAdapter {
   mutateAlibabaProduct?(
     input: import('./alibaba-product-identity.ts').AlibabaProductMutationInput,
   ): Promise<import('./alibaba-product-identity.ts').AlibabaProductMutationResult>;
+  /** Internal same-snapshot effective media references; no pending-reference producer. */
+  readCatalogImageReference?(
+    command: import('./catalog-image-reference-store.ts').CatalogImageReferenceReadCommand,
+  ): Promise<import('./catalog-image-reference-store.ts').CatalogImageReferenceSnapshot>;
   manageCatalogPreparationJob?(
     authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
     command: import('./catalog-preparation-jobs.ts').CatalogPreparationJobCommand,

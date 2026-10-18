@@ -61,6 +61,11 @@ import {
   canonicalApprovedVariant,
 } from '@vibelingan-channel/db/catalog-detail-storage';
 import {
+  type CatalogImageReferenceReadCommand,
+  CatalogImageReferenceReadSchema,
+  runCatalogImageReferenceRead,
+} from '@vibelingan-channel/db/catalog-image-reference-store';
+import {
   type CatalogPreparationAuthority,
   type CatalogPreparationJobCommand,
   runCatalogPreparationJob,
@@ -190,6 +195,38 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  async readCatalogImageReference(input: CatalogImageReferenceReadCommand) {
+    const command = CatalogImageReferenceReadSchema.parse(input);
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runCatalogImageReferenceRead(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((existing) => existing._id === row._id) ?? -1;
+            if (!rows || index < 0) throw Error('Reference image disappeared');
+            rows[index] = structuredClone(row);
+            changed = true;
+          },
+        },
+        command,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
   async manageCatalogPreparationJob(
     authority: CatalogPreparationAuthority,
     command: CatalogPreparationJobCommand,

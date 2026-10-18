@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./catalog-image-reference-store": "./src/catalog-image-reference-store.ts",
     "./catalog-preparation-media-seal": "./src/catalog-preparation-media-seal.ts",
     "./catalog-preparation-store": "./src/catalog-preparation-store.ts",
     "./catalog-source-staging": "./src/catalog-source-staging.ts",
