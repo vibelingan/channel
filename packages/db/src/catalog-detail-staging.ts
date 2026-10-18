@@ -20,6 +20,7 @@ import {
 import { z } from 'zod';
 import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
 import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
+import { planApprovalImageReferences } from './catalog-approval-image-references.ts';
 import {
   APPROVAL_PAGE_SIZE,
   type ApprovalFailure as Failure,
@@ -431,6 +432,7 @@ export async function finishStagedApproval(
       return fail('MEDIA_BUSY');
     if (
       !image ||
+      image._id !== imageId ||
       image.status !== 'active' ||
       lock?.state !== 'free' ||
       (image.storageProvider !== 'cloudbase-storage' && image.storageProvider !== 'local-disk') ||
@@ -446,24 +448,22 @@ export async function finishStagedApproval(
     ...job.publication,
     variantStorage: 'immutable-v1',
   });
-  for (const image of images) {
-    const delta = media.delta(image._id);
-    const count = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : 0;
-    if (count + delta < 0) return fail('MEDIA_NOT_READY');
-  }
+  const references = await planApprovalImageReferences(
+    tx,
+    images,
+    media.delta,
+    CATALOG_APPROVAL_FINISH_MAX_OPERATIONS - media.operations,
+  );
+  if (!references.ok) return references;
   // Photos are shared (a seller's banners appear in hundreds of products), so
   // approval only READS them; it writes a photo only when the number of live
   // products showing it changes (DEC-21). Writing every photo made any two
   // approvals that share one collide. A delete cannot slip in meanwhile: delete
   // paths lock the photo and refuse while an unfinished approval job lists it,
   // and this transaction refuses a locked photo (checked above).
-  for (const image of images) {
-    const delta = media.delta(image._id);
+  for (const { image, delta } of references.images) {
     if (delta === 0) continue;
-    await tx.set('images', {
-      ...image,
-      publishedRefCount: Number(image.publishedRefCount ?? 0) + delta,
-    });
+    await tx.set('images', image);
   }
   await tx.set('products', {
     ...product,

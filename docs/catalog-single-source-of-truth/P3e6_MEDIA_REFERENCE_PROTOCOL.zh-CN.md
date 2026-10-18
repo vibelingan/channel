@@ -99,3 +99,8 @@ images.publishedRefCount的既有incrementField改用同快照全体终局结算
 ## P3e6d5剩余通用入口
 
 managed图片不得经通用remove/条件remove删除，实际持久删除流程继续通过其原transaction rowstore；missing/未匹配/旧无ledger语义保留。image非专属计数increment不能改ledger/保留路径或operator，专属publishedRefCount仍按d1结算。handler原有Images must be removed through abandonUpload及batchRemove拒绝保留。lifecycle、旧审批和最终激活仍待核验，producer关闭。详见[P3e6d5](P3e6d5_ORDINARY_IMAGE_DELETION.zh-CN.md)。
+
+
+## P3e6d6旧审批兼容
+
+旧staged/atomic共用只读有效引用规划；实际delta非零才补读proof并把全体已确认结算+delta融合原image唯一写，未知保留。delta0不补读、不结算，staged不写共享图，atomic仍写原deletefence。全局98预算含原actor/SKU/product/image操作及真实image重新get，80proof91/92可走、超限先拒。缺managedbase或需要非零delta的未知legacy不猜0。没有增加新发布producer；公共读仍独立C1验证，最终seal/历史/own-root终局未由本步完成。详见[P3e6d6](P3e6d6_LEGACY_APPROVAL_REFERENCES.zh-CN.md)。

@@ -1273,3 +1273,8 @@ images.publishedRefCount走共用同快照加载、结算全体终局再加delta
 ## P3e6d5：通用删除、条件删除与保留字段增量
 
 通用images remove/条件remove在既有事务/JSON锁中只允许无ledger旧路径，有任意own ledger要求既有持久删除；条件不匹配/missing仍false。非publishedRefCount增量先复用d4保留字段守卫，精确counter继续d1。native沿既有rowstore严格ACK，legacy1get+1remove，实际专属删除不经过该通用入口。27新增/19入口13业务红+6正控/426聚焦；10反例7测试30重叠失败+3SDK-only/三SHA恢复；实际SDK169、四独立进程真实PNG公开/拒绝/下架/quarantine持久恢复与删除、proof保留/0重放写通过。[说明](P3e6d5_ORDINARY_IMAGE_DELETION.zh-CN.md)保留第一版错误删除动作控制/格式失败，不冒充业务红。review五代码/测试、原rowstore与后台删除入口和四记录，将供应商写冲突表述限定为契约设计，真实竞争未验证。最终5312全量、Node202282/19types/E2E/standingSDK/显式Biome/diff通过；精确build在commit review后，旧审批/lifecycle/final/UI/历史/真实三时钟20发布回退及原formal P1保持开放，producer关闭/fullDeliveryReady=false。
+
+
+## P3e6d6：旧审批共用有效引用规划与全局预算
+
+staged/atomic在原事务中共用只读C1规划，仅非零delta图读取小proof/合并计数，delta0保留base/ledger不加terminal读取；staged继续0共享图写，atomic保留原每图deletefence。原初读与C1重新pointget需一致；预先预留actor/product/job/SKU/image全部操作和每图1+P额外读，91/92合法、102/103及160proof先拒而0proof读。32新增，第一6业务红/第二13中10红3正控，176聚焦；24反例95重叠失败/三SHA恢复；实际SDK205/36新、四进程真实PNG旧审批切图/同job恢复0写/源分类保留/最终未发布与图404通过。全量5344、Node202314/19types/E2E/standingSDK/六文件Biome/diff通过。[说明](P3e6d6_LEGACY_APPROVAL_REFERENCES.zh-CN.md)明确这不是原发布丢响应恢复或20真实选品。review六源测试/C1/SDK桥接/预算及四记录，将所有非空ledger补读限定实际delta，保留公共C1独立验证。native全文件及原save/actor/classification fence字节未动。lifecycle/final/UI/历史/供应商与P95、test三时钟和20发布回退仍开放，producer关闭/fullDeliveryReady=false。

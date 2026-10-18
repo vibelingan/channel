@@ -9,6 +9,7 @@ import {
 import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/catalog-detail-pagination';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
+import { planApprovalImageReferences } from './catalog-approval-image-references.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 import { sdkAnswer } from './cloudbase-sdk-answer.ts';
 
@@ -212,6 +213,7 @@ export async function commitCatalogApproval(
     const image = await tx.get('images', id);
     if (
       !image ||
+      image._id !== id ||
       image.status !== 'active' ||
       readImageMutationState(image).state !== 'free' ||
       (image.storageProvider !== 'cloudbase-storage' && image.storageProvider !== 'local-disk') ||
@@ -225,20 +227,22 @@ export async function commitCatalogApproval(
   }
   const referenceDelta = (id: string) =>
     product.published === true ? Number(afterImages.has(id)) - Number(beforeImages.has(id)) : 0;
-  if (images.some((image) => Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) < 0))
-    return { ok: false, code: 'MEDIA_NOT_READY' };
+  const references = await planApprovalImageReferences(
+    tx,
+    images,
+    referenceDelta,
+    98 - (3 + 2 * rows.length + 2 * imageIds.size),
+  );
+  if (!references.ok) return references;
   // Every deterministic rejection is above this boundary. Exceptions below MUST abort the transaction.
   // This one-request path creates no approval job, so photo deletes cannot see it in flight
   // (they check unfinished jobs, DEC-21). It keeps writing every photo so the database's
   // write-conflict check catches a concurrent delete. Production approves through the staged
   // path (finishStagedApproval), which reads shared photos without writing them; wire this path
   // into a production action only with a job, or keep this write.
-  for (const image of images)
+  for (const { image } of references.images)
     await tx.set('images', {
       ...image,
-      ...(referenceDelta(image._id)
-        ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) }
-        : {}),
       catalogDetailApprovalFence: revision,
     });
   const byId = new Map(rows.map((row) => [row._id, row]));
