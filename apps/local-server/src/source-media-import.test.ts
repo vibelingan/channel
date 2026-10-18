@@ -678,14 +678,16 @@ for (const kind of ['addition', 'removal', 'cancel', 'missing', 'corrupt'] as co
       removing ? [image._id] : [],
       removing ? [] : [image._id],
     );
-    await f.adapter.update('images', image._id, {
-      publishedRefCount: removing ? 1 : 0,
-      catalogPublishedReferenceLedger: {
-        version: 'catalog-image-reference-ledger-v1',
-        epoch: 4,
-        pending: [catalogImageReferenceEntry(plan, 0)],
-      },
-    });
+    const fixtureRows = JSON.parse(await readFile(f.path, 'utf8'));
+    const fixtureImage = fixtureRows.images.find((row: { _id: string }) => row._id === image._id);
+    assert.ok(fixtureImage);
+    fixtureImage.publishedRefCount = removing ? 1 : 0;
+    fixtureImage.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    await writeFile(f.path, JSON.stringify(fixtureRows));
     if (kind !== 'missing') {
       const proof =
         kind === 'cancel'

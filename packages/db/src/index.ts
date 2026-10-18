@@ -2,6 +2,7 @@ import {
   type CatalogImageReferenceReadCommand,
   CatalogImageReferenceReadSchema,
 } from './catalog-image-reference-store.ts';
+import { isImageReferenceWriteConflict } from './catalog-image-reference-write.ts';
 export {
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
   emptyCatalogImageReferenceCount,
@@ -732,6 +733,7 @@ export interface BackfillRefCountsReport {
   dryRun: boolean;
   imagesScanned: number;
   changes: { imageId: string; from: number | null; to: number }[];
+  skipped?: { imageId: string; reason: 'managed-references' | 'missing' }[];
 }
 
 /**
@@ -793,8 +795,9 @@ export async function unfinishedApprovalUsingImage(imageId: string): Promise<str
  * recompute `images.publishedRefCount` from the current public catalog: for each
  * image, the number of PUBLISHED products/overstock documents that reference it.
  * Scope comes from `PUBLIC_CATALOG_COLLECTIONS`, shared with routing and online
- * counter maintenance. Every image's counter is set to
- * its tally (0 when unreferenced); duplicate ids within one document count once.
+ * counter maintenance. Legacy image counters are set to their tally (0 when
+ * unreferenced); duplicate ids within one document count once. Images with a
+ * publication reference ledger are reported as skipped and cannot be reset here.
  *
  * This is the canonical reconciliation for MIU-04 (design §20.6 step 5): it
  * repairs drift from the non-transactional maintenance path and initialises rows
@@ -804,8 +807,8 @@ export async function unfinishedApprovalUsingImage(imageId: string): Promise<str
  *
  * Run during a quiescent window: it writes ABSOLUTE counts, so a live increment
  * (Phase B maintenance) landing between this function's read and its write can be
- * transiently clobbered — re-run to reconcile. Not a concern for the local seed
- * or a one-shot admin maintenance call.
+ * transiently clobbered. A one-shot admin invocation still requires that window;
+ * the write-time ledger guard only prevents overwriting managed reference state.
  */
 export async function backfillPublishedRefCounts(
   opts: { dryRun?: boolean } = {},
@@ -837,6 +840,7 @@ export async function backfillPublishedRefCounts(
 
   // Set every image's counter to its tally.
   const changes: BackfillRefCountsReport['changes'] = [];
+  const skipped: NonNullable<BackfillRefCountsReport['skipped']> = [];
   let imagesScanned = 0;
   let page = 1;
   for (;;) {
@@ -850,18 +854,34 @@ export async function backfillPublishedRefCounts(
     for (const image of res.items) {
       imagesScanned += 1;
       const id = String(image._id);
+      if (Object.hasOwn(image, 'catalogPublishedReferenceLedger')) {
+        skipped.push({ imageId: id, reason: 'managed-references' });
+        continue;
+      }
       const to = counts.get(id) ?? 0;
       const from = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : null;
       if (from !== to) {
+        if (!dryRun) {
+          try {
+            const updated = await updateDoc('images', id, { publishedRefCount: to });
+            if (!updated || Object.hasOwn(updated, 'catalogPublishedReferenceLedger')) {
+              skipped.push({ imageId: id, reason: updated ? 'managed-references' : 'missing' });
+              continue;
+            }
+          } catch (error) {
+            if (!isImageReferenceWriteConflict(error)) throw error;
+            skipped.push({ imageId: id, reason: 'managed-references' });
+            continue;
+          }
+        }
         changes.push({ imageId: id, from, to });
-        if (!dryRun) await updateDoc('images', id, { publishedRefCount: to });
       }
     }
     if (res.items.length === 0 || page * res.pageSize >= res.total) break;
     page += 1;
   }
 
-  return { dryRun, imagesScanned, changes };
+  return { dryRun, imagesScanned, changes, ...(skipped.length ? { skipped } : {}) };
 }
 
 /** Must run under the image mutex, before ordinary reference scans. */

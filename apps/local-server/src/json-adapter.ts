@@ -76,6 +76,7 @@ import {
   runCatalogImageReferenceIncrement,
   runCatalogImageReferenceRead,
 } from '@vibelingan-channel/db/catalog-image-reference-store';
+import { assertOrdinaryImageReferenceWrite } from '@vibelingan-channel/db/catalog-image-reference-write';
 import {
   type CatalogPreparationAuthority,
   type CatalogPreparationJobCommand,
@@ -856,20 +857,22 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async create(collection: string, data: Record<string, unknown>): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, input);
     if (isCatalogRowCollection(collection))
       return this.withMutationLock(async () => {
-        const id = data._id === undefined ? randomUUID() : data._id;
+        const id = input._id === undefined ? randomUUID() : input._id;
         if (typeof id !== 'string') throw new Error('Catalog row identity must be a string');
         return this.writtenCatalogRow(
           await this.catalogRowMutation(
-            { action: 'create', collection, id, data },
+            { action: 'create', collection, id, data: input },
             new Date().toISOString(),
           ),
         );
       });
     return this.withMutationLock(() => {
       const now = new Date().toISOString();
-      const doc: CollectionDoc = { _id: randomUUID(), ...data, createdAt: now, updatedAt: now };
+      const doc: CollectionDoc = { _id: randomUUID(), ...input, createdAt: now, updatedAt: now };
       this.docs(collection).push(doc);
       this.persist();
       return doc;
@@ -881,10 +884,11 @@ export class JsonFileAdapter implements DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<CollectionDoc | null> {
+    const input = collection === 'images' ? structuredClone(data) : data;
     if (isCatalogRowCollection(collection))
       return this.withMutationLock(async () => {
         const result = await this.catalogRowMutation(
-          { action: 'update', collection, id, data },
+          { action: 'update', collection, id, data: input },
           new Date().toISOString(),
         );
         return result.status === 'missing' ? null : this.writtenCatalogRow(result);
@@ -894,7 +898,9 @@ export class JsonFileAdapter implements DbAdapter {
       const index = docs.findIndex((d) => d._id === id);
       if (index === -1) return null;
       const existing = docs[index] as CollectionDoc;
-      const updated: CollectionDoc = { ...existing, ...data, updatedAt: new Date().toISOString() };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, input);
+      const updated: CollectionDoc = { ...existing, ...input, updatedAt: new Date().toISOString() };
+      if (collection === 'images') updated._id = id;
       docs[index] = updated;
       this.persist();
       return updated;
@@ -1079,10 +1085,11 @@ export class JsonFileAdapter implements DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<'created' | 'exists'> {
+    const input = collection === 'images' ? structuredClone(data) : data;
     if (isCatalogRowCollection(collection))
       return this.withMutationLock(async () => {
         const result = await this.catalogRowMutation(
-          { action: 'create-if-missing', collection, id, data },
+          { action: 'create-if-missing', collection, id, data: input },
           new Date().toISOString(),
         );
         if (result.status === 'exists') return 'exists';
@@ -1092,7 +1099,8 @@ export class JsonFileAdapter implements DbAdapter {
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       if (docs.some((document) => document._id === id)) return 'exists';
-      const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
+      const { _id, ...payload } = input as Record<string, unknown> & { _id?: unknown };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(null, payload);
       docs.push({ _id: id, ...payload } as CollectionDoc);
       this.persist();
       return 'created';
@@ -1282,11 +1290,13 @@ export class JsonFileAdapter implements DbAdapter {
     data: Record<string, unknown>,
     createOnly: Record<string, unknown> = {},
   ): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
     if (isCatalogRowCollection(collection))
       return this.withMutationLock(async () =>
         this.writtenCatalogRow(
           await this.catalogRowMutation(
-            { action: 'upsert', collection, id, data, createOnly },
+            { action: 'upsert', collection, id, data: input, createOnly: initial },
             new Date().toISOString(),
           ),
         ),
@@ -1295,14 +1305,15 @@ export class JsonFileAdapter implements DbAdapter {
       const docs = this.docs(collection);
       const index = docs.findIndex((document) => document._id === id);
       const now = new Date().toISOString();
-      const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      const { _id, ...patch } = input as Record<string, unknown> & { _id?: unknown };
       if (index >= 0) {
+        if (collection === 'images') assertOrdinaryImageReferenceWrite(docs[index] ?? null, patch);
         const next = { ...(docs[index] as CollectionDoc), ...patch, updatedAt: now };
         docs[index] = next;
         this.persist();
         return next;
       }
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
         _id?: unknown;
       };
       const created = {
@@ -1312,6 +1323,8 @@ export class JsonFileAdapter implements DbAdapter {
         ...safeCreateOnly,
         ...patch,
       } as CollectionDoc;
+      if (collection === 'images')
+        assertOrdinaryImageReferenceWrite(null, { ...safeCreateOnly, ...patch });
       docs.push(created);
       this.persist();
       return created;
@@ -1441,6 +1454,8 @@ export class JsonFileAdapter implements DbAdapter {
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean> {
+    const input = collection === 'images' ? structuredClone(patch) : patch;
+    if (collection === 'images') Reflect.deleteProperty(input, '_id');
     return this.withMutationLock(async () => {
       const lease =
         this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
@@ -1448,7 +1463,7 @@ export class JsonFileAdapter implements DbAdapter {
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
       if (isCatalogRowCollection(collection)) {
         const result = await this.catalogRowMutation(
-          { action: 'update', collection, id, data: patch },
+          { action: 'update', collection, id, data: input },
           guard.now,
         );
         if (result.status === 'missing') return false;
@@ -1459,8 +1474,9 @@ export class JsonFileAdapter implements DbAdapter {
       const index = docs.findIndex((row) => row._id === id);
       if (index < 0) return false;
       const existing = docs[index] as CollectionDoc;
-      const baseline = collection === 'products' ? categorySyncBaseline(existing, patch) : {};
-      const next = { ...existing, ...patch, ...baseline, updatedAt: guard.now };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, input);
+      const baseline = collection === 'products' ? categorySyncBaseline(existing, input) : {};
+      const next = { ...existing, ...input, ...baseline, updatedAt: guard.now };
       const invalidated =
         collection === 'catalogSourceObservations'
           ? await this.sourceInvalidation(existing, next, guard.now)
@@ -1479,6 +1495,8 @@ export class JsonFileAdapter implements DbAdapter {
     createOnly: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean> {
+    const input = collection === 'images' ? structuredClone(patch) : patch;
+    const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
     return this.withMutationLock(async () => {
       const lease =
         this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
@@ -1487,7 +1505,7 @@ export class JsonFileAdapter implements DbAdapter {
       if (isCatalogRowCollection(collection)) {
         this.writtenCatalogRow(
           await this.catalogRowMutation(
-            { action: 'upsert', collection, id, data: patch, createOnly },
+            { action: 'upsert', collection, id, data: input, createOnly: initial },
             guard.now,
           ),
         );
@@ -1496,10 +1514,15 @@ export class JsonFileAdapter implements DbAdapter {
       const docs = this.docs(collection);
       const index = docs.findIndex((row) => row._id === id);
       const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
-      const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      const { _id: _patchId, ...safePatch } = input as Record<string, unknown> & { _id?: unknown };
+      const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
         _id?: unknown;
       };
+      if (collection === 'images')
+        assertOrdinaryImageReferenceWrite(
+          existing,
+          existing ? safePatch : { ...safeCreateOnly, ...safePatch },
+        );
       const next = existing
         ? { ...existing, ...safePatch, updatedAt: guard.now }
         : { ...safeCreateOnly, ...safePatch, _id: id, createdAt: guard.now, updatedAt: guard.now };

@@ -89,3 +89,8 @@ images.publishedRefCount的既有incrementField改用同快照全体终局结算
 ## P3e6d3来源清理兼容
 
 普通删除与来源退役共用同一只读零引用规划；source含URL note最大85docops，pending写只接受无ledger或合法空0，active复用保留原ledger/count/storage。候选清理旧base预检查/错误原因已对齐事务，所有准备/审批hold和引用扫描保留。其他writer与最终提交仍未接入，producer关闭。详见[P3e6d3](P3e6d3_SOURCE_CLEANUP_REFERENCES.zh-CN.md)。
+
+
+## P3e6d4创建/更新与回填兼容
+
+普通图片创建、deterministic create、update/upsert和租约写入共用保留字段守卫，已受ledger管理的base不能被绝对覆盖；metadata以原局部更新语义保存。回填报告managed/missing skip，写时再次核对，不吞未知供应商错误。只覆盖这些入口，其他通用remove/条件remove/非计数increment、生命周期writer和旧审批/最终原子激活仍待核验，producer关闭。详见[P3e6d4](P3e6d4_ORDINARY_IMAGE_WRITES.zh-CN.md)。

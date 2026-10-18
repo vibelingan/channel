@@ -1,3 +1,4 @@
+import { assertOrdinaryImageReferenceWrite, ImageReferenceWriteError } from './catalog-image-reference-write.ts';
 import {
   APPROVAL_IMAGE_HOLD_PROJECTION,
   approvalImageHoldWhere,
@@ -574,6 +575,8 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
   createOnly: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
 ): Promise<boolean> {
+  const input = collection === 'images' ? structuredClone(patch) : patch;
+  const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
   return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction: NodeSdkTransaction) => {
     const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
     const lease = normalizeSingle(sdkAnswer(await leaseRef.get()).data);
@@ -582,17 +585,19 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
     if (isCatalogRowCollection(collection)) {
       const result = await runCatalogRowMutation(
         catalogRowStore(transaction, beforeWrite),
-        { action: 'upsert', collection, id, data: patch, createOnly },
+        { action: 'upsert', collection, id, data: input, createOnly: initial },
         guard.now,
       );
       return result.status === 'written';
     }
     const targetRef = transaction.collection(collection).doc(id);
     const existing = normalizeSingle(sdkAnswer(await targetRef.get()).data);
-    const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
-    const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+    if (collection === 'images' && existing && existing._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    const { _id: _patchId, ...safePatch } = input as Record<string, unknown> & { _id?: unknown };
+    const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
       _id?: unknown;
     };
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, existing ? safePatch : { ...safeCreateOnly, ...safePatch });
     const next: CollectionDoc = existing
       ? { ...existing, ...safePatch, updatedAt: guard.now }
       : { ...safeCreateOnly, ...safePatch, _id: id, createdAt: guard.now, updatedAt: guard.now };
@@ -624,6 +629,8 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
   patch: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
 ): Promise<boolean> {
+  const input = collection === 'images' ? structuredClone(patch) : patch;
+  if (collection === 'images') Reflect.deleteProperty(input, '_id');
   return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction) => {
     const lease = normalizeSingle(
       sdkAnswer(
@@ -635,7 +642,7 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
     if (isCatalogRowCollection(collection)) {
       const result = await runCatalogRowMutation(
         catalogRowStore(transaction, beforeWrite),
-        { action: 'update', collection, id, data: patch },
+        { action: 'update', collection, id, data: input },
         guard.now,
       );
       return result.status === 'written';
@@ -643,8 +650,10 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
     const target = transaction.collection(collection).doc(id);
     const before = normalizeSingle(sdkAnswer(await target.get()).data);
     if (!before) return false;
-    const baseline = collection === 'products' ? categorySyncBaseline(before, patch) : {};
-    const values = { ...patch, ...baseline, updatedAt: guard.now };
+    if (collection === 'images' && before._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(before, input);
+    const baseline = collection === 'products' ? categorySyncBaseline(before, input) : {};
+    const values = { ...input, ...baseline, updatedAt: guard.now };
     const next = { ...before, ...values };
     const invalidated =
       collection === 'catalogSourceObservations'
@@ -801,6 +810,26 @@ export async function mutateAlibabaProductInCloud(
     },
   }, links, input));
   return 'guard' in input ? withAlibabaLeaseCommit(input.guard, commit) : commit();
+}
+
+export function updateImageInCloudBase(
+  db: NodeSdkDatabase,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<CollectionDoc | null> {
+  const { _id: _ignored, ...input } = structuredClone(data);
+  return db.runTransaction(async (transaction) => {
+    const store = catalogRowStore(transaction);
+    const image = await store.get('images', id);
+    if (!image) return null;
+    if (image._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    assertOrdinaryImageReferenceWrite(image, input);
+    const next = { ...image, ...input, _id: id, updatedAt: new Date().toISOString() };
+    confirmDocumentWrite(await transaction.collection('images').doc(id).update(
+      replaceNestedObjects({ ...input, updatedAt: next.updatedAt }, db.command),
+    ), id);
+    return next;
+  });
 }
 
 export function readCatalogImageReferenceInCloudBase(
@@ -1053,24 +1082,27 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async create(collection, data): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, input);
     if (isCatalogRowCollection(collection)) {
-      const id = data._id === undefined ? randomUUID() : data._id;
+      const id = input._id === undefined ? randomUUID() : input._id;
       if (typeof id !== 'string') throw new Error('Catalog row identity must be a string');
       return catalogWrittenRow(
         await mutateCatalogRowInCloudBase(
           cloudStorageSdk().database() as unknown as NodeSdkDatabase,
-          { action: 'create', collection, id, data },
+          { action: 'create', collection, id, data: input },
         ),
       );
     }
     const db = database();
     const now = new Date().toISOString();
-    const doc = { ...data, createdAt: now, updatedAt: now };
+    const doc = { ...input, createdAt: now, updatedAt: now };
     const res = await db.collection(collection).add({ data: doc });
     return normalize({ _id: res._id as string, ...doc });
   },
 
   async update(collection, id, data): Promise<CollectionDoc | null> {
+    if (collection === 'images') return updateImageInCloudBase(cloudStorageSdk().database(), id, data);
     if (isCatalogRowCollection(collection)) {
       const result = await mutateCatalogRowInCloudBase(
         cloudStorageSdk().database() as unknown as NodeSdkDatabase,
@@ -1165,10 +1197,11 @@ export const cloudBaseAdapter: DbAdapter = {
   // -------------------------------------------------------------------------
 
   async createDocWithId(collection, id, data): Promise<'created' | 'exists'> {
+    const input = collection === 'images' ? structuredClone(data) : data;
     if (isCatalogRowCollection(collection)) {
       const result = await mutateCatalogRowInCloudBase(
         cloudStorageSdk().database() as unknown as NodeSdkDatabase,
-        { action: 'create-if-missing', collection, id, data },
+        { action: 'create-if-missing', collection, id, data: input },
       );
       if (result.status === 'exists') return 'exists';
       catalogWrittenRow(result);
@@ -1181,8 +1214,10 @@ export const cloudBaseAdapter: DbAdapter = {
       if (normalizeSingle(got.data)) return 'exists';
       // set() is a full-replace upsert keyed by the doc id; _id must not
       // appear in the payload (SDK contract, probed in CI).
-      const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
-      await ref.set(payload);
+      const { _id, ...payload } = input as Record<string, unknown> & { _id?: unknown };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(null, payload);
+      const answer = await ref.set(payload);
+      if (collection === 'images') confirmDocumentWrite(answer, id);
       return 'created';
     });
   },
@@ -1212,11 +1247,13 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async upsertDocWithId(collection, id, data, createOnly = {}): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
     if (isCatalogRowCollection(collection)) {
       return catalogWrittenRow(
         await mutateCatalogRowInCloudBase(
           cloudStorageSdk().database() as unknown as NodeSdkDatabase,
-          { action: 'upsert', collection, id, data, createOnly },
+          { action: 'upsert', collection, id, data: input, createOnly: initial },
         ),
       );
     }
@@ -1225,18 +1262,23 @@ export const cloudBaseAdapter: DbAdapter = {
       const ref = transaction.collection(collection).doc(id);
       const got = await ref.get();
       const existing = normalizeSingle(got.data);
+      if (collection === 'images' && existing && existing._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
       const now = new Date().toISOString();
-      const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      const { _id, ...patch } = input as Record<string, unknown> & { _id?: unknown };
       if (existing) {
+        if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, patch);
         const merged = { ...patch, updatedAt: now };
-        await ref.update(replaceNestedObjects(merged, db.command));
+        const answer = await ref.update(replaceNestedObjects(merged, db.command));
+        if (collection === 'images') confirmDocumentWrite(answer, id);
         return normalize({ ...existing, ...merged, _id: id });
       }
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
         _id?: unknown;
       };
       const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
-      await ref.set(created);
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(null, { ...safeCreateOnly, ...patch });
+      const answer = await ref.set(created);
+      if (collection === 'images') confirmDocumentWrite(answer, id);
       return normalize({ _id: id, ...created });
     });
   },

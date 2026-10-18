@@ -33,6 +33,7 @@ import {
   saveCatalogProductInCloudBase,
   unclassifiedProductWhere,
   updateDocWithAlibabaLeaseInCloudBase,
+  updateImageInCloudBase,
   upsertCatalogSourceObservationInCloudBase,
   upsertDocWithAlibabaLeaseInCloudBase,
   wxRemovedCount,
@@ -3400,3 +3401,132 @@ for (const action of ['claim', 'checkpoint'] as const)
       assert.equal(image.storageFileId, 'local://original');
     }
   });
+
+function ordinaryImageFixture() {
+  return fakeDatabase({
+    images: [
+      {
+        _id: 'image',
+        name: 'old',
+        data: 'large-private-data',
+        publishedRefCount: 0,
+        catalogPublishedReferenceLedger: {
+          version: 'catalog-image-reference-ledger-v1',
+          epoch: 4,
+          pending: [],
+        },
+      },
+    ],
+    alibabaSyncLeases: [
+      {
+        _id: 'c',
+        holder: 'holder',
+        fence: 1,
+        acquiredAt: '2026-10-18T00:00:00.000Z',
+        heartbeatAt: '2026-10-18T00:00:00.000Z',
+        expiresAt: '2026-10-18T00:01:00.000Z',
+        releasedAt: '',
+      },
+    ],
+  });
+}
+test('native ordinary image metadata patch preserves managed fields with one strict update', async () => {
+  const h = ordinaryImageFixture();
+  const result = await updateImageInCloudBase(h.db, 'image', {
+    name: 'new',
+    privateValue: { child: true },
+  });
+  assert.ok(result);
+  assert.equal(result.name, 'new');
+  assert.equal(result.publishedRefCount, 0);
+  assert.equal(result.data, 'large-private-data');
+  assert.deepEqual(result.catalogPublishedReferenceLedger, {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [],
+  });
+  assert.equal(h.controls.maximumOperations, 2);
+});
+for (const fault of ['failWrite', 'silentWrite', 'codedWrite'] as const)
+  test(`native ordinary image update rolls back ${fault}`, async () => {
+    const h = ordinaryImageFixture();
+    const before = structuredClone(h.store);
+    h.controls[fault] = 'images/image';
+    await assert.rejects(updateImageInCloudBase(h.db, 'image', { name: 'new' }));
+    assert.deepEqual(h.store, before);
+  });
+for (const method of ['update', 'lease-update', 'lease-upsert'] as const)
+  test(`native ordinary ${method} refuses a managed base reset before any write`, async () => {
+    const h = ordinaryImageFixture();
+    const before = structuredClone(h.store);
+    const guard = {
+      connectionId: 'c',
+      holder: 'holder',
+      fence: 1,
+      now: '2026-10-18T00:00:00.000Z',
+    };
+    await assert.rejects(
+      method === 'update'
+        ? updateImageInCloudBase(h.db, 'image', { publishedRefCount: 1 })
+        : method === 'lease-update'
+          ? updateDocWithAlibabaLeaseInCloudBase(
+              h.db,
+              'images',
+              'image',
+              { publishedRefCount: 1 },
+              guard,
+            )
+          : upsertDocWithAlibabaLeaseInCloudBase(
+              h.db,
+              'images',
+              'image',
+              { publishedRefCount: 1 },
+              {},
+              guard,
+            ),
+    );
+    assert.deepEqual(h.store, before);
+  });
+test('native ordinary image input is captured before transaction startup, including later injected managed fields', async () => {
+  const h = ordinaryImageFixture();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const database: typeof h.db = {
+    ...h.db,
+    runTransaction: async (operation) => {
+      await gate;
+      return h.db.runTransaction(operation);
+    },
+  };
+  const input: Record<string, unknown> = { name: 'captured' };
+  const pending = updateImageInCloudBase(database, 'image', input);
+  input.name = 'changed';
+  input.publishedRefCount = 1;
+  input.catalogPublishedReferenceLedger = {};
+  release();
+  const result = await pending;
+  assert.ok(result);
+  assert.equal(result.name, 'captured');
+  assert.equal(result.publishedRefCount, 0);
+});
+
+test('native image lease metadata does not rename the referenced document', async () => {
+  const h = ordinaryImageFixture();
+  assert.equal(
+    await updateDocWithAlibabaLeaseInCloudBase(
+      h.db,
+      'images',
+      'image',
+      { _id: 'other', name: 'new' },
+      { connectionId: 'c', holder: 'holder', fence: 1, now: '2026-10-18T00:00:00.000Z' },
+    ),
+    true,
+  );
+  const image = h.store.get('images')?.get('image');
+  assert.ok(image);
+  assert.equal(image._id, 'image');
+  assert.equal(image.name, 'new');
+  assert.equal(image.publishedRefCount, 0);
+});

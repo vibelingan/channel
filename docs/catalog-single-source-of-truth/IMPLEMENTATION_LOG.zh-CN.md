@@ -1263,3 +1263,8 @@ images.publishedRefCount走共用同快照加载、结算全体终局再加delta
 ## P3e6d3：来源退役、pending与候选清理兼容
 
 来源退役复用d2唯一只读零引用规划，所有权/租期/锁/link先拒、image+URL note两写至多85docops；pending仅允许无ledger/合法空0，active热命中/复用不增减计数且整行解锁保留ledger和字节身份。候选移除有ledger交给删除事务，冲突映射still-referenced；native/JSON提前复制含target输入。34新增，12入口11业务红+1取消控制；最终各包5226（首次5224后只补2DB正常控制并补整个DB1831）、Node202196/19types/E2E/standingSDK通过。source15反例14测试139重叠失败+1SDK-only；共享模块提取后d2原17反例75失败+1SDK-only重证，五SHA恢复。实际SDK66组/双写6坏ACK/丢ACK恢复，四独立进程真实PNG删除恢复/0重放写，真实API五态保留/删除通过。[说明](P3e6d3_SOURCE_CLEANUP_REFERENCES.zh-CN.md)保留通用upsert自动时间字段导致proof夹具拒绝、提取与SDK脚本错误，不冒称产品反例。review九代码/测试与四记录，措辞“不写计数”改为“不增减计数且整行保留”，依实际两个active写点/正控。producer关闭，其他writer/final/UI/真实云P95和三时钟20件验收未完成，原P1/fullDeliveryReady=false。
+
+
+## P3e6d4：普通创建/更新与旧回填计数保护
+
+新增一处共享守卫供native/JSON普通create、deterministic create、update、upsert和租约写入使用：禁止写ledger/路径/operator、非法count与已有ledger的基数覆盖，metadata保持原值、createOnly只在实际创建时应用，输入在首个异步边界前复制。普通nativeupdate同事务get+局部update/严格ACK，不上传已有大image字段；租约fence保留。回填扫描与实际写入双重保护，managed/missing明确skip，未知供应商错误继续失败。新增59项/385聚焦，完整5285、Node202255/19types/E2E/standingSDK通过；20反例含16测试96重叠失败+4SDK-only，四SHA恢复；实际SDK137组及四进程PNG公开→回填→改名→下架→重开404/0重放文件写通过。[说明](P3e6d4_ORDINARY_IMAGE_WRITES.zh-CN.md)保留错误导入/格式/类型及注入器分类失败，不算业务红。review八源/测试和package、既有generic接口/调用者及三文档；“所有图片输入”改为本步创建/更新入口，并修正原回填注释，避免把跳过或维护窗口说成全目录原子修复。普通remove/条件remove/其他increment、上传/保护及旧审批原始计数/最终激活、UI/历史/provider/P95/test三时钟和20件发布回退仍开放；producer关闭，原formal P1/fullDeliveryReady=false。
