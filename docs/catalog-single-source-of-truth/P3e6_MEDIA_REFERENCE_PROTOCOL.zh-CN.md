@@ -189,3 +189,8 @@ continue仅scope/digest：先精确保存，再优先当前ready source候选、
 ## P3e7c7a 最后分类校验
 
 原native最终提交读当前taxonomy验证归属；没有共享目录写/assignmentFence变化，原product/root/proof3写保留，最终文档预算16、全套最高98。8新增/610安装SDK/5故障10重叠已验证，已有archive及空归属保持，损坏目录不猜默认；具体覆盖与显式主分类边界见[P3e7c7a](P3e7c7a_FINAL_CLASSIFICATION.zh-CN.md)。完整continue最终caller仍未接，精确产物仍d67cf6ab，fullDeliveryReady=false。
+
+
+## P3e7c7b 默认 continue 接最终事务
+
+媒体和私有引用暂存完整后，实际 Admin manager 默认调用原最终 3 写事务，只有真实完成回执及同批准 revision 才确认。历史 complete/current=false 不再发布；丢回应同根确认，未知失败保持可查询 scope。服务端依赖可延后阶段测试，客户请求没有此开关。本地 20 个隔离手工对象共用实际 PNG，4 并发发布并逐件读回、下架、引用归零及旧完成任务不复活已验证；不是浏览器或真实云选品。626 SDK/final16 操作与 3 写/最高98，详见 [P3e7c7b](P3e7c7b_OWNED_FINAL_CONTINUE.zh-CN.md)。慢媒体 fallback、来源审阅及其他原门槛未关闭。

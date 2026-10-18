@@ -1,5 +1,9 @@
 import { get, manageCatalogProductOperation } from '@vibelingan-channel/db';
 import type { CatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import {
+  type OwnedFinalContinuationStep,
+  continueOwnedCatalogPublication,
+} from './catalog-operation-final-continue.ts';
 import { createOwnedMediaPreparation } from './catalog-operation-media-preparation.ts';
 import { continueOwnedCatalogReferences } from './catalog-operation-reference-continue.ts';
 import type { CatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
@@ -10,7 +14,11 @@ import { withAdminEditsKept } from './catalog-supplier-review.ts';
 export function manageAdminCatalogProductOperation(
   actorId: string,
   input: unknown,
-  preparation?: { authority?: CatalogPreparationAuthority; invoke?: CatalogPreparationInvoker },
+  preparation?: {
+    authority?: CatalogPreparationAuthority;
+    invoke?: CatalogPreparationInvoker;
+    publish?: OwnedFinalContinuationStep;
+  },
 ) {
   if (
     input &&
@@ -26,6 +34,7 @@ export function manageAdminCatalogProductOperation(
         ? createOwnedMediaPreparation(preparation.authority, preparation.invoke)
         : undefined,
       continueOwnedCatalogReferences,
+      preparation?.publish ?? continueOwnedCatalogPublication,
     );
   const productId =
     input && typeof input === 'object' ? Reflect.get(input, 'productId') : undefined;

@@ -37,86 +37,13 @@ import { fixture as sourceFixture } from '../../functions/admin/src/testing/cata
 import { importCandidateImage } from '../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { handlePublicApiEvent } from '../../functions/public-api/src/http-adapter.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
-
-const at = '2026-10-18T00:00:00.000Z';
-const operationId = '12345678-1234-4234-8234-123456789012';
-async function workspace(t: TestContext, count?: number) {
-  const directory = mkdtempSync(join(tmpdir(), 'channel-owned-continue-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const file = join(directory, 'db.json');
-  const productId = count === undefined ? 'manual' : 'read-product';
-  const rows =
-    count === undefined
-      ? {
-          users: [{ _id: 'admin', role: 'admin', status: 'active' }],
-          products: [
-            {
-              _id: productId,
-              name: 'Clock',
-              description: 'Original draft',
-              productFamily: 'misc',
-              published: false,
-              archived: false,
-              imageIds: ['image'],
-              updatedAt: at,
-              catalogPricingMode: 'manual',
-              manualCatalogPricing: {
-                schemaVersion: 'manual-catalog-pricing-v1',
-                currency: 'USD',
-                tiers: [{ minQuantity: 1, unitAmountMinor: 300 }],
-              },
-            },
-          ],
-          images: [
-            { _id: 'image', status: 'active', storageProvider: 'local-disk', publishedRefCount: 0 },
-          ],
-        }
-      : sourceFixture(count).adapter.rows;
-  const product = rows.products?.[0];
-  assert.ok(product);
-  Object.assign(product, { archived: false, imageIds: ['image'], updatedAt: at });
-  rows.images = [
-    { _id: 'image', status: 'active', storageProvider: 'local-disk', publishedRefCount: 0 },
-  ];
-  writeFileSync(file, JSON.stringify(rows));
-  const adapter = new JsonFileAdapter(file);
-  setAdapter(adapter);
-  const config = { jwtSecret: 'owned-continue-test-only', enableDetailApproval: true };
-  const token = await signSession(config.jwtSecret, {
-    sub: 'admin',
-    role: 'admin',
-    name: 'Admin',
-    email: 'admin@example.test',
-  });
-  const invoke = (data: unknown) =>
-    handleAdminRequest({ action: 'catalogDetailApproval', token, data }, config);
-  const start = async (
-    intent: 'publish' | 'save-draft' = 'publish',
-    values: Record<string, unknown> = { description: 'My saved draft' },
-  ) => {
-    const response = await invoke({
-      action: 'product-operation-start',
-      productId,
-      operationId,
-      intent,
-      expectedUpdatedAt: at,
-      values,
-    });
-    assert.ok(response.ok, JSON.stringify(response));
-    const status = CatalogProductOperationStatusSchema.parse(response.data);
-    return { productId, operationId, inputDigest: status.inputDigest };
-  };
-  return {
-    adapter,
-    file,
-    productId,
-    invoke,
-    start,
-    invokeWithConfig: (data: unknown, extra: Partial<AdminConfig>) =>
-      handleAdminRequest({ action: 'catalogDetailApproval', token, data }, { ...config, ...extra }),
-    bytes: () => readFileSync(file, 'utf8'),
-  };
-}
+import {
+  at,
+  coldOwnedMedia,
+  operationId,
+  ownedColdPng,
+  workspace,
+} from './testing/catalog-operation-workspace.ts';
 
 test('actual Admin continue saves a manual draft and attaches preparation to the same immutable operation', async (t) => {
   const h = await workspace(t);
@@ -1461,65 +1388,6 @@ for (const code of ['FORBIDDEN', 'CONFLICT', 'SOURCE_NOT_READY'])
     assert.ok(!response.ok && response.code === code, JSON.stringify(response));
     assert.equal(h.bytes(), before);
   });
-
-const ownedColdPng = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==',
-  'base64',
-);
-async function coldOwnedMedia(h: Awaited<ReturnType<typeof workspace>>, importSource = false) {
-  const storage = new LocalDiskMediaStorage(join(dirname(h.file), 'cold-media'));
-  setMediaStorage(storage);
-  const object = await storage.putObject({
-    namespace: 'catalog',
-    logicalId: 'image',
-    fileName: 'sample.png',
-    mimeType: 'image/png',
-    content: ownedColdPng,
-  });
-  const rows = JSON.parse(h.bytes());
-  Object.assign(rows.images[0], object, {
-    mimeType: 'image/png',
-    byteSize: ownedColdPng.length,
-    checksumSha256: createHash('sha256').update(ownedColdPng).digest('hex'),
-  });
-  if (importSource)
-    rows.catalogSourceObservations[0].observation.variants[0].media = [
-      { sourceUrl: 'https://sc04.alicdn.com/owned-cold-sku.png', position: 0, role: 'variant' },
-    ];
-  writeFileSync(h.file, JSON.stringify(rows));
-  const authority = createCatalogPreparationAuthority({
-    secret: 'owned-cold-media',
-    environmentId: 'owned-cold-media',
-  });
-  let invocations = 0;
-  let fetches = 0;
-  const config: Partial<AdminConfig> = {
-    preparationAuthority: authority,
-    preparationInvoke: async (call) => {
-      invocations++;
-      return {
-        result: await runCatalogPreparationWorker(
-          authority,
-          call,
-          importSource
-            ? {
-                importSourceImage: (url, persistImport) =>
-                  importCandidateImage(url, {
-                    persistImport,
-                    resolveDns: async () => ['104.16.1.1'],
-                    fetchImpl: async () => {
-                      fetches++;
-                      return new Response(new Uint8Array(ownedColdPng));
-                    },
-                  }),
-              }
-            : {},
-        ),
-      };
-    },
-  };
-  return { storage, config, invocations: () => invocations, fetches: () => fetches };
-}
 
 test('actual Admin continuation runs the existing signed worker for a cold stored PNG and binds its real ready receipt', async (t) => {
   const h = await workspace(t);

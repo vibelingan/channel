@@ -174,6 +174,7 @@ import { CatalogValidationSchema, catalogValidationMessage } from './catalog-val
 import { cleanupOrphanUploadImage } from './orphan-upload-cleanup.ts';
 import { cleanupSourceMediaImage } from './source-media-cleanup.ts';
 
+import type { OwnedFinalContinuationStep } from './catalog-operation-final-continue.ts';
 export interface AdminConfig {
   jwtSecret: string;
   enableInquiries?: boolean;
@@ -182,6 +183,8 @@ export interface AdminConfig {
   /** Server-only control authority; never returned in capabilities or product data. */
   preparationAuthority?: CatalogPreparationAuthority;
   preparationInvoke?: CatalogPreparationInvoker;
+  /** Server workflow dependency; omitted runtimes use the native final transaction. */
+  productOperationPublisher?: OwnedFinalContinuationStep;
   /** Absolute URL of the login page, used in emails. */
   loginUrl?: string;
   /** Absolute URL of the password-reset page; the reset token is appended as `?token=`. */
@@ -702,6 +705,9 @@ export async function handleAdminRequest(
                             ? { authority: config.preparationAuthority }
                             : {}),
                           ...(config.preparationInvoke ? { invoke: config.preparationInvoke } : {}),
+                          ...(config.productOperationPublisher
+                            ? { publish: config.productOperationPublisher }
+                            : {}),
                         })
                       : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);

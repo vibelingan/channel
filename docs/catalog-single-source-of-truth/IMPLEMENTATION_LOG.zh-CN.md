@@ -1365,3 +1365,8 @@ continue在原saved seed和staging重开均按持久cursor调用原native配置�
 ## P3e7c7a 最终事务核对分类目录
 
 原native最终3写之前读取当前taxonomy，复用shared归属校验；非法赋值classify、损坏目录system-repair、未知IO不当缺行。空归属/已有archive/显式Headphones旧wired保留，目录不写入且不新增锁。3红→8新增/326native/529相关/5987全包/3022Node20/19类型+E2E/两Biome/standing SDK通过；5故障10重叠/单SHA恢复，610安装SDK含6分类控制，最终16文档操作仍3写，全套98。实际核对两文件、shared taxonomy及原分类保存/目录管理与最终回执，澄清旧Headphones正例带主分类，缺主类不自动补。精确产物停留d67cf6ab，下一完整caller小流程一并构建；未启用客户UI/未部署/真实验收未完成，详见[P3e7c7a](P3e7c7a_FINAL_CLASSIFICATION.zh-CN.md)。
+
+
+## P3e7c7b 原任务最终发布调用
+
+默认 manager 在配置/媒体/引用完成后调用原 native 最终事务，完成必须读回同 scope 和批准 revision；丢回应查原根，未知结果不猜成功，历史完成不重新发布。30 新增、584 相关、7 包和部署脚本 6017、Node20 3052、19 包类型/E2E/7 文件 Biome/standing SDK 通过。11 故障检出 16 重叠失败，3 源码 SHA 恢复；626 安装 SDK 保留最高 98 文档预算，最终仍 16 操作/3 写。实际 PNG 的本地 20 隔离手工商品 4 并发发布、逐件公开读回、实际 Admin 下架、共享引用归零及历史任务不复活通过；allSettled 确保清理前工作者全部结束。人工逐项核对 7 文件及 native/handler/DTO，把本地 20 与真实选品、准入预算与网络性能分开。精确产物留在本提交后按 SHA 验证；原 UI P1、review/live/新图/P5 和真实现场门槛未关闭，详见 [P3e7c7b](P3e7c7b_OWNED_FINAL_CONTINUE.zh-CN.md)，fullDeliveryReady=false。

@@ -14,6 +14,7 @@ import {
 } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import { createOwnedCatalogSourcePreparer } from './catalog-detail-source.ts';
+import type { OwnedFinalContinuationStep } from './catalog-operation-final-continue.ts';
 import type { OwnedMediaPreparationStep } from './catalog-operation-media-preparation.ts';
 import type { OwnedReferenceContinuationStep } from './catalog-operation-reference-continue.ts';
 
@@ -105,6 +106,7 @@ export async function continueAdminCatalogProductOperation(
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
   prepareMedia?: OwnedMediaPreparationStep,
   prepareReferences?: OwnedReferenceContinuationStep,
+  publish?: OwnedFinalContinuationStep,
 ) {
   if (
     !fitsJsonBudget(input, 4096, 12) ||
@@ -219,6 +221,19 @@ export async function continueAdminCatalogProductOperation(
         Math.max(0, deadline - deps.now()),
         referenceRecovery,
       );
+      current = result.ok ? status(result, scope) : failure(result);
+    }
+    if (
+      publish &&
+      current.ok &&
+      current.state === 'staging' &&
+      current.approval.mediaReady &&
+      current.approval.configurations.completed === current.approval.configurations.total &&
+      current.approval.references.prepared &&
+      current.approval.references.staged === current.approval.references.total &&
+      deps.now() < deadline
+    ) {
+      const result = await publish(actorId, scope, Math.max(0, deadline - deps.now()));
       return result.ok ? status(result, scope) : failure(result);
     }
     return current;
