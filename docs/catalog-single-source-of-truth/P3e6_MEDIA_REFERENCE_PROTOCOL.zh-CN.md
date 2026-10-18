@@ -1,6 +1,6 @@
 # P3e6 大媒体提交协议复核与最小实现
 
-状态：P3e6a基础纯函数局部验证通过；未启用图片账本、HTTP、公开放行或最终发布。原正式响应丢失 P1、真实云验收和 fullDeliveryReady=false 保留。基线 c0058e7。
+状态：纯计划、同快照读/结算、取消读端、公开消费与旧increment增减已通过各自本地检查；真实账本producer和最终发布仍未启用。原正式响应丢失P1、真实云验收和fullDeliveryReady=false保留。初始基线c0058e7。
 
 ## 运行问题与边界
 
@@ -74,3 +74,8 @@ P3e6a：纯计划、证明、同快照计数/全体结算；红测→实现→�
 ## P3e6c1b取消读端补齐
 
 commit与cancel共用由root/treeRoot/leafCount派生的同一终局行ID。取消差值为0、结算移除本pending，缺证明仍保留；80项仍81读+1写。已提交结果不能被取消，取消只针对尚未提交的操作；后续producer必须在原根事务精确重放或写唯一终局，禁止翻转kind。此时只有factory与统一读端已验证，真实producer仍关闭。详见[P3e6c1b](P3e6c1b_CANCELLED_REFERENCE_PROOF.zh-CN.md)。
+
+
+## P3e6d1旧增减路径
+
+images.publishedRefCount的既有incrementField改用同快照全体终局结算加delta、唯一图片set；legacy缺counter保持未知并返回null。其他字段不受影响。尚未接入旧审批、删除、回填和普通writer，不因此启用producer；没有操作ID的旧delta丢回执后不可盲重试。详见[P3e6d1](P3e6d1_LEGACY_REFERENCE_ADJUST.zh-CN.md)。

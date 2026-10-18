@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { runCatalogImageReferenceRead } from './catalog-image-reference-store.ts';
+import {
+  runCatalogImageReferenceIncrement,
+  runCatalogImageReferenceRead,
+} from './catalog-image-reference-store.ts';
 import {
   CatalogImageReferenceError,
   buildCatalogImageReferencePlan,
@@ -392,4 +395,144 @@ test('an undefined image response cannot masquerade as a missing image', async (
     runCatalogImageReferenceRead({ ...h.tx, get: async () => Reflect.get({}, 'missing') }, command),
     CatalogImageReferenceError,
   );
+});
+
+for (const delta of [-1, 1])
+  test(`old ${delta} reference adjustment settles every committed proof before one write`, async () => {
+    const h = fixture(
+      [
+        { delta: delta === -1 ? 1 : -1, committed: true },
+        { delta: 1, committed: false },
+      ],
+      delta === -1 ? 0 : 1,
+    );
+    const count = await runCatalogImageReferenceIncrement(
+      h.tx,
+      { imageId: 'image', delta },
+      '2026-10-18T01:00:00.000Z',
+    );
+    assert.equal(count, delta === -1 ? 0 : 1);
+    assert.equal(h.calls.length, 4);
+    assert.equal(h.calls.at(-1), 'set:images:image');
+    assert.equal(h.calls.filter((c) => c.startsWith('set:')).length, 1);
+    const image = h.rows.images?.[0];
+    assert.ok(image);
+    assert.deepEqual(image.catalogPublishedReferenceLedger, {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 5,
+      pending: [catalogImageReferenceEntry(h.plans[1] ?? assert.fail(), 0)],
+    });
+    assert.equal(image.updatedAt, '2026-10-18T01:00:00.000Z');
+    assert.equal(image.imageMutationOwner, h.image.imageMutationOwner);
+    assert.deepEqual(image.privateValue, h.image.privateValue);
+    assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+  });
+for (const delta of [-1, 1])
+  test(`old ${delta} adjustment preserves the canonical absent-ledger shape`, async () => {
+    const h = fixture([], 1);
+    Reflect.deleteProperty(h.image, 'catalogPublishedReferenceLedger');
+    h.rows.images = [h.image];
+    assert.equal(
+      await runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta }),
+      1 + delta,
+    );
+    assert.equal(
+      Object.hasOwn(h.rows.images?.[0] ?? assert.fail(), 'catalogPublishedReferenceLedger'),
+      false,
+    );
+    assert.equal(h.calls.length, 2);
+  });
+test('80 pending proofs and old adjustment fit exactly one 82-operation transaction', async () => {
+  const h = fixture(Array.from({ length: 80 }, () => ({ delta: 1, committed: true })));
+  assert.equal(
+    await runCatalogImageReferenceIncrement(h.tx, {
+      imageId: 'image',
+      delta: -1,
+      maxDocumentOperations: 82,
+    }),
+    79,
+  );
+  assert.equal(h.calls.length, 82);
+  assert.equal(h.calls.filter((c) => c.startsWith('set:')).length, 1);
+});
+for (const pending of [false, true])
+  test(`adjustment write allowance rejects an exhausted budget before proofs pending=${pending}`, async () => {
+    const h = fixture(pending ? [{ delta: 1, committed: true }] : [], 1);
+    const before = h.bytes();
+    await assert.rejects(
+      runCatalogImageReferenceIncrement(h.tx, {
+        imageId: 'image',
+        delta: 1,
+        maxDocumentOperations: pending ? 2 : 1,
+      }),
+      /DOCUMENT_BUDGET_EXCEEDED/,
+    );
+    assert.deepEqual(h.calls, ['get:images:image']);
+    assert.equal(h.bytes(), before);
+  });
+for (const delta of [Number.NaN, Number.POSITIVE_INFINITY, 1.5, Number.MAX_SAFE_INTEGER + 1])
+  test(`unsafe old delta ${delta} is refused before storage`, async () => {
+    const h = fixture([], 1);
+    await assert.rejects(runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta }));
+    assert.deepEqual(h.calls, []);
+  });
+for (const [base, delta] of [
+  [0, -1],
+  [Number.MAX_SAFE_INTEGER, 1],
+])
+  test(`old adjustment refuses invalid final count base=${base} delta=${delta}`, async () => {
+    const h = fixture([], base);
+    const before = h.bytes();
+    await assert.rejects(
+      runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta }),
+      /INVALID_COUNT/,
+    );
+    assert.equal(h.bytes(), before);
+    assert.equal(h.calls.length, 1);
+  });
+for (const shape of [
+  'missing',
+  'legacy',
+  'corrupt-counter',
+  'counter-without-ledger',
+  'ledger-without-counter',
+  'undefined-ledger',
+] as const)
+  test(`old adjustment respects image state ${shape}`, async () => {
+    const h = fixture([], 0);
+    if (shape === 'missing') h.rows.images = [];
+    if (shape === 'legacy') {
+      Reflect.deleteProperty(h.image, 'publishedRefCount');
+      Reflect.deleteProperty(h.image, 'catalogPublishedReferenceLedger');
+    }
+    if (shape === 'corrupt-counter') h.image.publishedRefCount = '1';
+    if (shape === 'counter-without-ledger')
+      Reflect.deleteProperty(h.image, 'catalogPublishedReferenceLedger');
+    if (shape === 'ledger-without-counter') Reflect.deleteProperty(h.image, 'publishedRefCount');
+    if (shape === 'undefined-ledger') h.image.catalogPublishedReferenceLedger = undefined;
+    const before = h.bytes();
+    if (shape === 'missing' || shape === 'legacy') {
+      assert.equal(
+        await runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta: 1 }),
+        null,
+      );
+      assert.equal(h.bytes(), before);
+    } else if (shape === 'counter-without-ledger') {
+      assert.equal(
+        await runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta: 1 }),
+        1,
+      );
+    } else {
+      await assert.rejects(runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta: 1 }));
+      assert.equal(h.bytes(), before);
+    }
+  });
+test('zero delta cleans terminal proofs once and subsequent zero adjustment is read-only', async () => {
+  const h = fixture([{ delta: 1, committed: true }]);
+  assert.equal(await runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta: 0 }), 1);
+  h.reset();
+  const before = h.bytes();
+  assert.equal(await runCatalogImageReferenceIncrement(h.tx, { imageId: 'image', delta: 0 }), 1);
+  assert.deepEqual(h.calls, ['get:images:image']);
+  assert.equal(h.bytes(), before);
 });

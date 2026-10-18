@@ -597,8 +597,9 @@ export interface DbAdapter {
   remove(collection: string, id: string): Promise<boolean>;
   /**
    * Atomically add `delta` to one numeric field of a document and return the
-   * new value, or `null` if the document does not exist. A trusted server-side
-   * primitive for maintaining server-managed counters (e.g.
+   * new value, or `null` if the document does not exist. An absent legacy
+   * images.publishedRefCount also returns null because its base is unknown.
+   * A trusted server-side primitive for maintaining server-managed counters (e.g.
    * `images.publishedRefCount`) that are read-only on the generic write surface.
    */
   incrementField(

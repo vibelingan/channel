@@ -13,6 +13,9 @@ import {
 } from './catalog-preparation-jobs.ts';
 import {
   CatalogImageReferenceReadSchema,
+  CatalogImageReferenceIncrementSchema,
+  type CatalogImageReferenceIncrementCommand,
+  runCatalogImageReferenceIncrement,
   type CatalogImageReferenceReadCommand,
   runCatalogImageReferenceRead,
 } from './catalog-image-reference-store.ts';
@@ -808,6 +811,16 @@ export function readCatalogImageReferenceInCloudBase(
   );
 }
 
+export function incrementCatalogImageReferenceInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  input: CatalogImageReferenceIncrementCommand,
+) {
+  const command = CatalogImageReferenceIncrementSchema.parse(input);
+  return db.runTransaction((transaction) =>
+    runCatalogImageReferenceIncrement(catalogRowStore(transaction), command),
+  );
+}
+
 export function manageCatalogPreparationJobInCloudBase(
   db: Pick<NodeSdkDatabase, 'runTransaction'>,
   authority: CatalogPreparationAuthority,
@@ -1086,6 +1099,8 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async incrementField(collection, id, field, delta): Promise<number | null> {
+    if (collection === 'images' && field === 'publishedRefCount')
+      return incrementCatalogImageReferenceInCloudBase(cloudStorageSdk().database(), { imageId: id, delta });
     if (isCatalogRowCollection(collection)) {
       const result = await mutateCatalogRowInCloudBase(
         cloudStorageSdk().database() as unknown as NodeSdkDatabase,

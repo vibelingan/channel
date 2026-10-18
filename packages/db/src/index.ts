@@ -323,7 +323,8 @@ export function updateDoc(
  * Trusted, server-side atomic increment of one numeric field, bypassing the
  * registry write-schema. Used to maintain server-managed counters such as
  * `images.publishedRefCount` (read-only on the generic CRUD surface). Returns
- * the new value, or `null` if the document does not exist.
+ * the new value, or `null` if the document does not exist. Image reference counters
+ * also return null for a legacy row whose counter is absent, preserving its unknown base.
  */
 export function incrementField(
   collection: string,

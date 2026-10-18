@@ -61,8 +61,11 @@ import {
   canonicalApprovedVariant,
 } from '@vibelingan-channel/db/catalog-detail-storage';
 import {
+  CatalogImageReferenceIncrementSchema,
   type CatalogImageReferenceReadCommand,
   CatalogImageReferenceReadSchema,
+  type CatalogImageReferenceStore,
+  runCatalogImageReferenceIncrement,
   runCatalogImageReferenceRead,
 } from '@vibelingan-channel/db/catalog-image-reference-store';
 import {
@@ -197,23 +200,25 @@ function registerOwnerCleanup(): void {
 export class JsonFileAdapter implements DbAdapter {
   async readCatalogImageReference(input: CatalogImageReferenceReadCommand) {
     const command = CatalogImageReferenceReadSchema.parse(input);
+    return this.imageReferenceTransaction((tx) => runCatalogImageReferenceRead(tx, command));
+  }
+  private imageReferenceTransaction<T>(
+    run: (tx: CatalogImageReferenceStore) => Promise<T>,
+  ): Promise<T> {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
       let changed = false;
-      const result = await runCatalogImageReferenceRead(
-        {
-          get: async (collection, id) =>
-            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
-          set: async (collection, row) => {
-            const rows = copy[collection];
-            const index = rows?.findIndex((existing) => existing._id === row._id) ?? -1;
-            if (!rows || index < 0) throw Error('Reference image disappeared');
-            rows[index] = structuredClone(row);
-            changed = true;
-          },
+      const result = await run({
+        get: async (collection, id) =>
+          structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+        set: async (collection, row) => {
+          const rows = copy[collection];
+          const index = rows?.findIndex((existing) => existing._id === row._id) ?? -1;
+          if (!rows || index < 0) throw Error('Reference image disappeared');
+          rows[index] = structuredClone(row);
+          changed = true;
         },
-        command,
-      );
+      });
       if (changed) {
         const previous = this.store;
         this.store = copy;
@@ -914,6 +919,10 @@ export class JsonFileAdapter implements DbAdapter {
     field: string,
     delta: number,
   ): Promise<number | null> {
+    if (collection === 'images' && field === 'publishedRefCount') {
+      const command = CatalogImageReferenceIncrementSchema.parse({ imageId: id, delta });
+      return this.imageReferenceTransaction((tx) => runCatalogImageReferenceIncrement(tx, command));
+    }
     if (isCatalogRowCollection(collection))
       return this.withMutationLock(async () => {
         const result = await this.catalogRowMutation(

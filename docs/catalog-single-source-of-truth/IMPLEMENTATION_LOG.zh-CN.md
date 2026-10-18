@@ -1248,3 +1248,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e6c1b：取消引用证明的统一读端
 
 沿相同小型终局proof ID识别commit/cancel，取消清理自身pending但不变计数，未决仍保留。严格判别union及纯引擎由native/JSON/public共用；真实producer继续关闭。28新增/182聚焦；DB1750+local644+public182=2576，Node201945，19types/E2E/standingSDK/Biome通过。27反例253重叠失败且SHA恢复，实际安装SDK15组/82docops，四进程重开及0重复文件写通过。[说明](P3e6c1b_CANCELLED_REFERENCE_PROOF.zh-CN.md)明确读端不证明终局写入原子性。实际文字复核源码/三测试/协议及两记录，把aborted addition改为cancelled addition inactive，计数0并非撤销已提交事实；不把取消factory当不可变写端。原P1/fullDeliveryReady=false保留，继续旧writer及最终流程。
+
+
+## P3e6d1：旧图片计数增减兼容
+
+images.publishedRefCount走共用同快照加载、结算全体终局再加delta，一次完整set；80pending82ops。缺counter的legacy返回null且不初始化，其他字段沿原inc。44新增，8业务红；最终各包/脚本5156、Node202098、19types/E2E/standingSDK通过，新增持久化测试后补整个local661/Node20。18源码反例（16测试79重叠失败+2SDK-only）及三SHA恢复，实际SDK29组同transactionId/严格ACK/提前capture、四独立进程丢回执读回通过；非幂等delta不盲重放。[说明](P3e6d1_LEGACY_REFERENCE_ADJUST.zh-CN.md)保留unsafe夹具自动修改与同步parse探针断言修正，均非产品反例。实际review四生产模块/三测试、接口、MIU/协议/SDK/本记录；null说明补legacy未知基数语义。原保存actor/classification fence块byte-equalad383a8。旧审批/删除/回填/其他writer和final/UI/真实云验收未完成，producer关闭，原P1/fullDeliveryReady=false。

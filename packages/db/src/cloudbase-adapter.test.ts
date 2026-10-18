@@ -14,12 +14,17 @@ import {
   prepareStagedApproval,
 } from './catalog-detail-staging.ts';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceEntry,
+} from './catalog-image-references.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
 import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import {
   acquireImageMutationInCloudBase,
   claimAlibabaSyncRunInCloudBase,
+  incrementCatalogImageReferenceInCloudBase,
   manageCatalogPreparationJobInCloudBase,
   mutateCatalogRowInCloudBase,
   preparingProductHiddenWhere,
@@ -3163,3 +3168,78 @@ for (const mode of ['silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
       assert.equal(h.store.get('catalogDetailVariants')?.size, 20);
       assert.equal(h.controls.maximumOperations, 47);
     });
+
+for (const delta of [-1, 1])
+  test(`native old ${delta} reference adjustment uses one acknowledged transaction write`, async () => {
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      delta === -1 ? [] : ['image'],
+      delta === -1 ? ['image'] : [],
+    );
+    const h = fakeDatabase({
+      images: [
+        {
+          _id: 'image',
+          publishedRefCount: delta === -1 ? 0 : 1,
+          imageMutationOwner: 'preserve',
+          catalogPublishedReferenceLedger: {
+            version: 'catalog-image-reference-ledger-v1',
+            epoch: 4,
+            pending: [catalogImageReferenceEntry(plan, 0)],
+          },
+        },
+      ],
+      catalogDetailApprovals: [plan.proof],
+    });
+    assert.equal(
+      await incrementCatalogImageReferenceInCloudBase(h.db, { imageId: 'image', delta }),
+      delta === -1 ? 0 : 1,
+    );
+    assert.equal(h.controls.maximumOperations, 3);
+    const image = h.store.get('images')?.get('image');
+    assert.ok(image);
+    assert.equal(image.publishedRefCount, delta === -1 ? 0 : 1);
+    assert.equal(image.imageMutationOwner, 'preserve');
+    assert.deepEqual(image.catalogPublishedReferenceLedger, {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 5,
+      pending: [],
+    });
+    assert.deepEqual(h.store.get('catalogDetailApprovals')?.get(plan.proof._id), plan.proof);
+  });
+for (const fault of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`native old reference adjustment rolls back ${fault}`, async () => {
+    const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], ['image']);
+    const h = fakeDatabase({
+      images: [
+        {
+          _id: 'image',
+          publishedRefCount: 0,
+          catalogPublishedReferenceLedger: {
+            version: 'catalog-image-reference-ledger-v1',
+            epoch: 4,
+            pending: [catalogImageReferenceEntry(plan, 0)],
+          },
+        },
+      ],
+      catalogDetailApprovals: [plan.proof],
+    });
+    const before = structuredClone(h.store);
+    h.controls[fault] = 'images/image';
+    await assert.rejects(
+      incrementCatalogImageReferenceInCloudBase(h.db, { imageId: 'image', delta: 1 }),
+    );
+    assert.deepEqual(h.store, before);
+    h.controls[fault] = '';
+    assert.equal(
+      await incrementCatalogImageReferenceInCloudBase(h.db, { imageId: 'image', delta: 1 }),
+      2,
+    );
+  });
+test('native invalid reference delta is refused before starting a transaction', () => {
+  const h = fakeDatabase({ images: [] });
+  assert.throws(() =>
+    incrementCatalogImageReferenceInCloudBase(h.db, { imageId: 'image', delta: 0.5 }),
+  );
+  assert.equal(h.controls.maximumOperations, 0);
+});

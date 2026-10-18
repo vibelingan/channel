@@ -1,4 +1,4 @@
-/** Read images and every commit proof through the same transaction snapshot. */
+/** Read images and every terminal proof through the same transaction snapshot. */
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import {
@@ -44,21 +44,77 @@ export function emptyCatalogImageReferenceCount(image: CollectionDoc): number | 
     .effectiveCount;
 }
 
+export const CatalogImageReferenceIncrementSchema = CatalogImageReferenceReadSchema.omit({
+  action: true,
+})
+  .extend({ delta: z.number().int().safe() })
+  .strict();
+export type CatalogImageReferenceIncrementCommand = z.input<
+  typeof CatalogImageReferenceIncrementSchema
+>;
+
 /** Caller owns one transaction or one JSON mutation lock; no nested snapshot or external IO. */
 export async function runCatalogImageReferenceRead(
   tx: CatalogImageReferenceStore,
   input: unknown,
 ): Promise<CatalogImageReferenceSnapshot> {
   const command = CatalogImageReferenceReadSchema.parse(input);
+  const loaded = await loadImageReferences(
+    tx,
+    command,
+    command.action === 'settle' ? 'settle' : false,
+  );
+  if (loaded.snapshot.state !== 'counted' || !loaded.settlement || command.action !== 'settle')
+    return loaded.snapshot;
+  await tx.set('images', loaded.settlement);
+  return { ...loaded.snapshot, image: loaded.settlement, settled: true };
+}
+
+/** Merge old counter maintenance and all resolved proofs in one image write. Legacy absence stays unknown. */
+export async function runCatalogImageReferenceIncrement(
+  tx: CatalogImageReferenceStore,
+  input: unknown,
+  now = new Date().toISOString(),
+): Promise<number | null> {
+  const command = CatalogImageReferenceIncrementSchema.parse(input);
+  const loaded = await loadImageReferences(tx, command, command.delta === 0 ? 'settle' : 'adjust');
+  if (loaded.snapshot.state !== 'counted') return null;
+  const next = loaded.snapshot.effectiveCount + command.delta;
+  if (!Number.isSafeInteger(next) || next < 0)
+    throw new CatalogImageReferenceError('INVALID_COUNT');
+  if (command.delta === 0 && !loaded.settlement) return next;
+  await tx.set('images', {
+    ...(loaded.settlement ?? loaded.snapshot.image),
+    publishedRefCount: next,
+    updatedAt: now,
+  });
+  return next;
+}
+
+type LoadedImageReferences = {
+  snapshot: CatalogImageReferenceSnapshot;
+  settlement: CollectionDoc | null;
+};
+async function loadImageReferences(
+  tx: CatalogImageReferenceStore,
+  command: { imageId: string; maxDocumentOperations: number },
+  write: 'settle' | 'adjust' | false,
+): Promise<LoadedImageReferences> {
   const image = await tx.get('images', command.imageId);
   if (image === undefined) throw new CatalogImageReferenceError('MISSING_SNAPSHOT_READ');
   if (image === null)
-    return { state: 'missing', imageId: command.imageId, documentReads: 1, settled: false };
+    return {
+      snapshot: { state: 'missing', imageId: command.imageId, documentReads: 1, settled: false },
+      settlement: null,
+    };
   if (image._id !== command.imageId) throw new CatalogImageReferenceError('INVALID_LEDGER');
   const hasLedger = Object.hasOwn(image, ledgerField);
   if (!Object.hasOwn(image, 'publishedRefCount')) {
     if (hasLedger) throw new CatalogImageReferenceError('INVALID_COUNT');
-    return { state: 'legacy', image, documentReads: 1, settled: false };
+    return {
+      snapshot: { state: 'legacy', image, documentReads: 1, settled: false },
+      settlement: null,
+    };
   }
   // Validate the base before fetching any proofs; an absent ledger grants no delta.
   planImageReferenceSettlement(command.imageId, image.publishedRefCount, undefined, new Map());
@@ -66,7 +122,7 @@ export async function runCatalogImageReferenceRead(
     throw new CatalogImageReferenceError('INVALID_LEDGER');
   const proofIds = catalogImageReferenceProofIds(command.imageId, image[ledgerField]);
   const documentReads = 1 + proofIds.length;
-  const writeAllowance = command.action === 'settle' && proofIds.length > 0 ? 1 : 0;
+  const writeAllowance = write === 'adjust' || (write === 'settle' && proofIds.length > 0) ? 1 : 0;
   if (documentReads + writeAllowance > command.maxDocumentOperations)
     throw new CatalogImageReferenceError('DOCUMENT_BUDGET_EXCEEDED');
   const proofs = new Map<string, CollectionDoc | null>();
@@ -87,21 +143,20 @@ export async function runCatalogImageReferenceRead(
     image[ledgerField],
     proofs,
   );
-  let current = image;
-  const settled = command.action === 'settle' && plan.settlement !== null;
-  if (settled && plan.settlement) {
-    current = {
-      ...image,
-      publishedRefCount: plan.settlement.publishedRefCount,
-      [ledgerField]: plan.settlement.ledger,
-    };
-    await tx.set('images', current);
-  }
   return {
-    state: 'counted',
-    image: current,
-    effectiveCount: plan.effectiveCount,
-    documentReads,
-    settled,
+    snapshot: {
+      state: 'counted',
+      image,
+      effectiveCount: plan.effectiveCount,
+      documentReads,
+      settled: false,
+    },
+    settlement: plan.settlement
+      ? {
+          ...image,
+          publishedRefCount: plan.settlement.publishedRefCount,
+          [ledgerField]: plan.settlement.ledger,
+        }
+      : null,
   };
 }
