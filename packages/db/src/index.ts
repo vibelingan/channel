@@ -110,7 +110,9 @@ export function manageImageDeletion(command: ImageDeletionCommand) {
   return adapter.manageImageDeletion(input);
 }
 
+import { CatalogProductOperationBindingSchema } from '@vibelingan-channel/shared/catalog-product-operation';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import { prepareOwnedApprovalSeed } from './catalog-operation-approval-seed.ts';
 import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
 import {
   type ProductOperationStartNormalizer,
@@ -207,6 +209,27 @@ export async function manageCatalogPreparationJob(
   if (!adapter.manageCatalogPreparationJob)
     throw new Error('Preparation job persistence unavailable');
   return adapter.manageCatalogPreparationJob(authority, command, now);
+}
+export async function prepareCatalogProductOperationApproval(
+  actorId: string,
+  input: unknown,
+  canBegin: () => boolean = () => true,
+) {
+  const parsed = CatalogProductOperationBindingSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+  const scope = parsed.data;
+  const result = await prepareOwnedApprovalSeed(
+    { get, persist: persistCatalogDetailApproval },
+    actorId,
+    scope,
+    canBegin,
+  );
+  if (!result.ok) return result;
+  return manageCatalogProductOperation(actorId, {
+    action: 'product-operation-get',
+    productId: scope.productId,
+    operationId: scope.operationId,
+  });
 }
 export function manageCatalogProductOperation(
   actorId: string,

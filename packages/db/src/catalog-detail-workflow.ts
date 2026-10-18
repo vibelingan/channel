@@ -60,7 +60,11 @@ export interface CatalogApprovalStore {
   persist(actorId: string, command: ApprovalPersistenceCommand): Promise<ApprovalStageResult>;
 }
 
-async function readCandidate(store: CatalogApprovalStore, productId: string) {
+export async function readCatalogApprovalCandidate(
+  store: CatalogApprovalStore,
+  productId: string,
+  canRead: () => boolean = () => true,
+) {
   const product = await store.get('products', productId);
   if (!product) return { ok: false as const, code: 'NOT_FOUND' as const };
   const manifest = CatalogApprovalManifestSchema.safeParse(product.detailSourceManifest);
@@ -71,20 +75,24 @@ async function readCandidate(store: CatalogApprovalStore, productId: string) {
     manifest.data.revision !== product.detailSourceRevision
   )
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  if (!canRead()) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const rows: CollectionDoc[] = [];
   // Provider calls are bounded and OUTSIDE a transaction. Missing rows are not filtered out.
   for (let offset = 0; offset < manifest.data.variantIds.length; offset += 8) {
+    if (!canRead()) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
     const batch = await Promise.all(
       manifest.data.variantIds
         .slice(offset, offset + 8)
         .map((id) => store.get('productVariants', id)),
     );
+    if (!canRead()) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
     for (const row of batch) {
       if (!row || row.detailSourceRevision !== manifest.data.revision)
         return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
       rows.push(row);
     }
   }
+  if (!canRead()) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const current = await store.get('products', productId);
   if (!current || approvalProductFingerprint(current) !== approvalProductFingerprint(product))
     return { ok: false as const, code: 'CONFLICT' as const };
@@ -119,7 +127,7 @@ export async function runCatalogApprovalWorkflow(
   if (command.action === 'page' || command.action === 'finish')
     return store.persist(actorId, command);
   const productId = command.action === 'begin' ? command.command.productId : command.productId;
-  const read = await readCandidate(store, productId);
+  const read = await readCatalogApprovalCandidate(store, productId);
   if (!read.ok) return read;
   if (command.action === 'begin') {
     const prepared = prepareStagedApproval(actorId, command.command, read.product, read.rows);

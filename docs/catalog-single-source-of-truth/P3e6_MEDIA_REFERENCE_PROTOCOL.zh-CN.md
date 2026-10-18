@@ -154,3 +154,8 @@ product-operation-start/get/cancel经现有Admin鉴权与开关，由独立DB fa
 ## P3e7c2 实际 Admin 的冻结草稿保存
 
 公开start调用实际keep helper，原身份规范化成为shared规则并在冻结前执行；原提交摘要保留规范化前原稿身份。save只带scope/digest，服务器从根取patch，原生expectedOperation+版本事务才是写入许可。保存后查询小回执，saved/staging/complete重试只读，取消不可恢复；publish意图在该步骤不发布。旧未规范reserved不改冻结原稿，返回reload。完整256KiB公开预算、内部有界2048B余量以及根512KiB/1MiB上限保留。实际Admin/API/SDK/竞争与容量证据见[P3e7c2](P3e7c2_ADMIN_OWNED_DRAFT_SAVE.zh-CN.md)；客户continue/UI、live候选/review/真实验收仍待完成。
+
+
+## P3e7c3 服务器准备同根审批
+
+continue仅scope/digest：先精确保存，再优先当前ready source候选、否则准备共享派生source页。服务器读manifest全部配置、计算旧统一网站计划并调用原owned begin，浏览器不带prepared/新快照；仍同一operationId/inputDigest。保存后来源缓存未改变原根operation/saved或网站/分类/lifecycle字段；已经提交的共享缓存不因取消删除，原生owned事务仍拒绝取消/失效scope。每次async状态读回统一校验current，历史查询另留。35项/551SDK/预算与大候选点读无持久游标的边界见[P3e7c3](P3e7c3_OWNED_APPROVAL_SEED.zh-CN.md)，C3b与完整发布/实际验收继续。

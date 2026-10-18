@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES,
+  CatalogProductOperationBindingSchema,
   CatalogProductOperationStatusSchema,
 } from './product-operation.ts';
 const at = '2026-10-18T00:00:00.000Z';
@@ -93,6 +94,34 @@ for (const progress of [
         state: 'staging',
         saved,
         approval: progress,
+      }).success,
+      false,
+    );
+  });
+
+test('owned continuation binding contains only the exact original operation identity', () => {
+  const binding = {
+    productId: '中'.repeat(200),
+    operationId: base.operationId,
+    inputDigest: base.inputDigest,
+  };
+  assert.deepEqual(CatalogProductOperationBindingSchema.parse(binding), binding);
+});
+for (const extra of [
+  { actorId: 'other' },
+  { values: {} },
+  { prepared: {} },
+  { inputDigest: 'wrong' },
+  { operationId: 'wrong' },
+  { productId: 'x'.repeat(201) },
+])
+  test(`owned continuation binding refuses ${JSON.stringify(extra)}`, () => {
+    assert.equal(
+      CatalogProductOperationBindingSchema.safeParse({
+        productId: 'p',
+        operationId: base.operationId,
+        inputDigest: base.inputDigest,
+        ...extra,
       }).success,
       false,
     );

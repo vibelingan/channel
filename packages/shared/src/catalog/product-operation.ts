@@ -19,6 +19,12 @@ const base = z
     cancelledAt: z.string().datetime().optional(),
   })
   .strict();
+export const CatalogProductOperationBindingSchema = base.pick({
+  productId: true,
+  operationId: true,
+  inputDigest: true,
+});
+export type CatalogProductOperationBinding = z.infer<typeof CatalogProductOperationBindingSchema>;
 const saved = z
   .object({ at: z.string().datetime(), productUpdatedAt: z.string().datetime() })
   .strict();
