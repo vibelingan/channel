@@ -1,3 +1,18 @@
+import {
+  type CatalogImageReferenceReadCommand,
+  CatalogImageReferenceReadSchema,
+} from './catalog-image-reference-store.ts';
+export {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  emptyCatalogImageReferenceCount,
+} from './catalog-image-reference-store.ts';
+export function readCatalogImageReference(command: CatalogImageReferenceReadCommand) {
+  const input = CatalogImageReferenceReadSchema.parse(command);
+  const adapter = db();
+  if (!adapter.readCatalogImageReference)
+    throw Error('Image reference snapshot adapter is not configured');
+  return adapter.readCatalogImageReference(input);
+}
 import { approvalImageHoldCancelled } from './catalog-approval-image-hold.ts';
 import { findCatalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
 import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';

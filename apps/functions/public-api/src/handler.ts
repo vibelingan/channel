@@ -1,5 +1,12 @@
 import { verifySession } from '@vibelingan-channel/auth/jwt';
-import { findByField, get, list } from '@vibelingan-channel/db';
+import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  emptyCatalogImageReferenceCount,
+  findByField,
+  get,
+  list,
+  readCatalogImageReference,
+} from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -622,8 +629,8 @@ function binaryImage(doc: CollectionDoc, body: string): BinaryResult {
 }
 
 export async function getCatalogImage(imageId: string): Promise<ApiResult<unknown> | BinaryResult> {
-  const doc = await get('images', imageId);
-  if (!doc) return err('NOT_FOUND', 'Image not found');
+  let doc = await get('images', imageId);
+  if (!doc || doc._id !== imageId) return err('NOT_FOUND', 'Image not found');
 
   // The placeholder is public by explicit id — never gated on refcount/status.
   if (imageId === PLACEHOLDER_IMAGE_ID) {
@@ -632,12 +639,38 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
       : err('NOT_FOUND', 'Image not found');
   }
 
+  let refCount = doc.publishedRefCount;
+  if (Object.hasOwn(doc, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
+    try {
+      const emptyCount = emptyCatalogImageReferenceCount(doc);
+      if (emptyCount !== null) refCount = emptyCount;
+      else {
+        const snapshot = await readCatalogImageReference({ action: 'read', imageId });
+        if (
+          snapshot.state !== 'counted' ||
+          snapshot.image._id !== imageId ||
+          !Object.hasOwn(snapshot.image, 'publishedRefCount') ||
+          !Number.isSafeInteger(snapshot.effectiveCount) ||
+          snapshot.effectiveCount < 0 ||
+          snapshot.settled
+        )
+          return err('NOT_FOUND', 'Image not found');
+        doc = snapshot.image;
+        refCount = snapshot.effectiveCount;
+      }
+    } catch (error) {
+      const value = error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+      const code =
+        typeof value === 'string' && /^[A-Z0-9_]{1,80}$/.test(value) ? value : 'UNAVAILABLE';
+      console.error('[fn-public-api] image reference snapshot unavailable', { imageId, code });
+      return err('NOT_FOUND', 'Image not found');
+    }
+  }
   const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : 'legacy-base64';
   // publishedRefCount is "valid" only as a finite NUMBER. The writer/backfill
   // always store a number (and `isStorageBackedImage` narrows on
   // `typeof === 'number'`), so a numeric STRING like "1" — or any non-number — is
   // a corrupt value and must fail closed, not coerce to a positive count.
-  const refCount = doc.publishedRefCount;
   const visibleByRefCount =
     typeof refCount === 'number' && Number.isFinite(refCount) && refCount > 0;
   const hasRefCountField = Object.hasOwn(doc, 'publishedRefCount');

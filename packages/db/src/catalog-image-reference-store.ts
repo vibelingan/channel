@@ -29,8 +29,20 @@ export interface CatalogImageReferenceStore {
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   set(collection: 'images', row: CollectionDoc): Promise<void>;
 }
-const ledgerField = 'catalogPublishedReferenceLedger';
+export const CATALOG_IMAGE_REFERENCE_LEDGER_FIELD = 'catalogPublishedReferenceLedger';
+const ledgerField = CATALOG_IMAGE_REFERENCE_LEDGER_FIELD;
 const proofsCollection = 'catalogDetailApprovals';
+
+/** A valid empty ledger and its base are already one image snapshot; null means proofs need a transaction. */
+export function emptyCatalogImageReferenceCount(image: CollectionDoc): number | null {
+  if (!Object.hasOwn(image, 'publishedRefCount'))
+    throw new CatalogImageReferenceError('INVALID_COUNT');
+  const ledger = image[ledgerField];
+  if (ledger === undefined) throw new CatalogImageReferenceError('INVALID_LEDGER');
+  if (catalogImageReferenceProofIds(image._id, ledger).length > 0) return null;
+  return planImageReferenceSettlement(image._id, image.publishedRefCount, ledger, new Map())
+    .effectiveCount;
+}
 
 /** Caller owns one transaction or one JSON mutation lock; no nested snapshot or external IO. */
 export async function runCatalogImageReferenceRead(

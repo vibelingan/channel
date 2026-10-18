@@ -1236,3 +1236,10 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e6c1：图片引用快照与全部结算
 
 一个事务体读取图片和全部小proof，4并行点读、最大81读+1写；native/JSON共用，严格区分缺失/失败读取，排空并发失败，保留原metadata/未提交项与legacy缺counter语义。59新增、110聚焦；实际SDK生产接线12组/三坏ACK/commit丢确认、四进程文件恢复通过。原引擎18反例134重叠失败重跑，另17反例52失败+2SDK-only检出，恢复SHA。相关五包3446/Node201742/19types/E2E/standingSDK通过。[本步说明](P3e6c1_REFERENCE_SNAPSHOT.zh-CN.md)保留未启用consumer/producer及provider/P95边界。review pure/helper/两adapter/接口/出口、两测试与三文档；把初稿imageId200字符限制改为沿现有字符语法、无新增长度业务上限，对照isApprovalImageId及非法换行测试；区分单图80证明/82文档操作与UI批量验收。继续旧消费者与最终提交；原formal P1/fullDeliveryReady=false。
+
+
+## P3e6c2a：公开图片有效引用读端
+
+非空ledger走只读一致快照，采用整张metadata与effectiveCount；无ledger及完整验证的空ledger保留1get，count0不误开事务。坏proof/能力/返回值拒绝而非fallback，日志不含私有错误/URL。44新增、19反例122重叠失败并恢复SHA，实际Node/Wx SDK编译HTTP11组/同transactionId/0公开写/单get通过；真实文件字节在独立HTTP单测覆盖。DB/public1907/Node201907/19types/E2E/standingSDK通过。[说明](P3e6c2a_PUBLIC_REFERENCE_READ.zh-CN.md)保留首版夹具缺config及错误proof根的修正，不算产品bug。review三生产模块/测试与三文档；将“有ledger必须事务”具体改为非空proof事务/有效空行快照，未冒称P95。继续旧写端兼容与final，原P1/fullDeliveryReady=false。
+
+提交初审追加修复own-counter存在性，两个非法adapter HTTP反例从200expected404转绿，再删两个guard各自失败；真实adapter原检查保留，消费者不再走legacy fallback。上述最终计数均按该修复重跑。
