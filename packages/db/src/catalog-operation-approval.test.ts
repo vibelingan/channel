@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
+import { CATALOG_APPROVAL_JOB_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job.ts';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
 import { productOperationSaveReceipt, runProductOperation } from './catalog-product-operation.ts';
@@ -17,6 +20,8 @@ async function fixture(
   saved = true,
   large = false,
   linked = false,
+  variantCount = 0,
+  extra: Record<string, unknown> = {},
 ) {
   const product: CollectionDoc = {
     _id: 'p',
@@ -44,6 +49,26 @@ async function fixture(
       offers: [],
     },
   };
+  const variants = Array.from({ length: variantCount }, (_, position) => ({
+    _id: `v${position}`,
+    productId: 'p',
+    position,
+    sku: `sku-${position}`,
+    detailSourceOwner: product.detailSourceOwner,
+    detailSourceRevision: 'r1',
+    detailSourceMissing: false,
+    imageIds: [],
+    optionValues: { Color: String(position) },
+    detailSourceCandidate: {
+      id: `v${position}`,
+      options: [],
+      images: [],
+      offers: [],
+      inventory: { state: 'unknown' },
+    },
+  }));
+  product.detailSourceManifest = { revision: 'r1', variantIds: variants.map((row) => row._id) };
+  Object.assign(product, extra);
   const rows: Record<string, CollectionDoc[]> = {
     users: [
       { _id: 'admin', role: 'admin' },
@@ -52,6 +77,8 @@ async function fixture(
     ],
     products: [product],
     catalogDetailApprovals: [],
+    productVariants: variants,
+    catalogDetailVariants: [],
   };
   if (linked) {
     rows.alibabaSourceProducts = [
@@ -120,16 +147,17 @@ async function fixture(
     const receipt = productOperationSaveReceipt(result.record, product);
     await tx.set('catalogDetailApprovals', receipt);
   }
+  const previous = CatalogDetailPublicationSchema.safeParse(product.catalogDetailPublication);
   const planned = prepareStagedApproval(
     'admin',
     {
       productId: 'p',
       operationId: uuid,
-      expectedRevision: null,
-      expectedDigest: catalogApprovalDigest(product, []),
+      expectedRevision: previous.success ? previous.data.revision : null,
+      expectedDigest: catalogApprovalDigest(product, variants),
     },
     product,
-    [],
+    variants,
   );
   assert.ok(planned.ok, JSON.stringify(planned));
   const root = rows.catalogDetailApprovals?.[0];
@@ -360,3 +388,261 @@ for (const afterBegin of [false, true])
       assert.equal(get.ok, true);
       assert.equal(get.current, false);
     });
+
+async function pageFixture(count = 21) {
+  const h = await fixture('publish', true, false, true, count);
+  const begun = object(await h.invoke(h.command));
+  assert.equal(begun.ok, true, JSON.stringify(begun));
+  return {
+    ...h,
+    page: (page: number) => ({
+      action: 'operation-approval-page',
+      productId: 'p',
+      operationId: uuid,
+      inputDigest: h.command.inputDigest,
+      page,
+    }),
+  };
+}
+test('own approval pages persist21immutable variants with one original cursor and no publication', async () => {
+  const h = await pageFixture();
+  const original = object(object(await h.invoke(query)).record);
+  const writes = h.writes();
+  const first = object(await h.invoke(h.page(0)));
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(object(first.record).nextPage, 1);
+  assert.equal(h.writes() - writes, 21);
+  assert.equal(h.rows.catalogDetailVariants?.length, 20);
+  const recovered = object(await h.invoke(query));
+  assert.equal(object(recovered.record).nextPage, 1);
+  const bytes = h.bytes();
+  const count = h.writes();
+  assert.deepEqual(await h.invoke(h.page(0)), recovered);
+  assert.equal(h.bytes(), bytes);
+  assert.equal(h.writes(), count);
+  const second = object(await h.invoke(h.page(1)));
+  assert.equal(second.ok, true, JSON.stringify(second));
+  const record = object(second.record);
+  assert.equal(record.nextPage, 2);
+  assert.equal(record.state, 'staging');
+  assert.deepEqual(record.operation, original.operation);
+  assert.deepEqual(record.saved, original.saved);
+  assert.equal(record.createdAt, original.createdAt);
+  assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+  assert.equal(h.rows.catalogDetailVariants?.length, 21);
+  for (const [i, row] of (h.rows.catalogDetailVariants ?? []).entries()) {
+    assert.equal(row.productId, 'p');
+    assert.equal(row.catalogDetailRevision, record.revision);
+    assert.equal(row.catalogDetailPosition, i);
+    assert.equal(row.variantId, `v${i}`);
+    assert.equal(object(row.catalogDetailApproved).id, `v${i}`);
+    assert.notEqual(row._id, `v${i}`);
+  }
+  const final = h.bytes();
+  const written = h.writes();
+  assert.deepEqual(await h.invoke(h.start), second);
+  assert.deepEqual(await h.invoke(h.page(0)), second);
+  assert.deepEqual(await h.invoke(h.page(1)), second);
+  assert.equal(h.bytes(), final);
+  assert.equal(h.writes(), written);
+  assert.equal(h.product.published, false);
+  assert.equal(h.product.catalogDetailPublication, undefined);
+  assert.equal(h.product.catalogDetailApprovalReceipt, undefined);
+});
+test('own approval handles105variants in six bounded pages', async () => {
+  const h = await pageFixture(105);
+  for (let page = 0; page < 6; page++) {
+    const before = h.writes();
+    const result = object(await h.invoke(h.page(page)));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(object(result.record).nextPage, page + 1);
+    assert.ok(h.writes() - before <= 21);
+  }
+  assert.equal(h.rows.catalogDetailVariants?.length, 105);
+  assert.equal(h.product.published, false);
+});
+for (const change of [
+  'future-page',
+  'bad-page',
+  'wrong-digest',
+  'other-actor',
+  'member',
+  'expired',
+  'lifecycle',
+  'classification',
+  'source',
+  'source-row-revision',
+  'missing-source-row',
+  'source-row-content',
+] as const)
+  test(`own page refuses ${change} without any row/cursor write`, async () => {
+    const h = await pageFixture();
+    const cmd = h.page(0);
+    let actor = 'admin';
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    const variant = h.rows.productVariants?.[0];
+    assert.ok(variant);
+    if (change === 'future-page') cmd.page = 1;
+    if (change === 'bad-page') cmd.page = 500;
+    if (change === 'wrong-digest') cmd.inputDigest = '0'.repeat(64);
+    if (change === 'other-actor') actor = 'other';
+    if (change === 'member') actor = 'guest';
+    if (change === 'expired')
+      root.createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    if (change === 'lifecycle') h.product.catalogLifecycleVersion = 2;
+    if (change === 'classification') h.product.catalogClassificationRevision = 1;
+    if (change === 'source') {
+      const source = h.rows.alibabaSourceProducts?.[0];
+      assert.ok(source);
+      source.contentHash = 'b'.repeat(64);
+    }
+    if (change === 'source-row-revision') variant.detailSourceRevision = 'changed';
+    if (change === 'missing-source-row') h.rows.productVariants = [];
+    if (change === 'source-row-content') variant.optionValues = { Color: 'unreviewed' };
+    const bytes = h.bytes();
+    const writes = h.writes();
+    assert.equal(object(await h.invoke(cmd, actor)).ok, false);
+    assert.equal(h.bytes(), bytes);
+    assert.equal(h.writes(), writes);
+  });
+
+for (const change of ['product', 'owner', 'missing', 'candidate-id', 'archived'] as const)
+  test(`own page refuses foreign or inactive configuration ${change}`, async () => {
+    const h = await pageFixture();
+    const row = h.rows.productVariants?.[0];
+    assert.ok(row);
+    if (change === 'product') row.productId = 'other';
+    if (change === 'owner') row.detailSourceOwner = 'foreign';
+    if (change === 'missing') row.detailSourceMissing = true;
+    if (change === 'candidate-id') object(row.detailSourceCandidate).id = 'other';
+    if (change === 'archived') row.archived = true;
+    const before = h.bytes();
+    assert.equal(object(await h.invoke(h.page(0))).ok, false);
+    assert.equal(h.bytes(), before);
+  });
+for (const change of ['role', 'expired', 'future', 'lifecycle', 'updated-at', 'source'] as const)
+  test(`a saved page cannot replay across a changed ${change}`, async () => {
+    const h = await pageFixture();
+    assert.equal(object(await h.invoke(h.page(0))).ok, true);
+    if (change === 'role') {
+      const user = h.rows.users?.find((u) => u._id === 'admin');
+      assert.ok(user);
+      user.status = 'suspended';
+    }
+    if (change === 'expired' || change === 'future') {
+      const root = h.rows.catalogDetailApprovals?.[0];
+      assert.ok(root);
+      root.createdAt = new Date(
+        Date.now() + (change === 'future' ? 60000 : -7200000),
+      ).toISOString();
+    }
+    if (change === 'lifecycle') h.product.catalogLifecycleVersion = 2;
+    if (change === 'updated-at') h.product.updatedAt = new Date(Date.now() + 1000).toISOString();
+    if (change === 'source') {
+      const source = h.rows.alibabaSourceProducts?.[0];
+      assert.ok(source);
+      source.contentHash = 'c'.repeat(64);
+    }
+    const before = h.bytes();
+    const writes = h.writes();
+    assert.equal(object(await h.invoke(h.page(0))).ok, false);
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  });
+test('capture-only metadata allows the remaining own page without changing its source baseline', async () => {
+  const h = await pageFixture();
+  assert.equal(object(await h.invoke(h.page(0))).ok, true);
+  const source = h.rows.alibabaSourceProducts?.[0];
+  assert.ok(source);
+  source.updatedAt = new Date().toISOString();
+  source.lastSeenAt = new Date().toISOString();
+  const variant = h.rows.productVariants?.[20];
+  assert.ok(variant);
+  variant.updatedAt = new Date().toISOString();
+  const result = object(await h.invoke(h.page(1)));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(object(result.record).nextPage, 2);
+});
+test('codec budget retains512KiB of payload when the valid cursor grows to two digits', async () => {
+  const h = await fixture('publish', true, false, false, 201);
+  const job = structuredClone(h.command.prepared);
+  job.publication.header.facts = Array.from({ length: 256 }, (_, i) => ({
+    name: `F${i}`,
+    value: 'x'.repeat(1900),
+  }));
+  for (const fact of job.publication.header.facts) {
+    const remaining = CATALOG_APPROVAL_JOB_MAX_BYTES - Buffer.byteLength(JSON.stringify(job));
+    if (!remaining) break;
+    fact.name += 'n'.repeat(Math.min(remaining, 200 - fact.name.length));
+  }
+  assert.equal(Buffer.byteLength(JSON.stringify(job)), CATALOG_APPROVAL_JOB_MAX_BYTES);
+  assert.ok(ApprovalJobSchema.safeParse(job).success);
+  assert.equal(fitsApprovalJobBudget(job), true);
+  job.nextPage = 10;
+  assert.ok(ApprovalJobSchema.safeParse(job).success);
+  assert.ok(Buffer.byteLength(JSON.stringify(job)) > CATALOG_APPROVAL_JOB_MAX_BYTES);
+  assert.equal(fitsApprovalJobBudget(job), true);
+  const available = job.publication.header.facts.find((f) => f.name.length < 200);
+  assert.ok(available);
+  available.name += 'n';
+  assert.ok(ApprovalJobSchema.safeParse(job).success);
+  assert.equal(fitsApprovalJobBudget(job), false);
+  // This is a pure valid-schema codec boundary; no altered candidate is persisted or claimed server-prepared.
+  assert.equal(h.rows.catalogDetailVariants?.length, 0);
+});
+
+test('owned pages preserve the entire previously approved draft and its original revision', async () => {
+  const old = {
+    state: 'approved',
+    revision: 'older',
+    variantCount: 0,
+    header: {
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'p',
+      name: 'Previously reviewed',
+      images: [],
+      facts: [],
+      offers: [],
+    },
+  };
+  const h = await fixture('publish', true, false, true, 21, { catalogDetailPublication: old });
+  const before = structuredClone(h.product);
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  for (const page of [0, 1])
+    assert.equal(
+      object(
+        await h.invoke({
+          action: 'operation-approval-page',
+          productId: 'p',
+          operationId: uuid,
+          inputDigest: h.command.inputDigest,
+          page,
+        }),
+      ).ok,
+      true,
+    );
+  assert.deepEqual(h.product, before);
+  assert.deepEqual(h.product.catalogDetailPublication, old);
+});
+test('an empty owned approval and an unsaved approval have no page to commit', async () => {
+  const h = await pageFixture(0);
+  const before = h.bytes();
+  assert.equal(object(await h.invoke(h.page(0))).ok, false);
+  assert.equal(h.bytes(), before);
+  const unbegun = await fixture('publish', true, false, true, 21);
+  const bytes = unbegun.bytes();
+  assert.equal(
+    object(
+      await unbegun.invoke({
+        action: 'operation-approval-page',
+        productId: 'p',
+        operationId: uuid,
+        inputDigest: unbegun.command.inputDigest,
+        page: 0,
+      }),
+    ).ok,
+    false,
+  );
+  assert.equal(unbegun.bytes(), bytes);
+});

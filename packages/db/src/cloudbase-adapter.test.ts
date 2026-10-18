@@ -8,7 +8,11 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
 import { readCurrentCatalogPreparationRequest } from '@vibelingan-channel/shared/catalog-preparation';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
-import { persistStagedApprovalInCloud, prepareStagedApproval } from './catalog-detail-staging.ts';
+import {
+  approvedVariantDocumentId,
+  persistStagedApprovalInCloud,
+  prepareStagedApproval,
+} from './catalog-detail-staging.ts';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
@@ -2968,8 +2972,54 @@ test('native capture keeps all facts of a legal UTF-8 approval larger than the s
   assert.deepEqual(h.store.get('catalogDetailApprovals')?.get(reviewed._id), reviewed);
 });
 
-async function nativeOwnApprovalFixture() {
+async function nativeOwnApprovalFixture(variantCount = 0, linked = false) {
+  const variants: CollectionDoc[] = Array.from({ length: variantCount }, (_, position) => ({
+    _id: `v${position}`,
+    productId: 'p',
+    position,
+    sku: `sku-${position}`,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'r1',
+    detailSourceMissing: false,
+    imageIds: [],
+    optionValues: { Color: String(position) },
+    detailSourceCandidate: {
+      id: `v${position}`,
+      options: [],
+      images: [],
+      offers: [],
+      inventory: { state: 'unknown' },
+    },
+  }));
+  const source: Record<string, CollectionDoc[]> = linked
+    ? {
+        alibabaSourceProducts: [
+          {
+            _id: 's',
+            sourceKey: 's',
+            connectionId: 'c',
+            sourceProductId: 'ext',
+            contentHash: 'a'.repeat(64),
+            active: true,
+          },
+        ],
+        catalogSourceObservations: [],
+        alibabaProductLinks: [
+          {
+            _id: 's',
+            sourceKey: 's',
+            connectionId: 'c',
+            sourceProductId: 'ext',
+            productId: 'p',
+            linkedAt: '2026-10-18T00:00:00.000Z',
+          },
+        ],
+      }
+    : {};
   const h = await ownDraftFixture({}, 'publish', {
+    ...source,
+    productVariants: variants,
+    catalogDetailVariants: [],
     products: [
       {
         _id: 'p',
@@ -2982,11 +3032,12 @@ async function nativeOwnApprovalFixture() {
         archived: false,
         imageIds: [],
         updatedAt: '2026-10-18T00:00:00.000Z',
+        ...(linked ? { alibabaPrimarySourceKey: 's', alibabaLinkRevision: 1 } : {}),
         detailSourceReady: true,
         detailSourceOwner: 'owned-source',
         detailSourceRevision: 'r1',
         detailSourceContentGeneration: 0,
-        detailSourceManifest: { revision: 'r1', variantIds: [] },
+        detailSourceManifest: { revision: 'r1', variantIds: variants.map((row) => row._id) },
         detailSourceCandidate: {
           _id: 'p',
           name: 'Clock',
@@ -3007,10 +3058,10 @@ async function nativeOwnApprovalFixture() {
       productId: 'p',
       operationId: h.record.operationId,
       expectedRevision: null,
-      expectedDigest: catalogApprovalDigest(product, []),
+      expectedDigest: catalogApprovalDigest(product, variants),
     },
     product,
-    [],
+    variants,
   );
   assert.ok(plan.ok, JSON.stringify(plan));
   const command = {
@@ -3050,3 +3101,65 @@ for (const mode of ['silentWrite', 'codedWrite', 'failWrite'] as const)
     await assert.rejects(persistStagedApprovalInCloud(h.db, 'admin', h.command));
     assert.deepEqual(h.store, before);
   });
+
+test('native own page advances only its cursor with47operations, keeps all reads before writes and publishes nothing', async () => {
+  const h = await nativeOwnApprovalFixture(21, true);
+  const begun = await persistStagedApprovalInCloud(h.db, 'admin', h.command);
+  assert.ok(begun.ok && 'record' in begun);
+  const page = {
+    action: 'operation-approval-page' as const,
+    productId: 'p',
+    operationId: h.record.operationId,
+    inputDigest: h.record.operation.inputDigest,
+    page: 0,
+  };
+  const product = structuredClone(h.store.get('products')?.get('p'));
+  const first = await persistStagedApprovalInCloud(h.db, 'admin', page);
+  assert.ok(first.ok && 'record' in first, JSON.stringify(first));
+  assert.ok(first.record.state === 'staging');
+  assert.equal(first.record.nextPage, 1);
+  assert.equal(h.store.get('catalogDetailVariants')?.size, 20);
+  assert.equal(h.controls.maximumOperations, 47);
+  assert.deepEqual(h.store.get('products')?.get('p'), product);
+  const before = structuredClone(h.store);
+  let writes = 0;
+  h.controls.afterWrite = () => {
+    writes++;
+  };
+  assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', page), first);
+  assert.equal(writes, 0);
+  assert.deepEqual(h.store, before);
+  const last = await persistStagedApprovalInCloud(h.db, 'admin', { ...page, page: 1 });
+  assert.ok(last.ok && 'record' in last && last.record.state === 'staging');
+  assert.equal(last.record.nextPage, 2);
+  assert.equal(h.store.get('catalogDetailVariants')?.size, 21);
+  assert.equal(h.store.get('products')?.get('p')?.published, false);
+  assert.equal(h.store.get('products')?.get('p')?.catalogDetailApprovalReceipt, undefined);
+});
+for (const mode of ['silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  for (const where of ['first', 'last', 'root'] as const)
+    test(`native own page rolls back20snapshots and cursor on ${mode}/${where}`, async () => {
+      const h = await nativeOwnApprovalFixture(21, true);
+      assert.equal((await persistStagedApprovalInCloud(h.db, 'admin', h.command)).ok, true);
+      const target =
+        where === 'root'
+          ? `catalogDetailApprovals/${h.record._id}`
+          : `catalogDetailVariants/${approvedVariantDocumentId('p', h.command.prepared.revision, where === 'first' ? 'v0' : 'v19')}`;
+      h.controls[mode] = target;
+      const before = structuredClone(h.store);
+      const page = {
+        action: 'operation-approval-page' as const,
+        productId: 'p',
+        operationId: h.record.operationId,
+        inputDigest: h.record.operation.inputDigest,
+        page: 0,
+      };
+      await assert.rejects(persistStagedApprovalInCloud(h.db, 'admin', page));
+      assert.deepEqual(h.store, before);
+      h.controls[mode] = '';
+      const retried = await persistStagedApprovalInCloud(h.db, 'admin', page);
+      assert.ok(retried.ok && 'record' in retried && retried.record.state === 'staging');
+      assert.equal(retried.record.nextPage, 1);
+      assert.equal(h.store.get('catalogDetailVariants')?.size, 20);
+      assert.equal(h.controls.maximumOperations, 47);
+    });

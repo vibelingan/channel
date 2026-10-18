@@ -1296,14 +1296,33 @@ test('capturing a large legal UTF-8 legacy approval does not apply the smaller o
 async function jsonOwnApprovalFixture(
   t: { after(callback: () => void): void },
   extra: Record<string, unknown> = {},
+  variantCount = 0,
 ) {
+  const variants: CollectionDoc[] = Array.from({ length: variantCount }, (_, position) => ({
+    _id: `v${position}`,
+    productId: 'p',
+    position,
+    sku: `sku-${position}`,
+    detailSourceOwner: 'owned-source',
+    detailSourceRevision: 'r1',
+    detailSourceMissing: false,
+    imageIds: [],
+    optionValues: { Color: String(position) },
+    detailSourceCandidate: {
+      id: `v${position}`,
+      options: [],
+      images: [],
+      offers: [],
+      inventory: { state: 'unknown' },
+    },
+  }));
   const h = fixture(t, {
     ...values,
     detailSourceReady: true,
     detailSourceOwner: 'owned-source',
     detailSourceRevision: 'r1',
     detailSourceContentGeneration: 0,
-    detailSourceManifest: { revision: 'r1', variantIds: [] },
+    detailSourceManifest: { revision: 'r1', variantIds: variants.map((row) => row._id) },
     detailSourceCandidate: {
       _id: 'p',
       name: 'Clock',
@@ -1314,6 +1333,10 @@ async function jsonOwnApprovalFixture(
     },
     ...extra,
   });
+  const raw = JSON.parse(h.bytes());
+  raw.productVariants = variants;
+  raw.catalogDetailVariants = [];
+  writeFileSync(h.file, JSON.stringify(raw));
   const { input, answer } = await reservePublish(h.adapter);
   assert.equal((await h.adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
   const product = await h.adapter.get('products', 'p');
@@ -1324,10 +1347,10 @@ async function jsonOwnApprovalFixture(
       productId: 'p',
       operationId,
       expectedRevision: null,
-      expectedDigest: catalogApprovalDigest(product, []),
+      expectedDigest: catalogApprovalDigest(product, variants),
     },
     product,
-    [],
+    variants,
   );
   assert.ok(planned.ok, JSON.stringify(planned));
   return {
@@ -1368,4 +1391,40 @@ test('unfinished image deletion guard recognises the publication inside an owned
   setAdapter(new JsonFileAdapter(h.file));
   assert.equal(await unfinishedApprovalUsingImage('held-own'), 'p');
   assert.equal(await unfinishedApprovalUsingImage('unrelated'), null);
+});
+
+test('own pages resume after file reopen and duplicate requests leave21immutable rows without publishing', async (t) => {
+  const h = await jsonOwnApprovalFixture(t, {}, 21);
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.command)).ok, true);
+  const page = {
+    action: 'operation-approval-page' as const,
+    productId: 'p',
+    operationId,
+    inputDigest: h.command.inputDigest,
+    page: 0,
+  };
+  const first = await h.adapter.persistCatalogDetailApproval('admin', page);
+  assert.ok(
+    first.ok && 'record' in first && first.record.state === 'staging',
+    JSON.stringify(first),
+  );
+  assert.equal(first.record.nextPage, 1);
+  const reopened = new JsonFileAdapter(h.file);
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  const status = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.deepEqual(status, JSON.parse(JSON.stringify(first)));
+  assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', page), status);
+  assert.equal((await reopened.saveCatalogProductWithIdentities(h.input)).result, 'saved');
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  const second = await reopened.persistCatalogDetailApproval('admin', { ...page, page: 1 });
+  assert.ok(second.ok && 'record' in second && second.record.state === 'staging');
+  assert.equal(second.record.nextPage, 2);
+  const raw = JSON.parse(h.bytes());
+  assert.equal(raw.catalogDetailVariants.length, 21);
+  assert.equal(new Set(raw.catalogDetailVariants.map((row: CollectionDoc) => row._id)).size, 21);
+  assert.equal(raw.products[0].published, false);
+  assert.equal(raw.products[0].catalogDetailPublication, undefined);
+  assert.equal(raw.products[0].catalogDetailApprovalReceipt, undefined);
 });

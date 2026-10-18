@@ -11,7 +11,6 @@ import {
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogDetailHeaderSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { CATALOG_APPROVAL_JOB_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
-import type { CatalogValidationReport } from '@vibelingan-channel/shared/catalog-issues';
 import {
   CATALOG_MEDIA_SEAL_POLICY,
   CATALOG_PIXEL_POLICY,
@@ -24,11 +23,14 @@ import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
 import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import {
+  type ApprovalFailure,
   ApprovalJobSchema,
   type PreparedApproval,
+  fitsApprovalJobBudget,
   readApprovalJob,
   sameApprovalProduct,
 } from './catalog-approval-job.ts';
+import { isApprovalPage, prepareApprovalPage, storeApprovalPage } from './catalog-approval-page.ts';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 import { CatalogProductStateError, assertCatalogProductVersions } from './catalog-product-state.ts';
 import {
@@ -70,10 +72,18 @@ export const ProductOperationApprovalBeginSchema = identifiers
     prepared: ApprovalJobSchema,
   })
   .strict();
+export const ProductOperationApprovalPageSchema = identifiers
+  .extend({
+    action: z.literal('operation-approval-page'),
+    inputDigest: digest,
+    page: z.number().int().min(0).max(499),
+  })
+  .strict();
 const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationGetSchema,
   ProductOperationApprovalBeginSchema,
+  ProductOperationApprovalPageSchema,
 ]);
 const SnapshotSchema = z
   .object({
@@ -153,14 +163,10 @@ export type ProductOperationResult =
       revisionCurrent: boolean;
       expired: boolean;
     }
-  | {
-      ok: false;
-      code: 'VALIDATION_ERROR' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT';
-      validation?: CatalogValidationReport;
-    };
+  | ApprovalFailure;
 const fail = (
   code: Extract<ProductOperationResult, { ok: false }>['code'],
-): ProductOperationResult => ({ ok: false, code });
+): Extract<ProductOperationResult, { ok: false }> => ({ ok: false, code });
 const definition = getCollection('products');
 if (!definition) throw new Error('Product registry is unavailable');
 const fields = [...writableFields(definition).map((field) => field.name), 'subcategoryIds'];
@@ -199,6 +205,8 @@ export async function runProductOperation(
   if (user?.role !== 'admin' || user.status === 'suspended') return fail('FORBIDDEN');
   if (command.action === 'operation-approval-begin')
     return beginOperationApproval(tx, actorId, command);
+  if (command.action === 'operation-approval-page')
+    return stageOperationApprovalPage(tx, actorId, command);
   const key = operationKey(actorId, command.productId, command.operationId);
   const previous = await tx.get(collection, key);
   if (previous) {
@@ -294,8 +302,7 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   const record = parsed.data;
   if (record.state === 'staging') {
     const { operation: _operation, saved: _saved, ...job } = record;
-    if (!readApprovalJob(job) || !fitsJsonBudget(job, CATALOG_APPROVAL_JOB_MAX_BYTES, 28))
-      return null;
+    if (!readApprovalJob(job) || !fitsApprovalJobBudget(job)) return null;
   } else if (!fitsJsonBudget(record, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
   const values = cleanValues(record.operation.values);
   if (
@@ -325,7 +332,7 @@ async function inspect(
   tx: CatalogApprovalTransaction,
   record: ProductOperationRecord,
   currentProduct?: CollectionDoc | null,
-): Promise<ProductOperationResult> {
+): Promise<Extract<ProductOperationResult, { ok: true }>> {
   const product =
     currentProduct === undefined ? await tx.get('products', record.productId) : currentProduct;
   const current =
@@ -622,28 +629,10 @@ async function beginOperationApproval(
     prepared.operationId !== command.operationId
   )
     return fail('CONFLICT');
-  const stored = await tx.get(collection, key);
-  const record = stored ? readReservation(stored, actorId, command) : null;
-  if (
-    !record ||
-    record.state === 'reserved' ||
-    record.operation.intent !== 'publish' ||
-    record.operation.inputDigest !== command.inputDigest
-  )
-    return fail('CONFLICT');
-  const product = await tx.get('products', record.productId);
-  const inspection = await inspect(tx, record, product);
-  if (
-    !inspection.ok ||
-    !inspection.current ||
-    !inspection.revisionCurrent ||
-    inspection.expired ||
-    !product ||
-    product.published === true ||
-    product.archived === true ||
-    !sameApprovalProduct(product, prepared)
-  )
-    return fail('CONFLICT');
+  const current = await currentApprovalOperation(tx, actorId, command);
+  if (!current.ok) return current;
+  const { record, product, inspection } = current;
+  if (!sameApprovalProduct(product, prepared)) return fail('CONFLICT');
   if (record.state === 'staging') {
     const { operation: _operation, saved: _saved, ...persisted } = record;
     if (approvalPlanDigest(persisted) !== approvalPlanDigest(prepared)) return fail('CONFLICT');
@@ -671,4 +660,62 @@ function approvalPlanDigest(job: PreparedApproval) {
   } = job;
   const { revision: _publicationRevision, ...content } = publication;
   return alibabaPricingFingerprint({ ...rest, publication: content });
+}
+
+async function currentApprovalOperation(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command:
+    | z.infer<typeof ProductOperationApprovalBeginSchema>
+    | z.infer<typeof ProductOperationApprovalPageSchema>,
+): Promise<
+  | {
+      ok: true;
+      record: Exclude<ProductOperationRecord, ReservedProductOperation>;
+      product: CollectionDoc;
+      inspection: Extract<ProductOperationResult, { ok: true }>;
+    }
+  | ApprovalFailure
+> {
+  const key = operationKey(actorId, command.productId, command.operationId);
+  const stored = await tx.get(collection, key);
+  const record = stored ? readReservation(stored, actorId, command) : null;
+  if (
+    !record ||
+    record.state === 'reserved' ||
+    record.operation.intent !== 'publish' ||
+    record.operation.inputDigest !== command.inputDigest
+  )
+    return fail('CONFLICT');
+  const product = await tx.get('products', record.productId);
+  const inspection = await inspect(tx, record, product);
+  if (
+    !inspection.current ||
+    !inspection.revisionCurrent ||
+    inspection.expired ||
+    !product ||
+    product.published === true ||
+    product.archived === true
+  )
+    return fail('CONFLICT');
+  return { ok: true, record, product, inspection };
+}
+async function stageOperationApprovalPage(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command: z.infer<typeof ProductOperationApprovalPageSchema>,
+): Promise<ProductOperationResult> {
+  const current = await currentApprovalOperation(tx, actorId, command);
+  if (!current.ok) return current;
+  const { record, product, inspection } = current;
+  if (record.state !== 'staging') return fail('CONFLICT');
+  if (!isApprovalPage(record, command.page)) return fail('VALIDATION_ERROR');
+  if (command.page < record.nextPage) return inspection;
+  const plan = await prepareApprovalPage(tx, product, record, command.page);
+  if (!plan.ok) return plan;
+  const next = ApprovalOperationSchema.parse({ ...record, nextPage: plan.nextPage });
+  if (!fitsJsonBudget(next, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
+    return fail('VALIDATION_ERROR');
+  await storeApprovalPage(tx, plan, next);
+  return { ...inspection, record: next };
 }

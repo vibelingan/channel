@@ -14,7 +14,6 @@ import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/cat
 import {
   CatalogIssueSchema,
   CatalogValidationError,
-  type CatalogValidationReport,
   catalogIssuesFromZod,
   catalogValidationFailure,
 } from '@vibelingan-channel/shared/catalog-issues';
@@ -23,6 +22,7 @@ import { IMAGE_MUTATION_STALE_MS, readImageMutationState } from './adapter.ts';
 import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
 import {
   APPROVAL_PAGE_SIZE,
+  type ApprovalFailure as Failure,
   ApprovalJobSchema as JobSchema,
   type PreparedApproval,
   approvalProductFingerprint,
@@ -30,10 +30,12 @@ import {
   sameApprovalProduct as sameProduct,
 } from './catalog-approval-job.ts';
 export {
+  type ApprovalFailure,
   APPROVAL_PAGE_SIZE,
   type PreparedApproval,
   approvalProductFingerprint,
 } from './catalog-approval-job.ts';
+import { isApprovalPage, prepareApprovalPage, storeApprovalPage } from './catalog-approval-page.ts';
 import { ChangeAuditMarkSchema, markChangeAudit } from './catalog-change-audit-store.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import { ManualSourceSchema, prepareManualSource } from './catalog-manual-staging.ts';
@@ -44,6 +46,7 @@ import {
 } from './catalog-preparation-store.ts';
 import {
   ProductOperationApprovalBeginSchema,
+  ProductOperationApprovalPageSchema,
   ProductOperationGetSchema,
   type ProductOperationResult,
   ProductOperationStartSchema,
@@ -70,20 +73,6 @@ export const APPROVED_VARIANTS = 'catalogDetailVariants';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const id = z.string().trim().min(1).max(200);
-type Failure = {
-  ok: false;
-  validation?: CatalogValidationReport;
-  code:
-    | 'VALIDATION_ERROR'
-    | 'FORBIDDEN'
-    | 'NOT_FOUND'
-    | 'CONFLICT'
-    | 'MEDIA_NOT_READY'
-    | 'MEDIA_BUSY'
-    | 'APPROVAL_EXPIRED'
-    | 'APPROVAL_TOO_LARGE'
-    | 'SOURCE_NOT_READY';
-};
 type Progress = {
   ok: true;
   jobId: string;
@@ -115,6 +104,7 @@ const PriceSummaryBackfillSchema = z
   .strict();
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
+  ProductOperationApprovalPageSchema,
   ProductOperationApprovalBeginSchema,
   ProductOperationGetSchema,
   SourcePageSchema,
@@ -366,59 +356,14 @@ export async function stageApprovalPage(
   const job = readJob(await tx.get(APPROVAL_JOBS, jobId));
   if (!job) return fail('NOT_FOUND');
   if (job.actorId !== actorId) return fail('FORBIDDEN');
-  if (
-    !Number.isSafeInteger(page) ||
-    page < 0 ||
-    page >= job.pageHashes.length ||
-    page > job.nextPage
-  )
-    return fail('VALIDATION_ERROR');
+  if (!isApprovalPage(job, page)) return fail('VALIDATION_ERROR');
   if (page < job.nextPage || job.state === 'complete') return progress(job);
   const product = await tx.get('products', job.productId);
   if (!product || !sameProduct(product, job)) return fail('CONFLICT');
-  const offset = page * APPROVAL_PAGE_SIZE;
-  const rows: CollectionDoc[] = [];
-  for (const variantId of job.variantIds.slice(offset, offset + APPROVAL_PAGE_SIZE)) {
-    const row = await tx.get('productVariants', variantId);
-    if (!row || row.detailSourceRevision !== product.detailSourceRevision)
-      return fail('SOURCE_NOT_READY');
-    rows.push(row);
-  }
-  let variants: ReturnType<typeof planCatalogDetailApproval>['variants'];
-  try {
-    variants = planCatalogDetailApproval({
-      product,
-      variants: rows,
-      revision: job.revision,
-    }).variants;
-  } catch (error) {
-    if (error instanceof CatalogValidationError)
-      return catalogValidationFailure('page', error.issues);
-    if (error instanceof z.ZodError)
-      return catalogValidationFailure(
-        'page',
-        catalogIssuesFromZod(error.issues, rows, {
-          stage: 'effective-content',
-          remedy: 'edit',
-          prefix: ['variants', 'items'],
-        }),
-      );
-    return fail('VALIDATION_ERROR');
-  }
-  if (hash(variants) !== job.pageHashes[page]) return fail('CONFLICT');
-  // Snapshot rows and progress are one transaction. Rollback never advances a cursor.
-  for (const [position, variant] of variants.entries()) {
-    await tx.set(APPROVED_VARIANTS, {
-      _id: approvedVariantDocumentId(job.productId, job.revision, variant.id),
-      productId: job.productId,
-      variantId: variant.id,
-      catalogDetailRevision: job.revision,
-      catalogDetailPosition: offset + position,
-      catalogDetailApproved: variant,
-    });
-  }
-  const next = { ...job, nextPage: page + 1 };
-  await tx.set(APPROVAL_JOBS, next);
+  const plan = await prepareApprovalPage(tx, product, job, page);
+  if (!plan.ok) return plan;
+  const next = { ...job, nextPage: plan.nextPage };
+  await storeApprovalPage(tx, plan, next);
   return progress(next);
 }
 
@@ -598,7 +543,8 @@ export async function runStagedApproval(
   if (
     command.action === 'operation-start' ||
     command.action === 'operation-get' ||
-    command.action === 'operation-approval-begin'
+    command.action === 'operation-approval-begin' ||
+    command.action === 'operation-approval-page'
   )
     return runProductOperation(tx, actorId, command);
   if (command.action === 'preparation-report')

@@ -1210,3 +1210,7 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e4b：未完成审批的定向图片保护读取
 
 解决P3e4新增大根的媒体检查读取接缝：服务端先匹配待删图片，只取两个ID，1get/0count/0写，JSON同语义且保留旧adapter分页fallback。61新增；14源码反例31重叠失败、3源文件还原；Node/wx/真实adapter12组实发参数通过。完整4784、Node20672、19types/显式Biome/SDK/diff与原保存保护块一致检查通过。[P3e4b](P3e4b_TARGETED_MEDIA_HOLD.zh-CN.md)保留云端执行/P95未测的边界。措辞从“返回图片清单/变快”改为“两个ID/减少回传”，global fullDeliveryReady=false，继续P3原P1。
+
+## P3e5：同根审批配置分页
+
+新旧入口共用页投影/hash/不可变写入，own页保留原始输入/保存回执/TTL，47文档操作、零写重复。41新增、17源码反例123重叠失败并还原；安装SDK12组/9ACK回滚、4独立进程、20来源商品420配置组合通过。完整4825/Node20713/19types/Biome/SDK/diff通过；测试类型有限键修正编译JS相同，相关测试和变异已重跑。[P3e5](P3e5_OWN_APPROVAL_PAGES.zh-CN.md)区分codec预算与语义候选。将“审批完成”纠正为“配置页已暂存”，旧批准版本保留、商品仍未发布；原完整发布恢复P1继续，fullDeliveryReady=false。

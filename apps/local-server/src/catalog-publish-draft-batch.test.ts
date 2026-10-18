@@ -317,3 +317,213 @@ test('20 independent owned approval starts survive lost responses and four concu
     assert.deepEqual(row.subcategoryIds, []);
   }
 });
+
+test('20 source-bound owned approvals retain420private configurations through two pages and four callers', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'channel-own-pages20-'));
+  t.after(() => {
+    rmSync(directory, { recursive: true, force: true });
+    assert.equal(existsSync(directory), false);
+  });
+  const file = join(directory, 'db.json');
+  const rows: Record<
+    | 'users'
+    | 'products'
+    | 'productVariants'
+    | 'catalogDetailVariants'
+    | 'alibabaSourceProducts'
+    | 'alibabaProductLinks'
+    | 'catalogSourceObservations',
+    CollectionDoc[]
+  > = {
+    users: [{ _id: 'admin', role: 'admin' }],
+    products: [],
+    productVariants: [],
+    catalogDetailVariants: [],
+    alibabaSourceProducts: [],
+    alibabaProductLinks: [],
+    catalogSourceObservations: [],
+  };
+  for (let i = 0; i < 20; i++) {
+    const productId = `p-${i}`;
+    const source = `s-${i}`;
+    const owner = `alibaba:${source}`;
+    const variants = Array.from({ length: 21 }, (_, j) => ({
+      _id: `${productId}-v${j}`,
+      productId,
+      position: j,
+      sku: `sku-${i}-${j}`,
+      detailSourceOwner: owner,
+      detailSourceRevision: 'r1',
+      detailSourceMissing: false,
+      imageIds: [],
+      optionValues: { Color: String(j) },
+      detailSourceCandidate: {
+        id: `${productId}-v${j}`,
+        options: [],
+        images: [],
+        offers: [],
+        inventory: { state: 'unknown' },
+      },
+    }));
+    rows.products.push({
+      _id: productId,
+      name: `Clock ${i}`,
+      description: '',
+      productFamily: 'misc',
+      subcategoryIds: [],
+      published: false,
+      archived: false,
+      imageIds: [],
+      updatedAt: at,
+      alibabaPrimarySourceKey: source,
+      alibabaLinkRevision: 1,
+      detailSourceReady: true,
+      detailSourceOwner: owner,
+      detailSourceRevision: 'r1',
+      detailSourceContentGeneration: 0,
+      detailSourceManifest: { revision: 'r1', variantIds: variants.map((v) => v._id) },
+      detailSourceCandidate: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: productId,
+        name: `Clock ${i}`,
+        images: [],
+        facts: [],
+        offers: [],
+      },
+    });
+    rows.productVariants.push(...variants);
+    rows.alibabaSourceProducts.push({
+      _id: source,
+      sourceKey: source,
+      connectionId: 'c',
+      sourceProductId: `ext-${i}`,
+      contentHash: 'a'.repeat(64),
+      active: true,
+    });
+    rows.alibabaProductLinks.push({
+      _id: source,
+      sourceKey: source,
+      connectionId: 'c',
+      sourceProductId: `ext-${i}`,
+      productId,
+      linkedAt: at,
+    });
+  }
+  writeFileSync(file, JSON.stringify(rows));
+  const adapter = new JsonFileAdapter(file);
+  let next = 0;
+  const keys = new Set<string>();
+  const revisions = new Set<string>();
+  const workers = await Promise.allSettled(
+    Array.from({ length: 4 }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= 20) return;
+        const productId = `p-${i}`;
+        const operationId = `12345678-1234-4234-8234-${String(i).padStart(12, '0')}`;
+        const start = {
+          action: 'operation-start' as const,
+          productId,
+          operationId,
+          intent: 'publish' as const,
+          expectedUpdatedAt: at,
+          values: {},
+        };
+        const first = await adapter.persistCatalogDetailApproval('admin', start);
+        assert.ok(first.ok && 'record' in first);
+        const input = {
+          mode: 'update' as const,
+          productId,
+          data: {},
+          expectedUpdatedAt: at,
+          expectedOperation: {
+            actorId: 'admin',
+            operationId,
+            inputDigest: first.record.operation.inputDigest,
+          },
+        };
+        assert.equal((await adapter.saveCatalogProductWithIdentities(input)).result, 'saved');
+        const product = await adapter.get('products', productId);
+        assert.ok(product);
+        const variants = rows.productVariants.filter((v) => v.productId === productId);
+        const prepared = prepareStagedApproval(
+          'admin',
+          {
+            productId,
+            operationId,
+            expectedRevision: null,
+            expectedDigest: catalogApprovalDigest(product, variants),
+          },
+          product,
+          variants,
+        );
+        assert.ok(prepared.ok);
+        assert.equal(
+          (
+            await adapter.persistCatalogDetailApproval('admin', {
+              action: 'operation-approval-begin',
+              productId,
+              operationId,
+              inputDigest: first.record.operation.inputDigest,
+              prepared: prepared.value,
+            })
+          ).ok,
+          true,
+        );
+        for (const page of [0, 1]) {
+          const result = await adapter.persistCatalogDetailApproval('admin', {
+            action: 'operation-approval-page',
+            productId,
+            operationId,
+            inputDigest: first.record.operation.inputDigest,
+            page,
+          });
+          assert.ok(result.ok && 'record' in result && result.record.state === 'staging');
+          assert.equal(result.record.nextPage, page + 1);
+        }
+        const reopened = new JsonFileAdapter(file);
+        const got = await reopened.persistCatalogDetailApproval('admin', {
+          action: 'operation-get',
+          productId,
+          operationId,
+        });
+        assert.ok(
+          got.ok &&
+            'record' in got &&
+            got.record.state === 'staging' &&
+            got.current &&
+            got.revisionCurrent,
+        );
+        assert.equal(got.record.nextPage, 2);
+        keys.add(got.record._id);
+        revisions.add(got.record.revision);
+        for (const page of [0, 1])
+          assert.deepEqual(
+            await reopened.persistCatalogDetailApproval('admin', {
+              action: 'operation-approval-page',
+              productId,
+              operationId,
+              inputDigest: first.record.operation.inputDigest,
+              page,
+            }),
+            got,
+          );
+        assert.equal((await reopened.saveCatalogProductWithIdentities(input)).result, 'saved');
+      }
+    }),
+  );
+  for (const worker of workers) if (worker.status === 'rejected') throw worker.reason;
+  const stored = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(keys.size, 20);
+  assert.equal(revisions.size, 20);
+  assert.equal(stored.catalogDetailApprovals.length, 20);
+  assert.equal(stored.catalogDetailVariants.length, 420);
+  assert.equal(new Set(stored.catalogDetailVariants.map((v: CollectionDoc) => v._id)).size, 420);
+  for (const product of stored.products) {
+    assert.equal(product.published, false);
+    assert.equal(product.catalogDetailPublication, undefined);
+    assert.equal(product.catalogDetailApprovalReceipt, undefined);
+    assert.equal(product.productFamily, 'misc');
+    assert.deepEqual(product.subcategoryIds, []);
+  }
+});

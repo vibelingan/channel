@@ -1,8 +1,11 @@
 /** Pure legacy approval shape shared by legacy and owned operation adapters. */
 import { createHash } from 'node:crypto';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
+import { CATALOG_APPROVAL_JOB_MAX_BYTES } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { CATALOG_DETAIL_VARIANT_MAX_COUNT } from '@vibelingan-channel/shared/catalog-detail-approval';
+import type { CatalogValidationReport } from '@vibelingan-channel/shared/catalog-issues';
 import { z } from 'zod';
 export const APPROVAL_PAGE_SIZE = 20;
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -104,4 +107,28 @@ export function readApprovalJob(row: CollectionDoc | null) {
   )
     return undefined;
   return job;
+}
+
+export type ApprovalFailure = {
+  ok: false;
+  validation?: CatalogValidationReport;
+  code:
+    | 'VALIDATION_ERROR'
+    | 'FORBIDDEN'
+    | 'NOT_FOUND'
+    | 'CONFLICT'
+    | 'MEDIA_NOT_READY'
+    | 'MEDIA_BUSY'
+    | 'APPROVAL_EXPIRED'
+    | 'APPROVAL_TOO_LARGE'
+    | 'SOURCE_NOT_READY';
+};
+
+/** The original payload budget excludes only the bounded mutable cursor/state representation. */
+export function fitsApprovalJobBudget(job: PreparedApproval): boolean {
+  return fitsJsonBudget(
+    { ...job, nextPage: 0, state: 'staging' },
+    CATALOG_APPROVAL_JOB_MAX_BYTES,
+    28,
+  );
 }
