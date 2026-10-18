@@ -69,6 +69,19 @@ export async function runCatalogImageReferenceRead(
   return { ...loaded.snapshot, image: loaded.settlement, settled: true };
 }
 
+/** Pending activation may keep old absent counts; an existing ledger must be valid, empty and zero. */
+export function canFinalizePendingImageReferences(image: CollectionDoc): boolean {
+  const managed = Object.hasOwn(image, ledgerField);
+  if (!Object.hasOwn(image, 'publishedRefCount')) return !managed;
+  if (image.publishedRefCount !== 0) return false;
+  if (!managed) return true;
+  try {
+    return emptyCatalogImageReferenceCount(image) === 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Read-only settlement plan for callers combining cleanup with another write in this transaction. */
 export function planCatalogImageReferenceSettlement(
   tx: CatalogImageReferenceStore,

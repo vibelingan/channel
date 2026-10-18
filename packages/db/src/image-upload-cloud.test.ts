@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceEntry,
+} from './catalog-image-references.ts';
 import { type NodeSdkDatabase, manageImageUploadInCloudBase } from './cloudbase-adapter.ts';
 import {
   type ImageUploadCommand,
@@ -263,3 +267,128 @@ for (const array of [false, true])
       assert.equal(saved.storageFileId, image.storageFileId);
     }
   });
+
+for (const array of [false, true])
+  for (const command of [activate, reject])
+    for (const invalid of ['pending-reference', 'corrupt-ledger', 'null-counter'] as const)
+      test(`cloud upload ${command.action} rejects ${invalid}, array=${array}`, async () => {
+        const f = seeded(array);
+        const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], ['upload']);
+        f.put('images', {
+          ...image,
+          ...(invalid === 'null-counter'
+            ? { publishedRefCount: null }
+            : {
+                catalogPublishedReferenceLedger:
+                  invalid === 'corrupt-ledger'
+                    ? null
+                    : {
+                        version: 'catalog-image-reference-ledger-v1',
+                        epoch: 4,
+                        pending: [catalogImageReferenceEntry(plan, 0)],
+                      },
+              }),
+        });
+        const before = f.snapshot();
+        assert.deepEqual(await f.run(command), { status: 'conflict' });
+        assert.deepEqual(f.snapshot(), before);
+        assert.equal(f.controls.maximumOperations, 2);
+      });
+for (const array of [false, true])
+  for (const action of ['activate', 'reject'] as const)
+    test(`cloud upload ${action} captures command before SDK startup, array=${array}`, async () => {
+      const f = seeded(array);
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const db: typeof f.db = {
+        runTransaction: async (operation) => {
+          await gate;
+          return f.db.runTransaction(operation);
+        },
+      };
+      const command: ImageUploadCommand = structuredClone(
+        action === 'activate' ? activate : reject,
+      );
+      const pending = manageImageUploadInCloudBase(db, command);
+      command.imageId = 'another-upload';
+      command.owner = 'another-owner';
+      command.inputDigest = 'f'.repeat(64);
+      release();
+      assert.equal((await pending).status, action === 'activate' ? 'active' : 'rejected');
+      assert.equal(f.get('images', 'upload')?.status, action === 'activate' ? 'active' : 'failed');
+    });
+
+for (const array of [false, true])
+  for (const command of [activate, reject])
+    for (const state of ['empty-ledger', 'legacy-absent-counter'] as const)
+      test(`cloud upload ${command.action} preserves ${state}, array=${array}`, async () => {
+        const f = seeded(array);
+        const record = { ...image };
+        const ledger = { version: 'catalog-image-reference-ledger-v1', epoch: 4, pending: [] };
+        if (state === 'empty-ledger') record.catalogPublishedReferenceLedger = ledger;
+        else Reflect.deleteProperty(record, 'publishedRefCount');
+        f.put('images', record);
+        assert.equal(
+          (await f.run(command)).status,
+          command.action === 'activate' ? 'active' : 'rejected',
+        );
+        const saved = f.get('images', 'upload');
+        assert.ok(saved);
+        if (state === 'empty-ledger')
+          assert.deepEqual(saved.catalogPublishedReferenceLedger, ledger);
+        else assert.equal(Object.hasOwn(saved, 'publishedRefCount'), false);
+      });
+for (const array of [false, true]) {
+  test(`cloud completed active upload keeps managed references on readonly repeat, array=${array}`, async () => {
+    const f = seeded(array);
+    assert.equal((await f.run(activate)).status, 'active');
+    const saved = f.get('images', 'upload');
+    assert.ok(saved);
+    const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], ['upload']);
+    f.put('images', {
+      ...saved,
+      publishedRefCount: 3,
+      catalogPublishedReferenceLedger: {
+        version: 'catalog-image-reference-ledger-v1',
+        epoch: 4,
+        pending: [catalogImageReferenceEntry(plan, 0)],
+      },
+    });
+    const before = f.snapshot();
+    f.controls.maximumOperations = 0;
+    assert.equal((await f.run(activate)).status, 'active');
+    assert.deepEqual(f.snapshot(), before);
+    assert.equal(f.controls.maximumOperations, 2);
+  });
+  for (const count of [0, 3])
+    test(`cloud legacy active upload rechecks the same bytes and keeps managed base ${count}, array=${array}`, async () => {
+      const f = seeded(array);
+      const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], ['upload']);
+      const ledger = {
+        version: 'catalog-image-reference-ledger-v1',
+        epoch: 4,
+        pending: [catalogImageReferenceEntry(plan, 0)],
+      };
+      const record = {
+        ...image,
+        status: 'active',
+        checksumSha256: activate.checksumSha256,
+        publishedRefCount: count,
+        catalogPublishedReferenceLedger: ledger,
+      };
+      f.put('images', record);
+      f.put('catalogDetailApprovals', plan.proof);
+      assert.equal(
+        (await f.run({ ...activate, inputDigest: imageUploadInputDigest(record) })).status,
+        'active',
+      );
+      const saved = f.get('images', 'upload');
+      assert.ok(saved && hasImageUploadCompletion(saved));
+      assert.equal(saved.publishedRefCount, count);
+      assert.deepEqual(saved.catalogPublishedReferenceLedger, ledger);
+      assert.deepEqual(f.get('catalogDetailApprovals', plan.proof._id), plan.proof);
+      assert.equal(f.controls.maximumOperations, 3);
+    });
+}

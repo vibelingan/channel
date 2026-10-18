@@ -5,6 +5,11 @@ import { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-
 import { transitionImageMutationAcquire } from './adapter.ts';
 import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import { CatalogImageProtectionIntentSchema } from './catalog-image-protection-contract.ts';
+import { runCatalogImageReferenceRead } from './catalog-image-reference-store.ts';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceEntry,
+} from './catalog-image-references.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import { runSourceMediaImport } from './source-media-import.ts';
@@ -66,8 +71,9 @@ function fixture() {
     },
   };
 }
-async function reserved() {
+async function reserved(referenceState: Record<string, unknown> = {}) {
   const f = fixture();
+  Object.assign(f.image, referenceState);
   const scope = await f.start();
   const imageInputDigest = storedCatalogImageInputDigest(f.image);
   const begin = () =>
@@ -1003,4 +1009,90 @@ test('a preparation transaction missing the real remove primitive cannot admit s
     { ok: false, code: 'CORRUPT' },
   );
   assert.equal(f.writes.length, writes);
+});
+
+test('storage protection preserves references settled while its original image mutex is held', async () => {
+  const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], ['image']);
+  const h = await reserved({
+    catalogPublishedReferenceLedger: {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    },
+  });
+  assert.ok((await h.checkpoint()).ok);
+  h.f.rows[`catalogDetailApprovals/${plan.proof._id}`] = plan.proof;
+  const settled = await runCatalogImageReferenceRead(h.f.tx, {
+    action: 'settle',
+    imageId: 'image',
+  });
+  assert.ok(settled.state === 'counted');
+  assert.equal(settled.effectiveCount, 1);
+  const current = h.f.rows['images/image'];
+  assert.ok(current);
+  const health = {
+    status: 'verified',
+    kind: 'stored-image-health-v1',
+    imageId: 'image',
+    inputDigest: storedCatalogImageInputDigest({ ...current, ...h.target }),
+    checksumSha256: 'a'.repeat(64),
+    byteSize: 123,
+    width: 24,
+    height: 16,
+    pages: 1,
+  };
+  const result = await h.f.run({
+    action: 'commit-image-protection',
+    ...h.scope,
+    imageId: 'image',
+    intentId: h.intent._id,
+    health,
+  });
+  assert.ok(result.ok, JSON.stringify(result));
+  const saved = h.f.rows['images/image'];
+  assert.ok(saved);
+  assert.equal(saved.publishedRefCount, 1);
+  assert.deepEqual(saved.catalogPublishedReferenceLedger, {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 5,
+    pending: [],
+  });
+  assert.equal(saved.storageFileId, h.target.storageFileId);
+  assert.equal(saved.checksumSha256, 'a'.repeat(64));
+  assert.equal(saved.imageMutationOwner, '');
+  assert.deepEqual(h.f.rows[`catalogDetailApprovals/${plan.proof._id}`], plan.proof);
+});
+test('storage protection release preserves a later settlement and replays without writes', async () => {
+  const plan = buildCatalogImageReferencePlan('1'.repeat(64), [], ['image']);
+  const h = await reserved({
+    catalogPublishedReferenceLedger: {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    },
+  });
+  h.f.rows[`catalogDetailApprovals/${plan.proof._id}`] = plan.proof;
+  await runCatalogImageReferenceRead(h.f.tx, { action: 'settle', imageId: 'image' });
+  const command = {
+    action: 'release-image-protection',
+    ...h.scope,
+    imageId: 'image',
+    intentId: h.intent._id,
+  };
+  assert.ok((await h.f.run(command)).ok);
+  const saved = h.f.rows['images/image'];
+  assert.ok(saved);
+  assert.equal(saved.publishedRefCount, 1);
+  assert.deepEqual(saved.catalogPublishedReferenceLedger, {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 5,
+    pending: [],
+  });
+  assert.equal(saved.storageFileId, 'local-disk:raw.png');
+  assert.equal(saved.imageMutationOwner, '');
+  const before = structuredClone(h.f.rows);
+  const writes = h.f.writes.length;
+  assert.ok((await h.f.run(command)).ok);
+  assert.equal(h.f.writes.length, writes);
+  assert.deepEqual(h.f.rows, before);
 });

@@ -11,7 +11,7 @@ import { readImageMutationState } from './adapter.ts';
 import { protectedImagePreservesOriginalTarget } from './catalog-image-protection.ts';
 import {
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
-  emptyCatalogImageReferenceCount,
+  canFinalizePendingImageReferences,
 } from './catalog-image-reference-store.ts';
 import {
   ImageDeletionIntentSchema,
@@ -182,12 +182,7 @@ function pendingImage(
     !matchesClaim(image.sourceMediaImport, command)
   )
     return false;
-  if (!Object.hasOwn(image, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) return true;
-  try {
-    return emptyCatalogImageReferenceCount(image) === 0;
-  } catch {
-    return false;
-  }
+  return canFinalizePendingImageReferences(image);
 }
 function activeTargetMatches(image: CollectionDoc, target: SourceMediaTarget) {
   return Object.entries(target)

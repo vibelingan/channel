@@ -1278,3 +1278,8 @@ images.publishedRefCount走共用同快照加载、结算全体终局再加delta
 ## P3e6d6：旧审批共用有效引用规划与全局预算
 
 staged/atomic在原事务中共用只读C1规划，仅非零delta图读取小proof/合并计数，delta0保留base/ledger不加terminal读取；staged继续0共享图写，atomic保留原每图deletefence。原初读与C1重新pointget需一致；预先预留actor/product/job/SKU/image全部操作和每图1+P额外读，91/92合法、102/103及160proof先拒而0proof读。32新增，第一6业务红/第二13中10红3正控，176聚焦；24反例95重叠失败/三SHA恢复；实际SDK205/36新、四进程真实PNG旧审批切图/同job恢复0写/源分类保留/最终未发布与图404通过。全量5344、Node202314/19types/E2E/standingSDK/六文件Biome/diff通过。[说明](P3e6d6_LEGACY_APPROVAL_REFERENCES.zh-CN.md)明确这不是原发布丢响应恢复或20真实选品。review六源测试/C1/SDK桥接/预算及四记录，将所有非空ledger补读限定实际delta，保留公共C1独立验证。native全文件及原save/actor/classification fence字节未动。lifecycle/final/UI/历史/供应商与P95、test三时钟和20发布回退仍开放，producer关闭/fullDeliveryReady=false。
+
+
+## P3e6d7：上传完成与存储保护引用状态
+
+pending 上传激活/拒绝与 source pending 共用合法零引用校验；无账本旧缺计数可继续，显式 null/坏或非空账本拒绝零写。active 完成确认与同字节复核保留共享引用。native/JSON 在首个异步边界前复制命令，原权限与当前行检查仍在事务/文件锁内。存储保护 commit/release 通过实际 C1 结算串联证明保留当前计数/账本。44 项新增、282 项聚焦通过；17 个故障注入检出（182 次重叠失败及 2 个 SDK-only），六 SHA 恢复；安装 SDK 255 项、四独立进程真实 PNG 激活/丢回执/重开零写/未发布恢复与 404 通过。全量 5,388、Node 20 2,400、19 包 types/E2E types/standing SDK/显式 Biome 通过。审查五生产/三测试与四记录，把“上传零引用”限定 pending，核对 active 正控；原 save 权限/分类 fence 和生产 protection 整文件字节保持。[说明](P3e6d7_UPLOAD_REFERENCE_STATE.zh-CN.md)记录准确红测与后补控制边界。精确构建与编译后入口随后补充；原整条发布丢回执 P1、最终激活/UI/历史/真实云/P95/三时钟/20 件发布回退仍开放，producer 关闭/fullDeliveryReady=false。

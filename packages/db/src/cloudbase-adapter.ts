@@ -20,7 +20,7 @@ import {
   type CatalogImageReferenceReadCommand,
   runCatalogImageReferenceRead,
 } from './catalog-image-reference-store.ts';
-import { runImageUpload, type ImageUploadCommand } from './image-upload.ts';
+import { runImageUpload, type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
 import { runSourceMediaImport, SourceMediaImportCommandSchema, type SourceMediaImportCommand } from './source-media-import.ts';
 import { runImageDeletion, ImageDeletionCommandSchema, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
 import { randomUUID } from 'node:crypto';
@@ -514,7 +514,8 @@ export async function manageSourceMediaImportInCloudBase(db: Pick<NodeSdkDatabas
 }
 
 export async function manageImageUploadInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageUploadCommand) {
-  return db.runTransaction(transaction => runImageUpload(catalogRowStore(transaction), command));
+  const input = ImageUploadCommandSchema.parse(command);
+  return db.runTransaction(transaction => runImageUpload(catalogRowStore(transaction), input));
 }
 
 export async function manageImageDeletionInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageDeletionCommand) {

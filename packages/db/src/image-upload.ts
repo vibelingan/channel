@@ -9,6 +9,7 @@ import {
 } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
+import { canFinalizePendingImageReferences } from './catalog-image-reference-store.ts';
 import type { ImageDeletionStore } from './image-deletion.ts';
 const token = z
   .string()
@@ -178,6 +179,7 @@ export async function runImageUpload(
   const lock = readImageMutationState(image);
   if (
     (image.status !== 'pending' && !legacy) ||
+    (!legacy && !canFinalizePendingImageReferences(image)) ||
     Object.hasOwn(image, 'sourceMediaImport') ||
     typeof image.uploadIntentId !== 'string' ||
     !image.uploadIntentId ||

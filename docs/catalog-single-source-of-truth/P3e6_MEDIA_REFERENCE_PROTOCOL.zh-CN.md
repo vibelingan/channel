@@ -104,3 +104,8 @@ managed图片不得经通用remove/条件remove删除，实际持久删除流程
 ## P3e6d6旧审批兼容
 
 旧staged/atomic共用只读有效引用规划；实际delta非零才补读proof并把全体已确认结算+delta融合原image唯一写，未知保留。delta0不补读、不结算，staged不写共享图，atomic仍写原deletefence。全局98预算含原actor/SKU/product/image操作及真实image重新get，80proof91/92可走、超限先拒。缺managedbase或需要非零delta的未知legacy不猜0。没有增加新发布producer；公共读仍独立C1验证，最终seal/历史/own-root终局未由本步完成。详见[P3e6d6](P3e6d6_LEGACY_APPROVAL_REFERENCES.zh-CN.md)。
+
+
+## P3e6d7 上传与存储保护
+
+pending 激活/标失败仅接受无账本合法旧状态或合法空零账本；有账本缺基数、非空/坏账本、显式 null 均不可转换。已完成 active 的重复确认保持只读；legacy active 同字节复核完整保留共享引用。上传与来源 pending 共用纯校验，native/JSON 提前复制命令；实际权限/当前行/锁仍在原事务。存储保护同身份迁移 commit/release 以实际 C1 结算串联测试确认保留当前引用，生产保护模块未改。详见 [P3e6d7](P3e6d7_UPLOAD_REFERENCE_STATE.zh-CN.md)。最终 root/proof 与 producer、历史和真实验收尚未完成，不能启用。

@@ -9,7 +9,11 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
+import {
+  type ImageUploadCommand,
+  ImageUploadCommandSchema,
+  runImageUpload,
+} from '@vibelingan-channel/db';
 import {
   type SourceMediaImportCommand,
   SourceMediaImportCommandSchema,
@@ -969,6 +973,7 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async manageImageUpload(command: ImageUploadCommand) {
+    const input = ImageUploadCommandSchema.parse(command);
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
       let changed = false;
@@ -992,7 +997,7 @@ export class JsonFileAdapter implements DbAdapter {
             changed = true;
           },
         },
-        command,
+        input,
       );
       if (changed) {
         const previous = this.store;
