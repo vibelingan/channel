@@ -10,6 +10,7 @@ import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
 import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import { buildCatalogImageReferencePlan } from './catalog-image-references.ts';
 import { readOwnedApprovalMedia } from './catalog-operation-media.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
@@ -1278,3 +1279,266 @@ for (const mismatch of ['count', 'ids', 'media-policy', 'pixel-policy'] as const
     ]);
     assert.equal(readOwnedApprovalMedia(root, root.media), null);
   });
+
+const referencesCommand = { ...query, action: 'operation-approval-references' as const };
+async function ownReferenceFixture(variants = 0, linked = false) {
+  const h = await fixture('publish', true, false, linked, variants);
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  await finishEmptyMedia(h);
+  assert.equal(
+    object(await h.invoke({ ...mediaCommand, inputDigest: h.command.inputDigest })).ok,
+    true,
+  );
+  return h;
+}
+for (const count of [0, 21])
+  test(`own reference plan freezes in its existing root without publication, variants=${count}`, async () => {
+    const h = await ownReferenceFixture(count, true);
+    for (let page = 0; page < Math.ceil(count / 20); page++)
+      assert.equal(
+        object(
+          await h.invoke({
+            ...query,
+            action: 'operation-approval-page',
+            inputDigest: h.command.inputDigest,
+            page,
+          }),
+        ).ok,
+        true,
+      );
+    const original = structuredClone(h.rows.catalogDetailApprovals?.[0]);
+    assert.ok(original);
+    const otherRows = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(h.rows).filter(([key]) => key !== 'catalogDetailApprovals'),
+      ),
+    );
+    const writes = h.writes();
+    const command = { ...referencesCommand, inputDigest: h.command.inputDigest };
+    const result = object(await h.invoke(command));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const record = object(result.record);
+    const binding = object(record.references);
+    const plan = buildCatalogImageReferencePlan(h.key, [], []);
+    assert.equal(binding.kind, 'catalog-owned-approval-references-v1');
+    assert.equal(binding.operationRootId, h.key);
+    assert.equal(binding.treeRoot, plan.proof.treeRoot);
+    assert.equal(binding.leafCount, 0);
+    assert.match(String(binding.bindingDigest), /^[a-f0-9]{64}$/);
+    const { references: _binding, ...unchanged } = record;
+    assert.deepEqual(unchanged, original);
+    assert.equal(record.state, 'staging');
+    assert.equal(result.current, true);
+    assert.equal(h.writes(), writes + 1);
+    assert.equal(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(h.rows).filter(([key]) => key !== 'catalogDetailApprovals'),
+        ),
+      ),
+      otherRows,
+    );
+    const bytes = h.bytes();
+    assert.deepEqual(await h.invoke(command), result);
+    assert.deepEqual(await h.invoke(query), result);
+    assert.deepEqual(await h.invoke(h.command), result);
+    assert.deepEqual(
+      await h.invoke({ ...mediaCommand, inputDigest: h.command.inputDigest }),
+      result,
+    );
+    if (count)
+      assert.deepEqual(
+        await h.invoke({
+          ...query,
+          action: 'operation-approval-page',
+          inputDigest: h.command.inputDigest,
+          page: 0,
+        }),
+        result,
+      );
+    assert.equal(h.bytes(), bytes);
+    assert.equal(h.writes(), writes + 1);
+    assert.equal(h.rows.products?.[0]?.published, false);
+    assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+  });
+for (const [state, code] of [
+  ['no-media', 'MEDIA_NOT_READY'],
+  ['unpaged', 'SOURCE_NOT_READY'],
+  ['cancelled', 'CONFLICT'],
+  ['revoked', 'FORBIDDEN'],
+  ['other-actor', 'CONFLICT'],
+  ['expired', 'CONFLICT'],
+  ['changed-product', 'CONFLICT'],
+  ['changed-source', 'CONFLICT'],
+  ['wrong-digest', 'CONFLICT'],
+] as const)
+  test(`own reference plan refuses ${state} before writes`, async () => {
+    const h = await ownReferenceFixture(state === 'unpaged' ? 21 : 0, true);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    if (state === 'no-media') Reflect.deleteProperty(root, 'media');
+    if (state === 'cancelled')
+      assert.equal(
+        object(
+          await h.invoke({
+            ...query,
+            action: 'operation-cancel',
+            inputDigest: h.command.inputDigest,
+          }),
+        ).ok,
+        true,
+      );
+    if (state === 'revoked') {
+      const actor = h.rows.users?.find((row) => row._id === 'admin');
+      assert.ok(actor);
+      actor.status = 'suspended';
+    }
+    if (state === 'expired') root.createdAt = new Date(Date.now() - 3600001).toISOString();
+    if (state === 'changed-product') {
+      const product = h.rows.products?.[0];
+      assert.ok(product);
+      product.name = 'Changed website clock';
+    }
+    if (state === 'changed-source') {
+      const source = h.rows.alibabaSourceProducts?.[0];
+      assert.ok(source);
+      source.contentHash = 'f'.repeat(64);
+    }
+    const before = h.bytes();
+    const writes = h.writes();
+    assert.deepEqual(
+      await h.invoke(
+        {
+          ...referencesCommand,
+          inputDigest: state === 'wrong-digest' ? '0'.repeat(64) : h.command.inputDigest,
+        },
+        state === 'other-actor' ? 'other' : 'admin',
+      ),
+      { ok: false, code },
+    );
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  });
+test('own reference binding failure propagates without a published product or success receipt', async () => {
+  const h = await ownReferenceFixture();
+  const before = h.bytes();
+  h.fail();
+  await assert.rejects(
+    h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest }),
+    /unacknowledged owned approval/,
+  );
+  assert.equal(h.bytes(), before);
+});
+for (const field of ['references', 'treeRoot', 'leafCount', 'proof', 'now'])
+  test(`client cannot submit reference evidence through ${field}`, async () => {
+    const h = await ownReferenceFixture();
+    const before = h.bytes();
+    const result = object(
+      await h.invoke({
+        ...referencesCommand,
+        inputDigest: h.command.inputDigest,
+        [field]: 'client-evidence',
+      }),
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'VALIDATION_ERROR');
+    assert.ok(Array.isArray(object(result.validation).issues));
+    assert.equal(h.bytes(), before);
+  });
+test('the legacy HTTP workflow cannot forward internal reference freezing', async () => {
+  let persisted = 0;
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async () => ({ _id: 'admin', role: 'admin' }),
+      persist: async () => {
+        persisted++;
+        throw Error('internal reference command reached HTTP');
+      },
+    },
+    'admin',
+    { ...referencesCommand, inputDigest: 'a'.repeat(64) },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(persisted, 0);
+});
+
+for (const corrupt of ['undefined', 'null', 'wrong-tree', 'unfinished-page'] as const)
+  test(`owned reference codec refuses persisted ${corrupt} rather than treating it as absent`, async () => {
+    const h = await ownReferenceFixture(corrupt === 'unfinished-page' ? 21 : 0);
+    if (corrupt === 'unfinished-page')
+      for (const page of [0, 1])
+        assert.equal(
+          object(
+            await h.invoke({
+              ...query,
+              action: 'operation-approval-page',
+              inputDigest: h.command.inputDigest,
+              page,
+            }),
+          ).ok,
+          true,
+        );
+    assert.equal(
+      object(await h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest })).ok,
+      true,
+    );
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    if (corrupt === 'undefined') root.references = undefined;
+    if (corrupt === 'null') root.references = null;
+    if (corrupt === 'wrong-tree') object(root.references).treeRoot = 'f'.repeat(64);
+    if (corrupt === 'unfinished-page') root.nextPage = 0;
+    const before = h.bytes();
+    assert.deepEqual(await h.invoke(query), { ok: false, code: 'CONFLICT' });
+    assert.equal(h.bytes(), before);
+  });
+test('cancellation preserves a frozen reference binding and cannot create a terminal proof', async () => {
+  const h = await ownReferenceFixture();
+  assert.equal(
+    object(await h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest })).ok,
+    true,
+  );
+  const root = h.rows.catalogDetailApprovals?.[0];
+  assert.ok(root);
+  const binding = structuredClone(root.references);
+  const media = structuredClone(root.media);
+  const result = object(
+    await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+  );
+  assert.equal(result.ok, true);
+  const cancelled = object(result.record);
+  assert.deepEqual(cancelled.references, binding);
+  assert.deepEqual(cancelled.media, media);
+  assert.equal(h.rows.catalogDetailApprovals?.length, 1);
+  assert.equal(h.rows.products?.[0]?.published, false);
+  const before = h.bytes();
+  assert.deepEqual(await h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest }), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.equal(h.bytes(), before);
+});
+
+test('reference freezing checks the service deadline again before its final root write', async () => {
+  const h = await ownReferenceFixture();
+  const root = h.rows.catalogDetailApprovals?.[0];
+  assert.ok(root);
+  const before = h.bytes();
+  const writes = h.writes();
+  const realNow = Date.now;
+  const inTime = realNow();
+  let checks = 0;
+  try {
+    // The initial current-state inspection is in time; the final commit check crosses the deadline.
+    Date.now = () => (++checks === 1 ? inTime : inTime + 3600001);
+    assert.deepEqual(await h.invoke({ ...referencesCommand, inputDigest: h.command.inputDigest }), {
+      ok: false,
+      code: 'APPROVAL_EXPIRED',
+    });
+    assert.equal(checks, 2);
+    assert.equal(h.bytes(), before);
+    assert.equal(h.writes(), writes);
+  } finally {
+    Date.now = realNow;
+  }
+});

@@ -1680,3 +1680,169 @@ for (const concurrent of ['media', 'page', 'cancel'] as const)
     }
     assert.equal((await reopened.get('products', 'p'))?.published, false);
   });
+
+async function jsonOwnReferenceFixture(t: { after(callback: () => void): void }) {
+  const h = await jsonOwnApprovalFixture(t, {}, 21);
+  await readyJsonOwnMedia(h.adapter);
+  assert.equal((await h.adapter.persistCatalogDetailApproval('admin', h.command)).ok, true);
+  const scope = { ...query, inputDigest: h.command.inputDigest };
+  assert.equal(
+    (
+      await h.adapter.persistCatalogDetailApproval('admin', {
+        ...scope,
+        action: 'operation-approval-media',
+      })
+    ).ok,
+    true,
+  );
+  for (const page of [0, 1])
+    assert.equal(
+      (
+        await h.adapter.persistCatalogDetailApproval('admin', {
+          ...scope,
+          action: 'operation-approval-page',
+          page,
+        })
+      ).ok,
+      true,
+    );
+  return { ...h, referenceCommand: { ...scope, action: 'operation-approval-references' as const } };
+}
+test('frozen own references survive discarded response and JSON reopen with zero repeat writes', async (t) => {
+  const h = await jsonOwnReferenceFixture(t);
+  const others = JSON.stringify(
+    Object.fromEntries(
+      Object.entries(JSON.parse(h.bytes())).filter(([key]) => key !== 'catalogDetailApprovals'),
+    ),
+  );
+  await h.adapter.persistCatalogDetailApproval('admin', h.referenceCommand);
+  const reopened = new JsonFileAdapter(h.file);
+  const recovered = await reopened.persistCatalogDetailApproval('admin', query);
+  assert.ok(
+    recovered.ok &&
+      'record' in recovered &&
+      recovered.record.state === 'staging' &&
+      recovered.record.references,
+  );
+  assert.equal(recovered.record.references.operationRootId, recovered.record._id);
+  assert.equal(recovered.record.references.leafCount, 0);
+  assert.equal(recovered.record.nextPage, 2);
+  assert.equal(
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(JSON.parse(h.bytes())).filter(([key]) => key !== 'catalogDetailApprovals'),
+      ),
+    ),
+    others,
+  );
+  const before = h.bytes();
+  utimesSync(h.file, new Date(1000), new Date(1000));
+  assert.deepEqual(
+    await reopened.persistCatalogDetailApproval('admin', h.referenceCommand),
+    recovered,
+  );
+  assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', h.command), recovered);
+  assert.deepEqual(
+    await reopened.persistCatalogDetailApproval('admin', {
+      ...h.referenceCommand,
+      action: 'operation-approval-media',
+    }),
+    recovered,
+  );
+  assert.deepEqual(
+    await reopened.persistCatalogDetailApproval('admin', {
+      ...h.referenceCommand,
+      action: 'operation-approval-page',
+      page: 0,
+    }),
+    recovered,
+  );
+  assert.equal(h.bytes(), before);
+  assert.equal(statSync(h.file).mtimeMs, 1000);
+  assert.equal((await reopened.get('products', 'p'))?.published, false);
+  assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals.length, 1);
+});
+for (const second of ['references', 'media', 'page', 'cancel'] as const)
+  test(`concurrent JSON references/${second} preserve the same operation and cancellation boundary`, async (t) => {
+    const h = await jsonOwnReferenceFixture(t);
+    const other = new JsonFileAdapter(h.file);
+    const command =
+      second === 'references'
+        ? h.referenceCommand
+        : second === 'media'
+          ? { ...h.referenceCommand, action: 'operation-approval-media' as const }
+          : second === 'page'
+            ? { ...h.referenceCommand, action: 'operation-approval-page' as const, page: 0 }
+            : { ...h.referenceCommand, action: 'operation-cancel' as const };
+    const results = await Promise.allSettled([
+      h.adapter.persistCatalogDetailApproval('admin', h.referenceCommand),
+      other.persistCatalogDetailApproval('admin', command),
+    ]);
+    assert.ok(results.every((result) => result.status === 'fulfilled'));
+    const reopened = new JsonFileAdapter(h.file);
+    const current = await reopened.persistCatalogDetailApproval('admin', query);
+    assert.ok(current.ok && 'record' in current && current.record.state === 'staging');
+    assert.equal(current.record.nextPage, 2);
+    assert.ok(current.record.media);
+    if (second === 'cancel') {
+      assert.equal(current.current, false);
+      assert.equal(typeof current.record.operation.cancelledAt, 'string');
+      const before = h.bytes();
+      assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', h.referenceCommand), {
+        ok: false,
+        code: 'CONFLICT',
+      });
+      assert.equal(h.bytes(), before);
+    } else {
+      assert.equal(current.current, true);
+      assert.ok(current.record.references);
+      for (const result of results) {
+        assert.equal(result.status, 'fulfilled');
+        if (result.status === 'fulfilled') assert.equal(result.value.ok, true);
+      }
+      const before = h.bytes();
+      assert.equal(
+        (await reopened.persistCatalogDetailApproval('admin', h.referenceCommand)).ok,
+        true,
+      );
+      assert.equal(h.bytes(), before);
+    }
+    assert.equal((await reopened.get('products', 'p'))?.published, false);
+    assert.equal(JSON.parse(h.bytes()).catalogDetailApprovals.length, 1);
+  });
+test('JSON reference command is copied before awaiting the existing file lock', async (t) => {
+  const h = await jsonOwnReferenceFixture(t);
+  const command = { ...h.referenceCommand };
+  const pending = h.adapter.persistCatalogDetailApproval('admin', command);
+  command.productId = 'other';
+  command.inputDigest = 'f'.repeat(64);
+  const result = await pending;
+  assert.ok(
+    result.ok &&
+      'record' in result &&
+      result.record.state === 'staging' &&
+      result.record.references,
+  );
+  assert.equal(result.record.productId, 'p');
+});
+for (const value of ['null', 'wrong-tree'] as const)
+  test(`JSON reopen refuses persisted ${value} reference evidence without rewriting the file`, async (t) => {
+    const h = await jsonOwnReferenceFixture(t);
+    assert.equal(
+      (await h.adapter.persistCatalogDetailApproval('admin', h.referenceCommand)).ok,
+      true,
+    );
+    const rows = JSON.parse(h.bytes());
+    if (value === 'null') rows.catalogDetailApprovals[0].references = null;
+    else rows.catalogDetailApprovals[0].references.treeRoot = 'f'.repeat(64);
+    writeFileSync(h.file, JSON.stringify(rows));
+    const before = h.bytes();
+    utimesSync(h.file, new Date(1000), new Date(1000));
+    const reopened = new JsonFileAdapter(h.file);
+    assert.deepEqual(await reopened.persistCatalogDetailApproval('admin', query), {
+      ok: false,
+      code: 'CONFLICT',
+    });
+    assert.equal(h.bytes(), before);
+    assert.equal(statSync(h.file).mtimeMs, 1000);
+  });

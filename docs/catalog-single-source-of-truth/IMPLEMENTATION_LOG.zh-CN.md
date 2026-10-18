@@ -1283,3 +1283,8 @@ staged/atomic在原事务中共用只读C1规划，仅非零delta图读取小pro
 ## P3e6d7：上传完成与存储保护引用状态
 
 pending 上传激活/拒绝与 source pending 共用合法零引用校验；无账本旧缺计数可继续，显式 null/坏或非空账本拒绝零写。active 完成确认与同字节复核保留共享引用。native/JSON 在首个异步边界前复制命令，原权限与当前行检查仍在事务/文件锁内。存储保护 commit/release 通过实际 C1 结算串联证明保留当前计数/账本。44 项新增、282 项聚焦通过；17 个故障注入检出（182 次重叠失败及 2 个 SDK-only），六 SHA 恢复；安装 SDK 255 项、四独立进程真实 PNG 激活/丢回执/重开零写/未发布恢复与 404 通过。全量 5,388、Node 20 2,400、19 包 types/E2E types/standing SDK/显式 Biome 通过。审查五生产/三测试与四记录，把“上传零引用”限定 pending，核对 active 正控；原 save 权限/分类 fence 和生产 protection 整文件字节保持。[说明](P3e6d7_UPLOAD_REFERENCE_STATE.zh-CN.md)记录准确红测与后补控制边界。精确构建与编译后入口随后补充；原整条发布丢回执 P1、最终激活/UI/历史/真实云/P95/三时钟/20 件发布回退仍开放，producer 关闭/fullDeliveryReady=false。
+
+
+## P3e6e1：同一操作根冻结服务器引用计划
+
+内部 references 步骤复用原 actor/source/版本/策略/取消/TTL，只在所有页和 media 完成后，以当前商品 canonical 集合与 seal 完全相等生成 Merkle 承诺，绑定到原根；不写图片 pending、计数、终局 proof 或 published。重复/页/media/begin/cancel 保留绑定，读回重新推导树，坏页进度拒绝。新增 62 项，最终聚焦 286；实际基线复证 12 业务红，补 codec 反例先红。24 故障检出（22 测试组 201 重叠失败+2 SDK-only），连基线共 25 项/213 失败，五 SHA 恢复。安装 SDK 277/22 新、关联来源 7 实际操作/唯一根写/严格 ACK/丢确认和输入冻结，四进程重开/页/取消/零重复文件写与夹具清理通过。全量 5,450、Node 20 2,462、19 types/E2E/standing SDK/六文件 Biome/diff 通过。审查三生产/三测试与四记录，按真实头生成器推翻新增 retained IDs 的猜测，保留原规则并加集合门槛；[说明](P3e6e1_OWN_REFERENCE_PLAN.zh-CN.md)区分测试夹具修正、冗余取消保护、纯容量与云 P95。native/JSON adapter 和原权限/分类 fence 全文件未改。精确三函数/site 与非空 PNG worker 组合随后补证；pending stage/final activation/UI/历史/真实云/P95/三时钟与20发布恢复及原整条发布丢回执 P1 仍开放，producer 关闭/fullDeliveryReady=false。

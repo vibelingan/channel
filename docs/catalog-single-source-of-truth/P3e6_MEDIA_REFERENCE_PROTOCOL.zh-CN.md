@@ -109,3 +109,8 @@ managed图片不得经通用remove/条件remove删除，实际持久删除流程
 ## P3e6d7 上传与存储保护
 
 pending 激活/标失败仅接受无账本合法旧状态或合法空零账本；有账本缺基数、非空/坏账本、显式 null 均不可转换。已完成 active 的重复确认保持只读；legacy active 同字节复核完整保留共享引用。上传与来源 pending 共用纯校验，native/JSON 提前复制命令；实际权限/当前行/锁仍在原事务。存储保护同身份迁移 commit/release 以实际 C1 结算串联测试确认保留当前引用，生产保护模块未改。详见 [P3e6d7](P3e6d7_UPLOAD_REFERENCE_STATE.zh-CN.md)。最终 root/proof 与 producer、历史和真实验收尚未完成，不能启用。
+
+
+## P3e6e1 冻结引用承诺
+
+同一 staging 根在全部页与媒体回执完成后，从服务端冻结 publication 生成完整 Merkle 计划，并要求当前商品 canonical raw+approved 集合与媒体 seal 数量/摘要完全一致。正常 header 生成会保留图库/详情图，容量正控证明这一前提；不新增 retained IDs 或改变计数规则。小 references 绑定保留原身份/版本/策略/媒体/TTL 条件，读回重算树，重复零写、取消保留历史。实际关联来源7文档操作，只写原根，不暂存任何图片差值或终局证明。详见 [P3e6e1](P3e6e1_OWN_REFERENCE_PLAN.zh-CN.md)。后续必须实现按预算暂存、80槽续接与唯一终局 product/root/proof 原子激活；当前 producer 仍关闭。

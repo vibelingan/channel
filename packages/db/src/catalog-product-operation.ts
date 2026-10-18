@@ -37,6 +37,11 @@ import {
   prepareOwnedApprovalMedia,
   readOwnedApprovalMedia,
 } from './catalog-operation-media.ts';
+import {
+  CatalogOwnedApprovalReferencesSchema,
+  prepareOwnedApprovalReferences,
+  readOwnedApprovalReferencePlan,
+} from './catalog-operation-references.ts';
 import { CatalogProductStateError, assertCatalogProductVersions } from './catalog-product-state.ts';
 import {
   normalizedSourceInputDigest,
@@ -90,6 +95,9 @@ export const ProductOperationCancelSchema = identifiers
 export const ProductOperationMediaSchema = identifiers
   .extend({ action: z.literal('operation-approval-media'), inputDigest: digest })
   .strict();
+export const ProductOperationReferencesSchema = identifiers
+  .extend({ action: z.literal('operation-approval-references'), inputDigest: digest })
+  .strict();
 const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationGetSchema,
@@ -97,6 +105,7 @@ const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationApprovalPageSchema,
   ProductOperationCancelSchema,
   ProductOperationMediaSchema,
+  ProductOperationReferencesSchema,
 ]);
 const SnapshotSchema = z
   .object({
@@ -159,6 +168,7 @@ const SavedSchema = ReservedSchema.extend({
 const ApprovalOperationSchema = SavedSchema.merge(ApprovalJobSchema).extend({
   state: z.literal('staging'),
   media: CatalogOwnedApprovalMediaSchema.optional(),
+  references: CatalogOwnedApprovalReferencesSchema.optional(),
 });
 const RecordSchema = z.discriminatedUnion('state', [
   ReservedSchema,
@@ -224,6 +234,8 @@ export async function runProductOperation(
     return stageOperationApprovalPage(tx, actorId, command);
   if (command.action === 'operation-approval-media')
     return bindOperationApprovalMedia(tx, actorId, command);
+  if (command.action === 'operation-approval-references')
+    return bindOperationApprovalReferences(tx, actorId, command);
   const key = operationKey(actorId, command.productId, command.operationId);
   const previous = await tx.get(collection, key);
   if (previous) {
@@ -325,9 +337,21 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   if (Object.hasOwn(record.operation, 'cancelledAt') && record.operation.cancelledAt === undefined)
     return null;
   if (record.state === 'staging') {
-    const { operation: _operation, saved: _saved, media: _media, ...job } = record;
+    const {
+      operation: _operation,
+      saved: _saved,
+      media: _media,
+      references: _references,
+      ...job
+    } = record;
     if (!readApprovalJob(job) || !fitsApprovalJobBudget(job)) return null;
     if (Object.hasOwn(record, 'media') && !readOwnedApprovalMedia(record, record.media))
+      return null;
+    if (
+      Object.hasOwn(record, 'references') &&
+      (record.nextPage !== record.pageHashes.length ||
+        !readOwnedApprovalReferencePlan(record, record.references))
+    )
       return null;
   } else if (!fitsJsonBudget(record, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
   const values = cleanValues(record.operation.values);
@@ -693,7 +717,13 @@ async function beginOperationApproval(
   const { record, product, inspection } = current;
   if (!sameApprovalProduct(product, prepared)) return fail('CONFLICT');
   if (record.state === 'staging') {
-    const { operation: _operation, saved: _saved, media: _media, ...persisted } = record;
+    const {
+      operation: _operation,
+      saved: _saved,
+      media: _media,
+      references: _references,
+      ...persisted
+    } = record;
     if (approvalPlanDigest(persisted) !== approvalPlanDigest(prepared)) return fail('CONFLICT');
     return inspection;
   }
@@ -727,7 +757,8 @@ async function currentApprovalOperation(
   command:
     | z.infer<typeof ProductOperationApprovalBeginSchema>
     | z.infer<typeof ProductOperationApprovalPageSchema>
-    | z.infer<typeof ProductOperationMediaSchema>,
+    | z.infer<typeof ProductOperationMediaSchema>
+    | z.infer<typeof ProductOperationReferencesSchema>,
 ): Promise<
   | {
       ok: true;
@@ -797,6 +828,28 @@ async function bindOperationApprovalMedia(
   const next = ApprovalOperationSchema.parse({ ...record, media });
   if (!fitsJsonBudget(next, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
+  await tx.set(collection, next);
+  return { ...inspection, record: next };
+}
+
+async function bindOperationApprovalReferences(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command: z.infer<typeof ProductOperationReferencesSchema>,
+): Promise<ProductOperationResult> {
+  const current = await currentApprovalOperation(tx, actorId, command);
+  if (!current.ok) return current;
+  const { record, product, inspection } = current;
+  if (record.state !== 'staging') return fail('CONFLICT');
+  if (record.references) return inspection;
+  if (record.nextPage !== record.pageHashes.length) return fail('SOURCE_NOT_READY');
+  const references = prepareOwnedApprovalReferences(record, product);
+  if (!references) return fail('MEDIA_NOT_READY');
+  const next = ApprovalOperationSchema.parse({ ...record, references });
+  if (!fitsJsonBudget(next, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
+    return fail('VALIDATION_ERROR');
+  const age = Date.now() - Date.parse(record.createdAt);
+  if (age < 0 || age > APPROVAL_JOB_MAX_AGE_MS) return fail('APPROVAL_EXPIRED');
   await tx.set(collection, next);
   return { ...inspection, record: next };
 }
