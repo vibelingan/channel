@@ -1214,3 +1214,8 @@ public容量旧夹具遗漏v1投影/完整get且上传仍为POST/FormData，按�
 ## P3e5：同根审批配置分页
 
 新旧入口共用页投影/hash/不可变写入，own页保留原始输入/保存回执/TTL，47文档操作、零写重复。41新增、17源码反例123重叠失败并还原；安装SDK12组/9ACK回滚、4独立进程、20来源商品420配置组合通过。完整4825/Node20713/19types/Biome/SDK/diff通过；测试类型有限键修正编译JS相同，相关测试和变异已重跑。[P3e5](P3e5_OWN_APPROVAL_PAGES.zh-CN.md)区分codec预算与语义候选。将“审批完成”纠正为“配置页已暂存”，旧批准版本保留、商品仍未发布；原完整发布恢复P1继续，fullDeliveryReady=false。
+
+
+## P3e6a：大媒体引用协议与纯计算
+
+复核全部计数消费者后，选同根协调、待提交差值与小型不可变证明；明确非快照读和单root结算反例，永久hold/旧writer/backfill仍是启用前门槛。本步只实现未接DB的计划/成员证明/一致快照结算纯函数。51新增、18故障134重叠失败并SHA恢复；完整4876、Node20 DB1594、19types/E2E/显式Biome/SDK/diff通过。独立Node20构建6计划、Python13成员路径交叉核对。详见[P3e6](P3e6_MEDIA_REFERENCE_PROTOCOL.zh-CN.md)。实际措辞修正：测试名去掉“lost answers”，限定线性化模型，不冒称HTTP或真实云恢复。原正式P1、真实三时钟/20件验收及fullDeliveryReady=false继续。
