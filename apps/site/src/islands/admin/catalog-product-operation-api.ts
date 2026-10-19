@@ -36,7 +36,8 @@ const command = z.discriminatedUnion('action', [
   scope.extend({ action: z.literal('product-operation-cancel'), inputDigest: digest }).strict(),
 ]);
 export type PublicationCommand = z.infer<typeof command>;
-export type PublicationScope = Readonly<z.infer<typeof scope> & { inputDigest?: string }>;
+export const PublicationScopeSchema = scope.extend({ inputDigest: digest.optional() }).strict();
+export type PublicationScope = Readonly<z.infer<typeof PublicationScopeSchema>>;
 export type PublicationAttempt = Readonly<z.infer<typeof start>>;
 export type PublicationStep = {
   status: CatalogProductOperationStatus;
@@ -64,7 +65,7 @@ const definite = new Set([
 const invalidRequest = () =>
   new AdminApiError('VALIDATION_ERROR', 'Check the publication request before trying again.');
 
-function capture(input: unknown): PublicationCommand {
+export function capturePublicationCommand(input: unknown): PublicationCommand {
   const max =
     input && typeof input === 'object' && Reflect.get(input, 'action') === 'product-operation-start'
       ? CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES
@@ -95,7 +96,7 @@ export function createPublicationAttempt(input: {
   expectedUpdatedAt: string | null;
   values: Record<string, unknown>;
 }): PublicationAttempt {
-  const value = capture({
+  const value = capturePublicationCommand({
     ...input,
     action: 'product-operation-start',
     intent: 'publish',
@@ -153,7 +154,7 @@ export async function managePublication(
   input: unknown,
   options: PublicationOptions = {},
 ): Promise<PublicationStep> {
-  const checked = capture(input);
+  const checked = capturePublicationCommand(input);
   const action = checked.action;
   const expectedDigest = options.expectedInputDigest;
   if (

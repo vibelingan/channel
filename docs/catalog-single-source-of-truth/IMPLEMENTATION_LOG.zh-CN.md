@@ -1380,3 +1380,8 @@ New/旧首次、手工 Edited、完整当前来源的 Changed/Removed 使用原�
 ## P3e7c9a 浏览器发布任务契约与原scope查询
 
 新增单次公开RPC和严格发布状态客户端；固定UUID/深拷贝冻结输入，未知回应只查原根，双重失败保留不可变scope和两错误，明确issues保留。66新增含3条客户端模块↔真实Admin/JSON/PNG组合及实际下架/引用归零；默认fetch绑定也独立验证。17故障24重叠/两SHA恢复；site863、local1057、Node20最新完整关联3163、19类型/E2E/既有test类型/5Biome/site构建通过，其他未变相关包复用4e5证据，总6128。期间一次Node20旧JSON80夹具begin返回false，诊断重跑及3轮两控制均未复现，原因未建立，继续作为发版阻断；首轮raw被覆盖但工具输出失败摘录已留，后续日志独立命名。实际审阅5代码/测试，纠正明确错误与私有进度、模块串联与真实浏览器的措辞；未启用客户producer，原UI P1/JSON80未解释失败均未关闭，详见[P3e7c9a](P3e7c9a_PUBLICATION_CLIENT_CONTRACT.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7c9b 单商品原发布任务协调
+
+新建原scope协调器，恢复先查询，显式错误后核对已保存私有进度，媒体改走独立Human预算后续原发布，引用检查点按真实阶段保留/清除；120秒/64请求与无进展退避，回调失败暂停且迟到拒绝被处理。61新增（54控制+7实际Admin/JSON/PNG组合）、site924/local1057/Node203224、19包与E2E类型/既有测试类型/4Biome/15页构建通过；复用未变C8相关包证据合计6189，651安装SDK仍C8。14故障19重叠/SHA恢复；首轮旧游标故障幸存后补BUSY确认控制，再全轮检出。实际保存延迟2200毫秒触发inline预算耗尽，独立Human及丢回应恢复、105SKU、公开读回/实际撤回与保留原分类均本地通过；未当真实浏览器/云性能。人工审阅四代码/测试与原入口/DTO/循环，纠正committed与已公开、停止等待与服务器取消的措辞。客户producer未接，原UI P1/JSON80原因不明及其余现场门槛未关闭，详见[P3e7c9b](P3e7c9b_PUBLICATION_COORDINATOR.zh-CN.md)，fullDeliveryReady=false。
