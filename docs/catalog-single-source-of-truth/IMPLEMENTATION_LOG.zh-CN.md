@@ -1517,3 +1517,11 @@ Review实际19代码/测试与原生事务、monotonicProductTime、validateProd
 全site1249通过/0失败/1环境开关图库（后者显式1/1通过）；Node20相关117通过；两浏览器加相关原请求22通过，含新增无正文恢复流程；构建15页、构建后表格20件恢复1/1；5文件Biome和类型通过；2个源码故障断言检出并恢复SHA。记录在`private-input-stop-verification.json`及同前缀日志。最初测试对象联合类型和一次不可达重复测试块被类型检查检出后纠正，没有修改生产契约来迁就测试。
 
 完成的是停止出口，完整编辑保存/新增媒体/live刷新仍待接线。无部署或真实商品变更；原分支继续，fullDeliveryReady=false。
+
+## P4c3：草稿保存恢复控制器（2026-10-20）
+
+见[P4c3](P4c3_DRAFT_SAVE_RECOVERY.zh-CN.md)。复用已有 Root 保存及停止协议，新增 body-free draft journal 命名空间；输入在异步前捕获，未知写只查询原保存，同页继续仍为同 nonce/版本/输入。已保存回执和当前商品版本分别确认，后续编辑不重写。刷新后未到达的私有输入可停止；绑定 Root 丢失不生成替代记录。没有接入 RecordForm 或放宽新照片门槛。
+
+实读 `catalog-draft-save.ts`、`catalog-publication-journal.ts` 与对应两测试，并对照 Admin workflow、monotonicProductTime、角色/会话门槛和现有编辑消费者。文案明确受控 fetch/实际处理函数与云端验收的区别，实查保存次数、同 nonce、私有正文未落盘、商品分类/价格/图片和后续编辑不被覆盖。存储删除失败的真实 red→green 已保留；模块缺失、测试类型及未匹配图库选择器不计业务验证。
+
+本地相关120/120、Node20最终193/193、site测试类型和四文件Biome通过；整站1261通过/0失败/1环境图库，后者另显式1/1。整站之后三个小边界补改由最终Node20覆盖，完整接线后再进行整体构建/浏览器组合。证据 `draft-save-*`。未部署、未修改真实数据、UI未接线；fullDeliveryReady=false。

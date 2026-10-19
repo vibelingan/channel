@@ -7,6 +7,28 @@ const scope = { productId: 'p', operationId: '12345678-1234-4234-8234-1234567890
 const digest = 'a'.repeat(64);
 const cursor = { imageId: 'photo', ledgerDigest: 'b'.repeat(64), nextOffset: 3 };
 
+test('draft pointers cannot cross creation/publication namespaces or retain private input', () => {
+  const storage = disk();
+  const draft = createPublicationJournal(owner, () => storage, 'draft');
+  const entry = { scope: { ...scope, inputDigest: digest } };
+  draft.retain(entry);
+  assert.deepEqual(createPublicationJournal(owner, () => storage, 'draft').read().entries, [entry]);
+  for (const kind of ['publication', 'creation'] as const) {
+    const other = createPublicationJournal(owner, () => storage, kind);
+    assert.deepEqual(other.read().entries, []);
+    assert.throws(() => other.import(draft.export()));
+    assert.throws(() => draft.import(other.export()));
+  }
+  for (const invalid of [
+    { ...entry, values: { description: 'Private form' } },
+    { ...entry, referenceRecovery: cursor },
+    { ...entry, originalStart: { expectedUpdatedAt: '2026-10-19T00:00:00.000Z' } },
+    { scope: { ...scope, productId: 'new-product', inputDigest: digest } },
+  ])
+    assert.throws(() => draft.retain(invalid));
+  assert.equal(storage.length, 1);
+});
+
 test('creation pointers persist separately and cannot be imported as publication tasks', () => {
   const storage = disk();
   const creation = createPublicationJournal(owner, () => storage, 'creation');

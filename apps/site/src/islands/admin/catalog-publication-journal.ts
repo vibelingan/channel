@@ -6,6 +6,7 @@ export type { PublicationCheckpoint } from './catalog-product-operation-api.ts';
 
 const VERSION = 'catalog-publication-recovery-v1';
 const CREATION_VERSION = 'catalog-creation-recovery-v1';
+const DRAFT_VERSION = 'catalog-draft-recovery-v1';
 const MAX_ENTRIES = 500;
 const MAX_KEYS = 2000;
 const MAX_EXPORT_BYTES = 1024 * 1024;
@@ -39,14 +40,14 @@ const OwnerSchema = z
 const EntrySchema = PublicationCheckpointSchema;
 const RecordSchema = z
   .object({
-    schemaVersion: z.enum([VERSION, CREATION_VERSION]),
+    schemaVersion: z.enum([VERSION, CREATION_VERSION, DRAFT_VERSION]),
     owner: OwnerSchema,
     entry: EntrySchema,
   })
   .strict();
 const ExportSchema = z
   .object({
-    schemaVersion: z.enum([VERSION, CREATION_VERSION]),
+    schemaVersion: z.enum([VERSION, CREATION_VERSION, DRAFT_VERSION]),
     owner: OwnerSchema,
     entries: z.array(EntrySchema).max(MAX_ENTRIES),
   })
@@ -93,18 +94,20 @@ function compatible(previous: PublicationCheckpoint | undefined, next: Publicati
 export function createPublicationJournal(
   input: unknown,
   storage: () => PublicationJournalStorage = () => globalThis.localStorage,
-  kind: 'publication' | 'creation' = 'publication',
+  kind: 'publication' | 'creation' | 'draft' = 'publication',
 ) {
   const parsedOwner = OwnerSchema.safeParse(input);
   if (!parsedOwner.success) throw invalid();
   const owner = parsedOwner.data;
-  const version = kind === 'creation' ? CREATION_VERSION : VERSION;
+  const version =
+    kind === 'creation' ? CREATION_VERSION : kind === 'draft' ? DRAFT_VERSION : VERSION;
   const validKind = (entry: PublicationCheckpoint) =>
-    kind !== 'creation' ||
+    kind === 'publication' ||
     (entry.referenceRecovery === undefined &&
       entry.originalStart === undefined &&
-      entry.scope.productId === 'new-product' &&
-      entry.scope.inputDigest !== undefined);
+      (kind === 'creation'
+        ? entry.scope.productId === 'new-product' && entry.scope.inputDigest !== undefined
+        : entry.scope.productId !== 'new-product'));
   const prefix = `channel:${kind}:v1:${JSON.stringify([owner.actorId, owner.endpoint])}:`;
   const key = (entry: PublicationCheckpoint) =>
     prefix + JSON.stringify([entry.scope.productId, entry.scope.operationId]);
