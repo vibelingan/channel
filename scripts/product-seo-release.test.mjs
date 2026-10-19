@@ -18,7 +18,11 @@ test('release rejects synthetic, wrong-origin and incomplete artifacts before cl
     };
     writeFileSync(
       join(dir, 'seo-manifest.json'),
-      JSON.stringify([{ path: '/products/p-public-id/', kind: 'product' }]),
+      JSON.stringify({
+        schemaVersion: 1,
+        siteOrigin: 'https://example.com',
+        entries: [{ path: '/products/p-public-id/', kind: 'product' }],
+      }),
     );
     const save = (value) =>
       writeFileSync(join(dir, 'products/manifest.json'), JSON.stringify(value));

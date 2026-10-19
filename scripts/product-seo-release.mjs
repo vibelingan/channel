@@ -4,14 +4,17 @@ import { resolve } from 'node:path';
 /** Check the artifact before any cloud mutation, including function deployment. */
 export function assertPublicProductBuild(dist, site) {
   const manifest = JSON.parse(readFileSync(resolve(dist, 'products/manifest.json'), 'utf8'));
-  const pages = JSON.parse(readFileSync(resolve(dist, 'seo-manifest.json'), 'utf8'));
+  const renderedManifest = JSON.parse(readFileSync(resolve(dist, 'seo-manifest.json'), 'utf8'));
   if (
     manifest.schemaVersion !== 1 ||
     manifest.purpose !== 'public' ||
     manifest.siteOrigin !== new URL(site).origin ||
     !Array.isArray(manifest.products) ||
     !Number.isSafeInteger(manifest.total) ||
-    manifest.total !== manifest.products.length
+    manifest.total !== manifest.products.length ||
+    renderedManifest.schemaVersion !== 1 ||
+    renderedManifest.siteOrigin !== manifest.siteOrigin ||
+    !Array.isArray(renderedManifest.entries)
   )
     throw new Error('Refusing to deploy synthetic, incomplete or wrong-origin product output.');
   const paths = manifest.products.map((item) => {
@@ -23,7 +26,7 @@ export function assertPublicProductBuild(dist, site) {
       throw new Error('Invalid public product output identity');
     return item.path;
   });
-  const rendered = pages
+  const rendered = renderedManifest.entries
     .filter((page) => page.kind === 'product')
     .map((page) => page.path)
     .sort();
