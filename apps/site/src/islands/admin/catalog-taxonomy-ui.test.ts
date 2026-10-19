@@ -329,6 +329,7 @@ test('requests reject unknown children, newly assigned archived children and app
 
 function renderWithTaxonomy(content: ReactNode, seeded = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  client.setQueryData(['catalog-publication-capabilities'], { enabled: true });
   if (seeded) {
     for (const family of PRODUCT_FAMILY_OPTIONS) {
       client.setQueryData(

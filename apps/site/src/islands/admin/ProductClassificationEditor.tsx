@@ -19,6 +19,7 @@ import {
   type CategorySuggestion,
   assignmentCall,
   categorySuggestionMatchesProduct,
+  fetchCatalogDetailCapabilities,
   fetchCategorySuggestion,
   getRecord,
 } from './api.ts';
@@ -222,6 +223,13 @@ export function ProductClassificationEditor({
 }: ProductClassificationEditorProps) {
   const client = useQueryClient();
   const queries = useQueries({ queries: PRODUCT_FAMILY_OPTIONS.map(taxonomyQuery) });
+  const capabilities = useQuery({
+    queryKey: ['catalog-publication-capabilities'],
+    queryFn: ({ signal }) => fetchCatalogDetailCapabilities(signal),
+    retry: false,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
+  });
   const singleProduct = products.length === 1 ? products[0] : undefined;
   const suggestionQuery = useQuery({
     queryKey: [
@@ -318,7 +326,13 @@ export function ProductClassificationEditor({
   const publicCount = products.filter((product) => product.published === true).length;
   const draftCount = products.filter((product) => product.published === false).length;
   const canPublish =
-    !publishBlockReason && draftCount > 0 && draftCount === products.length && !appliedSuggestion;
+    capabilities.data?.enabled === true &&
+    !capabilities.isFetching &&
+    !capabilities.error &&
+    !publishBlockReason &&
+    draftCount > 0 &&
+    draftCount === products.length &&
+    !appliedSuggestion;
   const snapshot = (
     command: CatalogClassificationAssignmentRequest,
     assignment: CatalogClassificationAssignmentResult['results'] | null,
@@ -788,8 +802,29 @@ export function ProductClassificationEditor({
           Saving classification on a published product may change storefront filters immediately.
         </p>
       )}
-      {!canPublish && !recoveryOnly && (
+      {draftCount !== products.length && !recoveryOnly && (
         <p className="text-sm text-slate-600">Select drafts separately to publish.</p>
+      )}
+      {!recoveryOnly && (capabilities.isPending || capabilities.isFetching) && (
+        <output className="block text-sm">Checking publication availability...</output>
+      )}
+      {!recoveryOnly && capabilities.data?.enabled === false && (
+        <p className="text-sm text-slate-600">
+          Publishing is unavailable. You can still save classification.
+        </p>
+      )}
+      {!recoveryOnly && capabilities.error && (
+        <div role="alert" className="space-y-2 text-sm text-amber-900">
+          <p>Publication availability could not be checked. You can still save classification.</p>
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={pending || busy || capabilities.isFetching}
+            onClick={() => void capabilities.refetch()}
+          >
+            Check publication availability again
+          </button>
+        </div>
       )}
       {singleProduct && typeof singleProduct.alibabaPrimarySourceKey === 'string' && (
         <div

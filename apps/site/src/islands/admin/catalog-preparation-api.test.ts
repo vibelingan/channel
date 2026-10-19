@@ -403,3 +403,120 @@ for (const [action, wrong] of [
     );
   });
 }
+
+function rejectedBusy() {
+  return { ...answer(), followUp: 'none', invocation: 'rejected', failureCode: 'BUSY' };
+}
+test('BUSY original preparation retries only after a fresh same-job status read', async () => {
+  const h = harness([
+    answer(),
+    rejectedBusy(),
+    answer(),
+    { ...answer(ready()), followUp: 'none', invocation: 'acknowledged' },
+  ]);
+  const result = await runPreparation({ productId: 'clock', jobId }, h);
+  assert.equal(result.reason, 'ready');
+  assert.deepEqual(h.calls, [
+    { action: 'status', jobId },
+    { action: 'continue', jobId },
+    { action: 'status', jobId },
+    { action: 'continue', jobId },
+  ]);
+  assert.deepEqual(h.waits, [400]);
+});
+test('BUSY original preparation stops after four bounded retries without creating a new job', async () => {
+  const h = harness([
+    answer(),
+    ...Array.from({ length: 4 }, () => [rejectedBusy(), answer()]).flat(),
+    rejectedBusy(),
+  ]);
+  const result = await runPreparation({ productId: 'clock', jobId }, h);
+  assert.equal(result.reason, 'paused');
+  assert.equal(result.errorCode, 'BUSY');
+  assert.equal(h.calls.length, 10);
+  assert.deepEqual(h.waits, [400, 800, 1200, 1200]);
+  assert.ok(h.calls.every((c) => c && typeof c === 'object' && Reflect.get(c, 'jobId') === jobId));
+});
+for (const fault of [
+  'stale',
+  'older-lease',
+  'older-attempt',
+  'creation-changed',
+  'unconfirmed',
+] as const)
+  test(`BUSY original preparation does not retry ${fault} evidence`, async () => {
+    const fresh = status();
+    const busy = rejectedBusy();
+    if (fault === 'stale') {
+      fresh.current = false;
+      fresh.nextAction = 'restart';
+    }
+    if (fault === 'older-lease') {
+      busy.status.progress.leaseVersion = 2;
+      fresh.progress.leaseVersion = 1;
+    }
+    if (fault === 'older-attempt') {
+      busy.status.progress.attempt = 2;
+      fresh.progress.attempt = 1;
+    }
+    if (fault === 'creation-changed') fresh.progress.createdAt = '2026-10-16T00:00:00.000Z';
+    if (fault === 'unconfirmed') busy.invocation = 'unconfirmed';
+    const h = harness([
+      answer(),
+      busy,
+      answer(fresh),
+      { ...answer(ready()), followUp: 'none', invocation: 'acknowledged' },
+    ]);
+    const result = await runPreparation({ productId: 'clock', jobId }, h);
+    assert.equal(result.reason, 'needs-action');
+    assert.equal(h.calls.length, fault === 'unconfirmed' ? 2 : 3);
+  });
+test('BUSY original preparation observes ready without invoking a second worker', async () => {
+  const h = harness([answer(), rejectedBusy(), answer(ready())]);
+  const result = await runPreparation({ productId: 'clock', jobId }, h);
+  assert.equal(result.reason, 'ready');
+  assert.equal(h.calls.length, 3);
+});
+test('BUSY original preparation stops immediately if its recovery wait is aborted', async () => {
+  const h = harness([answer(), rejectedBusy(), answer()]);
+  const result = await runPreparation(
+    { productId: 'clock', jobId },
+    {
+      ...h,
+      wait: async () => {
+        throw Error('Stopped');
+      },
+    },
+  );
+  assert.equal(result.reason, 'paused');
+  assert.equal(h.calls.length, 2);
+});
+
+test('BUSY original preparation handles a definite HTTP rejection using fresh status before its bounded retry', async () => {
+  const h = harness([
+    answer(),
+    new AdminApiError('BUSY', 'Nothing saved'),
+    answer(),
+    answer(),
+    { ...answer(ready()), followUp: 'none', invocation: 'acknowledged' },
+  ]);
+  const result = await runPreparation({ productId: 'clock', jobId }, h);
+  assert.equal(result.reason, 'ready');
+  assert.deepEqual(h.calls, [
+    { action: 'status', jobId },
+    { action: 'continue', jobId },
+    { action: 'status', jobId },
+    { action: 'status', jobId },
+    { action: 'continue', jobId },
+  ]);
+  assert.deepEqual(h.waits, [400]);
+});
+
+for (const code of ['UNAUTHORIZED', 'FORBIDDEN'] as const)
+  test(`BUSY original preparation loses ${code} during fresh read without invoking again`, async () => {
+    const h = harness([answer(), rejectedBusy(), new AdminApiError(code, 'Access ended')]);
+    const result = await runPreparation({ productId: 'clock', jobId }, h);
+    assert.equal(result.reason, 'needs-action');
+    assert.equal(result.errorCode, code);
+    assert.equal(h.calls.length, 3);
+  });

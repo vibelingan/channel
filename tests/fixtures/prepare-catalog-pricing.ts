@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 // Owned, disposable database only. No live credentials, API calls or product writes.
@@ -22,6 +23,10 @@ if (
 const db = new JsonFileAdapter(file);
 setAdapter(db);
 await seed(db);
+const fixturePngBase64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==';
+const fixturePngBytes = Buffer.from(fixturePngBase64, 'base64');
+const fixturePngChecksum = createHash('sha256').update(fixturePngBytes).digest('hex');
 // The deployed hero points at three reviewed image identities. Supply owned
 // synthetic bytes under those identities in this disposable DB, not live COS.
 const heroIds = [
@@ -36,7 +41,7 @@ for (const id of heroIds)
     status: 'active',
     publishedRefCount: 1,
     refCount: 1,
-    data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+    data: fixturePngBase64,
   });
 const heroOwner = await db.findByField('products', 'name', 'AuraBeat Classic');
 if (!heroOwner) throw new Error('Owned hero product fixture missing');
@@ -79,19 +84,15 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   for (const [i, url] of urls.entries()) {
     const id = `formal-image-${i}`;
     const storagePath = `${id}.png`;
-    await writeFile(
-      resolve(mediaDir, storagePath),
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    );
+    await writeFile(resolve(mediaDir, storagePath), Buffer.from(fixturePngBase64, 'base64'));
     await db.createDocWithId('images', id, {
       status: 'active',
       storageProvider: 'local-disk',
       storagePath,
       storageFileId: `local-disk:${storagePath}`,
       mimeType: 'image/png',
+      byteSize: fixturePngBytes.byteLength,
+      checksumSha256: fixturePngChecksum,
       publishedRefCount: 1,
     });
     await db.createDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', url), {
@@ -274,10 +275,7 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   // publishes through approval (MIU-34).
   await writeFile(
     resolve(mediaDir, 'formal-manual-image.png'),
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
-      'base64',
-    ),
+    Buffer.from(fixturePngBase64, 'base64'),
   );
   await db.createDocWithId('images', 'formal-manual-image', {
     status: 'active',
@@ -285,6 +283,8 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     storagePath: 'formal-manual-image.png',
     storageFileId: 'local-disk:formal-manual-image.png',
     mimeType: 'image/png',
+    byteSize: fixturePngBytes.byteLength,
+    checksumSha256: fixturePngChecksum,
     publishedRefCount: 0,
   });
 }

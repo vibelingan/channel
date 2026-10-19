@@ -1438,3 +1438,12 @@ Save and publish 采用全部分类 saved 回执的 updatedAt 创建一次原尝
 32 新增＝14 Node + 16 实际浏览器子流程 + 2 父项；site1137/Node20最终改动核心46、类型、10Biome、15页构建通过。两引擎各20实际本地选品发布并撤回/404/有效引用0；响应丢失重开恢复不新增分类/start，单件坏图不阻断同批正常件，账号切换/并发改稿/仅保存/存储配额有验证。9故障14重叠、4SHA恢复；最终10截图唯一r6及哈希，实际看桌面恢复/390部分失败。首轮1134/1136中两条旧审批拦截已改为原 continue 暂停，保持1440/390新版本不可审批和JSON不变的断言。review补了无digest指针的交叉绑定校验并保留红测；文字修正单数和恢复时不发布草稿的误导提示。
 
 本轮不冒称正式Astro旧拦截、混合分类保留、大批次UI、跨标签多任务/不存在任务fallback、P4/P5/JSON80以及实际云验收完成；Node20真实20/100集成48在review末次绑定补充之前，最终site重新覆盖。后端精确制品/657SDK/14进程仍9efd824c，详见[P3e7d4](P3e7d4_CLASSIFICATION_OWNED_PUBLICATION.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d5 分类正式流程、发布能力与冷共享图片
+
+分类弹窗查询现有能力：关闭/失败/加载/旧缓存重查都禁发布，保留分类保存和只读重试。正式测试的update/approve拦截改为原start/continue/get，只在真实complete后丢回应；回执、读回失败、焦点与切区断点均保留，结束按自己operationId撤回。正式夹具补有效PNG及byteSize/SHA；未放宽生产校验。补元数据后真实暴露冷共享图片的worker rejected/BUSY仍queued但客户端停止，现仅对明确BUSY按同job新状态最多四次恢复，租约/attempt/创建时刻/当前性与原发布守卫保留，未知响应不重发。
+
+20新增（12准备/1能力/6实际浏览器子流程/1冷20集成）；site1157、Node20核心163及4实际暖20/暖100/缺分类/冷20通过，冷20 UI两引擎完成后均恢复。最终正式后台8/8、关闭能力1/1，均无失败/skip；前序r7旧拦截1过1败6未跑留档。11故障22重叠、3SHA恢复；16最终截图/哈希，已看390缓存错误与1280冷20。类型、11Biome、15页构建通过。缓存StrictMode请求数红测未计产品缺陷，后续实际按钮enabled反例才是产品红测；文案明确记录、字节、BUSY三阶段，未把局部通过等同实际云完成。
+
+实际review11文件与handler/工作流/共享队列/图片守卫。分类正式UI门槛关闭，其他P3/P4/P5及真实3时钟resync/20件test发布恢复、原JSON80归因和云性能仍开放；后端精确制品/SDK657/14进程仍9efd824c，详见[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)，fullDeliveryReady=false。

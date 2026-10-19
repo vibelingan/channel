@@ -7,6 +7,7 @@ import {
   type CatalogTaxonomyCommand,
   CatalogTaxonomyResultSchema,
 } from '../../packages/shared/src/catalog-taxonomy.ts';
+import { CatalogProductOperationStatusSchema } from '../../packages/shared/src/catalog/product-operation.ts';
 import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
 import { type ListResult, adminAction, loginAdmin, loginUser } from './helpers/admin-api';
 import {
@@ -345,6 +346,11 @@ test('confirmed publication keeps its receipt when the product status refresh fa
   page,
   request,
 }) => {
+  // @skip-when original publication is disabled; its no-publication fallback runs in the combined test.
+  test.skip(
+    process.env.E2E_CATALOG_FORMAL !== '1',
+    'Original publication receipts require the enabled formal protocol; the disabled branch is covered by bulk classification.',
+  );
   test.setTimeout(90_000);
   const health = await request.get(`${e2e.apiUrl}/api/health`);
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
@@ -357,9 +363,10 @@ test('confirmed publication keeps its receipt when the product status refresh fa
     { collection: 'products', page: 1, pageSize: 100 },
     session.token,
   );
-  const imageIds = seeds.items.find(
-    (item) => Array.isArray(item.imageIds) && item.imageIds.length,
-  )?.imageIds;
+  const imageIds =
+    process.env.E2E_CATALOG_FORMAL === '1'
+      ? ['formal-manual-image']
+      : seeds.items.find((item) => Array.isArray(item.imageIds) && item.imageIds.length)?.imageIds;
   expect(Array.isArray(imageIds) && imageIds.length > 0).toBe(true);
   const product = await adminAction<CollectionDoc>(
     request,
@@ -378,124 +385,205 @@ test('confirmed publication keeps its receipt when the product status refresh fa
     },
     session.token,
   );
-  await page.addInitScript(
-    ({ token, user }) => {
-      localStorage.setItem('channel.token', token);
-      localStorage.setItem('channel.user', JSON.stringify(user));
-    },
-    { token: session.token, user: session.user },
-  );
-  await page.goto('/admin?productFamily=toys');
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByPlaceholder(/^Search name/).fill(String(product.name));
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  await page
-    .getByRole('row')
-    .filter({ hasText: String(product.name) })
-    .getByRole('button', { name: 'Classify' })
-    .click();
-  const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
-  await dialog.getByRole('button', { name: 'Save and publish' }).click();
-  let published = false;
-  let publicationRequests = 0;
-  let productReadBeforeList = false;
-  let releaseReadback!: () => void;
-  let readbackStarted!: () => void;
-  const readbackGate = new Promise<void>((resolve) => {
-    releaseReadback = resolve;
-  });
-  const readbackRequest = new Promise<void>((resolve) => {
-    readbackStarted = resolve;
-  });
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { collection?: string; id?: string; values?: { published?: boolean } };
-    };
-    if (body.action === 'list' && body.data?.collection === 'products' && published) {
-      readbackStarted();
-      await readbackGate;
-      await route.fulfill({
-        status: 503,
-        contentType: 'application/json',
-        body: '{"ok":false,"error":{"code":"UNAVAILABLE","message":"Readback unavailable"}}',
-      });
-      return;
-    }
-    if (body.action === 'get' && body.data?.id === product._id && published)
-      productReadBeforeList = true;
-    if (
-      body.action === 'update' &&
-      body.data?.id === product._id &&
-      body.data.values?.published === true
-    ) {
-      publicationRequests += 1;
-      await new Promise((resolve) => setTimeout(resolve, 750));
-      published = true;
-    }
-    await route.continue();
-  });
-  await dialog.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(dialog.getByText('Publishing selected products...', { exact: true })).toBeVisible();
-  await expect(dialog.getByText(/Publishing product \d+ of/)).toHaveCount(0);
-  await readbackRequest;
+  const releases: Array<() => void> = [];
+  let originalOperationId: string | undefined;
   try {
-    await expect(dialog.getByText('Checking product statuses...', { exact: true })).toBeVisible();
+    await page.addInitScript(
+      ({ token, user }) => {
+        localStorage.setItem('channel.token', token);
+        localStorage.setItem('channel.user', JSON.stringify(user));
+      },
+      { token: session.token, user: session.user },
+    );
+    await page.goto('/admin?productFamily=toys');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(String(product.name));
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: String(product.name) })
+      .getByRole('button', { name: 'Classify' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
+    await dialog.getByRole('button', { name: 'Save and publish' }).click();
+    let published = false;
+    let publicationRequests = 0;
+    let productReadBeforeList = false;
+    let releaseReadback!: () => void;
+    let readbackStarted!: () => void;
+    const readbackGate = new Promise<void>((resolve) => {
+      releaseReadback = resolve;
+      releases.push(resolve);
+    });
+    const readbackRequest = new Promise<void>((resolve) => {
+      readbackStarted = resolve;
+    });
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: {
+          collection?: string;
+          id?: string;
+          action?: string;
+          productId?: string;
+          operationId?: string;
+          values?: { published?: boolean };
+        };
+      };
+      if (body.action === 'list' && body.data?.collection === 'products' && published) {
+        readbackStarted();
+        await readbackGate;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: '{"ok":false,"error":{"code":"UNAVAILABLE","message":"Readback unavailable"}}',
+        });
+        return;
+      }
+      if (body.action === 'get' && body.data?.id === product._id && published)
+        productReadBeforeList = true;
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.action === 'product-operation-start' &&
+        body.data.productId === product._id
+      ) {
+        publicationRequests++;
+        expect(originalOperationId).toBeUndefined();
+        originalOperationId = body.data.operationId;
+      }
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.action === 'product-operation-continue' &&
+        body.data.productId === product._id
+      ) {
+        const response = await route.fetch();
+        const result = await response.json();
+        if (result.ok) {
+          const state = CatalogProductOperationStatusSchema.parse(result.data);
+          if (state.state === 'complete') {
+            expect(state.operationId).toBe(originalOperationId);
+            await new Promise((resolve) => setTimeout(resolve, 750));
+            published = true;
+          }
+        }
+        await route.fulfill({ response });
+        return;
+      }
+      await route.continue();
+    });
+    await dialog.getByRole('button', { name: 'Confirm save and publish' }).click();
+    await expect(
+      dialog.getByText('Publishing selected products...', { exact: true }),
+    ).toBeVisible();
+    await expect(dialog.getByText(/Publishing product \d+ of/)).toHaveCount(0);
+    await readbackRequest;
+    try {
+      await expect(dialog.getByText('Checking product statuses...', { exact: true })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Done' })).toHaveCount(0);
+      expect(productReadBeforeList).toBe(false);
+    } finally {
+      releaseReadback();
+    }
+    await expect(dialog).toContainText('1 published');
+    await expect(dialog).toContainText('Product statuses could not be verified');
+    await expect(dialog.getByRole('button', { name: 'Check later' })).toBeEnabled();
     await expect(dialog.getByRole('button', { name: 'Done' })).toHaveCount(0);
-    expect(productReadBeforeList).toBe(false);
+    await dialog.getByRole('button', { name: 'Dismiss' }).click();
+    await dialog.getByRole('button', { name: 'View publication receipts' }).click();
+    await expect(dialog.getByRole('status').filter({ hasText: '1 published' })).toBeVisible();
+    expect(publicationRequests).toBe(1);
+    expect(
+      await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: product._id },
+        session.token,
+      ),
+    ).toMatchObject({ published: true });
+    await page.unrouteAll();
+    let statusReads = 0;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: { collection?: string; id?: string };
+      };
+      if (
+        body.action === 'get' &&
+        body.data?.collection === 'products' &&
+        body.data.id === product._id
+      ) {
+        statusReads += 1;
+        await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
+        return;
+      }
+      await route.continue();
+    });
+    await dialog.getByRole('button', { name: 'Refresh statuses' }).click();
+    await expect.poll(() => statusReads).toBe(1);
+    await expect(dialog).toContainText('Product statuses could not be verified');
+    await expect(dialog.getByRole('button', { name: 'Done' })).toHaveCount(0);
+    await page.unrouteAll();
+    await dialog.getByRole('button', { name: 'Refresh statuses' }).click();
+    await expect(dialog.getByRole('button', { name: 'Done' })).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toHaveCount(0);
+    expect(publicationRequests).toBe(1);
   } finally {
-    releaseReadback();
-  }
-  await expect(dialog).toContainText('1 published');
-  await expect(dialog).toContainText('Product statuses could not be verified');
-  await expect(dialog.getByRole('button', { name: 'Check later' })).toBeEnabled();
-  await expect(dialog.getByRole('button', { name: 'Done' })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Dismiss' }).click();
-  await dialog.getByRole('button', { name: 'View publication receipts' }).click();
-  await expect(dialog.getByRole('status').filter({ hasText: '1 published' })).toBeVisible();
-  expect(publicationRequests).toBe(1);
-  expect(
-    await adminAction<CollectionDoc>(
+    for (const release of releases) release();
+    await page.unrouteAll({ behavior: 'wait' });
+    const current = await adminAction<CollectionDoc>(
       request,
       'get',
       { collection: 'products', id: product._id },
       session.token,
-    ),
-  ).toMatchObject({ published: true });
-  await page.unrouteAll();
-  let statusReads = 0;
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { collection?: string; id?: string };
-    };
-    if (
-      body.action === 'get' &&
-      body.data?.collection === 'products' &&
-      body.data.id === product._id
-    ) {
-      statusReads += 1;
-      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
-      return;
+    );
+    if (current.published === true) {
+      expect(typeof originalOperationId).toBe('string');
+      expect(
+        current.catalogDetailApprovalReceipt &&
+          typeof current.catalogDetailApprovalReceipt === 'object'
+          ? Reflect.get(current.catalogDetailApprovalReceipt, 'operationId')
+          : undefined,
+      ).toBe(originalOperationId);
+      await adminAction(
+        request,
+        'update',
+        {
+          collection: 'products',
+          id: product._id,
+          values: { published: false },
+          expectedUpdatedAt: current.updatedAt,
+        },
+        session.token,
+      );
     }
-    await route.continue();
-  });
-  await dialog.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect.poll(() => statusReads).toBe(1);
-  await expect(dialog).toContainText('Product statuses could not be verified');
-  await expect(dialog.getByRole('button', { name: 'Done' })).toHaveCount(0);
-  await page.unrouteAll();
-  await dialog.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(dialog.getByRole('button', { name: 'Done' })).toBeEnabled();
-  await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toHaveCount(0);
-  expect(publicationRequests).toBe(1);
+    expect(
+      (
+        await adminAction<CollectionDoc>(
+          request,
+          'get',
+          { collection: 'products', id: product._id },
+          session.token,
+        )
+      ).published,
+    ).toBe(false);
+    expect(
+      (
+        await request.get(`${e2e.apiUrl}/api/products/${encodeURIComponent(product._id)}/detail`)
+      ).status(),
+    ).toBe(404);
+  }
 });
 
 test('Check later retains confirmed publication receipts and restores row focus', async ({
   page,
   request,
 }) => {
+  // @skip-when original publication is disabled; its no-publication fallback runs in the combined test.
+  test.skip(
+    process.env.E2E_CATALOG_FORMAL !== '1',
+    'Original publication receipts require the enabled formal protocol; the disabled branch is covered by bulk classification.',
+  );
   test.setTimeout(90_000);
   const session = await loginAdmin(request);
   const seeds = await adminAction<ListResult<CollectionDoc>>(
@@ -504,9 +592,10 @@ test('Check later retains confirmed publication receipts and restores row focus'
     { collection: 'products', page: 1, pageSize: 100 },
     session.token,
   );
-  const imageIds = seeds.items.find(
-    (item) => Array.isArray(item.imageIds) && item.imageIds.length,
-  )?.imageIds;
+  const imageIds =
+    process.env.E2E_CATALOG_FORMAL === '1'
+      ? ['formal-manual-image']
+      : seeds.items.find((item) => Array.isArray(item.imageIds) && item.imageIds.length)?.imageIds;
   expect(Array.isArray(imageIds) && imageIds.length > 0).toBe(true);
   const product = await adminAction<CollectionDoc>(
     request,
@@ -525,139 +614,214 @@ test('Check later retains confirmed publication receipts and restores row focus'
     },
     session.token,
   );
-  await page.addInitScript(
-    ({ token, user }) => {
-      localStorage.setItem('channel.token', token);
-      localStorage.setItem('channel.user', JSON.stringify(user));
-    },
-    { token: session.token, user: session.user },
-  );
-  await page.goto('/admin?productFamily=toys');
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByPlaceholder(/^Search name/).fill(String(product.name));
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  const row = page.getByRole('row').filter({ hasText: String(product.name) });
-  const opener = row.getByRole('button', { name: 'Classify' });
-  await opener.click();
-  const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
-  await dialog.getByRole('button', { name: 'Save and publish' }).click();
-  let published = false;
-  let publications = 0;
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { collection?: string; id?: string; values?: { published?: boolean } };
-    };
-    if (body.action === 'list' && body.data?.collection === 'products' && published) {
-      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
-      return;
+  const releases: Array<() => void> = [];
+  let originalOperationId: string | undefined;
+  try {
+    await page.addInitScript(
+      ({ token, user }) => {
+        localStorage.setItem('channel.token', token);
+        localStorage.setItem('channel.user', JSON.stringify(user));
+      },
+      { token: session.token, user: session.user },
+    );
+    await page.goto('/admin?productFamily=toys');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(String(product.name));
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const row = page.getByRole('row').filter({ hasText: String(product.name) });
+    const opener = row.getByRole('button', { name: 'Classify' });
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
+    await dialog.getByRole('button', { name: 'Save and publish' }).click();
+    let published = false;
+    let publications = 0;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: {
+          collection?: string;
+          id?: string;
+          action?: string;
+          productId?: string;
+          operationId?: string;
+          values?: { published?: boolean };
+        };
+      };
+      if (body.action === 'list' && body.data?.collection === 'products' && published) {
+        await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
+        return;
+      }
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.action === 'product-operation-start' &&
+        body.data.productId === product._id
+      ) {
+        publications++;
+        expect(originalOperationId).toBeUndefined();
+        originalOperationId = body.data.operationId;
+      }
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.action === 'product-operation-continue' &&
+        body.data.productId === product._id
+      ) {
+        const response = await route.fetch();
+        const result = await response.json();
+        if (result.ok) {
+          const state = CatalogProductOperationStatusSchema.parse(result.data);
+          if (state.state === 'complete') {
+            expect(state.operationId).toBe(originalOperationId);
+            published = true;
+          }
+        }
+        await route.fulfill({ response });
+        return;
+      }
+      await route.continue();
+    });
+    await dialog.getByRole('button', { name: 'Confirm save and publish' }).click();
+    await expect(dialog).toContainText('Product statuses could not be verified');
+    await page.unrouteAll();
+    await dialog.getByRole('button', { name: 'Check later' }).click();
+    await expect(dialog).toHaveCount(0);
+    const reminder = page.getByRole('alert').filter({ hasText: String(product.name) });
+    await expect(reminder).toContainText("1 published · 0 couldn't be checked");
+    await expect(
+      reminder.getByRole('button', { name: 'Clear selection and reminder' }),
+    ).toBeFocused();
+    const savedProduct = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: product._id },
+      session.token,
+    );
+    let productReadBeforeList = false;
+    let listCompleted = false;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: { id?: string; collection?: string };
+      };
+      if (body.action === 'list' && body.data?.collection === 'products') {
+        const response = await route.fetch({ maxRetries: 1 });
+        await route.fulfill({ response });
+        listCompleted = true;
+        return;
+      }
+      if (body.action === 'get' && body.data?.id === product._id) {
+        productReadBeforeList = !listCompleted;
+        await route.fulfill({
+          status: 200,
+          json: { ok: true, data: { ...savedProduct, subcategoryIds: ['wrong-child'] } },
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
+    await expect(reminder).toContainText('Inspect affected products');
+    expect(productReadBeforeList).toBe(false);
+    await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
+    await page.unrouteAll();
+    let releaseSectionRefresh!: () => void;
+    let sectionRefreshStarted!: () => void;
+    const sectionRefreshGate = new Promise<void>((resolve) => {
+      releaseSectionRefresh = resolve;
+      releases.push(resolve);
+    });
+    const sectionRefreshRequest = new Promise<void>((resolve) => {
+      sectionRefreshStarted = resolve;
+    });
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
+      if (body.action === 'get' && body.data?.id === product._id) {
+        sectionRefreshStarted();
+        await sectionRefreshGate;
+      }
+      await route.continue();
+    });
+    await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
+    await sectionRefreshRequest;
+    await page.getByRole('button', { name: 'Users', exact: true }).click();
+    releaseSectionRefresh();
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await expect(reminder).toBeVisible();
+    await page.unrouteAll();
+    await page.getByPlaceholder(/^Search name/).fill(String(product.name));
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
+    let releaseOldRefresh!: () => void;
+    let oldRefreshStarted!: () => void;
+    const oldRefreshGate = new Promise<void>((resolve) => {
+      releaseOldRefresh = resolve;
+      releases.push(resolve);
+    });
+    const oldRefreshRequest = new Promise<void>((resolve) => {
+      oldRefreshStarted = resolve;
+    });
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
+      if (body.action === 'get' && body.data?.id === product._id) {
+        oldRefreshStarted();
+        await oldRefreshGate;
+      }
+      await route.continue();
+    });
+    await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
+    await oldRefreshRequest;
+    await row.getByRole('checkbox', { name: 'Select row' }).uncheck();
+    await row.getByRole('checkbox', { name: 'Select row' }).check();
+    releaseOldRefresh();
+    await page.waitForLoadState('networkidle');
+    await expect(reminder).toHaveCount(0);
+    await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
+    expect(publications).toBe(1);
+  } finally {
+    for (const release of releases) release();
+    await page.unrouteAll({ behavior: 'wait' });
+    const current = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: product._id },
+      session.token,
+    );
+    if (current.published === true) {
+      expect(typeof originalOperationId).toBe('string');
+      expect(
+        current.catalogDetailApprovalReceipt &&
+          typeof current.catalogDetailApprovalReceipt === 'object'
+          ? Reflect.get(current.catalogDetailApprovalReceipt, 'operationId')
+          : undefined,
+      ).toBe(originalOperationId);
+      await adminAction(
+        request,
+        'update',
+        {
+          collection: 'products',
+          id: product._id,
+          values: { published: false },
+          expectedUpdatedAt: current.updatedAt,
+        },
+        session.token,
+      );
     }
-    if (
-      body.action === 'update' &&
-      body.data?.id === product._id &&
-      body.data.values?.published === true
-    ) {
-      publications += 1;
-      published = true;
-    }
-    await route.continue();
-  });
-  await dialog.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(dialog).toContainText('Product statuses could not be verified');
-  await page.unrouteAll();
-  await dialog.getByRole('button', { name: 'Check later' }).click();
-  await expect(dialog).toHaveCount(0);
-  const reminder = page.getByRole('alert').filter({ hasText: String(product.name) });
-  await expect(reminder).toContainText("1 published · 0 couldn't be checked");
-  await expect(
-    reminder.getByRole('button', { name: 'Clear selection and reminder' }),
-  ).toBeFocused();
-  const savedProduct = await adminAction<CollectionDoc>(
-    request,
-    'get',
-    { collection: 'products', id: product._id },
-    session.token,
-  );
-  let productReadBeforeList = false;
-  let listCompleted = false;
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { id?: string; collection?: string };
-    };
-    if (body.action === 'list' && body.data?.collection === 'products') {
-      const response = await route.fetch({ maxRetries: 1 });
-      await route.fulfill({ response });
-      listCompleted = true;
-      return;
-    }
-    if (body.action === 'get' && body.data?.id === product._id) {
-      productReadBeforeList = !listCompleted;
-      await route.fulfill({
-        status: 200,
-        json: { ok: true, data: { ...savedProduct, subcategoryIds: ['wrong-child'] } },
-      });
-      return;
-    }
-    await route.continue();
-  });
-  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(reminder).toContainText('Inspect affected products');
-  expect(productReadBeforeList).toBe(false);
-  await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
-  await page.unrouteAll();
-  let releaseSectionRefresh!: () => void;
-  let sectionRefreshStarted!: () => void;
-  const sectionRefreshGate = new Promise<void>((resolve) => {
-    releaseSectionRefresh = resolve;
-  });
-  const sectionRefreshRequest = new Promise<void>((resolve) => {
-    sectionRefreshStarted = resolve;
-  });
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
-    if (body.action === 'get' && body.data?.id === product._id) {
-      sectionRefreshStarted();
-      await sectionRefreshGate;
-    }
-    await route.continue();
-  });
-  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await sectionRefreshRequest;
-  await page.getByRole('button', { name: 'Users', exact: true }).click();
-  releaseSectionRefresh();
-  await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await expect(reminder).toBeVisible();
-  await page.unrouteAll();
-  await page.getByPlaceholder(/^Search name/).fill(String(product.name));
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
-  let releaseOldRefresh!: () => void;
-  let oldRefreshStarted!: () => void;
-  const oldRefreshGate = new Promise<void>((resolve) => {
-    releaseOldRefresh = resolve;
-  });
-  const oldRefreshRequest = new Promise<void>((resolve) => {
-    oldRefreshStarted = resolve;
-  });
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
-    if (body.action === 'get' && body.data?.id === product._id) {
-      oldRefreshStarted();
-      await oldRefreshGate;
-    }
-    await route.continue();
-  });
-  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await oldRefreshRequest;
-  await row.getByRole('checkbox', { name: 'Select row' }).uncheck();
-  await row.getByRole('checkbox', { name: 'Select row' }).check();
-  releaseOldRefresh();
-  await page.waitForLoadState('networkidle');
-  await expect(reminder).toHaveCount(0);
-  await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
-  expect(publications).toBe(1);
+    expect(
+      (
+        await adminAction<CollectionDoc>(
+          request,
+          'get',
+          { collection: 'products', id: product._id },
+          session.token,
+        )
+      ).published,
+    ).toBe(false);
+    expect(
+      (
+        await request.get(`${e2e.apiUrl}/api/products/${encodeURIComponent(product._id)}/detail`)
+      ).status(),
+    ).toBe(404);
+  }
 });
 
 test('lost assignment response preserves the selected product after Escape', async ({
@@ -784,9 +948,10 @@ test('tablet product actions keep classification visible and visibility commands
     { collection: 'products', page: 1, pageSize: 100 },
     session.token,
   );
-  const imageIds = seeds.items.find(
-    (item) => Array.isArray(item.imageIds) && item.imageIds.length,
-  )?.imageIds;
+  const imageIds =
+    process.env.E2E_CATALOG_FORMAL === '1'
+      ? ['formal-manual-image']
+      : seeds.items.find((item) => Array.isArray(item.imageIds) && item.imageIds.length)?.imageIds;
   expect(Array.isArray(imageIds) && imageIds.length > 0).toBe(true);
   const product = await adminAction<CollectionDoc>(
     request,
@@ -966,9 +1131,10 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     { collection: 'products', page: 1, pageSize: 100 },
     session.token,
   );
-  const imageIds = seeds.items.find(
-    (item) => Array.isArray(item.imageIds) && item.imageIds.length,
-  )?.imageIds;
+  const imageIds =
+    process.env.E2E_CATALOG_FORMAL === '1'
+      ? ['formal-manual-image']
+      : seeds.items.find((item) => Array.isArray(item.imageIds) && item.imageIds.length)?.imageIds;
   expect(Array.isArray(imageIds) && imageIds.length > 0).toBe(true);
   const initial = CatalogTaxonomyResultSchema.parse(
     await adminAction<unknown>(
@@ -1003,8 +1169,12 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   );
   expect(saved.status).toMatch(/configured|applied/);
   const prefix = `${e2e.runId} Bulk workflow`;
+  const ownedProducts: CollectionDoc[] = [];
+  const operationIds = new Map<string, string>();
+  const publicReads = new Set<string>();
+  const releaseGates: Array<() => void> = [];
   async function create(label: string, images: unknown) {
-    return adminAction<CollectionDoc>(
+    const product = await adminAction<CollectionDoc>(
       request,
       'create',
       {
@@ -1021,6 +1191,8 @@ test('bulk classification publishes confirmed selections and reports rejected pu
       },
       session.token,
     );
+    ownedProducts.push(product);
+    return product;
   }
   const excluded = await create('Excluded', imageIds);
   const rejected = await create('Rejected', []);
@@ -1035,11 +1207,18 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   page.on('pageerror', (error) => errors.push(error.message));
   const writes: { action: string; ids: string[] }[] = [];
   page.on('request', (webRequest) => {
+    const url = new URL(webRequest.url());
+    const detail = /^\/api\/products\/([^/]+)\/detail$/.exec(url.pathname);
+    if (webRequest.method() === 'GET' && detail?.[1])
+      publicReads.add(decodeURIComponent(detail[1]));
     if (!webRequest.url().endsWith('/api/admin') || webRequest.method() !== 'POST') return;
     const body = webRequest.postDataJSON() as {
       action: string;
       data?: {
         kind?: string;
+        action?: string;
+        productId?: string;
+        operationId?: string;
         products?: { productId: string }[];
         id?: string;
         values?: { published?: boolean };
@@ -1050,307 +1229,437 @@ test('bulk classification publishes confirmed selections and reports rejected pu
         action: 'classify',
         ids: body.data.products?.map((item) => item.productId) ?? [],
       });
-    if (body.action === 'update' && body.data?.values?.published === true)
-      writes.push({ action: 'publish', ids: [body.data.id ?? ''] });
+    if (
+      body.action === 'catalogDetailApproval' &&
+      body.data?.action === 'product-operation-start'
+    ) {
+      const id = body.data.productId ?? '';
+      const operationId = body.data.operationId ?? '';
+      expect(operationIds.has(id)).toBe(false);
+      expect(operationId).toMatch(/^[0-9a-f-]{36}$/);
+      operationIds.set(id, operationId);
+      writes.push({ action: 'publish', ids: [id] });
+    }
+    expect(body.action === 'update' && body.data?.values?.published === true).toBe(false);
   });
-  await page.addInitScript(
-    ({ session, origin }) => {
-      if (window.location.origin !== origin) return;
-      localStorage.setItem('channel.token', session.token);
-      localStorage.setItem('channel.user', JSON.stringify(session.user));
-    },
-    { session, origin: new URL(e2e.siteUrl).origin },
-  );
-  await page.goto('/admin?productFamily=toys');
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByPlaceholder(/^Search name/).fill(prefix);
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  const row = (product: CollectionDoc) =>
-    page.getByRole('row').filter({ has: page.getByText(String(product.name), { exact: true }) });
-  async function selectAndReview(products: CollectionDoc[]) {
-    for (const product of products)
+  try {
+    await page.addInitScript(
+      ({ session, origin }) => {
+        if (window.location.origin !== origin) return;
+        localStorage.setItem('channel.token', session.token);
+        localStorage.setItem('channel.user', JSON.stringify(session.user));
+      },
+      { session, origin: new URL(e2e.siteUrl).origin },
+    );
+    await page.goto('/admin?productFamily=toys');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(prefix);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const row = (product: CollectionDoc) =>
+      page.getByRole('row').filter({ has: page.getByText(String(product.name), { exact: true }) });
+    async function selectAndReview(products: CollectionDoc[]) {
+      for (const product of products)
+        await row(product).getByRole('checkbox', { name: 'Select row', exact: true }).check();
+      await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
+      await expect(dialog.getByRole('button', { name: 'Save classification' })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Save and publish' })).toBeVisible();
+      await dialog.getByRole('checkbox', { name: child.name, exact: true }).check();
+      await dialog.getByRole('button', { name: 'Save and publish' }).click();
+      await expect(dialog).toContainText(
+        'Publish all selected products after classification is confirmed.',
+      );
+      return dialog;
+    }
+    if (process.env.E2E_CATALOG_FORMAL !== '1') {
+      await row(first).getByRole('checkbox', { name: 'Select row', exact: true }).check();
+      await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+      const disabled = page.getByRole('dialog', { name: 'Edit website classification' });
+      await expect(
+        disabled.getByRole('button', { name: 'Save and publish', exact: true }),
+      ).toBeDisabled();
+      await expect(disabled).toContainText(
+        'Publishing is unavailable. You can still save classification.',
+      );
+      await disabled.getByRole('checkbox', { name: child.name, exact: true }).check();
+      await disabled.getByRole('button', { name: 'Save classification', exact: true }).click();
+      await disabled.getByRole('button', { name: 'Confirm save', exact: true }).click();
+      await expect(disabled).toHaveCount(0);
+      expect(await read(first._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
+      expect(operationIds.size).toBe(0);
+      return;
+    }
+    for (const product of [first, second, excluded])
       await row(product).getByRole('checkbox', { name: 'Select row', exact: true }).check();
     await page.getByRole('button', { name: 'Assign category', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
-    await expect(dialog.getByRole('button', { name: 'Save classification' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Save and publish' })).toBeVisible();
-    await dialog.getByRole('checkbox', { name: child.name, exact: true }).check();
-    await dialog.getByRole('button', { name: 'Save and publish' }).click();
-    await expect(dialog).toContainText(
-      'Publish all selected products after classification is confirmed.',
-    );
-    return dialog;
-  }
-  for (const product of [first, second, excluded])
-    await row(product).getByRole('checkbox', { name: 'Select row', exact: true }).check();
-  await page.getByRole('button', { name: 'Assign category', exact: true }).click();
-  const previewDialog = page.getByRole('dialog', { name: 'Edit website classification' });
-  const preview = previewDialog.locator('[aria-label="Selected product preview"]');
-  await expect(preview.getByText(String(first.name), { exact: true })).toBeVisible();
-  await expect(preview.getByText(String(second.name), { exact: true })).toBeVisible();
-  await expect(preview.getByText(String(excluded.name), { exact: true })).toBeHidden();
-  await preview.getByText('Show all 3 products').click();
-  await expect(preview.getByText(String(excluded.name), { exact: true })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(previewDialog).toHaveCount(0);
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
-  const success = await selectAndReview([first, second]);
-  expect(await read(first._id)).toMatchObject({ published: false });
-  await success.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(success).toContainText('2 products classified and published.');
-  await expect(success.locator('section[role="status"]')).toContainText('2 published');
-  const firstIds = writes[0]?.ids ?? [];
-  expect([...firstIds].sort()).toEqual([first._id, second._id].sort());
-  expect(writes).toEqual([
-    { action: 'classify', ids: firstIds },
-    ...firstIds.map((id) => ({ action: 'publish', ids: [id] })),
-  ]);
-  for (const product of [first, second])
-    expect(await read(product._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
-  expect(await read(excluded._id)).toEqual(excludedBefore);
-  await success.getByRole('button', { name: 'Done' }).click();
-  await expect(success).toHaveCount(0);
-  const partial = await selectAndReview([later, rejected]);
-  await partial.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(partial.locator('section[role="alert"]')).toContainText('1 published');
-  await expect(partial.locator('section[role="alert"]')).toContainText('1 not published');
-  const laterIds = writes[3]?.ids ?? [];
-  expect([...laterIds].sort()).toEqual([later._id, rejected._id].sort());
-  // With detail approval on (the formal lane), a manual product is approved
-  // before it publishes (MIU-32) and one without an image is refused in the
-  // browser before any publish write; with it off, both are attempted.
-  const approvalOn = process.env.E2E_CATALOG_FORMAL === '1';
-  expect(writes.slice(3)).toEqual([
-    { action: 'classify', ids: laterIds },
-    ...(approvalOn
-      ? [{ action: 'publish', ids: [later._id] }]
-      : laterIds.map((id) => ({ action: 'publish', ids: [id] }))),
-  ]);
-  expect(await read(later._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
-  expect(await read(rejected._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
-  expect(await read(excluded._id)).toEqual(excludedBefore);
-  await partial.getByRole('button', { name: 'Check later', exact: true }).click();
-  const partialReminder = page.getByRole('alert').filter({ hasText: String(rejected.name) });
-  await expect(partialReminder).toContainText('1 need a fix');
-  await expect(partialReminder.locator('p').nth(1)).toHaveText(String(rejected.name));
-  const attention = page.getByRole('list', { name: 'Products needing attention' });
-  await expect(attention).toContainText(String(rejected.name));
-  await expect(attention).toContainText(/image/i);
-  await expect(attention).not.toContainText(String(later.name));
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
-  await expect(partialReminder).toBeVisible();
-  await partialReminder.getByRole('button', { name: 'Clear selection and reminder' }).click();
-  await expect(partialReminder).toHaveCount(0);
-  let intervened = false;
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { id?: string; values?: { published?: boolean }; expectedUpdatedAt?: string };
-    };
-    if (
-      body.action === 'update' &&
-      body.data?.id === raced._id &&
-      body.data.values?.published === true
-    ) {
-      expect(body.data.expectedUpdatedAt).toBe((await read(raced._id)).updatedAt);
-      await adminAction(
-        request,
-        'update',
-        {
-          collection: 'products',
-          id: raced._id,
-          values: { description: 'Another admin changed this draft after classification.' },
-        },
-        session.token,
-      );
-      intervened = true;
-    }
-    await route.continue();
-  });
-  const conflict = await selectAndReview([raced]);
-  await conflict.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(conflict.locator('section[role="alert"]')).toContainText('0 published');
-  await expect(conflict.locator('section[role="alert"]')).toContainText(
-    'changed since classification',
-  );
-  expect(intervened).toBe(true);
-  expect(await read(raced._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
-  await page.unrouteAll();
-  const publicResponse = await request.get(
-    `${e2e.apiUrl}/api/products?search=${encodeURIComponent(prefix)}`,
-  );
-  expect(publicResponse.ok()).toBe(true);
-  const publicBody: { data: ListResult<CollectionDoc> } = await publicResponse.json();
-  expect(publicBody.data.items.map((item) => item._id).sort()).toEqual(
-    [first._id, second._id, later._id].sort(),
-  );
-  await conflict.getByRole('button', { name: 'Check later' }).click();
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
-
-  const lostResponse = await create('Lost publication response', imageIds);
-  await page.reload();
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByPlaceholder(/^Search name/).fill(prefix);
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  let committedWithoutResponse = 0;
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { id?: string; values?: { published?: boolean } };
-    };
-    if (
-      body.action === 'update' &&
-      body.data?.id === lostResponse._id &&
-      body.data.values?.published === true
-    ) {
-      await route.fetch();
-      committedWithoutResponse += 1;
-      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
-      return;
-    }
-    await route.continue();
-  });
-  const writesBeforeLoss = writes.length;
-  const unknown = await selectAndReview([lostResponse]);
-  await unknown.getByRole('button', { name: 'Confirm save and publish' }).click();
-  // The answer was lost but the publish went through: the page reads the
-  // product back itself instead of asking the admin to refresh (DEC-21).
-  await expect(unknown).toContainText('1 product classified and published.');
-  await expect(unknown.getByRole('button', { name: 'Done' })).toBeEnabled();
-  expect(await read(lostResponse._id)).toMatchObject({
-    published: true,
-    subcategoryIds: [child.id],
-  });
-  expect(committedWithoutResponse).toBe(1);
-  expect(writes.slice(writesBeforeLoss)).toEqual([
-    { action: 'classify', ids: [lostResponse._id] },
-    { action: 'publish', ids: [lostResponse._id] },
-  ]);
-  await page.unrouteAll();
-  await unknown.getByRole('button', { name: 'Done' }).click();
-  await expect(unknown).toHaveCount(0);
-  await expect(
-    row(lostResponse).getByRole('checkbox', { name: 'Select row', exact: true }),
-  ).not.toBeChecked();
-
-  const inDialogReadback = await create('Dialog publication readback', imageIds);
-  await page.reload();
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByPlaceholder(/^Search name/).fill(prefix);
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  let loseNextCheck = false;
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: { id?: string; values?: { published?: boolean } };
-    };
-    if (
-      body.action === 'update' &&
-      body.data?.id === inDialogReadback._id &&
-      body.data.values?.published === true
-    ) {
-      await route.fetch();
-      loseNextCheck = true;
-      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
-      return;
-    }
-    // The page's own check right after the batch is lost too, so the result
-    // stays "couldn't be checked" until the admin refreshes.
-    if (loseNextCheck && body.action === 'get' && body.data?.id === inDialogReadback._id) {
-      loseNextCheck = false;
-      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
-      return;
-    }
-    await route.continue();
-  });
-  const writesBeforeDialogReadback = writes.length;
-  const readback = await selectAndReview([inDialogReadback]);
-  await readback.getByRole('button', { name: 'Confirm save and publish' }).click();
-  await expect(readback.getByRole('button', { name: 'Check later' })).toBeEnabled();
-  await page.unrouteAll();
-  await readback.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(readback).toContainText('Current product statuses verified');
-  await expect(readback.getByRole('button', { name: 'Done' })).toBeEnabled();
-  expect(await read(inDialogReadback._id)).toMatchObject({
-    published: true,
-    subcategoryIds: [child.id],
-  });
-  await readback.getByRole('button', { name: 'Done' }).click();
-  expect(writes.slice(writesBeforeDialogReadback)).toEqual([
-    { action: 'classify', ids: [inDialogReadback._id] },
-    { action: 'publish', ids: [inDialogReadback._id] },
-  ]);
-
-  // DEC-21: a publish that keeps colliding (BUSY: nothing saved) is offered
-  // "Try again" in the dialog, which publishes it.
-  const colliding = await create('Colliding publication', imageIds);
-  await page.reload();
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByPlaceholder(/^Search name/).fill(prefix);
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-  let collide = true;
-  let holdReadback = false;
-  let readbackHeld = false;
-  let releaseReadback: (() => void) | undefined;
-  const readbackGate = new Promise<void>((resolve) => {
-    releaseReadback = resolve;
-  });
-  await page.route('**/api/admin', async (route) => {
-    const body: unknown = route.request().postDataJSON();
-    if (!body || typeof body !== 'object') throw new Error('Expected an admin request object');
-    const action: unknown = Reflect.get(body, 'action');
-    const rawData: unknown = Reflect.get(body, 'data');
-    const data = rawData && typeof rawData === 'object' ? rawData : null;
-    const id: unknown = data ? Reflect.get(data, 'id') : undefined;
-    const collection: unknown = data ? Reflect.get(data, 'collection') : undefined;
-    const values: unknown = data ? Reflect.get(data, 'values') : undefined;
-    const published: unknown =
-      values && typeof values === 'object' ? Reflect.get(values, 'published') : undefined;
-    if (collide && action === 'update' && id === colliding._id && published === true) {
-      holdReadback = true;
-      await route.fulfill({
-        status: 409,
-        json: { ok: false, error: { code: 'BUSY', message: 'Nothing was saved; try again.' } },
+    const previewDialog = page.getByRole('dialog', { name: 'Edit website classification' });
+    const preview = previewDialog.locator('[aria-label="Selected product preview"]');
+    await expect(preview.getByText(String(first.name), { exact: true })).toBeVisible();
+    await expect(preview.getByText(String(second.name), { exact: true })).toBeVisible();
+    await expect(preview.getByText(String(excluded.name), { exact: true })).toBeHidden();
+    await preview.getByText('Show all 3 products').click();
+    await expect(preview.getByText(String(excluded.name), { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(previewDialog).toHaveCount(0);
+    await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    const success = await selectAndReview([first, second]);
+    expect(await read(first._id)).toMatchObject({ published: false });
+    await success.getByRole('button', { name: 'Confirm save and publish' }).click();
+    await expect(success).toContainText('2 products classified and published.');
+    await expect(success.locator('section[role="status"]')).toContainText('2 published');
+    const firstIds = writes[0]?.ids ?? [];
+    expect([...firstIds].sort()).toEqual([first._id, second._id].sort());
+    expect(writes).toEqual([
+      { action: 'classify', ids: firstIds },
+      ...firstIds.map((id) => ({ action: 'publish', ids: [id] })),
+    ]);
+    for (const product of [first, second])
+      expect(await read(product._id)).toMatchObject({
+        published: true,
+        subcategoryIds: [child.id],
       });
-      return;
+    expect(await read(excluded._id)).toEqual(excludedBefore);
+    await success.getByRole('button', { name: 'Done' }).click();
+    await expect(success).toHaveCount(0);
+    const partial = await selectAndReview([later, rejected]);
+    await partial.getByRole('button', { name: 'Confirm save and publish' }).click();
+    await expect(partial.locator('section[role="alert"]')).toContainText('1 published');
+    await expect(partial.locator('section[role="alert"]')).toContainText('1 not published');
+    const laterIds = writes[3]?.ids ?? [];
+    expect([...laterIds].sort()).toEqual([later._id, rejected._id].sort());
+    expect(writes.slice(3)).toEqual([
+      { action: 'classify', ids: laterIds },
+      ...laterIds.map((id) => ({ action: 'publish', ids: [id] })),
+    ]);
+    expect(await read(later._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
+    expect(await read(rejected._id)).toMatchObject({
+      published: false,
+      subcategoryIds: [child.id],
+    });
+    expect(await read(excluded._id)).toEqual(excludedBefore);
+    await partial.getByRole('button', { name: 'Check later', exact: true }).click();
+    const partialReminder = page.getByRole('alert').filter({ hasText: String(rejected.name) });
+    await expect(partialReminder).toContainText('1 need a fix');
+    await expect(partialReminder.locator('p').nth(1)).toHaveText(String(rejected.name));
+    const attention = page.getByRole('list', { name: 'Products needing attention' });
+    await expect(attention).toContainText(String(rejected.name));
+    await expect(attention).toContainText(/photo|image/i);
+    await expect(attention).not.toContainText(String(later.name));
+    await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    await expect(partialReminder).toBeVisible();
+    await partialReminder.getByRole('button', { name: 'Clear selection and reminder' }).click();
+    await expect(partialReminder).toHaveCount(0);
+    let intervened = false;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: { action?: string; productId?: string; expectedUpdatedAt?: string };
+      };
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.productId === raced._id &&
+        body.data.action === 'product-operation-start'
+      ) {
+        expect(body.data.expectedUpdatedAt).toBe((await read(raced._id)).updatedAt);
+        await adminAction(
+          request,
+          'update',
+          {
+            collection: 'products',
+            id: raced._id,
+            values: { description: 'Another admin changed this draft after classification.' },
+          },
+          session.token,
+        );
+        intervened = true;
+      }
+      await route.continue();
+    });
+    const conflict = await selectAndReview([raced]);
+    await conflict.getByRole('button', { name: 'Confirm save and publish' }).click();
+    await expect(conflict.locator('section[role="alert"]')).toContainText('0 published');
+    await expect(conflict.locator('section[role="alert"]')).toContainText(
+      'The reviewed product changed. Refresh and review it again.',
+    );
+    expect(intervened).toBe(true);
+    expect(await read(raced._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
+    await page.unrouteAll();
+    const publicResponse = await request.get(
+      `${e2e.apiUrl}/api/products?search=${encodeURIComponent(prefix)}`,
+    );
+    expect(publicResponse.ok()).toBe(true);
+    const publicBody: { data: ListResult<CollectionDoc> } = await publicResponse.json();
+    expect(publicBody.data.items.map((item) => item._id).sort()).toEqual(
+      [first._id, second._id, later._id].sort(),
+    );
+    await conflict.getByRole('button', { name: 'Check later' }).click();
+    await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+
+    const lostResponse = await create('Lost publication response', imageIds);
+    await page.reload();
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(prefix);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    let committedWithoutResponse = 0;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: { action?: string; productId?: string };
+      };
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.productId === lostResponse._id &&
+        body.data.action === 'product-operation-continue' &&
+        committedWithoutResponse === 0
+      ) {
+        const response = await route.fetch();
+        const result = await response.json();
+        if (result.ok && result.data?.state === 'complete') {
+          committedWithoutResponse += 1;
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Controlled lost completed response' },
+            },
+          });
+        } else await route.fulfill({ response });
+        return;
+      }
+      await route.continue();
+    });
+    const writesBeforeLoss = writes.length;
+    const unknown = await selectAndReview([lostResponse]);
+    await unknown.getByRole('button', { name: 'Confirm save and publish' }).click();
+    // The answer was lost but the publish went through: the page reads the
+    // product back itself instead of asking the admin to refresh (DEC-21).
+    await expect(unknown).toContainText('1 product classified and published.');
+    await expect(unknown.getByRole('button', { name: 'Done' })).toBeEnabled();
+    expect(await read(lostResponse._id)).toMatchObject({
+      published: true,
+      subcategoryIds: [child.id],
+    });
+    expect(committedWithoutResponse).toBe(1);
+    expect(writes.slice(writesBeforeLoss)).toEqual([
+      { action: 'classify', ids: [lostResponse._id] },
+      { action: 'publish', ids: [lostResponse._id] },
+    ]);
+    await page.unrouteAll();
+    await unknown.getByRole('button', { name: 'Done' }).click();
+    await expect(unknown).toHaveCount(0);
+    await expect(
+      row(lostResponse).getByRole('checkbox', { name: 'Select row', exact: true }),
+    ).not.toBeChecked();
+
+    const inDialogReadback = await create('Dialog publication readback', imageIds);
+    await page.reload();
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(prefix);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    let loseNextCheck = false;
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: { action?: string; productId?: string };
+      };
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.productId === inDialogReadback._id &&
+        body.data.action === 'product-operation-continue'
+      ) {
+        const response = await route.fetch();
+        const result = await response.json();
+        if (result.ok && result.data?.state === 'complete') {
+          loseNextCheck = true;
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Controlled lost completed response' },
+            },
+          });
+        } else await route.fulfill({ response });
+        return;
+      }
+      // The page's own check right after the batch is lost too, so the result
+      // stays "couldn't be checked" until the admin refreshes.
+      if (
+        loseNextCheck &&
+        body.action === 'catalogDetailApproval' &&
+        body.data?.action === 'product-operation-get' &&
+        body.data.productId === inDialogReadback._id
+      ) {
+        loseNextCheck = false;
+        await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
+        return;
+      }
+      await route.continue();
+    });
+    const writesBeforeDialogReadback = writes.length;
+    const readback = await selectAndReview([inDialogReadback]);
+    await readback.getByRole('button', { name: 'Confirm save and publish' }).click();
+    await expect(readback.getByRole('button', { name: 'Check later' })).toBeEnabled();
+    await page.unrouteAll();
+    await readback.getByRole('button', { name: 'Refresh statuses' }).click();
+    await expect(readback).toContainText('1 product classified and published.');
+    await expect(readback.getByRole('button', { name: 'Done' })).toBeEnabled();
+    expect(await read(inDialogReadback._id)).toMatchObject({
+      published: true,
+      subcategoryIds: [child.id],
+    });
+    await readback.getByRole('button', { name: 'Done' }).click();
+    expect(writes.slice(writesBeforeDialogReadback)).toEqual([
+      { action: 'classify', ids: [inDialogReadback._id] },
+      { action: 'publish', ids: [inDialogReadback._id] },
+    ]);
+
+    // A continuation with unavailable replies must keep the original task and wait
+    // for status readback to finish before its explicit continuation can run.
+    const colliding = await create('Colliding publication', imageIds);
+    await page.reload();
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(prefix);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    let collide = true;
+    let holdReadback = false;
+    let readbackHeld = false;
+    let releaseReadback: (() => void) | undefined;
+    const readbackGate = new Promise<void>((resolve) => {
+      releaseReadback = resolve;
+    });
+    await page.route('**/api/admin', async (route) => {
+      const body: unknown = route.request().postDataJSON();
+      if (!body || typeof body !== 'object') throw new Error('Expected an admin request object');
+      const action: unknown = Reflect.get(body, 'action');
+      const rawData: unknown = Reflect.get(body, 'data');
+      const data = rawData && typeof rawData === 'object' ? rawData : null;
+      const id: unknown = data ? Reflect.get(data, 'productId') : undefined;
+      const step: unknown = data ? Reflect.get(data, 'action') : undefined;
+      const collection: unknown = data ? Reflect.get(data, 'collection') : undefined;
+      if (
+        collide &&
+        action === 'catalogDetailApproval' &&
+        id === colliding._id &&
+        step === 'product-operation-continue'
+      ) {
+        holdReadback = true;
+        await route.fulfill({
+          status: 409,
+          json: {
+            ok: false,
+            error: { code: 'UNAVAILABLE', message: 'Controlled unavailable continuation response' },
+          },
+        });
+        return;
+      }
+      if (holdReadback && action === 'list' && collection === 'products') {
+        readbackHeld = true;
+        await readbackGate;
+      }
+      await route.continue();
+    });
+    const retrying = await selectAndReview([colliding]);
+    await retrying.getByRole('button', { name: 'Confirm save and publish' }).click();
+    const receipt = retrying.locator('section[role="alert"]');
+    await expect(receipt).toContainText("0 published · 1 couldn't be checked", { timeout: 30000 });
+    expect(await read(colliding._id)).toMatchObject({ published: false });
+    const retryButton = receipt.getByRole('button', { name: 'Try again for 1 product' });
+    try {
+      await expect.poll(() => readbackHeld, { timeout: 5000 }).toBe(true);
+      await expect(
+        retrying.getByText('Checking product statuses...', { exact: true }),
+      ).toBeVisible();
+      await expect(retryButton).toBeDisabled({ timeout: 1000 });
+    } finally {
+      collide = false;
+      holdReadback = false;
+      releaseReadback?.();
     }
-    if (holdReadback && action === 'list' && collection === 'products') {
-      readbackHeld = true;
-      await readbackGate;
-    }
-    await route.continue();
-  });
-  const retrying = await selectAndReview([colliding]);
-  await retrying.getByRole('button', { name: 'Confirm save and publish' }).click();
-  const receipt = retrying.locator('section[role="alert"]');
-  await expect(receipt).toContainText('0 published · 1 not published', { timeout: 30000 });
-  await expect(receipt).toContainText('Another change happened at the same moment');
-  expect(await read(colliding._id)).toMatchObject({ published: false });
-  const retryButton = receipt.getByRole('button', { name: 'Try again for 1 product' });
-  try {
-    await expect.poll(() => readbackHeld, { timeout: 5000 }).toBe(true);
-    await expect(retrying.getByText('Checking product statuses...', { exact: true })).toBeVisible();
-    await expect(retryButton).toBeDisabled({ timeout: 1000 });
+    await expect(retryButton).toBeEnabled();
+    const retryWrites = writes.filter(
+      (write) => write.action === 'publish' && write.ids.includes(colliding._id),
+    ).length;
+    await retryButton.click();
+    await expect(retrying).toContainText('1 product classified and published.', { timeout: 30000 });
+    await expect(retrying.getByRole('button', { name: 'Done' })).toBeEnabled();
+    expect(await read(colliding._id)).toMatchObject({
+      published: true,
+      subcategoryIds: [child.id],
+    });
+    expect(
+      writes.filter((write) => write.action === 'publish' && write.ids.includes(colliding._id))
+        .length,
+    ).toBe(retryWrites);
+    await page.unrouteAll();
+    await retrying.getByRole('button', { name: 'Done' }).click();
+    expect(errors).toEqual([]);
+    for (const product of [first, second, later, lostResponse, inDialogReadback, colliding])
+      expect(publicReads.has(product._id)).toBe(true);
   } finally {
-    collide = false;
-    holdReadback = false;
-    releaseReadback?.();
+    for (const release of releaseGates) release();
+    await page.unrouteAll({ behavior: 'wait' });
+    for (const product of ownedProducts) {
+      const current = await read(product._id);
+      const operationId = operationIds.get(product._id);
+      if (current.published === true) {
+        expect(
+          current.catalogDetailApprovalReceipt &&
+            typeof current.catalogDetailApprovalReceipt === 'object'
+            ? Reflect.get(current.catalogDetailApprovalReceipt, 'operationId')
+            : undefined,
+        ).toBe(operationId);
+        expect(typeof operationId).toBe('string');
+        await adminAction(
+          request,
+          'update',
+          {
+            collection: 'products',
+            id: product._id,
+            values: { published: false },
+            expectedUpdatedAt: current.updatedAt,
+          },
+          session.token,
+        );
+      } else if (operationId) {
+        const response = await request.post(`${e2e.apiUrl}/api/admin`, {
+          data: {
+            action: 'catalogDetailApproval',
+            token: session.token,
+            data: { action: 'product-operation-get', productId: product._id, operationId },
+          },
+        });
+        const result = await response.json();
+        if (result.ok) {
+          const state = CatalogProductOperationStatusSchema.parse(result.data);
+          if (state.state !== 'complete' && !state.cancelledAt)
+            await adminAction(
+              request,
+              'catalogDetailApproval',
+              {
+                action: 'product-operation-cancel',
+                productId: state.productId,
+                operationId: state.operationId,
+                inputDigest: state.inputDigest,
+              },
+              session.token,
+            );
+        } else expect(result.error.code).toBe('NOT_FOUND');
+      }
+      expect((await read(product._id)).published).toBe(false);
+      if (process.env.E2E_CATALOG_FORMAL === '1')
+        expect(
+          (
+            await request.get(
+              `${e2e.apiUrl}/api/products/${encodeURIComponent(product._id)}/detail`,
+            )
+          ).status(),
+        ).toBe(404);
+    }
+    if (process.env.E2E_CATALOG_FORMAL === '1')
+      expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(
+        404,
+      );
   }
-  await expect(retryButton).toBeEnabled();
-  const retryWrites = writes.filter(
-    (write) => write.action === 'publish' && write.ids.includes(colliding._id),
-  ).length;
-  await retryButton.click();
-  await expect(retrying).toContainText('1 product classified and published.', { timeout: 30000 });
-  await expect(retrying.getByRole('button', { name: 'Done' })).toBeEnabled();
-  expect(await read(colliding._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
-  expect(
-    writes.filter((write) => write.action === 'publish' && write.ids.includes(colliding._id))
-      .length,
-  ).toBe(retryWrites + 1);
-  await page.unrouteAll();
-  await retrying.getByRole('button', { name: 'Done' }).click();
-  expect(errors).toEqual([]);
 });
 
 test('product row and bulk Archive use supported updates instead of forbidden deletion', async ({

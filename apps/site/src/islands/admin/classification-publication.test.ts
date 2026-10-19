@@ -8,7 +8,7 @@ import {
   matchesVerifiedOutcome,
   unresolvedClassificationSnapshot,
 } from './ProductClassificationEditor.tsx';
-import { AdminApiError, assignmentCall } from './api.ts';
+import { AdminApiError, assignmentCall, fetchCatalogDetailCapabilities } from './api.ts';
 import { classificationPublicationAttempts } from './classification-publication.ts';
 
 const at = '2026-10-19T00:00:00.000Z';
@@ -138,4 +138,21 @@ test('owned classification recovery cannot infer this publication from unrelated
     ),
     false,
   );
+});
+
+test('publication capability rejects missing extra and nonboolean responses without assuming availability', async (t) => {
+  for (const data of [null, {}, { enabled: 'true' }, { enabled: true, other: true }]) {
+    const mocked = t.mock.method(globalThis, 'fetch', async () =>
+      Response.json({ ok: true, data }),
+    );
+    await assert.rejects(
+      fetchCatalogDetailCapabilities(),
+      (error) => error instanceof AdminApiError && error.code === 'INVALID_RESPONSE',
+    );
+    mocked.mock.restore();
+  }
+  t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ ok: true, data: { enabled: false } }),
+  );
+  assert.deepEqual(await fetchCatalogDetailCapabilities(), { enabled: false });
 });

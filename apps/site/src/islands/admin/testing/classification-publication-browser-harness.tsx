@@ -10,7 +10,12 @@ const products = z
 function Harness() {
   const [closed, setClosed] = useState(false);
   return closed ? (
-    <p>Classification closed</p>
+    <>
+      <p>Classification closed</p>
+      <button type="button" onClick={() => setClosed(false)}>
+        Reopen classification
+      </button>
+    </>
   ) : (
     <ProductClassificationEditor
       products={products}

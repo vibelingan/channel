@@ -202,6 +202,7 @@ export async function runPreparation(
   let current: PreparationStatus | undefined;
   let calls = 0;
   let polls = 0;
+  let busyRetries = 0;
   const result = (
     reason: PreparationRunResult['reason'],
     errorCode?: string,
@@ -274,6 +275,7 @@ export async function runPreparation(
         if (!canRequest()) return result('paused');
       }
       const wasPoll = mode === 'poll';
+      let busyStatus: PreparationStatus | undefined;
       try {
         observed = await send({ action: wasPoll ? 'status' : 'continue', jobId });
       } catch (error) {
@@ -295,11 +297,68 @@ export async function runPreparation(
             recoveryError instanceof AdminApiError ? recoveryError.code : undefined,
           );
         }
-        return result(
-          'status' in recovered && recovered.status.nextAction === 'ready'
-            ? 'ready'
-            : 'needs-action',
-        );
+        if ('status' in recovered && recovered.status.nextAction === 'ready')
+          return result('ready');
+        if (
+          error instanceof AdminApiError &&
+          error.code === 'BUSY' &&
+          'status' in recovered &&
+          recovered.status.current &&
+          recovered.status.progress.state === 'queued' &&
+          recovered.status.nextAction === 'continue'
+        )
+          busyStatus = recovered.status;
+        else return result('needs-action');
+      }
+      const rejected =
+        busyStatus?.progress ??
+        (!wasPoll &&
+        'followUp' in observed &&
+        observed.invocation === 'rejected' &&
+        observed.failureCode === 'BUSY' &&
+        observed.status.current &&
+        observed.status.progress.state === 'queued' &&
+        observed.status.nextAction === 'continue'
+          ? observed.status.progress
+          : undefined);
+      if (rejected) {
+        if (busyRetries >= 4) return result('paused', 'BUSY');
+        busyRetries++;
+        try {
+          await (options.wait ?? pause)(400 * Math.min(busyRetries, 3), signal);
+        } catch {
+          return result('paused', 'BUSY');
+        }
+        if (!canRequest()) return result('paused', 'BUSY');
+        let fresh: PreparationResponse;
+        try {
+          fresh = await send({ action: 'status', jobId });
+        } catch (error) {
+          return result(
+            signal.aborted
+              ? 'paused'
+              : error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code)
+                ? 'needs-action'
+                : 'unknown',
+            error instanceof AdminApiError ? error.code : undefined,
+          );
+        }
+        if (
+          !('status' in fresh) ||
+          !fresh.status.current ||
+          fresh.status.progress.leaseVersion < rejected.leaseVersion ||
+          fresh.status.progress.attempt < rejected.attempt ||
+          fresh.status.progress.createdAt !== rejected.createdAt
+        )
+          return result('needs-action', 'CONFLICT');
+        if (fresh.status.nextAction === 'ready') return result('ready');
+        mode =
+          fresh.status.nextAction === 'continue' && fresh.status.progress.state === 'queued'
+            ? 'continue'
+            : fresh.status.nextAction === 'wait'
+              ? 'poll'
+              : 'none';
+        continue;
       }
       mode = wasPoll
         ? current?.nextAction === 'wait'

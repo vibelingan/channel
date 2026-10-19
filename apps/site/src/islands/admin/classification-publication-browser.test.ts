@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,7 @@ import { handleAdminRequest } from '../../../../functions/admin/src/handler.ts';
 import { handlePublicApiEvent } from '../../../../functions/public-api/src/http-adapter.ts';
 import {
   coldOwnedMedia,
+  ownedColdPng,
   workspace,
 } from '../../../../local-server/src/testing/catalog-operation-workspace.ts';
 import { PublicationCheckpointSchema } from './catalog-product-operation-api.ts';
@@ -42,8 +44,16 @@ for (const engine of ['chromium', 'webkit'] as const)
         enableDetailApproval: true,
         ...media.config,
       };
+      const coldObject = await media.storage.putObject({
+        namespace: 'catalog',
+        logicalId: 'cold-image',
+        fileName: 'cold.png',
+        mimeType: 'image/png',
+        content: ownedColdPng,
+      });
       const groups = {
         twenty: 20,
+        cold: 20,
         lost: 1,
         cancel: 1,
         partial: 2,
@@ -51,6 +61,8 @@ for (const engine of ['chromium', 'webkit'] as const)
         conflict: 1,
         storage: 1,
         draft: 1,
+        disabled: 1,
+        availability: 1,
       };
       const manifest = Object.entries(groups).flatMap(([group, count]) =>
         Array.from({ length: count }, (_, index) => ({
@@ -59,10 +71,20 @@ for (const engine of ['chromium', 'webkit'] as const)
           name: `Actual ${group} clock ${index}`,
           subcategoryIds: [],
           ...(group === 'partial' && index === 1 ? { imageIds: [] } : {}),
+          ...(group === 'cold' ? { imageIds: ['cold-image'] } : {}),
         })),
       );
       const rows = JSON.parse(h.bytes());
       rows.products.push(...manifest);
+      rows.images.push({
+        _id: 'cold-image',
+        status: 'active',
+        ...coldObject,
+        mimeType: 'image/png',
+        byteSize: ownedColdPng.byteLength,
+        checksumSha256: createHash('sha256').update(ownedColdPng).digest('hex'),
+        publishedRefCount: 0,
+      });
       writeFileSync(h.file, JSON.stringify(rows));
       const directory = await mkdtemp(join(tmpdir(), 'channel-classification-ui-'));
       const { createServer } = await import('vite');
@@ -141,6 +163,8 @@ for (const engine of ['chromium', 'webkit'] as const)
       let loseCommit = false;
       let pauseContinuation = false;
       let concurrentEdit = false;
+      let capabilityUnavailable = false;
+      let capabilityWait: Promise<void> | undefined;
       await context.addInitScript(
         ({ token }) => {
           localStorage.setItem('channel.token', token);
@@ -160,6 +184,17 @@ for (const engine of ['chromium', 'webkit'] as const)
         const input = route.request().postDataJSON();
         const data = input.data ?? {};
         actions.push({ action: input.action, data });
+        if (input.action === 'catalogDetailCapabilities' && capabilityWait) await capabilityWait;
+        if (input.action === 'catalogDetailCapabilities' && capabilityUnavailable) {
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Controlled unavailable capability' },
+            },
+          });
+          return;
+        }
         if (input.action === 'catalogDetailApproval' && data.action === 'product-operation-start') {
           assert.equal(
             starts.has(data.productId),
@@ -301,6 +336,23 @@ for (const engine of ['chromium', 'webkit'] as const)
               assert.deepEqual(saved?.subcategoryIds, []);
             }
             await capture('twenty');
+            await page.getByRole('button', { name: 'Done', exact: true }).click();
+            await expect(page.getByText('Classification closed')).toBeVisible();
+          },
+        );
+        await t.test(
+          '20 actual cold-image drafts finish the full classification and publication flow',
+          async () => {
+            await open('cold');
+            await publish();
+            await expect(
+              page.getByText('20 products classified and published.', { exact: true }),
+            ).toBeVisible({ timeout: 60000 });
+            await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
+            assert.equal(starts.size, 40);
+            for (const product of manifest.filter((p) => p._id.includes('-cold-')))
+              assert.equal((await h.adapter.get('products', product._id))?.published, true);
+            await capture('cold-twenty');
             await page.getByRole('button', { name: 'Done', exact: true }).click();
             await expect(page.getByText('Classification closed')).toBeVisible();
           },
@@ -509,6 +561,135 @@ for (const engine of ['chromium', 'webkit'] as const)
             assert.notEqual(current?.updatedAt, product.updatedAt);
           },
         );
+        await t.test(
+          'disabled publication capability blocks publish before classification and still permits draft save',
+          async () => {
+            config.enableDetailApproval = false;
+            try {
+              await page.goto(new URL('classification-test?group=disabled', origin).href);
+              await expect(
+                page.getByRole('button', { name: 'Save classification', exact: true }),
+              ).toBeEnabled();
+              await expect(
+                page.getByRole('button', { name: 'Save and publish', exact: true }),
+              ).toBeDisabled();
+              await expect(
+                page.getByText('Publishing is unavailable. You can still save classification.', {
+                  exact: true,
+                }),
+              ).toBeVisible();
+              await capture('availability-disabled');
+              const startsBefore = starts.size;
+              await page.getByRole('button', { name: 'Save classification', exact: true }).click();
+              await page.getByRole('button', { name: 'Confirm save', exact: true }).click();
+              await expect(page.getByText('Classification closed')).toBeVisible();
+              assert.equal(starts.size, startsBefore);
+            } finally {
+              config.enableDetailApproval = true;
+            }
+          },
+        );
+        await t.test(
+          'unavailable capability blocks publication and has a read-only retry without saving classification',
+          async () => {
+            capabilityUnavailable = true;
+            try {
+              const assignmentsBefore = actions.filter(
+                (item) => item.action === 'catalogCategories' && item.data.kind === 'assignment',
+              ).length;
+              const startsBefore = starts.size;
+              await page.goto(new URL('classification-test?group=availability', origin).href);
+              await expect(
+                page.getByRole('button', { name: 'Save classification', exact: true }),
+              ).toBeEnabled();
+              await expect(
+                page.getByRole('button', { name: 'Save and publish', exact: true }),
+              ).toBeDisabled();
+              await expect(page.getByRole('alert')).toContainText(
+                'Publication availability could not be checked.',
+              );
+              capabilityUnavailable = false;
+              await page
+                .getByRole('button', { name: 'Check publication availability again', exact: true })
+                .click();
+              await expect(
+                page.getByRole('button', { name: 'Save and publish', exact: true }),
+              ).toBeEnabled();
+              assert.equal(starts.size, startsBefore);
+              await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+              await expect(page.getByText('Classification closed')).toBeVisible();
+              await page.evaluate(() => {
+                const original = Date.now;
+                Reflect.set(window, '__restoreCapabilityTime', () => {
+                  Date.now = original;
+                });
+                Date.now = () => original() + 61001;
+              });
+              capabilityUnavailable = true;
+              let releaseCapability = () => {};
+              capabilityWait = new Promise<void>((resolve) => {
+                releaseCapability = resolve;
+              });
+              const readsBefore = actions.filter(
+                (item) => item.action === 'catalogDetailCapabilities',
+              ).length;
+              try {
+                await page
+                  .getByRole('button', { name: 'Reopen classification', exact: true })
+                  .click();
+                await expect
+                  .poll(
+                    () =>
+                      actions.filter((item) => item.action === 'catalogDetailCapabilities').length,
+                  )
+                  .toBeGreaterThan(readsBefore);
+                await expect(
+                  page.getByRole('button', { name: 'Save classification', exact: true }),
+                ).toBeEnabled();
+                await expect(
+                  page.getByText('Checking publication availability...', { exact: true }),
+                ).toBeVisible();
+                await expect(
+                  page.getByRole('button', { name: 'Save and publish', exact: true }),
+                ).toBeDisabled();
+                releaseCapability();
+                capabilityWait = undefined;
+                await expect(page.getByRole('alert')).toContainText(
+                  'Publication availability could not be checked.',
+                );
+                await expect(
+                  page.getByRole('button', { name: 'Save and publish', exact: true }),
+                ).toBeDisabled();
+                await capture('availability-cached-error');
+                capabilityUnavailable = false;
+                await page
+                  .getByRole('button', {
+                    name: 'Check publication availability again',
+                    exact: true,
+                  })
+                  .click();
+                await expect(
+                  page.getByRole('button', { name: 'Save and publish', exact: true }),
+                ).toBeEnabled();
+              } finally {
+                releaseCapability();
+                capabilityWait = undefined;
+              }
+              assert.equal(
+                actions.filter(
+                  (item) => item.action === 'catalogCategories' && item.data.kind === 'assignment',
+                ).length,
+                assignmentsBefore,
+              );
+            } finally {
+              capabilityUnavailable = false;
+              await page.evaluate(() => {
+                const restore = Reflect.get(window, '__restoreCapabilityTime');
+                if (typeof restore === 'function') restore();
+              });
+            }
+          },
+        );
         assert.deepEqual(errors, []);
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -593,6 +774,17 @@ for (const engine of ['chromium', 'webkit'] as const)
         });
         assert.ok(reference.state === 'counted');
         assert.equal(reference.effectiveCount, 0);
+        const coldReference = await h.adapter.readCatalogImageReference({
+          action: 'read',
+          imageId: 'cold-image',
+        });
+        assert.ok(coldReference.state === 'counted');
+        assert.equal(coldReference.effectiveCount, 0);
+        assert.equal(
+          (await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/images/cold-image' }, {}))
+            .statusCode,
+          404,
+        );
         assert.equal(
           (await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/images/image' }, {}))
             .statusCode,

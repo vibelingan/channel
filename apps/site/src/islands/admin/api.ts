@@ -1147,6 +1147,18 @@ export async function taxonomyCall(
   return response.data;
 }
 
+export async function fetchCatalogDetailCapabilities(
+  signal?: AbortSignal,
+): Promise<{ enabled: boolean }> {
+  const parsed = z
+    .object({ enabled: z.boolean() })
+    .strict()
+    .safeParse(await call<unknown>('catalogDetailCapabilities', undefined, signal));
+  if (!parsed.success)
+    throw new AdminApiError('INVALID_RESPONSE', 'Publication availability could not be confirmed.');
+  return parsed.data;
+}
+
 export async function assignmentCall(
   input: CatalogClassificationAssignmentRequest,
   signal?: AbortSignal,

@@ -13,26 +13,29 @@ import {
 import { createPublicationAttempt } from './catalog-product-operation-api.ts';
 import { createPublicationBatch } from './catalog-publication-batch.ts';
 
-for (const [count, unclassified] of [
-  [20, false],
-  [100, false],
-  [3, true],
+for (const [count, unclassified, cold] of [
+  [20, false, false],
+  [100, false, false],
+  [3, true, false],
+  [20, false, true],
 ] as const)
   test(
-    `default batch transport publishes and reads ${count} actual mixed-category drafts sharing PNG, missing-classification=${unclassified}, then restores them`,
+    `default batch transport publishes and reads ${count} actual mixed-category drafts sharing PNG, missing-classification=${unclassified}, then restores them${cold ? ' with cold PNG' : ''}`,
     { timeout: 180000 },
     async (t) => {
       const h = await workspace(t);
       const original = await h.adapter.get('products', h.productId);
       assert.ok(original);
       const media = await coldOwnedMedia(h);
-      const warm = await h.start('publish', {});
-      const warmed = await h.invokeWithConfig(
-        { ...warm, action: 'product-operation-continue' },
-        media.config,
-      );
-      assert.ok(warmed.ok, JSON.stringify(warmed));
-      assert.ok((await h.invoke({ ...warm, action: 'product-operation-cancel' })).ok);
+      if (!cold) {
+        const warm = await h.start('publish', {});
+        const warmed = await h.invokeWithConfig(
+          { ...warm, action: 'product-operation-continue' },
+          media.config,
+        );
+        assert.ok(warmed.ok, JSON.stringify(warmed));
+        assert.ok((await h.invoke({ ...warm, action: 'product-operation-cancel' })).ok);
+      }
       const token = await signSession('owned-continue-test-only', {
         sub: 'admin',
         role: 'admin',
