@@ -136,6 +136,7 @@ export async function fetchCatalogDetailPage(
     page: String(page),
     pageSize: String(pageSize),
     view: 'sections-media',
+    pagination: 'byte-budget-v1',
   });
   if (revision !== undefined) query.set('revision', revision);
   let response: Response;
@@ -179,7 +180,8 @@ export async function fetchCatalogDetailPage(
     !decoded.value.revision ||
     decoded.value._id !== productId ||
     decoded.value.variants.page !== page ||
-    decoded.value.variants.pageSize !== pageSize
+    (decoded.value.variants.pageSize !== pageSize &&
+      !(page === 1 && revision === undefined && decoded.value.variants.pageSize < pageSize))
   ) {
     return { status: 'invalid-response' };
   }

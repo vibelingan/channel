@@ -7,6 +7,7 @@ import {
   serializeCatalogSchema,
   skuBreadcrumbs,
 } from '../../lib/catalog-seo.ts';
+import { productBreadcrumbs } from '../../lib/seo/product-page.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 import { hasUsableCatalogSlug } from './CatalogFamilyGrid.tsx';
 import { EffectiveCatalogPricingBlock } from './EffectiveCatalogPricingBlock.tsx';
@@ -20,12 +21,13 @@ export type SkuDetailViewState =
   | { status: 'loading' }
   | { status: 'not-found' }
   | { status: 'error' }
-  | { status: 'ready'; product: Product; related: Product[] };
+  | { status: 'ready'; product: Product; related: Product[]; refreshError?: boolean };
 
 interface ViewProps {
   content: CatalogContent;
   state: SkuDetailViewState;
   onRetry: () => void;
+  canonicalPath?: string;
 }
 
 interface Props {
@@ -33,6 +35,7 @@ interface Props {
   previewContent?: SharedDetailContent;
   productId?: string;
   initialProduct?: Product;
+  canonicalPath?: string;
 }
 
 const SharedPreview = lazy(() => import('./SharedDetailPreview.tsx'));
@@ -71,7 +74,7 @@ function relatedProducts(product: Product, related: Product[]): Array<Product & 
   );
 }
 
-export function SkuDetailView({ content, state, onRetry }: ViewProps) {
+export function SkuDetailView({ content, state, onRetry, canonicalPath }: ViewProps) {
   const { detail, list } = content;
   const heading = useRef<HTMLHeadingElement>(null);
   const readyId = state.status === 'ready' ? state.product._id : undefined;
@@ -128,7 +131,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   const facts = productFacts(product);
   const related = relatedProducts(product, state.related);
   const moq = effectiveCatalogMoq(product);
-  const breadcrumbs = skuBreadcrumbs(product);
+  const breadcrumbs = canonicalPath ? productBreadcrumbs(product) : skuBreadcrumbs(product);
   const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
   // The public slug endpoint admits only published, non-archived products.
   const productSchema = catalogProductSchema(product, origin, { published: true });
@@ -163,6 +166,21 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
               ),
             )}
           </nav>
+          {state.refreshError && (
+            <div
+              role="alert"
+              className="mb-6 border border-red-200 bg-red-50 p-6 text-sm text-red-800"
+            >
+              <p>{list.errorLabel}</p>
+              <button
+                type="button"
+                onClick={onRetry}
+                className="mt-4 min-h-11 border border-red-300 bg-white px-4 py-2 font-semibold"
+              >
+                {list.retryLabel}
+              </button>
+            </div>
+          )}
           <div className="grid min-w-0 gap-10 lg:grid-cols-2">
             <div className="min-w-0">
               <Gallery
@@ -264,7 +282,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
           </div>
         </section>
       )}
-      {schemaNodes.length > 0 && (
+      {!canonicalPath && schemaNodes.length > 0 && (
         <script
           type="application/ld+json"
           data-catalog-schema
@@ -276,8 +294,12 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   );
 }
 
-export function LegacySkuDetailPage({ content, productId, initialProduct }: Props) {
-  const [state, setState] = useState<SkuDetailViewState>({ status: 'loading' });
+export function LegacySkuDetailPage({ content, productId, initialProduct, canonicalPath }: Props) {
+  const [state, setState] = useState<SkuDetailViewState>(() =>
+    initialProduct
+      ? { status: 'ready', product: initialProduct, related: [] }
+      : { status: 'loading' },
+  );
   const [attempt, setAttempt] = useState(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: retry token intentionally starts a fresh request.
@@ -286,13 +308,14 @@ export function LegacySkuDetailPage({ content, productId, initialProduct }: Prop
     const slug = new URLSearchParams(window.location.search).get('slug')?.trim() ?? '';
     const id = productId ?? new URLSearchParams(window.location.search).get('id');
     const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    if (canonical) canonical.href = new URL('/products/item/', window.location.origin).href;
+    if (canonical && !canonicalPath)
+      canonical.href = new URL('/products/item/', window.location.origin).href;
     if (!slug && !id) {
       setState({ status: 'not-found' });
       return () => controller.abort();
     }
-    setState({ status: 'loading' });
-    (initialProduct
+    if (!canonicalPath) setState({ status: 'loading' });
+    (initialProduct && !canonicalPath
       ? Promise.resolve(initialProduct)
       : id
         ? fetchCatalogItem('/api/products', id, controller.signal)
@@ -300,7 +323,7 @@ export function LegacySkuDetailPage({ content, productId, initialProduct }: Prop
     )
       .then((product) => {
         if (controller.signal.aborted) return;
-        if (canonical && hasAddressableProductDetail(product)) {
+        if (canonical && !canonicalPath && hasAddressableProductDetail(product)) {
           canonical.href = new URL(
             `/products/item/?slug=${encodeURIComponent(product.slug?.trim() ?? '')}`,
             window.location.origin,
@@ -323,18 +346,25 @@ export function LegacySkuDetailPage({ content, productId, initialProduct }: Prop
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
+        if (canonicalPath && !(error instanceof Error && error.message === 'not-found')) {
+          setState((current) =>
+            current.status === 'ready' ? { ...current, refreshError: true } : { status: 'error' },
+          );
+          return;
+        }
         setState({
           status: error instanceof Error && error.message === 'not-found' ? 'not-found' : 'error',
         });
       });
     return () => controller.abort();
-  }, [attempt, productId, initialProduct]);
+  }, [attempt, productId, initialProduct, canonicalPath]);
 
   return (
     <SkuDetailView
       content={content}
       state={state}
       onRetry={() => setAttempt((value) => value + 1)}
+      canonicalPath={canonicalPath}
     />
   );
 }

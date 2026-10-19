@@ -2,7 +2,10 @@ import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared'
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 /** Shared layout; callers authorize URLs before supplying them (public IDs or admin blobs). */
-export function CatalogDescriptionImages({ images }: { images: readonly string[] }) {
+export function CatalogDescriptionImages({
+  images,
+  productName,
+}: { images: readonly string[]; productName?: string }) {
   if (!images.length) return null;
   return (
     <section data-description-images className="border-b border-slate-200 py-6">
@@ -14,7 +17,11 @@ export function CatalogDescriptionImages({ images }: { images: readonly string[]
           <img
             key={`${index}:${src}`}
             src={apiMediaUrl(src)}
-            alt={`Product description ${index + 1}`}
+            alt={
+              productName
+                ? `${productName} — description image ${index + 1}`
+                : `Product description ${index + 1}`
+            }
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"

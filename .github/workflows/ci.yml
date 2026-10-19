@@ -174,7 +174,12 @@ jobs:
         with:
           node-version: 22.13.0
 
+      - name: Prepare local-only product SEO fixture
+        run: pnpm --filter @vibelingan-channel/site seo:fixture /tmp/channel-product-seo-fixture.json
+
       - name: Build site
+        env:
+          SEO_CATALOG_SNAPSHOT: /tmp/channel-product-seo-fixture.json
         run: pnpm build
 
       - name: Scan built site for server secret names
@@ -189,6 +194,9 @@ jobs:
 
       - name: Install Playwright Chromium and WebKit
         run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Exercise initial product HTML and existing buyer interactions
+        run: node scripts/verify-product-seo.mjs apps/site/dist /tmp/channel-product-seo-fixture.json output/playwright/product-seo
 
       - name: Exercise built catalog and Admin with an isolated local database
         env:

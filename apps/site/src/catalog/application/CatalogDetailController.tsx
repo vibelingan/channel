@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
-import { fetchCatalogDetailPage } from '../infrastructure/catalog-detail-api.ts';
+import { type DetailPage, fetchCatalogDetailPage } from '../infrastructure/catalog-detail-api.ts';
 import { CatalogDetail } from '../presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../presentation/CatalogVariantGallery.tsx';
 import {
@@ -18,6 +18,7 @@ export function CatalogDetailController({
   focusOnOpen = false,
   onVariantChange,
   legacyFallback,
+  bootstrap,
 }: {
   productId: string;
   requestedId?: string;
@@ -26,10 +27,11 @@ export function CatalogDetailController({
   focusOnOpen?: boolean;
   onVariantChange?: (id?: string) => void;
   legacyFallback?: ReactNode;
+  bootstrap?: DetailPage;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const focusedProduct = useRef<string | undefined>(undefined);
-  const [state, setState] = useState(initialProductDetailState);
+  const [state, setState] = useState(() => initialProductDetailState(bootstrap));
   const current = useRef(state);
   const generation = useRef(0);
   const abort = useRef<AbortController | undefined>(undefined);
@@ -70,17 +72,21 @@ export function CatalogDetailController({
   useEffect(() => {
     void retry;
     void perform(
-      apply({
-        type: 'open',
-        generation: ++generation.current,
-        productId,
-        requestedId: requested.current,
-      }),
+      apply(
+        bootstrap && current.current.status === 'ready' && current.current.productId === productId
+          ? { type: 'refresh', generation: ++generation.current }
+          : {
+              type: 'open',
+              generation: ++generation.current,
+              productId,
+              requestedId: requested.current,
+            },
+      ),
     );
     return () => {
       abort.current?.abort();
     };
-  }, [productId, retry, apply, perform]);
+  }, [productId, retry, apply, perform, bootstrap]);
   useEffect(() => {
     // URL selection is interaction state, not a new product/revision fetch.
     // Browser Back/Forward also uses this path, including an invalid deep link.
@@ -162,7 +168,7 @@ export function CatalogDetailController({
         }
         pagination={
           <>
-            {state.request && (
+            {state.request && !state.refreshing && (
               <output className="block text-sm text-ink-muted">{copy.loadingLabel}</output>
             )}
             {state.pageError && (
@@ -171,7 +177,11 @@ export function CatalogDetailController({
                 <button
                   type="button"
                   className="min-h-11 text-brand-700 underline"
-                  onClick={() => page(state.pageError?.page ?? number)}
+                  onClick={() =>
+                    state.pageError?.refresh
+                      ? void perform(apply({ type: 'refresh', generation: ++generation.current }))
+                      : page(state.pageError?.page ?? number)
+                  }
                 >
                   {copy.retryLabel}
                 </button>

@@ -180,7 +180,7 @@ test('result progress substitutes loaded and total into the content template', (
 
 // --- card contract ----------------------------------------------------------
 
-test('the card is a semantic in-page expansion button using ProductMedia', () => {
+test('the card exposes a standard product link while using the same ProductMedia', () => {
   const html = renderToStaticMarkup(
     createElement(HeadphonesProductCard, {
       product: product('p9'),
@@ -190,9 +190,9 @@ test('the card is a semantic in-page expansion button using ProductMedia', () =>
     }),
   );
   assert.ok(html.includes('data-product-card="p9"'));
-  assert.ok(html.includes('type="button"'));
+  assert.ok(html.includes('href="/products/p-p9/"'));
   assert.ok(html.includes('data-product-media='));
-  assert.ok(!html.includes('<a '));
+  assert.ok(html.includes('<a '));
 });
 
 test('card hierarchy keeps identity strongest, price at 14px/600, action at 12px/500', () => {

@@ -42,7 +42,7 @@ test('reads a validated detail through the explicit route without entitlement to
     fetch: async (url, init) => {
       assert.equal(
         url,
-        '/api/products/canonical-product/detail?page=1&pageSize=50&view=sections-media',
+        '/api/products/canonical-product/detail?page=1&pageSize=50&view=sections-media&pagination=byte-budget-v1',
       );
       assert.equal(init?.signal, abort.signal);
       assert.equal(init?.credentials, 'omit');
@@ -65,7 +65,7 @@ test('encodes the product identity and carries revision on later pages', async (
       fetch: async (url) => {
         assert.equal(
           url,
-          '/api/products/id%2Fwith%20%3F%23/detail?page=2&pageSize=50&view=sections-media&revision=r%262',
+          '/api/products/id%2Fwith%20%3F%23/detail?page=2&pageSize=50&view=sections-media&pagination=byte-budget-v1&revision=r%262',
         );
         return responseFor(data);
       },
@@ -98,7 +98,6 @@ test('rejects mismatched identity page size page number and missing revision', a
     { ...detailFixture(), _id: 'foreign' },
     { ...detailFixture(), revision: undefined },
     detailFixture(3, 2),
-    detailFixture(3, 1, 3),
   ]) {
     assert.deepEqual(
       await fetchCatalogDetailPage(request, { fetch: async () => responseFor(data) }),
@@ -113,6 +112,23 @@ test('rejects mismatched identity page size page number and missing revision', a
       },
     ),
     { status: 'refresh-required' },
+  );
+});
+
+test('accepts a bounded first page size, then pins it for a revision', async () => {
+  const data = detailFixture(3, 1, 3);
+  assert.equal(
+    (await fetchCatalogDetailPage(request, { fetch: async () => responseFor(data) })).status,
+    'ready',
+  );
+  assert.equal(
+    (
+      await fetchCatalogDetailPage(
+        { ...request, revision: data.revision },
+        { fetch: async () => responseFor(data) },
+      )
+    ).status,
+    'invalid-response',
   );
 });
 

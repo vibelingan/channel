@@ -208,7 +208,10 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
   ];
 
   assert.deepEqual(
-    metadata.map(({ name }) => `${name === 'home' ? 'index' : name}.astro`).sort(),
+    [
+      ...metadata.map(({ name }) => `${name === 'home' ? 'index' : name}.astro`),
+      'products/[publicKey].astro',
+    ].sort(),
     routablePublicPages,
     'every discovered public route has audited metadata',
   );
@@ -259,6 +262,22 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'meta.description',
     }),
   ]);
+});
+
+test('standard product route binds the validated public page descriptor to BaseLayout', async () => {
+  const { ast, diagnostics } = await parse(read('../pages/products/[publicKey].astro'));
+  assert.deepEqual(diagnostics, []);
+  const layouts: ComponentNode[] = [];
+  const visit = (node: AstroNode) => {
+    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if ('children' in node) for (const child of node.children) visit(child);
+  };
+  visit(ast);
+  assert.equal(layouts.length, 1);
+  assert.deepEqual(
+    layouts[0]?.attributes.map(({ name, kind, value }) => ({ name, kind, value })),
+    [{ name: 'page', kind: 'expression', value: 'page' }],
+  );
 });
 
 test('sitemap follows published catalog content and excludes private routes', () => {

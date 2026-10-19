@@ -199,6 +199,8 @@ try {
     PUBLIC_API_BASE_URL: apiUrl,
     PUBLIC_CB_HOST: new URL(apiUrl).host,
     SITE_URL: `http://127.0.0.1:${sitePort}`,
+    SEO_CATALOG_SNAPSHOT: '',
+    SEO_CATALOG_API_ORIGIN: apiUrl,
   };
   await run(
     bin('apps/site', 'astro'),

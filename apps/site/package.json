@@ -7,6 +7,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "seo:snapshot": "tsx scripts/prepare-product-seo.ts",
+    "seo:fixture": "tsx scripts/product-seo-fixture.ts",
     "astro": "astro",
     "typecheck": "astro check",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",

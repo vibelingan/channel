@@ -130,6 +130,8 @@ jobs:
           node-version: 22.13.0
 
       - name: Build site
+        env:
+          SEO_CATALOG_API_ORIGIN: ${{ vars.SEO_CATALOG_API_ORIGIN || vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
         run: pnpm build
 
       - name: Scan built site for server secret names

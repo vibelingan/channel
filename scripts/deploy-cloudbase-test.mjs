@@ -20,6 +20,7 @@ import {
   publishVerifiedAssets,
   verifyHostedAssets,
 } from './hosting-integrity.mjs';
+import { assertPublicProductBuild } from './product-seo-release.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
@@ -512,6 +513,7 @@ async function deployWebApp() {
   console.log(`${webAppServiceName}: website document configured; request ${configRequestId}`);
 }
 
+assertPublicProductBuild(resolve(siteRootPath, 'dist'), siteUrl);
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
 callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);

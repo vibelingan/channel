@@ -1,9 +1,8 @@
 /**
  * Presentational Headphones catalog card (MIU 10).
  *
- * A semantic in-page expansion button: activating it opens the product's
- * detail section on the same page (wired by the MIU 13 controller), so it is
- * a `<button>`, never a link. Media flows through ProductMedia's ordered
+ * Plain activation opens the existing in-page detail section. Native modified
+ * clicks open the standard product URL. Media flows through ProductMedia's ordered
  * source/fallback contract — lazy and low-priority so a page of cards does
  * not stampede the gated image function.
  *
@@ -12,6 +11,7 @@
  * action 12px/500 (`text-xs font-medium`).
  */
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
+import { isPlainProductClick, productPath } from '../../lib/seo/product-identity.ts';
 import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { effectiveCatalogMoq } from './catalog-pricing.ts';
@@ -32,10 +32,15 @@ export function HeadphonesProductCard({
 }: HeadphonesProductCardProps) {
   const moq = effectiveCatalogMoq(product);
   return (
-    <button
-      type="button"
+    <a
+      href={productPath(product._id)}
       data-product-card={product._id}
-      onClick={() => onOpen(product._id)}
+      onClick={(event) => {
+        if (isPlainProductClick(event)) {
+          event.preventDefault();
+          onOpen(product._id);
+        }
+      }}
       className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-[var(--shadow-card)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
     >
       <div className="relative aspect-square overflow-hidden bg-white">
@@ -93,6 +98,6 @@ export function HeadphonesProductCard({
           </div>
         </div>
       </div>
-    </button>
+    </a>
   );
 }

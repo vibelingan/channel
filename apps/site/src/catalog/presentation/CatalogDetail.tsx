@@ -113,7 +113,10 @@ export function CatalogDetail({
         {descriptionMedia !== undefined ? (
           descriptionMedia
         ) : (
-          <CatalogDescriptionImages images={detail.descriptionImages ?? []} />
+          <CatalogDescriptionImages
+            images={detail.descriptionImages ?? []}
+            productName={detail.name}
+          />
         )}
       </div>
     </article>

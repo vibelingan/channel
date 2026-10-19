@@ -24,18 +24,34 @@ export type ProductDetailState =
       selection: VariantSelection;
       requestedId?: string;
       request?: DetailPageRequest;
-      pageError?: { error: DetailFailure; page: number };
+      pageError?: { error: DetailFailure; page: number; refresh?: boolean };
+      refreshing?: boolean;
     };
 
 export type ProductDetailEvent =
   | { type: 'open'; generation: number; productId: string; requestedId?: string }
+  | { type: 'refresh'; generation: number }
   | { type: 'page'; generation: number; page: number }
   | { type: 'result'; generation: number; productId: string; result: DetailPageResult }
   | { type: 'close'; generation: number }
   | { type: 'restore-selection'; productId: string; variantId?: string }
   | { type: 'select'; productId: string; revision: string; variantId?: string };
 
-export function initialProductDetailState(): ProductDetailState {
+export function initialProductDetailState(bootstrap?: unknown): ProductDetailState {
+  if (bootstrap !== undefined) {
+    const result = startDetailPages(
+      bootstrap,
+      new TextEncoder().encode(JSON.stringify(bootstrap)).length,
+    );
+    if (result.status !== 'ready') throw new Error('Invalid public product bootstrap');
+    return {
+      status: 'ready',
+      generation: 0,
+      productId: result.value.currentPage._id,
+      pages: result.value,
+      selection: resolveVariantSelection(result.value, undefined),
+    };
+  }
   return { status: 'idle', generation: 0 };
 }
 
@@ -51,7 +67,16 @@ function fail(
     state.status === 'ready' &&
     ['network-error', 'unavailable', 'rate-limited', 'cancelled'].includes(error.status)
   ) {
-    return { ...state, request: undefined, pageError: { error, page: state.request?.page ?? 1 } };
+    return {
+      ...state,
+      refreshing: undefined,
+      request: undefined,
+      pageError: {
+        error,
+        page: state.request?.page ?? 1,
+        ...(state.refreshing ? { refresh: true } : {}),
+      },
+    };
   }
   return { status: 'error', generation: state.generation, productId: state.productId, error };
 }
@@ -62,6 +87,15 @@ export function reduceProductDetail(
   event: ProductDetailEvent,
 ): ProductDetailState {
   switch (event.type) {
+    case 'refresh':
+      if (state.status !== 'ready' || !isNewGeneration(state, event.generation)) return state;
+      return {
+        ...state,
+        generation: event.generation,
+        refreshing: true,
+        pageError: undefined,
+        request: { productId: state.productId, page: 1, pageSize: 50 },
+      };
     case 'open':
       if (!isNewGeneration(state, event.generation)) return state;
       return {
@@ -91,6 +125,7 @@ export function reduceProductDetail(
         ...state,
         generation: event.generation,
         pageError: undefined,
+        refreshing: undefined,
         request: {
           productId: state.productId,
           page: event.page,
@@ -140,17 +175,22 @@ export function reduceProductDetail(
       if (
         detail._id !== state.productId ||
         detail.variants.page !== state.request.page ||
-        detail.variants.pageSize !== state.request.pageSize
+        (detail.variants.pageSize !== state.request.pageSize &&
+          !(
+            state.request.page === 1 &&
+            state.request.revision === undefined &&
+            detail.variants.pageSize < (state.request.pageSize ?? 50)
+          ))
       )
         return fail(state, { status: 'invalid-response' });
       const assembled =
-        state.status === 'ready'
+        state.status === 'ready' && !state.refreshing
           ? acceptDetailPage(state.pages, detail, result.bytes)
           : startDetailPages(detail, result.bytes);
       if (assembled.status !== 'ready') return fail(state, assembled);
       const pages = assembled.value;
       let selection = resolveVariantSelection(pages, state.requestedId);
-      if (state.status === 'ready' && state.selection.status === 'selected') {
+      if (state.status === 'ready' && !state.refreshing && state.selection.status === 'selected') {
         const previous = state.selection.variant;
         const loaded = pages.items.find((item) => item.id === previous.id);
         // Same revision/ID must not change its meaning when revisiting a paged SKU.

@@ -1,4 +1,5 @@
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
+import { isPlainProductClick, productPath } from '../../lib/seo/product-identity.ts';
 import { CatalogPagination } from './CatalogPagination.tsx';
 import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
@@ -28,7 +29,7 @@ export function hasUsableCatalogSlug(product: Product): product is Product & { s
 /**
  * One catalog card. Activating it expands the detail band lower on the same page,
  * keyed by product id. That works for every published product, including legacy rows
- * that predate slugs and therefore have no detail URL of their own.
+ * that predate slugs. The href also supports opening the standard page in a new tab.
  *
  * The card owns its own border and fills its grid track as a flex column, so the grid
  * never has to paint separators behind it. Every region has a fixed place: square
@@ -44,10 +45,15 @@ function CatalogProductCard({
   const moq = effectiveCatalogMoq(product);
   const identifier = product.skuCode ?? product.modName ?? product.productCode;
   return (
-    <button
-      type="button"
+    <a
+      href={productPath(product._id)}
       data-product-card={product._id}
-      onClick={() => onOpenProduct(product._id)}
+      onClick={(event) => {
+        if (isPlainProductClick(event)) {
+          event.preventDefault();
+          onOpenProduct(product._id);
+        }
+      }}
       className="group flex h-full min-w-0 flex-col border border-slate-200 bg-white p-4 text-left transition hover:border-brand-300 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
     >
       <div className="aspect-square shrink-0 overflow-hidden bg-surface-alt">
@@ -83,7 +89,7 @@ function CatalogProductCard({
       <span className="mt-3 block text-xs font-medium text-brand-700" data-product-card-action>
         {list.viewDetail}
       </span>
-    </button>
+    </a>
   );
 }
 
