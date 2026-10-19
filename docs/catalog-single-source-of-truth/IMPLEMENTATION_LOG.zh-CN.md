@@ -1375,3 +1375,8 @@ continue在原saved seed和staging重开均按持久cursor调用原native配置�
 ## P3e7c8 最终事务同步确认供应商审阅
 
 New/旧首次、手工 Edited、完整当前来源的 Changed/Removed 使用原最终事务同步确认标记与批准；当前 Keep 可批准，未应用 incoming/旧决定/新来源摘要拒绝并带 remedy。Admin/native 共享比较与 URL 规则；正常无标记零新增读，来源首次/已链接 Edited17 文档操作、27 照片44，仍3写/全套最高98。45新增/638关联/6062相关包和脚本/3097Node20/19类型+E2E/7Biome/standingSDK通过。人工review发现并修复已链接 Edited 误走手工提前返回的P2，先红再绿，受影响包重测；14故障25重叠/三SHA恢复，651安装SDK含9坏ACK整体验证及丢回应。实际审阅7文件、DEC规则、原快照/媒体/引用，澄清完整来源草稿与所有Removed、文档操作与读次数的范围。精确产物留本提交后；UI P1及其余交付门槛未关闭，详见[P3e7c8](P3e7c8_OWNED_SOURCE_REVIEW.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7c9a 浏览器发布任务契约与原scope查询
+
+新增单次公开RPC和严格发布状态客户端；固定UUID/深拷贝冻结输入，未知回应只查原根，双重失败保留不可变scope和两错误，明确issues保留。66新增含3条客户端模块↔真实Admin/JSON/PNG组合及实际下架/引用归零；默认fetch绑定也独立验证。17故障24重叠/两SHA恢复；site863、local1057、Node20最新完整关联3163、19类型/E2E/既有test类型/5Biome/site构建通过，其他未变相关包复用4e5证据，总6128。期间一次Node20旧JSON80夹具begin返回false，诊断重跑及3轮两控制均未复现，原因未建立，继续作为发版阻断；首轮raw被覆盖但工具输出失败摘录已留，后续日志独立命名。实际审阅5代码/测试，纠正明确错误与私有进度、模块串联与真实浏览器的措辞；未启用客户producer，原UI P1/JSON80未解释失败均未关闭，详见[P3e7c9a](P3e7c9a_PUBLICATION_CLIENT_CONTRACT.zh-CN.md)，fullDeliveryReady=false。

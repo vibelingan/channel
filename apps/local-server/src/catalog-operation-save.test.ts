@@ -2460,15 +2460,32 @@ async function jsonFullReferenceSlotFixture(t: { after(callback: () => void): vo
     );
     assert.ok(prepared.ok, JSON.stringify(prepared));
     const scope = { productId: 'p', operationId, inputDigest };
+    const beforeBegin = Date.now();
+    const begun = await h.adapter.persistCatalogDetailApproval('admin', {
+      ...scope,
+      action: 'operation-approval-begin',
+      prepared: prepared.value,
+    });
     assert.equal(
-      (
-        await h.adapter.persistCatalogDetailApproval('admin', {
-          ...scope,
-          action: 'operation-approval-begin',
-          prepared: prepared.value,
-        })
-      ).ok,
+      begun.ok,
       true,
+      JSON.stringify({
+        index,
+        begun,
+        beforeBegin,
+        afterBegin: Date.now(),
+        preparedAt: prepared.value.createdAt,
+        productUpdatedAt: product.updatedAt,
+        ...(!begun.ok
+          ? {
+              inspection: await h.adapter.persistCatalogDetailApproval('admin', {
+                action: 'operation-get',
+                productId: 'p',
+                operationId,
+              }),
+            }
+          : {}),
+      }),
     );
     for (let page = 0; page < prepared.value.pageHashes.length; page++)
       assert.equal(

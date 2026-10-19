@@ -149,6 +149,11 @@ export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
   return call<unknown>('catalogDetailApproval', data, signal);
 }
 
+/** Publication recovery queries its original operation before considering another write. */
+export function catalogProductOperationCall(data: unknown, signal?: AbortSignal) {
+  return callOnce<unknown>('catalogDetailApproval', data, signal);
+}
+
 const PhotoSourceSchema = z.object({ url: z.string(), imageId: z.string().nullable() });
 const PhotoSourcesSchema = z.object({
   ok: z.literal(true),
