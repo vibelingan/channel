@@ -637,3 +637,206 @@ test('different products may resume the same operation UUID because native ident
   assert.equal(result.confirmed, 2);
   assert.equal(result.items[0]?.scope.operationId, result.items[1]?.scope.operationId);
 });
+
+function reserved(binding: PublicationScope, cancelled = false) {
+  return CatalogProductOperationStatusSchema.parse({
+    ok: true,
+    kind: 'product-operation',
+    ...binding,
+    inputDigest: binding.inputDigest ?? 'a'.repeat(64),
+    intent: 'publish',
+    createdAt: at,
+    current: true,
+    revisionCurrent: true,
+    expired: false,
+    state: 'reserved',
+    ...(cancelled ? { cancelledAt: at } : {}),
+  });
+}
+
+test('read-only original checks never run or cancel and preserve unfinished recovery', async () => {
+  const h = fixture();
+  let runs = 0;
+  let writes = 0;
+  const batch = createPublicationBatch({
+    ...h.base,
+    run: async () => {
+      runs++;
+      throw Error('No run during check');
+    },
+    request: async () => {
+      writes++;
+      throw Error('No private mutation');
+    },
+    check: async (input) => {
+      const binding = scope(input);
+      return { reason: 'not-complete', scope: binding, status: reserved(binding) };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run([{ scope: scope(attempt) }], undefined, 'check');
+  assert.equal(result.items[0]?.state, 'paused');
+  assert.equal(runs, 0);
+  assert.equal(writes, 0);
+  assert.equal(batch.journal.read().entries.length, 1);
+});
+test('read-only original checks still work when browser storage is unavailable', async () => {
+  const h = fixture();
+  let checks = 0;
+  const batch = createPublicationBatch({
+    ...h.base,
+    storage: () => {
+      throw Error('Storage denied');
+    },
+    check: async (input) => {
+      checks++;
+      const binding = scope(input);
+      return { reason: 'not-complete', scope: binding, status: reserved(binding) };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run([{ scope: scope(attempt) }], undefined, 'check');
+  assert.equal(checks, 1);
+  assert.equal(result.items[0]?.state, 'paused');
+  assert.match(batch.journal.export(), /operationId/);
+});
+test('stopping reads original input before cancelling and never starts a replacement', async () => {
+  const h = fixture();
+  let stopped = false;
+  const calls: string[] = [];
+  const batch = createPublicationBatch({
+    ...h.base,
+    request: async (command) => {
+      calls.push(command.action);
+      assert.equal(command.action, 'product-operation-cancel');
+      assert.equal('inputDigest' in command ? command.inputDigest : undefined, 'a'.repeat(64));
+      stopped = true;
+      return reserved(scope(command), true);
+    },
+    check: async (input) => {
+      calls.push('check');
+      const binding = scope(input);
+      return { reason: 'not-complete', scope: binding, status: reserved(binding, stopped) };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run([{ scope: scope(attempt) }], undefined, 'cancel');
+  assert.equal(result.items[0]?.state, 'cancelled');
+  assert.deepEqual(calls, ['check', 'product-operation-cancel', 'check']);
+  assert.equal(batch.journal.read().entries.length, 0);
+});
+test('a publication completing during stop is confirmed rather than reported cancelled', async () => {
+  const h = fixture();
+  let finished = false;
+  let cancels = 0;
+  const originalCheck = h.base.check;
+  assert.ok(originalCheck);
+  const batch = createPublicationBatch({
+    ...h.base,
+    request: async (command) => {
+      assert.equal(command.action, 'product-operation-cancel');
+      cancels++;
+      finished = true;
+      return complete(scope(command));
+    },
+    check: async (input, options) => {
+      if (finished) return originalCheck(input, options);
+      const binding = scope(input);
+      return { reason: 'not-complete', scope: binding, status: reserved(binding) };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run([{ scope: scope(attempt) }], undefined, 'cancel');
+  assert.equal(result.confirmed, 1);
+  assert.equal(result.items[0]?.state, 'confirmed');
+  assert.equal(cancels, 1);
+});
+test('an unknown original is never cancelled or replaced', async () => {
+  const h = fixture();
+  let writes = 0;
+  const batch = createPublicationBatch({
+    ...h.base,
+    request: async () => {
+      writes++;
+      throw Error('No mutation');
+    },
+    check: async (input) => ({ reason: 'unknown', scope: scope(input) }),
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run([{ scope: scope(attempt) }], undefined, 'cancel');
+  assert.equal(result.items[0]?.state, 'unknown');
+  assert.equal(writes, 0);
+  assert.equal(batch.journal.read().entries.length, 1);
+});
+test('a different original status cannot authorize cancellation', async () => {
+  const h = fixture();
+  let writes = 0;
+  const batch = createPublicationBatch({
+    ...h.base,
+    request: async () => {
+      writes++;
+      throw Error('No mutation');
+    },
+    check: async (input) => {
+      const binding = scope(input);
+      return {
+        reason: 'not-complete',
+        scope: binding,
+        status: reserved({ ...binding, productId: 'another' }),
+      };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run([{ scope: scope(attempt) }], undefined, 'cancel');
+  assert.equal(result.items[0]?.state, 'unknown');
+  assert.equal(writes, 0);
+});
+for (const mode of ['check', 'cancel'] as const)
+  test(`${mode} rejects fresh attempts before authorization`, async () => {
+    const h = fixture();
+    let auth = 0;
+    const batch = createPublicationBatch({
+      ...h.base,
+      authorize: async () => {
+        auth++;
+        return { id: 'admin', role: 'admin' };
+      },
+    });
+    await assert.rejects(batch.run(attempts(1), undefined, mode));
+    assert.equal(auth, 0);
+  });
+
+test('a different original digest cannot authorize cancellation when the saved pointer has no digest', async () => {
+  const h = fixture();
+  let writes = 0;
+  const batch = createPublicationBatch({
+    ...h.base,
+    request: async () => {
+      writes++;
+      throw Error('No mutation');
+    },
+    check: async (input) => {
+      const binding = scope(input);
+      return {
+        reason: 'not-complete',
+        scope: binding,
+        status: reserved({ ...binding, inputDigest: 'b'.repeat(64) }),
+      };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const result = await batch.run(
+    [{ scope: { productId: attempt.productId, operationId: attempt.operationId } }],
+    undefined,
+    'cancel',
+  );
+  assert.equal(result.items[0]?.state, 'unknown');
+  assert.equal(writes, 0);
+});

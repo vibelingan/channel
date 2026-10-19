@@ -33,7 +33,9 @@ export function BatchUpdateFeedback({
   const done = published === true ? 'published' : published === false ? 'disabled' : 'updated';
   const unclear = result.failures.filter((failure) => failure.outcome === 'unconfirmed').length;
   const notDone = result.failures.length - unclear;
-  const needsFix = result.failures.some((failure) => !failure.retryable);
+  const needsFix = result.failures.some(
+    (failure) => !failure.retryable && failure.code !== 'OPERATION_CANCELLED',
+  );
   const retry = retryableIds(result);
   const summary = [
     `${result.updated} ${done}`,

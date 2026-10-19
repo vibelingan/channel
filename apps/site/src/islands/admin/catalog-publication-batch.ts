@@ -8,6 +8,8 @@ import {
   type PublicationCheckpoint,
   PublicationCheckpointSchema,
   capturePublicationCommand,
+  managePublication,
+  readPublicationStatus,
 } from './catalog-product-operation-api.ts';
 import { type PublicationCheckResult, checkPublication } from './catalog-publication-check.ts';
 import {
@@ -124,6 +126,25 @@ function sameScope(
     (!expected.inputDigest || value.inputDigest === expected.inputDigest)
   );
 }
+function validateCheck(check: PublicationCheckResult, expected: PublicationCheckpoint['scope']) {
+  if (!sameScope(check.scope, expected))
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The website confirmation belongs to a different original publication.',
+    );
+  if (check.status) {
+    readPublicationStatus(check.status, expected);
+    readPublicationStatus(check.status, check.scope);
+  }
+  if (
+    (check.reason === 'not-complete' && check.status?.state === 'complete') ||
+    (check.reason === 'confirmed' && check.revision !== check.status.completion.revision)
+  )
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The website confirmation does not match the original publication state.',
+    );
+}
 function failure(error: unknown): Failure {
   return error instanceof AdminApiError
     ? { code: error.code, message: error.message }
@@ -163,29 +184,61 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
   const owner = { actorId: bound.actorId, endpoint: bound.endpoint };
   const journal = createPublicationJournal(owner, options.storage);
   let running = false;
+  const assertCurrent = (signal?: AbortSignal) => {
+    signal?.throwIfAborted();
+    const live = session();
+    if (
+      !live ||
+      live.actorId !== bound.actorId ||
+      live.token !== bound.token ||
+      live.endpoint !== bound.endpoint
+    )
+      throw new AdminApiError(
+        'UNAUTHORIZED',
+        'Return to the original account and API environment to continue this batch.',
+      );
+  };
+  const verifySession = async (signal?: AbortSignal) => {
+    const bounded = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(8000)])
+      : AbortSignal.timeout(8000);
+    assertCurrent(bounded);
+    const actor = await until(
+      (options.authorize ?? (async () => (await fetchCurrentUser()).user))(bounded),
+      bounded,
+    );
+    assertCurrent(bounded);
+    if (actor.id !== owner.actorId || actor.role !== 'admin')
+      throw new AdminApiError(
+        'FORBIDDEN',
+        'The original administrator account must be verified before publication.',
+      );
+  };
   return {
     owner: Object.freeze({ ...owner }),
     journal,
-    async run(input: unknown, externalSignal?: AbortSignal) {
+    assertCurrent,
+    verifySession,
+    async run(
+      input: unknown,
+      externalSignal?: AbortSignal,
+      mode: 'continue' | 'check' | 'cancel' = 'continue',
+    ) {
       const entries = capture(input);
+      if (mode !== 'continue' && entries.some((entry) => 'action' in entry))
+        throw new AdminApiError(
+          'VALIDATION_ERROR',
+          'Select original publication tasks to check or stop.',
+        );
       if (running) throw new AdminApiError('BUSY', 'This publication batch is already running.');
       running = true;
       const stop = new AbortController();
       const signal = externalSignal ? AbortSignal.any([externalSignal, stop.signal]) : stop.signal;
       let observerError: Failure | undefined;
       const guard = () => {
-        signal.throwIfAborted();
-        const live = session();
-        if (
-          !live ||
-          live.actorId !== bound.actorId ||
-          live.token !== bound.token ||
-          live.endpoint !== bound.endpoint
-        ) {
-          const error = new AdminApiError(
-            'UNAUTHORIZED',
-            'Return to the original account and API environment to continue this batch.',
-          );
+        try {
+          assertCurrent(signal);
+        } catch (error) {
           stop.abort(error);
           throw error;
         }
@@ -265,7 +318,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
               );
             latest = structuredClone(checkpoint);
             const saved = journal.retain(latest);
-            if (saved.durability !== 'persistent') {
+            if (saved.durability !== 'persistent' && mode !== 'check') {
               const error = new AdminApiError(
                 'RECOVERY_STORAGE_UNAVAILABLE',
                 'Keep the recovery export and allow browser storage before continuing this publication.',
@@ -276,68 +329,122 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
           };
           retain(latest);
           entered = true;
-          const run = await (options.run ?? runPublication)(
-            'action' in entry ? entry : entry.scope,
-            {
-              signal,
-              request,
-              preparationRequest,
-              ...('referenceRecovery' in entry
-                ? { referenceRecovery: entry.referenceRecovery }
-                : {}),
-              onStatus: async (_status, checkpoint) => retain(checkpoint),
-            },
-          );
-          guard();
-          if (!sameScope(run.scope, latest.scope))
-            throw new AdminApiError(
-              'INVALID_RESPONSE',
-              'Publication returned a different original task.',
-            );
-          if (run.reason === 'committed') {
-            if (!run.scope.inputDigest)
-              throw new AdminApiError(
-                'INVALID_RESPONSE',
-                'Publication is missing its original input digest.',
-              );
-            const check = await (options.check ?? checkPublication)(run.scope, {
+          if (mode !== 'continue') {
+            let check = await (options.check ?? checkPublication)(latest.scope, {
               signal,
               request,
               fetch: publicFetch,
             });
             guard();
+            validateCheck(check, latest.scope);
+            if (check.status) retain({ ...latest, scope: check.scope });
             if (
-              !sameScope(check.scope, run.scope) ||
-              (check.reason === 'confirmed' &&
-                (!sameScope(check.status, run.scope) ||
-                  check.revision !== check.status.completion.revision))
-            )
-              throw new AdminApiError(
-                'INVALID_RESPONSE',
-                'The website confirmation belongs to a different original publication.',
+              mode === 'cancel' &&
+              check.reason === 'not-complete' &&
+              check.status &&
+              !('cancelledAt' in check.status && check.status.cancelledAt)
+            ) {
+              const cancelled = await managePublication(
+                {
+                  action: 'product-operation-cancel',
+                  productId: check.scope.productId,
+                  operationId: check.scope.operationId,
+                  inputDigest: check.status.inputDigest,
+                },
+                { signal, request },
               );
+              guard();
+              retain({
+                ...latest,
+                scope: {
+                  productId: cancelled.status.productId,
+                  operationId: cancelled.status.operationId,
+                  inputDigest: cancelled.status.inputDigest,
+                },
+              });
+              check = await (options.check ?? checkPublication)(latest.scope, {
+                signal,
+                request,
+                fetch: publicFetch,
+              });
+              guard();
+            }
+            validateCheck(check, latest.scope);
             items[index] =
               check.reason === 'confirmed'
-                ? { state: 'confirmed', scope: check.scope, run, check }
+                ? { state: 'confirmed', scope: check.scope, check }
                 : {
                     state:
                       check.reason === 'historical'
                         ? 'historical'
                         : check.reason === 'paused'
                           ? 'paused'
-                          : 'unknown',
+                          : check.reason === 'not-complete'
+                            ? check.status &&
+                              'cancelledAt' in check.status &&
+                              check.status.cancelledAt
+                              ? 'cancelled'
+                              : 'paused'
+                            : 'unknown',
                     scope: check.scope,
-                    run,
                     check,
                     ...(check.error ? { error: check.error } : {}),
                   };
-          } else
-            items[index] = {
-              state: run.reason,
-              scope: run.scope,
-              run,
-              ...(run.error ? { error: run.error } : {}),
-            };
+          } else {
+            const run = await (options.run ?? runPublication)(
+              'action' in entry ? entry : entry.scope,
+              {
+                signal,
+                request,
+                preparationRequest,
+                ...('referenceRecovery' in entry
+                  ? { referenceRecovery: entry.referenceRecovery }
+                  : {}),
+                onStatus: async (_status, checkpoint) => retain(checkpoint),
+              },
+            );
+            guard();
+            if (!sameScope(run.scope, latest.scope))
+              throw new AdminApiError(
+                'INVALID_RESPONSE',
+                'Publication returned a different original task.',
+              );
+            if (run.reason === 'committed') {
+              if (!run.scope.inputDigest)
+                throw new AdminApiError(
+                  'INVALID_RESPONSE',
+                  'Publication is missing its original input digest.',
+                );
+              const check = await (options.check ?? checkPublication)(run.scope, {
+                signal,
+                request,
+                fetch: publicFetch,
+              });
+              guard();
+              validateCheck(check, run.scope);
+              items[index] =
+                check.reason === 'confirmed'
+                  ? { state: 'confirmed', scope: check.scope, run, check }
+                  : {
+                      state:
+                        check.reason === 'historical'
+                          ? 'historical'
+                          : check.reason === 'paused'
+                            ? 'paused'
+                            : 'unknown',
+                      scope: check.scope,
+                      run,
+                      check,
+                      ...(check.error ? { error: check.error } : {}),
+                    };
+            } else
+              items[index] = {
+                state: run.reason,
+                scope: run.scope,
+                run,
+                ...(run.error ? { error: run.error } : {}),
+              };
+          }
           const item = items[index];
           if (item && ['confirmed', 'historical', 'cancelled'].includes(item.state))
             journal.forget(item.scope);
@@ -356,16 +463,8 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
       };
       try {
         guard();
-        const actor = await until(
-          (options.authorize ?? (async () => (await fetchCurrentUser()).user))(signal),
-          AbortSignal.any([signal, AbortSignal.timeout(8000)]),
-        );
+        await verifySession(signal);
         guard();
-        if (actor.id !== owner.actorId || actor.role !== 'admin')
-          throw new AdminApiError(
-            'FORBIDDEN',
-            'The original administrator account must be verified before publication.',
-          );
         for (let offset = 0; offset < entries.length && !signal.aborted; offset += 20) {
           const end = Math.min(offset + 20, entries.length);
           let next = offset;

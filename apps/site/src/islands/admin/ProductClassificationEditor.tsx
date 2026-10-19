@@ -14,15 +14,23 @@ import { useEffect, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import {
+  AdminApiError,
   type BatchUpdateResult,
   type CategorySuggestion,
   assignmentCall,
   categorySuggestionMatchesProduct,
   fetchCategorySuggestion,
   getRecord,
-  publishConfirmedClassification,
-  retryBatchUpdate,
 } from './api.ts';
+import {
+  type BatchEntry,
+  type PublicationBatchItem,
+  createPublicationBatch,
+} from './catalog-publication-batch.ts';
+import {
+  classificationPublicationAttempts,
+  classificationPublicationFeedback,
+} from './classification-publication.ts';
 import {
   classificationChoices,
   classificationRequest,
@@ -50,6 +58,7 @@ export interface UnresolvedClassificationSnapshot {
   unresolvedIds: string[];
   attentionIds: string[];
   issuesById: Record<string, string>;
+  ownedPublication?: true;
 }
 
 export function unresolvedClassificationSnapshot(
@@ -151,6 +160,12 @@ export function matchesVerifiedOutcome(
   records: readonly CollectionDoc[],
 ): boolean {
   if (snapshot.attentionIds.length > 0) return false;
+  if (
+    snapshot.ownedPublication &&
+    snapshot.command.includeSavedRevision === true &&
+    snapshot.confirmedPublishedIds.length !== snapshot.submittedIds.length
+  )
+    return false;
   return matchesSubmittedProducts(
     {
       ...snapshot,
@@ -270,6 +285,13 @@ export function ProductClassificationEditor({
   const [readbackFailed, setReadbackFailed] = useState(false);
   const [readbackVerified, setReadbackVerified] = useState(false);
   const [refreshRequested, setRefreshRequested] = useState(false);
+  const publicationBatch = useRef<ReturnType<typeof createPublicationBatch> | null>(null);
+  const publicationEntries = useRef<BatchEntry[]>([]);
+  const publicationItems = useRef<PublicationBatchItem[]>([]);
+  const operationAbort = useRef<AbortController | null>(null);
+  const [recoveryOnly, setRecoveryOnly] = useState(false);
+  const [ownedAvailable, setOwnedAvailable] = useState(false);
+  const [recoveryExport, setRecoveryExport] = useState('');
   const refreshBaseline = useRef(products);
   const mounted = useRef(true);
   const inFlight = useRef(false);
@@ -277,7 +299,14 @@ export function ProductClassificationEditor({
   busyCallback.current = onBusyChange;
   const mutation = useMutation({
     mutationFn: (command: CatalogClassificationAssignmentRequest) =>
-      assignmentCall(command, undefined, appliedSuggestion ?? undefined),
+      assignmentCall(
+        command,
+        operationAbort.current?.signal,
+        appliedSuggestion ?? undefined,
+        publicationBatch.current
+          ? () => publicationBatch.current?.assertCurrent(operationAbort.current?.signal)
+          : undefined,
+      ),
     retry: false,
     networkMode: 'always',
   });
@@ -285,13 +314,23 @@ export function ProductClassificationEditor({
   const registry = query.data;
   const preload = registry ? initialClassification(products, registry) : { ids: [], error: null };
   const ids = mode === 'clear' ? [] : (selected ?? preload.ids);
-  const locked = busy || pending || finished || suggestionQuery.isFetching;
+  const locked = busy || pending || finished || recoveryOnly || suggestionQuery.isFetching;
   const publicCount = products.filter((product) => product.published === true).length;
   const draftCount = products.filter((product) => product.published === false).length;
   const canPublish =
     !publishBlockReason && draftCount > 0 && draftCount === products.length && !appliedSuggestion;
+  const snapshot = (
+    command: CatalogClassificationAssignmentRequest,
+    assignment: CatalogClassificationAssignmentResult['results'] | null,
+    outcome: BatchUpdateResult | null,
+  ): UnresolvedClassificationSnapshot => ({
+    ...unresolvedClassificationSnapshot(command, assignment, outcome),
+    ...(publicationBatch.current && command.includeSavedRevision === true
+      ? { ownedPublication: true as const }
+      : {}),
+  });
   const unresolvedSnapshot = submittedCommand
-    ? unresolvedClassificationSnapshot(submittedCommand, results, publicationResult)
+    ? snapshot(submittedCommand, results, publicationResult)
     : null;
   const needsVerification = Boolean(
     finished &&
@@ -328,6 +367,7 @@ export function ProductClassificationEditor({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      operationAbort.current?.abort();
       busyCallback.current?.(false);
     };
   }, []);
@@ -351,6 +391,10 @@ export function ProductClassificationEditor({
 
   async function refreshProducts() {
     if (pending || busy || inFlight.current) return;
+    if (publicationEntries.current.length) {
+      await recoverPublication('check');
+      return;
+    }
     inFlight.current = true;
     refreshBaseline.current = products;
     setPending(true);
@@ -435,16 +479,20 @@ export function ProductClassificationEditor({
     setShowPublicationFeedback(true);
     busyCallback.current?.(true);
     setConfirmation(null);
+    operationAbort.current = new AbortController();
     let result: CatalogClassificationAssignmentResult;
     try {
+      await publicationBatch.current?.verifySession(operationAbort.current.signal);
       result = await mutation.mutateAsync(submitted);
-    } catch {
+    } catch (error) {
       if (mounted.current) {
         setFinished(true);
         setMessage(
-          'Assignment was not confirmed. Refresh products before trying again; some changes may have been saved.',
+          error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code)
+            ? `${error.message} Classification was not confirmed; check statuses before trying again.`
+            : 'Assignment was not confirmed. Refresh products before trying again; some changes may have been saved.',
         );
-        onUnresolved?.(unresolvedClassificationSnapshot(submitted, null, null));
+        onUnresolved?.(snapshot(submitted, null, null));
       }
       inFlight.current = false;
       if (mounted.current) {
@@ -473,22 +521,18 @@ export function ProductClassificationEditor({
     let publicationOutcome: BatchUpdateResult | null = null;
     try {
       if (publish && allSaved) {
-        const publication = publishConfirmedClassification(submitted, result);
-        if (publication) {
-          setStage('publishing');
-          waitTimer = setTimeout(() => {
-            if (mounted.current) setShowPublishingWait(true);
-          }, 250);
-          const outcome = await publication;
-          if (mounted.current) {
-            publicationOutcome = outcome;
-            setPublicationResult(outcome);
-            setMessage(publicationMessage(outcome));
-          }
-        } else {
-          setMessage(
-            'Publication blocked: assignment results were not confirmed. Refresh products.',
-          );
+        const batch = publicationBatch.current;
+        if (!batch)
+          throw new AdminApiError('UNAUTHORIZED', 'Review the original account before publishing.');
+        publicationEntries.current = classificationPublicationAttempts(submitted, result);
+        setStage('publishing');
+        waitTimer = setTimeout(() => {
+          if (mounted.current) setShowPublishingWait(true);
+        }, 250);
+        publicationOutcome = await runOwned('continue');
+        if (mounted.current) {
+          setPublicationResult(publicationOutcome);
+          setMessage(publicationMessage(publicationOutcome));
         }
       }
     } catch {
@@ -504,39 +548,91 @@ export function ProductClassificationEditor({
     await readBack(submitted, result.results, publicationOutcome, allSaved && !publish);
   }
 
-  /** Tries again for the products that need no fix, then checks the results again. */
+  async function runOwned(mode: 'continue' | 'check' | 'cancel', ids?: readonly string[]) {
+    const batch = publicationBatch.current;
+    if (!batch) throw new AdminApiError('UNAUTHORIZED', 'Open the original publication again.');
+    const entries = publicationEntries.current.filter(
+      (entry) => !ids || ids.includes('action' in entry ? entry.productId : entry.scope.productId),
+    );
+    const inputs = entries.map((entry) =>
+      mode === 'continue'
+        ? entry
+        : 'action' in entry
+          ? { scope: { productId: entry.productId, operationId: entry.operationId } }
+          : entry,
+    );
+    const outcome = await batch.run(inputs, operationAbort.current?.signal, mode);
+    const merged = new Map(publicationItems.current.map((item) => [item.scope.productId, item]));
+    for (const item of outcome.items) merged.set(item.scope.productId, item);
+    publicationItems.current = [...merged.values()];
+    const checkpoints = batch.journal.read().entries;
+    const byId = new Map(outcome.items.map((item) => [item.scope.productId, item]));
+    publicationEntries.current = publicationEntries.current.map((entry) => {
+      const id = 'action' in entry ? entry.productId : entry.scope.productId;
+      const item = byId.get(id);
+      if (!item || item.state === 'not-started') return entry;
+      return (
+        checkpoints.find(
+          (checkpoint) =>
+            checkpoint.scope.productId === id &&
+            checkpoint.scope.operationId === item.scope.operationId,
+        ) ?? {
+          scope: item.scope,
+          ...(item.run?.referenceRecovery ? { referenceRecovery: item.run.referenceRecovery } : {}),
+        }
+      );
+    });
+    return classificationPublicationFeedback(publicationItems.current);
+  }
+
   async function retryPublication(ids: string[]) {
-    const submitted = submittedCommand;
-    const assignment = results;
-    const previous = publicationResult;
-    if (!submitted || !assignment || !previous || pending || busy || inFlight.current) return;
+    await recoverPublication('continue', ids);
+  }
+
+  async function recoverPublication(
+    mode: 'continue' | 'check' | 'cancel',
+    ids?: readonly string[],
+  ) {
+    if (pending || busy || inFlight.current || !publicationEntries.current.length) return;
     inFlight.current = true;
+    operationAbort.current = new AbortController();
     setPending(true);
-    setStage('publishing');
+    setStage(mode === 'continue' ? 'publishing' : 'refreshing');
+    setShowPublishingWait(true);
     setReadbackFailed(false);
     setReadbackVerified(false);
     busyCallback.current?.(true);
-    let outcome = previous;
     try {
-      // The saved classification receipt is the reviewed base, even after a retry.
-      // Own intermediate writes need a continuation receipt; a newer GET is not one.
-      const revisions = new Map(
-        assignment.flatMap((item) =>
-          item.status === 'saved' && typeof item.updatedAt === 'string'
-            ? [[item.productId, item.updatedAt] as const]
-            : [],
-        ),
+      const outcome = await runOwned(mode, ids);
+      if (!mounted.current) return;
+      setPublicationResult(outcome);
+      setShowPublicationFeedback(true);
+      setMessage(
+        recoveryOnly
+          ? `${outcome.updated} original ${outcome.updated === 1 ? 'publication' : 'publications'} confirmed on the website.${publicationItems.current.some((item) => item.state === 'cancelled') ? ' Stopped tasks keep their saved draft changes.' : ''}`
+          : publicationMessage(outcome),
       );
-      outcome = await retryBatchUpdate(previous, ids, { published: true }, revisions);
-      if (mounted.current) {
-        setPublicationResult(outcome);
-        setMessage(publicationMessage(outcome));
+      if (submittedCommand && results) {
+        await readBack(submittedCommand, results, outcome, false);
+        return;
       }
-    } catch {
-      if (mounted.current) setMessage("Couldn't try again. Check the connection, then try again.");
+      await client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true });
+      if (mounted.current) setReadbackVerified(outcome.failures.length === 0);
+    } catch (error) {
+      if (mounted.current)
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Original publication could not be checked. Keep its recovery record.',
+        );
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) {
+        setPending(false);
+        setShowPublishingWait(false);
+        busyCallback.current?.(false);
+      }
     }
-    if (mounted.current) setStage('refreshing');
-    await readBack(submitted, assignment, outcome, false);
   }
 
   /** Reads the products back and hands what still needs the admin to the list. */
@@ -546,18 +642,14 @@ export function ProductClassificationEditor({
     publicationOutcome: BatchUpdateResult | null,
     savedWithoutPublishing: boolean,
   ) {
-    const snapshot = unresolvedClassificationSnapshot(
-      submitted,
-      assignmentResults,
-      publicationOutcome,
-    );
+    const currentSnapshot = snapshot(submitted, assignmentResults, publicationOutcome);
     let readbackSucceeded = false;
     try {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true }),
         client.invalidateQueries({ queryKey: ['catalog-taxonomy'] }, { throwOnError: true }),
       ]);
-      const verified = await verifySubmittedProducts(snapshot, products);
+      const verified = await verifySubmittedProducts(currentSnapshot, products);
       if (!verified) throw new Error('Product statuses do not match the submitted classification.');
       readbackSucceeded = true;
     } catch {
@@ -572,16 +664,16 @@ export function ProductClassificationEditor({
       if (mounted.current) {
         setReadbackVerified(
           readbackSucceeded &&
-            snapshot.unresolvedIds.length === 0 &&
-            snapshot.attentionIds.length === 0,
+            currentSnapshot.unresolvedIds.length === 0 &&
+            currentSnapshot.attentionIds.length === 0,
         );
         if (
           !readbackSucceeded ||
-          snapshot.unresolvedIds.length > 0 ||
-          snapshot.attentionIds.length > 0
+          currentSnapshot.unresolvedIds.length > 0 ||
+          currentSnapshot.attentionIds.length > 0
         )
-          onUnresolved?.(snapshot);
-        else onVerified?.(snapshot.submittedIds);
+          onUnresolved?.(currentSnapshot);
+        else onVerified?.(currentSnapshot.submittedIds);
         setPending(false);
         busyCallback.current?.(false);
         if (savedWithoutPublishing && readbackSucceeded) onSaved();
@@ -589,8 +681,69 @@ export function ProductClassificationEditor({
     }
   }
 
+  function loadRecovery(): boolean {
+    try {
+      let batch = publicationBatch.current;
+      try {
+        batch?.assertCurrent();
+      } catch {
+        const candidate = createPublicationBatch();
+        if (
+          !batch ||
+          candidate.owner.actorId !== batch.owner.actorId ||
+          candidate.owner.endpoint !== batch.owner.endpoint
+        )
+          throw new AdminApiError(
+            'UNAUTHORIZED',
+            'Return to the original account and API environment to recover this selection.',
+          );
+        candidate.journal.import(batch.journal.export());
+        batch = candidate;
+      }
+      batch ??= createPublicationBatch();
+      publicationBatch.current = batch;
+      setOwnedAvailable(true);
+      const recovery = batch.journal.read();
+      const selectedIds = new Set(products.map((product) => product._id));
+      const entries = recovery.entries.filter((entry) => selectedIds.has(entry.scope.productId));
+      if (entries.length) {
+        publicationEntries.current = entries.map(
+          (entry) =>
+            publicationEntries.current.find(
+              (previous) =>
+                ('action' in previous ? previous.productId : previous.scope.productId) ===
+                  entry.scope.productId &&
+                ('action' in previous ? previous.operationId : previous.scope.operationId) ===
+                  entry.scope.operationId,
+            ) ?? entry,
+        );
+        publicationItems.current = entries.map((entry) => ({
+          state: 'unknown',
+          scope: entry.scope,
+        }));
+        setPublicationResult(classificationPublicationFeedback(publicationItems.current));
+        setRecoveryOnly(true);
+        setFinished(true);
+        setMessage(
+          'These products have original publication tasks. Check, continue or stop those tasks before another classification.',
+        );
+        return true;
+      }
+      if (recovery.durability !== 'persistent')
+        throw new Error(
+          'Browser recovery storage is unavailable. Allow site storage before saving or publishing.',
+        );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : 'The original publication could not be prepared.',
+      );
+      return true;
+    }
+    return false;
+  }
+
   function review(nextPublish: boolean) {
-    if (!request || (nextPublish && !canPublish)) return;
+    if (!request || (nextPublish && !canPublish) || loadRecovery()) return;
     const { includeSavedRevision: _savedRevision, ...draftRequest } = request;
     setPublish(nextPublish);
     setConfirmation(nextPublish ? { ...draftRequest, includeSavedRevision: true } : draftRequest);
@@ -625,7 +778,7 @@ export function ProductClassificationEditor({
       <h2 className="text-lg font-semibold text-ink">Website classification</h2>
       <p className="text-sm text-slate-600">
         {products.length} selected products.
-        {!publish && ' Drafts will not be published.'}
+        {!publish && !recoveryOnly && ' Drafts will not be published.'}
       </p>
       <p className="text-sm text-slate-600">
         {publicCount} public / {draftCount} drafts
@@ -635,7 +788,7 @@ export function ProductClassificationEditor({
           Saving classification on a published product may change storefront filters immediately.
         </p>
       )}
-      {!canPublish && (
+      {!canPublish && !recoveryOnly && (
         <p className="text-sm text-slate-600">Select drafts separately to publish.</p>
       )}
       {singleProduct && typeof singleProduct.alibabaPrimarySourceKey === 'string' && (
@@ -889,6 +1042,17 @@ export function ProductClassificationEditor({
         <button
           type="button"
           className={buttonClass}
+          disabled={pending || busy}
+          onClick={() => {
+            if (!loadRecovery())
+              setMessage('No unfinished publication records were found for this selection.');
+          }}
+        >
+          Recover original publication
+        </button>
+        <button
+          type="button"
+          className={buttonClass}
           disabled={pending || busy || (needsVerification && (!onUnresolved || !onCancel))}
           onClick={() => {
             setConfirmation(null);
@@ -930,6 +1094,69 @@ export function ProductClassificationEditor({
         </output>
       )}
       {message && <output className="block break-words text-sm">{message}</output>}
+      {ownedAvailable && publicationEntries.current.length > 0 && (
+        <section
+          aria-label="Original publication recovery"
+          className="space-y-3 border-t border-slate-200 pt-3 text-sm"
+        >
+          {publicationEntries.current.length > 0 && (
+            <>
+              <p>
+                Recovery uses the original publication. Stopping leaves saved draft changes in
+                place; a completed publication stays published.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={buttonClass}
+                  disabled={pending || busy}
+                  onClick={() => void recoverPublication('check')}
+                >
+                  Check original publication
+                </button>
+                <button
+                  type="button"
+                  className={buttonClass}
+                  disabled={pending || busy}
+                  onClick={() => void recoverPublication('continue')}
+                >
+                  Continue original publication
+                </button>
+                <button
+                  type="button"
+                  className={buttonClass}
+                  disabled={pending || busy}
+                  onClick={() => void recoverPublication('cancel')}
+                >
+                  Stop original publication
+                </button>
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={pending || busy}
+            onClick={() => {
+              try {
+                setRecoveryExport(publicationBatch.current?.journal.export() ?? '');
+              } catch (error) {
+                setMessage(error instanceof Error ? error.message : 'Recovery export unavailable.');
+              }
+            }}
+          >
+            Show recovery record
+          </button>
+          {recoveryExport && (
+            <textarea
+              aria-label="Publication recovery record"
+              className="block min-h-28 w-full rounded border p-2 font-mono text-xs"
+              readOnly
+              value={recoveryExport}
+            />
+          )}
+        </section>
+      )}
       {publicationResult &&
         (publicationResult.failures.length === 0 || !readbackVerified) &&
         showPublicationFeedback && (

@@ -97,10 +97,18 @@ const busyPause = (attempt: number, signal?: AbortSignal) =>
     signal?.addEventListener('abort', stop, { once: true });
   });
 
-async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+async function call<T>(
+  action: string,
+  data?: unknown,
+  signal?: AbortSignal,
+  guard?: () => void,
+): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await callOnce<T>(action, data, signal);
+      guard?.();
+      const value = await callOnce<T>(action, data, signal);
+      guard?.();
+      return value;
     } catch (error) {
       if (
         !(error instanceof AdminApiError) ||
@@ -1143,6 +1151,7 @@ export async function assignmentCall(
   input: CatalogClassificationAssignmentRequest,
   signal?: AbortSignal,
   expectedSuggestion?: Extract<CategorySuggestion, { status: 'ready' }>,
+  guard?: () => void,
 ): Promise<CatalogClassificationAssignmentResult> {
   const command = CatalogClassificationAssignmentRequestSchema.parse(input);
   const evidence =
@@ -1152,6 +1161,7 @@ export async function assignmentCall(
       'catalogCategories',
       evidence ? { ...command, expectedSuggestion: evidence } : command,
       signal,
+      guard,
     ),
   );
   if (!response.success) {

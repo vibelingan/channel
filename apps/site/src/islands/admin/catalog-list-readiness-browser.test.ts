@@ -135,6 +135,7 @@ async function fixture(
   const requests: { action: string; data?: Record<string, unknown> }[] = [];
   const listPayloads: { items: Record<string, unknown>[] }[] = [];
   const controls = {
+    pauseOwnedPublication: false,
     failList: 0,
     failCount: 0,
     invalidList: 0,
@@ -160,6 +161,20 @@ async function fixture(
     const list = parsed.action === 'list' && parsed.data?.collection === 'products';
     const count = list && parsed.data.pageSize === 1;
     const productGet = parsed.action === 'get' && parsed.data?.collection === 'products';
+    if (
+      parsed.action === 'catalogDetailApproval' &&
+      parsed.data?.action === 'product-operation-continue' &&
+      controls.pauseOwnedPublication
+    ) {
+      await route.fulfill({
+        status: 503,
+        json: {
+          ok: false,
+          error: { code: 'UNAVAILABLE', message: 'Owned continuation reply unavailable' },
+        },
+      });
+      return;
+    }
     if (parsed.action === 'update' && controls.busyUpdates > 0) {
       controls.busyUpdates--;
       await route.fulfill({
@@ -173,7 +188,7 @@ async function fixture(
     }
     if (
       parsed.action === 'catalogDetailApproval' &&
-      parsed.data?.action === 'approve' &&
+      ['approve', 'product-operation-continue'].includes(String(parsed.data?.action)) &&
       controls.busyApprovals > 0
     ) {
       controls.busyApprovals--;
@@ -1290,7 +1305,7 @@ for (const width of [1440, 390])
           },
         },
       });
-      f.controls.busyApprovals = 4;
+      f.controls.pauseOwnedPublication = true;
       await productRow(f, 'Clock ready')
         .getByRole('checkbox', { name: 'Select row', exact: true })
         .check();
@@ -1305,21 +1320,43 @@ for (const width of [1440, 390])
       await f.expect(retry).toBeEnabled({ timeout: 15000 });
       const approvals = () =>
         f.requests.filter(
-          (r) => r.action === 'catalogDetailApproval' && r.data?.action === 'approve',
+          (r) =>
+            r.action === 'catalogDetailApproval' && r.data?.action === 'product-operation-continue',
         );
-      assert.equal(approvals().length, 4);
+      const originalContinues = approvals().length;
+      assert.ok(originalContinues > 0);
+      const starts = () =>
+        f.requests.filter(
+          (r) =>
+            r.action === 'catalogDetailApproval' && r.data?.action === 'product-operation-start',
+        );
+      assert.equal(starts().length, 1);
+      const operationId = starts()[0]?.data?.operationId;
+      assert.equal(typeof operationId, 'string');
       const changed = await f.adapter.update('products', 'ready', {
         description: 'Another operator changed this after classification',
       });
       assert.ok(changed);
       const beforeRetry = await readFile(f.file, 'utf8');
+      f.controls.pauseOwnedPublication = false;
       await retry.click();
       await f
         .expect(f.page.getByRole('list', { name: 'Products needing attention', exact: true }))
-        .toContainText(
-          'Product changed since classification or editing. Keep your edits and reload before saving.',
-        );
-      assert.equal(approvals().length, 4, 'retry cannot approve the newer product');
+        .toContainText('The product changed. Review its current version before publishing.');
+      assert.equal(
+        approvals().length,
+        originalContinues,
+        'retry cannot continue against the newer product',
+      );
+      assert.equal(starts().length, 1, 'retry must not replace the original operation');
+      assert.ok(
+        f.requests
+          .filter(
+            (r) =>
+              r.action === 'catalogDetailApproval' && r.data?.action === 'product-operation-get',
+          )
+          .every((r) => r.data?.operationId === operationId),
+      );
       assert.equal(await readFile(f.file, 'utf8'), beforeRetry);
       assert.deepEqual((await f.adapter.get('products', 'ready'))?.subcategoryIds, ['clock']);
       assert.equal((await f.adapter.get('products', 'ready'))?.published, false);
