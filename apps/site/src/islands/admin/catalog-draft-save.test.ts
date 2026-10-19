@@ -1,14 +1,30 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import test, { type TestContext } from 'node:test';
+import { getCollection } from '@vibelingan-channel/shared';
 import { signSession } from '../../../../../packages/auth/src/jwt.ts';
 import { handleAdminRequest } from '../../../../functions/admin/src/handler.ts';
 import { workspace } from '../../../../local-server/src/testing/catalog-operation-workspace.ts';
+import { coerceValues } from './RecordForm.tsx';
 import { AdminApiError } from './api.ts';
 import { type DraftSaveResult, createDraftSaveController } from './catalog-draft-save.ts';
 
-async function fixture(t: TestContext) {
-  const h = await workspace(t);
+async function fixture(t: TestContext, linked = false, legacyPricing = false) {
+  const h = await workspace(t, linked ? 2 : undefined);
+  if (linked)
+    await h.adapter.update('products', h.productId, {
+      catalogPricingMode: 'manual',
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [{ minQuantity: 1, unitAmountMinor: 300 }],
+      },
+    });
+  if (legacyPricing) {
+    const rows = JSON.parse(h.bytes());
+    Reflect.deleteProperty(rows.products[0], 'catalogPricingMode');
+    writeFileSync(h.file, JSON.stringify(rows));
+  }
   const token = await signSession('owned-continue-test-only', {
     sub: 'admin',
     role: 'admin',
@@ -89,6 +105,94 @@ async function fixture(t: TestContext) {
     },
   };
 }
+
+for (const mode of [
+  'unchanged-pricing',
+  'clear-pricing',
+  'edit-pricing',
+  'inherit-pricing',
+] as const)
+  test(`actual RecordForm draft values preserve lifecycle and pricing semantics: ${mode}`, async (t) => {
+    const h = await fixture(t, mode === 'inherit-pricing', mode === 'clear-pricing');
+    const collection = getCollection('products');
+    assert.ok(collection);
+    const editedPricing = {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [{ minQuantity: 1, unitAmountMinor: 1250 }],
+    };
+    const values = coerceValues(
+      collection,
+      {
+        name: 'Edited through the real form',
+        description: 'Normal draft edit',
+        productFamily: String(h.opened.productFamily ?? ''),
+        published: false,
+        archived: false,
+        catalogPricingMode:
+          mode === 'inherit-pricing' ? 'source' : mode === 'clear-pricing' ? '' : 'manual',
+        manualCatalogPricing:
+          mode === 'clear-pricing'
+            ? ''
+            : JSON.stringify(
+                mode === 'edit-pricing' ? editedPricing : h.opened.manualCatalogPricing,
+              ),
+      },
+      h.opened,
+    );
+    assert.equal(values.archived, false);
+    if (mode === 'clear-pricing') assert.equal(values.manualCatalogPricing, null);
+    if (mode === 'inherit-pricing')
+      assert.equal(Object.hasOwn(values, 'manualCatalogPricing'), false);
+    const control = createDraftSaveController(h.productId);
+    const result = await control.save(h.opened, values);
+    assert.equal(result.state, 'saved');
+    const saved = await h.adapter.get('products', h.productId);
+    assert.ok(saved);
+    assert.equal(saved.name, values.name);
+    assert.equal(saved.archived, false);
+    assert.equal(saved.published, false);
+    assert.equal(saved.productFamily, h.opened.productFamily);
+    assert.deepEqual(saved.imageIds, h.opened.imageIds);
+    assert.deepEqual(
+      saved.manualCatalogPricing,
+      mode === 'clear-pricing'
+        ? ''
+        : mode === 'edit-pricing'
+          ? editedPricing
+          : h.opened.manualCatalogPricing,
+    );
+    assert.equal(
+      saved.catalogPricingMode,
+      mode === 'inherit-pricing' ? 'source' : mode === 'clear-pricing' ? undefined : 'manual',
+    );
+    const root = JSON.parse(h.bytes()).catalogDetailApprovals[0];
+    assert.equal(Object.hasOwn(root.operation.values, 'archived'), false);
+    assert.equal(Object.hasOwn(root.operation.values, 'published'), false);
+    if (mode === 'clear-pricing') assert.equal(root.operation.values.manualCatalogPricing, null);
+    const before = h.bytes();
+    const reopened = createDraftSaveController(h.productId);
+    assert.equal((await reopened.resume(result.scope)).state, 'saved');
+    assert.equal(h.bytes(), before);
+    reopened.acknowledge(result.scope);
+  });
+
+for (const values of [{ manualCatalogPricing: null }, { catalogPricingMode: 'source' }] as const)
+  test(`invalid pricing policy is rejected and the original save can be stopped: ${JSON.stringify(values)}`, async (t) => {
+    const h = await fixture(t);
+    const control = createDraftSaveController(h.productId);
+    await assert.rejects(
+      control.save(h.opened, values),
+      (e) => e instanceof AdminApiError && e.code === 'VALIDATION_ERROR',
+    );
+    assert.deepEqual(await h.adapter.get('products', h.productId), h.opened);
+    const selected = control.pending().entries[0].scope;
+    const result = await control.stop(selected);
+    assert.equal(result.state, 'cancelled');
+    control.acknowledge(result.scope);
+    assert.equal(control.pending().entries.length, 0);
+    assert.deepEqual(await h.adapter.get('products', h.productId), h.opened);
+  });
 
 for (const fault of ['none', 'save-after', 'save-and-check'] as const)
   test(`draft save confirms its original receipt without replaying a committed write: ${fault}`, async (t) => {

@@ -1525,3 +1525,9 @@ Review实际19代码/测试与原生事务、monotonicProductTime、validateProd
 实读 `catalog-draft-save.ts`、`catalog-publication-journal.ts` 与对应两测试，并对照 Admin workflow、monotonicProductTime、角色/会话门槛和现有编辑消费者。文案明确受控 fetch/实际处理函数与云端验收的区别，实查保存次数、同 nonce、私有正文未落盘、商品分类/价格/图片和后续编辑不被覆盖。存储删除失败的真实 red→green 已保留；模块缺失、测试类型及未匹配图库选择器不计业务验证。
 
 本地相关120/120、Node20最终193/193、site测试类型和四文件Biome通过；整站1261通过/0失败/1环境图库，后者另显式1/1。整站之后三个小边界补改由最终Node20覆盖，完整接线后再进行整体构建/浏览器组合。证据 `draft-save-*`。未部署、未修改真实数据、UI未接线；fullDeliveryReady=false。
+
+## P4c4：实际表单保存兼容（2026-10-20）
+
+见[P4c4](P4c4_FORM_SAVE_COMPATIBILITY.zh-CN.md)。实际coerceValues→原生保存先复现archived:false拒绝，再兼容明确清价null→旧空字符串；只允许已绑定update，保留手工/继承价格门槛和原Root输入digest。四条正向组合、两条误操作拒绝/停止与旧保存计划对照测试已覆盖。原产品分类、图片和供应商决定保持现有语义。
+
+review实读五源码/测试：draft控制器及测试、adapter保存计划、Root ValuesSchema和保存计划测试；对照原Admin update清价与价格策略测试、RecordForm coerce、两个adapter调用者和事务/回执。文案明确两次非法价格夹具是夹具纠正而非线上缺陷，实查旧create仍拒绝null、继承保留手工记录、字段规范和后续重放零写。Node20最终367、DB2255、Admin638通过；类型、五文件Biome、standing SDK gate、Admin node20 build通过，证据draft-form-compat-*。没有新SDK方法、集合、环境变量或真实数据写入。UI/媒体/live及test验收仍未完成，fullDeliveryReady=false。

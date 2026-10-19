@@ -244,10 +244,11 @@ export function createDraftSaveController(productId: string, options: Options = 
           opened._id !== productId ||
           opened.published === true ||
           opened.archived === true ||
-          input.published === true
+          input.published === true ||
+          input.archived === true
         )
           throw failure('BAD_REQUEST', 'Use draft save only for an unpublished product.');
-        const { published: _published, ...values } = input;
+        const { published: _published, archived: _archived, ...values } = input;
         const raw = {
           action: 'product-operation-start',
           intent: 'save-draft',

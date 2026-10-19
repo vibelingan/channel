@@ -32,6 +32,48 @@ function reviewSave(overrides: Partial<CatalogProductSaveInput> = {}): CatalogPr
   };
 }
 
+test('owned draft pricing clear keeps the existing Admin empty-value contract without mutating its input', () => {
+  const now = '2026-10-20T00:00:01.000Z';
+  const product = reviewProduct({
+    updatedAt: '2026-10-20T00:00:00.000Z',
+    manualCatalogPricing: {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [{ minQuantity: 1, unitAmountMinor: 350 }],
+    },
+    imageIds: ['photo'],
+  });
+  const input: CatalogProductSaveInput = {
+    mode: 'update',
+    productId: product._id,
+    expectedUpdatedAt: product.updatedAt ?? null,
+    data: { manualCatalogPricing: null },
+  };
+  const before = structuredClone({ product, input });
+  const owned = planCatalogProductSave(product, input, now, { cancelPendingPublication: true });
+  const legacy = planCatalogProductSave(
+    product,
+    { ...input, data: { manualCatalogPricing: '' } },
+    now,
+  );
+  assert.equal(owned.result, 'ready');
+  assert.equal(legacy.result, 'ready');
+  if (owned.result !== 'ready' || legacy.result !== 'ready') return;
+  assert.equal(owned.doc.manualCatalogPricing, legacy.doc.manualCatalogPricing);
+  assert.equal(owned.doc.manualCatalogPricing, '');
+  assert.equal(owned.doc.published, false);
+  assert.equal(owned.doc.archived, false);
+  assert.equal(owned.doc.productFamily, product.productFamily);
+  assert.deepEqual(owned.doc.imageIds, product.imageIds);
+  assert.deepEqual({ product, input }, before);
+  assert.deepEqual(
+    planCatalogProductSave(product, { ...input, expectedUpdatedAt: now }, now, {
+      cancelPendingPublication: true,
+    }),
+    { result: 'stale' },
+  );
+});
+
 test('classification publication rejects a concurrent product edit inside the save transaction', () => {
   const { expectedAlibabaIdentity: _identity, ...input } = reviewSave({
     data: { published: true },

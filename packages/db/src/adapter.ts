@@ -235,6 +235,12 @@ export function planCatalogProductSave(
     input.mode === 'create'
       ? { published: false, archived: false, ...inputData }
       : { ...inputData };
+  if (
+    input.mode === 'update' &&
+    options.cancelPendingPublication &&
+    data.manualCatalogPricing === null
+  )
+    data.manualCatalogPricing = '';
   if (expected && existing?.alibabaReviewPending === false && data.alibabaReviewPending === false) {
     const {
       alibabaReviewPending: _pending,

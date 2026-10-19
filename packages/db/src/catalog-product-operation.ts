@@ -6,6 +6,7 @@ import {
   buildWriteSchema,
   catalogReferencedImageIds,
   getCollection,
+  manualCatalogPricingSchema,
   productFamilyForDoc,
   readProductSubcategories,
   storedCatalogTaxonomy,
@@ -281,6 +282,11 @@ const fields = [...writableFields(definition).map((field) => field.name), 'subca
 // Visibility belongs to intent. A generic patch cannot smuggle another transition.
 const ValuesSchema = buildWriteSchema(definition)
   .partial()
+  // The existing editor uses null as an explicit clear command; the save planner
+  // stores the same empty sentinel as generic Admin updates.
+  .extend({
+    manualCatalogPricing: manualCatalogPricingSchema.nullable().optional(),
+  })
   .omit({ published: true, archived: true })
   .strict();
 const operationKey = (actorId: string, productId: string, operationId: string) =>
