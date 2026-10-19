@@ -1,6 +1,6 @@
 # SEO-1：标准商品页与初始正文
 
-状态：实施中。基线 main `37bcea5b`，共享基础 `6bcdaa1a`，pricing 已提交接口 `658d126a`。独立分支 `feat/seo-product-pages`；pricing 有未提交的后台创建/发布工作，本轮不修改它。
+状态：本地实现完成，验收与兼容检查见 [PRODUCT_PAGES_STATUS.zh-CN.md](PRODUCT_PAGES_STATUS.zh-CN.md)。基线 main `37bcea5b`，共享基础 `6bcdaa1a`；pricing 初查 `658d126a`，随后更新到 `9d9cfdeb`。独立分支 `feat/seo-product-pages`；pricing 的后台创建/发布工作始终只读。
 
 ## Runtime problem
 
@@ -57,4 +57,4 @@ Node 构建读取和浏览器 DTO 分开；输入按公开 schema 白名单重�
 
 SEO-2 的内容触发、远端路径删除、缓存失效和线上读回不在本次部署；本次不部署。静态产物移除不代表 CloudBase 已撤回，需在上线前完成交付链路。
 
-官方框架合同核对：Astro routing 与 framework-components 文档；同时以仓库已安装 Astro 6.4.2 的实际构建验证，不直接采用文档中新版本 API。
+官方框架合同核对：[Astro routing](https://docs.astro.build/en/guides/routing/) 与 [framework-components](https://docs.astro.build/en/guides/framework-components/)；同时以锁文件实际安装的 Astro 6.4.6 构建验证，不直接采用文档中新版本 API。

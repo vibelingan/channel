@@ -1,6 +1,6 @@
 # 公开页面 SEO 合同
 
-本规范随共享 SEO 基础实现，覆盖 Astro 静态页面。商品正文/发布器、Blog 和 Hermes 草稿导入各自后续实施。所有网站当前公开商品都属于后续商品 SEO 的覆盖范围，沿用已有公开数据；不增加商品业务审核名单。
+本规范覆盖 Astro 静态页面。共享基础和商品标准页已实现；内容触发发布、远端撤回/缓存、Blog 和 Hermes 草稿导入后续实施。所有网站当前公开商品都属于商品 SEO 的覆盖范围，沿用已有公开数据；不增加商品业务审核名单。
 
 ## 页面入口
 
@@ -17,7 +17,7 @@ const page = createPageDescriptor({
 });
 ```
 
-例子不是现有商品实现。product/article 必须提供公开内容 source 和 revision；updatedAt 可省略，只能使用真实内容更新时间。构建时间不替代内容时间，也不自动写 sitemap lastmod。
+例子使用占位产品。商品标准页由 `products/[publicKey].astro` 消费匿名快照并生成；product/article 必须提供公开内容 source 和 revision。updatedAt 可省略，只能使用真实内容更新时间。构建时间不替代内容时间，也不自动写 sitemap lastmod。
 
 旧公开商品没有新版本字段时，adapter 可用经校验的公开投影内容 hash 作为 revision。不能因为缺少新 catalog publication 记录就把商品从覆盖清单删除；新旧公开数据都要有可验证的来源。
 
@@ -55,6 +55,8 @@ pnpm --filter @vibelingan-channel/site typecheck
 pnpm build
 ```
 
-共享基础不改 pricing、Catalog DTO、报价和后台发布。商品 SEO 接入前重新核对 main/pricing 的公开 DTO、publication revision 与 Controller 初始状态；不能复制旧投影或绕过公开价格校验。每次合并后重新跑受影响区域的测试与构建合同。
+共享基础不改 pricing、Catalog DTO、报价和后台发布。商品 SEO 接入时已核对 main/pricing 的公开 DTO、publication revision 与 Controller 初始状态；后续合并仍需重新核对，不能复制旧投影或绕过公开价格校验。每次合并后重新跑受影响区域的测试与构建合同。
+
+商品构建必须显式提供 `SEO_CATALOG_SNAPSHOT` 或 `SEO_CATALOG_API_ORIGIN`。快照包含完整清单、公开详情和来源版本；采集失败不会退回空列表。CI 使用 `seo:fixture` 生成的本地测试数据，fixture 只允许 loopback origin，发布入口再次拒绝 fixture 和域名不符的产物。构建会输出公开的 `products/manifest.json`，只含地址/版本，不包含原始商品文档。
 
 SEO 内容发布必须与代码发布协调：CloudBase 当前上传会保留新产物里已不存在的旧文件；撤回还需要拥有路径清单、精确删除、缓存失效和线上读回。不要因为本轮 manifest 成功，就宣称商品发布/撤回链路已经完成。
