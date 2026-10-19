@@ -1,5 +1,8 @@
 ---
 import '../styles/global.css';
+import { getCatalogContent } from '../i18n/catalog.ts';
+import { canonicalUrl as resolveCanonicalUrl, createPageDescriptor, serializePageDescriptor, type PageDescriptor } from '../lib/seo/page.ts';
+import { isSitemapPathIncluded } from '../lib/seo/route-policy.ts';
 
 interface SocialImage {
   path: string;
@@ -10,7 +13,8 @@ interface SocialImage {
 }
 
 interface Props {
-  title: string;
+  page?: PageDescriptor;
+  title?: string;
   description?: string;
   lang?: string;
   canonicalPath?: string;
@@ -29,20 +33,25 @@ const defaultSocialImage: SocialImage = {
 };
 
 const {
-  title,
-  description = 'OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in Dongguan, China — from idea to shipment.',
   lang = 'en',
-  canonicalPath,
   noindex = false,
-  robots = noindex ? 'noindex,nofollow' : 'index,follow',
   socialImage = defaultSocialImage,
-  schemaNodes = [],
 } = Astro.props;
-
-// Every public page self-canonicalizes by default; pass canonicalPath to override
-// (e.g. /portfolio/ is the canonical home of the old /success-stories content).
+const publishedPaths = new Set(getCatalogContent().families.map((family) => family.href));
+const page = Astro.props.page
+  ? createPageDescriptor({ ...Astro.props.page, path: Astro.url.pathname })
+  : createPageDescriptor({
+      path: Astro.url.pathname,
+      title: Astro.props.title ?? '',
+      description: Astro.props.description ?? 'OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in Dongguan, China — from idea to shipment.',
+      canonicalPath: Astro.props.canonicalPath,
+      robots: Astro.props.robots ?? (noindex ? 'noindex,nofollow' : !isSitemapPathIncluded(Astro.url.pathname, publishedPaths) ? 'noindex,follow' : undefined),
+      schemaNodes: Astro.props.schemaNodes,
+    });
+const { title, description, robots, schemaNodes } = page;
+const serializedDescriptor = serializePageDescriptor(page);
 const siteOrigin = Astro.site ?? Astro.url.origin;
-const canonicalUrl = new URL(canonicalPath ?? Astro.url.pathname, siteOrigin);
+const canonicalUrl = new URL(resolveCanonicalUrl(page.canonicalPath, siteOrigin));
 const socialImageUrl = new URL(socialImage.path, siteOrigin);
 
 const homeUrl = new URL('/', siteOrigin).href;
@@ -51,7 +60,7 @@ const websiteId = `${homeUrl}#website`;
 
 // Global structured data. Facts must match src/i18n/content/en-US.md — do not
 // add claims (street address, social profiles, awards) until the client
-// supplies them. TODO: add `logo` once a PNG logo exists (Google ignores SVG).
+// supplies them. Add `logo` after an approved brand asset has been selected.
 const schemaGraph = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -104,7 +113,7 @@ const schemaGraph = {
       url: homeUrl,
       name: 'Diversity Technology',
       publisher: { '@id': orgId },
-      inLanguage: 'en',
+      inLanguage: lang,
     },
     {
       '@type': 'WebPage',
@@ -114,7 +123,7 @@ const schemaGraph = {
       description,
       isPartOf: { '@id': websiteId },
       about: { '@id': orgId },
-      inLanguage: 'en',
+      inLanguage: lang,
     },
     ...schemaNodes,
   ],
@@ -128,12 +137,13 @@ const serializedSchemaGraph = JSON.stringify(schemaGraph).replaceAll('<', '\\u00
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
+    <script is:inline id="channel-page-descriptor" type="application/json" set:html={serializedDescriptor} />
     {robots !== 'index,follow' && <meta name="robots" content={robots} />}
     <link rel="canonical" href={canonicalUrl} />
     {
       robots === 'index,follow' && (
         <>
-          <meta property="og:type" content="website" />
+          <meta property="og:type" content={page.kind === 'article' ? 'article' : 'website'} />
           <meta property="og:site_name" content="Diversity Technology" />
           <meta property="og:title" content={title} />
           <meta property="og:description" content={description} />
@@ -153,7 +163,7 @@ const serializedSchemaGraph = JSON.stringify(schemaGraph).replaceAll('<', '\\u00
         </>
       )
     }
-    {robots === 'index,follow' && <script type="application/ld+json" set:html={serializedSchemaGraph} />}
+    {robots === 'index,follow' && <script is:inline type="application/ld+json" set:html={serializedSchemaGraph} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="mask-icon" href="/favicon.svg" color="#153687" />
     <meta name="theme-color" content="#153687" />

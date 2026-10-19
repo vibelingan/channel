@@ -1,11 +1,16 @@
-import { readFileSync } from 'node:fs';
 // @ts-check
+import { readFileSync } from 'node:fs';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import { loadEnv } from 'vite';
 import { parseDocument } from 'yaml';
+import { seoGate } from './src/lib/seo/integration.ts';
+import {
+  includeInSitemap as includePage,
+  isSitemapPathIncluded as includePath,
+} from './src/lib/seo/route-policy.ts';
 
 const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 
@@ -21,58 +26,42 @@ const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
 const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
 
-// Pages that must stay out of the sitemap (auth, admin, form results, redirects).
-// Private routes are mirrored by robots.txt; crawlable noindex routes use page metadata only.
-const NOINDEX_PATHS = new Set([
-  '/admin',
-  '/login',
-  '/register',
-  '/account',
-  '/reset',
-  '/oem_submit_result',
-  '/products/item',
-  '/success-stories',
-]);
-
 const catalogSource = readFileSync(
   new URL('./src/i18n/content/catalog/en-US.md', import.meta.url),
   'utf8',
 );
-const catalogFrontmatter = catalogSource.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-if (!catalogFrontmatter) throw new Error('Catalog content is missing frontmatter.');
-const catalogDocument = parseDocument(catalogFrontmatter[1], { uniqueKeys: true });
-if (catalogDocument.errors.length > 0) throw catalogDocument.errors[0];
-const catalogFamilies = catalogDocument.toJS() as { families?: Array<{ href?: unknown }> };
-const PUBLISHED_CATALOG_PATHS = new Set(
-  (catalogFamilies.families ?? [])
-    .map((family) => family.href)
-    .filter((href): href is string => typeof href === 'string' && href.startsWith('/'))
-    .map((href) => href.replace(/\/$/, '')),
+const frontmatter = catalogSource.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+if (!frontmatter) throw new Error('Catalog content is missing frontmatter.');
+const document = parseDocument(frontmatter[1], { uniqueKeys: true });
+if (document.errors.length) throw document.errors[0];
+const catalog = document.toJS() as { families?: Array<{ href?: unknown }> };
+const published = new Set(
+  (catalog.families ?? []).flatMap(({ href }) =>
+    typeof href === 'string' && href.startsWith('/') ? [href] : [],
+  ),
 );
-const ALL_CATALOG_PATHS = new Set(['/headphones', '/ai-gadgets', '/toys', '/misc']);
 
 export function isSitemapPathIncluded(
   path: string,
-  publishedCatalogPaths: ReadonlySet<string> = PUBLISHED_CATALOG_PATHS,
+  paths: ReadonlySet<string> = published,
 ): boolean {
-  if (NOINDEX_PATHS.has(path)) return false;
-  return !ALL_CATALOG_PATHS.has(path) || publishedCatalogPaths.has(path);
+  return includePath(path, paths);
 }
-
 export function includeInSitemap(page: string): boolean {
-  return isSitemapPathIncluded(new URL(page).pathname.replace(/\/$/, ''));
+  return includePage(page, published);
 }
 
 export default defineConfig({
   site,
   redirects: {
-    '/success-stories': '/portfolio',
+    '/success-stories': '/portfolio/',
   },
   integrations: [
     react(),
     sitemap({
       filter: includeInSitemap,
     }),
+    seoGate(site),
   ],
   vite: {
     plugins: [tailwindcss()],

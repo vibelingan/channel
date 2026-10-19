@@ -61,7 +61,7 @@ test('public pages expose a complete default Open Graph and Twitter card contrac
   );
 
   const expectedOpenGraph = {
-    'og:type': { kind: 'quoted', value: 'website' },
+    'og:type': { kind: 'expression', value: "page.kind === 'article' ? 'article' : 'website'" },
     'og:site_name': { kind: 'quoted', value: 'Diversity Technology' },
     'og:title': { kind: 'expression', value: 'title' },
     'og:description': { kind: 'expression', value: 'description' },
