@@ -65,9 +65,11 @@ function Editor({ doc }: { doc: CollectionDoc }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [saved, setSaved] = useState(false);
+  const [closed, setClosed] = useState(false);
   const collection = getCollection('products');
   if (!collection) throw Error('Missing real product registry');
   if (saved) return <output>Draft saved</output>;
+  if (closed) return <output>Editor closed</output>;
   return (
     <ProductEditForm
       key={`${current._id}:${current.updatedAt ?? ''}`}
@@ -83,7 +85,7 @@ function Editor({ doc }: { doc: CollectionDoc }) {
       }}
       submitting={busy}
       error={error}
-      onCancel={() => {}}
+      onCancel={() => setClosed(true)}
       onSubmit={(values) => {
         setBusy(true);
         setError(null);

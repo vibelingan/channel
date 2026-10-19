@@ -67,6 +67,7 @@ const scenarios = [
   'multiple-original-saves',
   'start-before-lost',
   'session-reconnect',
+  'initial-session-missing',
   'gallery',
   'description',
   'gallery-capacity',
@@ -311,6 +312,7 @@ for (const [scenario, engine] of [
       let importRequests = 0;
       let saveReplyDropped = false;
       let startDropped = false;
+      let removedLocalActor = false;
       let blockSaveConfirmation = ['save-and-check-lost', 'multiple-original-saves'].includes(
         scenario,
       );
@@ -369,6 +371,10 @@ for (const [scenario, engine] of [
         const action =
           body.action === 'catalogDetailApproval' ? (body.data?.action ?? 'detail') : body.action;
         counts.set(action, (counts.get(action) ?? 0) + 1);
+        if (scenario === 'initial-session-missing' && action === 'get' && !removedLocalActor) {
+          removedLocalActor = true;
+          await page.evaluate(() => localStorage.removeItem('channel.user'));
+        }
         if (
           (scenario === 'start-before-lost' &&
             action === 'product-operation-start' &&
@@ -477,6 +483,33 @@ for (const [scenario, engine] of [
       const form = page.getByRole('dialog', { name: 'Repair saved product', exact: true });
       await expect(form).toBeVisible();
       await expect(form.locator('#name')).toHaveValue('Website title');
+      if (scenario === 'initial-session-missing') {
+        await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+        await page.evaluate(
+          async ({ token, modulePath }) => {
+            const harness: typeof import('./testing/editor-recovery-browser-harness.tsx') =
+              await import(modulePath);
+            harness.setEditorSession(token, 'admin');
+          },
+          { token, modulePath: '/src/islands/admin/testing/editor-recovery-browser-harness.tsx' },
+        );
+        await expect(
+          form.getByRole('button', { name: 'Reconnect original account', exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          form.getByText(
+            'Download your edits, then close and reopen this product after signing in. This form could not confirm its original account.',
+            { exact: true },
+          ),
+        ).toBeVisible();
+        await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(page.getByText('Editor closed', { exact: true })).toBeVisible();
+        assert.equal(counts.get('product-operation-start') ?? 0, 0);
+        assert.equal(counts.get('update') ?? 0, 0);
+        assert.deepEqual(await adapter.get('products', original._id), before.products[0]);
+        assert.deepEqual(errors, []);
+        return;
+      }
       await expect.poll(() => counts.get('supplier-review') ?? 0).toBeGreaterThan(0);
       await expect.poll(() => counts.get('photo-sources') ?? 0).toBeGreaterThan(0);
       if (mediaRace) {

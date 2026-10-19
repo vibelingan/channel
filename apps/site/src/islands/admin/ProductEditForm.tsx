@@ -332,7 +332,7 @@ export function ProductEditForm(props: Props) {
                   )}
                 </>
               )}
-              {sessionBlocked && (
+              {sessionBlocked && originalOwner.current && (
                 <button
                   type="button"
                   disabled={busy}
@@ -343,6 +343,12 @@ export function ProductEditForm(props: Props) {
                 >
                   Reconnect original account
                 </button>
+              )}
+              {!originalOwner.current && (
+                <p className="mt-2">
+                  Download your edits, then close and reopen this product after signing in. This
+                  form could not confirm its original account.
+                </p>
               )}
               {storageBlocked && (
                 <button
