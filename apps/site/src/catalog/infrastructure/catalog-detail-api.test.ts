@@ -98,6 +98,7 @@ test('rejects mismatched identity page size page number and missing revision', a
     { ...detailFixture(), _id: 'foreign' },
     { ...detailFixture(), revision: undefined },
     detailFixture(3, 2),
+    detailFixture(3, 1, 51),
   ]) {
     assert.deepEqual(
       await fetchCatalogDetailPage(request, { fetch: async () => responseFor(data) }),
