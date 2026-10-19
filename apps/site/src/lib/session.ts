@@ -30,14 +30,20 @@ export class SessionApiError extends Error {
   }
 }
 
+function readSessionValue(key: string): string | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 export function getToken(): string {
-  if (typeof localStorage === 'undefined') return '';
-  return localStorage.getItem(TOKEN_KEY) ?? '';
+  return readSessionValue(TOKEN_KEY) ?? '';
 }
 
 export function getUser(): SessionUser | null {
-  if (typeof localStorage === 'undefined') return null;
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = readSessionValue(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as SessionUser;

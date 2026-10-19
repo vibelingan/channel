@@ -121,6 +121,8 @@ for (const engine of ['chromium', 'webkit'] as const)
       const blocked = await a.evaluate(
         async ({ path, owner, scope }) => {
           const module: typeof import('./catalog-publication-journal.ts') = await import(path);
+          const sessionPath = '/src/lib/session.ts';
+          const session: typeof import('../../lib/session.ts') = await import(sessionPath);
           const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
           Object.defineProperty(globalThis, 'localStorage', {
             configurable: true,
@@ -131,7 +133,16 @@ for (const engine of ['chromium', 'webkit'] as const)
           try {
             const journal = module.createPublicationJournal(owner);
             const value = journal.retain({ scope });
-            return { value, exported: JSON.parse(journal.export(scope)) };
+            return {
+              value,
+              exported: JSON.parse(journal.export(scope)),
+              auth: {
+                token: session.getToken(),
+                user: session.getUser(),
+                loggedIn: session.isLoggedIn(),
+                vip: session.userCanSeeVip(),
+              },
+            };
           } finally {
             if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
             else Reflect.deleteProperty(globalThis, 'localStorage');
@@ -139,9 +150,37 @@ for (const engine of ['chromium', 'webkit'] as const)
         },
         { path, owner, scope },
       );
+      assert.deepEqual(blocked.auth, { token: '', user: null, loggedIn: false, vip: false });
       assert.equal(blocked.value.durability, 'memory');
       assert.ok(blocked.value.problems.includes('unavailable'));
       assert.deepEqual(blocked.exported.entries, [{ scope }]);
+      const deniedRead = await a.evaluate(async () => {
+        const sessionPath = '/src/lib/session.ts';
+        const session: typeof import('../../lib/session.ts') = await import(sessionPath);
+        const original = Storage.prototype.getItem;
+        Storage.prototype.getItem = () => {
+          throw new DOMException('Storage denied', 'SecurityError');
+        };
+        try {
+          return {
+            token: session.getToken(),
+            user: session.getUser(),
+            loggedIn: session.isLoggedIn(),
+            vip: session.userCanSeeVip(),
+          };
+        } finally {
+          Storage.prototype.getItem = original;
+        }
+      });
+      assert.deepEqual(deniedRead, { token: '', user: null, loggedIn: false, vip: false });
+      assert.equal(
+        await a.evaluate(async () => {
+          const path = '/src/lib/session.ts';
+          const session: typeof import('../../lib/session.ts') = await import(path);
+          return session.getToken();
+        }),
+        'journal-browser-auth-test',
+      );
       const quota = await a.evaluate(
         async ({ path, owner, scope }) => {
           const module: typeof import('./catalog-publication-journal.ts') = await import(path);

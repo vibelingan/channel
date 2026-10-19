@@ -1410,3 +1410,8 @@ onAuthChange只转发token/user/clear的storage事件，本地auth事件保留�
 ## P3e7d1c 同原任务恢复一次短暂冲突
 
 原scope读回仍有效后，只对无具体字段证据或精确HTTP通用INPUT_CHANGED fallback的CONFLICT允许一次400ms恢复；重复冲突不重置，终态/版本/测量issue/身份/确认失败/observer/取消都阻止后续写。18新增，85子流程、site1033/Node203349、站点/E2E/既有测试类型、3Biome/15页构建通过；复用9efd824c未变包合计6316。实际0/105SKU在native begin一次拒绝后原任务发布/公开读回/实际撤回，分类保留/404/有效引用0。9故障40重叠/SHA恢复；首轮漏掉终态多等400ms的断言已补，HTTP通用issue差异与夹具测量合约修正保留红测。实际review三代码/测试、handler/shared/native守卫及措辞，原JSON80原因未明、未当现场根因；后端精确构建/657SDK/14进程仍9efd824c，真实test未做，详见[P3e7d1c](P3e7d1c_TRANSIENT_CONFLICT.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d1d 会话读取失败保护
+
+getToken/getUser共用try内的真实存储读取，getter/getItem抛错、无浏览器存储都返回未登录；恢复后重新读新值，不缓存身份。7新控制+2增强真实Chromium/WebKit，先9项6红后含既有通知19全绿；2故障10重叠/SHA恢复。site1040/Node20客户端241、站点/E2E/既有测试类型、3Biome/15页构建通过，合计6323含未变基线。review实际三代码/测试与useSession/DashboardShell/AdminApp/AccountMenu，纠正“整个后台降级完成”的措辞：clearSession/setSession失败的反馈仍待处理，不能以读取局部绿测冒称完整流程成功。原正式UI/P5/JSON80及真实20件test发布恢复门槛开放，详见[P3e7d1d](P3e7d1d_SESSION_READ_FALLBACK.zh-CN.md)，fullDeliveryReady=false。
