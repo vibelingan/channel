@@ -98,6 +98,8 @@ export interface CatalogProductSaveInput {
   requireUnapprovedDraft?: boolean;
   /** Server-only binding to the immutable input reserved by this actor. */
   expectedOperation?: { actorId: string; operationId: string; inputDigest: string };
+  /** Server-only owner of existing image mutexes held across an owned draft save. */
+  expectedImageMutationOwner?: string;
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
     productUpdatedAt: string | null;
@@ -118,6 +120,7 @@ export interface CatalogProductIdentity {
 
 export type CatalogProductSaveResult =
   | { result: 'saved'; doc: CollectionDoc; previous: CollectionDoc | null }
+  | { result: 'media-busy' }
   | { result: 'alibaba-identity-conflict' }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }

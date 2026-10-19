@@ -91,6 +91,15 @@ function complete(current = true) {
     completion: { at, productUpdatedAt: at, revision: 'approved-r1', published: true },
   };
 }
+
+test('photo cleanup state is bounded and cannot turn an unfinished task into a completed publication', () => {
+  const pending = readPublicationStatus(saved({ photosPending: true }), binding);
+  assert.equal(pending.photosPending, true);
+  for (const invalid of [complete(), saved()]) {
+    assert.throws(() => readPublicationStatus({ ...invalid, photosPending: false }, binding));
+  }
+  assert.throws(() => readPublicationStatus({ ...complete(), photosPending: true }, binding));
+});
 function harness(responses: unknown[]) {
   const calls: PublicationCommand[] = [];
   const request = async (command: PublicationCommand) => {

@@ -244,9 +244,10 @@ export function manageCatalogProductOperation(
   actorId: string,
   input: unknown,
   normalizeStart?: ProductOperationStartNormalizer,
+  save?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>,
 ) {
   return runProductOperationWorkflow(
-    { persist: persistCatalogDetailApproval, save: saveCatalogProductWithIdentities },
+    { persist: persistCatalogDetailApproval, save: save ?? saveCatalogProductWithIdentities },
     actorId,
     input,
     normalizeStart,

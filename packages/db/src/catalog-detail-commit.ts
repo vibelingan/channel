@@ -50,6 +50,8 @@ export type CatalogApprovalResult =
     };
 export interface CatalogApprovalTransaction {
   get(collection: string, id: string): Promise<CollectionDoc | null>;
+  /** Change mutex fields without resending legacy image bytes. */
+  patch?(collection: string, id: string, fields: Record<string, unknown>): Promise<void>;
   /** Replace an existing row, including its unchanged private fields. Throw on any failed write. */
   set(collection: string, row: CollectionDoc): Promise<void>;
 }

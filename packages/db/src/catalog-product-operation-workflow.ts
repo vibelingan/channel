@@ -25,6 +25,7 @@ import {
   ProductOperationStartSchema,
   ProductOperationStopSchema,
   cleanProductOperationValues,
+  productOperationPhotosPending,
   submittedProductOperationDigest,
 } from './catalog-product-operation.ts';
 const SubmittedTextSchema = z.object({
@@ -191,6 +192,20 @@ export async function runProductOperationWorkflow(
   }
   if (!result.ok) return result;
   if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
+  if (
+    request.action === 'product-operation-save' &&
+    result.record.state !== 'reserved' &&
+    productOperationPhotosPending(result.record)
+  ) {
+    result = await store.persist(actorId, {
+      action: 'operation-photo-release',
+      productId: request.productId,
+      operationId: request.operationId,
+      inputDigest: result.record.operation.inputDigest,
+    });
+    if (!result.ok) return result;
+    if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
+  }
   const record = result.record;
   if (
     record.actorId !== actorId ||
@@ -210,6 +225,7 @@ export async function runProductOperationWorkflow(
     current: result.current,
     revisionCurrent: result.revisionCurrent,
     expired: result.expired,
+    ...(productOperationPhotosPending(record) ? { photosPending: true } : {}),
     ...(record.operation.cancelledAt === undefined
       ? {}
       : { cancelledAt: record.operation.cancelledAt }),
@@ -249,6 +265,7 @@ export async function runProductOperationWorkflow(
 }
 
 function saveFailure(result: Exclude<CatalogProductSaveResult, { result: 'saved' }>) {
+  if (result.result === 'media-busy') return { ok: false as const, code: 'MEDIA_BUSY' as const };
   const fields =
     result.result === 'invalid-product'
       ? result.issues.map((issue) => issue.field)

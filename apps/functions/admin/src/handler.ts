@@ -23,6 +23,7 @@ import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/
 import {
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
   type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
   SOURCE_MEDIA_IMPORT_OWNER,
   UnknownCollectionError,
   acquireImageMutation,
@@ -705,6 +706,7 @@ export async function handleAdminRequest(
                     ? await approveInOneRequest(claims.sub, req.data)
                     : typeof action === 'string' && action.startsWith('product-operation-')
                       ? await manageAdminCatalogProductOperation(claims.sub, req.data, {
+                          save: saveOwnedDraftWithImageLocks,
                           ...(config.preparationAuthority
                             ? { authority: config.preparationAuthority }
                             : {}),
@@ -1988,6 +1990,51 @@ async function acquireImageReferenceLocks(
     };
   }
   return { imageIds: acquired, owner };
+}
+
+/** Reserve draft photo ownership in the same Root that Save and Stop must write. */
+async function saveOwnedDraftWithImageLocks(
+  input: CatalogProductSaveInput,
+): Promise<CatalogProductSaveResult> {
+  if (
+    !['imageIds', 'descriptionImageIds', 'configurationPhotos'].some((field) =>
+      Object.hasOwn(input.data, field),
+    )
+  )
+    return saveCatalogProductWithIdentities(input);
+  const binding = input.expectedOperation;
+  if (!binding) return { result: 'stale' };
+  const claimed = await persistCatalogDetailApproval(binding.actorId, {
+    action: 'operation-photo-claim',
+    productId: input.productId,
+    operationId: binding.operationId,
+    inputDigest: binding.inputDigest,
+  });
+  if (!claimed.ok) {
+    if (claimed.code === 'MEDIA_BUSY') return { result: 'media-busy' };
+    if ('validation' in claimed && claimed.validation)
+      return {
+        result: 'invalid-product',
+        issues: claimed.validation.issues.map((issue) => ({
+          field:
+            issue.path === 'configurationPhotos'
+              ? 'configurationPhotos'
+              : issue.path === 'descriptionImageIds'
+                ? 'descriptionImageIds'
+                : 'imageIds',
+          message: 'Check the selected product photos.',
+        })),
+      };
+    return { result: 'stale' };
+  }
+  if (!('record' in claimed))
+    throw new Error('Photo claim did not confirm the original operation.');
+  return saveCatalogProductWithIdentities({
+    ...input,
+    ...((claimed.record.operation.photoClaimVersion ?? 0) > 0
+      ? { expectedImageMutationOwner: claimed.record._id }
+      : {}),
+  });
 }
 
 async function findImageReference(

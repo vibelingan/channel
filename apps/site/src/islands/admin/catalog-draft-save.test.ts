@@ -60,7 +60,26 @@ async function fixture(t: TestContext, linked = false, legacyPricing = false) {
     });
   }
   const calls: { action: string; token?: string; data?: Record<string, unknown> }[] = [];
-  let fault: 'none' | 'start-before' | 'save-after' | 'save-and-check' = 'none';
+  let fault:
+    | 'none'
+    | 'start-before'
+    | 'save-after'
+    | 'save-and-check'
+    | 'release-before'
+    | 'release-after' = 'none';
+  const persist = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  t.mock.method(
+    h.adapter,
+    'persistCatalogDetailApproval',
+    async (...args: Parameters<typeof persist>) => {
+      if (fault === 'release-before' && args[1].action === 'operation-photo-release')
+        throw Error('photo release unavailable');
+      const result = await persist(...args);
+      if (fault === 'release-after' && args[1].action === 'operation-photo-release')
+        throw Error('photo release committed, reply lost');
+      return result;
+    },
+  );
   let saveDropped = false;
   t.mock.method(
     globalThis,
@@ -105,6 +124,68 @@ async function fixture(t: TestContext, linked = false, legacyPricing = false) {
     },
   };
 }
+
+for (const resolution of ['resume', 'stop'] as const)
+  test(`client keeps a saved draft with pending photo cleanup until original ${resolution} confirms it`, async (t) => {
+    const h = await fixture(t);
+    await h.adapter.create('images', {
+      _id: 'new-photo',
+      status: 'active',
+      uploadedByUserId: 'admin',
+      publishedRefCount: 0,
+    });
+    t.mock.method(console, 'error', () => {});
+    h.fault('release-before');
+    const control = createDraftSaveController(h.productId);
+    const result = await control.save(h.opened, {
+      description: 'Saved text remains',
+      imageIds: ['new-photo'],
+    });
+    assert.equal(result.state, 'photos-pending');
+    assert.equal(result.status.state, 'saved');
+    assert.equal(control.pending().entries.length, 1);
+    assert.throws(
+      () => control.acknowledge(result.scope),
+      (e) => e instanceof AdminApiError && e.code === 'SAVE_UNCONFIRMED',
+    );
+    const saved = await h.adapter.get('products', h.productId);
+    assert.equal(saved?.description, 'Saved text remains');
+    assert.equal(saved?.published, false);
+    const beforeCheck = h.bytes();
+    assert.equal((await control.check(result.scope)).state, 'photos-pending');
+    assert.equal(h.bytes(), beforeCheck);
+    if (resolution === 'resume') h.fault('none');
+    const settled = await control[resolution](result.scope);
+    assert.equal(settled.state, resolution === 'resume' ? 'saved' : 'historical');
+    assert.equal(settled.status.photosPending, undefined);
+    assert.deepEqual(await h.adapter.get('products', h.productId), saved);
+    assert.equal((await h.adapter.get('images', 'new-photo'))?.imageMutationOwner, '');
+    assert.equal(control.acknowledge(settled.scope).entries.length, 0);
+    assert.equal(h.calls.filter((c) => c.data?.action === 'product-operation-start').length, 1);
+    assert.equal(
+      h.calls.some((c) => c.action === 'update'),
+      false,
+    );
+  });
+
+test('a lost photo-release commit reply recovers a saved draft only after its atomic cleanup receipt is visible', async (t) => {
+  const h = await fixture(t);
+  await h.adapter.create('images', {
+    _id: 'new-photo',
+    status: 'active',
+    uploadedByUserId: 'admin',
+    publishedRefCount: 0,
+  });
+  t.mock.method(console, 'error', () => {});
+  h.fault('release-after');
+  const control = createDraftSaveController(h.productId);
+  const result = await control.save(h.opened, { imageIds: ['new-photo'] });
+  assert.equal(result.state, 'saved');
+  assert.equal(result.status.photosPending, undefined);
+  assert.equal((await h.adapter.get('images', 'new-photo'))?.imageMutationOwner, '');
+  assert.equal(control.acknowledge(result.scope).entries.length, 0);
+  assert.equal(h.calls.filter((c) => c.data?.action === 'product-operation-save').length, 1);
+});
 
 for (const mode of [
   'unchanged-pricing',

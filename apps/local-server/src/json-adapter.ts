@@ -467,6 +467,12 @@ export class JsonFileAdapter implements DbAdapter {
             if (index < 0) rows.push(structuredClone(row));
             else rows[index] = structuredClone(row);
           },
+          patch: async (collection, id, fields) => {
+            const row = copy[collection]?.find((item) => item._id === id);
+            if (!row) throw new Error('Approval mutex row disappeared');
+            changed = true;
+            Object.assign(row, structuredClone(fields));
+          },
         },
         actorId,
         captured.command,
@@ -1177,7 +1183,12 @@ export class JsonFileAdapter implements DbAdapter {
         },
       };
       const operation = await prepareProductOperationSave(operationTx, existing, input);
-      if (operation.result === 'stale' || operation.result === 'invalid-product') return operation;
+      if (
+        operation.result === 'stale' ||
+        operation.result === 'invalid-product' ||
+        operation.result === 'media-busy'
+      )
+        return operation;
       if (operation.result === 'replay' && existing)
         return { result: 'saved', doc: existing, previous: existing };
       const plan = planCatalogProductSave(existing, input, new Date().toISOString(), {

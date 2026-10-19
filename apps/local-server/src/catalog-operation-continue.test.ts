@@ -26,6 +26,7 @@ import {
   createOwnedCatalogSourcePreparer,
   readCompleteAlibabaDetailPlan,
 } from '../../functions/admin/src/catalog-detail-source.ts';
+import { createOwnedMediaPreparation } from '../../functions/admin/src/catalog-operation-media-preparation.ts';
 import {
   type OwnedReferenceContinuationDeps,
   continueOwnedCatalogReferences,
@@ -1415,6 +1416,63 @@ test('actual Admin continuation runs the existing signed worker for a cold store
   assert.equal(final.images[0].publishedRefCount, 0);
   const object = await media.storage.getObjectAsBase64(final.images[0].storageFileId);
   assert.equal(Buffer.from(object.body, 'base64').readUInt32BE(16), 24);
+});
+
+test('ready worker finishing at the request deadline keeps continuation instead of inventing a photo repair', async (t) => {
+  const h = await workspace(t);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  assert.ok(media.config.preparationAuthority && media.config.preparationInvoke);
+  const prepare = createOwnedMediaPreparation(
+    media.config.preparationAuthority,
+    media.config.preparationInvoke,
+  );
+  let now = 0;
+  let bindings = 0;
+  const response = await continueAdminCatalogProductOperation(
+    'admin',
+    { ...scope, action: 'product-operation-continue' },
+    {
+      operation: manageCatalogProductOperation,
+      seed: prepareCatalogProductOperationApproval,
+      prepare: createCatalogSourcePreparer(),
+      configuration: stageConfiguration,
+      media: async (...args) => {
+        bindings++;
+        return bindMedia(...args);
+      },
+      now: () => now,
+    },
+    12000,
+    async (...args) => {
+      const result = await prepare(...args);
+      assert.ok(result.ok && result.ready, JSON.stringify(result));
+      now = 13000;
+      return result;
+    },
+  );
+  assert.ok(response.ok && response.state === 'staging', JSON.stringify(response));
+  assert.equal(response.approval.mediaReady, false);
+  assert.equal(bindings, 1, 'No second binding request after the deadline');
+  assert.equal(response.preparation?.nextAction, 'continue');
+  const rows = JSON.parse(h.bytes());
+  assert.equal(rows.catalogPreparationJobs.length, 1);
+  assert.equal(rows.catalogPreparationJobs[0].state, 'completed');
+  const originalRoot = rows.catalogDetailApprovals.find(
+    (row: { operationId?: string }) => row.operationId === scope.operationId,
+  );
+  const resumed = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(resumed.ok, JSON.stringify(resumed));
+  const status = CatalogProductOperationStatusSchema.parse(resumed.data);
+  assert.ok(status.state === 'staging');
+  assert.equal(status.approval.mediaReady, true);
+  const final = JSON.parse(h.bytes());
+  assert.equal(final.catalogPreparationJobs.length, 1);
+  assert.equal(final.catalogDetailApprovals.length, 1);
+  assert.deepEqual(final.catalogDetailApprovals[0].saved, originalRoot.saved);
 });
 
 test('unbound supplier photos prepare before seed and the next actual request rebuilds fresh source bindings', async (t) => {

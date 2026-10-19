@@ -1,4 +1,9 @@
-import { get, manageCatalogProductOperation } from '@vibelingan-channel/db';
+import {
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
+  get,
+  manageCatalogProductOperation,
+} from '@vibelingan-channel/db';
 import type { CatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import {
   type OwnedFinalContinuationStep,
@@ -18,6 +23,7 @@ export function manageAdminCatalogProductOperation(
     authority?: CatalogPreparationAuthority;
     invoke?: CatalogPreparationInvoker;
     publish?: OwnedFinalContinuationStep;
+    save?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>;
   },
 ) {
   if (
@@ -35,20 +41,26 @@ export function manageAdminCatalogProductOperation(
         : undefined,
       continueOwnedCatalogReferences,
       preparation?.publish ?? continueOwnedCatalogPublication,
+      preparation?.save,
     );
   const productId =
     input && typeof input === 'object' ? Reflect.get(input, 'productId') : undefined;
-  return manageCatalogProductOperation(actorId, input, async (values) => {
-    if (typeof productId !== 'string') return { ok: false, code: 'VALIDATION_ERROR' };
-    const product = await get('products', productId);
-    if (!product) return { ok: false, code: 'NOT_FOUND' };
-    return {
-      ok: true,
-      values:
-        product.alibabaReviewPending === true &&
-        ['changed', 'removed'].includes(String(product.alibabaReviewReason))
-          ? await withAdminEditsKept(product, values)
-          : values,
-    };
-  });
+  return manageCatalogProductOperation(
+    actorId,
+    input,
+    async (values) => {
+      if (typeof productId !== 'string') return { ok: false, code: 'VALIDATION_ERROR' };
+      const product = await get('products', productId);
+      if (!product) return { ok: false, code: 'NOT_FOUND' };
+      return {
+        ok: true,
+        values:
+          product.alibabaReviewPending === true &&
+          ['changed', 'removed'].includes(String(product.alibabaReviewReason))
+            ? await withAdminEditsKept(product, values)
+            : values,
+      };
+    },
+    preparation?.save,
+  );
 }

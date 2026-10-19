@@ -1,5 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import {
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
   manageCatalogProductOperation,
   persistCatalogDetailApproval,
   prepareCatalogProductOperationApproval,
@@ -107,6 +109,7 @@ export async function continueAdminCatalogProductOperation(
   prepareMedia?: OwnedMediaPreparationStep,
   prepareReferences?: OwnedReferenceContinuationStep,
   publish?: OwnedFinalContinuationStep,
+  saveDraft?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>,
 ) {
   if (
     !fitsJsonBudget(input, 4096, 12) ||
@@ -148,7 +151,7 @@ export async function continueAdminCatalogProductOperation(
     }
     return current;
   };
-  const advance = async (initial: Awaited<ReturnType<typeof get>>) => {
+  const advance = async (initial: Awaited<ReturnType<typeof get>>, onMediaBinding?: () => void) => {
     const configured = await configure(initial);
     if (
       !configured.ok ||
@@ -158,6 +161,7 @@ export async function continueAdminCatalogProductOperation(
       deps.now() >= deadline
     )
       return configured;
+    onMediaBinding?.();
     const raw = await deps.media(actorId, scope);
     const success = raw && typeof raw === 'object' && Reflect.get(raw, 'ok') === true;
     const pending =
@@ -180,7 +184,13 @@ export async function continueAdminCatalogProductOperation(
     if (!step.ok) return failure(step);
     if (current.state !== 'saved' && current.state !== 'staging')
       return { ok: false as const, code: 'CONFLICT' as const };
-    const prepared = current.state === 'staging' && step.ready ? await advance(current) : current;
+    let bindingAttempted = false;
+    const prepared =
+      current.state === 'staging' && step.ready
+        ? await advance(current, () => {
+            bindingAttempted = true;
+          })
+        : current;
     if (
       !prepared.ok ||
       prepared.state === 'complete' ||
@@ -188,7 +198,7 @@ export async function continueAdminCatalogProductOperation(
     )
       return prepared;
     const preparation =
-      step.ready && prepared.state === 'staging'
+      step.ready && prepared.state === 'staging' && bindingAttempted
         ? { ...step.preparation, nextAction: 'repair' as const }
         : step.preparation;
     const hinted = { ...prepared, preparation };
@@ -240,7 +250,12 @@ export async function continueAdminCatalogProductOperation(
   };
   if (deps.now() >= deadline) return get();
   let current = status(
-    await deps.operation(actorId, { ...scope, action: 'product-operation-save' }),
+    await deps.operation(
+      actorId,
+      { ...scope, action: 'product-operation-save' },
+      undefined,
+      saveDraft,
+    ),
     scope,
   );
   if (!current.ok) return current;

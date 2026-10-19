@@ -225,7 +225,7 @@ export async function saveCatalogProductInCloudBase(
     const existing = normalizeSingle(sdkAnswer(await productRef.get()).data);
     if (expectedSuggestion && !existing) return catalogSuggestionChanged();
     const operation = await prepareProductOperationSave(operationTx, existing, input);
-    if (operation.result === 'stale' || operation.result === 'invalid-product') return operation;
+    if (operation.result === 'stale' || operation.result === 'invalid-product' || operation.result === 'media-busy') return operation;
     if (operation.result === 'replay' && existing)
       return { result: 'saved', doc: existing, previous: existing };
     const plan = planCatalogProductSave(existing, input, now, {

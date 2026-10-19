@@ -127,6 +127,8 @@ test('explicit cancellation through the real handler is durable and repeat is re
 for (const action of [
   'operation-recover',
   'operation-start',
+  'operation-photo-claim',
+  'operation-photo-release',
   'operation-get',
   'operation-cancel',
   'operation-publish',

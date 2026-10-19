@@ -258,6 +258,16 @@ export async function runPublication(
   const terminal = (): PublicationRunResult | undefined => {
     if (!current) return undefined;
     if (current.state === 'complete') return result(current.current ? 'committed' : 'historical');
+    if (
+      current.photosPending &&
+      (current.cancelledAt || current.expired || !current.current || !current.revisionCurrent)
+    )
+      return result('paused', {
+        code: 'MEDIA_BUSY',
+        message:
+          'Stop this original task to finish releasing its photos before starting another publication.',
+        issues: [],
+      });
     if (current.cancelledAt) return result('cancelled');
     if (current.expired)
       return result('needs-action', {

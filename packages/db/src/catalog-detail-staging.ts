@@ -52,6 +52,8 @@ import {
   ProductOperationCancelSchema,
   ProductOperationGetSchema,
   ProductOperationMediaSchema,
+  ProductOperationPhotoClaimSchema,
+  ProductOperationPhotoReleaseSchema,
   ProductOperationPublishSchema,
   ProductOperationRecoverSchema,
   ProductOperationReferencePageSchema,
@@ -64,7 +66,7 @@ import {
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
-import { sdkAnswer } from './cloudbase-sdk-answer.ts';
+import { assertDocumentWrite, sdkAnswer } from './cloudbase-sdk-answer.ts';
 export { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 export {
   captureProductOperationSave,
@@ -114,6 +116,8 @@ const PriceSummaryBackfillSchema = z
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
   ProductOperationStopSchema,
+  ProductOperationPhotoClaimSchema,
+  ProductOperationPhotoReleaseSchema,
   ProductOperationApprovalPageSchema,
   ProductOperationCancelSchema,
   ProductOperationApprovalBeginSchema,
@@ -559,6 +563,8 @@ export async function runStagedApproval(
     command.action === 'operation-start' ||
     command.action === 'operation-stop' ||
     command.action === 'operation-get' ||
+    command.action === 'operation-photo-claim' ||
+    command.action === 'operation-photo-release' ||
     command.action === 'operation-approval-begin' ||
     command.action === 'operation-approval-page' ||
     command.action === 'operation-cancel' ||
@@ -606,6 +612,9 @@ export function persistStagedApprovalInCloud(
           // for a new document. A response with neither acknowledgement aborts.
           if (result.updated !== 1 && !result.upserted?.some((item) => item._id === _id))
             throw new Error('Approval write not confirmed');
+        },
+        patch: async (collection, id, fields) => {
+          assertDocumentWrite(await tx.collection(collection).doc(id).update(fields), id, 'update');
         },
       },
       actorId,

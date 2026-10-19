@@ -1531,3 +1531,14 @@ Review实际19代码/测试与原生事务、monotonicProductTime、validateProd
 见[P4c4](P4c4_FORM_SAVE_COMPATIBILITY.zh-CN.md)。实际coerceValues→原生保存先复现archived:false拒绝，再兼容明确清价null→旧空字符串；只允许已绑定update，保留手工/继承价格门槛和原Root输入digest。四条正向组合、两条误操作拒绝/停止与旧保存计划对照测试已覆盖。原产品分类、图片和供应商决定保持现有语义。
 
 review实读五源码/测试：draft控制器及测试、adapter保存计划、Root ValuesSchema和保存计划测试；对照原Admin update清价与价格策略测试、RecordForm coerce、两个adapter调用者和事务/回执。文案明确两次非法价格夹具是夹具纠正而非线上缺陷，实查旧create仍拒绝null、继承保留手工记录、字段规范和后续重放零写。Node20最终367、DB2255、Admin638通过；类型、五文件Biome、standing SDK gate、Admin node20 build通过，证据draft-form-compat-*。没有新SDK方法、集合、环境变量或真实数据写入。UI/媒体/live及test验收仍未完成，fullDeliveryReady=false。
+
+
+## P4c5：原保存任务的照片互斥及清理（2026-10-20）
+
+见[P4c5](P4c5_DRAFT_PHOTO_OWNERSHIP.zh-CN.md)。申请/保存/停止写同一 Root，图片更新只 patch 两个互斥字段；丢失回复或清理失败返回明确 photosPending，客户端保留原任务并可继续/停止。最多 27 新图，500 配置重复选择不放大图片读取。通用 CRUD 图片辅助函数与 HEAD 相同，旧锁超时接管保留；陈旧配置图片重新进主图必须取锁。
+
+实际审查 handler、Admin operation/continue、Root 状态及保存事务、两个 adapter、workflow、公共状态 schema、草稿控制器和发布 batch/run，以及对应实际 Admin/JSON、SDK、客户端和浏览器用例。核对角色、actor+产品+nonce+digest、图片有效状态、同 Root 写冲突、读先于写、所有 ACK、锁 owner、分类/价格/旧字节不变和完整 finally 恢复。删去没有消费者的 index 新导出；没有增加 SDK 方法或 shim。文案把“停止回退”改为“停止后保留已保存编辑”；核对 saved 回执版本及照片 phase，不能把 pending 当作终态。
+
+真实红测补了旧锁超时兼容；整站回归另外抓到冷图 20 件一次 19/20。随后独立重跑双浏览器 54/54；可控时钟与真实 worker 又复现了已 ready 但时间预算耗尽被误报 repair 的确定代码问题，现只在实际绑定失败时标 repair，预算不足沿原任务继续。保留首次失败和诊断缺口，不将独立复现冒充原失败的精确归因；后续完整接线后整站重新验收。
+
+证据 draft-photo-atomic-*、draft-photo-stale-legacy-red.log、cold-media-deadline-red.log、draft-photo-final-combination-r1.log。最终 Node20 528/528、SDK 676/676、类型/23 文件 Biome/SDK gate/Admin build 通过；早一版全量 DB2273/Admin638/local1097 通过，site1273通过/2失败/1环境跳过不计成功。无部署或真实商品变更。编辑 UI/live、完整组合及 test 真实 resync/20 件/COS/P95 仍未完成，fullDeliveryReady=false。

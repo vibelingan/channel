@@ -2329,6 +2329,150 @@ test('native product, aliases and own save receipt commit together; replay is re
   assert.ok(h.controls.maximumOperations <= 13, 'sample uses bounded existing per-document writes');
 });
 
+test('native owned save verifies 27 held photos once even with 500 configuration choices', async () => {
+  const ids = Array.from({ length: 27 }, (_, n) => `photo-${n}`);
+  const h = await ownDraftFixture(
+    {
+      imageIds: ids.slice(0, 9),
+      descriptionImageIds: ids.slice(9),
+      configurationPhotos: Object.fromEntries(
+        Array.from({ length: 500 }, (_, n) => [`variant-${n}`, ids.slice(0, 9)]),
+      ),
+    },
+    'save-draft',
+    {
+      images: ids.map((_id) => ({
+        _id,
+        status: 'active',
+      })),
+    },
+  );
+  const scope = {
+    productId: h.input.productId,
+    operationId: h.input.expectedOperation.operationId,
+    inputDigest: h.input.expectedOperation.inputDigest,
+  };
+  const claim = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-photo-claim',
+    ...scope,
+  });
+  assert.ok(claim.ok && 'record' in claim, JSON.stringify(claim));
+  assert.ok(h.controls.maximumOperations <= 100);
+  const owner = h.record._id;
+  h.controls.maximumOperations = 0;
+  const reads: string[] = [];
+  h.controls.afterRead = (key) => {
+    reads.push(key);
+  };
+  const result = await saveCatalogProductInCloudBase(h.db, {
+    ...h.input,
+    expectedImageMutationOwner: owner,
+  });
+  assert.equal(result.result, 'saved');
+  assert.deepEqual(
+    reads.filter((key) => key.startsWith('images/')).sort(),
+    ids.map((id) => `images/${id}`).sort(),
+  );
+  assert.ok(
+    h.controls.maximumOperations <= 40,
+    `observed ${h.controls.maximumOperations} transaction document operations`,
+  );
+  assert.equal(h.store.get('catalogDetailApprovals')?.get(h.record._id)?.state, 'saved');
+  assert.equal(h.store.get('products')?.get('p')?.published, false);
+  assert.equal(JSON.stringify(h.store.get('products')?.get('p')).includes(owner), false);
+  const released = await persistStagedApprovalInCloud(h.db, 'admin', {
+    action: 'operation-photo-release',
+    ...scope,
+  });
+  assert.ok(released.ok, JSON.stringify(released));
+  assert.ok(h.controls.maximumOperations <= 100);
+  for (const id of ids) assert.equal(h.store.get('images')?.get(id)?.imageMutationOwner, '');
+});
+
+for (const fault of [
+  'missing-owner',
+  'wrong-owner',
+  'expired',
+  'missing-image',
+  'inactive',
+] as const)
+  test(`native owned photo admission fails closed without writing product or receipt: ${fault}`, async () => {
+    const h = await ownDraftFixture({ imageIds: ['new-photo'] }, 'save-draft', {
+      images: [{ _id: 'new-photo', status: 'active' }],
+    });
+    const claimed = await persistStagedApprovalInCloud(h.db, 'admin', {
+      action: 'operation-photo-claim',
+      productId: h.input.productId,
+      operationId: h.input.expectedOperation.operationId,
+      inputDigest: h.input.expectedOperation.inputDigest,
+    });
+    assert.ok(claimed.ok, JSON.stringify(claimed));
+    const owner = h.record._id;
+    const image = h.store.get('images')?.get('new-photo');
+    assert.ok(image);
+    if (fault === 'wrong-owner') image.imageMutationOwner = 'other-owner';
+    if (fault === 'expired')
+      image.imageMutationStartedAt = new Date(Date.now() - 3600000).toISOString();
+    if (fault === 'missing-image') h.store.get('images')?.delete('new-photo');
+    if (fault === 'inactive') image.status = 'deleted';
+    const before = structuredClone(h.store);
+    const result = await saveCatalogProductInCloudBase(h.db, {
+      ...h.input,
+      ...(fault === 'missing-owner' ? {} : { expectedImageMutationOwner: owner }),
+    });
+    assert.notEqual(result.result, 'saved');
+    assert.deepEqual(h.store, before);
+  });
+
+for (const phase of ['claim', 'release'] as const)
+  for (const target of ['image', 'root'] as const)
+    for (const ack of ['failWrite', 'silentWrite', 'codedWrite'] as const)
+      test(`native photo ${phase} ${target} ${ack} rolls back the entire phase and can retry`, async () => {
+        const h = await ownDraftFixture({ imageIds: ['new-photo'] }, 'save-draft', {
+          images: [{ _id: 'new-photo', status: 'active', data: 'legacy bytes stay unchanged' }],
+        });
+        const scope = {
+          productId: h.input.productId,
+          operationId: h.input.expectedOperation.operationId,
+          inputDigest: h.input.expectedOperation.inputDigest,
+        };
+        if (phase === 'release') {
+          assert.ok(
+            (
+              await persistStagedApprovalInCloud(h.db, 'admin', {
+                action: 'operation-photo-claim',
+                ...scope,
+              })
+            ).ok,
+          );
+          assert.equal(
+            (
+              await saveCatalogProductInCloudBase(h.db, {
+                ...h.input,
+                expectedImageMutationOwner: h.record._id,
+              })
+            ).result,
+            'saved',
+          );
+        }
+        const command = {
+          action:
+            phase === 'claim'
+              ? ('operation-photo-claim' as const)
+              : ('operation-photo-release' as const),
+          ...scope,
+        };
+        const before = structuredClone(h.store);
+        h.controls[ack] =
+          target === 'image' ? 'images/new-photo' : `catalogDetailApprovals/${h.record._id}`;
+        await assert.rejects(persistStagedApprovalInCloud(h.db, 'admin', command));
+        assert.deepEqual(h.store, before);
+        h.controls[ack] = '';
+        assert.ok((await persistStagedApprovalInCloud(h.db, 'admin', command)).ok);
+        assert.equal(h.store.get('images')?.get('new-photo')?.data, 'legacy bytes stay unchanged');
+        assert.ok(h.controls.maximumOperations <= 100);
+      });
+
 for (const point of ['receipt', 'product', 'new-identity', 'old-identity'] as const)
   for (const failure of ['throw', 'zero', 'coded', 'wrong-upsert'] as const) {
     if (failure === 'wrong-upsert' && (point === 'product' || point === 'old-identity')) continue;

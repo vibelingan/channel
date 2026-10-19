@@ -3,10 +3,13 @@ import { createHash } from 'node:crypto';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   type CollectionDoc,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  PRODUCT_IMAGE_MAX_COUNT,
   buildWriteSchema,
   catalogReferencedImageIds,
   getCollection,
   manualCatalogPricingSchema,
+  normalizeCatalogImageIds,
   productFamilyForDoc,
   readProductSubcategories,
   storedCatalogTaxonomy,
@@ -31,7 +34,13 @@ import {
 } from '@vibelingan-channel/shared/catalog-preparation';
 import { CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
-import type { CatalogProductSaveInput, CatalogProductSaveResult } from './adapter.ts';
+import {
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
+  IMAGE_MUTATION_STALE_MS,
+  readImageMutationState,
+  transitionImageMutationAcquire,
+} from './adapter.ts';
 import { parseAlibabaProductLink } from './alibaba-link-identity.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
@@ -129,6 +138,12 @@ export const ProductOperationApprovalPageSchema = identifiers
 export const ProductOperationCancelSchema = identifiers
   .extend({ action: z.literal('operation-cancel'), inputDigest: digest })
   .strict();
+export const ProductOperationPhotoClaimSchema = identifiers
+  .extend({ action: z.literal('operation-photo-claim'), inputDigest: digest })
+  .strict();
+export const ProductOperationPhotoReleaseSchema = identifiers
+  .extend({ action: z.literal('operation-photo-release'), inputDigest: digest })
+  .strict();
 /** Stops an owned original ID even when its private start body never arrived. */
 export const ProductOperationStopSchema = identifiers
   .extend({ action: z.literal('operation-stop'), intent })
@@ -158,6 +173,8 @@ const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationApprovalBeginSchema,
   ProductOperationApprovalPageSchema,
   ProductOperationCancelSchema,
+  ProductOperationPhotoClaimSchema,
+  ProductOperationPhotoReleaseSchema,
   ProductOperationStopSchema,
   ProductOperationMediaSchema,
   ProductOperationReferencesSchema,
@@ -218,6 +235,8 @@ const ReservedSchema = z
         base: SnapshotSchema,
         cancelledAt: z.string().datetime().optional(),
         recovery: RecoveryAuditSchema.optional(),
+        photoClaimVersion: counter.optional(),
+        photoReleaseVersion: counter.optional(),
       })
       .strict(),
   })
@@ -260,6 +279,9 @@ const RecordSchema = z.discriminatedUnion('state', [
 ]);
 export type SavedProductOperation = z.infer<typeof SavedSchema>;
 export type ProductOperationRecord = z.infer<typeof RecordSchema>;
+export function productOperationPhotosPending(record: ProductOperationRecord): boolean {
+  return (record.operation.photoClaimVersion ?? 0) > (record.operation.photoReleaseVersion ?? 0);
+}
 type Command = z.infer<typeof CommandSchema>;
 type Intent = z.infer<typeof intent>;
 export type ReservedProductOperation = z.infer<typeof ReservedSchema>;
@@ -340,6 +362,8 @@ export async function runProductOperation(
   const user = await tx.get('users', actorId);
   if (user?.role !== 'admin' || user.status === 'suspended') return fail('FORBIDDEN');
   if (command.action === 'operation-stop') return stopOperation(tx, actorId, command);
+  if (command.action === 'operation-photo-claim' || command.action === 'operation-photo-release')
+    return mutateOperationPhotos(tx, actorId, command);
   if (command.action === 'operation-approval-begin')
     return beginOperationApproval(tx, actorId, command);
   if (command.action === 'operation-approval-page')
@@ -548,6 +572,14 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   const parsed = RecordSchema.safeParse(row);
   if (!parsed.success) return null;
   const record = parsed.data;
+  for (const field of ['photoClaimVersion', 'photoReleaseVersion'] as const)
+    if (Object.hasOwn(record.operation, field) && record.operation[field] === undefined)
+      return null;
+  if (
+    (record.operation.photoReleaseVersion ?? 0) > (record.operation.photoClaimVersion ?? 0) ||
+    (record.state === 'complete' && productOperationPhotosPending(record))
+  )
+    return null;
   if (
     Object.hasOwn(record.operation, 'submittedInputDigest') &&
     record.operation.submittedInputDigest === undefined
@@ -661,7 +693,7 @@ async function cancelOperation(
       return fail('CONFLICT');
   }
   const now = new Date().toISOString();
-  const cancelled = Object.hasOwn(record.operation, 'cancelledAt')
+  let cancelled = Object.hasOwn(record.operation, 'cancelledAt')
     ? record
     : RecordSchema.parse({
         ...record,
@@ -671,6 +703,17 @@ async function cancelOperation(
           ...(recovery ? { recovery: { ...recovery, at: now } } : {}),
         },
       });
+  const photoReleases = productOperationPhotosPending(record)
+    ? await operationPhotoReleases(tx, record)
+    : [];
+  if (productOperationPhotosPending(record))
+    cancelled = RecordSchema.parse({
+      ...cancelled,
+      operation: {
+        ...cancelled.operation,
+        photoReleaseVersion: record.operation.photoClaimVersion,
+      },
+    });
   if (!fitsJsonBudget(cancelled, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
   const age = Date.parse(now) - Date.parse(record.createdAt);
@@ -682,9 +725,138 @@ async function cancelOperation(
       product?._id === record.productId && matchesProductRevision(record, product.updatedAt),
     expired: operationExpired(age),
   };
+  for (const image of photoReleases) await patchPhotoMutex(tx, image, '', '');
   if (cancelled !== record) await tx.set(collection, cancelled);
   if (cancelProof) await tx.set(collection, cancelProof);
   return result;
+}
+
+async function patchPhotoMutex(
+  tx: CatalogApprovalTransaction,
+  image: CollectionDoc,
+  owner: string,
+  startedAt: string,
+) {
+  const patch = { imageMutationOwner: owner, imageMutationStartedAt: startedAt };
+  if (tx.patch) await tx.patch('images', image._id, patch);
+  else await tx.set('images', { ...image, ...patch });
+}
+
+async function operationPhotoReleases(
+  tx: CatalogApprovalTransaction,
+  record: ProductOperationRecord,
+) {
+  const ids = [
+    ...new Set([
+      ...normalizeCatalogImageIds(record.operation.values.imageIds),
+      ...normalizeCatalogImageIds(record.operation.values.descriptionImageIds),
+    ]),
+  ];
+  const owned: CollectionDoc[] = [];
+  for (const id of ids) {
+    const image = await tx.get('images', id);
+    if (image?.imageMutationOwner === record._id) owned.push(image);
+  }
+  return owned;
+}
+
+/** Claims and terminal cleanup write the same Root as Save/Stop, preventing late locks. */
+async function mutateOperationPhotos(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command:
+    | z.infer<typeof ProductOperationPhotoClaimSchema>
+    | z.infer<typeof ProductOperationPhotoReleaseSchema>,
+): Promise<ProductOperationResult> {
+  const stored = await tx.get(
+    collection,
+    operationKey(actorId, command.productId, command.operationId),
+  );
+  if (!stored) return fail('NOT_FOUND');
+  const record = readReservation(stored, actorId, command);
+  if (!record || record.operation.inputDigest !== command.inputDigest) return fail('CONFLICT');
+  const product = await tx.get('products', record.productId);
+  const inspected = await inspect(tx, record, product);
+  if (!inspected.ok) return inspected;
+  if (command.action === 'operation-photo-release') {
+    if (!productOperationPhotosPending(record)) return inspected;
+    if (record.state === 'reserved' && !record.operation.cancelledAt) return fail('CONFLICT');
+    const images = await operationPhotoReleases(tx, record);
+    const released = RecordSchema.parse({
+      ...record,
+      operation: { ...record.operation, photoReleaseVersion: record.operation.photoClaimVersion },
+    });
+    if (!fitsJsonBudget(released, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
+      return fail('APPROVAL_TOO_LARGE');
+    for (const image of images) await patchPhotoMutex(tx, image, '', '');
+    await tx.set(collection, released);
+    return { ...inspected, record: released };
+  }
+  if (record.operation.cancelledAt) return fail('CONFLICT');
+  // Another same-input caller may already have saved. It must never acquire anew.
+  if (record.state !== 'reserved') return inspected;
+  if (
+    !product ||
+    !inspected.current ||
+    !inspected.revisionCurrent ||
+    inspected.expired ||
+    !['save-draft', 'publish'].includes(record.operation.intent)
+  )
+    return fail('CONFLICT');
+  const plan = planProductOperationDraftPhotos(product, record.operation.values);
+  if (plan.result !== 'ready')
+    return catalogValidationFailure(
+      'commit',
+      plan.issues.map((issue) =>
+        CatalogIssueSchema.parse({
+          code: 'INVALID_VALUE',
+          stage: 'commit',
+          path: issue.field,
+          severity: 'error',
+          remedy: 'edit',
+        }),
+      ),
+    );
+  if (plan.imageIds.length === 0) return inspected;
+  const images: CollectionDoc[] = [];
+  const now = new Date().toISOString();
+  for (const id of plan.imageIds) {
+    const image = await tx.get('images', id);
+    const lock = image ? readImageMutationState(image) : null;
+    if (
+      image &&
+      lock?.state === 'owned' &&
+      lock.owner !== record._id &&
+      transitionImageMutationAcquire(image, record._id, now).result !== 'acquired'
+    )
+      return fail('MEDIA_BUSY');
+    const legacyActive =
+      image !== null && image.status === undefined && image.uploadedByUserId === undefined;
+    if (!image || (image.status !== 'active' && !legacyActive) || lock?.state === 'corrupt')
+      return catalogValidationFailure('commit', [
+        CatalogIssueSchema.parse({
+          code: 'INVALID_VALUE',
+          stage: 'commit',
+          path: normalizeCatalogImageIds(record.operation.values.imageIds).includes(id)
+            ? 'imageIds'
+            : 'descriptionImageIds',
+          severity: 'error',
+          remedy: 'edit',
+        }),
+      ]);
+    images.push(image);
+  }
+  const version = (record.operation.photoClaimVersion ?? 0) + 1;
+  if (!counter.safeParse(version).success) return fail('VALIDATION_ERROR');
+  const claimed = RecordSchema.parse({
+    ...record,
+    operation: { ...record.operation, photoClaimVersion: version },
+  });
+  if (!fitsJsonBudget(claimed, PRODUCT_OPERATION_RECORD_MAX_BYTES, 32))
+    return fail('APPROVAL_TOO_LARGE');
+  for (const image of images) await patchPhotoMutex(tx, image, record._id, now);
+  await tx.set(collection, claimed);
+  return { ...inspected, record: claimed };
 }
 
 async function inspect(
@@ -868,6 +1040,11 @@ export function captureProductOperationSave(
   if (input.expectedOperation === undefined) return input;
   if (!fitsJsonBudget(input, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
   const binding = BindingSchema.safeParse(input.expectedOperation);
+  if (
+    input.expectedImageMutationOwner !== undefined &&
+    !digest.safeParse(input.expectedImageMutationOwner).success
+  )
+    return null;
   const values = cleanProductOperationValues(
     input.data,
     PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES,
@@ -884,6 +1061,7 @@ export type ProductOperationSavePlan =
   | { result: 'stale' }
   | { result: 'replay' }
   | { result: 'ready'; record: ReservedProductOperation }
+  | { result: 'media-busy' }
   | Extract<CatalogProductSaveResult, { result: 'invalid-product' }>;
 
 /** This check and the resulting product/receipt writes must share one storage transaction. */
@@ -950,19 +1128,85 @@ export async function prepareProductOperationSave(
         };
     }
   }
-  const previousIds = new Set(draftImageIds(product));
-  for (const field of ['imageIds', 'descriptionImageIds', 'configurationPhotos'] as const)
+  const photos = planProductOperationDraftPhotos(product, input.data);
+  if (photos.result !== 'ready') return photos;
+  for (const imageId of photos.imageIds) {
+    const image = await tx.get('images', imageId);
+    const lock = image ? readImageMutationState(image) : null;
+    const legacyActive =
+      image !== null && image.status === undefined && image.uploadedByUserId === undefined;
+    if (lock?.state === 'owned' && lock.owner !== input.expectedImageMutationOwner)
+      return { result: 'media-busy' };
+    const age = lock?.state === 'owned' ? Date.now() - Date.parse(lock.startedAt) : Number.NaN;
     if (
-      Object.hasOwn(input.data, field) &&
-      draftImageIds({ ...product, [field]: input.data[field] }).some(
-        (imageId) => !previousIds.has(imageId),
-      )
+      !image ||
+      image._id !== imageId ||
+      (image.status !== 'active' && !legacyActive) ||
+      input.expectedImageMutationOwner !== record._id ||
+      !productOperationPhotosPending(record) ||
+      lock?.state !== 'owned' ||
+      lock.owner !== input.expectedImageMutationOwner ||
+      !Number.isFinite(age) ||
+      age < -CATALOG_CLOCK_SKEW_MS ||
+      age >= IMAGE_MUTATION_STALE_MS
     )
       return {
         result: 'invalid-product',
-        issues: [{ field, message: 'New photos need preparation before this draft can be saved.' }],
+        issues: [
+          {
+            field: normalizeCatalogImageIds(input.data.imageIds).includes(imageId)
+              ? 'imageIds'
+              : 'descriptionImageIds',
+            message: 'New photos need preparation before this draft can be saved.',
+          },
+        ],
       };
+  }
   return { result: 'ready', record };
+}
+
+/** Configuration choices come from the gallery; repeated choices never add document reads. */
+export function planProductOperationDraftPhotos(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+):
+  | { result: 'ready'; imageIds: string[] }
+  | Extract<CatalogProductSaveResult, { result: 'invalid-product' }> {
+  const previous = new Set(draftImageIds(product));
+  // Stale configuration-only choices are retained for compatibility, but are
+  // not deletion-protected until they actually return to the gallery.
+  const referenced = new Set(catalogReferencedImageIds(product));
+  const gallery = normalizeCatalogImageIds(
+    Object.hasOwn(values, 'imageIds') ? values.imageIds : product.imageIds,
+  );
+  const description = normalizeCatalogImageIds(
+    Object.hasOwn(values, 'descriptionImageIds')
+      ? values.descriptionImageIds
+      : product.descriptionImageIds,
+  );
+  const photos = values.configurationPhotos;
+  if (photos && typeof photos === 'object' && !Array.isArray(photos))
+    for (const ids of Object.values(photos))
+      if (
+        Array.isArray(ids) &&
+        ids.some((id) => typeof id === 'string' && !previous.has(id) && !gallery.includes(id))
+      )
+        return {
+          result: 'invalid-product',
+          issues: [
+            {
+              field: 'configurationPhotos',
+              message: 'Choose configuration photos from the product gallery.',
+            },
+          ],
+        };
+  const imageIds = [...new Set([...gallery, ...description])].filter((id) => !referenced.has(id));
+  if (imageIds.length > PRODUCT_IMAGE_MAX_COUNT + PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
+    return {
+      result: 'invalid-product',
+      issues: [{ field: 'imageIds', message: 'Check the gallery and description image limits.' }],
+    };
+  return { result: 'ready', imageIds };
 }
 
 export function productOperationSaveReceipt(
@@ -1095,6 +1339,7 @@ async function currentApprovalOperation(
   const product = await tx.get('products', record.productId);
   const inspection = await inspect(tx, record, product);
   if (!inspection.ok) return inspection;
+  if (productOperationPhotosPending(record)) return fail('MEDIA_BUSY');
   if (record.state === 'complete')
     return command.action === 'operation-publish' && product
       ? { ok: true, record, product, inspection }

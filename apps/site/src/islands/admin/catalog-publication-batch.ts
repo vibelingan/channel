@@ -373,7 +373,10 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                 { signal, request },
               );
               guard();
-              if (stopped.status.state !== 'complete' && !stopped.status.cancelledAt)
+              if (
+                stopped.status.photosPending ||
+                (stopped.status.state !== 'complete' && !stopped.status.cancelledAt)
+              )
                 throw new AdminApiError(
                   'INVALID_RESPONSE',
                   'The original task did not confirm its stop. Check it again.',
@@ -472,7 +475,8 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
               !stoppedBeforeStart &&
               check.reason === 'not-complete' &&
               check.status &&
-              !('cancelledAt' in check.status && check.status.cancelledAt)
+              (!('cancelledAt' in check.status && check.status.cancelledAt) ||
+                check.status.photosPending)
             ) {
               const cancelled = await managePublication(
                 {
@@ -513,7 +517,8 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                           : check.reason === 'not-complete'
                             ? check.status &&
                               'cancelledAt' in check.status &&
-                              check.status.cancelledAt
+                              check.status.cancelledAt &&
+                              !check.status.photosPending
                               ? 'cancelled'
                               : 'paused'
                             : 'unknown',

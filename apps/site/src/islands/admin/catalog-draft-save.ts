@@ -40,7 +40,7 @@ type Command =
       operationId: string;
     };
 export type DraftSaveResult = {
-  state: 'saved' | 'historical' | 'cancelled' | 'reserved';
+  state: 'saved' | 'historical' | 'cancelled' | 'reserved' | 'photos-pending';
   scope: PublicationScope;
   status: CatalogProductOperationStatus;
   product?: CollectionDoc;
@@ -160,6 +160,7 @@ export function createDraftSaveController(productId: string, options: Options = 
   const finish = async (status: CatalogProductOperationStatus): Promise<DraftSaveResult> => {
     const scope = { productId, operationId: status.operationId, inputDigest: status.inputDigest };
     retain(scope);
+    if (status.photosPending) return { state: 'photos-pending', scope, status };
     if (status.state === 'saved') {
       session.assertCurrent();
       const product = await (options.readProduct
@@ -186,6 +187,12 @@ export function createDraftSaveController(productId: string, options: Options = 
     return { state: 'reserved', scope, status };
   };
   const advance = async (status: CatalogProductOperationStatus) => {
+    if (status.state === 'saved' && status.photosPending) {
+      const scope = { productId, operationId: status.operationId, inputDigest: status.inputDigest };
+      retain(scope);
+      await session.verifySession();
+      return finish(await invoke({ action: 'product-operation-save', ...scope }, scope));
+    }
     if (status.state !== 'reserved' || status.cancelledAt !== undefined) return finish(status);
     const scope = { productId, operationId: status.operationId, inputDigest: status.inputDigest };
     retain(scope);
@@ -330,7 +337,7 @@ export function createDraftSaveController(productId: string, options: Options = 
             scope,
           );
         }
-        if (status.state === 'saved') return finish(status);
+        if (status.state === 'saved' && !status.photosPending) return finish(status);
         const bound = {
           productId,
           operationId: status.operationId,

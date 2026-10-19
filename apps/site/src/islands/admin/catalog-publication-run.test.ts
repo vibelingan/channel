@@ -39,6 +39,23 @@ function status(state = 'saved', extra = {}) {
     : value;
 }
 
+for (const extra of [{ cancelledAt: at, current: false }, { current: false }, { expired: true }])
+  test(`an original task with pending photos is paused for safe cleanup: ${JSON.stringify(extra)}`, async () => {
+    const calls: PublicationCommand[] = [];
+    const result = await runPublication(scope, {
+      request: async (command) => {
+        calls.push(command);
+        return status('saved', { ...extra, photosPending: true });
+      },
+    });
+    assert.equal(result.reason, 'paused');
+    assert.equal(result.status?.photosPending, true);
+    assert.deepEqual(
+      calls.map((command) => command.action),
+      ['product-operation-get'],
+    );
+  });
+
 test('a warm publication advances its original start and returns a committed receipt', async () => {
   const attempt = createPublicationAttempt({
     productId: 'p',

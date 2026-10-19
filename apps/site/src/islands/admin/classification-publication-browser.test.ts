@@ -181,6 +181,7 @@ for (const engine of ['chromium', 'webkit'] as const)
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
       const actions: { action: string; data: Record<string, unknown> }[] = [];
+      const failures: { productId: unknown; action: unknown; error: unknown }[] = [];
       const starts = new Map<string, string>();
       let blockPublic = false;
       let loseCommit = false;
@@ -257,6 +258,8 @@ for (const engine of ['chromium', 'webkit'] as const)
           return;
         }
         const result = await handleAdminRequest(input, config);
+        if (!result.ok && input.action === 'catalogDetailApproval')
+          failures.push({ productId: data.productId, action: data.action, error: result.error });
         if (
           loseCommit &&
           input.action === 'catalogDetailApproval' &&
@@ -377,9 +380,37 @@ for (const engine of ['chromium', 'webkit'] as const)
           async () => {
             await open('cold');
             await publish();
-            await expect(
-              page.getByText('20 products classified and published.', { exact: true }),
-            ).toBeVisible({ timeout: 60000 });
+            await expect(page.getByText('20 products classified and published.', { exact: true }))
+              .toBeVisible({ timeout: 60000 })
+              .catch((error: unknown) => {
+                const rows = JSON.parse(h.bytes());
+                t.diagnostic(
+                  JSON.stringify({
+                    coldFailures: failures.filter((item) =>
+                      String(item.productId).includes('-cold-'),
+                    ),
+                    coldImages: rows.images.filter(
+                      (image: { _id: string }) => image._id === 'cold-image',
+                    ),
+                    coldRoots: rows.catalogDetailApprovals
+                      .filter((row: { operationId?: string }) =>
+                        manifest.some(
+                          (product) =>
+                            product._id.includes('-cold-') &&
+                            starts.get(product._id) === row.operationId,
+                        ),
+                      )
+                      .map((row: Record<string, unknown>) => ({
+                        productId: row.productId,
+                        state: row.state,
+                        operation: row.operation,
+                        media: row.media,
+                        preparation: row.preparation,
+                      })),
+                  }),
+                );
+                throw error;
+              });
             await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
             assert.equal(starts.size, 40);
             for (const product of manifest.filter((p) => p._id.includes('-cold-')))

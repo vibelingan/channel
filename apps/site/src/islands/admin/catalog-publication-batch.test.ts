@@ -654,6 +654,44 @@ function reserved(binding: PublicationScope, cancelled = false) {
   });
 }
 
+test('a cancelled reply with unfinished photo cleanup retains its pointer until a repeat Stop confirms cleanup', async () => {
+  const h = fixture();
+  let clean = false;
+  let writes = 0;
+  const pendingStatus = (binding: PublicationScope) =>
+    CatalogProductOperationStatusSchema.parse({
+      ...reserved(binding, true),
+      ...(clean ? {} : { photosPending: true }),
+    });
+  const batch = createPublicationBatch({
+    ...h.base,
+    request: async (command) => {
+      writes++;
+      assert.equal(command.action, 'product-operation-cancel');
+      return pendingStatus(scope(command));
+    },
+    check: async (input) => {
+      const binding = scope(input);
+      return { reason: 'not-complete', scope: binding, status: pendingStatus(binding) };
+    },
+  });
+  const attempt = attempts(1)[0];
+  assert.ok(attempt);
+  const entries = [{ scope: scope(attempt) }];
+  const checked = await batch.run(entries, undefined, 'check');
+  assert.equal(checked.items[0]?.state, 'paused');
+  assert.equal(writes, 0);
+  assert.equal(batch.journal.read().entries.length, 1);
+  const pending = await batch.run(entries, undefined, 'cancel');
+  assert.equal(pending.items[0]?.state, 'paused');
+  assert.equal(batch.journal.read().entries.length, 1);
+  assert.equal(writes, 1);
+  clean = true;
+  const done = await batch.run(entries, undefined, 'cancel');
+  assert.equal(done.items[0]?.state, 'cancelled');
+  assert.equal(batch.journal.read().entries.length, 0);
+});
+
 test('read-only original checks never run or cancel and preserve unfinished recovery', async () => {
   const h = fixture();
   let runs = 0;

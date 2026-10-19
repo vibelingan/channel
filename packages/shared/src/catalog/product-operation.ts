@@ -55,6 +55,7 @@ const base = z
     current: z.boolean(),
     revisionCurrent: z.boolean(),
     expired: z.boolean(),
+    photosPending: z.literal(true).optional(),
     cancelledAt: z.string().datetime().optional(),
     preparation: CatalogProductOperationPreparationSchema.optional(),
     referenceRecovery: CatalogProductOperationReferenceRecoverySchema.optional(),
@@ -98,6 +99,12 @@ const complete = base.omit({ cancelledAt: true }).extend({
 export const CatalogProductOperationStatusSchema = z
   .discriminatedUnion('state', [reserved, savedStatus, staging, complete])
   .superRefine((status, ctx) => {
+    if (status.photosPending && status.state === 'complete')
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['photosPending'],
+        message: 'Completed operations cannot hold draft photo locks.',
+      });
     if (
       status.preparation &&
       (status.intent !== 'publish' ||
