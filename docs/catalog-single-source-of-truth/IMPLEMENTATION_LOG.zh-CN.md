@@ -1415,3 +1415,10 @@ onAuthChange只转发token/user/clear的storage事件，本地auth事件保留�
 ## P3e7d1d 会话读取失败保护
 
 getToken/getUser共用try内的真实存储读取，getter/getItem抛错、无浏览器存储都返回未登录；恢复后重新读新值，不缓存身份。7新控制+2增强真实Chromium/WebKit，先9项6红后含既有通知19全绿；2故障10重叠/SHA恢复。site1040/Node20客户端241、站点/E2E/既有测试类型、3Biome/15页构建通过，合计6323含未变基线。review实际三代码/测试与useSession/DashboardShell/AdminApp/AccountMenu，纠正“整个后台降级完成”的措辞：clearSession/setSession失败的反馈仍待处理，不能以读取局部绿测冒称完整流程成功。原正式UI/P5/JSON80及真实20件test发布恢复门槛开放，详见[P3e7d1d](P3e7d1d_SESSION_READ_FALLBACK.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d2 同页面共享批量发布队列
+
+新增createPublicationBatch：20分组至100件、模块共享4、冻结选择、后台me确认及原token/actor/endpoint绑定，首次请求前持久指针，只有同scope/digest/revision的公开确认计成功。撤权/存储/observer/取消停后续写，活动worker全部settle后才返回，finally释放名额与单商品producer保护。35新增（32控制+3实际默认HTTP/Admin/JSON/PNG），20/100混合现有分类共图全部确认并按自己receipt撤回，字段存在性/分类保留、404/有效引用0；无主分类样本不补分类。旧20/100任务批量恢复均historical、无新start/公开GET且JSON不变。
+
+site1075/Node20客户端276、站点/E2E/既有测试类型、3Biome/15页构建通过；6358相关证据含未变包，完整Node203349仍5024700b，后端657SDK/14进程仍9efd824c。12故障25重叠/SHA恢复；首轮游标断言被unknown捕获掩盖的缺口已移到外层修复。后台撤权和错误确认两红修复，原生组合身份对照纠正跨商品UUID过严约束，稀疏项拒绝。review实际三代码/测试及runner/check/journal/api/native身份/UI调用链，纠正模块共享4与跨标签全局锁、夹具耗时与云P95措辞。客户UI仍旧路径、旧JSON80原因与P5/真实test门槛开放，详见[P3e7d2](P3e7d2_SHARED_PUBLICATION_BATCH.zh-CN.md)，fullDeliveryReady=false。
