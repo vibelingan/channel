@@ -1542,3 +1542,16 @@ review实读五源码/测试：draft控制器及测试、adapter保存计划、R
 真实红测补了旧锁超时兼容；整站回归另外抓到冷图 20 件一次 19/20。随后独立重跑双浏览器 54/54；可控时钟与真实 worker 又复现了已 ready 但时间预算耗尽被误报 repair 的确定代码问题，现只在实际绑定失败时标 repair，预算不足沿原任务继续。保留首次失败和诊断缺口，不将独立复现冒充原失败的精确归因；后续完整接线后整站重新验收。
 
 证据 draft-photo-atomic-*、draft-photo-stale-legacy-red.log、cold-media-deadline-red.log、draft-photo-final-combination-r1.log。最终 Node20 528/528、SDK 676/676、类型/23 文件 Biome/SDK gate/Admin build 通过；早一版全量 DB2273/Admin638/local1097 通过，site1273通过/2失败/1环境跳过不计成功。无部署或真实商品变更。编辑 UI/live、完整组合及 test 真实 resync/20 件/COS/P95 仍未完成，fullDeliveryReady=false。
+
+
+## P4c6：实际草稿编辑与恢复接线（2026-10-20）
+
+见[P4c6](P4c6_DRAFT_EDITOR_RECOVERY.zh-CN.md)。CollectionView 的管理员草稿保存接已有 Root 控制器，原 RecordForm 保留原布局和字段约定；未确认状态保留表单，Check/Continue/Stop 针对同一任务，只有确认并清掉本次指针后才关闭。历史保存不覆盖新编辑；下载最新表单后才允许替换；原请求未到达可停止后继续原表单。多个原任务逐一处理；替换表单先清理未使用候选图并重验身份，照片清理失败不重复写商品。已有发布指针可在同一表单内用原恢复组件解决。同账号重连保留私有输入，其他 actor/endpoint 拒绝。正常媒体容量、并发上传、供应商决策、分类/价格和缺省字段断言均保留。
+
+实际 review/simplify 检查 ProductEditForm、RecordForm、CollectionView、draft controller、实际编辑浏览器测试及宿主、list-readiness 浏览器和站点测试脚本共 8 文件，并追溯 create/publication recovery、journal、Admin workflow、field rendering、candidate cleanup、modal focus 和 session guard。审查后恢复了旧保存完成时清理发布反馈的行为；多任务红测另发现旧 Close 本地提示遮住新错误，外部错误/关闭门槛变化时清理旧提示。文案由笼统“保存完成”区分“已记录但照片待清理”“历史结果”“停止保留已保存修改”；核对实际 Root、版本、图片锁、后续独立编辑、分类/来源保持、下载正文无 JWT 以及 finally 清理。
+
+完整站点 1282 通过/0失败/1环境图库（最终 Node20 显式启用）；最终 Node20 55/55、构建完整后台 12/12，含保留每件分类的 Assign category 20 件与原表格 20 件并恢复；Astro check 235 文件 0 errors/0 warnings/10 hints、8 文件 Biome 与最后 CollectionView 3/3 通过。Chromium/WebKit 的 390px 多任务恢复截图均已实看，DOM 宽度检查无溢出。整站之后的局部提示 lint 修正与最后两条反馈清理由上述局部回归覆盖，最后隔离站点构建见 draft-editor-final-site-build.log。证据 draft-editor-* 与 classification-formal-draft-editor-c6*，不覆盖任何失败日志。
+
+首次新增两用例错误地尝试在恢复只读期输入，已纠正为检查原输入保留并在停止后编辑；3 个旧列表 RPC 断言改验唯一原 start/save，原数据断言保留。首次整站 10 文件默认并行另出现冷图排队/读回未确认，20 Root 均完成的诊断保留；同断言两文件并行 36/36，随后明确两文件并行的整站通过。保持每个实际批量内部 4 并发及 20/100 商品、原超时和错误注入。它是测试资源约束，不是云性能或所有负载无误的证明。
+
+无新 SDK/集合/环境变量，无部署或真实商品变更。full-form Publish、live edit、全局登录过期与 P5/P6/P7 仍开放；原 JSON80 的原始 begin 失败只有断言摘录，定向回查本 chat rollout 仍未取得返回码，不猜归因。fullDeliveryReady=false。

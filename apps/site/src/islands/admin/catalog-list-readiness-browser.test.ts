@@ -761,7 +761,25 @@ test(
     assert.equal(saved?.productFamily, 'misc');
     assert.deepEqual(saved?.subcategoryIds, ['clock']);
     assert.equal(saved?.catalogPreparationState, 'ready');
-    assert.equal(f.requests.filter((r) => r.action === 'update').length, 1);
+    assert.equal(f.requests.filter((r) => r.action === 'update').length, 0);
+    assert.equal(
+      f.requests.filter(
+        (r) =>
+          r.action === 'catalogDetailApproval' &&
+          r.data?.action === 'product-operation-start' &&
+          r.data.productId === 'blocked',
+      ).length,
+      1,
+    );
+    assert.equal(
+      f.requests.filter(
+        (r) =>
+          r.action === 'catalogDetailApproval' &&
+          r.data?.action === 'product-operation-save' &&
+          r.data.productId === 'blocked',
+      ).length,
+      1,
+    );
     assert.equal(
       f.requests.filter((r) => r.action === 'catalogCategories' && r.data?.operation === 'replace')
         .length,
@@ -864,7 +882,25 @@ test(
     assert.equal(saved.published, false);
     assert.deepEqual(saved.subcategoryIds, ['clock']);
     assert.ok(f.requests.some((r) => r.action === 'get' && r.data?.id === 'blocked'));
-    assert.equal(f.requests.filter((r) => r.action === 'update').length, 1);
+    assert.equal(f.requests.filter((r) => r.action === 'update').length, 0);
+    assert.equal(
+      f.requests.filter(
+        (r) =>
+          r.action === 'catalogDetailApproval' &&
+          r.data?.action === 'product-operation-start' &&
+          r.data.productId === 'blocked',
+      ).length,
+      1,
+    );
+    assert.equal(
+      f.requests.filter(
+        (r) =>
+          r.action === 'catalogDetailApproval' &&
+          r.data?.action === 'product-operation-save' &&
+          r.data.productId === 'blocked',
+      ).length,
+      1,
+    );
     assert.deepEqual(f.errors, []);
   },
 );
@@ -979,7 +1015,15 @@ test(
     await f.expect(form.locator('#name')).toHaveValue('Unsaved user input');
     await form.getByRole('button', { name: 'Save', exact: true }).click();
     await f.expect(form).toHaveCount(0);
-    assert.equal(f.requests.filter((r) => r.action === 'update').at(-1)?.data?.id, 'ready');
+    assert.equal(
+      f.requests
+        .filter(
+          (r) =>
+            r.action === 'catalogDetailApproval' && r.data?.action === 'product-operation-save',
+        )
+        .at(-1)?.data?.productId,
+      'ready',
+    );
     const savedReady = await f.adapter.get('products', 'ready');
     assert.equal(savedReady?.name, 'Unsaved user input');
     assert.equal(savedReady?.published, false);
@@ -992,7 +1036,16 @@ test(
       stored.products.filter((row: { _id: string }) => row._id !== 'ready'),
       JSON.parse(f.initialBytes).products.filter((row: { _id: string }) => row._id !== 'ready'),
     );
-    assert.equal(f.requests.filter((r) => r.action === 'update').length, 1);
+    assert.equal(f.requests.filter((r) => r.action === 'update').length, 0);
+    assert.equal(
+      f.requests.filter(
+        (r) =>
+          r.action === 'catalogDetailApproval' &&
+          r.data?.action === 'product-operation-start' &&
+          r.data.productId === 'ready',
+      ).length,
+      1,
+    );
     assert.deepEqual(f.errors, []);
   },
 );

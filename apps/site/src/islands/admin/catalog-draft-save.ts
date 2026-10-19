@@ -215,6 +215,8 @@ export function createDraftSaveController(productId: string, options: Options = 
     }
   };
   return {
+    owner: session.owner,
+    verifySession: session.verifySession,
     pending,
     export: () => {
       session.assertCurrent();

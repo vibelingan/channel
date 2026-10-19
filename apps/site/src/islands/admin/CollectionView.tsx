@@ -54,6 +54,7 @@ import {
   matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
 import { ProductCreateForm } from './ProductCreateForm.tsx';
+import { ProductEditForm } from './ProductEditForm.tsx';
 import { ProductPublicationInbox } from './ProductPublicationInbox.tsx';
 import { ProductRecordLoader } from './ProductRecordLoader.tsx';
 import { RecordForm } from './RecordForm.tsx';
@@ -1603,7 +1604,39 @@ export function CollectionView({
         />
       )}
 
-      {editing && (
+      {editing && isProducts && role === 'admin' && (
+        <ProductEditForm
+          key={`${editing._id}:${editing.updatedAt ?? ''}`}
+          collection={collection}
+          title={`Edit ${singular}`}
+          initial={editing}
+          showSavedClassification={canReadSubcategories}
+          nativeSaveAvailable={publicationCapabilities.data?.enabled}
+          onRetryAvailability={() => {
+            void publicationCapabilities.refetch();
+          }}
+          submitting={updateMutation.isPending}
+          error={updateMutation.error as Error | null}
+          onCancel={() => setEditing(null)}
+          onSubmit={(values) => updateMutation.mutate({ id: editing._id, values, opened: editing })}
+          onSaved={(product, openEditor) => {
+            setPublicationFeedback(null);
+            setSkippedOnly(null);
+            setEditing(openEditor ? product : null);
+            setStillFlagged(
+              product.published === true &&
+                ['Changed', 'Removed'].includes(String(reviewLabel(product)))
+                ? String(product.name || product._id)
+                : null,
+            );
+            invalidate();
+            setPublicationRefresh((current) => current + 1);
+          }}
+          onSeeChanges={() => setChangesPreview(editing)}
+          canReviewSupplier={true}
+        />
+      )}
+      {editing && (!isProducts || role !== 'admin') && (
         <RecordForm
           collection={collection}
           title={`Edit ${singular}`}

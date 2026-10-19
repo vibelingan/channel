@@ -5,10 +5,20 @@ import { flushSync } from 'react-dom';
 import { type Root, createRoot } from 'react-dom/client';
 import { setSession } from '../../../lib/session.ts';
 import AdminDetailPreview from '../AdminDetailPreview.tsx';
-import { RecordForm } from '../RecordForm.tsx';
+import { ProductEditForm } from '../ProductEditForm.tsx';
 import { getRecord, updateProductFromEditor } from '../api.ts';
+import type { PublicationScope } from '../catalog-product-operation-api.ts';
+import { createPublicationBatch } from '../catalog-publication-batch.ts';
+import { createPublicationJournal } from '../catalog-publication-journal.ts';
 import '../../../styles/global.css';
 let root: Root | undefined;
+export function retainOriginalDraftSave(scope: PublicationScope) {
+  const owner = createPublicationBatch().owner;
+  createPublicationJournal(owner, undefined, 'draft').retain({ scope });
+}
+export function setEditorSession(token: string, actorId: string) {
+  setSession(token, { id: actorId, email: 'admin@example.test', username: 'Admin', role: 'admin' });
+}
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
@@ -51,6 +61,7 @@ async function renderEditor(productId: string) {
   );
 }
 function Editor({ doc }: { doc: CollectionDoc }) {
+  const [current, setCurrent] = useState(doc);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [saved, setSaved] = useState(false);
@@ -58,18 +69,25 @@ function Editor({ doc }: { doc: CollectionDoc }) {
   if (!collection) throw Error('Missing real product registry');
   if (saved) return <output>Draft saved</output>;
   return (
-    <RecordForm
+    <ProductEditForm
+      key={`${current._id}:${current.updatedAt ?? ''}`}
       collection={collection}
       title="Repair saved product"
-      initial={doc}
+      initial={current}
       canReviewSupplier={true}
+      nativeSaveAvailable={true}
+      onRetryAvailability={() => {}}
+      onSaved={(product, openEditor) => {
+        if (openEditor) setCurrent(product);
+        else setSaved(true);
+      }}
       submitting={busy}
       error={error}
       onCancel={() => {}}
       onSubmit={(values) => {
         setBusy(true);
         setError(null);
-        void updateProductFromEditor(doc, values)
+        void updateProductFromEditor(current, values)
           .then(() => setSaved(true))
           .catch((cause: unknown) =>
             setError(cause instanceof Error ? cause : Error('Save failed')),

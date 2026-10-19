@@ -24,9 +24,49 @@ import { handleAlibabaSyncFunctionEvent } from '../../../../functions/alibaba-ca
 import { importCandidateImage } from '../../../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { JsonFileAdapter } from '../../../../local-server/src/json-adapter.ts';
 
-for (const scenario of [
+function assertOriginalDraftSave(
+  after: Record<string, unknown>,
+  product: Record<string, unknown>,
+  counts: Map<string, number>,
+  saveRequests = 1,
+) {
+  const roots = z
+    .array(
+      z.object({
+        state: z.literal('saved'),
+        productId: z.string(),
+        operation: z.object({
+          protocolVersion: z.literal(2),
+          intent: z.literal('save-draft'),
+          values: z.record(z.unknown()),
+          photoClaimVersion: z.number().optional(),
+          photoReleaseVersion: z.number().optional(),
+        }),
+        saved: z.object({ productUpdatedAt: z.string() }),
+      }),
+    )
+    .parse(after[APPROVAL_JOBS]);
+  assert.equal(roots.length, 1);
+  const root = roots[0];
+  assert.ok(root);
+  assert.equal(root.productId, product._id);
+  assert.equal(root.saved.productUpdatedAt, product.updatedAt);
+  assert.equal(root.operation.photoClaimVersion ?? 0, root.operation.photoReleaseVersion ?? 0);
+  assert.equal(root.operation.values.published, undefined);
+  assert.equal(root.operation.values.archived, undefined);
+  assert.equal(counts.get('update') ?? 0, 0);
+  assert.equal(counts.get('product-operation-start'), 1);
+  assert.equal(counts.get('product-operation-save'), saveRequests);
+}
+
+const scenarios = [
   'independent',
   'overlapping',
+  'save-reply-lost',
+  'save-and-check-lost',
+  'multiple-original-saves',
+  'start-before-lost',
+  'session-reconnect',
   'gallery',
   'description',
   'gallery-capacity',
@@ -41,7 +81,13 @@ for (const scenario of [
   'description-upload-start-first',
   'gallery-import-retry',
   'description-import-retry',
-] as const) {
+  'gallery-cleanup-continue',
+  'description-cleanup-stop',
+] as const;
+for (const [scenario, engine] of [
+  ...scenarios.map((scenario) => [scenario, 'chromium'] as const),
+  ['multiple-original-saves', 'webkit'] as const,
+]) {
   const overlapping = scenario === 'overlapping';
   const mediaRace = scenario.startsWith('gallery') || scenario.startsWith('description');
   const uploadLate = scenario.endsWith('-upload-late');
@@ -52,7 +98,7 @@ for (const scenario of [
   const importRetry = scenario.endsWith('-import-retry');
   const purpose = scenario.startsWith('description') ? 'description' : 'gallery';
   test(
-    `broken preview opens real editor; ${scenario} reads or photo completion preserve current edits and draft state`,
+    `${engine} broken preview opens real editor; ${scenario} reads or photo completion preserve current edits and draft state`,
     { timeout: 90000 },
     async (t) => {
       const dir = await mkdtemp(join(tmpdir(), 'channel-editor-recovery-'));
@@ -73,6 +119,17 @@ for (const scenario of [
       const file = join(dir, 'db.json');
       await writeFile(file, JSON.stringify(h.adapter.rows));
       const adapter = new JsonFileAdapter(file);
+      let cleanupBlocked = scenario.includes('-cleanup-');
+      const persist = adapter.persistCatalogDetailApproval.bind(adapter);
+      t.mock.method(
+        adapter,
+        'persistCatalogDetailApproval',
+        async (...args: Parameters<typeof persist>) => {
+          if (cleanupBlocked && args[1].action === 'operation-photo-release')
+            throw Error('Owned photo cleanup unavailable');
+          return persist(...args);
+        },
+      );
       setAdapter(adapter);
       const mediaDirectory = join(dir, 'media');
       const uploadPaths = new Map<string, string>();
@@ -176,7 +233,8 @@ for (const scenario of [
         assert.equal(r.statusCode, 200, r.body);
         assert.equal(JSON.parse(r.body).ok, true);
       }
-      const { chromium, expect } = await import('@playwright/test');
+      const playwright = await import('@playwright/test');
+      const { expect } = playwright;
       const { createServer } = await import('vite');
       const { default: tailwind } = await import('@tailwindcss/vite');
       const server = await createServer({
@@ -230,10 +288,13 @@ for (const scenario of [
       await server.listen();
       const origin = server.resolvedUrls?.local[0];
       assert.ok(origin);
-      const browser = await chromium.launch({ headless: true });
+      const browser = await playwright[engine].launch({ headless: true });
       closeBrowser = () => browser.close();
       const page = await browser.newPage({
-        viewport: { width: importRetry ? 390 : 1280, height: 900 },
+        viewport: {
+          width: importRetry || scenario === 'multiple-original-saves' ? 390 : 1280,
+          height: 900,
+        },
       });
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
@@ -248,6 +309,11 @@ for (const scenario of [
       let copiedId = '';
       let uploadedId = '';
       let importRequests = 0;
+      let saveReplyDropped = false;
+      let startDropped = false;
+      let blockSaveConfirmation = ['save-and-check-lost', 'multiple-original-saves'].includes(
+        scenario,
+      );
       await page.route('https://sc04.alicdn.com/**', (route) =>
         route.fulfill({ contentType: 'image/png', body: pixels }),
       );
@@ -303,6 +369,22 @@ for (const scenario of [
         const action =
           body.action === 'catalogDetailApproval' ? (body.data?.action ?? 'detail') : body.action;
         counts.set(action, (counts.get(action) ?? 0) + 1);
+        if (
+          (scenario === 'start-before-lost' &&
+            action === 'product-operation-start' &&
+            !startDropped) ||
+          (blockSaveConfirmation && saveReplyDropped && action === 'product-operation-get')
+        ) {
+          startDropped = true;
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Owned original request unavailable' },
+            },
+          });
+          return;
+        }
         if (action === 'preview') {
           await route.fulfill({
             status: 400,
@@ -341,6 +423,24 @@ for (const scenario of [
           return;
         }
         const r = await invoke(bodyText);
+        if (
+          ['save-reply-lost', 'save-and-check-lost', 'multiple-original-saves'].includes(
+            scenario,
+          ) &&
+          action === 'product-operation-save' &&
+          !saveReplyDropped
+        ) {
+          assert.equal(r.statusCode, 200, r.body);
+          saveReplyDropped = true;
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Owned save committed but reply lost' },
+            },
+          });
+          return;
+        }
         if (action === 'completeUpload') {
           assert.equal(r.statusCode, 200, r.body);
           uploadedId = JSON.parse(r.body).data.imageId;
@@ -565,6 +665,55 @@ for (const scenario of [
           assert.ok(width.scroll <= width.client + 1, JSON.stringify(width));
         }
         await save.click();
+        if (scenario.includes('-cleanup-')) {
+          await expect(
+            form.getByText(
+              'The product save is recorded. Continue or stop this original save to finish its photo cleanup.',
+              { exact: true },
+            ),
+          ).toBeVisible();
+          const recorded = await adapter.get('products', original._id);
+          assert.ok(recorded);
+          await expect(save).toBeDisabled();
+          await form.getByRole('button', { name: 'Check original save', exact: true }).click();
+          await expect(
+            form.getByRole('button', { name: 'Continue original save', exact: true }),
+          ).toBeEnabled();
+          assert.deepEqual(await adapter.get('products', original._id), recorded);
+          if (scenario.endsWith('-continue')) {
+            cleanupBlocked = false;
+            await form.getByRole('button', { name: 'Continue original save', exact: true }).click();
+            await expect(
+              form.getByText(
+                'The original draft save is confirmed. Your current form edits have been kept.',
+                { exact: true },
+              ),
+            ).toBeVisible();
+          } else {
+            await form.getByRole('button', { name: 'Stop original save', exact: true }).click();
+            await expect(
+              form.getByText(
+                'The original save is historical. Download your edits before opening the current product.',
+                { exact: true },
+              ),
+            ).toBeVisible();
+          }
+          const after = JSON.parse(await readFile(file, 'utf8'));
+          assertOriginalDraftSave(after, recorded, counts, scenario.endsWith('-continue') ? 2 : 1);
+          assert.deepEqual(await adapter.get('products', original._id), recorded);
+          for (const image of after.images) assert.ok(!image.imageMutationOwner);
+          assert.deepEqual(recorded[field], expected);
+          const download = page.waitForEvent('download');
+          await form.getByRole('button', { name: 'Download current edits', exact: true }).click();
+          await download;
+          await form.getByRole('button', { name: 'Open saved product', exact: true }).click();
+          await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+          await expect(form.locator('#description')).toHaveValue(
+            'Description retained during photo import',
+          );
+          assert.deepEqual(errors, []);
+          return;
+        }
         await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
         const after = JSON.parse(await readFile(file, 'utf8'));
         const saved = after.products.find((row: { _id: string }) => row._id === original._id);
@@ -589,9 +738,9 @@ for (const scenario of [
         assert.equal(new Set(saved[field]).size, saved[field].length);
         assert.ok(saved[field].length <= (purpose === 'gallery' ? 9 : 18));
         assert.deepEqual(after.catalogSourceObservations, before.catalogSourceObservations);
-        assert.deepEqual(after[APPROVAL_JOBS] ?? [], []);
+        assertOriginalDraftSave(after, saved, counts);
         assert.deepEqual(after[APPROVED_VARIANTS] ?? [], []);
-        assert.equal(counts.get('update'), 1);
+        assert.equal(counts.get('update') ?? 0, 0);
         assert.equal(importRequests, importRetry ? 2 : 1);
         assert.deepEqual(errors, []);
         t.diagnostic(
@@ -664,7 +813,213 @@ for (const scenario of [
       await expect(form.locator('#description')).toHaveValue('My unsaved description');
       assert.equal(counts.get('supplier-review'), supplierBefore + 1);
       assert.equal(counts.get('photo-sources'), photosBefore + 1);
+      if (scenario === 'session-reconnect') {
+        const changeSession = async (sessionToken: string, actorId: string) =>
+          page.evaluate(
+            async ({ sessionToken, actorId, modulePath }) => {
+              const harness: typeof import('./testing/editor-recovery-browser-harness.tsx') =
+                await import(modulePath);
+              harness.setEditorSession(sessionToken, actorId);
+            },
+            {
+              sessionToken,
+              actorId,
+              modulePath: '/src/islands/admin/testing/editor-recovery-browser-harness.tsx',
+            },
+          );
+        await changeSession(token, 'another-admin');
+        await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+        await form.getByRole('button', { name: 'Reconnect original account', exact: true }).click();
+        await expect(
+          form.getByText(
+            'Return to the original account and API environment to reconnect this form.',
+            { exact: true },
+          ),
+        ).toBeVisible();
+        assert.equal(counts.get('product-operation-start') ?? 0, 0);
+        const renewed = await signSession(config.jwtSecret, {
+          sub: 'admin',
+          email: 'admin@example.test',
+          name: 'Admin renewed',
+          role: 'admin',
+        });
+        await changeSession(renewed, 'admin');
+        await form.getByRole('button', { name: 'Reconnect original account', exact: true }).click();
+        await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+        await expect(form.locator('#name')).toHaveValue(expectedName);
+        await expect(form.locator('#description')).toHaveValue('My unsaved description');
+      }
       await form.getByRole('button', { name: 'Save', exact: true }).click();
+      if (scenario === 'start-before-lost') {
+        await expect(
+          form.getByRole('button', { name: 'Stop original save', exact: true }),
+        ).toBeEnabled();
+        assert.deepEqual(await adapter.get('products', original._id), before.products[0]);
+        await expect(form.locator('#description')).toBeDisabled();
+        await expect(form.locator('#description')).toHaveValue('My unsaved description');
+        await form.getByRole('button', { name: 'Stop original save', exact: true }).click();
+        await expect(
+          form.getByRole('button', { name: 'Keep editing this draft', exact: true }),
+        ).toBeEnabled();
+        await form.getByRole('button', { name: 'Keep editing this draft', exact: true }).click();
+        await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+        await expect(form.locator('#description')).toHaveValue('My unsaved description');
+        await form.locator('#description').fill('Later edits survive stopping');
+        await form.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
+        const after = JSON.parse(await readFile(file, 'utf8'));
+        assert.equal(after.products[0].description, 'Later edits survive stopping');
+        assert.equal(after.products[0].published, false);
+        assert.equal(after[APPROVAL_JOBS].length, 2);
+        assert.equal(
+          after[APPROVAL_JOBS].filter(
+            (root: { operation: { cancelledAt?: string } }) => root.operation.cancelledAt,
+          ).length,
+          1,
+        );
+        assert.equal(counts.get('product-operation-start'), 2);
+        assert.equal(counts.get('product-operation-save'), 1);
+        assert.equal(counts.get('product-operation-stop'), 1);
+        assert.equal(counts.get('update') ?? 0, 0);
+        assert.deepEqual(errors, []);
+        return;
+      }
+      if (['save-and-check-lost', 'multiple-original-saves'].includes(scenario)) {
+        await expect(
+          form.getByRole('button', { name: 'Check original save', exact: true }),
+        ).toBeEnabled();
+        await expect(form.locator('#description')).toBeDisabled();
+        await expect(form.locator('#description')).toHaveValue('My unsaved description');
+        const originallySaved = await adapter.get('products', original._id);
+        assert.ok(originallySaved);
+        const independentEdit = await invoke(
+          JSON.stringify({
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: original._id,
+              values: { description: 'Other administrator newer edit' },
+              expectedUpdatedAt: originallySaved.updatedAt,
+            },
+          }),
+        );
+        assert.equal(independentEdit.statusCode, 200, independentEdit.body);
+        if (scenario === 'multiple-original-saves') {
+          const current = await adapter.get('products', original._id);
+          assert.ok(current);
+          const second = await invoke(
+            JSON.stringify({
+              action: 'catalogDetailApproval',
+              token,
+              data: {
+                action: 'product-operation-start',
+                intent: 'save-draft',
+                productId: original._id,
+                operationId: crypto.randomUUID(),
+                expectedUpdatedAt: current.updatedAt,
+                values: { description: 'Other original save not committed' },
+              },
+            }),
+          );
+          assert.equal(second.statusCode, 200, second.body);
+          const scope = z
+            .object({ productId: z.string(), operationId: z.string(), inputDigest: z.string() })
+            .parse(JSON.parse(second.body).data);
+          await page.evaluate(
+            async ({ scope, modulePath }) => {
+              const harness: typeof import('./testing/editor-recovery-browser-harness.tsx') =
+                await import(modulePath);
+              harness.retainOriginalDraftSave(scope);
+            },
+            { scope, modulePath: '/src/islands/admin/testing/editor-recovery-browser-harness.tsx' },
+          );
+        }
+        await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(form).toBeVisible();
+        await expect(
+          form.getByText(/Check or stop the original save before closing/),
+        ).toBeVisible();
+        blockSaveConfirmation = false;
+        await form.getByRole('button', { name: 'Check original save', exact: true }).click();
+        await expect(
+          form.getByText(
+            'The original save is historical. Download your edits before opening the current product.',
+            { exact: true },
+          ),
+        ).toBeVisible();
+        await expect(form.locator('#description')).toHaveValue('My unsaved description');
+        const open = form.getByRole('button', { name: 'Open saved product', exact: true });
+        if (scenario === 'multiple-original-saves') {
+          const width = await form
+            .locator('[data-record-form-body]')
+            .evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }));
+          assert.ok(width.scroll <= width.client + 1, JSON.stringify(width));
+          const directory = fileURLToPath(
+            new URL(
+              '../../../../../output/pricing-clock-repair-2026-10-13/p3e1/draft-editor-mobile/',
+              import.meta.url,
+            ),
+          );
+          await mkdir(directory, { recursive: true });
+          await form.locator('[data-record-form-body]').evaluate((element) => {
+            element.scrollTop = 0;
+          });
+          await page.screenshot({ path: join(directory, `${engine}-multiple-original-saves.png`) });
+        }
+        await expect(open).toBeDisabled();
+        const downloaded = page.waitForEvent('download');
+        await form.getByRole('button', { name: 'Download current edits', exact: true }).click();
+        const path = await (await downloaded).path();
+        assert.ok(path);
+        const backup = JSON.parse(await readFile(path, 'utf8'));
+        assert.equal(backup.description, 'My unsaved description');
+        assert.doesNotMatch(JSON.stringify(backup), /channel\.token|Bearer |eyJhbGci/);
+        await expect(open).toBeEnabled();
+        await open.click();
+        if (scenario === 'multiple-original-saves') {
+          await expect(
+            form.getByText('Resolve the remaining original saves before reopening this product.', {
+              exact: true,
+            }),
+          ).toBeVisible();
+          await expect(open).toHaveCount(0);
+          await expect(form.locator('#description')).toHaveValue('My unsaved description');
+          await form.getByRole('button', { name: 'Stop original save', exact: true }).click();
+          await expect(
+            form.getByText('The original save is stopped. Saved product changes have been kept.', {
+              exact: true,
+            }),
+          ).toBeVisible();
+          await form.getByRole('button', { name: 'Open saved product', exact: true }).click();
+        }
+        await expect(form.locator('#description')).toHaveValue('Other administrator newer edit');
+        await expect(form.locator('#name')).toHaveValue(expectedName);
+        const rows = JSON.parse(await readFile(file, 'utf8'));
+        if (scenario === 'multiple-original-saves') {
+          assert.equal(rows[APPROVAL_JOBS].length, 2);
+          const cancelled = rows[APPROVAL_JOBS].filter(
+            (row: { state: string }) => row.state === 'reserved',
+          );
+          assert.equal(cancelled.length, 1);
+          assert.ok(cancelled[0].operation.cancelledAt);
+          assert.equal(counts.get('product-operation-stop') ?? 0, 0);
+          assert.equal(counts.get('product-operation-cancel'), 1);
+          rows[APPROVAL_JOBS] = rows[APPROVAL_JOBS].filter(
+            (row: { state: string }) => row.state === 'saved',
+          );
+        }
+        assertOriginalDraftSave(rows, originallySaved, counts);
+        assert.equal(
+          await page.evaluate(
+            () =>
+              Object.keys(localStorage).filter((key) => key.startsWith('channel:draft:')).length,
+          ),
+          0,
+        );
+        assert.deepEqual(errors, []);
+        return;
+      }
       await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
       const after = JSON.parse(await readFile(file, 'utf8'));
       const saved = after.products.find((row: { _id: string }) => row._id === original._id);
@@ -676,7 +1031,7 @@ for (const scenario of [
       assert.deepEqual(saved.imageIds, before.products[0].imageIds);
       assert.deepEqual(after.catalogSourceObservations, before.catalogSourceObservations);
       assert.deepEqual(after.catalogSourceLinks ?? [], before.catalogSourceLinks ?? []);
-      assert.deepEqual(after[APPROVAL_JOBS] ?? [], before[APPROVAL_JOBS] ?? []);
+      assertOriginalDraftSave(after, saved, counts);
       assert.deepEqual(after[APPROVED_VARIANTS] ?? [], before[APPROVED_VARIANTS] ?? []);
       assert.deepEqual(saved.catalogDetailPublication, before.products[0].catalogDetailPublication);
       assert.deepEqual(
@@ -690,7 +1045,7 @@ for (const scenario of [
         'alibabaReviewedByUserId',
       ])
         assert.deepEqual(saved[field], before.products[0][field]);
-      assert.equal(counts.get('update'), 1);
+      assert.equal(counts.get('update') ?? 0, 0);
       for (const action of ['create', 'prepare', 'begin', 'page', 'finish'])
         assert.equal(counts.get(action) ?? 0, 0);
       assert.equal((after.catalogPreparationJobs ?? []).length, 0);

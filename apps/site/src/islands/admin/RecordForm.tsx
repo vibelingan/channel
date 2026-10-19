@@ -64,7 +64,12 @@ interface RecordFormProps {
   canReviewSupplier?: boolean;
   /** Why this record cannot be saved by the current user; Save is disabled. */
   readOnlyReason?: string;
-  recovery?: (readDraft: () => Readonly<Record<string, string | boolean>>) => ReactNode;
+  closeBlockedReason?: string;
+  protectEdits?: boolean;
+  recovery?: (
+    readDraft: () => Readonly<Record<string, string | boolean>>,
+    cleanupCandidates: () => Promise<void>,
+  ) => ReactNode;
 }
 
 type PhotoField = 'imageIds' | 'descriptionImageIds';
@@ -181,6 +186,8 @@ export function RecordForm({
   onSeeChanges,
   canReviewSupplier = false,
   readOnlyReason,
+  closeBlockedReason,
+  protectEdits = false,
   recovery,
 }: RecordFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
@@ -194,6 +201,9 @@ export function RecordForm({
     descriptionImageIds: state.descriptionImageIds,
   };
   const [localError, setLocalError] = useState('');
+  useEffect(() => {
+    if (error || !closeBlockedReason) setLocalError('');
+  }, [error, closeBlockedReason]);
   const [fieldAnnouncement, setFieldAnnouncement] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
   const [descriptionImageBusy, setDescriptionImageBusy] = useState(false);
@@ -296,6 +306,15 @@ export function RecordForm({
     JSON.stringify(state) !== JSON.stringify(initialStateRef.current) ||
     Object.keys(supplierChoices).length > 0 ||
     configurationPhotos !== undefined;
+  useEffect(() => {
+    if (!protectEdits || (!dirty && !closeBlockedReason)) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [protectEdits, dirty, closeBlockedReason]);
 
   function setField(name: string, value: string | boolean) {
     if (name === 'imageIds' || name === 'descriptionImageIds') photoValuesRef.current[name] = value;
@@ -516,16 +535,28 @@ export function RecordForm({
     }
   }
 
+  async function cleanupCandidates() {
+    await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
+  }
+
   async function cancelWithCandidateCleanup() {
     if (busy || cancelInFlight.current) return;
+    if (closeBlockedReason) {
+      setLocalError(closeBlockedReason);
+      return;
+    }
     cancelInFlight.current = true;
     setSourceImageBusy(true);
-    await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
+    await cleanupCandidates();
     onCancel();
   }
 
   function requestClose() {
     if (busy) return;
+    if (closeBlockedReason) {
+      setLocalError(closeBlockedReason);
+      return;
+    }
     if (dirty) setDiscardRequested(true);
     else void cancelWithCandidateCleanup();
   }
@@ -552,6 +583,11 @@ export function RecordForm({
     },
   ];
   const fieldErrors = collection.name === 'products' ? productFormErrorTargets(error) : {};
+  const currentDraft = useRef<FormState>(state);
+  currentDraft.current = { ...state };
+  const decisions = withSupplierChoices({}, initial, supplierChoices, configurationPhotos);
+  for (const [field, value] of Object.entries(decisions))
+    if (value !== undefined) currentDraft.current[field] = JSON.stringify(value);
   const aggregateError =
     localError || (Object.keys(fieldErrors).length === 0 ? error?.message : '');
 
@@ -586,7 +622,7 @@ export function RecordForm({
           data-record-form-body
           className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
         >
-          {recovery?.(() => ({ ...state }))}
+          {recovery?.(() => ({ ...currentDraft.current }), cleanupCandidates)}
           {readOnlyReason && (
             <p
               role="note"
