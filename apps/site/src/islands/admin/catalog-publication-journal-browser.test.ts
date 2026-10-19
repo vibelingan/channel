@@ -67,6 +67,18 @@ for (const engine of ['chromium', 'webkit'] as const)
         { path, owner, scope },
       );
       assert.equal(first.durability, 'persistent');
+      await a.evaluate(async () => {
+        const path = '/src/lib/session.ts';
+        const session: typeof import('../../lib/session.ts') = await import(path);
+        const observed = { calls: 0, tokenSeen: false };
+        Reflect.set(globalThis, '__publicationAuthObserver', observed);
+        session.onAuthChange(() => {
+          observed.calls++;
+        });
+        window.addEventListener('storage', (event) => {
+          if (event.key === 'channel.token') observed.tokenSeen = true;
+        });
+      });
       await b.evaluate(
         async ({ path, owner, scope }) => {
           const module: typeof import('./catalog-publication-journal.ts') = await import(path);
@@ -77,6 +89,15 @@ for (const engine of ['chromium', 'webkit'] as const)
           });
         },
         { path, owner, scope },
+      );
+      await b.evaluate(() => localStorage.setItem('channel.token', 'journal-browser-auth-test'));
+      await a.waitForFunction(
+        () => Reflect.get(globalThis, '__publicationAuthObserver')?.tokenSeen === true,
+      );
+      assert.equal(
+        await a.evaluate(() => Reflect.get(globalThis, '__publicationAuthObserver')?.calls),
+        1,
+        'Only the token sentinel may notify auth; earlier recovery writes must be ignored',
       );
       await a.reload();
       const restored = await a.evaluate(

@@ -59,11 +59,14 @@ export function clearSession(): void {
 }
 
 export function onAuthChange(handler: () => void): () => void {
+  const storageChanged = (event: StorageEvent) => {
+    if (event.key === null || event.key === TOKEN_KEY || event.key === USER_KEY) handler();
+  };
   window.addEventListener(AUTH_EVENT, handler);
-  window.addEventListener('storage', handler);
+  window.addEventListener('storage', storageChanged);
   return () => {
     window.removeEventListener(AUTH_EVENT, handler);
-    window.removeEventListener('storage', handler);
+    window.removeEventListener('storage', storageChanged);
   };
 }
 

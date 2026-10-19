@@ -1390,3 +1390,8 @@ New/旧首次、手工 Edited、完整当前来源的 Changed/Removed 使用原�
 ## P3e7c9c 浏览器原scope恢复记录
 
 每操作分键并按actor/API环境隔离，首次请求前存ID、真实状态补digest，仅存指针和服务端游标；存储getter/读取/写删失败保留内存与明确状态，支持限量完整/指定scope导出及预检导入。共享checkpoint schema和协调器第二回调保留get省略的有效游标，已知进度写只点读自己的键。44新增（40记录/1检查点/1真实API刷新恢复/2实际Chromium+WebKit存储），site968/local1057/Node203266、19包/E2E/既有测试类型、7Biome/15页构建通过；未变C8证据合计6233，651安装SDK和精确后端仍C8。13故障13重叠/两SHA恢复；pending回滚、导入后部损坏、重复扫描及假完整导出均有红绿。实际审阅七代码/测试和session，纠正500准入/跨标签CAS及Storage行为范围；首轮假磁盘getter夹具已修正。发现原session泛storage监听和未保护getter，接UI前继续单独修复；客户producer未接，原UI P1/JSON80原因及现场门槛开放，详见[P3e7c9c](P3e7c9c_PUBLICATION_RECOVERY_RECORD.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7c9c2 过滤恢复记录引起的无关会话通知
+
+onAuthChange只转发token/user/clear的storage事件，本地auth事件保留，取消订阅移除实际闭包。两浏览器双标签原来3次而应1次，10控制和2增强浏览器测试先5过/7败再全绿；6故障12重叠/SHA恢复。site978、Node20客户端179、19包/E2E/既有测试类型、3Biome/15页构建通过；未变后端/契约核对C8哈希，完整Node203266仍67091f62基线，相关证据6243含复用包，651安装SDK未冒称本步重跑。实际审阅三个代码/测试和useSession/媒体负控制，将“所有刷新修复”改为“无关键不触发登录订阅”。storage泛监听启用阻断已关闭；getter失效、原UI P1/JSON80和现场门槛开放，详见[P3e7c9c2](P3e7c9c2_AUTH_STORAGE_EVENT_SCOPE.zh-CN.md)，fullDeliveryReady=false。
