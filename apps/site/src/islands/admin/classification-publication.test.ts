@@ -9,7 +9,12 @@ import {
   unresolvedClassificationSnapshot,
 } from './ProductClassificationEditor.tsx';
 import { AdminApiError, assignmentCall, fetchCatalogDetailCapabilities } from './api.ts';
-import { classificationPublicationAttempts } from './classification-publication.ts';
+import {
+  classificationPublicationAttempts,
+  keepClassificationCommand,
+  keptClassificationPublicationAttempts,
+  matchesKeptClassification,
+} from './classification-publication.ts';
 
 const at = '2026-10-19T00:00:00.000Z';
 const command: CatalogClassificationAssignmentRequest = {
@@ -155,4 +160,119 @@ test('publication capability rejects missing extra and nonboolean responses with
     Response.json({ ok: true, data: { enabled: false } }),
   );
   assert.deepEqual(await fetchCatalogDetailCapabilities(), { enabled: false });
+});
+
+test('keeping classification captures reviewed versions without assignment results or product field values', () => {
+  const products = [
+    { _id: 'p1', updatedAt: at, productFamily: 'misc', published: false },
+    {
+      _id: 'p2',
+      updatedAt: at,
+      productFamily: 'headphones',
+      category: 'wired',
+      subcategoryIds: ['headphones-wired'],
+      published: false,
+    },
+  ];
+  const kept = keepClassificationCommand(products);
+  products[0].updatedAt = '2026-10-19T02:00:00.000Z';
+  const attempts = keptClassificationPublicationAttempts(kept);
+  assert.equal(kept.kind, 'keep');
+  assert.equal(attempts.length, 2);
+  for (const attempt of attempts) {
+    assert.equal(attempt.expectedUpdatedAt, at);
+    assert.deepEqual(attempt.values, {});
+    assert.ok(Object.isFrozen(attempt));
+  }
+  assert.notEqual(attempts[0]?.operationId, attempts[1]?.operationId);
+});
+
+test('keeping classification refuses empty duplicate oversized and unversioned selections before creating an attempt', () => {
+  const first = { _id: 'p1', updatedAt: at };
+  for (const products of [
+    [],
+    [first, first],
+    Array.from({ length: 21 }, (_, i) => ({ ...first, _id: `p${i}` })),
+    [{ _id: 'p1' }],
+    [{ ...first, updatedAt: 'invalid' }],
+  ])
+    assert.throws(
+      () => keepClassificationCommand(products),
+      (error) => error instanceof AdminApiError && error.code === 'VALIDATION_ERROR',
+    );
+  assert.throws(() =>
+    keptClassificationPublicationAttempts({
+      kind: 'assignment',
+      products: [{ productId: 'p1', expectedUpdatedAt: at }],
+      includeSavedRevision: true,
+    }),
+  );
+});
+
+test('kept-classification recovery needs owned confirmation and preserves field presence and mixed classifications', () => {
+  const products = [
+    { _id: 'p1', updatedAt: at, productFamily: 'misc', published: false },
+    {
+      _id: 'p2',
+      updatedAt: at,
+      productFamily: 'headphones',
+      category: 'wired',
+      subcategoryIds: ['headphones-wired'],
+      published: false,
+    },
+  ];
+  const kept = keepClassificationCommand(products);
+  const unknown = unresolvedClassificationSnapshot(kept, null, null);
+  assert.deepEqual(unknown.unresolvedIds, ['p1', 'p2']);
+  assert.deepEqual(unknown.attentionIds, []);
+  assert.equal(unknown.ownedPublication, true);
+  const published = products.map((product) => ({ ...product, published: true }));
+  assert.equal(matchesVerifiedOutcome(unknown, products, published), false);
+  const confirmed = unresolvedClassificationSnapshot(kept, null, {
+    updated: 2,
+    items: published,
+    failures: [],
+  });
+  assert.equal(matchesVerifiedOutcome(confirmed, products, published), true);
+  assert.equal(
+    matchesVerifiedOutcome(confirmed, products, [
+      { ...published[0], subcategoryIds: [], _id: 'p1' },
+      published[1],
+    ]),
+    false,
+  );
+  assert.equal(
+    matchesKeptClassification(products[0], { ...products[0], category: undefined }),
+    false,
+  );
+  assert.equal(
+    matchesKeptClassification(products[1], { ...products[1], productFamily: 'toys' }),
+    false,
+  );
+});
+
+test('kept-classification recovery distinguishes rejected missing classification from unknown siblings without saved receipts', () => {
+  const kept = keepClassificationCommand(['p1', 'p2', 'p3'].map((_id) => ({ _id, updatedAt: at })));
+  const snapshot = unresolvedClassificationSnapshot(kept, null, {
+    updated: 1,
+    items: [{ _id: 'p1' }],
+    failures: [
+      {
+        id: 'p2',
+        code: 'VALIDATION_ERROR',
+        message: 'Choose a website category before publishing.',
+        outcome: 'rejected',
+      },
+      {
+        id: 'p3',
+        code: 'UNAVAILABLE',
+        message: 'Check original publication',
+        outcome: 'unconfirmed',
+      },
+    ],
+  });
+  assert.deepEqual(snapshot.confirmedPublishedIds, ['p1']);
+  assert.deepEqual(snapshot.attentionIds, ['p2']);
+  assert.deepEqual(snapshot.unresolvedIds, ['p3']);
+  assert.equal(snapshot.issuesById.p2, 'Choose a website category before publishing.');
 });

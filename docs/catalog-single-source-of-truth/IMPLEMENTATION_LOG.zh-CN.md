@@ -1449,3 +1449,9 @@ Save and publish 采用全部分类 saved 回执的 updatedAt 创建一次原尝
 实际review11文件与handler/工作流/共享队列/图片守卫。分类正式UI门槛关闭，其他P3/P4/P5及真实3时钟resync/20件test发布恢复、原JSON80归因和云性能仍开放；后端精确制品/SDK657/14进程仍9efd824c，详见[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)，fullDeliveryReady=false。
 
 P3e7d5 exact review（6359cc38）发现一处测试清理缺口：colliding readback gate 未登记到外层 finally，内层 try 前的断言失败可能卡住 unrouteAll，阻止恢复。已登记 release，正式构建后台 r11 八条再过，0 skip/flaky/retry；生产源码未变，保留本轮未部署状态。
+
+## P3e7d6 保留各商品分类的发布入口（实施中）
+
+场景：20件已有不同主/子分类的未发布商品，原弹窗只有统一 replace/append/clear，无法按用户要求保留各自分类发布。使用明确的本地 preserve 提交形状（kind、products原updatedAt、includeSavedRevision），不发 assignment、不伪造 saved 回执；原发布 attempt values={}，复用身份、journal、共享4及官网原回执读回。现有分类字段包含缺省/空数组/legacy值，在完成和撤回后逐字段及存在性核对。预览每件原分类；确认绑定选中版本，编辑冲突由原协议拒绝。红测为实际两引擎20件混合分类零assignment；另补缺分类部分失败、恢复和冲突，保留20件产品范围，不扩到100件UI。
+
+P3e7d6 本地验收完成：新增13（4核心+8两引擎子流程+1正式20），site1169、最终浏览器32、Node20核心10、正式9/9；类型、5Biome、15页构建及3故障检出/SHA恢复。混合分类20件全过程无assignment、原回执/官网revision读回及撤回后分类存在性保留。r12夹具错误、r13外置JSON超时、r14根守卫、r16新测试hydration选择器错误均留档；相同源码/60秒断言的内部临时DB对照通过，非云P95。实际review五文件及CollectionView/协议/批次；详见[P3e7d6](P3e7d6_PRESERVE_CLASSIFICATION.zh-CN.md)。未部署、fullDeliveryReady=false。

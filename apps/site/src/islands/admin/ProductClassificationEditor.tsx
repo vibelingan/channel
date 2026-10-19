@@ -29,8 +29,12 @@ import {
   createPublicationBatch,
 } from './catalog-publication-batch.ts';
 import {
+  type ClassificationSubmission,
   classificationPublicationAttempts,
   classificationPublicationFeedback,
+  keepClassificationCommand,
+  keptClassificationPublicationAttempts,
+  matchesKeptClassification,
 } from './classification-publication.ts';
 import {
   classificationChoices,
@@ -53,7 +57,7 @@ export interface ProductClassificationEditorProps {
 }
 
 export interface UnresolvedClassificationSnapshot {
-  command: CatalogClassificationAssignmentRequest;
+  command: ClassificationSubmission;
   submittedIds: string[];
   confirmedPublishedIds: string[];
   unresolvedIds: string[];
@@ -63,12 +67,32 @@ export interface UnresolvedClassificationSnapshot {
 }
 
 export function unresolvedClassificationSnapshot(
-  command: CatalogClassificationAssignmentRequest,
+  command: ClassificationSubmission,
   assignmentResults: CatalogClassificationAssignmentResult['results'] | null,
   publication: BatchUpdateResult | null,
 ): UnresolvedClassificationSnapshot {
   const submittedIds = command.products.map((item) => item.productId);
   const confirmedPublishedIds = publication?.items.map((item) => item._id) ?? [];
+  if (command.kind === 'keep') {
+    const rejected = new Set(
+      publication?.failures
+        .filter((failure) => failure.outcome === 'rejected')
+        .map((failure) => failure.id),
+    );
+    return {
+      command,
+      submittedIds,
+      confirmedPublishedIds,
+      unresolvedIds: submittedIds.filter(
+        (id) => !confirmedPublishedIds.includes(id) && !rejected.has(id),
+      ),
+      attentionIds: submittedIds.filter((id) => rejected.has(id)),
+      issuesById: Object.fromEntries(
+        publication?.failures.map((failure) => [failure.id, failure.message]) ?? [],
+      ),
+      ownedPublication: true,
+    };
+  }
   const assignmentById = new Map(assignmentResults?.map((item) => [item.productId, item.status]));
   const allAssignmentsSaved = submittedIds.every((id) => assignmentById.get(id) === 'saved');
   const unknownPublicationIds = new Set(
@@ -127,8 +151,11 @@ export function matchesSubmittedProducts(
     const before = beforeById.get(id);
     const record = recordById.get(id);
     if (!before || !record) return false;
+    if (command.kind === 'keep' && !matchesKeptClassification(before, record)) return false;
     if (snapshot.unresolvedIds.includes(id) || snapshot.attentionIds.includes(id))
       return !confirmedPublished.has(id) || record.published === true;
+    if (command.kind === 'keep')
+      return record.published === (confirmedPublished.has(id) ? true : before.published);
     const actualIds = record.subcategoryIds;
     if (
       productFamilyForDoc(record) !== command.family ||
@@ -205,7 +232,11 @@ const resultLabels: Record<
 };
 
 /** What the editor says after publishing; each product's reason is in the panel below. */
-export function publicationMessage(outcome: BatchUpdateResult): string {
+export function publicationMessage(outcome: BatchUpdateResult, keep = false): string {
+  if (keep)
+    return outcome.failures.length
+      ? `${outcome.updated} of ${outcome.updated + outcome.failures.length} published. Existing classifications were kept; check the results below.`
+      : `${outcome.updated} ${outcome.updated === 1 ? 'product' : 'products'} published. Existing classifications were kept.`;
   return outcome.failures.length
     ? `Classification saved. ${outcome.updated} of ${outcome.updated + outcome.failures.length} published; the others are listed below with the reason.`
     : `${outcome.updated} ${outcome.updated === 1 ? 'product' : 'products'} classified and published.`;
@@ -272,19 +303,18 @@ export function ProductClassificationEditor({
   const [family, setFamily] = useState<ProductFamily>(
     () => productFamilyForDoc(products[0] ?? {}) ?? 'headphones',
   );
-  const [mode, setMode] = useState<CatalogClassificationAssignmentRequest['operation']>('replace');
+  const [mode, setMode] = useState<CatalogClassificationAssignmentRequest['operation'] | 'keep'>(
+    'replace',
+  );
   const [publish, setPublish] = useState(false);
   const [selected, setSelected] = useState<string[] | null>(null);
-  const [confirmation, setConfirmation] = useState<CatalogClassificationAssignmentRequest | null>(
-    null,
-  );
+  const [confirmation, setConfirmation] = useState<ClassificationSubmission | null>(null);
   const [pending, setPending] = useState(false);
   const [stage, setStage] = useState<'assigning' | 'publishing' | 'refreshing'>('assigning');
   const [showPublishingWait, setShowPublishingWait] = useState(false);
   const [finished, setFinished] = useState(false);
   const [message, setMessage] = useState('');
-  const [submittedCommand, setSubmittedCommand] =
-    useState<CatalogClassificationAssignmentRequest | null>(null);
+  const [submittedCommand, setSubmittedCommand] = useState<ClassificationSubmission | null>(null);
   const [results, setResults] = useState<CatalogClassificationAssignmentResult['results'] | null>(
     null,
   );
@@ -334,7 +364,7 @@ export function ProductClassificationEditor({
     draftCount === products.length &&
     !appliedSuggestion;
   const snapshot = (
-    command: CatalogClassificationAssignmentRequest,
+    command: ClassificationSubmission,
     assignment: CatalogClassificationAssignmentResult['results'] | null,
     outcome: BatchUpdateResult | null,
   ): UnresolvedClassificationSnapshot => ({
@@ -353,8 +383,8 @@ export function ProductClassificationEditor({
         unresolvedSnapshot.attentionIds.length > 0 ||
         readbackFailed),
   );
-  let request: CatalogClassificationAssignmentRequest | null = null;
-  let validation = preload.error;
+  let request: ClassificationSubmission | null = null;
+  let validation = mode === 'keep' ? null : preload.error;
   if (
     appliedSuggestion &&
     (!singleProduct ||
@@ -364,10 +394,13 @@ export function ProductClassificationEditor({
   )
     validation =
       'Product source or categories changed since the suggestion. Cancel and review the product again.';
-  if (registry && !validation) {
+  if ((registry || mode === 'keep') && !validation) {
     try {
-      const classification = classificationRequest(products, registry, mode, ids);
-      request = publish ? { ...classification, includeSavedRevision: true } : classification;
+      if (mode === 'keep') request = keepClassificationCommand(products);
+      else if (registry) {
+        const classification = classificationRequest(products, registry, mode, ids);
+        request = publish ? { ...classification, includeSavedRevision: true } : classification;
+      }
     } catch (error) {
       validation = error instanceof Error ? error.message : 'Invalid assignment.';
     }
@@ -483,7 +516,7 @@ export function ProductClassificationEditor({
     const submitted = confirmation;
     inFlight.current = true;
     setPending(true);
-    setStage('assigning');
+    setStage(submitted.kind === 'keep' ? 'publishing' : 'assigning');
     setShowPublishingWait(false);
     setReadbackFailed(false);
     setReadbackVerified(false);
@@ -494,17 +527,21 @@ export function ProductClassificationEditor({
     busyCallback.current?.(true);
     setConfirmation(null);
     operationAbort.current = new AbortController();
-    let result: CatalogClassificationAssignmentResult;
+    let result: CatalogClassificationAssignmentResult | null = null;
     try {
       await publicationBatch.current?.verifySession(operationAbort.current.signal);
-      result = await mutation.mutateAsync(submitted);
+      if (submitted.kind === 'keep')
+        publicationEntries.current = keptClassificationPublicationAttempts(submitted);
+      else result = await mutation.mutateAsync(submitted);
     } catch (error) {
       if (mounted.current) {
         setFinished(true);
         setMessage(
           error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code)
             ? `${error.message} Classification was not confirmed; check statuses before trying again.`
-            : 'Assignment was not confirmed. Refresh products before trying again; some changes may have been saved.',
+            : submitted.kind === 'keep'
+              ? 'Publication could not start. Refresh product statuses before trying again.'
+              : 'Assignment was not confirmed. Refresh products before trying again; some changes may have been saved.',
         );
         onUnresolved?.(snapshot(submitted, null, null));
       }
@@ -519,15 +556,22 @@ export function ProductClassificationEditor({
       inFlight.current = false;
       return;
     }
-    setResults(result.results);
+    setResults(result?.results ?? null);
     setFinished(true);
-    const { uncertain, allSaved } = summarizeAssignment(result);
+    const { uncertain, allSaved } =
+      submitted.kind === 'keep'
+        ? { uncertain: false, allSaved: true }
+        : result
+          ? summarizeAssignment(result)
+          : { uncertain: true, allSaved: false };
     setMessage(
       uncertain
         ? 'Some results are not confirmed. Refresh products before trying again.'
         : allSaved
           ? publish
-            ? 'Classification saved.'
+            ? submitted.kind === 'keep'
+              ? 'Existing classifications kept. Preparing publication...'
+              : 'Classification saved.'
             : 'Classification saved. Drafts were not published.'
           : 'Review the product results and refresh before another assignment.',
     );
@@ -538,7 +582,8 @@ export function ProductClassificationEditor({
         const batch = publicationBatch.current;
         if (!batch)
           throw new AdminApiError('UNAUTHORIZED', 'Review the original account before publishing.');
-        publicationEntries.current = classificationPublicationAttempts(submitted, result);
+        if (submitted.kind === 'assignment')
+          publicationEntries.current = classificationPublicationAttempts(submitted, result);
         setStage('publishing');
         waitTimer = setTimeout(() => {
           if (mounted.current) setShowPublishingWait(true);
@@ -546,7 +591,7 @@ export function ProductClassificationEditor({
         publicationOutcome = await runOwned('continue');
         if (mounted.current) {
           setPublicationResult(publicationOutcome);
-          setMessage(publicationMessage(publicationOutcome));
+          setMessage(publicationMessage(publicationOutcome, submitted.kind === 'keep'));
         }
       }
     } catch {
@@ -559,7 +604,7 @@ export function ProductClassificationEditor({
         setStage('refreshing');
       }
     }
-    await readBack(submitted, result.results, publicationOutcome, allSaved && !publish);
+    await readBack(submitted, result?.results ?? null, publicationOutcome, allSaved && !publish);
   }
 
   async function runOwned(mode: 'continue' | 'check' | 'cancel', ids?: readonly string[]) {
@@ -624,9 +669,9 @@ export function ProductClassificationEditor({
       setMessage(
         recoveryOnly
           ? `${outcome.updated} original ${outcome.updated === 1 ? 'publication' : 'publications'} confirmed on the website.${publicationItems.current.some((item) => item.state === 'cancelled') ? ' Stopped tasks keep their saved draft changes.' : ''}`
-          : publicationMessage(outcome),
+          : publicationMessage(outcome, submittedCommand?.kind === 'keep'),
       );
-      if (submittedCommand && results) {
+      if (submittedCommand && (results || submittedCommand.kind === 'keep')) {
         await readBack(submittedCommand, results, outcome, false);
         return;
       }
@@ -651,8 +696,8 @@ export function ProductClassificationEditor({
 
   /** Reads the products back and hands what still needs the admin to the list. */
   async function readBack(
-    submitted: CatalogClassificationAssignmentRequest,
-    assignmentResults: CatalogClassificationAssignmentResult['results'],
+    submitted: ClassificationSubmission,
+    assignmentResults: CatalogClassificationAssignmentResult['results'] | null,
     publicationOutcome: BatchUpdateResult | null,
     savedWithoutPublishing: boolean,
   ) {
@@ -757,7 +802,18 @@ export function ProductClassificationEditor({
   }
 
   function review(nextPublish: boolean) {
-    if (!request || (nextPublish && !canPublish) || loadRecovery()) return;
+    if (
+      !request ||
+      (request.kind === 'keep' && !nextPublish) ||
+      (nextPublish && !canPublish) ||
+      loadRecovery()
+    )
+      return;
+    if (request.kind === 'keep') {
+      setPublish(true);
+      setConfirmation(request);
+      return;
+    }
     const { includeSavedRevision: _savedRevision, ...draftRequest } = request;
     setPublish(nextPublish);
     setConfirmation(nextPublish ? { ...draftRequest, includeSavedRevision: true } : draftRequest);
@@ -765,20 +821,52 @@ export function ProductClassificationEditor({
 
   const previewItems = registry
     ? products.map((product, index) => {
-        const previous = readProductSubcategories(product, registry);
+        const keptFamily = productFamilyForDoc(product);
+        const keptQuery = keptFamily
+          ? queries[PRODUCT_FAMILY_OPTIONS.indexOf(keptFamily)]
+          : undefined;
+        const productRegistry = mode === 'keep' ? (keptQuery?.data ?? registry) : registry;
+        const namesUnavailable = mode === 'keep' && keptFamily && !keptQuery?.data;
+        const previous = readProductSubcategories(product, productRegistry);
         const nextIds =
-          mode === 'append' && previous.status === 'valid'
-            ? [...new Set([...previous.subcategoryIds, ...ids])]
+          (mode === 'append' || mode === 'keep') && previous.status === 'valid'
+            ? mode === 'keep'
+              ? previous.subcategoryIds
+              : [...new Set([...previous.subcategoryIds, ...ids])]
             : ids;
         const names = nextIds.map(
-          (id) => registry.children.find((child) => child.id === id)?.name ?? 'Invalid subcategory',
+          (id) =>
+            productRegistry.children.find((child) => child.id === id)?.name ??
+            'Invalid subcategory',
         );
         return (
           <li key={`${product._id}-${index}`} className="min-w-0 break-words py-2 text-sm">
             <span className="font-semibold">{String(product.name ?? product._id)}</span>
             <p>
-              {registry.name}: {names.join(', ') || 'No subcategories'}
+              {mode === 'keep'
+                ? keptFamily
+                  ? namesUnavailable
+                    ? keptFamily
+                    : productRegistry.name
+                  : 'Needs classification'
+                : registry.name}
+              :{' '}
+              {namesUnavailable
+                ? 'Category names unavailable; existing assignments will be kept'
+                : mode === 'keep' && previous.status === 'invalid'
+                  ? 'Existing subcategories need review'
+                  : names.join(', ') || 'No subcategories'}
             </p>
+            {namesUnavailable && keptQuery?.error && (
+              <button
+                type="button"
+                className={buttonClass}
+                disabled={pending || keptQuery.isFetching}
+                onClick={() => void keptQuery.refetch()}
+              >
+                Retry category names
+              </button>
+            )}
           </li>
         );
       })
@@ -795,7 +883,7 @@ export function ProductClassificationEditor({
         {!publish && !recoveryOnly && ' Drafts will not be published.'}
       </p>
       <p className="text-sm text-slate-600">
-        {publicCount} public / {draftCount} drafts
+        At selection: {publicCount} public / {draftCount} drafts
       </p>
       {publicCount > 0 && (
         <p className="text-sm text-amber-900">
@@ -906,7 +994,7 @@ export function ProductClassificationEditor({
           label="Website main category"
           required
           placeholder=""
-          disabled={locked}
+          disabled={locked || mode === 'keep'}
           value={family}
           options={PRODUCT_FAMILY_OPTIONS.map((item, index) => ({
             value: item,
@@ -928,12 +1016,14 @@ export function ProductClassificationEditor({
           disabled={locked}
           value={mode}
           options={[
+            { value: 'keep', label: 'Keep existing classifications' },
             { value: 'replace', label: 'Replace subcategories' },
             { value: 'append', label: 'Append subcategories' },
             { value: 'clear', label: 'Clear subcategories' },
           ]}
           onChange={(next) => {
-            if (next !== 'replace' && next !== 'append' && next !== 'clear') return;
+            if (next !== 'replace' && next !== 'append' && next !== 'clear' && next !== 'keep')
+              return;
             setMode(next);
             setSelected([]);
             setAppliedSuggestion(null);
@@ -942,6 +1032,12 @@ export function ProductClassificationEditor({
           }}
         />
       </fieldset>
+      {mode === 'keep' && (
+        <p className="text-sm text-slate-600">
+          Each product keeps its own main category and subcategories. Products without a category
+          will need classification before publishing.
+        </p>
+      )}
       {query.isPending && <output className="block">Loading categories...</output>}
       {query.error && (
         <div role="alert" className="space-y-2 text-sm text-red-700">
@@ -962,7 +1058,13 @@ export function ProductClassificationEditor({
       {registry && (
         <>
           <fieldset
-            disabled={locked || mode === 'clear' || query.isFetching || Boolean(query.error)}
+            disabled={
+              locked ||
+              mode === 'keep' ||
+              mode === 'clear' ||
+              query.isFetching ||
+              Boolean(query.error)
+            }
             className="min-w-0"
           >
             <legend className="mb-2 text-sm font-semibold">{registry.name} subcategories</legend>
@@ -1024,10 +1126,14 @@ export function ProductClassificationEditor({
           className="space-y-3 border-y border-brand-200 py-3"
         >
           <p className="break-words text-sm">
-            Confirm {mode} for {products.length} products in {registry?.name}?
-            {publish
+            {mode === 'keep'
+              ? `Publish ${products.length} products with their existing classifications? No category changes will be saved.`
+              : `Confirm ${mode} for ${products.length} products in ${registry?.name}?`}
+            {publish && mode !== 'keep'
               ? ' Publish all selected products after classification is confirmed.'
-              : ' Drafts will not be published.'}
+              : mode === 'keep'
+                ? ''
+                : ' Drafts will not be published.'}
           </p>
           {!confirmationCurrent && (
             <p role="alert">
@@ -1061,7 +1167,9 @@ export function ProductClassificationEditor({
         <button
           type="button"
           className={buttonClass}
-          disabled={locked || !request || query.isFetching || Boolean(query.error)}
+          disabled={
+            locked || mode === 'keep' || !request || query.isFetching || Boolean(query.error)
+          }
           onClick={() => review(false)}
         >
           Save classification

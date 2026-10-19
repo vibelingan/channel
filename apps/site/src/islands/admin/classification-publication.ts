@@ -1,10 +1,64 @@
 import {
+  type CatalogClassificationAssignmentRequest,
   CatalogClassificationAssignmentRequestSchema,
   CatalogClassificationAssignmentResultSchema,
+  type CollectionDoc,
 } from '@vibelingan-channel/shared';
+import { z } from 'zod';
 import { AdminApiError, type BatchUpdateResult } from './api.ts';
 import { createPublicationAttempt } from './catalog-product-operation-api.ts';
 import type { PublicationBatchItem } from './catalog-publication-batch.ts';
+
+const KeptClassificationCommandSchema = z
+  .object({
+    kind: z.literal('keep'),
+    products: CatalogClassificationAssignmentRequestSchema.innerType().shape.products,
+    includeSavedRevision: z.literal(true),
+  })
+  .strict();
+export type KeptClassificationCommand = z.infer<typeof KeptClassificationCommandSchema>;
+export type ClassificationSubmission =
+  | CatalogClassificationAssignmentRequest
+  | KeptClassificationCommand;
+
+export function keepClassificationCommand(
+  products: readonly CollectionDoc[],
+): KeptClassificationCommand {
+  const parsed = KeptClassificationCommandSchema.safeParse({
+    kind: 'keep',
+    products: products.map((product) => ({
+      productId: product._id,
+      expectedUpdatedAt: product.updatedAt,
+    })),
+    includeSavedRevision: true,
+  });
+  if (!parsed.success)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'Select 1 to 20 distinct products with current timestamps. Refresh products before publishing.',
+    );
+  return parsed.data;
+}
+
+/** Publish the reviewed versions without claiming a classification write or sending new values. */
+export function keptClassificationPublicationAttempts(input: unknown) {
+  const command = KeptClassificationCommandSchema.parse(input);
+  return command.products.map(({ productId, expectedUpdatedAt }) =>
+    createPublicationAttempt({
+      productId,
+      expectedUpdatedAt,
+      values: {},
+    }),
+  );
+}
+
+export function matchesKeptClassification(before: CollectionDoc, after: CollectionDoc): boolean {
+  return (['productFamily', 'category', 'subcategoryIds'] as const).every(
+    (field) =>
+      Object.hasOwn(before, field) === Object.hasOwn(after, field) &&
+      JSON.stringify(before[field]) === JSON.stringify(after[field]),
+  );
+}
 
 /** All classification receipts must match before any publication attempt is created. */
 export function classificationPublicationAttempts(input: unknown, response: unknown) {

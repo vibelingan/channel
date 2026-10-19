@@ -1738,3 +1738,177 @@ test('product row and bulk Archive use supported updates instead of forbidden de
   expect(actions).not.toContain('batchRemove');
   expect(actions.filter((action) => action === 'update')).toHaveLength(2);
 });
+
+test('20 mixed-category selections publish through Assign category while preserving every original classification', async ({
+  page,
+  request,
+}) => {
+  // @skip-when original publication is disabled; the combined classification test covers its unavailable fallback.
+  test.skip(
+    process.env.E2E_CATALOG_FORMAL !== '1',
+    'This positive original-publication journey requires the formal protocol.',
+  );
+  test.setTimeout(120000);
+  const session = await loginAdmin(request);
+  const prefix = `${e2e.runId} Preserve twenty`;
+  const products: CollectionDoc[] = [];
+  const originals = new Map<string, string>();
+  let assignments = 0;
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  const sameClassification = (before: CollectionDoc, after: CollectionDoc) => {
+    for (const field of ['productFamily', 'category', 'subcategoryIds']) {
+      expect(Object.hasOwn(after, field), `${before._id}: ${field} presence`).toBe(
+        Object.hasOwn(before, field),
+      );
+      expect(after[field], `${before._id}: ${field}`).toEqual(before[field]);
+    }
+  };
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  try {
+    for (let i = 0; i < 20; i++)
+      products.push(
+        await adminAction<CollectionDoc>(
+          request,
+          'create',
+          {
+            collection: 'products',
+            values: {
+              name: `${prefix} ${String(i).padStart(2, '0')}`,
+              description: 'Disposable classified selection.',
+              unitPrice: 5.7,
+              imageIds: ['formal-manual-image'],
+              published: false,
+              archived: false,
+              ...(i % 2
+                ? {
+                    productFamily: 'headphones',
+                    category: 'wired',
+                  }
+                : { productFamily: 'misc' }),
+            },
+          },
+          session.token,
+        ),
+      );
+    await page.addInitScript(({ token, user }) => {
+      localStorage.setItem('channel.token', token);
+      localStorage.setItem('channel.user', JSON.stringify(user));
+    }, session);
+    page.on('request', (event) => {
+      if (!event.url().endsWith('/api/admin') || event.method() !== 'POST') return;
+      const body = event.postDataJSON() as {
+        action?: string;
+        data?: { kind?: string; action?: string; productId?: string; operationId?: string };
+      };
+      if (body.action === 'catalogCategories' && body.data?.kind === 'assignment') assignments++;
+      if (
+        body.action === 'catalogDetailApproval' &&
+        body.data?.action === 'product-operation-start'
+      ) {
+        const id = body.data.productId ?? '';
+        expect(originals.has(id)).toBe(false);
+        const operationId = body.data.operationId ?? '';
+        expect(operationId).toMatch(/^[0-9a-f-]{36}$/);
+        originals.set(id, operationId);
+      }
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/admin');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(prefix);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    for (const product of products)
+      await page
+        .getByRole('row')
+        .filter({ hasText: String(product.name) })
+        .getByRole('checkbox', { name: 'Select row', exact: true })
+        .check();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit website classification', exact: true });
+    await choose(dialog, 'Assignment mode', 'Keep existing classifications');
+    await expect(
+      dialog.getByRole('button', { name: 'Save classification', exact: true }),
+    ).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Save and publish', exact: true }).click();
+    await expect(dialog.getByLabel('Confirm product assignment')).toContainText(
+      'with their existing classifications',
+    );
+    await dialog.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
+    await expect(
+      dialog.getByText('20 products published. Existing classifications were kept.', {
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 60000 });
+    await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
+    expect(assignments).toBe(0);
+    expect(originals.size).toBe(20);
+    for (const before of products) {
+      const after = await read(before._id);
+      expect(after.published).toBe(true);
+      sameClassification(before, after);
+      const state = CatalogProductOperationStatusSchema.parse(
+        await adminAction(
+          request,
+          'catalogDetailApproval',
+          {
+            action: 'product-operation-get',
+            productId: before._id,
+            operationId: originals.get(before._id),
+          },
+          session.token,
+        ),
+      );
+      expect(state.state).toBe('complete');
+      expect(state.current).toBe(true);
+      if (state.state !== 'complete') throw new Error('Missing original completion');
+      const detail = await request.get(
+        `${e2e.apiUrl}/api/products/${encodeURIComponent(before._id)}/detail?revision=${encodeURIComponent(state.completion.revision)}`,
+      );
+      expect(detail.status()).toBe(200);
+      const body = await detail.json();
+      expect(body.ok).toBe(true);
+      expect(body.data._id).toBe(before._id);
+      expect(body.data.revision).toBe(state.completion.revision);
+    }
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await page.unrouteAll({ behavior: 'wait' });
+    for (const before of products) {
+      const after = await read(before._id);
+      if (after.published === true) {
+        const operationId = originals.get(before._id);
+        expect(typeof operationId).toBe('string');
+        expect(
+          after.catalogDetailApprovalReceipt &&
+            typeof after.catalogDetailApprovalReceipt === 'object'
+            ? Reflect.get(after.catalogDetailApprovalReceipt, 'operationId')
+            : undefined,
+        ).toBe(operationId);
+        await adminAction(
+          request,
+          'update',
+          {
+            collection: 'products',
+            id: before._id,
+            expectedUpdatedAt: after.updatedAt,
+            values: { published: false },
+          },
+          session.token,
+        );
+      }
+      const restored = await read(before._id);
+      expect(restored.published).toBe(false);
+      sameClassification(before, restored);
+      expect(
+        (
+          await request.get(`${e2e.apiUrl}/api/products/${encodeURIComponent(before._id)}/detail`)
+        ).status(),
+      ).toBe(404);
+    }
+    expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(404);
+  }
+});

@@ -54,6 +54,10 @@ for (const engine of ['chromium', 'webkit'] as const)
       const groups = {
         twenty: 20,
         cold: 20,
+        preserve: 20,
+        preservepartial: 3,
+        preservelost: 1,
+        preserveconflict: 1,
         lost: 1,
         cancel: 1,
         partial: 2,
@@ -72,8 +76,27 @@ for (const engine of ['chromium', 'webkit'] as const)
           subcategoryIds: [],
           ...(group === 'partial' && index === 1 ? { imageIds: [] } : {}),
           ...(group === 'cold' ? { imageIds: ['cold-image'] } : {}),
+          ...(group === 'preserve' && index % 2
+            ? {
+                productFamily: 'headphones',
+                category: 'wired',
+                subcategoryIds: ['headphones-wired'],
+              }
+            : {}),
         })),
       );
+      for (const product of manifest.filter((item) => item._id.includes('-preserve'))) {
+        const index = Number(product._id.split('-').at(-1));
+        if (index % 4 === 0) Reflect.deleteProperty(product, 'subcategoryIds');
+        if (index % 4 === 2) {
+          Reflect.set(product, 'productFamily', 'headphones');
+          Reflect.set(product, 'category', 'wired');
+          Reflect.deleteProperty(product, 'subcategoryIds');
+        }
+        if (product._id.includes('-preservepartial-') && index === 2)
+          for (const field of ['productFamily', 'category', 'subcategoryIds'])
+            Reflect.deleteProperty(product, field);
+      }
       const rows = JSON.parse(h.bytes());
       rows.products.push(...manifest);
       rows.images.push({
@@ -293,6 +316,15 @@ for (const engine of ['chromium', 'webkit'] as const)
           page.getByRole('button', { name: 'Save and publish', exact: true }),
         ).toBeEnabled();
       };
+      const keep = async () => {
+        await page
+          .getByRole('combobox', { name: 'Assignment mode', exact: true })
+          .and(page.locator('button'))
+          .click();
+        await page
+          .getByRole('option', { name: 'Keep existing classifications', exact: true })
+          .click();
+      };
       const publish = async () => {
         await page.getByRole('button', { name: 'Save and publish', exact: true }).click();
         await page.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
@@ -355,6 +387,149 @@ for (const engine of ['chromium', 'webkit'] as const)
             await capture('cold-twenty');
             await page.getByRole('button', { name: 'Done', exact: true }).click();
             await expect(page.getByText('Classification closed')).toBeVisible();
+          },
+        );
+        await t.test(
+          '20 mixed-classification drafts keep each category without any assignment RPC, publish and read back original receipts',
+          async () => {
+            await open('preserve');
+            const assignmentsBefore = actions.filter(
+              (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+            ).length;
+            const startsBefore = starts.size;
+            await keep();
+            await expect(
+              page.getByRole('button', { name: 'Save classification', exact: true }),
+            ).toBeDisabled();
+            await expect(page.getByLabel('Selected product preview')).toContainText('Wired');
+            await publish();
+            await expect(
+              page.getByText('20 products published. Existing classifications were kept.', {
+                exact: true,
+              }),
+            ).toBeVisible({ timeout: 60000 });
+            await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
+            assert.equal(starts.size - startsBefore, 20);
+            assert.equal(
+              actions.filter(
+                (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+              ).length,
+              assignmentsBefore,
+            );
+            for (const before of manifest.filter((p) => p._id.includes('-preserve-'))) {
+              const after = await h.adapter.get('products', before._id);
+              assert.ok(after);
+              assert.equal(after.published, true);
+              for (const field of ['productFamily', 'category', 'subcategoryIds']) {
+                assert.equal(
+                  Object.hasOwn(after, field),
+                  Object.hasOwn(before, field),
+                  `${before._id}: ${field} presence`,
+                );
+                assert.deepEqual(Reflect.get(after ?? {}, field), Reflect.get(before, field));
+              }
+            }
+            await capture('preserved-twenty');
+            await page.getByRole('button', { name: 'Done', exact: true }).click();
+          },
+        );
+        await t.test(
+          'keeping categories publishes valid siblings and leaves a missing category untouched',
+          async () => {
+            await open('preservepartial');
+            await keep();
+            const assignmentsBefore = actions.filter(
+              (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+            ).length;
+            await publish();
+            await expect(
+              page.getByText(
+                '2 of 3 published. Existing classifications were kept; check the results below.',
+                { exact: true },
+              ),
+            ).toBeVisible({ timeout: 30000 });
+            await expect(page.locator('section[role="alert"]')).toContainText(
+              'Choose a website category before publishing.',
+            );
+            assert.equal(
+              actions.filter(
+                (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+              ).length,
+              assignmentsBefore,
+            );
+            const missing = await h.adapter.get('products', `${engine}-preservepartial-2`);
+            assert.ok(missing);
+            assert.equal(missing.published, false);
+            for (const field of ['productFamily', 'category', 'subcategoryIds'])
+              assert.equal(Object.hasOwn(missing, field), false);
+          },
+        );
+        await t.test(
+          'kept-classification publication recovers a lost reply by reading the same original without assignment',
+          async () => {
+            await open('preservelost');
+            await keep();
+            blockPublic = true;
+            loseCommit = true;
+            const assignmentsBefore = actions.filter(
+              (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+            ).length;
+            await publish();
+            await expect(page.getByText(/couldn.t be checked/)).toBeVisible({ timeout: 30000 });
+            const startsBefore = starts.size;
+            const writesBefore = actions.filter(
+              (a) =>
+                a.action === 'catalogDetailApproval' && a.data.action !== 'product-operation-get',
+            ).length;
+            blockPublic = false;
+            await page
+              .getByRole('button', { name: 'Check original publication', exact: true })
+              .click();
+            await expect(
+              page.getByText('1 product published. Existing classifications were kept.', {
+                exact: true,
+              }),
+            ).toBeVisible();
+            await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
+            assert.equal(starts.size, startsBefore);
+            assert.equal(
+              actions.filter(
+                (a) =>
+                  a.action === 'catalogDetailApproval' && a.data.action !== 'product-operation-get',
+              ).length,
+              writesBefore,
+            );
+            assert.equal(
+              actions.filter(
+                (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+              ).length,
+              assignmentsBefore,
+            );
+          },
+        );
+        await t.test(
+          'kept-classification publication refuses a draft edited after the reviewed selection',
+          async () => {
+            await open('preserveconflict');
+            await keep();
+            concurrentEdit = true;
+            const assignmentsBefore = actions.filter(
+              (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+            ).length;
+            await publish();
+            await expect(page.locator('section[role="alert"]')).toContainText(
+              'The reviewed product changed. Refresh and review it again.',
+            );
+            assert.equal(
+              (await h.adapter.get('products', `${engine}-preserveconflict-0`))?.published,
+              false,
+            );
+            assert.equal(
+              actions.filter(
+                (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
+              ).length,
+              assignmentsBefore,
+            );
           },
         );
         await t.test(
@@ -758,6 +933,15 @@ for (const engine of ['chromium', 'webkit'] as const)
             }
           }
           assert.equal((await h.adapter.get('products', product._id))?.published, false);
+          if (product._id.includes('-preserve')) {
+            const restored = await h.adapter.get('products', product._id);
+            assert.ok(restored);
+            for (const field of ['productFamily', 'category', 'subcategoryIds']) {
+              assert.equal(Object.hasOwn(restored, field), Object.hasOwn(product, field));
+              assert.deepEqual(restored[field], Reflect.get(product, field));
+            }
+          }
+
           assert.equal(
             (
               await handlePublicApiEvent(
