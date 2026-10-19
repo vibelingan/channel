@@ -1447,3 +1447,5 @@ Save and publish 采用全部分类 saved 回执的 updatedAt 创建一次原尝
 20新增（12准备/1能力/6实际浏览器子流程/1冷20集成）；site1157、Node20核心163及4实际暖20/暖100/缺分类/冷20通过，冷20 UI两引擎完成后均恢复。最终正式后台8/8、关闭能力1/1，均无失败/skip；前序r7旧拦截1过1败6未跑留档。11故障22重叠、3SHA恢复；16最终截图/哈希，已看390缓存错误与1280冷20。类型、11Biome、15页构建通过。缓存StrictMode请求数红测未计产品缺陷，后续实际按钮enabled反例才是产品红测；文案明确记录、字节、BUSY三阶段，未把局部通过等同实际云完成。
 
 实际review11文件与handler/工作流/共享队列/图片守卫。分类正式UI门槛关闭，其他P3/P4/P5及真实3时钟resync/20件test发布恢复、原JSON80归因和云性能仍开放；后端精确制品/SDK657/14进程仍9efd824c，详见[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)，fullDeliveryReady=false。
+
+P3e7d5 exact review（6359cc38）发现一处测试清理缺口：colliding readback gate 未登记到外层 finally，内层 try 前的断言失败可能卡住 unrouteAll，阻止恢复。已登记 release，正式构建后台 r11 八条再过，0 skip/flaky/retry；生产源码未变，保留本轮未部署状态。

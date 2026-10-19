@@ -1526,6 +1526,7 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     let releaseReadback: (() => void) | undefined;
     const readbackGate = new Promise<void>((resolve) => {
       releaseReadback = resolve;
+      releaseGates.push(resolve);
     });
     await page.route('**/api/admin', async (route) => {
       const body: unknown = route.request().postDataJSON();
