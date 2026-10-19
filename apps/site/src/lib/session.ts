@@ -53,14 +53,28 @@ export function getUser(): SessionUser | null {
 }
 
 export function setSession(token: string, user: SessionUser): void {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    throw new SessionApiError(
+      'STORAGE_UNAVAILABLE',
+      'This browser could not save your session. Allow site storage, then sign in again.',
+    );
+  }
   window.dispatchEvent(new Event(AUTH_EVENT));
 }
 
 export function clearSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    throw new SessionApiError(
+      'STORAGE_UNAVAILABLE',
+      'This browser could not confirm sign out. Allow site storage, then try signing out again.',
+    );
+  }
   window.dispatchEvent(new Event(AUTH_EVENT));
 }
 

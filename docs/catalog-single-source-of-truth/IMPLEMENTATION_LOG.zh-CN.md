@@ -1422,3 +1422,10 @@ getToken/getUser共用try内的真实存储读取，getter/getItem抛错、无�
 新增createPublicationBatch：20分组至100件、模块共享4、冻结选择、后台me确认及原token/actor/endpoint绑定，首次请求前持久指针，只有同scope/digest/revision的公开确认计成功。撤权/存储/observer/取消停后续写，活动worker全部settle后才返回，finally释放名额与单商品producer保护。35新增（32控制+3实际默认HTTP/Admin/JSON/PNG），20/100混合现有分类共图全部确认并按自己receipt撤回，字段存在性/分类保留、404/有效引用0；无主分类样本不补分类。旧20/100任务批量恢复均historical、无新start/公开GET且JSON不变。
 
 site1075/Node20客户端276、站点/E2E/既有测试类型、3Biome/15页构建通过；6358相关证据含未变包，完整Node203349仍5024700b，后端657SDK/14进程仍9efd824c。12故障25重叠/SHA恢复；首轮游标断言被unknown捕获掩盖的缺口已移到外层修复。后台撤权和错误确认两红修复，原生组合身份对照纠正跨商品UUID过严约束，稀疏项拒绝。review实际三代码/测试及runner/check/journal/api/native身份/UI调用链，纠正模块共享4与跨标签全局锁、夹具耗时与云P95措辞。客户UI仍旧路径、旧JSON80原因与P5/真实test门槛开放，详见[P3e7d2](P3e7d2_SHARED_PUBLICATION_BATCH.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d3 会话存储失败反馈与旧回应保护
+
+写/删失败转明确SessionApiError，原后台错误卡片可重试同一退出目标；两种AccountMenu在部分清除后转未登录仍有Retry sign out。检查中旧me成功/401回应不得覆盖或退出新账号，按绑定token/账号重查；错误消息和重试目标用同一状态类型，不伪称两次Storage调用原子。30新增＝8Node+20实际UI子流程+2浏览器父项；site1105/Node20客户端284、站点/E2E/既有测试类型、6Biome/15页通过，6388相关证据含未变包。
+
+10故障29重叠/3SHA恢复；首轮第10项55秒看门狗未计通过、旧stdout缺口有工具摘要，增加可见性断言和超时留档后全轮检出。部分退出丢重试入口有明确红测后修复；30小流程最终全绿。16合成截图唯一r4目录/哈希，已看1280后台卡片与390部分退出；未冒称真实云账号或整站Header验收。review实际6代码/测试及调用者/React文档，纠正“所有账号切换/原子存储已修复”措辞：仅检查中的竞争，本已进入后台的表单/身份组合仍P4。后端SDK/精确进程仍9efd824c，原UI/P5/JSON80和真实test门槛开放，详见[P3e7d3](P3e7d3_SESSION_STORAGE_FEEDBACK.zh-CN.md)，fullDeliveryReady=false。

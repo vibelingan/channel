@@ -4,6 +4,7 @@ import {
   canAccessAdmin,
   clearSession,
   getToken,
+  getUser,
   isLoggedIn,
   setSession,
 } from '../../lib/session.ts';
@@ -11,7 +12,10 @@ import { useSession } from '../auth/useSession.ts';
 import { DashboardShell } from './DashboardShell.tsx';
 import { AdminApiError, fetchCurrentUser } from './api.ts';
 
-type GateState = 'checking' | 'authorized' | 'denied' | 'error';
+type LogoutDestination = 'login' | 'site';
+type GateState =
+  | { kind: 'checking' | 'authorized' | 'denied' }
+  | { kind: 'error'; message: string; retryLogout?: LogoutDestination };
 
 /** Redirect helper preserving the intended destination. */
 function gotoLogin() {
@@ -30,9 +34,10 @@ function isInvalidSessionPreflight(error: unknown): boolean {
 
 export function AdminApp() {
   const { ready } = useSession();
-  const [gate, setGate] = useState<GateState>('checking');
-  const [gateError, setGateError] = useState('');
+  const [gate, setGate] = useState<GateState>({ kind: 'checking' });
   const redirectingRef = useRef(false);
+  const logoutDestination = useRef<LogoutDestination | null>(null);
+  const [verification, recheck] = useState(0);
 
   const queryClient = useMemo(
     () =>
@@ -42,13 +47,32 @@ export function AdminApp() {
     [],
   );
 
+  const finishSession = useCallback(
+    (destination: LogoutDestination) => {
+      if (redirectingRef.current) return;
+      redirectingRef.current = true;
+      logoutDestination.current = destination;
+      try {
+        clearSession();
+        queryClient.clear();
+        if (destination === 'login') gotoLogin();
+        else window.location.href = '/';
+      } catch (error) {
+        queryClient.clear();
+        setGate({
+          kind: 'error',
+          message:
+            error instanceof Error ? error.message : 'Sign out could not be confirmed. Try again.',
+          retryLogout: destination,
+        });
+        redirectingRef.current = false;
+      }
+    },
+    [queryClient],
+  );
   const redirectToLogin = useCallback(() => {
-    if (redirectingRef.current) return;
-    redirectingRef.current = true;
-    clearSession();
-    queryClient.clear();
-    gotoLogin();
-  }, [queryClient]);
+    if (!logoutDestination.current) finishSession('login');
+  }, [finishSession]);
 
   // Any UNAUTHORIZED response (expired token) bounces back to login.
   useEffect(() => {
@@ -68,39 +92,46 @@ export function AdminApp() {
 
   // Guard: a stored token must still be accepted by the API before the dashboard mounts.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || logoutDestination.current) return;
     if (!isLoggedIn()) {
       redirectToLogin();
       return;
     }
 
     let active = true;
-    setGate('checking');
-    setGateError('');
+    const checkedToken = getToken();
+    const checkedActor = getUser()?.id ?? null;
+    const stale = () => {
+      if (!active) return true;
+      if (getToken() === checkedToken && (getUser()?.id ?? null) === checkedActor) return false;
+      if (!getToken()) redirectToLogin();
+      else recheck(verification + 1);
+      return true;
+    };
+    queryClient.clear();
+    setGate({ kind: 'checking' });
     fetchCurrentUser()
       .then(({ user }) => {
-        if (!active) return;
-        const token = getToken();
-        if (token) setSession(token, user);
-        setGate(canAccessAdmin(user.role) ? 'authorized' : 'denied');
+        if (stale()) return;
+        setSession(checkedToken, user);
+        setGate({ kind: canAccessAdmin(user.role) ? 'authorized' : 'denied' });
       })
       .catch((error: unknown) => {
-        if (!active) return;
+        if (stale()) return;
         if (isInvalidSessionPreflight(error)) {
           redirectToLogin();
           return;
         }
         const message = error instanceof Error ? error.message : 'Unable to verify your session.';
-        setGateError(message);
-        setGate('error');
+        setGate({ kind: 'error', message });
       });
 
     return () => {
       active = false;
     };
-  }, [ready, redirectToLogin]);
+  }, [ready, verification, queryClient, redirectToLogin]);
 
-  if (!ready || gate === 'checking') {
+  if (!ready || gate.kind === 'checking') {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <output
@@ -117,7 +148,7 @@ export function AdminApp() {
     );
   }
 
-  if (gate === 'denied') {
+  if (gate.kind === 'denied') {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -136,18 +167,22 @@ export function AdminApp() {
     );
   }
 
-  if (gate === 'error') {
+  if (gate.kind === 'error') {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <h1 className="font-display text-xl font-semibold text-ink">Session check failed</h1>
-          <p className="mt-2 text-sm text-ink-soft">{gateError}</p>
+          <p className="mt-2 text-sm text-ink-soft">{gate.message}</p>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              const destination = gate.retryLogout;
+              if (destination) finishSession(destination);
+              else window.location.reload();
+            }}
             className="mt-6 inline-flex rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800"
           >
-            Try again
+            {gate.retryLogout ? 'Try signing out again' : 'Try again'}
           </button>
         </div>
       </main>
@@ -160,9 +195,7 @@ export function AdminApp() {
     <QueryClientProvider client={queryClient}>
       <DashboardShell
         onLogout={() => {
-          clearSession();
-          queryClient.clear();
-          window.location.href = '/';
+          finishSession('site');
         }}
       />
     </QueryClientProvider>

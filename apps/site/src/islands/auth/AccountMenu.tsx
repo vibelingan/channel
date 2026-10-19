@@ -17,6 +17,7 @@ interface Props {
 export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
   const { user, loggedIn, isAdminUser, ready } = useSession();
   const [open, setOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +32,11 @@ export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
   // Avoid a hydration flash: render nothing until the session is read.
   if (!ready) return <span className="inline-block h-9 w-24" />;
 
+  const logoutNotice = logoutError ? (
+    <p role="alert" className="mt-2 basis-full text-sm text-red-700">
+      {logoutError}
+    </p>
+  ) : null;
   if (!loggedIn || !user) {
     const link = dark ? 'text-white/90 hover:text-white' : 'text-ink-soft hover:text-brand-700';
     return (
@@ -55,6 +61,16 @@ export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
             Admin portal
           </a>
         )}
+        {logoutNotice}
+        {logoutError && (
+          <button
+            type="button"
+            onClick={signOut}
+            className="min-h-11 rounded-lg px-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            Retry sign out
+          </button>
+        )}
       </div>
     );
   }
@@ -68,10 +84,16 @@ export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
       <span className="max-w-28 truncate">{user.username || user.email}</span>
     </>
   );
-  const signOut = () => {
-    clearSession();
-    window.location.href = '/';
-  };
+  function signOut() {
+    try {
+      clearSession();
+      window.location.href = '/';
+    } catch (error) {
+      setLogoutError(
+        error instanceof Error ? error.message : 'Sign out could not be confirmed. Try again.',
+      );
+    }
+  }
 
   if (layout === 'navigation')
     return (
@@ -99,6 +121,7 @@ export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
         >
           Sign out
         </button>
+        {logoutNotice}
       </div>
     );
 
@@ -143,6 +166,7 @@ export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
           </button>
         </div>
       )}
+      {logoutNotice}
     </div>
   );
 }
