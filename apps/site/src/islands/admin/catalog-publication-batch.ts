@@ -357,6 +357,45 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
             if (check.status) retain({ ...latest, scope: check.scope });
             if (
               mode === 'cancel' &&
+              check.reason === 'unknown' &&
+              !check.status &&
+              check.error?.code === 'NOT_FOUND' &&
+              !latest.originalStart &&
+              latest.scope.inputDigest === undefined
+            ) {
+              const stopped = await managePublication(
+                {
+                  action: 'product-operation-stop',
+                  productId: latest.scope.productId,
+                  operationId: latest.scope.operationId,
+                  intent: 'publish',
+                },
+                { signal, request },
+              );
+              guard();
+              if (stopped.status.state !== 'complete' && !stopped.status.cancelledAt)
+                throw new AdminApiError(
+                  'INVALID_RESPONSE',
+                  'The original task did not confirm its stop. Check it again.',
+                );
+              retain({
+                ...latest,
+                scope: {
+                  productId: stopped.status.productId,
+                  operationId: stopped.status.operationId,
+                  inputDigest: stopped.status.inputDigest,
+                },
+              });
+              check = await (options.check ?? checkPublication)(latest.scope, {
+                signal,
+                request,
+                fetch: publicFetch,
+              });
+              guard();
+              validateCheck(check, latest.scope);
+            }
+            if (
+              mode === 'cancel' &&
               !check.status &&
               check.error?.code === 'NOT_FOUND' &&
               latest.originalStart &&

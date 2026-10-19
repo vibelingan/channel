@@ -534,3 +534,45 @@ test('the default publication client preserves BUSY with one actual fetch and no
   );
   assert.equal(calls, 1);
 });
+
+test('atomic stop sends no private body and rejects extra data or another publication intent before transport', async () => {
+  let requests = 0;
+  const command = {
+    action: 'product-operation-stop',
+    productId: binding.productId,
+    operationId,
+    intent: 'publish',
+  };
+  const cancelled = {
+    ok: true,
+    kind: 'product-operation',
+    productId: binding.productId,
+    operationId,
+    inputDigest: binding.inputDigest,
+    intent: 'publish',
+    createdAt: at,
+    state: 'reserved',
+    current: false,
+    revisionCurrent: true,
+    expired: false,
+    cancelledAt: at,
+  };
+  const request = async (input: PublicationCommand) => {
+    requests++;
+    assert.deepEqual(input, command);
+    return cancelled;
+  };
+  const reply = await managePublication(command, { request });
+  assert.equal(reply.status.state, 'reserved');
+  assert.equal(requests, 1);
+  for (const invalid of [
+    { ...command, values: { description: 'Private form body' } },
+    { ...command, intent: 'save-draft' },
+    { ...command, expectedUpdatedAt: at },
+  ])
+    await assert.rejects(
+      managePublication(invalid, { request }),
+      (error: unknown) => error instanceof AdminApiError && error.code === 'VALIDATION_ERROR',
+    );
+  assert.equal(requests, 1);
+});

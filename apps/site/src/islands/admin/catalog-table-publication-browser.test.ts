@@ -412,6 +412,76 @@ for (const engine of ['chromium', 'webkit'] as const)
             ).toBeVisible();
           },
         );
+
+        await t.test(
+          'a private editor request missing on the server can be stopped after reload without restoring its body',
+          async () => {
+            await open();
+            const id = selected[0];
+            assert.ok(id);
+            const before = await h.adapter.get('products', id);
+            assert.ok(before);
+            const count = starts().length;
+            const continued = commands.filter(
+              (command) => command.action === 'product-operation-continue',
+            ).length;
+            dropStart = true;
+            const state = await page.evaluate(
+              async ({ id, updatedAt }) => {
+                const api = await import(
+                  new URL('/src/islands/admin/catalog-product-operation-api.ts', location.href).href
+                );
+                const runner = await import(
+                  new URL('/src/islands/admin/catalog-publication-batch.ts', location.href).href
+                );
+                const batch = runner.createPublicationBatch();
+                const result = await batch.run([
+                  api.createPublicationAttempt({
+                    productId: id,
+                    expectedUpdatedAt: updatedAt,
+                    values: {
+                      description: 'Private editor text must never enter recovery storage',
+                    },
+                  }),
+                ]);
+                return result.items[0]?.state;
+              },
+              { id, updatedAt: before.updatedAt ?? null },
+            );
+            assert.equal(state, 'unknown');
+            const original = starts().at(-1);
+            assert.ok(original);
+            assert.equal(
+              await page.evaluate(() =>
+                Object.values(localStorage).some((value) =>
+                  String(value).includes('Private editor text must never enter recovery storage'),
+                ),
+              ),
+              false,
+            );
+            await page.reload();
+            const inbox = page.getByRole('region', { name: 'Publication recovery', exact: true });
+            await expect(inbox).toContainText('Original publication tasks (1)');
+            await inbox
+              .getByRole('button', { name: 'Stop original publications', exact: true })
+              .click();
+            await expect(inbox).toContainText('Publication stopped. Saved draft changes remain.');
+            assert.equal(starts().length, count + 1, 'only the original failed start was sent');
+            assert.equal(
+              commands.filter((command) => command.action === 'product-operation-continue').length,
+              continued,
+            );
+            assert.equal(
+              commands.filter(
+                (command) =>
+                  command.action === 'product-operation-stop' &&
+                  command.operationId === original.operationId,
+              ).length,
+              1,
+            );
+            assert.deepEqual(await h.adapter.get('products', id), before);
+          },
+        );
         assert.deepEqual(errors, []);
       } finally {
         releasePublic();

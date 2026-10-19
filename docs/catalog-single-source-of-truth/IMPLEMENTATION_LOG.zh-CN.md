@@ -1506,3 +1506,14 @@ Review实际19代码/测试与原生事务、monotonicProductTime、validateProd
 结果：DB2254/2254、Admin638/638，Node20相关141/141，最终Stop11/11，无失败/跳过；Admin与local-server类型、4文件Biome、SDK gate、Admin node20 build通过。3个源码故障真实检出且SHA恢复，构建hash及4源码hash见`atomic-stop-verification.json`。初次类型检查指出新测试对complete联合类型访问cancelledAt，已用严格判别修正；没有放松生产schema。
 
 未新增SDK调用、shim、云集合/环境变量；继续原分支。没有部署或真实商品变更，clientWired=false/fullDeliveryReady=false。精确提交审查另记本地侧车；当前全局pre-commit的Biome --silent参数错误仍存在，显式选文件检查才是lint证据。
+
+
+## P4c2：含私有编辑的缺失start可在刷新后停止（2026-10-20）
+
+见[P4c2](P4c2_PRIVATE_INPUT_STOP.zh-CN.md)。客户端在原Get明确NOT_FOUND且指针尚无digest/可重放空输入时，调用原子Stop并严格检查终态及原Root。丢失的私有正文不重建、不缓存、不重放；不把绑定Root丢失当作普通未开始。旧空patch恢复和原有创建/分类/表格流程保留。
+
+审查5个代码/测试文件：publication operation API及测试、共享batch、original-start集成、实际表格浏览器宿主测试。核对消费链为Inbox→recoverTablePublication→batch→严格Stop指令→P4c1同Root事务→Root读回→清除本地指针；角色和endpoint每一步仍受保护。具体文案由“无法确认停止”的笼统说法改成“The original task did not confirm its stop. Check it again.”，配合现有Check/Continue/Stop按钮；未要求重输原正文。核对实际DB字段、图片、nonce、请求数、localStorage文本及恢复404。
+
+全site1249通过/0失败/1环境开关图库（后者显式1/1通过）；Node20相关117通过；两浏览器加相关原请求22通过，含新增无正文恢复流程；构建15页、构建后表格20件恢复1/1；5文件Biome和类型通过；2个源码故障断言检出并恢复SHA。记录在`private-input-stop-verification.json`及同前缀日志。最初测试对象联合类型和一次不可达重复测试块被类型检查检出后纠正，没有修改生产契约来迁就测试。
+
+完成的是停止出口，完整编辑保存/新增媒体/live刷新仍待接线。无部署或真实商品变更；原分支继续，fullDeliveryReady=false。

@@ -27,6 +27,9 @@ const command = z.discriminatedUnion('action', [
   start,
   scope.extend({ action: z.literal('product-operation-get') }).strict(),
   scope
+    .extend({ action: z.literal('product-operation-stop'), intent: z.literal('publish') })
+    .strict(),
+  scope
     .extend({
       action: z.literal('product-operation-continue'),
       inputDigest: digest,
