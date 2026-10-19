@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { catalogFailureIssue } from '@vibelingan-channel/shared/catalog-issues';
 import { AdminApiError } from './api.ts';
 import {
   type PublicationCommand,
@@ -745,3 +746,196 @@ test('an observer receives the effective recovery checkpoint even when a plain g
   assert.equal(result.reason, 'paused');
   assert.deepEqual(observed, { scope, referenceRecovery: cursor });
 });
+
+for (const phase of ['reserved', 'saved', 'staging'])
+  test(`one transient CONFLICT at ${phase} is rechecked before continuing the original task`, async () => {
+    const calls: PublicationCommand[] = [];
+    const waits: number[] = [];
+    let writes = 0;
+    const result = await runPublication(scope, {
+      now: () => 0,
+      wait: async (ms) => {
+        waits.push(ms);
+      },
+      request: async (command) => {
+        calls.push(structuredClone(command));
+        if (command.action === 'product-operation-continue') {
+          if (++writes === 1) throw new AdminApiError('CONFLICT', 'Temporary refusal');
+          return status('complete');
+        }
+        return phase === 'staging' ? staging() : status(phase);
+      },
+    });
+    assert.equal(result.reason, 'committed', JSON.stringify(result));
+    assert.deepEqual(
+      calls.map((x) => x.action),
+      [
+        'product-operation-get',
+        'product-operation-continue',
+        'product-operation-get',
+        'product-operation-continue',
+      ],
+    );
+    assert.ok(calls.every((x) => x.operationId === operationId));
+    assert.equal(writes, 2);
+    assert.deepEqual(waits, [400]);
+  });
+
+test('repeated CONFLICT stops after one recovery and retains the original error', async () => {
+  let writes = 0;
+  let reads = 0;
+  const result = await runPublication(scope, {
+    now: () => 0,
+    wait: async () => {},
+    request: async (command) => {
+      if (command.action === 'product-operation-continue') {
+        writes++;
+        throw new AdminApiError('CONFLICT', 'Persistent refusal');
+      }
+      reads++;
+      return status();
+    },
+  });
+  assert.equal(writes, 2);
+  assert.equal(reads, 3);
+  assert.equal(result.reason, 'needs-action');
+  assert.equal(result.error?.message, 'Persistent refusal');
+  assert.equal(result.scope.operationId, operationId);
+});
+
+test('progress does not renew the single CONFLICT recovery allowance', async () => {
+  let writes = 0;
+  const result = await runPublication(scope, {
+    now: () => 0,
+    wait: async () => {},
+    request: async (command) => {
+      if (command.action === 'product-operation-continue') {
+        writes++;
+        if (writes === 2) return staging();
+        throw new AdminApiError('CONFLICT', 'Persistent refusal');
+      }
+      return status();
+    },
+  });
+  assert.equal(result.reason, 'needs-action');
+  assert.equal(writes, 3);
+});
+
+for (const changed of ['expired', 'revision', 'cancelled', 'stale'])
+  test(`CONFLICT with ${changed} original task never retries the continuation`, async () => {
+    let writes = 0;
+    let reads = 0;
+    const waits: number[] = [];
+    const result = await runPublication(scope, {
+      wait: async (ms) => {
+        waits.push(ms);
+      },
+      request: async (command) => {
+        if (command.action === 'product-operation-continue') {
+          writes++;
+          throw new AdminApiError('CONFLICT', 'Refused');
+        }
+        if (++reads === 1) return status();
+        return status(
+          'saved',
+          changed === 'expired'
+            ? { expired: true }
+            : changed === 'revision'
+              ? { revisionCurrent: false }
+              : changed === 'cancelled'
+                ? { current: false, cancelledAt: at }
+                : { current: false },
+        );
+      },
+    });
+    assert.deepEqual(waits, []);
+    assert.equal(writes, 1);
+    assert.equal(reads, 2);
+    assert.equal(result.reason, changed === 'cancelled' ? 'cancelled' : 'needs-action');
+  });
+
+test('a CONFLICT with an explicit review issue stays actionable without automatic retries', async () => {
+  const issue = {
+    code: 'INVALID_VALUE' as const,
+    stage: 'source' as const,
+    path: 'description',
+    severity: 'error' as const,
+    remedy: 'review-change' as const,
+  };
+  let writes = 0;
+  const result = await runPublication(scope, {
+    request: async (command) => {
+      if (command.action === 'product-operation-continue') {
+        writes++;
+        throw new AdminApiError('CONFLICT', 'Review required', [issue]);
+      }
+      return status();
+    },
+  });
+  assert.equal(writes, 1);
+  assert.equal(result.reason, 'needs-action');
+  assert.deepEqual(result.error?.issues, [issue]);
+});
+
+test('abort during CONFLICT backoff pauses the same task before another write', async () => {
+  const controller = new AbortController();
+  let writes = 0;
+  const result = await runPublication(scope, {
+    signal: controller.signal,
+    wait: async () => {
+      controller.abort();
+    },
+    request: async (command) => {
+      if (command.action === 'product-operation-continue') {
+        writes++;
+        throw new AdminApiError('CONFLICT', 'Refused');
+      }
+      return status();
+    },
+  });
+  assert.equal(writes, 1);
+  assert.equal(result.reason, 'paused');
+  assert.equal(result.scope.operationId, operationId);
+});
+
+test('the generic HTTP INPUT_CHANGED fallback can recover only after a current original receipt', async () => {
+  let writes = 0;
+  const result = await runPublication(scope, {
+    wait: async () => {},
+    request: async (command) => {
+      if (command.action === 'product-operation-continue') {
+        if (++writes === 1)
+          throw new AdminApiError('CONFLICT', 'The reviewed product changed.', [
+            catalogFailureIssue('CONFLICT'),
+          ]);
+        return status('complete');
+      }
+      return status();
+    },
+  });
+  assert.equal(result.reason, 'committed');
+  assert.equal(writes, 2);
+});
+
+for (const details of [
+  { expected: { maxCount: 100 } },
+  { observed: { count: 101 } },
+  { path: 'description' },
+  { severity: 'warning' },
+] as const)
+  test(`specific conflict evidence is never treated as a generic HTTP fallback ${JSON.stringify(details)}`, async () => {
+    let writes = 0;
+    const issue = { ...catalogFailureIssue('CONFLICT'), ...details };
+    const result = await runPublication(scope, {
+      request: async (command) => {
+        if (command.action === 'product-operation-continue') {
+          writes++;
+          throw new AdminApiError('CONFLICT', 'Review the evidence', [issue]);
+        }
+        return status();
+      },
+    });
+    assert.equal(result.reason, 'needs-action');
+    assert.equal(writes, 1);
+    assert.equal(result.error?.issues.length, 1);
+  });

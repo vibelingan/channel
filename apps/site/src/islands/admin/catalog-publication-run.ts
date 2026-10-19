@@ -61,6 +61,19 @@ const describe = (error: unknown): Failure =>
         message: 'Publication could not be checked. Check its current status.',
         issues: [],
       };
+function genericConflict(issues: readonly CatalogIssue[]) {
+  // The HTTP adapter adds this fallback when the native failure has no field diagnostics.
+  return (
+    issues.length === 0 ||
+    (issues.length === 1 &&
+      issues[0]?.code === 'INPUT_CHANGED' &&
+      issues[0].stage === 'commit' &&
+      issues[0].path === 'product' &&
+      issues[0].severity === 'error' &&
+      issues[0].remedy === 'review-change' &&
+      Object.keys(issues[0]).length === 5)
+  );
+}
 function delay(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     signal.throwIfAborted();
@@ -151,6 +164,7 @@ export async function runPublication(
   let observerError: unknown;
   let paused = false;
   let idle = 0;
+  let conflictRetried = false;
   let prior = '';
   const result = (
     reason: PublicationRunResult['reason'],
@@ -380,7 +394,11 @@ export async function runPublication(
         }
         const confirmed = terminal();
         if (confirmed) return confirmed;
-        if (!['BUSY', 'MEDIA_BUSY'].includes(failure.code)) return result('needs-action', failure);
+        const retryConflict =
+          failure.code === 'CONFLICT' && genericConflict(failure.issues) && !conflictRetried;
+        if (!retryConflict && !['BUSY', 'MEDIA_BUSY'].includes(failure.code))
+          return result('needs-action', failure);
+        if (retryConflict) conflictRetried = true;
         if (!canRequest()) return result('paused', failure);
         try {
           await wait(400, signal);

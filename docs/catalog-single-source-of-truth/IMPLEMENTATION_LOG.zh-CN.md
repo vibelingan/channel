@@ -1405,3 +1405,8 @@ onAuthChange只转发token/user/clear的storage事件，本地auth事件保留�
 ## P3e7d1b 统一原发布任务的可信时间边界
 
 媒体已有5秒容差而原任务拒绝所有负age，1/500/5000ms可信根会被误标过期。复用已有常量修复所有保存/get/媒体/引用/最终发布/取消/恢复的时间判断，NaN失败关闭、1小时上界不变；版本/prepared独立对照保持拒绝。18新增，6298相关回归、Node203331、19包/E2E类型/既有站点测试类型、5Biome/CloudBase合约通过，657安装SDK对照最高98文档操作。13故障18重叠/两SHA恢复；首次晚恢复finalAge遗漏有红测后修复。实际0/105SKU偏移2秒完成公开同revision读回与撤回/404/有效引用0/分类保留。review实际五代码/测试、媒体authority、删除保护和本文，纠正原JSON80原因归属，未将此独立复现当现场根因。精确构建待续，原UI/getter/JSON80/真实test门槛开放，详见[P3e7d1b](P3e7d1b_OPERATION_CLOCK_BOUNDARY.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d1c 同原任务恢复一次短暂冲突
+
+原scope读回仍有效后，只对无具体字段证据或精确HTTP通用INPUT_CHANGED fallback的CONFLICT允许一次400ms恢复；重复冲突不重置，终态/版本/测量issue/身份/确认失败/observer/取消都阻止后续写。18新增，85子流程、site1033/Node203349、站点/E2E/既有测试类型、3Biome/15页构建通过；复用9efd824c未变包合计6316。实际0/105SKU在native begin一次拒绝后原任务发布/公开读回/实际撤回，分类保留/404/有效引用0。9故障40重叠/SHA恢复；首轮漏掉终态多等400ms的断言已补，HTTP通用issue差异与夹具测量合约修正保留红测。实际review三代码/测试、handler/shared/native守卫及措辞，原JSON80原因未明、未当现场根因；后端精确构建/657SDK/14进程仍9efd824c，真实test未做，详见[P3e7d1c](P3e7d1c_TRANSIENT_CONFLICT.zh-CN.md)，fullDeliveryReady=false。

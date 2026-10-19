@@ -484,3 +484,32 @@ test('actual withdrawal after public bytes were read prevents confirmation of an
     await f.restore();
   }
 });
+
+for (const count of [0, 105])
+  test(`the original ${count}-SKU Admin publication recovers one native begin CONFLICT and restores its product`, async (t) => {
+    const f = await fixture(t, count);
+    const persist = f.h.adapter.persistCatalogDetailApproval.bind(f.h.adapter);
+    let refused = 0;
+    f.h.adapter.persistCatalogDetailApproval = async (actor, input) => {
+      if (input.action === 'operation-approval-begin' && refused === 0) {
+        refused++;
+        return { ok: false, code: 'CONFLICT' };
+      }
+      return persist(actor, input);
+    };
+    try {
+      const result = await runPublication(f.attempt, {
+        request: f.request,
+        preparationRequest: f.preparationRequest,
+      });
+      assert.equal(refused, 1);
+      assert.equal(result.reason, 'committed', JSON.stringify(result));
+      assert.ok(result.status?.state === 'complete');
+      await f.publicReadback(result.status.completion.revision);
+      assert.equal(f.calls.filter((x) => x.action === 'product-operation-start').length, 1);
+      assert.ok(f.calls.some((x) => x.action === 'product-operation-get'));
+      assert.ok(f.calls.every((x) => x.operationId === f.attempt.operationId));
+    } finally {
+      await f.restore();
+    }
+  });
