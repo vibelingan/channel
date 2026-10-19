@@ -19,6 +19,8 @@ const page = createPageDescriptor({
 
 例子不是现有商品实现。product/article 必须提供公开内容 source 和 revision；updatedAt 可省略，只能使用真实内容更新时间。构建时间不替代内容时间，也不自动写 sitemap lastmod。
 
+旧公开商品没有新版本字段时，adapter 可用经校验的公开投影内容 hash 作为 revision。不能因为缺少新 catalog publication 记录就把商品从覆盖清单删除；新旧公开数据都要有可验证的来源。
+
 `canonicalPath()` 去掉交互/追踪参数、统一目录尾斜杠，拒绝跨域和歧义路径。商品卡片 href、canonical、Breadcrumb、Product/Article URL 与 sitemap 应指向同一个身份。变体参数通常归到商品标准地址，不归到分类页。站点 origin 来自构建 SITE_URL；本地省略时仍保留 localhost，部署必须沿用现有脚本对真实 SITE_URL 的校验。
 
 ## 索引意图
