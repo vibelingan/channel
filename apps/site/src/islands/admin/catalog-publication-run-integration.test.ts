@@ -17,6 +17,7 @@ import {
   createPublicationAttempt,
   managePublication,
 } from './catalog-product-operation-api.ts';
+import { checkPublication } from './catalog-publication-check.ts';
 import { createPublicationJournal } from './catalog-publication-journal.ts';
 import { runPublication } from './catalog-publication-run.ts';
 
@@ -357,6 +358,128 @@ test('pre-dispatch journal survives a lost real start and failed confirmation, t
     await f.restore();
     reopened.forget(completed.scope);
     assert.equal(reopened.read().entries.length, 0);
+  } finally {
+    await f.restore();
+  }
+});
+
+async function publicFetch(input: RequestInfo | URL, init?: RequestInit) {
+  assert.equal(init?.method, 'GET');
+  assert.equal(init.credentials, 'omit');
+  assert.equal(init.body, undefined);
+  const url = new URL(String(input), 'https://owned.test');
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: url.pathname,
+      queryStringParameters: Object.fromEntries(url.searchParams),
+    },
+    { enableCatalogDetail: true },
+  );
+  return new Response(response.body, { status: response.statusCode, headers: response.headers });
+}
+
+for (const count of [0, 105])
+  test(`the real ${count}-SKU completed task is confirmed by public HTTP projection and its original receipt`, async (t) => {
+    const f = await fixture(t, count);
+    try {
+      const completed = await runPublication(f.attempt, {
+        request: f.request,
+        preparationRequest: f.preparationRequest,
+      });
+      assert.equal(completed.reason, 'committed', JSON.stringify(completed));
+      const before = f.h.bytes();
+      const checked = await checkPublication(completed.scope, {
+        request: f.request,
+        fetch: publicFetch,
+      });
+      assert.equal(checked.reason, 'confirmed', JSON.stringify(checked));
+      assert.equal(
+        checked.revision,
+        completed.status?.state === 'complete' ? completed.status.completion.revision : undefined,
+      );
+      assert.equal(f.h.bytes(), before);
+      assert.equal(
+        f.calls.filter((command) => command.action === 'product-operation-start').length,
+        1,
+      );
+      assert.ok(checked.revision);
+      await f.publicReadback(checked.revision);
+      await f.restore();
+      let publicRequests = 0;
+      const historic = await checkPublication(checked.scope, {
+        request: f.request,
+        fetch: async (input, init) => {
+          publicRequests++;
+          return publicFetch(input, init);
+        },
+      });
+      assert.equal(historic.reason, 'historical');
+      assert.equal(publicRequests, 0);
+    } finally {
+      await f.restore();
+    }
+  });
+
+test('a real public readback failure is checked again using only original-scope reads and no new publication', async (t) => {
+  const f = await fixture(t);
+  try {
+    const completed = await runPublication(f.attempt, {
+      request: f.request,
+      preparationRequest: f.preparationRequest,
+    });
+    assert.equal(completed.reason, 'committed');
+    const before = f.h.bytes();
+    const unknown = await checkPublication(completed.scope, {
+      request: f.request,
+      fetch: async () =>
+        Response.json(
+          {
+            ok: false,
+            error: { code: 'INTERNAL_ERROR', message: 'Delivery temporarily unavailable' },
+          },
+          { status: 503 },
+        ),
+    });
+    assert.equal(unknown.reason, 'unknown');
+    assert.equal((await f.h.adapter.get('products', f.h.productId))?.published, true);
+    const recovered = await checkPublication(unknown.scope, {
+      request: f.request,
+      fetch: publicFetch,
+    });
+    assert.equal(recovered.reason, 'confirmed', JSON.stringify(recovered));
+    assert.equal(f.h.bytes(), before);
+    assert.equal(
+      f.calls.filter((command) => command.action === 'product-operation-start').length,
+      1,
+    );
+  } finally {
+    await f.restore();
+  }
+});
+
+test('actual withdrawal after public bytes were read prevents confirmation of an obsolete publication', async (t) => {
+  const f = await fixture(t);
+  try {
+    const completed = await runPublication(f.attempt, {
+      request: f.request,
+      preparationRequest: f.preparationRequest,
+    });
+    assert.equal(completed.reason, 'committed');
+    const checked = await checkPublication(completed.scope, {
+      request: f.request,
+      fetch: async (input, init) => {
+        const response = await publicFetch(input, init);
+        await f.restore();
+        return response;
+      },
+    });
+    assert.equal(checked.reason, 'historical', JSON.stringify(checked));
+    assert.equal((await f.h.adapter.get('products', f.h.productId))?.published, false);
+    assert.equal(
+      f.calls.filter((command) => command.action === 'product-operation-start').length,
+      1,
+    );
   } finally {
     await f.restore();
   }

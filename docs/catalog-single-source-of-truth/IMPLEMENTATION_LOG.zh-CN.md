@@ -1395,3 +1395,8 @@ New/旧首次、手工 Edited、完整当前来源的 Changed/Removed 使用原�
 ## P3e7c9c2 过滤恢复记录引起的无关会话通知
 
 onAuthChange只转发token/user/clear的storage事件，本地auth事件保留，取消订阅移除实际闭包。两浏览器双标签原来3次而应1次，10控制和2增强浏览器测试先5过/7败再全绿；6故障12重叠/SHA恢复。site978、Node20客户端179、19包/E2E/既有测试类型、3Biome/15页构建通过；未变后端/契约核对C8哈希，完整Node203266仍67091f62基线，相关证据6243含复用包，651安装SDK未冒称本步重跑。实际审阅三个代码/测试和useSession/媒体负控制，将“所有刷新修复”改为“无关键不触发登录订阅”。storage泛监听启用阻断已关闭；getter失效、原UI P1/JSON80和现场门槛开放，详见[P3e7c9c2](P3e7c9c2_AUTH_STORAGE_EVENT_SCOPE.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d1 官网详情和原发布回执只读确认
+
+新增checkPublication，两次同scope get夹住revision绑定的匿名公开GET，最后仍为同一complete/current才confirmed；结果类型强制回执/revision/名称。公开失败继续查原根识别撤回，所有恢复仅只读；8秒预算、共享1792KiB流上限、取消与解码失败清理。37新增（33控制+4实际Admin/JSON/PNG），site1015/Node20客户端216、19包/E2E/既有测试类型、3Biome/15页构建通过；未变C8证据合计6280，完整Node203266仍67091f62。15故障20重叠/两轮源码恢复；两条流/取消红测、默认POST/GET传输及加强非法输入断言均验证。实际review三代码/测试和公开路由/DTO/分页，澄清当前确认与后来撤回、只读恢复与重新发布。发现媒体5秒容差和原任务负age即过期的不一致，尚未归因JSON80，继续独立偏移对照；原UI/JSON80/其余现场门槛开放，详见[P3e7d1](P3e7d1_PUBLICATION_READBACK.zh-CN.md)，fullDeliveryReady=false。
