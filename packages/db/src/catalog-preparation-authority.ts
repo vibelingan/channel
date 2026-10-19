@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
+import { CATALOG_CLOCK_SKEW_MS } from './approval-job-age.ts';
 
 const callLifetime = 30_000;
-const clockSkew = 5_000;
 const leaseLifetime = 120_000;
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
 const epoch = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -91,7 +91,7 @@ export function createCatalogPreparationAuthority(config: {
   function admitted(call: Call, now: number) {
     return (
       call.expiresAt - call.issuedAt === callLifetime &&
-      call.issuedAt - now <= clockSkew &&
+      call.issuedAt - now <= CATALOG_CLOCK_SKEW_MS &&
       call.expiresAt > now
     );
   }
@@ -100,7 +100,7 @@ export function createCatalogPreparationAuthority(config: {
     if (
       !parsed.success ||
       parsed.data.leaseExpiresAt <= now ||
-      parsed.data.leaseExpiresAt - now > leaseLifetime + clockSkew
+      parsed.data.leaseExpiresAt - now > leaseLifetime + CATALOG_CLOCK_SKEW_MS
     )
       return null;
     return parsed.data;

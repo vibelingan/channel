@@ -8,3 +8,6 @@ export const APPROVAL_JOB_MAX_AGE_MS = 60 * 60 * 1000;
 
 /** Far longer than any open transaction: a finish that passed the age check has committed. */
 export const APPROVAL_JOB_DELETE_MARGIN_MS = 10 * 60 * 1000;
+
+/** Bound differences between trusted catalog service timestamps; past expiry stays strict. */
+export const CATALOG_CLOCK_SKEW_MS = 5_000;

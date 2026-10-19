@@ -34,7 +34,7 @@ import type { CatalogProductSaveInput, CatalogProductSaveResult } from './adapte
 import { parseAlibabaProductLink } from './alibaba-link-identity.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
-import { APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
+import { APPROVAL_JOB_MAX_AGE_MS, CATALOG_CLOCK_SKEW_MS } from './approval-job-age.ts';
 import {
   type ApprovalFailure,
   ApprovalJobSchema,
@@ -93,6 +93,10 @@ const id = z
   .refine((value) => value.trim() === value);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const counter = z.number().int().nonnegative().safe();
+function operationExpired(age: number) {
+  return !Number.isFinite(age) || age < -CATALOG_CLOCK_SKEW_MS || age > APPROVAL_JOB_MAX_AGE_MS;
+}
+
 const intent = z.enum(['save-draft', 'refresh-live', 'publish', 'unpublish', 'archive']);
 const identifiers = z.object({ productId: id, operationId: z.string().uuid() });
 export const ProductOperationStartSchema = identifiers
@@ -586,7 +590,11 @@ async function cancelOperation(
   }
   if (recovery) {
     const age = Date.now() - Date.parse(record.createdAt);
-    if (age < 0 || (recovery.reason === 'expired' && age <= APPROVAL_JOB_MAX_AGE_MS))
+    if (
+      !Number.isFinite(age) ||
+      age < -CATALOG_CLOCK_SKEW_MS ||
+      (recovery.reason === 'expired' && age <= APPROVAL_JOB_MAX_AGE_MS)
+    )
       return fail('CONFLICT');
   }
   const now = new Date().toISOString();
@@ -609,7 +617,7 @@ async function cancelOperation(
     current: false,
     revisionCurrent:
       product?._id === record.productId && matchesProductRevision(record, product.updatedAt),
-    expired: age < 0 || age > APPROVAL_JOB_MAX_AGE_MS,
+    expired: operationExpired(age),
   };
   if (cancelled !== record) await tx.set(collection, cancelled);
   if (cancelProof) await tx.set(collection, cancelProof);
@@ -648,7 +656,7 @@ async function inspect(
       revisionCurrent:
         product?._id === record.productId &&
         (product.updatedAt ?? null) === record.completion.productUpdatedAt,
-      expired: age < 0 || age > APPROVAL_JOB_MAX_AGE_MS,
+      expired: operationExpired(age),
     };
   }
   const current =
@@ -664,7 +672,7 @@ async function inspect(
       (record.state !== 'staging' || sameApprovalProduct(product, record)),
     revisionCurrent:
       product?._id === record.productId && matchesProductRevision(record, product.updatedAt),
-    expired: age < 0 || age > APPROVAL_JOB_MAX_AGE_MS,
+    expired: operationExpired(age),
   };
 }
 async function snapshot(
@@ -853,8 +861,7 @@ export async function prepareProductOperationSave(
     return { result: 'stale' };
   const age = Date.now() - Date.parse(record.createdAt);
   if (
-    age < 0 ||
-    age > APPROVAL_JOB_MAX_AGE_MS ||
+    operationExpired(age) ||
     !matchesProductRevision(record, product.updatedAt) ||
     !matchesCurrent(record, await snapshot(tx, product, record.operation.intent))
   )
@@ -1073,7 +1080,7 @@ async function bindOperationApprovalMedia(
   const media = await prepareOwnedApprovalMedia(tx, record, product);
   if (!media) return fail('MEDIA_NOT_READY');
   const age = Date.now() - Date.parse(record.createdAt);
-  if (age < 0 || age > APPROVAL_JOB_MAX_AGE_MS) return fail('APPROVAL_EXPIRED');
+  if (operationExpired(age)) return fail('APPROVAL_EXPIRED');
   const next = ApprovalOperationSchema.parse({ ...record, media });
   if (!fitsJsonBudget(next, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
@@ -1098,7 +1105,7 @@ async function bindOperationApprovalReferences(
   if (!fitsJsonBudget(next, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
   const age = Date.now() - Date.parse(record.createdAt);
-  if (age < 0 || age > APPROVAL_JOB_MAX_AGE_MS) return fail('APPROVAL_EXPIRED');
+  if (operationExpired(age)) return fail('APPROVAL_EXPIRED');
   await tx.set(collection, next);
   return { ...inspection, record: next };
 }
@@ -1129,7 +1136,7 @@ async function stageOperationReferences(
   if (!fitsJsonBudget(next, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
   const age = Date.now() - Date.parse(record.createdAt);
-  if (age < 0 || age > APPROVAL_JOB_MAX_AGE_MS) return fail('APPROVAL_EXPIRED');
+  if (operationExpired(age)) return fail('APPROVAL_EXPIRED');
   for (const image of page.images) await tx.set('images', image);
   await tx.set(collection, next);
   return { ...inspection, record: next };
@@ -1243,7 +1250,7 @@ async function publishOperation(
   if (!fitsJsonBudget(completed, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
   const age = Date.now() - Date.parse(record.createdAt);
-  if (age < 0 || age > APPROVAL_JOB_MAX_AGE_MS) return fail('APPROVAL_EXPIRED');
+  if (operationExpired(age)) return fail('APPROVAL_EXPIRED');
   await tx.set('products', next);
   await tx.set(collection, completed);
   await tx.set(collection, plan.proof);
@@ -1281,7 +1288,7 @@ async function recoverOperation(
     return result.ok ? { ...result, recovery: 'already-cancelled' } : result;
   }
   const age = Date.now() - Date.parse(record.createdAt);
-  if (age < 0) return fail('CONFLICT');
+  if (!Number.isFinite(age) || age < -CATALOG_CLOCK_SKEW_MS) return fail('CONFLICT');
   let reason: z.infer<typeof RecoveryAuditSchema>['reason'] | undefined;
   let inspection: Extract<ProductOperationResult, { ok: true }> | undefined;
   if (age > APPROVAL_JOB_MAX_AGE_MS) reason = 'expired';
@@ -1298,7 +1305,7 @@ async function recoverOperation(
   }
   // Reads may cross expiry or a clock correction; decide eligibility immediately before retiring.
   const finalAge = Date.now() - Date.parse(record.createdAt);
-  if (finalAge < 0) return fail('CONFLICT');
+  if (!Number.isFinite(finalAge) || finalAge < -CATALOG_CLOCK_SKEW_MS) return fail('CONFLICT');
   if (finalAge > APPROVAL_JOB_MAX_AGE_MS) reason = 'expired';
   else if (reason === 'expired') return fail('CONFLICT');
   if (!reason) return inspection ? { ...inspection, recovery: 'not-needed' } : fail('CONFLICT');

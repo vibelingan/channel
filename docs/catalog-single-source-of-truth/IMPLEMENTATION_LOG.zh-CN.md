@@ -1400,3 +1400,8 @@ onAuthChange只转发token/user/clear的storage事件，本地auth事件保留�
 ## P3e7d1 官网详情和原发布回执只读确认
 
 新增checkPublication，两次同scope get夹住revision绑定的匿名公开GET，最后仍为同一complete/current才confirmed；结果类型强制回执/revision/名称。公开失败继续查原根识别撤回，所有恢复仅只读；8秒预算、共享1792KiB流上限、取消与解码失败清理。37新增（33控制+4实际Admin/JSON/PNG），site1015/Node20客户端216、19包/E2E/既有测试类型、3Biome/15页构建通过；未变C8证据合计6280，完整Node203266仍67091f62。15故障20重叠/两轮源码恢复；两条流/取消红测、默认POST/GET传输及加强非法输入断言均验证。实际review三代码/测试和公开路由/DTO/分页，澄清当前确认与后来撤回、只读恢复与重新发布。发现媒体5秒容差和原任务负age即过期的不一致，尚未归因JSON80，继续独立偏移对照；原UI/JSON80/其余现场门槛开放，详见[P3e7d1](P3e7d1_PUBLICATION_READBACK.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7d1b 统一原发布任务的可信时间边界
+
+媒体已有5秒容差而原任务拒绝所有负age，1/500/5000ms可信根会被误标过期。复用已有常量修复所有保存/get/媒体/引用/最终发布/取消/恢复的时间判断，NaN失败关闭、1小时上界不变；版本/prepared独立对照保持拒绝。18新增，6298相关回归、Node203331、19包/E2E类型/既有站点测试类型、5Biome/CloudBase合约通过，657安装SDK对照最高98文档操作。13故障18重叠/两SHA恢复；首次晚恢复finalAge遗漏有红测后修复。实际0/105SKU偏移2秒完成公开同revision读回与撤回/404/有效引用0/分类保留。review实际五代码/测试、媒体authority、删除保护和本文，纠正原JSON80原因归属，未将此独立复现当现场根因。精确构建待续，原UI/getter/JSON80/真实test门槛开放，详见[P3e7d1b](P3e7d1b_OPERATION_CLOCK_BOUNDARY.zh-CN.md)，fullDeliveryReady=false。

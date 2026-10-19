@@ -664,3 +664,108 @@ test('default publication of an empty-photo draft returns an actionable photo is
   );
   assert.equal(JSON.parse(h.bytes()).products[0].published, false);
 });
+
+for (const count of [0, 105])
+  test(`the actual ${count}-SKU Admin workflow completes across a 2000ms clock difference and restores its product`, async (t) => {
+    const h = await workspace(t, count, true);
+    const media = await coldOwnedMedia(h, count > 0);
+    const original = await h.adapter.get('products', h.productId);
+    assert.ok(original);
+    const realNow = Date.now;
+    t.mock.method(Date, 'now', () => realNow() - 2000);
+    const token = await signSession('owned-continue-test-only', {
+      sub: 'admin',
+      role: 'admin',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+    let scope: Awaited<ReturnType<typeof h.start>> | undefined;
+    try {
+      scope = await h.start('publish', {});
+      let completed: ReturnType<typeof CatalogProductOperationStatusSchema.parse> | undefined;
+      for (let page = 0; page < 40; page++) {
+        const response = await h.invokeWithConfig(
+          { ...scope, action: 'product-operation-continue' },
+          media.config,
+        );
+        assert.ok(response.ok, JSON.stringify(response));
+        const current = CatalogProductOperationStatusSchema.parse(response.data);
+        assert.equal(current.expired, false);
+        assert.equal(current.operationId, scope.operationId);
+        if (current.state === 'complete') {
+          completed = current;
+          break;
+        }
+      }
+      assert.ok(completed?.state === 'complete', JSON.stringify(completed));
+      assert.equal(completed.current, true);
+      const response = await handlePublicApiEvent(
+        { httpMethod: 'GET', path: `/api/products/${h.productId}/detail` },
+        { enableCatalogDetail: true },
+      );
+      assert.equal(response.statusCode, 200, response.body);
+      const detail = decodeCatalogDetailView(JSON.parse(response.body).data);
+      assert.ok(detail.ok);
+      assert.equal(detail.value.revision, completed.completion.revision);
+      assert.equal(detail.value.variants.total, count);
+      assert.equal(detail.value.name, original.name);
+      assert.equal(
+        (await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/images/image' }, {}))
+          .statusCode,
+        200,
+      );
+    } finally {
+      const product = await h.adapter.get('products', h.productId);
+      assert.ok(product);
+      if (product.published === true) {
+        assert.ok(scope);
+        assert.ok(
+          product.catalogDetailApprovalReceipt &&
+            typeof product.catalogDetailApprovalReceipt === 'object',
+        );
+        assert.equal(
+          Reflect.get(product.catalogDetailApprovalReceipt, 'operationId'),
+          scope.operationId,
+        );
+        const response = await handleAdminRequest(
+          {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: h.productId,
+              values: { published: false },
+              expectedUpdatedAt: product.updatedAt,
+            },
+          },
+          { jwtSecret: 'owned-continue-test-only', enableDetailApproval: true },
+        );
+        assert.ok(response.ok, JSON.stringify(response));
+      } else if (scope) {
+        const cancelled = await h.invokeWithConfig(
+          { ...scope, action: 'product-operation-cancel' },
+          media.config,
+        );
+        assert.ok(cancelled.ok, JSON.stringify(cancelled));
+      }
+      const restored = await h.adapter.get('products', h.productId);
+      assert.ok(restored);
+      assert.equal(restored.published, false);
+      for (const field of ['productFamily', 'category', 'subcategoryIds']) {
+        assert.equal(Object.hasOwn(restored, field), Object.hasOwn(original, field));
+        assert.deepEqual(restored[field], original[field]);
+      }
+      for (const path of [`/api/products/${h.productId}/detail`, '/api/images/image'])
+        assert.equal(
+          (await handlePublicApiEvent({ httpMethod: 'GET', path }, { enableCatalogDetail: true }))
+            .statusCode,
+          404,
+        );
+      const effective = await h.adapter.readCatalogImageReference({
+        action: 'read',
+        imageId: 'image',
+      });
+      assert.ok(effective.state === 'counted');
+      assert.equal(effective.effectiveCount, 0);
+    }
+  });

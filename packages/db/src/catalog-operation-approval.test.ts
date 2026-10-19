@@ -3633,3 +3633,217 @@ test('taxonomy I/O during final owned publication is never guessed as a missing 
   await assert.rejects(h.invoke(h.finishCommand), /taxonomy unavailable/);
   assert.equal(h.bytes(), before);
 });
+
+for (const change of ['clock', 'revision', 'prepared'] as const)
+  test(`JSON80 begin diagnostic separates ${change} from unchanged original scope`, async (t) => {
+    const h = await fixture();
+    const now = Date.now();
+    t.mock.method(Date, 'now', () => now);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    root.createdAt = new Date(now + (change === 'clock' ? 500 : 0)).toISOString();
+    if (change === 'revision') h.product.updatedAt = new Date(now + 1000).toISOString();
+    const command = structuredClone(h.command);
+    if (change === 'prepared') command.prepared.nextPage = 1;
+    const inspection = object(await h.invoke(query));
+    const before = h.bytes();
+    const begun = object(await h.invoke(command));
+    assert.equal(begun.ok, change === 'clock', JSON.stringify({ change, inspection, begun }));
+    if (change !== 'clock') assert.equal(h.bytes(), before);
+    if (change === 'clock') {
+      assert.equal(inspection.current, true);
+      assert.equal(inspection.revisionCurrent, true);
+      assert.equal(inspection.expired, false);
+    } else if (change === 'revision') {
+      assert.equal(inspection.revisionCurrent, false);
+      assert.equal(inspection.expired, false);
+      assert.equal(begun.code, 'CONFLICT');
+    } else {
+      assert.equal(inspection.current, true);
+      assert.equal(inspection.expired, false);
+      assert.equal(begun.code, 'VALIDATION_ERROR');
+    }
+  });
+
+for (const ahead of [1, 500, 5000])
+  test(`a trusted original task ${ahead}ms ahead remains resumable within the existing service clock window`, async (t) => {
+    const h = await fixture();
+    const now = Date.now();
+    t.mock.method(Date, 'now', () => now);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    root.createdAt = new Date(now + ahead).toISOString();
+    const issuer = createCatalogPreparationAuthority({
+      secret: 'clock-window-test',
+      environmentId: 'clock-window-test',
+      now: () => now + ahead,
+    });
+    const verifier = createCatalogPreparationAuthority({
+      secret: 'clock-window-test',
+      environmentId: 'clock-window-test',
+      now: () => now,
+    });
+    assert.ok(
+      verifier.verifyCall(issuer.issueCall({ jobId: 'a'.repeat(64), nonce: 'b'.repeat(64) })),
+    );
+    const inspection = object(await h.invoke(query));
+    const begun = object(await h.invoke(h.command));
+    assert.equal(begun.ok, true, JSON.stringify({ ahead, inspection, begun }));
+    assert.equal(inspection.current, true);
+    assert.equal(inspection.revisionCurrent, true);
+    assert.equal(inspection.expired, false);
+  });
+
+for (const ahead of [5001, 60000])
+  test(`trusted operation time ${ahead}ms beyond the service window is still rejected`, async (t) => {
+    const h = await fixture();
+    const now = Date.now();
+    t.mock.method(Date, 'now', () => now);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    root.createdAt = new Date(now + ahead).toISOString();
+    const before = h.bytes();
+    const inspection = object(await h.invoke(query));
+    const begun = object(await h.invoke(h.command));
+    assert.equal(inspection.expired, true);
+    assert.equal(begun.ok, false);
+    assert.equal(h.bytes(), before);
+  });
+
+for (const age of [3600000, 3600001])
+  test(`trusted operation age ${age}ms preserves the original one-hour upper boundary`, async (t) => {
+    const h = await fixture();
+    const now = Date.now();
+    t.mock.method(Date, 'now', () => now);
+    const root = h.rows.catalogDetailApprovals?.[0];
+    assert.ok(root);
+    root.createdAt = new Date(now - age).toISOString();
+    const inspection = object(await h.invoke(query));
+    const begun = object(await h.invoke(h.command));
+    assert.equal(inspection.expired, age > 3600000);
+    assert.equal(begun.ok, age === 3600000, JSON.stringify(begun));
+  });
+
+test('a reserved draft save shares the same bounded trusted future window', async (t) => {
+  const h = await fixture('publish', false);
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const root = h.rows.catalogDetailApprovals?.[0];
+  assert.ok(root);
+  root.createdAt = new Date(now + 500).toISOString();
+  const expectedUpdatedAt = h.start.expectedUpdatedAt;
+  assert.ok(typeof expectedUpdatedAt === 'string');
+  const result = await prepareProductOperationSave(h.tx, h.product, {
+    mode: 'update',
+    productId: 'p',
+    data: h.start.values,
+    expectedUpdatedAt,
+    expectedOperation: { actorId: 'admin', operationId: uuid, inputDigest: h.command.inputDigest },
+  });
+  assert.equal(result.result, 'ready', JSON.stringify(result));
+});
+
+test('media and reference binding use the same future window after their asynchronous validation', async (t) => {
+  const h = await fixture();
+  assert.equal(object(await h.invoke(h.command)).ok, true);
+  for (let page = 0; page < h.command.prepared.pageHashes.length; page++)
+    assert.equal(
+      object(
+        await h.invoke({
+          ...query,
+          action: 'operation-approval-page',
+          inputDigest: h.command.inputDigest,
+          page,
+        }),
+      ).ok,
+      true,
+    );
+  await finishEmptyMedia(h);
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const root = h.rows.catalogDetailApprovals?.[0];
+  assert.ok(root);
+  root.createdAt = new Date(now + 500).toISOString();
+  for (const action of ['operation-approval-media', 'operation-approval-references']) {
+    const result = object(await h.invoke({ ...query, action, inputDigest: h.command.inputDigest }));
+    assert.equal(result.ok, true, JSON.stringify({ action, result }));
+  }
+});
+
+test('cancelling within the trusted clock window reports cancellation without a false expired flag', async (t) => {
+  const h = await fixture();
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const root = h.rows.catalogDetailApprovals?.[0];
+  assert.ok(root);
+  root.createdAt = new Date(now + 500).toISOString();
+  const product = structuredClone(h.product);
+  const result = object(
+    await h.invoke({ ...query, action: 'operation-cancel', inputDigest: h.command.inputDigest }),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.expired, false);
+  assert.equal(result.current, false);
+  assert.deepEqual(h.product, product);
+});
+
+test('recovery keeps a current future-window task active and can retire it only after real input change', async (t) => {
+  const h = await ownPublishFixture();
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const root = h.rows.catalogDetailApprovals?.find((row) => row._id === h.key);
+  assert.ok(root);
+  root.createdAt = new Date(now + 500).toISOString();
+  const before = h.bytes();
+  const healthy = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+  assert.equal(healthy.ok, true, JSON.stringify(healthy));
+  assert.equal(healthy.recovery, 'not-needed');
+  assert.equal(h.bytes(), before);
+  const product = h.rows.products?.[0];
+  assert.ok(product);
+  product.description = 'A later saved editor value';
+  const changed = structuredClone(product);
+  const images = structuredClone(h.rows.images);
+  const obsolete = object(await h.invoke(trustedRecoveryCommand(h), 'other'));
+  assert.equal(obsolete.ok, true, JSON.stringify(obsolete));
+  assert.equal(obsolete.recovery, 'cancelled');
+  assert.equal(
+    object(object(obsolete.record).operation).recovery &&
+      object(object(object(obsolete.record).operation).recovery).reason,
+    'input-changed',
+  );
+  assert.deepEqual(h.rows.products?.[0], changed);
+  assert.deepEqual(h.rows.images, images);
+});
+
+test('non-finite operation time fails closed instead of permitting a prepared approval', async (t) => {
+  const h = await fixture();
+  const before = h.bytes();
+  t.mock.method(Date, 'now', () => Number.NaN);
+  const result = object(await h.invoke(h.command));
+  assert.equal(result.ok, false);
+  assert.equal(h.bytes(), before);
+});
+
+test('clock tolerance cannot supply a client timestamp or bypass a revoked actor', async (t) => {
+  const h = await fixture();
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const root = h.rows.catalogDetailApprovals?.[0];
+  assert.ok(root);
+  root.createdAt = new Date(now + 500).toISOString();
+  const before = h.bytes();
+  assert.equal(
+    object(await h.invoke({ ...h.start, createdAt: new Date(now).toISOString() })).ok,
+    false,
+  );
+  assert.equal(h.bytes(), before);
+  const actor = h.rows.users?.find((row) => row._id === 'admin');
+  assert.ok(actor);
+  actor.status = 'suspended';
+  const revoked = h.bytes();
+  const result = object(await h.invoke(h.command));
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'FORBIDDEN');
+  assert.equal(h.bytes(), revoked);
+});
