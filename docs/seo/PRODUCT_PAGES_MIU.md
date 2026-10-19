@@ -1,6 +1,6 @@
 # SEO-1：标准商品页与初始正文
 
-状态：本地实现完成，验收与兼容检查见 [PRODUCT_PAGES_STATUS.zh-CN.md](PRODUCT_PAGES_STATUS.zh-CN.md)。基线 main `37bcea5b`，共享基础 `6bcdaa1a`；pricing 初查 `658d126a`，随后更新到 `9d9cfdeb`。独立分支 `feat/seo-product-pages`；pricing 的后台创建/发布工作始终只读。
+状态：本地实现完成，验收与兼容检查见 [PRODUCT_PAGES_STATUS.zh-CN.md](PRODUCT_PAGES_STATUS.zh-CN.md)。基线 main `37bcea5b`，共享基础 `6bcdaa1a`；pricing 初查 `658d126a`，随后更新到 `9d9cfdeb`。统一分支 `feat/seo-foundation`（商品提交已快进合入原分支）；pricing 的后台创建/发布工作始终只读。
 
 ## Runtime problem
 

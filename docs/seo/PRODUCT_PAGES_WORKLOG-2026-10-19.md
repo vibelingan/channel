@@ -23,3 +23,12 @@ SSR 变异采用真实路由：临时把 client:load 改为 client:only，构建
 pricing 模拟合并起初一处分页测试文本冲突，通过保留 pageSize=51 负向断言解决。合并后的 pricing 价格测试仍依赖 button 标签，已在临时副本应用最小 anchor 选择器补丁，保留全部价格/MOQ 断言；补丁随文档交付，不改 pricing 工作目录。图片准备集成用例的首次失败保留日志，基线和重跑结果见状态报告。
 
 最终测试数、构建数、浏览器证据、合并结果和上线边界以 PRODUCT_PAGES_STATUS.zh-CN.md 与 evidence/product-pages-2026-10-19.json 为准。用户普通浏览器登录、其他工作目录、Hermes、Blog、生产数据及线上部署均未操作。
+
+
+## 按用户要求整理回原 SEO 分支
+
+商品页另开分支违反本轮用户要求，已把其 5 个提交快进合回原 `feat/seo-foundation`，代码树与商品验收提交 `cf0c9bcd` 一致。整理前确认两个 worktree 无未提交的 tracked 修改；检查进程 cwd，并复制全部 output 与已验收 dist 共 1,296 文件、291,253,246 字节，逐文件校验 SHA-256。忽略项除已保留的输出外是 node_modules、.astro、dist，可重新生成。pricing 和其他 worktree 不在本次清理范围。
+
+本次实际核对 `PRODUCT_PAGES_STATUS.zh-CN.md`、`PRODUCT_PAGES_MIU.md`、验收 JSON、`prepare-product-seo.ts`、`[publicKey].astro`、`CatalogDetailController.tsx`、`astro.config.ts` 和 Git 提交树。措辞将“独立分支”改为当前的“统一在原分支”，并将“尚未合并”限定为“尚未合并 main”，避免把本地分支整理误写成主线已交付。补充 SSG 代码路径，明确 Astro 构建 HTML、React hydration 和 API 刷新的先后关系，以及静态正文仍需重新构建发布的限制。
+
+整理后核对：运行代码目录（apps/packages/scripts/.github/.env.example）相对 `cf0c9bcd` 没有差异；git diff --check 通过；发布保护用例 1/1 通过；迁移后的真实构建通过 487 个商品检查。尝试在原 worktree 重跑 3 个定向站点测试文件，进程因本地文件读取停滞而未产出测试结果，已停止，不能计为通过。此前完整站点和浏览器验收仍以已保留日志为据，本轮没有宣称重新执行完整套件。多余商品 worktree 及分支已经移除。

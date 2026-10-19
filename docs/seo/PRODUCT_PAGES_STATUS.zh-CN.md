@@ -1,6 +1,6 @@
 # 商品页 SEO 实施状态
 
-2026-10-19，日本时间。独立分支 `feat/seo-product-pages`，基于共享基础 `6bcdaa1a`，main 基线为 `37bcea5b38284210159e95f8d10f3a9b5cf2ee44`。实现提交 `a9e1b92e`；`0d1686fb` 对齐分页测试，`081982f` 修复发布检查对真实 manifest 格式的读取，`b43dc09` 补充浏览器 hydration 错误检查。尚未推送、创建 PR、合并或部署。
+2026-10-19，日本时间。统一在原分支 `feat/seo-foundation` 开发。商品页的 5 个提交已从误建的 `feat/seo-product-pages` 快进合入至 `cf0c9bcd`，基于共享基础 `6bcdaa1a`，main 基线为 `37bcea5b38284210159e95f8d10f3a9b5cf2ee44`。实现提交 `a9e1b92e`；`0d1686fb` 对齐分页测试，`081982f` 修复发布检查对真实 manifest 格式的读取，`b43dc09` 补充浏览器 hydration 错误检查。尚未推送、创建 PR、合并 main 或部署。
 
 ## 已实现
 
@@ -68,3 +68,20 @@ SITE_URL=https://supplychainsai.com SEO_CATALOG_SNAPSHOT=/tmp/product-seo.public
 这两条命令采集和构建，不上传。CI 的本地 fixture 使用 `seo:fixture`，不能作为线上内容。
 
 SEO-1 的页面实现和本地验收完成。SEO-2 的后台内容变化触发、代码/内容 generation 协调、远端旧路径精确删除、CDN 清理和线上读回仍待实施。CloudBase 上传会保留本地已不存在的旧文件，所以本地撤回验证不能替代线上撤回。完成这一交付链路后，再部署和检查搜索平台实际收录。Blog、Hermes 和海外部署仍在后续范围。
+
+## 实际 SSG 实现
+
+项目使用 Astro + React，没有引入 Next.js，也没有修改为每次访问都执行 SSR。
+
+1. `apps/site/scripts/prepare-product-seo.ts` 调用 `collectProductSnapshot`，通过现有匿名公开 API 采集商品清单及详情，保存带 revision 的公开 JSON 快照。
+2. `apps/site/src/pages/products/[publicKey].astro` 的 `getStaticPaths()` 读取快照，为每个商品输出固定路径和 `entry` 属性。`astro build` 为这些路径逐一生成 `dist/products/p-<ID>/index.html`。
+3. 路由把商品和 `bootstrap={entry.detail}` 传给现有 React 详情组件，使用 `client:load`。构建时 React 先输出正文 HTML；浏览器加载后用相同初始数据接管事件，避免先清空正文再等待 API。
+4. `CatalogDetailController.tsx` 用 `initialProductDetailState(bootstrap)` 初始化，`useEffect` 再执行 `refresh`，经现有详情 API 读取当前数据。变体选择、图库与询盘沿用已有组件。
+
+Cloud Functions 仍承担现有后端工作。浏览器 API 刷新能更新访客当前看到的数据，搜索引擎首次收到的静态正文则要在商品变化后重新构建并发布。该自动发布链路、远端旧页面删除和 CDN 缓存清理属于下一阶段，尚未完成。
+
+## 分支与证据整理
+
+后续 SEO 工作继续使用 `feat/seo-foundation` 和原 `seo-foundation` worktree，不再按商品页另开分支。原商品 worktree 的全部 output、已验收 dist 已复制到本 worktree，逐文件校验 SHA-256；清单为 `output/seo-consolidation-2026-10-19/preserved-files.json`。当前快照、截图、日志仍分别位于 `output/product-seo/`、`output/playwright/product-seo/`；已验收构建保存在 `output/product-seo/accepted-dist/`。
+
+多余的 `channel-seo-products` worktree 和 `feat/seo-product-pages` 本地分支已删除；5 个提交均为当前分支祖先。其余 worktree 保持原样。

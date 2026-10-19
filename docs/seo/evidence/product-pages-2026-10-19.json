@@ -1,7 +1,7 @@
 {
   "date": "2026-10-19",
   "timezone": "Asia/Tokyo",
-  "branch": "feat/seo-product-pages",
+  "branch": "feat/seo-foundation",
   "main": "37bcea5b38284210159e95f8d10f3a9b5cf2ee44",
   "applicationCommit": "a9e1b92e39ec79794b22fed3f7fd5ce572db7192",
   "sourceBeforeDocs": "b43dc098d16b5c2231c2ab4597814056eab3e59f",
@@ -129,5 +129,14 @@
     "contentPublisherImplemented": false,
     "blogImplemented": false,
     "hermesModified": false
+  },
+  "branchAtAcceptance": "feat/seo-product-pages",
+  "consolidation": {
+    "sourceCommit": "cf0c9bcd4af323f351de64dd89cb232189f8ca87",
+    "mode": "fast-forward",
+    "preservedFiles": 1296,
+    "preservedBytes": 291253246,
+    "sha256Verified": true,
+    "manifest": "output/seo-consolidation-2026-10-19/preserved-files.json"
   }
 }
