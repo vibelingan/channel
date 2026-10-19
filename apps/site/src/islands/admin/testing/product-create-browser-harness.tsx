@@ -19,7 +19,10 @@ function Harness() {
     <ProductCreateForm
       collection={collection}
       title="New Product"
-      defaults={{ productFamily: 'misc' }}
+      defaults={{
+        productFamily: 'misc',
+        ...(new URLSearchParams(location.search).has('withImage') ? { imageIds: ['image'] } : {}),
+      }}
       onSaved={(product) => setSaved(product)}
       onCancel={() => setSaved({ cancelled: true })}
     />

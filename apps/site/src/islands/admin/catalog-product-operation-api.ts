@@ -42,6 +42,10 @@ export const PublicationCheckpointSchema = z
   .object({
     scope: PublicationScopeSchema,
     referenceRecovery: CatalogReferenceRecoveryCursorSchema.optional(),
+    originalStart: z
+      .object({ expectedUpdatedAt: z.string().datetime().nullable() })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine((value) => !value.referenceRecovery || value.scope.inputDigest !== undefined);
@@ -110,6 +114,26 @@ export function createPublicationAttempt(input: {
     action: 'product-operation-start',
     intent: 'publish',
     operationId: crypto.randomUUID(),
+  });
+  if (value.action !== 'product-operation-start') throw invalidRequest();
+  return freezeJson(value);
+}
+
+/** Only an original empty patch can be reconstructed without saving private form data. */
+export function publicationStartFromCheckpoint(input: unknown): PublicationAttempt {
+  const parsed = PublicationCheckpointSchema.safeParse(input);
+  if (!parsed.success || !parsed.data.originalStart || parsed.data.scope.inputDigest !== undefined)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'This publication cannot restart from its recovery pointer.',
+    );
+  const value = capturePublicationCommand({
+    action: 'product-operation-start',
+    intent: 'publish',
+    productId: parsed.data.scope.productId,
+    operationId: parsed.data.scope.operationId,
+    expectedUpdatedAt: parsed.data.originalStart.expectedUpdatedAt,
+    values: {},
   });
   if (value.action !== 'product-operation-start') throw invalidRequest();
   return freezeJson(value);

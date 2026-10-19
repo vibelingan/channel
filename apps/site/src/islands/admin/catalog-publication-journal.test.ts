@@ -28,6 +28,31 @@ test('creation recovery refuses a publication media-reference cursor', () => {
   assert.equal(creation.retain(entry).durability, 'persistent');
   assert.throws(() => creation.retain({ ...entry, referenceRecovery: cursor }));
 });
+
+test('an original empty publication version survives digest updates and cannot be replaced', () => {
+  const storage = disk();
+  const publication = createPublicationJournal(owner, () => storage);
+  const originalStart = { expectedUpdatedAt: '2026-10-19T00:00:00.000Z' };
+  publication.retain({ scope, originalStart });
+  publication.retain({ scope: { ...scope, inputDigest: digest } });
+  const reopened = createPublicationJournal(owner, () => storage);
+  assert.deepEqual(reopened.read().entries, [
+    { scope: { ...scope, inputDigest: digest }, originalStart },
+  ]);
+  assert.throws(() =>
+    reopened.retain({
+      scope: { ...scope, inputDigest: digest },
+      originalStart: { expectedUpdatedAt: '2026-10-19T00:00:01.000Z' },
+    }),
+  );
+  const creation = createPublicationJournal(owner, () => storage, 'creation');
+  assert.throws(() =>
+    creation.retain({
+      scope: { ...scope, productId: 'new-product', inputDigest: digest },
+      originalStart,
+    }),
+  );
+});
 function disk() {
   const values = new Map<string, string>();
   return {

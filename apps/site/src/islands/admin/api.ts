@@ -18,6 +18,7 @@ import {
   type SessionUser,
   type SortClause,
   isProductFamily,
+  validateProductPublication,
 } from '@vibelingan-channel/shared';
 import {
   ADMIN_PRODUCT_LIST_MARKER,
@@ -429,8 +430,7 @@ export async function createRecord(
       'VALIDATION_ERROR',
       'An archived product cannot be published. Clear Archived or save it unpublished.',
     );
-  // Publishing needs a category and a photo: say so in the form, before a
-  // draft exists.
+  // Reject incomplete publication input before creating a draft.
   if (values.published === true && !isProductFamily(values.productFamily))
     throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
   if (
@@ -441,6 +441,11 @@ export async function createRecord(
       'VALIDATION_ERROR',
       'Add at least one product image before publishing.',
     );
+  if (values.published === true) {
+    const issues = validateProductPublication(values);
+    if (issues.length)
+      throw new AdminApiError('VALIDATION_ERROR', issues.map((issue) => issue.message).join('; '));
+  }
   // A new product has no approved version, so it starts as a draft and
   // publishing it is an approval, like any other product (MIU-37).
   const { captureProductCreation, startProductCreation, CreatedProductChangedError } = await import(
@@ -459,19 +464,9 @@ export async function createRecord(
   if (values.published !== true) return draft;
   if (draft.published === true || draft.archived === true || draft.updatedAt !== draft.createdAt)
     throw new CreatedProductChangedError(draft);
-  try {
-    creationGuard?.();
-    return await updateRecord(collection, draft._id, { published: true }, draft.updatedAt);
-  } catch (error) {
-    const code = error instanceof AdminApiError ? error.code : 'INTERNAL_ERROR';
-    const message = error instanceof Error ? error.message : 'Publishing failed.';
-    throw new DraftSavedError(
-      code,
-      message,
-      draft,
-      error instanceof AdminApiError ? error.issues : undefined,
-    );
-  }
+  const { publishSavedProduct } = await import('./catalog-product-publication.ts');
+  creationGuard?.();
+  return publishSavedProduct(draft, creationGuard);
 }
 
 export type ProductWriteIntent = 'save-draft' | 'refresh-live' | 'publish' | 'unpublish';

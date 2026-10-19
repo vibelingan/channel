@@ -73,6 +73,12 @@ function checkpoint(value: unknown) {
 }
 function compatible(previous: PublicationCheckpoint | undefined, next: PublicationCheckpoint) {
   if (
+    previous?.originalStart &&
+    next.originalStart &&
+    previous.originalStart.expectedUpdatedAt !== next.originalStart.expectedUpdatedAt
+  )
+    throw new JournalError('CONFLICT', 'The original publication version cannot be replaced.');
+  if (
     previous?.scope.inputDigest &&
     next.scope.inputDigest &&
     previous.scope.inputDigest !== next.scope.inputDigest
@@ -96,6 +102,7 @@ export function createPublicationJournal(
   const validKind = (entry: PublicationCheckpoint) =>
     kind !== 'creation' ||
     (entry.referenceRecovery === undefined &&
+      entry.originalStart === undefined &&
       entry.scope.productId === 'new-product' &&
       entry.scope.inputDigest !== undefined);
   const prefix = `channel:${kind}:v1:${JSON.stringify([owner.actorId, owner.endpoint])}:`;
@@ -169,6 +176,8 @@ export function createPublicationJournal(
     const previous = memory.get(name);
     const wasPending = pending.has(name);
     compatible(previous, entry);
+    if (!entry.originalStart && previous?.originalStart)
+      entry.originalStart = structuredClone(previous.originalStart);
     if (!previous && (memory.size >= MAX_ENTRIES || before.problems.includes('limit')))
       throw new JournalError(
         'RECOVERY_STORAGE_FULL',
@@ -195,6 +204,8 @@ export function createPublicationJournal(
           );
         }
         compatible(saved, entry);
+        if (!entry.originalStart && saved.originalStart)
+          entry.originalStart = structuredClone(saved.originalStart);
         if (!entry.scope.inputDigest && saved.scope.inputDigest)
           entry.scope.inputDigest = saved.scope.inputDigest;
       }

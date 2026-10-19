@@ -1,13 +1,20 @@
 import { useMutation } from '@tanstack/react-query';
 import type { CollectionDef, CollectionDoc } from '@vibelingan-channel/shared';
 import { useEffect, useRef, useState } from 'react';
+import { ProductPublicationRecovery } from './ProductPublicationRecovery.tsx';
 import { RecordForm } from './RecordForm.tsx';
-import { DraftSavedError } from './api.ts';
+import { DraftSavedError, getRecord } from './api.ts';
 import {
   CreatedProductChangedError,
   type ProductCreationScope,
 } from './catalog-product-create-api.ts';
 import { createProductCreationController } from './catalog-product-creation.ts';
+import type { PublicationCheckpoint } from './catalog-product-operation-api.ts';
+import {
+  ProductPublicationError,
+  pendingProductPublications,
+} from './catalog-product-publication.ts';
+import type { PublicationOwner } from './catalog-product-publication.ts';
 
 export function ProductCreateForm(props: {
   collection: CollectionDef;
@@ -43,6 +50,14 @@ export function ProductCreateForm(props: {
   const [error, setError] = useState<Error | null>(control.error);
   const [checking, setChecking] = useState(false);
   const [recovered, setRecovered] = useState<CollectionDoc | null>(null);
+  const [recoveredScope, setRecoveredScope] = useState<ProductCreationScope>();
+  const [publication, setPublication] = useState<{
+    owner: PublicationOwner;
+    entries: PublicationCheckpoint[];
+  }>();
+  const [publicationBusy, setPublicationBusy] = useState(false);
+  const [recoveryBlocked, setRecoveryBlocked] = useState(false);
+  const [publicationMessage, setPublicationMessage] = useState('');
   const refresh = () => {
     try {
       setPending(control.controller?.pending().entries ?? []);
@@ -62,7 +77,34 @@ export function ProductCreateForm(props: {
       if (!mounted.current) return;
       setError(error);
       if (error instanceof DraftSavedError) setRecovered(error.draft);
-      if (error instanceof CreatedProductChangedError) setRecovered(error.product);
+      if (error instanceof CreatedProductChangedError) {
+        setRecovered(error.product);
+        setPublicationMessage(error.message);
+        try {
+          const pointers = control.controller?.pending().entries ?? [];
+          setRecoveredScope(pointers.length === 1 ? pointers[0] : undefined);
+          setPublication(pendingProductPublications(error.product._id));
+        } catch (recoveryError) {
+          setRecoveryBlocked(true);
+          setError(
+            recoveryError instanceof Error
+              ? recoveryError
+              : Error('Publication recovery is unavailable.'),
+          );
+        }
+      }
+      if (error instanceof ProductPublicationError) {
+        setRecovered(error.product);
+        setPublicationMessage(error.message);
+        try {
+          const pointers = control.controller?.pending().entries ?? [];
+          setRecoveredScope(pointers.length === 1 ? pointers[0] : undefined);
+        } catch {
+          setRecoveryBlocked(true);
+        }
+        if (error.owner && error.checkpoint)
+          setPublication({ owner: error.owner, entries: [error.checkpoint] });
+      }
       refresh();
     },
   });
@@ -71,15 +113,56 @@ export function ProductCreateForm(props: {
     setChecking(true);
     setError(null);
     try {
-      const product = await control.controller.check(selected);
+      const product = await control.controller.check(selected, { retain: true });
       if (mounted.current) {
         setRecovered(product);
+        setRecoveredScope(selected);
+        setPublicationMessage('');
+        setRecoveryBlocked(true);
+        const found = pendingProductPublications(product._id);
+        setPublication(found);
+        setRecoveryBlocked(false);
         refresh();
       }
     } catch (error) {
       if (mounted.current)
         setError(
           error instanceof Error ? error : Error('The original creation could not be checked.'),
+        );
+    } finally {
+      if (mounted.current) setChecking(false);
+    }
+  }
+  async function openSaved() {
+    if (
+      !recovered ||
+      checking ||
+      publicationBusy ||
+      recoveryBlocked ||
+      publication?.entries.length ||
+      !control.controller
+    )
+      return;
+    setChecking(true);
+    try {
+      control.controller.pending();
+      const product = recoveredScope
+        ? await control.controller.check(recoveredScope, { retain: true })
+        : await getRecord('products', recovered._id, AbortSignal.timeout(8000));
+      control.controller.pending();
+      if (!mounted.current) return;
+      setRecovered(product);
+      const original = pendingProductPublications(product._id);
+      setPublication(original);
+      if (original.entries.length) return;
+      if (recoveredScope) control.controller.acknowledge(recoveredScope);
+      props.onSaved(product, true);
+    } catch (error) {
+      if (mounted.current)
+        setError(
+          error instanceof Error
+            ? error
+            : Error('Return to the original account before opening this product.'),
         );
     } finally {
       if (mounted.current) setChecking(false);
@@ -113,7 +196,7 @@ export function ProductCreateForm(props: {
       collection={props.collection}
       title={props.title}
       defaults={props.defaults}
-      submitting={save.isPending || checking}
+      submitting={save.isPending || checking || publicationBusy}
       error={error}
       readOnlyReason={
         recovered
@@ -141,7 +224,7 @@ export function ProductCreateForm(props: {
                   <button
                     key={entry.attemptId}
                     type="button"
-                    disabled={checking || save.isPending}
+                    disabled={checking || save.isPending || publicationBusy}
                     className="mt-2 mr-2 min-h-11 rounded-lg border border-amber-400 px-3 font-semibold disabled:opacity-50"
                     onClick={() => {
                       void check(entry);
@@ -154,7 +237,31 @@ export function ProductCreateForm(props: {
             )}
             {recovered && (
               <>
-                <p>The original product is saved. Checking it did not publish or change it.</p>
+                <p>The original product is saved. Checking creation only reads its saved state.</p>
+                {publicationMessage && <output className="mt-2 block">{publicationMessage}</output>}
+                {publication?.entries.map((entry) => (
+                  <ProductPublicationRecovery
+                    key={entry.scope.operationId}
+                    product={recovered}
+                    owner={publication.owner}
+                    checkpoint={entry}
+                    disabled={publicationBusy}
+                    onBusy={setPublicationBusy}
+                    onResolved={(product, message) => {
+                      setRecovered(product);
+                      setPublicationMessage(message);
+                      setPublication(
+                        (current) =>
+                          current && {
+                            ...current,
+                            entries: current.entries.filter(
+                              (item) => item.scope.operationId !== entry.scope.operationId,
+                            ),
+                          },
+                      );
+                    }}
+                  />
+                ))}
                 <p className="mt-2">
                   Opening it replaces the fields in this form. Save any current edits you still need
                   first.
@@ -168,8 +275,13 @@ export function ProductCreateForm(props: {
                 </button>
                 <button
                   type="button"
-                  className="mt-2 min-h-11 rounded-lg border border-amber-400 px-3 font-semibold"
-                  onClick={() => props.onSaved(recovered, true)}
+                  className="mt-2 min-h-11 rounded-lg border border-amber-400 px-3 font-semibold disabled:opacity-50"
+                  disabled={
+                    publicationBusy || recoveryBlocked || Boolean(publication?.entries.length)
+                  }
+                  onClick={() => {
+                    void openSaved();
+                  }}
                 >
                   Open saved product
                 </button>

@@ -202,7 +202,13 @@ test('recovering a changed created product never applies the old publication int
     mimeType: 'image/png',
     publishedRefCount: 0,
   });
-  const values = { name: 'Clock', productFamily: 'misc', imageIds: ['owned'], published: true };
+  const values = {
+    name: 'Clock',
+    description: 'Reviewed description',
+    productFamily: 'misc',
+    imageIds: ['owned'],
+    published: true,
+  };
   const attempt = await captureProductCreation({ ...values, published: false });
   const created = await startProductCreation(attempt);
   await h.db.update('products', created.productId, {

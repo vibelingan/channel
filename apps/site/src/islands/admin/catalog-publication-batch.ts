@@ -9,6 +9,7 @@ import {
   PublicationCheckpointSchema,
   capturePublicationCommand,
   managePublication,
+  publicationStartFromCheckpoint,
   readPublicationStatus,
 } from './catalog-product-operation-api.ts';
 import { type PublicationCheckResult, checkPublication } from './catalog-publication-check.ts';
@@ -297,7 +298,14 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
         let entered = false;
         const key = JSON.stringify([owner.actorId, owner.endpoint, before.scope.productId]);
         let latest: PublicationCheckpoint =
-          'action' in entry ? { scope: before.scope } : structuredClone(entry);
+          'action' in entry
+            ? {
+                scope: before.scope,
+                ...(Object.keys(entry.values).length === 0
+                  ? { originalStart: { expectedUpdatedAt: entry.expectedUpdatedAt } }
+                  : {}),
+              }
+            : structuredClone(entry);
         try {
           guard();
           release = await acquire(signal);
@@ -316,7 +324,12 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                 'INVALID_RESPONSE',
                 'Publication returned a different original task.',
               );
-            latest = structuredClone(checkpoint);
+            latest = structuredClone({
+              ...checkpoint,
+              ...(latest.originalStart && !checkpoint.originalStart
+                ? { originalStart: latest.originalStart }
+                : {}),
+            });
             const saved = journal.retain(latest);
             if (saved.durability !== 'persistent' && mode !== 'check') {
               const error = new AdminApiError(
@@ -338,6 +351,34 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
             guard();
             validateCheck(check, latest.scope);
             if (check.status) retain({ ...latest, scope: check.scope });
+            if (
+              mode === 'cancel' &&
+              !check.status &&
+              check.error?.code === 'NOT_FOUND' &&
+              latest.originalStart &&
+              latest.scope.inputDigest === undefined
+            ) {
+              const reserved = await managePublication(publicationStartFromCheckpoint(latest), {
+                signal,
+                request,
+              });
+              guard();
+              retain({
+                ...latest,
+                scope: {
+                  productId: reserved.status.productId,
+                  operationId: reserved.status.operationId,
+                  inputDigest: reserved.status.inputDigest,
+                },
+              });
+              check = await (options.check ?? checkPublication)(latest.scope, {
+                signal,
+                request,
+                fetch: publicFetch,
+              });
+              guard();
+              validateCheck(check, latest.scope);
+            }
             if (
               mode === 'cancel' &&
               check.reason === 'not-complete' &&
@@ -399,6 +440,11 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                 preparationRequest,
                 ...('referenceRecovery' in entry
                   ? { referenceRecovery: entry.referenceRecovery }
+                  : {}),
+                ...(!('action' in entry) &&
+                entry.originalStart &&
+                entry.scope.inputDigest === undefined
+                  ? { originalStart: publicationStartFromCheckpoint(entry) }
                   : {}),
                 onStatus: async (_status, checkpoint) => retain(checkpoint),
               },

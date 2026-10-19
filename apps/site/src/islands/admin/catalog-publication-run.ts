@@ -50,6 +50,7 @@ export type PublicationRunOptions = {
     checkpoint: PublicationCheckpoint,
   ) => void | Promise<void>;
   referenceRecovery?: CatalogReferenceRecoveryCursor;
+  originalStart?: PublicationAttempt;
 };
 class RunPaused extends Error {}
 class ScopeStopped extends Error {}
@@ -136,6 +137,20 @@ export async function runPublication(
   options: PublicationRunOptions = {},
 ): Promise<PublicationRunResult> {
   const captured = target(input);
+  const originalStart =
+    options.originalStart === undefined
+      ? undefined
+      : capturePublicationCommand(options.originalStart);
+  if (
+    originalStart &&
+    (captured.start ||
+      captured.scope.inputDigest !== undefined ||
+      originalStart.action !== 'product-operation-start' ||
+      originalStart.productId !== captured.scope.productId ||
+      originalStart.operationId !== captured.scope.operationId ||
+      Object.keys(originalStart.values).length !== 0)
+  )
+    throw new AdminApiError('VALIDATION_ERROR', 'Invalid original publication start.');
   const checkpoint = CatalogReferenceRecoveryCursorSchema.optional().safeParse(
     options.referenceRecovery,
   );
@@ -291,7 +306,21 @@ export async function runPublication(
     if (options.signal) signal = AbortSignal.any([options.signal, budget.signal]);
     if (!canRequest()) return result('paused');
     try {
-      await (captured.start ? perform(captured.start) : query());
+      if (captured.start) await perform(captured.start);
+      else {
+        try {
+          await query();
+        } catch (error) {
+          if (
+            !originalStart ||
+            originalStart.action !== 'product-operation-start' ||
+            !(error instanceof AdminApiError) ||
+            error.code !== 'NOT_FOUND'
+          )
+            throw error;
+          await perform(originalStart);
+        }
+      }
     } catch (error) {
       if (error instanceof RunPaused) return result('paused');
       return result(

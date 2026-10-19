@@ -1,3 +1,4 @@
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { z } from 'zod';
 import { getToken } from '../../lib/session.ts';
@@ -68,7 +69,7 @@ export class ProductCreationUnknownError extends AdminApiError {
 }
 
 export class CreatedProductChangedError extends AdminApiError {
-  constructor(readonly product: ProductCreationResult['product']) {
+  constructor(readonly product: CollectionDoc) {
     super(
       'CREATION_CHANGED',
       'The original product was recovered. Open the saved product to review its current state before publishing.',

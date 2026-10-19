@@ -6,6 +6,7 @@ import {
   PublicationStatusUnknownError,
   createPublicationAttempt,
   managePublication,
+  publicationStartFromCheckpoint,
   readPublicationStatus,
 } from './catalog-product-operation-api.ts';
 
@@ -34,6 +35,33 @@ const operationId = '12345678-1234-4234-8234-123456789012';
 const at = '2026-10-18T00:00:00.000Z';
 const binding = { productId: 'p', operationId, inputDigest: 'a'.repeat(64) };
 const query = { action: 'product-operation-get', productId: 'p', operationId };
+
+test('an empty original start uses the saved operation and version without generating a new attempt', () => {
+  const checkpoint = {
+    scope: { productId: 'p', operationId },
+    originalStart: { expectedUpdatedAt: at },
+  };
+  const start = publicationStartFromCheckpoint(checkpoint);
+  assert.deepEqual(start, {
+    action: 'product-operation-start',
+    intent: 'publish',
+    productId: 'p',
+    operationId,
+    expectedUpdatedAt: at,
+    values: {},
+  });
+  assert.equal(Object.isFrozen(start), true);
+  for (const invalid of [
+    { ...checkpoint, scope: binding },
+    { scope: checkpoint.scope },
+    {
+      ...checkpoint,
+      originalStart: { expectedUpdatedAt: at, values: { name: 'Cannot be erased' } },
+    },
+    { ...checkpoint, originalStart: { expectedUpdatedAt: 'invalid' } },
+  ])
+    assert.throws(() => publicationStartFromCheckpoint(invalid));
+});
 const advance = { action: 'product-operation-continue', ...binding };
 function saved(extra = {}) {
   return {

@@ -358,57 +358,8 @@ test('an approved answer ends the approval in one request', async (t) => {
 
 // --- MIU-37: a new product starts as a draft; OWN-1: contributors save without the admin-only approval ---
 
-test('creating a product as Published saves a draft, then approves and publishes it', async (t) => {
-  const api = manualApi(t, {});
-  const saved = await createRecord('products', {
-    name: 'Kids headset',
-    productFamily: 'headphones',
-    imageIds: ['img'],
-    published: true,
-  });
-  assert.equal(saved.published, true);
-  assert.equal(api.creates[0]?.values && Reflect.get(api.creates[0].values, 'published'), false);
-  assert.deepEqual(
-    api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities'),
-    ['catalogProductCreate', 'approval:approve', 'update'],
-  );
-});
-
-test('when publishing the new product fails, the draft is kept and the error says so', async (t) => {
-  let current: Record<string, unknown> = {};
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body: AdminCall = JSON.parse(String(init.body));
-    if (body.action === 'catalogProductCreate') {
-      current = {
-        _id: creationProductId,
-        ...(body.data?.values as object),
-        createdAt: creationTime,
-        updatedAt: creationTime,
-      };
-      return Response.json({ ok: true, data: creationResult(body, current) });
-    }
-    if (body.action === 'catalogDetailApproval')
-      return Response.json({
-        ok: false,
-        error: {
-          code: 'CONFLICT',
-          message: 'The product images are missing or busy. Confirm the gallery before approval.',
-        },
-      });
-    const data = body.action === 'catalogDetailCapabilities' ? { enabled: true } : current;
-    return Response.json({ ok: true, data });
-  });
-  const failure = await createRecord('products', {
-    name: 'Kids headset',
-    productFamily: 'headphones',
-    imageIds: ['legacy-image'],
-    published: true,
-  }).catch((error: unknown) => error);
-  assert.ok(failure instanceof DraftSavedError);
-  assert.equal(failure.draft._id, creationProductId);
-  assert.equal(failure.draft.published, false);
-  assert.match(failure.message, /^Saved as a draft, not published: The product images are missing/);
-});
+// New-product publication and lost-response coverage run against the real native handler
+// in catalog-created-publication.test.ts, including explicit draft preservation on rejection.
 
 test('a draft is created in one request', async (t) => {
   const api = manualApi(t, {});

@@ -160,6 +160,247 @@ test('product creation keeps one original draft across response loss, reload and
   }
 });
 
+test('built creation recovery checks and opens a real published product using its original task', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const session = await loginAdmin(request);
+  await page.addInitScript(({ token, user }) => {
+    localStorage.setItem('channel.token', token);
+    localStorage.setItem('channel.user', JSON.stringify(user));
+  }, session);
+  const created = new Set<string>();
+  const tasks: { productId: string; operationId: string }[] = [];
+  const writes: string[] = [];
+  let blockPublic = true;
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  await page.route('**/api/admin', async (route) => {
+    const input = route.request().postDataJSON();
+    if (
+      input.action === 'update' ||
+      (input.action === 'catalogDetailApproval' &&
+        !String(input.data?.action).startsWith('product-operation-'))
+    )
+      writes.push(input.action);
+    if (input.data?.action === 'product-operation-start') tasks.push(input.data);
+    await route.continue();
+  });
+  await page.route('**/api/products/**/detail*', async (route) => {
+    if (
+      blockPublic &&
+      [...created].some(
+        (id) => new URL(route.request().url()).pathname === `/api/products/${id}/detail`,
+      )
+    )
+      await route.abort('failed');
+    else await route.continue();
+  });
+  const open = async () => {
+    await page.goto('/admin?productFamily=misc');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByRole('button', { name: 'New Product', exact: true }).click();
+    return page.getByRole('dialog', { name: 'New Product', exact: true });
+  };
+  try {
+    // Arrange through the real HTTP protocol with an existing valid PNG.
+    // The local runner cannot mint CloudBase upload credentials; this is recovery acceptance,
+    // while the complete creation form path runs in catalog-product-create-browser.test.ts.
+    const name = `${e2e.runId} Created owned publication`;
+    const attemptId = crypto.randomUUID();
+    const saved = await adminAction<{
+      productId: string;
+      inputDigest: string;
+      product: CollectionDoc;
+    }>(
+      request,
+      'catalogProductCreate',
+      {
+        action: 'start',
+        attemptId,
+        values: {
+          name,
+          productFamily: 'misc',
+          imageIds: ['formal-image-0'],
+          description: 'A reviewed manual product description',
+          published: false,
+        },
+      },
+      session.token,
+    );
+    created.add(saved.productId);
+    const owner = { actorId: session.user.id, endpoint: `${e2e.apiUrl}/api/admin` };
+    const original = { productId: saved.productId, operationId: crypto.randomUUID() };
+    tasks.push(original);
+    let status = CatalogProductOperationStatusSchema.parse(
+      await adminAction(
+        request,
+        'catalogDetailApproval',
+        {
+          ...original,
+          action: 'product-operation-start',
+          intent: 'publish',
+          expectedUpdatedAt: saved.product.updatedAt,
+          values: {},
+        },
+        session.token,
+      ),
+    );
+    await expect
+      .poll(
+        async () => {
+          status = CatalogProductOperationStatusSchema.parse(
+            await adminAction(
+              request,
+              'catalogDetailApproval',
+              {
+                ...original,
+                inputDigest: status.inputDigest,
+                action: 'product-operation-continue',
+              },
+              session.token,
+            ),
+          );
+          const hint = status.preparation;
+          if (hint) {
+            expect(['edit', 'repair']).not.toContain(hint.nextAction);
+            const command = hint.job
+              ? hint.nextAction === 'retry'
+                ? {
+                    action: 'retry',
+                    jobId: hint.job.id,
+                    expectedLeaseVersion: hint.job.leaseVersion,
+                  }
+                : { action: hint.nextAction === 'wait' ? 'status' : 'continue', jobId: hint.job.id }
+              : { action: 'start', productId: saved.productId };
+            await adminAction(request, 'catalogPreparation', command, session.token);
+          }
+          return status.state;
+        },
+        { timeout: 30000, intervals: [100, 300, 600] },
+      )
+      .toBe('complete');
+    // These are the real durable pointers left when a browser loses the final response.
+    // The built page validates their version, owner and scope before issuing any request.
+    const entries: [string, string][] = [
+      [
+        'creation',
+        {
+          scope: {
+            productId: 'new-product',
+            operationId: attemptId,
+            inputDigest: saved.inputDigest,
+          },
+        },
+      ],
+      [
+        'publication',
+        {
+          scope: { ...original, inputDigest: status.inputDigest },
+          originalStart: { expectedUpdatedAt: saved.product.updatedAt },
+        },
+      ],
+    ].map(([kind, entry]) => {
+      const record = entry as { scope: { productId: string; operationId: string } };
+      return [
+        `channel:${kind}:v1:${JSON.stringify([owner.actorId, owner.endpoint])}:${JSON.stringify([record.scope.productId, record.scope.operationId])}`,
+        JSON.stringify({
+          schemaVersion:
+            kind === 'creation'
+              ? 'catalog-creation-recovery-v1'
+              : 'catalog-publication-recovery-v1',
+          owner,
+          entry,
+        }),
+      ];
+    });
+    const before = await read(saved.productId);
+    expect(before.published).toBe(true);
+    expect(Reflect.get(before.catalogDetailApprovalReceipt as object, 'operationId')).toBe(
+      original.operationId,
+    );
+    expect(tasks).toHaveLength(1);
+    await page.goto('/admin');
+    await page.evaluate(
+      (records) => {
+        for (const [key, value] of records) localStorage.setItem(key, value);
+      },
+      [...entries],
+    );
+    let reopened = await open();
+    await reopened.getByRole('button', { name: 'Check saved product', exact: true }).click();
+    await expect(
+      reopened.getByRole('region', { name: 'Product publication recovery', exact: true }),
+    ).toContainText(original.operationId);
+    await reopened.getByRole('button', { name: 'Check publication', exact: true }).click();
+    await expect(
+      reopened.getByRole('button', { name: 'Open saved product', exact: true }),
+    ).toBeDisabled();
+    reopened = await open();
+    await reopened.getByRole('button', { name: 'Check saved product', exact: true }).click();
+    await expect(
+      reopened.getByRole('region', { name: 'Product publication recovery', exact: true }),
+    ).toContainText(original.operationId);
+    blockPublic = false;
+    await reopened.getByRole('button', { name: 'Check publication', exact: true }).click();
+    await expect(
+      reopened.getByText('The original publication is confirmed on the website.', { exact: true }),
+    ).toBeVisible();
+    expect(await read(saved.productId)).toEqual(before);
+    expect(tasks).toHaveLength(1);
+    expect(writes).toEqual([]);
+    await reopened.getByRole('button', { name: 'Open saved product', exact: true }).click();
+    const edit = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await expect(edit.locator('#name')).toHaveValue(name);
+    await expect(edit.getByRole('checkbox', { name: 'Published', exact: true })).toBeChecked();
+    const publicResult = await request.get(`${e2e.apiUrl}/api/products/${saved.productId}/detail`);
+    expect(publicResult.status()).toBe(200);
+    expect((await publicResult.json()).data.revision).toBe(
+      Reflect.get(before.catalogDetailApprovalReceipt as object, 'revision'),
+    );
+  } finally {
+    blockPublic = false;
+    await page.unrouteAll({ behavior: 'wait' });
+    for (const id of created) {
+      let product = await read(id);
+      if (product.published === true) {
+        expect(
+          tasks.some(
+            (task) =>
+              task.productId === id &&
+              task.operationId ===
+                Reflect.get(product.catalogDetailApprovalReceipt as object, 'operationId'),
+          ),
+        ).toBe(true);
+        product = await adminAction<CollectionDoc>(
+          request,
+          'update',
+          {
+            collection: 'products',
+            id,
+            values: { published: false },
+            expectedUpdatedAt: product.updatedAt,
+          },
+          session.token,
+        );
+      }
+      expect((await request.get(`${e2e.apiUrl}/api/products/${id}/detail`)).status()).toBe(404);
+      await adminAction(
+        request,
+        'update',
+        {
+          collection: 'products',
+          id,
+          values: { archived: true },
+          expectedUpdatedAt: product.updatedAt,
+        },
+        session.token,
+      );
+    }
+  }
+});
+
 async function choose(scope: Locator | Page, label: string, option: string) {
   await scope
     .getByRole('combobox', { name: label, exact: true })

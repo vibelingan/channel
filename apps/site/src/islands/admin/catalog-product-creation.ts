@@ -8,6 +8,7 @@ import {
   captureProductCreation,
   checkProductCreation,
 } from './catalog-product-create-api.ts';
+import { ProductPublicationError } from './catalog-product-publication.ts';
 import {
   type PublicationJournalStorage,
   createPublicationJournal,
@@ -40,6 +41,7 @@ export function createProductCreationController(
   const bound = { ...initial };
   const owner = { actorId: bound.actorId, endpoint: bound.endpoint };
   const journal = createPublicationJournal(owner, options.storage, 'creation');
+  const publications = createPublicationJournal(owner, options.storage);
   let active: ProductCreationAttempt | undefined;
   let running = false;
   const assertCurrent = () => {
@@ -84,14 +86,17 @@ export function createProductCreationController(
   return {
     pending,
     export: () => journal.export(),
-    async check(selected: ProductCreationScope) {
+    acknowledge: forget,
+    async check(selected: ProductCreationScope, options: { retain?: boolean } = {}) {
       if (running) throw new AdminApiError('BUSY', 'This creation is already being checked.');
       running = true;
       try {
         assertCurrent();
         const result = await checkProductCreation(selected, undefined, assertCurrent);
-        forget(selected);
-        if (active?.attemptId === selected.attemptId) active = undefined;
+        if (!options.retain) {
+          forget(selected);
+          if (active?.attemptId === selected.attemptId) active = undefined;
+        }
         return result.product;
       } finally {
         running = false;
@@ -140,6 +145,20 @@ export function createProductCreationController(
               undefined,
               assertCurrent,
             );
+            const publication = publications.read();
+            if (publication.problems.length)
+              throw new AdminApiError(
+                'RECOVERY_CORRUPT',
+                'Check publication recovery before opening this saved product.',
+              );
+            const original = publication.entries.find(
+              (entry) => entry.scope.productId === result.productId,
+            );
+            if (original)
+              throw new ProductPublicationError(result.product, owner, original, {
+                state: 'unknown',
+                scope: original.scope,
+              });
             if (values.published === true) throw new CreatedProductChangedError(result.product);
             forget(active);
             active = undefined;
@@ -156,8 +175,8 @@ export function createProductCreationController(
         if (
           active &&
           (error instanceof DraftSavedError ||
-            error instanceof CreatedProductChangedError ||
             (fresh &&
+              !(error instanceof ProductPublicationError) &&
               error instanceof AdminApiError &&
               [
                 'BAD_REQUEST',
