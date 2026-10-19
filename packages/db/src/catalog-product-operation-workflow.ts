@@ -23,6 +23,7 @@ import {
   ProductOperationCancelSchema,
   ProductOperationGetSchema,
   ProductOperationStartSchema,
+  ProductOperationStopSchema,
   cleanProductOperationValues,
   submittedProductOperationDigest,
 } from './catalog-product-operation.ts';
@@ -35,6 +36,7 @@ const RequestSchema = z.discriminatedUnion('action', [
     action: z.literal('product-operation-start'),
   }),
   ProductOperationGetSchema.extend({ action: z.literal('product-operation-get') }),
+  ProductOperationStopSchema.extend({ action: z.literal('product-operation-stop') }),
   ProductOperationCancelSchema.extend({ action: z.literal('product-operation-cancel') }),
   ProductOperationCancelSchema.extend({ action: z.literal('product-operation-save') }),
 ]);
@@ -59,15 +61,17 @@ export async function runProductOperationWorkflow(
   const command =
     request.action === 'product-operation-start'
       ? { ...request, action: 'operation-start' as const }
-      : request.action === 'product-operation-get'
-        ? { ...request, action: 'operation-get' as const }
-        : request.action === 'product-operation-cancel'
-          ? { ...request, action: 'operation-cancel' as const }
-          : {
-              action: 'operation-get' as const,
-              productId: request.productId,
-              operationId: request.operationId,
-            };
+      : request.action === 'product-operation-stop'
+        ? { ...request, action: 'operation-stop' as const }
+        : request.action === 'product-operation-get'
+          ? { ...request, action: 'operation-get' as const }
+          : request.action === 'product-operation-cancel'
+            ? { ...request, action: 'operation-cancel' as const }
+            : {
+                action: 'operation-get' as const,
+                productId: request.productId,
+                operationId: request.operationId,
+              };
   const captured = captureApprovalPersistenceCommand(command);
   if (!captured.ok) return captured;
   let result: ApprovalStageResult;

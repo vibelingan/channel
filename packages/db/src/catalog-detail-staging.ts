@@ -58,6 +58,7 @@ import {
   ProductOperationReferencesSchema,
   type ProductOperationResult,
   ProductOperationStartSchema,
+  ProductOperationStopSchema,
   runProductOperation,
 } from './catalog-product-operation.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
@@ -112,6 +113,7 @@ const PriceSummaryBackfillSchema = z
   .strict();
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationStartSchema,
+  ProductOperationStopSchema,
   ProductOperationApprovalPageSchema,
   ProductOperationCancelSchema,
   ProductOperationApprovalBeginSchema,
@@ -555,6 +557,7 @@ export async function runStagedApproval(
   const command = parsed.data;
   if (
     command.action === 'operation-start' ||
+    command.action === 'operation-stop' ||
     command.action === 'operation-get' ||
     command.action === 'operation-approval-begin' ||
     command.action === 'operation-approval-page' ||

@@ -1495,3 +1495,14 @@ Review实际19代码/测试与原生事务、monotonicProductTime、validateProd
 测试迁移说明：删除无生产消费者的旧分类发布桥接；原布尔值确认/重新取最新版本重试的断言由真实JWT/HTTP/PNG/native Root测试替代。下架、归档、普通编辑、分类版本保护、非商品batch的既有测试继续运行。没有调整服务端超时；批量UI测试从默认5秒改为30秒等待，匹配其20件操作而非单次点击反馈。此为本地观测，不等于云端P95。
 
 限制：live-edit原生接线仍属P4，P5历史审计、P6精确后端制品与全门槛、P7 test三件真实resync/20件恢复及COS/性能尚未完成。未发布到test，未修改真实商品。本轮`fullDeliveryReady=false`。
+
+
+## P4c1：原请求未到达时的原子停止（2026-10-20）
+
+实现和边界见[P4c1](P4c1_ATOMIC_STOP.zh-CN.md)。增加已有Root协议的Stop动作；已有Root只取消自己、完成则只读；无Root在同一事务登记已取消的空记录，迟到start无法覆盖它。不保存编辑正文、不修改product/图片、不增加第二个审批系统。旧带digest取消继续兼容。当前仅服务端，随后接客户端和完整编辑。
+
+实际检查4个代码/测试文件：`catalog-product-operation.ts`、`catalog-product-operation-workflow.ts`、`catalog-detail-staging.ts`、`catalog-product-operation-stop.test.ts`，并核对现有cancel、Root decoder、Node20 build、图片账本、Admin角色重验和消费者dispatch。文案把“停止会回退”改为“停止未来执行，已保存编辑保留，已完成发布只读”；实查11用例的product、image有效账本、actor/intent及匿名404/200，完成样本finally按本次回执恢复404。
+
+结果：DB2254/2254、Admin638/638，Node20相关141/141，最终Stop11/11，无失败/跳过；Admin与local-server类型、4文件Biome、SDK gate、Admin node20 build通过。3个源码故障真实检出且SHA恢复，构建hash及4源码hash见`atomic-stop-verification.json`。初次类型检查指出新测试对complete联合类型访问cancelledAt，已用严格判别修正；没有放松生产schema。
+
+未新增SDK调用、shim、云集合/环境变量；继续原分支。没有部署或真实商品变更，clientWired=false/fullDeliveryReady=false。精确提交审查另记本地侧车；当前全局pre-commit的Biome --silent参数错误仍存在，显式选文件检查才是lint证据。

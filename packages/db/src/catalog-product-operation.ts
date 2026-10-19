@@ -128,6 +128,10 @@ export const ProductOperationApprovalPageSchema = identifiers
 export const ProductOperationCancelSchema = identifiers
   .extend({ action: z.literal('operation-cancel'), inputDigest: digest })
   .strict();
+/** Stops an owned original ID even when its private start body never arrived. */
+export const ProductOperationStopSchema = identifiers
+  .extend({ action: z.literal('operation-stop'), intent })
+  .strict();
 export const ProductOperationMediaSchema = identifiers
   .extend({ action: z.literal('operation-approval-media'), inputDigest: digest })
   .strict();
@@ -153,6 +157,7 @@ const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationApprovalBeginSchema,
   ProductOperationApprovalPageSchema,
   ProductOperationCancelSchema,
+  ProductOperationStopSchema,
   ProductOperationMediaSchema,
   ProductOperationReferencesSchema,
   ProductOperationReferencePageSchema,
@@ -328,6 +333,7 @@ export async function runProductOperation(
   if (values === null) return fail('VALIDATION_ERROR');
   const user = await tx.get('users', actorId);
   if (user?.role !== 'admin' || user.status === 'suspended') return fail('FORBIDDEN');
+  if (command.action === 'operation-stop') return stopOperation(tx, actorId, command);
   if (command.action === 'operation-approval-begin')
     return beginOperationApproval(tx, actorId, command);
   if (command.action === 'operation-approval-page')
@@ -419,6 +425,57 @@ export async function runProductOperation(
     return fail('VALIDATION_ERROR');
   await tx.set(collection, record);
   return { ok: true, record, current: true, revisionCurrent: true, expired: false };
+}
+
+/** The original start and this terminal reservation compete on the same owned Root key. */
+async function stopOperation(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command: z.infer<typeof ProductOperationStopSchema>,
+): Promise<ProductOperationResult> {
+  const key = operationKey(actorId, command.productId, command.operationId);
+  const previous = await tx.get(collection, key);
+  if (previous) {
+    const record = readReservation(previous, actorId, command);
+    if (!record || record.operation.intent !== command.intent) return fail('CONFLICT');
+    if (record.state === 'complete') return inspect(tx, record);
+    return cancelOperation(tx, record);
+  }
+  const product = await tx.get('products', command.productId);
+  if (!product || product._id !== command.productId) return fail('NOT_FOUND');
+  const base = await snapshot(tx, product, command.intent);
+  if (!base) return fail('CONFLICT');
+  const seed: z.infer<typeof ProductOperationStartSchema> = {
+    action: 'operation-start',
+    productId: command.productId,
+    operationId: command.operationId,
+    intent: command.intent,
+    expectedUpdatedAt: product.updatedAt ?? null,
+    values: {},
+  };
+  const now = new Date().toISOString();
+  const record = ReservedSchema.parse({
+    _id: key,
+    actorId,
+    productId: command.productId,
+    operationId: command.operationId,
+    state: 'reserved',
+    createdAt: now,
+    operation: {
+      protocolVersion: 2,
+      intent: command.intent,
+      expectedUpdatedAt: seed.expectedUpdatedAt,
+      inputDigest: requestDigest(actorId, seed, {}),
+      policy: currentPolicy(),
+      values: {},
+      base,
+      cancelledAt: now,
+    },
+  });
+  if (!fitsJsonBudget(record, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28))
+    return fail('VALIDATION_ERROR');
+  await tx.set(collection, record);
+  return inspect(tx, record, product);
 }
 
 export function cleanProductOperationValues(
