@@ -167,6 +167,14 @@ try {
   const live = await context.newPage();
   const errors = [];
   live.on('pageerror', (e) => errors.push(e.message));
+  const hydrationErrors = [];
+  live.on('console', (message) => {
+    if (
+      message.type() === 'error' &&
+      /hydrat|did not match|Minified React error|each child.*key/i.test(message.text())
+    )
+      hydrationErrors.push(message.text());
+  });
   // Hold refresh until after hydration, proving bootstrap survives slow APIs.
   let release;
   const held = new Promise((done) => {
@@ -287,6 +295,7 @@ try {
   }
   assert.equal((await live.goto(`${origin}/products/p-unknown-product/`)).status(), 404);
   assert.deepEqual(errors, []);
+  assert.deepEqual(hydrationErrors, []);
   results.quotesSubmittedToLocalStub = posts.length;
   results.browser.push('unknown standard route returns HTTP 404; no pageerror');
   await context.close();
