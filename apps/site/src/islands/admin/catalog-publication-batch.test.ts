@@ -266,7 +266,7 @@ for (const field of ['token', 'actorId', 'endpoint'] as const)
     gate.release();
     await assert.rejects(
       pending,
-      (error) => error instanceof AdminApiError && error.code === 'UNAUTHORIZED',
+      (error) => error instanceof AdminApiError && error.code === 'SESSION_CHANGED',
     );
     assert.equal(h.data.size, 0);
   });

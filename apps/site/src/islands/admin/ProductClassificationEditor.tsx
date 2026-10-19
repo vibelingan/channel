@@ -537,7 +537,8 @@ export function ProductClassificationEditor({
       if (mounted.current) {
         setFinished(true);
         setMessage(
-          error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code)
+          error instanceof AdminApiError &&
+            ['UNAUTHORIZED', 'FORBIDDEN', 'SESSION_CHANGED'].includes(error.code)
             ? `${error.message} Classification was not confirmed; check statuses before trying again.`
             : submitted.kind === 'keep'
               ? 'Publication could not start. Refresh product statuses before trying again.'

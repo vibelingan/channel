@@ -507,59 +507,8 @@ test('classification Save and publish leaves a product with Alibaba changes to i
   );
 });
 
-test('a draft that cannot be published for a known reason is reported with that reason; the batch goes on', async (t) => {
-  const products: Record<string, Record<string, unknown>> = {
-    'no-photos': {
-      _id: 'no-photos',
-      name: 'No photos',
-      productFamily: 'headphones',
-      published: false,
-      alibabaPrimarySourceKey: 'source-x',
-      alibabaReviewPending: true,
-      alibabaReviewReason: 'new',
-      updatedAt: 'rev-x',
-    },
-    ready: {
-      _id: 'ready',
-      name: 'Ready',
-      productFamily: 'headphones',
-      imageIds: ['img'],
-      published: false,
-      alibabaPrimarySourceKey: 'source-y',
-      alibabaReviewPending: true,
-      alibabaReviewReason: 'new',
-      updatedAt: 'rev-y',
-    },
-  };
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body: AdminCall = JSON.parse(String(init.body));
-    const id = String(body.data?.id ?? body.data?.productId ?? '');
-    let data: unknown = progress;
-    if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
-    if (body.action === 'get') data = products[id];
-    if (body.action === 'update') {
-      products[id] = { ...products[id], ...(body.data?.values as object), updatedAt: 'after' };
-      data = products[id];
-    }
-    if (body.data?.action === 'approve')
-      data = { ok: true, status: 'approved', jobId: 'job', revision: 'revision' };
-    return Response.json({ ok: true, data });
-  });
-  const result = await batchUpdateRecords(
-    'products',
-    ['no-photos', 'ready'],
-    { published: true },
-    new Map([
-      ['no-photos', 'rev-x'],
-      ['ready', 'rev-y'],
-    ]),
-  );
-  assert.equal(result.updated, 1);
-  assert.equal(result.failures.length, 1);
-  assert.equal(result.failures[0]?.id, 'no-photos');
-  assert.equal(result.failures[0]?.outcome, 'rejected');
-  assert.match(String(result.failures[0]?.message), /no photos/);
-});
+// Native table mixed rejection/progress is covered with real HTTP, JWT and owned PNG
+// in product-batch-publication.test.ts; direct approval tests here retain the legacy API boundary.
 
 test('more than 18 Alibaba description photos: the first 18 are taken, as the Edit import does', async (t) => {
   const api = linkedDraftApi(t, {

@@ -39,6 +39,7 @@ export function BatchUpdateFeedback({
   const retry = retryableIds(result);
   const summary = [
     `${result.updated} ${done}`,
+    result.unchanged?.length ? `${result.unchanged.length} already enabled (unchanged)` : '',
     notDone ? `${notDone} not ${done}` : '',
     unclear ? `${unclear} couldn't be checked` : '',
   ]
@@ -61,6 +62,11 @@ export function BatchUpdateFeedback({
           Open each in Edit to review its changes.
         </p>
       )}
+      {result.publication?.checkpoints.length ? (
+        <p className="mt-2">
+          Use Original publication tasks to check, continue or stop the unresolved tasks.
+        </p>
+      ) : null}
       {hasFailures && (
         <>
           <ul className="mt-2 space-y-2">

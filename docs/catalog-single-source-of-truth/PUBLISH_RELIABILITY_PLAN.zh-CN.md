@@ -4,7 +4,7 @@
 
 本文件是本轮唯一实施方案，替代 `PUBLISH_READINESS_PROPOSAL.zh-CN.md` 的初稿建议。详细验收范围见 [测试矩阵](PUBLISH_RELIABILITY_TEST_MATRIX.zh-CN.md)。当前工作目录为原 Claude checkout，分支 `feat/catalog-alibaba-price-tiers`，审查 HEAD `39705e2323d51d4aa79f1240d66f65608f407649`；正常已部署基线的最近观察为 `a3ce01e`。这些标识在实施开始前须重新核对。
 
-## 当前交付状态（2026-10-19 核对）
+## 当前交付状态（2026-10-20 核对）
 
 以下区分本地实现与实际 test 验收，不用测试总数代表整体完成比例。
 
@@ -14,11 +14,12 @@
 | 原发布操作、媒体/引用阶段、回执恢复 | 本地实现并有实际 JSON/Admin/Public/PNG 组合 | 真实 CloudBase 角色/MVCC/COS及网络性能 |
 | Assign category 单件/20件及保留各自分类 | 本地两个浏览器及构建后九条后台流程通过，测试对象恢复 | test 实际选品20件，逐件官网读回和恢复 |
 | 创建草稿、创建后发布及原结果恢复 | 本地原子创建、原生发布/读回/Stop，两个浏览器与构建恢复通过 | test实际创建、上传与恢复验收 |
-| 编辑/新媒体/live-edit/Preview/表格操作串联 | 现有入口仍有旧路径，尚未完成统一接线 | 按完整用户流程补齐并测试 |
+| 表格单件/20件发布、刷新与原任务恢复 | 原生任务、本地两浏览器/真实HTTP/构建后台通过 | test实际选品及性能 |
+| 编辑/新媒体/live-edit/Preview操作串联 | 现有入口仍有旧路径，尚未完成统一接线 | 按完整用户流程补齐并测试 |
 | 历史 readiness 与定向修复 runbook（P5） | 尚未完成 | 影子审计、恢复点和真实修复验证 |
 | 整体验收、test部署、实际选品 | 尚未开始本轮部署 | 全矩阵、精确制品、test现场和恢复 |
 
-最新局部证据：[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)、[P3e7d6](P3e7d6_PRESERVE_CLASSIFICATION.zh-CN.md)。创建草稿局部进展见[P3e7d7](P3e7d7_CREATE_RECOVERY.zh-CN.md)。创建后的发布本地证据见[P3e7d8](P3e7d8_NATIVE_PUBLICATION_ENTRYPOINTS.zh-CN.md)。下一步完成表格发布、编辑/保存的完整流程；已通过的局部仅在修改、失败或串联新增风险时重跑，最后再执行完整发布门槛。
+最新局部证据：[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)、[P3e7d6](P3e7d6_PRESERVE_CLASSIFICATION.zh-CN.md)。创建草稿局部进展见[P3e7d7](P3e7d7_CREATE_RECOVERY.zh-CN.md)。创建后的发布本地证据见[P3e7d8](P3e7d8_NATIVE_PUBLICATION_ENTRYPOINTS.zh-CN.md)。表格发布的本地证据见[P3e7d9](P3e7d9_TABLE_PUBLICATION.zh-CN.md)。下一步完成编辑/保存的完整流程；已通过的局部仅在修改、失败或串联新增风险时重跑，最后再执行完整发布门槛。
 
 ## 1. 审查结论和交付目标
 

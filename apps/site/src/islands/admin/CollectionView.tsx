@@ -41,6 +41,7 @@ import {
   useState,
 } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { getToken, getUser, onAuthChange } from '../../lib/session.ts';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
 import { ClassificationDialog } from './ClassificationDialog.tsx';
@@ -53,6 +54,7 @@ import {
   matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
 import { ProductCreateForm } from './ProductCreateForm.tsx';
+import { ProductPublicationInbox } from './ProductPublicationInbox.tsx';
 import { ProductRecordLoader } from './ProductRecordLoader.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { productReviewCellValue } from './alibaba-source-review.ts';
@@ -62,6 +64,7 @@ import {
   batchRemoveRecords,
   batchUpdateRecords,
   createRecord,
+  fetchCatalogDetailCapabilities,
   fetchProductReviewSummary,
   getRecord,
   imageUrl,
@@ -72,6 +75,7 @@ import {
   updateProductFromEditor,
   updateRecord,
 } from './api.ts';
+import { TablePublicationError, mergeTablePublication } from './catalog-table-publication.ts';
 import {
   PRODUCT_CHECK_LABELS,
   productCheckFromSearch,
@@ -154,6 +158,10 @@ export function CollectionView({
   const recordFocusRoot = useRef<HTMLDivElement>(null);
   const recordFocusReturn = useRef<{ key: string } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [publicationFeedback, setPublicationFeedback] = useState<BatchUpdateResult | null>(null);
+  const [publicationRefresh, setPublicationRefresh] = useState(0);
+  const [publicationBusy, setPublicationBusy] = useState(false);
+  const publicationEpoch = useRef(0);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
   // Batch Publish where every selected product was skipped: no request, just the notice.
   const [skippedOnly, setSkippedOnly] = useState<{
@@ -212,7 +220,27 @@ export function CollectionView({
       ? productCheckFromSearch(window.location.search)
       : 'all',
   );
-  const publishBlockReason = isProducts ? productCheckPublishBlock(checkStatus) : null;
+  const publicationCapabilities = useQuery({
+    queryKey: ['catalog-publication-capabilities'],
+    queryFn: ({ signal }) => fetchCatalogDetailCapabilities(signal),
+    enabled: isProducts && role === 'admin',
+    staleTime: 60000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const capabilityBlock =
+    isProducts && role === 'admin'
+      ? publicationCapabilities.isPending || publicationCapabilities.isFetching
+        ? 'Checking publishing availability…'
+        : publicationCapabilities.error
+          ? 'Publishing availability could not be checked. Retry the publishing check.'
+          : publicationCapabilities.data?.enabled !== true
+            ? 'Publishing is unavailable in this environment.'
+            : null
+      : null;
+  const publishBlockReason = isProducts
+    ? (productCheckPublishBlock(checkStatus) ?? capabilityBlock)
+    : null;
   const showGlobalReviewHints = checkStatus === 'all' && !search && !filter && !subcategoryId;
   const isUsers = collection.name === 'users';
   const inlineEdit = useMemo(() => new Set(section.inlineEdit ?? []), [section.inlineEdit]);
@@ -392,7 +420,13 @@ export function CollectionView({
       vars.opened
         ? updateProductFromEditor(vars.opened, vars.values)
         : updateRecord(collection.name, vars.id, vars.values),
-    onSuccess: (saved) => {
+    onMutate: () => {
+      setPublicationFeedback(null);
+      setSkippedOnly(null);
+      return { epoch: publicationEpoch.current };
+    },
+    onSuccess: (saved, _variables, context) => {
+      if (!mounted.current || context?.epoch !== publicationEpoch.current) return;
       setEditing(null);
       setStillFlagged(
         saved.published === true && ['Changed', 'Removed'].includes(String(reviewLabel(saved)))
@@ -400,6 +434,17 @@ export function CollectionView({
           : null,
       );
       invalidate();
+    },
+    onError: (error, _variables, context) => {
+      if (!mounted.current || context?.epoch !== publicationEpoch.current) return;
+      if (error instanceof TablePublicationError) {
+        setPublicationFeedback(error.result);
+        invalidate();
+      }
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (mounted.current && context?.epoch === publicationEpoch.current)
+        setPublicationRefresh((current) => current + 1);
     },
   });
 
@@ -416,20 +461,61 @@ export function CollectionView({
       names: Record<string, string>;
       skipped?: string[];
       expectedRevisions?: ReadonlyMap<string, string | null>;
+      openedProducts?: readonly CollectionDoc[];
       /** Set when trying again: the answers are folded into this result. */
       previous?: BatchUpdateResult;
     }) =>
       vars.previous
         ? retryBatchUpdate(vars.previous, vars.ids, vars.values, vars.expectedRevisions)
-        : batchUpdateRecords(collection.name, vars.ids, vars.values, vars.expectedRevisions),
-    onSuccess: (result) => {
-      const completed = new Set(result.items.map((item) => item._id));
+        : batchUpdateRecords(
+            collection.name,
+            vars.ids,
+            vars.values,
+            vars.expectedRevisions,
+            vars.openedProducts,
+          ),
+    onMutate: () => {
+      setPublicationFeedback(null);
+      setSkippedOnly(null);
+      return { epoch: publicationEpoch.current };
+    },
+    onSuccess: (result, _variables, context) => {
+      if (!mounted.current || context?.epoch !== publicationEpoch.current) return;
+      setPublicationFeedback(result.publication ? result : null);
+      const completed = new Set(
+        [...result.items, ...(result.unchanged ?? [])].map((item) => item._id),
+      );
       setRowSelection((current) =>
         Object.fromEntries(Object.entries(current).filter(([id]) => !completed.has(id))),
       );
       invalidate();
     },
+    onSettled: (_data, _error, _variables, context) => {
+      if (mounted.current && context?.epoch === publicationEpoch.current)
+        setPublicationRefresh((current) => current + 1);
+    },
   });
+
+  const resetUpdate = updateMutation.reset;
+  const resetBatchUpdate = batchUpdateMutation.reset;
+  useEffect(() => {
+    if (!isProducts) return;
+    const identity = () => JSON.stringify([getUser()?.id ?? null, getToken()]);
+    let previous = identity();
+    return onAuthChange(() => {
+      const current = identity();
+      if (current === previous) return;
+      previous = current;
+      publicationEpoch.current++;
+      setPublicationFeedback(null);
+      setSkippedOnly(null);
+      setStillFlagged(null);
+      resetUpdate();
+      resetBatchUpdate();
+      setRowSelection({});
+      setPublicationRefresh((value) => value + 1);
+    });
+  }, [isProducts, resetUpdate, resetBatchUpdate, setRowSelection]);
 
   const batchRemoveMutation = useMutation({
     mutationFn: (ids: string[]) => batchRemoveRecords(collection.name, ids),
@@ -458,7 +544,8 @@ export function CollectionView({
     removeMutation.isPending ||
     batchUpdateMutation.isPending ||
     batchRemoveMutation.isPending;
-  const recordWritePending = recordMutationPending || (isProducts && listUnavailable);
+  const recordWritePending =
+    publicationBusy || recordMutationPending || (isProducts && listUnavailable);
 
   useEffect(() => {
     if (!isProducts) {
@@ -858,6 +945,7 @@ export function CollectionView({
   const selectedCoreIncomplete =
     isProducts &&
     table.getSelectedRowModel().rows.some((row) => productListCoreIncomplete(row.original));
+  const shownBatchResult = publicationFeedback ?? batchUpdateMutation.data;
   const colCount = columns.length;
 
   return (
@@ -969,6 +1057,18 @@ export function CollectionView({
           </div>
           {publishBlockReason && (
             <p className="mt-2 text-sm text-slate-600">{publishBlockReason}</p>
+          )}
+          {publicationCapabilities.error && isProducts && role === 'admin' && (
+            <button
+              type="button"
+              className="mt-2 min-h-11 font-semibold underline"
+              disabled={publicationCapabilities.isFetching}
+              onClick={() => {
+                void publicationCapabilities.refetch();
+              }}
+            >
+              Retry publishing check
+            </button>
           )}
           {productFamily === 'unclassified' && (
             <p className="mt-3 text-sm text-slate-600">
@@ -1135,6 +1235,8 @@ export function CollectionView({
             );
             const docs = rows.filter((row) => selectedIds.includes(row._id));
             setSkippedOnly(null);
+            setPublicationFeedback(null);
+            batchUpdateMutation.reset();
             if (isProducts && values.published === true) {
               // Products with Alibaba changes are reviewed one by one (DEC-19).
               const [flagged, others] = splitForBatchPublish(docs);
@@ -1145,6 +1247,7 @@ export function CollectionView({
               }
               batchUpdateMutation.mutate({
                 ids: others.map((row) => row._id),
+                openedProducts: others,
                 values,
                 names,
                 ...(skipped.length ? { skipped } : {}),
@@ -1195,20 +1298,26 @@ export function CollectionView({
           Updating selected records. Please keep this page open.
         </output>
       )}
-      {!batchUpdateMutation.isPending && batchUpdateMutation.data && (
+      {!batchUpdateMutation.isPending && shownBatchResult && (
         <BatchUpdateFeedback
-          result={batchUpdateMutation.data}
-          names={batchUpdateMutation.variables?.names ?? {}}
+          result={shownBatchResult}
+          names={
+            batchUpdateMutation.variables?.names ??
+            Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)]))
+          }
           skipped={batchUpdateMutation.variables?.skipped ?? []}
           published={
-            typeof batchUpdateMutation.variables?.values.published === 'boolean'
-              ? batchUpdateMutation.variables.values.published
-              : undefined
+            publicationFeedback
+              ? true
+              : typeof batchUpdateMutation.variables?.values.published === 'boolean'
+                ? batchUpdateMutation.variables.values.published
+                : undefined
           }
-          {...(isProducts && batchUpdateMutation.variables
+          {...(isProducts && batchUpdateMutation.variables && !publicationFeedback?.publication
             ? {
                 onRetry: (ids: string[]) => {
-                  const { variables, data } = batchUpdateMutation;
+                  const { variables } = batchUpdateMutation;
+                  const data = publicationFeedback ?? batchUpdateMutation.data;
                   // Two clicks before the panel re-renders start one retry.
                   if (!variables || !data || retryStarted.current) return;
                   retryStarted.current = true;
@@ -1223,9 +1332,42 @@ export function CollectionView({
                 },
               }
             : {})}
-          onDismiss={() => batchUpdateMutation.reset()}
+          onDismiss={() => {
+            setPublicationFeedback(null);
+            batchUpdateMutation.reset();
+          }}
         />
       )}
+      {isProducts &&
+        role === 'admin' &&
+        !classifying &&
+        !classificationReview &&
+        !creating &&
+        !editing &&
+        !previewing && (
+          <ProductPublicationInbox
+            refreshKey={publicationRefresh}
+            busy={recordWritePending}
+            names={Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)]))}
+            onBusyChange={setPublicationBusy}
+            onRecovered={(result, selected) => {
+              setPublicationFeedback((previous) =>
+                previous ? mergeTablePublication(previous, result, selected) : previous,
+              );
+              const confirmed = new Set(result.items.map((item) => item._id));
+              setRowSelection((current) =>
+                Object.fromEntries(Object.entries(current).filter(([id]) => !confirmed.has(id))),
+              );
+              const error = updateMutation.error;
+              if (
+                error instanceof TablePublicationError &&
+                mergeTablePublication(error.result, result, selected) !== error.result
+              )
+                updateMutation.reset();
+              invalidate();
+            }}
+          />
+        )}
       {stillFlagged && (
         <output
           data-still-flagged

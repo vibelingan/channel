@@ -482,6 +482,12 @@ export function updateProductFromEditor(
       'INVALID_RESPONSE',
       'The product revision is invalid. Reload before saving.',
     );
+  if (opened.published !== true && values.published === true && Object.keys(values).length === 1) {
+    const captured = { ...opened };
+    return import('./catalog-table-publication.ts').then(({ publishTableProduct }) =>
+      publishTableProduct(captured),
+    );
+  }
   const intent: ProductWriteIntent =
     values.published === false
       ? 'unpublish'
@@ -793,6 +799,8 @@ export interface BatchUpdateResult {
   updated: number;
   items: CollectionDoc[];
   failures: BatchUpdateFailure[];
+  unchanged?: CollectionDoc[];
+  publication?: import('./catalog-table-publication.ts').TablePublicationRecovery;
 }
 
 const SIGN_IN_STOP = 'your sign-in expired or lacks permission. Sign in again, then try again.';
@@ -828,8 +836,10 @@ export async function batchUpdateRecords(
   ids: string[],
   inputValues: Record<string, unknown>,
   expectedRevisions?: ReadonlyMap<string, string | null>,
+  opened?: readonly CollectionDoc[],
 ): Promise<BatchUpdateResult> {
   const values = { ...inputValues };
+  const openedProducts = opened?.map((row) => ({ ...row }));
   if (collection !== 'products') {
     const result = await call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
       collection,
@@ -870,6 +880,11 @@ export async function batchUpdateRecords(
       'BAD_REQUEST',
       'Product snapshot revisions were incomplete. Refresh products before trying again.',
     );
+  if (values.published === true) {
+    const { publishTableSelection } = await import('./catalog-table-publication.ts');
+    const result = await publishTableSelection(uniqueIds, revisions, openedProducts);
+    if (result !== null) return result;
+  }
   // Each product is its own request chain, and most of its time is gateway
   // latency, so a few run at once. One unclear result (no answer, an
   // unexpected answer) affects only its own product: the batch carries on and
@@ -997,34 +1012,21 @@ export async function retryBatchUpdate(
   expectedRevisions?: ReadonlyMap<string, string | null>,
 ): Promise<BatchUpdateResult> {
   const values = { ...inputValues };
+  if (values.published === true) {
+    if (!previous.publication)
+      throw new AdminApiError(
+        'RECOVERY_MISSING',
+        'The original publication task is missing. Refresh and review the products before starting a new publication.',
+      );
+    const original = structuredClone(previous);
+    const selected = [...ids];
+    const { recoverTablePublication } = await import('./catalog-table-publication.ts');
+    return recoverTablePublication(original, selected, 'continue');
+  }
   const wanted = new Set(ids);
   const retry = previous.failures.filter((failure) => failure.retryable && wanted.has(failure.id));
-  const done: CollectionDoc[] = [];
-  const unreadable = new Map<string, BatchUpdateFailure>();
-  let send = retry.map((failure) => failure.id);
-  let revisions: Map<string, string | null> | undefined =
-    expectedRevisions === undefined ? undefined : new Map(expectedRevisions);
-  // Retained for callers not yet migrated to frozen operation inputs.
-  if (values.published === true && revisions === undefined) {
-    revisions = new Map();
-    send = [];
-    const reads = await Promise.all(
-      retry.map((failure) => getRecord('products', failure.id).catch(() => null)),
-    );
-    for (const [index, failure] of retry.entries()) {
-      const doc = reads[index];
-      if (doc && readbackProves(doc, values) === 'done') done.push(doc);
-      else if (!doc || typeof doc.updatedAt !== 'string')
-        unreadable.set(failure.id, {
-          ...failure,
-          message: "Couldn't read the product to try again. Refresh the list, then try again.",
-        });
-      else {
-        send.push(failure.id);
-        revisions.set(failure.id, doc.updatedAt);
-      }
-    }
-  }
+  const send = retry.map((failure) => failure.id);
+  const revisions = expectedRevisions === undefined ? undefined : new Map(expectedRevisions);
   const sent = send.length
     ? await batchUpdateRecords('products', send, values, revisions)
     : { updated: 0, items: [], failures: [] };
@@ -1032,10 +1034,10 @@ export async function retryBatchUpdate(
   const answers = new Map(sent.failures.map((failure) => [failure.id, failure]));
   const failures = previous.failures.flatMap((failure) => {
     if (!retried.has(failure.id)) return [failure];
-    const still = answers.get(failure.id) ?? unreadable.get(failure.id);
+    const still = answers.get(failure.id);
     return still ? [still] : [];
   });
-  const items = [...previous.items, ...done, ...sent.items];
+  const items = [...previous.items, ...sent.items];
   return { updated: items.length, items, failures };
 }
 
@@ -1215,28 +1217,4 @@ export async function assignmentCall(
     );
   }
   return response.data;
-}
-
-export function publishConfirmedClassification(
-  command: CatalogClassificationAssignmentRequest,
-  result: CatalogClassificationAssignmentResult,
-): Promise<BatchUpdateResult> | null {
-  const ids = command.products.map((item) => item.productId);
-  const confirmed = new Set(result.results.map((item) => item.productId));
-  if (
-    command.includeSavedRevision !== true ||
-    result.refreshRequired ||
-    ids.length === 0 ||
-    ids.length !== new Set(ids).size ||
-    ids.length !== confirmed.size ||
-    result.results.length !== ids.length ||
-    ids.some((id) => !confirmed.has(id))
-  )
-    return null;
-  const revisions = new Map<string, string>();
-  for (const item of result.results) {
-    if (item.status !== 'saved' || typeof item.updatedAt !== 'string') return null;
-    revisions.set(item.productId, item.updatedAt);
-  }
-  return batchUpdateRecords('products', ids, { published: true }, revisions);
 }

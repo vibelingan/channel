@@ -1473,3 +1473,25 @@ Review16文件并对照原子身份、图片锁、权限、redact、journal、�
 site完整1219 pass / 0 fail / 1环境门控，门控图库浏览器另启用1/1；Node20相关271/271；两浏览器创建22/22（包含于site）；15页构建后后台11/11（含20件保留分类及恢复）。Astro 0errors/0warnings/8hints，site/E2E类型与19文件Biome通过。四故障四检出/SHA恢复。首轮故障选择器未选中、浏览器异步导航夹具、清理代码变量、构建上传凭证缺失、E2E导入站点类型边界等失败均留档并分别更正，未用最后绿测覆盖历史失败。
 
 Review实际19代码/测试与原生事务、monotonicProductTime、validateProductPublication、既有界面调用者，纠正“未发布”和“构建上传已验收”的误导表达。构建新增用例用真实HTTP及已有合法PNG准备原任务并验收界面恢复，未模拟上传成功；真实上传仍待test/COS。已实看390px恢复截图。创建后发布本地单元完成；表格旧链、P4/P5/P6/P7与原JSON80归因仍开放，fullDeliveryReady=false。详见[P3e7d8](P3e7d8_NATIVE_PUBLICATION_ENTRYPOINTS.zh-CN.md)。
+
+
+## P3e7d9：表格草稿发布与可恢复原任务（2026-10-20）
+
+实现范围见[P3e7d9](P3e7d9_TABLE_PUBLICATION.zh-CN.md)。原checkout、原分支继续实施，没有新worktree、代理、PR或push。
+
+本单元修复：表格单件/20件发布接入原生Root；整批输入和重试原记录在首个await之前捕获；没有原任务的发布重试不再重新取版本发送；已上线且不需刷新商品单列unchanged；刷新后仍能Check/Continue/Stop；停止未到达start的版本过期出口共用batch保护。已绑定Root不能走“未开始”出口。切换账号清除上一会话的界面结果，迟到回调不污染新会话；分类入口保留明确提示。
+
+实际审查了`catalog-table-publication.ts`、`catalog-publication-batch.ts`、`catalog-product-publication.ts`、`api.ts`、`CollectionView.tsx`、`ProductPublicationInbox.tsx`、`ProductClassificationEditor.tsx`、`classification-publication.ts`与其测试，以及工程规范Frontend Islands/E2E/Review/Auth组、SDK部署边界。原表格组件和390px截图是UI依据。具体文案修正：把已上线未变更商品从“本次published”中分出“already enabled (unchanged)”；Stop说明它不会撤回已完成发布。截图复核还发现20张展开任务卡会把表格推得过远，现保留批量按钮并把单件任务放进可展开details，两个浏览器验证可展开、可折叠和恢复区高度。
+
+已核对事实：原任务按actor+endpoint隔离；Checkpoint不含JWT/私有表单正文；匿名D1与原Root共同确认；缺分类不填分类；询价商品和不同主分类可并行；共享图片以有效账本计数；下架后D1为404；每个测试只恢复自己的临时商品。
+
+验证：
+- `table-site-full-r3.log`：1240通过、0失败、1环境开关图库项；后者`table-gallery-explicit.log`显式开启1/1，0跳过。
+- `classification-formal-table-native-r3.log`：Astro实际构建15页，12/12完整后台流程，无重试或跳过，含原分类保留的20件Assign category和新增表格20件；恢复未发布及DB/runner/temp清理通过。
+- 视觉收起单件任务列表后，`table-final-browser-api-r1.log`20/20与`classification-formal-table-final-fold.log`构建后1/1再次通过。表格浏览器仍覆盖真实Chromium与390px WebKit。
+- `table-node20-r1.log`：79/79，0跳过；`table-e2e-types-r1.log`通过；`table-astro-check-r1.log`233文件0 errors/0 warnings/9 hints（含动态import函数可改async的建议，保留首await前的同步捕获）。
+- `table-fault-proof.json`：4个保护被逐项移除时对应断言失败，原文件SHA逐项恢复。保留初始红测及两轮完整失败日志，不覆盖失败记录。
+
+测试迁移说明：删除无生产消费者的旧分类发布桥接；原布尔值确认/重新取最新版本重试的断言由真实JWT/HTTP/PNG/native Root测试替代。下架、归档、普通编辑、分类版本保护、非商品batch的既有测试继续运行。没有调整服务端超时；批量UI测试从默认5秒改为30秒等待，匹配其20件操作而非单次点击反馈。此为本地观测，不等于云端P95。
+
+限制：live-edit原生接线仍属P4，P5历史审计、P6精确后端制品与全门槛、P7 test三件真实resync/20件恢复及COS/性能尚未完成。未发布到test，未修改真实商品。本轮`fullDeliveryReady=false`。

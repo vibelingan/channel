@@ -237,65 +237,8 @@ test('category batches reject unknown categories and mixed changes before networ
   }
 });
 
-test('product batch publishes through individual updates and retains each business rejection', async (t) => {
-  const requests: unknown[] = [];
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    if (body.action === 'catalogDetailCapabilities')
-      return Response.json({ ok: true, data: { enabled: false } });
-    requests.push(body.data);
-    if (body.action === 'batchUpdate') {
-      return Response.json(
-        {
-          ok: false,
-          error: { code: 'BAD_REQUEST', message: 'Products must be updated individually.' },
-        },
-        { status: 400 },
-      );
-    }
-    assert.equal(body.action, 'update');
-    if (body.data.id === 'missing-family') {
-      return Response.json(
-        {
-          ok: false,
-          error: { code: 'VALIDATION_ERROR', message: 'Product family is required to publish' },
-        },
-        { status: 400 },
-      );
-    }
-    return Response.json({
-      ok: true,
-      data: { _id: body.data.id, published: body.data.values.published },
-    });
-  });
-  const result = await batchUpdateRecords(
-    'products',
-    ['ready', 'missing-family', 'ready', 'also-ready'],
-    { published: true },
-  );
-  assert.equal(result.updated, 2);
-  assert.deepEqual(
-    result.items.map((item) => item._id),
-    ['ready', 'also-ready'],
-  );
-  assert.deepEqual(
-    requests,
-    ['ready', 'missing-family', 'also-ready'].map((id) => ({
-      collection: 'products',
-      id,
-      values: { published: true },
-    })),
-  );
-  assert.deepEqual(result.failures, [
-    {
-      id: 'missing-family',
-      code: 'VALIDATION_ERROR',
-      message: 'Product family is required to publish',
-      outcome: 'rejected',
-      retryable: false,
-    },
-  ]);
-});
+// Draft publication and mixed rejections are exercised through real native HTTP handlers
+// in product-batch-publication.test.ts and catalog-table-publication.test.ts.
 
 test('a server that stops answering stops the batch; unclear products are checked, still unclear', async (t) => {
   // Four run at once and all lose their answers. After the first one only one
@@ -454,70 +397,19 @@ const earlier: BatchUpdateResult = {
   ],
 };
 
-test('trying again reads each product first and sends only what is still not done, with the revision just read', async (t) => {
-  const current: Record<string, CollectionDoc> = {
-    busy: { _id: 'busy', published: false, updatedAt: 'r-busy' },
-    'went-through': { _id: 'went-through', published: true, updatedAt: 'r-went' },
-    flagged: { _id: 'flagged', published: false, updatedAt: 'r-flagged' },
-  };
-  const updates: unknown[] = [];
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    if (body.action === 'catalogDetailCapabilities')
-      return Response.json({ ok: true, data: { enabled: false } });
-    if (body.action === 'get') {
-      const doc = current[body.data.id];
-      if (!doc) throw new TypeError('Failed to fetch');
-      return Response.json({ ok: true, data: doc });
-    }
-    assert.equal(body.action, 'update');
-    updates.push(body.data);
-    if (body.data.id === 'flagged')
-      return Response.json(
-        { ok: false, error: { code: 'CONFLICT', message: 'Changed since you looked.' } },
-        { status: 409 },
-      );
-    return Response.json({ ok: true, data: { _id: body.data.id, published: true } });
+test('a publication retry without original tasks refuses before reading or minting new requests', async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests++;
+    throw Error('No request without an original identity');
   });
-  const result = await retryBatchUpdate(
-    earlier,
-    ['busy', 'went-through', 'flagged', 'unreadable', 'no-family'],
-    { published: true },
-  );
-  // Already published: counted, not sent again. Not retryable: never sent.
-  // Unreadable: not sent without a revision.
-  assert.deepEqual(updates, [
-    {
-      collection: 'products',
-      id: 'busy',
-      values: { published: true },
-      expectedUpdatedAt: 'r-busy',
-    },
-    {
-      collection: 'products',
-      id: 'flagged',
-      values: { published: true },
-      expectedUpdatedAt: 'r-flagged',
-    },
-  ]);
-  assert.deepEqual(
-    result.items.map((item) => item._id),
-    ['done', 'went-through', 'busy'],
-  );
-  assert.equal(result.updated, 3);
-  assert.deepEqual(
-    result.failures.map((row) => [row.id, row.outcome, row.retryable, row.message]),
-    [
-      ['no-family', 'rejected', false, 'Choose a website category before publishing.'],
-      ['flagged', 'rejected', false, 'Changed since you looked.'],
-      [
-        'unreadable',
-        'not-attempted',
-        true,
-        "Couldn't read the product to try again. Refresh the list, then try again.",
-      ],
-    ],
-  );
+  for (const revisions of [undefined, new Map([['busy', 'selected-version']])])
+    await assert.rejects(
+      retryBatchUpdate(earlier, ['busy', 'went-through'], { published: true }, revisions),
+      (error: unknown) =>
+        error instanceof Error && Reflect.get(error, 'code') === 'RECOVERY_MISSING',
+    );
+  assert.equal(requests, 0);
 });
 
 test('trying again a change other than publishing sends it again as it is', async (t) => {
@@ -656,6 +548,34 @@ test('a read-back proves a change only when no approval is left unproven (DEC-21
 });
 
 test('a lost answer on a live product still waiting for review is not reported as published', async (t) => {
+  const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      length: 2,
+      key: (n: number) => ['channel.token', 'channel.user'][n] ?? null,
+      getItem: (key: string) =>
+        key === 'channel.token'
+          ? 'legacy-live-test'
+          : key === 'channel.user'
+            ? JSON.stringify({ id: 'admin' })
+            : null,
+    },
+  });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: new URL('https://legacy-live.test/admin'),
+  });
+  t.after(() => {
+    for (const [key, previous] of [
+      ['localStorage', previousStorage],
+      ['location', previousLocation],
+    ] as const) {
+      if (previous) Object.defineProperty(globalThis, key, previous);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  });
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(String(init.body));
     if (body.action === 'catalogDetailCapabilities')
@@ -672,37 +592,6 @@ test('a lost answer on a live product still waiting for review is not reported a
     result.failures.map((row) => [row.outcome, row.retryable, row.message]),
     [['unconfirmed', true, "Couldn't confirm the website shows this change. Try again."]],
   );
-});
-
-test('trying again re-sends a live product still waiting for review instead of counting it', async (t) => {
-  const updates: unknown[] = [];
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    if (body.action === 'catalogDetailCapabilities')
-      return Response.json({ ok: true, data: { enabled: false } });
-    if (body.action === 'get')
-      return Response.json({
-        ok: true,
-        data: { _id: 'edited', published: true, alibabaReviewPending: true, updatedAt: 'r1' },
-      });
-    updates.push(body.data);
-    return Response.json({ ok: true, data: { _id: 'edited', published: true } });
-  });
-  const result = await retryBatchUpdate(
-    {
-      updated: 0,
-      items: [],
-      failures: [
-        { id: 'edited', code: 'BUSY', message: 'x', outcome: 'rejected', retryable: true },
-      ],
-    },
-    ['edited'],
-    { published: true },
-  );
-  assert.deepEqual(updates, [
-    { collection: 'products', id: 'edited', values: { published: true }, expectedUpdatedAt: 'r1' },
-  ]);
-  assert.equal(result.updated, 1);
 });
 
 test('one unclear result between successes never stops the batch', async (t) => {
@@ -836,7 +725,7 @@ for (const change of ['revisions', 'patch'] as const)
       assert.equal(request.expectedUpdatedAt, `original-${request.id}`);
     }
   });
-for (const published of [true, false])
+for (const published of [false])
   test(`frozen retry retains the original revision for published=${published}`, async (t) => {
     const sent: Record<string, unknown>[] = [];
     t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
@@ -861,33 +750,6 @@ for (const published of [true, false])
     assert.equal(sent.length, 1);
     assert.equal(sent[0]?.expectedUpdatedAt, 'selected-version');
   });
-test('frozen retry never counts another actor matching publication as this operation success', async (t) => {
-  let writes = 0;
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    if (body.action === 'get')
-      return Response.json({
-        ok: true,
-        data: { _id: 'a', published: true, updatedAt: 'other-actor' },
-      });
-    if (body.action === 'catalogDetailCapabilities')
-      return Response.json({ ok: true, data: { enabled: false } });
-    writes++;
-    return Response.json(
-      { ok: false, error: { code: 'CONFLICT', message: 'The selected product changed.' } },
-      { status: 409 },
-    );
-  });
-  const result = await retryBatchUpdate(
-    retryableBatch(),
-    ['a'],
-    { published: true },
-    new Map([['a', 'original']]),
-  );
-  assert.equal(result.updated, 0);
-  assert.equal(result.failures[0]?.code, 'CONFLICT');
-  assert.equal(writes, 1);
-});
 test('frozen Disable with a lost answer cannot use an already-draft row as its receipt', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(String(init.body));

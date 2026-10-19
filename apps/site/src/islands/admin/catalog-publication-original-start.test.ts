@@ -10,14 +10,16 @@ import {
 import { AdminApiError } from './api.ts';
 import {
   type PublicationCommand,
+  PublicationScopeSchema,
   createPublicationAttempt,
 } from './catalog-product-operation-api.ts';
 import {
   type PublicationBatchOptions,
   createPublicationBatch,
 } from './catalog-publication-batch.ts';
+import { checkPublication } from './catalog-publication-check.ts';
 
-for (const mode of ['continue', 'cancel', 'nonempty'] as const)
+for (const mode of ['continue', 'cancel', 'changedcancel', 'boundcancel', 'nonempty'] as const)
   test(
     `a reopened original publication ${mode} handles a start that never reached the real server`,
     { timeout: 90000 },
@@ -58,6 +60,8 @@ for (const mode of ['continue', 'cancel', 'nonempty'] as const)
         },
       };
       let drop = true;
+      let failBoundRead = false;
+      let rowReads = 0;
       const calls: PublicationCommand[] = [];
       const unwrap = (reply: Awaited<ReturnType<typeof handleAdminRequest>>) => {
         if (!reply.ok)
@@ -72,13 +76,44 @@ for (const mode of ['continue', 'cancel', 'nonempty'] as const)
         session: () => ({ actorId: 'admin', token, endpoint: 'https://original.local/api/admin' }),
         authorize: async () => ({ id: 'admin', role: 'admin' }),
         storage: () => storage,
+        readProduct: async (productId) => {
+          rowReads++;
+          const product = await h.adapter.get('products', productId);
+          assert.ok(product);
+          return product;
+        },
+        check: async (scope, options) => {
+          // Inject a check-layer failure only after the real reservation returned its binding.
+          if (
+            mode === 'boundcancel' &&
+            failBoundRead &&
+            PublicationScopeSchema.parse(scope).inputDigest
+          ) {
+            failBoundRead = false;
+            throw new AdminApiError('CONFLICT', 'Bound check failed after reservation');
+          }
+          return checkPublication(scope, options);
+        },
         request: async (command) => {
           calls.push(structuredClone(command));
           if (drop && command.action === 'product-operation-start') {
             drop = false;
             throw Error('request disconnected before server admission');
           }
-          return unwrap(await h.invokeWithConfig(command, media.config));
+          if (
+            mode === 'boundcancel' &&
+            failBoundRead &&
+            command.action === 'product-operation-get'
+          ) {
+            failBoundRead = false;
+            throw new AdminApiError('CONFLICT', 'The bound task read was unavailable');
+          }
+          const result = unwrap(await h.invokeWithConfig(command, media.config));
+          if (mode === 'boundcancel' && command.action === 'product-operation-start') {
+            await h.adapter.update('products', h.productId, { name: 'Bound original later edit' });
+            failBoundRead = true;
+          }
+          return result;
         },
         preparationRequest: async (command) =>
           unwrap(
@@ -110,27 +145,49 @@ for (const mode of ['continue', 'cancel', 'nonempty'] as const)
       assert.ok(pointer);
       assert.equal(pointer.scope.inputDigest, undefined);
       assert.equal(JSON.stringify([...entries]).includes('Private unsaved draft text'), false);
+      if (mode === 'changedcancel')
+        await h.adapter.update('products', h.productId, { name: 'Later edit must survive' });
+      const expected = await h.adapter.get('products', h.productId);
       const reopened = createPublicationBatch(options);
       try {
         const result = await reopened.run(
           [pointer],
           undefined,
-          mode === 'cancel' ? 'cancel' : 'continue',
+          mode === 'cancel' || mode === 'changedcancel' || mode === 'boundcancel'
+            ? 'cancel'
+            : 'continue',
         );
         if (mode === 'continue') {
           assert.equal(result.confirmed, 1, JSON.stringify(result.items));
           assert.equal((await h.adapter.get('products', h.productId))?.published, true);
-        } else if (mode === 'cancel') {
-          assert.equal(result.items[0]?.state, 'cancelled', JSON.stringify(result.items));
+        } else if (mode === 'boundcancel') {
+          assert.equal(result.items[0]?.state, 'unknown');
+          assert.equal(rowReads, 0, 'a bound root must not enter absent-start abandonment');
+          assert.equal(typeof result.items[0]?.scope.inputDigest, 'string');
+          assert.equal(typeof reopened.journal.read().entries[0]?.scope.inputDigest, 'string');
+          assert.equal(
+            (await h.adapter.get('products', h.productId))?.name,
+            'Bound original later edit',
+          );
+        } else if (mode === 'cancel' || mode === 'changedcancel') {
+          assert.equal(
+            result.items[0]?.state,
+            mode === 'cancel' ? 'cancelled' : 'not-started',
+            JSON.stringify(result.items),
+          );
+          if (mode === 'changedcancel') {
+            assert.equal(Reflect.get(result.items[0] ?? {}, 'stoppedBeforeStart'), true);
+            assert.equal(reopened.journal.read().entries.length, 0);
+          }
           assert.equal(
             calls.some((call) => call.action === 'product-operation-continue'),
             false,
           );
-          assert.deepEqual(await h.adapter.get('products', h.productId), before);
+          assert.deepEqual(await h.adapter.get('products', h.productId), expected);
         } else {
           assert.equal(result.confirmed, 0);
           assert.equal(calls.filter((call) => call.action === 'product-operation-start').length, 1);
-          assert.deepEqual(await h.adapter.get('products', h.productId), before);
+          assert.deepEqual(await h.adapter.get('products', h.productId), expected);
         }
         assert.ok(
           calls.every(

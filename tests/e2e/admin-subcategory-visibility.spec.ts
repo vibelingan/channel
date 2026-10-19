@@ -1392,11 +1392,15 @@ test('tablet product actions keep classification visible and visibility commands
     if (!webRequest.url().endsWith('/api/admin') || webRequest.method() !== 'POST') return;
     const body = webRequest.postDataJSON() as {
       action: string;
-      data?: { kind?: string; values?: { published?: boolean } };
+      data?: { action?: string; kind?: string; values?: { published?: boolean } };
     };
     if (body.action === 'catalogCategories' && body.data?.kind === 'assignment')
       writes.push('classify');
-    if (body.action === 'update' && body.data?.values?.published === true) writes.push('publish');
+    if (
+      (body.action === 'update' && body.data?.values?.published === true) ||
+      (body.action === 'catalogDetailApproval' && body.data?.action === 'product-operation-start')
+    )
+      writes.push('publish');
   });
   await actions.getByRole('button', { name: 'Publish', exact: true }).click();
   await expect(
@@ -2280,5 +2284,161 @@ test('20 mixed-category selections publish through Assign category while preserv
       ).toBe(404);
     }
     expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(404);
+  }
+});
+
+test('built table single and 20-product publications recover their original tasks and restore selected products', async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    process.env.E2E_CATALOG_FORMAL !== '1',
+    'Requires the enabled native publication protocol and owned PNG fixture.',
+  );
+  test.setTimeout(150_000);
+  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
+  expect(healthBody.data?.mode).toBe('local');
+  expect(healthBody.data?.db).toBe(e2e.catalogLocalDb);
+  const session = await loginAdmin(request);
+  const marker = `${e2e.runId} Native table`;
+  const products: CollectionDoc[] = [];
+  const starts: { productId: string; operationId: string }[] = [];
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('request', (req) => {
+    if (!req.url().endsWith('/api/admin') || req.method() !== 'POST') return;
+    const body = req.postDataJSON() as {
+      data?: { action?: string; productId: string; operationId: string };
+    };
+    if (body.data?.action === 'product-operation-start') starts.push(body.data);
+  });
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  let blockPublic = false;
+  await page.route('**/api/products/**/detail*', async (route) => {
+    if (blockPublic) await route.abort('failed');
+    else await route.continue();
+  });
+  try {
+    for (let index = 0; index < 20; index++)
+      products.push(
+        await adminAction<CollectionDoc>(
+          request,
+          'create',
+          {
+            collection: 'products',
+            values: {
+              name: `${marker} ${String(index).padStart(2, '0')}`,
+              description: 'Disposable built table publication acceptance.',
+              productFamily: 'misc',
+              imageIds: ['formal-image-0'],
+              unitPrice: 5.7,
+              moq: 1,
+              published: false,
+            },
+          },
+          session.token,
+        ),
+      );
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.addInitScript(
+      ({ session, origin }) => {
+        if (window.location.origin !== origin) return;
+        localStorage.setItem('channel.token', session.token);
+        localStorage.setItem('channel.user', JSON.stringify(session.user));
+      },
+      { session, origin: new URL(e2e.siteUrl).origin },
+    );
+    await page.goto('/admin?productFamily=misc');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    const search = async () => {
+      await page.getByPlaceholder(/^Search name/).fill(marker);
+      await page.getByRole('button', { name: 'Search', exact: true }).click();
+      await expect(page.getByRole('row').filter({ hasText: marker })).toHaveCount(20);
+    };
+    await search();
+    const first = products[0];
+    if (!first) throw Error('Missing owned table fixture');
+    const firstRow = page.getByRole('row').filter({ hasText: String(first.name) });
+    await firstRow.getByRole('button', { name: 'Disabled', exact: true }).click();
+    await expect(firstRow.getByRole('button', { name: 'Published', exact: true })).toBeVisible();
+    expect(starts).toHaveLength(1);
+    await firstRow.getByRole('button', { name: 'Published', exact: true }).click();
+    await expect(firstRow.getByRole('button', { name: 'Disabled', exact: true })).toBeVisible();
+    blockPublic = true;
+    await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
+    await page
+      .getByRole('button', { name: 'Assign category', exact: true })
+      .locator('..')
+      .getByRole('button', { name: 'Publish', exact: true })
+      .click();
+    await expect(
+      page.getByText("0 published · 20 couldn't be checked", { exact: true }),
+    ).toBeVisible({ timeout: 60_000 });
+    expect(starts).toHaveLength(21);
+    const originalStarts = new Map(
+      starts.map(({ productId, operationId }) => [productId, operationId]),
+    );
+    await page.reload();
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await search();
+    const inbox = page.getByRole('region', { name: 'Publication recovery', exact: true });
+    await expect(inbox).toContainText('Original publication tasks (20)');
+    blockPublic = false;
+    await inbox.getByRole('button', { name: 'Check original publications', exact: true }).click();
+    await expect(inbox).toContainText('20 original publications confirmed on the website.', {
+      timeout: 60_000,
+    });
+    expect(starts).toHaveLength(21);
+    for (const original of products) {
+      const current = await read(original._id);
+      expect(current.published).toBe(true);
+      expect(current.productFamily).toBe(original.productFamily);
+      expect(current.subcategoryIds).toEqual(original.subcategoryIds);
+      expect(current.unitPrice).toBe(5.7);
+      expect(current.catalogDetailApprovalReceipt).toMatchObject({
+        operationId: originalStarts.get(original._id),
+      });
+      const publicResponse = await request.get(
+        `${e2e.apiUrl}/api/products/${encodeURIComponent(original._id)}/detail`,
+      );
+      expect(publicResponse.status()).toBe(200);
+    }
+    await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
+    await page
+      .getByRole('button', { name: 'Assign category', exact: true })
+      .locator('..')
+      .getByRole('button', { name: 'Disable', exact: true })
+      .click();
+    await expect(page.getByText('20 disabled', { exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    blockPublic = false;
+    await page.unrouteAll({ behavior: 'wait' });
+    for (const original of products) {
+      const current = await read(original._id);
+      if (current.published === true)
+        await adminAction<CollectionDoc>(
+          request,
+          'update',
+          {
+            collection: 'products',
+            id: original._id,
+            values: { published: false },
+            expectedUpdatedAt: current.updatedAt,
+          },
+          session.token,
+        );
+      const restored = await read(original._id);
+      expect(restored.published).toBe(false);
+      expect(restored.productFamily).toBe(original.productFamily);
+      expect(restored.subcategoryIds).toEqual(original.subcategoryIds);
+      expect(
+        (
+          await request.get(`${e2e.apiUrl}/api/products/${encodeURIComponent(original._id)}/detail`)
+        ).status(),
+      ).toBe(404);
+    }
   }
 });

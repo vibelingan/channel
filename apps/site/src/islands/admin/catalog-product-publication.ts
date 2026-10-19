@@ -158,47 +158,16 @@ export async function recoverProductPublication(
           entry.scope.operationId === checkpoint.scope.operationId &&
           entry.scope.productId === checkpoint.scope.productId,
       ) ?? { ...checkpoint, scope: item.scope };
-    if (
-      mode === 'cancel' &&
-      checkpoint.originalStart &&
-      !checkpoint.scope.inputDigest &&
-      item.error?.code === 'CONFLICT'
-    ) {
-      const saved = await getRecord(
-        'products',
-        checkpoint.scope.productId,
-        AbortSignal.timeout(8000),
-      );
-      batch.assertCurrent();
-      if (
-        typeof saved.updatedAt === 'string' &&
-        Number.isFinite(Date.parse(saved.updatedAt)) &&
-        saved.updatedAt !== checkpoint.originalStart.expectedUpdatedAt
-      ) {
-        const checked = await batch.run([checkpoint], undefined, 'check');
-        batch.assertCurrent();
-        const absent = checked.items[0];
-        // Product timestamps strictly advance. After this version changed, a late empty
-        // start with the original timestamp cannot reserve or publish; confirm no root exists.
-        if (absent?.check?.error?.code === 'NOT_FOUND' && !absent.check.status) {
-          if (batch.journal.forget(checkpoint.scope).durability !== 'persistent')
-            throw new AdminApiError(
-              'RECOVERY_STORAGE_UNAVAILABLE',
-              'Restore browser storage before closing this recovery record.',
-            );
-          return {
-            item: { ...absent, state: 'not-started' as const },
-            checkpoint,
-            product: saved,
-            stoppedBeforeStart: true,
-          };
-        }
-      }
-    }
-    const saved = ['confirmed', 'historical', 'cancelled'].includes(item.state)
-      ? await currentPublishedProduct(item, batch.assertCurrent)
-      : undefined;
-    return { item, checkpoint: latest, product: saved, stoppedBeforeStart: false };
+    const saved =
+      item.stoppedBeforeStart || ['confirmed', 'historical', 'cancelled'].includes(item.state)
+        ? await currentPublishedProduct(item, batch.assertCurrent)
+        : undefined;
+    return {
+      item,
+      checkpoint: latest,
+      product: saved,
+      stoppedBeforeStart: item.stoppedBeforeStart === true,
+    };
   } catch (error) {
     throw new ProductPublicationError(product, owner, checkpoint, item, error);
   }

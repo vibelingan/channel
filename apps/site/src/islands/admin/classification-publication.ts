@@ -104,8 +104,13 @@ export function classificationPublicationFeedback(
     ),
     failures: items.flatMap((item) => {
       if (item.state === 'confirmed') return [];
-      const rejected = ['needs-action', 'historical', 'cancelled'].includes(item.state);
+      const rejected =
+        Boolean(item.stoppedBeforeStart) ||
+        ['needs-action', 'historical', 'cancelled'].includes(item.state);
       const message =
+        (item.stoppedBeforeStart
+          ? 'The product changed before this publication started. Its old version cannot publish. Review the current product.'
+          : undefined) ??
         item.error?.message ??
         item.run?.error?.message ??
         (item.state === 'cancelled'
@@ -118,8 +123,9 @@ export function classificationPublicationFeedback(
       return [
         {
           id: item.scope.productId,
-          code:
-            item.state === 'cancelled'
+          code: item.stoppedBeforeStart
+            ? 'OPERATION_SUPERSEDED'
+            : item.state === 'cancelled'
               ? 'OPERATION_CANCELLED'
               : (item.error?.code ?? item.run?.error?.code ?? 'OPERATION_UNCONFIRMED'),
           message,

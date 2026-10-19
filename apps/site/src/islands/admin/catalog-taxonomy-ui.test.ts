@@ -11,7 +11,7 @@ import {
 import { type ReactNode, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
-import { assignmentCall, publishConfirmedClassification, taxonomyCall } from './api.ts';
+import { assignmentCall, taxonomyCall } from './api.ts';
 import {
   classificationChoices,
   classificationRequest,
@@ -606,149 +606,9 @@ test('confirmed final state resolves a lost publication response without replayi
   );
 });
 
-test('bulk publish runs only after every selected assignment is confirmed', async (context) => {
-  const input = {
-    ...command(),
-    includeSavedRevision: true as const,
-    products: [
-      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-    ],
-  } satisfies CatalogClassificationAssignmentRequest;
-  const fetchMock = context.mock.method(
-    globalThis,
-    'fetch',
-    async (_url: unknown, init: RequestInit) => {
-      const request = JSON.parse(String(init.body));
-      if (request.action === 'catalogDetailCapabilities')
-        return Response.json({ ok: true, data: { enabled: false } });
-      assert.equal(request.action, 'update');
-      assert.deepEqual(request.data.values, { published: true });
-      assert.equal(request.data.expectedUpdatedAt, '2026-09-24T00:00:00.000Z');
-      return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
-    },
-  );
-  const saved = {
-    kind: 'assignment' as const,
-    results: input.products.map(({ productId }) => ({
-      productId,
-      status: 'saved' as const,
-      updatedAt: '2026-09-24T00:00:00.000Z',
-    })),
-  };
-  for (const response of [
-    {
-      ...saved,
-      results: [{ productId: 'product-1', status: 'conflict' as const }, saved.results[1]],
-    },
-    {
-      ...saved,
-      results: [{ productId: 'product-1', status: 'unknown' as const }, saved.results[1]],
-    },
-    { ...saved, results: saved.results.slice(0, 1) },
-    { ...saved, results: [{ productId: 'other', status: 'saved' as const }, saved.results[1]] },
-    { ...saved, refreshRequired: true as const },
-    { ...saved, results: [{ productId: 'product-1', status: 'saved' as const }, saved.results[1]] },
-  ]) {
-    assert.equal(await publishConfirmedClassification(input, response), null);
-  }
-  assert.equal(fetchMock.mock.callCount(), 0);
-  const result = await publishConfirmedClassification(input, saved);
-  assert.equal(result?.updated, 2);
-  assert.equal(fetchMock.mock.callCount(), 4);
-});
-
-test('revisioned bulk publish never approves unseen supplier detail', async (context) => {
-  const input = {
-    ...command(),
-    includeSavedRevision: true as const,
-    products: [
-      { productId: 'supplier-linked', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-      { productId: 'ordinary-draft', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-    ],
-  } satisfies CatalogClassificationAssignmentRequest;
-  const revision = '2026-09-24T00:00:00.000Z';
-  const actions: string[] = [];
-  context.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const request = JSON.parse(String(init.body));
-    actions.push(request.action);
-    if (request.action === 'catalogDetailCapabilities')
-      return Response.json({ ok: true, data: { enabled: true } });
-    if (request.action === 'get')
-      return Response.json({
-        ok: true,
-        data: {
-          _id: request.data.id,
-          published: false,
-          updatedAt: revision,
-          productFamily: 'headphones',
-          imageIds: ['img'],
-          ...(request.data.id === 'supplier-linked'
-            ? {
-                alibabaPrimarySourceKey: 'a'.repeat(64),
-                alibabaReviewPending: true,
-                alibabaReviewReason: 'changed',
-              }
-            : { productFamily: 'headphones', imageIds: ['img'] }),
-        },
-      });
-    // A manual product has no supplier detail to miss: it is approved from the
-    // admin's own row (MIU-32), then published under the same revision guard.
-    if (request.action === 'catalogDetailApproval') {
-      actions[actions.length - 1] = `approval:${request.data.action}`;
-      const step = request.data.action;
-      return Response.json({
-        ok: true,
-        data:
-          step === 'approve'
-            ? { ok: true, status: 'approved', jobId: 'job', revision: 'r' }
-            : step === 'review'
-              ? {
-                  ok: true,
-                  kind: 'review',
-                  productId: 'ordinary-draft',
-                  expectedDigest: 'a'.repeat(64),
-                  expectedRevision: null,
-                  detail: { ...detailFixture(0), _id: 'ordinary-draft' },
-                }
-              : {
-                  ok: true,
-                  jobId: 'job',
-                  revision: 'r',
-                  nextPage: 0,
-                  pages: 0,
-                  complete: step !== 'begin',
-                },
-      });
-    }
-    assert.equal(request.action, 'update');
-    assert.equal(request.data.id, 'ordinary-draft');
-    assert.equal(request.data.expectedUpdatedAt, revision);
-    assert.deepEqual(request.data.values, { published: true });
-    return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
-  });
-  const result = await publishConfirmedClassification(input, {
-    kind: 'assignment',
-    results: input.products.map(({ productId }) => ({
-      productId,
-      status: 'saved',
-      updatedAt: revision,
-    })),
-  });
-  assert.equal(result?.updated, 1);
-  assert.deepEqual(
-    result?.failures.map(({ id, code, outcome }) => ({ id, code, outcome })),
-    [{ id: 'supplier-linked', code: 'CONFLICT', outcome: 'rejected' }],
-  );
-  assert.match(result?.failures[0]?.message ?? '', /Alibaba changes to review/);
-  // Both products run at once; only the manual draft reaches approval, in one
-  // request, then its guarded publication.
-  assert.deepEqual(
-    actions.filter((action) => action.startsWith('approval:') || action === 'update'),
-    ['approval:approve', 'update'],
-  );
-  assert.equal(actions.filter((action) => action === 'get').length, 2);
-});
+// Native classification receipt completeness is tested by classification-publication.test.ts;
+// source-change rejection and valid-sibling progress run against real HTTP in
+// product-batch-publication.test.ts and the actual classification editor browser suite.
 
 test('malformed product IDs block assignment and registry reads show a loading state', async () => {
   const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');

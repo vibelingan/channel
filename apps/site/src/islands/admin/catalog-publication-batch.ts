@@ -1,7 +1,8 @@
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { apiUrl } from '../../lib/api-url.ts';
 import { getToken, getUser } from '../../lib/session.ts';
-import { AdminApiError, catalogProductOperationCall, fetchCurrentUser } from './api.ts';
+import { AdminApiError, catalogProductOperationCall, fetchCurrentUser, getRecord } from './api.ts';
 import { managePreparation } from './catalog-preparation-api.ts';
 import {
   type PublicationAttempt,
@@ -30,6 +31,7 @@ type ItemBase = {
   scope: PublicationCheckpoint['scope'];
   run?: PublicationRunResult;
   error?: Failure;
+  stoppedBeforeStart?: true;
 };
 export type PublicationBatchItem = ItemBase &
   (
@@ -46,6 +48,7 @@ export type PublicationBatchOptions = {
   request?: PublicationRunOptions['request'];
   preparationRequest?: PublicationRunOptions['preparationRequest'];
   fetch?: typeof globalThis.fetch;
+  readProduct?: (productId: string, signal: AbortSignal) => Promise<CollectionDoc>;
   run?: typeof runPublication;
   check?: typeof checkPublication;
   onItem?: (item: PublicationBatchItem) => void | Promise<void>;
@@ -195,7 +198,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
       live.endpoint !== bound.endpoint
     )
       throw new AdminApiError(
-        'UNAUTHORIZED',
+        'SESSION_CHANGED',
         'Return to the original account and API environment to continue this batch.',
       );
   };
@@ -343,6 +346,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
           retain(latest);
           entered = true;
           if (mode !== 'continue') {
+            let stoppedBeforeStart = false;
             let check = await (options.check ?? checkPublication)(latest.scope, {
               signal,
               request,
@@ -358,29 +362,75 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
               latest.originalStart &&
               latest.scope.inputDigest === undefined
             ) {
-              const reserved = await managePublication(publicationStartFromCheckpoint(latest), {
-                signal,
-                request,
-              });
-              guard();
-              retain({
-                ...latest,
-                scope: {
-                  productId: reserved.status.productId,
-                  operationId: reserved.status.operationId,
-                  inputDigest: reserved.status.inputDigest,
-                },
-              });
-              check = await (options.check ?? checkPublication)(latest.scope, {
-                signal,
-                request,
-                fetch: publicFetch,
-              });
-              guard();
-              validateCheck(check, latest.scope);
+              try {
+                const reserved = await managePublication(publicationStartFromCheckpoint(latest), {
+                  signal,
+                  request,
+                });
+                guard();
+                retain({
+                  ...latest,
+                  scope: {
+                    productId: reserved.status.productId,
+                    operationId: reserved.status.operationId,
+                    inputDigest: reserved.status.inputDigest,
+                  },
+                });
+                check = await (options.check ?? checkPublication)(latest.scope, {
+                  signal,
+                  request,
+                  fetch: publicFetch,
+                });
+                guard();
+                validateCheck(check, latest.scope);
+              } catch (error) {
+                if (
+                  error instanceof AdminApiError &&
+                  error.code === 'CONFLICT' &&
+                  latest.scope.inputDigest === undefined &&
+                  latest.originalStart
+                ) {
+                  const current = await privateCall(() =>
+                    options.readProduct
+                      ? options.readProduct(latest.scope.productId, signal)
+                      : getRecord(
+                          'products',
+                          latest.scope.productId,
+                          AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+                        ),
+                  );
+                  guard();
+                  if (current._id !== latest.scope.productId)
+                    throw new AdminApiError(
+                      'INVALID_RESPONSE',
+                      'The current product did not match this original task.',
+                    );
+                  if (
+                    typeof current.updatedAt === 'string' &&
+                    Number.isFinite(Date.parse(current.updatedAt)) &&
+                    current.updatedAt !== latest.originalStart?.expectedUpdatedAt
+                  ) {
+                    const absent = await (options.check ?? checkPublication)(latest.scope, {
+                      signal,
+                      request,
+                      fetch: publicFetch,
+                    });
+                    guard();
+                    validateCheck(absent, latest.scope);
+                    // Timestamps strictly advance: a late start cannot reserve its old version.
+                    // A failed lookup is not evidence that the original root is absent.
+                    if (absent.error?.code === 'NOT_FOUND' && !absent.status) {
+                      check = absent;
+                      stoppedBeforeStart = true;
+                    }
+                  }
+                }
+                if (!stoppedBeforeStart) throw error;
+              }
             }
             if (
               mode === 'cancel' &&
+              !stoppedBeforeStart &&
               check.reason === 'not-complete' &&
               check.status &&
               !('cancelledAt' in check.status && check.status.cancelledAt)
@@ -411,8 +461,9 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
               guard();
             }
             validateCheck(check, latest.scope);
-            items[index] =
-              check.reason === 'confirmed'
+            items[index] = stoppedBeforeStart
+              ? { state: 'not-started', scope: check.scope, stoppedBeforeStart: true }
+              : check.reason === 'confirmed'
                 ? { state: 'confirmed', scope: check.scope, check }
                 : {
                     state:
@@ -492,8 +543,18 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
               };
           }
           const item = items[index];
-          if (item && ['confirmed', 'historical', 'cancelled'].includes(item.state))
-            journal.forget(item.scope);
+          if (
+            item &&
+            (['confirmed', 'historical', 'cancelled'].includes(item.state) ||
+              item.stoppedBeforeStart)
+          ) {
+            const saved = journal.forget(item.scope);
+            if (item.stoppedBeforeStart && saved.durability !== 'persistent')
+              throw new AdminApiError(
+                'RECOVERY_STORAGE_UNAVAILABLE',
+                'Restore browser storage before closing this recovery record.',
+              );
+          }
         } catch (error) {
           items[index] = {
             state: entered ? 'unknown' : 'not-started',

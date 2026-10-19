@@ -11,6 +11,7 @@ import {
 import { AdminApiError, assignmentCall, fetchCatalogDetailCapabilities } from './api.ts';
 import {
   classificationPublicationAttempts,
+  classificationPublicationFeedback,
   keepClassificationCommand,
   keptClassificationPublicationAttempts,
   matchesKeptClassification,
@@ -275,4 +276,20 @@ test('kept-classification recovery distinguishes rejected missing classification
   assert.deepEqual(snapshot.attentionIds, ['p2']);
   assert.deepEqual(snapshot.unresolvedIds, ['p3']);
   assert.equal(snapshot.issuesById.p2, 'Choose a website category before publishing.');
+});
+
+test('a stopped request that never reserved its old version is neither published nor retryable', () => {
+  const result = classificationPublicationFeedback([
+    {
+      state: 'not-started',
+      scope: { productId: 'changed', operationId: '12345678-1234-4234-8234-123456789012' },
+      stoppedBeforeStart: true,
+    },
+  ]);
+  assert.equal(result.updated, 0);
+  assert.deepEqual(result.items, []);
+  assert.equal(result.failures[0]?.code, 'OPERATION_SUPERSEDED');
+  assert.equal(result.failures[0]?.outcome, 'rejected');
+  assert.equal(result.failures[0]?.retryable, false);
+  assert.match(result.failures[0]?.message ?? '', /changed before this publication started/);
 });
