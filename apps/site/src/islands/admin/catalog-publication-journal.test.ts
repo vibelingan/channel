@@ -6,6 +6,28 @@ const owner = { actorId: 'admin', endpoint: 'https://test.example/api/admin' };
 const scope = { productId: 'p', operationId: '12345678-1234-4234-8234-123456789012' };
 const digest = 'a'.repeat(64);
 const cursor = { imageId: 'photo', ledgerDigest: 'b'.repeat(64), nextOffset: 3 };
+
+test('creation pointers persist separately and cannot be imported as publication tasks', () => {
+  const storage = disk();
+  const creation = createPublicationJournal(owner, () => storage, 'creation');
+  const publication = createPublicationJournal(owner, () => storage);
+  const entry = { scope: { ...scope, productId: 'new-product', inputDigest: digest } };
+  creation.retain(entry);
+  assert.deepEqual(publication.read(), { entries: [], durability: 'persistent', problems: [] });
+  assert.deepEqual(createPublicationJournal(owner, () => storage, 'creation').read().entries, [
+    entry,
+  ]);
+  assert.throws(() => publication.import(creation.export()));
+  assert.throws(() => creation.import(publication.export()));
+});
+
+test('creation recovery refuses a publication media-reference cursor', () => {
+  const storage = disk();
+  const creation = createPublicationJournal(owner, () => storage, 'creation');
+  const entry = { scope: { ...scope, productId: 'new-product', inputDigest: digest } };
+  assert.equal(creation.retain(entry).durability, 'persistent');
+  assert.throws(() => creation.retain({ ...entry, referenceRecovery: cursor }));
+});
 function disk() {
   const values = new Map<string, string>();
   return {

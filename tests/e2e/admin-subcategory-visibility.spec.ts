@@ -31,6 +31,135 @@ test.describe.configure({ mode: 'serial', retries: 0 });
 
 const marker = `${e2e.runId} Admin subcategory`;
 
+test('product creation keeps one original draft across response loss, reload and editing', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  const body: { data?: { mode?: unknown; db?: unknown } } = await health.json();
+  expect(body.data?.mode).toBe('local');
+  expect(body.data?.db).toBe(e2e.catalogLocalDb);
+  const session = await loginAdmin(request);
+  await page.addInitScript(({ token, user }) => {
+    localStorage.setItem('channel.token', token);
+    localStorage.setItem('channel.user', JSON.stringify(user));
+  }, session);
+  const created = new Set<string>();
+  const starts: string[] = [];
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  let lose: 'start' | 'both' | 'none' = 'start';
+  await page.route('**/api/admin', async (route) => {
+    const input = route.request().postDataJSON() as {
+      action: string;
+      data?: { action?: string; attemptId?: string };
+    };
+    const response = await route.fetch();
+    if (input.action === 'catalogProductCreate') {
+      const reply: { ok: boolean; data?: { productId?: string } } = await response.json();
+      if (input.data?.action === 'start') {
+        starts.push(input.data.attemptId ?? '');
+        if (reply.ok && reply.data?.productId) created.add(reply.data.productId);
+      }
+      if (lose === 'both' || (lose === 'start' && input.data?.action === 'start')) {
+        if (lose === 'start') lose = 'none';
+        await route.abort('failed');
+        return;
+      }
+    }
+    await route.fulfill({ response });
+  });
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  const open = async () => {
+    await page.goto('/admin?productFamily=misc');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByRole('button', { name: 'New Product', exact: true }).click();
+    return page.getByRole('dialog', { name: 'New Product', exact: true });
+  };
+  try {
+    const name = `${e2e.runId} Created with original receipt`;
+    const first = await open();
+    await first.locator('#name').fill(name);
+    await first.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(first).toHaveCount(0);
+    expect(starts).toHaveLength(1);
+    expect(created.size).toBe(1);
+    const firstId = [...created][0] ?? '';
+    const firstProduct = await read(firstId);
+    expect(firstProduct.name).toBe(name);
+    expect(firstProduct.published).toBe(false);
+    lose = 'both';
+    const second = await open();
+    await second.locator('#name').fill(`${e2e.runId} Created before reload`);
+    await second.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(
+      second.getByRole('button', { name: 'Check saved product', exact: true }),
+    ).toBeVisible();
+    expect(starts).toHaveLength(2);
+    expect(created.size).toBe(2);
+    const secondId = [...created][1] ?? '';
+    const pending = await read(secondId);
+    const changed = await adminAction<CollectionDoc>(
+      request,
+      'update',
+      {
+        collection: 'products',
+        id: secondId,
+        values: { description: 'Independent edit retained during recovery' },
+        expectedUpdatedAt: pending.updatedAt,
+      },
+      session.token,
+    );
+    const reopened = await open();
+    lose = 'none';
+    await reopened.getByRole('button', { name: 'Check saved product', exact: true }).click();
+    await expect(
+      reopened.getByRole('button', { name: 'Open saved product', exact: true }),
+    ).toBeVisible();
+    expect(await read(secondId)).toEqual(changed);
+    await reopened.getByRole('button', { name: 'Open saved product', exact: true }).click();
+    const edit = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await expect(edit.locator('#description')).toHaveValue(
+      'Independent edit retained during recovery',
+    );
+    const editedName = `${e2e.runId} Recovered and edited`;
+    await edit.locator('#name').fill(editedName);
+    await edit.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(edit).toHaveCount(0);
+    const saved = await read(secondId);
+    expect(saved.name).toBe(editedName);
+    expect(saved.description).toBe(changed.description);
+    expect(saved.productFamily).toBe(changed.productFamily);
+    expect(saved.category).toBe(changed.category);
+    expect(saved.published).toBe(false);
+    expect(starts).toHaveLength(2);
+    expect(new Set(starts).size).toBe(2);
+    expect(errors).toEqual([]);
+  } finally {
+    lose = 'none';
+    await page.unrouteAll({ behavior: 'wait' });
+    for (const id of created) {
+      const product = await read(id);
+      expect(product.published).toBe(false);
+      await adminAction(
+        request,
+        'update',
+        {
+          collection: 'products',
+          id,
+          expectedUpdatedAt: product.updatedAt,
+          values: { archived: true },
+        },
+        session.token,
+      );
+      const publicResult = await request.get(`${e2e.apiUrl}/api/products/${id}/detail`);
+      expect(publicResult.status()).toBe(404);
+    }
+  }
+});
+
 async function choose(scope: Locator | Page, label: string, option: string) {
   await scope
     .getByRole('combobox', { name: label, exact: true })

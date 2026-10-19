@@ -19,7 +19,7 @@ import {
   type SupplierReviewPart,
   type SupplierReviewPartName,
 } from '@vibelingan-channel/shared/catalog-supplier-review';
-import { useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { AlibabaPhotoPicker, type AlibabaPhotoSource } from './AlibabaPhotoPicker.tsx';
 import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
@@ -64,6 +64,7 @@ interface RecordFormProps {
   canReviewSupplier?: boolean;
   /** Why this record cannot be saved by the current user; Save is disabled. */
   readOnlyReason?: string;
+  recovery?: (readDraft: () => Readonly<Record<string, string | boolean>>) => ReactNode;
 }
 
 type PhotoField = 'imageIds' | 'descriptionImageIds';
@@ -180,6 +181,7 @@ export function RecordForm({
   onSeeChanges,
   canReviewSupplier = false,
   readOnlyReason,
+  recovery,
 }: RecordFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
   // Async imports must include selection changes that have not rendered yet.
@@ -584,6 +586,7 @@ export function RecordForm({
           data-record-form-body
           className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
         >
+          {recovery?.(() => ({ ...state }))}
           {readOnlyReason && (
             <p
               role="note"

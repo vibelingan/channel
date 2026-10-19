@@ -1455,3 +1455,12 @@ P3e7d5 exact review（6359cc38）发现一处测试清理缺口：colliding read
 场景：20件已有不同主/子分类的未发布商品，原弹窗只有统一 replace/append/clear，无法按用户要求保留各自分类发布。使用明确的本地 preserve 提交形状（kind、products原updatedAt、includeSavedRevision），不发 assignment、不伪造 saved 回执；原发布 attempt values={}，复用身份、journal、共享4及官网原回执读回。现有分类字段包含缺省/空数组/legacy值，在完成和撤回后逐字段及存在性核对。预览每件原分类；确认绑定选中版本，编辑冲突由原协议拒绝。红测为实际两引擎20件混合分类零assignment；另补缺分类部分失败、恢复和冲突，保留20件产品范围，不扩到100件UI。
 
 P3e7d6 本地验收完成：新增13（4核心+8两引擎子流程+1正式20），site1169、最终浏览器32、Node20核心10、正式9/9；类型、5Biome、15页构建及3故障检出/SHA恢复。混合分类20件全过程无assignment、原回执/官网revision读回及撤回后分类存在性保留。r12夹具错误、r13外置JSON超时、r14根守卫、r16新测试hydration选择器错误均留档；相同源码/60秒断言的内部临时DB对照通过，非云P95。实际review五文件及CollectionView/协议/批次；详见[P3e7d6](P3e7d6_PRESERVE_CLASSIFICATION.zh-CN.md)。未部署、fullDeliveryReady=false。
+
+
+## P3e7d7 创建草稿原回执与页面恢复（本地完成）
+
+已落地 catalogProductCreate start/get：actor+attempt固定产品ID、输入摘要、原子create同存私有回执；不加集合或SDK方法。createRecord 商品入口改用该协议，未知结果先查原尝试；创建journal和发布namespace隔离，保存前确认持久化，重开可查回原商品，原输入更改/换账号会拒绝冒充原尝试。新ProductCreateForm接CollectionView，保留既有RecordForm和New归档选项；已恢复商品禁重复提交，未提交输入可先本地导出，再显式打开现有Edit。既有产品版本严格单调，不能以同毫秒时间碰撞为由再加一套版本机制。
+
+本地：site1191、Admin638、Node20最终84、最终两浏览器10，正式后台10条及最后精确构建创建流程1条通过，无skip/flaky/retry；Astro0/0/8提示、测试/E2E/Admin类型、16Biome通过。最后导出UI改动仅重跑对应浏览器与正式创建流程，未伪称又全跑一次。四个突变检出/三SHA恢复；实际已看390恢复截图。r1 Name必填星号选择器、API类型死分支、初稿Archived兼容性红测均保留证据，已修正；真实商品没有变动。
+
+Review16文件并对照原子身份、图片锁、权限、redact、journal、原Edit；将“创建完成”更正为“草稿本地单元完成”，未发布状态不从失败推测。完整说明见[P3e7d7](P3e7d7_CREATE_RECOVERY.zh-CN.md)。创建后发布旧路径及P4/P5/P6/P7仍开放，fullDeliveryReady=false，SDK/精确制品的最后完整证明仍为前序记录，不以本轮源码测试冒充新制品验收。当前会话原目录写入及本地监听已恢复，未重新挂载，原有148个提交与数据未丢。

@@ -153,6 +153,10 @@ export function catalogPreparationCall(data: unknown, signal?: AbortSignal) {
   return callOnce<unknown>('catalogPreparation', data, signal);
 }
 
+export function catalogProductCreateCall(data: unknown, guard: () => void) {
+  return call<unknown>('catalogProductCreate', data, undefined, guard);
+}
+
 export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
   return call<unknown>('catalogDetailApproval', data, signal);
 }
@@ -416,26 +420,48 @@ export function markProductReviewed(productId: string): Promise<CollectionDoc> {
 export async function createRecord(
   collection: string,
   values: Record<string, unknown>,
+  creation?: import('./catalog-product-create-api.ts').ProductCreationAttempt,
+  creationGuard?: () => void,
 ): Promise<CollectionDoc> {
-  if (collection !== 'products' || values.published !== true)
-    return call<CollectionDoc>('create', { collection, values });
+  if (collection !== 'products') return call<CollectionDoc>('create', { collection, values });
+  if (values.published === true && values.archived === true)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'An archived product cannot be published. Clear Archived or save it unpublished.',
+    );
   // Publishing needs a category and a photo: say so in the form, before a
   // draft exists.
-  if (!isProductFamily(values.productFamily))
+  if (values.published === true && !isProductFamily(values.productFamily))
     throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
-  if (!Array.isArray(values.imageIds) || values.imageIds.length === 0)
+  if (
+    values.published === true &&
+    (!Array.isArray(values.imageIds) || values.imageIds.length === 0)
+  )
     throw new AdminApiError(
       'VALIDATION_ERROR',
       'Add at least one product image before publishing.',
     );
   // A new product has no approved version, so it starts as a draft and
   // publishing it is an approval, like any other product (MIU-37).
-  const draft = await call<CollectionDoc>('create', {
-    collection,
-    values: { ...values, published: false },
-  });
+  const { captureProductCreation, startProductCreation, CreatedProductChangedError } = await import(
+    './catalog-product-create-api.ts'
+  );
+  if (
+    creation &&
+    JSON.stringify(creation.values) !== JSON.stringify({ ...values, published: false })
+  )
+    throw new AdminApiError(
+      'CONFLICT',
+      'These values differ from the original creation. Check its result before saving different edits.',
+    );
+  const attempt = creation ?? (await captureProductCreation({ ...values, published: false }));
+  const draft = (await startProductCreation(attempt, undefined, creationGuard)).product;
+  if (values.published !== true) return draft;
+  if (draft.published === true || draft.archived === true || draft.updatedAt !== draft.createdAt)
+    throw new CreatedProductChangedError(draft);
   try {
-    return await updateRecord(collection, draft._id, { published: true });
+    creationGuard?.();
+    return await updateRecord(collection, draft._id, { published: true }, draft.updatedAt);
   } catch (error) {
     const code = error instanceof AdminApiError ? error.code : 'INTERNAL_ERROR';
     const message = error instanceof Error ? error.message : 'Publishing failed.';

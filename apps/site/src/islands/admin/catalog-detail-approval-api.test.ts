@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import { DraftSavedError, batchUpdateRecords, createRecord, updateRecord } from './api.ts';
@@ -144,6 +145,18 @@ test('failed import, concurrent edit and abort never begin approval', async (t) 
 // --- MIU-32: manual products publish through the same approval ---------------
 
 type AdminCall = { action: string; data?: Record<string, unknown> };
+const creationTime = '2026-10-19T00:00:00.000Z';
+const creationProductId = 'c'.repeat(64);
+function creationResult(body: AdminCall, product: Record<string, unknown>) {
+  return {
+    schemaVersion: 'catalog-product-create-result-v1',
+    attemptId: body.data?.attemptId,
+    inputDigest: createHash('sha256').update(JSON.stringify(body.data?.values)).digest('hex'),
+    productId: creationProductId,
+    product,
+  };
+}
+
 function manualApi(
   t: { mock: { method: typeof test.mock.method } },
   product: Record<string, unknown>,
@@ -164,10 +177,15 @@ function manualApi(
     let data: unknown = progress;
     if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
     if (body.action === 'get') data = current;
-    if (body.action === 'create') {
+    if (body.action === 'catalogProductCreate') {
       creates.push(body.data ?? {});
-      current = { _id: 'canonical-product', ...(body.data?.values as object) };
-      data = current;
+      current = {
+        _id: creationProductId,
+        ...(body.data?.values as object),
+        createdAt: creationTime,
+        updatedAt: creationTime,
+      };
+      data = creationResult(body, current);
     }
     if (body.action === 'update') {
       updates.push(body.data ?? {});
@@ -352,7 +370,7 @@ test('creating a product as Published saves a draft, then approves and publishes
   assert.equal(api.creates[0]?.values && Reflect.get(api.creates[0].values, 'published'), false);
   assert.deepEqual(
     api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities'),
-    ['create', 'approval:approve', 'update'],
+    ['catalogProductCreate', 'approval:approve', 'update'],
   );
 });
 
@@ -360,7 +378,15 @@ test('when publishing the new product fails, the draft is kept and the error say
   let current: Record<string, unknown> = {};
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     const body: AdminCall = JSON.parse(String(init.body));
-    if (body.action === 'create') current = { _id: 'draft-1', ...(body.data?.values as object) };
+    if (body.action === 'catalogProductCreate') {
+      current = {
+        _id: creationProductId,
+        ...(body.data?.values as object),
+        createdAt: creationTime,
+        updatedAt: creationTime,
+      };
+      return Response.json({ ok: true, data: creationResult(body, current) });
+    }
     if (body.action === 'catalogDetailApproval')
       return Response.json({
         ok: false,
@@ -379,7 +405,7 @@ test('when publishing the new product fails, the draft is kept and the error say
     published: true,
   }).catch((error: unknown) => error);
   assert.ok(failure instanceof DraftSavedError);
-  assert.equal(failure.draft._id, 'draft-1');
+  assert.equal(failure.draft._id, creationProductId);
   assert.equal(failure.draft.published, false);
   assert.match(failure.message, /^Saved as a draft, not published: The product images are missing/);
 });
@@ -387,7 +413,7 @@ test('when publishing the new product fails, the draft is kept and the error say
 test('a draft is created in one request', async (t) => {
   const api = manualApi(t, {});
   await createRecord('products', { name: 'Kids headset', published: false });
-  assert.deepEqual(api.calls, ['create']);
+  assert.deepEqual(api.calls, ['catalogProductCreate']);
 });
 
 test('a contributor save goes straight to the server, which keeps it as a draft for an admin', async (t) => {

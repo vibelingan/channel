@@ -5,6 +5,7 @@ import { PublicationCheckpointSchema } from './catalog-product-operation-api.ts'
 export type { PublicationCheckpoint } from './catalog-product-operation-api.ts';
 
 const VERSION = 'catalog-publication-recovery-v1';
+const CREATION_VERSION = 'catalog-creation-recovery-v1';
 const MAX_ENTRIES = 500;
 const MAX_KEYS = 2000;
 const MAX_EXPORT_BYTES = 1024 * 1024;
@@ -37,11 +38,15 @@ const OwnerSchema = z
   .strict();
 const EntrySchema = PublicationCheckpointSchema;
 const RecordSchema = z
-  .object({ schemaVersion: z.literal(VERSION), owner: OwnerSchema, entry: EntrySchema })
+  .object({
+    schemaVersion: z.enum([VERSION, CREATION_VERSION]),
+    owner: OwnerSchema,
+    entry: EntrySchema,
+  })
   .strict();
 const ExportSchema = z
   .object({
-    schemaVersion: z.literal(VERSION),
+    schemaVersion: z.enum([VERSION, CREATION_VERSION]),
     owner: OwnerSchema,
     entries: z.array(EntrySchema).max(MAX_ENTRIES),
   })
@@ -82,11 +87,18 @@ function compatible(previous: PublicationCheckpoint | undefined, next: Publicati
 export function createPublicationJournal(
   input: unknown,
   storage: () => PublicationJournalStorage = () => globalThis.localStorage,
+  kind: 'publication' | 'creation' = 'publication',
 ) {
   const parsedOwner = OwnerSchema.safeParse(input);
   if (!parsedOwner.success) throw invalid();
   const owner = parsedOwner.data;
-  const prefix = `channel:publication:v1:${JSON.stringify([owner.actorId, owner.endpoint])}:`;
+  const version = kind === 'creation' ? CREATION_VERSION : VERSION;
+  const validKind = (entry: PublicationCheckpoint) =>
+    kind !== 'creation' ||
+    (entry.referenceRecovery === undefined &&
+      entry.scope.productId === 'new-product' &&
+      entry.scope.inputDigest !== undefined);
+  const prefix = `channel:${kind}:v1:${JSON.stringify([owner.actorId, owner.endpoint])}:`;
   const key = (entry: PublicationCheckpoint) =>
     prefix + JSON.stringify([entry.scope.productId, entry.scope.operationId]);
   let memory = new Map<string, PublicationCheckpoint>();
@@ -98,6 +110,8 @@ export function createPublicationJournal(
     const parsed = RecordSchema.safeParse(value);
     if (
       !parsed.success ||
+      parsed.data.schemaVersion !== version ||
+      !validKind(parsed.data.entry) ||
       JSON.stringify(parsed.data.owner) !== JSON.stringify(owner) ||
       key(parsed.data.entry) !== expectedKey
     )
@@ -148,6 +162,7 @@ export function createPublicationJournal(
   };
   const retain = (value: unknown): PublicationJournalSnapshot => {
     const entry = checkpoint(value);
+    if (!validKind(entry)) throw invalid();
     const name = key(entry);
     // Continuing a known task needs only its own key; listing belongs to read().
     const before: { problems: Problem[] } = memory.has(name) ? { problems: [] } : read();
@@ -161,7 +176,7 @@ export function createPublicationJournal(
       );
     if (!entry.scope.inputDigest && previous?.scope.inputDigest)
       entry.scope.inputDigest = previous.scope.inputDigest;
-    const bytes = JSON.stringify({ schemaVersion: VERSION, owner, entry });
+    const bytes = JSON.stringify({ schemaVersion: version, owner, entry });
     if (!fitsJsonBudget(JSON.parse(bytes), 4096, 16)) throw invalid();
     // Keep the pointer even if acquiring or writing storage throws.
     memory.set(name, entry);
@@ -183,7 +198,7 @@ export function createPublicationJournal(
         if (!entry.scope.inputDigest && saved.scope.inputDigest)
           entry.scope.inputDigest = saved.scope.inputDigest;
       }
-      const captured = JSON.stringify({ schemaVersion: VERSION, owner, entry });
+      const captured = JSON.stringify({ schemaVersion: version, owner, entry });
       disk.setItem(name, captured);
       if (disk.getItem(name) !== captured) throw Error('Recovery storage write not confirmed');
       pending.delete(name);
@@ -243,7 +258,7 @@ export function createPublicationJournal(
         'Export a selected publication or close resolved tasks before exporting the full record.',
       );
     }
-    const value = { schemaVersion: VERSION, owner, entries };
+    const value = { schemaVersion: version, owner, entries };
     if (!fitsJsonBudget(value, MAX_EXPORT_BYTES, 20)) throw invalid();
     return JSON.stringify(value);
   };
@@ -257,7 +272,12 @@ export function createPublicationJournal(
     }
     if (!fitsJsonBudget(value, MAX_EXPORT_BYTES, 20)) throw invalid();
     const parsed = ExportSchema.safeParse(value);
-    if (!parsed.success || JSON.stringify(parsed.data.owner) !== JSON.stringify(owner))
+    if (
+      !parsed.success ||
+      parsed.data.schemaVersion !== version ||
+      JSON.stringify(parsed.data.owner) !== JSON.stringify(owner) ||
+      parsed.data.entries.some((entry) => !validKind(entry))
+    )
       throw invalid();
     const entries = parsed.data.entries.map(checkpoint);
     const names = new Set(entries.map(key));

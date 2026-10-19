@@ -52,6 +52,7 @@ import {
   type UnresolvedClassificationSnapshot,
   matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
+import { ProductCreateForm } from './ProductCreateForm.tsx';
 import { ProductRecordLoader } from './ProductRecordLoader.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { productReviewCellValue } from './alibaba-source-review.ts';
@@ -1423,7 +1424,23 @@ export function CollectionView({
           }}
         />
       )}
-      {creating && (
+      {creating && isProducts && (
+        <ProductCreateForm
+          collection={collection}
+          title={`New ${singular}`}
+          {...(isProductFamily(productFamily) ? { defaults: { productFamily } } : {})}
+          onCancel={() => setCreating(false)}
+          onSaved={(product, openEditor) => {
+            setCreating(false);
+            invalidate();
+            if (openEditor) {
+              updateMutation.reset();
+              setEditing(product);
+            }
+          }}
+        />
+      )}
+      {creating && !isProducts && (
         <RecordForm
           collection={collection}
           title={`New ${singular}`}

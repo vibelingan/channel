@@ -13,11 +13,12 @@
 | 属性超限、统一候选和来源校验 | 已有本地修复及真实三件数据副本验证 | 部署后对真实三件定向 resync、Edit/Preview 读回 |
 | 原发布操作、媒体/引用阶段、回执恢复 | 本地实现并有实际 JSON/Admin/Public/PNG 组合 | 真实 CloudBase 角色/MVCC/COS及网络性能 |
 | Assign category 单件/20件及保留各自分类 | 本地两个浏览器及构建后九条后台流程通过，测试对象恢复 | test 实际选品20件，逐件官网读回和恢复 |
-| 编辑/创建/新媒体/live-edit/Preview/表格操作串联 | 现有入口仍有旧路径，尚未完成统一接线 | 按完整用户流程补齐并测试 |
+| 创建草稿及原结果恢复 | 本地原子回执、两个浏览器及正式页面创建→恢复→Edit通过 | 创建后的发布接统一协议，test实际验收 |
+| 编辑/新媒体/live-edit/Preview/表格操作串联 | 现有入口仍有旧路径，尚未完成统一接线 | 按完整用户流程补齐并测试 |
 | 历史 readiness 与定向修复 runbook（P5） | 尚未完成 | 影子审计、恢复点和真实修复验证 |
 | 整体验收、test部署、实际选品 | 尚未开始本轮部署 | 全矩阵、精确制品、test现场和恢复 |
 
-最新局部证据：[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)、[P3e7d6](P3e7d6_PRESERVE_CLASSIFICATION.zh-CN.md)。下一步优先完成编辑/保存这一完整流程；已通过的局部仅在修改、失败或串联新增风险时重跑，最后再执行完整发布门槛。
+最新局部证据：[P3e7d5](P3e7d5_FORMAL_PUBLICATION_FLOW.zh-CN.md)、[P3e7d6](P3e7d6_PRESERVE_CLASSIFICATION.zh-CN.md)。创建草稿局部进展见[P3e7d7](P3e7d7_CREATE_RECOVERY.zh-CN.md)。下一步完成创建后发布和编辑/保存的完整流程；已通过的局部仅在修改、失败或串联新增风险时重跑，最后再执行完整发布门槛。
 
 ## 1. 审查结论和交付目标
 

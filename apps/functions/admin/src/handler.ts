@@ -158,6 +158,10 @@ import { finalizeCatalogImageUpload } from './catalog-image-upload.ts';
 import { manageHumanCatalogPreparation } from './catalog-preparation-api.ts';
 import type { CatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import {
+  type CatalogCreationBinding,
+  manageCatalogProductCreate,
+} from './catalog-product-create.ts';
+import {
   CatalogProductWriteError,
   createCatalogProductRecord,
   updateCatalogProductRecord,
@@ -494,7 +498,7 @@ function redact(collection: string, doc: CollectionDoc): CollectionDoc {
     return rest as CollectionDoc;
   }
   if (collection === 'products') {
-    const { alibabaReviewedByUserId: _reviewer, ...rest } = doc;
+    const { alibabaReviewedByUserId: _reviewer, catalogCreateReceipt: _creation, ...rest } = doc;
     return rest as CollectionDoc;
   }
   return doc;
@@ -789,6 +793,21 @@ export async function handleAdminRequest(
         return await getAction(req, claims);
       case 'create':
         return await createAction(req, claims, config);
+      case 'catalogProductCreate':
+        if (!canEditRegisteredCollection(claims.role, 'products'))
+          return err('FORBIDDEN', 'You do not have permission to create products.');
+        return await manageCatalogProductCreate(
+          claims.sub,
+          req.data,
+          (values, binding) =>
+            createAction(
+              { ...req, data: { collection: 'products', values } },
+              claims,
+              config,
+              binding,
+            ),
+          (doc) => redact('products', doc),
+        );
       case 'update':
         return await updateAction(req, claims, config);
       case 'remove':
@@ -2167,6 +2186,7 @@ async function createAction(
   req: AdminRequest,
   claims: SessionClaims,
   config: AdminConfig,
+  creation?: CatalogCreationBinding,
 ): Promise<ApiResult<unknown>> {
   const parsed = createSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and values are required');
@@ -2199,8 +2219,8 @@ async function createAction(
         );
       // A new product has no approved version yet, so it starts as a draft (MIU-37).
       const transition = await createCatalogProductRecord(
-        values,
-        undefined,
+        creation ? { ...values, catalogCreateReceipt: creation.receipt } : values,
+        creation?.productId,
         config.enableDetailApproval === true ? 'publication-or-pricing' : false,
       );
       doc = transition.doc;
