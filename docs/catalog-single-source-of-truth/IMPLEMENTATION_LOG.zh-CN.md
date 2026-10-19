@@ -1385,3 +1385,8 @@ New/旧首次、手工 Edited、完整当前来源的 Changed/Removed 使用原�
 ## P3e7c9b 单商品原发布任务协调
 
 新建原scope协调器，恢复先查询，显式错误后核对已保存私有进度，媒体改走独立Human预算后续原发布，引用检查点按真实阶段保留/清除；120秒/64请求与无进展退避，回调失败暂停且迟到拒绝被处理。61新增（54控制+7实际Admin/JSON/PNG组合）、site924/local1057/Node203224、19包与E2E类型/既有测试类型/4Biome/15页构建通过；复用未变C8相关包证据合计6189，651安装SDK仍C8。14故障19重叠/SHA恢复；首轮旧游标故障幸存后补BUSY确认控制，再全轮检出。实际保存延迟2200毫秒触发inline预算耗尽，独立Human及丢回应恢复、105SKU、公开读回/实际撤回与保留原分类均本地通过；未当真实浏览器/云性能。人工审阅四代码/测试与原入口/DTO/循环，纠正committed与已公开、停止等待与服务器取消的措辞。客户producer未接，原UI P1/JSON80原因不明及其余现场门槛未关闭，详见[P3e7c9b](P3e7c9b_PUBLICATION_COORDINATOR.zh-CN.md)，fullDeliveryReady=false。
+
+
+## P3e7c9c 浏览器原scope恢复记录
+
+每操作分键并按actor/API环境隔离，首次请求前存ID、真实状态补digest，仅存指针和服务端游标；存储getter/读取/写删失败保留内存与明确状态，支持限量完整/指定scope导出及预检导入。共享checkpoint schema和协调器第二回调保留get省略的有效游标，已知进度写只点读自己的键。44新增（40记录/1检查点/1真实API刷新恢复/2实际Chromium+WebKit存储），site968/local1057/Node203266、19包/E2E/既有测试类型、7Biome/15页构建通过；未变C8证据合计6233，651安装SDK和精确后端仍C8。13故障13重叠/两SHA恢复；pending回滚、导入后部损坏、重复扫描及假完整导出均有红绿。实际审阅七代码/测试和session，纠正500准入/跨标签CAS及Storage行为范围；首轮假磁盘getter夹具已修正。发现原session泛storage监听和未保护getter，接UI前继续单独修复；客户producer未接，原UI P1/JSON80原因及现场门槛开放，详见[P3e7c9c](P3e7c9c_PUBLICATION_RECOVERY_RECORD.zh-CN.md)，fullDeliveryReady=false。

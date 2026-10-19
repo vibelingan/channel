@@ -38,6 +38,15 @@ const command = z.discriminatedUnion('action', [
 export type PublicationCommand = z.infer<typeof command>;
 export const PublicationScopeSchema = scope.extend({ inputDigest: digest.optional() }).strict();
 export type PublicationScope = Readonly<z.infer<typeof PublicationScopeSchema>>;
+export const PublicationCheckpointSchema = z
+  .object({
+    scope: PublicationScopeSchema,
+    referenceRecovery: CatalogReferenceRecoveryCursorSchema.optional(),
+  })
+  .strict()
+  .refine((value) => !value.referenceRecovery || value.scope.inputDigest !== undefined);
+export type PublicationCheckpoint = z.infer<typeof PublicationCheckpointSchema>;
+
 export type PublicationAttempt = Readonly<z.infer<typeof start>>;
 export type PublicationStep = {
   status: CatalogProductOperationStatus;

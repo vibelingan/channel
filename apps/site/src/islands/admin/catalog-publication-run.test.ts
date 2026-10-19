@@ -731,3 +731,17 @@ test('a definite continuation failure discards the persisted reference cursor be
   assert.deepEqual(Reflect.get(continuations[0] ?? {}, 'referenceRecovery'), cursor);
   assert.equal(Reflect.get(continuations[1] ?? {}, 'referenceRecovery'), undefined);
 });
+
+test('an observer receives the effective recovery checkpoint even when a plain get omits its hint', async () => {
+  let observed: unknown;
+  const result = await runPublication(scope, {
+    referenceRecovery: cursor,
+    request: async () => staging(),
+    onStatus: (_status, checkpoint) => {
+      observed = structuredClone(checkpoint);
+      throw Error('pause after persistence');
+    },
+  });
+  assert.equal(result.reason, 'paused');
+  assert.deepEqual(observed, { scope, referenceRecovery: cursor });
+});

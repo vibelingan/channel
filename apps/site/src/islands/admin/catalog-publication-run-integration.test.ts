@@ -17,6 +17,7 @@ import {
   createPublicationAttempt,
   managePublication,
 } from './catalog-product-operation-api.ts';
+import { createPublicationJournal } from './catalog-publication-journal.ts';
 import { runPublication } from './catalog-publication-run.ts';
 
 async function fixture(t: TestContext, count = 0) {
@@ -299,6 +300,63 @@ test('a stopped browser can resume its real reserved operation and never replays
     assert.equal(historic.reason, 'historical');
     assert.equal(f.h.bytes(), before);
     assert.equal(f.calls.filter((x) => x.action === 'product-operation-start').length, 1);
+  } finally {
+    await f.restore();
+  }
+});
+
+test('pre-dispatch journal survives a lost real start and failed confirmation, then resumes without a replacement', async (t) => {
+  const f = await fixture(t);
+  const bytes = new Map<string, string>();
+  const storage = {
+    get length() {
+      return bytes.size;
+    },
+    key: (index: number) => [...bytes.keys()][index] ?? null,
+    getItem: (key: string) => bytes.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      bytes.set(key, value);
+    },
+    removeItem: (key: string) => {
+      bytes.delete(key);
+    },
+  };
+  const owner = { actorId: 'admin', endpoint: 'https://owned.test/api/admin' };
+  const journal = createPublicationJournal(owner, () => storage);
+  const initialScope = { productId: f.h.productId, operationId: f.attempt.operationId };
+  assert.equal(journal.retain({ scope: initialScope }).durability, 'persistent');
+  try {
+    const unknown = await runPublication(f.attempt, {
+      request: async (command) => {
+        if (command.action === 'product-operation-start') await f.request(command);
+        throw Error('browser lost start and confirmation responses');
+      },
+    });
+    assert.equal(unknown.reason, 'unknown');
+    assert.equal((await f.h.adapter.get('products', f.h.productId))?.published, false);
+    const reopened = createPublicationJournal(owner, () => storage);
+    const saved = reopened.read().entries[0];
+    assert.ok(saved);
+    assert.deepEqual(saved, { scope: initialScope });
+    const completed = await runPublication(saved.scope, {
+      request: f.request,
+      preparationRequest: f.preparationRequest,
+      onStatus: (_status, checkpoint) => {
+        reopened.retain(checkpoint);
+      },
+    });
+    assert.equal(completed.reason, 'committed', JSON.stringify(completed));
+    assert.ok(completed.status?.state === 'complete');
+    await f.publicReadback(completed.status.completion.revision);
+    assert.equal(reopened.read().entries[0]?.scope.inputDigest, completed.scope.inputDigest);
+    assert.equal(
+      f.calls.filter((command) => command.action === 'product-operation-start').length,
+      1,
+    );
+    assert.ok(f.calls.every((command) => command.operationId === f.attempt.operationId));
+    await f.restore();
+    reopened.forget(completed.scope);
+    assert.equal(reopened.read().entries.length, 0);
   } finally {
     await f.restore();
   }

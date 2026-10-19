@@ -14,6 +14,7 @@ import {
 } from './catalog-preparation-api.ts';
 import {
   type PublicationAttempt,
+  type PublicationCheckpoint,
   type PublicationCommand,
   type PublicationOptions,
   type PublicationScope,
@@ -44,7 +45,10 @@ export type PublicationRunOptions = {
   preparationRequest?: (command: PreparationCommand, signal?: AbortSignal) => Promise<unknown>;
   now?: () => number;
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
-  onStatus?: (status: CatalogProductOperationStatus) => void | Promise<void>;
+  onStatus?: (
+    status: CatalogProductOperationStatus,
+    checkpoint: PublicationCheckpoint,
+  ) => void | Promise<void>;
   referenceRecovery?: CatalogReferenceRecoveryCursor;
 };
 class RunPaused extends Error {}
@@ -196,7 +200,12 @@ export async function runPublication(
     if (!onStatus) return;
     try {
       // Await persistence before another write; always consume a late rejection after abort.
-      const notification = Promise.resolve().then(() => onStatus(structuredClone(status)));
+      const notification = Promise.resolve().then(() =>
+        onStatus(structuredClone(status), {
+          scope: structuredClone(binding),
+          ...(referenceRecovery ? { referenceRecovery: structuredClone(referenceRecovery) } : {}),
+        }),
+      );
       await new Promise<void>((resolve, reject) => {
         const abort = () => reject(signal.reason);
         notification.then(
