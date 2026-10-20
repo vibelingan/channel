@@ -1667,3 +1667,11 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 最终 Node20 本地 62 文件 1139/1139、媒体 31/31、Node24 runtime 6/6，均零跳过；Admin 类型/4 文件 Biome/SDK gate、Admin Node20 target 构建和自建无 workspace/node_modules 目录中的 Node20 cold require 通过。真实默认 HTTPS/DNS 图片抓取成功，7249 字节 PNG 与 SHA 已记录；与模拟媒体、像素/COS 验收分开。
 
 实际审查 package/锁文件、runtime 契约、原媒体实现与测试、云函数入口和全部 CLI 消费者；确认该模块当前未进入云 Admin bundle，不把本地 Node20 失败说成线上批量发布根因。未更改价格、来源映射、分类、审批、计数或 SDK/运行时配置，未部署。P5、最终 P6/P7、旧诊断缺口继续，fullDeliveryReady=false。
+
+## P5a：历史商品只读影子报告（2026-10-20）
+
+详见 [P5a](P5a_READINESS_SHADOW.zh-CN.md)。新增私有、可恢复的两遍 _id keyset 审计；完整准备校验与查询投影独立核对，记录完整/业务字段哈希。每页四个读取全部完成后才推进，错误保留断点；身份、策略、顺序、哈希、文件和响应预算均有拒绝路径。不会调用写入，列表默认状态未切换。旧耳机 category 被误报未分类由新增红测证实，改用现有共同分类函数；不写任何分类。
+
+最终根目录部署契约 504/504、零跳过；四文件 Biome/diff check 通过。实际本地 API+CLI r3 两遍读取 101 件，整个数据库前后 SHA 一致，专属临时资源删除。第二遍和重定向防护 mutation 均被抓住，原源码按 SHA 恢复。首轮基线抢在登录异步审计写之前的问题保留并修正 harness，没有改业务登录代码。
+
+实际审查 scripts/catalog-readiness-audit.mjs/.test.mjs、smoke-http.mjs/.test.mjs，以及 shared 分类/准备读取和 DB 查询消费者；序列化移到创建文件句柄之前，避免容量拒绝时泄漏句柄。将“审计通过”限定为“两遍非事务扫描一致”，核对全部 DB 字节、归档/未分类保留及原 HTTP redirect 默认值。未部署、未改云端商品；定向修复/启用、最终 P6/P7 和旧诊断缺口继续，fullDeliveryReady=false。
