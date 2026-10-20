@@ -79,6 +79,7 @@ import {
 import { TablePublicationError, mergeTablePublication } from './catalog-table-publication.ts';
 import {
   PRODUCT_CHECK_LABELS,
+  productCheckDefault,
   productCheckFromSearch,
   productCheckListArgs,
   productCheckPublishBlock,
@@ -104,6 +105,9 @@ import {
 } from './taxonomy-ui-state.ts';
 
 const PAGE_SIZE = 20;
+const defaultProductCheckStatus = productCheckDefault(
+  import.meta.env?.PUBLIC_CATALOG_READY_DEFAULT,
+);
 
 export interface ProductClassificationReview {
   snapshot: UnresolvedClassificationSnapshot;
@@ -218,8 +222,10 @@ export function CollectionView({
   );
   const [checkStatus, setCheckStatus] = useState<CatalogReadiness>(() =>
     isProducts && typeof window !== 'undefined'
-      ? productCheckFromSearch(window.location.search)
-      : 'all',
+      ? productCheckFromSearch(window.location.search, defaultProductCheckStatus)
+      : isProducts
+        ? defaultProductCheckStatus
+        : 'all',
   );
   const publicationCapabilities = useQuery({
     queryKey: ['catalog-publication-capabilities'],
@@ -638,7 +644,7 @@ export function CollectionView({
     setPage(1);
     clearSelection();
     if (typeof window !== 'undefined') {
-      const nextUrl = `${window.location.pathname}${productCheckSearch(window.location.search, next)}${window.location.hash}`;
+      const nextUrl = `${window.location.pathname}${productCheckSearch(window.location.search, next, defaultProductCheckStatus)}${window.location.hash}`;
       window.history.pushState(null, '', nextUrl);
     }
   }
@@ -654,7 +660,7 @@ export function CollectionView({
     if (!isProducts) return;
     const recoverFamily = () => {
       setProductFamily(adminProductFamilyFromSearch(window.location.search));
-      setCheckStatus(productCheckFromSearch(window.location.search));
+      setCheckStatus(productCheckFromSearch(window.location.search, defaultProductCheckStatus));
       setSubcategoryId(
         canReadSubcategories ? adminSubcategoryFromSearch(window.location.search) : null,
       );

@@ -67,6 +67,7 @@ jobs:
       CLOUDBASE_FUNCTION_RUNTIME: Nodejs20.19
       CLOUDBASE_WEBAPP_SERVICE: channel-test
       PUBLIC_CB_PROXY: '0'
+      PUBLIC_CATALOG_READY_DEFAULT: ${{ vars.PUBLIC_CATALOG_READY_DEFAULT || '0' }}
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
       # The AI assistant API that the website's chat widget calls from the browser.
       PUBLIC_AI_API_BASE_URL: ${{ vars.PUBLIC_AI_API_BASE_URL }}

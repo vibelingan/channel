@@ -1681,3 +1681,9 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 新增 [P5b](P5b_SCOPED_REPAIR.zh-CN.md) 的实际身份核对、单件重同步、准备、20 件发布及 finally 恢复步骤；不全量重跑 mapping 或覆盖无分类记录。新增真实 JSON/磁盘 raw storage 的三状态重复 resync 集成测试，核对产品/链接唯一、人工字段/分类/原发布状态、其他 live 和共享图片计数不变，以及错误 provider ID 和租约释放。provider 为合成返回，云端真实验收单列。
 
 首轮三条是测试混淆 stale 存储状态和 unchecked 查询状态，按现有合约修正断言，未改业务代码。Node24 3/3、最终 Node20 组合 66/66（零跳过）、local 类型和 Biome 通过；初次组合的 JSX 配置继承错误记录在 P5b，调整 harness 使用绝对 site tsconfig，未修改原测试。错误自动发布的 mutation 被检出，selected-sync 原 SHA 恢复。实际审查 selected-sync/ingest/linking/promotion、DB 字段白名单及失效、分类映射与新测试；将恢复规则明确为“只下架本次新发布对象”，保留原 live。尚未实际云端 resync 或部署，启用/最终 P6/P7 继续，fullDeliveryReady=false。
+
+## P5c：默认检查状态的启用与关闭（2026-10-20）
+
+详见 [P5c](P5c_READINESS_ENABLE.zh-CN.md)。严格字面 1 才默认 normal，其余 all；当前默认 0。首次加载/刷新/popstate 共用默认，normal 下显式 All 保留 URL，所有问题队列可达，关闭不改业务数据。CI/env example/类型声明与原完整本地 runner 同步接线。
+
+五条单测及两种开关的正式构建浏览器各 1/1、零重试通过；后者模拟 API，未冒充 native 查询或发布。原 9 个报告哈希相同恢复，专属资源删除。根部署契约 504/504、Astro check 零错误/警告、六文件 Biome 通过；首次 E2E tuple 类型问题已修复并保留日志。删除显式 All 的 mutation 被检出，原源码 SHA 恢复。实际审查 helper/测试、CollectionView/env/CI、runner/spec；把“数据回滚”更正为“恢复默认筛选的重新构建”，核对旧调用默认 all 与 UI/业务写入边界。真实影子审计/索引/性能和最终 P6/P7 继续，fullDeliveryReady=false。

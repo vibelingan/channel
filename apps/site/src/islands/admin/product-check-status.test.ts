@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CatalogReadinessSchema } from '@vibelingan-channel/shared/catalog-preparation';
 import {
+  productCheckDefault,
   productCheckFromSearch,
   productCheckListArgs,
   productCheckPublishBlock,
@@ -62,4 +63,27 @@ test('known problem scopes have an actionable publication fallback', () => {
     assert.match(productCheckPublishBlock(scope) ?? '', /Preview/);
   assert.equal(productCheckPublishBlock('normal'), null);
   assert.equal(productCheckPublishBlock('all'), null);
+});
+
+test('ready default is opt-in and keeps the existing all default for every other flag value', () => {
+  for (const flag of [undefined, '', '0', 'true', 'false', ' 1 ', 'normal'])
+    assert.equal(productCheckDefault(flag), 'all');
+  assert.equal(productCheckDefault('1'), 'normal');
+  assert.equal(productCheckFromSearch('', productCheckDefault('1')), 'normal');
+  assert.equal(productCheckFromSearch('?checkStatus=unknown', 'normal'), 'normal');
+});
+
+test('explicit All survives reload, history, and rollback while every problem queue remains reachable', () => {
+  const original = '?productFamily=misc&subcategory=clock&keep=yes';
+  for (const scope of CatalogReadinessSchema.options) {
+    const search = productCheckSearch(original, scope, 'normal');
+    assert.equal(productCheckFromSearch(search, 'normal'), scope);
+    assert.equal(new URLSearchParams(search).get('subcategory'), 'clock');
+    assert.equal(new URLSearchParams(search).get('keep'), 'yes');
+    if (scope !== 'normal') assert.equal(productCheckFromSearch(search, 'all'), scope);
+  }
+  const all = productCheckSearch('?checkStatus=issues', 'all', 'normal');
+  assert.equal(all, '?checkStatus=all');
+  assert.equal(productCheckFromSearch(all, 'normal'), 'all');
+  assert.equal(productCheckFromSearch(all, 'all'), 'all');
 });

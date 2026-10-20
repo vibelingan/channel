@@ -300,6 +300,11 @@ try {
     );
     await run(
       bin('.', 'playwright'),
+      ['test', 'tests/e2e/admin-readiness-default.spec.ts'],
+      e2eEnvironment,
+    );
+    await run(
+      bin('.', 'playwright'),
       ['test', 'tests/e2e/catalog-taxonomy.spec.ts'],
       e2eEnvironment,
     );
