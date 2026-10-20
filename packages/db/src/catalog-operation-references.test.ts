@@ -12,6 +12,7 @@ import { prepareStagedApproval } from './catalog-detail-staging.ts';
 import type { CatalogOwnedApprovalMedia } from './catalog-operation-media.ts';
 import {
   prepareOwnedApprovalReferences,
+  readOwnedApprovalReferenceCommitment,
   readOwnedApprovalReferencePlan,
 } from './catalog-operation-references.ts';
 import { catalogSealedImageIdsDigest } from './catalog-preparation-media-seal.ts';
@@ -248,4 +249,176 @@ test('a different valid media completion receipt cannot reuse a previous referen
   ]);
   assert.ok(prepareOwnedApprovalReferences(h.owner, h.product));
   assert.equal(readOwnedApprovalReferencePlan(h.owner, binding), null);
+});
+
+for (const variants of [0, 105, 10000])
+  test(`live refresh replaces only changed public references with ${variants} configurations`, () => {
+    const h = fixture(1, 1, variants, true);
+    const owner = {
+      ...h.owner,
+      operation: { ...h.owner.operation, intent: 'refresh-live' as const },
+    };
+    const oldPublication = structuredClone(owner.publication);
+    oldPublication.header.images = ['/api/images/old-gallery'];
+    oldPublication.header.descriptionImages = ['/api/images/old-description'];
+    oldPublication.variantImageIds = Array.from({ length: variants }, (_, i) =>
+      i === 0 ? 'gallery0' : `old-sku${i}`,
+    );
+    const product = { ...h.product, published: true, catalogDetailPublication: oldPublication };
+    const frozen = structuredClone({ owner, product });
+    const binding = prepareOwnedApprovalReferences(owner, product);
+    assert.ok(
+      binding,
+      'A live refresh needs a before/after reference commitment, not a new publication increment.',
+    );
+    const plan = readOwnedApprovalReferencePlan(owner, binding, product);
+    assert.ok(plan);
+    const before = new Set(catalogReferencedImageIds(product));
+    const after = new Set(h.ids);
+    const expected = [
+      ...[...before].filter((id) => !after.has(id)).map((imageId) => ({ imageId, delta: -1 })),
+      ...[...after].filter((id) => !before.has(id)).map((imageId) => ({ imageId, delta: 1 })),
+    ].sort((a, b) => (a.imageId < b.imageId ? -1 : a.imageId > b.imageId ? 1 : 0));
+    assert.deepEqual(plan.changes, expected);
+    assert.equal(
+      plan.changes.some((change) => change.imageId === 'gallery0'),
+      false,
+      'Unchanged shared references must not increment again.',
+    );
+    assert.equal(binding.leafCount, expected.length);
+    assert.deepEqual(readOwnedApprovalReferenceCommitment(owner, binding), plan.proof);
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(binding)) < 1024,
+      'The root must not duplicate 10000 old image IDs.',
+    );
+    assert.deepEqual({ owner, product }, frozen);
+    assert.equal(
+      readOwnedApprovalReferencePlan(owner, binding),
+      null,
+      'A bounded commitment alone cannot authorize image writes.',
+    );
+  });
+
+test('unchanged live references have zero deltas and keep a bounded historical proof after a later edit', () => {
+  const h = fixture(1, 1, 105, true);
+  const owner = {
+    ...h.owner,
+    operation: { ...h.owner.operation, intent: 'refresh-live' as const },
+  };
+  const product: CollectionDoc & { catalogDetailPublication: typeof owner.publication } = {
+    ...h.product,
+    published: true,
+    catalogDetailPublication: structuredClone(owner.publication),
+  };
+  const binding = prepareOwnedApprovalReferences(owner, product);
+  assert.ok(binding);
+  const plan = readOwnedApprovalReferencePlan(owner, binding, product);
+  assert.ok(plan);
+  assert.deepEqual(plan.changes, []);
+  product.imageIds = ['later-gallery'];
+  assert.equal(
+    readOwnedApprovalReferencePlan(owner, binding, product),
+    null,
+    'A later edit must not reuse a write plan.',
+  );
+  assert.deepEqual(
+    readOwnedApprovalReferenceCommitment(owner, binding),
+    plan.proof,
+    'Receipt inspection remains possible without authorizing writes.',
+  );
+});
+
+for (const change of [
+  'withdrawn',
+  'archived',
+  'wrong-product',
+  'old-gallery',
+  'old-variants',
+  'new-gallery',
+  'new-publication',
+  'old-kind',
+  'intent',
+  'before-digest',
+  'after-digest',
+  'tree',
+  'count',
+  'extra',
+] as const)
+  test(`live reference writes reject ${change} against the original commitment`, () => {
+    const h = fixture(1, 1, 2, true);
+    const owner = {
+      ...h.owner,
+      operation: { ...h.owner.operation, intent: 'refresh-live' as const },
+    };
+    const product: CollectionDoc & { catalogDetailPublication: typeof owner.publication } = {
+      ...h.product,
+      published: true,
+      catalogDetailPublication: structuredClone(owner.publication),
+    };
+    product.catalogDetailPublication.header.images = ['/api/images/old'];
+    product.catalogDetailPublication.variantImageIds = ['old-sku'];
+    const binding = prepareOwnedApprovalReferences(owner, product);
+    assert.ok(binding);
+    assert.ok(readOwnedApprovalReferencePlan(owner, binding, product));
+    if (change === 'withdrawn') product.published = false;
+    if (change === 'archived') product.archived = true;
+    if (change === 'wrong-product') product._id = 'other';
+    if (change === 'old-gallery')
+      product.catalogDetailPublication.header.images = ['/api/images/other-old'];
+    if (change === 'old-variants')
+      product.catalogDetailPublication.variantImageIds = ['other-old-sku'];
+    if (change === 'new-gallery') product.imageIds = ['new-unapproved'];
+    if (change === 'new-publication')
+      owner.publication.header.images = ['/api/images/new-unapproved'];
+    if (change === 'old-kind') Reflect.set(binding, 'kind', 'catalog-owned-approval-references-v1');
+    if (change === 'intent') Reflect.set(owner.operation, 'intent', 'publish');
+    if (change === 'before-digest') Reflect.set(binding, 'beforeImageIdsDigest', 'f'.repeat(64));
+    if (change === 'after-digest') Reflect.set(binding, 'afterImageIdsDigest', 'f'.repeat(64));
+    if (change === 'tree') binding.treeRoot = 'f'.repeat(64);
+    if (change === 'count') binding.leafCount++;
+    if (change === 'extra') Reflect.set(binding, 'extra', 'untrusted');
+    assert.equal(readOwnedApprovalReferencePlan(owner, binding, product), null);
+  });
+
+for (const field of ['treeRoot', 'leafCount'] as const)
+  test(`recomputed live ${field} digest still cannot authorize a fabricated reference plan`, () => {
+    const h = fixture(1);
+    const owner = {
+      ...h.owner,
+      operation: { ...h.owner.operation, intent: 'refresh-live' as const },
+    };
+    const product: CollectionDoc & { catalogDetailPublication: typeof owner.publication } = {
+      ...h.product,
+      published: true,
+      catalogDetailPublication: structuredClone(owner.publication),
+    };
+    const binding = prepareOwnedApprovalReferences(owner, product);
+    assert.ok(binding);
+    if (field === 'treeRoot') binding.treeRoot = 'f'.repeat(64);
+    else binding.leafCount++;
+    const { bindingDigest: _old, ...body } = binding;
+    binding.bindingDigest = alibabaPricingFingerprint([
+      'catalog-owned-approval-references-v1',
+      owner._id,
+      owner.productId,
+      owner.operation.inputDigest,
+      owner.operation.policy,
+      owner.revision,
+      owner.productFingerprint,
+      owner.media.bindingDigest,
+      body,
+    ]);
+    assert.equal(readOwnedApprovalReferencePlan(owner, binding, product), null);
+  });
+
+test('oversized old live reference sets return a controlled refusal without duplicating their IDs', () => {
+  const h = fixture(1);
+  const owner = {
+    ...h.owner,
+    operation: { ...h.owner.operation, intent: 'refresh-live' as const },
+  };
+  const publication = structuredClone(owner.publication);
+  publication.variantImageIds = Array.from({ length: 65537 }, (_, i) => `old${i}`);
+  const product = { ...h.product, published: true, catalogDetailPublication: publication };
+  assert.equal(prepareOwnedApprovalReferences(owner, product), null);
 });

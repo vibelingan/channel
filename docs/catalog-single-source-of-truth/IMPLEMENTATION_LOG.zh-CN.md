@@ -1592,3 +1592,10 @@ review 另复现 A→B→A 时旧响应误入和缓存旧 401 再次锁住，共
 原 runner 在 Lexar 仓库构建到系统临时目录时实测 EXDEV；改为 apps/site 下自建随机构建目录，DB/media/ready 仍在系统临时目录。退出分别验证两个目录删除，并保留所有非本次资源。后台恢复用例统一在登录写入之前检查 local mode 和精确 db。实际 Playwright 误连云/其他本地 DB 均只有健康请求。runner 最终 8/8、e2e 类型检查通过，canonical 正式 Astro 15 页构建及 12/12 后台组合通过（包括两个 20 件入口、原任务恢复、分类保留与恢复未发布），全部自建资源清理；原 Playwright 报告哈希一致恢复。首轮静态断言失败、次轮 grep 未找到测试均保留，详见 P6a_OWNED_BUILD_VOLUME.zh-CN.md。
 
 实际复核 runner/测试、admin-subcategory-visibility、Playwright 配置和 env helper；把清理结论写明两个目录，不把本地构建当作云验收。未改商品流程/分类/映射/SDK、无部署或云商品变更。已发布编辑恢复、后端制品和全公开组合、历史修复、test 真实三时钟/20 件/COS/P95 继续，fullDeliveryReady=false。
+
+
+## P4c9a：已发布编辑的引用差量契约
+
+首次发布从空集合 +1 的计划不能直接用于 live。三个规模（0/105/10000 配置）的红测后，新增独立 live binding，按共同 canonical 图片集合精确 before/after 差量；共享未变图片不重复加计数，原图和配置图删除产生 -1。Root 仅存小于 1024 bytes 的摘要/承诺，不复制旧 10000 项数组。写入计划必须带当前已发布商品重算树，历史 proof 身份单独读取且不授予写入权；未切换现有 Root 事务或 GUI。461 项组合、Node20 51 项、DB 类型检查通过；把两处 before 丢弃的故障注入确实令三项失败，源码哈希恢复一致。详见 P4c9a_LIVE_REFERENCE_DIFF.zh-CN.md。
+
+复核纯引用计划及测试、Root/取消/恢复消费者、共同图片集合、adapter 保存和公开版本选择；修正文案避免把这一契约说成 live 编辑完成。保存阶段计数事务、native live 接线、完整恢复/组合、历史审计、后端制品及 test 实际三时钟/20 件/COS/P95 尚待完成。无云写入、部署、SDK/配置变更，fullDeliveryReady=false。
