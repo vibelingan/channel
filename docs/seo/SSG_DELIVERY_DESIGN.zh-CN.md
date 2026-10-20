@@ -1,5 +1,7 @@
 # 商品 SSG、数据更新与发布容错设计
 
+2026-10-20 第二轮设计收口：恢复触发、数据库/API 兼容、发布归属和搜索通知统一按 [AUTOMATED_RECOVERY_DESIGN](AUTOMATED_RECOVERY_DESIGN.zh-CN.md) 实施；采用有条件的自动恢复，保留人工入口。线上演练按 [RECOVERY_DRILL_PLAN](RECOVERY_DRILL_PLAN.zh-CN.md) 的受控主路径与少量本地负向检查执行；下文第 10 节的大矩阵保留为候选场景，不要求本期全部线上注入。当前完整大图与交付索引见 [FINAL_DELIVERY](FINAL_DELIVERY.zh-CN.md)。
+
 2026-10-20 后续进展：已核验实际线上 1,032 文件备份；部署前捕获/归档备份已接入原 workflow 的分支代码。只读恢复计划、执行内核和缓存增量/反向参数已实现，云端恢复适配、锁内缓存修改与真实验收尚未执行。完整 CI/CD 图为 `output/hosting-2026-10-20/hosting-delivery.html`；当前事实和操作顺序集中维护在 [HOSTING_ACCEPTANCE.zh-CN.md](HOSTING_ACCEPTANCE.zh-CN.md)，本设计中的未来态不代表已上线。
 
 更新至 2026-10-20。核对基线：`feat/seo-foundation` / `f5150e5`。10 月 19 日只补设计；10 月 20 日开始实现专用 404、托管检查和显式采集步骤，尚未部署或修改云配置。当前没有独立线上测试环境，仓库里的 `Deploy Test`、`test` environment 是现有命名，不能据此假定另有隔离环境。按用户最新要求不使用 Tunnel。

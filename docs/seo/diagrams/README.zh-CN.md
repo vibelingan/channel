@@ -1,10 +1,10 @@
 # SEO 交付图的阅读顺序
 
-最终综合入口为 `output/seo-final-2026-10-20/SEO-DELIVERY-ATLAS.html`，在同一离线 HTML
-中连续呈现职责总览、发布流程和四张时序图。当前方案与审核边界见
+当前综合大图为 `output/seo-design-r2-2026-10-20/DELIVERY-COMPLETE-FLOW.html` 和
+`DELIVERY-COMPLETE-SEQUENCE.html`。每个主体都是一张完整 SVG，不嵌入其他图。
+图源为 `delivery-complete.workflow.json`、`delivery-complete.sequence.json`，包含有条件自动恢复、数据兼容和搜索通知时机。当前方案与审核边界见
 [最终交付索引](../FINAL_DELIVERY.zh-CN.md)和[最终流程审阅](../FINAL_REVIEW.zh-CN.md)。
-原 `hosting-delivery` 总图保留为历史版本；最新流程使用 `hosting-release.workflow.json`，
-将手动恢复入口与自动发布分开，没有发布失败自动恢复连线。
+以下是第一轮图的历史阅读说明；`SEO-DELIVERY-ATLAS.html` 为多图合集，其中手动恢复策略已被上述新设计取代。旧文件保留用于追溯，不代表当前政策。
 
 本组图依据 `feat/seo-foundation` 的实现提交 `14e8ad8b` 绘制。它们是代码与目标设计的说明，不是一次线上发布的执行记录。原有总流程保留，新增三张时序图，把参与方、请求先后、输入输出和失败位置拆开。
 
