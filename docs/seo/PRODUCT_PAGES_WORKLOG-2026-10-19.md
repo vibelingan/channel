@@ -32,3 +32,11 @@ pricing 模拟合并起初一处分页测试文本冲突，通过保留 pageSize
 本次实际核对 `PRODUCT_PAGES_STATUS.zh-CN.md`、`PRODUCT_PAGES_MIU.md`、验收 JSON、`prepare-product-seo.ts`、`[publicKey].astro`、`CatalogDetailController.tsx`、`astro.config.ts` 和 Git 提交树。措辞将“独立分支”改为当前的“统一在原分支”，并将“尚未合并”限定为“尚未合并 main”，避免把本地分支整理误写成主线已交付。补充 SSG 代码路径，明确 Astro 构建 HTML、React hydration 和 API 刷新的先后关系，以及静态正文仍需重新构建发布的限制。
 
 整理后核对：运行代码目录（apps/packages/scripts/.github/.env.example）相对 `cf0c9bcd` 没有差异；git diff --check 通过；发布保护用例 1/1 通过；迁移后的真实构建通过 487 个商品检查。尝试在原 worktree 重跑 3 个定向站点测试文件，进程因本地文件读取停滞而未产出测试结果，已停止，不能计为通过。此前完整站点和浏览器验收仍以已保留日志为据，本轮没有宣称重新执行完整套件。多余商品 worktree 及分支已经移除。
+
+## SSG 技术说明与发布容错设计
+
+按用户本轮要求仅研究和补设计文档，未实现新功能、改 workflow、启动 Tunnel 或进行部署。新增 `SSG_DELIVERY_DESIGN.zh-CN.md`，状态报告加入口。该文明确没有独立线上测试环境，现有 Deploy Test 名字不能作为隔离环境的证据。
+
+实际核对当前 Astro 配置/页面、ProductLanding、CatalogDetailController、详情状态机及 transport、目录/旧详情入口、公开 API http-adapter/catalog-detail、CI 与 deploy workflow、hosting-integrity 和部署脚本，并读取 ENGINEERING_CRAFT 的相关分组及 CloudBase SDK 合同规则。对照 Astro/React/TanStack、MDN、Google Search Central、GitHub、CloudBase、Cloudflare 官方文档。当前没有 Context7 工具；未引入或承诺未经验证的新 SDK 方法。
+
+具体修正：把“进入页面触发 SSG”解释为构建时生成、访问时下载；指出详情不是 React Query；将“测试环境”改为本地/可选临时预览及真实网站验收。核实详情请求和后端响应均为 no-store，但在线网关/CDN 头与原子切换能力仍未验证。按已验收 487 商品快照及现有采集算法推导约 996 请求/完整采集，明确该数不是本轮在线测量。对 skip 设计保留既有快照、schema、撤回和页面检查，不能把采集失败变成空商品发布。

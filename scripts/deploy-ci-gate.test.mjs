@@ -65,6 +65,46 @@ test('normal deployment awaits hosted asset integrity before pruning or declarin
   assert.match(source, /await deployWebApp\(\)/);
 });
 
+test('deployment captures one explicit public snapshot and retains recovery inputs before cloud mutation', () => {
+  const steps = workflow('deploy-test').jobs.deploy.steps;
+  const capture = steps.findIndex((step) => step.name === 'Capture public product snapshot');
+  const build = steps.findIndex((step) => step.run === 'pnpm build');
+  const archive = steps.findIndex(
+    (step) => step.name === 'Preserve accepted site recovery inputs before deployment',
+  );
+  const deploy = steps.findIndex((step) => step.run === 'pnpm deploy:cloudbase:test');
+  assert.ok(capture >= 0 && capture < build && build < archive && archive < deploy);
+  assert.match(steps[capture].run, /seo:snapshot/);
+  assert.ok(steps[capture].env.SEO_CATALOG_API_ORIGIN);
+  assert.equal(
+    steps[build].env.SEO_CATALOG_SNAPSHOT,
+    '${{ github.workspace }}/output/seo-release/product-snapshot.json',
+  );
+  assert.equal(steps[build].env.SEO_CATALOG_API_ORIGIN, undefined);
+  assert.equal(steps[archive].with['if-no-files-found'], 'error');
+  assert.match(steps[archive].with.path, /apps\/site\/dist\//);
+  for (const step of [steps[capture], steps[build], steps[archive]]) {
+    assert.equal(step.if, undefined);
+    assert.equal(step['continue-on-error'], undefined);
+  }
+  const audit = steps.findIndex(
+    (step) => step.name === 'Verify ordinary hosting URLs and error document',
+  );
+  assert.ok(audit > deploy);
+  assert.match(steps[audit].run, /--dist apps\/site\/dist/);
+  assert.equal(steps[audit].if, undefined);
+  assert.equal(steps[audit]['continue-on-error'], undefined);
+  const source = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
+  assert.ok(
+    source.indexOf('hostingContractHashes(resolve(siteRootPath') <
+      source.indexOf("callTool('cloudbase.auth'"),
+  );
+  const preflight = source.indexOf('await auditHostingContract(siteUrl, { cacheOnly: true })');
+  assert.ok(preflight > 0 && preflight < source.indexOf("callTool('cloudbase.auth'"));
+  assert.match(source, /if \(!hostingBefore\.passed\) \{\s*throw new Error/);
+  assert.match(source, /\.\.\.WEBSITE_DOCUMENTS/);
+});
+
 // These inspect the scheduler's input graph, not source text or a homemade
 // Actions runner. GitHub owns needs/success semantics; no cloud jobs run here.
 function assertReleaseGate(ci, release) {

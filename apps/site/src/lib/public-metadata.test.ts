@@ -12,6 +12,7 @@ const read = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
 
 const noindexTopLevelPages = new Set([
+  '404.astro',
   'account.astro',
   'admin.astro',
   'login.astro',
@@ -284,7 +285,15 @@ test('sitemap follows published catalog content and excludes private routes', ()
   for (const path of ['/electronics-toys/', '/headphones/', '/ai-gadgets/', '/toys/', '/misc/']) {
     assert.equal(includeInSitemap(`https://example.test${path}`), true, path);
   }
-  for (const path of ['/admin/', '/login/', '/register/', '/products/item/', '/success-stories/']) {
+  for (const path of [
+    '/404.html',
+    '/404/',
+    '/admin/',
+    '/login/',
+    '/register/',
+    '/products/item/',
+    '/success-stories/',
+  ]) {
     assert.equal(includeInSitemap(`https://example.test${path}`), false, path);
   }
   assert.equal(

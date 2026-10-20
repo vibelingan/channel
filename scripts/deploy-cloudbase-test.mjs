@@ -16,6 +16,11 @@ import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-mani
 import { waitForFunctionActive } from './cloudbase-function-state.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
 import {
+  WEBSITE_DOCUMENTS,
+  auditHostingContract,
+  hostingContractHashes,
+} from './hosting-contract.mjs';
+import {
   hostedAssetManifest,
   publishVerifiedAssets,
   verifyHostedAssets,
@@ -504,8 +509,7 @@ async function deployWebApp() {
 
   const configured = callTool('cloudbase.manageHosting', {
     action: 'setWebsiteDocument',
-    indexDocument: 'index.html',
-    errorDocument: 'index.html',
+    ...WEBSITE_DOCUMENTS,
   });
   assertToolSucceeded(configured, `${webAppServiceName}: website document configuration`);
   const configRequestId =
@@ -514,6 +518,18 @@ async function deployWebApp() {
 }
 
 assertPublicProductBuild(resolve(siteRootPath, 'dist'), siteUrl);
+hostingContractHashes(resolve(siteRootPath, 'dist'));
+// Inspect existing HTML policy before any cloud write, including function updates.
+// Changing the error document is allowed by this release; a stale-cache policy is not.
+const hostingBefore = await auditHostingContract(siteUrl, { cacheOnly: true });
+if (!hostingBefore.passed) {
+  throw new Error(
+    `Hosting cache preflight failed before cloud mutation: ${hostingBefore.checks
+      .filter((check) => !check.passed)
+      .map((check) => `${check.path} (${check.mode}): ${check.error}`)
+      .join('; ')}`,
+  );
+}
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
 callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);

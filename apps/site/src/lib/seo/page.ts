@@ -29,7 +29,7 @@ interface PageInput {
 }
 
 const PRIVATE_ROOTS = ['/admin', '/account', '/login', '/register', '/reset', '/api'];
-const FOLLOW_SHELLS = new Set(['/products/item/', '/success-stories/']);
+const FOLLOW_SHELLS = new Set(['/products/item/', '/success-stories/', '/404/', '/404.html']);
 
 export function canonicalPath(input: string): string {
   const path = input.split(/[?#]/, 1)[0];

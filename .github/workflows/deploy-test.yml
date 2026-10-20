@@ -129,9 +129,16 @@ jobs:
         with:
           node-version: 22.13.0
 
-      - name: Build site
+      - name: Capture public product snapshot
         env:
           SEO_CATALOG_API_ORIGIN: ${{ vars.SEO_CATALOG_API_ORIGIN || vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+        run: |
+          mkdir -p output/seo-release
+          pnpm --filter @vibelingan-channel/site seo:snapshot "$GITHUB_WORKSPACE/output/seo-release/product-snapshot.json"
+
+      - name: Build site
+        env:
+          SEO_CATALOG_SNAPSHOT: ${{ github.workspace }}/output/seo-release/product-snapshot.json
         run: pnpm build
 
       - name: Scan built site for server secret names
@@ -157,6 +164,16 @@ jobs:
             echo "The built site does not contain the assistant API address." >&2
             exit 1
           fi
+
+      - name: Preserve accepted site recovery inputs before deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-recovery-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            apps/site/dist/
+            output/seo-release/product-snapshot.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Verify CloudBase deploy credentials
         env:
@@ -187,6 +204,18 @@ jobs:
           ALI_TOKEN_ENCRYPTION_KEY_V1: ${{ secrets.ALI_TOKEN_ENCRYPTION_KEY_V1 }}
           WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         run: pnpm deploy:cloudbase:test
+
+      - name: Verify ordinary hosting URLs and error document
+        run: node scripts/verify-hosting-contract.mjs --site "$SITE_URL" --dist apps/site/dist --report output/seo-release/hosting-contract.json
+
+      - name: Preserve hosting contract result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosting-contract-${{ github.sha }}-${{ github.run_id }}
+          path: output/seo-release/hosting-contract.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Smoke deployed CloudBase test
         timeout-minutes: 12

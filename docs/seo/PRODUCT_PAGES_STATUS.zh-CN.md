@@ -1,5 +1,7 @@
 # 商品页 SEO 实施状态
 
+2026-10-20 增补：托管安全的第一步已实现并完成本地验证，尚未部署。新增专用 404、部署前缓存检查、部署后普通 URL/产物校验、显式快照采集与恢复输入 artifact。最新检查为站点测试 532 通过 / 1 个既有跳过，部署/托管测试 28 通过，类型检查 0 errors / 0 warnings / 7 hints；使用保存的 487 商品快照构建得到 503 HTML / 495 个可索引地址。详细状态、未完成的缓存配置与恢复演练见 [HOSTING_ACCEPTANCE.zh-CN.md](HOSTING_ACCEPTANCE.zh-CN.md)；公共请求层只出[设计](REQUEST_LAYER_DESIGN.zh-CN.md)。下面保留商品页实现与前一轮验收记录。
+
 2026-10-19，日本时间。统一在原分支 `feat/seo-foundation` 开发。商品页的 5 个提交已从误建的 `feat/seo-product-pages` 快进合入至 `cf0c9bcd`，基于共享基础 `6bcdaa1a`，main 基线为 `37bcea5b38284210159e95f8d10f3a9b5cf2ee44`。实现提交 `a9e1b92e`；`0d1686fb` 对齐分页测试，`081982f` 修复发布检查对真实 manifest 格式的读取，`b43dc09` 补充浏览器 hydration 错误检查。尚未推送、创建 PR、合并 main 或部署。
 
 ## 已实现
@@ -70,6 +72,8 @@ SITE_URL=https://supplychainsai.com SEO_CATALOG_SNAPSHOT=/tmp/product-seo.public
 SEO-1 的页面实现和本地验收完成。SEO-2 的后台内容变化触发、代码/内容 generation 协调、远端旧路径精确删除、CDN 清理和线上读回仍待实施。CloudBase 上传会保留本地已不存在的旧文件，所以本地撤回验证不能替代线上撤回。完成这一交付链路后，再部署和检查搜索平台实际收录。Blog、Hermes 和海外部署仍在后续范围。
 
 ## 实际 SSG 实现
+
+页面范围、访问过程、Controller hooks、CI/CD 应急模式、缓存、撤回和没有独立环境时的验证计划，见 [SSG_DELIVERY_DESIGN.zh-CN.md](SSG_DELIVERY_DESIGN.zh-CN.md)。该文是设计说明；其中自动发布、新鲜度事件和 skip 模式仍待实现。
 
 项目使用 Astro + React，没有引入 Next.js，也没有修改为每次访问都执行 SSR。
 

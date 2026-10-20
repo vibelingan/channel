@@ -7,6 +7,22 @@ import {
   indexPolicy,
   serializePageDescriptor,
 } from './page.ts';
+import { isSitemapPathIncluded } from './route-policy.ts';
+
+test('the generated error document cannot be indexed or included in sitemap', () => {
+  for (const path of ['/404/', '/404.html']) {
+    assert.equal(indexPolicy(path), 'noindex,follow');
+    assert.equal(isSitemapPathIncluded(path), false);
+    assert.throws(() =>
+      createPageDescriptor({
+        path,
+        title: 'Missing page',
+        description: 'Page not found',
+        robots: 'index,follow',
+      }),
+    );
+  }
+});
 
 test('canonical identity drops UI parameters and uses one trailing slash', () => {
   assert.equal(canonicalPath('/headphones?category=wired#details'), '/headphones/');
