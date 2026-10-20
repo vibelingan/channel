@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 import { build } from 'vite';
 import { signSession } from '../../../../../../packages/auth/src/jwt.ts';
+import { createCatalogPreparationAuthority } from '../../../../../../packages/db/src/catalog-preparation-authority.ts';
+import { readCurrentCatalogPreparation } from '../../../../../../packages/shared/src/catalog/preparation.ts';
 import { encryptTokenPayload } from '../../../../../functions/alibaba-catalog-sync/src/crypto.ts';
 import {
   handleAlibabaSyncRequest,
@@ -15,6 +17,7 @@ import {
 import { importCandidateImage } from '../../../../../functions/alibaba-catalog-sync/src/media-import.ts';
 import { getConnectionAccessToken } from '../../../../../functions/alibaba-catalog-sync/src/oauth.ts';
 import { prepareAlibabaPhotosPage } from '../../../../../functions/alibaba-catalog-sync/src/photo-preparation.ts';
+import { prepareSyncedCatalogSource } from '../../../../../functions/alibaba-catalog-sync/src/sync-readiness.ts';
 import { resumeSyncWorkflow } from '../../../../../functions/alibaba-catalog-sync/src/sync-workflow.ts';
 import {
   coldOwnedMedia,
@@ -193,12 +196,17 @@ test(
       now: () => at,
       alert: async () => {},
     };
+    const authority = createCatalogPreparationAuthority({
+      secret: config.jwtSecret,
+      environmentId: 'sync-browser-local',
+    });
     const outcomes: string[] = [];
     let imageFetches = 0;
     for (let n = 0; n < 4; n++) {
       const result = await resumeSyncWorkflow({
         enabled: true,
         runner: deps,
+        prepareSource: (input) => prepareSyncedCatalogSource(authority, input),
         photos: (input) =>
           prepareAlibabaPhotosPage({
             ...input,
@@ -230,6 +238,7 @@ test(
     const created = rows.items.filter((row) => row._id !== h.productId);
     assert.equal(created.length, 2);
     for (const row of created) {
+      assert.equal(readCurrentCatalogPreparation(row)?.state, 'ready');
       assert.equal(row.published, false);
       assert.notEqual(row.alibabaPhotosPending, true);
       assert.equal(row.productFamily, undefined);
@@ -259,6 +268,7 @@ test(
       actualUiAndAuthenticatedHandler: true,
       actualRunnerAndRawStorage: true,
       actualProtectedPhotoImport: true,
+      actualAutomaticReadiness: true,
       startRequests: 1,
       lostStartReplyRecovered: true,
       pageClosedBeforeSourceWork: true,

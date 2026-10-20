@@ -14,7 +14,7 @@ const phaseText: Record<AlibabaSyncWorkflow['phase'], string> = {
   idle: 'Sync products from Alibaba into unpublished drafts.',
   queued: 'Sync requested. It will continue automatically; you can leave this page.',
   syncing: 'Syncing product data. Progress is saved; you can leave this page.',
-  preparing: 'Preparing product drafts and photos automatically. You can leave this page.',
+  preparing: 'Preparing and checking products automatically. You can leave this page.',
   waiting: 'Waiting to retry supplier requests automatically. Your progress is saved.',
   complete:
     'Sync complete. Review products and their website categories in Products before publishing.',

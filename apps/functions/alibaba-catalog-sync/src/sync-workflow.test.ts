@@ -478,3 +478,191 @@ test('an overdue preparation stops with its cursor retained instead of waiting f
   assert.equal(Reflect.get(saved?.preparation as object, 'cursor'), 'saved-tail');
   assert.equal((await syncWorkflowStatus(true, h.runner.now())).phase, 'attention');
 });
+
+test('background readiness keeps its original source cursor until preparation is complete', async (t) => {
+  const h = await fixture(t, true);
+  const run = await h.adapter.get('alibabaSyncRuns', 'run');
+  assert.ok(run);
+  await h.adapter.update('alibabaSyncRuns', 'run', {
+    preparation: {
+      ...initialSyncPreparation(at),
+      phase: 'checks',
+      checks: { actorId: 'admin', cursor: '', retries: 0, checked: 0, issues: 0, completed: false },
+    },
+  });
+  await h.adapter.createDocWithId('alibabaSourceProducts', 'source-a', {
+    active: true,
+    lastSeenRunId: 'run',
+  });
+  await h.adapter.createDocWithId('alibabaSourceProducts', 'outside', {
+    active: true,
+    lastSeenRunId: 'another-run',
+  });
+  let calls = 0;
+  const deps = {
+    enabled: true,
+    runner: h.runner,
+    prepareSource: async (input: { sourceKey: string; runId: string; actorId: string }) => {
+      assert.equal(input.sourceKey, 'source-a');
+      assert.equal(input.runId, 'run');
+      assert.equal(input.actorId, 'admin');
+      calls++;
+      return {
+        outcome: calls === 1 ? ('waiting' as const) : ('complete' as const),
+        checked: calls > 1,
+        retries: 0,
+      };
+    },
+  };
+  assert.equal((await resumeSyncWorkflow(deps)).outcome, 'waiting');
+  const waiting = await h.adapter.get('alibabaSyncRuns', 'run');
+  assert.equal(
+    Reflect.get(Reflect.get(waiting?.preparation as object, 'checks') as object, 'cursor'),
+    '',
+  );
+  h.setNow(new Date(Date.parse(at) + 61_000).toISOString());
+  assert.equal((await resumeSyncWorkflow(deps)).outcome, 'complete');
+  assert.equal(calls, 2);
+  assert.equal((await syncWorkflowStatus(true, h.runner.now())).phase, 'complete');
+  assert.equal((await resumeSyncWorkflow(deps)).outcome, 'idle');
+  assert.equal(calls, 2);
+});
+
+test('normal Sync click resumes missing readiness on the original completed run without a supplier request', async (t) => {
+  const h = await fixture(t, true);
+  await h.adapter.createDocWithId('users', 'admin', { role: 'admin', status: 'active' });
+  await h.adapter.update('alibabaSyncRuns', 'run', {
+    preparationPending: false,
+    preparation: { ...initialSyncPreparation(at), phase: 'complete' },
+  });
+  const result = await startSyncWorkflow(h.runner, true, 'admin');
+  assert.equal(result.runId, 'run');
+  assert.equal(result.phase, 'preparing');
+  assert.equal(h.providerCalls(), 0);
+  assert.equal(
+    (await h.adapter.list({ collection: 'alibabaSyncRuns', page: 1, pageSize: 100, search: '' }))
+      .items.length,
+    1,
+  );
+});
+
+test('a data issue in one readiness item does not hold valid siblings in continuing', async (t) => {
+  const h = await fixture(t, true);
+  await h.adapter.update('alibabaSyncRuns', 'run', {
+    preparation: {
+      ...initialSyncPreparation(at),
+      phase: 'checks',
+      checks: { actorId: 'admin', cursor: '', retries: 0, checked: 0, issues: 0, completed: false },
+    },
+  });
+  for (const id of ['a', 'b'])
+    await h.adapter.createDocWithId('alibabaSourceProducts', id, {
+      active: true,
+      lastSeenRunId: 'run',
+    });
+  const seen: string[] = [];
+  const result = await resumeSyncWorkflow({
+    enabled: true,
+    runner: h.runner,
+    prepareSource: async (input) => {
+      seen.push(input.sourceKey);
+      return {
+        outcome: input.sourceKey === 'a' ? 'issue' : 'complete',
+        checked: input.sourceKey === 'b',
+        retries: 0,
+      };
+    },
+  });
+  assert.equal(result.outcome, 'attention');
+  assert.deepEqual(seen, ['a', 'b']);
+  assert.equal((await h.adapter.get('alibabaSyncRuns', 'run'))?.preparationPending, false);
+});
+
+test('a readiness transport failure resumes checks rather than restarting photos', async (t) => {
+  const h = await fixture(t, true);
+  await h.adapter.update('alibabaSyncRuns', 'run', {
+    preparation: {
+      ...initialSyncPreparation(at),
+      phase: 'checks',
+      checks: { actorId: 'admin', cursor: '', retries: 0, checked: 0, issues: 0, completed: false },
+    },
+  });
+  await h.adapter.createDocWithId('alibabaSourceProducts', 'a', {
+    active: true,
+    lastSeenRunId: 'run',
+  });
+  let calls = 0;
+  const deps = {
+    enabled: true,
+    runner: h.runner,
+    photos: async () => {
+      throw Error('Photos must not restart');
+    },
+    prepareSource: async () => {
+      if (++calls === 1) throw Error('Injected transport interruption');
+      return { outcome: 'complete' as const, checked: true, retries: 0 };
+    },
+  };
+  assert.equal((await resumeSyncWorkflow(deps)).outcome, 'waiting');
+  const waiting = await h.adapter.get('alibabaSyncRuns', 'run');
+  assert.equal(Reflect.get(waiting?.preparation as object, 'resumePhase'), 'checks');
+  h.setNow(new Date(Date.parse(at) + 61_000).toISOString());
+  assert.equal((await resumeSyncWorkflow(deps)).outcome, 'complete');
+  assert.equal(calls, 2);
+});
+
+test('readiness completion after lease expiration cannot advance its source cursor', async (t) => {
+  const h = await fixture(t, true);
+  await h.adapter.update('alibabaSyncRuns', 'run', {
+    preparation: {
+      ...initialSyncPreparation(at),
+      phase: 'checks',
+      checks: { actorId: 'admin', cursor: '', retries: 0, checked: 0, issues: 0, completed: false },
+    },
+  });
+  await h.adapter.createDocWithId('alibabaSourceProducts', 'a', {
+    active: true,
+    lastSeenRunId: 'run',
+  });
+  const result = await resumeSyncWorkflow({
+    enabled: true,
+    runner: h.runner,
+    prepareSource: async () => {
+      h.setNow(new Date(Date.parse(at) + 180_001).toISOString());
+      return { outcome: 'complete', checked: true, retries: 0 };
+    },
+  });
+  assert.equal(result.outcome, 'lease-lost');
+  const run = await h.adapter.get('alibabaSyncRuns', 'run');
+  assert.equal(
+    Reflect.get(Reflect.get(run?.preparation as object, 'checks') as object, 'cursor'),
+    '',
+  );
+  assert.equal(run?.preparationPending, true);
+});
+
+test('Retry sync on a legacy run retries unavailable photos before its new readiness stage', async (t) => {
+  const h = await fixture(t, true);
+  await h.adapter.createDocWithId('users', 'admin', { role: 'admin', status: 'active' });
+  await h.adapter.update('alibabaSyncRuns', 'run', {
+    preparationPending: false,
+    preparation: { ...initialSyncPreparation(at), phase: 'attention', photoIssues: 1 },
+  });
+  assert.equal((await startSyncWorkflow(h.runner, true, 'admin')).runId, 'run');
+  let photoCalls = 0;
+  const completed = await resumeSyncWorkflow({
+    enabled: true,
+    runner: h.runner,
+    photos: async () => {
+      photoCalls++;
+      return photoPage();
+    },
+    photoStatus: noPhotoIssues,
+    prepareSource: async () => {
+      throw Error('No source items in this fixture');
+    },
+  });
+  assert.equal(photoCalls, 1);
+  assert.equal(completed.outcome, 'complete');
+  assert.equal(h.providerCalls(), 0);
+});

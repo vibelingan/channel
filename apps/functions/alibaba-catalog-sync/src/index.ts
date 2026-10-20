@@ -65,6 +65,7 @@ export const main = async (event: unknown): Promise<unknown> => {
     const { resolveRuntime } = await import('./handler.ts');
     const { getConnectionAccessToken } = await import('./oauth.ts');
     const { resumeSyncWorkflow } = await import('./sync-workflow.ts');
+    const { prepareSyncedCatalogSource } = await import('./sync-readiness.ts');
     const runtime = resolveRuntime(config);
     if (!runtime.ok) {
       console.warn('[alibaba-catalog-sync] timer tick skipped: not configured');
@@ -74,6 +75,7 @@ export const main = async (event: unknown): Promise<unknown> => {
     // refresh is single-flight and a transport outage is never terminal.
     return resumeSyncWorkflow({
       enabled: config.backgroundSyncEnabled === true,
+      prepareSource: (input) => prepareSyncedCatalogSource(preparationAuthority, input),
       runner: {
         client: runtime.runtime.deps.client,
         getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),

@@ -56,7 +56,10 @@ const websiteInput = z.object({
   unitPrice: z.unknown(),
   wholesalePrice: z.unknown(),
   moq: z.unknown(),
-  productFamily: z.enum(['headphones', 'ai-gadgets', 'toys', 'misc']).optional(),
+  productFamily: z.preprocess(
+    (value) => (value === '' || value === null ? undefined : value),
+    z.enum(['headphones', 'ai-gadgets', 'toys', 'misc']).optional(),
+  ),
   // Spec fields a manual product's facts come from (MIU-27).
   skuCode: z.unknown(),
   series: z.unknown(),

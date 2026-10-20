@@ -267,6 +267,7 @@ export async function handleAlibabaSyncRequest(
               alert: runtime.runtime.deps.alert,
             },
             true,
+            admin.data.userId,
           ),
         );
       } catch (error) {

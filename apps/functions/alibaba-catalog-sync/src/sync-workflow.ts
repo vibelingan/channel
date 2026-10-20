@@ -11,6 +11,7 @@ import {
   type CollectionDoc,
 } from '@vibelingan-channel/shared';
 import { SyncPreparationSchema } from './sync-preparation.ts';
+import type { SyncReadinessInput, SyncReadinessResult } from './sync-readiness.ts';
 export { initialSyncPreparation } from './sync-preparation.ts';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 import { photoPreparationStatus, prepareAlibabaPhotosPage } from './photo-preparation.ts';
@@ -68,7 +69,9 @@ export async function syncWorkflowStatus(
     issue = latest.errorSummary === 'run-overdue' ? 'run-expired' : 'supplier-unavailable';
   } else if (prep.success) {
     phase =
-      prep.data.phase === 'drafts' || prep.data.phase === 'photos' ? 'preparing' : prep.data.phase;
+      prep.data.phase === 'drafts' || prep.data.phase === 'photos' || prep.data.phase === 'checks'
+        ? 'preparing'
+        : prep.data.phase;
     if (phase === 'attention') issue = prep.data.photoIssues ? 'photos' : 'preparation';
   } else if (latest?.preparationPending === true || latest?.preparationError === 'invalid-state') {
     phase = 'attention';
@@ -114,13 +117,55 @@ export async function syncWorkflowStatus(
   });
 }
 
-export async function startSyncWorkflow(deps: RunnerDeps, enabled: boolean) {
+export async function startSyncWorkflow(deps: RunnerDeps, enabled: boolean, actorId?: string) {
   if (!enabled) throw new Error('Background synchronization is not available.');
+  if (actorId) {
+    const actor = await getDoc('users', actorId);
+    if (actor?._id !== actorId || actor.role !== 'admin' || actor.status === 'suspended')
+      throw Error('Administrator access is required.');
+  }
   const status = await syncWorkflowStatus(enabled, deps.now());
   if (['queued', 'syncing', 'preparing', 'waiting'].includes(status.phase)) return status;
+  if (actorId && status.runId && ['complete', 'attention'].includes(status.phase)) {
+    const holder = `readiness-${randomUUID()}`;
+    const grant = await acquireAlibabaSyncLease('primary', holder, deps.now(), 180_000);
+    if (grant.result !== 'granted') return status;
+    try {
+      const run = await getDoc('alibabaSyncRuns', status.runId);
+      const parsed = SyncPreparationSchema.safeParse(run?.preparation);
+      if (run?.status === 'completed' && parsed.success && !parsed.data.checks?.completed) {
+        const at = deps.now();
+        const state = parsed.data;
+        state.phase = state.photoIssues ? 'photos' : 'checks';
+        state.resumePhase = state.phase;
+        if (state.phase === 'photos') {
+          state.cursor = '';
+          state.passWaiting = 0;
+          state.passBusy = 0;
+          state.restartPass = false;
+        }
+        state.retryBefore = at;
+        state.retryAt = null;
+        state.transportFailures = 0;
+        state.checks = state.checks
+          ? { ...state.checks, actorId, retries: 0 }
+          : { actorId, cursor: '', retries: 0, checked: 0, issues: 0, completed: false };
+        const written = await updateDocWithAlibabaLease(
+          'alibabaSyncRuns',
+          run._id,
+          { preparation: state, preparationPending: true, updatedAt: at },
+          { connectionId: 'primary', holder, fence: grant.fence, now: at },
+        );
+        if (!written) throw Error('Saved sync progress changed. Check again.');
+        return syncWorkflowStatus(enabled, deps.now());
+      }
+    } finally {
+      await releaseAlibabaSyncLease('primary', holder, grant.fence, deps.now());
+    }
+  }
   const enqueue = () =>
     runSyncTick({
-      deps,
+      deps: { ...deps, ...(actorId ? { requestedBy: actorId } : {}) },
       trigger: 'manual',
       budgetOverrides: { maxApiCalls: 0, maxProducts: 0, softDeadlineMs: 0 },
     });
@@ -144,6 +189,7 @@ interface BackgroundDeps {
   drafts?: typeof materializeAlibabaDraftPage;
   photos?: typeof prepareAlibabaPhotosPage;
   photoStatus?: typeof photoPreparationStatus;
+  prepareSource?: (input: SyncReadinessInput) => Promise<SyncReadinessResult>;
 }
 /** Timer resumes operator work only. It never creates a new scheduled supplier run. */
 async function resumeSyncWorkflowPage(
@@ -257,7 +303,58 @@ async function resumeSyncWorkflowPage(
             state.resumePhase = 'photos';
             state.restartPass = true;
             state.retryAt = new Date(Date.parse(deps.runner.now()) + 10 * 60_000).toISOString();
-          } else state.phase = state.failures || state.photoIssues ? 'attention' : 'complete';
+          } else {
+            state.phase =
+              state.checks && !state.checks.completed
+                ? 'checks'
+                : state.failures || state.photoIssues
+                  ? 'attention'
+                  : 'complete';
+          }
+        }
+      }
+    }
+    if (state.phase === 'checks') {
+      const checks = state.checks;
+      if (!checks || !deps.prepareSource) throw Error('Background checks are not configured.');
+      const page = await list({
+        collection: 'alibabaSourceProducts',
+        page: 1,
+        pageSize: 1,
+        sort: [{ field: '_id', dir: 'asc' }],
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'active', op: 'eq', value: true },
+            { field: 'lastSeenRunId', op: 'eq', value: run._id },
+            ...(checks.cursor ? [{ field: '_id', op: 'gt' as const, value: checks.cursor }] : []),
+          ],
+        },
+      });
+      const source = page.items[0];
+      if (!source) {
+        checks.completed = true;
+        state.phase =
+          state.failures || state.photoIssues || checks.issues ? 'attention' : 'complete';
+      } else {
+        const checked = await deps.prepareSource({
+          actorId: checks.actorId,
+          runId: run._id,
+          sourceKey: source._id,
+          retries: checks.retries,
+        });
+        checks.retries = checked.retries;
+        if (checked.outcome === 'rejected') state.phase = 'attention';
+        else if (checked.outcome === 'waiting') {
+          state.phase = 'waiting';
+          state.resumePhase = 'checks';
+          state.restartPass = false;
+          state.retryAt = new Date(Date.parse(deps.runner.now()) + 60_000).toISOString();
+        } else if (checked.outcome !== 'continue') {
+          checks.cursor = source._id;
+          checks.retries = 0;
+          if (checked.checked) checks.checked++;
+          if (checked.outcome === 'issue') checks.issues++;
         }
       }
     }
@@ -276,7 +373,8 @@ async function resumeSyncWorkflowPage(
     if (!parsed.success) return { outcome: 'invalid-preparation', runId: run._id };
     const state = parsed.data;
     state.transportFailures += 1;
-    state.resumePhase = state.phase === 'drafts' ? 'drafts' : state.resumePhase;
+    if (state.phase === 'drafts' || state.phase === 'photos' || state.phase === 'checks')
+      state.resumePhase = state.phase;
     state.restartPass = false;
     state.phase = state.transportFailures >= 3 ? 'attention' : 'waiting';
     state.retryAt =
@@ -307,7 +405,11 @@ export async function resumeSyncWorkflow(
   let result: { outcome: string; runId?: string } = { outcome: 'idle' };
   for (let pages = 0; pages < 4; pages++) {
     result = await resumeSyncWorkflowPage(deps);
-    if (!['photos', 'drafts'].includes(result.outcome) || Date.now() - began >= 45_000) break;
+    if (
+      !['photos', 'drafts', 'checks'].includes(result.outcome) ||
+      Date.now() - began >= (result.outcome === 'checks' ? 20_000 : 45_000)
+    )
+      break;
   }
   return result;
 }

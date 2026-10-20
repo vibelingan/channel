@@ -84,6 +84,7 @@ function formatChinaDateTime(atMs: number): string {
 }
 
 export interface RunnerDeps {
+  requestedBy?: string;
   client: AlibabaClient;
   /**
    * Resolved AFTER the lease is acquired (review R2 finding: pre-fetching
@@ -374,6 +375,7 @@ export async function runSyncTick(input: {
           connectionId: PRIMARY_CONNECTION_ID,
           mode,
           trigger: input.trigger,
+          ...(deps.requestedBy ? { requestedBy: deps.requestedBy } : {}),
           status: 'running',
           holder,
           fence,
@@ -1187,7 +1189,10 @@ async function completeRun(
   // could orphan a non-terminal run that no later tick can discover.
   const currentRun = await getDoc('alibabaSyncRuns', state.activeRunId);
   const now = deps.now();
-  const preparation = initialSyncPreparation(now);
+  const preparation = initialSyncPreparation(
+    now,
+    typeof currentRun?.requestedBy === 'string' ? currentRun.requestedBy : undefined,
+  );
   if (currentRun?.draftPreparationRequired === true) {
     preparation.phase = 'drafts';
     preparation.resumePhase = 'drafts';
