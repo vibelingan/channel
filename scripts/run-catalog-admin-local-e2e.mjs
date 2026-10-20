@@ -8,7 +8,9 @@ import { localSiteUrl } from './local-site-readiness.mjs';
 
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'channel-catalog-e2e-'));
 const databaseFile = join(temporaryDirectory, 'db.json');
-const siteDirectory = join(temporaryDirectory, 'site');
+// Astro moves intermediate output with rename(), which cannot cross filesystems.
+let buildDirectory;
+let siteDirectory;
 const readyFile = join(temporaryDirectory, 'api-ready.json');
 const readyToken = randomUUID();
 const formal = process.env.E2E_CATALOG_FORMAL === '1';
@@ -137,14 +139,26 @@ async function cleanup() {
       if (!exited[index]) signalGroup(child, 'SIGKILL');
     }
     await Promise.all(processes.map((child) => waitForExit(child, 3_000)));
-    await rm(temporaryDirectory, { recursive: true, force: true });
-    await access(temporaryDirectory).then(
-      () => {
-        throw new Error(`Temporary catalog E2E directory still exists: ${temporaryDirectory}`);
-      },
-      () => undefined,
+    const directories = [temporaryDirectory, buildDirectory].filter(Boolean);
+    const removed = await Promise.allSettled(
+      directories.map(async (directory) => {
+        await rm(directory, { recursive: true, force: true });
+        try {
+          await access(directory);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          console.log(`[catalog-admin-local] removed ${directory}`);
+          return;
+        }
+        throw new Error(`Temporary catalog E2E directory still exists: ${directory}`);
+      }),
     );
-    console.log(`[catalog-admin-local] removed ${temporaryDirectory}`);
+    const failures = removed.filter((result) => result.status === 'rejected');
+    if (failures.length)
+      throw new AggregateError(
+        failures.map((result) => result.reason),
+        'Catalog E2E cleanup failed.',
+      );
   })();
   return cleanupPromise;
 }
@@ -161,6 +175,9 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 
 try {
+  buildDirectory = await mkdtemp(join(process.cwd(), 'apps/site', '.catalog-e2e-build-'));
+  siteDirectory = join(buildDirectory, 'site');
+  console.log(`[catalog-admin-local] build ${buildDirectory}`);
   await run(
     bin('apps/local-server', 'tsx'),
     ['tests/fixtures/prepare-catalog-pricing.ts', databaseFile],
@@ -201,7 +218,7 @@ try {
     SITE_URL: `http://127.0.0.1:${sitePort}`,
   };
   await run(
-    bin('apps/site', 'astro'),
+    failStage === 'build' ? join(temporaryDirectory, 'missing-build') : bin('apps/site', 'astro'),
     ['build', '--outDir', siteDirectory],
     siteEnvironment,
     join(process.cwd(), 'apps/site'),

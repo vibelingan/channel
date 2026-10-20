@@ -1585,3 +1585,10 @@ review 另复现 A→B→A 时旧响应误入和缓存旧 401 再次锁住，共
 三条独立故障注入都由对应断言抓住，进程结束后恢复源码并校验哈希。最终实际组合 46/46，Node20 核心 36/36；Astro 238 文件 0 errors/0 warnings/11 hints（首轮的新增 role:string 类型错误已按 SessionUser.Role 收窄）。首两轮整站 1313 / 1316 通过，各 0 失败、1 图库开关跳过，但早于最后缓存事件修正。最后源码的整站 r3 1316 通过/0失败/1静态图库开关跳过；显式开启图库 r1 11/11。15 文件最终 Biome 和 diff check 通过。正式构建验收紧接 P6 的同磁盘构建修正，当前未计完成。
 
 本单元不新增 SDK 方法、集合或环境变量；通用非商品 CRUD 的跨网络幂等性不因表单保留而获得保证。原已发布商品编辑、历史审计、P6 后端制品/正式构建入口和 P7 test 真实数据/COS/P95 仍开放。未部署、未修改真实商品，fullDeliveryReady=false。
+
+
+## P6a：同磁盘正式构建与逐用例数据库身份
+
+原 runner 在 Lexar 仓库构建到系统临时目录时实测 EXDEV；改为 apps/site 下自建随机构建目录，DB/media/ready 仍在系统临时目录。退出分别验证两个目录删除，并保留所有非本次资源。后台恢复用例统一在登录写入之前检查 local mode 和精确 db。实际 Playwright 误连云/其他本地 DB 均只有健康请求。runner 最终 8/8、e2e 类型检查通过，canonical 正式 Astro 15 页构建及 12/12 后台组合通过（包括两个 20 件入口、原任务恢复、分类保留与恢复未发布），全部自建资源清理；原 Playwright 报告哈希一致恢复。首轮静态断言失败、次轮 grep 未找到测试均保留，详见 P6a_OWNED_BUILD_VOLUME.zh-CN.md。
+
+实际复核 runner/测试、admin-subcategory-visibility、Playwright 配置和 env helper；把清理结论写明两个目录，不把本地构建当作云验收。未改商品流程/分类/映射/SDK、无部署或云商品变更。已发布编辑恢复、后端制品和全公开组合、历史修复、test 真实三时钟/20 件/COS/P95 继续，fullDeliveryReady=false。

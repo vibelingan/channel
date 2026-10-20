@@ -28,6 +28,14 @@ if (
   throw new Error('Admin subcategories require the runner mutation opt-in and local credentials.');
 }
 test.describe.configure({ mode: 'serial', retries: 0 });
+// Every case, including response-loss recovery, verifies the owned API before login or writes.
+test.beforeEach(async ({ request }) => {
+  const response = await request.get(`${e2e.apiUrl}/api/health`);
+  expect(response.ok()).toBe(true);
+  const healthBody: { data?: { mode?: unknown; db?: unknown } } = await response.json();
+  expect(healthBody.data?.mode).toBe('local');
+  expect(healthBody.data?.db).toBe(e2e.catalogLocalDb);
+});
 
 const marker = `${e2e.runId} Admin subcategory`;
 
