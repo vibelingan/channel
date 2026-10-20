@@ -520,3 +520,41 @@ for (const code of ['UNAUTHORIZED', 'FORBIDDEN'] as const)
     assert.equal(result.errorCode, code);
     assert.equal(h.calls.length, 3);
   });
+
+test('worker rejection preserves a checkable saved job without treating the actor as forbidden or silently retrying', async () => {
+  const current = { ...status(), progress: { ...progress(), media: null } };
+  const h = harness([
+    { ...answer(), status: current },
+    {
+      ...answer(),
+      status: current,
+      followUp: 'none',
+      invocation: 'rejected',
+      failureCode: 'FORBIDDEN',
+    },
+  ]);
+  const result = await runPreparation({ productId: 'clock', jobId }, h);
+  assert.equal(result.reason, 'rejected');
+  assert.equal(result.errorCode, undefined);
+  assert.equal(result.jobId, jobId);
+  assert.equal(result.status?.nextAction, 'continue');
+  assert.deepEqual(h.calls, [
+    { action: 'status', jobId },
+    { action: 'continue', jobId },
+  ]);
+  assert.deepEqual(h.waits, []);
+});
+
+test('authoritative ready recovery returned by the server remains ready after an unacknowledged worker call', async () => {
+  const h = harness([
+    answer(),
+    { ...answer(ready()), followUp: 'none', invocation: 'recovered', recovery: 'status' },
+  ]);
+  const result = await runPreparation({ productId: 'clock', jobId }, h);
+  assert.equal(result.reason, 'ready');
+  assert.equal(result.errorCode, undefined);
+  assert.deepEqual(h.calls, [
+    { action: 'status', jobId },
+    { action: 'continue', jobId },
+  ]);
+});

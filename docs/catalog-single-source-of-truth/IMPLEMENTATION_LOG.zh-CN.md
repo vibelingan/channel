@@ -1714,3 +1714,7 @@ T142 的 Edit 和含完整来源规格的 Preview 可以打开，明确 Prepare 
 另补开始响应丢失的真实浏览器红测：未取得 jobId 时不应让用户查找不存在的 Check result；应指向现有 Prepare saved product 与 Edit 恢复入口。提示修订后最终浏览器组合60/60，Node20下DB2362/2362，lint1085文件及最终site类型通过；不会把未确认结果写成完成。下一步仍是精确提交 review、构建与部署本项，重做三件准备及20件 Assign category → Save and publish/读回/下架恢复，继续 COS、各操作组合和实际性能验收。fullDeliveryReady=false。
 
 实际 review 三个 native 模块、读取 helper、准备控件和浏览器测试，以及 preparation/store、引用 proof 与生产消费者。将“串行十次成功”写清为“零写入到检查点”，将“全量零跳过”写清原3项跳过，校对云端返回、原商品与图片基线、各日志及恢复操作；没有更改现有来源属性展示/映射规则。
+
+## P7a2 / 2026-10-20：实际云函数调用的额外上下文
+
+2932216f 已在 test 部署，health、54 个网站制品哈希和原函数配置验证通过。T142 原商品的准备任务现已建立，但真实 Continue 返回 invocation=rejected / FORBIDDEN；只读对照定位到 CloudBase 自动加入 tcbContext、userInfo，被严格调用 schema 拒绝。sync 入口仅移除这两个平台字段，保留其他额外字段与全部 HMAC/环境/租约校验。前台明确拒绝状态并保留查询/继续/编辑，原 BUSY 有界恢复不变。详情见 P7a2_CLOUDBASE_EVENT_CONTEXT.zh-CN.md。新增夹具两处类型错误已修正，最终全量7706项中7703通过、0失败、3项既有跳过；随后只追加 recovered-ready 前台合约用例，最终准备组合64/64、Node20 49/49，全部工作区/E2E/测试类型、lint1086文件及SDK门槛通过。生产代码在全量后未变。生产 helper 的真实云探针通过，额外权限和篡改签名仍拒绝，零 DB/COS 写入；临时函数删除且确认仅原三个服务。未发布20件，fullDeliveryReady=false。

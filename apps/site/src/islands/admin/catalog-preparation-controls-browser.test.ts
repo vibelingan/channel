@@ -137,6 +137,7 @@ test(
       | 'cancel-success'
       | 'cancel-unconfirmed'
       | 'retry-unconfirmed'
+      | 'worker-rejected'
       | 'start-unconfirmed'
       | 'hold' = 'prepare';
     let continues = 0;
@@ -222,6 +223,18 @@ test(
                 }
               : status(false, product),
           };
+      } else if (mode === 'worker-rejected' && action === 'continue') {
+        data = {
+          ok: true,
+          status: {
+            ...status(false, product),
+            progress: { ...progress(product), media: null },
+            report: null,
+          },
+          invocation: 'rejected',
+          failureCode: 'FORBIDDEN',
+          followUp: 'none',
+        };
       } else if (action === 'start') data = { ok: true, progress: progress(product) };
       else if (action === 'continue') {
         const done = ++continues >= 2;
@@ -471,6 +484,33 @@ test(
     assert.deepEqual(actions.slice(beforeStartRecovery), [
       'start',
       'start',
+      'continue',
+      'continue',
+    ]);
+    mode = 'worker-rejected';
+    product = 'recover-worker';
+    await mount(product, 'worker-recovery-admin');
+    const beforeWorkerRecovery = actions.length;
+    await panel.getByRole('button', { name: 'Prepare saved product', exact: true }).click();
+    await expect(panel).toContainText(
+      'Preparation could not continue. Check result before trying again, or edit the saved product.',
+    );
+    await expect(panel.getByRole('button', { name: 'Check result', exact: true })).toBeEnabled();
+    await expect(
+      panel.getByRole('button', { name: 'Continue preparation', exact: true }),
+    ).toBeEnabled();
+    await expect(
+      panel.getByRole('button', { name: 'Edit saved product', exact: true }),
+    ).toBeEnabled();
+    assert.deepEqual(actions.slice(beforeWorkerRecovery), ['start', 'continue']);
+    mode = 'prepare';
+    continues = 0;
+    await panel.getByRole('button', { name: 'Continue preparation', exact: true }).click();
+    await expect(panel).toContainText('Saved product content is ready');
+    assert.deepEqual(actions.slice(beforeWorkerRecovery), [
+      'start',
+      'continue',
+      'status',
       'continue',
       'continue',
     ]);

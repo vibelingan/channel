@@ -202,27 +202,29 @@ function PreparationControls({ productId, actorId, onEdit, onReady }: Props & { 
       ? 'This preparation action is unavailable. You can still edit the saved product.'
       : busy
         ? 'Checking and preparing saved product…'
-        : view.reason === 'unknown'
-          ? view.jobId
-            ? 'The result is not confirmed. Check this task before continuing.'
-            : 'Preparation was not confirmed. Use Prepare saved product to recover, or edit the saved product.'
-          : view.reason === 'paused'
-            ? 'Waiting stopped. The server task can still be checked or continued.'
-            : isReady
-              ? 'Saved product content is ready. Publishing still checks category and permissions.'
-              : state === 'cancelled'
-                ? 'Preparation was cancelled. Saved product content has been kept.'
-                : next === 'edit'
-                  ? 'Saved product data needs a correction.'
-                  : next === 'restart'
-                    ? 'Saved product data changed. Check the current product.'
-                    : next === 'retry'
-                      ? 'This task needs an explicit retry.'
-                      : next === 'wait'
-                        ? 'Preparation is running. Check its result.'
-                        : view.jobId
-                          ? 'A saved preparation task is available.'
-                          : 'Prepare saved product content when its images or data need checking.';
+        : view.reason === 'rejected'
+          ? 'Preparation could not continue. Check result before trying again, or edit the saved product.'
+          : view.reason === 'unknown'
+            ? view.jobId
+              ? 'The result is not confirmed. Check this task before continuing.'
+              : 'Preparation was not confirmed. Use Prepare saved product to recover, or edit the saved product.'
+            : view.reason === 'paused'
+              ? 'Waiting stopped. The server task can still be checked or continued.'
+              : isReady
+                ? 'Saved product content is ready. Publishing still checks category and permissions.'
+                : state === 'cancelled'
+                  ? 'Preparation was cancelled. Saved product content has been kept.'
+                  : next === 'edit'
+                    ? 'Saved product data needs a correction.'
+                    : next === 'restart'
+                      ? 'Saved product data changed. Check the current product.'
+                      : next === 'retry'
+                        ? 'This task needs an explicit retry.'
+                        : next === 'wait'
+                          ? 'Preparation is running. Check its result.'
+                          : view.jobId
+                            ? 'A saved preparation task is available.'
+                            : 'Prepare saved product content when its images or data need checking.';
   const disabled = busy || needsSignIn || forbidden;
   const button = 'min-h-11 rounded-lg border border-slate-300 px-3 text-sm disabled:opacity-50';
   return (

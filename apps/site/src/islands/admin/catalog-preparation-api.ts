@@ -161,7 +161,7 @@ export type PreparationRunResult = {
   productId: string;
   jobId?: string;
   status?: PreparationStatus;
-  reason: 'ready' | 'needs-action' | 'paused' | 'unknown';
+  reason: 'ready' | 'needs-action' | 'paused' | 'unknown' | 'rejected';
   errorCode?: string;
 };
 type Options = {
@@ -360,6 +360,8 @@ export async function runPreparation(
               : 'none';
         continue;
       }
+      if (!wasPoll && 'followUp' in observed && observed.invocation === 'rejected')
+        return result('rejected');
       mode = wasPoll
         ? current?.nextAction === 'wait'
           ? 'poll'
