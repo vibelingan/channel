@@ -339,25 +339,35 @@ async function runCatalogPreparationStages(
           media.cursor + Math.min(8, maxProtectedImages - n),
         );
         if (tryProtectedPage && pageIds.length > 1) {
-          const checked = await run({
-            action: 'check-protected-media-page',
+          const retained = await run({
+            action: 'reserve-image-page',
             jobId: progress.jobId,
             lease,
-            planDigest,
-            index: media.cursor,
             imageIds: pageIds,
           });
-          if (!checked.ok) return { ok: false, code: checked.code };
-          if ('media' in checked) {
-            if (checked.media.cursor !== media.cursor + pageIds.length)
-              return { ok: false, code: 'CORRUPT' };
-            media = checked.media;
-            n += pageIds.length - 1;
-            continue;
-          }
-          if (!('protectedPage' in checked) || checked.protectedPage !== 'miss')
+          if (!retained.ok) return { ok: false, code: retained.code };
+          if ('reservation' in retained) {
+            const checked = await run({
+              action: 'check-protected-media-page',
+              jobId: progress.jobId,
+              lease,
+              planDigest,
+              index: media.cursor,
+              imageIds: pageIds,
+            });
+            if (!checked.ok) return { ok: false, code: checked.code };
+            if ('media' in checked) {
+              if (checked.media.cursor !== media.cursor + pageIds.length)
+                return { ok: false, code: 'CORRUPT' };
+              media = checked.media;
+              n += pageIds.length - 1;
+              continue;
+            }
+            if (!('protectedPage' in checked) || checked.protectedPage !== 'miss')
+              return { ok: false, code: 'CONFLICT' };
+          } else if (!('protectedPage' in retained) || retained.protectedPage !== 'miss')
             return { ok: false, code: 'CONFLICT' };
-          // A miss writes nothing; this worker keeps its original four-image byte path.
+          // A miss keeps the original single-image path and its four-image byte cap.
           tryProtectedPage = false;
         }
         const reservationCommand = {

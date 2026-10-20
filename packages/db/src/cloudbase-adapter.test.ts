@@ -3899,6 +3899,14 @@ async function protectedMediaPageCloudFixture(count = 8) {
   scope = { jobId: started.progress.jobId, lease: claimed.lease };
   const planDigest = 'd'.repeat(64);
   assert.ok((await run({ action: 'bind-media-plan', ...scope, planDigest, total: ids.length })).ok);
+  for (let start = 0; start < ids.length; start += 8) {
+    const retained = await run({
+      action: 'reserve-image-page',
+      ...scope,
+      imageIds: ids.slice(start, start + 8),
+    });
+    assert.ok(retained.ok && 'reservation' in retained, JSON.stringify(retained));
+  }
   f.controls.maximumOperations = 0;
   const command = {
     action: 'check-protected-media-page' as const,
@@ -4102,3 +4110,56 @@ for (const change of ['edit', 'cancel'] as const)
     assert.ok(media && typeof media === 'object' && !Array.isArray(media));
     assert.equal(Reflect.get(media, 'cursor'), 0);
   });
+
+function clearCurrentPageHolds(h: Awaited<ReturnType<typeof protectedMediaPageCloudFixture>>) {
+  const rows = h.store.get('catalogImageObservations');
+  assert.ok(rows);
+  for (const row of rows.values())
+    if (row.kind === 'catalog-preparation-image-hold-v1' && row.jobId === h.jobId)
+      rows.delete(row._id);
+}
+
+test('protected page reservations commit all holds without reading or writing any image metadata', async (t) => {
+  const h = await protectedMediaPageCloudFixture();
+  clearCurrentPageHolds(h);
+  const before = structuredClone(h.store);
+  h.controls.maximumOperations = 0;
+  h.controls.afterRead = (key) =>
+    assert.equal(key.startsWith('images/'), false, 'Retention must precede image reads');
+  const result = await h.run({ action: 'reserve-image-page', ...h.scope, imageIds: h.ids });
+  assert.ok(result.ok && 'reservation' in result);
+  const holds = [...(h.store.get('catalogImageObservations')?.values() ?? [])].filter(
+    (row) => row.kind === 'catalog-preparation-image-hold-v1' && row.jobId === h.jobId,
+  );
+  assert.equal(holds.length, 8);
+  assert.deepEqual(h.store.get('images'), before.get('images'));
+  assert.deepEqual(h.store.get('products'), before.get('products'));
+  assert.ok(h.controls.maximumOperations <= 98);
+  t.diagnostic(`Actual native reservation operations: ${h.controls.maximumOperations}`);
+});
+
+for (const fault of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`reservation page ${fault} rolls back all preceding holds and its job fence`, async () => {
+    const h = await protectedMediaPageCloudFixture();
+    const hold = [...(h.store.get('catalogImageObservations')?.values() ?? [])].find(
+      (row) =>
+        row.kind === 'catalog-preparation-image-hold-v1' &&
+        row.jobId === h.jobId &&
+        row.imageId === h.ids[7],
+    );
+    assert.ok(hold);
+    clearCurrentPageHolds(h);
+    const before = structuredClone(h.store);
+    h.controls[fault] = `catalogImageObservations/${hold._id}`;
+    await assert.rejects(h.run({ action: 'reserve-image-page', ...h.scope, imageIds: h.ids }));
+    assert.deepEqual(h.store, before);
+  });
+
+test('protected checks reject a missing committed hold before accessing the first image', async () => {
+  const h = await protectedMediaPageCloudFixture();
+  clearCurrentPageHolds(h);
+  const before = structuredClone(h.store);
+  h.controls.afterRead = (key) => assert.equal(key.startsWith('images/'), false);
+  assert.deepEqual(await h.run(h.command), { ok: false, code: 'CONFLICT' });
+  assert.deepEqual(h.store, before);
+});

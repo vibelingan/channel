@@ -3777,3 +3777,38 @@ for (const change of ['edit', 'cancel'] as const)
     assert.equal(current?.published, false);
     if (change === 'edit') assert.equal(current?.name, 'Independent edit after atomic page');
   });
+
+test('cached metadata pages keep their deletion holds committed before reading any protected image', async (t) => {
+  const f = await cachedPlan(t, 9);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let pages = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const command = args[1];
+    if (command.action === 'check-protected-media-page') {
+      const rows = await f.adapter.list({
+        collection: 'catalogImageObservations',
+        search: '',
+        page: 1,
+        pageSize: 100,
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'kind', op: 'eq', value: 'catalog-preparation-image-hold-v1' },
+            { field: 'jobId', op: 'eq', value: command.jobId },
+          ],
+        },
+      });
+      for (const id of command.imageIds)
+        assert.ok(
+          rows.items.some((row) => row.imageId === id),
+          'A source-only image must be retained before its metadata is read',
+        );
+      pages++;
+    }
+    return manage(...args);
+  };
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+  assert.ok(result.ok && result.outcome === 'ready', JSON.stringify(result));
+  assert.equal(pages, 1);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});

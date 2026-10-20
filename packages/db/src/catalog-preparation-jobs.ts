@@ -2,7 +2,6 @@
 import { randomBytes } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import {
   CATALOG_PREPARATION_POLICY,
   type CatalogPreparationReport,
@@ -61,6 +60,10 @@ import {
   catalogPreparationInputDigest,
   readCatalogPreparationInputs,
 } from './catalog-preparation-store.ts';
+import {
+  CatalogPreparationPlanLimitError,
+  planCatalogPreparationTransaction,
+} from './catalog-preparation-transaction-plan.ts';
 import {
   CATALOG_PIXEL_POLICY,
   planCatalogProtectedPixels,
@@ -124,6 +127,18 @@ const commandSchema = z.discriminatedUnion('action', [
         .array(id)
         .min(1)
         .max(CATALOG_MEDIA_ATTESTATION_PAGE_SIZE)
+        .refine((ids) => new Set(ids).size === ids.length),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('reserve-image-page'),
+      jobId: hex,
+      lease: z.unknown(),
+      imageIds: z
+        .array(id)
+        .min(1)
+        .max(8)
         .refine((ids) => new Set(ids).size === ids.length),
     })
     .strict(),
@@ -784,6 +799,32 @@ export async function runCatalogPreparationJob(
       });
     return { ok: true, mediaSeal: Object.freeze({ ...seal }) };
   }
+  if (command.action === 'reserve-image-page') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    try {
+      const plan = planCatalogPreparationTransaction(tx, job);
+      for (const imageId of command.imageIds) {
+        const result = await runCatalogPreparationJob(
+          plan.tx,
+          authority,
+          {
+            action: 'reserve-image-check',
+            jobId,
+            lease: command.lease,
+            imageId,
+          },
+          now,
+        );
+        if (!result.ok) return result;
+      }
+      await plan.flush(() => authority.currentLeaseScope(command.lease, job) !== null);
+      return { ok: true, reservation: 'reserved' };
+    } catch (error) {
+      if (error instanceof CatalogPreparationPlanLimitError)
+        return { ok: true, protectedPage: 'miss' };
+      throw error;
+    }
+  }
   if (command.action === 'check-protected-media-page') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
     const media = job.media;
@@ -794,24 +835,20 @@ export async function runCatalogPreparationJob(
       command.index + command.imageIds.length > media.total
     )
       return { ok: false, code: 'CONFLICT' };
-    const pageTooLarge = new Error('Protected media page needs the single-image path');
-    const capturedReads = new Map<string, { row: CollectionDoc | null }>();
-    const key = (collection: string, id: string) => JSON.stringify([collection, id]);
-    let capturedBytes = 0;
-    const readPage = async (collection: string, id: string): Promise<CollectionDoc | null> => {
-      const cached = capturedReads.get(key(collection, id));
-      if (cached) return structuredClone(cached.row);
-      const row = await tx.get(collection, id);
-      if (!fitsJsonBudget(row, Math.min(512 * 1024, 4 * 1024 * 1024 - capturedBytes)))
-        throw pageTooLarge;
-      const copy = structuredClone(row);
-      capturedBytes += Buffer.byteLength(JSON.stringify(copy));
-      capturedReads.set(key(collection, id), { row: copy });
-      return row;
-    };
     try {
+      const plan = planCatalogPreparationTransaction(tx, job);
+      const readPage = plan.tx.get;
       const health = [];
       for (const imageId of command.imageIds) {
+        const held = await readPage(
+          CATALOG_IMAGE_OBSERVATIONS,
+          catalogPreparationImageHold(job, imageId)._id,
+        );
+        if (!held) return { ok: false, code: 'CONFLICT' };
+        if (!matchesCatalogPreparationImageHold(held, job, imageId))
+          return { ok: false, code: 'CORRUPT' };
+        if (!authority.currentLeaseScope(command.lease, job))
+          return { ok: false, code: 'CONFLICT' };
         const image = await readPage('images', imageId);
         if (image && image._id !== imageId) return { ok: false, code: 'CORRUPT' };
         const checked = await readCatalogProtectedPixels({ get: readPage }, image, now);
@@ -821,16 +858,7 @@ export async function runCatalogPreparationJob(
         health.push(checked);
       }
       // Plan through the original single-image guards. No native write happens until all succeed.
-      const staged = new Map<string, { collection: string; row: CollectionDoc }>();
-      const buffered: CatalogApprovalTransaction = {
-        get: async (collection, id) => {
-          const captured = staged.get(key(collection, id));
-          return captured ? structuredClone(captured.row) : readPage(collection, id);
-        },
-        set: async (collection, row) => {
-          staged.set(key(collection, row._id), { collection, row: structuredClone(row) });
-        },
-      };
+      const buffered = plan.tx;
       let advanced: CatalogPreparationJobResult = { ok: true, media };
       for (const [offset, checked] of health.entries()) {
         const reserved = await runCatalogPreparationJob(
@@ -863,14 +891,11 @@ export async function runCatalogPreparationJob(
         if (!advanced.ok) return advanced;
       }
       if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
-      for (const item of staged.values()) {
-        await tx.set(item.collection, item.row);
-        if (!authority.currentLeaseScope(command.lease, job))
-          throw Error('Preparation lease changed while committing protected media page');
-      }
+      await plan.flush(() => authority.currentLeaseScope(command.lease, job) !== null);
       return advanced;
     } catch (error) {
-      if (error === pageTooLarge) return { ok: true, protectedPage: 'miss' };
+      if (error instanceof CatalogPreparationPlanLimitError)
+        return { ok: true, protectedPage: 'miss' };
       throw error;
     }
   }
