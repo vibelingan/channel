@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/main.ts",
     "start": "tsx src/main.ts",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test --test-concurrency=2 src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "import:dianxiaomi": "tsx src/dianxiaomi-import-cli.ts"
   },
