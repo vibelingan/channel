@@ -1619,3 +1619,11 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 组合 1084/1084，Node20 376/376，DB/local-server 类型、5 文件 Biome、Admin bundle 和 diff check 通过。新增 105 配置、21 新配置图跨页、空差量和各种失效恢复，以及两个 native adapter 的 save→manual source→同 Root approval→最后 proof 失败回滚/重试。CloudBase 是 SDK 模拟，媒体是明示 metadata fixture，未算作真实云端/PNG验收。有效最终测试对 f5de2e49 基线 5/5 预期失败，前缀信任故障注入 1/1 被抓住，两次 finally 均恢复并核对源码哈希。首次无效样本和媒体 byteSize fixture 错误保留日志并在文档区分。
 
 实际 review Root、图片页、证明/取消/恢复消费者、两个 adapter 与测试，修正文案为“内部重审批”，无 SDK/配置/环境或部署变更。HTTP continue 时间预算、live 编辑 UI、P5/P6/P7 及原诊断项仍开放，fullDeliveryReady=false。
+
+## P4c9d：live 后端有界继续流程
+
+见 [P4c9d](P4c9d_LIVE_CONTINUATION.zh-CN.md)。refresh-live 后端沿同 Root 串起照片认领、最多 63 个行保存差量、原子保存、来源/配置/真实媒体准备、审批引用及最终提交。父请求预算在每个阶段阻止启动下一步，部分状态返回原 reserved 进度；满槽游标跨请求推进，未改回收资格。旧批准版保留至最终提交，并发下架不能被续跑重新上线。编辑入口尚未切换，未部署和变更真实商品。
+
+有效初始红测 4/4 失败；最终 11 文件组合 1270/1270、0 跳过；Node20 状态/实际 JSON/HTTP 81/81、0 跳过；DB/local 类型、Admin 构建、11 文件 Biome 和 diff check 通过。实际 Admin/PNG worker覆盖手工/105 配置、旧新公开图片、丢失回复、预算及下架/停止；原生模拟与云端边界明确区分。忽略最终保存预算的故障注入令两端测试失败，源码恢复哈希一致。首次组合两条新断言错误已纠正且日志保留。
+
+实际审查 workflow/Root/native 保存守卫、seed、四个 Admin continuation、DTO 和两端契约；将时间承诺改为“限制下一步启动”，不声称能中断数据库事务。无 SDK/环境/部署变更。live UI、制品矩阵、历史审计、test 实际三时钟及 20 件发布回退/性能继续，旧诊断项仍开放，fullDeliveryReady=false。

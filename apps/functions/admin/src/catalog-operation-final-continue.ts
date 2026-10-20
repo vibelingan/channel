@@ -70,7 +70,7 @@ export async function continueOwnedCatalogPublication(
       parsed.data.productId !== scope.productId ||
       parsed.data.operationId !== scope.operationId ||
       parsed.data.inputDigest !== scope.inputDigest ||
-      parsed.data.intent !== 'publish'
+      !['publish', 'refresh-live'].includes(parsed.data.intent)
     )
       return { ok: false, code: 'CONFLICT' };
     const status = parsed.data;

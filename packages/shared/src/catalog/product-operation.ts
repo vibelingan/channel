@@ -80,7 +80,13 @@ const approval = z
       .strict(),
   })
   .strict();
-const reserved = base.extend({ state: z.literal('reserved') });
+const reserved = base.extend({
+  state: z.literal('reserved'),
+  saveReferences: z
+    .object({ prepared: z.boolean(), staged: count.max(63), total: count.max(63) })
+    .strict()
+    .optional(),
+});
 const savedStatus = base.extend({ state: z.literal('saved'), saved });
 const staging = base.extend({ state: z.literal('staging'), saved, approval });
 const complete = base.omit({ cancelledAt: true }).extend({
@@ -99,6 +105,19 @@ const complete = base.omit({ cancelledAt: true }).extend({
 export const CatalogProductOperationStatusSchema = z
   .discriminatedUnion('state', [reserved, savedStatus, staging, complete])
   .superRefine((status, ctx) => {
+    if (
+      status.state === 'reserved' &&
+      status.saveReferences &&
+      (status.intent !== 'refresh-live' ||
+        status.saveReferences.staged > status.saveReferences.total ||
+        (!status.saveReferences.prepared &&
+          (status.saveReferences.staged !== 0 || status.saveReferences.total !== 0)))
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['saveReferences'],
+        message: 'Live save reference progress is inconsistent.',
+      });
     if (status.photosPending && status.state === 'complete')
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -107,7 +126,7 @@ export const CatalogProductOperationStatusSchema = z
       });
     if (
       status.preparation &&
-      (status.intent !== 'publish' ||
+      (!['publish', 'refresh-live'].includes(status.intent) ||
         (status.state !== 'saved' && (status.state !== 'staging' || status.approval.mediaReady)) ||
         !status.current ||
         !status.revisionCurrent ||
@@ -122,16 +141,20 @@ export const CatalogProductOperationStatusSchema = z
 
     if (
       status.referenceRecovery &&
-      (status.intent !== 'publish' ||
-        status.state !== 'staging' ||
+      (!['publish', 'refresh-live'].includes(status.intent) ||
         !status.current ||
         !status.revisionCurrent ||
         status.expired ||
         ('cancelledAt' in status && status.cancelledAt !== undefined) ||
-        !status.approval.mediaReady ||
-        status.approval.configurations.completed !== status.approval.configurations.total ||
-        !status.approval.references.prepared ||
-        status.approval.references.staged >= status.approval.references.total)
+        !(status.state === 'staging'
+          ? status.approval.mediaReady &&
+            status.approval.configurations.completed === status.approval.configurations.total &&
+            status.approval.references.prepared &&
+            status.approval.references.staged < status.approval.references.total
+          : status.state === 'reserved' &&
+            status.intent === 'refresh-live' &&
+            status.saveReferences?.prepared &&
+            status.saveReferences.staged < status.saveReferences.total))
     )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

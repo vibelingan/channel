@@ -17,6 +17,7 @@ import { readOwnedApprovalReferenceCommitment } from './catalog-operation-refere
 import { finishOwnedMediaFixture } from './catalog-owned-media.fixture.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
+import { runProductOperationWorkflow } from './catalog-product-operation-workflow.ts';
 export interface LiveSaveStorageHarness {
   persist(actor: string, command: ApprovalPersistenceCommand): Promise<ApprovalStageResult>;
   save(input: CatalogProductSaveInput): Promise<CatalogProductSaveResult>;
@@ -132,6 +133,141 @@ export function registerLiveSaveStorageContract(
     assert.equal(result.state, 'counted');
     return result.state === 'counted' ? result.effectiveCount : null;
   }
+  test(`${label} public live save stops between reference pages and resumes its original frozen values exactly once`, async (t) => {
+    const data: Record<string, CollectionDoc[]> = initial();
+    const product = data.products?.[0];
+    assert.ok(product);
+    const old = Array.from({ length: 36 }, (_, i) => `old${i}`);
+    const added = Array.from({ length: 27 }, (_, i) => `new${i}`);
+    product.imageIds = old.slice(0, 18);
+    product.descriptionImageIds = old.slice(18);
+    data.images = [
+      ...old.map((_id) => ({ _id, publishedRefCount: 1 })),
+      ...added.map((_id) => ({ ...initial().images[1], _id })),
+    ];
+    const h = create(t, data);
+    const own = await start(h, {
+      description: 'Frozen live edit',
+      imageIds: added.slice(0, 9),
+      descriptionImageIds: added.slice(9),
+    });
+    let admitted = true;
+    let saves = 0;
+    const store = {
+      persist: async (actor: string, command: ApprovalPersistenceCommand) => {
+        const result = await h.persist(actor, command);
+        if (command.action === 'operation-live-save-reference-page') admitted = false;
+        return result;
+      },
+      save: async (input: CatalogProductSaveInput) => {
+        saves++;
+        return h.save(input);
+      },
+    };
+    const command = { ...own.identity, action: 'product-operation-save' };
+    const partial = await runProductOperationWorkflow(store, 'admin', command, undefined, {
+      canContinue: () => admitted,
+    });
+    assert.ok(partial.ok && partial.state === 'reserved', JSON.stringify(partial));
+    assert.ok(partial.saveReferences?.prepared);
+    assert.ok(partial.saveReferences.staged > 0 && partial.saveReferences.staged < 63);
+    assert.equal(saves, 0);
+    assert.equal((await h.get('products', 'p'))?.description, 'Old');
+    assert.equal(await count(h, old[0] ?? ''), 1);
+    for (let i = 0; i < 8; i++) {
+      admitted = true;
+      const resumed = await runProductOperationWorkflow(store, 'admin', command, undefined, {
+        canContinue: () => admitted,
+      });
+      assert.ok(resumed.ok, JSON.stringify(resumed));
+      if (resumed.state === 'saved') break;
+      assert.equal(resumed.state, 'reserved');
+    }
+    assert.equal(saves, 1);
+    assert.equal((await h.get('products', 'p'))?.description, 'Frozen live edit');
+    for (const id of old) assert.equal(await count(h, id), 0);
+    for (const id of added) assert.equal(await count(h, id), 1);
+    const after = h.snapshot();
+    const replay = await runProductOperationWorkflow(store, 'admin', command);
+    assert.ok(replay.ok && replay.state === 'saved', JSON.stringify(replay));
+    assert.equal(saves, 1);
+    assert.equal(h.snapshot(), after);
+    h.checkBudget?.();
+  });
+  for (const boundary of ['before-claim', 'claim', 'binding', 'page'] as const)
+    test(`${label} live save resumes after its ${boundary} deadline without saving early or losing photo ownership`, async (t) => {
+      const h = create(t, initial());
+      const own = await start(h);
+      let admitted = boundary !== 'before-claim';
+      let saves = 0;
+      const phase = {
+        claim: 'operation-photo-claim',
+        binding: 'operation-live-save-references',
+        page: 'operation-live-save-reference-page',
+        'before-claim': '',
+      }[boundary];
+      const store = {
+        persist: async (actor: string, command: ApprovalPersistenceCommand) => {
+          const result = await h.persist(actor, command);
+          if (command.action === phase) admitted = false;
+          return result;
+        },
+        save: async (input: CatalogProductSaveInput) => {
+          saves++;
+          return h.save(input);
+        },
+      };
+      const command = { ...own.identity, action: 'product-operation-save' };
+      const before = h.snapshot();
+      const paused = await runProductOperationWorkflow(store, 'admin', command, undefined, {
+        canContinue: () => admitted,
+      });
+      assert.ok(paused.ok && paused.state === 'reserved', JSON.stringify(paused));
+      assert.equal(saves, 0);
+      assert.equal((await h.get('products', 'p'))?.description, 'Old');
+      if (boundary === 'before-claim') assert.equal(h.snapshot(), before);
+      const resumed = await runProductOperationWorkflow(store, 'admin', command);
+      assert.ok(resumed.ok && resumed.state === 'saved', JSON.stringify(resumed));
+      assert.equal(resumed.photosPending, undefined);
+      assert.equal(saves, 1);
+      assert.equal(await count(h, 'old'), 0);
+      assert.equal(await count(h, 'new'), 1);
+      h.checkBudget?.();
+    });
+  test(`${label} live save confirms a reference page committed before a busy answer`, async (t) => {
+    const h = create(t, initial());
+    const own = await start(h);
+    let pages = 0;
+    const status = await runProductOperationWorkflow(
+      {
+        persist: async (actor, command) => {
+          const result = await h.persist(actor, command);
+          if (command.action === 'operation-live-save-reference-page') {
+            pages++;
+            return {
+              ok: false,
+              code: 'MEDIA_BUSY',
+              referenceRecovery: {
+                imageId: 'old',
+                ledgerDigest: 'a'.repeat(64),
+                nextOffset: 3,
+              },
+            };
+          }
+          return result;
+        },
+        save: h.save,
+      },
+      'admin',
+      { ...own.identity, action: 'product-operation-save' },
+    );
+    assert.ok(status.ok && status.state === 'saved', JSON.stringify(status));
+    assert.equal(pages, 1);
+    assert.equal(status.referenceRecovery, undefined);
+    assert.equal(await count(h, 'old'), 0);
+    assert.equal(await count(h, 'new'), 1);
+    h.checkBudget?.();
+  });
   test(`${label} live row save commits product/receipt/public-reference proof once and recovers a lost answer`, async (t) => {
     const h = create(t, initial());
     const original = await h.get('products', 'p');
@@ -326,6 +462,41 @@ export function registerLiveSaveStorageContract(
     const command = { ...own, action: 'operation-live-save-reference-page' as const, cursor: 0 };
     const full = await h.persist('admin', command);
     assert.equal(!full.ok && full.code, 'MEDIA_BUSY');
+    const publicStore = {
+      persist: (
+        actor: string,
+        input: ApprovalPersistenceCommand,
+        cursor?: unknown,
+        budget?: number,
+      ) =>
+        input.action === 'operation-live-save-reference-page'
+          ? persistOwnedReferencePageWithRecovery(
+              { get: h.get, persist: h.persist },
+              actor,
+              input,
+              cursor,
+              undefined,
+              budget,
+            )
+          : h.persist(actor, input),
+      save: h.save,
+    };
+    const waiting = await runProductOperationWorkflow(publicStore, 'admin', {
+      ...own,
+      action: 'product-operation-save',
+    });
+    assert.ok(waiting.ok && waiting.state === 'reserved', JSON.stringify(waiting));
+    assert.ok(waiting.referenceRecovery?.cursor);
+    assert.equal(waiting.referenceRecovery.cursor.nextOffset, 3);
+    const continued = await runProductOperationWorkflow(publicStore, 'admin', {
+      ...own,
+      action: 'product-operation-save',
+      referenceRecovery: waiting.referenceRecovery.cursor,
+    });
+    assert.ok(continued.ok && continued.state === 'reserved', JSON.stringify(continued));
+    assert.equal(continued.referenceRecovery?.cursor?.nextOffset, 6);
+    assert.equal(await count(h, 'sharedOld'), 81);
+    assert.deepEqual((await h.get('products', own.productId))?.imageIds, ['sharedOld']);
     const obsolete = await h.get('products', 'p0');
     assert.ok(obsolete);
     await h.put('products', { ...obsolete, description: 'Changed by another editor' });
@@ -492,6 +663,24 @@ export function registerLiveSaveStorageContract(
   // The CloudBase harness models native ACK/read/write semantics, not MVCC scheduling.
   // Real overlapping commits are tested on the actual JSON mutation lock here and on CloudBase in P7.
   if (nativeConcurrency) {
+    test(`${label} simultaneous public live saves converge on the original saved receipt`, async (t) => {
+      const h = create(t, initial());
+      const own = await start(h);
+      const store = { persist: h.persist, save: h.save };
+      const command = { ...own.identity, action: 'product-operation-save' };
+      const results = await Promise.allSettled([
+        runProductOperationWorkflow(store, 'admin', command),
+        runProductOperationWorkflow(store, 'admin', command),
+      ]);
+      for (const result of results) {
+        assert.ok(result.status === 'fulfilled', JSON.stringify(result));
+        assert.ok(result.value.ok && result.value.state === 'saved', JSON.stringify(result.value));
+      }
+      assert.equal((await h.get('products', 'p'))?.catalogContentGeneration, 1);
+      assert.equal(await count(h, 'old'), 0);
+      assert.equal(await count(h, 'new'), 1);
+      h.checkBudget?.();
+    });
     test(`${label} concurrent live editors commit exactly one row and one reference proof`, async (t) => {
       const data: Record<string, CollectionDoc[]> = initial();
       const image = data.images?.find((r) => r._id === 'new');

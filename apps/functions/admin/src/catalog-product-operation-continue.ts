@@ -252,17 +252,26 @@ export async function continueAdminCatalogProductOperation(
   let current = status(
     await deps.operation(
       actorId,
-      { ...scope, action: 'product-operation-save' },
+      {
+        ...scope,
+        action: 'product-operation-save',
+        ...(referenceRecovery === undefined ? {} : { referenceRecovery }),
+      },
       undefined,
       saveDraft,
+      {
+        canContinue: () => deps.now() < deadline,
+        remainingBudgetMs: () => Math.max(0, deadline - deps.now()),
+      },
     ),
     scope,
   );
   if (!current.ok) return current;
   if (current.state === 'complete') return current;
   if (current.intent === 'save-draft') return current;
+  if (current.state === 'reserved') return current;
   if (current.state === 'staging') return resume(current);
-  if (current.intent !== 'publish' || current.state !== 'saved')
+  if (!['publish', 'refresh-live'].includes(current.intent) || current.state !== 'saved')
     return { ok: false as const, code: 'CONFLICT' as const };
   if (deps.now() >= deadline) return current;
   let seeded = await deps.seed(actorId, scope, () => deps.now() < deadline);

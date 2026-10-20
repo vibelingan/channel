@@ -68,7 +68,7 @@ export function createOwnedMediaPreparation(
         value.data.productId !== scope.productId ||
         value.data.operationId !== scope.operationId ||
         value.data.inputDigest !== scope.inputDigest ||
-        value.data.intent !== 'publish'
+        !['publish', 'refresh-live'].includes(value.data.intent)
       )
         return { ok: false as const, code: 'CONFLICT' as const };
       const current = value.data;

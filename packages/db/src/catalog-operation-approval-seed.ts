@@ -55,7 +55,7 @@ export async function prepareOwnedApprovalSeed(
     owned.record.productId !== scope.productId ||
     owned.record.operationId !== scope.operationId ||
     owned.record.operation.inputDigest !== scope.inputDigest ||
-    owned.record.operation.intent !== 'publish' ||
+    !['publish', 'refresh-live'].includes(owned.record.operation.intent) ||
     Object.hasOwn(owned.record.operation, 'cancelledAt')
   )
     return { ok: false, code: 'CONFLICT' };

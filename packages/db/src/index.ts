@@ -122,6 +122,7 @@ export type {
 } from './catalog-operation-approval-seed.ts';
 import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
 import {
+  type ProductOperationSaveContinuation,
   type ProductOperationStartNormalizer,
   runProductOperationWorkflow,
 } from './catalog-product-operation-workflow.ts';
@@ -245,12 +246,14 @@ export function manageCatalogProductOperation(
   input: unknown,
   normalizeStart?: ProductOperationStartNormalizer,
   save?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>,
+  continuation?: ProductOperationSaveContinuation,
 ) {
   return runProductOperationWorkflow(
     { persist: persistCatalogDetailApproval, save: save ?? saveCatalogProductWithIdentities },
     actorId,
     input,
     normalizeStart,
+    continuation,
   );
 }
 export function manageCatalogDetailApproval(actorId: string, input: unknown) {

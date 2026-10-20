@@ -301,3 +301,47 @@ test('reference recovery requires every configuration page to be completed', () 
     false,
   );
 });
+
+test('live refresh accepts preparation and final-reference recovery under the same strict status guards', () => {
+  assert.ok(
+    CatalogProductOperationStatusSchema.safeParse({ ...referenceWaiting, intent: 'refresh-live' })
+      .success,
+  );
+  assert.ok(
+    CatalogProductOperationStatusSchema.safeParse({
+      ...base,
+      intent: 'refresh-live',
+      state: 'saved',
+      saved,
+      preparation: { nextAction: 'wait', job: null, progress: null },
+    }).success,
+  );
+});
+
+test('live reserved save progress and full-slot wait remain bounded and cannot decorate another phase', () => {
+  const value = {
+    ...base,
+    intent: 'refresh-live',
+    saveReferences: { prepared: true, staged: 20, total: 63 },
+    referenceRecovery: { nextAction: 'wait', cursor: referenceCursor },
+  };
+  assert.ok(CatalogProductOperationStatusSchema.safeParse(value).success);
+  for (const patch of [
+    { intent: 'publish' },
+    { intent: 'save-draft' },
+    { state: 'saved', saved },
+    { current: false },
+    { revisionCurrent: false },
+    { expired: true },
+    { cancelledAt: at },
+    { saveReferences: { prepared: true, staged: 64, total: 64 } },
+    { saveReferences: { prepared: true, staged: 21, total: 20 } },
+    { saveReferences: { prepared: false, staged: 0, total: 63 } },
+    { saveReferences: { prepared: true, staged: 63, total: 63 } },
+  ])
+    assert.equal(
+      CatalogProductOperationStatusSchema.safeParse({ ...value, ...patch }).success,
+      false,
+    );
+  assert.ok(Buffer.byteLength(JSON.stringify(value)) < 4096);
+});

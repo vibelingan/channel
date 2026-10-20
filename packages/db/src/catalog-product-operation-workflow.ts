@@ -1,4 +1,5 @@
-/** Public owned draft operations; approval and final publication remain server-owned. */
+/** Public owned saves; approval and final publication remain server-owned. */
+import { performance } from 'node:perf_hooks';
 import { canonicalizeCatalogProductIdentities } from '@vibelingan-channel/shared';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogDetailHeaderSchema } from '@vibelingan-channel/shared/catalog-detail';
@@ -10,13 +11,14 @@ import {
 import {
   CATALOG_PRODUCT_OPERATION_STATUS_MAX_BYTES,
   CatalogProductOperationStatusSchema,
+  CatalogReferenceRecoveryCursorSchema,
 } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import type { CatalogProductSaveInput, CatalogProductSaveResult } from './adapter.ts';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
-import type { ApprovalStageResult } from './catalog-detail-staging.ts';
+import type { ApprovalPersistenceCommand, ApprovalStageResult } from './catalog-detail-staging.ts';
 import { captureApprovalPersistenceCommand } from './catalog-detail-staging.ts';
-import type { CatalogApprovalStore } from './catalog-detail-workflow.ts';
+import type { ReferenceRecoveryPageResult } from './catalog-operation-reference-recovery.ts';
 import {
   PRODUCT_OPERATION_INPUT_MAX_BYTES,
   PRODUCT_OPERATION_INTERNAL_START_MAX_BYTES,
@@ -39,21 +41,42 @@ const RequestSchema = z.discriminatedUnion('action', [
   ProductOperationGetSchema.extend({ action: z.literal('product-operation-get') }),
   ProductOperationStopSchema.extend({ action: z.literal('product-operation-stop') }),
   ProductOperationCancelSchema.extend({ action: z.literal('product-operation-cancel') }),
-  ProductOperationCancelSchema.extend({ action: z.literal('product-operation-save') }),
+  ProductOperationCancelSchema.extend({
+    action: z.literal('product-operation-save'),
+    referenceRecovery: CatalogReferenceRecoveryCursorSchema.optional(),
+  }),
 ]);
+export interface ProductOperationSaveContinuation {
+  canContinue?: () => boolean;
+  remainingBudgetMs?: () => number;
+}
 export type ProductOperationStartNormalizer = (
   values: Record<string, unknown>,
 ) => Promise<
   { ok: true; values: Record<string, unknown> } | Extract<ApprovalStageResult, { ok: false }>
 >;
 export async function runProductOperationWorkflow(
-  store: Pick<CatalogApprovalStore, 'persist'> & {
+  store: {
+    persist: (
+      actorId: string,
+      command: ApprovalPersistenceCommand,
+      referenceRecovery?: unknown,
+      referenceBudgetMs?: number,
+    ) => Promise<ReferenceRecoveryPageResult>;
     save?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>;
   },
   actorId: string,
   input: unknown,
   normalizeStart?: ProductOperationStartNormalizer,
+  continuation?: ProductOperationSaveContinuation,
 ) {
+  const deadline = performance.now() + 12_000;
+  const remaining = () =>
+    Math.max(
+      0,
+      Math.min(deadline - performance.now(), continuation?.remainingBudgetMs?.() ?? 12_000),
+    );
+  const canContinue = () => remaining() > 0 && (continuation?.canContinue?.() ?? true);
   if (!fitsJsonBudget(input, PRODUCT_OPERATION_INPUT_MAX_BYTES, 24))
     return { ok: false as const, code: 'VALIDATION_ERROR' as const };
   const parsed = RequestSchema.safeParse(input);
@@ -152,7 +175,7 @@ export async function runProductOperationWorkflow(
       result.record.productId !== request.productId ||
       result.record.operationId !== request.operationId ||
       result.record.operation.inputDigest !== request.inputDigest ||
-      !['save-draft', 'publish'].includes(result.record.operation.intent) ||
+      !['save-draft', 'publish', 'refresh-live'].includes(result.record.operation.intent) ||
       Object.hasOwn(result.record.operation, 'cancelledAt')
     )
       return { ok: false as const, code: 'CONFLICT' as const };
@@ -174,20 +197,93 @@ export async function runProductOperationWorkflow(
         ]);
       if (!result.current || !result.revisionCurrent || result.expired)
         return { ok: false as const, code: 'CONFLICT' as const };
-      if (!store.save) throw new Error('Owned product save persistence unavailable');
-      const saved = await store.save({
-        mode: 'update',
-        productId: request.productId,
-        data: result.record.operation.values,
-        expectedUpdatedAt: result.record.operation.expectedUpdatedAt,
-        expectedOperation: {
-          actorId,
+      if (result.record.operation.intent === 'refresh-live' && canContinue()) {
+        const scope = {
+          productId: request.productId,
           operationId: request.operationId,
           inputDigest: request.inputDigest,
-        },
-      });
-      if (saved.result !== 'saved') return saveFailure(saved);
-      result = await store.persist(actorId, captured.command);
+        };
+        // New raw-row pictures must be held before staging. Both steps write the original Root.
+        result = await store.persist(actorId, { ...scope, action: 'operation-photo-claim' });
+        if (!result.ok) return result;
+        if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
+        if (result.record.state === 'reserved' && canContinue()) {
+          result = await store.persist(actorId, {
+            ...scope,
+            action: 'operation-live-save-references',
+          });
+          if (!result.ok) return result;
+          if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
+        }
+        // At most 63 raw-row changes. Stop at a page boundary, never pretend a partial save failed.
+        for (let page = 0; page < 63 && result.record.state === 'reserved'; page++) {
+          const references = result.record.liveSaveReferences;
+          if (!references || references.cursor === references.changes.length || !canContinue())
+            break;
+          const previousCursor = references.cursor;
+          const staged = await store.persist(
+            actorId,
+            { ...scope, action: 'operation-live-save-reference-page', cursor: previousCursor },
+            request.referenceRecovery,
+            remaining(),
+          );
+          if (!staged.ok && staged.code !== 'MEDIA_BUSY') return staged;
+          result = await store.persist(actorId, {
+            action: 'operation-get',
+            productId: scope.productId,
+            operationId: scope.operationId,
+          });
+          if (!result.ok) return result;
+          if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
+          if (result.record.state !== 'reserved') break;
+          const progress = result.record.liveSaveReferences?.cursor;
+          if (progress === undefined || progress < previousCursor)
+            return { ok: false as const, code: 'CONFLICT' as const };
+          if (!staged.ok && progress === previousCursor) {
+            const cursor =
+              'referenceRecovery' in staged
+                ? CatalogReferenceRecoveryCursorSchema.safeParse(staged.referenceRecovery)
+                : undefined;
+            if (cursor && !cursor.success) return { ok: false as const, code: 'CONFLICT' as const };
+            return projectStatus(result, actorId, request, {
+              referenceRecovery: {
+                nextAction: 'wait',
+                cursor: cursor?.success ? cursor.data : null,
+              },
+            });
+          }
+          if (progress === previousCursor) return { ok: false as const, code: 'CONFLICT' as const };
+        }
+      }
+      if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
+      if (
+        result.record.state === 'reserved' &&
+        (!canContinue() ||
+          (result.record.operation.intent === 'refresh-live' &&
+            (!result.record.liveSaveReferences ||
+              result.record.liveSaveReferences.cursor !==
+                result.record.liveSaveReferences.changes.length)))
+      )
+        return projectStatus(result, actorId, request);
+      if (result.record.state === 'reserved') {
+        if (!store.save) throw new Error('Owned product save persistence unavailable');
+        const saved = await store.save({
+          mode: 'update',
+          productId: request.productId,
+          data: result.record.operation.values,
+          expectedUpdatedAt: result.record.operation.expectedUpdatedAt,
+          expectedOperation: {
+            actorId,
+            operationId: request.operationId,
+            inputDigest: request.inputDigest,
+          },
+          ...((result.record.operation.photoClaimVersion ?? 0) > 0
+            ? { expectedImageMutationOwner: result.record._id }
+            : {}),
+        });
+        if (saved.result !== 'saved') return saveFailure(saved);
+        result = await store.persist(actorId, captured.command);
+      }
     }
   }
   if (!result.ok) return result;
@@ -206,11 +302,20 @@ export async function runProductOperationWorkflow(
     if (!result.ok) return result;
     if (!('record' in result)) return { ok: false as const, code: 'CONFLICT' as const };
   }
+  return projectStatus(result, actorId, request);
+}
+
+function projectStatus(
+  result: Extract<ApprovalStageResult, { ok: true; record: unknown }>,
+  actorId: string,
+  request: { productId: string; operationId: string },
+  hint?: { referenceRecovery: { nextAction: 'wait'; cursor: unknown } },
+) {
   const record = result.record;
   if (
     record.actorId !== actorId ||
-    record.productId !== parsed.data.productId ||
-    record.operationId !== parsed.data.operationId
+    record.productId !== request.productId ||
+    record.operationId !== request.operationId
   )
     return { ok: false as const, code: 'CONFLICT' as const };
   const status = {
@@ -230,7 +335,15 @@ export async function runProductOperationWorkflow(
       ? {}
       : { cancelledAt: record.operation.cancelledAt }),
     ...(record.state === 'reserved'
-      ? {}
+      ? record.operation.intent === 'refresh-live'
+        ? {
+            saveReferences: {
+              prepared: record.liveSaveReferences !== undefined,
+              staged: record.liveSaveReferences?.cursor ?? 0,
+              total: record.liveSaveReferences?.changes.length ?? 0,
+            },
+          }
+        : {}
       : { saved: { at: record.saved.at, productUpdatedAt: record.saved.productUpdatedAt } }),
     ...(record.state === 'staging' || record.state === 'complete'
       ? {
@@ -246,6 +359,7 @@ export async function runProductOperationWorkflow(
           },
         }
       : {}),
+    ...hint,
     ...(record.state === 'complete'
       ? {
           completion: {
