@@ -236,6 +236,68 @@ for (const mode of ['normal', 'public', 'start-missing'])
     }
   });
 
+test('an existing live product without a category keeps its classification and private edits until the user assigns one', async (t) => {
+  const h = await fixture(t, 'no-category', true);
+  const before = h.bytes();
+  await assert.rejects(
+    publishProductFromEditor(h.opened, {
+      published: true,
+      description: 'Kept private edit',
+    }),
+    (error) => error instanceof AdminApiError && error.code === 'INVALID_PRODUCT',
+  );
+  assert.equal(h.bytes(), before);
+  assert.equal(h.calls.length, 0);
+  assert.equal((await h.adapter.get('products', h.productId))?.productFamily, undefined);
+});
+
+for (const mode of [
+  'normal',
+  'omitted-published',
+  'lost-start',
+  'lost-completion',
+  'public',
+  'start-missing',
+])
+  test(`live editor uses its original native save and approval with recoverable ${mode}`, async (t) => {
+    const h = await fixture(t, mode, true);
+    const before = structuredClone(h.opened);
+    const result = await publishProductFromEditor(h.opened, {
+      name: 'Reviewed live clock',
+      description: 'Reviewed live editor text',
+      ...(mode === 'omitted-published' ? {} : { published: true }),
+      archived: false,
+    }).catch((error: unknown) => error);
+    if (mode === 'public' || mode === 'start-missing') {
+      assert.ok(result instanceof ProductPublicationError, String(result));
+      assert.ok(result.owner && result.checkpoint);
+      assert.equal(result.checkpoint.scope.intent, 'refresh-live');
+      h.unblock();
+      const recovered = await recoverProductPublication(
+        before,
+        result.owner,
+        result.checkpoint,
+        mode === 'public' ? 'check' : 'cancel',
+      );
+      assert.equal(recovered.item.state, mode === 'public' ? 'confirmed' : 'cancelled');
+    } else {
+      assert.ok(result && typeof result === 'object' && !(result instanceof Error), String(result));
+      assert.equal(Reflect.get(result, 'published'), true);
+      assert.equal(Reflect.get(result, 'name'), 'Reviewed live clock');
+    }
+    const current = await h.adapter.get('products', h.productId);
+    assert.equal(current?.published, true);
+    for (const key of ['productFamily', 'category', 'subcategoryIds'])
+      assert.deepEqual(current?.[key], before[key]);
+    if (mode === 'start-missing') assert.deepEqual(current, before);
+    else assert.equal(current?.description, 'Reviewed live editor text');
+    assert.equal(h.calls.filter((call) => call.action === 'update').length, 0);
+    const starts = h.calls.filter((call) => call.data?.action === 'product-operation-start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0]?.data?.intent, 'refresh-live');
+    assert.equal(Reflect.get(starts[0]?.data?.values as object, 'published'), undefined);
+  });
+
 for (const mode of [
   'normal',
   'valid-long-name',

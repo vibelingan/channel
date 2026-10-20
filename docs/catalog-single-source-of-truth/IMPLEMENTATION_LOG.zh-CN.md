@@ -1633,3 +1633,9 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 见 [P4c9e1](P4c9e1_LIVE_CLIENT_PROTOCOL.zh-CN.md)。本地指针保留 live 意图，旧指针默认 publish；API 回执严格比对意图和原身份，继续 wire 不夹带本地字段。batch/公开读回/停止及空原输入恢复保持同意图，journal 禁止替换意图和跨 draft/creation 命名空间。raw-save 满槽游标在只读 GET 后保留，进度判断包括分段行保存。
 
 三条有效红测失败后修复；协议/草稿 282/282、实际后端集成 44/44、Node20 297/297，均 0 跳过；test 类型及 Astro check 238 文件 0 errors/0 warnings/11 hints。新增真实 batch 验证完成、公开读回失败后仅查、未到达的 live start 原意图停止。删除 raw-save 游标保留的故障注入被抓住，源码恢复哈希一致。9 文件 Biome/diff check 通过。实际复核协议五模块及 draft/create/恢复消费者，文案区分协议和表单；未切换按钮、无部署及真实商品变更。最终构建/浏览器、P5/P6/P7 及旧诊断项继续，fullDeliveryReady=false。
+
+## P4c9e2：实际 live 编辑、归档与能力失败恢复
+
+已发布商品的管理员 Edit 保存现在沿 refresh-live 的同一原任务完成保存、媒体准备、审批和公开读回。首次发布继续使用 publish；直接下架、归档保持带打开版本的普通 update，不创建发布任务。分类变更时表单省略 published 仍按原商品的 live 状态处理；不会给无分类商品补分类。旧兼容审批入口仍保留给功能关闭等调用者，本单元没有删除它。
+
+实际归档成功后误审批和能力未知时阻挡下架均由浏览器红测确认并修复。最终 37/37 聚焦、1345/1345 site（0 skip）、types/Astro/Biome 通过。正式构建首轮发现坏 raw PNG 夹具和旧拦截/提示断言，未放行；详见 [P4c9e2](P4c9e2_LIVE_EDITOR.zh-CN.md)。

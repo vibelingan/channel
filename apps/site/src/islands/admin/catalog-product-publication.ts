@@ -66,7 +66,7 @@ export function publishSavedProduct(
   product: CollectionDoc,
   guard: () => void = () => {},
 ): Promise<CollectionDoc> {
-  return publishDraft({ ...product }, {}, guard, true);
+  return publishOwnedProduct({ ...product }, {}, guard, true);
 }
 
 /** One frozen edit and publication share the same owned task. */
@@ -75,8 +75,11 @@ export async function publishProductFromEditor(
   input: Record<string, unknown>,
   guard: () => void = () => {},
 ): Promise<CollectionDoc> {
-  if (input.published !== true || input.archived === true)
-    throw new AdminApiError('BAD_REQUEST', 'Use Publish only for an active draft.');
+  if (
+    (input.published !== true && !(product.published === true && input.published === undefined)) ||
+    input.archived === true
+  )
+    throw new AdminApiError('BAD_REQUEST', 'Save an active product to publish its reviewed edits.');
   const { published: _published, archived: _archived, ...values } = input;
   const family = Object.hasOwn(values, 'productFamily')
     ? values.productFamily
@@ -91,7 +94,7 @@ export async function publishProductFromEditor(
         remedy: 'classify',
       },
     ]);
-  return publishDraft({ ...product }, values, guard, false);
+  return publishOwnedProduct({ ...product }, values, guard, false, product.published === true);
 }
 
 function savedInput(item: PublicationBatchItem | undefined, alreadySaved: boolean) {
@@ -99,14 +102,15 @@ function savedInput(item: PublicationBatchItem | undefined, alreadySaved: boolea
   return alreadySaved || (status !== undefined && status.state !== 'reserved');
 }
 
-async function publishDraft(
+async function publishOwnedProduct(
   product: CollectionDoc,
   values: Record<string, unknown>,
   guard: () => void,
   alreadySaved: boolean,
+  refreshLive = false,
 ): Promise<CollectionDoc> {
   guard();
-  if (product.published === true || product.archived === true)
+  if ((product.published === true) !== refreshLive || product.archived === true)
     throw new CreatedProductChangedError(product);
   let batch: ReturnType<typeof createPublicationBatch> | undefined;
   let checkpoint: PublicationCheckpoint | undefined;
@@ -119,6 +123,7 @@ async function publishDraft(
       productId: product._id,
       expectedUpdatedAt: revision,
       values,
+      ...(refreshLive ? { intent: 'refresh-live' } : {}),
     });
     const publisher = createPublicationBatch();
     batch = publisher;
@@ -136,7 +141,11 @@ async function publishDraft(
           : 'Publishing is unavailable. Your current form edits have been kept.',
       );
     checkpoint = {
-      scope: { productId: attempt.productId, operationId: attempt.operationId },
+      scope: {
+        productId: attempt.productId,
+        operationId: attempt.operationId,
+        ...(refreshLive ? { intent: 'refresh-live' } : {}),
+      },
       ...(Object.keys(attempt.values).length === 0
         ? { originalStart: { expectedUpdatedAt: revision } }
         : {}),

@@ -83,6 +83,8 @@ export function ProductEditForm(props: Props) {
     setStorageBlocked(Boolean(snapshot?.problems.length));
   }
   const draft = props.initial.published !== true && props.initial.archived !== true;
+  const live = props.initial.published === true && props.initial.archived !== true;
+  const liveAvailabilityUnknown = live && props.nativeSaveAvailable === undefined;
   const publicationPending = Boolean(publication.value?.entries.length);
   const publicationOwner = publication.value?.owner;
   const blocked =
@@ -357,9 +359,16 @@ export function ProductEditForm(props: Props) {
       }
       onSubmit={(values) => {
         if (blocked || running.current) return;
+        if (liveAvailabilityUnknown && values.published !== false && values.archived !== true) {
+          setError(
+            Error(
+              'Publishing availability could not be confirmed. Your edits have been kept. Retry the availability check.',
+            ),
+          );
+          return;
+        }
         if (
-          draft &&
-          values.published === true &&
+          ((draft && values.published === true) || (live && values.published !== false)) &&
           values.archived !== true &&
           props.nativeSaveAvailable
         ) {
@@ -378,23 +387,30 @@ export function ProductEditForm(props: Props) {
         } else props.onSubmit(values);
       }}
       recovery={(readDraft, cleanupCandidates) =>
-        pending.length || result || blocked || error || publicationNotice ? (
+        pending.length ||
+        result ||
+        blocked ||
+        error ||
+        publicationNotice ||
+        liveAvailabilityUnknown ? (
           <section
             aria-label="Original draft save recovery"
             className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
           >
             <output className="block">
-              {result?.state === 'photos-pending'
-                ? 'The product save is recorded. Continue or stop this original save to finish its photo cleanup.'
-                : result?.state === 'saved'
-                  ? 'The original draft save is confirmed. Your current form edits have been kept.'
-                  : result?.state === 'historical'
-                    ? 'The original save is historical. Download your edits before opening the current product.'
-                    : result?.state === 'cancelled'
-                      ? 'The original save is stopped. Saved product changes have been kept.'
-                      : publicationPending || publicationResolved || publicationNotice
-                        ? 'Your form edits have been kept while checking the original publication.'
-                        : 'Keep this form open while checking the original save. Checking does not change the product.'}
+              {liveAvailabilityUnknown
+                ? 'Publishing availability could not be confirmed. You can still unpublish or archive this product.'
+                : result?.state === 'photos-pending'
+                  ? 'The product save is recorded. Continue or stop this original save to finish its photo cleanup.'
+                  : result?.state === 'saved'
+                    ? 'The original draft save is confirmed. Your current form edits have been kept.'
+                    : result?.state === 'historical'
+                      ? 'The original save is historical. Download your edits before opening the current product.'
+                      : result?.state === 'cancelled'
+                        ? 'The original save is stopped. Saved product changes have been kept.'
+                        : publicationPending || publicationResolved || publicationNotice
+                          ? 'Your form edits have been kept while checking the original publication.'
+                          : 'Keep this form open while checking the original save. Checking does not change the product.'}
             </output>
             {publicationNotice && <p className="mt-2">{publicationNotice}</p>}
             {pending.map((scope, index) => (
@@ -500,7 +516,7 @@ export function ProductEditForm(props: Props) {
                   Check recovery storage again
                 </button>
               )}
-              {draft && props.nativeSaveAvailable === undefined && (
+              {(draft || live) && props.nativeSaveAvailable === undefined && (
                 <button
                   type="button"
                   disabled={busy}
@@ -532,7 +548,7 @@ export function ProductEditForm(props: Props) {
                       stoppedBeforeSave &&
                       product._id === props.initial._id &&
                       product.updatedAt === props.initial.updatedAt &&
-                      product.published !== true &&
+                      (product.published === true) === (props.initial.published === true) &&
                       product.archived !== true
                     ) {
                       setPublicationResolved(false);

@@ -499,7 +499,12 @@ export async function createRecord(
   return publishSavedProduct(draft, creationGuard);
 }
 
-export type ProductWriteIntent = 'save-draft' | 'refresh-live' | 'publish' | 'unpublish';
+export type ProductWriteIntent =
+  | 'save-draft'
+  | 'refresh-live'
+  | 'publish'
+  | 'unpublish'
+  | 'archive';
 
 /** Save against the exact product snapshot that populated the editor. */
 export function updateProductFromEditor(
@@ -519,13 +524,15 @@ export function updateProductFromEditor(
     );
   }
   const intent: ProductWriteIntent =
-    values.published === false
-      ? 'unpublish'
-      : opened.published === true
-        ? 'refresh-live'
-        : values.published === true
-          ? 'publish'
-          : 'save-draft';
+    values.archived === true
+      ? 'archive'
+      : values.published === false
+        ? 'unpublish'
+        : opened.published === true
+          ? 'refresh-live'
+          : values.published === true
+            ? 'publish'
+            : 'save-draft';
   return updateRecord('products', opened._id, values, revision, intent);
 }
 
@@ -536,12 +543,13 @@ export async function updateRecord(
   expectedUpdatedAt?: string | null,
   intent?: ProductWriteIntent,
 ): Promise<CollectionDoc> {
-  let refreshPublishedDetail = intent === 'refresh-live';
+  let refreshPublishedDetail = intent === 'refresh-live' && inputValues.archived !== true;
   const { published: _published, ...draftValues } = inputValues;
   const values = refreshPublishedDetail ? draftValues : inputValues;
   if (
     collection === 'products' &&
     !refreshPublishedDetail &&
+    values.archived !== true &&
     values.published === undefined &&
     isProductFamily(values.productFamily)
   ) {
@@ -553,7 +561,11 @@ export async function updateRecord(
       refreshPublishedDetail = true;
     }
   }
-  if (collection === 'products' && (values.published === true || refreshPublishedDetail)) {
+  if (
+    collection === 'products' &&
+    values.archived !== true &&
+    (values.published === true || refreshPublishedDetail)
+  ) {
     // Approval is for admins. A contributor's save goes straight to the server,
     // which keeps an edit on a live product as a draft for an admin (OWN-1).
     const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities').catch(

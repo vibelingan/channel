@@ -6,12 +6,13 @@ import { type Root, createRoot } from 'react-dom/client';
 import { setSession } from '../../../lib/session.ts';
 import AdminDetailPreview from '../AdminDetailPreview.tsx';
 import { ProductEditForm } from '../ProductEditForm.tsx';
-import { getRecord, updateProductFromEditor } from '../api.ts';
+import { fetchCatalogDetailCapabilities, getRecord, updateProductFromEditor } from '../api.ts';
 import type { PublicationScope } from '../catalog-product-operation-api.ts';
 import { createPublicationBatch } from '../catalog-publication-batch.ts';
 import { createPublicationJournal } from '../catalog-publication-journal.ts';
 import '../../../styles/global.css';
 let root: Root | undefined;
+let initialSaveAvailability: boolean | undefined = true;
 export function retainOriginalDraftSave(scope: PublicationScope) {
   const owner = createPublicationBatch().owner;
   createPublicationJournal(owner, undefined, 'draft').retain({ scope });
@@ -28,7 +29,12 @@ function target() {
   root ??= createRoot(container);
   return root;
 }
-export function renderPreview(productId: string, token: string) {
+export function renderPreview(
+  productId: string,
+  token: string,
+  options?: { nativeSaveAvailable?: boolean },
+) {
+  initialSaveAvailability = options ? options.nativeSaveAvailable : true;
   setSession(token, { id: 'admin', email: 'admin@example.test', username: 'Admin', role: 'admin' });
   flushSync(() =>
     target().render(
@@ -62,6 +68,7 @@ async function renderEditor(productId: string) {
 }
 function Editor({ doc }: { doc: CollectionDoc }) {
   const [current, setCurrent] = useState(doc);
+  const [saveAvailability, setSaveAvailability] = useState(initialSaveAvailability);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [saved, setSaved] = useState(false);
@@ -78,8 +85,14 @@ function Editor({ doc }: { doc: CollectionDoc }) {
       title="Repair saved product"
       initial={current}
       canReviewSupplier={true}
-      nativeSaveAvailable={true}
-      onRetryAvailability={() => {}}
+      nativeSaveAvailable={saveAvailability}
+      onRetryAvailability={() => {
+        void fetchCatalogDetailCapabilities()
+          .then((result) => setSaveAvailability(result.enabled))
+          .catch((cause: unknown) =>
+            setError(cause instanceof Error ? cause : Error('Availability check failed')),
+          );
+      }}
       onSaved={(product, openEditor) => {
         setCurrent(product);
         if (!openEditor) setSaved(true);
