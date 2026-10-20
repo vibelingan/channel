@@ -375,3 +375,99 @@ test('a different input digest at final readback cannot replace the original bin
   assert.equal(result.reason, 'unknown');
   assert.deepEqual(result.scope, scope);
 });
+
+test('a returned completion replaces only the first status read and keeps public and final checks', async () => {
+  const h = harness([status()]);
+  const result = await checkPublication(scope, { ...h, initialStatus: status() });
+  assert.equal(result.reason, 'confirmed');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.publicCalls.length, 1);
+  const sent = h.publicCalls[0];
+  assert.ok(sent);
+  assert.equal(new URL(sent.url, 'https://owned.test').searchParams.get('revision'), 'approved');
+});
+
+for (const extra of [
+  { productId: 'other' },
+  { operationId: '22345678-1234-4234-8234-123456789012' },
+  { inputDigest: 'b'.repeat(64) },
+  { intent: 'refresh-live' },
+  { privateExtra: 'unexpected' },
+])
+  test(`a returned completion rejects a wrong binding before public IO ${JSON.stringify(extra)}`, async () => {
+    const h = harness([status()]);
+    const result = await checkPublication(scope, {
+      ...h,
+      initialStatus: status('complete', extra),
+    });
+    assert.equal(result.reason, 'unknown');
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.publicCalls.length, 0);
+  });
+
+test('withdrawal after a returned completion remains historical', async () => {
+  const h = harness([status('complete', { current: false, revisionCurrent: false })]);
+  const result = await checkPublication(scope, { ...h, initialStatus: status() });
+  assert.equal(result.reason, 'historical');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.publicCalls.length, 1);
+});
+
+test('a returned completion cannot skip a failed anonymous delivery check', async () => {
+  const h = harness(
+    [status()],
+    Response.json({ ok: false, error: { code: 'NOT_FOUND', message: 'Gone' } }, { status: 404 }),
+  );
+  const result = await checkPublication(scope, { ...h, initialStatus: status() });
+  assert.equal(result.reason, 'unknown');
+  assert.equal(result.error?.code, 'NOT_FOUND');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.publicCalls.length, 1);
+});
+
+test('a returned completion cannot skip a changed final revision', async () => {
+  const h = harness([
+    status('complete', {
+      completion: { at, productUpdatedAt: at, revision: 'new-approved', published: true },
+    }),
+  ]);
+  const result = await checkPublication(scope, { ...h, initialStatus: status() });
+  assert.equal(result.reason, 'unknown');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.publicCalls.length, 1);
+});
+
+test('a returned completion is captured before public IO can mutate its input', async () => {
+  const initial = status();
+  const h = harness([status()]);
+  const fetch = async (url: RequestInfo | URL, init?: RequestInit) => {
+    initial.completion = { at, productUpdatedAt: at, revision: 'mutated', published: true };
+    return h.fetch(url, init);
+  };
+  const result = await checkPublication(scope, { ...h, fetch, initialStatus: initial });
+  assert.equal(result.reason, 'confirmed');
+  assert.equal(result.revision, 'approved');
+  assert.equal(h.calls.length, 1);
+});
+
+test('an aborted supplied completion performs no network request', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const h = harness([status()]);
+  const result = await checkPublication(scope, {
+    ...h,
+    signal: controller.signal,
+    initialStatus: status(),
+  });
+  assert.equal(result.reason, 'paused');
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.publicCalls.length, 0);
+});
+test('a failed final read retains the supplied completion without counting success', async () => {
+  const h = harness([new AdminApiError('INTERNAL_ERROR', 'Unavailable')]);
+  const result = await checkPublication(scope, { ...h, initialStatus: status() });
+  assert.equal(result.reason, 'unknown');
+  assert.equal(result.status?.state, 'complete');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.publicCalls.length, 1);
+});

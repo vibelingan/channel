@@ -11,6 +11,7 @@ import {
   type PublicationScope,
   PublicationScopeSchema,
   managePublication,
+  readPublicationStatus,
 } from './catalog-product-operation-api.ts';
 
 type CheckReason = 'not-complete' | 'historical' | 'unknown' | 'paused';
@@ -33,6 +34,7 @@ export type PublicationCheckResult =
       error?: never;
     };
 export type PublicationCheckOptions = {
+  initialStatus?: unknown;
   signal?: AbortSignal;
   request?: PublicationOptions['request'];
   fetch?: typeof globalThis.fetch;
@@ -108,6 +110,16 @@ export async function checkPublication(
         }
       : {}),
   });
+  const accept = (status: CatalogProductOperationStatus) => {
+    current = status;
+    binding = Object.freeze({
+      productId: current.productId,
+      operationId: current.operationId,
+      inputDigest: current.inputDigest,
+      ...(current.intent === 'refresh-live' ? { intent: current.intent } : {}),
+    });
+    return current;
+  };
   const query = async () => {
     signal.throwIfAborted();
     const answer = await managePublication(
@@ -123,17 +135,14 @@ export async function checkPublication(
         ...(binding.inputDigest ? { expectedInputDigest: binding.inputDigest } : {}),
       },
     );
-    current = answer.status;
-    binding = Object.freeze({
-      productId: current.productId,
-      operationId: current.operationId,
-      inputDigest: current.inputDigest,
-      ...(current.intent === 'refresh-live' ? { intent: current.intent } : {}),
-    });
-    return current;
+    return accept(answer.status);
   };
   try {
-    const initial = await query();
+    signal.throwIfAborted();
+    const initial =
+      options.initialStatus === undefined
+        ? await query()
+        : accept(readPublicationStatus(options.initialStatus, binding));
     if (initial.state !== 'complete') return result('not-complete');
     if (!initial.current) return result('historical');
     const revision = initial.completion.revision;

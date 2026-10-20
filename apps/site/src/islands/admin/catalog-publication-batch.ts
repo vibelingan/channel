@@ -592,6 +592,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                 signal,
                 request,
                 fetch: publicFetch,
+                initialStatus: run.status,
               });
               guard();
               validateCheck(check, run.scope);

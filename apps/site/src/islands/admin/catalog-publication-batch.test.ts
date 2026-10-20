@@ -938,3 +938,24 @@ for (const transport of ['private', 'public', 'public-late-response'] as const)
       1,
     );
   });
+
+test('batch gives its just-returned completion to delivery confirmation, while recovery has no supplied status', async () => {
+  const h = fixture();
+  const seen: unknown[] = [];
+  const check = h.base.check;
+  assert.ok(check);
+  const batch = createPublicationBatch({
+    ...h.base,
+    check: async (input, options) => {
+      seen.push(options?.initialStatus);
+      return check(input, options);
+    },
+  });
+  const input = attempts(1, 'completion');
+  assert.equal((await batch.run(input)).confirmed, 1);
+  assert.deepEqual(seen[0], complete(scope(input[0])));
+  const result = await batch.run([{ scope: scope(input[0]) }], undefined, 'check');
+  assert.equal(result.confirmed, 1);
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1], undefined);
+});
