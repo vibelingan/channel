@@ -57,28 +57,34 @@ function initial() {
 export function registerLiveSaveStorageContract(
   label: string,
   create: (t: TestContext, initial: Record<string, CollectionDoc[]>) => LiveSaveStorageHarness,
+  nativeConcurrency = false,
 ) {
   async function start(
     h: LiveSaveStorageHarness,
     values: Record<string, unknown> = { description: 'Reviewed', imageIds: ['new'] },
+    nonce = operationId,
   ) {
     const row = record(
       await h.persist('admin', {
         action: 'operation-start',
         productId: 'p',
-        operationId,
+        operationId: nonce,
         intent: 'refresh-live',
         expectedUpdatedAt: at,
         values,
       }),
     );
-    const identity = { productId: 'p', operationId, inputDigest: row.operation.inputDigest };
+    const identity = { productId: 'p', operationId: nonce, inputDigest: row.operation.inputDigest };
     const input: CatalogProductSaveInput = {
       mode: 'update',
       productId: 'p',
       expectedUpdatedAt: at,
       data: row.operation.values,
-      expectedOperation: { actorId: 'admin', operationId, inputDigest: row.operation.inputDigest },
+      expectedOperation: {
+        actorId: 'admin',
+        operationId: nonce,
+        inputDigest: row.operation.inputDigest,
+      },
       expectedImageMutationOwner: row._id,
     };
     return { row, identity, input };
@@ -359,6 +365,76 @@ export function registerLiveSaveStorageContract(
     assert.equal(await count(h, 'new80'), 1);
     h.checkBudget?.();
   });
+  // The CloudBase harness models native ACK/read/write semantics, not MVCC scheduling.
+  // Real overlapping commits are tested on the actual JSON mutation lock here and on CloudBase in P7.
+  if (nativeConcurrency) {
+    test(`${label} concurrent live editors commit exactly one row and one reference proof`, async (t) => {
+      const data: Record<string, CollectionDoc[]> = initial();
+      const image = data.images?.find((r) => r._id === 'new');
+      assert.ok(image);
+      data.images?.push({ ...image, _id: 'otherNew', storageFileId: 'otherNew' });
+      const h = create(t, data);
+      const first = await start(h);
+      const second = await start(
+        h,
+        { description: 'Competing editor', imageIds: ['otherNew'] },
+        '12345678-1234-4234-8234-123456789013',
+      );
+      await stage(h, first.identity);
+      await stage(h, second.identity);
+      const attempts = await Promise.allSettled([h.save(first.input), h.save(second.input)]);
+      assert.equal(attempts.filter((r) => r.status === 'rejected').length, 0);
+      const successes = attempts
+        .map((r, i) => (r.status === 'fulfilled' && r.value.result === 'saved' ? i : -1))
+        .filter((i) => i >= 0);
+      assert.equal(successes.length, 1, JSON.stringify(attempts));
+      const winner = successes[0] === 0 ? first : second;
+      const loser = successes[0] === 0 ? second : first;
+      assert.equal(await count(h, 'old'), 0);
+      assert.equal(await count(h, successes[0] === 0 ? 'new' : 'otherNew'), 1);
+      assert.equal(await count(h, successes[0] === 0 ? 'otherNew' : 'new'), 0);
+      const saved = record(
+        await h.persist('admin', { ...query, operationId: winner.identity.operationId }),
+      );
+      assert.equal(saved.state, 'saved');
+      record(await h.persist('admin', { ...loser.identity, action: 'operation-cancel' }));
+      assert.equal(await count(h, 'old'), 0);
+      assert.equal(await count(h, successes[0] === 0 ? 'otherNew' : 'new'), 0);
+    });
+    test(`${label} concurrent original-ID retries preserve one live save and one image delta`, async (t) => {
+      const h = create(t, initial());
+      const own = await start(h);
+      await stage(h, own.identity);
+      const attempts = await Promise.allSettled([h.save(own.input), h.save(own.input)]);
+      assert.equal(
+        attempts.filter((r) => r.status === 'fulfilled' && r.value.result === 'saved').length,
+        2,
+      );
+      assert.equal(await count(h, 'new'), 1);
+      assert.equal(await count(h, 'old'), 0);
+      assert.equal(record(await h.persist('admin', query)).state, 'saved');
+    });
+    for (const cancelFirst of [false, true])
+      test(`${label} live save racing cancellation preserves the winning business result cancelFirst=${cancelFirst}`, async (t) => {
+        const h = create(t, initial());
+        const own = await start(h);
+        await stage(h, own.identity);
+        const save = () => h.save(own.input);
+        const cancel = () => h.persist('admin', { ...own.identity, action: 'operation-cancel' });
+        const attempts = await Promise.allSettled(
+          cancelFirst ? [cancel(), save()] : [save(), cancel()],
+        );
+        assert.equal(attempts.filter((r) => r.status === 'rejected').length, 0);
+        const row = record(await h.persist('admin', query));
+        assert.ok(row.operation.cancelledAt);
+        const committed = row.state === 'saved';
+        assert.equal(committed, !cancelFirst);
+        assert.equal(await count(h, 'new'), committed ? 1 : 0);
+        assert.equal(await count(h, 'old'), committed ? 0 : 1);
+        assert.equal((await h.get('products', 'p'))?.published, true);
+        assert.ok(!(await h.get('images', 'new'))?.imageMutationOwner);
+      });
+  }
   test(`${label} failure at the final live-save proof rolls back product and own receipt`, async (t) => {
     const h = create(t, initial());
     const { identity, input } = await start(h);

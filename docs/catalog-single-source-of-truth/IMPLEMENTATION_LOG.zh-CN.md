@@ -1608,3 +1608,5 @@ review 另复现 A→B→A 时旧响应误入和缓存旧 401 再次锁住，共
 两端共用契约覆盖保存后响应丢失、取消前后、并发下架/归档/编辑/分类/失权、新图损坏、缺证明及最后写失败回滚。80 个真实 Root 满槽后失效回收、继续第 81 个并保存，两端通过。组合 1064/1064，之后有效买家批准版保留 2/2；Node20 45/45；DB/local-server 类型、Admin bundle 和 11 文件 Biome 通过，cloudbase-adapter.ts 为仓库配置排除，差量另行人工审查。省略最后引用证明的故障注入使两条目标测试失败，源码恢复且哈希相同。新增断言后类型和格式最终检查见 live-save-* 证据。CloudBase 部分是实际 adapter 的 SDK 事务模拟，尚未在云端执行。
 
 实际审查 live-save/Root/内部入口/满槽恢复/两个 adapter/共享契约及 canonical 和 public-version 消费者，文案明确“内部保存事务”，核对分类、旧批准版本、ACK、读写预算、零差量与无部署。native 审批/编辑串联、完整制品矩阵、历史审计及 test resync/20 件/COS/P95 仍未完成；旧 JSON80/WebKit 诊断缺口保留。fullDeliveryReady=false。
+
+P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用例。补实际 JSON 锁的两个编辑、同原 ID 重试和 save/cancel 两个顺序，4 条 Promise.allSettled 均通过，连原契约 21/21；文档补状态/竞争结果。CloudBase mock 只验证事务读写和 ACK，真实 MVCC 竞争仍明确留在 P7。
