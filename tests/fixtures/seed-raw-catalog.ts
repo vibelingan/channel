@@ -17,6 +17,13 @@ import {
 } from '../../packages/catalog-import/src/source-observations.ts';
 import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 
+// Synthetic bytes must pass the same stored-record and decoder checks as imported media.
+const fixturePngBytes = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==',
+  'base64',
+);
+const fixturePngChecksum = createHash('sha256').update(fixturePngBytes).digest('hex');
+
 /** The raw envelope, normalizer and production materializer are the fixture's only data producers. */
 async function seedRawObservation(db: JsonFileAdapter, raw: string) {
   const response = parseAlibabaApiResponse(raw);
@@ -37,14 +44,14 @@ async function seedRawObservation(db: JsonFileAdapter, raw: string) {
   const normalized = normalizeProductDetail({ ...input, now });
   assert.ok(normalized.ok);
   const sourceKey = normalized.sourceProduct.sourceKey;
-  await db.createDocWithId('alibabaSourceProducts', sourceKey, normalized.sourceProduct);
+  await db.createDocWithId('alibabaSourceProducts', sourceKey, { ...normalized.sourceProduct });
   await db.createDocWithId(
     'catalogSourceObservations',
     sourceObservationDocumentId('alibaba', sourceKey),
     { observation },
   );
   for (const offer of normalized.offers)
-    await db.createDocWithId('alibabaSupplierOffers', offer.offerKey, offer);
+    await db.createDocWithId('alibabaSupplierOffers', offer.offerKey, { ...offer });
   const draft = await createDraftForSource(sourceKey, { now });
   assert.ok(draft.ok);
   return { observation, draft };
@@ -73,19 +80,15 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
     const id = `raw-wire-image-${i}`;
     const storagePath = `${id}.png`;
     // Only pixels are synthetic; public/private image handlers still serve real bytes.
-    await writeFile(
-      resolve(mediaDirectory, storagePath),
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    );
+    await writeFile(resolve(mediaDirectory, storagePath), fixturePngBytes);
     await db.createDocWithId('images', id, {
       status: 'active',
       storageProvider: 'local-disk',
       storagePath,
       storageFileId: `local-disk:${storagePath}`,
       mimeType: 'image/png',
+      byteSize: fixturePngBytes.byteLength,
+      checksumSha256: fixturePngChecksum,
       publishedRefCount: 0,
       refCount: 1,
     });
@@ -120,19 +123,15 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
   for (const [i, sourceUrl] of colorSources.entries()) {
     const id = `raw-color-image-${i}`;
     const storagePath = `${id}.png`;
-    await writeFile(
-      resolve(mediaDirectory, storagePath),
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    );
+    await writeFile(resolve(mediaDirectory, storagePath), fixturePngBytes);
     await db.createDocWithId('images', id, {
       status: 'active',
       storageProvider: 'local-disk',
       storagePath,
       storageFileId: `local-disk:${storagePath}`,
       mimeType: 'image/png',
+      byteSize: fixturePngBytes.byteLength,
+      checksumSha256: fixturePngChecksum,
       publishedRefCount: 0,
       refCount: 1,
     });

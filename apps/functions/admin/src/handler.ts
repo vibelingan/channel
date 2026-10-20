@@ -45,6 +45,7 @@ import {
   manageImageDeletion,
   persistCatalogDetailApproval,
   preparationUsingImage,
+  readCatalogImageReference,
   releaseImageMutation,
   remove,
   saveCatalogProductWithIdentities,
@@ -793,6 +794,29 @@ export async function handleAdminRequest(
         return await listAction(req, claims);
       case 'get':
         return await getAction(req, claims);
+      case 'getImageReferenceCount': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        const input = z
+          .object({
+            imageId: z
+              .string()
+              .min(1)
+              .max(200)
+              .regex(/^[A-Za-z0-9_-]+$/),
+          })
+          .strict()
+          .safeParse(req.data);
+        if (!input.success) return err('BAD_REQUEST', 'A valid image identity is required.');
+        // The base field excludes committed, unsettled publication proofs.
+        // Always read the effective count through the existing native snapshot; never settle on GET.
+        const snapshot = await readCatalogImageReference({ action: 'read', ...input.data });
+        if (snapshot.state === 'missing') return err('NOT_FOUND', 'Image not found');
+        return ok({
+          imageId: input.data.imageId,
+          state: snapshot.state,
+          count: snapshot.state === 'counted' ? snapshot.effectiveCount : null,
+        });
+      }
       case 'create':
         return await createAction(req, claims, config);
       case 'catalogProductCreate':

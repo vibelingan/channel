@@ -15,6 +15,7 @@ import {
   requireAdminCredentialsWhenEnabled,
   requireCatalogLocalSeedWhenEnabled,
 } from './helpers/env';
+import { readImageReferenceCount } from './helpers/image-reference-count';
 
 const enabled = e2e.catalogLocalSeed;
 // @skip-when outside the disposable local runner; CI runs this lane with owned DB and synthetic credentials, whose absence then throws below.
@@ -1507,6 +1508,13 @@ test('bulk classification publishes confirmed selections and reports rejected pu
 }) => {
   test.setTimeout(180_000);
   const session = await loginAdmin(request);
+  const imageBaseline =
+    process.env.E2E_CATALOG_FORMAL === '1'
+      ? {
+          count: await readImageReferenceCount(request, 'formal-manual-image', session.token),
+          status: (await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status(),
+        }
+      : null;
   const seeds = await adminAction<ListResult<CollectionDoc>>(
     request,
     'list',
@@ -2038,10 +2046,14 @@ test('bulk classification publishes confirmed selections and reports rejected pu
           ).status(),
         ).toBe(404);
     }
-    if (process.env.E2E_CATALOG_FORMAL === '1')
-      expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(
-        404,
+    if (imageBaseline) {
+      expect(await readImageReferenceCount(request, 'formal-manual-image', session.token)).toBe(
+        imageBaseline.count,
       );
+      expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(
+        imageBaseline.status,
+      );
+    }
   }
 });
 
@@ -2132,6 +2144,10 @@ test('20 mixed-category selections publish through Assign category while preserv
   );
   test.setTimeout(120000);
   const session = await loginAdmin(request);
+  const imageBaseline = {
+    count: await readImageReferenceCount(request, 'formal-manual-image', session.token),
+    status: (await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status(),
+  };
   const prefix = `${e2e.runId} Preserve twenty`;
   const products: CollectionDoc[] = [];
   const originals = new Map<string, string>();
@@ -2291,7 +2307,12 @@ test('20 mixed-category selections publish through Assign category while preserv
         ).status(),
       ).toBe(404);
     }
-    expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(404);
+    expect(await readImageReferenceCount(request, 'formal-manual-image', session.token)).toBe(
+      imageBaseline.count,
+    );
+    expect((await request.get(`${e2e.apiUrl}/api/images/formal-manual-image`)).status()).toBe(
+      imageBaseline.status,
+    );
   }
 });
 

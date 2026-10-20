@@ -1,7 +1,9 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
+import { readImageReferenceCount } from './helpers/image-reference-count';
 import { expectInquirySaved } from './helpers/inquiry-followup';
 import { expectProductSaved } from './helpers/product-save';
 
@@ -695,26 +697,51 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   expect(sourceMediaImports).toEqual([]);
   expect(Object.hasOwn(product, 'subcategoryIds')).toBe(false);
   for (const label of ['Misc', 'Headphones']) {
-    let withdrawnDuringPreparation = false;
+    let withdrawnBeforeReply = false;
+    const liveStarts: string[] = [];
     if (label === 'Misc') {
       await page.route('**/api/admin', async (route) => {
         const body = route.request().postDataJSON();
-        if (
-          !withdrawnDuringPreparation &&
-          body.action === 'catalogDetailApproval' &&
-          // 'approve' runs the whole approval in one request; 'prepare' is the
-          // step-by-step fallback. Either way, withdraw before it reaches the server.
-          ['approve', 'prepare'].includes(body.data?.action)
-        ) {
-          // A separate real API request withdraws the product while the browser
-          // is classifying it. Approval must not manufacture a republish command.
-          withdrawnDuringPreparation = true;
-          await adminAction(
-            request,
-            'update',
-            { collection: 'products', id, values: { published: false } },
-            session.token,
-          );
+        if (body.action !== 'catalogDetailApproval' || body.data?.productId !== id) {
+          await route.continue();
+          return;
+        }
+        if (body.data.action === 'product-operation-start') {
+          expect(body.data.intent).toBe('refresh-live');
+          liveStarts.push(body.data.operationId);
+        }
+        if (!withdrawnBeforeReply && body.data.action === 'product-operation-continue') {
+          const response = await route.fetch();
+          const result = await response.json();
+          if (result.ok && result.data?.state === 'complete') {
+            // Commit the live edit, then withdraw through the real guarded API
+            // before the browser receives its ACK. Its readback/recovery must not relive it.
+            const completed = await adminAction<CollectionDoc>(
+              request,
+              'get',
+              { collection: 'products', id },
+              session.token,
+            );
+            expect(completed.published).toBe(true);
+            expect(completed.catalogDetailPublication).toMatchObject({
+              state: 'approved',
+              header: { categoryLabel: label },
+            });
+            await adminAction(
+              request,
+              'update',
+              {
+                collection: 'products',
+                id,
+                expectedUpdatedAt: completed.updatedAt,
+                values: { published: false },
+              },
+              session.token,
+            );
+            withdrawnBeforeReply = true;
+          }
+          await route.fulfill({ response });
+          return;
         }
         await route.continue();
       });
@@ -740,14 +767,24 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       if (!response.url().endsWith('/api/admin') || response.request().method() !== 'POST')
         return false;
       const command = response.request().postDataJSON();
-      if (!['get', 'update'].includes(command.action) || command.data?.id !== id) return false;
+      if (
+        command.action !== 'catalogDetailApproval' ||
+        command.data?.action !== 'product-operation-continue' ||
+        command.data?.productId !== id
+      )
+        return false;
       const body = await response.json();
-      return body.ok && body.data?.catalogDetailPublication?.header?.categoryLabel === label;
+      return body.ok && body.data?.state === 'complete';
     });
     await classification.getByRole('button', { name: 'Save', exact: true }).click();
-    // This is the terminal read (or the old buggy republish response), not an
-    // intermediate approved snapshot followed by an unnoticed publication write.
-    expect((await (await committed).json()).data.published).toBe(label !== 'Misc');
+    await committed;
+    const committedProduct = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id },
+      session.token,
+    );
+    expect(committedProduct.published).toBe(label !== 'Misc');
     // Category refresh no longer sends a publication patch. Await the persisted
     // approval, not a stale status message from the previous batch.
     await expect
@@ -766,8 +803,23 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       .toMatchObject({ state: 'approved', header: { categoryLabel: label } });
     if (label === 'Misc') {
       await expect(classification.locator('[data-record-form-error]')).toContainText(
-        /draft was saved.*withdrawn/i,
+        /Publication is not confirmed|Publishing needs attention|Publication was confirmed on the website/i,
       );
+      expect(withdrawnBeforeReply).toBe(true);
+      expect(liveStarts).toHaveLength(1);
+      expect((await request.get(`${e2e.apiUrl}/api/products/${id}/detail`)).status()).toBe(404);
+      await classification.getByRole('button', { name: 'Check publication', exact: true }).click();
+      await expect(
+        classification.getByRole('button', { name: 'Check publication', exact: true }),
+      ).toHaveCount(0);
+      expect(liveStarts).toHaveLength(1);
+      const stillPrivate = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id },
+        session.token,
+      );
+      expect(stillPrivate.published).toBe(false);
       await classification.getByRole('button', { name: 'Cancel', exact: true }).click();
     } else await expectProductSaved(page);
     const saved = await adminAction<CollectionDoc>(
@@ -785,7 +837,7 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       header: { categoryLabel: label },
     });
     if (label === 'Misc') {
-      expect(withdrawnDuringPreparation).toBe(true);
+      expect(withdrawnBeforeReply).toBe(true);
       await page.unroute('**/api/admin');
       // Explicit operator intent, after proving category-only refresh kept it
       // private. Restore this disposable fixture for the remaining buyer journey.
@@ -1043,7 +1095,9 @@ test('manual products go live only through approval; the shared page shows their
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   const feedback = page.getByRole('alert').filter({ hasText: 'not published' });
   await expect(feedback).toContainText('1 published · 1 not published', { timeout: 30000 });
-  await expect(feedback).toContainText('The product images are missing or busy');
+  await expect(feedback).toContainText(
+    'Check the product photos before continuing this publication.',
+  );
   const read = (id: string) =>
     adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
   const [published, refused] = await Promise.all([read(ready._id), read(legacy._id)]);
@@ -1152,18 +1206,11 @@ test('twenty source products publish through Assign category and restore shared-
     expect(draft.productFamily).toBe('misc');
     expect(draft.imageIds).toHaveLength(6);
   }
-  const referenceCount = async (id: string) => {
-    const image = await adminAction<CollectionDoc>(
-      request,
-      'get',
-      { collection: 'images', id },
-      session.token,
-    );
-    expect(typeof image.publishedRefCount).toBe('number');
-    return image.publishedRefCount;
-  };
+  const referenceCount = (imageId: string) =>
+    readImageReferenceCount(request, imageId, session.token);
   const sharedIds = Array.from({ length: 9 }, (_, index) => `raw-color-image-${index}`);
   const before = await Promise.all(sharedIds.map(referenceCount));
+  const operations = new Map<string, string>();
   try {
     await page.goto('/login?returnTo=%2Fadmin');
     await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
@@ -1176,25 +1223,29 @@ test('twenty source products publish through Assign category and restore shared-
     await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(20);
     let refusedProductId: string | undefined;
     const attempts = new Map<string, number>();
-    const operations = new Map<string, string>();
     await page.route('**/api/admin', async (route) => {
       const body = route.request().postDataJSON();
-      if (body.action === 'catalogDetailApproval' && body.data?.action === 'approve') {
-        const id = String(body.data.productId);
-        attempts.set(id, (attempts.get(id) ?? 0) + 1);
-        const operation = String(body.data.operationId);
-        expect(operations.get(id) ?? operation).toBe(operation);
-        operations.set(id, operation);
-        if (refusedProductId === undefined) {
-          refusedProductId = id;
-          await route.fulfill({
-            status: 409,
-            json: {
-              ok: false,
-              error: { code: 'BUSY', message: 'Nothing was saved; try again.' },
-            },
-          });
-          return;
+      if (body.action === 'catalogDetailApproval') {
+        const id = String(body.data?.productId);
+        if (body.data?.action === 'product-operation-start') {
+          const operation = String(body.data.operationId);
+          expect(operations.get(id) ?? operation).toBe(operation);
+          operations.set(id, operation);
+        }
+        if (body.data?.action === 'product-operation-continue') {
+          expect(body.data.operationId).toBe(operations.get(id));
+          attempts.set(id, (attempts.get(id) ?? 0) + 1);
+          if (refusedProductId === undefined) {
+            refusedProductId = id;
+            await route.fulfill({
+              status: 409,
+              json: {
+                ok: false,
+                error: { code: 'BUSY', message: 'Nothing was saved; try again.' },
+              },
+            });
+            return;
+          }
         }
       }
       await route.continue();
@@ -1287,6 +1338,36 @@ test('twenty source products publish through Assign category and restore shared-
     await page.screenshot({ path: info.outputPath('twenty-restored.png'), fullPage: true });
   } finally {
     await page.goto('/');
+    // A failed assertion may leave an admitted request in flight. Stop its
+    // original native task before withdrawal; a browser navigation is not cancellation.
+    for (const [productId, operationId] of operations) {
+      const response = await request.post(`${e2e.apiUrl}/api/admin`, {
+        data: {
+          action: 'catalogDetailApproval',
+          token: session.token,
+          data: { action: 'product-operation-get', productId, operationId },
+        },
+      });
+      const original = await response.json();
+      if (original.ok) {
+        expect(original.data.productId).toBe(productId);
+        expect(original.data.operationId).toBe(operationId);
+        // A completed task cannot run again. After withdrawal its original
+        // revision is historical, so cancelling it would correctly conflict.
+        if (original.data.state === 'complete' || original.data.cancelledAt) continue;
+        await adminAction(
+          request,
+          'catalogDetailApproval',
+          {
+            action: 'product-operation-cancel',
+            productId,
+            operationId,
+            inputDigest: original.data.inputDigest,
+          },
+          session.token,
+        );
+      } else expect(original.error?.code).toBe('NOT_FOUND');
+    }
     for (const draft of drafts.items) {
       await adminAction(
         request,
@@ -1343,14 +1424,8 @@ test('ordinary Edit keeps stale input, saves current drafts and live edits, and 
       { collection: 'products', id: product._id },
       session.token,
     );
-  const image = () =>
-    adminAction<CollectionDoc>(
-      request,
-      'get',
-      { collection: 'images', id: 'formal-manual-image' },
-      session.token,
-    );
-  const baseline = (await image()).publishedRefCount ?? 0;
+  const imageCount = () => readImageReferenceCount(request, 'formal-manual-image', session.token);
+  const baseline = await imageCount();
   const search = async () => {
     await page.getByRole('button', { name: 'Products', exact: true }).click();
     await page.getByPlaceholder(/^Search name/).fill(name);
@@ -1389,6 +1464,14 @@ test('ordinary Edit keeps stale input, saves current drafts and live edits, and 
     await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(`${name} unsaved`);
     expect((await read()).description).toBe('Concurrent administrator description');
     expect((await read()).name).toBe(name);
+    await editor.getByRole('button', { name: 'Stop original save', exact: true }).click();
+    const download = page.waitForEvent('download');
+    await editor.getByRole('button', { name: 'Download current edits', exact: true }).click();
+    const file = await (await download).path();
+    if (!file) throw new Error('Stale draft export was not saved');
+    expect(JSON.parse(await readFile(file, 'utf8')).name).toBe(`${name} unsaved`);
+    await editor.getByRole('button', { name: 'Open saved product', exact: true }).click();
+    await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(name);
     await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.reload();
     await search();
@@ -1400,7 +1483,7 @@ test('ordinary Edit keeps stale input, saves current drafts and live edits, and 
     await row.getByRole('checkbox', { name: 'Select row', exact: true }).check();
     await page.getByRole('button', { name: 'Publish', exact: true }).click();
     await expect.poll(async () => (await read()).published, { timeout: 30000 }).toBe(true);
-    await expect.poll(async () => (await image()).publishedRefCount).toBe(Number(baseline) + 1);
+    await expect.poll(imageCount).toBe(baseline + 1);
     await row.getByRole('button', { name: 'Edit', exact: true }).click();
     await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} live`);
     await editor.getByRole('button', { name: 'Save', exact: true }).click();
@@ -1446,7 +1529,7 @@ test('ordinary Edit keeps stale input, saves current drafts and live edits, and 
       session.token,
     );
     expect((await read()).published).toBe(false);
-    expect((await image()).publishedRefCount ?? 0).toBe(baseline);
+    expect(await imageCount()).toBe(baseline);
   }
 });
 
