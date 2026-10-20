@@ -90,6 +90,7 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
     afterWrite: (_key: string): void => {},
     afterRead: (_key: string): void => {},
     maximumOperations: 0,
+    maximumConcurrentReads: 0,
   };
   type Scope = typeof store;
   const collection = (name: string, scope: Scope = store) => ({
@@ -145,6 +146,7 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
         const copy = structuredClone(store);
         let writing = false;
         let operations = 0;
+        let activeReads = 0;
         const trackedCollection = (name: string) => ({
           doc: (id: string) => {
             const ref = collection(name, copy).doc(id);
@@ -152,9 +154,23 @@ function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
               get: async () => {
                 operations++;
                 assert.equal(writing, false, 'all transaction reads precede writes');
-                const result = await ref.get();
-                controls.afterRead(`${name}/${id}`);
-                return result;
+                activeReads++;
+                controls.maximumConcurrentReads = Math.max(
+                  controls.maximumConcurrentReads,
+                  activeReads,
+                );
+                try {
+                  if (activeReads > 1)
+                    throw Object.assign(new Error('ResourceUnavailable.TransactionBusy'), {
+                      code: 'DATABASE_TRANSACTION_FAIL',
+                    });
+                  await new Promise((resolve) => setImmediate(resolve));
+                  const result = await ref.get();
+                  controls.afterRead(`${name}/${id}`);
+                  return result;
+                } finally {
+                  activeReads--;
+                }
               },
               update: async (data: Record<string, unknown>) => {
                 operations++;

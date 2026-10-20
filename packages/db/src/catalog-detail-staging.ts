@@ -69,6 +69,7 @@ import { publicationContentFingerprint } from './catalog-publication-fingerprint
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 import { assertDocumentWrite, sdkAnswer } from './cloudbase-sdk-answer.ts';
+import { serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
 export { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 export {
   captureProductOperationSave,
@@ -603,14 +604,14 @@ export function persistStagedApprovalInCloud(
   return db.runTransaction((tx) =>
     runStagedApproval(
       {
-        get: async (collection, id) => {
+        get: serializeCloudBaseTransactionReads(async (collection, id) => {
           const response = sdkAnswer(await tx.collection(collection).doc(id).get()).data;
           const row = Array.isArray(response) ? response[0] : response;
           if (row == null) return null;
           if (typeof row !== 'object' || Array.isArray(row) || !('_id' in row) || row._id !== id)
             throw new Error('Malformed approval document');
           return row as CollectionDoc;
-        },
+        }),
         set: async (collection, row) => {
           const { _id, ...data } = row;
           const result = sdkAnswer(await tx.collection(collection).doc(_id).set(data));

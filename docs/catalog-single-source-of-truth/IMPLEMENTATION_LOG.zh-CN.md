@@ -1703,3 +1703,14 @@ c03bc182 的完整生产构建组合依次通过 public 41、目录/导航/SKU 9
 修复后开关 1/0 的正式构建单项各 1/1、零重试通过，E2E types/Biome 通过；原 9 个报告文件全部哈希相同恢复。已审查新 spec、Select.tsx、既有 Admin specs 及完整 runner；把“完整组合通过”限定为四个实际完成的阶段，保留失败日志。后续仍需最终完整重跑及制品 gate。
 
 同一 pixels.ts/png-animation.ts 及固定 sharp 0.35.5 构建了专属无 DB/存储入口的临时私有函数 catalog-pixel-c03bc182-20261020（lam-kgyfv5b7），在真实 Node20.19.3/Linux x64/glibc 2.28 运行：JPEG/PNG/GIF/WebP 的实际像素、截断拒绝、双帧 GIF、坏签名/空输入/SVG 拒绝通过，耗时 807ms。源码/包/本地 Node20 原生运行证据及云返回保存在 pixel-gate-c03bc182，函数已删除，重新列出云端仅剩原三个服务。未改客户数据、现有函数或路由；这只证明当前像素组件，不能替代 COS、实际发布及云性能。fullDeliveryReady=false。
+## P7 / 2026-10-20：test 部署、三件 resync 与原生事务读冲突
+
+a8926161 的最终生产构建浏览器组合 156/156、零重试通过，原九个报告文件逐哈希恢复；三个 Node20 后端制品 smoke 通过。已向原 test 环境代码更新 sync、admin、public，并上传现有站点；三个服务在线 health 均读回完整 a892 SHA，54 个 HTML/JS/CSS 在线哈希全部相符，函数身份、运行时、超时、内存和已有配置保持。两个新集合及一个索引按 canonical resource manifest 建立并核对 ADMINONLY，29 个原 required index 签名一致。旧函数包、原 16 HTML 和原 487 件公开响应已有私有备份，部署后所有 487 件公开响应逐字段一致。
+
+实际 UI 单件重新同步 T142、T157、W203，均更新原产品并保持未发布、Misc 和原人工字段，没有重复建产品；自动照片队列实际准备 0 件。新快照与原三件逐字段比较，变更仅来源定价/审查/版本和失效字段。轻量 updatedAt 查询确认全目录本时段只有这三个商品更新；一轮完整大行扫描因回传过重主动终止，不把该扫描当成功证据。20 件已有 Misc 主分类、未发布、无子分类的现场清单已冻结，包含三件时钟，并保存 279 张既有照片及引用基线；未补分类、未发布。
+
+T142 的 Edit 和含完整来源规格的 Preview 可以打开，明确 Prepare saved product 却未返回任务，现场因此判失败。实际云 SDK 的零写入对照确认同事务并发读间歇触发 TransactionBusy；四个 native store 的 get 改为事务内依次读取，不限制跨商品并发。详细证据见 P7a1_NATIVE_TRANSACTION_READS.zh-CN.md。原实现的真实 adapter 单请求约束红测失败，修复后 DB2362/2362；全量7703项中7700通过、0失败、3跳过（图库已在前轮独立11/11，两项AI夹具仍跳过），全19工作区/正式E2E类型及SDK门槛通过。绕过生产 helper 的故障被真实 adapter 红测和 helper 回归检出，原字节 SHA 恢复一致。生产 helper 的实际云只读探针连续10次到写入前检查点，412–636ms，不能替代完整写入与20件P95。临时诊断函数已删除，函数列表回到原三个。
+
+另补开始响应丢失的真实浏览器红测：未取得 jobId 时不应让用户查找不存在的 Check result；应指向现有 Prepare saved product 与 Edit 恢复入口。提示修订后最终浏览器组合60/60，Node20下DB2362/2362，lint1085文件及最终site类型通过；不会把未确认结果写成完成。下一步仍是精确提交 review、构建与部署本项，重做三件准备及20件 Assign category → Save and publish/读回/下架恢复，继续 COS、各操作组合和实际性能验收。fullDeliveryReady=false。
+
+实际 review 三个 native 模块、读取 helper、准备控件和浏览器测试，以及 preparation/store、引用 proof 与生产消费者。将“串行十次成功”写清为“零写入到检查点”，将“全量零跳过”写清原3项跳过，校对云端返回、原商品与图片基线、各日志及恢复操作；没有更改现有来源属性展示/映射规则。

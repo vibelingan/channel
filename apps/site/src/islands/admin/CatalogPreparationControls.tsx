@@ -203,7 +203,9 @@ function PreparationControls({ productId, actorId, onEdit, onReady }: Props & { 
       : busy
         ? 'Checking and preparing saved product…'
         : view.reason === 'unknown'
-          ? 'The result is not confirmed. Check this task before continuing.'
+          ? view.jobId
+            ? 'The result is not confirmed. Check this task before continuing.'
+            : 'Preparation was not confirmed. Use Prepare saved product to recover, or edit the saved product.'
           : view.reason === 'paused'
             ? 'Waiting stopped. The server task can still be checked or continued.'
             : isReady

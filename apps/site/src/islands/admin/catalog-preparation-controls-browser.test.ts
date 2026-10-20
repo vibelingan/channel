@@ -137,6 +137,7 @@ test(
       | 'cancel-success'
       | 'cancel-unconfirmed'
       | 'retry-unconfirmed'
+      | 'start-unconfirmed'
       | 'hold' = 'prepare';
     let continues = 0;
     let cancelled = false;
@@ -186,6 +187,10 @@ test(
         .parse(raw);
       const action = body.data.action;
       actions.push(action);
+      if (mode === 'start-unconfirmed' && action === 'start') {
+        await route.abort('failed');
+        return;
+      }
       if (mode === 'unauthorized') {
         await route.fulfill({
           status: 401,
@@ -446,6 +451,29 @@ test(
     assert.ok(actions.slice(beforeRoleChange).every((action) => action === 'preview'));
     await page.getByRole('button', { name: 'Open item to repair', exact: true }).click();
     await expect(page.locator('body')).toHaveAttribute('data-edited-product', 'broken-product');
+    mode = 'start-unconfirmed';
+    product = 'recover-start';
+    await mount(product, 'recovery-admin');
+    const beforeStartRecovery = actions.length;
+    await panel.getByRole('button', { name: 'Prepare saved product', exact: true }).click();
+    await expect(panel).toContainText(
+      'Preparation was not confirmed. Use Prepare saved product to recover, or edit the saved product.',
+    );
+    await expect(panel.getByRole('button', { name: 'Check result', exact: true })).toHaveCount(0);
+    await expect(
+      panel.getByRole('button', { name: 'Prepare saved product', exact: true }),
+    ).toBeEnabled();
+    assert.deepEqual(actions.slice(beforeStartRecovery), ['start']);
+    mode = 'prepare';
+    continues = 0;
+    await panel.getByRole('button', { name: 'Prepare saved product', exact: true }).click();
+    await expect(panel).toContainText('Saved product content is ready');
+    assert.deepEqual(actions.slice(beforeStartRecovery), [
+      'start',
+      'start',
+      'continue',
+      'continue',
+    ]);
     t.diagnostic(
       'Executed: readonly mount, mobile width, duplicate action, ready, reload recovery, confirmed cancel/retry, unknown cancel/retry, sameactor reauth, wrongproduct refusal/currentproduct recovery, product-switch late result, stopwait without cancel, actor isolation, unrelated-storage continuity, contributor gate, real preview-error edit fallback.',
     );

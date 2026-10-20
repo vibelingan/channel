@@ -12,6 +12,7 @@ import { readImageMutationState } from './adapter.ts';
 import { planApprovalImageReferences } from './catalog-approval-image-references.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 import { sdkAnswer } from './cloudbase-sdk-answer.ts';
+import { serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
 
 const identity = z
   .string()
@@ -305,8 +306,9 @@ export async function approveCatalogDetailInCloud(
   return db.runTransaction((tx) =>
     commitCatalogApproval(
       {
-        get: async (collection, id) =>
+        get: serializeCloudBaseTransactionReads(async (collection, id) =>
           document(sdkAnswer(await tx.collection(collection).doc(id).get()).data),
+        ),
         set: async (collection, row) => {
           const { _id, ...data } = row;
           const result = sdkAnswer(await tx.collection(collection).doc(_id).set(data));

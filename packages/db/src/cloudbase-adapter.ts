@@ -35,6 +35,7 @@ import {
   runCatalogRowMutation,
 } from './catalog-row-mutation.ts';
 import { sdkAnswer, assertDocumentWrite } from './cloudbase-sdk-answer.ts';
+import { serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
 import { captureProductOperationSave, prepareProductOperationSave, productOperationSaveReceipt } from './catalog-product-operation.ts';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
@@ -211,8 +212,8 @@ export async function saveCatalogProductInCloudBase(
       assertDocumentWrite(await transaction.collection(collection).doc(id).set(data), id, 'set');
     };
     const operationTx = {
-      get: async (collection: string, id: string) =>
-        normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+      get: serializeCloudBaseTransactionReads(async (collection: string, id: string) =>
+        normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data)),
       set: setAcknowledged,
     };
     const expectedSuggestion =
@@ -465,8 +466,8 @@ function catalogRowStore(
   beforeWrite?: () => Promise<void>,
 ): CatalogRowStore & ImageDeletionStore {
   return {
-    get: async (collection, id) =>
-      normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+    get: serializeCloudBaseTransactionReads(async (collection, id) =>
+      normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data)),
     set: async (collection, row) => {
       await beforeWrite?.();
       const { _id, ...data } = row;
