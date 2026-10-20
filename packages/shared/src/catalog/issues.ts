@@ -243,6 +243,13 @@ export function catalogIssueMessage(value: unknown): string | undefined {
   if (!parsed.success) return undefined;
   const issue = parsed.data;
   const label = fieldLabel(issue.path);
+  if (
+    issue.code === 'INVALID_VALUE' &&
+    issue.stage === 'source' &&
+    issue.remedy === 'review-change' &&
+    ['description', 'imageIds', 'descriptionImageIds'].includes(issue.path)
+  )
+    return `Review the supplier change for ${label}. Choose Keep website version or Use Alibaba's before publishing.`;
   switch (issue.code) {
     case 'REQUIRED':
       return `${label} is required.`;

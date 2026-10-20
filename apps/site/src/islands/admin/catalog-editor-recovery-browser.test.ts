@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { decodeCatalogDetailView } from '@vibelingan-channel/shared/catalog-detail';
 import { parseDocument } from 'yaml';
 import { z } from 'zod';
 import { signSession } from '../../../../../packages/auth/src/jwt.ts';
@@ -11,17 +13,20 @@ import {
   APPROVAL_JOBS,
   APPROVED_VARIANTS,
 } from '../../../../../packages/db/src/catalog-detail-staging.ts';
+import { createCatalogPreparationAuthority } from '../../../../../packages/db/src/catalog-preparation-authority.ts';
 import { setAdapter } from '../../../../../packages/db/src/index.ts';
 import {
   type UploadCredential,
   setMediaStorage,
 } from '../../../../../packages/media-storage/src/index.ts';
 import { LocalDiskMediaStorage } from '../../../../../packages/media-storage/src/local-disk.ts';
+import { runCatalogPreparationWorker } from '../../../../functions/admin/src/catalog-preparation-worker.ts';
 import { handleAdminRequest } from '../../../../functions/admin/src/handler.ts';
 import { handleAdminFunctionEvent } from '../../../../functions/admin/src/http-adapter.ts';
 import { fixture as sourceFixture } from '../../../../functions/admin/src/testing/catalog-source-plan-fixture.ts';
 import { handleAlibabaSyncFunctionEvent } from '../../../../functions/alibaba-catalog-sync/src/http-adapter.ts';
 import { importCandidateImage } from '../../../../functions/alibaba-catalog-sync/src/media-import.ts';
+import { handlePublicApiEvent } from '../../../../functions/public-api/src/http-adapter.ts';
 import { JsonFileAdapter } from '../../../../local-server/src/json-adapter.ts';
 
 function assertOriginalDraftSave(
@@ -68,6 +73,13 @@ const scenarios = [
   'start-before-lost',
   'session-reconnect',
   'initial-session-missing',
+  'publish-full',
+  'publish-lost-completion',
+  'publish-before-start',
+  'publish-public-read',
+  'publish-late-private-read',
+  'publish-missing-category',
+  'publish-review-required',
   'gallery',
   'description',
   'gallery-capacity',
@@ -90,6 +102,7 @@ for (const [scenario, engine] of [
   ['multiple-original-saves', 'webkit'] as const,
 ]) {
   const overlapping = scenario === 'overlapping';
+  const publishing = scenario.startsWith('publish-');
   const mediaRace = scenario.startsWith('gallery') || scenario.startsWith('description');
   const uploadLate = scenario.endsWith('-upload-late');
   const uploadStartFirst = scenario.endsWith('-upload-start-first');
@@ -152,7 +165,8 @@ for (const [scenario, engine] of [
           };
         }
       }
-      setMediaStorage(new BrowserStorage(mediaDirectory));
+      const mediaStorage = new BrowserStorage(mediaDirectory);
+      setMediaStorage(mediaStorage);
       const sourceUrl = 'https://sc04.alicdn.com/editor-new.png';
       const oldIds: string[] = [];
       const field = purpose === 'description' ? 'descriptionImageIds' : 'imageIds';
@@ -206,8 +220,48 @@ for (const [scenario, engine] of [
           ],
         });
       }
+      if (publishing) {
+        const object = await mediaStorage.putObject({
+          namespace: 'catalog',
+          logicalId: 'editor-publication-photo',
+          fileName: 'photo.png',
+          mimeType: 'image/png',
+          content: pixels,
+        });
+        await adapter.create('images', {
+          _id: 'editor-publication-photo',
+          ...object,
+          mimeType: 'image/png',
+          byteSize: pixels.length,
+          checksumSha256: createHash('sha256').update(pixels).digest('hex'),
+          status: 'active',
+          publishedRefCount: 0,
+        });
+        await adapter.update('products', original._id, {
+          imageIds: ['editor-publication-photo'],
+          ...(scenario !== 'publish-missing-category' ? { productFamily: 'misc' } : {}),
+        });
+      }
       const before = JSON.parse(await readFile(file, 'utf8'));
-      const config = { jwtSecret: 'owned-editor-recovery', enableDetailApproval: true };
+      const authority = createCatalogPreparationAuthority({
+        secret: 'owned-editor-recovery',
+        environmentId: 'owned-editor-recovery',
+      });
+      const config = {
+        jwtSecret: 'owned-editor-recovery',
+        enableDetailApproval: true,
+        preparationAuthority: authority,
+        preparationInvoke: async (call: Parameters<typeof runCatalogPreparationWorker>[1]) => ({
+          result: await runCatalogPreparationWorker(authority, call, {
+            importSourceImage: (url, persistImport) =>
+              importCandidateImage(url, {
+                persistImport,
+                resolveDns: async () => ['104.16.1.1'],
+                fetchImpl: async () => new Response(new Uint8Array(pixels)),
+              }),
+          }),
+        }),
+      };
       const token = await signSession(config.jwtSecret, {
         sub: 'admin',
         email: 'admin@example.test',
@@ -313,6 +367,9 @@ for (const [scenario, engine] of [
       let saveReplyDropped = false;
       let startDropped = false;
       let removedLocalActor = false;
+      let publicBlocked = scenario === 'publish-public-read';
+      let publicReads = 0;
+      let latePrivateDropped = false;
       let blockSaveConfirmation = ['save-and-check-lost', 'multiple-original-saves'].includes(
         scenario,
       );
@@ -371,12 +428,36 @@ for (const [scenario, engine] of [
         const action =
           body.action === 'catalogDetailApproval' ? (body.data?.action ?? 'detail') : body.action;
         counts.set(action, (counts.get(action) ?? 0) + 1);
+        if (
+          scenario === 'publish-late-private-read' &&
+          action === 'get' &&
+          publicReads > 0 &&
+          !latePrivateDropped &&
+          (await page.evaluate(
+            () =>
+              Object.keys(localStorage).filter((key) => key.startsWith('channel:publication:'))
+                .length,
+          )) === 0
+        ) {
+          latePrivateDropped = true;
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: {
+                code: 'UNAVAILABLE',
+                message: 'Owned final private read unavailable after public confirmation',
+              },
+            },
+          });
+          return;
+        }
         if (scenario === 'initial-session-missing' && action === 'get' && !removedLocalActor) {
           removedLocalActor = true;
           await page.evaluate(() => localStorage.removeItem('channel.user'));
         }
         if (
-          (scenario === 'start-before-lost' &&
+          (['start-before-lost', 'publish-before-start'].includes(scenario) &&
             action === 'product-operation-start' &&
             !startDropped) ||
           (blockSaveConfirmation && saveReplyDropped && action === 'product-operation-get')
@@ -430,6 +511,23 @@ for (const [scenario, engine] of [
         }
         const r = await invoke(bodyText);
         if (
+          scenario === 'publish-lost-completion' &&
+          action === 'product-operation-continue' &&
+          !saveReplyDropped &&
+          r.statusCode === 200 &&
+          JSON.parse(r.body).data.state === 'complete'
+        ) {
+          saveReplyDropped = true;
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Owned publication completed but reply lost' },
+            },
+          });
+          return;
+        }
+        if (
           ['save-reply-lost', 'save-and-check-lost', 'multiple-original-saves'].includes(
             scenario,
           ) &&
@@ -465,6 +563,34 @@ for (const [scenario, engine] of [
           return;
         }
         await route.fulfill({ status: r.statusCode, headers: r.headers, body: r.body });
+      });
+      await page.route('**/api/products/**', async (route) => {
+        publicReads++;
+        assert.equal(route.request().headers().authorization, undefined);
+        if (publicBlocked) {
+          await route.fulfill({
+            status: 503,
+            json: {
+              ok: false,
+              error: { code: 'UNAVAILABLE', message: 'Owned public read unavailable' },
+            },
+          });
+          return;
+        }
+        const url = new URL(route.request().url());
+        const response = await handlePublicApiEvent(
+          {
+            httpMethod: 'GET',
+            path: url.pathname,
+            queryStringParameters: Object.fromEntries(url.searchParams),
+          },
+          { enableCatalogDetail: true },
+        );
+        await route.fulfill({
+          status: response.statusCode,
+          headers: response.headers,
+          body: response.body,
+        });
       });
       await page.goto(`${origin}editor-test`);
       await page.evaluate(
@@ -846,6 +972,229 @@ for (const [scenario, engine] of [
       await expect(form.locator('#description')).toHaveValue('My unsaved description');
       assert.equal(counts.get('supplier-review'), supplierBefore + 1);
       assert.equal(counts.get('photo-sources'), photosBefore + 1);
+      if (publishing) {
+        try {
+          if (scenario !== 'publish-review-required')
+            await form.getByRole('button', { name: 'Keep website version', exact: true }).click();
+          await form.locator('#published').check();
+          await form.getByRole('button', { name: 'Save', exact: true }).click();
+          if (scenario === 'publish-missing-category') {
+            await expect(
+              form.getByText('Choose a website category before publishing.', { exact: true }),
+            ).toBeVisible();
+            await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+            assert.deepEqual(await adapter.get('products', original._id), before.products[0]);
+            assert.equal(counts.get('product-operation-start') ?? 0, 0);
+            return;
+          }
+          if (scenario === 'publish-before-start') {
+            await expect(
+              form.getByRole('button', { name: 'Stop original publication', exact: true }),
+            ).toBeEnabled();
+            assert.deepEqual(await adapter.get('products', original._id), before.products[0]);
+            await expect(form.locator('#description')).toBeDisabled();
+            await form
+              .getByRole('button', { name: 'Stop original publication', exact: true })
+              .click();
+            await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+            await expect(form.locator('#name')).toHaveValue(expectedName);
+            await expect(form.locator('#description')).toHaveValue('My unsaved description');
+            await form.locator('#published').uncheck();
+            await form.getByRole('button', { name: 'Save', exact: true }).click();
+            await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
+            const product = await adapter.get('products', original._id);
+            assert.equal(product?.name, expectedName);
+            assert.equal(product?.published, false);
+            assert.equal(counts.get('product-operation-start'), 2);
+            assert.equal(counts.get('product-operation-stop'), 1);
+            return;
+          }
+          if (scenario === 'publish-public-read' || scenario === 'publish-late-private-read') {
+            await expect(
+              form.getByRole('button', { name: 'Check publication', exact: true }),
+            ).toBeEnabled({ timeout: 20000 });
+            assert.equal((await adapter.get('products', original._id))?.published, true);
+            await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+            if (scenario === 'publish-late-private-read') {
+              const renewed = await signSession(config.jwtSecret, {
+                sub: 'admin',
+                email: 'admin@example.test',
+                name: 'Admin renewed',
+                role: 'admin',
+              });
+              await page.evaluate(
+                async ({ renewed, modulePath }) => {
+                  const harness: typeof import('./testing/editor-recovery-browser-harness.tsx') =
+                    await import(modulePath);
+                  harness.setEditorSession(renewed, 'admin');
+                },
+                {
+                  renewed,
+                  modulePath: '/src/islands/admin/testing/editor-recovery-browser-harness.tsx',
+                },
+              );
+              await form
+                .getByRole('button', { name: 'Reconnect original account', exact: true })
+                .click();
+              await expect(
+                form.getByRole('button', { name: 'Check publication', exact: true }),
+              ).toBeEnabled();
+              await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+            }
+            await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+            await expect(form).toBeVisible();
+            await expect(page.getByText('Editor closed', { exact: true })).toHaveCount(0);
+            publicBlocked = false;
+            await form.getByRole('button', { name: 'Check publication', exact: true }).click();
+            await expect(
+              form.getByRole('button', { name: 'Open current product', exact: true }),
+            ).toBeVisible();
+            await expect(form.locator('#description')).toHaveValue('My unsaved description');
+            await expect(
+              form.getByRole('button', { name: 'Open current product', exact: true }),
+            ).toBeDisabled();
+            const download = page.waitForEvent('download');
+            await form.getByRole('button', { name: 'Download current edits', exact: true }).click();
+            const savedDownload = await download;
+            const path = await savedDownload.path();
+            assert.ok(path);
+            assert.equal(
+              JSON.parse(await readFile(path, 'utf8')).description,
+              'My unsaved description',
+            );
+            await form.getByRole('button', { name: 'Open current product', exact: true }).click();
+            await expect(form.locator('#name')).toHaveValue(expectedName);
+            await expect(form.locator('#published')).toBeChecked();
+            await expect(
+              form.getByRole('button', { name: 'Open current product', exact: true }),
+            ).toHaveCount(0);
+            if (scenario === 'publish-late-private-read') assert.equal(latePrivateDropped, true);
+          } else if (scenario === 'publish-review-required') {
+            await expect(
+              form.getByText(/Review the supplier change for Description/),
+            ).toBeVisible();
+            await expect(
+              form.getByRole('button', { name: 'Stop original publication', exact: true }),
+            ).toBeEnabled();
+            assert.equal((await adapter.get('products', original._id))?.published, false);
+            await form
+              .getByRole('button', { name: 'Stop original publication', exact: true })
+              .click();
+            const download = page.waitForEvent('download');
+            await form.getByRole('button', { name: 'Download current edits', exact: true }).click();
+            await download;
+            await form.getByRole('button', { name: 'Open current product', exact: true }).click();
+            await expect(form.locator('#name')).toHaveValue(expectedName);
+            await form.getByRole('button', { name: 'Keep website version', exact: true }).click();
+            await form.locator('#published').check();
+            await form.getByRole('button', { name: 'Save', exact: true }).click();
+            await expect(page.getByText('Product published', { exact: true })).toBeVisible({
+              timeout: 20000,
+            });
+          } else {
+            await expect(page.getByText('Product published', { exact: true })).toBeVisible({
+              timeout: 20000,
+            });
+          }
+          const product = await adapter.get('products', original._id);
+          assert.ok(product);
+          assert.equal(product.name, expectedName);
+          assert.equal(product.description, 'My unsaved description');
+          assert.equal(product.published, true);
+          assert.equal(product.productFamily, 'misc');
+          const receipt = z
+            .object({ operationId: z.string().uuid() })
+            .parse(product.catalogDetailApprovalReceipt);
+          const after = JSON.parse(await readFile(file, 'utf8'));
+          const roots = after[APPROVAL_JOBS].filter(
+            (root: { operationId: string }) => root.operationId === receipt.operationId,
+          );
+          assert.equal(roots.length, 1);
+          assert.equal(roots[0].state, 'complete');
+          assert.equal(roots[0].operation.intent, 'publish');
+          assert.equal(roots[0].operation.values.name, expectedName);
+          assert.equal(roots[0].operation.values.published, undefined);
+          assert.equal(
+            counts.get('product-operation-start'),
+            scenario === 'publish-review-required' ? 2 : 1,
+          );
+          assert.ok((counts.get('product-operation-continue') ?? 0) > 0);
+          const result = await handlePublicApiEvent(
+            { httpMethod: 'GET', path: `/api/products/${original._id}/detail` },
+            { enableCatalogDetail: true },
+          );
+          assert.equal(result.statusCode, 200, result.body);
+          const detail = decodeCatalogDetailView(JSON.parse(result.body).data);
+          assert.ok(detail.ok);
+          assert.equal(detail.value.name, expectedName);
+          if (scenario === 'publish-lost-completion') assert.equal(saveReplyDropped, true);
+        } catch (error) {
+          console.log(
+            'Owned publication diagnostic',
+            scenario,
+            JSON.stringify({
+              requests: [...counts],
+              form: await form.innerText().catch(() => 'closed'),
+            }),
+          );
+          throw error;
+        } finally {
+          publicBlocked = false;
+          assert.equal(counts.get('update') ?? 0, 0);
+          for (const action of ['prepare', 'begin', 'page', 'finish'])
+            assert.equal(counts.get(action) ?? 0, 0);
+          const roots = JSON.parse(await readFile(file, 'utf8'))[APPROVAL_JOBS] ?? [];
+          for (const root of roots)
+            if (
+              root.operation?.protocolVersion === 2 &&
+              root.state !== 'complete' &&
+              !root.operation.cancelledAt
+            ) {
+              const cancelled = await invoke(
+                JSON.stringify({
+                  action: 'catalogDetailApproval',
+                  token,
+                  data: {
+                    action: 'product-operation-cancel',
+                    productId: original._id,
+                    operationId: root.operationId,
+                    inputDigest: root.operation.inputDigest,
+                  },
+                }),
+              );
+              assert.equal(cancelled.statusCode, 200, cancelled.body);
+            }
+          const current = await adapter.get('products', original._id);
+          if (current?.published) {
+            const withdrawn = await invoke(
+              JSON.stringify({
+                action: 'update',
+                token,
+                data: {
+                  collection: 'products',
+                  id: original._id,
+                  values: { published: false },
+                  expectedUpdatedAt: current.updatedAt,
+                },
+              }),
+            );
+            assert.equal(withdrawn.statusCode, 200, withdrawn.body);
+            assert.equal(JSON.parse(withdrawn.body).ok, true, withdrawn.body);
+          }
+          const withdrawnPublic = await handlePublicApiEvent(
+            { httpMethod: 'GET', path: `/api/products/${original._id}/detail` },
+            { enableCatalogDetail: true },
+          );
+          assert.equal(withdrawnPublic.statusCode, 404, withdrawnPublic.body);
+          const reference = await adapter.readCatalogImageReference({
+            action: 'read',
+            imageId: 'editor-publication-photo',
+          });
+          assert.ok(reference.state === 'counted' && reference.effectiveCount === 0);
+          assert.deepEqual(errors, []);
+        }
+        return;
+      }
       if (scenario === 'session-reconnect') {
         const changeSession = async (sessionToken: string, actorId: string) =>
           page.evaluate(

@@ -10,7 +10,7 @@ export function ProductPublicationRecovery(props: {
   checkpoint: PublicationCheckpoint;
   disabled?: boolean;
   onBusy: (busy: boolean) => void;
-  onResolved: (product: CollectionDoc, message: string) => void;
+  onResolved: (product: CollectionDoc, message: string, stoppedBeforeSave: boolean) => void;
 }) {
   const [checkpoint, setCheckpoint] = useState(props.checkpoint);
   const [busy, setBusy] = useState(false);
@@ -40,7 +40,12 @@ export function ProductPublicationRecovery(props: {
             : result.item.state === 'cancelled'
               ? 'The original publication is stopped. Review the saved product before editing.'
               : 'The original publication is historical. Review the current product before editing.';
-        props.onResolved(result.product, text);
+        props.onResolved(
+          result.product,
+          text,
+          result.stoppedBeforeStart ||
+            (result.item.state === 'cancelled' && result.item.check?.status?.state === 'reserved'),
+        );
       } else
         setMessage(
           result.item.error?.message ??

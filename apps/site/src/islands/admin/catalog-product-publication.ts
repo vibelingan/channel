@@ -1,4 +1,4 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, isProductFamily } from '@vibelingan-channel/shared';
 import { AdminApiError, fetchCatalogDetailCapabilities, getRecord } from './api.ts';
 import { CreatedProductChangedError } from './catalog-product-create-api.ts';
 import {
@@ -15,19 +15,22 @@ export class ProductPublicationError extends AdminApiError {
     readonly checkpoint: PublicationCheckpoint | undefined,
     readonly item: PublicationBatchItem | undefined,
     cause?: unknown,
+    readonly draftSaved = true,
   ) {
     const error = item?.error ?? item?.run?.error;
+    const prefix = draftSaved ? 'Product saved. ' : 'Your form edits have been kept. ';
     const message =
       item?.state === 'confirmed'
         ? 'Publication was confirmed on the website. Review or reload the current product before continuing.'
         : item?.state === 'needs-action'
-          ? `Product saved. Publishing needs attention: ${error?.message ?? 'Check its original task.'}`
+          ? `${prefix}Publishing needs attention: ${error?.message ?? 'Check its original task.'}`
           : !item || item.state === 'not-started'
-            ? `Product saved. Publication did not start. ${cause instanceof AdminApiError ? cause.message : 'Review the same account before continuing.'}`
-            : 'Product saved. Publication is not confirmed. Check or continue its original task.';
+            ? `${prefix}Publication did not start. ${cause instanceof AdminApiError ? cause.message : 'Review the same account before continuing.'}`
+            : `${prefix}Publication is not confirmed. Check or continue its original task.`;
     super(
       error?.code ?? (cause instanceof AdminApiError ? cause.code : 'OPERATION_UNCONFIRMED'),
       message,
+      item?.run?.error?.issues,
     );
     this.cause = cause;
   }
@@ -59,9 +62,48 @@ async function currentPublishedProduct(
 }
 
 /** Publishing a saved draft uses the same owned protocol as classification publication. */
-export async function publishSavedProduct(
+export function publishSavedProduct(
   product: CollectionDoc,
   guard: () => void = () => {},
+): Promise<CollectionDoc> {
+  return publishDraft({ ...product }, {}, guard, true);
+}
+
+/** One frozen edit and publication share the same owned task. */
+export async function publishProductFromEditor(
+  product: CollectionDoc,
+  input: Record<string, unknown>,
+  guard: () => void = () => {},
+): Promise<CollectionDoc> {
+  if (input.published !== true || input.archived === true)
+    throw new AdminApiError('BAD_REQUEST', 'Use Publish only for an active draft.');
+  const { published: _published, archived: _archived, ...values } = input;
+  const family = Object.hasOwn(values, 'productFamily')
+    ? values.productFamily
+    : product.productFamily;
+  if (!isProductFamily(family))
+    throw new AdminApiError('INVALID_PRODUCT', 'Choose a website category before publishing.', [
+      {
+        code: 'MISSING_CATEGORY',
+        stage: 'classification',
+        path: 'productFamily',
+        severity: 'error',
+        remedy: 'classify',
+      },
+    ]);
+  return publishDraft({ ...product }, values, guard, false);
+}
+
+function savedInput(item: PublicationBatchItem | undefined, alreadySaved: boolean) {
+  const status = item?.run?.status ?? item?.check?.status;
+  return alreadySaved || (status !== undefined && status.state !== 'reserved');
+}
+
+async function publishDraft(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+  guard: () => void,
+  alreadySaved: boolean,
 ): Promise<CollectionDoc> {
   guard();
   if (product.published === true || product.archived === true)
@@ -73,6 +115,11 @@ export async function publishSavedProduct(
     const revision = product.updatedAt ?? null;
     if (revision !== null && typeof revision !== 'string')
       throw new AdminApiError('INVALID_RESPONSE', 'Reload the product before publishing.');
+    const attempt = createPublicationAttempt({
+      productId: product._id,
+      expectedUpdatedAt: revision,
+      values,
+    });
     const publisher = createPublicationBatch();
     batch = publisher;
     const assertCurrent = () => {
@@ -84,16 +131,15 @@ export async function publishSavedProduct(
     if (!capabilities.enabled)
       throw new AdminApiError(
         'FORBIDDEN',
-        'Publishing is unavailable. The product is saved; open it to continue editing.',
+        alreadySaved
+          ? 'Publishing is unavailable. The product is saved; open it to continue editing.'
+          : 'Publishing is unavailable. Your current form edits have been kept.',
       );
-    const attempt = createPublicationAttempt({
-      productId: product._id,
-      expectedUpdatedAt: revision,
-      values: {},
-    });
     checkpoint = {
       scope: { productId: attempt.productId, operationId: attempt.operationId },
-      originalStart: { expectedUpdatedAt: revision },
+      ...(Object.keys(attempt.values).length === 0
+        ? { originalStart: { expectedUpdatedAt: revision } }
+        : {}),
     };
     const result = await publisher.run([attempt]);
     item = result.items[0];
@@ -117,17 +163,32 @@ export async function publishSavedProduct(
         checkpoint ? publisher.owner : undefined,
         checkpoint,
         item,
+        undefined,
+        savedInput(item, alreadySaved),
       );
     return await currentPublishedProduct(item, assertCurrent);
   } catch (error) {
     if (error instanceof ProductPublicationError) throw error;
+    let cause = error;
+    // The batch clears confirmed tasks before the editor reads their exact saved version.
+    if (batch && checkpoint && item) {
+      try {
+        batch.journal.retain({ ...checkpoint, scope: item.scope });
+      } catch (storageError) {
+        cause = new AggregateError(
+          [error, storageError],
+          'Keep this form open to recover its original publication.',
+        );
+      }
+    }
     // run rejects before admitting work; worker failures return an item and retain their pointer.
     throw new ProductPublicationError(
       product,
       item && checkpoint ? batch?.owner : undefined,
       item ? checkpoint : undefined,
       item,
-      error,
+      cause,
+      savedInput(item, alreadySaved),
     );
   }
 }
@@ -169,7 +230,25 @@ export async function recoverProductPublication(
       stoppedBeforeStart: item.stoppedBeforeStart === true,
     };
   } catch (error) {
-    throw new ProductPublicationError(product, owner, checkpoint, item, error);
+    let cause = error;
+    if (item) {
+      try {
+        batch.journal.retain({ ...checkpoint, scope: item.scope });
+      } catch (storageError) {
+        cause = new AggregateError(
+          [error, storageError],
+          'Keep this form open to recover its original publication.',
+        );
+      }
+    }
+    throw new ProductPublicationError(
+      product,
+      owner,
+      checkpoint,
+      item,
+      cause,
+      savedInput(item, checkpoint.originalStart !== undefined),
+    );
   }
 }
 

@@ -3,10 +3,14 @@ import { type ComponentProps, useEffect, useRef, useState } from 'react';
 import { onAuthChange } from '../../lib/session.ts';
 import { ProductPublicationRecovery } from './ProductPublicationRecovery.tsx';
 import { RecordForm } from './RecordForm.tsx';
-import { getRecord } from './api.ts';
+import { AdminApiError, getRecord } from './api.ts';
 import { type DraftSaveResult, createDraftSaveController } from './catalog-draft-save.ts';
 import type { PublicationScope } from './catalog-product-operation-api.ts';
-import { pendingProductPublications } from './catalog-product-publication.ts';
+import {
+  ProductPublicationError,
+  pendingProductPublications,
+  publishProductFromEditor,
+} from './catalog-product-publication.ts';
 
 type Props = ComponentProps<typeof RecordForm> & {
   initial: CollectionDoc;
@@ -36,7 +40,10 @@ export function ProductEditForm(props: Props) {
       return [];
     }
   });
-  const [publication, setPublication] = useState(() => {
+  const [publication, setPublication] = useState<{
+    value: ReturnType<typeof pendingProductPublications> | null;
+    error: Error | null;
+  }>(() => {
     try {
       return { value: pendingProductPublications(props.initial._id), error: null };
     } catch (error) {
@@ -51,12 +58,15 @@ export function ProductEditForm(props: Props) {
     }
   });
   const [publicationResolved, setPublicationResolved] = useState(false);
+  const [publicationNotice, setPublicationNotice] = useState('');
   const [sessionBlocked, setSessionBlocked] = useState(false);
   const [error, setError] = useState<Error | null>(control.error);
   const [result, setResult] = useState<DraftSaveResult>();
   const [busy, setBusy] = useState(false);
   const [downloaded, setDownloaded] = useState<string>();
   const running = useRef(false);
+  // An inherited task opens read-only; closing it cannot lose a new submission.
+  const publicationFromThisForm = useRef(false);
   const mounted = useRef(false);
   useEffect(() => {
     mounted.current = true;
@@ -157,6 +167,91 @@ export function ProductEditForm(props: Props) {
       if (mounted.current) setBusy(false);
     }
   }
+  async function publish(values: Record<string, unknown>) {
+    const controller = control.controller;
+    if (!controller || running.current || props.submitting) return;
+    running.current = true;
+    publicationFromThisForm.current = true;
+    setBusy(true);
+    setError(null);
+    setPublicationNotice('');
+    let failedRecovery: ReturnType<typeof pendingProductPublications> | undefined;
+    try {
+      const product = await publishProductFromEditor(props.initial, values, () => {
+        const snapshot = controller.pending();
+        if (snapshot.entries.length || snapshot.problems.length)
+          throw new AdminApiError(
+            'SAVE_PENDING',
+            'Resolve the original draft saves before publishing these edits.',
+          );
+      });
+      if (mounted.current) props.onSaved(product);
+    } catch (cause) {
+      if (!mounted.current) return;
+      setError(message(cause));
+      if (cause instanceof ProductPublicationError && cause.owner && cause.checkpoint) {
+        failedRecovery = { owner: cause.owner, entries: [cause.checkpoint] };
+        setPublication({ value: failedRecovery, error: null });
+      }
+    } finally {
+      running.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        try {
+          controller.pending();
+          const found = pendingProductPublications(props.initial._id);
+          if (
+            failedRecovery &&
+            found.owner.actorId === failedRecovery.owner.actorId &&
+            found.owner.endpoint === failedRecovery.owner.endpoint
+          )
+            for (const entry of failedRecovery.entries)
+              if (
+                !found.entries.some(
+                  (current) => current.scope.operationId === entry.scope.operationId,
+                )
+              )
+                found.entries.push(entry);
+          setPublication({ value: found, error: null });
+        } catch (cause) {
+          setPublication((previous) => ({ ...previous, error: message(cause) }));
+          setSessionBlocked(true);
+        }
+      }
+    }
+  }
+  async function openPublishedProduct(
+    readDraft: () => Readonly<Record<string, string | boolean>>,
+    cleanupCandidates: () => Promise<void>,
+  ) {
+    const controller = control.controller;
+    if (!controller || running.current || downloaded !== JSON.stringify(readDraft())) return;
+    running.current = true;
+    setBusy(true);
+    try {
+      await controller.verifySession();
+      const drafts = controller.pending();
+      if (
+        drafts.entries.length ||
+        drafts.problems.length ||
+        pendingProductPublications(props.initial._id).entries.length
+      )
+        throw Error('Check or stop the remaining original tasks before reopening this product.');
+      const product = await getRecord('products', props.initial._id, AbortSignal.timeout(8000));
+      if (product._id !== props.initial._id)
+        throw Error('The saved product could not be confirmed.');
+      await cleanupCandidates();
+      controller.pending();
+      if (downloaded !== JSON.stringify(readDraft()))
+        throw Error('Download your latest form edits before reopening this product.');
+      if (mounted.current) props.onSaved(product, true);
+    } catch (cause) {
+      if (mounted.current) setError(message(cause));
+    } finally {
+      running.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
   async function finishRecovery(
     openEditor: boolean,
     readDraft: () => Readonly<Record<string, string | boolean>>,
@@ -244,9 +339,24 @@ export function ProductEditForm(props: Props) {
       submitting={busy || props.submitting}
       error={error ?? props.error}
       readOnlyReason={blocked}
-      closeBlockedReason={pending.length ? stopBeforeClose : undefined}
+      closeBlockedReason={
+        pending.length
+          ? stopBeforeClose
+          : publicationPending && publicationFromThisForm.current
+            ? 'Check or stop the original publication before closing. Download your current edits if you need to keep them.'
+            : undefined
+      }
       onSubmit={(values) => {
         if (blocked || running.current) return;
+        if (
+          draft &&
+          values.published === true &&
+          values.archived !== true &&
+          props.nativeSaveAvailable
+        ) {
+          void publish(values);
+          return;
+        }
         if (
           draft &&
           values.published !== true &&
@@ -259,7 +369,7 @@ export function ProductEditForm(props: Props) {
         } else props.onSubmit(values);
       }}
       recovery={(readDraft, cleanupCandidates) =>
-        pending.length || result || blocked || error ? (
+        pending.length || result || blocked || error || publicationNotice ? (
           <section
             aria-label="Original draft save recovery"
             className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
@@ -273,8 +383,11 @@ export function ProductEditForm(props: Props) {
                     ? 'The original save is historical. Download your edits before opening the current product.'
                     : result?.state === 'cancelled'
                       ? 'The original save is stopped. Saved product changes have been kept.'
-                      : 'Keep this form open while checking the original save. Checking does not change the product.'}
+                      : publicationPending || publicationResolved || publicationNotice
+                        ? 'Your form edits have been kept while checking the original publication.'
+                        : 'Keep this form open while checking the original save. Checking does not change the product.'}
             </output>
+            {publicationNotice && <p className="mt-2">{publicationNotice}</p>}
             {pending.map((scope, index) => (
               <div key={scope.operationId} className="mt-2 flex flex-wrap gap-2">
                 {(['check', 'resume', 'stop'] as const).map((mode) => (
@@ -331,6 +444,18 @@ export function ProductEditForm(props: Props) {
                     </button>
                   )}
                 </>
+              )}
+              {publicationResolved && (
+                <button
+                  type="button"
+                  disabled={busy || sessionBlocked || downloaded !== JSON.stringify(readDraft())}
+                  className="min-h-11 rounded-lg border border-amber-400 px-3 disabled:opacity-50"
+                  onClick={() => {
+                    void openPublishedProduct(readDraft, cleanupCandidates);
+                  }}
+                >
+                  Open current product
+                </button>
               )}
               {sessionBlocked && originalOwner.current && (
                 <button
@@ -389,15 +514,29 @@ export function ProductEditForm(props: Props) {
                     running.current = value;
                     setBusy(value);
                   }}
-                  onResolved={() => {
-                    setPublicationResolved(true);
+                  onResolved={(product, _notice, stoppedBeforeSave) => {
                     setPublication({
                       value: pendingProductPublications(props.initial._id),
                       error: null,
                     });
+                    if (
+                      stoppedBeforeSave &&
+                      product._id === props.initial._id &&
+                      product.updatedAt === props.initial.updatedAt &&
+                      product.published !== true &&
+                      product.archived !== true
+                    ) {
+                      setPublicationResolved(false);
+                      setPublicationNotice(
+                        'The original publication is stopped. Your form edits are still here.',
+                      );
+                      setError(null);
+                      return;
+                    }
+                    setPublicationResolved(true);
                     setError(
                       Error(
-                        'Publication checked. Close this form and reopen the current product before editing.',
+                        'Publication checked. Download your current edits, then open the current product before editing.',
                       ),
                     );
                   }}

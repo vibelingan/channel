@@ -1557,3 +1557,18 @@ review实读五源码/测试：draft控制器及测试、adapter保存计划、R
 无新 SDK/集合/环境变量，无部署或真实商品变更。full-form Publish、live edit、全局登录过期与 P5/P6/P7 仍开放；原 JSON80 的原始 begin 失败只有断言摘录，定向回查本 chat rollout 仍未取得返回码，不猜归因。fullDeliveryReady=false。
 
 P4c6 精确提交审查（3f6ba081）有 1 个 P2，未直接清 review marker：初次本地身份读取失败、originalOwner 未捕获，后来登录事件会显示一个直接返回的 Reconnect 按钮。实际浏览器 red 复现后，只有已捕获的原身份可重连；其他情况给出下载/关闭/登录后重开，无商品写入，也不把后来的账号猜作原账号。修正后 Node20 45/45、0 跳过、类型、三文件 Biome、隔离 15 页构建通过；原显式图库 11 项未变。详见 draft-editor-owner-*。后续精确 SHA 复审关闭该发现，既有全部交付门槛继续开放。
+
+
+## P4c7：完整草稿表单发布与原任务恢复（2026-10-20）
+
+详见 [P4c7](P4c7_EDITOR_PUBLICATION.zh-CN.md)。管理员完整草稿 Publish 接单个 native Root，首次 await 前冻结输入，未确认时保留表单；不先通用 update 再另发发布。缺分类不补分类，供应商待选决策不放行。创建后的空 patch 仍保留旧两参数调用和已保存含义。
+
+实际红测发现：batch 已确认公开发布并清指针，后续私有 Get 失败时，重新登录会丢失恢复入口。现在重新保留同一原任务指针；真实默认 client/Admin/JSON、匿名详情及浏览器重新登录均复验。完整回归另抓到继承分类任务的只读编辑窗口无法关闭，修复为只保护本表单提交；原两屏宽断言通过。每个完成的自建商品按本次回执下架、匿名详情 404、有效图片引用归零。
+
+实际审查 ProductEditForm、ProductPublicationRecovery、RecordForm、CollectionView、publication client/batch/run/journal/check、创建与表格消费者、共享 issues 及核心/浏览器宿主测试。核对角色、身份和 endpoint、版本/摘要、错误透传、私有输入冻结、同任务恢复、候选图清理和原分类/价格/旧字段兼容。文案把尚未保存时的“Product saved”改为“Your form edits have been kept”；供应商描述未决选择从泛化字段无效改为明确的决策提示，错误 payload 不回显来源正文。
+
+验证：editor-publication-node20-final-r2 34/34；editor-publication-combination-r1 66/66；site-full-r2 1303 通过 / 0 失败 / 1 静态开关跳过，gallery-explicit-r1 11/11；shared-full-r1 355/355；site 测试类型和 Astro 235 文件检查无错误；9 文件 Biome、diff check 通过。classification-formal-editor-publication-c7：15 页实际构建、12/12 后台流程，20 件分类保留/表格发布及恢复、临时 DB/runner 清理通过。
+
+首轮 site-full-r1 1300 通过 / 3 失败 / 1 跳过不计成功。两处关闭失败已修复；WebKit 一次 access-control pageerror 的精确原因仍未知，定向及第二轮完整运行未再出现。新增同源断言和失败请求诊断，保留原失败与既有 JSON80 调查项，最终发版审计不能跳过。Node20 final-r1 因命令中的测试文件名写错未执行，已更正后完整跑 r2，不混入通过计数。
+
+未新增 SDK 方法/集合/环境/配置，未部署或修改真实商品。live-edit、全局会话、历史审计、P6 全组合制品和 P7 真实 test/COS/P95 仍开放，fullDeliveryReady=false。

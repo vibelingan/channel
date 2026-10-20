@@ -180,6 +180,13 @@ for (const engine of ['chromium', 'webkit'] as const)
       const page = await context.newPage();
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
+      const networkFailures: { path: string; failure: string | undefined }[] = [];
+      page.on('requestfailed', (request) => {
+        networkFailures.push({
+          path: new URL(request.url()).pathname,
+          failure: request.failure()?.errorText,
+        });
+      });
       const actions: { action: string; data: Record<string, unknown> }[] = [];
       const failures: { productId: unknown; action: unknown; error: unknown }[] = [];
       const starts = new Map<string, string>();
@@ -205,6 +212,7 @@ for (const engine of ['chromium', 'webkit'] as const)
         { token },
       );
       await page.route('**/api/admin', async (route) => {
+        assert.equal(new URL(route.request().url()).origin, new URL(origin).origin);
         const input = route.request().postDataJSON();
         const data = input.data ?? {};
         actions.push({ action: input.action, data });
@@ -896,7 +904,7 @@ for (const engine of ['chromium', 'webkit'] as const)
             }
           },
         );
-        assert.deepEqual(errors, []);
+        assert.deepEqual(errors, [], JSON.stringify({ errors, networkFailures }));
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
           true,

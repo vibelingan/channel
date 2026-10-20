@@ -68,7 +68,8 @@ function Editor({ doc }: { doc: CollectionDoc }) {
   const [closed, setClosed] = useState(false);
   const collection = getCollection('products');
   if (!collection) throw Error('Missing real product registry');
-  if (saved) return <output>Draft saved</output>;
+  if (saved)
+    return <output>{current.published === true ? 'Product published' : 'Draft saved'}</output>;
   if (closed) return <output>Editor closed</output>;
   return (
     <ProductEditForm
@@ -80,8 +81,8 @@ function Editor({ doc }: { doc: CollectionDoc }) {
       nativeSaveAvailable={true}
       onRetryAvailability={() => {}}
       onSaved={(product, openEditor) => {
-        if (openEditor) setCurrent(product);
-        else setSaved(true);
+        setCurrent(product);
+        if (!openEditor) setSaved(true);
       }}
       submitting={busy}
       error={error}
@@ -90,7 +91,10 @@ function Editor({ doc }: { doc: CollectionDoc }) {
         setBusy(true);
         setError(null);
         void updateProductFromEditor(current, values)
-          .then(() => setSaved(true))
+          .then((product) => {
+            setCurrent(product);
+            setSaved(true);
+          })
           .catch((cause: unknown) =>
             setError(cause instanceof Error ? cause : Error('Save failed')),
           )

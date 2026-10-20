@@ -10,6 +10,30 @@ import {
   catalogValidationMessage,
 } from './issues.ts';
 
+test('supplier decisions identify the unresolved choice without mislabelling valid text or photos', () => {
+  for (const [path, label] of [
+    ['description', 'Description'],
+    ['imageIds', 'Photos'],
+    ['descriptionImageIds', 'Description photos'],
+  ] as const) {
+    const issue = {
+      code: 'INVALID_VALUE',
+      stage: 'source',
+      path,
+      severity: 'error',
+      remedy: 'review-change',
+    };
+    assert.equal(
+      catalogIssueMessage(issue),
+      `Review the supplier change for ${label}. Choose Keep website version or Use Alibaba's before publishing.`,
+    );
+    assert.equal(
+      catalogIssueMessage({ ...issue, remedy: 'edit' }),
+      `${label} contains an invalid value.`,
+    );
+  }
+});
+
 test('field limits report counts and lengths without returning the rejected values', () => {
   const value = { facts: [{ name: 'PRIVATE_ATTRIBUTE', value: '秘密'.repeat(1001) }] };
   const before = structuredClone(value);
