@@ -189,6 +189,11 @@ async function resumeSyncWorkflowPage(
       return { outcome: 'invalid-preparation', runId: run._id };
     }
     const state = parsed.data;
+    // Do not let a permanently busy or inconsistent product occupy the queue indefinitely.
+    if (Date.parse(deps.runner.now()) - Date.parse(state.retryBefore) >= 2 * 60 * 60_000) {
+      state.phase = 'attention';
+      state.retryAt = null;
+    }
     if (state.phase === 'waiting') {
       if (state.retryAt && Date.parse(state.retryAt) > Date.parse(deps.runner.now()))
         return { outcome: 'waiting', runId: run._id };

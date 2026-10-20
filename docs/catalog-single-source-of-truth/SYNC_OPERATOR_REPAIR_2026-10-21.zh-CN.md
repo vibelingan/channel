@@ -29,7 +29,7 @@
 
 | 检查 | 结果与范围 |
 | --- | --- |
-| 同步函数测试 | 330/330通过，0跳过；实际JSON适配器验证租约、重复调用、阶段/游标恢复、关闭页面后接续、失效租约、损坏状态和管理员权限 |
+| 同步函数测试 | 332/332通过，0跳过；实际JSON适配器验证租约、重复调用、阶段/游标恢复、关闭页面后接续、失效租约、损坏状态和管理员权限 |
 | 新页面完整串联 | 实际页面与签名Admin处理器、来源runner、raw存储、图片导入串联；模拟丢掉唯一start回复并在来源工作前关页，后台导入2件，再打开显示完成；0页面错误，原手工商品未变，无分类/发布写入 |
 | 页面定向复查 | 11/11通过；包含最新提示恢复与正常页没有诊断按钮 |
 | 发布脚本检查 | 111/111通过；保留admin/public的无定时器约束，sync精确一个每分钟接续触发器 |
@@ -52,3 +52,5 @@
 平台合同核对：官方文档 https://docs.cloudbase.net/cloud-function/function-configuration/env 、https://docs.cloudbase.net/cloud-function/timer-trigger ，以及已安装node-sdk3.17.2的utils/wxCloudToken.js。没有新增SDK方法或手写类型声明。Context7不可用。两处skill根目录均未找到react-best-practices，采用实际组件和项目Frontend Islands规则。
 
 人工复核文件：sync-workflow.ts、sync-preparation.ts、timer-event.ts、runner.ts、draft-materialization.ts、handler.ts、index.ts、alibaba-api.ts、三个同步页面组件、DashboardShell、共享DTO、manifest及相关测试。措辞修正：页面删除易误导的“new drafts / photos copied”中间步骤计数，仅显示已处理商品和可理解的阶段；丢回复后由“Failed to fetch”改为说明自动核对已保存进度。核对依据为原部署配置、真实run/checkpoint、公开全记录、测试日志和实际客户端/处理器联测。
+
+最后一轮审查增加两项可复现边界：已归档/发布/批准的商品如果残留照片pending标记，不应阻塞整个同步；照片队列超过两小时仍无法结束时，应保留游标并转为需要处理，释放队列。两个新增测试均先失败再通过。当前线上1121件中没有此类隐藏且不可处理的商品；这是并发操作/损坏状态防护，不改其商品数据。未放宽现有发布测试的等待时间、批量90秒门槛或图片校验期限。

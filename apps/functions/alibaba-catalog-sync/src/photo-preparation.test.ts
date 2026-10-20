@@ -1274,3 +1274,25 @@ test('prepare: a failure already recorded by the real importer is not counted a 
   assert.equal(store.catalogSourceLinks?.[0]?.failureAttempts, 1);
   assert.equal(store.products?.[0]?.alibabaPhotosPending, true);
 });
+
+test('status ignores hidden products that an operator already archived, published, or approved', async () => {
+  const store: Store = {
+    products: [
+      draft('archived', { archived: true, alibabaPhotosPending: true }),
+      draft('published', { published: true, alibabaPhotosPending: true }),
+      draft('approved', {
+        catalogDetailApprovalReceipt: { kind: 'existing' },
+        alibabaPhotosPending: true,
+      }),
+      draft('manual', { alibabaPrimarySourceKey: '', alibabaPhotosPending: true }),
+    ],
+  };
+  setAdapter(new MemoryAdapter(store));
+  const before = structuredClone(store);
+  assert.deepEqual(await photoPreparationStatus(), {
+    hiddenDrafts: 0,
+    draftsToFill: 0,
+    draftsMissingPhotos: 0,
+  });
+  assert.deepEqual(store, before);
+});

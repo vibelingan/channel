@@ -456,3 +456,25 @@ test('one click heals a terminal checkpoint then enqueues a new run without supp
   assert.equal(h.providerCalls(), 0);
   assert.ok(['syncing', 'queued'].includes(started.phase));
 });
+
+test('an overdue preparation stops with its cursor retained instead of waiting forever', async (t) => {
+  const h = await fixture(t, true);
+  const state = initialSyncPreparation(at);
+  state.phase = 'waiting';
+  state.cursor = 'saved-tail';
+  state.retryAt = '2026-10-21T00:10:00.000Z';
+  await h.adapter.update('alibabaSyncRuns', 'run', { preparation: state });
+  h.setNow('2026-10-21T02:00:00.000Z');
+  const result = await resumeSyncWorkflow({
+    enabled: true,
+    runner: h.runner,
+    photos: async () => {
+      throw Error('expired preparation must not execute work');
+    },
+  });
+  assert.equal(result.outcome, 'attention');
+  const saved = await h.adapter.get('alibabaSyncRuns', 'run');
+  assert.equal(saved?.preparationPending, false);
+  assert.equal(Reflect.get(saved?.preparation as object, 'cursor'), 'saved-tail');
+  assert.equal((await syncWorkflowStatus(true, h.runner.now())).phase, 'attention');
+});

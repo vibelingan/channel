@@ -648,8 +648,8 @@ export async function photoPreparationStatus(): Promise<{
         : {}),
     });
     for (const product of page.items) {
-      if (product.alibabaPhotosPending === true) hiddenDrafts += 1;
       if (!eligible(product)) continue;
+      if (product.alibabaPhotosPending === true) hiddenDrafts += 1;
       if ((photoPreparationPlan(product)?.parts.length ?? 0) > 0) draftsToFill += 1;
       else if (
         (readConfigurationMarker(product)?.unusableCount ??
