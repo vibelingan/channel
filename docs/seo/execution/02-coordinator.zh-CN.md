@@ -43,6 +43,8 @@ fence 在新租约时递增。Guard 的 acquiredVersion 固定在取得租约时
 
 首次正常发布前须有 baseline。`kind:'adopt'` 只接受一个只读 accept 步骤，用于把 C 已归档并实际读回的现状登记为 baseline；不允许 write 步骤，也不能再次 adopt 已有 baseline。空控制表不会被当成空线上站点。
 
+D1 增加 `kind:'initialize'`，仅用于已经证明未占用的 canary 前缀第一次创建静态 A。它可以记录写入并建立 canary 基线，不能用于 site，也不能覆盖已有 canary 基线。前缀清单与普通 404 的证明由 D1 在持锁后重新生成，不能把空控制表当作静态存储为空。见[人工入口](04-workflows.zh-CN.md)。
+
 adopt 的来源与读回证明仍须由 C/D 真实生成。本模块不会因为一份本地 fixture 就登记线上 baseline，也不提供跳过验收的入口。
 
 ### 每个外部调用之前记录意图

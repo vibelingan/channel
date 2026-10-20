@@ -167,6 +167,24 @@ export function planReleaseRecovery({ artifactInput, currentOwnedPaths, publicPr
   });
 }
 
+/** New canary candidates use source verification without inventing an accepted seal. */
+export function planReleaseCandidate({ artifactInput, currentOwnedPaths }) {
+  const { envelope, staticManifest } = verifyReleaseArtifact({
+    ...artifactInput,
+    mode: 'candidate',
+  });
+  if (envelope.scope.kind !== 'canary') throw new Error('Candidate entry is canary-only');
+  return makePlan({
+    entries: staticManifest.entries,
+    configurationSha256: staticManifest.configurationSha256,
+    directory: artifactInput.directory,
+    target: { envId: envelope.target.envId, site: envelope.target.siteOrigin },
+    scope: envelope.scope,
+    currentOwnedPaths,
+    publicProductPaths: [],
+  });
+}
+
 function makePlan({
   entries,
   configurationSha256,

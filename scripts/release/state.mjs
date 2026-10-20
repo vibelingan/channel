@@ -477,8 +477,11 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
       const request = jsonCopy(input);
       const key = id(request.runId);
       const operationTime = now();
-      if (!['adopt', 'publish', 'restore'].includes(request.kind)) fail('INVALID_RUN_KIND');
+      if (!['adopt', 'initialize', 'publish', 'restore'].includes(request.kind))
+        fail('INVALID_RUN_KIND');
       scopeId(request.scopeKey);
+      if (request.kind === 'initialize' && request.scopeKey !== 'canary')
+        fail('CANARY_INITIALIZATION_ONLY');
       if (
         !isHash(request.plan?.planSha256) ||
         !isHash(request.plan?.acceptanceHash) ||
@@ -511,9 +514,13 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
         }
         if (target.currentRunId || target.unresolvedOperation) fail('UNRESOLVED_OPERATION');
         if (target.dirtyRunId && request.kind !== 'restore') fail('RECOVERY_REQUIRED');
-        if (request.kind === 'adopt' && (scope.active !== null || target.dirtyRunId))
+        if (
+          ['adopt', 'initialize'].includes(request.kind) &&
+          (scope.active !== null || target.dirtyRunId)
+        )
           fail('BASELINE_ALREADY_EXISTS');
-        if (request.kind !== 'adopt' && !scope.baseline) fail('BASELINE_REQUIRED');
+        if (!['adopt', 'initialize'].includes(request.kind) && !scope.baseline)
+          fail('BASELINE_REQUIRED');
         if (
           sourceId &&
           (source?.accepted?.sourceRunId !== sourceId ||

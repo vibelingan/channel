@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "repository": "vibelingan/channel",
+  "envId": "diversity-123-d9grnqfux221323bb",
+  "siteOrigin": "https://supplychainsai.com",
+  "region": "ap-shanghai",
+  "canaryPrefix": "__release-canary/",
+  "workflowPath": ".github/workflows/seo-static-canary.yml",
+  "trustedRef": "refs/heads/feat/seo-foundation",
+  "controlPlaneReviewSha256": null
+}

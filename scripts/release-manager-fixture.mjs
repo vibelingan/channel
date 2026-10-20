@@ -3,7 +3,7 @@ import CloudBase from '@cloudbase/manager-node';
 import { configuration, target } from './release-hosting-fixtures.mjs';
 
 /** Run installed Manager SDK services; replace only Cloud API and COS transports. */
-export function managerFixture() {
+export function managerFixture({ request } = {}) {
   const state = {
     configuration: configuration(),
     files: new Map(),
@@ -23,12 +23,17 @@ export function managerFixture() {
     envId: target.envId,
     requestFn: async ({ action, payload }) => {
       state.calls.push({ action, payload: structuredClone(payload) });
+      if (request) {
+        const result = await request({ action, payload });
+        if (result !== undefined) return result;
+      }
       if (action === 'DescribeEnvInfo')
         return {
           EnvInfo: {
             EnvBaseInfo: {
               EnvId: state.envId,
               Storages: [],
+              Databases: [{ InstanceId: 'fixture-db' }],
               StaticStorages: [{ DomainType: 'gateway' }],
             },
           },

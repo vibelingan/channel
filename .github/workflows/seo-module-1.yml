@@ -11,6 +11,8 @@ on:
       - 'scripts/release-*.mjs'
       - 'scripts/recovery-kernel.test.mjs'
       - '.github/workflows/seo-module-1.yml'
+      - '.github/workflows/seo-static-canary.yml'
+      - 'scripts/run-static-canary.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
   workflow_dispatch:
