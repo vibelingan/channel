@@ -82,7 +82,7 @@
       "lane": "prepare",
       "col": 4,
       "type": "cloud",
-      "label": "核验旧成功版本",
+      "label": "核验备份与成功版本",
       "width": 160
     },
     {
@@ -252,7 +252,7 @@
       "to": "accept"
     },
     {
-      "from": "artifact",
+      "from": "baseline",
       "to": "expand",
       "label": "需要迁移时"
     },
@@ -348,5 +348,27 @@
         "数据库保留当前业务写入；兼容失败、状态未知或已有新发布时停止，恢复最多一次。先验收再登记成功；搜索通知不等于阻止自主抓取。"
       ]
     }
-  ]
+  ],
+  "semanticChecks": {
+    "requiredEdges": [
+      {
+        "from": "baseline",
+        "to": "expand"
+      },
+      {
+        "from": "expand",
+        "to": "backend"
+      }
+    ],
+    "requiredPaths": [
+      {
+        "from": "baseline",
+        "to": "static"
+      },
+      {
+        "from": "quality",
+        "to": "baseline"
+      }
+    ]
+  }
 }
