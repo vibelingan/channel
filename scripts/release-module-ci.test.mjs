@@ -41,12 +41,13 @@ function assertOffline(workflow) {
   assert.equal(checkout.with.ref, '${{ github.sha }}');
   assert.equal(checkout.with['persist-credentials'], false);
   const commands = workflow.jobs.offline.steps.filter((s) => s.run).map((s) => s.run);
-  assert.equal(commands.length, 3);
+  assert.equal(commands.length, 4);
   assert.equal(commands[0], 'pnpm install --frozen-lockfile --ignore-scripts');
   assert.equal(commands[1], 'pnpm lint');
+  assert.equal(commands[2], 'pnpm verify:cloudbase-sdk');
   assert.equal(
-    commands[2],
-    'set -o pipefail\nmkdir -p output/seo-module-1\npnpm test:deploy-smoke 2>&1 | tee output/seo-module-1/tests.log\n',
+    commands[3],
+    'set -o pipefail\nmkdir -p output/seo-module-1\npnpm test 2>&1 | tee output/seo-module-1/tests.log\n',
   );
 }
 

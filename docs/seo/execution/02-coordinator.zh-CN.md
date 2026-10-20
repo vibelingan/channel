@@ -1,59 +1,95 @@
 # 02 发布协调器
 
-状态 `planned`。B1 可在不修改 pricing 业务事务的情况下完成；B2 是整合阶段的公开内容合同，未接全写入方时不启用商品恢复。
+B1 状态：`implemented / SDK-contract verified`。纯状态转换、CloudBase 事务适配器和只读状态接口已实现；真实 CloudBase 控制集合的并发 fixture 尚未执行，生产写入仍未启用。B2 继续为 `planned`，没有修改 pricing、公开商品事务或现有部署入口。
 
-## 状态归属与数据形状
+本轮基线 `feat/seo-foundation@15bd65bb`，核对的最新 `origin/main@37bcea5b` 未变。验证明细见[本模块记录](module-02-verification.zh-CN.md)。
 
-拟新增 `scripts/release/state.mjs`、`store-cloudbase.mjs` 和根目录 `scripts/release-coordinator.test.mjs`。部署/恢复日志属于服务器控制面，不能从浏览器直接写，不占用 Alibaba 的 lease 文档。
+## 交付接口和存储边界
+
+`scripts/release/state.mjs` 提供 `createReleaseCoordinator`，`ledger.mjs` 负责控制记录的校验和固定集合映射，`store-cloudbase.mjs` 只适配已安装的 `@cloudbase/node-sdk` 事务。没有向 wx SDK 类型补方法，也没有把服务端 store 接到浏览器。
+
+四个拟启用的 server-only 集合是 `siteReleaseTargets`、`siteReleaseScopes`、`siteReleaseRuns`、`siteReleaseSteps`。本轮不创建线上集合或修改权限；C/D 接入时须先建立拒绝浏览器读写的规则并执行专用 fixture，不能依赖默认权限。这些记录与业务商品、Alibaba lease、询盘和用户数据分开。所有记录保留，不执行历史清理或业务数据库迁移。
 
 ```ts
 type TargetState = {
-  targetId: string; version: number; nextFence: number;
-  lease: null | { ownerRunId: string; fence: number; expiresAt: string };
+  schemaVersion: 1; targetId: string; target: Target; policyHash: string;
+  version: number; nextFence: number;
+  lease: null | { ownerRunId: string; runnerRef: string; fence: number;
+    acquiredVersion: number; expiresAt: number };
+  currentRunId: string | null; dirtyRunId: string | null;
   unresolvedOperation: null | { runId: string; stepId: string; operationId: string };
 };
-type ScopeState = {
-  targetId: string; scopeKey: 'site' | 'canary'; version: number;
-  active: null | { activationId: string; releaseId: string; compositionHash: string };
-  baseline: null | { activationId: string; compositionRef: string; sealHash: string };
-};
-type StepRecord = {
-  runId: string; stepId: string; operationId: string; fence: number;
-  component: string; expectedBeforeHash: string; expectedAfterHash: string;
-  state: 'intent' | 'submitted' | 'verified' | 'failed' | 'unknown';
-};
+type Guard = { targetId: string; ownerRunId: string; fence: number; acquiredVersion: number };
+// Scope 的 active、baseline 引用同一个已验收组合：
+// {activationId, sourceRunId, compositionHash}，site/canary 分开。
+// Run 记录 scope、kind、plan、实际交付的组件、组合、累计验证步骤、失败原因和 accepted seals。
 ```
 
-targetId 从固定 repository/envId/origin 规范化计算，是环境写入互斥身份，不包含 git ref 或 scope。site/canary 的 active/baseline 分开存储，取得的是同一 TargetState 的环境 lease，不能由不同分支或 scope 起一个绕过锁的名字。`activationId` 每次正常交付或恢复都唯一；旧 artifact 的 releaseId 可复用。手动恢复 A 验收后，baseline 指向当前已确认的 A 组合，不按“最大 run ID”选回 B。原失败运行状态与站点当前激活状态分别保存。
+`targetId` 由固定 `repository/envId/siteOrigin` 规范化后计算，不含分支或 scope。目标配置由受信任 runner 装配，不能从用户请求临时换 origin 来建第二把锁。同目标 canary 前缀改变后，policyHash 不匹配会阻止使用旧控制记录；不自动迁移或重置。
 
-`compositionRef` 指向按组件绑定 artifact 的已验收清单，详见 A；它可以同时引用旧静态和新函数，不能仅以一个新代码 SHA 代表全部线上组件。canary 有独立 scope 状态，其允许路径固定，仍共享实际环境的 Actions 写入锁，不移动整站的 active/baseline。
+SDK store 要求注入显式 envId 的 `app.database()`，并检查实例实际 env 相同。ID 全部确定：target hash、target+scope、target/run hash、target/run/step hash。无 where、扫描、批量删除。每个事务最多 24 次读写，单记录 JSON 上限 128 KiB；组件组合最多 33 项。这些是实现边界，非供应商配额。
 
-存储使用新增的 server-only 文档集合：`siteReleaseTargets`、`siteReleaseScopes`、`siteReleaseRuns`、`siteReleaseSteps`；公开内容 generation 归 B2。记录保留期单独配置，不自动删除历史 schema；旧 target 字段通过兼容读取维护。候选过期只影响能否恢复，不静默清空 active。
+## B1：租约、步骤与激活
 
-事务按确定 doc ID 读取，所有读取先于写入。回调只能做读、校验和写，不能上传云文件、调用 GitHub 或发通知。CloudBase 的事务回调可能重试；使用已安装的 `@cloudbase/node-sdk` 事务边界，不给 wx SDK 添虚构方法。[官方事务合同](https://docs.cloudbase.net/en/database/transaction)
+### 租约和时间
 
-## MIU SEO-REL-B1：可接手的持久交付状态
+`acquire({ownerRunId, runnerRef})`、`renew(guard)`、`release(guard)` 共用目标记录。默认 180 秒租约，预期由 D 每 60 秒续租；本模块不启动定时器或后台任务。时间来自构造器的可信 clock，操作参数里的 now 不参与授权。
 
-当前问题：`executeHostingRecovery` 依赖调用方声称“已经持锁”，没有持久归属或步骤状态；Actions concurrency 也不能处理硬取消后仍在进行的云调用。
+fence 在新租约时递增。Guard 的 acquiredVersion 固定在取得租约时，因此 heartbeat 不会让正在进行的步骤失效；事务同时检查当前 target/version 的合法性、owner、fence 和期限，并在写入时递增 target.version。SDK 冲突重试重新读取这些条件。scope.version 则在最终激活时严格比较 run 开始时的版本。
+
+**过期只表示 stalled。** 新任务不能通过 TTL 直接抢锁。现有 CloudBase API 不认识 fence，也不会因此撤销已发出的调用。丢失租约后禁止开始下一次写入，保留 unresolved 记录供读回。
+
+### baseline 的首次登记
+
+首次正常发布前须有 baseline。`kind:'adopt'` 只接受一个只读 accept 步骤，用于把 C 已归档并实际读回的现状登记为 baseline；不允许 write 步骤，也不能再次 adopt 已有 baseline。空控制表不会被当成空线上站点。
+
+adopt 的来源与读回证明仍须由 C/D 真实生成。本模块不会因为一份本地 fixture 就登记线上 baseline，也不提供跳过验收的入口。
+
+### 每个外部调用之前记录意图
 
 ```js
-// 目标：事务提交意图，退出事务后才执行外部操作。
-const intent = await store.beginStep({ guard, stepId, beforeHash, afterHash });
-const submitted = await effect.submit(intent);
-await store.recordSubmitted(intent, submitted.operationId);
-const observed = await effect.readBack(submitted);
-await store.confirmStep(intent, observed);
+const step = await coordinator.beginStep({ guard, runId, stepId, component,
+  kind: 'write', beforeHash, afterHash, subject, verifySubject, executionId });
+// 此时 intent/unresolved 已经提交；外部副作用在事务之外。
+const submitted = await cloudAdapter.submit(step);
+await coordinator.recordSubmitted({ guard, runId, stepId, receipt: submitted });
+const observed = await cloudAdapter.readBack(step);
+await coordinator.confirmStep({ guard, runId, stepId, receipt: observed });
 ```
 
-每次 begin/confirm/成功提交都在同一事务中检查 target/version/owner/fence/有效期。CLI heartbeat 和状态读取由可信 runner 提供，时间限制使用可注入 clock；不得将客户端传入的 now 当授权依据。租约初始建议 180 秒、60 秒续租，可调，需覆盖实际调用和运行器延迟；这不是平台执行时限保证。
+Run 的 plan 固定 `planSha256 / acceptanceHash / stepCount`。步骤的 intentHash 绑定 target/run/step、fence、executionId、operationId、前后 hash、对象及顺序。最后一步必须是 scope accept，期望身份必须等于 acceptanceHash；之前只能交付显式选中的组件。
 
-**云端 API 不识别 fence。** TTL 到期只标 stalled，不能直接由新 run 接管写入。存在 intent/submitted/unknown 的外部操作时，必须确认旧 job 已结束且云端操作已终止/可读回，再在条件事务中解除 unresolved 状态。没有“过期后立即覆盖”的自动分支。丢租约后只读核对，不能启动新的发布或补偿写入。
+回执沿用模块一的 `executionId/planSha256/operationId/subject/expectedHash/observedHash`，增加 `intentHash` 和 `terminal:true`。submitted 仅记录提交；verified 既要身份匹配，也要确认云调用已经结束。false、void、pending、非终态或错 hash 均拒绝。模块一的回调允许这些额外字段，接口联测已执行。
 
-验收后先给已归档候选记录 accepted seal，再以一个条件事务更新 active、baseline 和 change-set 引用；候选封存/提交结果未知时读回。逐 URL 搜索事件不在这个事务中批量展开，避免事务无限变大。只有状态成功提交才通知 E。恢复成功保留原 `FAILED_RECOVERED`，不改成新发布成功。
+重复 begin 遇到未确定的旧意图时返回 `STEP_REQUIRES_READBACK`，不给第二次调用云 API 的许可。已验证步骤可以重复确认，但计数只增加一次。输入在进入异步事务前复制，调用方后续修改原对象不能改变记录。
 
-不选仅内存状态或只有 GitHub 锁，因为进程结束后无法判断哪些已改；不选数据库事务包住外部上传，因为云服务不参与该事务。拟测试 `expired lease with unresolved operation cannot be stolen`、`intent exists before first external write`、`stale activation cannot commit`、`restore A advances activation and baseline atomically`。命令 `node --test scripts/release-coordinator.test.mjs`。
+### 失败与接手
 
-B1 交付为纯状态转换、CloudBase store adapter、只读状态报告；真实持久读写合同在启用前用专用控制面 fixture 验证。未验证前可通过 fake store 本地验收，但不能据此启用生产自动恢复。
+`markUnknown` 保留 pending；`failRun` 遇到 pending 时不能抹掉它。只有终态的 not-applied 读回，才允许 `failStep` 清除该操作。已经发生的其他写入仍保留 dirtyRunId。lint/build 等写前失败没有 dirty 状态，不因此要求恢复。
+
+`reconcile({expectedVersion, expectedFence, proof})` 仅处理过期租约：要求旧 runner 身份一致、job 已结束、云调用 quiescent、操作身份对应，证据在租约到期后取得且不超过 60 秒。version/fence 必须精确匹配，旧证据不能解除新归属。
+
+proof 是 C/D 从平台取得的受信任 metadata，本模块只校验匹配关系，不认证 GitHub 或查询云端；evidenceRef 不能由浏览器自行证明。读回已经不再变化但内容是部分结果时，可以解除 unresolved，仍保留 dirty 并只允许显式恢复。它不会自动开始恢复。
+
+恢复自身失败也不会清掉原发布造成的 dirty 状态。后续人工恢复成功时，最近的失败恢复和最初失败发布都关联为 `FAILED_RECOVERED`，原失败原因保留。该状态模型不包含 D2 的自动恢复调度或尝试次数策略。
+
+### 组件组合、来源与提交
+
+`startRun` 的 publish/restore 必须显式提供 deliveredComponents。static-only 只换 static，函数交付只换选中的 function；未交付组件沿用当前 baseline 的 artifact 和原 accepted seal。候选 ZIP 中未选择的组件不进入 active。
+
+恢复来源必须是同目标、同 scope 的已验收 run，或默认采用 scope.baseline.sourceRunId。不会按最新 SHA、最大 run ID 选包。对选中组件检查到期；历史 active 的记录不会因到期被清空，实际 artifact 可用性仍由 A/C 验证。
+
+`commitRun({guard,runId,changeSetRef})` 要求全部计划步骤及最终 accept 验证成功，再在同一条件事务中记录实际交付组件的 seals、更新 active/baseline、关联 changeSetRef、清理当前归属。每次 commit 使用新 activationId；恢复旧 releaseId 也会得到新激活身份。
+
+提交应答丢失后可以读回或以同一 changeSetRef 再调用：返回已有 activation，不重复激活。更晚重放旧提交只报告历史结果和 isCurrent:false，不能覆盖新版本。整个事务不调用 GitHub、上传文件或发送搜索通知；通知失败不改变已提交的状态。
+
+## 只读观察与交付验收
+
+`status({scopeKey})` 返回 target、scope、pendingStep（含已记录的 providerOperationId）及 uninitialized/idle/leased/stalled/recovery-required 状态；`runStatus(runId)` 读取具体 journal。读取不会初始化记录。实际 GitHub/CLI 操作入口留给 D，不接网站业务后台。
+
+本地测试涵盖竞争 owner、心跳、过期 pending、证据错误、提交应答丢失、scope 版本变化、组件保留、恢复再失败，以及 A2+B1+实际 SDK 的接口联测。测试只替换 SDK 网络传输，使用真实 transaction/get/set/retry；真实 CloudBase 锁和持久性仍须专用云 fixture 验证。
+
+新共享 offline CI 沿用 `.github/workflows/seo-module-1.yml` 文件及历史，名称改为 SEO release modules；加入既有 SDK 合同检查并运行仓库默认 pnpm test。四条原 CI/deploy/E2E workflow 不变，无云凭证、无 environment、无部署命令。下一步是 C1；B2 继续等待公开写入方的整合窗口。
 
 ## MIU SEO-REL-B2：公开内容世代与发布事务的接入
 

@@ -1,4 +1,4 @@
-name: SEO module 01 (offline)
+name: SEO release modules (offline)
 
 on:
   push:
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   offline:
-    name: Recovery input and kernel
+    name: Recovery contracts and coordinator
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,12 +48,14 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Check repository formatting and lint
         run: pnpm lint
-      - name: Run module and existing script regression tests
+      - name: Verify installed CloudBase SDK contract
+        run: pnpm verify:cloudbase-sdk
+      - name: Run repository regression tests
         shell: bash
         run: |
           set -o pipefail
           mkdir -p output/seo-module-1
-          pnpm test:deploy-smoke 2>&1 | tee output/seo-module-1/tests.log
+          pnpm test 2>&1 | tee output/seo-module-1/tests.log
       - name: Retain test results in GitHub
         if: always()
         uses: actions/upload-artifact@v4

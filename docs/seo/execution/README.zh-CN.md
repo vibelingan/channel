@@ -1,6 +1,6 @@
 # SEO 发布与恢复：按模块交付的执行计划
 
-规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。模块 01 的 A1/A2 已实现并完成本地验证；其余 MIU 仍为 `planned`。模块 01 使用独立 offline CI，不接入云端恢复。详见[模块验证记录](module-01-verification.zh-CN.md)。
+规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。模块 01 的 A1/A2、模块 02 的 B1 已实现。B1 已有本地与安装 SDK 合同验证，真实 CloudBase fixture 尚未执行；B2 及其余模块仍为 `planned`。共享 offline CI 不接入云端恢复。详见[模块一记录](module-01-verification.zh-CN.md)和[模块二记录](module-02-verification.zh-CN.md)。
 
 ## 怎么读和交付
 
@@ -11,7 +11,7 @@
 | 模块 | 交付结果 | MIU | 直接前置 |
 | --- | --- | --- | --- |
 | [01 产物与恢复内核](01-artifacts-and-kernel.zh-CN.md) | 能拒绝不一致/不可信恢复输入，失败结果不能被当成功 | A1、A2 | 无，先本地完成 |
-| [02 发布协调器](02-coordinator.zh-CN.md) | 持久步骤日志、目标归属和有边界的内容发布合同 | B1、B2 | A1/A2；B2 接入时对齐最新主线与 pricing |
+| [02 发布协调器](02-coordinator.zh-CN.md) | B1 内核/SDK 适配已实现；B2 内容合同待整合 | B1、B2 | A1/A2；B2 接入时对齐最新主线与 pricing |
 | [03 云端适配与兼容](03-cloud-adapters.zh-CN.md) | 静态/配置可读回；具备函数包和兼容证据的组件才允许恢复 | C1、C2 | A、B1；商品恢复还需 B2 |
 | [04 CI/CD 与恢复入口](04-workflows.zh-CN.md) | 正常发布、人工入口、有条件自动恢复共用同一执行器 | D1、D2 | A、B1、C；商品范围依赖 B2 |
 | [05 搜索事件](05-search-events.zh-CN.md) | 已验收内容差异合并，通知失败不回退站点 | E1 | B1 的成功提交、D1 的实际交付结果 |
