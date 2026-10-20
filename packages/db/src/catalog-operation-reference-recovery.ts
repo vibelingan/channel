@@ -10,14 +10,17 @@ import { CATALOG_IMAGE_REFERENCE_LEDGER_FIELD } from './catalog-image-reference-
 import {
   CATALOG_IMAGE_REFERENCE_MAX_PENDING,
   CatalogImageReferenceError,
+  buildCatalogImageReferencePlan,
   catalogImageReferencePendingEntries,
 } from './catalog-image-references.ts';
+import { LiveSaveReferencesSchema, readLiveSaveReferences } from './catalog-operation-live-save.ts';
 import {
   CatalogOwnedApprovalReferencesSchema,
   readOwnedApprovalReferencePlan,
 } from './catalog-operation-references.ts';
 import {
   PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES,
+  ProductOperationLiveSaveReferencePageSchema,
   ProductOperationRecoverSchema,
   ProductOperationReferencePageSchema,
 } from './catalog-product-operation.ts';
@@ -42,7 +45,9 @@ export async function persistOwnedReferencePageWithRecovery(
 ): Promise<ReferenceRecoveryPageResult> {
   if (!Number.isFinite(budgetMs) || budgetMs < 0 || budgetMs > REFERENCE_RECOVERY_BUDGET_MS)
     return fail('VALIDATION_ERROR');
-  const parsed = ProductOperationReferencePageSchema.safeParse(input);
+  const parsed = z
+    .union([ProductOperationReferencePageSchema, ProductOperationLiveSaveReferencePageSchema])
+    .safeParse(input);
   if (!parsed.success || !fitsJsonBudget(input, 4096, 8)) return fail('VALIDATION_ERROR');
   const command = parsed.data;
   const continuation =
@@ -75,18 +80,33 @@ export async function persistOwnedReferencePageWithRecovery(
     own.record.operation.inputDigest !== command.inputDigest
   )
     return fail('CONFLICT');
-  if (own.record.state === 'complete') return own;
+  if (
+    own.record.state === 'complete' ||
+    (command.action === 'operation-live-save-reference-page' && own.record.state !== 'reserved')
+  )
+    return own;
   if (
     !own.current ||
     !own.revisionCurrent ||
     own.expired ||
-    own.record.state !== 'staging' ||
-    !own.record.references
+    (command.action === 'operation-live-save-reference-page'
+      ? own.record.state !== 'reserved' || !own.record.liveSaveReferences
+      : own.record.state !== 'staging' || !own.record.references)
   )
     return fail('CONFLICT');
-  const progress = own.record.referenceStage?.cursor ?? 0;
+  const progress =
+    command.action === 'operation-live-save-reference-page'
+      ? (own.record.liveSaveReferences?.cursor ?? 0)
+      : own.record.state === 'staging'
+        ? (own.record.referenceStage?.cursor ?? 0)
+        : 0;
   if (progress > command.cursor) return own;
-  const plan = readOwnedApprovalReferencePlan(own.record, own.record.references);
+  const plan =
+    command.action === 'operation-live-save-reference-page'
+      ? readLiveSaveReferences(own.record, own.record.liveSaveReferences)?.plan
+      : own.record.state === 'staging'
+        ? readOwnedApprovalReferencePlan(own.record, own.record.references)
+        : null;
   if (
     progress !== command.cursor ||
     !plan ||
@@ -149,11 +169,27 @@ export async function persistOwnedReferencePageWithRecovery(
     const operation = z
       .object({ inputDigest: z.string().regex(/^[a-f0-9]{64}$/) })
       .safeParse(root.operation);
+    let commitment: { operationRootId: string; treeRoot: string; leafCount: number } | null =
+      references.success ? references.data : null;
+    if (!commitment) {
+      const saved = LiveSaveReferencesSchema.safeParse(root.liveSaveReferences);
+      if (saved.success) {
+        try {
+          commitment = buildCatalogImageReferencePlan(
+            root._id,
+            saved.data.changes.filter((c) => c.delta === -1).map((c) => c.imageId),
+            saved.data.changes.filter((c) => c.delta === 1).map((c) => c.imageId),
+          ).proof;
+        } catch (error) {
+          if (!(error instanceof CatalogImageReferenceError)) throw error;
+        }
+      }
+    }
     if (
-      !references.success ||
-      references.data.operationRootId !== member.operationRootId ||
-      references.data.treeRoot !== member.treeRoot ||
-      references.data.leafCount !== member.leafCount ||
+      !commitment ||
+      commitment.operationRootId !== member.operationRootId ||
+      commitment.treeRoot !== member.treeRoot ||
+      commitment.leafCount !== member.leafCount ||
       !operation.success
     )
       continue;

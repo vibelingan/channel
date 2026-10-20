@@ -265,7 +265,10 @@ export async function persistCatalogDetailApproval(
   const adapter = db();
   if (!adapter.persistCatalogDetailApproval)
     throw new Error('Staged approval persistence unavailable');
-  if (input.action === 'operation-approval-reference-page')
+  if (
+    input.action === 'operation-approval-reference-page' ||
+    input.action === 'operation-live-save-reference-page'
+  )
     return persistOwnedReferencePageWithRecovery(
       {
         get: adapter.get.bind(adapter),

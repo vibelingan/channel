@@ -57,8 +57,16 @@ import { isApprovalPage, prepareApprovalPage, storeApprovalPage } from './catalo
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 import {
   CATALOG_IMAGE_REFERENCE_MAX_LEAVES,
+  type CatalogImageReferenceProof,
   catalogImageReferenceCancelProof,
 } from './catalog-image-references.ts';
+import {
+  LiveSaveReferencesSchema,
+  advanceLiveSaveReferences,
+  planLiveSaveReferencePage,
+  prepareLiveSaveReferences,
+  readLiveSaveReferences,
+} from './catalog-operation-live-save.ts';
 import {
   CatalogOwnedApprovalMediaSchema,
   prepareOwnedApprovalMedia,
@@ -161,6 +169,16 @@ export const ProductOperationReferencePageSchema = identifiers
     cursor: counter.max(CATALOG_IMAGE_REFERENCE_MAX_LEAVES),
   })
   .strict();
+export const ProductOperationLiveSaveReferencesSchema = identifiers
+  .extend({ action: z.literal('operation-live-save-references'), inputDigest: digest })
+  .strict();
+export const ProductOperationLiveSaveReferencePageSchema = identifiers
+  .extend({
+    action: z.literal('operation-live-save-reference-page'),
+    inputDigest: digest,
+    cursor: counter.max(63),
+  })
+  .strict();
 export const ProductOperationPublishSchema = identifiers
   .extend({ action: z.literal('operation-publish'), inputDigest: digest })
   .strict();
@@ -179,6 +197,8 @@ const CommandSchema = z.discriminatedUnion('action', [
   ProductOperationMediaSchema,
   ProductOperationReferencesSchema,
   ProductOperationReferencePageSchema,
+  ProductOperationLiveSaveReferencesSchema,
+  ProductOperationLiveSaveReferencePageSchema,
   ProductOperationPublishSchema,
   ProductOperationRecoverSchema,
 ]);
@@ -222,6 +242,7 @@ const ReservedSchema = z
     productId: id,
     operationId: z.string().uuid(),
     state: z.literal('reserved'),
+    liveSaveReferences: LiveSaveReferencesSchema.optional(),
     createdAt: z.string().datetime(),
     operation: z
       .object({
@@ -374,6 +395,11 @@ export async function runProductOperation(
     return bindOperationApprovalReferences(tx, actorId, command);
   if (command.action === 'operation-approval-reference-page')
     return stageOperationReferences(tx, actorId, command);
+  if (
+    command.action === 'operation-live-save-references' ||
+    command.action === 'operation-live-save-reference-page'
+  )
+    return stageLiveSaveReferences(tx, actorId, command);
   if (command.action === 'operation-publish') return publishOperation(tx, actorId, command);
   if (command.action === 'operation-recover') return recoverOperation(tx, actorId, command);
   const key = operationKey(actorId, command.productId, command.operationId);
@@ -572,6 +598,20 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
   const parsed = RecordSchema.safeParse(row);
   if (!parsed.success) return null;
   const record = parsed.data;
+  if (
+    record.operation.intent === 'refresh-live' &&
+    record.state !== 'reserved' &&
+    !record.liveSaveReferences
+  )
+    return null;
+  if (Object.hasOwn(record, 'liveSaveReferences')) {
+    const saved = readLiveSaveReferences(record, record.liveSaveReferences);
+    if (
+      !saved ||
+      (record.state !== 'reserved' && saved.references.cursor !== saved.plan.changes.length)
+    )
+      return null;
+  }
   for (const field of ['photoClaimVersion', 'photoReleaseVersion'] as const)
     if (Object.hasOwn(record.operation, field) && record.operation[field] === undefined)
       return null;
@@ -599,6 +639,7 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
       media: _media,
       references: _references,
       referenceStage: _referenceStage,
+      liveSaveReferences: _liveSaveReferences,
       ...storedJob
     } = record;
     const { completion: _completion, ...job } = {
@@ -678,6 +719,19 @@ async function cancelOperation(
     const plan = readOwnedApprovalReferencePlan(record, record.references);
     if (!plan) return fail('CONFLICT');
     const expected = catalogImageReferenceCancelProof(plan.proof);
+    const previous = await tx.get(collection, expected._id);
+    if (previous && alibabaPricingFingerprint(previous) !== alibabaPricingFingerprint(expected))
+      return fail('CONFLICT');
+    if (!previous) cancelProof = expected;
+  }
+  if (
+    record.state === 'reserved' &&
+    record.liveSaveReferences &&
+    record.liveSaveReferences.cursor > 0
+  ) {
+    const saved = readLiveSaveReferences(record, record.liveSaveReferences);
+    if (!saved) return fail('CONFLICT');
+    const expected = catalogImageReferenceCancelProof(saved.plan.proof);
     const previous = await tx.get(collection, expected._id);
     if (previous && alibabaPricingFingerprint(previous) !== alibabaPricingFingerprint(expected))
       return fail('CONFLICT');
@@ -800,7 +854,7 @@ async function mutateOperationPhotos(
     !inspected.current ||
     !inspected.revisionCurrent ||
     inspected.expired ||
-    !['save-draft', 'publish'].includes(record.operation.intent)
+    !['save-draft', 'publish', 'refresh-live'].includes(record.operation.intent)
   )
     return fail('CONFLICT');
   const plan = planProductOperationDraftPhotos(product, record.operation.values);
@@ -866,6 +920,16 @@ async function inspect(
 ): Promise<ProductOperationResult> {
   const product =
     currentProduct === undefined ? await tx.get('products', record.productId) : currentProduct;
+  if (record.state !== 'reserved' && record.liveSaveReferences) {
+    const saved = readLiveSaveReferences(record, record.liveSaveReferences);
+    if (
+      !saved ||
+      (saved.plan.changes.length > 0 &&
+        alibabaPricingFingerprint(await tx.get(collection, saved.plan.proof._id)) !==
+          alibabaPricingFingerprint(saved.plan.proof))
+    )
+      return fail('CONFLICT');
+  }
   if (record.state === 'complete') {
     const plan = readOwnedApprovalReferencePlan(record, record.references);
     if (
@@ -1060,7 +1124,11 @@ export type ProductOperationSavePlan =
   | { result: 'unbound' }
   | { result: 'stale' }
   | { result: 'replay' }
-  | { result: 'ready'; record: ReservedProductOperation }
+  | {
+      result: 'ready';
+      record: ReservedProductOperation;
+      referenceProof?: CatalogImageReferenceProof;
+    }
   | { result: 'media-busy' }
   | Extract<CatalogProductSaveResult, { result: 'invalid-product' }>;
 
@@ -1092,11 +1160,13 @@ export async function prepareProductOperationSave(
   if (
     !record ||
     Object.hasOwn(record.operation, 'cancelledAt') ||
-    (record.operation.intent !== 'save-draft' && record.operation.intent !== 'publish') ||
+    !['save-draft', 'publish', 'refresh-live'].includes(record.operation.intent) ||
     input.expectedUpdatedAt !== record.operation.expectedUpdatedAt ||
     binding.inputDigest !== record.operation.inputDigest ||
     alibabaPricingFingerprint(input.data) !== alibabaPricingFingerprint(record.operation.values) ||
-    product.published === true ||
+    (record.operation.intent === 'refresh-live'
+      ? product.published !== true
+      : product.published === true) ||
     product.archived === true
   )
     return { result: 'stale' };
@@ -1107,7 +1177,35 @@ export async function prepareProductOperationSave(
     !matchesCurrent(record, await snapshot(tx, product, record.operation.intent))
   )
     return { result: 'stale' };
-  if (record.state !== 'reserved') return { result: 'replay' };
+  if (record.state !== 'reserved') {
+    if (record.liveSaveReferences) {
+      const saved = readLiveSaveReferences(record, record.liveSaveReferences);
+      if (
+        !saved ||
+        (saved.plan.changes.length > 0 &&
+          alibabaPricingFingerprint(await tx.get(collection, saved.plan.proof._id)) !==
+            alibabaPricingFingerprint(saved.plan.proof))
+      )
+        return { result: 'stale' };
+    }
+    return { result: 'replay' };
+  }
+  let referenceProof: CatalogImageReferenceProof | undefined;
+  if (record.operation.intent === 'refresh-live') {
+    const saved = readLiveSaveReferences(record, record.liveSaveReferences);
+    const expected = prepareLiveSaveReferences(record, product);
+    if (
+      !saved ||
+      !expected ||
+      saved.references.cursor !== saved.plan.changes.length ||
+      saved.references.bindingDigest !== expected.bindingDigest
+    )
+      return { result: 'stale' };
+    if (saved.plan.changes.length > 0) {
+      if (await tx.get(collection, saved.plan.proof._id)) return { result: 'stale' };
+      referenceProof = saved.plan.proof;
+    }
+  }
   for (const [field, contract] of [
     ['name', CatalogDetailHeaderSchema.shape.name],
     ['description', CatalogDetailHeaderSchema.shape.descriptionText],
@@ -1162,7 +1260,8 @@ export async function prepareProductOperationSave(
         ],
       };
   }
-  return { result: 'ready', record };
+  if (operationExpired(Date.now() - Date.parse(record.createdAt))) return { result: 'stale' };
+  return { result: 'ready', record, ...(referenceProof ? { referenceProof } : {}) };
 }
 
 /** Configuration choices come from the gallery; repeated choices never add document reads. */
@@ -1622,4 +1721,83 @@ async function recoverOperation(
     reason,
   });
   return result.ok ? { ...result, recovery: 'cancelled' } : result;
+}
+
+/** Raw row-gallery rights remain private until the native row-save transaction commits its proof. */
+async function stageLiveSaveReferences(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command:
+    | z.infer<typeof ProductOperationLiveSaveReferencesSchema>
+    | z.infer<typeof ProductOperationLiveSaveReferencePageSchema>,
+): Promise<ProductOperationResult> {
+  const stored = await tx.get(
+    collection,
+    operationKey(actorId, command.productId, command.operationId),
+  );
+  const record = stored ? readReservation(stored, actorId, command) : null;
+  if (
+    !record ||
+    record.operation.intent !== 'refresh-live' ||
+    record.operation.inputDigest !== command.inputDigest ||
+    record.operation.cancelledAt
+  )
+    return fail('CONFLICT');
+  const product = await tx.get('products', command.productId);
+  const inspection = await inspect(tx, record, product);
+  if (!inspection.ok) return inspection;
+  if (record.state !== 'reserved') return inspection;
+  if (
+    !product ||
+    product.published !== true ||
+    product.archived === true ||
+    !inspection.current ||
+    !inspection.revisionCurrent ||
+    inspection.expired
+  )
+    return fail('CONFLICT');
+  const expected = prepareLiveSaveReferences(record, product);
+  if (!expected) return fail('CONFLICT');
+  const bound = record.liveSaveReferences
+    ? readLiveSaveReferences(record, record.liveSaveReferences)
+    : null;
+  if (
+    record.liveSaveReferences &&
+    (!bound || bound.references.bindingDigest !== expected.bindingDigest)
+  )
+    return fail('CONFLICT');
+  if (command.action === 'operation-live-save-references') {
+    if (bound) return inspection;
+    const next = ReservedSchema.parse({ ...record, liveSaveReferences: expected });
+    if (!fitsJsonBudget(next, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28))
+      return fail('VALIDATION_ERROR');
+    await tx.set(collection, next);
+    return { ...inspection, record: next };
+  }
+  if (!bound || command.cursor > bound.references.cursor) return fail('CONFLICT');
+  if (
+    command.cursor < bound.references.cursor ||
+    bound.references.cursor === bound.plan.changes.length
+  )
+    return inspection;
+  if (await tx.get(collection, bound.plan.proof._id)) return fail('CONFLICT');
+  // actor/root/product, up to three source records, terminal proof and Root write.
+  const page = await planLiveSaveReferencePage(
+    tx,
+    bound.plan,
+    bound.references.cursor,
+    record._id,
+    98 - 8,
+  );
+  if (!page.ok) return page;
+  const next = ReservedSchema.parse({
+    ...record,
+    liveSaveReferences: advanceLiveSaveReferences(record, bound.references, page.nextCursor),
+  });
+  if (!fitsJsonBudget(next, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28))
+    return fail('VALIDATION_ERROR');
+  if (operationExpired(Date.now() - Date.parse(record.createdAt))) return fail('APPROVAL_EXPIRED');
+  for (const image of page.images) await tx.set('images', image);
+  await tx.set(collection, next);
+  return { ...inspection, record: next };
 }

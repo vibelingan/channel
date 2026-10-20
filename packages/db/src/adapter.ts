@@ -201,7 +201,7 @@ export function planCatalogProductSave(
   existing: CollectionDoc | null,
   input: CatalogProductSaveInput,
   now: string,
-  options: { cancelPendingPublication?: boolean } = {},
+  options: { cancelPendingPublication?: boolean; clearManualPricing?: boolean } = {},
 ): CatalogProductSavePlan {
   if (input.mode === 'create' && existing) return { result: 'exists' };
   const expected = input.expectedAlibabaIdentity;
@@ -240,7 +240,7 @@ export function planCatalogProductSave(
       : { ...inputData };
   if (
     input.mode === 'update' &&
-    options.cancelPendingPublication &&
+    (options.cancelPendingPublication || options.clearManualPricing) &&
     data.manualCatalogPricing === null
   )
     data.manualCatalogPricing = '';

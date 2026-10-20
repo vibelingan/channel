@@ -18,6 +18,7 @@ import {
   buildCatalogImageReferencePlan,
   catalogImageReferenceEntry,
 } from './catalog-image-references.ts';
+import { registerLiveSaveStorageContract } from './catalog-live-save-contract.fixture.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { catalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
 import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
@@ -3747,4 +3748,32 @@ test('native conditional image removal captures expected fields before transacti
   release();
   assert.equal(await pending, true);
   assert.equal(h.store.get('images')?.has('image'), false);
+});
+
+// Both adapters execute one shared contract, including write rollback and lost-answer replay.
+registerLiveSaveStorageContract('CloudBase', (_t, initial) => {
+  const h = fakeDatabase(initial);
+  return {
+    persist: (actor, command) => persistStagedApprovalInCloud(h.db, actor, command),
+    save: (input) => saveCatalogProductInCloudBase(h.db, input),
+    get: async (collection, id) => structuredClone(h.store.get(collection)?.get(id) ?? null),
+    put: async (collection, row) => {
+      const rows = h.store.get(collection) ?? new Map();
+      rows.set(row._id, structuredClone(row));
+      h.store.set(collection, rows);
+    },
+    snapshot: () =>
+      JSON.stringify([...h.store].map(([collection, rows]) => [collection, [...rows]])),
+    failProof: (id) => {
+      h.controls.failWrite = `catalogDetailApprovals/${id}`;
+      return () => {
+        h.controls.failWrite = '';
+      };
+    },
+    checkBudget: () =>
+      assert.ok(
+        h.controls.maximumOperations <= 98,
+        `actual transaction operations ${h.controls.maximumOperations}`,
+      ),
+  };
 });

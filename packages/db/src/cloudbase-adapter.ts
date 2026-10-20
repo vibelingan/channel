@@ -229,7 +229,9 @@ export async function saveCatalogProductInCloudBase(
     if (operation.result === 'replay' && existing)
       return { result: 'saved', doc: existing, previous: existing };
     const plan = planCatalogProductSave(existing, input, now, {
-      cancelPendingPublication: operation.result === 'ready',
+      cancelPendingPublication:
+        operation.result === 'ready' && operation.record.operation.intent !== 'refresh-live',
+      clearManualPricing: operation.result === 'ready',
     });
     if (plan.result !== 'ready') return plan;
 
@@ -368,6 +370,8 @@ export async function saveCatalogProductInCloudBase(
         'catalogDetailApprovals',
         productOperationSaveReceipt(operation.record, plan.doc),
       );
+    if (operation.result === 'ready' && operation.referenceProof)
+      await setAcknowledged('catalogDetailApprovals', operation.referenceProof);
     return { result: 'saved', doc: plan.doc, previous: existing };
   });
 }

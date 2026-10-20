@@ -1192,7 +1192,9 @@ export class JsonFileAdapter implements DbAdapter {
       if (operation.result === 'replay' && existing)
         return { result: 'saved', doc: existing, previous: existing };
       const plan = planCatalogProductSave(existing, input, new Date().toISOString(), {
-        cancelPendingPublication: operation.result === 'ready',
+        cancelPendingPublication:
+          operation.result === 'ready' && operation.record.operation.intent !== 'refresh-live',
+        clearManualPricing: operation.result === 'ready',
       });
       if (plan.result !== 'ready') return plan;
 
@@ -1296,6 +1298,8 @@ export class JsonFileAdapter implements DbAdapter {
           'catalogDetailApprovals',
           productOperationSaveReceipt(operation.record, plan.doc),
         );
+      if (operation.result === 'ready' && operation.referenceProof)
+        await operationTx.set('catalogDetailApprovals', operation.referenceProof);
       const previous = this.store;
       this.store = copy;
       try {

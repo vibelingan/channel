@@ -51,6 +51,8 @@ import {
   ProductOperationApprovalPageSchema,
   ProductOperationCancelSchema,
   ProductOperationGetSchema,
+  ProductOperationLiveSaveReferencePageSchema,
+  ProductOperationLiveSaveReferencesSchema,
   ProductOperationMediaSchema,
   ProductOperationPhotoClaimSchema,
   ProductOperationPhotoReleaseSchema,
@@ -123,6 +125,8 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
   ProductOperationApprovalBeginSchema,
   ProductOperationGetSchema,
   ProductOperationMediaSchema,
+  ProductOperationLiveSaveReferencesSchema,
+  ProductOperationLiveSaveReferencePageSchema,
   ProductOperationReferencesSchema,
   ProductOperationReferencePageSchema,
   ProductOperationPublishSchema,
@@ -571,6 +575,8 @@ export async function runStagedApproval(
     command.action === 'operation-approval-media' ||
     command.action === 'operation-approval-references' ||
     command.action === 'operation-approval-reference-page' ||
+    command.action === 'operation-live-save-references' ||
+    command.action === 'operation-live-save-reference-page' ||
     command.action === 'operation-publish' ||
     command.action === 'operation-recover'
   )

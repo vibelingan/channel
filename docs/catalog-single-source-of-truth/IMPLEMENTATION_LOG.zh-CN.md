@@ -1599,3 +1599,12 @@ review 另复现 A→B→A 时旧响应误入和缓存旧 401 再次锁住，共
 首次发布从空集合 +1 的计划不能直接用于 live。三个规模（0/105/10000 配置）的红测后，新增独立 live binding，按共同 canonical 图片集合精确 before/after 差量；共享未变图片不重复加计数，原图和配置图删除产生 -1。Root 仅存小于 1024 bytes 的摘要/承诺，不复制旧 10000 项数组。写入计划必须带当前已发布商品重算树，历史 proof 身份单独读取且不授予写入权；未切换现有 Root 事务或 GUI。461 项组合、Node20 51 项、DB 类型检查通过；把两处 before 丢弃的故障注入确实令三项失败，源码哈希恢复一致。详见 P4c9a_LIVE_REFERENCE_DIFF.zh-CN.md。
 
 复核纯引用计划及测试、Root/取消/恢复消费者、共同图片集合、adapter 保存和公开版本选择；修正文案避免把这一契约说成 live 编辑完成。保存阶段计数事务、native live 接线、完整恢复/组合、历史审计、后端制品及 test 实际三时钟/20 件/COS/P95 尚待完成。无云写入、部署、SDK/配置变更，fullDeliveryReady=false。
+
+
+## P4c9b：已发布商品的内部原子保存
+
+详见 [P4c9b](P4c9b_LIVE_SAVE_TRANSACTION.zh-CN.md)。在原 Root 内增加最多 63 个图库/描述图差量，内部 bind/page 按当前商品和来源重算；商品、saved 回执、身份及引用 proof 同一 native 事务提交。保留发布状态和旧批准版本，空差量不占用终态证明；重试不重写，取消只停止未确认工作。来源、版本、账号、图片锁和计数仍严格检查。未开放 HTTP refresh-live 保存或切换编辑入口。
+
+两端共用契约覆盖保存后响应丢失、取消前后、并发下架/归档/编辑/分类/失权、新图损坏、缺证明及最后写失败回滚。80 个真实 Root 满槽后失效回收、继续第 81 个并保存，两端通过。组合 1064/1064，之后有效买家批准版保留 2/2；Node20 45/45；DB/local-server 类型、Admin bundle 和 11 文件 Biome 通过，cloudbase-adapter.ts 为仓库配置排除，差量另行人工审查。省略最后引用证明的故障注入使两条目标测试失败，源码恢复且哈希相同。新增断言后类型和格式最终检查见 live-save-* 证据。CloudBase 部分是实际 adapter 的 SDK 事务模拟，尚未在云端执行。
+
+实际审查 live-save/Root/内部入口/满槽恢复/两个 adapter/共享契约及 canonical 和 public-version 消费者，文案明确“内部保存事务”，核对分类、旧批准版本、ACK、读写预算、零差量与无部署。native 审批/编辑串联、完整制品矩阵、历史审计及 test resync/20 件/COS/P95 仍未完成；旧 JSON80/WebKit 诊断缺口保留。fullDeliveryReady=false。
