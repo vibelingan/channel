@@ -73,6 +73,7 @@ import {
 } from './source-media-import.ts';
 
 export const CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs';
+export const CATALOG_MEDIA_ATTESTATION_PAGE_SIZE = 8;
 export type CatalogPreparationAuthority = ReturnType<typeof createCatalogPreparationAuthority>;
 const ttl = 120_000;
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
@@ -109,6 +110,20 @@ const commandSchema = z.discriminatedUnion('action', [
       planDigest: hex,
       index: integer,
       imageId: id,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('attest-media-page'),
+      jobId: hex,
+      lease: z.unknown(),
+      planDigest: hex,
+      from: CatalogPreparationMediaSealSchema,
+      imageIds: z
+        .array(id)
+        .min(1)
+        .max(CATALOG_MEDIA_ATTESTATION_PAGE_SIZE)
+        .refine((ids) => new Set(ids).size === ids.length),
     })
     .strict(),
   z
@@ -641,7 +656,11 @@ export async function runCatalogPreparationJob(
     return checkpointCatalogPreparation(tx, authority, job, command, timestamp);
   if (command.action === 'finish-preparation')
     return finishCatalogPreparation(tx, authority, job, command, timestamp);
-  if (command.action === 'bind-media-seal' || command.action === 'attest-media-image') {
+  if (
+    command.action === 'bind-media-seal' ||
+    command.action === 'attest-media-image' ||
+    command.action === 'attest-media-page'
+  ) {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
     const media = job.media;
     if (
@@ -662,36 +681,64 @@ export async function runCatalogPreparationJob(
     if (command.action === 'bind-media-seal')
       seal = seal ?? initialCatalogMediaSeal(media.planDigest, media.total);
     else {
+      if (!seal) return { ok: false, code: 'CONFLICT' };
+      const original = seal;
+      const from = command.action === 'attest-media-page' ? command.from : seal;
+      const entries =
+        command.action === 'attest-media-page'
+          ? command.imageIds.map((imageId, offset) => ({ index: from.cursor + offset, imageId }))
+          : [{ index: command.index, imageId: command.imageId }];
       if (
-        !seal ||
-        command.index >= seal.total ||
-        (command.index !== seal.cursor && command.index !== seal.cursor - 1)
+        from.planDigest !== media.planDigest ||
+        from.total !== media.total ||
+        from.pixelPolicyVersion !== CATALOG_PIXEL_POLICY ||
+        (command.action === 'attest-media-page' &&
+          (from.cursor + entries.length > from.total ||
+            (original.cursor !== from.cursor && original.cursor !== from.cursor + entries.length)))
       )
         return { ok: false, code: 'CONFLICT' };
-      const hold = catalogPreparationImageHold(job, command.imageId);
-      const held = await tx.get(CATALOG_IMAGE_OBSERVATIONS, hold._id);
-      if (!matchesCatalogPreparationImageHold(held, job, command.imageId))
+      let next = from;
+      for (const entry of entries) {
+        if (
+          entry.index >= next.total ||
+          (entry.index !== next.cursor && entry.index !== next.cursor - 1)
+        )
+          return { ok: false, code: 'CONFLICT' };
+        const hold = catalogPreparationImageHold(job, entry.imageId);
+        const held = await tx.get(CATALOG_IMAGE_OBSERVATIONS, hold._id);
+        if (!matchesCatalogPreparationImageHold(held, job, entry.imageId))
+          return { ok: false, code: 'CONFLICT' };
+        const image = await tx.get('images', entry.imageId);
+        if (!image || image._id !== entry.imageId) return { ok: false, code: 'CONFLICT' };
+        const lock = readImageMutationState(image);
+        if (lock.state !== 'free')
+          return {
+            ok: false,
+            code:
+              lock.state === 'owned' && now - Date.parse(lock.startedAt) < IMAGE_MUTATION_STALE_MS
+                ? 'BUSY'
+                : 'CORRUPT',
+          };
+        const health = await readCatalogProtectedPixels(tx, image, now);
+        if (!authority.currentLeaseScope(command.lease, job))
+          return { ok: false, code: 'CONFLICT' };
+        if (!health) return { ok: false, code: 'CONFLICT' };
+        const advanced = advanceCatalogMediaSeal(next, {
+          index: entry.index,
+          imageId: entry.imageId,
+          imageInputDigest: storedCatalogImageInputDigest(image),
+          health,
+        });
+        if (!advanced) return { ok: false, code: 'CONFLICT' };
+        next = advanced;
+      }
+      if (
+        command.action === 'attest-media-page' &&
+        !isDeepStrictEqual(original, from) &&
+        !isDeepStrictEqual(original, next)
+      )
         return { ok: false, code: 'CONFLICT' };
-      const image = await tx.get('images', command.imageId);
-      if (!image || image._id !== command.imageId) return { ok: false, code: 'CONFLICT' };
-      const lock = readImageMutationState(image);
-      if (lock.state !== 'free')
-        return {
-          ok: false,
-          code:
-            lock.state === 'owned' && now - Date.parse(lock.startedAt) < IMAGE_MUTATION_STALE_MS
-              ? 'BUSY'
-              : 'CORRUPT',
-        };
-      const health = await readCatalogProtectedPixels(tx, image, now);
-      if (!health) return { ok: false, code: 'CONFLICT' };
-      seal = advanceCatalogMediaSeal(seal, {
-        index: command.index,
-        imageId: command.imageId,
-        imageInputDigest: storedCatalogImageInputDigest(image),
-        health,
-      });
-      if (!seal) return { ok: false, code: 'CONFLICT' };
+      seal = isDeepStrictEqual(original, next) ? original : next;
     }
     const current = await currentInput(tx, job.productId);
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
@@ -716,7 +763,7 @@ export async function runCatalogPreparationJob(
         ...job,
         mediaSeal: seal,
         mutationRevision: job.mutationRevision + 1,
-        leaseExpiresAt: command.action === 'attest-media-image' ? now + ttl : job.leaseExpiresAt,
+        leaseExpiresAt: command.action === 'bind-media-seal' ? job.leaseExpiresAt : now + ttl,
         updatedAt: timestamp,
       });
     return { ok: true, mediaSeal: Object.freeze({ ...seal }) };

@@ -8,13 +8,20 @@ import { signSession } from '@vibelingan-channel/auth/jwt';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
-import { readCatalogPreparationJob } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import {
+  readCatalogPreparationJob,
+  runCatalogPreparationJob,
+} from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import { runCatalogPreparationCall } from '@vibelingan-channel/fn-alibaba-catalog-sync/catalog-preparation';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
-import { productFamilyForDoc, validateProductPublication } from '@vibelingan-channel/shared';
+import {
+  type CollectionDoc,
+  productFamilyForDoc,
+  validateProductPublication,
+} from '@vibelingan-channel/shared';
 import {
   CatalogPreparationRequestSchema,
   readCurrentCatalogPreparation,
@@ -39,7 +46,15 @@ const bytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==',
   'base64',
 );
-async function fixture(t: { after(fn: () => void): void }, count = 9, missingCategory = false) {
+function isMediaAttestation(command: { action: string }) {
+  return command.action === 'attest-media-image' || command.action === 'attest-media-page';
+}
+async function fixture(
+  t: { after(fn: () => void): void },
+  count = 9,
+  missingCategory = false,
+  now?: () => number,
+) {
   const dir = mkdtempSync(join(tmpdir(), 'channel-preparation-worker-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const storage = new LocalDiskMediaStorage(join(dir, 'media'));
@@ -87,6 +102,7 @@ async function fixture(t: { after(fn: () => void): void }, count = 9, missingCat
   const authority = createCatalogPreparationAuthority({
     secret: 'worker-local-test',
     environmentId: 'local-worker-env',
+    ...(now ? { now } : {}),
   });
   const start = await adapter.manageCatalogPreparationJob(authority, {
     action: 'start',
@@ -1239,7 +1255,7 @@ test('an attestation ACK lost after commit replays the same proof without anothe
   let lost = false;
   f.adapter.manageCatalogPreparationJob = async (...args) => {
     const result = await manage(...args);
-    if (args[1].action === 'attest-media-image' && !lost) {
+    if (isMediaAttestation(args[1]) && !lost) {
       lost = true;
       throw Error('response lost after file commit');
     }
@@ -1435,14 +1451,14 @@ test('default worker attests at most16 protected images per invocation and resum
   assert.equal(readCurrentCatalogPreparation(product)?.state, 'ready');
   assert.equal(product.published, false);
 });
-test('default worker metadata budget leaves an exact durable prefix and later finishes without object IO', async (t) => {
+test('default worker metadata budget leaves an exact durable page and later finishes without object IO', async (t) => {
   const f = await fixture(t, 3);
   await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
   const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
   let clock = Date.now();
   f.adapter.manageCatalogPreparationJob = async (...args) => {
     const r = await manage(...args);
-    if (args[1].action === 'attest-media-image') clock += 20000;
+    if (isMediaAttestation(args[1])) clock += 20000;
     return r;
   };
   const first = await runCatalogPreparationWorker(f.authority, await f.dispatch(), {
@@ -1450,7 +1466,7 @@ test('default worker metadata budget leaves an exact durable prefix and later fi
   });
   assert.ok(first.ok, JSON.stringify(first));
   assert.equal(first.outcome, 'partial');
-  assert.equal(first.attestation?.checked, 1);
+  assert.equal(first.attestation?.checked, 3);
   const preparing = await f.adapter.get('products', 'p');
   assert.ok(preparing);
   assert.equal(readCurrentCatalogPreparation(preparing)?.state, 'preparing');
@@ -1472,7 +1488,7 @@ test('default worker resumes a committed attestation whose response was lost wit
   let lost = false;
   f.adapter.manageCatalogPreparationJob = async (...args) => {
     const r = await manage(...args);
-    if (args[1].action === 'attest-media-image' && !lost) {
+    if (isMediaAttestation(args[1]) && !lost) {
       lost = true;
       throw Error('attestation ACK lost');
     }
@@ -1554,13 +1570,13 @@ for (const phase of [
     }
     f.adapter.manageCatalogPreparationJob = async (...args) => {
       if (
-        (phase === 'before-attest' && args[1].action === 'attest-media-image') ||
+        (phase === 'before-attest' && isMediaAttestation(args[1])) ||
         ((phase === 'before-finish' || phase === 'edit-before-finish') &&
           args[1].action === 'finish-preparation')
       )
         await change();
       const r = await manage(...args);
-      if (phase === 'after-attest' && args[1].action === 'attest-media-image') await change();
+      if (phase === 'after-attest' && isMediaAttestation(args[1])) await change();
       return r;
     };
     const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
@@ -1578,7 +1594,13 @@ test('full candidate reread catches adopted source binding changes after attesta
   let changed = false;
   f.adapter.manageCatalogPreparationJob = async (...args) => {
     const r = await manage(...args);
-    if (args[1].action === 'attest-media-image' && args[1].index === 1 && !changed) {
+    if (
+      !changed &&
+      ((args[1].action === 'attest-media-image' && args[1].index === 1) ||
+        (args[1].action === 'attest-media-page' &&
+          args[1].from.cursor <= 1 &&
+          args[1].from.cursor + args[1].imageIds.length > 1))
+    ) {
       changed = true;
       const data = JSON.parse(readFileSync(f.file, 'utf8'));
       data.catalogSourceLinks[0].imageId = f.images[1]?._id;
@@ -3476,4 +3498,226 @@ for (const failure of ['rejected', 'coded-busy', 'budget'] as const)
     assert.equal(result.ok, false);
     assert.equal(reservations, 1);
     assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+  });
+
+test('a bounded metadata page seals three protected images atomically and replays without writes', async (t) => {
+  const f = await fixture(t, 3);
+  assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const command = {
+    action: 'attest-media-page' as const,
+    ...seal.scope,
+    planDigest: seal.planDigest,
+    from: seal.bind.mediaSeal,
+    imageIds: f.images.map((i) => i._id),
+  };
+  const result = await seal.run(command);
+  assert.ok(result.ok && 'mediaSeal' in result, JSON.stringify(result));
+  assert.equal(result.mediaSeal.cursor, 3);
+  assert.equal(result.mediaSeal.imageIdsDigest, catalogSealedImageIdsDigest(command.imageIds));
+  const committed = readFileSync(f.file, 'utf8');
+  assert.deepEqual(await seal.run(command), result);
+  assert.equal(readFileSync(f.file, 'utf8'), committed);
+  assert.deepEqual(await seal.attest(2, 'image-0002'), result);
+});
+
+for (const fault of [
+  'late-image-change',
+  'wrong-order',
+  'missing-hold',
+  'wrong-plan',
+  'over-eight',
+] as const)
+  test(`metadata page rejects ${fault} without a partial seal`, async (t) => {
+    const f = await fixture(t, 3);
+    assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
+    const seal = await sealScope(f.adapter, f.authority, f.jobId);
+    const command = {
+      action: 'attest-media-page' as const,
+      ...seal.scope,
+      planDigest: seal.planDigest,
+      from: seal.bind.mediaSeal,
+      imageIds: f.images.map((i) => i._id),
+    };
+    if (fault === 'wrong-order') command.imageIds.reverse();
+    if (fault === 'wrong-plan') command.planDigest = 'f'.repeat(64);
+    if (fault === 'over-eight')
+      command.imageIds = Array.from({ length: 9 }, (_, i) => `image-${i}`);
+    if (fault === 'late-image-change' || fault === 'missing-hold') {
+      const data = JSON.parse(readFileSync(f.file, 'utf8'));
+      if (fault === 'late-image-change') data.images[2].checksumSha256 = 'b'.repeat(64);
+      else
+        data.catalogImageObservations = data.catalogImageObservations.filter(
+          (row: { imageId?: string; kind?: string }) =>
+            !(row.imageId === 'image-0002' && row.kind?.includes('hold')),
+        );
+      writeFileSync(f.file, JSON.stringify(data));
+    }
+    const before = readFileSync(f.file, 'utf8');
+    const result = await seal.run(command);
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(readFileSync(f.file, 'utf8'), before);
+  });
+
+async function metadataPageFixture(
+  t: { after(fn: () => void): void },
+  count = 3,
+  now?: () => number,
+) {
+  const f = await fixture(t, count, false, now);
+  for (let n = 0; n < Math.ceil(count / 4); n++)
+    assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
+  const seal = await sealScope(f.adapter, f.authority, f.jobId);
+  const command = {
+    action: 'attest-media-page' as const,
+    ...seal.scope,
+    planDigest: seal.planDigest,
+    from: seal.bind.mediaSeal,
+    imageIds: f.images.map((i) => i._id),
+  };
+  return { ...f, seal, command };
+}
+function pageStore(
+  file: string,
+  beforeRead?: (collection: string, id: string, rows: Record<string, CollectionDoc[]>) => void,
+) {
+  const rows: Record<string, CollectionDoc[]> = JSON.parse(readFileSync(file, 'utf8'));
+  let reads = 0;
+  const writes: Array<{ collection: string; row: CollectionDoc }> = [];
+  return {
+    rows,
+    writes,
+    reads: () => reads,
+    tx: {
+      get: async (collection: string, id: string) => {
+        reads++;
+        beforeRead?.(collection, id, rows);
+        return structuredClone(rows[collection]?.find((row) => row._id === id) ?? null);
+      },
+      set: async (collection: string, row: CollectionDoc) => {
+        writes.push({ collection, row: structuredClone(row) });
+        rows[collection] ??= [];
+        const list = rows[collection];
+        const index = list.findIndex((item) => item._id === row._id);
+        if (index < 0) list.push(structuredClone(row));
+        else list[index] = structuredClone(row);
+      },
+    },
+  };
+}
+test('eight attested images stay inside the 38-operation native transaction budget', async (t) => {
+  const f = await metadataPageFixture(t, 8);
+  const store = pageStore(f.file);
+  const result = await runCatalogPreparationJob(store.tx, f.authority, f.command);
+  assert.ok(result.ok && 'mediaSeal' in result, JSON.stringify(result));
+  assert.equal(result.mediaSeal.cursor, 8);
+  assert.ok(store.reads() + store.writes.length <= 38);
+  assert.equal(store.writes.length, 1);
+  assert.equal(store.writes[0]?.collection, 'catalogPreparationJobs');
+});
+test('expiry during the third image rejects the whole metadata page without writes', async (t) => {
+  let clock = Date.now();
+  const f = await metadataPageFixture(t, 3, () => clock);
+  let changed = false;
+  const store = pageStore(f.file, (collection, id, rows) => {
+    if (collection === 'images' && id === 'image-0002') {
+      const expiresAt = rows.catalogPreparationJobs?.[0]?.leaseExpiresAt;
+      assert.equal(typeof expiresAt, 'number');
+      clock = Number(expiresAt) + 1;
+      changed = true;
+    }
+  });
+  const result = await runCatalogPreparationJob(store.tx, f.authority, f.command, clock);
+  assert.equal(changed, true);
+  assert.equal(result.ok, false);
+  assert.equal(store.writes.length, 0);
+  assert.equal(store.rows.catalogPreparationJobs?.[0]?.state, 'running');
+});
+test('a content change during metadata reads retires the job without a partial seal', async (t) => {
+  const f = await metadataPageFixture(t);
+  let changed = false;
+  const store = pageStore(f.file, (collection, id, rows) => {
+    if (collection === 'images' && id === 'image-0002') {
+      const product = rows.products?.[0];
+      assert.ok(product);
+      product.name = 'Concurrent independent edit';
+      changed = true;
+    }
+  });
+  const result = await runCatalogPreparationJob(store.tx, f.authority, f.command);
+  assert.equal(changed, true);
+  assert.deepEqual(result, { ok: false, code: 'STALE' });
+  assert.equal(store.writes.length, 1);
+  assert.equal(store.writes[0]?.collection, 'catalogPreparationJobs');
+  const job = store.rows.catalogPreparationJobs?.[0];
+  assert.ok(job);
+  assert.equal(job.state, 'stale');
+  assert.deepEqual(job.mediaSeal, f.command.from);
+  assert.equal(store.rows.products?.[0]?.published, false);
+});
+test('a metadata page lost reply replays the exact committed proof after reopening the database', async (t) => {
+  const f = await metadataPageFixture(t);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lost = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'attest-media-page' && !lost) {
+      lost = true;
+      throw Error('committed page ACK lost');
+    }
+    return result;
+  };
+  await assert.rejects(f.seal.run(f.command), /ACK lost/);
+  const saved = readFileSync(f.file, 'utf8');
+  const reopened = new JsonFileAdapter(f.file);
+  const result = await reopened.manageCatalogPreparationJob(f.authority, f.command);
+  assert.ok(result.ok && 'mediaSeal' in result, JSON.stringify(result));
+  assert.equal(result.mediaSeal.cursor, 3);
+  assert.equal(readFileSync(f.file, 'utf8'), saved);
+});
+test('nine cached images use at most two attestation transactions and keep private references unchanged', async (t) => {
+  const f = await cachedPlan(t, 9);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let attestations = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (isMediaAttestation(args[1])) attestations++;
+    return manage(...args);
+  };
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('metadata cannot reread bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('metadata cannot rewrite storage');
+  };
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+  assert.ok(result.ok && result.outcome === 'ready', JSON.stringify(result));
+  assert.equal(attestations, 2);
+  for (const image of f.images)
+    assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});
+
+for (const fault of ['serialized-lease', 'foreign-job', 'cancelled-job'] as const)
+  test(`a metadata page rejects ${fault} without writes`, async (t) => {
+    const f = await metadataPageFixture(t);
+    if (fault === 'serialized-lease') f.command.lease = JSON.parse(JSON.stringify(f.command.lease));
+    if (fault === 'foreign-job') f.command.jobId = 'f'.repeat(64);
+    if (fault === 'cancelled-job') {
+      const row = await f.adapter.get('catalogPreparationJobs', f.jobId);
+      assert.ok(row && typeof row.leaseVersion === 'number');
+      assert.ok(
+        (
+          await f.seal.run({
+            action: 'cancel',
+            actorId: 'admin',
+            jobId: f.jobId,
+            expectedLeaseVersion: row.leaseVersion,
+          })
+        ).ok,
+      );
+    }
+    const before = readFileSync(f.file, 'utf8');
+    const result = await f.seal.run(f.command);
+    assert.equal(result.ok, false);
+    assert.equal(readFileSync(f.file, 'utf8'), before);
   });

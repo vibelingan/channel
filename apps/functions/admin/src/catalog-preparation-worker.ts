@@ -7,9 +7,10 @@ import {
 } from '@vibelingan-channel/db';
 import { readImageMutationState } from '@vibelingan-channel/db/adapter';
 import { storedCatalogImageInputDigest } from '@vibelingan-channel/db/catalog-image-input';
-import type {
-  CatalogPreparationAuthority,
-  CatalogPreparationJobResult,
+import {
+  CATALOG_MEDIA_ATTESTATION_PAGE_SIZE,
+  type CatalogPreparationAuthority,
+  type CatalogPreparationJobResult,
 } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
@@ -145,21 +146,40 @@ async function runCatalogPreparationStages(
     if (!bound.ok) return { ok: false, code: bound.code };
     if (!('mediaSeal' in bound)) return { ok: false, code: 'CONFLICT' };
     let seal = bound.mediaSeal;
-    for (let n = 0; n < maxProtectedImages && seal.cursor < seal.total; n++) {
+    for (let checked = 0; checked < maxProtectedImages && seal.cursor < seal.total; ) {
       if (now() - startedAt >= budget - tailBudgetMs) break;
-      const imageId = candidate.imageIds[seal.cursor];
-      if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
-      const attested = await run({
-        action: 'attest-media-image',
-        jobId: progress.jobId,
-        lease,
-        planDigest,
-        index: seal.cursor,
-        imageId,
-      });
+      const count = Math.min(
+        CATALOG_MEDIA_ATTESTATION_PAGE_SIZE,
+        maxProtectedImages - checked,
+        seal.total - seal.cursor,
+      );
+      const imageIds = candidate.imageIds.slice(seal.cursor, seal.cursor + count);
+      if (imageIds.length !== count) return { ok: false, code: 'CORRUPT' };
+      const from = seal;
+      const attested = await run(
+        imageIds.length === 1
+          ? {
+              action: 'attest-media-image',
+              jobId: progress.jobId,
+              lease,
+              planDigest,
+              index: seal.cursor,
+              imageId: imageIds[0] ?? '',
+            }
+          : {
+              action: 'attest-media-page',
+              jobId: progress.jobId,
+              lease,
+              planDigest,
+              from,
+              imageIds,
+            },
+      );
       if (!attested.ok) return { ok: false, code: attested.code };
-      if (!('mediaSeal' in attested)) return { ok: false, code: 'CONFLICT' };
+      if (!('mediaSeal' in attested) || attested.mediaSeal.cursor !== from.cursor + count)
+        return { ok: false, code: 'CONFLICT' };
       seal = attested.mediaSeal;
+      checked += count;
     }
     partial = { ...partial, attestation: { total: seal.total, checked: seal.cursor } };
     if (seal.cursor !== seal.total || now() - startedAt >= budget - tailBudgetMs) return partial;
