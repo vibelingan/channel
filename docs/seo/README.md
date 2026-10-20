@@ -4,7 +4,11 @@
 [流程审阅及未完成门禁](FINAL_REVIEW.zh-CN.md). The sections below are retained historical
 phase notes; their old branch commands, account blockers and test totals are not the current status.
 Continue on the existing `feat/seo-foundation` branch. The final diagram atlas is
-`output/seo-final-2026-10-20/SEO-DELIVERY-ATLAS.html`.
+the two complete diagrams in `output/seo-design-r2-2026-10-20/`. The earlier atlas is historical.
+
+Current implementation planning: [六个模块的执行顺序、low-level design 与 MIU](execution/README.zh-CN.md).
+These ten MIUs are planned, not implemented. Database fields are retained by default;
+deletion is not a required migration step.
 
 This directory is the source of truth for the current SEO/GEO sequence.
 

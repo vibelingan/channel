@@ -35,3 +35,11 @@
 按 humanizer 的 plain-technical-writing 复核 `AUTOMATED_RECOVERY_DESIGN.zh-CN.md`、`RECOVERY_DRILL_PLAN.zh-CN.md`、`FINAL_DELIVERY.zh-CN.md`、本记录及图注。具体修正：“数据库回滚”拆成“兼容代码恢复、保留 schema/业务写入、必要记录单独补偿”；“搜索引擎马上更新”拆成“sitemap 文件保持真实、主动通知等待稳定、抓取仍可独立发生”。
 
 事实分别对照现有迁移、数据库 adapter、原审阅反例和官方搜索协议；没有把目标设计写成已实现能力。设计可交给后续实施，运行代码中的缺口仍需修复并按受控计划验收。
+
+## 按模块的实施规划补充
+
+在 `139308f9` 上读取当前恢复内核、部署/备份脚本、函数状态与 manifest、Deploy Test、db adapter、SDK 合同规则和总体设计，整理 `execution/` 的六模块/十 MIU。当前代码事实包括：恢复回调 false 未被断言；正常发布是目录上传；已有 Alibaba 事务 guard；函数和托管 API 不识别站点 fence。没有检出或修改其他 worktree。
+
+文字复核覆盖 execution 的入口与六个模块、总体设计和当前交付索引。具体把“最后延迟删除/默认扩展后收缩”改成“默认保留，删除另行论证”；没有把商品撤回路径处理误改成永久保留。还核对了 artifact envelope 不自引用 hash、局部发布按组件绑定基线、canary 与整站共用环境互斥但分开激活状态、未接全内容写入方不开放商品恢复。
+
+官方事务/管理文档通过 CloudBase 文档工具和官网查询；Context7 不可用。已确认当前依赖 symlink 指向 node-sdk 3.17.2 / wx-server-sdk 4.0.2；无网络 runtime probe 在本地依赖文件读取时出现 ETIMEDOUT，未完成，因此不宣称本轮 SDK 运行检查通过。实施时仍须运行各模块规定的 SDK/真实资源合同验收。此次只检查文档链接、MIU/依赖覆盖和 Git 写入范围，没有运行尚不存在的测试或生产演练。
