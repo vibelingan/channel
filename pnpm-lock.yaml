@@ -113,8 +113,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/shared
       undici:
-        specifier: ^8.10.0
-        version: 8.10.0
+        specifier: 7.30.1
+        version: 7.30.1
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -3634,9 +3634,9 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@8.10.0:
-    resolution: {integrity: sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ==}
-    engines: {node: '>=22.19.0'}
+  undici@7.30.1:
+    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
+    engines: {node: '>=20.18.1'}
 
   unified@11.0.5:
     resolution: {integrity: sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==}
@@ -7266,7 +7266,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@8.10.0: {}
+  undici@7.30.1: {}
 
   unified@11.0.5:
     dependencies:

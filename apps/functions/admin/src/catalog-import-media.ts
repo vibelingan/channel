@@ -21,7 +21,7 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { type LookupFunction, isIP } from 'node:net';
-import { createDoc } from '@vibelingan-channel/db';
+import { createDoc, updateDoc } from '@vibelingan-channel/db';
 import { catalogStoragePath, mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { Agent, fetch as undiciFetch } from 'undici';
@@ -569,7 +569,6 @@ export async function migrateImageLocally(
   // `updateDoc`, not `update`: every storage/lifecycle field on `images` is
   // readOnly on the generic CRUD surface by design, so only the trusted
   // server-side path may set them — the same path the upload actions use.
-  const { updateDoc } = await import('@vibelingan-channel/db');
   await updateDoc('images', doc._id, {
     storageProvider: stored.storageProvider,
     storageMode: stored.storageMode,

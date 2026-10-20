@@ -1658,3 +1658,12 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 项目 Node24 全 62 文件 1139/1139，Node20 原故障注入/HTTP/mapping 子进程 28/28，均零跳过。最终位置的正式构建 taxonomy 重放四类各 14 件，分类/发布/页面/下架组合 1/1 通过（3.1 分钟），独占资源删除，原 9 个报告文件哈希相同恢复。初始重放 r7 是 load 前位置，不能替代最终 UI 证据；最初 Node20 全量的 6 个失败逐项保留和区分，2 个 undici 8 导入失败留到下一单元修复。
 
 实际复核 json-adapter 的 FIFO/load/persist、native 审批/get、新 HTTP 测试、原 reservation/rename 测试及客户端 check；将“发布失败”更正为“发布已完成、确认读取失败”，将“云函数依赖故障”缩小为“本地导入工具已复现 Node20 不兼容”：index→handler 和现有 bundle 未包含 undici，不能据包名推断线上影响。P5、最终 P6/P7 和旧缺失返回码诊断仍开放，未部署或修改云商品，fullDeliveryReady=false。
+
+
+## P6d：来源图片客户端兼容性（2026-10-20）
+
+详见 [P6d](P6d_IMAGE_CLIENT_RUNTIME.zh-CN.md)。undici 8 要求 Node >=22.19，超过项目最低 22.12、CI 22.13，并在 Node20 导入前报错；新增独立 engine 红测后，按官方支持和实际安装包精确锁 7.30.1（>=20.18.1），其他依赖解析不变，frozen install 与 783 项供应链检查通过。全量随后检出同一动态 DB 导入造成 27 条失败，改为从已经静态加载的同一 barrel 一并导入 updateDoc，图片迁移调用和状态更新顺序不变。
+
+最终 Node20 本地 62 文件 1139/1139、媒体 31/31、Node24 runtime 6/6，均零跳过；Admin 类型/4 文件 Biome/SDK gate、Admin Node20 target 构建和自建无 workspace/node_modules 目录中的 Node20 cold require 通过。真实默认 HTTPS/DNS 图片抓取成功，7249 字节 PNG 与 SHA 已记录；与模拟媒体、像素/COS 验收分开。
+
+实际审查 package/锁文件、runtime 契约、原媒体实现与测试、云函数入口和全部 CLI 消费者；确认该模块当前未进入云 Admin bundle，不把本地 Node20 失败说成线上批量发布根因。未更改价格、来源映射、分类、审批、计数或 SDK/运行时配置，未部署。P5、最终 P6/P7、旧诊断缺口继续，fullDeliveryReady=false。
