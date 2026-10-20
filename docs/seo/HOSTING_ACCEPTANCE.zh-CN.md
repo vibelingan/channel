@@ -1,5 +1,10 @@
 # 托管检查结果与发布前条件
 
+最终方案入口：[FINAL_DELIVERY.zh-CN.md](FINAL_DELIVERY.zh-CN.md)。2026-10-20 最终复核新增
+发现文件一致性阻断项：当前恢复内核检查商品 HTML 路径，但不会解析 sitemap/manifest 中的
+撤回地址；不能把下文的撤回拒绝描述理解为完整发现文件门禁。详见
+[FINAL_REVIEW.zh-CN.md](FINAL_REVIEW.zh-CN.md)。本轮未执行云端恢复或修改缓存。
+
 2026-10-20。工作分支 `feat/seo-foundation`，本轮没有发布、修改网关、清理远端文件或操作 pricing。线上备份已核验；缓存变更、云端恢复和真实交付验收仍未执行。
 
 ## 已查明的线上行为

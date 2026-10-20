@@ -1,5 +1,11 @@
 # SEO / GEO Agent Handoff
 
+2026-10-20 current entry: [最终方案与交付索引](FINAL_DELIVERY.zh-CN.md) and
+[流程审阅及未完成门禁](FINAL_REVIEW.zh-CN.md). The sections below are retained historical
+phase notes; their old branch commands, account blockers and test totals are not the current status.
+Continue on the existing `feat/seo-foundation` branch. The final diagram atlas is
+`output/seo-final-2026-10-20/SEO-DELIVERY-ATLAS.html`.
+
 This directory is the source of truth for the current SEO/GEO sequence.
 
 ## Active scope

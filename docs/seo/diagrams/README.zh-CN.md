@@ -1,5 +1,11 @@
 # SEO 交付图的阅读顺序
 
+最终综合入口为 `output/seo-final-2026-10-20/SEO-DELIVERY-ATLAS.html`，在同一离线 HTML
+中连续呈现职责总览、发布流程和四张时序图。当前方案与审核边界见
+[最终交付索引](../FINAL_DELIVERY.zh-CN.md)和[最终流程审阅](../FINAL_REVIEW.zh-CN.md)。
+原 `hosting-delivery` 总图保留为历史版本；最新流程使用 `hosting-release.workflow.json`，
+将手动恢复入口与自动发布分开，没有发布失败自动恢复连线。
+
 本组图依据 `feat/seo-foundation` 的实现提交 `14e8ad8b` 绘制。它们是代码与目标设计的说明，不是一次线上发布的执行记录。原有总流程保留，新增三张时序图，把参与方、请求先后、输入输出和失败位置拆开。
 
 | 阅读顺序 | 图源 | 要回答的问题 |
