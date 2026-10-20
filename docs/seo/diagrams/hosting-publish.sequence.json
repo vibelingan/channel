@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "发布时序：从商品快照到公开地址验收",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 680]
+  },
+  "participants": [
+    {
+      "id": "publish_runner",
+      "label": "GitHub Actions",
+      "sublabel": "持有环境部署锁",
+      "type": "backend"
+    },
+    {
+      "id": "public_catalog",
+      "label": "公开商品 API",
+      "sublabel": "当前线上公开数据",
+      "type": "cloud"
+    },
+    {
+      "id": "site_builder",
+      "label": "Astro 构建",
+      "sublabel": "HTML 与发布检查",
+      "type": "backend"
+    },
+    {
+      "id": "release_archive",
+      "label": "Artifacts",
+      "sublabel": "新产物与旧站备份",
+      "type": "database"
+    },
+    {
+      "id": "cloud_delivery",
+      "label": "CloudBase",
+      "sublabel": "函数、网关、静态托管",
+      "type": "cloud"
+    },
+    {
+      "id": "public_probes",
+      "label": "公开 URL 验收",
+      "sublabel": "普通请求与浏览器",
+      "type": "external"
+    }
+  ],
+  "messages": [
+    {
+      "id": "collect_public",
+      "from": "publish_runner",
+      "to": "public_catalog",
+      "label": "匿名读取列表、详情与 revision",
+      "y": 171.6,
+      "variant": "default"
+    },
+    {
+      "id": "catalog_payload",
+      "from": "public_catalog",
+      "to": "publish_runner",
+      "label": "返回公开字段；采集器核对分页与完整性",
+      "y": 201.84,
+      "variant": "return"
+    },
+    {
+      "id": "build_saved_snapshot",
+      "from": "publish_runner",
+      "to": "site_builder",
+      "label": "传入已保存的快照文件，生成商品 HTML",
+      "y": 232.08,
+      "variant": "emphasis"
+    },
+    {
+      "id": "check_build_output",
+      "from": "site_builder",
+      "to": "publish_runner",
+      "label": "检查真实产物、公开投影、origin 与完整页面",
+      "y": 262.32,
+      "variant": "return"
+    },
+    {
+      "id": "archive_new_build",
+      "from": "publish_runner",
+      "to": "release_archive",
+      "label": "先保存新站 dist 与商品快照",
+      "y": 292.56,
+      "variant": "emphasis"
+    },
+    {
+      "id": "capture_old_hosting",
+      "from": "publish_runner",
+      "to": "cloud_delivery",
+      "label": "只读备份当前文件、清单及配置，详见备份图",
+      "y": 322.8,
+      "variant": "default"
+    },
+    {
+      "id": "seal_old_backup",
+      "from": "cloud_delivery",
+      "to": "publish_runner",
+      "label": "返回原始文件与两次清单；本地逐项核验",
+      "y": 353.04,
+      "variant": "return"
+    },
+    {
+      "id": "archive_old_hosting",
+      "from": "publish_runner",
+      "to": "release_archive",
+      "label": "核验通过才归档旧站备份，保留 30 天",
+      "y": 383.28,
+      "variant": "emphasis"
+    },
+    {
+      "id": "cache_preflight",
+      "from": "publish_runner",
+      "to": "public_probes",
+      "label": "写入前检查普通 URL 与 no-cache 请求",
+      "y": 413.52,
+      "variant": "security"
+    },
+    {
+      "id": "preflight_result",
+      "from": "public_probes",
+      "to": "publish_runner",
+      "label": "返回检查结果；缓存策略不满足则停止",
+      "y": 443.76,
+      "variant": "return"
+    },
+    {
+      "id": "deploy_backend",
+      "from": "publish_runner",
+      "to": "cloud_delivery",
+      "label": "通过后沿用原函数与网关部署流程",
+      "y": 474.0,
+      "variant": "default"
+    },
+    {
+      "id": "deploy_static",
+      "from": "publish_runner",
+      "to": "cloud_delivery",
+      "label": "上传静态站、核对 hash、精确清理、设置 404",
+      "y": 504.24,
+      "variant": "emphasis"
+    },
+    {
+      "id": "accept_release",
+      "from": "publish_runner",
+      "to": "public_probes",
+      "label": "检查商品/404/sitemap/manifest，再跑原有验收",
+      "y": 534.48,
+      "variant": "security"
+    },
+    {
+      "id": "release_result",
+      "from": "public_probes",
+      "to": "publish_runner",
+      "label": "返回报告；失败不会自动回滚或登记成功版本",
+      "y": 564.72,
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "代码与执行状态",
+      "items": [
+        "现有分支已有这些步骤；GitHub 尚未执行本轮改动。",
+        "完整 CI、函数打包与运行时校验是图中采集前的前置条件。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "失败发生的位置很重要",
+      "items": [
+        "快照、构建、归档或缓存前检失败时，尚未写云端业务内容。",
+        "函数先于静态站更新；后段失败可能留下部分发布状态。"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "恢复边界",
+      "items": [
+        "静态上传逐文件生效，未证明原子切换。",
+        "实际云端恢复与 last-successful 登记仍待接入。"
+      ]
+    }
+  ]
+}

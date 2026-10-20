@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "恢复时序：执行内核已有，云端接入待完成",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 680]
+  },
+  "participants": [
+    {
+      "id": "recovery_owner",
+      "label": "操作人",
+      "sublabel": "指定恢复对象",
+      "type": "external"
+    },
+    {
+      "id": "recovery_runner",
+      "label": "恢复任务",
+      "sublabel": "目标：共享部署锁",
+      "type": "backend"
+    },
+    {
+      "id": "recovery_store",
+      "label": "恢复产物",
+      "sublabel": "文件、hash、配置",
+      "type": "database"
+    },
+    {
+      "id": "current_publication",
+      "label": "当前发布状态",
+      "sublabel": "所有权与公开商品",
+      "type": "database"
+    },
+    {
+      "id": "hosting_adapter",
+      "label": "云端适配器",
+      "sublabel": "待接入 CloudBase",
+      "type": "cloud"
+    },
+    {
+      "id": "recovery_probes",
+      "label": "公开 URL 验收",
+      "sublabel": "普通请求与重新校验",
+      "type": "security"
+    }
+  ],
+  "messages": [
+    {
+      "id": "choose_recovery",
+      "from": "recovery_owner",
+      "to": "recovery_runner",
+      "label": "指定产物与环境，进入共享部署锁（待接入）",
+      "y": 171.6,
+      "variant": "default"
+    },
+    {
+      "id": "load_recovery_artifact",
+      "from": "recovery_runner",
+      "to": "recovery_store",
+      "label": "取得固定版本的 manifest、文件与配置（待接入）",
+      "y": 201.84,
+      "variant": "default"
+    },
+    {
+      "id": "recovery_artifact_result",
+      "from": "recovery_store",
+      "to": "recovery_runner",
+      "label": "返回文件与 manifest，供任务全量核验",
+      "y": 232.08,
+      "variant": "return"
+    },
+    {
+      "id": "read_current_publication",
+      "from": "recovery_runner",
+      "to": "current_publication",
+      "label": "读取可信的当前路径归属及公开商品（待接入）",
+      "y": 262.32,
+      "variant": "default"
+    },
+    {
+      "id": "current_publication_result",
+      "from": "current_publication",
+      "to": "recovery_runner",
+      "label": "返回当前公开商品路径与文件归属",
+      "y": 292.56,
+      "variant": "return"
+    },
+    {
+      "id": "restore_dependencies",
+      "from": "recovery_runner",
+      "to": "hosting_adapter",
+      "label": "阶段 1：恢复依赖资源，每个文件上传后读回",
+      "y": 324,
+      "variant": "emphasis"
+    },
+    {
+      "id": "dependency_proof",
+      "from": "hosting_adapter",
+      "to": "recovery_runner",
+      "label": "任一文件失败即停止，不推进到页面覆盖",
+      "y": 353.04,
+      "variant": "return"
+    },
+    {
+      "id": "restore_html",
+      "from": "recovery_runner",
+      "to": "hosting_adapter",
+      "label": "阶段 2：恢复 HTML，每个文件上传后读回",
+      "y": 383.28,
+      "variant": "emphasis"
+    },
+    {
+      "id": "restore_discovery",
+      "from": "recovery_runner",
+      "to": "hosting_adapter",
+      "label": "阶段 3：恢复 sitemap、robots 和 manifest 并读回",
+      "y": 413.52,
+      "variant": "emphasis"
+    },
+    {
+      "id": "remove_owned_differences",
+      "from": "recovery_runner",
+      "to": "hosting_adapter",
+      "label": "仅删当前明确拥有且旧产物不含的页面/发现文件",
+      "y": 443.76,
+      "variant": "security"
+    },
+    {
+      "id": "configure_recovered_site",
+      "from": "recovery_runner",
+      "to": "hosting_adapter",
+      "label": "执行审核过的配置动作（适配器待接入）",
+      "y": 474.0,
+      "variant": "default"
+    },
+    {
+      "id": "accept_recovery",
+      "from": "recovery_runner",
+      "to": "recovery_probes",
+      "label": "核对普通 URL、缓存、404、正文和目标 hash",
+      "y": 504.24,
+      "variant": "security"
+    },
+    {
+      "id": "recovery_acceptance_result",
+      "from": "recovery_probes",
+      "to": "recovery_runner",
+      "label": "验收失败仍算未完成；不把部分恢复登记为成功",
+      "y": 534.48,
+      "variant": "return"
+    },
+    {
+      "id": "report_recovery",
+      "from": "recovery_runner",
+      "to": "recovery_owner",
+      "label": "全部通过后报告完成与实测用时",
+      "y": 564.72,
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "当前内核已有",
+      "items": [
+        "输入校验、拒绝复活撤回商品、有序上传/读回、精确删除。",
+        "保留旧 hash 资源、平台路径和搜索验证文件。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "外围操作仍待接入",
+      "items": [
+        "锁内 job、可信产物获取、实时发布状态及云端操作适配器。",
+        "共享锁不能冻结后台发布；执行中状态变化还需协调。"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "恢复范围与配置风险",
+      "items": [
+        "静态恢复不回滚函数或数据库，也不保证原子切换。",
+        "配置动作需单独审核，不能直接回放整份历史缓存/404 配置。"
+      ]
+    }
+  ]
+}
