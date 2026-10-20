@@ -137,6 +137,7 @@ test(
       | 'cancel-success'
       | 'cancel-unconfirmed'
       | 'retry-unconfirmed'
+      | 'durable-progress'
       | 'worker-rejected'
       | 'start-unconfirmed'
       | 'hold' = 'prepare';
@@ -204,7 +205,29 @@ test(
         return;
       }
       let data: unknown;
-      if (mode === 'cancel-success') {
+      if (mode === 'durable-progress') {
+        if (action === 'continue') continues++;
+        const done = continues >= 2;
+        const checked = done ? 2 : continues > 0 ? 1 : 0;
+        const value = status(done, product);
+        value.progress.media = { total: 2, checked, verified: checked, invalid: 0, retry: 0 };
+        value.progress.attempt = continues;
+        value.progress.leaseVersion = continues;
+        if (value.report.seal) value.report.seal.imageCount = 2;
+        if (done) value.attestation = { total: 2, checked: 2 };
+        data =
+          action === 'start'
+            ? { ok: true, progress: value.progress }
+            : action === 'continue'
+              ? {
+                  ok: true,
+                  status: value,
+                  invocation: done ? 'acknowledged' : 'unconfirmed',
+                  followUp: done ? 'none' : 'poll',
+                  ...(done ? {} : { recovery: 'status' }),
+                }
+              : { ok: true, status: value };
+      } else if (mode === 'cancel-success') {
         if (action === 'cancel') {
           cancelled = true;
           data = { ok: true, progress: { ...progress(product), state: 'cancelled' } };
@@ -514,6 +537,15 @@ test(
       'continue',
       'continue',
     ]);
+    mode = 'durable-progress';
+    product = 'durable-recovery';
+    continues = 0;
+    await mount(product, 'durable-recovery-admin');
+    const beforeDurable = actions.length;
+    await panel.getByRole('button', { name: 'Prepare saved product', exact: true }).click();
+    await expect(panel).toContainText('Saved product content is ready');
+    await expect(panel).toContainText('Photos checked: 2 of 2');
+    assert.deepEqual(actions.slice(beforeDurable), ['start', 'continue', 'status', 'continue']);
     t.diagnostic(
       'Executed: readonly mount, mobile width, duplicate action, ready, reload recovery, confirmed cancel/retry, unknown cancel/retry, sameactor reauth, wrongproduct refusal/currentproduct recovery, product-switch late result, stopwait without cancel, actor isolation, unrelated-storage continuity, contributor gate, real preview-error edit fallback.',
     );

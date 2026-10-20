@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AdminApiError } from './api.ts';
 import {
+  type PreparationStatus,
   managePreparation,
   readPreparationResponse,
   runPreparation,
@@ -58,7 +59,7 @@ function ready() {
   };
   return value;
 }
-function answer(value = status()) {
+function answer(value: unknown = status()) {
   return { ok: true, status: value };
 }
 function partial() {
@@ -68,7 +69,7 @@ function partial() {
   const preparing = { ...report, state: 'preparing', mediaReady: false };
   Reflect.deleteProperty(preparing, 'seal');
   value.report = preparing;
-  return { ...answer(value), followUp: 'continue', invocation: 'acknowledged' };
+  return { ok: true, status: value, followUp: 'continue', invocation: 'acknowledged' };
 }
 function harness(responses: unknown[]) {
   const calls: unknown[] = [];
@@ -405,7 +406,13 @@ for (const [action, wrong] of [
 }
 
 function rejectedBusy() {
-  return { ...answer(), followUp: 'none', invocation: 'rejected', failureCode: 'BUSY' };
+  return {
+    ...answer(),
+    status: status(),
+    followUp: 'none',
+    invocation: 'rejected',
+    failureCode: 'BUSY',
+  };
 }
 test('BUSY original preparation retries only after a fresh same-job status read', async () => {
   const h = harness([
@@ -557,4 +564,182 @@ test('authoritative ready recovery returned by the server remains ready after an
     { action: 'status', jobId },
     { action: 'continue', jobId },
   ]);
+});
+
+function mediaStatus(checked: number, leaseVersion: number, total = 2): PreparationStatus {
+  const value = partial().status;
+  value.progress.media = { total, checked, verified: checked, invalid: 0, retry: 0 };
+  value.progress.attempt = leaseVersion;
+  value.progress.leaseVersion = leaseVersion;
+  const decoded = readPreparationResponse(answer(value));
+  assert.ok('status' in decoded);
+  return decoded.status;
+}
+function mediaReady(total = 2, leaseVersion = 2): PreparationStatus {
+  const decoded = readPreparationResponse(answer(ready()));
+  assert.ok('status' in decoded && decoded.status.report?.state === 'ready');
+  return {
+    ...decoded.status,
+    progress: { ...mediaStatus(total, leaseVersion, total).progress, state: 'completed' },
+    attestation: { total, checked: total },
+    report: {
+      ...decoded.status.report,
+      seal: { ...decoded.status.report.seal, imageCount: total },
+    },
+  };
+}
+for (const during of ['running', 'already-queued'] as const) {
+  test(`durable media progress resumes the same task after an unconfirmed ${during} invocation`, async () => {
+    const baseline = mediaStatus(0, 0);
+    const advanced = mediaStatus(1, 1);
+    const pending =
+      during === 'running'
+        ? {
+            ...advanced,
+            progress: { ...advanced.progress, state: 'running', leaseExpiresAt: 1000 },
+          }
+        : advanced;
+    const h = harness([
+      answer(baseline),
+      { ...answer(pending), followUp: 'poll', invocation: 'unconfirmed', recovery: 'status' },
+      answer(advanced),
+      { ...answer(mediaReady()), followUp: 'none', invocation: 'acknowledged' },
+    ]);
+    const result = await runPreparation({ productId: 'clock', jobId }, h);
+    assert.equal(result.reason, 'ready');
+    assert.deepEqual(h.calls, [
+      { action: 'status', jobId },
+      { action: 'continue', jobId },
+      { action: 'status', jobId },
+      { action: 'continue', jobId },
+    ]);
+    assert.deepEqual(h.waits, [600]);
+  });
+}
+test('a lost HTTP reply can resume only after durable progress readback', async () => {
+  const h = harness([
+    answer(mediaStatus(0, 0)),
+    Error('reply lost after commit'),
+    answer(mediaStatus(1, 1)),
+    { ...answer(mediaReady()), followUp: 'none', invocation: 'acknowledged' },
+  ]);
+  assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'ready');
+  assert.equal(h.calls.length, 4);
+});
+for (const fault of [
+  'no-progress',
+  'lease',
+  'attempt',
+  'active-lease',
+  'created',
+  'total',
+  'digest',
+  'generation',
+  'retry',
+  'stale',
+] as const) {
+  test(`unconfirmed ${fault} readback cannot authorize another continuation`, async () => {
+    const baseline = mediaStatus(0, 0);
+    const advanced = mediaStatus(1, 1);
+    if (fault === 'no-progress') advanced.progress.media = baseline.progress.media;
+    if (fault === 'lease') advanced.progress.leaseVersion = 0;
+    if (fault === 'attempt') advanced.progress.attempt = 0;
+    if (fault === 'active-lease') advanced.progress.leaseExpiresAt = 1000;
+    if (fault === 'created') advanced.progress.createdAt = '2026-10-18T00:00:00.000Z';
+    if (fault === 'total' && advanced.progress.media) advanced.progress.media.total = 3;
+    if (fault === 'digest' && advanced.report)
+      advanced.report = { ...advanced.report, inputDigest: 'f'.repeat(64) };
+    if (fault === 'generation' && advanced.report)
+      advanced.report = { ...advanced.report, contentGeneration: 1 };
+    if (fault === 'retry' && advanced.progress.media) {
+      advanced.progress.media.verified = 0;
+      advanced.progress.media.retry = 1;
+    }
+    if (fault === 'stale') {
+      advanced.current = false;
+      advanced.report = null;
+      advanced.nextAction = 'restart';
+    }
+    const h = harness([
+      answer(baseline),
+      { ...answer(baseline), followUp: 'poll', invocation: 'unconfirmed', recovery: 'status' },
+      answer(advanced),
+    ]);
+    const result = await runPreparation({ productId: 'clock', jobId }, h);
+    assert.equal(result.reason, 'needs-action');
+    assert.equal(h.calls.length, 3);
+  });
+}
+test('durable attestation progress can resume without rechecking completed photos', async () => {
+  const baseline = { ...mediaStatus(2, 1), attestation: { total: 2, checked: 0 } };
+  const advanced = { ...mediaStatus(2, 2), attestation: { total: 2, checked: 1 } };
+  const h = harness([
+    answer(baseline),
+    { ...answer(baseline), followUp: 'poll', invocation: 'unconfirmed', recovery: 'status' },
+    answer(advanced),
+    { ...answer(mediaReady(2, 3)), followUp: 'none', invocation: 'acknowledged' },
+  ]);
+  assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'ready');
+  assert.equal(h.calls.length, 4);
+});
+test('each proven segment gets a polling window while unchanged leases retain their cap', async () => {
+  const responses: unknown[] = [answer(mediaStatus(0, 0, 6))];
+  for (let checked = 1; checked <= 6; checked++) {
+    const advanced = mediaStatus(checked, checked, 6);
+    responses.push(
+      { ...answer(advanced), followUp: 'poll', invocation: 'unconfirmed', recovery: 'status' },
+      answer(advanced),
+    );
+  }
+  responses.push({ ...answer(mediaReady(6, 7)), followUp: 'none', invocation: 'acknowledged' });
+  const h = harness(responses);
+  assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'ready');
+  assert.deepEqual(h.waits, [600, 600, 600, 600, 600, 600]);
+  assert.equal(h.calls.length, 14);
+});
+
+for (const code of [
+  'VALIDATION_ERROR',
+  'NOT_FOUND',
+  'CORRUPT',
+  'CONFLICT',
+  'STALE',
+  'SESSION_PAUSED',
+  'UNAVAILABLE',
+]) {
+  test(`durable progress does not retry an explicit ${code} API rejection`, async () => {
+    const h = harness([
+      answer(mediaStatus(0, 0)),
+      new AdminApiError(code, 'Explicit rejection'),
+      answer(mediaStatus(1, 1)),
+    ]);
+    assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'needs-action');
+    assert.equal(h.calls.length, 3);
+  });
+}
+test('durable progress does not bypass the existing BUSY backoff', async () => {
+  const advanced = mediaStatus(1, 1);
+  const h = harness([
+    answer(mediaStatus(0, 0)),
+    new AdminApiError('BUSY', 'Busy'),
+    answer(advanced),
+    answer(advanced),
+    { ...answer(mediaReady()), followUp: 'none', invocation: 'acknowledged' },
+  ]);
+  assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'ready');
+  assert.deepEqual(h.waits, [400]);
+  assert.equal(h.calls.length, 5);
+});
+test('durable progress never resets the overall request cap', async () => {
+  const responses: unknown[] = [answer(mediaStatus(0, 0, 100))];
+  for (let checked = 1; checked <= 100; checked++) {
+    const advanced = mediaStatus(checked, checked, 100);
+    responses.push(
+      { ...answer(advanced), followUp: 'poll', invocation: 'unconfirmed', recovery: 'status' },
+      answer(advanced),
+    );
+  }
+  const h = harness(responses);
+  assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'paused');
+  assert.equal(h.calls.length, 64);
 });

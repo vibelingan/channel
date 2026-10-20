@@ -185,6 +185,66 @@ function pause(ms: number, signal: AbortSignal) {
     signal.addEventListener('abort', abort, { once: true });
   });
 }
+type PreparationCheckpoint = Pick<PreparationStatus, 'progress' | 'report' | 'attestation'>;
+/** A released lease and monotonic durable progress recover a lost acknowledgement. */
+function advancedPreparation(
+  before: PreparationCheckpoint | undefined,
+  after: PreparationStatus | undefined,
+): boolean {
+  if (
+    !before ||
+    !after?.current ||
+    after.nextAction !== 'continue' ||
+    after.progress.state !== 'queued' ||
+    after.progress.leaseExpiresAt !== 0 ||
+    after.report?.state !== 'preparing' ||
+    after.report.issues.some((issue) => issue.severity === 'error')
+  )
+    return false;
+  const previous = before.progress;
+  const next = after.progress;
+  if (
+    next.jobId !== previous.jobId ||
+    next.productId !== previous.productId ||
+    next.createdAt !== previous.createdAt ||
+    next.leaseVersion <= previous.leaseVersion ||
+    next.attempt <= previous.attempt
+  )
+    return false;
+  if (
+    before.report &&
+    (after.report.inputDigest !== before.report.inputDigest ||
+      after.report.contentGeneration !== before.report.contentGeneration)
+  )
+    return false;
+  const media = next.media;
+  const oldMedia = previous.media;
+  if (
+    !media ||
+    media.invalid !== 0 ||
+    media.retry !== 0 ||
+    (oldMedia &&
+      (media.total !== oldMedia.total ||
+        media.checked < oldMedia.checked ||
+        media.verified < oldMedia.verified))
+  )
+    return false;
+  const attestation = after.attestation;
+  const oldAttestation = before.attestation;
+  if (
+    oldAttestation &&
+    (!attestation ||
+      attestation.total !== oldAttestation.total ||
+      attestation.checked < oldAttestation.checked)
+  )
+    return false;
+  return (
+    !oldMedia ||
+    media.checked > oldMedia.checked ||
+    (attestation !== null &&
+      (oldAttestation === null || attestation.checked > oldAttestation.checked))
+  );
+}
 /** A stopped browser wait leaves the remote task available for status and explicit continuation. */
 export async function runPreparation(
   input: { productId: string; jobId?: string },
@@ -200,6 +260,8 @@ export async function runPreparation(
   const signal = options.signal ? AbortSignal.any([options.signal, budget.signal]) : budget.signal;
   let jobId = input.jobId;
   let current: PreparationStatus | undefined;
+  let observedProgress: PreparationStatus['progress'] | undefined;
+  let continuationStart: PreparationCheckpoint | undefined;
   let calls = 0;
   let polls = 0;
   let busyRetries = 0;
@@ -231,6 +293,7 @@ export async function runPreparation(
       ...(jobId ? { jobId } : {}),
     });
     const observed = 'status' in value ? value.status.progress : value.progress;
+    observedProgress = observed;
     jobId = observed.jobId;
     if ('status' in value) current = value.status;
     options.onProgress?.({ progress: observed, ...(current ? { status: current } : {}) });
@@ -275,6 +338,12 @@ export async function runPreparation(
         if (!canRequest()) return result('paused');
       }
       const wasPoll = mode === 'poll';
+      if (!wasPoll && observedProgress)
+        continuationStart = {
+          progress: observedProgress,
+          report: current?.report ?? null,
+          attestation: current?.attestation ?? null,
+        };
       let busyStatus: PreparationStatus | undefined;
       try {
         observed = await send({ action: wasPoll ? 'status' : 'continue', jobId });
@@ -299,6 +368,14 @@ export async function runPreparation(
         }
         if ('status' in recovered && recovered.status.nextAction === 'ready')
           return result('ready');
+        const unknownReply =
+          !(error instanceof AdminApiError) ||
+          ['INTERNAL_ERROR', 'INVALID_RESPONSE'].includes(error.code);
+        if (unknownReply && advancedPreparation(continuationStart, current)) {
+          polls = 0;
+          mode = 'continue';
+          continue;
+        }
         if (
           error instanceof AdminApiError &&
           error.code === 'BUSY' &&
@@ -362,6 +439,11 @@ export async function runPreparation(
       }
       if (!wasPoll && 'followUp' in observed && observed.invocation === 'rejected')
         return result('rejected');
+      if (wasPoll && advancedPreparation(continuationStart, current)) {
+        polls = 0;
+        mode = 'continue';
+        continue;
+      }
       mode = wasPoll
         ? current?.nextAction === 'wait'
           ? 'poll'
