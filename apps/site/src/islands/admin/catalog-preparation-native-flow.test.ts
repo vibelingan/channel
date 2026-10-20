@@ -122,7 +122,7 @@ for (const [count, steps] of [
   });
 
 for (const change of ['edit', 'cancel'] as const)
-  test(`extended attestation rechecks ${change} before the fifth image and cannot commit stale ready`, async (t) => {
+  test(`paged attestation rechecks ${change} before the last page and cannot commit stale ready`, async (t) => {
     const f = await fixture(t, 9);
     for (let i = 0; i < 2; i++)
       assert.ok((await runCatalogPreparationCall(f.authority, await f.dispatch())).ok);
@@ -131,9 +131,10 @@ for (const change of ['edit', 'cancel'] as const)
     let changed = false;
     f.adapter.manageCatalogPreparationJob = async (...args) => {
       const command = args[1];
-      if (command.action === 'attest-media-image') {
-        indices.push(command.index);
-        if (command.index === 4 && !changed) {
+      if (command.action === 'attest-media-page' || command.action === 'attest-media-image') {
+        const index = command.action === 'attest-media-page' ? command.from.cursor : command.index;
+        indices.push(index);
+        if (index === 8 && !changed) {
           changed = true;
           if (change === 'edit')
             await f.adapter.update('products', 'p', { name: 'New independent edit' });
@@ -163,7 +164,7 @@ for (const change of ['edit', 'cancel'] as const)
       const result = await runCatalogPreparationCall(f.authority, await f.dispatch());
       assert.equal(changed, true);
       assert.equal(result.ok, false);
-      assert.deepEqual(indices, [0, 1, 2, 3, 4]);
+      assert.deepEqual(indices, [0, 8]);
       const current = await f.adapter.get('products', 'p');
       assert.notEqual(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
       assert.equal(current?.published, false);
@@ -282,7 +283,7 @@ for (const change of ['none', 'edit', 'cancel', 'revoke'] as const) {
   });
 }
 
-test('actual persisted attestation keeps one running lease readable beyond four polls', async (t) => {
+test('actual persisted attestation pages keep the same running lease readable until ready', async (t) => {
   const f = await fixture(t, 9);
   const original = await f.adapter.get('products', 'p');
   for (let i = 0; i < 2; i++)
@@ -294,9 +295,16 @@ test('actual persisted attestation keeps one running lease readable beyond four 
   f.adapter.manageCatalogPreparationJob = async (...args) => {
     const value = await manage(...args);
     const command = args[1];
-    if (command.action === 'attest-media-image' && value.ok && !draining)
+    if (
+      (command.action === 'attest-media-page' || command.action === 'attest-media-image') &&
+      value.ok &&
+      !draining
+    )
       await new Promise<void>((release) => {
-        gates.push({ index: command.index, release });
+        gates.push({
+          index: command.action === 'attest-media-page' ? command.from.cursor : command.index,
+          release,
+        });
       });
     return value;
   };
@@ -319,13 +327,14 @@ test('actual persisted attestation keeps one running lease readable beyond four 
   const actions: string[] = [];
   const progress: { checked: number; lease: number }[] = [];
   let released = 0;
+  let observedFirstPage = false;
   const gateAt = async (index: number) => {
     const deadline = performance.now() + 5000;
     while (!gates[index]) {
       assert.ok(performance.now() < deadline, `worker did not persist attestation ${index}`);
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
-    assert.equal(gates[index].index, index);
+    assert.equal(gates[index].index, [0, 8][index]);
     return gates[index];
   };
   try {
@@ -360,8 +369,13 @@ test('actual persisted attestation keeps one running lease readable beyond four 
         },
         wait: async (_ms, signal) => {
           signal.throwIfAborted();
+          if (!observedFirstPage) {
+            observedFirstPage = true;
+            await gateAt(0);
+            return;
+          }
           (await gateAt(released++)).release();
-          if (released < 9) await gateAt(released);
+          if (released < 2) await gateAt(released);
           else await Promise.all(pending);
         },
         onProgress: ({ status }) => {
@@ -376,10 +390,12 @@ test('actual persisted attestation keeps one running lease readable beyond four 
     assert.equal(result.reason, 'ready');
     assert.equal(result.jobId, f.jobId);
     assert.equal(result.status?.attestation?.checked, 9);
-    assert.ok(new Set(progress.map((p) => p.checked)).size > 4);
+    assert.ok(progress.some((p) => p.checked === 8));
+    assert.ok(progress.some((p) => p.checked === 9));
+    assert.ok(progress.every((p, i) => i === 0 || p.checked >= (progress[i - 1]?.checked ?? 0)));
     assert.equal(new Set(progress.map((p) => p.lease)).size, 1);
     assert.equal(actions.filter((action) => action === 'continue').length, 1);
-    assert.ok(actions.filter((action) => action === 'status').length > 4);
+    assert.ok(actions.filter((action) => action === 'status').length >= 2);
     assert.ok(!actions.includes('start'));
     const current = await f.adapter.get('products', 'p');
     assert.equal(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
