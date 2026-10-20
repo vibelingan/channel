@@ -14,6 +14,7 @@ import { parseTokenEncryptionKey } from './crypto.ts';
 
 export interface AlibabaSyncFunctionConfig {
   jwtSecret: string;
+  backgroundSyncEnabled?: boolean;
   corsAllowedOrigins?: readonly string[];
   /** Site origin for the post-callback redirect (e.g. https://site-host). */
   siteUrl?: string;

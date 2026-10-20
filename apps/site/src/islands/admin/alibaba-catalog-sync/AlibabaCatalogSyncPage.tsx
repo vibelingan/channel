@@ -1,53 +1,19 @@
-/**
- * Alibaba Catalog Sync operations page (MIU 13) — the dedicated admin
- * surface for the connection lifecycle, manual runs, run history, quarantine
- * review, and explicit product linking. Category mappings stay a plain
- * generic-CRUD section; the sync-internal collections are readOnly/none and
- * only ever surface through these dedicated actions.
- */
 import { useQueryClient } from '@tanstack/react-query';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import type { AlibabaSyncWorkflow } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { listRecords } from '../api.ts';
-import { AlibabaCategoryAssignment } from './AlibabaCategoryAssignment.tsx';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
-import { AlibabaDraftMaterialization } from './AlibabaDraftMaterialization.tsx';
-import { AlibabaObservationReplay } from './AlibabaObservationReplay.tsx';
-import { AlibabaPhotoPreparation } from './AlibabaPhotoPreparation.tsx';
-import { AlibabaProductDetailInspection } from './AlibabaProductDetailInspection.tsx';
-import { AlibabaProductLinkAction } from './AlibabaProductLinkAction.tsx';
-import { AlibabaQuarantineReview } from './AlibabaQuarantineReview.tsx';
 import { AlibabaSyncRunTable } from './AlibabaSyncRunTable.tsx';
 import {
   type ConnectionStatus,
-  type PhotoPreparationProgress,
-  type PhotoPreparationStatus,
-  type ProductDetailInspectionSummary,
-  type SourceObservationReplayPlan,
-  applySourceObservationReplay,
-  approveQuarantine,
   disconnectAlibaba,
   fetchConnectionStatus,
-  fetchPhotoPreparationStatus,
-  inspectProductDetail,
-  linkSourceProduct,
-  materializeAlibabaDrafts,
-  prepareAlibabaPhotos,
-  repairAlibabaSourcePricing,
-  runSyncToTerminal,
+  fetchSyncWorkflow,
   startOAuthFlow,
-  syncProduct,
-  unlinkSourceProduct,
-  validateSourceObservationReplay,
+  startSync,
 } from './alibaba-api.ts';
 
-/** Reads the ?alibaba= status the OAuth callback redirect carries. */
-/**
- * CLOSED status set only (review R2 #12): the query value is
- * attacker-controllable (anyone can craft ?alibaba=...), so nothing from the
- * URL is ever echoed into the page — unknown values collapse to the generic
- * failure line.
- */
+const CHECKING_SAVED_SYNC =
+  'The sync request was not confirmed. Checking saved progress automatically.';
 const GENERIC_CALLBACK_NOTICE = 'Authorization failed. Start the flow again.';
 
 // A Map, NOT an object literal (review R2-verify): `?alibaba=__proto__` on a
@@ -71,424 +37,150 @@ const CALLBACK_NOTICES = new Map<string, string>([
   ['error-exchange-failed', 'Authorization failed at the token exchange. Start the flow again.'],
 ]);
 
-/** The photo job tries a waiting photo again after 10 minutes; a little margin. */
-const PHOTO_RETRY_AFTER_MS = 10.5 * 60 * 1000;
-
 export function callbackNotice(search: string): string | null {
   const value = new URLSearchParams(search).get('alibaba');
   if (!value) return null;
   return CALLBACK_NOTICES.get(value) ?? GENERIC_CALLBACK_NOTICE;
 }
 
-export function AlibabaCatalogSyncPage() {
+export interface AlibabaCatalogSyncPageProps {
+  onViewProducts?: () => void;
+}
+export function AlibabaCatalogSyncPage({ onViewProducts }: AlibabaCatalogSyncPageProps) {
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<ConnectionStatus | null>(null);
-  const [runs, setRuns] = useState<CollectionDoc[]>([]);
+  const [connection, setConnection] = useState<ConnectionStatus | null>(null);
+  const [workflow, setWorkflow] = useState<AlibabaSyncWorkflow | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     typeof window === 'undefined' ? null : callbackNotice(window.location.search),
   );
-  const [linkResult, setLinkResult] = useState<string | null>(null);
-  const [pricingRepairProgress, setPricingRepairProgress] = useState<string | null>(null);
-  const [detailInspection, setDetailInspection] = useState<ProductDetailInspectionSummary | null>(
-    null,
-  );
-  const [inspectingDetail, setInspectingDetail] = useState(false);
-  const [selectedSyncResult, setSelectedSyncResult] = useState<Awaited<
-    ReturnType<typeof syncProduct>
-  > | null>(null);
-  const [replayPlan, setReplayPlan] = useState<SourceObservationReplayPlan | null>(null);
-  const [replayPhase, setReplayPhase] = useState<
-    'idle' | 'validating' | 'validated' | 'applying' | 'applied' | 'failed'
-  >('idle');
-  const [replayProgress, setReplayProgress] = useState<string | null>(null);
-  const [replayApplied, setReplayApplied] = useState<number | null>(null);
-  const [draftProgress, setDraftProgress] = useState<{
-    visited: number;
-    created: number;
-    existing: number;
-    failures: number;
-  } | null>(null);
-
+  const generation = useRef(0);
+  const mounted = useRef(false);
+  const mutating = useRef(false);
   const refresh = useCallback(async () => {
+    if (mutating.current) return null;
+    const epoch = ++generation.current;
     try {
-      const [nextStatus, nextRuns] = await Promise.all([
+      const [nextConnection, nextWorkflow] = await Promise.all([
         fetchConnectionStatus(),
-        listRecords({
-          collection: 'alibabaSyncRuns',
-          page: 1,
-          pageSize: 20,
-          sort: [{ field: 'startedAt', dir: 'desc' }],
-        }),
+        fetchSyncWorkflow(),
       ]);
-      setStatus(nextStatus);
-      setRuns([...nextRuns.items]);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Failed to load sync status.');
+      if (!mounted.current || epoch !== generation.current) return null;
+      setConnection(nextConnection);
+      setWorkflow(nextWorkflow);
+      setNotice((previous) =>
+        previous ===
+          'Connection interrupted. Saved sync progress is kept; checking again automatically.' ||
+        (previous === CHECKING_SAVED_SYNC &&
+          ['queued', 'syncing', 'preparing', 'waiting'].includes(nextWorkflow.phase))
+          ? null
+          : previous,
+      );
+      return nextWorkflow;
+    } catch {
+      if (mounted.current && epoch === generation.current)
+        setNotice(
+          'Connection interrupted. Saved sync progress is kept; checking again automatically.',
+        );
+      return null;
     } finally {
-      setLoading(false);
+      if (mounted.current && epoch === generation.current) setLoading(false);
     }
   }, []);
-
   useEffect(() => {
-    void refresh();
+    mounted.current = true;
+    let closed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      const current = await refresh();
+      if (!closed)
+        timer = setTimeout(
+          poll,
+          !current || ['queued', 'syncing', 'preparing', 'waiting'].includes(current.phase)
+            ? 5000
+            : 30000,
+        );
+    };
+    void poll();
+    return () => {
+      closed = true;
+      mounted.current = false;
+      generation.current++;
+      if (timer) clearTimeout(timer);
+    };
   }, [refresh]);
-
-  const guard = useCallback(
-    async (operation: () => Promise<string | null>) => {
-      setBusy(true);
-      try {
-        const message = await operation();
-        if (message !== null) setNotice(message);
-        await refresh();
-      } catch (error) {
-        setNotice(error instanceof Error ? error.message : 'The action failed.');
-      } finally {
+  const action = async (operation: () => Promise<void>, syncRequest = false) => {
+    if (mutating.current) return;
+    mutating.current = true;
+    generation.current++;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await operation();
+    } catch (error) {
+      if (mounted.current)
+        setNotice(
+          syncRequest
+            ? CHECKING_SAVED_SYNC
+            : error instanceof Error
+              ? error.message
+              : 'The request could not be confirmed. Checking saved progress is safe.',
+        );
+    } finally {
+      mutating.current = false;
+      if (mounted.current) {
         setBusy(false);
+        void refresh();
       }
-    },
-    [refresh],
-  );
-
-  const runPhotoPreparationRef = useRef<((scope: 'pending' | 'all') => Promise<void>) | null>(null);
-  /** A sync action, then photo copying — also after a sync that failed partway (PT-G). */
-  const syncThenPhotos = (operation: () => Promise<string | null>) =>
-    guard(async () => {
-      try {
-        return await operation();
-      } finally {
-        void runPhotoPreparationRef.current?.('all');
-      }
-    });
-
-  const refreshProductReviewQueue = useCallback(() => {
+    }
+  };
+  const invalidateProducts = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
     void queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
   }, [queryClient]);
-
-  // Product photos (PT-G): copied automatically after each sync; new drafts
-  // stay hidden until theirs are in. One run at a time; a request made during
-  // a run is done right after it.
-  const [photoStatus, setPhotoStatus] = useState<PhotoPreparationStatus | null>(null);
-  const [photoProgress, setPhotoProgress] = useState<PhotoPreparationProgress | null>(null);
-  const [photosRunning, setPhotosRunning] = useState(false);
-  const photoRun = useRef<{ running: boolean; again: 'pending' | 'all' | null }>({
-    running: false,
-    again: null,
-  });
-  // Products waiting on a photo are tried again once the wait is over, while
-  // this page stays open (the sync has no timer; see the photo section).
-  const photoRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // "Copy photos now" also tries photos earlier found unavailable.
-  const retryUnavailableNext = useRef(false);
-  useEffect(
-    () => () => {
-      if (photoRetry.current) clearTimeout(photoRetry.current);
-    },
-    [],
-  );
-  const refreshPhotoStatus = useCallback(async () => {
-    try {
-      const next = await fetchPhotoPreparationStatus();
-      setPhotoStatus(next);
-      return next;
-    } catch {
-      return null;
-    }
-  }, []);
-  const runPhotoPreparation = useCallback(
-    async (scope: 'pending' | 'all') => {
-      const run = photoRun.current;
-      if (run.running) {
-        if (run.again !== 'all') run.again = scope;
-        return;
-      }
-      run.running = true;
-      setPhotosRunning(true);
-      if (photoRetry.current) clearTimeout(photoRetry.current);
-      photoRetry.current = null;
-      let next: 'pending' | 'all' | null = scope;
-      let retriedBusy = false;
-      try {
-        setPhotoProgress(null);
-        let total: PhotoPreparationProgress | undefined;
-        while (next) {
-          const current: 'pending' | 'all' = next;
-          run.again = null;
-          // Hidden new drafts first, so they appear soonest.
-          total = await prepareAlibabaPhotos(setPhotoProgress, {
-            pendingOnly: true,
-            ...(total ? { from: total } : {}),
-          });
-          refreshProductReviewQueue();
-          if (current === 'all') {
-            const busyBefore = total.busy;
-            const retryUnavailable = retryUnavailableNext.current;
-            retryUnavailableNext.current = false;
-            total = await prepareAlibabaPhotos(setPhotoProgress, {
-              from: total,
-              ...(retryUnavailable ? { retryUnavailable: true } : {}),
-            });
-            // Drafts changed meanwhile are looked at once more in this session.
-            if (total.busy > busyBefore && !retriedBusy) {
-              retriedBusy = true;
-              run.again = 'all';
-            }
-          }
-          refreshProductReviewQueue();
-          await refreshPhotoStatus();
-          next = run.again;
-        }
-        if (total && total.waiting > 0)
-          photoRetry.current = setTimeout(
-            () => void runPhotoPreparationRef.current?.('all'),
-            PHOTO_RETRY_AFTER_MS,
-          );
-      } catch (error) {
-        setNotice(
-          `Photo copying stopped: ${error instanceof Error ? error.message : 'unknown error'}. It continues after the next sync or with Copy photos now.`,
-        );
-      } finally {
-        run.running = false;
-        setPhotosRunning(false);
-      }
-    },
-    [refreshPhotoStatus, refreshProductReviewQueue],
-  );
-  runPhotoPreparationRef.current = runPhotoPreparation;
   useEffect(() => {
-    // Finish any new drafts left hidden, e.g. when this page was closed mid-run.
-    void refreshPhotoStatus().then((status) => {
-      if (status && status.hiddenDrafts > 0) void runPhotoPreparation('pending');
-    });
-  }, [refreshPhotoStatus, runPhotoPreparation]);
-
+    if (workflow?.runId && (workflow.phase === 'complete' || workflow.phase === 'attention'))
+      invalidateProducts();
+  }, [workflow?.phase, workflow?.runId, invalidateProducts]);
   return (
-    <div data-alibaba-sync-page className="space-y-4">
-      <AlibabaCategoryAssignment
-        onApplied={() => {
-          refreshProductReviewQueue();
-          void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
-        }}
-      />
+    <div data-alibaba-sync-page className="space-y-5">
       <AlibabaConnectionPanel
-        status={status}
+        status={connection}
+        workflow={workflow}
         loading={loading}
         busy={busy}
         notice={notice}
         onConnect={() =>
-          void guard(async () => {
-            const { authorizeUrl } = await startOAuthFlow();
-            window.location.assign(authorizeUrl);
-            return 'Redirecting to Alibaba for authorization…';
+          void action(async () => {
+            const result = await startOAuthFlow();
+            window.location.assign(result.authorizeUrl);
           })
         }
-        onDisconnect={() =>
-          void guard(async () => {
-            await disconnectAlibaba();
-            return 'Connection disconnected; stored tokens destroyed.';
-          })
-        }
-        onRunNow={() =>
-          void syncThenPhotos(async () => {
-            const { report, ticks } = await runSyncToTerminal({
-              onProgress: (progress, completedTicks) => {
-                if (progress.outcome !== 'continued') return;
-                setNotice(
-                  `Sync in progress: ${completedTicks} worker tick${completedTicks === 1 ? '' : 's'} completed${progress.runId ? ` (${progress.runId})` : ''}…`,
-                );
-              },
+        onDisconnect={() => {
+          if (confirm('Disconnect the Alibaba account? Existing products are kept.'))
+            void action(async () => {
+              await disconnectAlibaba();
             });
-            refreshProductReviewQueue();
-            return `Sync finished after ${ticks} worker tick${ticks === 1 ? '' : 's'}: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
-          })
+        }}
+        onRunNow={() =>
+          void action(async () => {
+            const next = await startSync();
+            if (mounted.current) setWorkflow(next);
+            invalidateProducts();
+          }, true)
         }
       />
-      <AlibabaProductDetailInspection
-        connected={status?.status === 'active'}
-        busy={busy}
-        inspecting={inspectingDetail}
-        result={detailInspection}
-        syncResult={selectedSyncResult}
-        onInspect={(sourceProductId) => {
-          setInspectingDetail(true);
-          void guard(async () => {
-            setDetailInspection(null);
-            const summary = await inspectProductDetail(sourceProductId);
-            setDetailInspection(summary);
-            return `Detail inspection completed for ${summary.sourceProductId}.`;
-          }).finally(() => setInspectingDetail(false));
-        }}
-        onSync={(sourceProductId) => {
-          setInspectingDetail(true);
-          void syncThenPhotos(async () => {
-            setSelectedSyncResult(null);
-            const result = await syncProduct(sourceProductId);
-            setSelectedSyncResult(result);
-            refreshProductReviewQueue();
-            return `${result.draftCreated ? 'Created' : 'Updated'} an unpublished product draft for ${result.sourceProductId}.`;
-          }).finally(() => setInspectingDetail(false));
-        }}
-      />
-      <AlibabaDraftMaterialization
-        connected={status?.status === 'active'}
-        busy={busy}
-        progress={draftProgress}
-        onMaterialize={(sourceCategoryId) => {
-          setDraftProgress({ visited: 0, created: 0, existing: 0, failures: 0 });
-          void syncThenPhotos(async () => {
-            const result = await materializeAlibabaDrafts(setDraftProgress, sourceCategoryId);
-            setDraftProgress(result);
-            refreshProductReviewQueue();
-            return `Product drafts ready: ${result.created} created, ${result.existing} already present, ${result.failures} failed.`;
-          });
-        }}
-      />
-      <AlibabaPhotoPreparation
-        status={photoStatus}
-        progress={photoProgress}
-        running={photosRunning}
-        onRun={() => {
-          retryUnavailableNext.current = true;
-          void runPhotoPreparation('all');
-        }}
-      />
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold text-slate-900">Repair missing source quotes</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Rebuild missing website source-quote fields from successfully synchronized data. No
-          Alibaba API calls, no automatic publication, and no changes to manual prices, images or
-          website categories. Existing source quotes are not overwritten.
-        </p>
+      {onViewProducts && (
         <button
           type="button"
-          disabled={busy}
-          className="mt-3 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
-          onClick={() => {
-            if (
-              confirm(
-                'Repair missing source-quote fields from completed syncs? This also restores source quotes on already published products. Manual website prices are unchanged.',
-              )
-            ) {
-              void guard(async () => {
-                setPricingRepairProgress('Checking synchronized products…');
-                try {
-                  const result = await repairAlibabaSourcePricing(setPricingRepairProgress);
-                  setPricingRepairProgress(result);
-                  refreshProductReviewQueue();
-                  return result;
-                } catch (error) {
-                  setPricingRepairProgress(
-                    error instanceof Error ? error.message : 'Repair stopped.',
-                  );
-                  refreshProductReviewQueue();
-                  throw error;
-                }
-              });
-            }
-          }}
+          onClick={onViewProducts}
+          className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
-          Repair missing quotes
+          View products
         </button>
-        {pricingRepairProgress && (
-          <output className="mt-3 block break-words text-sm text-slate-700">
-            {pricingRepairProgress}
-          </output>
-        )}
-      </section>
-      <AlibabaObservationReplay
-        connected={status?.status === 'active'}
-        busy={busy}
-        phase={replayPhase}
-        progress={replayProgress}
-        plan={replayPlan}
-        applied={replayApplied}
-        onValidate={() => {
-          setReplayPlan(null);
-          setReplayApplied(null);
-          setReplayPhase('validating');
-          setReplayProgress('Starting full validation…');
-          void guard(async () => {
-            try {
-              const plan = await validateSourceObservationReplay((pages, products) => {
-                setReplayProgress(
-                  `Validated ${products.toLocaleString('en-US')} source products across ${pages} page(s)…`,
-                );
-              });
-              setReplayPlan(plan);
-              setReplayPhase(plan.ready ? 'validated' : 'failed');
-              setReplayProgress(
-                plan.ready
-                  ? 'Validation complete. Review the summary, then apply the exact validated pages.'
-                  : 'Validation stopped. Nothing was written.',
-              );
-              return plan.ready
-                ? `Raw evidence validation passed for ${plan.counts.sourceProducts} source products.`
-                : 'Raw evidence validation failed; nothing was written.';
-            } catch (error) {
-              setReplayPhase('failed');
-              setReplayProgress(error instanceof Error ? error.message : 'Validation failed.');
-              throw error;
-            }
-          });
-        }}
-        onApply={() => {
-          if (!replayPlan?.ready) return;
-          setReplayPhase('applying');
-          setReplayProgress('Applying hash-locked pages…');
-          void guard(async () => {
-            try {
-              const applied = await applySourceObservationReplay(replayPlan, (pages, count) => {
-                setReplayProgress(
-                  `Applied ${count.toLocaleString('en-US')} observations across ${pages} page(s)…`,
-                );
-              });
-              setReplayApplied(applied);
-              setReplayPhase('applied');
-              setReplayProgress('Apply complete. The database can now be independently verified.');
-              return `Applied ${applied} common source observations.`;
-            } catch (error) {
-              setReplayPhase('failed');
-              setReplayProgress(error instanceof Error ? error.message : 'Apply failed.');
-              throw error;
-            }
-          });
-        }}
-      />
-      <AlibabaQuarantineReview
-        runs={runs.filter((run) => run.status === 'quarantined')}
-        busy={busy}
-        onApprove={(runId, candidateHash) =>
-          void guard(async () => {
-            const result = await approveQuarantine(runId, candidateHash);
-            return `Quarantine approved; ${result.promoted} product(s) promoted.`;
-          })
-        }
-      />
-      <AlibabaProductLinkAction
-        busy={busy}
-        result={linkResult}
-        onLink={(sourceKey, productId) =>
-          void guard(async () => {
-            const result = await linkSourceProduct(sourceKey, productId);
-            setLinkResult(
-              result.alreadyLinked
-                ? `Already linked to ${result.productId}.`
-                : `Linked source to product ${result.productId}.`,
-            );
-            return null;
-          })
-        }
-        onUnlink={(productId) =>
-          void guard(async () => {
-            const result = await unlinkSourceProduct(productId);
-            setLinkResult(`Unlinked ${result.productId} (${result.clearedLinks} link(s) removed).`);
-            return null;
-          })
-        }
-      />
-      <AlibabaSyncRunTable runs={runs} />
+      )}
+      <AlibabaSyncRunTable history={workflow?.history ?? []} />
     </div>
   );
 }

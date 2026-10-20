@@ -1,3 +1,4 @@
+import { AlibabaSyncWorkflowSchema } from '@vibelingan-channel/shared';
 /**
  * Client for the alibaba-catalog-sync function's admin actions (MIU 13).
  * Same Bearer/JSON envelope as the admin API: {action, token, data} POSTs —
@@ -7,6 +8,11 @@
 import { z } from 'zod';
 import { apiUrl } from '../../../lib/api-url.ts';
 import { getToken } from '../../../lib/session.ts';
+import {
+  captureAdminRequestSession,
+  confirmAdminRequestSession,
+  reportExpiredAdminSession,
+} from '../admin-session-guard.ts';
 
 const ENDPOINT = apiUrl('/api/alibaba-catalog-sync');
 const SOURCE_PRODUCT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -1216,3 +1222,25 @@ export async function repairAlibabaSourcePricing(
 export function removeAlibabaImportedImage(imageId: string): Promise<{ imageId: string }> {
   return call('removeImportedImage', { imageId });
 }
+
+/** A single durable start. Follow-up requests are read-only status polls. */
+async function workflowCall(action: 'startSync' | 'workflowStatus') {
+  const ticket = captureAdminRequestSession(action);
+  try {
+    const value = await call<unknown>(action, undefined, AbortSignal.timeout(15_000));
+    confirmAdminRequestSession(ticket);
+    const parsed = AlibabaSyncWorkflowSchema.safeParse(value);
+    if (!parsed.success)
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Sync status could not be confirmed. Checking saved progress is safe.',
+      );
+    return parsed.data;
+  } catch (error) {
+    if (error instanceof AlibabaSyncApiError && error.code === 'UNAUTHORIZED')
+      reportExpiredAdminSession(ticket);
+    throw error;
+  }
+}
+export const fetchSyncWorkflow = () => workflowCall('workflowStatus');
+export const startSync = () => workflowCall('startSync');

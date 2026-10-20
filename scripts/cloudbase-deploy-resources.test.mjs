@@ -165,10 +165,10 @@ for (const overrides of [{ TriggerDesc: '0 * * * * * *' }, { Type: 'http' }]) {
   });
 }
 
-test('manual-only manifest removes an undeclared timer without enabling a scheduler', () => {
-  assert.deepEqual(desiredTriggersFor(def.name), []);
+test('admin manifest removes an undeclared timer without enabling a scheduler', () => {
+  assert.deepEqual(desiredTriggersFor('admin'), []);
   const client = tools(detail([timer()]), { success: true }, detail(), detail());
-  reconcileTriggers(def, desiredTriggersFor(def.name), client);
+  reconcileTriggers(def, desiredTriggersFor('admin'), client);
   assert.deepEqual(
     client.calls.map(({ args }) => args.action),
     ['getFunctionDetail', 'deleteFunctionTrigger', 'getFunctionDetail', 'getFunctionDetail'],
@@ -220,7 +220,7 @@ for (const queryIndex of [0, 1, 2]) {
     responses[queryIndex] = failure();
     const client = tools(...responses);
     assert.throws(
-      () => reconcileTriggers(def, desiredTriggersFor(def.name), client),
+      () => reconcileTriggers(def, [], client),
       /getFunctionDetail.*failed.*operation refused/,
     );
     assert.equal(client.calls.length, queryIndex + 1);

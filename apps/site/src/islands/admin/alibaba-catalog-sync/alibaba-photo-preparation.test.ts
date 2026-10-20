@@ -134,29 +134,6 @@ test('the Product photos section says what is left and what happens automaticall
   assert.match(done, /<button[^>]*>Copy photos now<\/button>/);
 });
 
-test('the sync page copies photos automatically after every sync and finishes hidden drafts on open', async () => {
-  const { readFileSync } = await import('node:fs');
-  const source = readFileSync(new URL('./AlibabaCatalogSyncPage.tsx', import.meta.url), 'utf8');
-  // After Run now, after Create missing drafts, after syncing one product —
-  // also when the sync failed partway.
-  assert.equal(source.match(/void syncThenPhotos\(async \(\) => \{/g)?.length, 3);
-  assert.match(source, /finally \{\s*void runPhotoPreparationRef\.current\?\.\('all'\);/);
-  assert.match(source, /hiddenDrafts > 0\) void runPhotoPreparation\('pending'\)/);
-  // "Copy photos now" also tries photos earlier found unavailable.
-  assert.match(
-    source,
-    /onRun=\{\(\) => \{\s*retryUnavailableNext\.current = true;\s*void runPhotoPreparation\('all'\);/,
-  );
-  assert.match(source, /\.\.\.\(retryUnavailable \? \{ retryUnavailable: true \} : \{\}\)/);
-  // Products waiting on a photo are tried again while the page stays open.
-  assert.match(
-    source,
-    /if \(total && total\.waiting > 0\)\s*photoRetry\.current = setTimeout\(\s*\(\) => void runPhotoPreparationRef\.current\?\.\('all'\),\s*PHOTO_RETRY_AFTER_MS,/,
-  );
-  assert.match(source, /const PHOTO_RETRY_AFTER_MS = 10\.5 \* 60 \* 1000;/);
-  assert.match(source, /clearTimeout\(photoRetry\.current\)/);
-});
-
 test('a retry run starts on the server clock and passes that start to its later calls', async (t) => {
   const requests: Record<string, unknown>[] = [];
   const start = '2026-10-09T10:00:00.000Z';

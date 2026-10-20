@@ -143,20 +143,22 @@ test('alibaba-catalog-sync env carries the shared vars; feature vars stay option
   }
 });
 
-test('sync is manual-only today: NO trigger is desired for any function', () => {
-  // §14.1 — one live environment, timer deliberately off for the first
-  // rollout. This test failing means someone enabled automatic sync; that is
-  // a real decision, so update it deliberately rather than deleting it.
-  assert.deepEqual(DESIRED_TIMER_TRIGGERS, {});
-  assert.deepEqual(desiredTriggersFor('alibaba-catalog-sync'), []);
+test('a one-minute timer resumes operator work only on sync, preserving other functions', () => {
+  assert.deepEqual(DESIRED_TIMER_TRIGGERS, { 'alibaba-catalog-sync': [ALIBABA_SYNC_TIMER] });
+  assert.deepEqual(desiredTriggersFor('alibaba-catalog-sync'), [ALIBABA_SYNC_TIMER]);
   assert.deepEqual(desiredTriggersFor('admin'), []);
+  assert.deepEqual(desiredTriggersFor('public-api'), []);
+  assert.equal(
+    buildFunctionDefs(ctx).find((def) => def.name === 'alibaba-catalog-sync').envVariables
+      .ALIBABA_SYNC_BACKGROUND_ENABLED,
+    '1',
+  );
 });
-
-test('the 15-minute tick stays DECLARED so enabling it is one edit', () => {
+test('the resumable sync timer uses CloudBase seven-field minute syntax', () => {
   assert.deepEqual(ALIBABA_SYNC_TIMER, {
     name: 'alibaba-sync-tick',
     type: 'timer',
-    config: '0 */15 * * * * *',
+    config: '0 */1 * * * * *',
   });
 });
 

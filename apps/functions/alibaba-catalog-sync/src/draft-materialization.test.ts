@@ -234,3 +234,28 @@ test('a new draft with Alibaba photos starts hidden until its photos are copied 
   await materializeAlibabaDraftPage({ limit: 5, now: () => '2026-10-09T05:01:00.000Z' });
   assert.equal(bySource('source-photos')?.alibabaPhotosPending, false);
 });
+
+test('background recovery only materializes the requested completed or approved run; quarantine is preserved', async () => {
+  const statuses = ['completed', 'approved', 'quarantined', 'running'];
+  const rows = statuses.map((status) => ({ ...source(status), lastSeenRunId: status }));
+  const store: Store = {
+    alibabaSourceProducts: rows,
+    alibabaSyncRuns: statuses.map((status) => ({ _id: status, status })),
+  };
+  setAdapter(new MemoryAdapter(store));
+  const calls: string[] = [];
+  for (const status of statuses) {
+    const result = await materializeAlibabaDraftPage({
+      completedOnly: true,
+      runId: status,
+      onPrepared: async (key) => {
+        calls.push(key);
+      },
+    });
+    assert.equal(result.visited, 1);
+    assert.equal(result.created, ['completed', 'approved'].includes(status) ? 1 : 0);
+  }
+  assert.deepEqual(calls, ['source-completed', 'source-approved']);
+  assert.equal(store.products?.length, 2);
+  assert.ok(store.products?.every((product) => product.published === false));
+});

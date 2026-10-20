@@ -51,3 +51,5 @@ export interface ListResult<T> {
   pageSize: number;
   catalogListView?: import('./catalog/admin-product-list.ts').AdminProductListView;
 }
+
+export * from './alibaba-sync-workflow.ts';

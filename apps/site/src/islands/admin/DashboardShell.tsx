@@ -153,7 +153,7 @@ export function DashboardShell({
           </div>
         ) : section?.custom === 'alibaba-sync' ? (
           <div className="p-6">
-            <AlibabaCatalogSyncPage />
+            <AlibabaCatalogSyncPage onViewProducts={() => setActive('products')} />
           </div>
         ) : section?.custom === 'catalog-import' ? (
           <div className="p-6">

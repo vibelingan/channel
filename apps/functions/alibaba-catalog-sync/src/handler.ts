@@ -44,6 +44,7 @@ import { replayAlibabaRawPage } from './raw-replay.ts';
 import { getDoc } from './repo.ts';
 import { runSyncTick } from './runner.ts';
 import { syncSelectedAlibabaProduct } from './selected-sync.ts';
+import { startSyncWorkflow, syncWorkflowStatus } from './sync-workflow.ts';
 
 export interface AlibabaSyncRequest {
   action?: unknown;
@@ -236,6 +237,46 @@ export async function handleAlibabaSyncRequest(
         );
       }
       return ok(result);
+    }
+    case 'workflowStatus': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      return ok(await syncWorkflowStatus(config.backgroundSyncEnabled === true));
+    }
+    case 'startSync': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      if (!config.backgroundSyncEnabled)
+        return err(
+          'CONFLICT',
+          'Background synchronization is not available. Contact the site administrator.',
+        );
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok)
+        return err(
+          'CONFLICT',
+          'The Alibaba connection is not configured. Contact the site administrator.',
+        );
+      try {
+        return ok(
+          await startSyncWorkflow(
+            {
+              client: runtime.runtime.deps.client,
+              getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
+              now: runtime.runtime.deps.now,
+              alert: runtime.runtime.deps.alert,
+            },
+            true,
+          ),
+        );
+      } catch (error) {
+        return err(
+          'CONFLICT',
+          error instanceof Error
+            ? error.message
+            : 'The sync request was not confirmed. Check its saved status before retrying.',
+        );
+      }
     }
     case 'runNow': {
       // Manual run (MIU 11): a SHORT bounded slice executes inline — the
