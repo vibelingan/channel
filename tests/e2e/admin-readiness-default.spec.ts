@@ -34,7 +34,9 @@ test('Products readiness default, explicit All, reload and history keep every is
   await page.goto('/admin?productFamily=misc&keep=yes');
   await page.getByRole('button', { name: 'Products', exact: true }).click();
   await expect.poll(() => queries.at(-1)?.catalogReadiness).toBe(defaultScope);
-  const select = page.getByRole('combobox', { name: 'Check status', exact: true });
+  const select = page
+    .getByRole('combobox', { name: 'Check status', exact: true })
+    .and(page.locator('button'));
   for (const [scope, label] of [
     ['issues', 'Data issues'],
     ['preparing', 'Preparing'],

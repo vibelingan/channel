@@ -1695,3 +1695,11 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 初轮 lint 扫入 output 下的未跟踪函数包、私有快照与证据；排除后仍发现 .claude 的 17 个生成 JSON 格式问题。新增 /output/、.claude/knowledge-refs-*.json、.claude/sdk-probes/ 忽略，不更改证据内容；这些生成项无需进入 Git。已跟踪 knowledge-refs-2deca4c.json 仍被 Git 跟踪，业务源码不被排除。最终完整 pnpm lint 检查 1083 文件通过，无批量格式化。
 
 实际审查 .gitignore、biome.json 的 VCS 规则、跟踪文件清单、全量测试/类型/SDK 日志及 gallery 门控；将“全量零跳过”修正为“3 项跳过中 gallery 另行执行通过，两项 AI 夹具仍明确跳过”。CloudBase 控制平面两遍独立只读扫描各 1121 件，完整有序 JSON 相等；只保存私有精简 census，不把它冒充管理 API 的影子审计或事务快照。最终浏览器组合、运行包与 test 真实商品/恢复/云性能仍开放，fullDeliveryReady=false。
+
+## P6f：完整组合发现的筛选测试定位错误与 Linux 运行时（2026-10-20）
+
+c03bc182 的完整生产构建组合依次通过 public 41、目录/导航/SKU 90、正式流程 11、Admin 12。正式共享图片 20 件及 BUSY 恢复、Admin 混合分类 20 件保留分类均完成发布/读回/下架恢复。随后新增 readiness spec 在 hydration 期间匹配到原生 select，点击被 label 拦截，完整 runner 以失败结束，taxonomy 尚未运行，不记全套通过。实际 DOM 与 Select.tsx 复核确认已有自定义 button 和原生表单控件共存；测试用原有 specs 的 .and(button) 模式锁定可见交互控件，不强制点击、不加等待、不放宽超时或改产品代码。
+
+修复后开关 1/0 的正式构建单项各 1/1、零重试通过，E2E types/Biome 通过；原 9 个报告文件全部哈希相同恢复。已审查新 spec、Select.tsx、既有 Admin specs 及完整 runner；把“完整组合通过”限定为四个实际完成的阶段，保留失败日志。后续仍需最终完整重跑及制品 gate。
+
+同一 pixels.ts/png-animation.ts 及固定 sharp 0.35.5 构建了专属无 DB/存储入口的临时私有函数 catalog-pixel-c03bc182-20261020（lam-kgyfv5b7），在真实 Node20.19.3/Linux x64/glibc 2.28 运行：JPEG/PNG/GIF/WebP 的实际像素、截断拒绝、双帧 GIF、坏签名/空输入/SVG 拒绝通过，耗时 807ms。源码/包/本地 Node20 原生运行证据及云返回保存在 pixel-gate-c03bc182，函数已删除，重新列出云端仅剩原三个服务。未改客户数据、现有函数或路由；这只证明当前像素组件，不能替代 COS、实际发布及云性能。fullDeliveryReady=false。
