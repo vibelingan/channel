@@ -1,6 +1,6 @@
 # SEO 发布与恢复：按模块交付的执行计划
 
-规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。所有 MIU 状态均为 `planned`；本轮没有写运行代码、派发任务、创建分支或执行云端操作。
+规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。模块 01 的 A1/A2 已实现并完成本地验证；其余 MIU 仍为 `planned`。模块 01 使用独立 offline CI，不接入云端恢复。详见[模块验证记录](module-01-verification.zh-CN.md)。
 
 ## 怎么读和交付
 
@@ -41,7 +41,7 @@
 
 开始每个模块前记录当前 SEO HEAD、最新 `origin/main` 和经用户确认的 pricing ref/SHA。需要时只读 fetch；不 checkout、merge、rebase 或修改 pricing worktree。对比本模块涉及的路径和接口，若共享文件有新变更，先更新当前模块的适配决定，再实施。
 
-本轮没有再次 fetch，也没有审阅 pricing 的新改动，因此不承诺当前仍无冲突。B2 的公开内容事务接入最可能重叠，明确晚于其余基础能力。现有 db 中 Alibaba 的 lease 文档及业务 guard 不归 SEO 所有，不能直接借作站点锁。
+模块 01 开始前已 fetch 并核对 `origin/main@37bcea5b`：本模块原有三份脚本在主线上尚不存在，package/lockfile 与本分支原基线一致。本地和远端 ref 中没有可明确识别的 pricing ref，本轮未审阅或改动其他 worktree，因此不承诺 pricing 整体无冲突。B2 的公开内容事务接入最可能重叠，明确晚于其余基础能力。现有 db 中 Alibaba 的 lease 文档及业务 guard 不归 SEO 所有，不能直接借作站点锁。
 
 | 共享位置 | 模块内的单一责任 |
 | --- | --- |
@@ -50,7 +50,7 @@
 | `.github/workflows/deploy-test.yml` | D 统一接入，不由各模块各建一套发布 workflow |
 | `packages/db/src/cloudbase-adapter.ts` 等公开写入事务 | B2 整合时才改，当前阶段只交接口合同 |
 
-所有新路径在各模块中标为“拟新增”，不是当前已经存在的实现。
+模块 01 的实际文件以其模块页为准；其余模块中的“拟新增”仍是计划。
 
 ## 验证与状态回报
 
@@ -58,4 +58,4 @@
 
 模块回报只需：`MIU / implementation / local verification / live verification / enabled scope / next dependency`。例如 C1 已实现、本地通过、线上未验证，就不能写成“静态恢复已上线可用”。最后 F1 汇总实际激活身份、普通 URL、缓存、API、数据保留及恢复耗时。
 
-审查项落点：R1→A1；R4→A1/D1；R7→A2；R2/R6→B/D2；R3→C2；R5→C1/D1；R8→C1/C2/F1；R9→本文与每模块状态。原问题没有因计划完成而关闭。
+审查项落点：R1→A1；R4→A1/D1；R7→A2；R2/R6→B/D2；R3→C2；R5→C1/D1；R8→C1/C2/F1；R9→本文与每模块状态。R1/R7 已有模块 01 的本地回归证据；云端接入与现场验收仍待后续模块，其他问题不会因计划完成而关闭。

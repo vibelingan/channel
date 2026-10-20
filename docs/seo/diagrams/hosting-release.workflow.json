@@ -21,15 +21,7 @@
       "variant": "exception"
     }
   ],
-  "mainPath": [
-    "checks",
-    "snapshot",
-    "build",
-    "archive",
-    "backup",
-    "publish",
-    "accept"
-  ],
+  "mainPath": ["checks", "snapshot", "build", "archive", "backup", "publish", "accept"],
   "nodes": [
     {
       "id": "checks",
@@ -161,23 +153,17 @@
     {
       "dot": "cyan",
       "title": "两个入口",
-      "items": [
-        "常规发布自动备份；恢复只能由人工或经授权 agent 显式发起。"
-      ]
+      "items": ["常规发布自动备份；恢复只能由人工或经授权 agent 显式发起。"]
     },
     {
       "dot": "amber",
       "title": "失败边界",
-      "items": [
-        "写入前失败保留线上文件；写入后失败可能部分更新，需人工判断。"
-      ]
+      "items": ["写入前失败保留线上文件；写入后失败可能部分更新，需人工判断。"]
     },
     {
       "dot": "rose",
       "title": "待接入",
-      "items": [
-        "恢复工作流、可信当前状态、适配器与线上演练尚未完成。"
-      ]
+      "items": ["恢复工作流、可信当前状态、适配器与线上演练尚未完成。"]
     }
   ]
 }

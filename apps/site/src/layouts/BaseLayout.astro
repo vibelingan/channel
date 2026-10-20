@@ -1,7 +1,12 @@
 ---
 import '../styles/global.css';
 import { getCatalogContent } from '../i18n/catalog.ts';
-import { canonicalUrl as resolveCanonicalUrl, createPageDescriptor, serializePageDescriptor, type PageDescriptor } from '../lib/seo/page.ts';
+import {
+  type PageDescriptor,
+  createPageDescriptor,
+  canonicalUrl as resolveCanonicalUrl,
+  serializePageDescriptor,
+} from '../lib/seo/page.ts';
 import { isSitemapPathIncluded } from '../lib/seo/route-policy.ts';
 
 interface SocialImage {
@@ -32,20 +37,24 @@ const defaultSocialImage: SocialImage = {
   mimeType: 'image/png',
 };
 
-const {
-  lang = 'en',
-  noindex = false,
-  socialImage = defaultSocialImage,
-} = Astro.props;
+const { lang = 'en', noindex = false, socialImage = defaultSocialImage } = Astro.props;
 const publishedPaths = new Set(getCatalogContent().families.map((family) => family.href));
 const page = Astro.props.page
   ? createPageDescriptor({ ...Astro.props.page, path: Astro.url.pathname })
   : createPageDescriptor({
       path: Astro.url.pathname,
       title: Astro.props.title ?? '',
-      description: Astro.props.description ?? 'OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in Dongguan, China — from idea to shipment.',
+      description:
+        Astro.props.description ??
+        'OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in Dongguan, China — from idea to shipment.',
       canonicalPath: Astro.props.canonicalPath,
-      robots: Astro.props.robots ?? (noindex ? 'noindex,nofollow' : !isSitemapPathIncluded(Astro.url.pathname, publishedPaths) ? 'noindex,follow' : undefined),
+      robots:
+        Astro.props.robots ??
+        (noindex
+          ? 'noindex,nofollow'
+          : !isSitemapPathIncluded(Astro.url.pathname, publishedPaths)
+            ? 'noindex,follow'
+            : undefined),
       schemaNodes: Astro.props.schemaNodes,
     });
 const { title, description, robots, schemaNodes } = page;

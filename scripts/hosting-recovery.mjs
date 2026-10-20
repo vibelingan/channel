@@ -1,13 +1,24 @@
-import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, realpathSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { verifyReleaseArtifact } from './release/artifact.mjs';
+import {
+  assertHostingPath,
+  assertOrigin,
+  checkEntries,
+  freeze,
+  identity,
+  isSitemap,
+  limits,
+  productPath,
+  readObject,
+} from './release/input.mjs';
+import { readPublicOutput } from './release/public-output.mjs';
+export { assertHostingPath } from './release/input.mjs';
 
 const hash = (algorithm, body) => createHash(algorithm).update(body).digest('hex');
-const productFile = /^products\/p-[A-Za-z0-9_-]{1,200}\/index\.html$/;
 const protectedPath =
   /^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/;
-const discovery =
-  /^(?:sitemap-[^/]+\.xml|robots\.txt|seo-manifest\.json|products\/manifest\.json)$/;
+const isDiscovery = (path) =>
+  isSitemap(path) || /^(?:robots\.txt|seo-manifest\.json|products\/manifest\.json)$/.test(path);
 
 /** Exclude request IDs, response timestamps and reachability probes from identity. */
 export function hostingConfigurationIdentity(config) {
@@ -25,45 +36,20 @@ export function hostingConfigurationIdentity(config) {
   };
 }
 
-export function assertHostingPath(path) {
-  if (
-    typeof path !== 'string' ||
-    !path ||
-    path.startsWith('/') ||
-    path.includes('\\') ||
-    /[%?#]/u.test(path) ||
-    [...path].some(
-      (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
-    ) ||
-    path.split('/').some((part) => !part || part === '.' || part === '..')
-  )
-    throw new Error('Invalid hosting object path.');
-  return path;
-}
-
-function readObject(directory, path) {
-  assertHostingPath(path);
-  const root = realpathSync(directory);
-  const file = resolve(root, path);
-  // Reject symlinks at every level, including ones pointing back into the backup.
-  let cursor = root;
-  for (const part of path.split('/')) {
-    cursor = resolve(cursor, part);
-    if (lstatSync(cursor).isSymbolicLink()) throw new Error(`Symlink in recovery input: ${path}`);
-  }
-  if (!realpathSync(file).startsWith(`${root}${sep}`) || !lstatSync(file).isFile())
-    throw new Error(`Not a regular recovery file: ${path}`);
-  return readFileSync(file);
-}
-
 export function inventoryIdentity(entries) {
+  if (!Array.isArray(entries) || entries.length > limits.files)
+    throw new Error('Inventory count limit exceeded.');
   const seen = new Set();
+  let bytes = 0;
   return entries
     .filter((entry) => !entry.path.endsWith('/'))
     .map((entry) => {
       assertHostingPath(entry.path);
       if (seen.has(entry.path) || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0)
         throw new Error('Invalid or duplicate hosting inventory entry.');
+      bytes += entry.bytes;
+      if (entry.bytes > limits.fileBytes || bytes > limits.totalBytes)
+        throw new Error('Inventory byte limit exceeded.');
       seen.add(entry.path);
       if (!entry.etag || !entry.lastModified) throw new Error('Missing inventory version.');
       return [entry.path, entry.bytes, entry.etag, entry.lastModified];
@@ -80,6 +66,7 @@ export function sealHostingBackup({
   configAfter,
   contentProofs = [],
 }) {
+  assertOrigin(before.site);
   const configuration = hostingConfigurationIdentity(configBefore);
   if (
     before.envId !== after.envId ||
@@ -121,6 +108,7 @@ export function sealHostingBackup({
 }
 
 export function verifyRecoveryInput(manifest, directory, target) {
+  assertOrigin(target.site);
   if (
     manifest.schemaVersion !== 1 ||
     manifest.purpose !== 'hosting-recovery' ||
@@ -131,16 +119,9 @@ export function verifyRecoveryInput(manifest, directory, target) {
     manifest.configurationSha256 !== hash('sha256', JSON.stringify(manifest.configuration))
   )
     throw new Error('Incomplete, corrupt or wrong-environment recovery input.');
+  checkEntries(manifest.entries);
   const seen = new Set();
   for (const entry of manifest.entries) {
-    assertHostingPath(entry.path);
-    if (
-      seen.has(entry.path) ||
-      !Number.isSafeInteger(entry.bytes) ||
-      entry.bytes < 0 ||
-      !/^[a-f0-9]{64}$/.test(entry.sha256)
-    )
-      throw new Error('Invalid or duplicate recovery entry.');
     seen.add(entry.path);
     const body = readObject(directory, entry.path);
     if (body.length !== entry.bytes || hash('sha256', body) !== entry.sha256)
@@ -158,47 +139,176 @@ export function planHostingRecovery({
   publicProductPaths,
 }) {
   verifyRecoveryInput(manifest, directory, target);
+  return makePlan({
+    entries: manifest.entries,
+    configurationSha256: manifest.configurationSha256,
+    directory,
+    target,
+    scope: { kind: 'site' },
+    currentOwnedPaths,
+    publicProductPaths,
+  });
+}
+
+/** V2 has its own source/seal checks; a legacy v1 backup is never promoted to v2. */
+export function planReleaseRecovery({ artifactInput, currentOwnedPaths, publicProductPaths }) {
+  const { envelope, staticManifest } = verifyReleaseArtifact({
+    ...artifactInput,
+    mode: 'recovery',
+  });
+  return makePlan({
+    entries: staticManifest.entries,
+    configurationSha256: staticManifest.configurationSha256,
+    directory: artifactInput.directory,
+    target: { envId: envelope.target.envId, site: envelope.target.siteOrigin },
+    scope: envelope.scope,
+    currentOwnedPaths,
+    publicProductPaths,
+  });
+}
+
+function makePlan({
+  entries,
+  configurationSha256,
+  directory,
+  target,
+  scope,
+  currentOwnedPaths,
+  publicProductPaths,
+}) {
   if (!Array.isArray(currentOwnedPaths) || !Array.isArray(publicProductPaths))
     throw new Error('Current ownership and a fresh public product allowlist are required.');
+  if (
+    currentOwnedPaths.length > limits.files ||
+    publicProductPaths.length > limits.urls ||
+    new Set(publicProductPaths).size !== publicProductPaths.length
+  )
+    throw new Error('Invalid ownership/public evidence count limit or duplicate.');
   const publicPaths = new Set(publicProductPaths);
   for (const path of publicPaths) {
-    if (!/^\/products\/p-[A-Za-z0-9_-]{1,200}\/$/.test(path))
-      throw new Error('Invalid current public product path.');
+    if (!productPath.test(path)) throw new Error('Invalid current public product path.');
   }
-  // Reject the whole input instead of merely skipping withdrawn HTML: its old
-  // sitemap/manifest could otherwise still advertise withdrawn products.
-  for (const entry of manifest.entries) {
-    if (productFile.test(entry.path) && !publicPaths.has(`/${entry.path.slice(0, -10)}`))
-      throw new Error(`Recovery would resurrect a withdrawn product: ${entry.path}`);
-  }
+  const publicOutput =
+    scope.kind === 'canary'
+      ? { products: [], legacy: false }
+      : readPublicOutput(directory, entries, target.site, publicProductPaths);
   const owned = [...new Set(currentOwnedPaths.map(assertHostingPath))];
-  const restored = manifest.entries.filter((entry) => !protectedPath.test(entry.path));
+  if (scope.kind === 'canary' && owned.some((path) => !path.startsWith(scope.prefix)))
+    throw new Error('Owned paths escape canary scope.');
+  const restored = entries.filter((entry) => !protectedPath.test(entry.path));
   const restoredPaths = new Set(restored.map((entry) => entry.path));
-  const phase = (entry) => (discovery.test(entry.path) ? 2 : entry.path.endsWith('.html') ? 1 : 0);
-  return {
-    schemaVersion: 1,
+  for (const path of owned) {
+    if (
+      path.toLowerCase().endsWith('.xml') &&
+      !protectedPath.test(path) &&
+      !restoredPaths.has(path) &&
+      !isDiscovery(path)
+    )
+      throw new Error(`Unclassified owned XML path requires discovery ownership proof: ${path}`);
+  }
+  const phase = (entry) =>
+    isDiscovery(entry.path) || publicOutput.discoveryPaths?.includes(entry.path)
+      ? 2
+      : entry.path.endsWith('.html')
+        ? 1
+        : 0;
+  const plan = {
+    schemaVersion: 2,
     target,
+    configurationSha256,
+    scope,
+    publicOutput,
     uploads: restored.sort((a, b) => phase(a) - phase(b) || a.path.localeCompare(b.path)),
     deletes: owned.filter(
       (path) =>
         !protectedPath.test(path) &&
         !restoredPaths.has(path) &&
-        (path.endsWith('.html') || discovery.test(path)),
+        (path.endsWith('.html') || isDiscovery(path)),
     ),
-    preservedPlatformFiles: manifest.entries.filter((entry) => protectedPath.test(entry.path))
-      .length,
+    preservedPlatformFiles: entries.filter((entry) => protectedPath.test(entry.path)).length,
   };
+  plan.stateSha256 = recoveryStateIdentity(plan);
+  return freeze(structuredClone({ ...plan, planSha256: identity(plan) }));
 }
 
-/** Adapter must run under the existing environment lock. No install, build or function writes. */
-export async function executeHostingRecovery(plan, { upload, verify, remove, configure, accept }) {
+/** Adapters run under the environment lock; this kernel never chooses a recovery target. */
+export async function executeHostingRecovery(input, inputAdapters) {
+  const adapters = Object.freeze({ ...inputAdapters });
+  // Copy before the first await so the caller cannot change a queued operation.
+  const plan = freeze(structuredClone(input));
+  const { planSha256, ...body } = plan;
+  if (
+    plan.schemaVersion !== 2 ||
+    planSha256 !== identity(body) ||
+    plan.stateSha256 !== recoveryStateIdentity(plan)
+  )
+    throw new Error('Invalid recovery plan identity.');
+  for (const name of ['upload', 'verify', 'remove', 'configure', 'accept'])
+    if (typeof adapters[name] !== 'function') throw new Error(`Missing recovery adapter: ${name}`);
+  const executionId = randomUUID();
+  const context = (subject, expectedHash) =>
+    freeze({ executionId, planSha256, subject, expectedHash });
+  const receipts = [];
   for (const entry of plan.uploads) {
-    await upload(entry);
-    // Do not advance to HTML if any dependency failed to upload or read back.
-    await verify(entry);
+    const intent = context(`upload:${entry.path}`, entry.sha256);
+    const write = await adapters.upload(entry, intent);
+    assertReceipt(write, intent, 'submitted');
+    const read = { ...context(`read:${entry.path}`, entry.sha256), operationId: write.operationId };
+    const receipt = await adapters.verify(entry, freeze(read));
+    assertReceipt(receipt, read, 'verified');
+    receipts.push(receipt);
   }
-  for (const path of plan.deletes) await remove(path);
-  await configure();
-  await accept();
-  return { restored: plan.uploads.length, removed: plan.deletes.length };
+  for (const path of plan.deletes) {
+    const intent = context(`remove:${path}`, 'absent');
+    const receipt = await adapters.remove(path, intent);
+    assertReceipt(receipt, intent, 'verified');
+    receipts.push(receipt);
+  }
+  const config = context('configure', plan.configurationSha256);
+  const configured = await adapters.configure(config);
+  assertReceipt(configured, config, 'verified');
+  receipts.push(configured);
+  const acceptance = context('accept', plan.stateSha256);
+  const accepted = await adapters.accept(acceptance);
+  assertReceipt(accepted, acceptance, 'verified');
+  receipts.push(accepted);
+  return freeze(
+    structuredClone({
+      status: 'verified',
+      executionId,
+      planSha256,
+      stateSha256: plan.stateSha256,
+      restored: plan.uploads.length,
+      removed: plan.deletes.length,
+      receipts,
+    }),
+  );
+}
+
+export function recoveryStateIdentity(plan) {
+  return identity({
+    target: plan.target,
+    scope: plan.scope,
+    files: plan.uploads
+      .map(({ path, sha256 }) => ({ path, sha256 }))
+      .sort((a, b) => a.path.localeCompare(b.path)),
+    absent: [...plan.deletes].sort(),
+    configurationSha256: plan.configurationSha256,
+  });
+}
+
+function assertReceipt(receipt, expected, status) {
+  if (
+    receipt?.status !== status ||
+    receipt.executionId !== expected.executionId ||
+    typeof receipt.operationId !== 'string' ||
+    !receipt.operationId.trim() ||
+    receipt.operationId.length > 256 ||
+    receipt.planSha256 !== expected.planSha256 ||
+    receipt.subject !== expected.subject ||
+    receipt.expectedHash !== expected.expectedHash ||
+    (expected.operationId !== undefined && receipt.operationId !== expected.operationId) ||
+    (status === 'verified' && receipt.observedHash !== expected.expectedHash)
+  )
+    throw new Error(`Unverified recovery receipt: ${expected.subject}`);
 }

@@ -6,10 +6,7 @@
     "locale": "zh-CN",
     "quality_profile": "showcase",
     "column_fit": "spread",
-    "viewBox": [
-      1080,
-      620
-    ]
+    "viewBox": [1080, 620]
   },
   "participants": [
     {
@@ -145,23 +142,17 @@
     {
       "dot": "cyan",
       "title": "构建与访问",
-      "items": [
-        "SSG 在构建时运行；菜单访问、刷新和爬虫均下载已有 HTML。"
-      ]
+      "items": ["SSG 在构建时运行；菜单访问、刷新和爬虫均下载已有 HTML。"]
     },
     {
       "dot": "amber",
       "title": "新鲜度",
-      "items": [
-        "当前是 fetch + 状态机；React Query、聚焦刷新与有限超时仍待接入。"
-      ]
+      "items": ["当前是 fetch + 状态机；React Query、聚焦刷新与有限超时仍待接入。"]
     },
     {
       "dot": "rose",
       "title": "撤回与网络失败",
-      "items": [
-        "API 404 不能改变已返回 HTML 的状态码；旧正文需重新交付或路由处理。"
-      ]
+      "items": ["API 404 不能改变已返回 HTML 的状态码；旧正文需重新交付或路由处理。"]
     }
   ]
 }

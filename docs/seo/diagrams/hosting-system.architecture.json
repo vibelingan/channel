@@ -5,10 +5,7 @@
     "title": "SEO 交付与恢复：职责和范围",
     "locale": "zh-CN",
     "quality_profile": "showcase",
-    "viewBox": [
-      1140,
-      650
-    ]
+    "viewBox": [1140, 650]
   },
   "components": [
     {
@@ -16,168 +13,96 @@
       "type": "external",
       "label": "Git 与发布身份",
       "sublabel": "提交 SHA / 受控分支",
-      "pos": [
-        24,
-        55
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [24, 55],
+      "size": [180, 76]
     },
     {
       "id": "pipeline",
       "type": "backend",
       "label": "GitHub Actions",
       "sublabel": "CI 与共享部署锁",
-      "pos": [
-        308,
-        55
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [308, 55],
+      "size": [180, 76]
     },
     {
       "id": "archives",
       "type": "cloud",
       "label": "版本产物与备份",
       "sublabel": "新 dist / 旧站备份",
-      "pos": [
-        592,
-        55
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [592, 55],
+      "size": [180, 76]
     },
     {
       "id": "operator",
       "type": "security",
       "label": "运维人员或 agent",
       "sublabel": "明确授权后独立触发",
-      "pos": [
-        876,
-        270
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [876, 270],
+      "size": [180, 76]
     },
     {
       "id": "catalog",
       "type": "backend",
       "label": "公开商品 API",
       "sublabel": "构建时只读采集",
-      "pos": [
-        24,
-        270
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [24, 270],
+      "size": [180, 76]
     },
     {
       "id": "build",
       "type": "frontend",
       "label": "Astro SSG",
       "sublabel": "公开 HTML 与发现文件",
-      "pos": [
-        308,
-        270
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [308, 270],
+      "size": [180, 76]
     },
     {
       "id": "hosting",
       "type": "cloud",
       "label": "静态托管与网关",
       "sublabel": "DIRECT / 缓存策略",
-      "pos": [
-        592,
-        270
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [592, 270],
+      "size": [180, 76]
     },
     {
       "id": "recovery",
       "type": "backend",
       "label": "静态恢复任务",
       "sublabel": "内核已有 / 云端待接入",
-      "pos": [
-        876,
-        55
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [876, 55],
+      "size": [180, 76]
     },
     {
       "id": "data",
       "type": "database",
       "label": "数据库与外部媒体",
       "sublabel": "独立保护与恢复范围",
-      "pos": [
-        24,
-        485
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [24, 485],
+      "size": [180, 76]
     },
     {
       "id": "functions",
       "type": "backend",
       "label": "Cloud Functions",
       "sublabel": "当前 API 与业务操作",
-      "pos": [
-        308,
-        485
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [308, 485],
+      "size": [180, 76]
     },
     {
       "id": "visitor",
       "type": "frontend",
       "label": "访客浏览器",
       "sublabel": "初始正文 / React 更新",
-      "pos": [
-        592,
-        485
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [592, 485],
+      "size": [180, 76]
     },
     {
       "id": "crawler",
       "type": "external",
       "label": "搜索引擎",
       "sublabel": "相同公开 URL 与 HTML",
-      "pos": [
-        876,
-        485
-      ],
-      "size": [
-        180,
-        76
-      ]
+      "pos": [876, 485],
+      "size": [180, 76]
     }
   ],
   "connections": [
@@ -201,22 +126,10 @@
       "to": "recovery",
       "label": "手动入口",
       "variant": "security",
-      "labelAt": [
-        1110,
-        200
-      ],
+      "labelAt": [1110, 200],
       "fromSide": "right",
       "toSide": "right",
-      "via": [
-        [
-          1110,
-          308
-        ],
-        [
-          1110,
-          93
-        ]
-      ]
+      "via": [[1110, 308], [1110, 93]]
     },
     {
       "id": "link-3",
@@ -231,10 +144,7 @@
       "to": "build",
       "label": "显式构建",
       "variant": "default",
-      "labelAt": [
-        398,
-        205
-      ]
+      "labelAt": [398, 205]
     },
     {
       "id": "link-5",
@@ -256,10 +166,7 @@
       "to": "hosting",
       "label": "恢复待接入",
       "variant": "default",
-      "labelAt": [
-        824,
-        190
-      ],
+      "labelAt": [824, 190],
       "fromSide": "bottom",
       "toSide": "top"
     },
@@ -269,10 +176,7 @@
       "to": "visitor",
       "label": "初始 HTML",
       "variant": "default",
-      "labelAt": [
-        682,
-        422
-      ]
+      "labelAt": [682, 422]
     },
     {
       "id": "link-9",
@@ -300,23 +204,17 @@
     {
       "dot": "cyan",
       "title": "自动发布",
-      "items": [
-        "构建与备份在发布流程内；失败不自动触发恢复。"
-      ]
+      "items": ["构建与备份在发布流程内；失败不自动触发恢复。"]
     },
     {
       "dot": "amber",
       "title": "单独恢复",
-      "items": [
-        "拟用 GitHub Actions 手动入口；当前仅内核与只读计划可用。"
-      ]
+      "items": ["拟用 GitHub Actions 手动入口；当前仅内核与只读计划可用。"]
     },
     {
       "dot": "rose",
       "title": "范围边界",
-      "items": [
-        "静态恢复不回滚函数、数据库及外部媒体。"
-      ]
+      "items": ["静态恢复不回滚函数、数据库及外部媒体。"]
     }
   ]
 }

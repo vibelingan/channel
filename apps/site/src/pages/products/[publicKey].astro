@@ -7,7 +7,7 @@ import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { productKey, productPath } from '../../lib/seo/product-identity.ts';
 import { productPageDescriptor } from '../../lib/seo/product-page.ts';
-import { readProductSnapshot, type ProductSnapshotEntry } from '../../lib/seo/product-snapshot.ts';
+import { type ProductSnapshotEntry, readProductSnapshot } from '../../lib/seo/product-snapshot.ts';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
@@ -21,12 +21,20 @@ export async function getStaticPaths() {
     props: { entry, duplicateName: (names.get(entry.detail?.name ?? entry.product.name) ?? 0) > 1 },
   }));
 }
-interface Props { entry: ProductSnapshotEntry; duplicateName: boolean; }
+interface Props {
+  entry: ProductSnapshotEntry;
+  duplicateName: boolean;
+}
 const { entry, duplicateName } = Astro.props;
 const site = getSiteContent(DEFAULT_LOCALE);
 const content = getCatalogContent(DEFAULT_LOCALE);
 const copy = getSharedDetailContent(DEFAULT_LOCALE);
-const page = productPageDescriptor(entry, (Astro.site ?? Astro.url.origin).toString(), site.brand.name, duplicateName);
+const page = productPageDescriptor(
+  entry,
+  (Astro.site ?? Astro.url.origin).toString(),
+  site.brand.name,
+  duplicateName,
+);
 ---
 <BaseLayout page={page}>
   <SiteHeader brand={site.brand} nav={site.nav} />

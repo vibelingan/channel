@@ -1,44 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
-  executeHostingRecovery,
   planHostingRecovery,
   sealHostingBackup,
   verifyRecoveryInput,
 } from './hosting-recovery.mjs';
 
-const target = { envId: 'fixture-env', site: 'https://fixture.example' };
-function fixture(t, files = { 'index.html': 'home', '_astro/a.hash.js': 'script' }) {
-  const directory = mkdtempSync(join(tmpdir(), 'hosting-recovery-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const entries = Object.entries(files).map(([path, body]) => {
-    mkdirSync(join(directory, path, '..'), { recursive: true });
-    writeFileSync(join(directory, path), body);
-    return {
-      path,
-      bytes: Buffer.byteLength(body),
-      etag: `"${createHash('md5').update(body).digest('hex')}"`,
-      lastModified: '2026-10-20T00:00:00Z',
-    };
-  });
-  const before = { ...target, entries };
-  const configBefore = {
-    website: { WebsiteConfiguration: { IndexDocument: { Suffix: 'index.html' } } },
-    gateway: { Domains: [{ Domain: 'fixture.example' }] },
-  };
-  const inputs = {
-    directory,
-    before,
-    after: structuredClone(before),
-    configBefore,
-    configAfter: structuredClone(configBefore),
-  };
-  return { ...inputs, manifest: sealHostingBackup(inputs) };
-}
+import { fixture, publicFiles, target } from './release-fixtures.mjs';
 
 test('backup pins all bytes to both stable inventories and object ETags', (t) => {
   const f = fixture(t);
@@ -104,9 +75,8 @@ test('restore orders assets before HTML and discovery; preserves platform files 
   const f = fixture(t, {
     'index.html': 'home',
     '_astro/a.hash.js': 'script',
-    'sitemap-index.xml': 'sitemap',
+    'sitemap-index.xml': '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>',
     '__auth/index.html': 'platform',
-    'products/manifest.json': '{}',
   });
   const plan = planHostingRecovery({
     ...f,
@@ -116,19 +86,19 @@ test('restore orders assets before HTML and discovery; preserves platform files 
   });
   assert.deepEqual(
     plan.uploads.map((e) => e.path),
-    ['_astro/a.hash.js', 'index.html', 'products/manifest.json', 'sitemap-index.xml'],
+    ['_astro/a.hash.js', 'index.html', 'sitemap-index.xml'],
   );
   assert.deepEqual(plan.deletes, ['retired/index.html']);
   assert.equal(plan.preservedPlatformFiles, 1);
 });
 
 test('withdrawn products reject the entire old artifact, including its old sitemap', (t) => {
-  const f = fixture(t, { 'index.html': 'home', 'products/p-abc/index.html': 'product' });
+  const f = fixture(t, publicFiles());
   const args = { ...f, target, currentOwnedPaths: [], publicProductPaths: [] };
   assert.throws(() => planHostingRecovery(args), /resurrect a withdrawn product/);
   assert.equal(
     planHostingRecovery({ ...args, publicProductPaths: ['/products/p-abc/'] }).uploads.length,
-    2,
+    6,
   );
 });
 
@@ -137,46 +107,28 @@ test('missing current publication/ownership evidence never becomes an empty defa
   assert.throws(() => planHostingRecovery({ ...f, target }), /required/);
 });
 
-test('interrupted dependency upload cannot advance to page overwrite, prune or configuration', async () => {
-  const calls = [];
-  await assert.rejects(
-    executeHostingRecovery(
-      {
-        uploads: [{ path: '_astro/a.js' }, { path: 'index.html' }],
-        deletes: ['retired/index.html'],
-      },
-      {
-        upload: async (entry) => calls.push(`upload:${entry.path}`),
-        verify: async () => {
-          throw new Error('read-back mismatch');
-        },
-        remove: async () => calls.push('remove'),
-        configure: async () => calls.push('configure'),
-        accept: async () => calls.push('accept'),
-      },
-    ),
-    /read-back mismatch/,
+test('a withdrawn URL present only in a sitemap still rejects recovery', (t) => {
+  const f = fixture(t, {
+    'index.html': 'home',
+    'sitemap-products.xml':
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://fixture.example/products/p-withdrawn/</loc></url></urlset>',
+  });
+  assert.throws(
+    () => planHostingRecovery({ ...f, target, currentOwnedPaths: [], publicProductPaths: [] }),
+    /withdrawn|manifest/i,
   );
-  assert.deepEqual(calls, ['upload:_astro/a.js']);
 });
 
-test('a recovery is complete only after ordinary URL acceptance succeeds', async () => {
-  const calls = [];
-  await assert.rejects(
-    executeHostingRecovery(
-      { uploads: [], deletes: [] },
-      {
-        upload: async () => {},
-        verify: async () => {},
-        remove: async () => {},
-        configure: async () => calls.push('configure'),
-        accept: async () => {
-          calls.push('accept');
-          throw new Error('stale ordinary URL');
-        },
-      },
-    ),
-    /stale ordinary URL/,
+test('an orphan owned XML with an unknown role cannot silently survive a recovery', (t) => {
+  const f = fixture(t);
+  assert.throws(
+    () =>
+      planHostingRecovery({
+        ...f,
+        target,
+        currentOwnedPaths: ['old-product-map.xml'],
+        publicProductPaths: [],
+      }),
+    /Unclassified.*XML/,
   );
-  assert.deepEqual(calls, ['configure', 'accept']);
 });
