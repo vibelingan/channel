@@ -248,10 +248,15 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
           throw error;
         }
       };
-      const privateCall = async <T>(send: () => Promise<T>): Promise<T> => {
+      const privateCall = async <T>(
+        send: () => Promise<T>,
+        rpcSignal?: AbortSignal,
+      ): Promise<T> => {
         guard();
+        const bounded = rpcSignal ? AbortSignal.any([signal, rpcSignal]) : signal;
+        bounded.throwIfAborted();
         try {
-          const value = await send();
+          const value = await until(send(), bounded);
           guard();
           return value;
         } catch (error) {
@@ -261,16 +266,35 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
         }
       };
       const request: NonNullable<PublicationBatchOptions['request']> = (command, rpcSignal) =>
-        privateCall(() => (options.request ?? catalogProductOperationCall)(command, rpcSignal));
+        privateCall(
+          () => (options.request ?? catalogProductOperationCall)(command, rpcSignal),
+          rpcSignal,
+        );
       const preparationRequest: NonNullable<PublicationBatchOptions['preparationRequest']> = (
         command,
         rpcSignal,
-      ) => privateCall(() => (options.preparationRequest ?? managePreparation)(command, rpcSignal));
+      ) =>
+        privateCall(
+          () => (options.preparationRequest ?? managePreparation)(command, rpcSignal),
+          rpcSignal,
+        );
       const publicFetch: typeof globalThis.fetch = async (input, init) => {
         guard();
-        const value = await (options.fetch ?? globalThis.fetch)(input, init);
-        guard();
-        return value;
+        const bounded = init?.signal ? AbortSignal.any([signal, init.signal]) : signal;
+        bounded.throwIfAborted();
+        const pending = (options.fetch ?? globalThis.fetch)(input, init).then(async (response) => {
+          // A transport may deliver bytes after the browser has stopped waiting.
+          if (bounded.aborted) await response.body?.cancel().catch(() => {});
+          return response;
+        });
+        const value = await until(pending, bounded);
+        try {
+          guard();
+          return value;
+        } catch (error) {
+          await value.body?.cancel().catch(() => {});
+          throw error;
+        }
       };
       const items: PublicationBatchItem[] = entries.map((entry) => ({
         state: 'not-started',

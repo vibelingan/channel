@@ -186,17 +186,13 @@ function pause(ms: number, signal: AbortSignal) {
   });
 }
 type PreparationCheckpoint = Pick<PreparationStatus, 'progress' | 'report' | 'attestation'>;
-/** A released lease and monotonic durable progress recover a lost acknowledgement. */
-function advancedPreparation(
+function hasDurablePreparationProgress(
   before: PreparationCheckpoint | undefined,
   after: PreparationStatus | undefined,
 ): boolean {
   if (
     !before ||
     !after?.current ||
-    after.nextAction !== 'continue' ||
-    after.progress.state !== 'queued' ||
-    after.progress.leaseExpiresAt !== 0 ||
     after.report?.state !== 'preparing' ||
     after.report.issues.some((issue) => issue.severity === 'error')
   )
@@ -206,9 +202,7 @@ function advancedPreparation(
   if (
     next.jobId !== previous.jobId ||
     next.productId !== previous.productId ||
-    next.createdAt !== previous.createdAt ||
-    next.leaseVersion <= previous.leaseVersion ||
-    next.attempt <= previous.attempt
+    next.createdAt !== previous.createdAt
   )
     return false;
   if (
@@ -245,6 +239,37 @@ function advancedPreparation(
       (oldAttestation === null || attestation.checked > oldAttestation.checked))
   );
 }
+/** A released lease and monotonic durable progress recover a lost acknowledgement. */
+function advancedPreparation(
+  before: PreparationCheckpoint | undefined,
+  after: PreparationStatus | undefined,
+): boolean {
+  return Boolean(
+    before &&
+      after?.nextAction === 'continue' &&
+      after.progress.state === 'queued' &&
+      after.progress.leaseExpiresAt === 0 &&
+      after.progress.leaseVersion > before.progress.leaseVersion &&
+      after.progress.attempt > before.progress.attempt &&
+      hasDurablePreparationProgress(before, after),
+  );
+}
+/** Progress in the same active lease authorizes only another status read. */
+function progressingLease(
+  before: PreparationCheckpoint | undefined,
+  after: PreparationStatus | undefined,
+): boolean {
+  return Boolean(
+    before?.progress.state === 'running' &&
+      before.progress.leaseExpiresAt > 0 &&
+      after?.nextAction === 'wait' &&
+      after.progress.state === 'running' &&
+      after.progress.leaseExpiresAt > 0 &&
+      after.progress.leaseVersion === before.progress.leaseVersion &&
+      after.progress.attempt === before.progress.attempt &&
+      hasDurablePreparationProgress(before, after),
+  );
+}
 /** A stopped browser wait leaves the remote task available for status and explicit continuation. */
 export async function runPreparation(
   input: { productId: string; jobId?: string },
@@ -264,6 +289,8 @@ export async function runPreparation(
   let continuationStart: PreparationCheckpoint | undefined;
   let calls = 0;
   let polls = 0;
+  let idlePolls = 0;
+  let pollCheckpoint: PreparationCheckpoint | undefined;
   let busyRetries = 0;
   const result = (
     reason: PreparationRunResult['reason'],
@@ -322,15 +349,17 @@ export async function runPreparation(
             ? 'poll'
             : 'none'
         : 'continue';
+    pollCheckpoint = current;
     while (true) {
       if (current?.nextAction === 'ready') return result('ready');
       if (mode === 'none') return result('needs-action');
       if (!canRequest() || !jobId) return result('paused');
       if (mode === 'poll') {
-        if (polls >= 4) return result('paused');
+        if (idlePolls >= 4) return result('paused');
         try {
           const delay = polls === 0 ? 600 : polls === 1 ? 1200 : 2400;
           polls++;
+          idlePolls++;
           await (options.wait ?? pause)(delay, signal);
         } catch {
           return result('paused');
@@ -373,6 +402,8 @@ export async function runPreparation(
           ['INTERNAL_ERROR', 'INVALID_RESPONSE'].includes(error.code);
         if (unknownReply && advancedPreparation(continuationStart, current)) {
           polls = 0;
+          idlePolls = 0;
+          pollCheckpoint = undefined;
           mode = 'continue';
           continue;
         }
@@ -435,14 +466,21 @@ export async function runPreparation(
             : fresh.status.nextAction === 'wait'
               ? 'poll'
               : 'none';
+        pollCheckpoint = current;
         continue;
       }
       if (!wasPoll && 'followUp' in observed && observed.invocation === 'rejected')
         return result('rejected');
       if (wasPoll && advancedPreparation(continuationStart, current)) {
         polls = 0;
+        idlePolls = 0;
+        pollCheckpoint = undefined;
         mode = 'continue';
         continue;
+      }
+      if (wasPoll && progressingLease(pollCheckpoint, current)) {
+        idlePolls = 0;
+        pollCheckpoint = current;
       }
       mode = wasPoll
         ? current?.nextAction === 'wait'
@@ -451,6 +489,7 @@ export async function runPreparation(
         : 'followUp' in observed
           ? observed.followUp
           : 'none';
+      if (!wasPoll) pollCheckpoint = current;
     }
   } finally {
     clearTimeout(timer);

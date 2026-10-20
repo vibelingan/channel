@@ -878,3 +878,63 @@ test('a different original digest cannot authorize cancellation when the saved p
   assert.equal(result.items[0]?.state, 'unknown');
   assert.equal(writes, 0);
 });
+
+for (const transport of ['private', 'public', 'public-late-response'] as const)
+  test(`stop waiting settles when the ${transport} transport ignores abort and consumes its late reply or rejection`, async () => {
+    const h = fixture();
+    const arrived = deferred();
+    const held = deferred();
+    const selected = attempts(1, `ignored-${transport}`);
+    const controller = new AbortController();
+    let bodyCancelled = false;
+    const waiting = async () => {
+      arrived.release();
+      await held.promise;
+      if (transport === 'public-late-response')
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            cancel() {
+              bodyCancelled = true;
+            },
+          }),
+        );
+      throw Error('Controlled late transport rejection');
+    };
+    const batch = createPublicationBatch({
+      ...h.base,
+      ...(transport === 'private'
+        ? { run: undefined, request: waiting }
+        : {
+            check: undefined,
+            request: async (command) => complete(scope(command)),
+            fetch: waiting,
+          }),
+    });
+    const pending = batch.run(selected, controller.signal);
+    await arrived.promise;
+    controller.abort();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const settled = await Promise.race([
+        pending.then(() => true),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), 100);
+        }),
+      ]);
+      assert.equal(settled, true, 'The browser wait must end without a transport reply');
+    } finally {
+      clearTimeout(timer);
+      held.release();
+      await pending;
+    }
+    const result = await pending;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (transport === 'public-late-response') assert.equal(bodyCancelled, true);
+    assert.equal(result.paused, true);
+    assert.equal(result.confirmed, 0);
+    assert.equal(batch.journal.read().entries[0]?.scope.operationId, selected[0]?.operationId);
+    assert.equal(
+      (await createPublicationBatch(h.base).run(attempts(1, `after-${transport}`))).confirmed,
+      1,
+    );
+  });

@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
+import { readFile, writeFile } from 'node:fs/promises';
+import { type Response as BrowserResponse, expect, test } from '@playwright/test';
 import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
@@ -1211,6 +1211,48 @@ test('twenty source products publish through Assign category and restore shared-
   const sharedIds = Array.from({ length: 9 }, (_, index) => `raw-color-image-${index}`);
   const before = await Promise.all(sharedIds.map(referenceCount));
   const operations = new Map<string, string>();
+  const wireTrace: Record<string, unknown>[] = [];
+  const pendingTrace = new Set<Promise<void>>();
+  const object = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+  const captureResponse = async (response: BrowserResponse) => {
+    const url = new URL(response.url());
+    if (url.pathname !== '/api/admin' && !/^\/api\/products\/[^/]+\/detail$/.test(url.pathname))
+      return;
+    try {
+      const request = response.request();
+      const input: unknown = request.method() === 'POST' ? request.postDataJSON() : {};
+      const command = object(input) && object(input.data) ? input.data : {};
+      const body: unknown = await response.json();
+      const data = object(body) && object(body.data) ? body.data : {};
+      const progress = object(data.progress) ? data.progress : {};
+      const error = object(body) && object(body.error) ? body.error : {};
+      wireTrace.push({
+        at: new Date().toISOString(),
+        path: url.pathname,
+        durationMs: Math.round(Date.now() - request.timing().startTime),
+        httpStatus: response.status(),
+        action: object(input) ? input.action : undefined,
+        command: command.action,
+        productId: command.productId ?? command.id ?? data.productId,
+        operationId: command.operationId ?? data.operationId,
+        jobId: command.jobId ?? data.jobId ?? progress.jobId,
+        ok: object(body) ? body.ok : undefined,
+        errorCode: error.code,
+        state: data.state,
+        outcome: data.outcome,
+        progressState: progress.state,
+      });
+    } catch {
+      wireTrace.push({ at: new Date().toISOString(), path: url.pathname, unreadable: true });
+    }
+  };
+  const onResponse = (response: BrowserResponse) => {
+    const pending = captureResponse(response);
+    pendingTrace.add(pending);
+    void pending.then(() => pendingTrace.delete(pending));
+  };
+  page.on('response', onResponse);
   try {
     await page.goto('/login?returnTo=%2Fadmin');
     await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
@@ -1336,7 +1378,17 @@ test('twenty source products publish through Assign category and restore shared-
     for (const [index, id] of sharedIds.entries())
       expect(await referenceCount(id)).toBe(before[index]);
     await page.screenshot({ path: info.outputPath('twenty-restored.png'), fullPage: true });
+  } catch (error) {
+    await Promise.allSettled([...pendingTrace]);
+    await writeFile(info.outputPath('twenty-wire-trace.json'), JSON.stringify(wireTrace, null, 2));
+    const file = process.env.E2E_CATALOG_LOCAL_DB;
+    if (file && /channel-catalog-e2e-[^/]+\/db\.json$/.test(file)) {
+      const snapshot = JSON.parse(await readFile(file, 'utf8'));
+      await writeFile(info.outputPath('twenty-failed-local-db.json'), JSON.stringify(snapshot));
+    }
+    throw error;
   } finally {
+    page.off('response', onResponse);
     await page.goto('/');
     // A failed assertion may leave an admitted request in flight. Stop its
     // original native task before withdrawal; a browser navigation is not cancellation.

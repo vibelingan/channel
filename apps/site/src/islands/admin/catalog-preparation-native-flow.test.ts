@@ -60,7 +60,8 @@ async function fixture(t: { after(fn: () => void): void }, count = 9, missingCat
           name: 'Clock',
           ...(missingCategory ? {} : { productFamily: 'misc' }),
           published: false,
-          imageIds: images.map((i) => i._id),
+          imageIds: images.slice(0, 9).map((i) => i._id),
+          ...(count > 9 ? { descriptionImageIds: images.slice(9).map((i) => i._id) } : {}),
         },
       ],
       images,
@@ -90,6 +91,88 @@ async function fixture(t: { after(fn: () => void): void }, count = 9, missingCat
   }
   return { adapter, file, authority, jobId, dispatch, storage, images };
 }
+for (const [count, steps] of [
+  [9, 3],
+  [27, 8],
+] as const)
+  test(`actual ${count}-image preparation finishes within ${steps} bounded calls without publishing`, async (t) => {
+    const f = await fixture(t, count);
+    const original = await f.adapter.get('products', 'p');
+    let result: Awaited<ReturnType<typeof runCatalogPreparationCall>> | undefined;
+    let calls = 0;
+    for (; calls < steps; calls++) {
+      result = await runCatalogPreparationCall(f.authority, await f.dispatch());
+      assert.ok(result.ok, JSON.stringify(result));
+      if (result.outcome === 'ready') {
+        calls++;
+        break;
+      }
+    }
+    assert.equal(result?.ok && result.outcome, 'ready');
+    assert.equal(calls, steps);
+    const current = await f.adapter.get('products', 'p');
+    const report = readCurrentCatalogPreparation(current ?? {});
+    assert.equal(report?.state, 'ready');
+    assert.equal(report?.state === 'ready' && report.seal.imageCount, count);
+    assert.equal(current?.published, false);
+    assert.deepEqual(current?.imageIds, original?.imageIds);
+    assert.equal(current?.productFamily, original?.productFamily);
+    for (const image of f.images)
+      assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+  });
+
+for (const change of ['edit', 'cancel'] as const)
+  test(`extended attestation rechecks ${change} before the fifth image and cannot commit stale ready`, async (t) => {
+    const f = await fixture(t, 9);
+    for (let i = 0; i < 2; i++)
+      assert.ok((await runCatalogPreparationCall(f.authority, await f.dispatch())).ok);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    const indices: number[] = [];
+    let changed = false;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const command = args[1];
+      if (command.action === 'attest-media-image') {
+        indices.push(command.index);
+        if (command.index === 4 && !changed) {
+          changed = true;
+          if (change === 'edit')
+            await f.adapter.update('products', 'p', { name: 'New independent edit' });
+          else {
+            const job = readCatalogPreparationJob(
+              await f.adapter.get('catalogPreparationJobs', f.jobId),
+              f.jobId,
+              Date.now(),
+            );
+            assert.ok(job);
+            assert.ok(
+              (
+                await manage(f.authority, {
+                  action: 'cancel',
+                  actorId: 'admin',
+                  jobId: f.jobId,
+                  expectedLeaseVersion: job.leaseVersion,
+                })
+              ).ok,
+            );
+          }
+        }
+      }
+      return manage(...args);
+    };
+    try {
+      const result = await runCatalogPreparationCall(f.authority, await f.dispatch());
+      assert.equal(changed, true);
+      assert.equal(result.ok, false);
+      assert.deepEqual(indices, [0, 1, 2, 3, 4]);
+      const current = await f.adapter.get('products', 'p');
+      assert.notEqual(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
+      assert.equal(current?.published, false);
+      if (change === 'edit') assert.equal(current?.name, 'New independent edit');
+    } finally {
+      f.adapter.manageCatalogPreparationJob = manage;
+    }
+  });
+
 for (const change of ['none', 'edit', 'cancel', 'revoke'] as const) {
   test(`browser coordinator uses actual authenticated HTTP/native PNG progress after a lost worker reply: ${change}`, async (t) => {
     const f = await fixture(t, 9);
@@ -198,3 +281,117 @@ for (const change of ['none', 'edit', 'cancel', 'revoke'] as const) {
     }
   });
 }
+
+test('actual persisted attestation keeps one running lease readable beyond four polls', async (t) => {
+  const f = await fixture(t, 9);
+  const original = await f.adapter.get('products', 'p');
+  for (let i = 0; i < 2; i++)
+    assert.ok((await runCatalogPreparationCall(f.authority, await f.dispatch())).ok);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  const gates: { index: number; release: () => void }[] = [];
+  const pending: ReturnType<typeof runCatalogPreparationCall>[] = [];
+  let draining = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const value = await manage(...args);
+    const command = args[1];
+    if (command.action === 'attest-media-image' && value.ok && !draining)
+      await new Promise<void>((release) => {
+        gates.push({ index: command.index, release });
+      });
+    return value;
+  };
+  const config = {
+    jwtSecret: 'progress-browser-local-session',
+    enableDetailApproval: true,
+    preparationAuthority: f.authority,
+    preparationInvoke: createLocalCatalogPreparationInvoker((call) => {
+      const work = runCatalogPreparationCall(f.authority, call);
+      pending.push(work);
+      return work;
+    }, 1),
+  };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    email: 'admin@example.test',
+    name: 'Admin',
+    role: 'admin',
+  });
+  const actions: string[] = [];
+  const progress: { checked: number; lease: number }[] = [];
+  let released = 0;
+  const gateAt = async (index: number) => {
+    const deadline = performance.now() + 5000;
+    while (!gates[index]) {
+      assert.ok(performance.now() < deadline, `worker did not persist attestation ${index}`);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(gates[index].index, index);
+    return gates[index];
+  };
+  try {
+    const result = await runPreparation(
+      { productId: 'p', jobId: f.jobId },
+      {
+        request: async (command, signal) => {
+          signal.throwIfAborted();
+          actions.push(command.action);
+          const response = await handleAdminFunctionEvent(
+            {
+              httpMethod: 'POST',
+              headers: {},
+              body: JSON.stringify({ action: 'catalogPreparation', token, data: command }),
+            },
+            config,
+            handleAdminRequest,
+          );
+          assert.ok('statusCode' in response);
+          const envelope = z
+            .union([
+              z.object({ ok: z.literal(true), data: z.unknown() }),
+              z.object({
+                ok: z.literal(false),
+                error: z.object({ code: z.string(), message: z.string() }),
+              }),
+            ])
+            .parse(JSON.parse(response.body));
+          if (!envelope.ok) throw new AdminApiError(envelope.error.code, envelope.error.message);
+          assert.equal(response.statusCode, 200);
+          return envelope.data;
+        },
+        wait: async (_ms, signal) => {
+          signal.throwIfAborted();
+          (await gateAt(released++)).release();
+          if (released < 9) await gateAt(released);
+          else await Promise.all(pending);
+        },
+        onProgress: ({ status }) => {
+          if (status?.progress.state === 'running' && status.attestation)
+            progress.push({
+              checked: status.attestation.checked,
+              lease: status.progress.leaseVersion,
+            });
+        },
+      },
+    );
+    assert.equal(result.reason, 'ready');
+    assert.equal(result.jobId, f.jobId);
+    assert.equal(result.status?.attestation?.checked, 9);
+    assert.ok(new Set(progress.map((p) => p.checked)).size > 4);
+    assert.equal(new Set(progress.map((p) => p.lease)).size, 1);
+    assert.equal(actions.filter((action) => action === 'continue').length, 1);
+    assert.ok(actions.filter((action) => action === 'status').length > 4);
+    assert.ok(!actions.includes('start'));
+    const current = await f.adapter.get('products', 'p');
+    assert.equal(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
+    assert.equal(current?.published, false);
+    assert.deepEqual(current?.imageIds, original?.imageIds);
+    assert.equal(current?.productFamily, original?.productFamily);
+    for (const image of f.images)
+      assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+  } finally {
+    draining = true;
+    for (const gate of gates) gate.release();
+    await Promise.allSettled(pending);
+    f.adapter.manageCatalogPreparationJob = manage;
+  }
+});

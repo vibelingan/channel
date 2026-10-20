@@ -55,6 +55,8 @@ function candidatePlanDigest(candidate: {
   ]);
 }
 const maxImages = 4;
+// Protected receipts use metadata; downloads and fresh pixel work keep their four-image cap.
+const maxProtectedImages = 16;
 const tailBudgetMs = 8000;
 type WorkerOptions = {
   now?: () => number;
@@ -143,10 +145,8 @@ async function runCatalogPreparationStages(
     if (!bound.ok) return { ok: false, code: bound.code };
     if (!('mediaSeal' in bound)) return { ok: false, code: 'CONFLICT' };
     let seal = bound.mediaSeal;
-    for (let n = 0; n < maxImages && seal.cursor < seal.total; n++) {
+    for (let n = 0; n < maxProtectedImages && seal.cursor < seal.total; n++) {
       if (now() - startedAt >= budget - tailBudgetMs) break;
-      const renewed = await run({ action: 'renew', jobId: progress.jobId, lease });
-      if (!renewed.ok) return { ok: false, code: renewed.code };
       const imageId = candidate.imageIds[seal.cursor];
       if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
       const attested = await run({
@@ -301,27 +301,67 @@ async function runCatalogPreparationStages(
     if (!('media' in bound)) return { ok: false, code: 'CONFLICT' };
     let media = bound.media;
     const checkImage = options.checkImage;
+    let byteImages = 0;
     if (candidate.previewReady && !candidate.issues.some((i) => i.severity === 'error'))
-      for (let n = 0; n < maxImages && media.cursor < candidate.imageIds.length; n++) {
+      for (
+        let n = 0;
+        n < maxProtectedImages &&
+        byteImages < maxImages &&
+        media.cursor < candidate.imageIds.length;
+        n++
+      ) {
         if (now() - startedAt >= budget - tailBudgetMs) break;
-        const renewed = await run({ action: 'renew', jobId: progress.jobId, lease });
-        if (!renewed.ok) return { ok: false, code: renewed.code };
         const imageId = candidate.imageIds[media.cursor];
         if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
-        const reservation = await run({
-          action: 'reserve-image-check',
+        const reservationCommand = {
+          action: 'reserve-image-check' as const,
           jobId: progress.jobId,
           lease,
           imageId,
-        });
+        };
+        let reservation: CatalogPreparationJobResult;
+        try {
+          reservation = await run({
+            ...reservationCommand,
+            ...(!checkImage ? { includeProtectedHealth: true as const } : {}),
+          });
+        } catch (error) {
+          const code = error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+          if (
+            checkImage ||
+            now() - startedAt >= budget - tailBudgetMs ||
+            (typeof code === 'string' &&
+              [
+                'FORBIDDEN',
+                'VALIDATION_ERROR',
+                'NOT_FOUND',
+                'CORRUPT',
+                'CONFLICT',
+                'BUSY',
+                'STALE',
+                'DATABASE_TRANSACTION_CONFLICT',
+              ].includes(code))
+          )
+            throw error;
+          // The same guarded hold is idempotent if the optional read or its reply failed.
+          reservation = await run(reservationCommand);
+        }
         if (!reservation.ok) return { ok: false, code: reservation.code };
-        let checked = checkImage
-          ? await (async () => {
-              const image = await get('images', imageId);
-              const imageInputDigest = image ? storedCatalogImageInputDigest(image) : null;
-              return { imageInputDigest, health: await checkImage(imageId) };
-            })()
-          : await prepareStoredCatalogImage(authority, { jobId: progress.jobId, lease, imageId });
+        const cached =
+          !checkImage && 'reservation' in reservation ? reservation.protectedHealth : null;
+        if (!cached) byteImages++;
+        let checked: Awaited<ReturnType<typeof prepareStoredCatalogImage>>;
+        if (cached) checked = { imageInputDigest: cached.inputDigest, health: cached };
+        else if (checkImage) {
+          const image = await get('images', imageId);
+          const imageInputDigest = image ? storedCatalogImageInputDigest(image) : null;
+          checked = { imageInputDigest, health: await checkImage(imageId) };
+        } else
+          checked = await prepareStoredCatalogImage(authority, {
+            jobId: progress.jobId,
+            lease,
+            imageId,
+          });
         if (
           !checkImage &&
           importer &&

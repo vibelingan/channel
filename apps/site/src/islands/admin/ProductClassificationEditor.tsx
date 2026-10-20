@@ -320,6 +320,12 @@ export function ProductClassificationEditor({
   const [pending, setPending] = useState(false);
   const [stage, setStage] = useState<'assigning' | 'publishing' | 'refreshing'>('assigning');
   const [showPublishingWait, setShowPublishingWait] = useState(false);
+  const [publicationProgress, setPublicationProgress] = useState<{
+    checked: number;
+    total: number;
+    confirmed: number;
+  } | null>(null);
+  const [stopWaiting, setStopWaiting] = useState(false);
   const [finished, setFinished] = useState(false);
   const [message, setMessage] = useState('');
   const [submittedCommand, setSubmittedCommand] = useState<ClassificationSubmission | null>(null);
@@ -335,6 +341,12 @@ export function ProductClassificationEditor({
   const publicationEntries = useRef<BatchEntry[]>([]);
   const publicationItems = useRef<PublicationBatchItem[]>([]);
   const operationAbort = useRef<AbortController | null>(null);
+  const activePublicationProgress = useRef<{
+    batch: ReturnType<typeof createPublicationBatch>;
+    entries: readonly BatchEntry[];
+    signal: AbortSignal | undefined;
+    checked: Map<string, PublicationBatchItem['state']>;
+  } | null>(null);
   const [recoveryOnly, setRecoveryOnly] = useState(false);
   const [ownedAvailable, setOwnedAvailable] = useState(false);
   const [recoveryExport, setRecoveryExport] = useState('');
@@ -616,6 +628,32 @@ export function ProductClassificationEditor({
     await readBack(submitted, result?.results ?? null, publicationOutcome, allSaved && !publish);
   }
 
+  function createOwnedBatch() {
+    const batch: ReturnType<typeof createPublicationBatch> = createPublicationBatch({
+      onItem(item) {
+        const active = activePublicationProgress.current;
+        if (!active || !mounted.current || active.batch !== batch || active.signal?.aborted) return;
+        const entry = active.entries.find(
+          (value) =>
+            ('action' in value ? value.productId : value.scope.productId) === item.scope.productId,
+        );
+        if (
+          !entry ||
+          ('action' in entry ? entry.operationId : entry.scope.operationId) !==
+            item.scope.operationId
+        )
+          return;
+        active.checked.set(item.scope.productId, item.state);
+        setPublicationProgress({
+          checked: active.checked.size,
+          total: active.entries.length,
+          confirmed: [...active.checked.values()].filter((state) => state === 'confirmed').length,
+        });
+      },
+    });
+    return batch;
+  }
+
   async function runOwned(mode: 'continue' | 'check' | 'cancel', ids?: readonly string[]) {
     const batch = publicationBatch.current;
     if (!batch) throw new AdminApiError('UNAUTHORIZED', 'Open the original publication again.');
@@ -629,7 +667,18 @@ export function ProductClassificationEditor({
           ? { scope: { productId: entry.productId, operationId: entry.operationId } }
           : entry,
     );
-    const outcome = await batch.run(inputs, operationAbort.current?.signal, mode);
+    const progress = {
+      batch,
+      entries,
+      signal: operationAbort.current?.signal,
+      checked: new Map<string, PublicationBatchItem['state']>(),
+    };
+    activePublicationProgress.current = progress;
+    setStopWaiting(false);
+    setPublicationProgress({ checked: 0, total: entries.length, confirmed: 0 });
+    const outcome = await batch.run(inputs, progress.signal, mode).finally(() => {
+      if (activePublicationProgress.current === progress) activePublicationProgress.current = null;
+    });
     const merged = new Map(publicationItems.current.map((item) => [item.scope.productId, item]));
     for (const item of outcome.items) merged.set(item.scope.productId, item);
     publicationItems.current = [...merged.values()];
@@ -684,14 +733,17 @@ export function ProductClassificationEditor({
         await readBack(submittedCommand, results, outcome, false);
         return;
       }
+      operationAbort.current?.signal.throwIfAborted();
       await client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true });
       if (mounted.current) setReadbackVerified(outcome.failures.length === 0);
     } catch (error) {
       if (mounted.current)
         setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Original publication could not be checked. Keep its recovery record.',
+          operationAbort.current?.signal.aborted
+            ? 'Waiting stopped. Original tasks and confirmed publications remain. Check or continue the original publication when ready.'
+            : error instanceof Error
+              ? error.message
+              : 'Original publication could not be checked. Keep its recovery record.',
         );
     } finally {
       inFlight.current = false;
@@ -713,6 +765,7 @@ export function ProductClassificationEditor({
     const currentSnapshot = snapshot(submitted, assignmentResults, publicationOutcome);
     let readbackSucceeded = false;
     try {
+      operationAbort.current?.signal.throwIfAborted();
       await Promise.all([
         client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true }),
         client.invalidateQueries({ queryKey: ['catalog-taxonomy'] }, { throwOnError: true }),
@@ -724,7 +777,9 @@ export function ProductClassificationEditor({
       if (mounted.current) {
         setReadbackFailed(true);
         setMessage(
-          'Product statuses could not be verified. Confirmed publication receipts remain available. Refresh statuses before closing.',
+          operationAbort.current?.signal.aborted
+            ? 'Waiting stopped. Original tasks and confirmed publications remain. Check or continue the original publication when ready.'
+            : 'Product statuses could not be verified. Confirmed publication receipts remain available. Refresh statuses before closing.',
         );
       }
     } finally {
@@ -755,7 +810,7 @@ export function ProductClassificationEditor({
       try {
         batch?.assertCurrent();
       } catch {
-        const candidate = createPublicationBatch();
+        const candidate = createOwnedBatch();
         if (
           !batch ||
           candidate.owner.actorId !== batch.owner.actorId ||
@@ -768,7 +823,7 @@ export function ProductClassificationEditor({
         candidate.journal.import(batch.journal.export());
         batch = candidate;
       }
-      batch ??= createPublicationBatch();
+      batch ??= createOwnedBatch();
       publicationBatch.current = batch;
       setOwnedAvailable(true);
       const recovery = batch.journal.read();
@@ -1245,7 +1300,30 @@ export function ProductClassificationEditor({
               : 'Checking product statuses...'}
         </output>
       )}
-      {message && <output className="block break-words text-sm">{message}</output>}
+      {pending && stage === 'publishing' && showPublishingWait && (
+        <div className="space-y-2 text-sm">
+          {publicationProgress && (
+            <output aria-label="Publication progress" className="block">
+              Checked {publicationProgress.checked} of {publicationProgress.total} selected
+              products. {publicationProgress.confirmed} publication
+              {publicationProgress.confirmed === 1 ? '' : 's'} confirmed on the website.
+            </output>
+          )}
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={stopWaiting}
+            onClick={() => {
+              setStopWaiting(true);
+              operationAbort.current?.abort();
+            }}
+          >
+            {stopWaiting ? 'Stopping wait...' : 'Stop waiting'}
+          </button>
+          <p>Stopping this wait keeps original tasks and completed publications.</p>
+        </div>
+      )}
+      {message && !pending && <output className="block break-words text-sm">{message}</output>}
       {ownedAvailable && publicationEntries.current.length > 0 && (
         <section
           aria-label="Original publication recovery"
@@ -1309,7 +1387,8 @@ export function ProductClassificationEditor({
           )}
         </section>
       )}
-      {publicationResult &&
+      {!pending &&
+        publicationResult &&
         (publicationResult.failures.length === 0 || !readbackVerified) &&
         showPublicationFeedback && (
           <BatchUpdateFeedback
@@ -1324,7 +1403,8 @@ export function ProductClassificationEditor({
             onDismiss={() => setShowPublicationFeedback(false)}
           />
         )}
-      {publicationResult &&
+      {!pending &&
+        publicationResult &&
         (publicationResult.failures.length === 0 || !readbackVerified) &&
         !showPublicationFeedback && (
           <button
@@ -1335,19 +1415,24 @@ export function ProductClassificationEditor({
             View publication receipts
           </button>
         )}
-      {publicationResult && readbackVerified && publicationResult.failures.length > 0 && (
-        <details className="border-t border-slate-200 pt-3 text-sm">
-          <summary className="cursor-pointer font-medium">Original publication response</summary>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {publicationResult.failures.map((failure) => (
-              <li key={failure.id} className="break-words">
-                {String(products.find((product) => product._id === failure.id)?.name ?? failure.id)}
-                : {failure.message}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      {!pending &&
+        publicationResult &&
+        readbackVerified &&
+        publicationResult.failures.length > 0 && (
+          <details className="border-t border-slate-200 pt-3 text-sm">
+            <summary className="cursor-pointer font-medium">Original publication response</summary>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {publicationResult.failures.map((failure) => (
+                <li key={failure.id} className="break-words">
+                  {String(
+                    products.find((product) => product._id === failure.id)?.name ?? failure.id,
+                  )}
+                  : {failure.message}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       {publicationResult && readbackVerified && !pending && !readbackFailed && (
         <button type="button" className={buttonClass} onClick={onSaved}>
           Done

@@ -743,3 +743,104 @@ test('durable progress never resets the overall request cap', async () => {
   assert.equal((await runPreparation({ productId: 'clock', jobId }, h)).reason, 'paused');
   assert.equal(h.calls.length, 64);
 });
+
+function activeMedia(checked: number, total = 10): PreparationStatus {
+  const value = mediaStatus(checked, 1, total);
+  return {
+    ...value,
+    nextAction: 'wait',
+    progress: { ...value.progress, state: 'running', leaseExpiresAt: 1000 },
+  };
+}
+for (const phase of ['media', 'attestation'] as const) {
+  test(`same active lease keeps polling through more than four durable ${phase} checkpoints`, async () => {
+    const snapshots = Array.from({ length: 7 }, (_, checked) => {
+      const value = activeMedia(phase === 'media' ? checked : 10);
+      return phase === 'media' ? value : { ...value, attestation: { total: 10, checked } };
+    });
+    const h = harness([...snapshots.map(answer), answer(mediaReady(10, 1))]);
+    const result = await runPreparation({ productId: 'clock', jobId }, h);
+    assert.equal(result.reason, 'ready');
+    assert.equal(h.calls.length, 8);
+    assert.deepEqual(h.waits, [600, 1200, 2400, 2400, 2400, 2400, 2400]);
+    assert.ok(h.calls.every((call) => Reflect.get(Object(call), 'action') === 'status'));
+  });
+}
+for (const fault of [
+  'heartbeat',
+  'lease',
+  'attempt',
+  'created',
+  'digest',
+  'generation',
+  'total',
+  'regression',
+  'report',
+  'expiry',
+  'retry',
+] as const) {
+  test(`active ${fault} cannot reset idle polling or replace the last trusted checkpoint`, async () => {
+    const baseline = activeMedia(5, 20);
+    const snapshots = Array.from({ length: 6 }, (_, index) => {
+      const value = activeMedia(index + 6, 20);
+      if (fault === 'heartbeat') {
+        value.progress.media = baseline.progress.media;
+        value.progress.updatedAt = `2026-10-17T00:00:0${index + 1}.000Z`;
+        value.progress.leaseExpiresAt += index + 1;
+      }
+      if (fault === 'lease') value.progress.leaseVersion++;
+      if (fault === 'attempt') value.progress.attempt++;
+      if (fault === 'created') value.progress.createdAt = '2026-10-18T00:00:00.000Z';
+      if (fault === 'digest' && value.report)
+        value.report = { ...value.report, inputDigest: 'f'.repeat(64) };
+      if (fault === 'generation' && value.report)
+        value.report = { ...value.report, contentGeneration: 1 };
+      if (fault === 'total' && value.progress.media) value.progress.media.total = 21;
+      if (fault === 'regression' && value.progress.media)
+        value.progress.media.checked = value.progress.media.verified = index;
+      if (fault === 'report') value.report = null;
+      if (fault === 'expiry') value.progress.leaseExpiresAt = 0;
+      if (fault === 'retry' && value.progress.media) {
+        value.progress.media.verified--;
+        value.progress.media.retry = 1;
+      }
+      return value;
+    });
+    const h = harness([answer(baseline), ...snapshots.map(answer)]);
+    const result = await runPreparation({ productId: 'clock', jobId }, h);
+    assert.equal(result.reason, 'paused');
+    assert.equal(h.calls.length, 5);
+    assert.deepEqual(h.waits, [600, 1200, 2400, 2400]);
+    assert.ok(h.calls.every((call) => Reflect.get(Object(call), 'action') === 'status'));
+  });
+}
+test('active progress cannot reset the overall 64-request cap', async () => {
+  const h = harness(Array.from({ length: 100 }, (_, checked) => answer(activeMedia(checked, 100))));
+  const result = await runPreparation(
+    { productId: 'clock', jobId },
+    {
+      ...h,
+      wait: async (ms) => {
+        h.waits.push(ms);
+      },
+    },
+  );
+  assert.equal(result.reason, 'paused');
+  assert.equal(h.calls.length, 64);
+});
+test('active progress cannot reset the overall 120-second budget', async () => {
+  const h = harness(Array.from({ length: 100 }, (_, checked) => answer(activeMedia(checked, 100))));
+  const result = await runPreparation(
+    { productId: 'clock', jobId },
+    {
+      ...h,
+      wait: async (ms) => {
+        h.waits.push(ms);
+        h.advance(20000);
+      },
+    },
+  );
+  assert.equal(result.reason, 'paused');
+  assert.equal(h.calls.length, 6);
+  assert.equal(h.waits.length, 6);
+});

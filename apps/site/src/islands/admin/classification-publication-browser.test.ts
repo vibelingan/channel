@@ -56,6 +56,7 @@ for (const engine of ['chromium', 'webkit'] as const)
         cold: 20,
         preserve: 20,
         preservepartial: 3,
+        progress: 2,
         preservelost: 1,
         preserveconflict: 1,
         lost: 1,
@@ -193,6 +194,15 @@ for (const engine of ['chromium', 'webkit'] as const)
       let blockPublic = false;
       let loseCommit = false;
       let pauseContinuation = false;
+      let heldPublication:
+        | {
+            productId: string;
+            wait: Promise<void>;
+            arrived: () => void;
+            completed: () => void;
+          }
+        | undefined;
+      let releasePublication = () => {};
       let concurrentEdit = false;
       let capabilityUnavailable = false;
       let capabilityWait: Promise<void> | undefined;
@@ -265,7 +275,20 @@ for (const engine of ['chromium', 'webkit'] as const)
           });
           return;
         }
+        let held: typeof heldPublication;
+        if (
+          heldPublication &&
+          data.productId === heldPublication.productId &&
+          input.action === 'catalogDetailApproval' &&
+          data.action === 'product-operation-continue'
+        ) {
+          held = heldPublication;
+          heldPublication = undefined;
+          held.arrived();
+          await held.wait;
+        }
         const result = await handleAdminRequest(input, config);
+        held?.completed();
         if (!result.ok && input.action === 'catalogDetailApproval')
           failures.push({ productId: data.productId, action: data.action, error: result.error });
         if (
@@ -904,6 +927,91 @@ for (const engine of ['chromium', 'webkit'] as const)
             }
           },
         );
+        await t.test(
+          'live batch progress appears before the last result; stopping the wait keeps original tasks and recovery publishes without replacements',
+          async () => {
+            await open('progress');
+            await keep();
+            const selected = manifest.filter((p) => p._id.includes('-progress-'));
+            assert.equal(selected.length, 2);
+            const slow = selected[1];
+            assert.ok(slow);
+            let arrived = () => {};
+            let completed = () => {};
+            const arrival = new Promise<void>((resolve) => {
+              arrived = resolve;
+            });
+            const completion = new Promise<void>((resolve) => {
+              completed = resolve;
+            });
+            const wait = new Promise<void>((resolve) => {
+              releasePublication = resolve;
+            });
+            heldPublication = { productId: slow._id, wait, arrived, completed };
+            try {
+              await publish();
+              await arrival;
+              await expect(
+                page.getByRole('status', { name: 'Publication progress', exact: true }),
+              ).toHaveText(
+                'Checked 1 of 2 selected products. 1 publication confirmed on the website.',
+              );
+              const first = selected[0];
+              assert.ok(first);
+              assert.equal((await h.adapter.get('products', first._id))?.published, true);
+              assert.equal((await h.adapter.get('products', slow._id))?.published, false);
+              const originalOperation = starts.get(slow._id);
+              assert.ok(originalOperation);
+              const actionsBeforeStop = actions.length;
+              await page.getByRole('button', { name: 'Stop waiting', exact: true }).click();
+              await expect(
+                page.getByRole('button', { name: 'Continue original publication', exact: true }),
+              ).toBeEnabled();
+              assert.equal((await h.adapter.get('products', first._id))?.published, true);
+              assert.equal(
+                actions.slice(actionsBeforeStop).some((a) => ['get', 'list'].includes(a.action)),
+                false,
+                'An intentional stop must not start a second wait for product readback',
+              );
+              assert.equal(
+                actions
+                  .slice(actionsBeforeStop)
+                  .some((a) =>
+                    ['product-operation-cancel', 'product-operation-stop'].includes(
+                      String(a.data.action),
+                    ),
+                  ),
+                false,
+              );
+              // The public recovery export is the supported recovery contract.
+              await page.getByRole('button', { name: 'Show recovery record', exact: true }).click();
+              const exported = await page
+                .getByRole('textbox', { name: 'Publication recovery record', exact: true })
+                .inputValue();
+              assert.ok(exported.includes(originalOperation));
+              releasePublication();
+              await completion;
+              await page
+                .getByRole('button', { name: 'Continue original publication', exact: true })
+                .click();
+              await expect(
+                page.getByText('2 products published. Existing classifications were kept.', {
+                  exact: true,
+                }),
+              ).toBeVisible();
+              assert.equal(starts.get(slow._id), originalOperation);
+              for (const p of selected) {
+                const current = await h.adapter.get('products', p._id);
+                assert.equal(current?.published, true);
+                assert.deepEqual(current?.subcategoryIds, p.subcategoryIds);
+              }
+              await capture('progress-stopped-and-recovered');
+            } finally {
+              heldPublication = undefined;
+              releasePublication();
+            }
+          },
+        );
         assert.deepEqual(errors, [], JSON.stringify({ errors, networkFailures }));
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -912,6 +1020,8 @@ for (const engine of ['chromium', 'webkit'] as const)
       } finally {
         blockPublic = false;
         pauseContinuation = false;
+        heldPublication = undefined;
+        releasePublication();
         await page.unrouteAll({ behavior: 'wait' });
         for (const product of manifest) {
           const current = await h.adapter.get('products', product._id);

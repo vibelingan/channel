@@ -1,4 +1,4 @@
-import { manageCatalogPreparationJob } from '@vibelingan-channel/db';
+import { manageCatalogPreparationJob, readCatalogPreparationLease } from '@vibelingan-channel/db';
 import type { CatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-jobs';
 import { readCatalogPreparationCandidate } from './catalog-preparation-inspect.ts';
 
@@ -19,18 +19,38 @@ export async function inspectCatalogPreparationJob(
     initial.progress.state !== 'running'
   )
     return { ok: false as const, code: 'CONFLICT' as const };
-  return readCatalogPreparationCandidate(
+  // Settle changed input through the fenced transition before returning the conflict.
+  const settleConflict = async () => {
+    try {
+      await renew();
+    } catch {
+      return { ok: false as const, code: 'UNAVAILABLE' as const };
+    }
+    return { ok: false as const, code: 'CONFLICT' as const };
+  };
+  const now = options.now ?? Date.now;
+  const binding: {
+    scope?: NonNullable<ReturnType<CatalogPreparationAuthority['currentLeaseScope']>>;
+  } = {};
+  const candidate = await readCatalogPreparationCandidate(
     { productId: initial.progress.productId },
     async () => {
-      const current = await renew();
-      return current.ok &&
-        'progress' in current &&
-        current.progress.jobId === jobId &&
-        current.progress.productId === initial.progress.productId &&
-        current.progress.state === 'running'
-        ? { ok: true as const }
-        : { ok: false as const, code: 'CONFLICT' as const };
+      const scope = await readCatalogPreparationLease(authority, jobId, lease, now());
+      if (!scope || scope.jobId !== jobId || scope.productId !== initial.progress.productId)
+        return { ok: false as const, code: 'CONFLICT' as const };
+      binding.scope ??= scope;
+      return { ok: true as const };
     },
     options,
   );
+  if (!candidate.ok) return candidate.code === 'CONFLICT' ? settleConflict() : candidate;
+  const scope = binding.scope;
+  if (
+    !scope ||
+    candidate.productId !== scope.productId ||
+    candidate.inputDigest !== scope.inputDigest ||
+    candidate.contentGeneration !== scope.contentGeneration
+  )
+    return settleConflict();
+  return candidate;
 }

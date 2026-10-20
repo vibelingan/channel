@@ -75,7 +75,8 @@ async function fixture(t: { after(fn: () => void): void }, count = 9, missingCat
           name: 'Clock',
           ...(missingCategory ? {} : { productFamily: 'misc' }),
           published: false,
-          imageIds: images.map((i) => i._id),
+          imageIds: images.slice(0, 9).map((i) => i._id),
+          ...(count > 9 ? { descriptionImageIds: images.slice(9).map((i) => i._id) } : {}),
         },
       ],
       images,
@@ -562,14 +563,19 @@ test('transient image failure persists as retry, and explicit retry can rerun th
   assert.equal(recovered.media.verified, 1);
 });
 
-async function sharedProduct(f: Awaited<ReturnType<typeof fixture>>) {
+async function sharedProduct(
+  f: Awaited<ReturnType<typeof fixture>>,
+  imageIds = f.images.slice(0, 1).map((image) => image._id),
+  descriptionImageIds: string[] = [],
+) {
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   rows.products.push({
     _id: 'second',
     name: 'Second clock',
     published: false,
     productFamily: 'misc',
-    imageIds: [f.images[0]?._id],
+    imageIds,
+    ...(descriptionImageIds.length ? { descriptionImageIds } : {}),
   });
   writeFileSync(f.file, JSON.stringify(rows));
   const started = await f.adapter.manageCatalogPreparationJob(f.authority, {
@@ -663,9 +669,14 @@ test('editing a product after a cached pixel read makes the worker stale instead
   assert.equal((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok, true);
   const shared = await sharedProduct(f);
   const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let changed = false;
   f.adapter.manageCatalogPreparationJob = async (a, c, n) => {
     const r = await manage(a, c, n);
-    if (c.action === 'get-protected-image-health') {
+    if (
+      c.action === 'get-protected-image-health' ||
+      (c.action === 'reserve-image-check' && r.ok && 'reservation' in r && r.protectedHealth)
+    ) {
+      changed = true;
       const rows = JSON.parse(readFileSync(f.file, 'utf8'));
       rows.products.find((p: { _id: string }) => p._id === 'second').name = 'Concurrent edit';
       writeFileSync(f.file, JSON.stringify(rows));
@@ -673,6 +684,7 @@ test('editing a product after a cached pixel read makes the worker stale instead
     return r;
   };
   const result = await runCatalogPreparationMediaWorker(f.authority, shared.call);
+  assert.equal(changed, true);
   assert.deepEqual(result, { ok: false, code: 'STALE' });
   const rows = JSON.parse(readFileSync(f.file, 'utf8'));
   assert.equal(
@@ -684,15 +696,20 @@ test('editing a product after a cached pixel read makes the worker stale instead
     0,
   );
 });
-test('a transient pixel cache read failure falls back to actual object health without a false retry', async (t) => {
+test('pixel cache receipt read failures fall back to actual object health without a false retry', async (t) => {
   const f = await fixture(t, 1);
   assert.equal((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok, true);
   const shared = await sharedProduct(f);
   const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
-  let fail = true;
+  let optionalFailed = false;
+  let receiptFailed = false;
   f.adapter.manageCatalogPreparationJob = async (a, c, n) => {
-    if (c.action === 'get-protected-image-health' && fail) {
-      fail = false;
+    if (c.action === 'reserve-image-check' && c.includeProtectedHealth && !optionalFailed) {
+      optionalFailed = true;
+      throw Error('optional cache transport failed');
+    }
+    if (c.action === 'get-protected-image-health' && !receiptFailed) {
+      receiptFailed = true;
       throw Error('cache transport failed');
     }
     return manage(a, c, n);
@@ -708,6 +725,8 @@ test('a transient pixel cache read failure falls back to actual object health wi
   assert.equal(result.outcome, 'checked');
   assert.equal(result.media.verified, 1);
   assert.equal(reads, 1);
+  assert.equal(optionalFailed, true);
+  assert.equal(receiptFailed, true);
   assert.equal((await f.adapter.get('products', 'second'))?.published, false);
 });
 
@@ -1363,31 +1382,34 @@ test('default signed worker automatically seals and commits a current ready repo
   assert.equal(Object.hasOwn(p, 'productFamily'), false);
 });
 
-test('default worker seals at most four images per invocation and resumes across a new database and authority', async (t) => {
-  const f = await fixture(t, 9);
-  let lastSealed = 0;
-  let reads = 0;
-  const get = f.storage.getObjectAsBase64.bind(f.storage);
-  f.storage.getObjectAsBase64 = async (...args) => {
-    reads++;
-    return get(...args);
-  };
+test('default worker attests at most16 protected images per invocation and resumes without object IO after database and authority reopen', async (t) => {
+  const f = await fixture(t, 27);
+  for (let n = 0; n < 7; n++) {
+    const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+    assert.ok(result.ok, JSON.stringify(result));
+    assert.equal(result.media.checked, Math.min((n + 1) * 4, 27));
+  }
   let authority = f.authority;
   let adapter = f.adapter;
-  let result: Awaited<ReturnType<typeof runCatalogPreparationWorker>> | undefined;
-  const checked: number[] = [];
+  let lastSealed = 0;
   const sealed: number[] = [];
-  for (let n = 0; n < 5; n++) {
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('attestation must not read bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('attestation must not PUT');
+  };
+  for (let n = 0; n < 2; n++) {
     const d = await adapter.manageCatalogPreparationJob(authority, {
       action: 'dispatch',
       actorId: 'admin',
       jobId: f.jobId,
     });
     assert.ok(d.ok && 'call' in d);
-    const r = await runCatalogPreparationWorker(authority, d.call);
-    assert.ok(r.ok, JSON.stringify(r));
-    result = r;
-    checked.push(r.media.checked);
+    const result = await runCatalogPreparationWorker(authority, d.call);
+    assert.ok(result.ok, JSON.stringify(result));
+    assert.equal(result.media.checked, 27);
+    assert.equal(result.outcome, n === 0 ? 'partial' : 'ready');
     const job = readCatalogPreparationJob(
       await adapter.get('catalogPreparationJobs', f.jobId),
       f.jobId,
@@ -1395,34 +1417,23 @@ test('default worker seals at most four images per invocation and resumes across
     );
     assert.ok(job);
     const cursor = job.mediaSeal?.cursor ?? 0;
-    assert.ok(cursor - lastSealed <= 4);
+    assert.ok(cursor - lastSealed <= 16);
     sealed.push(cursor);
     lastSealed = cursor;
-    if (n === 2) {
-      const pixelsReads = reads;
+    if (n === 0) {
       adapter = new JsonFileAdapter(f.file);
       setAdapter(adapter);
       authority = createCatalogPreparationAuthority({
         secret: 'worker-local-test',
         environmentId: 'local-worker-env',
       });
-      f.storage.getObjectAsBase64 = async () => {
-        assert.equal(reads, pixelsReads);
-        throw Error('sealed stage must not read bytes');
-      };
-      f.storage.putObject = async () => {
-        throw Error('sealed stage must not PUT');
-      };
     }
   }
-  assert.deepEqual(checked, [4, 8, 9, 9, 9]);
-  assert.deepEqual(sealed, [0, 0, 4, 8, 9]);
-  assert.ok(result?.ok);
-  assert.equal(result.outcome, 'ready');
-  const p = await adapter.get('products', 'p');
-  assert.ok(p);
-  assert.equal(readCurrentCatalogPreparation(p)?.state, 'ready');
-  assert.equal(p.published, false);
+  assert.deepEqual(sealed, [16, 27]);
+  const product = await adapter.get('products', 'p');
+  assert.ok(product);
+  assert.equal(readCurrentCatalogPreparation(product)?.state, 'ready');
+  assert.equal(product.published, false);
 });
 test('default worker metadata budget leaves an exact durable prefix and later finishes without object IO', async (t) => {
   const f = await fixture(t, 3);
@@ -1619,7 +1630,7 @@ test('default worker checks and seals all 105 independent configuration photos w
     );
     assert.ok(job);
     const sealed = job.mediaSeal?.cursor ?? 0;
-    assert.ok(sealed - previous <= 4);
+    assert.ok(sealed - previous <= 16);
     previous = sealed;
     if (r.media.checked === 105) {
       f.storage.getObjectAsBase64 = async () => {
@@ -1636,7 +1647,7 @@ test('default worker checks and seals all 105 independent configuration photos w
     }
   }
   assert.equal(complete, true);
-  assert.equal(steps, 53);
+  assert.equal(steps, 33);
   const p = await f.adapter.get('products', f.productId);
   assert.ok(p);
   const report = readCurrentCatalogPreparation(p);
@@ -2014,10 +2025,19 @@ test('diagnostic transport failure keeps the checked prefix for a later default 
   assert.equal(job.media?.cursor, 4);
   assert.equal(job.state, 'queued');
   f.adapter.manageCatalogPreparationJob = manage;
-  let result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
-  assert.ok(result.ok);
-  assert.equal(result.outcome, 'partial');
-  result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+  const prefixFiles = new Set<string>();
+  for (const image of f.images.slice(0, 4)) {
+    prefixFiles.add(image.storageFileId);
+    const current = await f.adapter.get('images', image._id);
+    assert.equal(typeof current?.storageFileId, 'string');
+    if (typeof current?.storageFileId === 'string') prefixFiles.add(current.storageFileId);
+  }
+  const get = f.storage.getObjectAsBase64.bind(f.storage);
+  f.storage.getObjectAsBase64 = async (...args) => {
+    assert.equal(prefixFiles.has(args[0]), false, 'Checked prefix must not be downloaded again');
+    return get(...args);
+  };
+  const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
   assert.ok(result.ok);
   assert.equal(result.outcome, 'ready');
   assert.equal((await f.adapter.get('products', 'p'))?.published, false);
@@ -2915,4 +2935,545 @@ for (const missingCategory of [false, true])
     assert.equal(saved?.productFamily, missingCategory ? undefined : 'misc');
     assert.equal(saved?.subcategoryIds, undefined);
     assert.equal(readCurrentCatalogPreparation(saved ?? {})?.state, 'ready');
+  });
+
+async function progressLease(t: { after(fn: () => void): void }, phase: 'reserve' | 'attest') {
+  const f = await fixture(t, 1);
+  if (phase === 'attest') {
+    const checked = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+    assert.ok(checked.ok && checked.media.verified === 1, JSON.stringify(checked));
+  }
+  let clock = Date.now();
+  const authority = createCatalogPreparationAuthority({
+    secret: 'worker-local-test',
+    environmentId: 'local-worker-env',
+    now: () => clock,
+  });
+  const run = (command: Parameters<typeof f.adapter.manageCatalogPreparationJob>[1]) =>
+    f.adapter.manageCatalogPreparationJob(authority, command, clock);
+  const d = await run({ action: 'dispatch', actorId: 'admin', jobId: f.jobId });
+  assert.ok(d.ok && 'call' in d);
+  const c = await run({ action: 'claim', call: d.call, owner: 'progress-heartbeat-worker' });
+  assert.ok(c.ok && 'lease' in c);
+  const scope = { jobId: f.jobId, lease: c.lease };
+  const job = await f.adapter.get('catalogPreparationJobs', f.jobId);
+  assert.ok(job);
+  const media = z.object({ planDigest: z.string() }).safeParse(job.media);
+  if (phase === 'attest') {
+    assert.ok(media.success);
+    const bound = await run({
+      action: 'bind-media-seal',
+      ...scope,
+      planDigest: media.data.planDigest,
+    });
+    assert.ok(bound.ok, JSON.stringify(bound));
+  }
+  const command =
+    phase === 'reserve'
+      ? { action: 'reserve-image-check' as const, ...scope, imageId: 'image-0000' }
+      : {
+          action: 'attest-media-image' as const,
+          ...scope,
+          imageId: 'image-0000',
+          index: 0,
+          planDigest: media.success ? media.data.planDigest : '',
+        };
+  return {
+    ...f,
+    authority,
+    run,
+    command,
+    initialExpiry: c.progress.leaseExpiresAt,
+    get clock() {
+      return clock;
+    },
+    set clock(value: number) {
+      clock = value;
+    },
+  };
+}
+for (const phase of ['reserve', 'attest'] as const) {
+  test(`${phase} progress transaction renews the same valid lease and preserves idempotent attestation`, async (t) => {
+    const f = await progressLease(t, phase);
+    const before = await f.adapter.get('products', 'p');
+    f.clock += 90000;
+    const first = await f.run(f.command);
+    assert.ok(first.ok, JSON.stringify(first));
+    const after = await f.adapter.get('catalogPreparationJobs', f.jobId);
+    assert.equal(after?.leaseExpiresAt, f.clock + 120000);
+    f.clock += 40000;
+    assert.ok(f.clock > f.initialExpiry);
+    const health = await f.run({
+      action: 'get-protected-image-health',
+      jobId: f.jobId,
+      lease: f.command.lease,
+      imageId: 'image-0000',
+    });
+    assert.ok(health.ok, JSON.stringify(health));
+    if (phase === 'attest') {
+      const snapshot = readFileSync(f.file, 'utf8');
+      assert.deepEqual(await f.run(f.command), first);
+      assert.equal(readFileSync(f.file, 'utf8'), snapshot);
+    }
+    assert.deepEqual(await f.adapter.get('products', 'p'), before);
+    assert.equal((await f.adapter.get('images', 'image-0000'))?.publishedRefCount, 0);
+  });
+  for (const fault of ['expired', 'cancelled', 'taken-over', 'edited'] as const)
+    test(`${phase} progress transaction cannot renew an ${fault} capability`, async (t) => {
+      const f = await progressLease(t, phase);
+      if (fault === 'expired' || fault === 'taken-over') f.clock += 120001;
+      if (fault === 'cancelled') {
+        const job = await f.adapter.get('catalogPreparationJobs', f.jobId);
+        assert.ok(job && typeof job.leaseVersion === 'number');
+        assert.ok(
+          (
+            await f.run({
+              action: 'cancel',
+              actorId: 'admin',
+              jobId: f.jobId,
+              expectedLeaseVersion: job.leaseVersion,
+            })
+          ).ok,
+        );
+      }
+      if (fault === 'taken-over') {
+        const d = await f.run({ action: 'dispatch', actorId: 'admin', jobId: f.jobId });
+        assert.ok(d.ok && 'call' in d);
+        assert.ok(
+          (await f.run({ action: 'claim', call: d.call, owner: 'new-independent-worker' })).ok,
+        );
+      }
+      if (fault === 'edited') await f.adapter.update('products', 'p', { name: 'Independent edit' });
+      const before = await f.adapter.get('catalogPreparationJobs', f.jobId);
+      assert.ok(before && typeof before.leaseExpiresAt === 'number');
+      const result = await f.run(f.command);
+      assert.equal(result.ok, false);
+      const after = await f.adapter.get('catalogPreparationJobs', f.jobId);
+      assert.ok(after && typeof after.leaseExpiresAt === 'number');
+      assert.ok(after.leaseExpiresAt <= before.leaseExpiresAt);
+      assert.deepEqual(after.media, before.media);
+      assert.deepEqual(after.mediaSeal, before.mediaSeal);
+      assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+      if (fault !== 'edited') assert.deepEqual(after, before);
+    });
+}
+test('nine actual PNG checks and attestations bound standalone heartbeats to guarded inspections', async (t) => {
+  const f = await fixture(t, 9);
+  const before = await f.adapter.get('products', 'p');
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let renewals = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (args[1].action === 'renew') renewals++;
+    return manage(...args);
+  };
+  try {
+    let ready = false;
+    for (let step = 0; step < 3; step++) {
+      const result = await runCatalogPreparationWorker(f.authority, await f.dispatch());
+      assert.ok(result.ok, JSON.stringify(result));
+      ready = result.outcome === 'ready';
+    }
+    assert.equal(ready, true);
+    assert.ok(renewals <= 6, `expected at most 6 inspection heartbeats, got ${renewals}`);
+    const current = await f.adapter.get('products', 'p');
+    assert.equal(current?.published, false);
+    assert.deepEqual(current?.imageIds, before?.imageIds);
+    assert.equal(current?.productFamily, before?.productFamily);
+    for (const image of f.images)
+      assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+  } finally {
+    f.adapter.manageCatalogPreparationJob = manage;
+  }
+});
+
+async function reservedCachedImage(t: { after(fn: () => void): void }) {
+  const f = await fixture(t, 1);
+  const warm = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  assert.ok(warm.ok && warm.media.verified === 1, JSON.stringify(warm));
+  const shared = await sharedProduct(f);
+  const claim = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'claim',
+    call: shared.call,
+    owner: 'cached-reservation-worker',
+  });
+  assert.ok(claim.ok && 'lease' in claim);
+  const command = {
+    action: 'reserve-image-check' as const,
+    jobId: shared.jobId,
+    lease: claim.lease,
+    imageId: 'image-0000',
+    includeProtectedHealth: true as const,
+  };
+  const reserve = () => f.adapter.manageCatalogPreparationJob(f.authority, command);
+  return { ...f, shared, command, reserve };
+}
+test('reserved image opt-in returns the current protected pixel proof without a shared cache write', async (t) => {
+  const f = await reservedCachedImage(t);
+  const before = JSON.parse(readFileSync(f.file, 'utf8'));
+  const result = await f.reserve();
+  assert.ok(result.ok && 'reservation' in result, JSON.stringify(result));
+  const proof = Reflect.get(result, 'protectedHealth');
+  assert.ok(proof && typeof proof === 'object');
+  assert.equal(Reflect.get(proof, 'imageId'), 'image-0000');
+  assert.equal(Reflect.get(proof, 'status'), 'verified');
+  assert.equal(
+    Reflect.get(proof, 'checksumSha256'),
+    createHash('sha256').update(bytes).digest('hex'),
+  );
+  const after = JSON.parse(readFileSync(f.file, 'utf8'));
+  assert.deepEqual(after.images, before.images);
+  assert.deepEqual(after.products, before.products);
+  for (const row of before.catalogImageObservations)
+    assert.deepEqual(
+      after.catalogImageObservations.find((x: { _id: string }) => x._id === row._id),
+      row,
+    );
+});
+test('legacy reservation keeps its response shape and does not require a protected-pixel read', async (t) => {
+  const f = await reservedCachedImage(t);
+  const { includeProtectedHealth: _optIn, ...command } = f.command;
+  assert.deepEqual(await f.adapter.manageCatalogPreparationJob(f.authority, command), {
+    ok: true,
+    reservation: 'reserved',
+  });
+});
+for (const fault of ['policy', 'checksum', 'binding', 'busy', 'missing-proof'] as const)
+  test(`reserved image returns no cached health for ${fault}`, async (t) => {
+    const f = await reservedCachedImage(t);
+    const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+    const proof = rows.catalogImageObservations.find(
+      (x: { kind: string }) => x.kind === 'catalog-protected-image-health-v1',
+    );
+    assert.ok(proof);
+    if (fault === 'policy') proof.policyVersion = 'old-policy';
+    if (fault === 'checksum') rows.images[0].checksumSha256 = 'f'.repeat(64);
+    if (fault === 'binding') rows.images[0].catalogStorageProtection.attemptId = 'f'.repeat(64);
+    if (fault === 'busy')
+      Object.assign(rows.images[0], {
+        imageMutationOwner: 'independent-image-owner',
+        imageMutationStartedAt: new Date().toISOString(),
+      });
+    if (fault === 'missing-proof')
+      rows.catalogImageObservations = rows.catalogImageObservations.filter(
+        (x: { _id: string }) => x._id !== proof._id,
+      );
+    writeFileSync(f.file, JSON.stringify(rows));
+    const result = await f.reserve();
+    assert.ok(result.ok && 'reservation' in result, JSON.stringify(result));
+    assert.equal(Reflect.get(result, 'protectedHealth'), null);
+    assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+  });
+test('shared protected pixels finish without separate protection transactions or object IO', async (t) => {
+  const f = await fixture(t, 1);
+  const warm = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  assert.ok(warm.ok && warm.media.verified === 1, JSON.stringify(warm));
+  const shared = await sharedProduct(f);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  const unnecessary: string[] = [];
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (
+      args[1].action === 'begin-image-protection' ||
+      args[1].action === 'get-protected-image-health'
+    )
+      unnecessary.push(args[1].action);
+    return manage(...args);
+  };
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('cached pixels must not reread bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('cached pixels must not write objects');
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.ok(result.ok && result.outcome === 'ready', JSON.stringify(result));
+  assert.deepEqual(unnecessary, []);
+  const current = await f.adapter.get('products', 'second');
+  assert.equal(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
+  assert.equal(current?.published, false);
+  assert.equal(current?.productFamily, 'misc');
+  assert.equal((await f.adapter.get('images', 'image-0000'))?.publishedRefCount, 0);
+});
+for (const change of ['cancel', 'edit', 'image', 'wrong-proof'] as const)
+  test(`cached reservation cannot bypass a later ${change} at advance or attestation`, async (t) => {
+    const f = await fixture(t, 1);
+    assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
+    const shared = await sharedProduct(f);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let usedCache = false;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const result = await manage(...args);
+      if (args[1].action === 'reserve-image-check' && result.ok && 'reservation' in result) {
+        const proof = result.protectedHealth;
+        if (!proof) return result;
+        usedCache = true;
+        if (change === 'cancel') {
+          const job = await f.adapter.get('catalogPreparationJobs', shared.jobId);
+          assert.ok(job && typeof job.leaseVersion === 'number');
+          assert.ok(
+            (
+              await manage(f.authority, {
+                action: 'cancel',
+                actorId: 'admin',
+                jobId: shared.jobId,
+                expectedLeaseVersion: job.leaseVersion,
+              })
+            ).ok,
+          );
+        }
+        if (change === 'edit')
+          await f.adapter.update('products', 'second', { name: 'Independent edit' });
+        if (change === 'image') {
+          const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+          rows.images[0].checksumSha256 = 'f'.repeat(64);
+          writeFileSync(f.file, JSON.stringify(rows));
+        }
+        if (change === 'wrong-proof')
+          return { ...result, protectedHealth: { ...proof, imageId: 'another-image' } };
+      }
+      return result;
+    };
+    const result = await runCatalogPreparationWorker(f.authority, shared.call);
+    assert.equal(usedCache, true);
+    assert.equal(result.ok, false);
+    const product = await f.adapter.get('products', 'second');
+    assert.notEqual(readCurrentCatalogPreparation(product ?? {})?.state, 'ready');
+    assert.equal(product?.published, false);
+    assert.equal((await f.adapter.get('images', 'image-0000'))?.publishedRefCount, 0);
+  });
+
+test('lost cached reservation acknowledgement resumes the original job without object IO', async (t) => {
+  const f = await fixture(t, 1);
+  const warm = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  assert.ok(warm.ok && warm.media.verified === 1, JSON.stringify(warm));
+  const shared = await sharedProduct(f);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let lostReplies = 0;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'reserve-image-check' && result.ok && lostReplies < 2) {
+      lostReplies++;
+      throw Error('reservation response lost after commit');
+    }
+    return result;
+  };
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('must reuse held protected pixels');
+  };
+  f.storage.putObject = async () => {
+    throw Error('must not duplicate protected object');
+  };
+  assert.deepEqual(await runCatalogPreparationWorker(f.authority, shared.call), {
+    ok: false,
+    code: 'UNAVAILABLE',
+  });
+  const next = await manage(f.authority, {
+    action: 'dispatch',
+    actorId: 'admin',
+    jobId: shared.jobId,
+  });
+  assert.ok(next.ok && 'call' in next);
+  const recovered = await runCatalogPreparationWorker(f.authority, next.call);
+  assert.ok(recovered.ok && recovered.outcome === 'ready', JSON.stringify(recovered));
+  assert.equal(recovered.jobId, shared.jobId);
+  assert.equal(lostReplies, 2);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+  assert.equal((await f.adapter.get('images', 'image-0000'))?.publishedRefCount, 0);
+});
+
+async function cachedPlan(t: { after(fn: () => void): void }, count: number) {
+  const f = await fixture(t, count);
+  for (let n = 0; n < Math.ceil(count / 4); n++) {
+    const result = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+    assert.ok(result.ok, JSON.stringify(result));
+    assert.equal(result.media.checked, Math.min((n + 1) * 4, count));
+  }
+  const shared = await sharedProduct(
+    f,
+    f.images.slice(0, 9).map((i) => i._id),
+    f.images.slice(9).map((i) => i._id),
+  );
+  const dispatchCached = async () => {
+    const d = await f.adapter.manageCatalogPreparationJob(f.authority, {
+      action: 'dispatch',
+      actorId: 'admin',
+      jobId: shared.jobId,
+    });
+    assert.ok(d.ok && 'call' in d);
+    return d.call;
+  };
+  return { ...f, shared, dispatchCached };
+}
+for (const [count, steps] of [
+  [9, 1],
+  [27, 3],
+] as const)
+  test(`cached-only ${count} images finish in ${steps} bounded calls without byte work`, async (t) => {
+    const f = await cachedPlan(t, count);
+    const original = await f.adapter.get('products', 'second');
+    f.storage.getObjectAsBase64 = async () => {
+      throw Error('metadata pass must not read objects');
+    };
+    f.storage.putObject = async () => {
+      throw Error('metadata pass must not copy objects');
+    };
+    let result: Awaited<ReturnType<typeof runCatalogPreparationWorker>> | undefined;
+    for (let n = 0; n < steps; n++) {
+      result = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+      assert.ok(result.ok, JSON.stringify(result));
+      if (count === 27 && n === 0) assert.equal(result.media.checked, 16);
+    }
+    assert.ok(result?.ok && result.outcome === 'ready', JSON.stringify(result));
+    assert.equal(result.media.verified, count);
+    assert.equal(result.attestation?.checked, count);
+    const current = await f.adapter.get('products', 'second');
+    assert.equal(current?.published, false);
+    assert.equal(current?.productFamily, original?.productFamily);
+    assert.deepEqual(current?.imageIds, original?.imageIds);
+    assert.deepEqual(current?.descriptionImageIds, original?.descriptionImageIds);
+    for (const image of f.images)
+      assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+  });
+test('cached and raw images share a bounded pass while only four raw images enter protection', async (t) => {
+  const f = await fixture(t, 9);
+  const warm = await runCatalogPreparationMediaWorker(f.authority, await f.dispatch());
+  assert.ok(warm.ok && warm.media.verified === 4);
+  const shared = await sharedProduct(
+    f,
+    f.images.map((i) => i._id),
+  );
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  const bytes = new Set<string>();
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (args[1].action === 'begin-image-protection') bytes.add(args[1].imageId);
+    return manage(...args);
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'partial');
+  assert.equal(result.media.checked, 8);
+  assert.deepEqual(
+    [...bytes].sort(),
+    f.images.slice(4, 8).map((i) => i._id),
+  );
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});
+test('cached-only pass still checkpoints the exact one-image prefix when its time budget ends', async (t) => {
+  const f = await cachedPlan(t, 9);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let clock = Date.now();
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'advance-media-check') clock += 20000;
+    return result;
+  };
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('cached budget cannot read bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('cached budget cannot copy');
+  };
+  const first = await runCatalogPreparationWorker(f.authority, await f.dispatchCached(), {
+    now: () => clock,
+  });
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.equal(first.outcome, 'partial');
+  assert.equal(first.media.checked, 1);
+  f.adapter.manageCatalogPreparationJob = manage;
+  const next = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+  assert.ok(next.ok && next.outcome === 'ready', JSON.stringify(next));
+  assert.equal(next.media.verified, 9);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+});
+for (const change of ['edit', 'cancel'] as const)
+  test(`cached-only pass rechecks ${change} before its fifth image`, async (t) => {
+    const f = await cachedPlan(t, 9);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let changed = false;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const command = args[1];
+      if (
+        command.action === 'reserve-image-check' &&
+        command.imageId === 'image-0004' &&
+        !changed
+      ) {
+        changed = true;
+        if (change === 'edit')
+          await f.adapter.update('products', 'second', { name: 'Independent fifth-image edit' });
+        else {
+          const job = await f.adapter.get('catalogPreparationJobs', f.shared.jobId);
+          assert.ok(job && typeof job.leaseVersion === 'number');
+          assert.ok(
+            (
+              await manage(f.authority, {
+                action: 'cancel',
+                actorId: 'admin',
+                jobId: f.shared.jobId,
+                expectedLeaseVersion: job.leaseVersion,
+              })
+            ).ok,
+          );
+        }
+      }
+      return manage(...args);
+    };
+    const result = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+    assert.equal(changed, true);
+    assert.equal(result.ok, false);
+    const current = await f.adapter.get('products', 'second');
+    assert.notEqual(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
+    assert.equal(current?.published, false);
+  });
+
+test('optional cached reservation lost reply safely falls back once and still finishes without byte work', async (t) => {
+  const f = await fixture(t, 1);
+  assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
+  const shared = await sharedProduct(f);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  const flags: boolean[] = [];
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'reserve-image-check') {
+      flags.push(args[1].includeProtectedHealth === true);
+      if (flags.length === 1) throw Error('committed optional reservation reply lost');
+    }
+    return result;
+  };
+  f.storage.getObjectAsBase64 = async () => {
+    throw Error('no repeated bytes');
+  };
+  f.storage.putObject = async () => {
+    throw Error('no duplicate object');
+  };
+  const result = await runCatalogPreparationWorker(f.authority, shared.call);
+  assert.ok(result.ok && result.outcome === 'ready', JSON.stringify(result));
+  assert.deepEqual(flags, [true, false]);
+  assert.equal(result.jobId, shared.jobId);
+  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
+  assert.equal((await f.adapter.get('images', 'image-0000'))?.publishedRefCount, 0);
+});
+for (const failure of ['rejected', 'coded-busy', 'budget'] as const)
+  test(`optional cached reservation fallback cannot bypass ${failure}`, async (t) => {
+    const f = await fixture(t, 1);
+    assert.ok((await runCatalogPreparationMediaWorker(f.authority, await f.dispatch())).ok);
+    const shared = await sharedProduct(f);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let clock = Date.now();
+    let reservations = 0;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      if (args[1].action === 'reserve-image-check') {
+        reservations++;
+        if (failure === 'rejected') return { ok: false, code: 'BUSY' };
+        if (failure === 'coded-busy')
+          throw Object.assign(Error('Busy'), { code: 'DATABASE_TRANSACTION_CONFLICT' });
+        clock += 20000;
+        throw Error('cache transport used remaining budget');
+      }
+      return manage(...args);
+    };
+    const result = await runCatalogPreparationWorker(f.authority, shared.call, {
+      now: () => clock,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(reservations, 1);
+    assert.equal((await f.adapter.get('products', 'second'))?.published, false);
   });

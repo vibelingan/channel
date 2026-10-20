@@ -117,6 +117,7 @@ const commandSchema = z.discriminatedUnion('action', [
       jobId: hex,
       lease: z.unknown(),
       imageId: id,
+      includeProtectedHealth: z.literal(true).optional(),
     })
     .strict(),
   z
@@ -288,7 +289,11 @@ export type CatalogPreparationJobResult =
   | { ok: true; observation: CatalogImageObservation | null }
   | { ok: true; protection: CatalogImageProtectionIntent }
   | { ok: true; sourceMedia: SourceMediaImportResult }
-  | { ok: true; reservation: 'reserved' }
+  | {
+      ok: true;
+      reservation: 'reserved';
+      protectedHealth?: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
+    }
   | { ok: true; mediaSeal: Readonly<CatalogPreparationMediaSeal> }
   | {
       ok: true;
@@ -711,6 +716,7 @@ export async function runCatalogPreparationJob(
         ...job,
         mediaSeal: seal,
         mutationRevision: job.mutationRevision + 1,
+        leaseExpiresAt: command.action === 'attest-media-image' ? now + ttl : job.leaseExpiresAt,
         updatedAt: timestamp,
       });
     return { ok: true, mediaSeal: Object.freeze({ ...seal }) };
@@ -739,15 +745,28 @@ export async function runCatalogPreparationJob(
       });
       return { ok: false, code: 'STALE' };
     }
+    let protectedHealth: Awaited<ReturnType<typeof readCatalogProtectedPixels>> = null;
+    if (command.includeProtectedHealth) {
+      const image = await tx.get('images', command.imageId);
+      if (image && image._id !== command.imageId) return { ok: false, code: 'CORRUPT' };
+      protectedHealth = await readCatalogProtectedPixels(tx, image, now);
+    }
     if (!existingHold) await tx.set(CATALOG_IMAGE_OBSERVATIONS, hold);
     if (!authority.currentLeaseScope(command.lease, job))
       throw Error('Preparation lease changed while reserving image');
     await tx.set(CATALOG_PREPARATION_JOBS, {
       ...job,
       mutationRevision: job.mutationRevision + 1,
+      leaseExpiresAt: now + ttl,
       updatedAt: timestamp,
     });
-    return { ok: true, reservation: 'reserved' };
+    return {
+      ok: true,
+      reservation: 'reserved',
+      ...(command.includeProtectedHealth
+        ? { protectedHealth: protectedHealth ? Object.freeze({ ...protectedHealth }) : null }
+        : {}),
+    };
   }
   if (command.action === 'manage-source-media') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };

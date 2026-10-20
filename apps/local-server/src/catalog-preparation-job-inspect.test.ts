@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
-import { setAdapter } from '@vibelingan-channel/db';
+import {
+  readCatalogPreparationLease,
+  get as registeredGet,
+  setAdapter,
+} from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { inspectCatalogPreparationJob } from '@vibelingan-channel/fn-admin/catalog-preparation-job-inspect';
 import { CatalogPreparationReportSchema } from '@vibelingan-channel/shared/catalog-preparation';
@@ -171,4 +175,164 @@ test('service inspection projects adapter failure fields and keeps private diagn
     value: async () => ({ ok: false, code: 'CONFLICT', privateTrace: 'private-only' }),
   });
   assert.deepEqual(await f.inspect(), { ok: false, code: 'CONFLICT' });
+});
+
+for (const manual of [false, true])
+  test(`one leased inspection has one heartbeat and immutable business rows, manual=${manual}`, async (t) => {
+    const f = await fixture(t, manual);
+    const before = JSON.parse(readFileSync(f.file, 'utf8'));
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let renewals = 0;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      if (args[1].action === 'renew') renewals++;
+      return manage(...args);
+    };
+    f.now += 5000;
+    const result = await f.inspect();
+    assert.ok(result.ok, JSON.stringify(result));
+    assert.equal(renewals, 1);
+    const after = JSON.parse(readFileSync(f.file, 'utf8'));
+    const oldJob = before.catalogPreparationJobs[0];
+    const newJob = after.catalogPreparationJobs[0];
+    assert.equal(newJob.mutationRevision, oldJob.mutationRevision + 1);
+    assert.equal(newJob.leaseExpiresAt, f.now + 120000);
+    Reflect.deleteProperty(before, 'catalogPreparationJobs');
+    Reflect.deleteProperty(after, 'catalogPreparationJobs');
+    assert.deepEqual(after, before);
+  });
+
+for (const change of ['name', 'description', 'nonce', 'shape'] as const)
+  test(`inspection rejects raw ${change} replacement after initial renewal without relying on a generation edit`, async (t) => {
+    const f = await fixture(t, false, 1);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let replaced = false;
+    let generation: unknown;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const result = await manage(...args);
+      if (args[1].action === 'renew' && result.ok && !replaced) {
+        replaced = true;
+        const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+        generation = rows.products[0].catalogContentGeneration;
+        if (change === 'name') rows.products[0].name = 'Valid independent name';
+        if (change === 'description')
+          rows.products[0].description = 'Valid independent description';
+        if (change === 'nonce') rows.catalogPreparationJobs[0].nonce = 'f'.repeat(64);
+        if (change === 'shape') rows.catalogPreparationJobs[0].unexpected = true;
+        writeFileSync(f.file, JSON.stringify(rows));
+      }
+      return result;
+    };
+    const result = await inspectCatalogPreparationJob(f.authority, f.jobId, f.lease, {
+      now: () => f.now,
+      mediaMode: 'defer',
+    });
+    assert.deepEqual(result, { ok: false, code: 'CONFLICT' });
+    assert.equal(replaced, true);
+    const product = await f.adapter.get('products', f.product._id);
+    assert.equal(product?.catalogContentGeneration, generation);
+    assert.equal(product?.published, false);
+    assert.notEqual(product?.catalogPreparationState, 'ready');
+  });
+for (const change of ['expire', 'takeover'] as const)
+  test(`inspection rejects a lease ${change} during source reads`, async (t) => {
+    const f = await fixture(t);
+    let changed = false;
+    const get = f.adapter.get.bind(f.adapter);
+    f.adapter.get = async (collection, id) => {
+      if (collection === 'catalogSourceObservations' && !changed) {
+        changed = true;
+        f.now += 120001;
+        if (change === 'takeover') {
+          const d = await f.run({ action: 'dispatch', actorId: 'admin', jobId: f.jobId });
+          assert.ok(d.ok && 'call' in d);
+          assert.ok(
+            (await f.run({ action: 'claim', call: d.call, owner: 'new-independent-worker' })).ok,
+          );
+        }
+      }
+      return get(collection, id);
+    };
+    assert.deepEqual(await f.inspect(), { ok: false, code: 'CONFLICT' });
+    assert.equal(changed, true);
+    assert.equal((await f.adapter.get('products', f.product._id))?.published, false);
+  });
+
+test('a newly adopted source image before binding a media plan remains a valid unsealed candidate', async (t) => {
+  const f = await fixture(t, false, 1);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let replaced = false;
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    const result = await manage(...args);
+    if (args[1].action === 'renew' && result.ok && !replaced) {
+      replaced = true;
+      const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+      rows.catalogSourceLinks[0].imageId = 'replacement-image';
+      rows.images.push({ ...rows.images[0], _id: 'replacement-image' });
+      writeFileSync(f.file, JSON.stringify(rows));
+    }
+    return result;
+  };
+  const result = await inspectCatalogPreparationJob(f.authority, f.jobId, f.lease, {
+    now: () => f.now,
+    mediaMode: 'defer',
+  });
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.kind, 'unsealed-inspection');
+  assert.deepEqual(result.imageIds, ['replacement-image']);
+  assert.equal(CatalogPreparationReportSchema.safeParse(result).success, false);
+  assert.equal((await f.adapter.get('products', f.product._id))?.published, false);
+});
+
+for (const invalid of ['forged', 'serialized', 'wrong-job'] as const)
+  test(`private lease read refuses ${invalid} before touching storage`, async (t) => {
+    const f = await fixture(t);
+    let reads = 0;
+    const get = f.adapter.get.bind(f.adapter);
+    f.adapter.get = async (...args) => {
+      reads++;
+      return get(...args);
+    };
+    const lease =
+      invalid === 'serialized'
+        ? JSON.parse(JSON.stringify(f.lease))
+        : invalid === 'forged'
+          ? {}
+          : f.lease;
+    const jobId = invalid === 'wrong-job' ? 'f'.repeat(64) : f.jobId;
+    assert.equal(await readCatalogPreparationLease(f.authority, jobId, lease, f.now), null);
+    assert.equal(reads, 0);
+  });
+test('private lease point read never registers technical jobs for generic CRUD', async (t) => {
+  const f = await fixture(t);
+  await assert.rejects(async () => registeredGet('catalogPreparationJobs', f.jobId), {
+    name: 'UnknownCollectionError',
+  });
+  const scope = await readCatalogPreparationLease(f.authority, f.jobId, f.lease, f.now);
+  assert.ok(scope);
+  assert.equal(scope.jobId, f.jobId);
+  assert.equal(scope.productId, f.product._id);
+  assert.equal(Reflect.has(scope, 'nonce'), false);
+  assert.equal(Reflect.has(scope, 'schemaVersion'), false);
+  assert.equal(Reflect.has(scope, 'mediaSeal'), false);
+});
+
+test('failed conflict settlement stays unavailable and cannot claim ready or cancel another task', async (t) => {
+  const f = await fixture(t);
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  let renewals = 0;
+  const actions: string[] = [];
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    actions.push(args[1].action);
+    if (args[1].action === 'renew' && ++renewals > 1) throw Error('temporary storage failure');
+    const result = await manage(...args);
+    if (args[1].action === 'renew' && result.ok) {
+      const rows = JSON.parse(readFileSync(f.file, 'utf8'));
+      rows.products[0].name = 'Valid independent change';
+      writeFileSync(f.file, JSON.stringify(rows));
+    }
+    return result;
+  };
+  assert.deepEqual(await f.inspect(), { ok: false, code: 'UNAVAILABLE' });
+  assert.deepEqual(actions, ['renew', 'renew']);
+  assert.equal((await f.adapter.get('products', f.product._id))?.published, false);
 });

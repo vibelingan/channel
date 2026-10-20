@@ -16,7 +16,7 @@ export function readCatalogImageReference(command: CatalogImageReferenceReadComm
 }
 import { approvalImageHoldCancelled } from './catalog-approval-image-hold.ts';
 import { findCatalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
-import { readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
+import { CATALOG_PREPARATION_JOBS, readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import { type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
 export {
   runImageUpload,
@@ -217,6 +217,21 @@ export async function manageCatalogPreparationJob(
   if (!adapter.manageCatalogPreparationJob)
     throw new Error('Preparation job persistence unavailable');
   return adapter.manageCatalogPreparationJob(authority, command, now);
+}
+/** Server-only point read. Generic CRUD keeps the private jobs collection unregistered. */
+export async function readCatalogPreparationLease(
+  authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
+  jobId: string,
+  lease: unknown,
+  now = Date.now(),
+) {
+  if (authority.cleanupLeaseScope(lease)?.jobId !== jobId) return null;
+  const job = readCatalogPreparationJob(
+    await db().get(CATALOG_PREPARATION_JOBS, jobId),
+    jobId,
+    now,
+  );
+  return job ? authority.currentLeaseScope(lease, job) : null;
 }
 export async function prepareCatalogProductOperationApproval(
   actorId: string,

@@ -23,3 +23,18 @@ Standards 审查对照 Frontend Islands、E2E Testing、预合并检查清单和
 实际 review 文件为 catalog-preparation-api.ts、其 API 测试、catalog-preparation-controls-browser.test.ts、新 catalog-preparation-native-flow.test.ts，以及生产 handler、invoker、worker 和 runbook。文字将“超时导致现场停止”改为“现场观测停止，独立复现未知回复后的进展恢复缺口”；把“自动完成”限定为“有服务器进展且在预算内继续”。比对了真实任务 3/27、原 jobId、拒绝代码、请求上限、退出码和 487 件公开字段。现场证据与本地证明分开记录。
 
 证据目录：output/pricing-clock-repair-2026-10-13/p3e1/，日志前缀 durable-progress-。本 MIU 的完整本地门槛通过；后台继续使用已核验 f424。精确提交审查与最终站点构建后仅发布站点增量，再恢复原 T142 任务进行实际验收。20 件真实商品仍未发布，不能将生产构建中的临时数据验收当作云端真实验收。
+
+
+## b2cc3e4b 现场结果与恢复
+
+站点仅增量部署 6 个文件；54 个在线制品逐个哈希/MIME 验证通过，原三个后台服务仍是 f424，配置未变。三个原坏时钟实际 Edit/Preview 和准备任务完成，T142 27/27、T157 25/25、W203 24/24 张图片检查及证明全部通过；公开详情保留 T142/T157 各 113 项、W203 121 项完整属性。
+
+实际 20 件已有分类的混合商品通过 Keep existing classifications 发布，首轮加两次 Continue original publication 共三轮，始终沿用原 20 个 operationId。最终独立匿名 HTTP 严格读回 20/20，包括完整 facts、图片、变体 ID/数量、价格摘要、原操作回执和相同 revision。全过程超过 30 分钟，页面最后仍为 19/20；未确认对象经实际 DOM 核对是麦克风 a5ab40df，不是旧摘要猜测的 W203。现场没有完整请求分段日志，不能把这件的具体根因直接认定为 8 秒确认预算。首轮完成率、确认 UX 与性能均未通过。
+
+随后在后台按冻结 ID 逐一核对选择，分两批 Disable，20/20 返回未发布。279 张相关图片两次管理端只读快照完全相同，所有 pending ledger 为空；因此有效计数等于 base，逐一与原计数相同。独立匿名 HTTP 检查 20 件详情均 404、252 张未引用图片均 404、27 张共享图片仍 200，共 299/299，无自动重试。原公开目录另经 13 次实际 HTTP 分页读回，438 耳机、12 AI、5 玩具、32 Misc 共 487 件，逐字段一致，没有增删、重复或分类变化；该检查耗时 66250ms，不作性能达标证据。
+
+发布按正常流程清除了这 20 件原来的“新导入待审”标记，因此恢复检查把它作为待恢复业务状态，而非用“允许历史变化”忽略。依据冻结备份，带 _id、published=false、updatedAt、生命周期版本、原操作 ID 和 reviewer 的比较条件恢复 pending=true，并恢复原来三个 review 字段的缺省形态；updatedAt 严格前进，永久审批/下架记录保留。第一条管理更新因自动权限审核超时未执行，读回证实未写后按工具允许重试成功（匹配/修改 1）；其余 19 条再次核对条件后单次匹配/修改 19。最终完整行再次与原备份比对，价格、分类、来源绑定及其他业务字段一致；仅准备/投影、审批历史、生命周期和 updatedAt 保留正常变化。没有回写整行旧数据。
+
+证据：live-twenty-public-readback-b2cc3e4b.json、live-twenty-restoration-readback-b2cc3e4b.json、public-regression-restored-b2cc3e4b.json、live-twenty-final-restored-business-comparison-b2cc3e4b.json、live-twenty-final-restored-products-b2cc3e4b.json。截图 live-t142-restored-b2cc3e4b.png 是 review 标记恢复前的未发布状态，后续最终截图另存。已恢复实际测试对象，后续性能采样使用隔离夹具。
+
+下一个 MIU P7a4 修复批量中途不可见进度及不能停止等待；确认与性能缺口、全量历史 AdminAPI 影子检查仍未关闭，fullDeliveryReady=false。
