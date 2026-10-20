@@ -3,7 +3,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { assertErrorDocument } from '../hosting-contract.mjs';
 import { recoveryStateIdentity } from '../hosting-recovery.mjs';
 import { fetchFully } from '../smoke-http.mjs';
-import { configurationHash, validateConfigurationChange } from './hosting-configuration.mjs';
+import {
+  configurationHash,
+  configurationStateHash,
+  validateConfigurationChange,
+} from './hosting-configuration.mjs';
 import { verifyHostingObject } from './hosting-readback.mjs';
 import {
   assertHostingPath,
@@ -159,7 +163,7 @@ export function createHostingRecoveryAdapters({
     if (!prepared) {
       const current = await provider.readConfiguration();
       activeSignal.throwIfAborted();
-      if (configurationHash(current) !== configurationHash(configurationPlan.before))
+      if (configurationStateHash(current) !== configurationStateHash(configurationPlan.before))
         throw new Error('Hosting configuration changed before first effect');
       prepared = true;
     }
@@ -382,7 +386,7 @@ export function createHostingRecoveryAdapters({
             while (stable < 2) {
               const observed = await provider.readConfiguration();
               activeSignal.throwIfAborted();
-              stable = configurationHash(observed) === change.afterHash ? stable + 1 : 0;
+              stable = configurationStateHash(observed) === change.afterHash ? stable + 1 : 0;
               if (stable < 2) await delay(pollIntervalMs, undefined, { signal: activeSignal });
             }
             await coordinator.confirmStep({
@@ -394,11 +398,13 @@ export function createHostingRecoveryAdapters({
             step = null;
           }
           const current = await provider.readConfiguration();
-          if (configurationHash(current) !== plan.configurationSha256)
+          if (configurationStateHash(current) !== configurationStateHash(configurationPlan.after))
             throw new Error('Final hosting configuration mismatch');
           return kernelReceipt(ctx, operationId, {
             status: 'verified',
-            observedHash: configurationHash(current),
+            observedHash: plan.configurationSha256,
+            rawConfigurationSha256: configurationHash(current),
+            configurationStateSha256: configurationStateHash(current),
           });
         });
       } catch (error) {
@@ -429,17 +435,22 @@ export function createHostingRecoveryAdapters({
           for (const path of plan.deletes) await verify(errorDocument, path, 404, activeSignal);
           const config = await provider.readConfiguration();
           activeSignal.throwIfAborted();
+          if (configurationStateHash(config) !== configurationStateHash(configurationPlan.after))
+            throw new Error('Hosting configuration state changed');
           const observedHash = recoveryStateIdentity({
             ...plan,
             uploads: files,
-            configurationSha256: configurationHash(config),
+            configurationSha256: plan.configurationSha256,
           });
           if (observedHash !== plan.stateSha256) throw new Error('Hosting acceptance changed');
           await coordinator.confirmStep({
             guard,
             runId,
             stepId: step.stepId,
-            receipt: ledgerReceipt(step, 'verified'),
+            receipt: ledgerReceipt(step, 'verified', {
+              rawConfigurationSha256: configurationHash(config),
+              configurationStateSha256: configurationStateHash(config),
+            }),
           });
           return kernelReceipt(ctx, step.operationId, { status: 'verified', observedHash });
         });
@@ -520,6 +531,6 @@ function validatePlan(plan, configurationPlan) {
     validateConfigurationChange({ change, current, target: plan.target });
     current = change.after;
   }
-  if (configurationHash(current) !== plan.configurationSha256)
+  if (configurationStateHash(current) !== configurationStateHash(configurationPlan.after))
     throw new Error('Incomplete configuration sequence');
 }

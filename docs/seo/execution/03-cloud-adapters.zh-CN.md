@@ -65,7 +65,7 @@ SDK provider 固定捕获 Manager 的一个 Environment，核对构造配置、E
 
 `prepareHostingConfiguration` 从当前配置准备逐个变更：网站错误文档，以及现有 DIRECT 域名 `/`、`/*` 两条 STATIC_STORE 路由的响应缓存头。缓存补丁不包含证书、AccessType、上游、API 路由或路径重写；保留其他扩展和头部。网站配置只映射已安装 SDK 支持的字段，未知字段或不能无损表达的路由直接拒绝。
 
-每个变更保存完整 before/after 和 hash。provider 在调用前重新读取当前值，比较后才发最小参数；这不是服务端 CAS，仍要求 D1 让所有写入方持有同一交付锁。配置请求返回 RequestId 也不足以验收：控制面连续匹配后，最终 HTTP 检查仍须通过。
+每个变更保存完整 before/after，以及配置状态投影的 hash。仅排除平台维护的 Domain/Route CreateTime/UpdateTime，其余字段仍参与比较。artifact 的原始配置快照 hash 保持不变；回执同时保留实际原始读回 hash 和状态 hash，先验证内容投影相同，再满足 A2 的快照引用，不把两种身份混称。provider 在调用前重新读取当前值，比较后才发最小参数；这不是服务端 CAS，仍要求 D1 让所有写入方持有同一交付锁。配置请求返回 RequestId 也不足以验收：控制面连续匹配后，最终 HTTP 检查仍须通过。
 
 `inverseHostingConfiguration` 要求当前值仍等于该计划的 after，且 prior 配置满足安全要求。旧首页错误兜底、长缓存、路由归属变化或证书/API 被其他发布修改时，不自动覆盖。保留当前安全值或重新生成向前修复计划。本期没有“允许不安全反向”的开关。
 

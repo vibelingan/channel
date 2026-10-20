@@ -1,10 +1,25 @@
 import { planHostingCacheChange } from '../hosting-cache-plan.mjs';
 import { assertMutableCachePolicy } from '../hosting-contract.mjs';
 import { hostingConfigurationIdentity } from '../hosting-recovery.mjs';
-import { assertOrigin, freeze, sha256 } from './input.mjs';
+import { assertOrigin, freeze, identity, sha256 } from './input.mjs';
 
 export const configurationHash = (config) =>
   sha256(JSON.stringify(hostingConfigurationIdentity(config)));
+// Domain/route timestamps are server metadata, not writable configuration fields.
+// Keep configurationHash as the immutable artifact snapshot identity.
+export function configurationStateHash(config) {
+  const snapshot = hostingConfigurationIdentity(config);
+  const domains = snapshot.gateway.Domains.map((domain) => {
+    const { CreateTime, UpdateTime, ...fields } = domain;
+    if (fields.Routes)
+      fields.Routes = fields.Routes.map((route) => {
+        const { CreateTime, UpdateTime, ...settings } = route;
+        return settings;
+      });
+    return fields;
+  });
+  return identity({ ...snapshot, gateway: { ...snapshot.gateway, Domains: domains } });
+}
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -28,8 +43,8 @@ export function prepareHostingConfiguration({
       args: copy(args),
       before: after,
       after: copy(next),
-      beforeHash: configurationHash(after),
-      afterHash: configurationHash(next),
+      beforeHash: configurationStateHash(after),
+      afterHash: configurationStateHash(next),
     });
     after = copy(next);
   };
@@ -70,7 +85,7 @@ export function prepareHostingConfiguration({
 }
 
 export function inverseHostingConfiguration({ plan, current }) {
-  if (configurationHash(current) !== configurationHash(plan.after))
+  if (configurationStateHash(current) !== configurationStateHash(plan.after))
     throw new Error('Configuration changed before inverse');
   assertSafeConfiguration(plan.before, plan.target);
   return freeze({
@@ -206,9 +221,9 @@ function domainFor(config, target) {
 /** Provider calls are incremental. Exact-before checks are not a provider-side compare-and-swap. */
 export function validateConfigurationChange({ change, current, target }) {
   if (
-    configurationHash(current) !== change.beforeHash ||
-    configurationHash(change.before) !== change.beforeHash ||
-    configurationHash(change.after) !== change.afterHash
+    configurationStateHash(current) !== change.beforeHash ||
+    configurationStateHash(change.before) !== change.beforeHash ||
+    configurationStateHash(change.after) !== change.afterHash
   )
     throw new Error('Configuration source changed');
   const expected = copy(hostingConfigurationIdentity(current));
@@ -256,7 +271,7 @@ export function validateConfigurationChange({ change, current, target }) {
       throw new Error('Duplicate route patch');
     assertSafeConfiguration(expected, target);
   } else throw new Error('Unsupported configuration mutation');
-  if (configurationHash(expected) !== change.afterHash)
+  if (configurationStateHash(expected) !== change.afterHash)
     throw new Error('Patch would change unmanaged configuration');
   return copy(change.args);
 }

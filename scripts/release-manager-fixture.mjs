@@ -46,6 +46,7 @@ export function managerFixture() {
         const domain = state.configuration.gateway.Domains.find(
           (x) => x.Domain === payload.Domain.Domain,
         );
+        domain.UpdateTime = '2026-10-21T00:00:00Z';
         for (const route of payload.Domain.Routes) {
           const existing = domain.Routes.find((x) => x.Path === route.Path);
           Object.assign(existing, structuredClone(route));

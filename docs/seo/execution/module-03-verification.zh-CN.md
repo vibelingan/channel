@@ -19,10 +19,10 @@ Node `22.13.0`，pnpm `11.5.0`。
 
 | 检查 | 结果 |
 | --- | --- |
-| C1 + A2/B1 + 原托管/HTTP 定向回归 | 116 个通过，0 失败 |
+| C1 + A2/B1 + 原托管/HTTP 定向回归 | 118 个通过，0 失败 |
 | `pnpm lint` | 825 文件通过 |
 | `pnpm verify:cloudbase-sdk` | 通过，既有 node/wx SDK 集成保持有效 |
-| 默认 `pnpm test` | 最终源码正常退出 0；3014 个测试通过，其中根脚本 660 个，0 失败 |
+| 默认 `pnpm test` | 最终源码正常退出 0；3016 个测试通过，其中根脚本 662 个，0 失败 |
 | lockfile 对比 | 旧包版本未改，只有 root importer 增加 Manager SDK |
 
 定向命令：
@@ -60,6 +60,8 @@ node --test --experimental-test-coverage \
 ## 自审和措辞核对
 
 实际审阅了四份 C1 实现、四份 C1 测试、两份网络 fixture、`hosting-recovery.mjs`、`state.mjs`、`hosting-cache-plan.mjs`、`hosting-contract.mjs`、`smoke-http.mjs`、部署脚本和 workflow 的相关边界，以及模块设计页和执行索引。沿用 Engineering Craft 的 Deploy、Counters 和 E2E 规则；按用户禁止委派的要求，本轮为作者自审。
+
+补充真实 API 的 Domain/Route CreateTime/UpdateTime 后，复现并修正了配置永不收敛的问题。C1 分开记录不可变 artifact 快照身份、实际原始读回 hash 和配置状态 hash；只排除两种已确认的服务端时间字段，证书、路由和扩展仍参与比较。旧备份格式没有变化。
 
 自审用 RED→GREEN 修正了 MIME 暂存文件名、外部 EnvInfo、静态路由空集合、普通 404 文件正文、canary 范围、可变回调输入、SDK 缺少完成回调及租约与写入目标不一致的问题。原始失败和最终通过日志保存在本轮 output 中。
 

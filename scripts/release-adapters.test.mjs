@@ -45,6 +45,7 @@ async function setup(
     heartbeatMs = 50,
     scopeKey = 'site',
     coordinatorTarget = {},
+    cacheChange = false,
   } = {},
 ) {
   const sdk = managerFixture();
@@ -64,6 +65,7 @@ async function setup(
     target,
     before: sdk.state.configuration,
     ...(changes ? { errorDocument: '404.html' } : {}),
+    ...(cacheChange ? { previousCacheControl: 'no-store', cacheControl: 'no-cache' } : {}),
   });
   source.manifest.configuration = conf.after;
   source.manifest.configurationSha256 = configurationHash(conf.after);
@@ -445,4 +447,13 @@ test('a lease for another environment or origin cannot authorize the hosting pro
     assert.equal(f.state.deleted, 0);
     assert.equal(f.state.calls.length, 0);
   }
+});
+
+test('configuration convergence compares actual settings while retaining the original artifact snapshot identity', async (t) => {
+  const f = await setup(t, { cacheChange: true });
+  const result = await executeHostingRecovery(f.plan, f.adapters);
+  const configured = result.receipts.find((item) => item.subject === 'configure');
+  assert.equal(configured.observedHash, f.plan.configurationSha256);
+  assert.notEqual(configured.rawConfigurationSha256, f.plan.configurationSha256);
+  assert.equal((await f.coordinator.runStatus('recover-A')).verifiedSteps, f.descriptor.stepCount);
 });

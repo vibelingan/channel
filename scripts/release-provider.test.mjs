@@ -4,6 +4,8 @@ import { target } from './release-hosting-fixtures.mjs';
 import { managerFixture } from './release-manager-fixture.mjs';
 import {
   configurationHash,
+  configurationStateHash,
+  inverseHostingConfiguration,
   prepareHostingConfiguration,
 } from './release/hosting-configuration.mjs';
 import { createCloudbaseHostingProvider } from './release/hosting-provider.mjs';
@@ -45,7 +47,10 @@ test('route patch uses current explicit SDK request and leaves API/upstream/cert
     cacheControl: 'no-cache',
   });
   await port.configure(plan.changes[0]);
-  assert.equal(configurationHash(await port.readConfiguration()), configurationHash(plan.after));
+  assert.equal(
+    configurationStateHash(await port.readConfiguration()),
+    configurationStateHash(plan.after),
+  );
   const request = state.calls.find((c) => c.action === 'ModifyHTTPServiceRoute');
   assert.deepEqual(Object.keys(request.payload).sort(), ['Domain', 'EnvId']);
   assert.deepEqual(Object.keys(request.payload.Domain).sort(), ['Domain', 'Routes']);
@@ -62,7 +67,10 @@ test('website SDK roundtrip preserves supported flags and conditional source che
   const before = await port.readConfiguration();
   const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
   await port.configure(plan.changes[0]);
-  assert.equal(configurationHash(await port.readConfiguration()), configurationHash(plan.after));
+  assert.equal(
+    configurationStateHash(await port.readConfiguration()),
+    configurationStateHash(plan.after),
+  );
   await assert.rejects(port.configure(plan.changes[0]));
   assert.equal(state.calls.filter((c) => c.action === 'cos-website').length, 1);
 });
@@ -129,4 +137,28 @@ test('SDK counts without an actual matching per-file completion do not confirm u
   state.fail = 'missing-callback';
   const port = createCloudbaseHostingProvider({ manager, target });
   await assert.rejects(port.upload('canary/a.html', Buffer.from('hello')));
+});
+
+test('server-managed route timestamps do not invalidate a matching configuration or its safe inverse', async () => {
+  const { manager, state } = managerFixture();
+  state.configuration.gateway.Domains[0].CreateTime = '2026-10-20T00:00:00Z';
+  state.configuration.gateway.Domains[0].UpdateTime = '2026-10-20T00:00:00Z';
+  const port = createCloudbaseHostingProvider({ manager, target });
+  const before = await port.readConfiguration();
+  const plan = prepareHostingConfiguration({
+    target,
+    before,
+    previousCacheControl: 'no-store',
+    cacheControl: 'no-cache',
+  });
+  await port.configure(plan.changes[0]);
+  const current = await port.readConfiguration();
+  assert.notEqual(current.gateway.Domains[0].UpdateTime, before.gateway.Domains[0].UpdateTime);
+  const inverse = inverseHostingConfiguration({ plan, current });
+  await port.configure(inverse.changes[0]);
+  assert.equal(
+    (await port.readConfiguration()).gateway.Domains[0].Routes[0].Extension.HeadersHandler
+      .ResponseHeadersToAdd[1].Value,
+    'no-store',
+  );
 });
