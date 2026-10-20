@@ -1649,3 +1649,12 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 最后 canonical r5 为公开 41、目录/导航/SKU 90、正式 11、Admin 12 全过；taxonomy 1 失败，未放行。其 14 件均已发布，1 件读回耗尽 8 秒而保留原任务；trace 已定位到第一状态读取 6507.7ms、匿名详情 200、最后状态读取被截止。下一单元继续定位耗时，不放宽预算或把正常失败改成通过。原报告 9 文件哈希相同恢复，专属 DB/媒体/构建目录删除。r1–r4 失败均保留。
 
 实际审查 handler、两本地测试、seed、正式与 Admin specs、共用计数 helper，追溯角色复查、native 计数计划器、原回执/取消和公开版本消费者；将“计数未恢复”更正为“base 结算变化但有效计数回到基线”，将“整套通过”限定为实际通过的四个阶段。P5、最终 P6、test 三时钟/20 件/COS/性能仍未完成，无部署或云端商品写入。fullDeliveryReady=false。
+
+
+## P6c：本地事务队列让出 HTTP 执行机会（2026-10-20）
+
+详见 [P6c](P6c_LOCAL_HTTP_FAIRNESS.zh-CN.md)。真实 HTTP 红测证明连续同步文件事务会延迟 socket 调度；在原 FIFO 内 load 后、事务前增加 setImmediate，整个事务和原子 rename 仍持有同一锁。没有缓存商品或改动云端 adapter、分类、版本、计数。已有 rename 故障测试原样保留。
+
+项目 Node24 全 62 文件 1139/1139，Node20 原故障注入/HTTP/mapping 子进程 28/28，均零跳过。最终位置的正式构建 taxonomy 重放四类各 14 件，分类/发布/页面/下架组合 1/1 通过（3.1 分钟），独占资源删除，原 9 个报告文件哈希相同恢复。初始重放 r7 是 load 前位置，不能替代最终 UI 证据；最初 Node20 全量的 6 个失败逐项保留和区分，2 个 undici 8 导入失败留到下一单元修复。
+
+实际复核 json-adapter 的 FIFO/load/persist、native 审批/get、新 HTTP 测试、原 reservation/rename 测试及客户端 check；将“发布失败”更正为“发布已完成、确认读取失败”，将“云函数依赖故障”缩小为“本地导入工具已复现 Node20 不兼容”：index→handler 和现有 bundle 未包含 undici，不能据包名推断线上影响。P5、最终 P6/P7 和旧缺失返回码诊断仍开放，未部署或修改云商品，fullDeliveryReady=false。

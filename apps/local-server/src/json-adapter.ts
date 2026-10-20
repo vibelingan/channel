@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { setImmediate as yieldToIo } from 'node:timers/promises';
 import {
   type ImageUploadCommand,
   ImageUploadCommandSchema,
@@ -678,7 +679,12 @@ export class JsonFileAdapter implements DbAdapter {
     mutationQueues.set(this.file, tail);
     await previous;
     try {
+      // Whole-file transactions do synchronous IO. A promise-only queue can
+      // starve socket delivery and timers across many publication stages.
+      // Yield while owning the FIFO slot and its fresh snapshot;
+      // each transaction and its atomic rename still run under the same lock.
       this.store = this.load();
+      await yieldToIo();
       return await operation();
     } finally {
       release?.();
