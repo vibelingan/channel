@@ -322,6 +322,7 @@ async function runCatalogPreparationStages(
     let media = bound.media;
     const checkImage = options.checkImage;
     let byteImages = 0;
+    let tryProtectedPage = !checkImage;
     if (candidate.previewReady && !candidate.issues.some((i) => i.severity === 'error'))
       for (
         let n = 0;
@@ -333,6 +334,32 @@ async function runCatalogPreparationStages(
         if (now() - startedAt >= budget - tailBudgetMs) break;
         const imageId = candidate.imageIds[media.cursor];
         if (imageId === undefined) return { ok: false, code: 'CORRUPT' };
+        const pageIds = candidate.imageIds.slice(
+          media.cursor,
+          media.cursor + Math.min(8, maxProtectedImages - n),
+        );
+        if (tryProtectedPage && pageIds.length > 1) {
+          const checked = await run({
+            action: 'check-protected-media-page',
+            jobId: progress.jobId,
+            lease,
+            planDigest,
+            index: media.cursor,
+            imageIds: pageIds,
+          });
+          if (!checked.ok) return { ok: false, code: checked.code };
+          if ('media' in checked) {
+            if (checked.media.cursor !== media.cursor + pageIds.length)
+              return { ok: false, code: 'CORRUPT' };
+            media = checked.media;
+            n += pageIds.length - 1;
+            continue;
+          }
+          if (!('protectedPage' in checked) || checked.protectedPage !== 'miss')
+            return { ok: false, code: 'CONFLICT' };
+          // A miss writes nothing; this worker keeps its original four-image byte path.
+          tryProtectedPage = false;
+        }
         const reservationCommand = {
           action: 'reserve-image-check' as const,
           jobId: progress.jobId,

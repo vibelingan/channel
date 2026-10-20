@@ -860,7 +860,7 @@ test('preparation cloud transaction callback uses a fresh clock after queue dela
   assert.equal(f.store.get('catalogPreparationJobs')?.size, 1);
 });
 
-async function observationCloudFixture(withSource = false) {
+async function observationCloudFixture(withSource = false, clock?: () => number) {
   const image: CollectionDoc = {
     _id: 'image',
     status: 'active',
@@ -891,7 +891,7 @@ async function observationCloudFixture(withSource = false) {
   const authority = createCatalogPreparationAuthority({
     secret: 'observation-wrapper-test',
     environmentId: 'test',
-    now: () => now,
+    now: clock ?? (() => now),
   });
   const started = await manageCatalogPreparationJobInCloudBase(
     f.db,
@@ -3794,3 +3794,311 @@ registerLiveSaveStorageContract('CloudBase', (_t, initial) => {
       ),
   };
 });
+
+async function protectedMediaPageCloudFixture(count = 8) {
+  let clock = 1792080000000;
+  const f = await observationCloudFixture(true, () => clock);
+  const images = f.store.get('images');
+  const original = images?.get('image');
+  assert.ok(images && original);
+  const imageById = (imageId: string) => {
+    const image = f.store.get('images')?.get(imageId);
+    assert.ok(image);
+    return image;
+  };
+  const run = (command: Parameters<typeof manageCatalogPreparationJobInCloudBase>[2]) =>
+    manageCatalogPreparationJobInCloudBase(f.db, f.authority, command, clock);
+  let scope = { jobId: f.jobId, lease: f.command.lease };
+  const ids: string[] = [];
+  for (let index = 0; index < count; index++) {
+    const imageId = index === 0 ? 'image' : `page-image-${index}`;
+    if (index > 0)
+      f.store.get('images')?.set(imageId, {
+        ...structuredClone(original),
+        _id: imageId,
+        storageFileId: `cloud://test/raw-${index}.png`,
+      });
+    assert.ok((await run({ action: 'reserve-image-check', ...scope, imageId })).ok);
+    const begun = await run({
+      action: 'begin-image-protection',
+      ...scope,
+      imageId,
+      imageInputDigest: storedCatalogImageInputDigest(imageById(imageId)),
+    });
+    assert.ok(begun.ok && 'protection' in begun, JSON.stringify({ imageId, begun }));
+    const intent = begun.protection;
+    const path = catalogProtectedStoragePath(
+      `${intent.imageIdentity}:${intent.checksumSha256}:${intent.attemptId}`,
+      'original.png',
+    );
+    const target = {
+      storageProvider: 'cloudbase-storage' as const,
+      storageMode: 'classic-nosql-storage' as const,
+      storageFileId: `cloud://test/${path}`,
+      storagePath: path,
+      byteSize: 123,
+    };
+    assert.ok(
+      (
+        await run({
+          action: 'checkpoint-image-protection',
+          ...scope,
+          imageId,
+          intentId: intent._id,
+          target,
+        })
+      ).ok,
+    );
+    const health = {
+      ...f.command.health,
+      imageId,
+      inputDigest: storedCatalogImageInputDigest({ ...imageById(imageId), ...target }),
+    };
+    assert.ok(
+      (
+        await run({
+          action: 'commit-image-protection',
+          ...scope,
+          imageId,
+          intentId: intent._id,
+          health,
+        })
+      ).ok,
+    );
+    assert.ok(
+      (
+        await run({
+          action: 'put-image-check',
+          ...scope,
+          imageId,
+          imageInputDigest: health.inputDigest,
+          health,
+        })
+      ).ok,
+    );
+    ids.push(imageId);
+  }
+  f.store.get('products')?.set('page-product', {
+    _id: 'page-product',
+    name: 'Page clock',
+    productFamily: 'misc',
+    published: false,
+    imageIds: ids,
+    alibabaPrimarySourceKey: 'source',
+  });
+  const started = await run({ action: 'start', actorId: 'admin', productId: 'page-product' });
+  assert.ok(started.ok && 'progress' in started);
+  const dispatched = await run({
+    action: 'dispatch',
+    actorId: 'admin',
+    jobId: started.progress.jobId,
+  });
+  assert.ok(dispatched.ok && 'call' in dispatched);
+  const claimed = await run({ action: 'claim', call: dispatched.call, owner: 'page-worker' });
+  assert.ok(claimed.ok && 'lease' in claimed);
+  scope = { jobId: started.progress.jobId, lease: claimed.lease };
+  const planDigest = 'd'.repeat(64);
+  assert.ok((await run({ action: 'bind-media-plan', ...scope, planDigest, total: ids.length })).ok);
+  f.controls.maximumOperations = 0;
+  const command = {
+    action: 'check-protected-media-page' as const,
+    ...scope,
+    planDigest,
+    index: 0,
+    imageIds: ids,
+  };
+  return {
+    ...f,
+    run,
+    scope,
+    ids,
+    command,
+    jobId: scope.jobId,
+    expire: () => {
+      clock += 180000;
+    },
+  };
+}
+
+test('eight protected media checks commit holds, original observations and one cursor atomically within the native budget', async (t) => {
+  const h = await protectedMediaPageCloudFixture();
+  const before = structuredClone(h.store);
+  const result = await h.run(h.command);
+  assert.ok(result.ok && 'media' in result, JSON.stringify(result));
+  assert.equal(result.media.cursor, 8);
+  assert.equal(result.media.verified, 8);
+  assert.equal(result.media.invalid, 0);
+  assert.equal(result.media.retry, 0);
+  assert.ok(
+    h.controls.maximumOperations <= 98,
+    `Measured ${h.controls.maximumOperations} native document operations`,
+  );
+  t.diagnostic(`Protected page native operations: ${h.controls.maximumOperations}`);
+  assert.deepEqual(h.store.get('products'), before.get('products'));
+  assert.deepEqual(h.store.get('images'), before.get('images'));
+});
+
+for (const fault of [
+  'missing-pixels',
+  'old-pixel-policy',
+  'changed-image',
+  'missing-intent',
+  'oversized-image',
+] as const)
+  test(`protected page ${fault} falls back without a partial cursor, hold or observation write`, async () => {
+    const h = await protectedMediaPageCloudFixture();
+    const observations = h.store.get('catalogImageObservations');
+    const imageId = h.ids[7];
+    assert.ok(imageId);
+    const image = h.store.get('images')?.get(imageId);
+    assert.ok(observations && image);
+    const pixel = [...observations.values()].find(
+      (row) => row.kind === 'catalog-protected-image-health-v1' && row.imageId === image._id,
+    );
+    const intent = [...observations.values()].find(
+      (row) => row.kind === 'catalog-image-protection-intent-v1' && row.imageId === image._id,
+    );
+    assert.ok(pixel && intent);
+    if (fault === 'missing-pixels') observations.delete(pixel._id);
+    if (fault === 'old-pixel-policy') pixel.policyVersion = 'old-pixel-policy';
+    if (fault === 'changed-image') image.checksumSha256 = 'f'.repeat(64);
+    if (fault === 'missing-intent') observations.delete(intent._id);
+    if (fault === 'oversized-image') image.unusedSourceMetadata = 'x'.repeat(512 * 1024);
+    const before = structuredClone(h.store);
+    assert.deepEqual(await h.run(h.command), { ok: true, protectedPage: 'miss' });
+    assert.deepEqual(h.store, before);
+  });
+
+for (const fault of ['failWrite', 'silentWrite', 'codedWrite', 'wrongUpsertId'] as const)
+  test(`protected page ${fault} rolls back every planned observation and the whole cursor`, async () => {
+    const h = await protectedMediaPageCloudFixture();
+    const before = structuredClone(h.store);
+    h.controls[fault] = `catalogPreparationJobs/${h.jobId}`;
+    await assert.rejects(h.run(h.command));
+    assert.deepEqual(h.store, before);
+  });
+
+for (const fault of [
+  'forged',
+  'expired',
+  'wrong-index',
+  'wrong-plan',
+  'duplicate',
+  'oversized',
+] as const)
+  test(`protected page rejects ${fault} without changing persisted state`, async () => {
+    const h = await protectedMediaPageCloudFixture();
+    const command = { ...h.command };
+    if (fault === 'forged') command.lease = {};
+    if (fault === 'expired') h.expire();
+    if (fault === 'wrong-index') command.index = 1;
+    if (fault === 'wrong-plan') command.planDigest = 'e'.repeat(64);
+    if (fault === 'duplicate') command.imageIds = ['image', 'image'];
+    if (fault === 'oversized') command.imageIds = [...h.ids, 'ninth'];
+    const before = structuredClone(h.store);
+    const result = await h.run(command);
+    assert.equal(result.ok, false);
+    assert.deepEqual(h.store, before);
+  });
+
+for (const stage of ['read', 'write'] as const)
+  test(`protected page lease expiry during ${stage} cannot leave a partial cursor`, async () => {
+    const h = await protectedMediaPageCloudFixture();
+    const before = structuredClone(h.store);
+    let expired = false;
+    const expire = () => {
+      if (!expired) {
+        expired = true;
+        h.expire();
+      }
+    };
+    if (stage === 'read')
+      h.controls.afterRead = (key) => {
+        if (key.startsWith('catalogImageObservations/')) expire();
+      };
+    else h.controls.afterWrite = expire;
+    if (stage === 'read') assert.equal((await h.run(h.command)).ok, false);
+    else await assert.rejects(h.run(h.command));
+    assert.equal(expired, true);
+    assert.deepEqual(h.store, before);
+  });
+
+test('protected page committed reply loss resumes from the durable cursor without double counting', async () => {
+  const h = await protectedMediaPageCloudFixture(9);
+  const command = { ...h.command, imageIds: h.ids.slice(0, 8) };
+  const db = {
+    ...h.db,
+    runTransaction: async <T>(
+      operation: Parameters<typeof h.db.runTransaction<T>>[0],
+    ): Promise<T> => {
+      await h.db.runTransaction(operation);
+      throw Error('Reply lost after committed protected page');
+    },
+  };
+  await assert.rejects(
+    manageCatalogPreparationJobInCloudBase(db, h.authority, command, h.now),
+    /Reply lost/,
+  );
+  const after = structuredClone(h.store);
+  assert.deepEqual(await h.run(command), { ok: false, code: 'CONFLICT' });
+  assert.deepEqual(h.store, after);
+  const current = await h.run({
+    action: 'bind-media-plan',
+    ...h.scope,
+    planDigest: command.planDigest,
+    total: 9,
+  });
+  assert.ok(current.ok && 'media' in current);
+  assert.equal(current.media.cursor, 8);
+  const result = await h.run({ ...command, index: 8, imageIds: h.ids.slice(8) });
+  assert.ok(result.ok && 'media' in result);
+  assert.equal(result.media.cursor, 9);
+  assert.equal(result.media.verified, 9);
+  assert.equal(h.store.get('images')?.get('image')?.publishedRefCount, 0);
+});
+
+for (const change of ['edit', 'cancel'] as const)
+  test(`protected page native retry reads ${change} after a conflict and keeps all independent changes`, async () => {
+    const h = await protectedMediaPageCloudFixture();
+    let attempts = 0;
+    const db = {
+      ...h.db,
+      runTransaction: async <T>(
+        operation: Parameters<typeof h.db.runTransaction<T>>[0],
+      ): Promise<T> => {
+        attempts++;
+        await assert.rejects(
+          h.db.runTransaction(async (tx) => {
+            await operation(tx);
+            throw Error('Injected native commit conflict');
+          }),
+          /commit conflict/,
+        );
+        if (change === 'edit') {
+          const product = h.store.get('products')?.get('page-product');
+          assert.ok(product);
+          product.name = 'Independent saved edit';
+          product.catalogContentGeneration = 1;
+        } else {
+          const job = h.store.get('catalogPreparationJobs')?.get(h.jobId);
+          assert.ok(job);
+          Object.assign(job, {
+            state: 'cancelled',
+            leaseOwner: '',
+            leaseExpiresAt: 0,
+            mutationRevision: Number(job.mutationRevision) + 1,
+          });
+        }
+        const before = structuredClone(h.store);
+        const result = await h.db.runTransaction(operation);
+        assert.deepEqual(h.store, before);
+        return result;
+      },
+    };
+    const result = await manageCatalogPreparationJobInCloudBase(db, h.authority, h.command, h.now);
+    assert.equal(result.ok, false);
+    assert.equal(attempts, 1);
+    const media = h.store.get('catalogPreparationJobs')?.get(h.jobId)?.media;
+    assert.ok(media && typeof media === 'object' && !Array.isArray(media));
+    assert.equal(Reflect.get(media, 'cursor'), 0);
+  });

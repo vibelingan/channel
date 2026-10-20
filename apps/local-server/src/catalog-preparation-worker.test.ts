@@ -3379,40 +3379,52 @@ test('cached and raw images share a bounded pass while only four raw images ente
   );
   assert.equal((await f.adapter.get('products', 'second'))?.published, false);
 });
-test('cached-only pass still checkpoints the exact one-image prefix when its time budget ends', async (t) => {
-  const f = await cachedPlan(t, 9);
-  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
-  let clock = Date.now();
-  f.adapter.manageCatalogPreparationJob = async (...args) => {
-    const result = await manage(...args);
-    if (args[1].action === 'advance-media-check') clock += 20000;
-    return result;
-  };
-  f.storage.getObjectAsBase64 = async () => {
-    throw Error('cached budget cannot read bytes');
-  };
-  f.storage.putObject = async () => {
-    throw Error('cached budget cannot copy');
-  };
-  const first = await runCatalogPreparationWorker(f.authority, await f.dispatchCached(), {
-    now: () => clock,
+for (const [mode, expected] of [
+  ['single-image fallback', 1],
+  ['atomic page', 8],
+] as const)
+  test(`cached-only ${mode} checkpoints its exact prefix when the time budget ends`, async (t) => {
+    const f = await cachedPlan(t, 9);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let clock = Date.now();
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      if (mode === 'single-image fallback' && args[1].action === 'check-protected-media-page')
+        return { ok: true, protectedPage: 'miss' };
+      const result = await manage(...args);
+      if (
+        args[1].action === 'advance-media-check' ||
+        args[1].action === 'check-protected-media-page'
+      )
+        clock += 20000;
+      return result;
+    };
+    f.storage.getObjectAsBase64 = async () => {
+      throw Error('cached budget cannot read bytes');
+    };
+    f.storage.putObject = async () => {
+      throw Error('cached budget cannot copy');
+    };
+    const first = await runCatalogPreparationWorker(f.authority, await f.dispatchCached(), {
+      now: () => clock,
+    });
+    assert.ok(first.ok, JSON.stringify(first));
+    assert.equal(first.outcome, 'partial');
+    assert.equal(first.media.checked, expected);
+    f.adapter.manageCatalogPreparationJob = manage;
+    const next = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+    assert.ok(next.ok && next.outcome === 'ready', JSON.stringify(next));
+    assert.equal(next.media.verified, 9);
+    assert.equal((await f.adapter.get('products', 'second'))?.published, false);
   });
-  assert.ok(first.ok, JSON.stringify(first));
-  assert.equal(first.outcome, 'partial');
-  assert.equal(first.media.checked, 1);
-  f.adapter.manageCatalogPreparationJob = manage;
-  const next = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
-  assert.ok(next.ok && next.outcome === 'ready', JSON.stringify(next));
-  assert.equal(next.media.verified, 9);
-  assert.equal((await f.adapter.get('products', 'second'))?.published, false);
-});
 for (const change of ['edit', 'cancel'] as const)
-  test(`cached-only pass rechecks ${change} before its fifth image`, async (t) => {
+  test(`cached single-image fallback rechecks ${change} before its fifth image`, async (t) => {
     const f = await cachedPlan(t, 9);
     const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
     let changed = false;
     f.adapter.manageCatalogPreparationJob = async (...args) => {
       const command = args[1];
+      if (command.action === 'check-protected-media-page')
+        return { ok: true, protectedPage: 'miss' };
       if (
         command.action === 'reserve-image-check' &&
         command.imageId === 'image-0004' &&
@@ -3720,4 +3732,48 @@ for (const fault of ['serialized-lease', 'foreign-job', 'cancelled-job'] as cons
     const result = await f.seal.run(f.command);
     assert.equal(result.ok, false);
     assert.equal(readFileSync(f.file, 'utf8'), before);
+  });
+
+for (const change of ['edit', 'cancel'] as const)
+  test(`cached atomic page rechecks ${change} after eight images before its final image`, async (t) => {
+    const f = await cachedPlan(t, 9);
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let changed = false;
+    const prefixes: number[] = [];
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const result = await manage(...args);
+      if (args[1].action === 'check-protected-media-page' && result.ok && 'media' in result) {
+        prefixes.push(result.media.cursor);
+        if (!changed) {
+          changed = true;
+          if (change === 'edit')
+            await f.adapter.update('products', 'second', {
+              name: 'Independent edit after atomic page',
+            });
+          else {
+            const job = await f.adapter.get('catalogPreparationJobs', f.shared.jobId);
+            assert.ok(job && typeof job.leaseVersion === 'number');
+            assert.ok(
+              (
+                await manage(f.authority, {
+                  action: 'cancel',
+                  actorId: 'admin',
+                  jobId: f.shared.jobId,
+                  expectedLeaseVersion: job.leaseVersion,
+                })
+              ).ok,
+            );
+          }
+        }
+      }
+      return result;
+    };
+    const result = await runCatalogPreparationWorker(f.authority, await f.dispatchCached());
+    assert.equal(changed, true);
+    assert.deepEqual(prefixes, [8]);
+    assert.equal(result.ok, false);
+    const current = await f.adapter.get('products', 'second');
+    assert.notEqual(readCurrentCatalogPreparation(current ?? {})?.state, 'ready');
+    assert.equal(current?.published, false);
+    if (change === 'edit') assert.equal(current?.name, 'Independent edit after atomic page');
   });

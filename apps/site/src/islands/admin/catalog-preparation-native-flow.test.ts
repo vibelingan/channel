@@ -411,3 +411,91 @@ test('actual persisted attestation pages keep the same running lease readable un
     f.adapter.manageCatalogPreparationJob = manage;
   }
 });
+
+test('real protected PNGs recheck an edited 27-image product in bounded metadata pages without reading bytes again', async (t) => {
+  const f = await fixture(t, 27);
+  for (let i = 0; i < 8; i++)
+    assert.ok((await runCatalogPreparationCall(f.authority, await f.dispatch())).ok);
+  assert.equal(
+    readCurrentCatalogPreparation((await f.adapter.get('products', 'p')) ?? {})?.state,
+    'ready',
+  );
+  await f.adapter.update('products', 'p', { description: 'Independent edited description' });
+  const started = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'start',
+    actorId: 'admin',
+    productId: 'p',
+  });
+  assert.ok(started.ok && 'progress' in started);
+  const jobId = started.progress.jobId;
+  let byteReads = 0;
+  const read = f.storage.getObjectAsBase64.bind(f.storage);
+  f.storage.getObjectAsBase64 = async (...args) => {
+    byteReads++;
+    return read(...args);
+  };
+  const pages: number[] = [];
+  const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+  f.adapter.manageCatalogPreparationJob = async (...args) => {
+    if (args[1].action === 'check-protected-media-page') pages.push(args[1].imageIds.length);
+    return manage(...args);
+  };
+  const progress: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const dispatched = await manage(f.authority, { action: 'dispatch', actorId: 'admin', jobId });
+    assert.ok(dispatched.ok && 'call' in dispatched);
+    const result = await runCatalogPreparationCall(f.authority, dispatched.call);
+    assert.ok(result.ok, JSON.stringify(result));
+    progress.push(result.media.checked);
+  }
+  assert.deepEqual(progress, [16, 27, 27]);
+  assert.deepEqual(pages, [8, 8, 8, 3]);
+  assert.equal(byteReads, 0);
+  const product = await f.adapter.get('products', 'p');
+  assert.equal(product?.description, 'Independent edited description');
+  assert.equal(product?.published, false);
+  assert.equal(readCurrentCatalogPreparation(product ?? {})?.state, 'ready');
+  for (const image of f.images)
+    assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+});
+
+test('a missing protected pixel receipt falls back to the original real-byte check and still finishes the edited product', async (t) => {
+  const f = await fixture(t, 9);
+  for (let i = 0; i < 3; i++)
+    assert.ok((await runCatalogPreparationCall(f.authority, await f.dispatch())).ok);
+  const observations = await f.adapter.list({
+    collection: 'catalogImageObservations',
+    search: '',
+    page: 1,
+    pageSize: 100,
+  });
+  const receipt = observations.items.find(
+    (row) => row.kind === 'catalog-protected-image-health-v1',
+  );
+  assert.ok(receipt);
+  await f.adapter.remove('catalogImageObservations', receipt._id);
+  await f.adapter.update('products', 'p', { description: 'Edited after cache removal' });
+  const started = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'start',
+    actorId: 'admin',
+    productId: 'p',
+  });
+  assert.ok(started.ok && 'progress' in started);
+  const dispatched = await f.adapter.manageCatalogPreparationJob(f.authority, {
+    action: 'dispatch',
+    actorId: 'admin',
+    jobId: started.progress.jobId,
+  });
+  assert.ok(dispatched.ok && 'call' in dispatched);
+  let byteReads = 0;
+  const read = f.storage.getObjectAsBase64.bind(f.storage);
+  f.storage.getObjectAsBase64 = async (...args) => {
+    byteReads++;
+    return read(...args);
+  };
+  const result = await runCatalogPreparationCall(f.authority, dispatched.call);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(result.outcome, 'ready');
+  assert.equal(byteReads, 1);
+  assert.equal((await f.adapter.get('products', 'p'))?.published, false);
+});

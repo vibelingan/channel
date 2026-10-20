@@ -2,6 +2,7 @@
 import { randomBytes } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import {
   CATALOG_PREPARATION_POLICY,
   type CatalogPreparationReport,
@@ -123,6 +124,20 @@ const commandSchema = z.discriminatedUnion('action', [
         .array(id)
         .min(1)
         .max(CATALOG_MEDIA_ATTESTATION_PAGE_SIZE)
+        .refine((ids) => new Set(ids).size === ids.length),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('check-protected-media-page'),
+      jobId: hex,
+      lease: z.unknown(),
+      planDigest: hex,
+      index: integer,
+      imageIds: z
+        .array(id)
+        .min(1)
+        .max(8)
         .refine((ids) => new Set(ids).size === ids.length),
     })
     .strict(),
@@ -320,6 +335,7 @@ export type CatalogPreparationJobResult =
       ok: true;
       protectedHealth: Extract<CatalogImageObservation['health'], { status: 'verified' }> | null;
     }
+  | { ok: true; protectedPage: 'miss' }
   | { ok: true; media: Readonly<CatalogPreparationMediaProgress> }
   | {
       ok: false;
@@ -767,6 +783,96 @@ export async function runCatalogPreparationJob(
         updatedAt: timestamp,
       });
     return { ok: true, mediaSeal: Object.freeze({ ...seal }) };
+  }
+  if (command.action === 'check-protected-media-page') {
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    const media = job.media;
+    if (
+      !media ||
+      media.planDigest !== command.planDigest ||
+      media.cursor !== command.index ||
+      command.index + command.imageIds.length > media.total
+    )
+      return { ok: false, code: 'CONFLICT' };
+    const pageTooLarge = new Error('Protected media page needs the single-image path');
+    const capturedReads = new Map<string, { row: CollectionDoc | null }>();
+    const key = (collection: string, id: string) => JSON.stringify([collection, id]);
+    let capturedBytes = 0;
+    const readPage = async (collection: string, id: string): Promise<CollectionDoc | null> => {
+      const cached = capturedReads.get(key(collection, id));
+      if (cached) return structuredClone(cached.row);
+      const row = await tx.get(collection, id);
+      if (!fitsJsonBudget(row, Math.min(512 * 1024, 4 * 1024 * 1024 - capturedBytes)))
+        throw pageTooLarge;
+      const copy = structuredClone(row);
+      capturedBytes += Buffer.byteLength(JSON.stringify(copy));
+      capturedReads.set(key(collection, id), { row: copy });
+      return row;
+    };
+    try {
+      const health = [];
+      for (const imageId of command.imageIds) {
+        const image = await readPage('images', imageId);
+        if (image && image._id !== imageId) return { ok: false, code: 'CORRUPT' };
+        const checked = await readCatalogProtectedPixels({ get: readPage }, image, now);
+        if (!authority.currentLeaseScope(command.lease, job))
+          return { ok: false, code: 'CONFLICT' };
+        if (!checked) return { ok: true, protectedPage: 'miss' };
+        health.push(checked);
+      }
+      // Plan through the original single-image guards. No native write happens until all succeed.
+      const staged = new Map<string, { collection: string; row: CollectionDoc }>();
+      const buffered: CatalogApprovalTransaction = {
+        get: async (collection, id) => {
+          const captured = staged.get(key(collection, id));
+          return captured ? structuredClone(captured.row) : readPage(collection, id);
+        },
+        set: async (collection, row) => {
+          staged.set(key(collection, row._id), { collection, row: structuredClone(row) });
+        },
+      };
+      let advanced: CatalogPreparationJobResult = { ok: true, media };
+      for (const [offset, checked] of health.entries()) {
+        const reserved = await runCatalogPreparationJob(
+          buffered,
+          authority,
+          {
+            action: 'reserve-image-check',
+            jobId,
+            lease: command.lease,
+            imageId: checked.imageId,
+          },
+          now,
+        );
+        if (!reserved.ok) return reserved;
+        advanced = await runCatalogPreparationJob(
+          buffered,
+          authority,
+          {
+            action: 'advance-media-check',
+            jobId,
+            lease: command.lease,
+            planDigest: command.planDigest,
+            index: command.index + offset,
+            imageId: checked.imageId,
+            imageInputDigest: checked.inputDigest,
+            health: checked,
+          },
+          now,
+        );
+        if (!advanced.ok) return advanced;
+      }
+      if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+      for (const item of staged.values()) {
+        await tx.set(item.collection, item.row);
+        if (!authority.currentLeaseScope(command.lease, job))
+          throw Error('Preparation lease changed while committing protected media page');
+      }
+      return advanced;
+    } catch (error) {
+      if (error === pageTooLarge) return { ok: true, protectedPage: 'miss' };
+      throw error;
+    }
   }
   if (command.action === 'reserve-image-check') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
