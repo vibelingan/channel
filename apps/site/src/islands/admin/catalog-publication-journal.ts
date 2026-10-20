@@ -73,6 +73,8 @@ function checkpoint(value: unknown) {
   return parsed.data;
 }
 function compatible(previous: PublicationCheckpoint | undefined, next: PublicationCheckpoint) {
+  if (previous && previous.scope.intent !== next.scope.intent)
+    throw new JournalError('CONFLICT', 'The original publication intent cannot be replaced.');
   if (
     previous?.originalStart &&
     next.originalStart &&
@@ -103,7 +105,8 @@ export function createPublicationJournal(
     kind === 'creation' ? CREATION_VERSION : kind === 'draft' ? DRAFT_VERSION : VERSION;
   const validKind = (entry: PublicationCheckpoint) =>
     kind === 'publication' ||
-    (entry.referenceRecovery === undefined &&
+    (entry.scope.intent === undefined &&
+      entry.referenceRecovery === undefined &&
       entry.originalStart === undefined &&
       (kind === 'creation'
         ? entry.scope.productId === 'new-product' && entry.scope.inputDigest !== undefined

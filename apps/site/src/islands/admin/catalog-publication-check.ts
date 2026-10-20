@@ -118,6 +118,7 @@ export async function checkPublication(
       },
       {
         signal,
+        expectedIntent: binding.intent ?? 'publish',
         ...(options.request ? { request: options.request } : {}),
         ...(binding.inputDigest ? { expectedInputDigest: binding.inputDigest } : {}),
       },
@@ -127,6 +128,7 @@ export async function checkPublication(
       productId: current.productId,
       operationId: current.operationId,
       inputDigest: current.inputDigest,
+      ...(current.intent === 'refresh-live' ? { intent: current.intent } : {}),
     });
     return current;
   };

@@ -127,6 +127,7 @@ function sameScope(
   return (
     value.productId === expected.productId &&
     value.operationId === expected.operationId &&
+    value.intent === expected.intent &&
     (!expected.inputDigest || value.inputDigest === expected.inputDigest)
   );
 }
@@ -275,7 +276,11 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
         state: 'not-started',
         scope: structuredClone(
           'action' in entry
-            ? { productId: entry.productId, operationId: entry.operationId }
+            ? {
+                productId: entry.productId,
+                operationId: entry.operationId,
+                ...(entry.intent === 'refresh-live' ? { intent: entry.intent } : {}),
+              }
             : entry.scope,
         ),
       }));
@@ -368,9 +373,9 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                   action: 'product-operation-stop',
                   productId: latest.scope.productId,
                   operationId: latest.scope.operationId,
-                  intent: 'publish',
+                  intent: latest.scope.intent ?? 'publish',
                 },
-                { signal, request },
+                { signal, request, expectedIntent: latest.scope.intent ?? 'publish' },
               );
               guard();
               if (
@@ -387,6 +392,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                   productId: stopped.status.productId,
                   operationId: stopped.status.operationId,
                   inputDigest: stopped.status.inputDigest,
+                  ...(latest.scope.intent ? { intent: latest.scope.intent } : {}),
                 },
               });
               check = await (options.check ?? checkPublication)(latest.scope, {
@@ -416,6 +422,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                     productId: reserved.status.productId,
                     operationId: reserved.status.operationId,
                     inputDigest: reserved.status.inputDigest,
+                    ...(latest.scope.intent ? { intent: latest.scope.intent } : {}),
                   },
                 });
                 check = await (options.check ?? checkPublication)(latest.scope, {
@@ -485,7 +492,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                   operationId: check.scope.operationId,
                   inputDigest: check.status.inputDigest,
                 },
-                { signal, request },
+                { signal, request, expectedIntent: latest.scope.intent ?? 'publish' },
               );
               guard();
               retain({
@@ -494,6 +501,7 @@ export function createPublicationBatch(options: PublicationBatchOptions = {}) {
                   productId: cancelled.status.productId,
                   operationId: cancelled.status.operationId,
                   inputDigest: cancelled.status.inputDigest,
+                  ...(latest.scope.intent ? { intent: latest.scope.intent } : {}),
                 },
               });
               check = await (options.check ?? checkPublication)(latest.scope, {

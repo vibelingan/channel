@@ -11,15 +11,26 @@ import {
   workspace,
 } from '../../../../local-server/src/testing/catalog-operation-workspace.ts';
 import { AdminApiError } from './api.ts';
+import { createPublicationAttempt } from './catalog-product-operation-api.ts';
 import {
   ProductPublicationError,
   publishProductFromEditor,
   recoverProductPublication,
 } from './catalog-product-publication.ts';
+import { createPublicationBatch } from './catalog-publication-batch.ts';
 
-async function fixture(t: TestContext, mode: string) {
+async function fixture(t: TestContext, mode: string, live = false) {
   const h = await workspace(t, undefined, true);
   const media = await coldOwnedMedia(h);
+  if (live) {
+    const scope = await h.start('publish', {});
+    const published = await h.invokeWithConfig(
+      { ...scope, action: 'product-operation-continue' },
+      media.config,
+    );
+    assert.ok(published.ok, JSON.stringify(published));
+    assert.equal(Reflect.get(published.data as object, 'state'), 'complete');
+  }
   if (mode === 'no-category') {
     const rows = JSON.parse(h.bytes());
     Reflect.deleteProperty(rows.products[0], 'productFamily');
@@ -167,6 +178,63 @@ async function fixture(t: TestContext, mode: string) {
     },
   };
 }
+
+for (const mode of ['normal', 'public', 'start-missing'])
+  test(`actual client live batch retains intent through ${mode} and resumes/checks/stops only its original task`, async (t) => {
+    const h = await fixture(t, mode, true);
+    const before = structuredClone(h.opened);
+    const attempt = createPublicationAttempt({
+      productId: h.productId,
+      expectedUpdatedAt: String(before.updatedAt),
+      values: { description: 'Live client protocol edit' },
+      intent: 'refresh-live',
+    });
+    const batch = createPublicationBatch();
+    const result = await batch.run([attempt]);
+    const item = result.items[0];
+    assert.ok(item, JSON.stringify(result));
+    if (mode === 'normal') {
+      assert.equal(item.state, 'confirmed', JSON.stringify(item));
+      assert.equal(batch.journal.read().entries.length, 0);
+    } else {
+      assert.equal(item.state, 'unknown', JSON.stringify(item));
+      const checkpoint = batch.journal.read().entries[0];
+      assert.ok(checkpoint);
+      assert.equal(checkpoint.scope.intent, 'refresh-live');
+      assert.doesNotMatch(JSON.stringify(checkpoint), /Live client protocol edit/);
+      h.unblock();
+      const recovered = await batch.run(
+        [checkpoint],
+        undefined,
+        mode === 'public' ? 'check' : 'cancel',
+      );
+      assert.equal(
+        recovered.items[0]?.state,
+        mode === 'public' ? 'confirmed' : 'cancelled',
+        JSON.stringify(recovered),
+      );
+      assert.equal(batch.journal.read().entries.length, 0);
+    }
+    const after = await h.adapter.get('products', h.productId);
+    assert.equal(after?.published, true);
+    assert.equal(
+      after?.description,
+      mode === 'start-missing' ? before.description : 'Live client protocol edit',
+    );
+    const requests = h.calls
+      .filter((call) => call.action === 'catalogDetailApproval')
+      .map((call) => call.data);
+    assert.equal(requests.filter((call) => call?.action === 'product-operation-start').length, 1);
+    for (const request of requests) {
+      assert.equal(request?.operationId, attempt.operationId);
+      if (!['product-operation-start', 'product-operation-stop'].includes(String(request?.action)))
+        assert.equal(
+          Object.hasOwn(request ?? {}, 'intent'),
+          false,
+          'local intent is not an unsupported wire field',
+        );
+    }
+  });
 
 for (const mode of [
   'normal',

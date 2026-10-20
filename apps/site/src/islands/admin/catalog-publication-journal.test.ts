@@ -7,6 +7,19 @@ const scope = { productId: 'p', operationId: '12345678-1234-4234-8234-1234567890
 const digest = 'a'.repeat(64);
 const cursor = { imageId: 'photo', ledgerDigest: 'b'.repeat(64), nextOffset: 3 };
 
+test('a live pointer survives reopening and cannot change intent or cross draft and creation journals', () => {
+  const storage = disk();
+  const journal = createPublicationJournal(owner, () => storage);
+  const entry = { scope: { ...scope, intent: 'refresh-live', inputDigest: digest } };
+  journal.retain(entry);
+  assert.deepEqual(createPublicationJournal(owner, () => storage).read().entries, [entry]);
+  assert.throws(() => journal.retain({ scope: { ...scope, inputDigest: digest } }));
+  const draft = createPublicationJournal(owner, () => storage, 'draft');
+  assert.throws(() => draft.retain(entry));
+  const creation = createPublicationJournal(owner, () => storage, 'creation');
+  assert.throws(() => creation.retain({ scope: { ...entry.scope, productId: 'new-product' } }));
+});
+
 test('draft pointers cannot cross creation/publication namespaces or retain private input', () => {
   const storage = disk();
   const draft = createPublicationJournal(owner, () => storage, 'draft');

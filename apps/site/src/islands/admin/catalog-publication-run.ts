@@ -97,7 +97,11 @@ function target(input: unknown): { scope: PublicationScope; start?: PublicationA
     if (checked.action !== 'product-operation-start')
       throw new AdminApiError('VALIDATION_ERROR', 'Select the saved publication to continue.');
     return {
-      scope: Object.freeze({ productId: checked.productId, operationId: checked.operationId }),
+      scope: Object.freeze({
+        productId: checked.productId,
+        operationId: checked.operationId,
+        ...(checked.intent === 'refresh-live' ? { intent: checked.intent } : {}),
+      }),
       start: checked,
     };
   }
@@ -108,6 +112,15 @@ function target(input: unknown): { scope: PublicationScope; start?: PublicationA
   return { scope: Object.freeze(parsed.data) };
 }
 function referencePage(status: CatalogProductOperationStatus) {
+  if (status.state === 'reserved' && status.intent === 'refresh-live')
+    return status.current &&
+      status.revisionCurrent &&
+      !status.expired &&
+      !status.cancelledAt &&
+      status.saveReferences?.prepared &&
+      status.saveReferences.staged < status.saveReferences.total
+      ? JSON.stringify(['live-save', status.saveReferences])
+      : undefined;
   if (
     status.state !== 'staging' ||
     !status.current ||
@@ -125,6 +138,7 @@ function referencePage(status: CatalogProductOperationStatus) {
 function fingerprint(status: CatalogProductOperationStatus) {
   return JSON.stringify([
     status.state,
+    status.state === 'reserved' ? status.saveReferences : null,
     'approval' in status ? status.approval : null,
     status.preparation,
     status.referenceRecovery,
@@ -148,6 +162,7 @@ export async function runPublication(
       originalStart.action !== 'product-operation-start' ||
       originalStart.productId !== captured.scope.productId ||
       originalStart.operationId !== captured.scope.operationId ||
+      originalStart.intent !== (captured.scope.intent ?? 'publish') ||
       Object.keys(originalStart.values).length !== 0)
   )
     throw new AdminApiError('VALIDATION_ERROR', 'Invalid original publication start.');
@@ -225,6 +240,7 @@ export async function runPublication(
       productId: status.productId,
       operationId: status.operationId,
       inputDigest: status.inputDigest,
+      ...(status.intent === 'refresh-live' ? { intent: status.intent } : {}),
     });
     if (!onStatus) return;
     try {
@@ -295,6 +311,7 @@ export async function runPublication(
       const answer = await managePublication(command, {
         request: dispatch,
         signal,
+        expectedIntent: binding.intent ?? 'publish',
         ...(command.action === 'product-operation-get' && binding.inputDigest
           ? { expectedInputDigest: binding.inputDigest }
           : {}),

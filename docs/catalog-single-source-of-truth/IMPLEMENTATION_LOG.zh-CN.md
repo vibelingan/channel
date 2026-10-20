@@ -1627,3 +1627,9 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 有效初始红测 4/4 失败；最终 11 文件组合 1270/1270、0 跳过；Node20 状态/实际 JSON/HTTP 81/81、0 跳过；DB/local 类型、Admin 构建、11 文件 Biome 和 diff check 通过。实际 Admin/PNG worker覆盖手工/105 配置、旧新公开图片、丢失回复、预算及下架/停止；原生模拟与云端边界明确区分。忽略最终保存预算的故障注入令两端测试失败，源码恢复哈希一致。首次组合两条新断言错误已纠正且日志保留。
 
 实际审查 workflow/Root/native 保存守卫、seed、四个 Admin continuation、DTO 和两端契约；将时间承诺改为“限制下一步启动”，不声称能中断数据库事务。无 SDK/环境/部署变更。live UI、制品矩阵、历史审计、test 实际三时钟及 20 件发布回退/性能继续，旧诊断项仍开放，fullDeliveryReady=false。
+
+## P4c9e1：live 客户端协议及恢复记录
+
+见 [P4c9e1](P4c9e1_LIVE_CLIENT_PROTOCOL.zh-CN.md)。本地指针保留 live 意图，旧指针默认 publish；API 回执严格比对意图和原身份，继续 wire 不夹带本地字段。batch/公开读回/停止及空原输入恢复保持同意图，journal 禁止替换意图和跨 draft/creation 命名空间。raw-save 满槽游标在只读 GET 后保留，进度判断包括分段行保存。
+
+三条有效红测失败后修复；协议/草稿 282/282、实际后端集成 44/44、Node20 297/297，均 0 跳过；test 类型及 Astro check 238 文件 0 errors/0 warnings/11 hints。新增真实 batch 验证完成、公开读回失败后仅查、未到达的 live start 原意图停止。删除 raw-save 游标保留的故障注入被抓住，源码恢复哈希一致。9 文件 Biome/diff check 通过。实际复核协议五模块及 draft/create/恢复消费者，文案区分协议和表单；未切换按钮、无部署及真实商品变更。最终构建/浏览器、P5/P6/P7 及旧诊断项继续，fullDeliveryReady=false。

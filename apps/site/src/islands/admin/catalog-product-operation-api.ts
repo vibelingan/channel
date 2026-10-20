@@ -18,7 +18,7 @@ const scope = z.object({ productId: id, operationId: z.string().uuid() });
 const start = scope
   .extend({
     action: z.literal('product-operation-start'),
-    intent: z.literal('publish'),
+    intent: z.enum(['publish', 'refresh-live']),
     expectedUpdatedAt: z.string().datetime().nullable(),
     values: z.record(z.unknown()),
   })
@@ -27,7 +27,10 @@ const command = z.discriminatedUnion('action', [
   start,
   scope.extend({ action: z.literal('product-operation-get') }).strict(),
   scope
-    .extend({ action: z.literal('product-operation-stop'), intent: z.literal('publish') })
+    .extend({
+      action: z.literal('product-operation-stop'),
+      intent: z.enum(['publish', 'refresh-live']),
+    })
     .strict(),
   scope
     .extend({
@@ -39,7 +42,10 @@ const command = z.discriminatedUnion('action', [
   scope.extend({ action: z.literal('product-operation-cancel'), inputDigest: digest }).strict(),
 ]);
 export type PublicationCommand = z.infer<typeof command>;
-export const PublicationScopeSchema = scope.extend({ inputDigest: digest.optional() }).strict();
+// Omitted intent keeps existing publication pointers compatible. Never spread this local scope onto the wire.
+export const PublicationScopeSchema = scope
+  .extend({ inputDigest: digest.optional(), intent: z.literal('refresh-live').optional() })
+  .strict();
 export type PublicationScope = Readonly<z.infer<typeof PublicationScopeSchema>>;
 export const PublicationCheckpointSchema = z
   .object({
@@ -62,6 +68,7 @@ export type PublicationStep = {
 export interface PublicationOptions {
   signal?: AbortSignal;
   expectedInputDigest?: string;
+  expectedIntent?: 'publish' | 'refresh-live';
   request?: (command: PublicationCommand, signal?: AbortSignal) => Promise<unknown>;
 }
 const definite = new Set([
@@ -111,11 +118,12 @@ export function createPublicationAttempt(input: {
   productId: string;
   expectedUpdatedAt: string | null;
   values: Record<string, unknown>;
+  intent?: 'publish' | 'refresh-live';
 }): PublicationAttempt {
   const value = capturePublicationCommand({
     ...input,
     action: 'product-operation-start',
-    intent: 'publish',
+    intent: input.intent ?? 'publish',
     operationId: crypto.randomUUID(),
   });
   if (value.action !== 'product-operation-start') throw invalidRequest();
@@ -132,7 +140,7 @@ export function publicationStartFromCheckpoint(input: unknown): PublicationAttem
     );
   const value = capturePublicationCommand({
     action: 'product-operation-start',
-    intent: 'publish',
+    intent: parsed.data.scope.intent ?? 'publish',
     productId: parsed.data.scope.productId,
     operationId: parsed.data.scope.operationId,
     expectedUpdatedAt: parsed.data.originalStart.expectedUpdatedAt,
@@ -151,7 +159,7 @@ export function readPublicationStatus(
     !parsed.success ||
     parsed.data.productId !== expected.productId ||
     parsed.data.operationId !== expected.operationId ||
-    parsed.data.intent !== 'publish' ||
+    parsed.data.intent !== (expected.intent ?? 'publish') ||
     (expected.inputDigest !== undefined && parsed.data.inputDigest !== expected.inputDigest)
   )
     throw new AdminApiError(
@@ -193,17 +201,25 @@ export async function managePublication(
   const checked = capturePublicationCommand(input);
   const action = checked.action;
   const expectedDigest = options.expectedInputDigest;
+  const expectedIntent =
+    checked.action === 'product-operation-start' || checked.action === 'product-operation-stop'
+      ? checked.intent
+      : (options.expectedIntent ?? 'publish');
   if (
     (expectedDigest !== undefined && !digest.safeParse(expectedDigest).success) ||
+    (options.expectedIntent !== undefined &&
+      !['publish', 'refresh-live'].includes(options.expectedIntent)) ||
     (checked.action === 'product-operation-start' && expectedDigest !== undefined) ||
     ('inputDigest' in checked &&
       expectedDigest !== undefined &&
-      checked.inputDigest !== expectedDigest)
+      checked.inputDigest !== expectedDigest) ||
+    (options.expectedIntent !== undefined && options.expectedIntent !== expectedIntent)
   )
     throw invalidRequest();
   const expected: PublicationScope = {
     productId: checked.productId,
     operationId: checked.operationId,
+    ...(expectedIntent === 'refresh-live' ? { intent: expectedIntent } : {}),
     ...('inputDigest' in checked
       ? { inputDigest: checked.inputDigest }
       : expectedDigest !== undefined

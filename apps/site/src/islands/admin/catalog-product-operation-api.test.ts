@@ -63,6 +63,39 @@ test('an empty original start uses the saved operation and version without gener
     assert.throws(() => publicationStartFromCheckpoint(invalid));
 });
 const advance = { action: 'product-operation-continue', ...binding };
+
+test('live publication attempts and recovery pointers retain their intent without adding it to continuation wire data', async () => {
+  const attempt = createPublicationAttempt({
+    productId: 'p',
+    expectedUpdatedAt: at,
+    values: { description: 'Reviewed live edit' },
+    intent: 'refresh-live',
+  });
+  assert.equal(attempt.intent, 'refresh-live');
+  const response = saved({ intent: 'refresh-live', operationId: attempt.operationId });
+  const h = harness([Error('live start answer lost'), response]);
+  const step = await managePublication(attempt, h);
+  assert.equal(step.recovery, 'status');
+  assert.equal(step.status.intent, 'refresh-live');
+  assert.deepEqual(h.calls[1], { ...query, operationId: attempt.operationId });
+  assert.equal(
+    readPublicationStatus(response, {
+      productId: 'p',
+      operationId: attempt.operationId,
+      intent: 'refresh-live',
+    }).intent,
+    'refresh-live',
+  );
+  assert.throws(() =>
+    readPublicationStatus(response, { productId: 'p', operationId: attempt.operationId }),
+  );
+  const replay = publicationStartFromCheckpoint({
+    scope: { productId: 'p', operationId, intent: 'refresh-live' },
+    originalStart: { expectedUpdatedAt: at },
+  });
+  assert.equal(replay.intent, 'refresh-live');
+  assert.deepEqual(replay.values, {});
+});
 function saved(extra = {}) {
   return {
     ok: true,
@@ -306,7 +339,7 @@ for (const bad of [
     action: 'product-operation-start',
     productId: 'p',
     operationId,
-    intent: 'refresh-live',
+    intent: 'save-draft',
     expectedUpdatedAt: at,
     values: {},
   },

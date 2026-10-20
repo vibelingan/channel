@@ -96,6 +96,52 @@ test('resuming a private scope queries it before continuing and never starts a r
 });
 
 const cursor = { imageId: 'shared', ledgerDigest: 'b'.repeat(64), nextOffset: 3 };
+
+test('live publication resumes its raw-save full-slot cursor and keeps intent in the local pointer only', async () => {
+  const calls: PublicationCommand[] = [];
+  const checkpoints: unknown[] = [];
+  let continued = 0;
+  const result = await runPublication(
+    { ...scope, intent: 'refresh-live' },
+    {
+      referenceRecovery: cursor,
+      request: async (command) => {
+        calls.push(structuredClone(command));
+        if (command.action === 'product-operation-continue' && ++continued === 2)
+          return status('complete', { intent: 'refresh-live' });
+        return status('reserved', {
+          intent: 'refresh-live',
+          saveReferences: { prepared: true, staged: 0, total: 2 },
+          ...(continued
+            ? {
+                referenceRecovery: {
+                  nextAction: 'wait',
+                  cursor: { ...cursor, nextOffset: 6 },
+                },
+              }
+            : {}),
+        });
+      },
+      onStatus: (_status, checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    },
+  );
+  assert.equal(result.reason, 'committed');
+  assert.equal(result.scope.intent, 'refresh-live');
+  assert.deepEqual(
+    calls.map((command) => command.action),
+    ['product-operation-get', 'product-operation-continue', 'product-operation-continue'],
+  );
+  assert.ok(calls.every((command) => !Object.hasOwn(command, 'intent')));
+  assert.deepEqual(
+    calls
+      .filter((command) => command.action === 'product-operation-continue')
+      .map((command) => command.referenceRecovery?.nextOffset),
+    [3, 6],
+  );
+  assert.ok(checkpoints.every((entry) => JSON.stringify(entry).includes('refresh-live')));
+});
 const approval = {
   revision: 'approved',
   configurations: { completed: 0, total: 0 },
