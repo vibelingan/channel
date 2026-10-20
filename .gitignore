@@ -7,9 +7,8 @@ dist/
 .cloudbase-artifacts/
 .astro/
 *.tsbuildinfo
-output/playwright/
-# Private price-repair manifests, local fixtures and evidence
-output/catalog-price-repair/
+# Generated acceptance artifacts, private snapshots and local evidence
+/output/
 playwright-report/
 test-results/
 .playwright-cli/
@@ -65,3 +64,7 @@ scripts/pipeline-e2e.sh
 /findings.md
 /progress.md
 /task_plan.md
+
+# Generated session references and SDK probe evidence (keep tracked references)
+.claude/knowledge-refs-*.json
+.claude/sdk-probes/

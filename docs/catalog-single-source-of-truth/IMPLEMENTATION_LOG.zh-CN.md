@@ -1687,3 +1687,11 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 详见 [P5c](P5c_READINESS_ENABLE.zh-CN.md)。严格字面 1 才默认 normal，其余 all；当前默认 0。首次加载/刷新/popstate 共用默认，normal 下显式 All 保留 URL，所有问题队列可达，关闭不改业务数据。CI/env example/类型声明与原完整本地 runner 同步接线。
 
 五条单测及两种开关的正式构建浏览器各 1/1、零重试通过；后者模拟 API，未冒充 native 查询或发布。原 9 个报告哈希相同恢复，专属资源删除。根部署契约 504/504、Astro check 零错误/警告、六文件 Biome 通过；首次 E2E tuple 类型问题已修复并保留日志。删除显式 All 的 mutation 被检出，原源码 SHA 恢复。实际审查 helper/测试、CollectionView/env/CI、runner/spec；把“数据回滚”更正为“恢复默认筛选的重新构建”，核对旧调用默认 all 与 UI/业务写入边界。真实影子审计/索引/性能和最终 P6/P7 继续，fullDeliveryReady=false。
+
+## P6e：最终静态检查与证据目录边界（2026-10-20）
+
+对 5252981a 的根部署合约及工作区全量 pnpm test 已完成：合计 7700 项，7697 通过、0 失败，3 项跳过。两项属于 AI fake-engine 无静默供应商夹具的既有跳过；目录 gallery 浏览器项随后显式开启 GALLERY_BROWSER_TEST=1 重跑，5/5、0 跳过。全量 typecheck（含 E2E）、CloudBase SDK gate 通过。
+
+初轮 lint 扫入 output 下的未跟踪函数包、私有快照与证据；排除后仍发现 .claude 的 17 个生成 JSON 格式问题。新增 /output/、.claude/knowledge-refs-*.json、.claude/sdk-probes/ 忽略，不更改证据内容；这些生成项无需进入 Git。已跟踪 knowledge-refs-2deca4c.json 仍被 Git 跟踪，业务源码不被排除。最终完整 pnpm lint 检查 1083 文件通过，无批量格式化。
+
+实际审查 .gitignore、biome.json 的 VCS 规则、跟踪文件清单、全量测试/类型/SDK 日志及 gallery 门控；将“全量零跳过”修正为“3 项跳过中 gallery 另行执行通过，两项 AI 夹具仍明确跳过”。CloudBase 控制平面两遍独立只读扫描各 1121 件，完整有序 JSON 相等；只保存私有精简 census，不把它冒充管理 API 的影子审计或事务快照。最终浏览器组合、运行包与 test 真实商品/恢复/云性能仍开放，fullDeliveryReady=false。
