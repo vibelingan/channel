@@ -1610,3 +1610,12 @@ review 另复现 A→B→A 时旧响应误入和缓存旧 401 再次锁住，共
 实际审查 live-save/Root/内部入口/满槽恢复/两个 adapter/共享契约及 canonical 和 public-version 消费者，文案明确“内部保存事务”，核对分类、旧批准版本、ACK、读写预算、零差量与无部署。native 审批/编辑串联、完整制品矩阵、历史审计及 test resync/20 件/COS/P95 仍未完成；旧 JSON80/WebKit 诊断缺口保留。fullDeliveryReady=false。
 
 P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用例。补实际 JSON 锁的两个编辑、同原 ID 重试和 save/cancel 两个顺序，4 条 Promise.allSettled 均通过，连原契约 21/21；文档补状态/竞争结果。CloudBase mock 只验证事务读写和 ACK，真实 MVCC 竞争仍明确留在 P7。
+
+
+## P4c9c：同 Root 的内部 live 重审批
+
+见 [P4c9c](P4c9c_LIVE_APPROVAL_TRANSACTION.zh-CN.md)。begin 保留保存证明，页和最终提交按当前 live 商品重算差量和前缀；额外证明读纳入事务预算。完成/取消读取原承诺及真实终态证明，不依赖已被替换的旧图库，不把历史元数据当写许可。坏旧图可以负差量移除，新增图继续严格验证，普通 v1 语义保持。并发下架/归档/内容/分类/来源/账号变化后不能重新发布，可停止原任务。
+
+组合 1084/1084，Node20 376/376，DB/local-server 类型、5 文件 Biome、Admin bundle 和 diff check 通过。新增 105 配置、21 新配置图跨页、空差量和各种失效恢复，以及两个 native adapter 的 save→manual source→同 Root approval→最后 proof 失败回滚/重试。CloudBase 是 SDK 模拟，媒体是明示 metadata fixture，未算作真实云端/PNG验收。有效最终测试对 f5de2e49 基线 5/5 预期失败，前缀信任故障注入 1/1 被抓住，两次 finally 均恢复并核对源码哈希。首次无效样本和媒体 byteSize fixture 错误保留日志并在文档区分。
+
+实际 review Root、图片页、证明/取消/恢复消费者、两个 adapter 与测试，修正文案为“内部重审批”，无 SDK/配置/环境或部署变更。HTTP continue 时间预算、live 编辑 UI、P5/P6/P7 及原诊断项仍开放，fullDeliveryReady=false。

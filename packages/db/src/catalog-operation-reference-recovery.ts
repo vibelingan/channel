@@ -105,7 +105,13 @@ export async function persistOwnedReferencePageWithRecovery(
     command.action === 'operation-live-save-reference-page'
       ? readLiveSaveReferences(own.record, own.record.liveSaveReferences)?.plan
       : own.record.state === 'staging'
-        ? readOwnedApprovalReferencePlan(own.record, own.record.references)
+        ? readOwnedApprovalReferencePlan(
+            own.record,
+            own.record.references,
+            own.record.operation.intent === 'refresh-live'
+              ? ((await store.get('products', command.productId)) ?? undefined)
+              : undefined,
+          )
         : null;
   if (
     progress !== command.cursor ||

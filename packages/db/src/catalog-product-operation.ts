@@ -82,6 +82,7 @@ import {
 import {
   CatalogOwnedApprovalReferencesSchema,
   prepareOwnedApprovalReferences,
+  readOwnedApprovalReferenceCommitment,
   readOwnedApprovalReferencePlan,
 } from './catalog-operation-references.ts';
 import {
@@ -652,21 +653,34 @@ function readReservation(row: CollectionDoc, actorId: string, command: Command) 
     if (
       Object.hasOwn(record, 'references') &&
       (record.nextPage !== record.pageHashes.length ||
-        !readOwnedApprovalReferencePlan(record, record.references))
+        !readOwnedApprovalReferenceCommitment(record, record.references))
     )
       return null;
     if (Object.hasOwn(record, 'referenceStage')) {
-      const plan = record.references
-        ? readOwnedApprovalReferencePlan(record, record.references)
-        : null;
-      if (
-        record.referenceStage === undefined ||
-        !record.references ||
-        !plan ||
-        !readOwnedReferenceStage(record.references, plan, record.referenceStage) ||
-        (record.state === 'complete' && record.referenceStage.cursor !== plan.changes.length)
-      )
-        return null;
+      if (record.references?.kind === 'catalog-owned-live-references-v1') {
+        // Historical reads cannot recover the old before-set after approval. Only metadata
+        // is accepted here; every write below rebuilds and validates progress from its actual product.
+        const stage = CatalogOwnedReferenceStageSchema.safeParse(record.referenceStage);
+        if (
+          !stage.success ||
+          stage.data.bindingDigest !== record.references.bindingDigest ||
+          stage.data.cursor > record.references.leafCount ||
+          (record.state === 'complete' && stage.data.cursor !== record.references.leafCount)
+        )
+          return null;
+      } else {
+        const plan = record.references
+          ? readOwnedApprovalReferencePlan(record, record.references)
+          : null;
+        if (
+          record.referenceStage === undefined ||
+          !record.references ||
+          !plan ||
+          !readOwnedReferenceStage(record.references, plan, record.referenceStage) ||
+          (record.state === 'complete' && record.referenceStage.cursor !== plan.changes.length)
+        )
+          return null;
+      }
     }
   } else if (!fitsJsonBudget(record, PRODUCT_OPERATION_RECORD_MAX_BYTES, 28)) return null;
   if (record.state === 'complete' && Object.hasOwn(record.operation, 'cancelledAt')) return null;
@@ -716,9 +730,9 @@ async function cancelOperation(
     record.referenceStage &&
     record.referenceStage.cursor > 0
   ) {
-    const plan = readOwnedApprovalReferencePlan(record, record.references);
-    if (!plan) return fail('CONFLICT');
-    const expected = catalogImageReferenceCancelProof(plan.proof);
+    const proof = readOwnedApprovalReferenceCommitment(record, record.references);
+    if (!proof) return fail('CONFLICT');
+    const expected = catalogImageReferenceCancelProof(proof);
     const previous = await tx.get(collection, expected._id);
     if (previous && alibabaPricingFingerprint(previous) !== alibabaPricingFingerprint(expected))
       return fail('CONFLICT');
@@ -931,11 +945,11 @@ async function inspect(
       return fail('CONFLICT');
   }
   if (record.state === 'complete') {
-    const plan = readOwnedApprovalReferencePlan(record, record.references);
+    const proof = readOwnedApprovalReferenceCommitment(record, record.references);
     if (
-      !plan ||
-      alibabaPricingFingerprint(await tx.get(collection, plan.proof._id)) !==
-        alibabaPricingFingerprint(plan.proof)
+      !proof ||
+      alibabaPricingFingerprint(await tx.get(collection, proof._id)) !==
+        alibabaPricingFingerprint(proof)
     )
       return fail('CONFLICT');
     const current =
@@ -1377,6 +1391,7 @@ async function beginOperationApproval(
       media: _media,
       references: _references,
       referenceStage: _referenceStage,
+      liveSaveReferences: _liveSaveReferences,
       ...persisted
     } = record;
     if (approvalPlanDigest(persisted) !== approvalPlanDigest(prepared)) return fail('CONFLICT');
@@ -1387,6 +1402,7 @@ async function beginOperationApproval(
     createdAt: record.createdAt,
     operation: record.operation,
     saved: record.saved,
+    ...(record.liveSaveReferences ? { liveSaveReferences: record.liveSaveReferences } : {}),
   });
   if (!fitsJsonBudget(root, PRODUCT_OPERATION_APPROVAL_RECORD_MAX_BYTES, 32))
     return fail('VALIDATION_ERROR');
@@ -1431,7 +1447,7 @@ async function currentApprovalOperation(
   if (
     !record ||
     record.state === 'reserved' ||
-    record.operation.intent !== 'publish' ||
+    !['publish', 'refresh-live'].includes(record.operation.intent) ||
     record.operation.inputDigest !== command.inputDigest
   )
     return fail('CONFLICT');
@@ -1448,7 +1464,9 @@ async function currentApprovalOperation(
     !inspection.revisionCurrent ||
     inspection.expired ||
     !product ||
-    product.published === true ||
+    (record.operation.intent === 'refresh-live'
+      ? product.published !== true
+      : product.published === true) ||
     product.archived === true
   )
     return fail('CONFLICT');
@@ -1524,9 +1542,9 @@ async function stageOperationReferences(
 ): Promise<ProductOperationResult> {
   const current = await currentApprovalOperation(tx, actorId, command);
   if (!current.ok) return current;
-  const { record, inspection } = current;
+  const { record, product, inspection } = current;
   if (record.state !== 'staging' || !record.references) return fail('CONFLICT');
-  const plan = readOwnedApprovalReferencePlan(record, record.references);
+  const plan = readOwnedApprovalReferencePlan(record, record.references, product);
   if (!plan) return fail('CONFLICT');
   const progress = readOwnedReferenceStage(record.references, plan, record.referenceStage);
   if (!progress || command.cursor > progress.cursor) return fail('CONFLICT');
@@ -1534,7 +1552,13 @@ async function stageOperationReferences(
     return inspection;
   if (await tx.get(collection, plan.proof._id)) return fail('CONFLICT');
   // Reserve the worst-case actor/root/product/source reads, terminal slot read and final root write.
-  const page = await planOwnedReferenceStagePage(tx, plan, progress.cursor, 98 - 8);
+  const page = await planOwnedReferenceStagePage(
+    tx,
+    plan,
+    progress.cursor,
+    record.operation.intent === 'refresh-live' ? 98 - 9 : 98 - 8,
+    record.operation.intent === 'refresh-live',
+  );
   if (!page.ok) return page;
   const next = ApprovalOperationSchema.parse({
     ...record,
@@ -1567,7 +1591,7 @@ async function publishOperation(
     record.sourceDigest,
   );
   if (!review.ok) return review;
-  const plan = readOwnedApprovalReferencePlan(record, record.references);
+  const plan = readOwnedApprovalReferencePlan(record, record.references, product);
   const progress = plan && readOwnedReferenceStage(record.references, plan, record.referenceStage);
   if (!plan || !progress) return fail('CONFLICT');
   if (record.nextPage !== record.pageHashes.length || progress.cursor !== plan.changes.length)
@@ -1579,7 +1603,11 @@ async function publishOperation(
   const now = new Date().toISOString();
   let next: CollectionDoc;
   try {
-    next = advanceCatalogProduct(product, { ...product, published: true }, now);
+    next = advanceCatalogProduct(
+      product,
+      { ...product, ...(record.operation.intent === 'publish' ? { published: true } : {}) },
+      now,
+    );
   } catch (error) {
     if (!(error instanceof CatalogProductStateError)) throw error;
     return fail('CONFLICT');

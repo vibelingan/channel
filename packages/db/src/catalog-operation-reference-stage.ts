@@ -66,6 +66,7 @@ export async function planOwnedReferenceStagePage(
   plan: CatalogImageReferencePlan,
   cursor: number,
   maxDocumentOperations: number,
+  liveRefresh = false,
 ): Promise<
   | { ok: true; images: CollectionDoc[]; nextCursor: number; documentOperations: number }
   | OwnedReferenceStageFailure
@@ -75,27 +76,34 @@ export async function planOwnedReferenceStagePage(
   let nextCursor = cursor;
   for (let index = cursor; index < plan.changes.length && index < cursor + 20; index++) {
     const remaining = maxDocumentOperations - used;
-    if (remaining < 4) break;
+    const removal = liveRefresh && plan.changes[index]?.delta === -1;
+    if (remaining < (removal ? 2 : 4)) break;
     const change = plan.changes[index];
     if (!change) return { ok: false, code: 'CONFLICT' };
     try {
       // C1 reserves its possible image write; reserve two further reads for protected pixel evidence.
       const loaded = await planCatalogImageReferenceSettlement(tx, {
         imageId: change.imageId,
-        maxDocumentOperations: remaining - 2,
+        maxDocumentOperations: remaining - (removal ? 0 : 2),
       });
       if (loaded.snapshot.state !== 'counted') return { ok: false, code: 'MEDIA_NOT_READY' };
       used += loaded.snapshot.documentReads;
+      if (removal && loaded.snapshot.effectiveCount < 1)
+        return { ok: false, code: 'MEDIA_NOT_READY' };
       const image = loaded.snapshot.image;
       const lock = readImageMutationState(image);
       const now = Date.now();
       if (lock.state === 'owned' && now - Date.parse(lock.startedAt) < IMAGE_MUTATION_STALE_MS)
         return { ok: false, code: 'MEDIA_BUSY' };
-      if (!isStoredCatalogImageRecord(image, change.imageId) || lock.state !== 'free')
-        return { ok: false, code: 'MEDIA_NOT_READY' };
-      if (!(await readCatalogProtectedPixels(tx, image, now)))
-        return { ok: false, code: 'MEDIA_NOT_READY' };
-      used += 2;
+      if (lock.state !== 'free') return { ok: false, code: 'MEDIA_NOT_READY' };
+      if (!removal) {
+        if (
+          !isStoredCatalogImageRecord(image, change.imageId) ||
+          !(await readCatalogProtectedPixels(tx, image, now))
+        )
+          return { ok: false, code: 'MEDIA_NOT_READY' };
+        used += 2;
+      }
       const current = loaded.settlement ?? image;
       const staged = stageCatalogImageReference(
         change.imageId,

@@ -44,7 +44,7 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 async function fixture(
-  intent: 'publish' | 'save-draft' = 'publish',
+  intent: 'publish' | 'save-draft' | 'refresh-live' = 'publish',
   saved = true,
   large = false,
   linked = false,
@@ -57,7 +57,7 @@ async function fixture(
     name: 'Clock',
     description: large ? 'd'.repeat(30000) : '',
     productFamily: 'misc',
-    published: false,
+    published: intent === 'refresh-live',
     archived: false,
     imageIds: [],
     updatedAt: new Date().toISOString(),
@@ -173,8 +173,19 @@ async function fixture(
   const result = await runProductOperation(tx, 'admin', start);
   assert.ok(result.ok && result.record.state === 'reserved');
   if (saved) {
+    let reserved = result.record;
+    if (intent === 'refresh-live') {
+      const bound = await runProductOperation(tx, 'admin', {
+        action: 'operation-live-save-references',
+        productId: 'p',
+        operationId: uuid,
+        inputDigest: reserved.operation.inputDigest,
+      });
+      assert.ok(bound.ok && bound.record.state === 'reserved', JSON.stringify(bound));
+      reserved = bound.record;
+    }
     product.catalogLifecycleVersion = 1;
-    const receipt = productOperationSaveReceipt(result.record, product);
+    const receipt = productOperationSaveReceipt(reserved, product);
     await tx.set('catalogDetailApprovals', receipt);
   }
   const previous = CatalogDetailPublicationSchema.safeParse(product.catalogDetailPublication);
@@ -3847,3 +3858,207 @@ test('clock tolerance cannot supply a client timestamp or bypass a revoked actor
   assert.equal(result.code, 'FORBIDDEN');
   assert.equal(h.bytes(), revoked);
 });
+
+async function liveApprovalFixture(variantCount = 0, previousImage = 'old', linked = false) {
+  const publication = {
+    state: 'approved',
+    revision: 'old-approved',
+    header: {
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'p',
+      name: 'Old approved clock',
+      images: [`/api/images/${previousImage}`],
+      facts: [],
+      offers: [],
+    },
+    variantCount: 0,
+  };
+  const h = await fixture('refresh-live', true, false, linked, variantCount, {
+    description: 'Ready description',
+    imageIds: ['photo'],
+    catalogDetailPublication: publication,
+  });
+  const photo = {
+    _id: 'photo',
+    status: 'active',
+    storageProvider: 'local-disk',
+    storageMode: 'local-disk',
+    storageFileId: 'local-disk:photo.png',
+    storagePath: 'photo.png',
+    mimeType: 'image/png',
+    byteSize: 123,
+    checksumSha256: 'a'.repeat(64),
+    publishedRefCount: 1,
+  };
+  const added = Array.from({ length: variantCount > 0 ? 21 : 0 }, (_, i) => `newSku${i}`);
+  h.rows.images = [
+    { _id: 'old', publishedRefCount: previousImage === 'old' ? 1 : 0 },
+    photo,
+    ...added.map((_id) => ({
+      ...photo,
+      _id,
+      storageFileId: `local-disk:${_id}.png`,
+      storagePath: `${_id}.png`,
+      publishedRefCount: 0,
+    })),
+  ];
+  for (const [i, imageId] of added.entries()) {
+    const variant = h.rows.productVariants?.[i];
+    assert.ok(variant);
+    variant.imageIds = [imageId];
+  }
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      productId: 'p',
+      operationId: uuid,
+      expectedRevision: 'old-approved',
+      expectedDigest: catalogApprovalDigest(h.product, h.rows.productVariants ?? []),
+    },
+    h.product,
+    h.rows.productVariants ?? [],
+  );
+  assert.ok(prepared.ok, JSON.stringify(prepared));
+  h.command.prepared = prepared.value;
+  const own = { productId: 'p', operationId: uuid, inputDigest: h.command.inputDigest };
+  const begun = object(await h.invoke(h.command));
+  assert.equal(begun.ok, true, JSON.stringify(begun));
+  const staged = object(begun.record);
+  assert.equal(staged._id, h.key);
+  assert.ok(staged.liveSaveReferences, 'save ownership remains in the approval Root');
+  const pages = staged.pageHashes;
+  assert.ok(Array.isArray(pages));
+  for (let page = 0; page < pages.length; page++)
+    assert.equal(
+      object(await h.invoke({ ...own, action: 'operation-approval-page', page })).ok,
+      true,
+    );
+  const now = Date.now();
+  const authority = createCatalogPreparationAuthority({
+    secret: 'live-approval-core-fixture',
+    environmentId: 'live-approval-core-fixture',
+    now: () => now,
+  });
+  await finishOwnedMediaFixture(
+    (command) => runCatalogPreparationJob(h.tx, authority, command, now),
+    h.tx.get,
+    ['photo', ...added].sort(),
+  );
+  const media = object(await h.invoke({ ...own, action: 'operation-approval-media' }));
+  assert.equal(media.ok, true, JSON.stringify(media));
+  const bound = object(await h.invoke({ ...own, action: 'operation-approval-references' }));
+  assert.equal(bound.ok, true, JSON.stringify(bound));
+  const references = object(object(bound.record).references);
+  assert.equal(references.kind, 'catalog-owned-live-references-v1');
+  assert.equal(references.leafCount, added.length + (previousImage === 'old' ? 1 : 0));
+  let cursor = 0;
+  while (cursor < Number(references.leafCount)) {
+    const page = object(
+      await h.invoke({ ...own, action: 'operation-approval-reference-page', cursor }),
+    );
+    assert.equal(page.ok, true, JSON.stringify(page));
+    cursor = Number(object(object(page.record).referenceStage).cursor);
+  }
+  return { ...h, own, added, publication };
+}
+for (const [variantCount, previousImage] of [
+  [0, 'old'],
+  [105, 'old'],
+  [0, 'photo'],
+] as const)
+  test(`live approval original saved Root supports final reference delta and historical reads ${variantCount}/${previousImage}`, async () => {
+    const h = await liveApprovalFixture(variantCount, previousImage);
+    const done = object(await h.invoke({ ...h.own, action: 'operation-publish' }));
+    assert.equal(done.ok, true, JSON.stringify(done));
+    assert.equal(object(done.record).state, 'complete');
+    const current = h.rows.products?.[0];
+    assert.ok(current);
+    assert.equal(current.published, true);
+    const visible = CatalogDetailPublicationSchema.parse(current.catalogDetailPublication);
+    assert.equal(visible.variantCount, variantCount);
+    assert.equal(visible.header.name, 'Clock');
+    for (const [id, expected] of [
+      ['photo', 1],
+      ['old', 0],
+      ...h.added.map((id) => [id, 1] as const),
+    ] as const) {
+      const count = await runCatalogImageReferenceRead(h.tx, { action: 'read', imageId: id });
+      assert.equal(count.state === 'counted' && count.effectiveCount, expected);
+    }
+    const before = h.bytes();
+    assert.equal(object(await h.invoke({ ...h.own, action: 'operation-publish' })).ok, true);
+    assert.equal(h.bytes(), before, 'lost final reply cannot publish a second time');
+    current.description = 'Later editor';
+    const historical = object(await h.invoke(query));
+    assert.equal(historical.ok, true);
+    assert.equal(historical.current, false);
+  });
+for (const change of [
+  'withdrawn',
+  'archived',
+  'edited',
+  'reclassified',
+  'source-changed',
+  'revoked',
+  'stage-prefix',
+] as const)
+  test(`live final approval rejects ${change} and original stop keeps old approval and counts`, async () => {
+    const h = await liveApprovalFixture(0, 'old', change === 'source-changed');
+    const current = h.rows.products?.[0];
+    assert.ok(current);
+    if (change === 'withdrawn') current.published = false;
+    if (change === 'archived') current.archived = true;
+    if (change === 'edited') current.description = 'Other editor';
+    if (change === 'reclassified') current.productFamily = 'toys';
+    if (change === 'source-changed') {
+      const source = h.rows.alibabaSourceProducts?.[0];
+      assert.ok(source);
+      source.contentHash = 'b'.repeat(64);
+    }
+    if (change === 'revoked') {
+      const actor = h.rows.users?.find((u) => u._id === 'admin');
+      assert.ok(actor);
+      actor.role = 'member';
+    }
+    if (change === 'stage-prefix') {
+      const root = h.rows.catalogDetailApprovals?.find((r) => r._id === h.key);
+      assert.ok(root);
+      object(root.referenceStage).prefixDigest = 'b'.repeat(64);
+    }
+    const before = h.bytes();
+    assert.equal(object(await h.invoke({ ...h.own, action: 'operation-publish' })).ok, false);
+    assert.equal(h.bytes(), before);
+    const stopped =
+      change === 'revoked'
+        ? await h.invoke({ ...h.own, action: 'operation-recover', operationRootId: h.key }, 'other')
+        : await h.invoke({ ...h.own, action: 'operation-cancel' });
+    assert.equal(object(stopped).ok, true, JSON.stringify(stopped));
+    assert.deepEqual(current.catalogDetailPublication, h.publication);
+    const old = await runCatalogImageReferenceRead(h.tx, { action: 'read', imageId: 'old' });
+    assert.equal(old.state === 'counted' && old.effectiveCount, 1);
+    assert.equal(current.published, change !== 'withdrawn');
+  });
+
+for (const delta of [-1, 1] as const)
+  test(`live approval damaged-image exception is limited to removing an existing public reference delta=${delta}`, async () => {
+    const image = { _id: 'broken', publishedRefCount: delta === -1 ? 1 : 0 };
+    const tx = {
+      get: async (collection: string, id: string) =>
+        collection === 'images' && id === 'broken' ? image : null,
+      set: async () => {
+        throw Error('planning must not write');
+      },
+    };
+    const plan = buildCatalogImageReferencePlan(
+      'a'.repeat(64),
+      delta === -1 ? ['broken'] : [],
+      delta === 1 ? ['broken'] : [],
+    );
+    const ordinary = await planOwnedReferenceStagePage(tx, plan, 0, 90);
+    assert.equal(ordinary.ok, false);
+    const live = await planOwnedReferenceStagePage(tx, plan, 0, 90, true);
+    assert.equal(live.ok, delta === -1);
+    if (live.ok) assert.ok(live.documentOperations <= 2);
+    image.publishedRefCount = 0;
+    assert.equal((await planOwnedReferenceStagePage(tx, plan, 0, 90, true)).ok, false);
+  });

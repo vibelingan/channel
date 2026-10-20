@@ -4,10 +4,19 @@ import test, { type TestContext } from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { resolvePublicVersion } from '@vibelingan-channel/shared/catalog-public-version';
 import type { CatalogProductSaveInput, CatalogProductSaveResult } from './adapter.ts';
-import type { ApprovalPersistenceCommand, ApprovalStageResult } from './catalog-detail-staging.ts';
+import { catalogApprovalDigest } from './catalog-detail-commit.ts';
+import {
+  type ApprovalPersistenceCommand,
+  type ApprovalStageResult,
+  prepareStagedApproval,
+} from './catalog-detail-staging.ts';
 import { runCatalogImageReferenceRead } from './catalog-image-reference-store.ts';
 import { readLiveSaveReferences } from './catalog-operation-live-save.ts';
 import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
+import { readOwnedApprovalReferenceCommitment } from './catalog-operation-references.ts';
+import { finishOwnedMediaFixture } from './catalog-owned-media.fixture.ts';
+import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
+import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 export interface LiveSaveStorageHarness {
   persist(actor: string, command: ApprovalPersistenceCommand): Promise<ApprovalStageResult>;
   save(input: CatalogProductSaveInput): Promise<CatalogProductSaveResult>;
@@ -363,6 +372,121 @@ export function registerLiveSaveStorageContract(
     assert.equal(saved.result, 'saved', JSON.stringify(saved));
     assert.equal(await count(h, 'sharedOld'), 80);
     assert.equal(await count(h, 'new80'), 1);
+    h.checkBudget?.();
+  });
+  test(`${label} native live row save and reapproval share the original Root and roll back a missing final proof`, async (t) => {
+    const data: Record<string, CollectionDoc[]> = initial();
+    const product = data.products?.[0];
+    assert.ok(product);
+    product.catalogDetailPublication = {
+      state: 'approved',
+      revision: 'prior',
+      header: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: 'p',
+        name: 'Approved old clock',
+        images: ['/api/images/old'],
+        facts: [],
+        offers: [],
+      },
+      variantCount: 0,
+    };
+    const newImage = data.images?.find((image) => image._id === 'new');
+    assert.ok(newImage);
+    newImage.byteSize = 123;
+    newImage.checksumSha256 = 'a'.repeat(64);
+    const h = create(t, data);
+    const own = await start(h);
+    await stage(h, own.identity);
+    assert.equal((await h.save(own.input)).result, 'saved');
+    record(await h.persist('admin', { ...own.identity, action: 'operation-photo-release' }));
+    assert.equal(
+      (
+        await h.persist('admin', {
+          action: 'manual-source',
+          productId: 'p',
+          configurationRowIds: [],
+        })
+      ).ok,
+      true,
+    );
+    const saved = await h.get('products', 'p');
+    assert.ok(saved);
+    const prepared = prepareStagedApproval(
+      'admin',
+      {
+        productId: 'p',
+        operationId,
+        expectedRevision: 'prior',
+        expectedDigest: catalogApprovalDigest(saved, []),
+      },
+      saved,
+      [],
+    );
+    assert.ok(prepared.ok, JSON.stringify(prepared));
+    const begun = record(
+      await h.persist('admin', {
+        ...own.identity,
+        action: 'operation-approval-begin',
+        prepared: prepared.value,
+      }),
+    );
+    assert.equal(begun._id, own.row._id);
+    // Preparation metadata lifecycle only; real PNG bytes/compiled worker remain a separate gate.
+    const now = Date.now();
+    const authority = createCatalogPreparationAuthority({
+      secret: 'native-live-approval-test',
+      environmentId: 'native-live-approval-test',
+      now: () => now,
+    });
+    const tx = { get: h.get, set: h.put };
+    await finishOwnedMediaFixture(
+      (command) => runCatalogPreparationJob(tx, authority, command, now),
+      h.get,
+      ['new'],
+    );
+    record(await h.persist('admin', { ...own.identity, action: 'operation-approval-media' }));
+    record(await h.persist('admin', { ...own.identity, action: 'operation-approval-references' }));
+    const staged = record(
+      await h.persist('admin', {
+        ...own.identity,
+        action: 'operation-approval-reference-page',
+        cursor: 0,
+      }),
+    );
+    assert.ok(staged.state === 'staging' && staged.references);
+    assert.equal(staged.references.leafCount, 1);
+    assert.equal(await count(h, 'old'), 1);
+    assert.equal(await count(h, 'new'), 1, 'raw save already grants exactly one row reference');
+    const commitment = readOwnedApprovalReferenceCommitment(staged, staged.references);
+    assert.ok(commitment && h.failProof);
+    const before = h.snapshot();
+    const restore = h.failProof(commitment._id);
+    try {
+      await assert.rejects(h.persist('admin', { ...own.identity, action: 'operation-publish' }));
+    } finally {
+      restore();
+    }
+    assert.equal(h.snapshot(), before);
+    const finished = record(
+      await h.persist('admin', { ...own.identity, action: 'operation-publish' }),
+    );
+    assert.equal(finished.state, 'complete');
+    assert.equal(finished._id, own.row._id);
+    const current = await h.get('products', 'p');
+    assert.equal(current?.published, true);
+    const publicVersion = resolvePublicVersion(current, { detailEnabled: true });
+    assert.equal(publicVersion.kind, 'approved');
+    if (publicVersion.kind === 'approved')
+      assert.equal(publicVersion.publication.header.descriptionText, 'Reviewed');
+    assert.equal(await count(h, 'old'), 0);
+    assert.equal(await count(h, 'new'), 1, 'reapproval cannot count the retained row image twice');
+    const after = h.snapshot();
+    assert.equal(
+      record(await h.persist('admin', { ...own.identity, action: 'operation-publish' })).state,
+      'complete',
+    );
+    assert.equal(h.snapshot(), after);
     h.checkBudget?.();
   });
   // The CloudBase harness models native ACK/read/write semantics, not MVCC scheduling.
