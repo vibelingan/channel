@@ -38,7 +38,7 @@ export function assertMutableCachePolicy(value) {
     );
 }
 
-function assertErrorDocument(body) {
+export function assertErrorDocument(body) {
   const html = body.toString('utf8');
   const robots = (html.match(/<meta\b[^>]*>/gi) ?? []).find((tag) =>
     /\bname\s*=\s*["']robots["']/i.test(tag),
