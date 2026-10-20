@@ -333,6 +333,7 @@ export function ProductClassificationEditor({
     null,
   );
   const [publicationResult, setPublicationResult] = useState<BatchUpdateResult | null>(null);
+  const [publicationRunning, setPublicationRunning] = useState(false);
   const [showPublicationFeedback, setShowPublicationFeedback] = useState(true);
   const [readbackFailed, setReadbackFailed] = useState(false);
   const [readbackVerified, setReadbackVerified] = useState(false);
@@ -611,7 +612,6 @@ export function ProductClassificationEditor({
         }, 250);
         publicationOutcome = await runOwned('continue');
         if (mounted.current) {
-          setPublicationResult(publicationOutcome);
           setMessage(publicationMessage(publicationOutcome, submitted.kind === 'keep'));
         }
       }
@@ -674,6 +674,7 @@ export function ProductClassificationEditor({
       checked: new Map<string, PublicationBatchItem['state']>(),
     };
     activePublicationProgress.current = progress;
+    setPublicationRunning(true);
     setStopWaiting(false);
     setPublicationProgress({ checked: 0, total: entries.length, confirmed: 0 });
     const outcome = await batch.run(inputs, progress.signal, mode).finally(() => {
@@ -699,7 +700,12 @@ export function ProductClassificationEditor({
         }
       );
     });
-    return classificationPublicationFeedback(publicationItems.current);
+    const feedback = classificationPublicationFeedback(publicationItems.current);
+    if (mounted.current) {
+      setPublicationResult(feedback);
+      setPublicationRunning(false);
+    }
+    return feedback;
   }
 
   async function retryPublication(ids: string[]) {
@@ -722,7 +728,8 @@ export function ProductClassificationEditor({
     try {
       const outcome = await runOwned(mode, ids);
       if (!mounted.current) return;
-      setPublicationResult(outcome);
+      setStage('refreshing');
+      setShowPublishingWait(false);
       setShowPublicationFeedback(true);
       setMessage(
         recoveryOnly
@@ -1387,7 +1394,7 @@ export function ProductClassificationEditor({
           )}
         </section>
       )}
-      {!pending &&
+      {(!pending || !publicationRunning) &&
         publicationResult &&
         (publicationResult.failures.length === 0 || !readbackVerified) &&
         showPublicationFeedback && (
@@ -1403,7 +1410,7 @@ export function ProductClassificationEditor({
             onDismiss={() => setShowPublicationFeedback(false)}
           />
         )}
-      {!pending &&
+      {(!pending || !publicationRunning) &&
         publicationResult &&
         (publicationResult.failures.length === 0 || !readbackVerified) &&
         !showPublicationFeedback && (

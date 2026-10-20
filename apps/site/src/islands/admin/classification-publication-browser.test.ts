@@ -57,6 +57,7 @@ for (const engine of ['chromium', 'webkit'] as const)
         preserve: 20,
         preservepartial: 3,
         progress: 2,
+        receipts: 1,
         preservelost: 1,
         preserveconflict: 1,
         lost: 1,
@@ -203,6 +204,8 @@ for (const engine of ['chromium', 'webkit'] as const)
           }
         | undefined;
       let releasePublication = () => {};
+      let heldReadback: { wait: Promise<void>; arrived: () => void } | undefined;
+      let releaseReadback = () => {};
       let concurrentEdit = false;
       let capabilityUnavailable = false;
       let capabilityWait: Promise<void> | undefined;
@@ -226,6 +229,17 @@ for (const engine of ['chromium', 'webkit'] as const)
         const input = route.request().postDataJSON();
         const data = input.data ?? {};
         actions.push({ action: input.action, data });
+        if (
+          heldReadback &&
+          input.action === 'get' &&
+          data.collection === 'products' &&
+          data.id === `${engine}-receipts-0`
+        ) {
+          const held = heldReadback;
+          heldReadback = undefined;
+          held.arrived();
+          await held.wait;
+        }
         if (input.action === 'catalogDetailCapabilities' && capabilityWait) await capabilityWait;
         if (input.action === 'catalogDetailCapabilities' && capabilityUnavailable) {
           await route.fulfill({
@@ -1012,6 +1026,77 @@ for (const engine of ['chromium', 'webkit'] as const)
             }
           },
         );
+        await t.test(
+          'current publication receipts remain visible during status readback while a new attempt hides old receipts',
+          async () => {
+            await open('receipts');
+            await keep();
+            const productId = `${engine}-receipts-0`;
+            const holdReadback = () => {
+              let arrived = () => {};
+              const arrival = new Promise<void>((resolve) => {
+                arrived = resolve;
+              });
+              const wait = new Promise<void>((resolve) => {
+                releaseReadback = resolve;
+              });
+              heldReadback = { wait, arrived };
+              return arrival;
+            };
+            try {
+              pauseContinuation = true;
+              const firstReadback = holdReadback();
+              await publish();
+              await firstReadback;
+              const receipt = page.locator('section[role="alert"]');
+              await expect(receipt).toContainText("0 published · 1 couldn't be checked");
+              await expect(
+                page.getByText('Checking product statuses...', { exact: true }),
+              ).toBeVisible();
+              const retry = receipt.getByRole('button', {
+                name: 'Try again for 1 product',
+                exact: true,
+              });
+              await expect(retry).toBeDisabled();
+              assert.equal((await h.adapter.get('products', productId))?.published, false);
+              const originalOperation = starts.get(productId);
+              assert.ok(originalOperation);
+              releaseReadback();
+              await expect(retry).toBeEnabled();
+
+              pauseContinuation = false;
+              let arrived = () => {};
+              const arrival = new Promise<void>((resolve) => {
+                arrived = resolve;
+              });
+              const wait = new Promise<void>((resolve) => {
+                releasePublication = resolve;
+              });
+              heldPublication = { productId, wait, arrived, completed: () => {} };
+              const secondReadback = holdReadback();
+              await retry.click();
+              await arrival;
+              await expect(receipt).toHaveCount(0);
+              await expect(
+                page.getByRole('status', { name: 'Publication progress', exact: true }),
+              ).toContainText('Checked 0 of 1');
+              releasePublication();
+              await secondReadback;
+              await expect(page.locator('section[role="status"]')).toContainText('1 published');
+              await expect(page.getByRole('button', { name: 'Done', exact: true })).toHaveCount(0);
+              assert.equal(starts.get(productId), originalOperation);
+              assert.equal((await h.adapter.get('products', productId))?.published, true);
+              releaseReadback();
+              await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
+            } finally {
+              pauseContinuation = false;
+              heldReadback = undefined;
+              heldPublication = undefined;
+              releaseReadback();
+              releasePublication();
+            }
+          },
+        );
         assert.deepEqual(errors, [], JSON.stringify({ errors, networkFailures }));
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -1021,6 +1106,8 @@ for (const engine of ['chromium', 'webkit'] as const)
         blockPublic = false;
         pauseContinuation = false;
         heldPublication = undefined;
+        heldReadback = undefined;
+        releaseReadback();
         releasePublication();
         await page.unrouteAll({ behavior: 'wait' });
         for (const product of manifest) {
