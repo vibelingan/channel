@@ -56,7 +56,7 @@ jobs:
     if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment: test
 
     env:
@@ -184,6 +184,21 @@ jobs:
             echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
             exit 1
           fi
+
+      - name: Capture the current hosted site before cloud mutation
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before
+
+      - name: Preserve the verified pre-deployment hosting backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/hosting-backup-before/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
 
       - name: Deploy to CloudBase test
         env:

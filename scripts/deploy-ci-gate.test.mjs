@@ -73,7 +73,24 @@ test('deployment captures one explicit public snapshot and retains recovery inpu
     (step) => step.name === 'Preserve accepted site recovery inputs before deployment',
   );
   const deploy = steps.findIndex((step) => step.run === 'pnpm deploy:cloudbase:test');
+  const backup = steps.findIndex(
+    (step) => step.name === 'Capture the current hosted site before cloud mutation',
+  );
+  const preserveBackup = steps.findIndex(
+    (step) => step.name === 'Preserve the verified pre-deployment hosting backup',
+  );
   assert.ok(capture >= 0 && capture < build && build < archive && archive < deploy);
+  assert.ok(archive < backup && backup < preserveBackup && preserveBackup < deploy);
+  assert.equal(
+    steps[backup].run,
+    'node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before',
+  );
+  assert.equal(steps[preserveBackup].with['if-no-files-found'], 'error');
+  assert.equal(steps[preserveBackup].with['include-hidden-files'], true);
+  for (const step of [steps[backup], steps[preserveBackup]]) {
+    assert.equal(step.if, undefined);
+    assert.equal(step['continue-on-error'], undefined);
+  }
   assert.match(steps[capture].run, /seo:snapshot/);
   assert.ok(steps[capture].env.SEO_CATALOG_API_ORIGIN);
   assert.equal(

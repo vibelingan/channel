@@ -43,3 +43,21 @@
 实际阅读：deploy-test/ci/e2e workflows、部署脚本、hosting-integrity、smoke-http、product-seo-release、SEO page/route/output gates；AdminApp/admin API、inquiry API、Alibaba API、shop API、session、api-url/envelope、CatalogDetailController、ProductLanding、detail transport/state/pages、public-quote transport；Engineering Craft 的 Deploy/Frontend/E2E 分组与 CloudBase SDK gate。CloudBase 官方管理 API、HTTPService 数据结构、缓存说明与本机 CLI 3.5.9 bundle 分别检查；TanStack Query v5 的取消、initialData、默认刷新、queryOptions 文档已核对。
 
 措辞修正：“缺失 URL 是否返回真实 404”改为“HTTP 404 已确认，正文错误”；“保存 artifact 就能回滚”改为“保存恢复输入，恢复入口和耗时未验证”；“没有公共层”改为“有 URL/envelope 复用，完整请求生命周期未统一”。读回数据、源码和 workflow 分别支持这些结论；没有根据 SDK 新文档推断旧运行时已具备 safe/prune。
+
+## 继续实施：实际线上备份、缓存参数与恢复基础
+
+本段接续 `bf8434e0`。重新 fetch 后 main/test 仍为本文件上面的 SHA；只读 pricing worktree 的 HEAD 已到 `3f025b0d`，`d0863eb3..3f025b0d` 没有改动本轮 scripts、workflow、SEO 或商品标准路由范围。远端 pricing 引用停留在更早提交，不能拿远端引用冒充该 worktree 的当前状态。本轮没有切换/修改/运行 pricing，也没有新建分支或 worktree。
+
+使用 archify 生成 workflow v2 图，源文件 `docs/seo/diagrams/hosting-delivery.workflow.json`。第一份图生成后按代码实际进展更新：加入线上备份前置步骤，去掉重复验收行以修复桌面纵向溢出；保留缓存及恢复的未验收状态。当前 deliver、浏览器 receipt、截图和规格/HTML SHA-256 均在 `output/hosting-2026-10-20/`，以最后一份 receipt 为准。
+
+再次只读确认 CloudBase 登录 READY，环境为 `diversity-123-d9grnqfux221323bb`、ap-shanghai。GET 不跟随重定向，未知路径 HTTP 404、无 Location，正文 SHA 与已下载首页一致。完整下载托管目录后发现 SDK 回执 success 但漏了两个文件，精确补取；这成为 capture 脚本必须覆盖的回归场景。两次清单/配置一致：1,062 项含 30 目录标记、1,032 文件，总 77,019,288 bytes。普通文件 MD5 与 ETag、长度一致；3 个 multipart ETag 不被当作 MD5，额外独立 HTTP 读取视频并比较 ETag/长度/SHA-256。最终每个文件写入 SHA-256 manifest。
+
+新增 `capture-hosting-backup.mjs`，接入原 Deploy Test 的凭证检查之后、部署之前；必须保存单独 backup artifact（含隐藏文件，30 天）才能继续。同一共享锁、原分支条件、完整 CI 均保留，未新增 workflow。`hosting-cache-plan.mjs` 从真实配置生成只改 STATIC_STORE 响应头的增量参数和恢复旧 HTTP 策略的反向参数；没有执行云写入。官方 `ModifyHTTPServiceRoute` 的增量修改、HTTPServiceExtension/Header 数据结构与安装 MCP 的 downloadDirectory/downloadFile 分支已核对；当前没有 Context7，没有新增 SDK 方法或 shim。
+
+新增 `hosting-recovery.mjs` 的输入核验、计划与有序执行内核，以及 `prepare-hosting-recovery.mjs` 只读命令。拒绝错误环境、路径穿越、符号链接、损坏/缺失文件、备份期间内容变化；上传/读回失败不能推进到 HTML、清理或配置；恢复已撤回商品时拒绝整份旧产物；保留旧 hash 资源、平台路径和搜索验证文件。实际备份在临时目录完成 1,025 文件恢复/逐项 hash、1 个刻意创建的退役页删除、旧资源与平台文件保留。临时目录已清理，真实备份保留。没有云端恢复适配器或锁内恢复 job；没有把示例空列表视为未来发布时的实时撤回/所有权证明。
+
+本轮新增测试 17 项通过。包含既有部署脚本在内，全套 `scripts/*.test.mjs` 为 458/458，通过日志 `recovery-deploy-tests-unsandboxed.log`。第一次在无 `.git` 的导出副本和受限沙盒运行失败于既有 Git 清单检查、本地端口 EPERM；没有改测试，重跑时让 Git 只读指向真实 index，并在可绑定本地端口的执行权限下通过。源码复制 SHA 保存在 `recovery-validation-source-hashes.json`。Biome 对 8 个改动 JS 文件检查通过；安全路径检查用字符码识别控制字符，没有禁用 lint 规则。站点 UI、组件和数据请求代码本轮未改，未重复旧的全站构建验证，也没有新增 UI 截图冒充产品变更。
+
+实际复核文件：本段提到的 8 个脚本及测试、deploy-test.yml、hosting-contract/integrity/smoke-http、CloudBase SDK gate、Engineering Craft 的部署/E2E 组、HOSTING_ACCEPTANCE/SSG_DELIVERY_DESIGN、archify schema/common/example/delivery contract 和 humanizer plain-technical-writing。具体措辞修正：“恢复入口完成”限定为“只读计划命令和执行内核已有，云端适配与锁内验收未完成”；“反向操作恢复配置”改为“恢复旧 HTTP 策略，显式覆盖字段仍会保留”。分别对照可执行入口、参数和实测日志，防止扩大完成范围。
+
+最后加入隐藏文件归档断言和缺失目录创建后，定向 40/40 通过（`recovery-focused-tests.log`），8 文件 Biome 无改动通过。Archify 最终规格 `171d780be66fd8c2283a2cfb6410948bdc0fbd589628664de7f9e4638a0cb98b`，HTML `acb4114530acd224f9bd70d83ec90b5f50377ad683c753da24e50a10e98b6557`：9/9 showcase、0 errors/0 warnings；1440×900、1600×1000、1920×1080、2048×1320 浏览器测量均无溢出。已用图像工具查看最终 1440 浅色、2048 深色截图，文字/节点/路径未见遮挡；独立 handoff receipt 标记 browser_evidence/visual_review 均 passed，没有修改自动 receipt 的 visualReview: pending。规格最后仅按仓库格式规则压缩一行 JSON 数组，随后重新 validate/deliver；HTML 字节与上述已检查版本完全相同，artifact-bound 浏览器证据仍匹配。最终规格冻结。

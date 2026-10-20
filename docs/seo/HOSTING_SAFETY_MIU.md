@@ -46,3 +46,11 @@ Failing checks first: 404 cannot be indexed or enter sitemap; hosting audit reje
 Focused commands use Node 22.13.0: site SEO page tests, hosting-contract tests, deploy workflow tests; then build with the preserved validated public snapshot. Audit the real site read-only and retain its expected failures until deployment/configuration fixes them. No customer data, inquiry notifications or credentials are changed.
 
 State labels: implemented locally / verified locally / observed live / pending deployment / unverified provider capability. A saved artifact is not evidence of a successful rollback.
+
+## Follow-through at bf8434e0
+
+The actual live baseline is now backed up and content-verified: 1,032 files, 77,019,288 bytes, two stable inventories/configurations. The directory download returned success while missing two files; exact retries and independent content checks closed that gap. Three multipart videos require independent HTTP ETag/size/SHA-256 evidence rather than a false MD5 assertion.
+
+Normal delivery now captures and archives that current-hosting backup before the first cloud mutation. Tests pin this ordering and preserve the existing deployment conditions and shared lock. The workflow change has not run remotely. A local restore of the real baseline exercises ordered uploads/read-back and exact removal while preserving platform/search-verification paths and old hashed assets.
+
+Cache patch generation, a read-only recovery-plan CLI and the recovery execution kernel are implemented. The live cache patch is not applied. The kernel has no cloud adapter or environment-locked restore job yet; current publication/ownership evidence and mid-operation withdrawal coordination remain integration requirements. Backout parameters restore the observed HTTP policy, not the exact absence of a prior route-header field. No live recovery, atomic-activation guarantee or recovery-time commitment is claimed.

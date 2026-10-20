@@ -1,5 +1,7 @@
 # 商品页 SEO 实施状态
 
+2026-10-20 后续增补：实际线上 1,032 文件和托管配置已完整备份、逐项核验；现有 Deploy Test 分支代码已加入部署前备份/归档门禁。新增恢复计划命令、有序恢复内核、缓存变更/反向参数；云端恢复适配器、锁内执行和真实验收仍未完成。部署脚本全套 458/458 通过，最后修改后的定向 40/40 通过，UI/交互没有新增改动。最新版状态以 [HOSTING_ACCEPTANCE.zh-CN.md](HOSTING_ACCEPTANCE.zh-CN.md) 为准；流程图在 `output/hosting-2026-10-20/hosting-delivery.html`，它是本地交付文档，不是已部署网站。
+
 2026-10-20 增补：托管安全的第一步已实现并完成本地验证，尚未部署。新增专用 404、部署前缓存检查、部署后普通 URL/产物校验、显式快照采集与恢复输入 artifact。最新检查为站点测试 532 通过 / 1 个既有跳过，部署/托管测试 28 通过，类型检查 0 errors / 0 warnings / 7 hints；使用保存的 487 商品快照构建得到 503 HTML / 495 个可索引地址。详细状态、未完成的缓存配置与恢复演练见 [HOSTING_ACCEPTANCE.zh-CN.md](HOSTING_ACCEPTANCE.zh-CN.md)；公共请求层只出[设计](REQUEST_LAYER_DESIGN.zh-CN.md)。下面保留商品页实现与前一轮验收记录。
 
 2026-10-19，日本时间。统一在原分支 `feat/seo-foundation` 开发。商品页的 5 个提交已从误建的 `feat/seo-product-pages` 快进合入至 `cf0c9bcd`，基于共享基础 `6bcdaa1a`，main 基线为 `37bcea5b38284210159e95f8d10f3a9b5cf2ee44`。实现提交 `a9e1b92e`；`0d1686fb` 对齐分页测试，`081982f` 修复发布检查对真实 manifest 格式的读取，`b43dc09` 补充浏览器 hydration 错误检查。尚未推送、创建 PR、合并 main 或部署。
