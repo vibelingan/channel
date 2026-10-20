@@ -30,6 +30,7 @@ import { ProductPricingEditor } from './ProductPricingEditor.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
 import { SavedClassificationSummary } from './SavedClassificationSummary.tsx';
 import { SupplierChangesPanel } from './SupplierChangesPanel.tsx';
+import { useAdminDraftExport } from './admin-draft-recovery.ts';
 import {
   importAlibabaSourceImage,
   removeAlibabaImportedImage,
@@ -584,6 +585,7 @@ export function RecordForm({
   ];
   const fieldErrors = collection.name === 'products' ? productFormErrorTargets(error) : {};
   const currentDraft = useRef<FormState>(state);
+  useAdminDraftExport(title, () => ({ ...currentDraft.current }));
   currentDraft.current = { ...state };
   const decisions = withSupplierChoices({}, initial, supplierChoices, configurationPhotos);
   for (const [field, value] of Object.entries(decisions))

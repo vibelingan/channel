@@ -45,6 +45,13 @@ import { z } from 'zod';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
+import {
+  AdminSessionPausedError,
+  bindAdminErrorSession,
+  captureAdminRequestSession,
+  confirmAdminRequestSession,
+  reportExpiredAdminSession,
+} from './admin-session-guard.ts';
 
 const ENDPOINT = apiUrl('/api/admin');
 
@@ -125,10 +132,18 @@ async function call<T>(
 }
 
 async function callOnce<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+  let ticket: ReturnType<typeof captureAdminRequestSession>;
+  try {
+    ticket = captureAdminRequestSession(action);
+  } catch (error) {
+    if (error instanceof AdminSessionPausedError)
+      throw new AdminApiError('SESSION_PAUSED', error.message);
+    throw error;
+  }
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data, token: getToken() }),
+    body: JSON.stringify({ action, data, token: ticket.token }),
     credentials: 'omit',
     redirect: 'error',
     signal: signal
@@ -137,14 +152,29 @@ async function callOnce<T>(action: string, data?: unknown, signal?: AbortSignal)
   });
 
   const result = await readApiEnvelope<T>(res);
+  if (res.status === 401 || (result && !result.ok && result.error.code === 'UNAUTHORIZED'))
+    reportExpiredAdminSession(ticket);
   if (!result) {
-    throw new AdminApiError(
-      res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
-      `Request failed (${res.status})`,
+    throw bindAdminErrorSession(
+      new AdminApiError(
+        res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+        `Request failed (${res.status})`,
+      ),
+      ticket,
     );
   }
   if (!result.ok) {
-    throw new AdminApiError(result.error.code, result.error.message, result.error.issues);
+    throw bindAdminErrorSession(
+      new AdminApiError(result.error.code, result.error.message, result.error.issues),
+      ticket,
+    );
+  }
+  try {
+    confirmAdminRequestSession(ticket);
+  } catch (error) {
+    if (error instanceof AdminSessionPausedError)
+      throw new AdminApiError('SESSION_PAUSED', error.message);
+    throw error;
   }
   return result.data;
 }

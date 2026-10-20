@@ -3,6 +3,7 @@ import { type ComponentProps, useEffect, useRef, useState } from 'react';
 import { onAuthChange } from '../../lib/session.ts';
 import { ProductPublicationRecovery } from './ProductPublicationRecovery.tsx';
 import { RecordForm } from './RecordForm.tsx';
+import { useAdminSessionReconnector } from './admin-draft-recovery.ts';
 import { AdminApiError, getRecord } from './api.ts';
 import { type DraftSaveResult, createDraftSaveController } from './catalog-draft-save.ts';
 import type { PublicationScope } from './catalog-product-operation-api.ts';
@@ -139,7 +140,7 @@ export function ProductEditForm(props: Props) {
     }
   }
   async function reconnect() {
-    if (running.current || props.submitting || !originalOwner.current) return;
+    if (running.current || props.submitting || !originalOwner.current) return false;
     running.current = true;
     setBusy(true);
     try {
@@ -152,7 +153,7 @@ export function ProductEditForm(props: Props) {
       await next.verifySession();
       const snapshot = next.pending();
       const originalPublication = pendingProductPublications(props.initial._id);
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       setControl({ controller: next, error: null });
       setPending(snapshot.entries.map((entry) => entry.scope));
       setStorageBlocked(Boolean(snapshot.problems.length));
@@ -160,13 +161,21 @@ export function ProductEditForm(props: Props) {
       setSessionBlocked(false);
       setResult(undefined);
       setError(null);
+      return true;
     } catch (cause) {
       if (mounted.current) setError(message(cause));
+      return false;
     } finally {
       running.current = false;
       if (mounted.current) setBusy(false);
     }
   }
+  useAdminSessionReconnector(async () => {
+    if (!(await reconnect()))
+      throw Error(
+        'This form could not reconnect. Keep it open and retry, or download your edits before leaving.',
+      );
+  });
   async function publish(values: Record<string, unknown>) {
     const controller = control.controller;
     if (!controller || running.current || props.submitting) return;

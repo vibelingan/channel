@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
+import { useAdminDraftExport } from './admin-draft-recovery.ts';
 import {
   AdminApiError,
   type BatchUpdateResult,
@@ -308,6 +309,13 @@ export function ProductClassificationEditor({
   );
   const [publish, setPublish] = useState(false);
   const [selected, setSelected] = useState<string[] | null>(null);
+  useAdminDraftExport('Website classification', () => ({
+    productIds: products.map((product) => product._id),
+    family,
+    mode,
+    selected,
+    publish,
+  }));
   const [confirmation, setConfirmation] = useState<ClassificationSubmission | null>(null);
   const [pending, setPending] = useState(false);
   const [stage, setStage] = useState<'assigning' | 'publishing' | 'refreshing'>('assigning');

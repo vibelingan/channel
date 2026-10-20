@@ -1572,3 +1572,16 @@ P4c6 精确提交审查（3f6ba081）有 1 个 P2，未直接清 review marker�
 首轮 site-full-r1 1300 通过 / 3 失败 / 1 跳过不计成功。两处关闭失败已修复；WebKit 一次 access-control pageerror 的精确原因仍未知，定向及第二轮完整运行未再出现。新增同源断言和失败请求诊断，保留原失败与既有 JSON80 调查项，最终发版审计不能跳过。Node20 final-r1 因命令中的测试文件名写错未执行，已更正后完整跑 r2，不混入通过计数。
 
 未新增 SDK 方法/集合/环境/配置，未部署或修改真实商品。live-edit、全局会话、历史审计、P6 全组合制品和 P7 真实 test/COS/P95 仍开放，fullDeliveryReady=false。
+
+
+## P4c8：登录过期保留原表单并核对原账号（2026-10-20）
+
+详见 [P4c8](P4c8_SESSION_FORM_RECOVERY.zh-CN.md)。实际 AdminApp 的后台 401 会跳走并丢失输入，浏览器红测已确认。现在保留原窗口、用第二层 native dialog 暂停；API 发出和返回都核对原会话，原账号/角色通过服务器验证并重连原创建/编辑控制器后才恢复读取。不会自动重放保存、创建或发布。当前输入只在内存中，离开前下载；JWT 和私有正文不进 journal。显式退出保留原路径。
+
+review 另复现 A→B→A 时旧响应误入和缓存旧 401 再次锁住，共三条红测，改用独立重连代次及私有 WeakMap 错误归属。最后新增“创建已提交、回复暂扣→换 token→原验证等待→释放迟到回复→再次验证→查询原回执”的真实组合，抓到 mutation observerOptionsUpdated 把旧 UNAUTHORIZED 又当新错误处理。只响应 updated/error 新事件后，两个浏览器均通过，商品仍只创建一次。
+
+实读 AdminApp、DashboardShell、API/guard、内存 form registry、恢复 dialog、RecordForm、分类编辑、商品创建/编辑控制器、对应实际 Admin/JSON/浏览器测试与宿主，追溯 session storage 事件、原 nonce、query-core 5.101.0 的 cache/observer 事件及 native dialog 焦点。文案从“重新登录即恢复”改成“验证原账号和权限后恢复”；核对暂停期零写、恢复只读、未分类草稿不补分类、无 token 序列化和 finally 清理。Chromium/WebKit 390px 恢复弹窗截图实看，无横向溢出。
+
+三条独立故障注入都由对应断言抓住，进程结束后恢复源码并校验哈希。最终实际组合 46/46，Node20 核心 36/36；Astro 238 文件 0 errors/0 warnings/11 hints（首轮的新增 role:string 类型错误已按 SessionUser.Role 收窄）。首两轮整站 1313 / 1316 通过，各 0 失败、1 图库开关跳过，但早于最后缓存事件修正。最后源码的整站 r3 1316 通过/0失败/1静态图库开关跳过；显式开启图库 r1 11/11。15 文件最终 Biome 和 diff check 通过。正式构建验收紧接 P6 的同磁盘构建修正，当前未计完成。
+
+本单元不新增 SDK 方法、集合或环境变量；通用非商品 CRUD 的跨网络幂等性不因表单保留而获得保证。原已发布商品编辑、历史审计、P6 后端制品/正式构建入口和 P7 test 真实数据/COS/P95 仍开放。未部署、未修改真实商品，fullDeliveryReady=false。

@@ -1,6 +1,6 @@
 import { apiUrl } from '../../lib/api-url.ts';
 import { getToken, getUser } from '../../lib/session.ts';
-import { AdminApiError, DraftSavedError, createRecord } from './api.ts';
+import { AdminApiError, DraftSavedError, createRecord, fetchCurrentUser } from './api.ts';
 import {
   CreatedProductChangedError,
   type ProductCreationAttempt,
@@ -84,6 +84,38 @@ export function createProductCreationController(
     journal.forget(scope(selected).scope);
   };
   return {
+    async reconnect() {
+      if (running)
+        throw new AdminApiError(
+          'BUSY',
+          'Wait for the original creation check to finish, then reconnect.',
+        );
+      const next = session();
+      if (!next || next.actorId !== bound.actorId || next.endpoint !== bound.endpoint)
+        throw new AdminApiError(
+          'UNAUTHORIZED',
+          'Return to the original account and environment before reconnecting.',
+        );
+      running = true;
+      try {
+        const { user } = await fetchCurrentUser();
+        const current = session();
+        if (
+          !current ||
+          current.token !== next.token ||
+          current.actorId !== next.actorId ||
+          current.endpoint !== next.endpoint ||
+          user.id !== bound.actorId
+        )
+          throw new AdminApiError(
+            'UNAUTHORIZED',
+            'Your account changed during verification. Try again.',
+          );
+        bound.token = next.token;
+      } finally {
+        running = false;
+      }
+    },
     pending,
     export: () => journal.export(),
     acknowledge: forget,

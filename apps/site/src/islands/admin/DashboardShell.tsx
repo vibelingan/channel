@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getCollection } from '@vibelingan-channel/shared';
 import { Suspense, lazy, useMemo, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
-import { canManageUsers, getUser } from '../../lib/session.ts';
+import { type SessionUser, canManageUsers, getUser } from '../../lib/session.ts';
 import { CollectionView, type ProductClassificationReview } from './CollectionView.tsx';
 import { AlibabaCatalogSyncPage } from './alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';
 import { CatalogImportPage } from './catalog-import/CatalogImportPage.tsx';
@@ -34,11 +34,14 @@ function InquiryCount() {
   ) : null;
 }
 
-export function DashboardShell({ onLogout }: { onLogout: () => void }) {
-  const role = getUser()?.role ?? '';
+export function DashboardShell({
+  onLogout,
+  verifiedUser,
+}: { onLogout: () => void; verifiedUser?: Pick<SessionUser, 'id' | 'role'> }) {
+  const role = verifiedUser?.role ?? getUser()?.role ?? '';
   const localInquiries = isLocalInquiryWorkspace();
   const capabilities = useQuery({
-    queryKey: ['inquiry-capabilities', getUser()?.id],
+    queryKey: ['inquiry-capabilities', verifiedUser?.id ?? getUser()?.id],
     queryFn: ({ signal }) => fetchInquiryCapabilities(signal),
     enabled: role === 'admin' && !localInquiries,
     retry: false,

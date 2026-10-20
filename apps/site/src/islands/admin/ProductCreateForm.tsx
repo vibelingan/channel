@@ -3,6 +3,7 @@ import type { CollectionDef, CollectionDoc } from '@vibelingan-channel/shared';
 import { useEffect, useRef, useState } from 'react';
 import { ProductPublicationRecovery } from './ProductPublicationRecovery.tsx';
 import { RecordForm } from './RecordForm.tsx';
+import { useAdminSessionReconnector } from './admin-draft-recovery.ts';
 import { DraftSavedError, getRecord } from './api.ts';
 import {
   CreatedProductChangedError,
@@ -65,6 +66,11 @@ export function ProductCreateForm(props: {
       setError(error instanceof Error ? error : Error('Creation recovery is unavailable.'));
     }
   };
+  useAdminSessionReconnector(async () => {
+    if (!control.controller) throw control.error;
+    await control.controller.reconnect();
+    refresh();
+  });
   const save = useMutation({
     mutationFn: (values: Record<string, unknown>) => {
       if (!control.controller) throw control.error;

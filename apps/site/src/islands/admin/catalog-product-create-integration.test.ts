@@ -35,7 +35,8 @@ async function fixture(t: test.TestContext, lose: 'start' | 'both' | 'before' | 
   let failure = lose;
   const calls: Array<{ action: string; data: Record<string, unknown> }> = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
+    const raw = JSON.parse(String(init.body));
+    const body = { ...raw, data: raw.data ?? {} };
     calls.push(body);
     if (failure === 'before' && body.data.action === 'start') {
       failure = 'none';
@@ -87,6 +88,9 @@ async function fixture(t: test.TestContext, lose: 'start' | 'both' | 'before' | 
     switchActor: () => {
       session = { ...session, actorId: 'second', token: 'second-token' };
     },
+    renew: () => {
+      session = { ...session, token: 'renewed-original-token' };
+    },
   };
 }
 
@@ -102,6 +106,73 @@ test('the real client recovers a lost committed create response with one origina
   assert.equal(
     (await h.db.list({ collection: 'products', page: 1, pageSize: 20, search: '' })).total,
     1,
+  );
+});
+
+test('same-actor reconnect retains the original uncertain creation and never starts another draft', async (t) => {
+  const h = await fixture(t, 'both');
+  const controller = h.controller();
+  await assert.rejects(
+    controller.save({ name: 'Private original clock', published: false }),
+    ProductCreationUnknownError,
+  );
+  const original = controller.pending().entries[0];
+  assert.ok(original);
+  h.recover();
+  h.renew();
+  assert.throws(() => controller.pending(), /original account/);
+  await controller.reconnect();
+  assert.deepEqual(controller.pending().entries, [original]);
+  const restored = await controller.check(original);
+  assert.equal(restored.name, 'Private original clock');
+  assert.equal(h.calls.filter((call) => call.data.action === 'start').length, 1);
+  assert.equal(
+    (await h.db.list({ collection: 'products', page: 1, pageSize: 20, search: '' })).total,
+    1,
+  );
+  assert.doesNotMatch(
+    JSON.stringify([...h.entries]),
+    /Private original|bound-token|renewed-original-token/,
+  );
+  const before = h.calls.length;
+  h.switchActor();
+  await assert.rejects(controller.reconnect(), /original account/);
+  assert.equal(h.calls.length, before);
+});
+
+test('reconnect excludes overlapping creation and rejects an account changed during verification', async (t) => {
+  const h = await fixture(t);
+  const controller = h.controller();
+  h.renew();
+  const originalFetch = globalThis.fetch;
+  let arrived = () => {};
+  let release = () => {};
+  const entered = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  t.mock.method(globalThis, 'fetch', async (...args: Parameters<typeof fetch>) => {
+    arrived();
+    await held;
+    return originalFetch(...args);
+  });
+  const checking = controller.reconnect();
+  await entered;
+  try {
+    await assert.rejects(controller.reconnect(), /Wait for the original/);
+    await assert.rejects(controller.save({ name: 'Must not create' }), /already being saved/);
+    assert.equal(h.calls.length, 0);
+    h.switchActor();
+  } finally {
+    release();
+  }
+  await assert.rejects(checking, /changed during verification/);
+  assert.equal(h.calls.filter((call) => call.action === 'catalogProductCreate').length, 0);
+  assert.equal(
+    (await h.db.list({ collection: 'products', page: 1, pageSize: 20, search: '' })).total,
+    0,
   );
 });
 

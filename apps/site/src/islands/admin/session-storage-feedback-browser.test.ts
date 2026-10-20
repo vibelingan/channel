@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { parseDocument } from 'yaml';
+import { signSession } from '../../../../../packages/auth/src/jwt.ts';
+import { handleAdminRequest } from '../../../../functions/admin/src/handler.ts';
+import { workspace } from '../../../../local-server/src/testing/catalog-operation-workspace.ts';
 function deferred() {
   let done = () => {};
   const promise = new Promise<void>((resolve) => {
@@ -24,7 +27,7 @@ for (const engine of ['chromium', 'webkit'] as const)
         if (process.env.SESSION_FEEDBACK_EVIDENCE !== '1') return;
         const evidence = fileURLToPath(
           new URL(
-            '../../../../../output/pricing-clock-repair-2026-10-13/p3e1/session-feedback-ui/',
+            '../../../../../output/pricing-clock-repair-2026-10-13/p3e1/admin-session-recovery-ui/',
             import.meta.url,
           ),
         );
@@ -144,6 +147,389 @@ for (const engine of ['chromium', 'webkit'] as const)
           await retry.click();
           await expect(page.getByRole('heading', { name: 'Destination /login' })).toBeVisible();
           assert.deepEqual(errors, []);
+        },
+      );
+      await t.test(
+        'an expired background read keeps the open form and offers account recovery',
+        async (child) => {
+          const context = await browser.newContext({
+            viewport: { width: 390, height: 844 },
+            acceptDownloads: true,
+          });
+          child.after(() => context.close());
+          const page = await context.newPage();
+          const pendingRead = deferred();
+          child.after(async () => pendingRead.done());
+          let held = false;
+          const requests: string[] = [];
+          await page.addInitScript(() => {
+            localStorage.setItem('channel.token', 'admin-token');
+            localStorage.setItem(
+              'channel.user',
+              JSON.stringify({
+                id: 'admin',
+                username: 'Admin',
+                email: 'fixture@example.test',
+                role: 'admin',
+              }),
+            );
+          });
+          await page.route('**/api/admin', async (route) => {
+            const body = route.request().postDataJSON();
+            requests.push(body.action);
+            if (body.action === 'me') {
+              await route.fulfill({
+                json: {
+                  ok: true,
+                  data: {
+                    user: {
+                      id: 'admin',
+                      username: 'Admin',
+                      email: 'fixture@example.test',
+                      role: 'admin',
+                    },
+                  },
+                },
+              });
+            } else if (body.action === 'inquiryCapabilities') {
+              await route.fulfill({
+                json: { ok: true, data: { enabled: false, notification: 'disabled' } },
+              });
+            } else if (body.action === 'list') {
+              if (!held) {
+                held = true;
+                await pendingRead.promise;
+                await route.fulfill({
+                  status: 401,
+                  json: {
+                    ok: false,
+                    error: { code: 'UNAUTHORIZED', message: 'Owned expired background session' },
+                  },
+                });
+              } else
+                await route.fulfill({
+                  json: { ok: true, data: { items: [], total: 0, page: 1, pageSize: 20 } },
+                });
+            } else throw Error(`Unexpected owned session action: ${body.action}`);
+          });
+          await page.goto(new URL('session-feedback-test', origin).href);
+          await page.getByRole('button', { name: 'New User', exact: true }).click();
+          const form = page.getByRole('dialog', { name: 'New User', exact: true });
+          await form.locator('#email').fill('private-unsaved@example.test');
+          assert.equal(held, true);
+          pendingRead.done();
+          const recovery = page.getByRole('dialog', {
+            name: 'Reconnect your account',
+            exact: true,
+          });
+          await expect(recovery).toBeVisible();
+          await capture(page);
+          assert.equal(new URL(page.url()).pathname, '/session-feedback-test');
+          await expect(form.locator('#email')).toHaveValue('private-unsaved@example.test');
+          assert.equal(requests.includes('create'), false);
+          await page.keyboard.press('Escape');
+          await expect(recovery).toBeVisible();
+          const modulePath = '/src/islands/admin/testing/session-feedback-browser-harness.tsx';
+          const beforeWrite = requests.length;
+          assert.equal(
+            await page.evaluate(
+              async (path) => (await import(path)).tryPausedRecordWrite(),
+              modulePath,
+            ),
+            'SESSION_PAUSED',
+          );
+          assert.equal(requests.length, beforeWrite);
+          await recovery.getByRole('button', { name: 'Leave this workspace', exact: true }).click();
+          await expect(recovery.getByRole('alert')).toContainText('Download your current edits');
+          const downloadEvent = page.waitForEvent('download');
+          await recovery
+            .getByRole('button', { name: 'Download current edits', exact: true })
+            .click();
+          const downloadPath = await (await downloadEvent).path();
+          assert.ok(downloadPath);
+          const exported = await readFile(downloadPath, 'utf8');
+          assert.equal(JSON.parse(exported)[0].values.email, 'private-unsaved@example.test');
+          assert.doesNotMatch(exported, /admin-token|channel.token/);
+          const changeSession = async (token: string, id: string) =>
+            page.evaluate(
+              async ({ path, token, id }) => (await import(path)).replaceTestSession(token, id),
+              { path: modulePath, token, id },
+            );
+          await changeSession('other-token', 'other');
+          const beforeWrongAccount = requests.length;
+          await recovery
+            .getByRole('button', { name: 'Verify original account', exact: true })
+            .click();
+          await expect(recovery.getByRole('alert')).toContainText('original account');
+          assert.equal(requests.length, beforeWrongAccount);
+          // Reusing a still-valid original token must not revive its cached 401.
+          await changeSession('admin-token', 'admin');
+          await recovery
+            .getByRole('button', { name: 'Verify original account', exact: true })
+            .click();
+          await expect(recovery).toHaveCount(0);
+          await expect
+            .poll(() => requests.filter((action) => action === 'list').length)
+            .toBeGreaterThan(1);
+          await expect(recovery).toHaveCount(0);
+          await expect(form.locator('#email')).toHaveValue('private-unsaved@example.test');
+          await form.locator('#email').fill('still-editable@example.test');
+          assert.equal(requests.includes('create') || requests.includes('update'), false);
+          assert.equal(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+            true,
+          );
+        },
+      );
+      await t.test(
+        'renewed original account keeps real creation and edit forms and saves the original private draft',
+        async (child) => {
+          const h = await workspace(child);
+          await h.adapter.update('users', 'admin', {
+            username: 'Admin',
+            email: 'admin@example.test',
+          });
+          const config = { jwtSecret: 'owned-continue-test-only', enableDetailApproval: true };
+          const token = await signSession(config.jwtSecret, {
+            sub: 'admin',
+            role: 'admin',
+            name: 'Admin',
+            email: 'admin@example.test',
+          });
+          const renewed = await signSession(config.jwtSecret, {
+            sub: 'admin',
+            role: 'admin',
+            name: 'Renewed Admin',
+            email: 'admin@example.test',
+          });
+          assert.notEqual(token, renewed);
+          const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+          child.after(() => context.close());
+          const page = await context.newPage();
+          const errors: string[] = [];
+          page.on('pageerror', (error) => errors.push(error.message));
+          const pendingRead = deferred();
+          child.after(async () => pendingRead.done());
+          let held = false;
+          let holdCreatedReply = false;
+          const createdReply = deferred();
+          const createCommitted = deferred();
+          child.after(() => createdReply.done());
+          const requests: { action: string; operation?: string }[] = [];
+          await page.addInitScript(
+            ({ token }) => {
+              localStorage.setItem('channel.token', token);
+              localStorage.setItem(
+                'channel.user',
+                JSON.stringify({
+                  id: 'admin',
+                  username: 'Admin',
+                  email: 'admin@example.test',
+                  role: 'admin',
+                }),
+              );
+            },
+            { token },
+          );
+          await page.route('**/api/admin', async (route) => {
+            const body = route.request().postDataJSON();
+            requests.push({ action: body.action, operation: body.data?.action });
+            if (
+              body.action === 'list' &&
+              body.data.collection === 'products' &&
+              body.data.pageSize === 20 &&
+              !held
+            ) {
+              held = true;
+              await pendingRead.promise;
+              await route.fulfill({
+                status: 401,
+                json: {
+                  ok: false,
+                  error: { code: 'UNAUTHORIZED', message: 'Owned expired list response' },
+                },
+              });
+              return;
+            }
+            const result = await handleAdminRequest(body, config);
+            if (
+              holdCreatedReply &&
+              body.action === 'catalogProductCreate' &&
+              body.data.action === 'start'
+            ) {
+              assert.equal(result.ok, true);
+              createCommitted.done();
+              await createdReply.promise;
+            }
+            await route.fulfill({
+              status: result.ok ? 200 : result.error.code === 'UNAUTHORIZED' ? 401 : 400,
+              json: result,
+            });
+          });
+          await page.goto(new URL('session-feedback-test', origin).href);
+          await page.getByRole('button', { name: 'Products', exact: true }).click();
+          await page.getByRole('button', { name: 'New Product', exact: true }).click();
+          const form = page.getByRole('dialog', { name: 'New Product', exact: true });
+          const name = `Owned resumed draft ${engine}`;
+          await form.locator('#name').fill(name);
+          await form
+            .locator('#description')
+            .fill('Private edits must survive account verification.');
+          await page.setViewportSize({ width: 390, height: 844 });
+          assert.equal(held, true);
+          pendingRead.done();
+          const recovery = page.getByRole('dialog', {
+            name: 'Reconnect your account',
+            exact: true,
+          });
+          await expect(recovery).toBeVisible();
+          await page.evaluate(
+            async ({ path, token }) => (await import(path)).replaceTestSession(token, 'admin'),
+            {
+              path: '/src/islands/admin/testing/session-feedback-browser-harness.tsx',
+              token: renewed,
+            },
+          );
+          await recovery
+            .getByRole('button', { name: 'Verify original account', exact: true })
+            .click();
+          await expect(recovery).toHaveCount(0);
+          await expect(form.locator('#name')).toHaveValue(name);
+          await expect(form.locator('#description')).toHaveValue(
+            'Private edits must survive account verification.',
+          );
+          assert.equal(
+            requests.some((request) => request.action === 'catalogProductCreate'),
+            false,
+          );
+          await form.getByRole('button', { name: 'Save', exact: true }).click();
+          await expect(form).toHaveCount(0);
+          const products = await h.adapter.list({
+            collection: 'products',
+            page: 1,
+            pageSize: 20,
+            search: '',
+          });
+          const created = products.items.filter((product) => product.name === name);
+          assert.equal(created.length, 1);
+          assert.equal(created[0]?.published, false);
+          assert.equal(
+            created[0]?.productFamily,
+            undefined,
+            'No category is invented for a new draft.',
+          );
+          assert.equal(
+            requests.filter(
+              (request) =>
+                request.action === 'catalogProductCreate' && request.operation === 'start',
+            ).length,
+            1,
+          );
+          assert.equal(
+            requests.some((request) => request.action === 'create'),
+            false,
+          );
+          // The created product enters the actual editor, whose controller must also rebind.
+          const row = page.getByRole('row').filter({ hasText: name });
+          await row.getByRole('button', { name: 'Edit', exact: true }).click();
+          const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+          await editor.locator('#name').fill(`${name} edited`);
+          await page.evaluate(
+            async ({ path, token }) => (await import(path)).replaceTestSession(token, 'admin'),
+            {
+              path: '/src/islands/admin/testing/session-feedback-browser-harness.tsx',
+              token,
+            },
+          );
+          await expect(recovery).toBeVisible();
+          await recovery
+            .getByRole('button', { name: 'Verify original account', exact: true })
+            .click();
+          await expect(recovery).toHaveCount(0);
+          await expect(editor.locator('#name')).toHaveValue(`${name} edited`);
+          await editor.getByRole('button', { name: 'Save', exact: true }).click();
+          await expect(editor).toHaveCount(0);
+          assert.equal(
+            (await h.adapter.get('products', String(created[0]?._id)))?.name,
+            `${name} edited`,
+          );
+          assert.equal(
+            requests.some((request) => request.action === 'update'),
+            false,
+          );
+          assert.equal(
+            requests.filter(
+              (request) =>
+                request.action === 'catalogDetailApproval' &&
+                request.operation === 'product-operation-start',
+            ).length,
+            1,
+          );
+          // A committed creation whose response arrives after expiry retains its original receipt.
+          holdCreatedReply = true;
+          await page.getByRole('button', { name: 'New Product', exact: true }).click();
+          const interrupted = page.getByRole('dialog', { name: 'New Product', exact: true });
+          const interruptedName = `Owned uncertain creation ${engine}`;
+          await interrupted.locator('#name').fill(interruptedName);
+          await interrupted.getByRole('button', { name: 'Save', exact: true }).click();
+          await createCommitted.promise;
+          await page.evaluate(
+            async ({ path, token }) => (await import(path)).replaceTestSession(token, 'admin'),
+            {
+              path: '/src/islands/admin/testing/session-feedback-browser-harness.tsx',
+              token: renewed,
+            },
+          );
+          await expect(recovery).toBeVisible();
+          await recovery
+            .getByRole('button', { name: 'Verify original account', exact: true })
+            .click();
+          await expect(recovery.getByRole('alert')).toContainText('original creation check');
+          createdReply.done();
+          await expect(
+            interrupted.getByRole('button', { name: 'Save', exact: true }),
+          ).toBeEnabled();
+          await recovery
+            .getByRole('button', { name: 'Verify original account', exact: true })
+            .click();
+          await expect(recovery)
+            .toHaveCount(0)
+            .catch(async (cause) => {
+              child.diagnostic(await recovery.innerText());
+              throw cause;
+            });
+          await expect(interrupted.locator('#name')).toHaveValue(interruptedName);
+          await interrupted
+            .getByRole('button', { name: 'Check saved product', exact: true })
+            .click();
+          await expect(
+            interrupted.getByText(
+              'The original product is saved. Checking creation only reads its saved state.',
+              { exact: true },
+            ),
+          ).toBeVisible();
+          const finalProducts = await h.adapter.list({
+            collection: 'products',
+            page: 1,
+            pageSize: 20,
+            search: '',
+          });
+          assert.equal(
+            finalProducts.items.filter((product) => product.name === interruptedName).length,
+            1,
+          );
+          assert.equal(
+            requests.filter(
+              (request) =>
+                request.action === 'catalogProductCreate' && request.operation === 'start',
+            ).length,
+            2,
+          );
+          assert.deepEqual(errors, []);
+          assert.equal(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+            true,
+          );
         },
       );
       for (const partial of [false, true])

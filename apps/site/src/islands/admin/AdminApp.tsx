@@ -1,15 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type SessionUser,
   canAccessAdmin,
   clearSession,
   getToken,
   getUser,
   isLoggedIn,
+  onAuthChange,
   setSession,
 } from '../../lib/session.ts';
 import { useSession } from '../auth/useSession.ts';
+import { AdminSessionRecovery } from './AdminSessionRecovery.tsx';
 import { DashboardShell } from './DashboardShell.tsx';
+import { reconnectAdminForms } from './admin-draft-recovery.ts';
+import { installAdminSessionGuard, isCurrentAdminError } from './admin-session-guard.ts';
 import { AdminApiError, fetchCurrentUser } from './api.ts';
 
 type LogoutDestination = 'login' | 'site';
@@ -24,7 +29,7 @@ function gotoLogin() {
   }
 }
 
-function isUnauthorized(error: unknown): boolean {
+function isUnauthorized(error: unknown): error is AdminApiError {
   return error instanceof AdminApiError && error.isUnauthorized;
 }
 
@@ -38,6 +43,9 @@ export function AdminApp() {
   const redirectingRef = useRef(false);
   const logoutDestination = useRef<LogoutDestination | null>(null);
   const [verification, recheck] = useState(0);
+  const verified = useRef<{ token: string; user: SessionUser } | null>(null);
+  const sessionGuard = useRef<ReturnType<typeof installAdminSessionGuard> | null>(null);
+  const [paused, setPaused] = useState(false);
 
   const queryClient = useMemo(
     () =>
@@ -52,6 +60,7 @@ export function AdminApp() {
       if (redirectingRef.current) return;
       redirectingRef.current = true;
       logoutDestination.current = destination;
+      sessionGuard.current?.release();
       try {
         clearSession();
         queryClient.clear();
@@ -71,24 +80,40 @@ export function AdminApp() {
     [queryClient],
   );
   const redirectToLogin = useCallback(() => {
-    if (!logoutDestination.current) finishSession('login');
+    if (logoutDestination.current) return;
+    if (verified.current) sessionGuard.current?.pause();
+    else finishSession('login');
   }, [finishSession]);
 
-  // Any UNAUTHORIZED response (expired token) bounces back to login.
+  // Keep a verified workspace mounted; a late response from an old token cannot pause its successor.
   useEffect(() => {
     const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== 'updated' || event.action.type !== 'error') return;
       const error = event.query.state.error;
-      if (isUnauthorized(error)) redirectToLogin();
+      if (isUnauthorized(error) && isCurrentAdminError(error)) redirectToLogin();
     });
     const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type !== 'updated' || event.action.type !== 'error') return;
       const error = event.mutation?.state.error;
-      if (isUnauthorized(error)) redirectToLogin();
+      if (isUnauthorized(error) && isCurrentAdminError(error)) redirectToLogin();
     });
     return () => {
       unsubscribeQueries();
       unsubscribeMutations();
     };
   }, [queryClient, redirectToLogin]);
+  useEffect(() => {
+    const unsubscribe = onAuthChange(() => {
+      const original = verified.current;
+      if (logoutDestination.current || !original) return;
+      if (getToken() !== original.token || getUser()?.id !== original.user.id)
+        sessionGuard.current?.pause();
+    });
+    return () => {
+      unsubscribe();
+      sessionGuard.current?.release();
+    };
+  }, []);
 
   // Guard: a stored token must still be accepted by the API before the dashboard mounts.
   useEffect(() => {
@@ -113,6 +138,16 @@ export function AdminApp() {
     fetchCurrentUser()
       .then(({ user }) => {
         if (stale()) return;
+        if (canAccessAdmin(user.role)) {
+          verified.current = { token: checkedToken, user };
+          sessionGuard.current = installAdminSessionGuard(
+            { token: checkedToken, actorId: user.id },
+            () => {
+              setPaused(true);
+              void queryClient.cancelQueries();
+            },
+          );
+        }
         setSession(checkedToken, user);
         setGate({ kind: canAccessAdmin(user.role) ? 'authorized' : 'denied' });
       })
@@ -189,15 +224,42 @@ export function AdminApp() {
     );
   }
 
-  if (!isLoggedIn()) return null;
+  async function reconnect() {
+    const original = verified.current;
+    const token = getToken();
+    if (!original || !token || getUser()?.id !== original.user.id)
+      throw Error('Sign in with the original account, then try again.');
+    const { user } = await fetchCurrentUser();
+    const unchanged = () => getToken() === token && getUser()?.id === original.user.id;
+    if (
+      !unchanged() ||
+      user.id !== original.user.id ||
+      user.role !== original.user.role ||
+      !canAccessAdmin(user.role)
+    )
+      throw Error(
+        'The original account and permissions could not be confirmed. Keep this page open or download your edits.',
+      );
+    verified.current = { token, user };
+    setSession(token, user);
+    await reconnectAdminForms();
+    if (!unchanged()) throw Error('Your account changed during verification. Try again.');
+    sessionGuard.current?.resume({ token, actorId: user.id });
+    setPaused(false);
+    void queryClient.invalidateQueries();
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
       <DashboardShell
+        verifiedUser={verified.current?.user}
         onLogout={() => {
           finishSession('site');
         }}
       />
+      {paused && (
+        <AdminSessionRecovery reconnect={reconnect} leave={() => finishSession('login')} />
+      )}
     </QueryClientProvider>
   );
 }
