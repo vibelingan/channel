@@ -1690,7 +1690,7 @@ P4c9b 提交 eb04b1b8 的精确复审另指出 live 路径需要直接竞争用�
 
 ## P6e：最终静态检查与证据目录边界（2026-10-20）
 
-对 5252981a 的根部署合约及工作区全量 pnpm test 已完成：合计 7700 项，7697 通过、0 失败，3 项跳过。两项属于 AI fake-engine 无静默供应商夹具的既有跳过；目录 gallery 浏览器项随后显式开启 GALLERY_BROWSER_TEST=1 重跑，5/5、0 跳过。全量 typecheck（含 E2E）、CloudBase SDK gate 通过。
+对 5252981a 的根部署合约及工作区全量 pnpm test 已完成：合计 7700 项，7697 通过、0 失败，3 项跳过。两项属于 AI fake-engine 无静默供应商夹具的既有跳过；目录 gallery 浏览器项随后显式开启 GALLERY_BROWSER_TEST=1 重跑，11/11、0 跳过。全量 typecheck（含 E2E）、CloudBase SDK gate 通过。
 
 初轮 lint 扫入 output 下的未跟踪函数包、私有快照与证据；排除后仍发现 .claude 的 17 个生成 JSON 格式问题。新增 /output/、.claude/knowledge-refs-*.json、.claude/sdk-probes/ 忽略，不更改证据内容；这些生成项无需进入 Git。已跟踪 knowledge-refs-2deca4c.json 仍被 Git 跟踪，业务源码不被排除。最终完整 pnpm lint 检查 1083 文件通过，无批量格式化。
 
