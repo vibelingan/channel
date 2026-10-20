@@ -8,7 +8,11 @@ import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import { firstApprovalImageHold } from './catalog-approval-image-hold.ts';
 import { ApprovalJobSchema, fitsApprovalJobBudget } from './catalog-approval-job.ts';
 import { catalogApprovalDigest } from './catalog-detail-commit.ts';
-import { prepareStagedApproval, runStagedApproval } from './catalog-detail-staging.ts';
+import {
+  persistStagedApprovalInCloud,
+  prepareStagedApproval,
+  runStagedApproval,
+} from './catalog-detail-staging.ts';
 import type { ApprovalPersistenceCommand, ApprovalStageResult } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 import { runCatalogImageReferenceRead } from './catalog-image-reference-store.ts';
@@ -4062,3 +4066,65 @@ for (const delta of [-1, 1] as const)
     image.publishedRefCount = 0;
     assert.equal((await planOwnedReferenceStagePage(tx, plan, 0, 90, true)).ok, false);
   });
+
+test('the native reference page reads each shared committed proof once before writing', async (t) => {
+  const h = await ownReferencePageFixture(9);
+  const approvals = h.rows.catalogDetailApprovals;
+  const images = h.rows.images;
+  const product = h.rows.products?.[0];
+  assert.ok(approvals && images && product);
+  const peers = Array.from({ length: 3 }, (_, i) =>
+    buildCatalogImageReferencePlan(String(i + 1).repeat(64), [], h.ids),
+  );
+  approvals.push(...peers.map((p) => p.proof));
+  for (const [index, image] of images.entries()) {
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 0,
+      pending: peers.map((p) => catalogImageReferenceEntry(p, index)),
+    };
+  }
+  const proofIds = new Set(peers.map((p) => p.proof._id));
+  const calls: string[] = [];
+  const db: Parameters<typeof persistStagedApprovalInCloud>[0] = {
+    command: { set: (value) => value },
+    runTransaction: (operation) =>
+      operation({
+        collection: (collection) => ({
+          doc: (id) => ({
+            get: async () => {
+              calls.push(JSON.stringify([collection, id]));
+              return { data: await h.tx.get(collection, id) };
+            },
+            set: async (data) => {
+              await h.tx.set(collection, { ...data, _id: id });
+              return { updated: 1 };
+            },
+            update: async () => {
+              throw Error('Unexpected update');
+            },
+            remove: async () => {
+              throw Error('Unexpected remove');
+            },
+          }),
+        }),
+      }),
+  };
+  const result = await persistStagedApprovalInCloud(db, 'admin', h.pageCommand);
+  assert.ok(result.ok, JSON.stringify(result));
+  const proofReads = calls.filter((key) => proofIds.has(JSON.parse(key)[1]));
+  t.diagnostic(
+    JSON.stringify({
+      totalNativeReads: calls.length,
+      sharedProofReads: proofReads.length,
+      uniqueSharedProofs: proofIds.size,
+      imageCount: 9,
+    }),
+  );
+  assert.equal(product.published, false);
+  assert.equal(
+    images.every((image) => image.publishedRefCount === 3),
+    true,
+  );
+  assert.equal(proofReads.length, 3);
+});

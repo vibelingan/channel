@@ -35,7 +35,7 @@ import {
   runCatalogRowMutation,
 } from './catalog-row-mutation.ts';
 import { sdkAnswer, assertDocumentWrite } from './cloudbase-sdk-answer.ts';
-import { serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
+import { createCatalogTransactionReads, serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
 import { captureProductOperationSave, prepareProductOperationSave, productOperationSaveReceipt } from './catalog-product-operation.ts';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
@@ -465,15 +465,18 @@ function catalogRowStore(
   transaction: NodeSdkTransaction,
   beforeWrite?: () => Promise<void>,
 ): CatalogRowStore & ImageDeletionStore {
+  const reads = createCatalogTransactionReads(async (collection, id) =>
+    normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data));
   return {
-    get: serializeCloudBaseTransactionReads(async (collection, id) =>
-      normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data)),
+    get: reads.get,
     set: async (collection, row) => {
+      reads.beforeWrite();
       await beforeWrite?.();
       const { _id, ...data } = row;
       confirmDocumentWrite(await transaction.collection(collection).doc(_id).set(data), _id);
     },
     remove: async (collection, id) => {
+      reads.beforeWrite();
       await beforeWrite?.();
       const result = sdkAnswer(await transaction.collection(collection).doc(id).remove());
       if (result.deleted !== 1) throw new Error('Database document removal was not confirmed');

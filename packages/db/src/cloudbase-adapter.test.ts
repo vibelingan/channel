@@ -3454,7 +3454,8 @@ for (const mode of ['public', 'removed', 'unresolved'] as const)
     const result = await manageImageDeletionInCloudBase(h.db, referenceDeletionBegin);
     assert.equal(result.status, mode === 'removed' ? 'ready' : 'conflict');
     if (mode === 'removed') {
-      assert.equal(h.controls.maximumOperations, 4);
+      // Image + committed removal proof + confirmed image write; repeated proof reads share the snapshot.
+      assert.equal(h.controls.maximumOperations, 3);
       const image = h.store.get('images')?.get('image');
       assert.ok(image);
       assert.equal(image.status, 'deleted');
