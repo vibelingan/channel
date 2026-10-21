@@ -53,6 +53,7 @@ export function functionRecoveryContext({ target, baseline, observation, now = D
   keys(current, [
     'name',
     'codeSha',
+    'packageSha256',
     'status',
     'availableStatus',
     'runtime',
@@ -63,6 +64,7 @@ export function functionRecoveryContext({ target, baseline, observation, now = D
   ]);
   const currentRuntime = runtime(current);
   code(current.codeSha);
+  if (!isHash(current.packageSha256)) throw new Error('Missing current function package identity');
   token(current.status);
   token(current.availableStatus);
   keys(current.configuration, ['revision', 'references']);
@@ -94,6 +96,7 @@ export function functionRecoveryContext({ target, baseline, observation, now = D
     },
     current: {
       codeSha: current.codeSha,
+      packageSha256: current.packageSha256,
       status: current.status,
       availableStatus: current.availableStatus,
       ...currentRuntime,
@@ -200,15 +203,13 @@ function set(values) {
 }
 function layers(values) {
   if (!Array.isArray(values) || values.length > 32) throw new Error('Invalid function layers');
-  const result = values
-    .map((value) => {
-      keys(value, ['name', 'version']);
-      token(value.name);
-      if (!Number.isSafeInteger(value.version) || value.version < 1)
-        throw new Error('Invalid layer version');
-      return { name: value.name, version: value.version };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const result = values.map((value) => {
+    keys(value, ['name', 'version']);
+    token(value.name);
+    if (!Number.isSafeInteger(value.version) || value.version < 1)
+      throw new Error('Invalid layer version');
+    return { name: value.name, version: value.version };
+  });
   if (new Set(result.map((value) => value.name)).size !== result.length)
     throw new Error('Duplicate function layer');
   return result;

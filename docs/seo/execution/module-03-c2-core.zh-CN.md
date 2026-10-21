@@ -1,6 +1,6 @@
 # C2：函数恢复的兼容检查与归档计划
 
-2026-10-21。状态：**核心代码和本地测试完成，云端函数适配及现场恢复未接入。** 沿用 `feat/seo-foundation`；本轮不修改正常部署 workflow、函数代码、业务数据或 pricing。
+2026-10-21 核心交付记录；2026-10-22 更新：**核心与 SDK 适配已实现，现场恢复未接入。** 最新状态见[C2 适配交付](module-03-c2-adapter.zh-CN.md)。 沿用 `feat/seo-foundation`；本轮不修改正常部署 workflow、函数代码、业务数据或 pricing。
 
 ## 为什么先做这部分
 
@@ -16,7 +16,7 @@ F1 的 404 已修复，静态响应已改为 no-cache。只读核对发现 main 
 | `scripts/release/function-recovery.mjs` | `planFunctionRecovery` 校验归档与函数级验收记录；`assertFunctionRecoveryCurrent` 在后续执行前重新核对；`readFunctionRecoveryPackage` 再次校验字节 |
 | `scripts/release/function-config.mjs` | `mergeFunctionEnvironment` 在可信进程内保留现有环境变量，只允许明确的受管修改或移除 |
 
-这些接口不调用 SDK，不注册路由，不启动部署。返回计划固定 `execution=not-connected`，配置写入、函数删除和数据库写入均为空。C2 整个 MIU 仍在进行，不能把核心测试通过写成线上函数恢复可用。
+这些接口不调用 SDK，不注册路由，不启动部署。返回计划固定 `execution=requires-coordinated-executor`，并绑定原 ZIP 布局、上传上限和不安装依赖的构建策略，配置写入、函数删除和数据库写入均为空。C2 整个 MIU 仍在进行，不能把核心测试通过写成线上函数恢复可用。
 
 ## 恢复计划怎样得到
 
@@ -44,7 +44,7 @@ F1 的 404 已修复，静态响应已改为 no-cache。只读核对发现 main 
 
 ## 尚未接入的部分
 
-后续 C2 需核对并实现 CloudBase 函数实际代码上传、终态等待、代码身份读回和 B1 步骤日志，复用现有冷启动 smoke；不能重编译旧提交后当作原归档。配置读取若只有脱敏值，对应写入资格保持拒绝。还需实际兼容报告生成和当前数据/客户端/配置观测来源，最后才能连接 D1 的函数发布及一次受控 A→B→A。
+2026-10-22 已补上 CloudBase SDK 原 ZIP 上传、终态等待、包/health 身份读回、冷启动检查和 B1 步骤日志，见适配交付记录；没有重编译旧提交后当作原归档。仍需实际兼容报告生成和当前数据/客户端/配置观测来源，最后才能连接 D1 的正式函数入口及一次受控 A→B→A。配置读取若只有脱敏值，仍拒绝执行。
 
 静态 F1 待旧发布器的错误文档合同统一后继续。Blog、Tiptap JSON 渲染和 Hermes 草稿导入仍是后续独立模块，本轮未实现。
 

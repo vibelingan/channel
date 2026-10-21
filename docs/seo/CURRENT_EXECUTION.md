@@ -1,8 +1,8 @@
 # 当前 SEO / GEO 执行顺序
 
-2026-10-21：本文件保留历史阶段记录。当前方案、实施状态和剩余门禁请先读
+2026-10-22：本文件保留历史阶段记录。当前方案、实施状态和剩余门禁请先读
 [最终交付索引](FINAL_DELIVERY.zh-CN.md)及[最终流程审阅](FINAL_REVIEW.zh-CN.md)。
-后续实施按[六模块执行计划](execution/README.zh-CN.md)交付，low-level design 与十个 MIU 均在所属模块；当前 A1/A2、B1、C1 与静态 canary 的 D1 已实现；F1 的 404 与 no-cache 已现场验证；旧发布流程仍覆盖错误页配置，A/B/A 尚未执行，canary 开关关闭。C2 兼容与归档计划核心已实现，本轮不接入线上函数恢复。最新结果见[模块六记录](execution/module-06-404-fix.zh-CN.md)和[C2 核心交付](execution/module-03-c2-core.zh-CN.md)。
+后续实施按[六模块执行计划](execution/README.zh-CN.md)交付，low-level design 与十个 MIU 均在所属模块；当前 A1/A2、B1、C1 与静态 canary 的 D1 已实现；F1 的 404 与 no-cache 已现场验证，A/B/A 尚未执行，canary 开关关闭。C2 的兼容/归档核心、SDK 代码适配、health 读回及 B1 日志集成已实现，106 项专项和 322 项发布回归通过；生产证据来源及 D1 正式函数接线尚未完成，本轮没有线上函数更新。最新结果见[404 记录](execution/module-06-404-fix.zh-CN.md)和[C2 适配交付](execution/module-03-c2-adapter.zh-CN.md)。
 下文旧分支、账号阻塞与测试结果保留原时点，不代表当前状态；本轮没有重新读取搜索平台数据。
 
 业务、品牌和平台需求不在本轮执行。

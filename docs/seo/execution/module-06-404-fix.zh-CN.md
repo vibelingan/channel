@@ -2,6 +2,18 @@
 
 2026-10-21 10:20 UTC。状态：**公网真实 404 与专用 noindex 正文已修复；静态 A→B→A 尚待执行。** 继续使用 `feat/seo-foundation`，没有新增分支或 worktree。
 
+## 先区分状态码和页面正文（2026-10-22 复验）
+
+HTTP 响应有状态码，也有 HTML 正文，二者独立。文件叫 404.html、页面写着 Page not found，都不会自动把状态码变成 404。此次不是把访客重定向到错误页；访客仍留在原来访问的不存在地址。
+
+| 请求 | 当前 HTTP 状态 | 正文 | 是否正确 |
+| --- | --- | --- | --- |
+| 直接打开现存的 `/errors/not-found.html` | 200 | 专用错误页 | 正常：请求的文件存在 |
+| 打开一个不存在的网址 | 404 | 同一份专用错误页 | 正确：文件不存在，状态也明确告知不存在 |
+| 之前有问题的不存在网址 | 200 | 专用错误页 | 错误：正文说不存在，HTTP 却说成功，即 soft 404 |
+
+本轮公网 GET 再次读到以上两个当前状态，正文 hash 都是 `f61e6cc6b940599a2edea1fa5f3fb278636ca31dc1d2c4bf5d22ace3e657afc5`，均无 Location 跳转头。修复解决的是第三行的状态错误，同时保留友好的错误正文；不是要求错误模板的直接地址也返回 404。[Google 对 HTTP/soft 404 的说明](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)。
+
 ## 已观察到的原因
 
 这是 CloudBase STATIC_STORE 网关与托管文件的交付问题，纯 HTTP 即可复现，React 尚未执行。不能把 COS website 配置正确直接当作公网正确，也不能仅凭差异就断言腾讯内部实现有 bug。

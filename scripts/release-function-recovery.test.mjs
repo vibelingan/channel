@@ -12,7 +12,7 @@ import {
 test('plans only explicitly requested accepted function bytes while retaining current configuration and data', (t) => {
   const x = functionRecoveryFixture(t);
   const p = planFunctionRecovery(x);
-  assert.equal(p.execution, 'not-connected');
+  assert.equal(p.execution, 'requires-coordinated-executor');
   assert.equal(p.sourceRunId, 'accepted-A');
   assert.equal(p.functions[0].baseline.codeSha, 'a'.repeat(40));
   assert.equal(p.functions[0].currentCodeSha, 'b'.repeat(40));

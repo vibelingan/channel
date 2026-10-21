@@ -31,6 +31,7 @@ export function compatibilityFixture() {
       {
         name: 'public-api',
         codeSha: code('b'),
+        packageSha256: hash('b'),
         status: 'Active',
         availableStatus: 'Available',
         runtime: 'Nodejs20.19',
@@ -66,11 +67,12 @@ export function compatibilityFixture() {
 }
 
 // Synthetic archives and metadata; these are not evidence about production function compatibility.
-export function functionRecoveryFixture(t, { changeReport } = {}) {
+export function functionRecoveryFixture(t, { changeReport, packageA, packageB } = {}) {
   const x = compatibilityFixture();
-  const bodyA = 'archived-A-function-bytes';
-  const bodyB = 'archived-B-function-bytes';
+  const bodyA = packageA ?? 'archived-A-function-bytes';
+  const bodyB = packageB ?? 'archived-B-function-bytes';
   x.baseline.sha256 = digest(bodyA);
+  x.observation.functions[0].packageSha256 = digest(bodyB);
   x.report.contextSha256 = functionRecoveryContext(x).sha256;
   if (changeReport) changeReport(x.report);
   const build = (label, packageBody, compatibility) => {

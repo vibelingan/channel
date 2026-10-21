@@ -1,4 +1,5 @@
 import { verifyReleaseArtifact } from './artifact.mjs';
+import { functionBuildPolicy } from './function-archive.mjs';
 import { evaluateCompatibility, functionRecoveryContext } from './function-compatibility.mjs';
 import { freeze, identity, readObject, sha256 } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
@@ -79,7 +80,7 @@ export function planFunctionRecovery({
         reasons: decision.reasons,
       });
     const body = readObject(baselineInput.directory, candidate.packagePath);
-    if (sha256(body) !== candidate.sha256)
+    if (body.length > functionBuildPolicy.maxBytes || sha256(body) !== candidate.sha256)
       throw new Error('Function package changed after verification');
     const current = observation.functions.find((f) => f.name === name);
     return {
@@ -87,6 +88,7 @@ export function planFunctionRecovery({
       bytes: body.length,
       contextSha256: decision.contextSha256,
       currentCodeSha: current.codeSha,
+      currentPackageSha256: current.packageSha256,
       configuration: decision.configuration,
     };
   });
@@ -95,6 +97,7 @@ export function planFunctionRecovery({
     purpose: 'function-recovery-plan',
     target: structuredClone(policy.target),
     sourceRunId: acceptedRun.runId,
+    sourceReleaseId: baseline.envelope.releaseId,
     sourceArtifact: baseline.envelope.artifact,
     compatibilityArtifact: proof.envelope.artifact,
     createdAt: now,
@@ -104,7 +107,8 @@ export function planFunctionRecovery({
       Date.parse(proof.envelope.artifact.expiresAt),
     ),
     functions,
-    execution: 'not-connected',
+    execution: 'requires-coordinated-executor',
+    buildPolicy: functionBuildPolicy,
     configurationWrites: [],
     databaseWrites: [],
     functionDeletes: [],
@@ -113,9 +117,21 @@ export function planFunctionRecovery({
 }
 
 /** Recheck immediately under the future execution lease; this is not authorization to call an SDK. */
-export function assertFunctionRecoveryCurrent({ plan, observation, now = Date.now() }) {
-  assertPlan(plan, now);
-  for (const item of plan.functions) {
+export function assertFunctionRecoveryCurrent({
+  plan,
+  observation,
+  names = plan.functions.map((x) => x.baseline.name),
+  now = Date.now(),
+}) {
+  assertFunctionRecoveryPlan(plan, now);
+  if (
+    !Array.isArray(names) ||
+    !names.length ||
+    new Set(names).size !== names.length ||
+    names.some((name) => !plan.functions.some((x) => x.baseline.name === name))
+  )
+    throw new Error('Unplanned recovery function scope');
+  for (const item of plan.functions.filter((x) => names.includes(x.baseline.name))) {
     const context = functionRecoveryContext({
       target: plan.target,
       baseline: item.baseline,
@@ -128,7 +144,7 @@ export function assertFunctionRecoveryCurrent({ plan, observation, now = Date.no
 }
 
 export function readFunctionRecoveryPackage({ plan, name, directory, now = Date.now() }) {
-  assertPlan(plan, now);
+  assertFunctionRecoveryPlan(plan, now);
   const item = plan.functions.find((f) => f.baseline.name === name);
   if (!item) throw new Error('Unplanned recovery function');
   const bytes = readObject(directory, item.baseline.packagePath);
@@ -137,12 +153,13 @@ export function readFunctionRecoveryPackage({ plan, name, directory, now = Date.
   return bytes;
 }
 
-function assertPlan(plan, now) {
+export function assertFunctionRecoveryPlan(plan, now = Date.now()) {
   const { planSha256, ...body } = plan;
   if (
     body.schemaVersion !== 1 ||
     body.purpose !== 'function-recovery-plan' ||
-    body.execution !== 'not-connected' ||
+    body.execution !== 'requires-coordinated-executor' ||
+    identity(body.buildPolicy) !== identity(functionBuildPolicy) ||
     !Number.isSafeInteger(now) ||
     now >= body.expiresAt ||
     identity(body) !== planSha256
