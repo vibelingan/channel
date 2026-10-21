@@ -54,6 +54,8 @@ import {
   type CatalogPreparationMediaSeal,
   CatalogPreparationMediaSealSchema,
   advanceCatalogMediaSeal,
+  catalogPreparationPlanDigest,
+  catalogSealedImageIdsDigest,
   initialCatalogMediaSeal,
 } from './catalog-preparation-media-seal.ts';
 import {
@@ -98,6 +100,14 @@ const human = z.object({ actorId: id, jobId: hex });
 const commandSchema = z.discriminatedUnion('action', [
   CatalogPreparationCheckpointCommandSchema,
   CatalogPreparationFinishCommandSchema,
+  CatalogPreparationFinishCommandSchema.extend({
+    action: z.literal('finish-protected-preparation'),
+    imageIds: z
+      .array(id)
+      .min(2)
+      .max(12)
+      .refine((ids) => new Set(ids).size === ids.length),
+  }).strict(),
   z
     .object({
       action: z.literal('bind-media-seal'),
@@ -798,6 +808,71 @@ export async function runCatalogPreparationJob(
         updatedAt: timestamp,
       });
     return { ok: true, mediaSeal: Object.freeze({ ...seal }) };
+  }
+  if (command.action === 'finish-protected-preparation') {
+    if (
+      command.inputDigest !== job.inputDigest ||
+      command.contentGeneration !== job.contentGeneration ||
+      command.imageCount !== command.imageIds.length ||
+      command.imageIdsDigest !== catalogSealedImageIdsDigest(command.imageIds) ||
+      command.planDigest !==
+        catalogPreparationPlanDigest({
+          inputDigest: job.inputDigest,
+          contentGeneration: job.contentGeneration,
+          imageIds: command.imageIds,
+        })
+    )
+      return { ok: false, code: 'CONFLICT' };
+    const { imageIds: _images, ...body } = command;
+    const finishCommand = { ...body, action: 'finish-preparation' as const };
+    // Original completion replay verifies the same lease receipt and current inputs after reply loss.
+    if (job.state === 'completed')
+      return runCatalogPreparationJob(tx, authority, finishCommand, now);
+    if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };
+    if (job.mediaSeal || (job.media && job.media.cursor !== 0))
+      return { ok: true, protectedPage: 'miss' };
+    try {
+      const plan = planCatalogPreparationTransaction(tx, job);
+      const invoke = (input: unknown) => runCatalogPreparationJob(plan.tx, authority, input, now);
+      const scope = { jobId, lease: command.lease, planDigest: command.planDigest };
+      let result = await invoke({ action: 'bind-media-plan', ...scope, total: command.imageCount });
+      if (!result.ok) return result;
+      for (let index = 0; index < command.imageIds.length; index += 8) {
+        result = await invoke({
+          action: 'check-protected-media-page',
+          ...scope,
+          index,
+          imageIds: command.imageIds.slice(index, index + 8),
+        });
+        if (!result.ok || 'protectedPage' in result) return result;
+        if (!('media' in result)) return { ok: false, code: 'CORRUPT' };
+      }
+      result = await invoke({ action: 'bind-media-seal', ...scope });
+      if (!result.ok) return result;
+      if (!('mediaSeal' in result)) return { ok: false, code: 'CORRUPT' };
+      let seal = result.mediaSeal;
+      for (let index = 0; index < command.imageIds.length; index += 8) {
+        const ids = command.imageIds.slice(index, index + 8);
+        result = await invoke(
+          ids.length === 1
+            ? { action: 'attest-media-image', ...scope, index, imageId: ids[0] }
+            : { action: 'attest-media-page', ...scope, from: seal, imageIds: ids },
+        );
+        if (!result.ok) return result;
+        if (!('mediaSeal' in result)) return { ok: false, code: 'CORRUPT' };
+        seal = result.mediaSeal;
+      }
+      result = await invoke(finishCommand);
+      if (!result.ok) return result;
+      if (!('preparation' in result) || result.report.state !== 'ready')
+        return { ok: false, code: 'CORRUPT' };
+      await plan.flush(() => authority.currentLeaseScope(command.lease, job) !== null);
+      return result;
+    } catch (error) {
+      if (error instanceof CatalogPreparationPlanLimitError)
+        return { ok: true, protectedPage: 'miss' };
+      throw error;
+    }
   }
   if (command.action === 'reserve-image-page') {
     if (!authority.currentLeaseScope(command.lease, job)) return { ok: false, code: 'CONFLICT' };

@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
 import {
   CatalogPreparationMediaSealSchema,
   advanceCatalogMediaSeal,
+  catalogPreparationPlanDigest,
   catalogSealedImageIdsDigest,
   initialCatalogMediaSeal,
 } from './catalog-preparation-media-seal.ts';
@@ -155,3 +157,24 @@ test('legacy jobs without mediaSeal still start, while retry clears a previous a
   );
   assert.equal(h.rows[`catalogPreparationJobs/${h.scope.jobId}`]?.mediaSeal, null);
 });
+
+for (const imageIds of [
+  [],
+  ['image'],
+  ['中文', 'quote"', 'slash\\', 'line\n', '😀'],
+  Array.from({ length: 121 }, (_, i) => `image-${i}`),
+])
+  test(`preparation plan digest preserves the original primitive tuple encoding for ${imageIds.length} IDs`, () => {
+    for (const contentGeneration of [0, 1, Number.MAX_SAFE_INTEGER]) {
+      const inputDigest = 'a'.repeat(64);
+      const expected = createHash('sha256')
+        .update(
+          JSON.stringify([CATALOG_PREPARATION_POLICY, inputDigest, contentGeneration, imageIds]),
+        )
+        .digest('hex');
+      assert.equal(
+        catalogPreparationPlanDigest({ inputDigest, contentGeneration, imageIds }),
+        expected,
+      );
+    }
+  });

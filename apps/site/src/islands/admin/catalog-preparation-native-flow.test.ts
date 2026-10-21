@@ -499,3 +499,72 @@ test('a missing protected pixel receipt falls back to the original real-byte che
   assert.equal(byteReads, 1);
   assert.equal((await f.adapter.get('products', 'p'))?.published, false);
 });
+
+for (const fault of ['none', 'before-commit', 'after-commit'] as const)
+  test(`a small live-edit preparation revalidates its old image set and recovers ${fault} reply loss`, async (t) => {
+    const f = await fixture(t, 9);
+    for (let i = 0; i < 3; i++)
+      assert.ok((await runCatalogPreparationCall(f.authority, await f.dispatch())).ok);
+    const previous = readCurrentCatalogPreparation((await f.adapter.get('products', 'p')) ?? {});
+    assert.ok(previous && previous.state === 'ready');
+    await f.adapter.update('products', 'p', {
+      description: 'Current edited text, original protected images',
+    });
+    const started = await f.adapter.manageCatalogPreparationJob(f.authority, {
+      action: 'start',
+      actorId: 'admin',
+      productId: 'p',
+    });
+    assert.ok(started.ok && 'progress' in started);
+    const dispatched = await f.adapter.manageCatalogPreparationJob(f.authority, {
+      action: 'dispatch',
+      actorId: 'admin',
+      jobId: started.progress.jobId,
+    });
+    assert.ok(dispatched.ok && 'call' in dispatched);
+    const calls: string[] = [];
+    const manage = f.adapter.manageCatalogPreparationJob.bind(f.adapter);
+    let injected = false;
+    f.adapter.manageCatalogPreparationJob = async (...args) => {
+      const action = args[1].action;
+      calls.push(action);
+      const fail = action === 'finish-protected-preparation' && !injected && fault !== 'none';
+      if (fail) injected = true;
+      if (fail && fault === 'before-commit') throw Error('Transient native request failure');
+      const result = await manage(...args);
+      if (fail && fault === 'after-commit') throw Error('Lost successful finish response');
+      return result;
+    };
+    f.storage.getObjectAsBase64 = async () => {
+      throw Error('No second byte read is needed for these protected targets');
+    };
+    f.storage.putObject = async () => {
+      throw Error('No second physical copy is needed');
+    };
+    const result = await runCatalogPreparationCall(f.authority, dispatched.call);
+    assert.ok(result.ok && result.outcome === 'ready', JSON.stringify(result));
+    assert.equal(
+      calls.filter((action) => action === 'finish-protected-preparation').length,
+      fault === 'none' ? 1 : 2,
+    );
+    assert.equal(injected, fault !== 'none');
+    assert.equal(
+      calls.some((action) =>
+        ['bind-media-plan', 'bind-media-seal', 'attest-media-page', 'finish-preparation'].includes(
+          action,
+        ),
+      ),
+      false,
+      'One native metadata snapshot must replace these separate transactions, retaining their original checks',
+    );
+    const current = await f.adapter.get('products', 'p');
+    const report = readCurrentCatalogPreparation(current ?? {});
+    assert.ok(report && report.state === 'ready');
+    assert.equal(report.seal.jobId, started.progress.jobId);
+    assert.notEqual(report.seal.jobId, previous.seal.jobId);
+    assert.ok(report.contentGeneration > previous.contentGeneration);
+    assert.equal(current?.published, false);
+    assert.equal(current?.description, 'Current edited text, original protected images');
+    for (const image of f.images)
+      assert.equal((await f.adapter.get('images', image._id))?.publishedRefCount, 0);
+  });

@@ -1,5 +1,8 @@
 /** Bounded attestation of an ordered adopted image set. This is not a product ready report. */
-import { CATALOG_MEDIA_SEAL_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
+import {
+  CATALOG_MEDIA_SEAL_POLICY,
+  CATALOG_PREPARATION_POLICY,
+} from '@vibelingan-channel/shared/catalog-preparation';
 import { z } from 'zod';
 import { alibabaPricingFingerprint } from './alibaba-pricing-fingerprint.ts';
 import type { CatalogImageObservationHealth } from './catalog-image-observation.ts';
@@ -97,4 +100,18 @@ export function advanceCatalogMediaSeal(
     lastImageId: input.imageId,
     lastReceipt: receipt,
   });
+}
+
+/** The original worker digest for the same primitive tuple; existing digests do not change. */
+export function catalogPreparationPlanDigest(candidate: {
+  inputDigest: string;
+  contentGeneration: number;
+  imageIds: readonly string[];
+}) {
+  return alibabaPricingFingerprint([
+    CATALOG_PREPARATION_POLICY,
+    candidate.inputDigest,
+    candidate.contentGeneration,
+    candidate.imageIds,
+  ]);
 }

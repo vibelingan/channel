@@ -12,11 +12,13 @@ import {
   type CatalogPreparationAuthority,
   type CatalogPreparationJobResult,
 } from '@vibelingan-channel/db/catalog-preparation-jobs';
-import { catalogSealedImageIdsDigest } from '@vibelingan-channel/db/catalog-preparation-media-seal';
-import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
+import {
+  catalogPreparationPlanDigest,
+  catalogSealedImageIdsDigest,
+} from '@vibelingan-channel/db/catalog-preparation-media-seal';
 import { alibabaPhotoSource } from '@vibelingan-channel/shared';
 import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
-import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
+import { CatalogPreparationReportSchema } from '@vibelingan-channel/shared/catalog-preparation';
 import type { readStoredCatalogImageHealth } from './catalog-image-health.ts';
 import { prepareStoredCatalogImage } from './catalog-image-protection.ts';
 import { inspectCatalogPreparationJob } from './catalog-preparation-job-inspect.ts';
@@ -43,18 +45,7 @@ type WorkerResult =
       media: Media;
       issues: readonly CatalogIssue[];
     };
-function candidatePlanDigest(candidate: {
-  inputDigest: string;
-  contentGeneration: number;
-  imageIds: readonly string[];
-}) {
-  return sourceDigest([
-    CATALOG_PREPARATION_POLICY,
-    candidate.inputDigest,
-    candidate.contentGeneration,
-    candidate.imageIds,
-  ]);
-}
+const candidatePlanDigest = catalogPreparationPlanDigest;
 const maxImages = 4;
 // Protected receipts use metadata; downloads and fresh pixel work keep their four-image cap.
 const maxProtectedImages = 16;
@@ -310,6 +301,83 @@ async function runCatalogPreparationStages(
     }
     const planDigest = candidatePlanDigest(candidate);
     let inspection = candidate;
+    // Historical data selects an optimization only; every current guard still runs.
+    if (
+      ready &&
+      !options.checkImage &&
+      candidate.previewReady &&
+      !candidate.issues.some((issue) => issue.severity === 'error') &&
+      candidate.imageIds.length >= 2 &&
+      candidate.imageIds.length <= 12 &&
+      (progress.media?.checked ?? 0) === 0 &&
+      !candidate.sourcePhotos.some((photo) => photo.imageId === null)
+    ) {
+      const product = await get('products', progress.productId);
+      const prior = CatalogPreparationReportSchema.safeParse(product?.catalogPreparationReport);
+      if (
+        prior.success &&
+        prior.data.state === 'ready' &&
+        prior.data.productId === progress.productId &&
+        prior.data.seal.imageCount === candidate.imageIds.length &&
+        prior.data.seal.imageIdsDigest === catalogSealedImageIdsDigest(candidate.imageIds)
+      ) {
+        let retained = true;
+        for (let index = 0; index < candidate.imageIds.length; index += 8) {
+          if (now() - startedAt >= budget - tailBudgetMs) {
+            retained = false;
+            break;
+          }
+          const result = await run({
+            action: 'reserve-image-page',
+            jobId: progress.jobId,
+            lease,
+            imageIds: candidate.imageIds.slice(index, index + 8),
+          });
+          if (!result.ok) return { ok: false, code: result.code };
+          if (!('reservation' in result)) {
+            retained = false;
+            break;
+          }
+        }
+        if (retained && now() - startedAt < budget - tailBudgetMs) {
+          const command = {
+            action: 'finish-protected-preparation' as const,
+            jobId: progress.jobId,
+            lease,
+            inputDigest: candidate.inputDigest,
+            contentGeneration: candidate.contentGeneration,
+            planDigest,
+            imageIdsDigest: catalogSealedImageIdsDigest(candidate.imageIds),
+            imageCount: candidate.imageIds.length,
+            imageIds: [...candidate.imageIds],
+            previewReady: true as const,
+            issues: candidate.issues,
+          };
+          let result: Awaited<ReturnType<typeof run>>;
+          try {
+            result = await run(command);
+          } catch {
+            result = await run(command);
+          }
+          if (!result.ok) return { ok: false, code: result.code };
+          if ('preparation' in result && result.report.state === 'ready') {
+            const total = candidate.imageIds.length;
+            return {
+              ok: true,
+              kind: 'catalog-preparation-step',
+              outcome: 'ready',
+              jobId: progress.jobId,
+              productId: progress.productId,
+              media: { total, checked: total, verified: total, invalid: 0, retry: 0 },
+              attestation: { total, checked: total },
+              issues: result.report.issues,
+            };
+          }
+          if (!('protectedPage' in result) || result.protectedPage !== 'miss')
+            return { ok: false, code: 'CONFLICT' };
+        }
+      }
+    }
     const bound = await run({
       action: 'bind-media-plan',
       jobId: progress.jobId,
