@@ -1,6 +1,6 @@
 # SEO 发布与恢复：按模块交付的执行计划
 
-规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。模块 01 的 A1/A2、模块 02 的 B1、模块 03 的 C1 已实现。B1/C1 已有本地与安装 SDK 合同验证，真实 CloudBase 并发和托管写入 fixture 尚未执行；D1 的 static-canary 人工入口已实现且默认关闭线上执行；B2、C2、整站 D1、D2 及后续模块仍为 `planned`。共享 offline CI 不接入云端恢复。新增的人工 canary workflow 不由 push 触发，实际写入仍待 F1 前的目标、权限和缓存审查。详见[模块一记录](module-01-verification.zh-CN.md)和[模块二记录](module-02-verification.zh-CN.md)和[模块三记录](module-03-verification.zh-CN.md)、[模块四记录](module-04-verification.zh-CN.md)。
+规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。模块 01 的 A1/A2、模块 02 的 B1、模块 03 的 C1 已实现。B1/C1 已有本地与安装 SDK 合同验证，真实 CloudBase 并发和托管写入 fixture 尚未执行；D1 的 static-canary 人工入口已实现且默认关闭线上执行；B2、C2、整站 D1、D2 及后续模块仍为 `planned`。共享 offline CI 不接入云端恢复。新增的人工 canary workflow 不由 push 触发，手动入口已在默认分支注册，维护记录归档已现场跑通；当前账号缺少修改 test 分支准入规则的管理权限，云端写入及 A/B/A 均未执行。详见[模块一记录](module-01-verification.zh-CN.md)和[模块二记录](module-02-verification.zh-CN.md)和[模块三记录](module-03-verification.zh-CN.md)、[模块四记录](module-04-verification.zh-CN.md)。
 
 ## 怎么读和交付
 

@@ -74,7 +74,7 @@ sequenceDiagram
 
 ## 开放线上演练前的门槛
 
-当前 `enabled:false`、权限审查 hash 为 null；没有运行人工 workflow。新的 workflow 只有进入 GitHub 默认分支后才具备标准的手动触发入口，这次 push SEO 分支不代表按钮已经可用。将来注册入口和调整可信 ref 时仍需审查，不能临时绕过这个限制。
+当前 `enabled:false`、权限审查 hash 为 null。2026-10-21 已通过仅新增 workflow 文件的默认分支提交注册入口，维护模式的记录归档和共享锁已实际运行；云端 execute 尚未运行。test 环境仍未允许 SEO 分支，当前账号修改准入规则返回 403，等待仓库管理员增加精确分支规则。不能移除环境限制绕过权限。见[F1 现场记录](module-06-verification.zh-CN.md)。
 
 开放前先说明并核对：唯一目标 EnvId/origin、唯一静态路径、四个控制集合及有效权限、现有全局缓存/404 是否已符合要求、路径确实未占用、排除其他写入的演练窗口、artifact 保存期限和受信任 ref。按审查结果更新 policy，跑同 SHA CI，再生成正式 plan。更改全局缓存/404 或创建控制集合是另外的明确写入范围，不能夹在 canary execute 里执行。
 
