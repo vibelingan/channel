@@ -44,7 +44,7 @@ test('control plane must preexist and permissions plus OPA require an exact revi
           },
         };
       if (args.action === 'DescribeEnvConfig')
-        return { Data: { Key: args.payload.Key, Value: '' } };
+        return { Item: { Key: args.payload.Key, Value: '' } };
       return undefined;
     },
   });
@@ -73,4 +73,34 @@ test('missing collections and unreadable authorization never trigger provisionin
   const provider = createCanaryProvider({ manager: f.manager, policy });
   await assert.rejects(provider.controlPlane(), /separate reviewed provisioning/);
   assert.ok(!f.state.calls.some((x) => /^Create|^Modify|^Delete/.test(x.action)));
+});
+
+test('live DescribeEnvConfig Item response supports an absent OPA policy and rejects ambiguous records', async () => {
+  let item = { Key: '', Value: '' };
+  const fixture = managerFixture({
+    request: async ({ action }) => {
+      if (action === 'DescribeTable') return { RequestId: 'read-table' };
+      if (action === 'DescribeResourcePermission')
+        return {
+          Data: {
+            TotalCount: 4,
+            PermissionList: Object.values(tables).map((Resource) => ({
+              Resource,
+              Permission: 'ADMINONLY',
+            })),
+          },
+        };
+      if (action === 'DescribeEnvConfig') return { Item: item, RequestId: 'live-shape' };
+    },
+  });
+  const provider = createCanaryProvider({ manager: fixture.manager, policy });
+  assert.match((await provider.controlPlane()).securityReviewSha256, /^[a-f0-9]{64}$/);
+  for (const malformed of [
+    { Key: '', Value: 'nonempty policy without identity' },
+    { Key: 'other', Value: '' },
+    { Key: '', Value: null },
+  ]) {
+    item = malformed;
+    await assert.rejects(provider.controlPlane(), /authorization configuration/);
+  }
 });

@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute]
+        options: [plan, execute, maintenance]
         default: plan
         required: true
       action:
@@ -48,7 +48,7 @@ concurrency:
 
 jobs:
   canary:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode != 'maintenance' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: test
@@ -113,3 +113,27 @@ jobs:
             output/static-canary/accepted.json
           if-no-files-found: warn
           retention-days: 90
+
+  maintenance:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'maintenance' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Hold shared target lock for the reviewed F1 prerequisites
+        env:
+          REVIEW_REASON: ${{ inputs.reason }}
+        run: |
+          python3 -u - <<'PYTHON'
+          import os, time
+          reason = os.environ.get('REVIEW_REASON', '')
+          if not reason.strip() or len(reason) > 300:
+              raise SystemExit('A reviewed maintenance reason is required')
+          print('F1_MAINTENANCE_LOCK_READY', flush=True)
+          print('No cloud credentials or cloud effects run in this job.', flush=True)
+          print('The operator must confirm this job remains running before each external write.', flush=True)
+          for tick in range(30):
+              print(f'Lock heartbeat {tick + 1}/30', flush=True)
+              time.sleep(30)
+          PYTHON

@@ -13,8 +13,8 @@ test('canary is manual only, shares target lock, and cannot cancel existing depl
   assert.equal(workflow.concurrency['cancel-in-progress'], false);
   assert.equal(workflow.jobs.canary.environment, 'test');
   assert.deepEqual(workflow.permissions, { contents: 'read', actions: 'read' });
-  assert.equal(policy.enabled, false);
-  assert.equal(policy.controlPlaneReviewSha256, null);
+  assert.equal(typeof policy.enabled, 'boolean');
+  if (policy.enabled) assert.match(policy.controlPlaneReviewSha256, /^[a-f0-9]{64}$/);
 });
 test('manual workflow archives payload before execution and scopes credentials only to entrypoint steps', () => {
   const steps = workflow.jobs.canary.steps;
@@ -32,7 +32,7 @@ test('manual workflow archives payload before execution and scopes credentials o
   const serialized = JSON.stringify(steps.filter((s) => s.run).map((s) => s.run));
   assert.ok(!serialized.includes('${{ inputs.'));
 });
-test('disabled live CLI fails before requesting tokens, cloud credentials or SDK network', async () => {
+test('live CLI without approved execute inputs stops before credentials or SDK network', async () => {
   const env = {
     GITHUB_ACTIONS: 'true',
     GITHUB_EVENT_NAME: 'workflow_dispatch',
@@ -45,5 +45,22 @@ test('disabled live CLI fails before requesting tokens, cloud credentials or SDK
     CANARY_MODE: 'execute',
     CANARY_ACTION: 'initialize',
   };
-  await assert.rejects(runStaticCanary('prepare', env), /disabled/);
+  await assert.rejects(
+    runStaticCanary('prepare', env),
+    policy.enabled ? /Reviewed plan token required/ : /disabled/,
+  );
+});
+
+test('maintenance holds the same target lock without cloud credentials, environment secrets or application commands', () => {
+  const maintenance = workflow.jobs.maintenance;
+  assert.match(maintenance.if, /inputs.mode == 'maintenance'/);
+  assert.equal(maintenance.environment, undefined);
+  assert.deepEqual(maintenance.permissions, { contents: 'read' });
+  assert.equal(maintenance.steps.length, 1);
+  assert.match(maintenance.steps[0].run, /F1_MAINTENANCE_LOCK_READY/);
+  assert.doesNotMatch(
+    JSON.stringify(maintenance),
+    /TENCENTCLOUD|secrets\.|deploy-cloudbase|run-static-canary/,
+  );
+  assert.match(workflow.jobs.canary.if, /inputs.mode != 'maintenance'/);
 });

@@ -58,9 +58,14 @@ export function createCanaryProvider({ manager, policy }) {
       const opa = [];
       for (const key of ['authz.platform.extension.rego', 'authz.user.rego']) {
         const result = await manager.permission.describeEnvAuthzConfig({ key });
-        if (result.Data?.Key !== key || typeof result.Data.Value !== 'string')
+        const item = result.Item;
+        if (
+          !item ||
+          typeof item.Value !== 'string' ||
+          (item.Key !== key && !(item.Key === '' && item.Value === ''))
+        )
           throw new Error('Unproven environment authorization configuration');
-        opa.push({ key, data: result.Data });
+        opa.push({ key, item });
       }
       const securityReviewSha256 = identity({
         permissions: {

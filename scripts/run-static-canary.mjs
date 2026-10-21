@@ -23,7 +23,10 @@ export async function runStaticCanary(command, env = process.env) {
     throw new Error('Invalid manual operation');
   if (env.CANARY_MODE === 'execute' && !policy.enabled)
     throw new Error('Live canary execution disabled by committed policy');
+  if (env.CANARY_MODE === 'execute' && !env.CANARY_PLAN_TOKEN)
+    throw new Error('Reviewed plan token required before execute');
   const github = createGithubSource({ policy, token: env.GITHUB_TOKEN });
+  console.log('Preflight: exact executor CI');
   await github.requireCI(invocation.codeSha);
   if (
     env.TCB_ENV_ID !== policy.envId ||
@@ -41,6 +44,7 @@ export async function runStaticCanary(command, env = process.env) {
   };
   const manager = new CloudBase(credentials);
   const provider = createCanaryProvider({ manager, policy });
+  console.log('Preflight: existing control collections and permissions');
   const readiness = await provider.controlPlane({ execute: env.CANARY_MODE === 'execute' });
   const requireSdk = createRequire(
     new URL('../packages/media-storage/package.json', import.meta.url),
@@ -116,6 +120,7 @@ export async function runStaticCanary(command, env = process.env) {
     executorSha: invocation.codeSha,
   };
   const args = { policy, coordinator, provider, input, request, loadAccepted };
+  console.log('Preflight: archived source, configuration and ordinary URL');
   const planned = await planManualCanary(args);
   save('plan.json', { ...planned.review, readiness });
   if (env.GITHUB_STEP_SUMMARY)
