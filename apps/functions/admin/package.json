@@ -13,7 +13,8 @@
     "./catalog-import-publish": "./src/catalog-import-publish.ts",
     "./catalog-import-media": "./src/catalog-import-media.ts",
     "./catalog-preparation-job-inspect": "./src/catalog-preparation-job-inspect.ts",
-    "./catalog-preparation-worker": "./src/catalog-preparation-worker.ts"
+    "./catalog-preparation-worker": "./src/catalog-preparation-worker.ts",
+    "./catalog-detail-source": "./src/catalog-detail-source.ts"
   },
   "scripts": {
     "build": "tsup",

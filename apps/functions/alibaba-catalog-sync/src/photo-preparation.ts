@@ -40,6 +40,7 @@ import {
   saveCatalogProductWithIdentities,
   updateDoc,
 } from '@vibelingan-channel/db';
+import { sourceVariantIds } from '@vibelingan-channel/fn-admin/catalog-detail-source';
 import {
   type CollectionDoc,
   PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
@@ -48,6 +49,7 @@ import {
   alibabaPhotoSources,
   readAlibabaPhotoFailure,
 } from '@vibelingan-channel/shared';
+import { ConfigurationPhotosSchema } from '@vibelingan-channel/shared/catalog-supplier-review';
 import { type MediaImportResult, importCandidateImage } from './media-import.ts';
 
 const PARTS = [
@@ -212,6 +214,19 @@ export function photoPreparationPlan(
 
 /** The product's configuration (SKU) photo sources from its stored observation. */
 async function configurationPhotoSources(product: CollectionDoc): Promise<string[] | undefined> {
+  return (await configurationPhotoSourceState(product))?.all;
+}
+
+function manualConfigurationPhotos(product: CollectionDoc) {
+  const chosen = ConfigurationPhotosSchema.safeParse(product.configurationPhotos ?? {});
+  const gallery = new Set(strings(product.imageIds) ?? []);
+  return chosen.success &&
+    Object.values(chosen.data).some((ids) => ids.some((id) => gallery.has(id)))
+    ? chosen.data
+    : undefined;
+}
+
+async function configurationPhotoSourceState(product: CollectionDoc, manual = false) {
   const sourceKey = product.alibabaPrimarySourceKey;
   if (typeof sourceKey !== 'string' || sourceKey === '') return undefined;
   const row = await get(
@@ -222,12 +237,34 @@ async function configurationPhotoSources(product: CollectionDoc): Promise<string
   if (!valid.ok || row?.active === false || valid.value.source.sourceProductKey !== sourceKey)
     return undefined;
   const sources = new Set<string>();
-  for (const variant of valid.value.variants)
+  const needed = new Set<string>();
+  const choices = manual ? manualConfigurationPhotos(product) : undefined;
+  const variants = choices ? sourceVariantIds(product._id, sourceKey, valid.value) : undefined;
+  const gallery = new Set(strings(product.imageIds) ?? []);
+  const images = new Map<string, Promise<CollectionDoc | null>>();
+  for (const variant of valid.value.variants) {
+    let replaced = false;
+    for (const imageId of choices?.[variants?.get(variant.sourceVariantKey) ?? ''] ?? []) {
+      if (!gallery.has(imageId)) continue;
+      let image = images.get(imageId);
+      if (!image) {
+        image = get('images', imageId);
+        images.set(imageId, image);
+      }
+      if ((await image)?.status === 'active') {
+        replaced = true;
+        break;
+      }
+    }
     for (const media of variant.media) {
       const source = alibabaPhotoSource(media.sourceUrl);
-      if (source !== undefined) sources.add(source);
+      if (source !== undefined) {
+        sources.add(source);
+        if (!replaced) needed.add(source);
+      }
     }
-  return [...sources];
+  }
+  return { all: [...sources], needed: [...needed] };
 }
 
 export interface PhotoPreparationPage {
@@ -663,8 +700,17 @@ export async function photoPreparationStatus(includeIssues = false): Promise<{
           (part) => unavailableAutoPart(product, part).length > 0,
         )
       ) {
+        const manual = manualConfigurationPhotos(product)
+          ? await configurationPhotoSourceState(product, true)
+          : undefined;
+        const replaced = manual && manual.needed.length < manual.all.length ? manual : undefined;
+        const issue =
+          replaced || (includeIssues && issues.length < 20)
+            ? await describePhotoIssue(product, replaced)
+            : undefined;
+        if (replaced && issue && issue.photos.length === 0 && !issue.truncated) continue;
         draftsMissingPhotos += 1;
-        if (includeIssues && issues.length < 20) issues.push(await describePhotoIssue(product));
+        if (includeIssues && issues.length < 20 && issue) issues.push(issue);
       }
     }
     const last = page.items.at(-1);
@@ -693,7 +739,10 @@ function unavailableAutoPart(product: CollectionDoc, part: 'gallery' | 'descript
   return auto && sameList(strings(product[field]) ?? [], auto.imageIds) ? auto.unusable : [];
 }
 
-async function describePhotoIssue(product: CollectionDoc): Promise<AlibabaPhotoIssue> {
+async function describePhotoIssue(
+  product: CollectionDoc,
+  configuration?: { all: string[]; needed: string[] },
+): Promise<AlibabaPhotoIssue> {
   const photos: AlibabaPhotoIssue['photos'] = [];
   const candidates: {
     part: AlibabaPhotoIssue['photos'][number]['part'];
@@ -712,9 +761,12 @@ async function describePhotoIssue(product: CollectionDoc): Promise<AlibabaPhotoI
         });
     }
   }
-  const configurationSources = (await configurationPhotoSources(product)) ?? [];
+  const configurationSources =
+    configuration?.all ?? (await configurationPhotoSources(product)) ?? [];
+  const needed = configuration ? new Set(configuration.needed) : undefined;
   for (const [index, sourceUrl] of configurationSources.entries())
-    candidates.push({ part: 'configurations', position: index + 1, sourceUrl });
+    if (!needed || needed.has(sourceUrl))
+      candidates.push({ part: 'configurations', position: index + 1, sourceUrl });
   // Query source bindings in bounded pages rather than reading each successful SKU photo.
   for (let offset = 0; offset < candidates.length; offset += 100) {
     const chunk = candidates.slice(offset, offset + 100);
@@ -737,13 +789,14 @@ async function describePhotoIssue(product: CollectionDoc): Promise<AlibabaPhotoI
           row._id === sourceMediaLinkId('alibaba', candidate.sourceUrl) &&
           row.sourceUrl === candidate.sourceUrl,
       );
-      if (!link || typeof link.failureReason !== 'string') continue;
       if (
-        typeof link.imageId === 'string' &&
+        typeof link?.imageId === 'string' &&
         (await get('images', link.imageId))?.status === 'active'
       )
         continue;
-      photos.push({ ...candidate, reason: link.failureReason.slice(0, 100) });
+      const reason = typeof link?.failureReason === 'string' ? link.failureReason : undefined;
+      if (!reason && !configuration) continue;
+      photos.push({ ...candidate, reason: reason?.slice(0, 100) ?? 'unavailable' });
       if (photos.length >= 200) break;
     }
     if (photos.length >= 200) break;

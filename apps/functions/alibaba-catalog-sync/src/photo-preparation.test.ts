@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   sourceMediaLinkId,
   sourceObservationDocumentId,
+  validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
@@ -17,6 +18,7 @@ import {
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db/adapter';
+import { sourceVariantIds } from '@vibelingan-channel/fn-admin/catalog-detail-source';
 import {
   type CollectionDoc,
   type ListResult,
@@ -1143,6 +1145,93 @@ test('photo preparation counts unavailable configurations only for eligible draf
   product.published = true;
   assert.equal((await photoPreparationStatus()).draftsMissingPhotos, 0);
 });
+
+function chooseConfigurationReplacement(store: Store, indexes: number[], imageId = 'own') {
+  const product = store.products?.[0];
+  const checked = validateCatalogSourceObservation(
+    store.catalogSourceObservations?.[0]?.observation,
+  );
+  assert.ok(product && checked.ok);
+  const ids = sourceVariantIds(product._id, 'source-a', checked.value);
+  product.configurationPhotos = Object.fromEntries(
+    indexes.map((index) => {
+      const id = ids.get(`sku-${index}`);
+      assert.ok(id);
+      return [id, [imageId]];
+    }),
+  );
+}
+
+test('a valid gallery replacement resolves its unavailable configuration warning', async () => {
+  const store = configurationStore([url('gone')]);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['gone'], 'not-found').importImage,
+  });
+  assert.equal((await photoPreparationStatus(true)).draftsMissingPhotos, 1);
+  store.images ??= [];
+  store.images.push({ _id: 'own', status: 'active' });
+  chooseConfigurationReplacement(store, [0]);
+  const before = structuredClone(store);
+  assert.equal((await photoPreparationStatus()).draftsMissingPhotos, 0);
+  assert.deepEqual((await photoPreparationStatus(true)).issues, []);
+  assert.deepEqual(store, before, 'status reads never change the supplier data or manual choice');
+});
+
+test('a shared failed source remains visible until every affected configuration has a replacement', async () => {
+  const store = configurationStore([url('gone'), url('gone')]);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['gone'], 'not-found').importImage,
+  });
+  store.images ??= [];
+  store.images.push({ _id: 'own', status: 'active' });
+  chooseConfigurationReplacement(store, [0]);
+  const partly = await photoPreparationStatus(true);
+  assert.equal(partly.draftsMissingPhotos, 1);
+  assert.equal(partly.issues?.[0]?.photos[0]?.sourceUrl, url('gone'));
+  chooseConfigurationReplacement(store, [0, 1]);
+  assert.equal((await photoPreparationStatus(true)).draftsMissingPhotos, 0);
+});
+
+test('a partial replacement cannot hide another configuration with a missing source binding', async () => {
+  const store = configurationStore([url('gone'), url('other')]);
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['gone', 'other'], 'not-found').importImage,
+  });
+  store.images ??= [];
+  store.images.push({ _id: 'own', status: 'active' });
+  chooseConfigurationReplacement(store, [0]);
+  store.catalogSourceLinks = (store.catalogSourceLinks ?? []).filter(
+    (link) => link.sourceUrl !== url('other'),
+  );
+  const status = await photoPreparationStatus(true);
+  assert.equal(status.draftsMissingPhotos, 1);
+  assert.equal(status.issues?.[0]?.photos[0]?.sourceUrl, url('other'));
+});
+
+for (const invalid of ['missing-image', 'inactive-image', 'outside-gallery', 'other-configuration'])
+  test(`an invalid replacement cannot hide a source problem: ${invalid}`, async () => {
+    const store = configurationStore([url('gone')]);
+    setAdapter(new MemoryAdapter(store));
+    await prepareAlibabaPhotosPage({
+      importImage: fakeImporter(store, ['gone'], 'not-found').importImage,
+    });
+    if (invalid !== 'missing-image') {
+      store.images ??= [];
+      store.images.push({
+        _id: 'own',
+        status: invalid === 'inactive-image' ? 'failed' : 'active',
+      });
+    }
+    chooseConfigurationReplacement(store, [0]);
+    const product = store.products?.[0];
+    assert.ok(product);
+    if (invalid === 'outside-gallery') product.imageIds = ['another'];
+    if (invalid === 'other-configuration') product.configurationPhotos = { unrelated: ['own'] };
+    assert.equal((await photoPreparationStatus(true)).draftsMissingPhotos, 1);
+  });
 
 for (const state of ['missing', 'invalid', 'inactive', 'other-source'] as const)
   test(`an unavailable observation cannot erase completed configuration metadata or trigger copies: ${state}`, async () => {
