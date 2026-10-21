@@ -1,10 +1,10 @@
 # 06 真实交付验收
 
-状态 `in-progress / awaiting environment branch permission`，MIU `SEO-REL-F1`。入口注册与维护备份归档已现场验证，CloudBase 写入、静态 A/B/A 仍为 `not-run`。实际证据与待办见[现场记录](module-06-verification.zh-CN.md)。详细操作沿用[受控演练计划](../RECOVERY_DRILL_PLAN.zh-CN.md)，本文件只确定模块交付接口和证据，不再复制一份完整演练步骤。
+状态 `in-progress / 404 fixed; static A/B/A pending`，MIU `SEO-REL-F1`。管理员准入和控制面已准备；公网 404 已修复并核对专用 noindex 正文。缓存与 A/B/A 仍待现场验收。最新原因与结果见[404 修复记录](module-06-404-fix.zh-CN.md)，此前历史见[现场记录](module-06-verification.zh-CN.md)。操作范围沿用[受控演练计划](../RECOVERY_DRILL_PLAN.zh-CN.md)。
 
 ## 执行输入与结果
 
-已新增 `scripts/accept-site-release.mjs`、`scripts/accept-site-release.test.mjs`，用于检查目标、A/B/A、浏览器 hash、404 和通知范围。仅在实施及本地验证完成后运行真实写入；本轮没有执行。输入必须同时指定 canonical EnvId、origin、A/B artifact、activation、组件/路径/fixture 允许清单和 drillRunId，不能只用 test 这个名称判断环境。
+已新增 `scripts/accept-site-release.mjs`、`scripts/accept-site-release.test.mjs`，用于检查目标、A/B/A、浏览器 hash、404 和通知范围。真实写入按已审查范围执行；准备与 404 修复已经完成，A/B/A 尚未执行。输入必须同时指定 canonical EnvId、origin、A/B artifact、activation、组件/路径/fixture 允许清单和 drillRunId，不能只用 test 这个名称判断环境。
 
 ```ts
 type DrillResult = {

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { hostingConfigurationIdentity } from '../hosting-recovery.mjs';
-import { validateConfigurationChange } from './hosting-configuration.mjs';
+import { errorDocumentPath, validateConfigurationChange } from './hosting-configuration.mjs';
 import { assertHostingPath, assertOrigin, freeze, isSitemap, limits } from './input.mjs';
 
 /** Capture one Manager environment, independent of MCP's globally selected environment. */
@@ -68,6 +68,7 @@ export function createCloudbaseHostingProvider({ manager, target }) {
     readConfiguration,
     async upload(path, input, { signal } = {}) {
       assertHostingPath(path);
+      if (path === '404.html') throw new Error('Reserved CloudBase fallback path');
       if (/^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/.test(path))
         throw new Error('Protected hosting path');
       const body = Buffer.from(input);
@@ -111,7 +112,7 @@ export function createCloudbaseHostingProvider({ manager, target }) {
     async remove(path, { signal } = {}) {
       assertHostingPath(path);
       if (
-        ['index.html', '404.html'].includes(path) ||
+        ['index.html', '404.html', errorDocumentPath].includes(path) ||
         /^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/.test(path) ||
         !(
           path.endsWith('.html') ||

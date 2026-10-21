@@ -65,7 +65,11 @@ test('website SDK roundtrip preserves supported flags and conditional source che
   };
   const port = createCloudbaseHostingProvider({ manager, target });
   const before = await port.readConfiguration();
-  const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
+  const plan = prepareHostingConfiguration({
+    target,
+    before,
+    errorDocument: 'errors/not-found.html',
+  });
   await port.configure(plan.changes[0]);
   assert.equal(
     configurationStateHash(await port.readConfiguration()),
@@ -127,7 +131,11 @@ test('shared hosting bucket prefixes stay on upload/delete and bucket-global web
   assert.equal(state.files.size, 0);
   state.configuration.website.WebsiteConfiguration.ErrorDocument.Key = 'old-error.html';
   const before = await port.readConfiguration();
-  const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
+  const plan = prepareHostingConfiguration({
+    target,
+    before,
+    errorDocument: 'errors/not-found.html',
+  });
   await assert.rejects(port.configure(plan.changes[0]));
   assert.equal(state.calls.filter((c) => c.action === 'cos-website').length, 0);
 });
@@ -161,4 +169,13 @@ test('server-managed route timestamps do not invalidate a matching configuration
       .ResponseHeadersToAdd[1].Value,
     'no-store',
   );
+});
+
+test('CloudBase never uploads the reserved root fallback or deletes its configured error document', async () => {
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
+  const port = createCloudbaseHostingProvider({ manager, target });
+  await assert.rejects(port.upload('404.html', Buffer.from('not found')));
+  await assert.rejects(port.remove('errors/not-found.html'));
+  assert.equal(state.calls.length, 0);
+  assert.equal(state.files.size, 0);
 });

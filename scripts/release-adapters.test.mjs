@@ -55,7 +55,7 @@ async function setup(
   const files = {
     'index.html': '<h1>Home A</h1>',
     '_astro/a.hash.js': 'console.log(1)',
-    '404.html': errorHtml,
+    'errors/not-found.html': errorHtml,
   };
   if (scopeKey === 'canary') {
     files['__release-canary/index.html'] = '<h1>Canary A</h1>';
@@ -65,7 +65,7 @@ async function setup(
   const conf = prepareHostingConfiguration({
     target,
     before: sdk.state.configuration,
-    ...(changes ? { errorDocument: '404.html' } : {}),
+    ...(changes ? { errorDocument: 'errors/not-found.html' } : {}),
     ...(cacheChange ? { previousCacheControl: 'no-store', cacheControl: 'no-cache' } : {}),
   });
   source.manifest.configuration = conf.after;
@@ -160,7 +160,7 @@ async function setup(
     runId: 'recover-A',
     provider,
     request: http.request,
-    errorDocument: entry('404.html', errorHtml),
+    errorDocument: entry('errors/not-found.html', errorHtml),
     operationTimeoutMs,
     heartbeatMs,
     pollIntervalMs: 2,
@@ -214,7 +214,10 @@ test('assets failure prevents HTML, discovery, deletion and activation', async (
 test('a configuration change has its own intent, before comparison and repeated SDK readback', async (t) => {
   const f = await setup(t, { changes: true });
   await executeHostingRecovery(f.plan, f.adapters);
-  assert.equal(f.state.configuration.website.WebsiteConfiguration.ErrorDocument.Key, '404.html');
+  assert.equal(
+    f.state.configuration.website.WebsiteConfiguration.ErrorDocument.Key,
+    'errors/not-found.html',
+  );
   assert.equal(f.state.calls.filter((c) => c.action === 'cos-website').length, 1);
   assert.equal((await f.coordinator.runStatus('recover-A')).verifiedSteps, f.descriptor.stepCount);
 });
@@ -260,7 +263,7 @@ test('timeout leaves an unknown intent and blocks the next upload even when the 
     runId: 'recover-A',
     provider,
     request: f.http.request,
-    errorDocument: entry('404.html', errorHtml),
+    errorDocument: entry('errors/not-found.html', errorHtml),
     operationTimeoutMs: 1500,
     heartbeatMs: 15,
     pollIntervalMs: 2,
@@ -293,7 +296,7 @@ test('loss of lease during SDK work never confirms or starts the next file', asy
     runId: 'recover-A',
     provider,
     request: f.http.request,
-    errorDocument: entry('404.html', errorHtml),
+    errorDocument: entry('errors/not-found.html', errorHtml),
     operationTimeoutMs: 2000,
     heartbeatMs: 10,
     pollIntervalMs: 2,
@@ -334,7 +337,7 @@ test('before-state response arriving after deadline cannot create a late intent 
     runId: 'recover-A',
     provider: f.provider,
     request,
-    errorDocument: entry('404.html', errorHtml),
+    errorDocument: entry('errors/not-found.html', errorHtml),
     operationTimeoutMs: 1500,
     heartbeatMs: 15,
     pollIntervalMs: 2,
@@ -370,7 +373,7 @@ test('mutable callback arguments cannot redirect the artifact upload after an aw
     runId: 'recover-A',
     provider: f.provider,
     request,
-    errorDocument: entry('404.html', errorHtml),
+    errorDocument: entry('errors/not-found.html', errorHtml),
     operationTimeoutMs: 1000,
     heartbeatMs: 20,
     pollIntervalMs: 2,
@@ -422,7 +425,7 @@ test('configuration that never converges stays unknown without marking scope acc
     runId: 'recover-A',
     provider,
     request: f.http.request,
-    errorDocument: entry('404.html', errorHtml),
+    errorDocument: entry('errors/not-found.html', errorHtml),
     operationTimeoutMs: 2000,
     heartbeatMs: 15,
     pollIntervalMs: 5,

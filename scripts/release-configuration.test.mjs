@@ -12,11 +12,15 @@ test('404 preparation explicitly preserves status even when the error path is un
   for (const flag of [undefined, 'Disabled']) {
     const before = configuration();
     before.website.WebsiteConfiguration.ErrorDocument = {
-      Key: '404.html',
+      Key: 'errors/not-found.html',
       ...(flag ? { OriginalHttpStatus: flag } : {}),
     };
     assert.throws(() => assertSafeConfiguration(before, target));
-    const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
+    const plan = prepareHostingConfiguration({
+      target,
+      before,
+      errorDocument: 'errors/not-found.html',
+    });
     assert.equal(plan.changes.length, 1);
     assert.equal(plan.changes[0].args.originalHttpStatus, 'Enabled');
     assertSafeConfiguration(plan.after, target);
@@ -32,7 +36,9 @@ test('website flags use the provider Enabled/Disabled enum', () => {
   ]) {
     const before = configuration();
     before.website.WebsiteConfiguration.ErrorDocument[key] = value;
-    assert.throws(() => prepareHostingConfiguration({ target, before, errorDocument: '404.html' }));
+    assert.throws(() =>
+      prepareHostingConfiguration({ target, before, errorDocument: 'errors/not-found.html' }),
+    );
   }
 });
 
@@ -65,12 +71,16 @@ test('website mapping preserves supported existing flags and route details', () 
     Charity404: 'Disabled',
   };
   before.website.WebsiteConfiguration.AutoAddressing = { Status: 'Enabled' };
-  const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
+  const plan = prepareHostingConfiguration({
+    target,
+    before,
+    errorDocument: 'errors/not-found.html',
+  });
   const args = plan.changes[0].args;
   assert.equal(args.originalHttpStatus, 'Enabled');
   assert.equal(args.charity404, 'Disabled');
   assert.equal(args.autoAddressing, 'Enabled');
-  assert.equal(args.errorDocument, '404.html');
+  assert.equal(args.errorDocument, 'errors/not-found.html');
 });
 test('safe inverse is conditional on the exact expected after state', () => {
   const before = domainConfiguration();
@@ -89,7 +99,11 @@ test('safe inverse is conditional on the exact expected after state', () => {
 test('inverse refuses old homepage fallback or stale HTML policy', () => {
   const before = configuration();
   before.website.WebsiteConfiguration.ErrorDocument.Key = 'index.html';
-  const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
+  const plan = prepareHostingConfiguration({
+    target,
+    before,
+    errorDocument: 'errors/not-found.html',
+  });
   assert.throws(() => inverseHostingConfiguration({ plan, current: plan.after }));
   const stale = domainConfiguration();
   stale.gateway.Domains[0].Extension.HeadersHandler.ResponseHeadersToAdd[1].Value = 'max-age=300';
@@ -124,7 +138,7 @@ test('unknown website fields, unrepresentable routes and changed static ownershi
       prepareHostingConfiguration({
         target,
         before,
-        errorDocument: '404.html',
+        errorDocument: 'errors/not-found.html',
         cacheControl: 'no-cache',
         previousCacheControl: 'no-store',
       }),
@@ -184,4 +198,13 @@ test('domain cache policy rejects new API routes, route overrides and extra muta
     Object.assign(change.args.Domain, field);
     assert.throws(() => validateConfigurationChange({ change, current: before, target }));
   }
+});
+
+test('CloudBase error document uses a non-reserved path and rejects the root fallback filename', () => {
+  const safe = configuration();
+  safe.website.WebsiteConfiguration.ErrorDocument.Key = 'errors/not-found.html';
+  assert.doesNotThrow(() => assertSafeConfiguration(safe, target));
+  const reserved = structuredClone(safe);
+  reserved.website.WebsiteConfiguration.ErrorDocument.Key = '404.html';
+  assert.throws(() => assertSafeConfiguration(reserved, target));
 });

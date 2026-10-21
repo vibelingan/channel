@@ -3,6 +3,8 @@ import { assertMutableCachePolicy } from '../hosting-contract.mjs';
 import { hostingConfigurationIdentity } from '../hosting-recovery.mjs';
 import { assertOrigin, freeze, identity, sha256 } from './input.mjs';
 
+export const errorDocumentPath = 'errors/not-found.html';
+
 export const configurationHash = (config) =>
   sha256(JSON.stringify(hostingConfigurationIdentity(config)));
 // Domain/route timestamps are server metadata, not writable configuration fields.
@@ -176,7 +178,7 @@ export function assertSafeConfiguration(config, target) {
   websiteArguments(website);
   if (
     website.IndexDocument.Suffix !== 'index.html' ||
-    website.ErrorDocument?.Key !== '404.html' ||
+    website.ErrorDocument?.Key !== errorDocumentPath ||
     website.ErrorDocument?.OriginalHttpStatus !== 'Enabled' ||
     website.ErrorDocument?.Charity404 === 'Enabled' ||
     (website.RoutingRules ?? []).some((rule) => rule.Condition.HttpErrorCodeReturnedEquals)
@@ -243,7 +245,7 @@ export function validateConfigurationChange({ change, current, target }) {
     expected.website.WebsiteConfiguration = copy(change.after.website.WebsiteConfiguration);
     const doc = expected.website.WebsiteConfiguration;
     if (
-      doc.ErrorDocument?.Key !== '404.html' ||
+      doc.ErrorDocument?.Key !== errorDocumentPath ||
       doc.ErrorDocument?.OriginalHttpStatus !== 'Enabled' ||
       doc.ErrorDocument?.Charity404 === 'Enabled' ||
       doc.IndexDocument.Suffix !== 'index.html' ||

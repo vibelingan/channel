@@ -6,6 +6,7 @@ import { fetchFully } from '../smoke-http.mjs';
 import {
   configurationHash,
   configurationStateHash,
+  errorDocumentPath,
   validateConfigurationChange,
 } from './hosting-configuration.mjs';
 import { verifyHostingObject } from './hosting-readback.mjs';
@@ -464,6 +465,8 @@ export function createHostingRecoveryAdapters({
 }
 function validatePlan(plan, configurationPlan) {
   checkEntries(plan.uploads);
+  if (plan.uploads.some((entry) => entry.path === '404.html'))
+    throw new Error('Reserved CloudBase fallback path');
   if (
     !Array.isArray(plan.deletes) ||
     plan.deletes.length > limits.files ||
@@ -479,7 +482,7 @@ function validatePlan(plan, configurationPlan) {
   }
   for (const path of plan.deletes)
     if (
-      ['index.html', '404.html'].includes(path) ||
+      ['index.html', '404.html', errorDocumentPath].includes(path) ||
       !(
         path.endsWith('.html') ||
         isSitemap(path) ||
