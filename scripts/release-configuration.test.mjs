@@ -2,10 +2,39 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { configuration, domainConfiguration, target } from './release-hosting-fixtures.mjs';
 import {
+  assertSafeConfiguration,
   inverseHostingConfiguration,
   prepareHostingConfiguration,
   validateConfigurationChange,
 } from './release/hosting-configuration.mjs';
+
+test('404 preparation explicitly preserves status even when the error path is unchanged', () => {
+  for (const flag of [undefined, 'Disabled']) {
+    const before = configuration();
+    before.website.WebsiteConfiguration.ErrorDocument = {
+      Key: '404.html',
+      ...(flag ? { OriginalHttpStatus: flag } : {}),
+    };
+    assert.throws(() => assertSafeConfiguration(before, target));
+    const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
+    assert.equal(plan.changes.length, 1);
+    assert.equal(plan.changes[0].args.originalHttpStatus, 'Enabled');
+    assertSafeConfiguration(plan.after, target);
+    assert.equal(prepareHostingConfiguration({ target, before: plan.after }).changes.length, 0);
+    assert.throws(() => inverseHostingConfiguration({ plan, current: plan.after }));
+  }
+});
+
+test('website flags use the provider Enabled/Disabled enum', () => {
+  for (const [key, value] of [
+    ['OriginalHttpStatus', 'true'],
+    ['Charity404', 'false'],
+  ]) {
+    const before = configuration();
+    before.website.WebsiteConfiguration.ErrorDocument[key] = value;
+    assert.throws(() => prepareHostingConfiguration({ target, before, errorDocument: '404.html' }));
+  }
+});
 
 test('domain cache patch preserves all static routes, cert and other headers', () => {
   const before = domainConfiguration();
@@ -32,14 +61,14 @@ test('website mapping preserves supported existing flags and route details', () 
   const before = configuration();
   before.website.WebsiteConfiguration.ErrorDocument = {
     Key: 'old-error.html',
-    OriginalHttpStatus: 'true',
-    Charity404: 'false',
+    OriginalHttpStatus: 'Enabled',
+    Charity404: 'Disabled',
   };
   before.website.WebsiteConfiguration.AutoAddressing = { Status: 'Enabled' };
   const plan = prepareHostingConfiguration({ target, before, errorDocument: '404.html' });
   const args = plan.changes[0].args;
-  assert.equal(args.originalHttpStatus, 'true');
-  assert.equal(args.charity404, 'false');
+  assert.equal(args.originalHttpStatus, 'Enabled');
+  assert.equal(args.charity404, 'Disabled');
   assert.equal(args.autoAddressing, 'Enabled');
   assert.equal(args.errorDocument, '404.html');
 });

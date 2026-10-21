@@ -60,8 +60,8 @@ test('website SDK roundtrip preserves supported flags and conditional source che
   const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.configuration.website.WebsiteConfiguration.ErrorDocument = {
     Key: 'old-error.html',
-    OriginalHttpStatus: 'true',
-    Charity404: 'false',
+    OriginalHttpStatus: 'Enabled',
+    Charity404: 'Disabled',
   };
   const port = createCloudbaseHostingProvider({ manager, target });
   const before = await port.readConfiguration();

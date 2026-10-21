@@ -12,7 +12,7 @@ export function configuration() {
     website: {
       WebsiteConfiguration: {
         IndexDocument: { Suffix: 'index.html' },
-        ErrorDocument: { Key: '404.html' },
+        ErrorDocument: { Key: '404.html', OriginalHttpStatus: 'Enabled' },
       },
       Bucket: 'fixture-bucket',
       CdnDomain: 'fixture.example',

@@ -50,12 +50,14 @@ export function prepareHostingConfiguration({
   };
   if (
     errorDocument !== undefined &&
-    errorDocument !== source.website.WebsiteConfiguration.ErrorDocument?.Key
+    (errorDocument !== source.website.WebsiteConfiguration.ErrorDocument?.Key ||
+      source.website.WebsiteConfiguration.ErrorDocument?.OriginalHttpStatus !== 'Enabled')
   ) {
     const next = copy(after);
     next.website.WebsiteConfiguration.ErrorDocument = {
       ...next.website.WebsiteConfiguration.ErrorDocument,
       Key: errorDocument,
+      OriginalHttpStatus: 'Enabled',
     };
     add('website', websiteArguments(next.website.WebsiteConfiguration), next);
   }
@@ -129,6 +131,13 @@ export function websiteArguments(config) {
   keys(config.IndexDocument, ['Suffix']);
   if (config.ErrorDocument) keys(config.ErrorDocument, ['Key', 'OriginalHttpStatus', 'Charity404']);
   if (config.AutoAddressing) keys(config.AutoAddressing, ['Status']);
+  for (const value of [
+    config.ErrorDocument?.OriginalHttpStatus,
+    config.ErrorDocument?.Charity404,
+    config.AutoAddressing?.Status,
+  ])
+    if (value !== undefined && !['Enabled', 'Disabled'].includes(value))
+      throw new Error('Unsupported website flag; expected Enabled or Disabled');
   const args = {
     indexDocument: config.IndexDocument.Suffix,
     ...(config.ErrorDocument
@@ -168,6 +177,8 @@ export function assertSafeConfiguration(config, target) {
   if (
     website.IndexDocument.Suffix !== 'index.html' ||
     website.ErrorDocument?.Key !== '404.html' ||
+    website.ErrorDocument?.OriginalHttpStatus !== 'Enabled' ||
+    website.ErrorDocument?.Charity404 === 'Enabled' ||
     (website.RoutingRules ?? []).some((rule) => rule.Condition.HttpErrorCodeReturnedEquals)
   )
     throw new Error('Unsafe error document or homepage fallback');
@@ -233,6 +244,8 @@ export function validateConfigurationChange({ change, current, target }) {
     const doc = expected.website.WebsiteConfiguration;
     if (
       doc.ErrorDocument?.Key !== '404.html' ||
+      doc.ErrorDocument?.OriginalHttpStatus !== 'Enabled' ||
+      doc.ErrorDocument?.Charity404 === 'Enabled' ||
       doc.IndexDocument.Suffix !== 'index.html' ||
       (doc.RoutingRules ?? []).some((rule) => rule.Condition.HttpErrorCodeReturnedEquals) ||
       !same(change.args, websiteArguments(doc))
