@@ -26,7 +26,7 @@ const issueText: Record<NonNullable<AlibabaSyncWorkflow['issue']>, string> = {
   'supplier-unavailable':
     'Alibaba could not finish the request. Check the account connection, then retry sync.',
   photos:
-    'Some supplier photos are unavailable. Open Products to review or replace them, or retry after the supplier fixes the images.',
+    'Some supplier photos are unavailable. Review the affected products and image links below, then retry or replace the images.',
   preparation:
     'Some product drafts could not be prepared. Retry sync; contact the site administrator if this continues.',
   'run-expired': 'The previous sync stopped before finishing. Retry sync to restart safely.',

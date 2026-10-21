@@ -122,6 +122,8 @@ interface ProductOpenRequest {
 }
 
 interface Props {
+  initialProductId?: string | null;
+  onInitialProductOpened?: () => void;
   collection: CollectionDef;
   section: DashboardSection;
   role: string;
@@ -136,6 +138,8 @@ function recordFocusKey(collection: string, id: string, action: string): string 
 }
 
 export function CollectionView({
+  initialProductId,
+  onInitialProductOpened,
   collection,
   section,
   role,
@@ -162,6 +166,17 @@ export function CollectionView({
   const openSequence = useRef(0);
   const recordFocusRoot = useRef<HTMLDivElement>(null);
   const recordFocusReturn = useRef<{ key: string } | null>(null);
+  useEffect(() => {
+    if (!isProducts || !initialProductId) return;
+    const request: ProductOpenRequest = {
+      productId: initialProductId,
+      kind: 'edit',
+      sequence: ++openSequence.current,
+    };
+    currentOpening.current = request;
+    setOpeningProduct(request);
+    onInitialProductOpened?.();
+  }, [isProducts, initialProductId, onInitialProductOpened]);
   const [creating, setCreating] = useState(false);
   const [publicationFeedback, setPublicationFeedback] = useState<BatchUpdateResult | null>(null);
   const [publicationRefresh, setPublicationRefresh] = useState(0);
@@ -1672,6 +1687,9 @@ export function CollectionView({
       {previewing && (
         <PreviewModal
           doc={previewing}
+          onSourceRefreshed={(product) =>
+            setPreviewing((current) => (current?._id === product._id ? product : current))
+          }
           canMarkReviewed={canReviewAlibabaProducts}
           reviewBusy={reviewMutation.isPending || unpublishFromReviewMutation.isPending}
           reviewError={(reviewMutation.error ?? unpublishFromReviewMutation.error) as Error | null}

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { AlibabaSyncWorkflow } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
+import { AlibabaPhotoIssues } from './AlibabaPhotoIssues.tsx';
 import { AlibabaSyncRunTable } from './AlibabaSyncRunTable.tsx';
 import {
   type ConnectionStatus,
@@ -45,8 +46,12 @@ export function callbackNotice(search: string): string | null {
 
 export interface AlibabaCatalogSyncPageProps {
   onViewProducts?: () => void;
+  onOpenProduct?: (id: string) => void;
 }
-export function AlibabaCatalogSyncPage({ onViewProducts }: AlibabaCatalogSyncPageProps) {
+export function AlibabaCatalogSyncPage({
+  onViewProducts,
+  onOpenProduct,
+}: AlibabaCatalogSyncPageProps) {
   const queryClient = useQueryClient();
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [workflow, setWorkflow] = useState<AlibabaSyncWorkflow | null>(null);
@@ -171,6 +176,9 @@ export function AlibabaCatalogSyncPage({ onViewProducts }: AlibabaCatalogSyncPag
           }, true)
         }
       />
+      {workflow?.photoIssues !== undefined && workflow.photoIssues > 0 && (
+        <AlibabaPhotoIssues onOpenProduct={onOpenProduct} />
+      )}
       {onViewProducts && (
         <button
           type="button"

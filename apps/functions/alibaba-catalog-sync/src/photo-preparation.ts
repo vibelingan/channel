@@ -249,6 +249,7 @@ export interface PhotoPreparationPage {
 }
 
 export interface PhotoPreparationInput {
+  productId?: string;
   afterProductId?: string;
   limit?: number;
   /** Only drafts hidden until their photos are in. */
@@ -566,6 +567,7 @@ export async function prepareAlibabaPhotosPage(
     filter: {
       combinator: 'and',
       clauses: [
+        ...(input.productId ? [{ field: '_id', op: 'eq' as const, value: input.productId }] : []),
         ...(afterProductId ? [{ field: '_id', op: 'gt' as const, value: afterProductId }] : []),
         ...(input.pendingOnly
           ? [{ field: 'alibabaPhotosPending', op: 'eq' as const, value: true }]
@@ -622,11 +624,13 @@ export async function prepareAlibabaPhotosPage(
 }
 
 /** How much is left: hidden new drafts, drafts still to fill, and drafts missing some photos. */
-export async function photoPreparationStatus(): Promise<{
+export async function photoPreparationStatus(includeIssues = false): Promise<{
   hiddenDrafts: number;
   draftsToFill: number;
   draftsMissingPhotos: number;
+  issues?: AlibabaPhotoIssue[];
 }> {
+  const issues: AlibabaPhotoIssue[] = [];
   let hiddenDrafts = 0;
   let draftsToFill = 0;
   let draftsMissingPhotos = 0;
@@ -656,14 +660,100 @@ export async function photoPreparationStatus(): Promise<{
           autoPart(product, 'configurations')?.unusable.length ??
           0) > 0 ||
         (['gallery', 'description'] as const).some(
-          (part) => (autoPart(product, part)?.unusable.length ?? 0) > 0,
+          (part) => unavailableAutoPart(product, part).length > 0,
         )
-      )
+      ) {
         draftsMissingPhotos += 1;
+        if (includeIssues && issues.length < 20) issues.push(await describePhotoIssue(product));
+      }
     }
     const last = page.items.at(-1);
     if (page.items.length < 100 || !last) break;
     after = last._id;
   }
-  return { hiddenDrafts, draftsToFill, draftsMissingPhotos };
+  return { hiddenDrafts, draftsToFill, draftsMissingPhotos, ...(includeIssues ? { issues } : {}) };
+}
+
+export interface AlibabaPhotoIssue {
+  productId: string;
+  name: string;
+  sourceProductId: string;
+  photos: {
+    part: 'gallery' | 'description' | 'configurations';
+    position: number;
+    sourceUrl: string;
+    reason: string;
+  }[];
+  truncated: boolean;
+}
+
+function unavailableAutoPart(product: CollectionDoc, part: 'gallery' | 'description'): string[] {
+  const auto = autoPart(product, part);
+  const field = part === 'gallery' ? 'imageIds' : 'descriptionImageIds';
+  return auto && sameList(strings(product[field]) ?? [], auto.imageIds) ? auto.unusable : [];
+}
+
+async function describePhotoIssue(product: CollectionDoc): Promise<AlibabaPhotoIssue> {
+  const photos: AlibabaPhotoIssue['photos'] = [];
+  const candidates: {
+    part: AlibabaPhotoIssue['photos'][number]['part'];
+    position: number;
+    sourceUrl: string;
+  }[] = [];
+  for (const part of ['gallery', 'description'] as const) {
+    const auto = autoPart(product, part);
+    for (const sourceUrl of unavailableAutoPart(product, part)) {
+      const safe = alibabaPhotoSource(sourceUrl);
+      if (safe)
+        candidates.push({
+          part,
+          position: (auto?.sources.indexOf(safe) ?? -1) + 1,
+          sourceUrl: safe,
+        });
+    }
+  }
+  const configurationSources = (await configurationPhotoSources(product)) ?? [];
+  for (const [index, sourceUrl] of configurationSources.entries())
+    candidates.push({ part: 'configurations', position: index + 1, sourceUrl });
+  // Query source bindings in bounded pages rather than reading each successful SKU photo.
+  for (let offset = 0; offset < candidates.length; offset += 100) {
+    const chunk = candidates.slice(offset, offset + 100);
+    const page = await list({
+      collection: 'catalogSourceLinks',
+      page: 1,
+      pageSize: 100,
+      search: '',
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'provider', op: 'eq', value: 'alibaba' },
+          { field: 'sourceUrl', op: 'in', value: chunk.map((row) => row.sourceUrl) },
+        ],
+      },
+    });
+    for (const candidate of chunk) {
+      const link = page.items.find(
+        (row) =>
+          row._id === sourceMediaLinkId('alibaba', candidate.sourceUrl) &&
+          row.sourceUrl === candidate.sourceUrl,
+      );
+      if (!link || typeof link.failureReason !== 'string') continue;
+      if (
+        typeof link.imageId === 'string' &&
+        (await get('images', link.imageId))?.status === 'active'
+      )
+        continue;
+      photos.push({ ...candidate, reason: link.failureReason.slice(0, 100) });
+      if (photos.length >= 200) break;
+    }
+    if (photos.length >= 200) break;
+  }
+  return {
+    productId: product._id,
+    name: typeof product.name === 'string' ? product.name : 'Unnamed product',
+    sourceProductId:
+      typeof product.alibabaSourceProductId === 'string' ? product.alibabaSourceProductId : '',
+    photos,
+    truncated: photos.length >= 200,
+  };
 }

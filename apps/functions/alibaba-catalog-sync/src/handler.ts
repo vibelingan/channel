@@ -494,6 +494,7 @@ export async function handleAlibabaSyncRequest(
         return err('VALIDATION_ERROR', 'The photo cursor or page limit is invalid.');
       return ok(
         await prepareAlibabaPhotosPage({
+          ...(payload.data.productId ? { productId: payload.data.productId } : {}),
           ...(payload.data.afterProductId ? { afterProductId: payload.data.afterProductId } : {}),
           ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
           ...(payload.data.pendingOnly ? { pendingOnly: true } : {}),
@@ -507,7 +508,12 @@ export async function handleAlibabaSyncRequest(
     case 'photoPreparationStatus': {
       const admin = await requireLiveAdmin(config, token);
       if (!admin.ok) return admin;
-      return ok(await photoPreparationStatus());
+      const payload = z
+        .object({ includeIssues: z.boolean().optional() })
+        .strict()
+        .safeParse(parsed.data.data ?? {});
+      if (!payload.success) return err('VALIDATION_ERROR', 'Invalid photo status request.');
+      return ok(await photoPreparationStatus(payload.data.includeIssues === true));
     }
     case 'importSourceImage': {
       // Candidate-only import (MIU 12): fetches ONE allowlisted source image
@@ -610,6 +616,7 @@ const rawReplaySchema = z
   });
 const preparePhotosSchema = z
   .object({
+    productId: z.string().min(1).max(200).optional(),
     afterProductId: z.string().max(200).optional(),
     limit: z.number().int().min(1).max(100).optional(),
     pendingOnly: z.boolean().optional(),

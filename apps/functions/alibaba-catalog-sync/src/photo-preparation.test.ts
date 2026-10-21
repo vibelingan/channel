@@ -1296,3 +1296,62 @@ test('status ignores hidden products that an operator already archived, publishe
   });
   assert.deepEqual(store, before);
 });
+
+test('operator photo issues identify the exact product and final variant without changing data', async () => {
+  const sources = Array.from({ length: 205 }, (_, i) => url(`issue-${i}`));
+  const store = configurationStore(sources, {
+    alibabaSourceProductId: 'source-visible-id',
+    alibabaPhotosPending: false,
+  });
+  seedConfigurationCopies(store, sources.slice(0, -1));
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['issue-204'], 'not-found').importImage,
+  });
+  const before = structuredClone(store);
+  const status = await photoPreparationStatus(true);
+  assert.equal(status.issues?.length, 1);
+  assert.equal(status.issues?.[0]?.sourceProductId, 'source-visible-id');
+  assert.deepEqual(status.issues?.[0]?.photos, [
+    { part: 'configurations', position: 205, sourceUrl: sources[204], reason: 'not-found' },
+  ]);
+  assert.equal(status.issues?.[0]?.truncated, false);
+  assert.deepEqual(store, before, 'inspection is read-only');
+});
+
+test('targeted photo retry does not touch other drafts or manual website photos and categories', async () => {
+  const store: Store = {
+    products: [
+      draft('a', { imageIds: ['manual'], productFamily: 'misc', subcategoryIds: ['keep'] }),
+      draft('b'),
+    ],
+  };
+  setAdapter(new MemoryAdapter(store));
+  const other = structuredClone(store.products?.[1]);
+  const importer = fakeImporter(store);
+  await prepareAlibabaPhotosPage({
+    productId: 'a',
+    retryUnavailable: true,
+    importImage: importer.importImage,
+  });
+  assert.deepEqual(store.products?.[1], other);
+  assert.deepEqual(store.products?.[0]?.imageIds, ['manual']);
+  assert.equal(store.products?.[0]?.productFamily, 'misc');
+  assert.deepEqual(store.products?.[0]?.subcategoryIds, ['keep']);
+  assert.ok(importer.calls.every((source) => !source.includes('b-')));
+});
+
+test('operator photo warning clears after an admin replaces the affected gallery', async () => {
+  const store: Store = { products: [draft('a', { alibabaDescriptionImageUrls: [] })] };
+  setAdapter(new MemoryAdapter(store));
+  await prepareAlibabaPhotosPage({
+    importImage: fakeImporter(store, ['a-g2'], 'not-found').importImage,
+  });
+  assert.equal((await photoPreparationStatus(true)).draftsMissingPhotos, 1);
+  const product = store.products?.[0];
+  assert.ok(product);
+  product.imageIds = ['admin-replacement'];
+  const status = await photoPreparationStatus(true);
+  assert.equal(status.draftsMissingPhotos, 0);
+  assert.deepEqual(status.issues, []);
+});

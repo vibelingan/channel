@@ -82,6 +82,7 @@ export function DashboardShell({
   );
 
   const [active, setActive] = useState(sections[0]?.collection ?? '');
+  const [productOpenId, setProductOpenId] = useState<string | null>(null);
   const [productSelection, setProductSelection] = useState<Record<string, boolean>>({});
   const [productReview, setProductReview] = useState<ProductClassificationReview | null>(null);
   const section = sections.find((s) => s.collection === active);
@@ -153,7 +154,13 @@ export function DashboardShell({
           </div>
         ) : section?.custom === 'alibaba-sync' ? (
           <div className="p-6">
-            <AlibabaCatalogSyncPage onViewProducts={() => setActive('products')} />
+            <AlibabaCatalogSyncPage
+              onViewProducts={() => setActive('products')}
+              onOpenProduct={(id) => {
+                setProductOpenId(id);
+                setActive('products');
+              }}
+            />
           </div>
         ) : section?.custom === 'catalog-import' ? (
           <div className="p-6">
@@ -167,6 +174,8 @@ export function DashboardShell({
             role={role}
             productSelection={productSelection}
             onProductSelectionChange={setProductSelection}
+            initialProductId={productOpenId}
+            onInitialProductOpened={() => setProductOpenId(null)}
             productReview={productReview}
             onProductReviewChange={setProductReview}
           />

@@ -72,7 +72,7 @@ test('operator action and phase are readable; technical status and run ID are no
   assert.equal(inProgress.includes('internal-only-run'), false);
   const attention = render({ ...view, phase: 'attention', issue: 'photos', photoIssues: 3 });
   assert.ok(attention.includes('Retry sync'));
-  assert.ok(attention.includes('Open Products'));
+  assert.ok(attention.includes('affected products and image links below'));
   assert.ok(attention.includes('3 products need photo review'));
 });
 test('normal sync start issues exactly one mutation and status uses the read-only action', async () => {

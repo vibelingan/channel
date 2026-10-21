@@ -1,4 +1,4 @@
-import { AlibabaSyncWorkflowSchema } from '@vibelingan-channel/shared';
+import { AlibabaSyncWorkflowSchema, alibabaPhotoSource } from '@vibelingan-channel/shared';
 /**
  * Client for the alibaba-catalog-sync function's admin actions (MIU 13).
  * Same Bearer/JSON envelope as the admin API: {action, token, data} POSTs —
@@ -364,6 +364,28 @@ const PhotoPreparationStatusSchema = z.object({
   hiddenDrafts: count,
   draftsToFill: count,
   draftsMissingPhotos: count,
+  issues: z
+    .array(
+      z.object({
+        productId: z.string(),
+        name: z.string(),
+        sourceProductId: z.string(),
+        photos: z.array(
+          z.object({
+            part: z.enum(['gallery', 'description', 'configurations']),
+            position: count,
+            sourceUrl: z
+              .string()
+              .url()
+              .refine((value) => alibabaPhotoSource(value) === value),
+            reason: z.string(),
+          }),
+        ),
+        truncated: z.boolean(),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 export interface PhotoPreparationProgress {
@@ -380,11 +402,13 @@ export interface PhotoPreparationProgress {
 export type PhotoPreparationStatus = z.infer<typeof PhotoPreparationStatusSchema>;
 
 /** How many new drafts are hidden while prepared, and drafts still to fill (PT-G). */
-export async function fetchPhotoPreparationStatus(): Promise<PhotoPreparationStatus> {
+export async function fetchPhotoPreparationStatus(
+  includeIssues = false,
+): Promise<PhotoPreparationStatus> {
   const parsed = PhotoPreparationStatusSchema.safeParse(
-    await call<unknown>('photoPreparationStatus', {}),
+    await call<unknown>('photoPreparationStatus', includeIssues ? { includeIssues: true } : {}),
   );
-  if (!parsed.success)
+  if (!parsed.success || (includeIssues && !parsed.data.issues))
     throw new AlibabaSyncApiError('INTERNAL_ERROR', 'The photo status could not be read.');
   return parsed.data;
 }
@@ -397,6 +421,7 @@ export async function fetchPhotoPreparationStatus(): Promise<PhotoPreparationSta
 export async function prepareAlibabaPhotos(
   onProgress?: (progress: PhotoPreparationProgress) => void,
   options: {
+    productId?: string;
     pendingOnly?: boolean;
     /** Also try photos earlier found unavailable ("Copy photos now"). */
     retryUnavailable?: boolean;
@@ -423,6 +448,7 @@ export async function prepareAlibabaPhotos(
     const parsed = PhotoPreparationPageSchema.safeParse(
       await call<unknown>('prepareAlibabaPhotos', {
         afterProductId,
+        ...(options.productId ? { productId: options.productId } : {}),
         ...(options.pendingOnly ? { pendingOnly: true } : {}),
         ...(retryFailedBefore
           ? { retryFailedBefore }

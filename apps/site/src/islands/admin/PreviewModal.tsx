@@ -4,6 +4,7 @@ import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlo
 import { formatPrice } from '../shop/api.ts';
 import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
 import { PreviewErrorBoundary } from './PreviewErrorBoundary.tsx';
+import { AlibabaProductRefresh } from './alibaba-catalog-sync/AlibabaProductRefresh.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
@@ -17,6 +18,7 @@ interface Props {
   doc: CollectionDoc;
   onClose: () => void;
   onEdit: () => void;
+  onSourceRefreshed?: (product: CollectionDoc) => void;
   canMarkReviewed?: boolean;
   reviewBusy?: boolean;
   reviewError?: Error | null;
@@ -35,6 +37,7 @@ export function PreviewModal({
   doc,
   onClose,
   onEdit,
+  onSourceRefreshed,
   canMarkReviewed = false,
   reviewBusy = false,
   reviewError = null,
@@ -334,6 +337,9 @@ export function PreviewModal({
           )}
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+          {canMarkReviewed && onSourceRefreshed && (
+            <AlibabaProductRefresh key={doc._id} product={doc} onRefreshed={onSourceRefreshed} />
+          )}
           <button
             type="button"
             onClick={onClose}
