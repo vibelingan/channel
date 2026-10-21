@@ -513,39 +513,44 @@ test('time spent in requests consumes the original overall budget', async () => 
   assert.equal(calls, 3);
 });
 
-test('slow photo preparation keeps a separate bounded budget from final approval', async (context) => {
-  context.mock.timers.enable({ apis: ['setTimeout'] });
-  let time = 0;
-  let prepared = false;
-  let continued = 0;
-  const calls: PublicationCommand[] = [];
-  const result = await runPublication(scope, {
-    now: () => time,
-    wait: async () => {},
-    request: async (command) => {
-      calls.push(command);
-      if (!prepared)
-        return status('saved', { preparation: { nextAction: 'wait', job: null, progress: null } });
-      time += 8000;
-      context.mock.timers.tick(8000);
-      if (command.action === 'product-operation-continue' && ++continued === 2)
-        return status('complete');
-      return staging();
-    },
-    preparationRequest: async (command) => {
-      if (command.action === 'start') return { ok: true, progress: human().progress };
-      assert.equal(command.action, 'continue');
-      time += 110000;
-      context.mock.timers.tick(110000);
-      prepared = true;
-      return { ok: true, status: human(true), followUp: 'none', invocation: 'acknowledged' };
-    },
+for (const preparationDuration of [110000, 170000, 310000])
+  test(`photo preparation of ${preparationDuration}ms keeps final approval time`, async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    let time = 0;
+    let prepared = false;
+    let continued = 0;
+    const calls: PublicationCommand[] = [];
+    const result = await runPublication(scope, {
+      now: () => time,
+      wait: async () => {},
+      request: async (command) => {
+        calls.push(command);
+        if (!prepared)
+          return status('saved', {
+            preparation: { nextAction: 'wait', job: null, progress: null },
+          });
+        time += 8000;
+        context.mock.timers.tick(8000);
+        if (command.action === 'product-operation-continue' && ++continued === 2)
+          return status('complete');
+        return staging();
+      },
+      preparationRequest: async (command) => {
+        if (command.action === 'start') return { ok: true, progress: human().progress };
+        assert.equal(command.action, 'continue');
+        time += preparationDuration;
+        context.mock.timers.tick(preparationDuration);
+        prepared = true;
+        return { ok: true, status: human(true), followUp: 'none', invocation: 'acknowledged' };
+      },
+    });
+    const completed = preparationDuration < 300000;
+    assert.equal(result.reason, completed ? 'committed' : 'paused');
+    assert.equal(time, preparationDuration + (completed ? 24000 : 0));
+    assert.equal(continued, completed ? 2 : 0);
+    assert.ok(calls.every((command) => command.operationId === operationId));
+    assert.ok(calls.every((command) => command.action !== 'product-operation-start'));
   });
-  assert.equal(result.reason, 'committed');
-  assert.equal(time, 134000);
-  assert.ok(calls.every((command) => command.operationId === operationId));
-  assert.ok(calls.every((command) => command.action !== 'product-operation-start'));
-});
 
 test('repeated preparation never renews its aggregate budget', async () => {
   let time = 0;
@@ -563,8 +568,8 @@ test('repeated preparation never renews its aggregate budget', async () => {
     },
   });
   assert.equal(result.reason, 'paused');
-  assert.equal(preparations, 2);
-  assert.equal(time, 120000);
+  assert.equal(preparations, 5);
+  assert.equal(time, 300000);
 });
 
 test('a presentation callback only receives a copy and cannot redirect the real scope', async () => {

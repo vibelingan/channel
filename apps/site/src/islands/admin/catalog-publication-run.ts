@@ -25,6 +25,7 @@ import {
 } from './catalog-product-operation-api.ts';
 
 const RUN_MS = 120000;
+const PREPARATION_MS = 300000;
 const MAX_REQUESTS = 64;
 const MAX_IDLE = 4;
 type Failure = { code: string; message: string; issues: readonly CatalogIssue[] };
@@ -189,7 +190,7 @@ export async function runPublication(
     const time = now();
     return preparationStarted === undefined
       ? RUN_MS - (time - started - preparationMs)
-      : RUN_MS - preparationMs - (time - preparationStarted);
+      : PREPARATION_MS - preparationMs - (time - preparationStarted);
   };
   let timer = setTimeout(
     () => budget.abort(new RunPaused('Publication time limit reached')),
@@ -232,7 +233,7 @@ export async function runPublication(
       requests < MAX_REQUESTS &&
       Number.isFinite(time) &&
       time >= started &&
-      time - started < 2 * RUN_MS &&
+      time - started < RUN_MS + PREPARATION_MS &&
       phaseRemaining() > 0
     );
   };
@@ -395,6 +396,7 @@ export async function runPublication(
             { productId: binding.productId, ...(hint.job ? { jobId: hint.job.id } : {}) },
             {
               signal,
+              budgetMs: PREPARATION_MS,
               now,
               wait,
               request: async (command, preparationSignal) => {

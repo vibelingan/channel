@@ -166,6 +166,7 @@ export type PreparationRunResult = {
 };
 type Options = {
   signal?: AbortSignal;
+  budgetMs?: 120000 | 300000;
   request?: (command: PreparationCommand, signal: AbortSignal) => Promise<unknown>;
   now?: () => number;
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
@@ -280,8 +281,11 @@ export async function runPreparation(
   const request = options.request ?? managePreparation;
   const now = options.now ?? (() => performance.now());
   const started = now();
+  const budgetMs = options.budgetMs ?? 120000;
+  if (budgetMs !== 120000 && budgetMs !== 300000)
+    throw new AdminApiError('VALIDATION_ERROR', 'Invalid preparation waiting budget.');
   const budget = new AbortController();
-  const timer = setTimeout(() => budget.abort(), 120000);
+  const timer = setTimeout(() => budget.abort(), budgetMs);
   const signal = options.signal ? AbortSignal.any([options.signal, budget.signal]) : budget.signal;
   let jobId = input.jobId;
   let current: PreparationStatus | undefined;
@@ -309,7 +313,7 @@ export async function runPreparation(
       calls < 64 &&
       Number.isFinite(time) &&
       time >= started &&
-      time - started < 120000
+      time - started < budgetMs
     );
   };
   const send = async (action: PreparationCommand): Promise<PreparationResponse> => {
