@@ -1,9 +1,28 @@
 # F1 静态现场验收记录
 
-2026-10-21，日本时间。当前状态：**管理员和分支准入已解除；控制面及缓存准备已执行；专用错误页的网关 HTTP 验收失败，A→B→A 未开始，policy 保持关闭。** 存储桶配置恢复已读回，网关响应尚未跟随，不能声称恢复完成。
+2026-10-21，日本时间。当前状态：**管理员和分支准入已解除；控制面及缓存准备已执行；专用错误页的网关 HTTP 验收失败，A→B→A 未开始，policy 保持关闭。** 存储桶原始配置与原 HTTP 缓存策略均已恢复并读回；缺失地址的网关响应尚未跟随，不能声称完整恢复。
 
 
-## 最新现场结果与停止决定
+
+## 收尾状态：原配置恢复与剩余阻塞
+
+[维护运行 39558260176](https://github.com/vibelingan/channel/actions/runs/39558260176) 归档后持有共享锁，执行两步恢复，均已取得请求 ID 并逐步读回：
+
+1. WebsiteConfiguration 逐字段恢复为最初的 `IndexDocument={Suffix:index.html}`、`ErrorDocument={Key:index.html}`，不保留本轮新增的 OriginalHttpStatus 字段。
+2. canonical 域名 Cache-Control 恢复原先观测到的 `public, max-age=300, s-maxage=600`。恢复的是 HTTP 行为，原先不存在的域名 header override 字段仍保留；没有改路由、证书或上游。
+
+归档 SHA256 `899f076ecd4d7ed184af9e993c93472ba8153193e8188340140bc8eb7b3d53e0` 已下载逐字节核对。两步请求 ID 分别为 `NmFkODYxZGJfZjk3M2UzMDlfNzk3OV8yNDgyMWM4OQ==`、`c917aa1d-b7ee-45ae-997f-4ab029bbe430`。外部复核时间为 2026-10-21 06:56 UTC：
+
+- 首页、headphones、sitemap-index、sitemap-0 都为 200，完整正文 hash 与准备前相同；六个检查 URL 的缓存头均恢复原策略。
+- 两个缺失地址仍为 200 和先前的专用 404 正文；错误响应的外部恢复未确认。此前 13 次有上限的只读观察、全新路径及请求 no-cache 均没有取得预期的 404，不能把“再等一会”当作已知修复。
+- 所有已启动的云端配置调用都有终态及读回；本次维护运行在外部写入结束后取消并释放锁。没有取消其他任务，没有剩余后台写入或自动通知。
+- 保留五个新增静态文件及四个 ADMINONLY 空控制集合。源 policy 始终 disabled，未创建 canary 激活、未进行 A/B/A。测试浏览器已关闭。
+
+GitHub 独立管理员 profile 已重新验证为 vibelingan、admin=true；默认 gh 仍为 orocsy。源码修正提交 `2054093d5f033fa2fd9ffe3a58b8fb592efac9a0` 的 [CI 39557141593](https://github.com/vibelingan/channel/actions/runs/39557141593) 成功，完整 TAP 汇总 3051 项：3048 通过、3 个既有跳过、0 失败，根级 697 项全部通过。这个 CI 不代表公网错误页已通过。
+
+下一步需要查明现有 STATIC_STORE 网关读取/刷新 website 配置及透传状态码的正式机制。API/SDK、COS 直连与网关对照已核对；没有查到可直接用于当前 DIRECT 项目的配置缓存刷新合同。控制台只读入口在现有 Chrome 中加载为空白，未用另一个浏览器实例或要求重做登录。本次不猜未文档化参数，不改 DNS/上游或新增函数绕过问题。先关闭这个阻塞，再重新准备 no-cache/专用 404 并执行 A/B/A。
+
+## 现场过程记录
 
 | 检查 | 实际结果 |
 | --- | --- |
