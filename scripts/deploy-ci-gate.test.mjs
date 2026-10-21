@@ -130,6 +130,17 @@ test('push and manual deployments require same-SHA full CI before entering the e
   assert.deepEqual(Object.keys(release.jobs).sort(), ['catalog-acceptance', 'ci', 'deploy']);
 });
 
+test('CI installs browser engines before root unit tests that launch them', () => {
+  const steps = workflow('ci').jobs.checks.steps;
+  const install = steps.findIndex(
+    (step) => step.run === 'pnpm exec playwright install --with-deps chromium webkit',
+  );
+  const unitTests = steps.findIndex((step) => step.run === 'pnpm test');
+  assert.ok(install >= 0, 'Chromium and WebKit must be installed');
+  assert.ok(unitTests >= 0, 'full unit tests must run');
+  assert.ok(install < unitTests, 'browser-backed unit tests require installed engines');
+});
+
 test('mobile regressions run in WebKit and Chromium before and after deployment', () => {
   const release = workflow('deploy-test');
   const install = release.jobs.deploy.steps.find(

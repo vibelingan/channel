@@ -153,6 +153,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Install Playwright Chromium and WebKit
+        run: pnpm exec playwright install --with-deps chromium webkit
+
       - name: Unit tests
         run: pnpm test
 
@@ -186,9 +189,6 @@ jobs:
 
       - name: Discover Playwright specs
         run: pnpm test:e2e --list
-
-      - name: Install Playwright Chromium and WebKit
-        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Exercise built catalog and Admin with an isolated local database
         env:
