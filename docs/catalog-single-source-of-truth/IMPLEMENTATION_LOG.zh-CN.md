@@ -1800,3 +1800,9 @@ P7a12最终根7810项为7808通过/0失败/2既有AI跳过；类型、1087Biome�
 首次远程 CI（39647181230，ed91faae）中 PostgreSQL 合约通过，site 单元测试失败104项。其中103项直接报告缺少 Chromium/WebKit 可执行文件：安装步骤排在会启动浏览器的根单元测试后面。将原安装步骤移到根测试前，命令和断言保持不变。新增顺序回归修改前9/10、修改后10/10通过；lint通过。Deploy Test 的测试入口不运行这些组件测试，无须同步改动。
 
 另1项是 table owned publication normal 仅确认19/20；本地完整回归该项通过，不能归入浏览器缺失。远程完整重跑后继续核对，不跳过、放宽断言或顺带修改已交给SEO的发布逻辑。当前PR尚未合并。实际复核ci.yml、deploy-test.yml、deploy-ci-gate.test.mjs及原失败日志；将“104项都是缺浏览器”纠正为“103项缺依赖，1项待重跑核对”。
+
+### Linux 窄屏分页布局
+
+7fb031cd远程重跑（39656232141）确认浏览器缺失失败消失，原20件normal发布用例通过；site为1433项，1431通过、1失败、1既有跳过。唯一失败是375px页面宽381px，并非发布处理失败。Mac默认字体不能复现；同一真实组件用例采用Verdana/17px后宽404px，DOM定位到未允许换行的分页栏及Go按钮，菜单边界正常。只给分页栏两层flex补换行和行间距，复测宽375px且无越界元素，截图已人工查看。
+
+原375px断言保留，并增加较大备用字体及Publish/Prev/Next/Go按钮边界检查；没有隐藏溢出、删用例或改发布业务。实际复核CollectionView.tsx、PageJump.tsx、global.css、tokens.css、真实测试harness和Linux日志。临时探针最初误加到相邻390px用例，已还原，那几次通过不算复现证据；最终红/绿日志为premerge-20261022-mobile-diagnostic.log和mobile-green.log。将“Actions菜单越界”更正为“分页栏撑宽了页面”。

@@ -1514,7 +1514,7 @@ export function CollectionView({
         </table>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
         <span>
           {error
             ? 'Record count unavailable'
@@ -1522,7 +1522,7 @@ export function CollectionView({
               ? 'Loading records…'
               : `${total} record${total === 1 ? '' : 's'}`}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={listUnavailable || page <= 1}

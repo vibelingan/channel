@@ -842,16 +842,24 @@ test(
       .filter({ hasText: /^Actions$/ })
       .click();
     await f.expect(f.page.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
-    const geometry = await f.page.evaluate(() => ({
-      page: document.documentElement.scrollWidth,
-      viewport: innerWidth,
-    }));
-    assert.ok(geometry.page <= geometry.viewport, JSON.stringify(geometry));
-    const menu = await f.page.getByRole('button', { name: 'Publish', exact: true }).boundingBox();
-    assert.ok(
-      menu && menu.x >= 0 && menu.x + menu.width <= geometry.viewport,
-      JSON.stringify(menu),
-    );
+    for (const text of ['default', 'larger fallback']) {
+      if (text === 'larger fallback')
+        await f.page.addStyleTag({
+          content: ':root { --font-sans: Verdana, sans-serif; font-size: 17px; }',
+        });
+      const geometry = await f.page.evaluate(() => ({
+        page: document.documentElement.scrollWidth,
+        viewport: innerWidth,
+      }));
+      assert.ok(geometry.page <= geometry.viewport, JSON.stringify({ text, ...geometry }));
+      for (const name of ['Publish', 'Prev', 'Next', 'Go']) {
+        const button = await f.page.getByRole('button', { name, exact: true }).boundingBox();
+        assert.ok(
+          button && button.x >= 0 && button.x + button.width <= geometry.viewport,
+          JSON.stringify({ text, name, button }),
+        );
+      }
+    }
     assert.equal(await readFile(f.file, 'utf8'), f.initialBytes);
     assert.deepEqual(f.errors, []);
   },
