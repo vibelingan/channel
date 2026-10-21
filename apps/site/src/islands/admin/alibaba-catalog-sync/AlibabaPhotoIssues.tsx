@@ -16,7 +16,10 @@ export function photoFailureText(reason: string): string {
     return 'The image could not be saved. Retry; contact the site administrator if this continues.';
   return 'The image could not be copied safely. Retry or replace it in the product.';
 }
-export function AlibabaPhotoIssues({ onOpenProduct }: { onOpenProduct?: (id: string) => void }) {
+export function AlibabaPhotoIssues({
+  onOpenProduct,
+  onCount,
+}: { onOpenProduct?: (id: string) => void; onCount?: (count: number) => void }) {
   const [status, setStatus] = useState<PhotoPreparationStatus | null>(null);
   const [busy, setBusy] = useState<string | null>('load');
   const [message, setMessage] = useState<string | null>(null);
@@ -28,7 +31,10 @@ export function AlibabaPhotoIssues({ onOpenProduct }: { onOpenProduct?: (id: str
     const epoch = ++generation.current;
     void fetchPhotoPreparationStatus(true)
       .then((value) => {
-        if (mounted.current && generation.current === epoch) setStatus(value);
+        if (mounted.current && generation.current === epoch) {
+          setStatus(value);
+          onCount?.(value.draftsMissingPhotos);
+        }
       })
       .catch(() => {
         if (mounted.current && generation.current === epoch)
@@ -41,7 +47,7 @@ export function AlibabaPhotoIssues({ onOpenProduct }: { onOpenProduct?: (id: str
       mounted.current = false;
       generation.current++;
     };
-  }, []);
+  }, [onCount]);
   const retry = async (issue?: NonNullable<PhotoPreparationStatus['issues']>[number]) => {
     if (running.current) return;
     running.current = true;
@@ -65,6 +71,7 @@ export function AlibabaPhotoIssues({ onOpenProduct }: { onOpenProduct?: (id: str
       const next = await fetchPhotoPreparationStatus(true);
       if (mounted.current) {
         setStatus(next);
+        onCount?.(next.draftsMissingPhotos);
         setMessage(
           issue
             ? next.issues?.some((row) => row.productId === issue.productId)

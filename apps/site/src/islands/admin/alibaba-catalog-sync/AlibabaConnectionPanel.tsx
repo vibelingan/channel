@@ -105,7 +105,9 @@ export function AlibabaConnectionPanel({
           )}
           {workflow.issue && (
             <p className="mt-2 text-sm text-amber-800">
-              {issueText[workflow.issue]}
+              {workflow.issue === 'photos' && workflow.photoIssues === 0
+                ? 'Reported photo issues have been resolved. Retry sync to check for other updates.'
+                : issueText[workflow.issue]}
               {workflow.photoIssues > 0
                 ? ` ${workflow.photoIssues} products need photo review.`
                 : ''}

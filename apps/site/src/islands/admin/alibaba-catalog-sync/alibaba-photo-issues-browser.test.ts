@@ -19,7 +19,7 @@ test(
     t.after(() => rm(dir, { recursive: true, force: true }));
     await writeFile(
       join(dir, 'entry.tsx'),
-      `import{createElement}from'react';import{createRoot}from'react-dom/client';import{AlibabaPhotoIssues}from'${root}/apps/site/src/islands/admin/alibaba-catalog-sync/AlibabaPhotoIssues.tsx';createRoot(document.getElementById('root')).render(createElement(AlibabaPhotoIssues,{onOpenProduct:id=>{document.getElementById('opened').textContent=id;}}));`,
+      `import{createElement}from'react';import{createRoot}from'react-dom/client';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{AlibabaCatalogSyncPage}from'${root}/apps/site/src/islands/admin/alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';createRoot(document.getElementById('root')).render(createElement(QueryClientProvider,{client:new QueryClient()},createElement(AlibabaCatalogSyncPage,{onOpenProduct:id=>{document.getElementById('opened').textContent=id;}})));`,
     );
     await build({
       configFile: false,
@@ -48,6 +48,7 @@ test(
       );
     });
     const actions: { action: string; data: Record<string, unknown> }[] = [];
+    let retries = 0;
     const issue = {
       productId: 'p1',
       name: 'Actual operator photo example',
@@ -75,9 +76,32 @@ test(
       const body = route.request().postDataJSON();
       actions.push(body);
       let data: unknown;
-      if (body.action === 'photoPreparationStatus') {
+      if (body.action === 'connectionStatus') {
+        data = { status: 'active', notConfigured: false, accountLabel: 'Shop' };
+      } else if (body.action === 'workflowStatus') {
+        data = {
+          version: 'alibaba-sync-workflow-v1',
+          enabled: true,
+          phase: 'attention',
+          runId: 'original-run',
+          startedAt: null,
+          updatedAt: null,
+          processed: 20,
+          draftsCreated: 20,
+          photosCopied: 40,
+          photoIssues: 3,
+          nextRetryAt: null,
+          issue: 'photos',
+          history: [],
+        };
+      } else if (body.action === 'photoPreparationStatus') {
         assert.equal(body.data.includeIssues, true);
-        data = { hiddenDrafts: 0, draftsToFill: 0, draftsMissingPhotos: 1, issues: [issue] };
+        data = {
+          hiddenDrafts: 0,
+          draftsToFill: 0,
+          draftsMissingPhotos: retries >= 2 ? 0 : 1,
+          issues: retries >= 2 ? [] : [issue],
+        };
       } else if (body.action === 'syncProduct') {
         assert.equal(body.data.sourceProductId, 'Source-1');
         data = {
@@ -89,6 +113,7 @@ test(
           offerCount: 1,
         };
       } else if (body.action === 'prepareAlibabaPhotos') {
+        retries++;
         assert.equal(body.data.productId, 'p1');
         assert.equal(body.data.retryUnavailable, true);
         data = {
@@ -116,6 +141,12 @@ test(
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(origin);
     await expect(page.getByText('Actual operator photo example', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-sync-progress]')).toContainText(
+      '1 products need photo review',
+    );
+    await expect(page.locator('[data-sync-progress]')).not.toContainText(
+      '3 products need photo review',
+    );
     await expect(page.getByText(/Variant image 205:/)).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open source image' })).toHaveAttribute(
       'href',
@@ -127,6 +158,14 @@ test(
     assert.equal(actions.filter((x) => x.action === 'prepareAlibabaPhotos').length, 1);
     await page.getByRole('button', { name: 'Open product', exact: true }).click();
     await expect(page.locator('#opened')).toHaveText('p1');
+    await page.getByRole('button', { name: 'Retry this product', exact: true }).click();
+    await expect(page.getByText('No products need photo review.', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-sync-progress]')).toContainText(
+      'Reported photo issues have been resolved',
+    );
+    await expect(page.locator('[data-sync-progress]')).not.toContainText(
+      'products need photo review',
+    );
     assert.deepEqual(errors, []);
   },
 );

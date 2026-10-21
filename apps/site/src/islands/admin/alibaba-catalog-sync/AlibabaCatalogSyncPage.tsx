@@ -55,6 +55,13 @@ export function AlibabaCatalogSyncPage({
   const queryClient = useQueryClient();
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [workflow, setWorkflow] = useState<AlibabaSyncWorkflow | null>(null);
+  const [photoReview, setPhotoReview] = useState<{ runId: string | null; count: number } | null>(
+    null,
+  );
+  const onPhotoCount = useCallback(
+    (count: number) => setPhotoReview({ runId: workflow?.runId ?? null, count }),
+    [workflow?.runId],
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -152,7 +159,11 @@ export function AlibabaCatalogSyncPage({
     <div data-alibaba-sync-page className="space-y-5">
       <AlibabaConnectionPanel
         status={connection}
-        workflow={workflow}
+        workflow={
+          workflow && photoReview?.runId === workflow.runId
+            ? { ...workflow, photoIssues: photoReview.count }
+            : workflow
+        }
         loading={loading}
         busy={busy}
         notice={notice}
@@ -177,7 +188,11 @@ export function AlibabaCatalogSyncPage({
         }
       />
       {workflow?.photoIssues !== undefined && workflow.photoIssues > 0 && (
-        <AlibabaPhotoIssues onOpenProduct={onOpenProduct} />
+        <AlibabaPhotoIssues
+          key={workflow.runId}
+          onOpenProduct={onOpenProduct}
+          onCount={onPhotoCount}
+        />
       )}
       {onViewProducts && (
         <button
