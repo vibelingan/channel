@@ -1,8 +1,8 @@
 # 03 云端适配与兼容
 
-C1 状态：`implemented / local contract verified`。静态对象、托管配置、A2/B1 接入和 HTTP 读回已实现，尚未执行真实云端写入、缓存修改或恢复演练。C2 仍为 `planned`。现有部署脚本和五份 workflow 保持不变，没有 UI、pricing 或业务 schema 改动。
+2026-10-21：C1 已实现，专用 404 与 no-cache 已现场验证；静态 A/B/A 待旧发布流程整合窗口。C2 的兼容检查、归档计划及配置保护核心已实现并有本地验证，实际函数 SDK 适配和线上执行尚未接入。详见[C2 核心交付](module-03-c2-core.zh-CN.md)和[404 修复记录](module-06-404-fix.zh-CN.md)。
 
-本轮基线 `feat/seo-foundation@ae123b7f`，2026-10-21 fetch 后 `origin/main@37bcea5b` 未变。验证证据和已知边界见[模块三记录](module-03-verification.zh-CN.md)。
+现有正常部署脚本、workflow、pricing、函数及业务 schema 均未改动。下文保留原模块设计与当时基线；最新实施范围以上述交付记录为准。
 
 ## C1 的模块接口
 

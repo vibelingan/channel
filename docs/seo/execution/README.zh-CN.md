@@ -1,6 +1,8 @@
 # SEO 发布与恢复：按模块交付的执行计划
 
-规划基线：`feat/seo-foundation@139308f993f8125c623f45d6db93872b52d2362a`，2026-10-20。本文把已确认的[总体设计](../AUTOMATED_RECOVERY_DESIGN.zh-CN.md)落实到模块、接口、MIU 和验收。模块 01 的 A1/A2、模块 02 的 B1、模块 03 的 C1 已实现。B1/C1 已有本地与安装 SDK 合同验证，真实 CloudBase 并发和托管写入 fixture 尚未执行；D1 的 static-canary 人工入口已实现且默认关闭线上执行；B2、C2、整站 D1、D2 及后续模块仍为 `planned`。共享 offline CI 不接入云端恢复。新增的人工 canary workflow 不由 push 触发，手动入口已在默认分支注册，维护记录归档已现场跑通；管理员权限和 test 分支准入已确认，四个控制集合已准备；现场已完成控制面及专用错误页修复：根目录 404.html 会影响当前网关响应，移至 errors/not-found.html 并明确保留原状态后，公网已为真正 404 和专用 noindex 正文。缓存重新准备和 A/B/A 尚待执行，policy 仍关闭。最新原因见[404 修复记录](module-06-404-fix.zh-CN.md)。最新证据见[模块六记录](module-06-verification.zh-CN.md)。详见[模块一记录](module-01-verification.zh-CN.md)和[模块二记录](module-02-verification.zh-CN.md)和[模块三记录](module-03-verification.zh-CN.md)、[模块四记录](module-04-verification.zh-CN.md)。
+2026-10-21 当前状态：A1/A2、B1、C1 和 D1 静态 canary 人工入口已实现。F1 已完成控制面准备、专用 404 与 no-cache 的现场验证；A→B→A 尚未执行。main/pricing 旧发布脚本仍写回 index.html，需统一发布合同后继续，canary 开关保持关闭。详见[404 修复记录](module-06-404-fix.zh-CN.md)。
+
+本轮继续交付[C2 的兼容检查与归档计划核心](module-03-c2-core.zh-CN.md)，不占用线上部署窗口。C2 的实际函数适配仍待接入；B2、整站 D1、D2、E1 仍为 planned。Blog 与 Hermes 仍为后续设计，没有本轮上线实现。历史验证见各模块记录。
 
 ## 怎么读和交付
 
