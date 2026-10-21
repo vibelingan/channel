@@ -769,3 +769,87 @@ for (const count of [0, 105])
       assert.equal(effective.effectiveCount, 0);
     }
   });
+
+test('the default workflow keeps page-boundary checks and combines consecutive media readbacks', async (t) => {
+  const h = await workspace(t, 21, true);
+  const media = await coldOwnedMedia(h);
+  const scope = await h.start('publish', {});
+  const persist = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+  const actions: string[] = [];
+  let successfulMediaIndex = -1;
+  h.adapter.persistCatalogDetailApproval = async (...args) => {
+    const index = actions.length;
+    actions.push(args[1].action);
+    const result = await persist(...args);
+    if (args[1].action === 'operation-approval-media' && result.ok) successfulMediaIndex = index;
+    return result;
+  };
+  const response = await h.invokeWithConfig(
+    { ...scope, action: 'product-operation-continue' },
+    media.config,
+  );
+  assert.ok(response.ok, JSON.stringify(response));
+  const result = CatalogProductOperationStatusSchema.parse(response.data);
+  assert.equal(result.state, 'complete');
+  assert.equal(actions.filter((a) => a === 'operation-approval-page').length, 2);
+  const duplicateReads = actions.filter(
+    (a, i) => a === 'operation-approval-page' && actions[i + 1] === 'operation-get',
+  ).length;
+  assert.equal(duplicateReads, 2, 'Current-page interruption checks remain unchanged');
+  assert.ok(successfulMediaIndex >= 0);
+  let readbacks = 0;
+  for (const action of actions.slice(successfulMediaIndex + 1)) {
+    if (action !== 'operation-get') break;
+    readbacks++;
+  }
+  assert.equal(readbacks, 1, JSON.stringify(actions));
+  assert.equal(result.operationId, scope.operationId);
+  assert.equal(result.inputDigest, scope.inputDigest);
+  const visible = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: `/api/products/${h.productId}` },
+    { enableCatalogDetail: true },
+  );
+  assert.equal(visible.statusCode, 200);
+});
+
+for (const change of ['edit', 'cancel', 'revoke'] as const)
+  test(`the next native write rejects ${change} after a successful configuration receipt`, async (t) => {
+    const h = await workspace(t, 21, true);
+    const media = await coldOwnedMedia(h);
+    const scope = await h.start('publish', {});
+    const persist = h.adapter.persistCatalogDetailApproval.bind(h.adapter);
+    let changed = false;
+    let publishes = 0;
+    h.adapter.persistCatalogDetailApproval = async (...args) => {
+      const result = await persist(...args);
+      if (args[1].action === 'operation-publish') publishes++;
+      if (args[1].action === 'operation-approval-page' && !changed) {
+        changed = true;
+        if (change === 'edit')
+          await h.adapter.update('products', h.productId, { name: 'Independent edit after page' });
+        if (change === 'revoke') await h.adapter.update('users', 'admin', { role: 'member' });
+        if (change === 'cancel')
+          assert.ok((await persist('admin', { ...scope, action: 'operation-cancel' })).ok);
+      }
+      return result;
+    };
+    const response = await h.invokeWithConfig(
+      { ...scope, action: 'product-operation-continue' },
+      media.config,
+    );
+    assert.equal(changed, true);
+    assert.equal(response.ok, false, JSON.stringify(response));
+    assert.equal(publishes, 0);
+    const current = await h.adapter.get('products', h.productId);
+    assert.equal(current?.published, false);
+    if (change === 'edit') assert.equal(current?.name, 'Independent edit after page');
+    assert.equal(
+      (
+        await handlePublicApiEvent(
+          { httpMethod: 'GET', path: `/api/products/${h.productId}` },
+          { enableCatalogDetail: true },
+        )
+      ).statusCode,
+      404,
+    );
+  });

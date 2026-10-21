@@ -406,3 +406,6 @@ function saveFailure(result: Exclude<CatalogProductSaveResult, { result: 'saved'
     code: result.result === 'missing' ? ('NOT_FOUND' as const) : ('CONFLICT' as const),
   };
 }
+
+// Server orchestration may project the acknowledged native result from this same step.
+export { projectStatus as projectCatalogProductOperationStatus };

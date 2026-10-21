@@ -5,6 +5,7 @@ import {
   manageCatalogProductOperation,
   persistCatalogDetailApproval,
   prepareCatalogProductOperationApproval,
+  projectCatalogProductOperationStatus,
 } from '@vibelingan-channel/db';
 import { fitsJsonBudget } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogValidationReportSchema } from '@vibelingan-channel/shared/catalog-issues';
@@ -96,13 +97,16 @@ export async function continueAdminCatalogProductOperation(
     operation: manageCatalogProductOperation,
     ...ownedSourceDependencies(),
     configuration: (actorId, scope, page) =>
-      persistCatalogDetailApproval(actorId, {
+      persistCatalogDetailApproval(actorId, { ...scope, action: 'operation-approval-page', page }),
+    media: async (actorId, scope) => {
+      const result = await persistCatalogDetailApproval(actorId, {
         ...scope,
-        action: 'operation-approval-page',
-        page,
-      }),
-    media: (actorId, scope) =>
-      persistCatalogDetailApproval(actorId, { ...scope, action: 'operation-approval-media' }),
+        action: 'operation-approval-media',
+      });
+      return result.ok && 'record' in result
+        ? projectCatalogProductOperationStatus(result, actorId, scope)
+        : result;
+    },
     now: () => performance.now(),
   },
   budgetMs = OWNED_CONTINUATION_BUDGET_MS,
@@ -122,8 +126,10 @@ export async function continueAdminCatalogProductOperation(
   if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
   const { action: _action, referenceRecovery, ...scope } = parsed.data;
   const deadline = deps.now() + budgetMs;
-  const get = async () =>
-    status(
+  let mediaReceiptNeedsReadback = false;
+  const get = async () => {
+    mediaReceiptNeedsReadback = false;
+    return status(
       await deps.operation(actorId, {
         action: 'product-operation-get',
         productId: scope.productId,
@@ -131,6 +137,18 @@ export async function continueAdminCatalogProductOperation(
       }),
       scope,
     );
+  };
+  // Media receipts may defer readback to the immediately following reference/final helper.
+  // If that helper cannot run, resume performs the original fresh read before returning.
+  const mediaStatus = async (raw: unknown) => {
+    if (raw && typeof raw === 'object' && Reflect.get(raw, 'kind') === 'product-operation') {
+      const parsed = CatalogProductOperationStatusSchema.safeParse(raw);
+      return parsed.success
+        ? status(parsed.data, scope)
+        : { ok: false as const, code: 'CONFLICT' as const };
+    }
+    return get();
+  };
   const configure = async (initial: Awaited<ReturnType<typeof get>>) => {
     let current = initial;
     for (let attempt = 0; attempt < 500; attempt++) {
@@ -170,9 +188,17 @@ export async function continueAdminCatalogProductOperation(
       Reflect.get(raw, 'ok') === false &&
       Reflect.get(raw, 'code') === 'MEDIA_NOT_READY';
     if (!success && !pending) return failure(raw);
-    const current = await get();
+    const current = success ? await mediaStatus(raw) : await get();
     if (success && current.ok && current.state === 'staging' && !current.approval.mediaReady)
       return { ok: false as const, code: 'CONFLICT' as const };
+    if (
+      success &&
+      current.ok &&
+      raw &&
+      typeof raw === 'object' &&
+      Reflect.get(raw, 'kind') === 'product-operation'
+    )
+      mediaReceiptNeedsReadback = true;
     return current;
   };
   const prepareMissingMedia = async (initial: Awaited<ReturnType<typeof get>>) => {
@@ -231,6 +257,7 @@ export async function continueAdminCatalogProductOperation(
         Math.max(0, deadline - deps.now()),
         referenceRecovery,
       );
+      mediaReceiptNeedsReadback = false;
       current = result.ok ? status(result, scope) : failure(result);
     }
     if (
@@ -244,9 +271,10 @@ export async function continueAdminCatalogProductOperation(
       deps.now() < deadline
     ) {
       const result = await publish(actorId, scope, Math.max(0, deadline - deps.now()));
+      mediaReceiptNeedsReadback = false;
       return result.ok ? status(result, scope) : failure(result);
     }
-    return current;
+    return mediaReceiptNeedsReadback && current.ok ? get() : current;
   };
   if (deps.now() >= deadline) return get();
   let current = status(

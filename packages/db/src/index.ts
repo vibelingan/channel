@@ -979,3 +979,5 @@ export async function preparationUsingImage(imageId: string): Promise<string | n
     readCatalogPreparationJob,
   );
 }
+
+export { projectCatalogProductOperationStatus } from './catalog-product-operation-workflow.ts';

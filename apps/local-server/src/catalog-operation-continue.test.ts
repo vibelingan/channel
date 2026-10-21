@@ -11,6 +11,7 @@ import {
   manageCatalogProductOperation,
   persistCatalogDetailApproval,
   prepareCatalogProductOperationApproval,
+  projectCatalogProductOperationStatus,
   setAdapter,
 } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
@@ -2373,4 +2374,137 @@ for (const clock of [Number.NaN, -1])
       /Invalid reference continuation clock/,
     );
     assert.equal(h.bytes(), before);
+  });
+
+for (const fault of [
+  'none',
+  'wrong-product',
+  'wrong-operation',
+  'wrong-digest',
+  'not-current',
+  'old-revision',
+  'expired',
+  'cancelled',
+  'malformed',
+  'not-ready',
+] as const)
+  test(`acknowledged media status validates scope and retains a final read without a following helper: ${fault}`, async (t) => {
+    const h = await workspace(t);
+    const scope = await warmOwnedMedia(h);
+    const source = createOwnedCatalogSourcePreparer();
+    let statusReads = 0;
+    let mediaCalls = 0;
+    const response = await continueAdminCatalogProductOperation(
+      'admin',
+      { ...scope, action: 'product-operation-continue' },
+      {
+        operation: async (...args) => {
+          if (
+            args[1] &&
+            typeof args[1] === 'object' &&
+            Reflect.get(args[1], 'action') === 'product-operation-get'
+          )
+            statusReads++;
+          return manageCatalogProductOperation(...args);
+        },
+        seed: (actor, input, canBegin) =>
+          prepareCatalogProductOperationApproval(actor, input, canBegin, source.readCandidate),
+        prepare: async () => {
+          throw Error('Already prepared source must not be rebuilt');
+        },
+        configuration: stageConfiguration,
+        media: async (actor, input) => {
+          mediaCalls++;
+          const raw = await bindMedia(actor, input);
+          assert.ok(raw.ok && 'record' in raw);
+          const projected = projectCatalogProductOperationStatus(raw, actor, input);
+          assert.ok(projected.ok && projected.state === 'staging');
+          if (fault === 'none') return projected;
+          const value: Record<string, unknown> = structuredClone(projected);
+          if (fault === 'wrong-product') value.productId = 'another-product';
+          if (fault === 'wrong-operation') value.operationId = 'another-operation';
+          if (fault === 'wrong-digest') value.inputDigest = 'f'.repeat(64);
+          if (fault === 'not-current') value.current = false;
+          if (fault === 'old-revision') value.revisionCurrent = false;
+          if (fault === 'expired') value.expired = true;
+          if (fault === 'cancelled') value.cancelledAt = new Date().toISOString();
+          if (fault === 'malformed') value.expired = 'not-a-boolean';
+          if (fault === 'not-ready') value.approval = { ...projected.approval, mediaReady: false };
+          return value;
+        },
+        now: () => 0,
+      },
+    );
+    assert.equal(mediaCalls, 1);
+    if (fault === 'none') {
+      assert.ok(response.ok && response.state === 'staging', JSON.stringify(response));
+      assert.equal(response.approval.mediaReady, true);
+      assert.equal(statusReads, 1, 'No subsequent helper means the original final lookup remains');
+    } else {
+      assert.ok(!response.ok && response.code === 'CONFLICT', JSON.stringify(response));
+      assert.equal(statusReads, 0, 'Invalid projected media status must fail closed');
+    }
+    assert.equal((await h.adapter.get('products', h.productId))?.published, false);
+  });
+
+for (const change of ['edit', 'cancel', 'revoke'] as const)
+  test(`a media receipt still reads current state when its budget expires before the next helper: ${change}`, async (t) => {
+    const h = await workspace(t);
+    const scope = await warmOwnedMedia(h);
+    const source = createOwnedCatalogSourcePreparer();
+    let now = 0;
+    let helpers = 0;
+    let reads = 0;
+    const result = await continueAdminCatalogProductOperation(
+      'admin',
+      { ...scope, action: 'product-operation-continue' },
+      {
+        operation: async (...args) => {
+          if (
+            args[1] &&
+            typeof args[1] === 'object' &&
+            Reflect.get(args[1], 'action') === 'product-operation-get'
+          )
+            reads++;
+          return manageCatalogProductOperation(...args);
+        },
+        seed: (actor, input, canBegin) =>
+          prepareCatalogProductOperationApproval(actor, input, canBegin, source.readCandidate),
+        prepare: async () => {
+          throw Error('Prepared source must remain unchanged');
+        },
+        configuration: stageConfiguration,
+        media: async (actor, input) => {
+          const raw = await bindMedia(actor, input);
+          assert.ok(raw.ok && 'record' in raw);
+          const projected = projectCatalogProductOperationStatus(raw, actor, input);
+          assert.ok(projected.ok);
+          if (change === 'edit')
+            await h.adapter.update('products', h.productId, {
+              name: 'Independent edit at media boundary',
+            });
+          if (change === 'revoke') await h.adapter.update('users', 'admin', { role: 'member' });
+          if (change === 'cancel')
+            assert.ok(
+              (await persistCatalogDetailApproval(actor, { ...scope, action: 'operation-cancel' }))
+                .ok,
+            );
+          now = 12000;
+          return projected;
+        },
+        now: () => now,
+      },
+      12000,
+      undefined,
+      async () => {
+        helpers++;
+        throw Error('No helper may begin after budget expiry');
+      },
+    );
+    assert.equal(helpers, 0);
+    assert.equal(reads, 1);
+    assert.equal(result.ok, false, JSON.stringify(result));
+    const product = await h.adapter.get('products', h.productId);
+    assert.equal(product?.published, false);
+    if (change === 'edit') assert.equal(product?.name, 'Independent edit at media boundary');
   });
