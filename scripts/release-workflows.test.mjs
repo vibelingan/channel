@@ -56,8 +56,11 @@ test('maintenance holds the same target lock without cloud credentials, environm
   assert.match(maintenance.if, /inputs.mode == 'maintenance'/);
   assert.equal(maintenance.environment, undefined);
   assert.deepEqual(maintenance.permissions, { contents: 'read' });
-  assert.equal(maintenance.steps.length, 1);
-  assert.match(maintenance.steps[0].run, /F1_MAINTENANCE_LOCK_READY/);
+  assert.equal(maintenance.steps.length, 3);
+  assert.match(maintenance.steps[0].run, /base64.b64decode/);
+  assert.equal(maintenance.steps[1].uses, 'actions/upload-artifact@v4');
+  assert.equal(maintenance.steps[1].with['if-no-files-found'], 'error');
+  assert.match(maintenance.steps[2].run, /F1_MAINTENANCE_LOCK_READY/);
   assert.doesNotMatch(
     JSON.stringify(maintenance),
     /TENCENTCLOUD|secrets\.|deploy-cloudbase|run-static-canary/,
