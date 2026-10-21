@@ -56,6 +56,25 @@ export function configuration() {
     },
   };
 }
+export function domainConfiguration() {
+  const result = configuration();
+  const domain = result.gateway.Domains[0];
+  domain.Routes = domain.Routes.filter((route) => route.UpstreamResourceType === 'STATIC_STORE');
+  for (const route of domain.Routes)
+    route.Extension.HeadersHandler.ResponseHeadersToAdd =
+      route.Extension.HeadersHandler.ResponseHeadersToAdd.filter(
+        (header) => header.Key !== 'Cache-Control',
+      );
+  domain.Extension = {
+    HeadersHandler: {
+      ResponseHeadersToAdd: [
+        { Key: 'X-Domain', Value: 'keep' },
+        { Key: 'Cache-Control', Value: 'no-store', Action: 'OVERWRITE_IF_EXISTS_OR_ADD' },
+      ],
+    },
+  };
+  return result;
+}
 export async function httpFixture(t, handler) {
   const requests = [];
   const server = createServer((req, res) => {

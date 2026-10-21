@@ -10,6 +10,7 @@ import {
 import { fixture } from './release-fixtures.mjs';
 import {
   configuration,
+  domainConfiguration,
   entry,
   errorHtml,
   httpFixture,
@@ -48,7 +49,7 @@ async function setup(
     cacheChange = false,
   } = {},
 ) {
-  const sdk = managerFixture();
+  const sdk = managerFixture(cacheChange ? { initialConfiguration: domainConfiguration() } : {});
   if (changes)
     sdk.state.configuration.website.WebsiteConfiguration.ErrorDocument.Key = 'old-error.html';
   const files = {
@@ -91,9 +92,9 @@ async function setup(
   const http = await httpFixture(t, (req, res) => {
     const path = req.url === '/' ? 'index.html' : req.url.slice(1).replace(/\/$/, '/index.html');
     const body = sdk.state.files.get(path);
-    const headers =
-      sdk.state.configuration.gateway.Domains[0].Routes[0].Extension.HeadersHandler
-        .ResponseHeadersToAdd;
+    const domain = sdk.state.configuration.gateway.Domains[0];
+    const headers = (domain.Extension ?? domain.Routes[0].Extension).HeadersHandler
+      .ResponseHeadersToAdd;
     const cache = headers.find((h) => h.Key === 'Cache-Control').Value;
     objectResponse(req, res, {
       body: body ?? errorHtml,

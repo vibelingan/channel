@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { target } from './release-hosting-fixtures.mjs';
+import { domainConfiguration, target } from './release-hosting-fixtures.mjs';
 import { managerFixture } from './release-manager-fixture.mjs';
 import {
   configurationHash,
@@ -11,7 +11,7 @@ import {
 import { createCloudbaseHostingProvider } from './release/hosting-provider.mjs';
 
 test('installed Manager SDK is bound to explicit env and performs single-object upload and exact delete', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   const port = createCloudbaseHostingProvider({ manager, target });
   assert.equal(
     configurationHash(await port.readConfiguration()),
@@ -30,14 +30,14 @@ test('installed Manager SDK is bound to explicit env and performs single-object 
   );
 });
 test('explicit env mismatch is rejected before SDK resources are read', () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   assert.throws(() =>
     createCloudbaseHostingProvider({ manager, target: { ...target, envId: 'wrong-env' } }),
   );
   assert.equal(state.calls.length, 0);
 });
-test('route patch uses current explicit SDK request and leaves API/upstream/certificate untouched', async () => {
-  const { manager, state } = managerFixture();
+test('domain header patch uses the installed SDK and preserves all routes and certificate', async () => {
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   const port = createCloudbaseHostingProvider({ manager, target });
   const before = await port.readConfiguration();
   const plan = prepareHostingConfiguration({
@@ -53,11 +53,11 @@ test('route patch uses current explicit SDK request and leaves API/upstream/cert
   );
   const request = state.calls.find((c) => c.action === 'ModifyHTTPServiceRoute');
   assert.deepEqual(Object.keys(request.payload).sort(), ['Domain', 'EnvId']);
-  assert.deepEqual(Object.keys(request.payload.Domain).sort(), ['Domain', 'Routes']);
+  assert.deepEqual(Object.keys(request.payload.Domain).sort(), ['Domain', 'Extension']);
   assert.equal(state.configuration.gateway.Domains[0].CertId, 'preserved-cert');
 });
 test('website SDK roundtrip preserves supported flags and conditional source check', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.configuration.website.WebsiteConfiguration.ErrorDocument = {
     Key: 'old-error.html',
     OriginalHttpStatus: 'true',
@@ -76,7 +76,7 @@ test('website SDK roundtrip preserves supported flags and conditional source che
 });
 for (const failure of ['delete', 'configure', 'missing-request-id'])
   test(`provider rejects ${failure} instead of claiming success`, async () => {
-    const { manager, state } = managerFixture();
+    const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
     const port = createCloudbaseHostingProvider({ manager, target });
     const before = await port.readConfiguration();
     const plan = prepareHostingConfiguration({
@@ -93,13 +93,13 @@ for (const failure of ['delete', 'configure', 'missing-request-id'])
   });
 
 test('staging preserves the filename extension used by COS MIME inference', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   const port = createCloudbaseHostingProvider({ manager, target });
   await port.upload('assets/app.hash.js', Buffer.from('script'));
   assert.ok(state.lastFilePath.endsWith('/app.hash.js'));
 });
 test('a foreign EnvInfo result cannot redirect later SDK calls', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.envId = 'foreign-env';
   const port = createCloudbaseHostingProvider({ manager, target });
   await assert.rejects(port.readConfiguration());
@@ -109,7 +109,7 @@ test('a foreign EnvInfo result cannot redirect later SDK calls', async () => {
   );
 });
 test('shared hosting bucket prefixes stay on upload/delete and bucket-global website changes are denied', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.store = {
     ...state.store,
     Bucket: '',
@@ -133,14 +133,14 @@ test('shared hosting bucket prefixes stay on upload/delete and bucket-global web
 });
 
 test('SDK counts without an actual matching per-file completion do not confirm upload', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.fail = 'missing-callback';
   const port = createCloudbaseHostingProvider({ manager, target });
   await assert.rejects(port.upload('canary/a.html', Buffer.from('hello')));
 });
 
 test('server-managed route timestamps do not invalidate a matching configuration or its safe inverse', async () => {
-  const { manager, state } = managerFixture();
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.configuration.gateway.Domains[0].CreateTime = '2026-10-20T00:00:00Z';
   state.configuration.gateway.Domains[0].UpdateTime = '2026-10-20T00:00:00Z';
   const port = createCloudbaseHostingProvider({ manager, target });
@@ -157,7 +157,7 @@ test('server-managed route timestamps do not invalidate a matching configuration
   const inverse = inverseHostingConfiguration({ plan, current });
   await port.configure(inverse.changes[0]);
   assert.equal(
-    (await port.readConfiguration()).gateway.Domains[0].Routes[0].Extension.HeadersHandler
+    (await port.readConfiguration()).gateway.Domains[0].Extension.HeadersHandler
       .ResponseHeadersToAdd[1].Value,
     'no-store',
   );

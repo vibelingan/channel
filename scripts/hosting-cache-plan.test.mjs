@@ -24,7 +24,6 @@ function input() {
                 Enable: true,
                 PathRewrite: { Prefix: '/' },
               })),
-              { Path: '/api/*', UpstreamResourceType: 'FUNCTION', Enable: true },
             ],
           },
         ],
@@ -33,39 +32,35 @@ function input() {
   };
 }
 
-test('incremental patch preserves domain identity, upstreams, certificate and API routes', () => {
+test('domain header patch preserves every route and avoids sending legacy wildcard paths', () => {
   const args = input();
   const original = structuredClone(args);
   const plan = planHostingCacheChange(args);
   assert.deepEqual(args, original);
-  assert.deepEqual(Object.keys(plan.forward.Domain).sort(), ['Domain', 'Routes']);
-  assert.deepEqual(
-    plan.forward.Domain.Routes.map((route) => route.Path),
-    ['/', '/*'],
-  );
-  for (const route of plan.forward.Domain.Routes) {
-    assert.deepEqual(Object.keys(route).sort(), ['Extension', 'Path']);
-    assert.equal(route.Extension.HeadersHandler.ResponseHeadersToAdd[0].Value, 'no-cache');
-  }
+  assert.deepEqual(Object.keys(plan.forward.Domain).sort(), ['Domain', 'Extension']);
   assert.equal(
-    plan.backout.Domain.Routes[0].Extension.HeadersHandler.ResponseHeadersToAdd[0].Value,
+    plan.forward.Domain.Extension.HeadersHandler.ResponseHeadersToAdd[0].Value,
+    'no-cache',
+  );
+  assert.equal(
+    plan.backout.Domain.Extension.HeadersHandler.ResponseHeadersToAdd[0].Value,
     args.previousCacheControl,
   );
 });
 
 test('existing unrelated extension and response headers survive the patch', () => {
   const args = input();
-  args.configuration.gateway.Domains[0].Routes[0].Extension = {
+  args.configuration.gateway.Domains[0].Extension = {
     Cache: { fixture: 'preserved' },
     HeadersHandler: {
       ResponseHeadersToAdd: [{ Key: 'X-Existing', Value: 'preserved' }],
       RequestHeadersToRemove: ['x-test'],
     },
   };
-  const route = planHostingCacheChange(args).forward.Domain.Routes[0];
-  assert.deepEqual(route.Extension.Cache, { fixture: 'preserved' });
-  assert.equal(route.Extension.HeadersHandler.ResponseHeadersToAdd[0].Key, 'X-Existing');
-  assert.deepEqual(route.Extension.HeadersHandler.RequestHeadersToRemove, ['x-test']);
+  const domain = planHostingCacheChange(args).forward.Domain;
+  assert.deepEqual(domain.Extension.Cache, { fixture: 'preserved' });
+  assert.equal(domain.Extension.HeadersHandler.ResponseHeadersToAdd[0].Key, 'X-Existing');
+  assert.deepEqual(domain.Extension.HeadersHandler.RequestHeadersToRemove, ['x-test']);
 });
 
 test('changed access type, route ownership or conflicting headers stop preparation', () => {
@@ -79,6 +74,18 @@ test('changed access type, route ownership or conflicting headers stop preparati
     (args) => {
       args.configuration.gateway.Domains[0].Routes[0].Extension = {
         HeadersHandler: { ResponseHeadersToRemove: ['Cache-Control'] },
+      };
+    },
+    (args) => {
+      args.configuration.gateway.Domains[0].Routes.push({
+        Path: '/api',
+        UpstreamResourceType: 'SCF',
+        Enable: true,
+      });
+    },
+    (args) => {
+      args.configuration.gateway.Domains[0].Routes[0].Extension = {
+        HeadersHandler: { ResponseHeadersToAdd: [{ Key: 'Cache-Control', Value: 'max-age=300' }] },
       };
     },
   ]) {

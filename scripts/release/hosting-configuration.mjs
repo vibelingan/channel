@@ -1,4 +1,4 @@
-import { planHostingCacheChange } from '../hosting-cache-plan.mjs';
+import { assertStaticDomainCacheScope, planHostingCacheChange } from '../hosting-cache-plan.mjs';
 import { assertMutableCachePolicy } from '../hosting-contract.mjs';
 import { hostingConfigurationIdentity } from '../hosting-recovery.mjs';
 import { assertOrigin, freeze, identity, sha256 } from './input.mjs';
@@ -68,17 +68,13 @@ export function prepareHostingConfiguration({
       previousCacheControl,
     });
     const args = copy(plan.forward);
-    for (const route of args.Domain.Routes)
-      route.Extension.HeadersHandler.ResponseHeadersToAdd.find(
-        (h) => h.Key.toLowerCase() === 'cache-control',
-      ).Value = cacheControl;
+    args.Domain.Extension.HeadersHandler.ResponseHeadersToAdd.find(
+      (h) => h.Key.toLowerCase() === 'cache-control',
+    ).Value = cacheControl;
     const next = copy(after);
     const domain = domainFor(next, target);
-    domain.Routes = domain.Routes.map((route) => {
-      const changed = args.Domain.Routes.find((item) => item.Path === route.Path);
-      return changed ? { ...route, Extension: changed.Extension } : route;
-    });
-    if (!same(after, next)) add('routes', args, next);
+    domain.Extension = copy(args.Domain.Extension);
+    if (!same(after, next)) add('domain-headers', args, next);
   }
   assertSafeConfiguration(after, target);
   return freeze({ schemaVersion: 1, target: copy(target), before: source, after, changes });
@@ -103,12 +99,7 @@ export function inverseHostingConfiguration({ plan, current }) {
           EnvId: plan.target.envId,
           Domain: {
             Domain: prior.Domain,
-            Routes: change.args.Domain.Routes.map((item) => ({
-              Path: item.Path,
-              Extension: copy(
-                prior.Routes.find((route) => route.Path === item.Path).Extension ?? {},
-              ),
-            })),
+            Extension: copy(prior.Extension ?? {}),
           },
         };
       }
@@ -194,8 +185,18 @@ export function assertSafeConfiguration(config, target) {
     )
   )
     throw new Error('Static route ownership changed');
-  for (const route of staticRoutes) {
-    const headers = route.Extension?.HeadersHandler;
+  const domainHeaders = domain.Extension?.HeadersHandler;
+  const hasDomainCache =
+    (domainHeaders?.ResponseHeadersToAdd ?? []).some(
+      (header) => header.Key.toLowerCase() === 'cache-control',
+    ) ||
+    (domainHeaders?.ResponseHeadersToRemove ?? []).some(
+      (key) => key.toLowerCase() === 'cache-control',
+    );
+  if (hasDomainCache) assertStaticDomainCacheScope(domain);
+  for (const headers of hasDomainCache
+    ? [domainHeaders]
+    : staticRoutes.map((route) => route.Extension?.HeadersHandler)) {
     const cache =
       headers?.ResponseHeadersToAdd?.filter(
         (header) => header.Key.toLowerCase() === 'cache-control',
@@ -237,38 +238,20 @@ export function validateConfigurationChange({ change, current, target }) {
       !same(change.args, websiteArguments(doc))
     )
       throw new Error('Unsafe website patch');
-  } else if (change.kind === 'routes') {
+  } else if (change.kind === 'domain-headers') {
     const beforeDomain = domainFor(expected, target);
     const afterDomain = domainFor(change.after, target);
-    const paths = ['/', '/*'];
+    assertStaticDomainCacheScope(beforeDomain);
     if (
       change.args.EnvId !== target.envId ||
       change.args.Domain.Domain !== new URL(target.site).hostname ||
       Object.keys(change.args).sort().join() !== 'Domain,EnvId' ||
-      Object.keys(change.args.Domain).sort().join() !== 'Domain,Routes' ||
-      change.args.Domain.Routes.length !== 2
+      Object.keys(change.args.Domain).sort().join() !== 'Domain,Extension'
     )
-      throw new Error('Invalid route patch target');
-    for (const patch of change.args.Domain.Routes) {
-      const original = beforeDomain.Routes.find((route) => route.Path === patch.Path);
-      if (
-        !paths.includes(patch.Path) ||
-        Object.keys(patch).sort().join() !== 'Extension,Path' ||
-        !original ||
-        original.UpstreamResourceType !== 'STATIC_STORE' ||
-        original.UpstreamResourceName !== 'staticstore' ||
-        original.Enable !== true ||
-        beforeDomain.AccessType !== 'DIRECT' ||
-        beforeDomain.Enable !== true
-      )
-        throw new Error('Route ownership changed');
-      const desired = afterDomain.Routes.find((route) => route.Path === patch.Path);
-      if (!desired || !same(desired.Extension, patch.Extension))
-        throw new Error('Route patch differs from expected state');
-      original.Extension = copy(patch.Extension);
-    }
-    if (new Set(change.args.Domain.Routes.map((route) => route.Path)).size !== 2)
-      throw new Error('Duplicate route patch');
+      throw new Error('Invalid domain header patch target');
+    if (!same(afterDomain.Extension, change.args.Domain.Extension))
+      throw new Error('Domain header patch differs from expected state');
+    beforeDomain.Extension = copy(change.args.Domain.Extension);
     assertSafeConfiguration(expected, target);
   } else throw new Error('Unsupported configuration mutation');
   if (configurationStateHash(expected) !== change.afterHash)

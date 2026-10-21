@@ -13,7 +13,7 @@ C1 状态：`implemented / local contract verified`。静态对象、托管配�
 | `scripts/release/hosting-configuration.mjs` | 配置计划、逐步 before/after 身份、SDK 参数映射、有条件且安全的反向计划 |
 | `scripts/release/hosting-readback.mjs` | 同一普通 URL 的正文、状态、MIME、ETag 和缓存验证 |
 
-复用 `hosting-cache-plan.mjs` 的 STATIC_STORE 路由补丁和 `hosting-contract.mjs` 的缓存/错误文档检查。`smoke-http.mjs` 只新增可选的外部 AbortSignal 和 redirect 参数，默认请求行为保持原样。没有在现有 deploy 脚本旁新增另一条自动发布入口；D1 才将旧交付调用方切到这些适配器。原脚本目前继续用原实现。
+复用 `hosting-cache-plan.mjs` 的静态专用域名响应头补丁和 `hosting-contract.mjs` 的缓存/错误文档检查。`smoke-http.mjs` 只新增可选的外部 AbortSignal 和 redirect 参数，默认请求行为保持原样。没有在现有 deploy 脚本旁新增另一条自动发布入口；D1 才将旧交付调用方切到这些适配器。原脚本目前继续用原实现。
 
 新增 root devDependency `@cloudbase/manager-node@5.9.1`，用于固定执行合同和运行真实 SDK transport fixture。没有改变既有包的锁定版本。它不进入应用或函数业务代码；以后部署 runner 需要提供相应 Manager 实例。不能以工具当前选中的环境代替显式 envId。
 
@@ -63,7 +63,7 @@ SDK provider 固定捕获 Manager 的一个 Environment，核对构造配置、E
 
 ### 配置与反向计划
 
-`prepareHostingConfiguration` 从当前配置准备逐个变更：网站错误文档，以及现有 DIRECT 域名 `/`、`/*` 两条 STATIC_STORE 路由的响应缓存头。缓存补丁不包含证书、AccessType、上游、API 路由或路径重写；保留其他扩展和头部。网站配置只映射已安装 SDK 支持的字段，未知字段或不能无损表达的路由直接拒绝。
+`prepareHostingConfiguration` 从当前配置准备逐个变更：网站错误文档，以及现有 DIRECT 静态专用域名的响应缓存头。域名必须恰好只有 `/`、`/*` 两条归属明确的 STATIC_STORE 路由，且路由级没有冲突缓存头。请求仅发送 Domain 与 Extension，不发送含历史通配符的 Routes。缓存补丁不包含证书、AccessType、上游、API 路由或路径重写；保留其他扩展和头部。网站配置只映射已安装 SDK 支持的字段，未知字段或不能无损表达的路由直接拒绝。
 
 每个变更保存完整 before/after，以及配置状态投影的 hash。仅排除平台维护的 Domain/Route CreateTime/UpdateTime，其余字段仍参与比较。artifact 的原始配置快照 hash 保持不变；回执同时保留实际原始读回 hash 和状态 hash，先验证内容投影相同，再满足 A2 的快照引用，不把两种身份混称。provider 在调用前重新读取当前值，比较后才发最小参数；这不是服务端 CAS，仍要求 D1 让所有写入方持有同一交付锁。配置请求返回 RequestId 也不足以验收：控制面连续匹配后，最终 HTTP 检查仍须通过。
 
