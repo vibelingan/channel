@@ -35,7 +35,8 @@ test(
     const h = await workspace(t);
     await coldOwnedMedia(h);
     const original = await h.adapter.get('products', h.productId);
-    const at = '2026-10-21T00:00:00.000Z';
+    // The status handler uses the service clock; a fixed date makes a new run look overdue.
+    const at = new Date().toISOString();
     const key = '1'.repeat(64);
     await h.adapter.createDocWithId('alibabaConnections', 'primary', {
       status: 'active',
@@ -44,8 +45,8 @@ test(
         accessToken: 'test-source-access',
         refreshToken: 'test-source-refresh',
       }),
-      accessTokenExpiresAt: '2026-10-23T00:00:00.000Z',
-      refreshTokenExpiresAt: '2026-11-01T00:00:00.000Z',
+      accessTokenExpiresAt: new Date(Date.parse(at) + 2 * 86400000).toISOString(),
+      refreshTokenExpiresAt: new Date(Date.parse(at) + 11 * 86400000).toISOString(),
     });
     const config = {
       jwtSecret: 'sync-ui-local-only',
