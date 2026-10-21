@@ -16,4 +16,15 @@ publication-budget-tests.log：77/77。publication-budget-site-tests.log：1431 
 
 人工逐行审阅 catalog-publication-run.ts 与对应测试：计时器切换在 finally 中归还预算，所有退出路径由原 finally 清理计时器；准备阶段的状态检查和请求仍走原 admit，不能绕过次数、账号、取消或任务版本保护。核对了 runPreparation 的独立上限与批量四路并发限制。修正说明文字为“准备累计”和“审批累计”，避免误导为每轮都续期。
 
-本条记录的修复后部署、再次真实选品发布验收待完成；不把原版本的恢复成功作为新修复的验收结论。
+下文记录修复后的部署和重新选品结果，区分旧版本恢复与新版本自动发布。
+
+
+## 新版本真实结果
+
+352261ee 的前端已部署，5 个变化资源和 admin HTML 的线上 SHA-256/MIME 均通过。上一轮 19 件冷商品加 T507 在旧预算下出现暂停；保留原任务后通过恢复继续。升级后最后 10 件从未启动的商品按正常入口自动 10/10 发布，用时约 8 分 43 秒。整组 20 件公开详情均 HTTP 200，随后全部恢复未发布、NEW 审核标记。627 张涉及图片计数与当前实际公开引用全部一致，匿名 20/20 HTTP 404。该轮是混合版本与恢复验收，不能写成新版本全自动 20/20。
+
+4f0fc708 前端（沿用本条预算修复）与 11135f6b 同步后端的最终独立验收重新从真实后台选了 20 件已有 Misc 主分类的未发布商品，包含三件已重同步时钟。通过 Assign category → Keep existing classifications → Save and publish → Confirm，自动 20/20 发布，未点继续、未换任务。116 秒时页面显示 20 published，随后明确显示 20 products published. Existing classifications were kept. 数据库 20/20 published=true，匿名 20/20 HTTP 200，记录在 real20-final-4f0fc708。正在通过后台下架并独立检查恢复。
+
+后台实际分 10 件、10 件下架恢复。数据库独立读回 20/20 未发布，审核标记条件更新 matched=20/modified=20；匿名 20/20 HTTP 404。332 张关联图片计数与 509 件正式商品加 1 件 overstock 的实际引用一致。正常内容/分类/定价/图库保持原值；审批/生命周期历史保留。restoration-checks.json 与 anonymous-restored.json 记录恢复结果。
+
+性能边界：这证明 20 件正常流程可以完成，不代表已经足够快。该轮约 2 分钟，W203 单件 17.934 秒，大图库首次准备仍可能需数分钟。尚不宣称性能目标完成，也不增加无界等待或放松图片/审批校验。
