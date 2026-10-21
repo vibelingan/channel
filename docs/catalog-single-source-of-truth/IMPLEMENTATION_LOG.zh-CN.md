@@ -1767,3 +1767,30 @@ P7a11按当前batch.run结果与后续读回分开显示条件，原pending仍�
 ## P7a12：保留解码时限，限制测试文件争抢
 
 P7a11的156项生产构建全部通过，0跳过，原11份报告hash恢复及隔离资源清理通过。随后全仓7810项为7805通过/3失败/2既有跳过：两处原PNG解码超时和一个父项失败。相同盘和源码定向4/4通过（Admin1.431秒、raw全图解码42毫秒）。local-server原默认10文件并发改为与site一致的2文件；原用例中的四槽、100商品、race、时限及断言不改。根全量将重新执行，详见P7a12_TEST_RESOURCE_BUDGET.zh-CN.md，尚未部署。
+
+## P7b1 / 2026-10-21：test精确部署、影子审计与兼容回归
+
+P7a12最终根7810项为7808通过/0失败/2既有AI跳过；类型、1087Biome、安装SDK、三个函数及15页构建通过。原156生产构建E2E及11报告恢复通过。99aeb8f5的三个函数和站点已部署并读回，配置未变；Linux sync129文件仅index.js改变，实际ZIP哈希吻合，未把Darwin smoke当Cloud Linux冷流程。
+
+实际AdminAPI两轮1121/1121、2242完整GET，原审计核心消费2268请求，两轮hash一致；四个原生筛选normal507/issues0/preparing0/unchecked614完全吻合，5archived、投影不一致及损坏报告0。614unchecked仍未完成候选校验。两次请求超时及原1621成功读取保留，使用本站Blob和同页有界续读，不导出JWT、不扩大请求超时。
+
+当前99版官网487件完整记录与原基线一致；站点54文件SHA/MIME一致。临时验收工具真实本地Admin/Public/PNG验证20创建、120单件操作+20批量下架、20公开确认及9共享图计数恢复、原商品不变；0后台失败，60个匿名404是恢复验证预期。T142新Preview可加载4配置和17描述图，首次1图失败经Retry恢复，未发布或mark reviewed。T157随后遇会话过期，W203、真实20件和线上P95仍待原管理员登录；尚无本轮客户写入或线上测试创建。临时打包函数的精确CLI删除已获用户授权，验收后执行。
+
+实际复核工具、原API/创建/发布协调器、Preview图片hook及HTTP/DB读取；纠正“issues0即全健康”“404即后台失败”“本地样本即线上P95”的措辞并对照原报告。详见P7b1_TEST_DEPLOY_AND_SHADOW_AUDIT.zh-CN.md；fullDeliveryReady=false。
+
+### P7b1 续接：原登录回复后的控制连接阻断
+
+用户回复已登录；CUA 原 tab 读取、精确重连、工具重置与浏览器枚举仍报传输关闭，原生 Chrome 观察也超时。已请求恢复浏览器控制，不把它判断成账号未登录。继续独立核对当前像素组件源码与126个原生依赖均和已验证 Linux 云制品相同，保留原真实请求ID证据；不重复部署。三时钟定向验收工具本地9项边界及1项打包DOM测试通过，私有目标未打入静态构建；工具未部署，实际来源刷新0，客户商品写入0，线上隔离商品创建0。具体文件、措辞校正、证据及未完成项见 P7b1。所有线上发布、恢复和性能门槛仍开放，fullDeliveryReady=false。
+
+
+## 2026-10-22：合并核对及用户范围调整
+
+用户明确把后续发布问题交给 SEO foundation；本次核对 sync 是否仍有本地问题，并在检查通过后把原 pricing 分支合入 main，不另起修复分支。最新原分支 0330b3ea，main 404d1a25；main 新增的是受保护的 SEO 手动 canary 工作流。pricing 合入 main 的三方模拟无冲突。SEO 分支保持不动，未来 SEO 更新 main 时只有 scripts/smoke-http.mjs 的文本冲突需由该分支处理。
+
+云端独立读取：原同步任务 completed，itemsProcessed=470，parseFailures/rawFailures/unsupportedCurrency均0，检查26件且issues=0，preparationPending=false，activeRunId为空。同步函数Active，后台开关为1，每分钟alibaba-sync-tick保留。三条阿里源图重新GET仍为404/403/403；逐件提示及有效替代图后的实时数量在P7c10已实际验收。因此没有为这三条源图新增本地修复，也没有把它们当成卡住的同步任务。
+
+真实20件发布/恢复、三时钟重同步、509公开商品、40测试商品审核标记及332图片计数的最终证据见P7c8/P7c9/P7c10和output/pricing-clock-repair-2026-10-13/p3e1/final-delivery-state.json。性能未达标仍明确保留，不伪称100次单件/20轮性能验收完成；用户已调整该后续工作的归属。
+
+当前源码重新根回归8002项：7999通过、0失败、3既有跳过。类型、1103文件lint、SDK合约、三个函数及15页站点构建通过，日志为premerge-20261022-*.log。Standards/Spec复核保持来源、人工编辑、分类和公开版本边界，不把上游403/404硬改成系统成功。因用户明确禁止代理，当前会话直接复核，未伪称并行外部审查。
+
+实际复核文件：sync-workflow.ts、photo-preparation.ts、AlibabaPhotoIssues.tsx、AlibabaCatalogSyncPage.tsx、P7c8/P7c9/P7c10、当前部署/CI工作流及三个遗留未提交文档。将旧方案“当前仍为99版本/等待时钟验收”改为实际已部署版本和真实验收结果；原P7b1阶段日志作为历史保留。PR和main的最终状态在执行后记录。
