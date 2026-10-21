@@ -183,10 +183,25 @@ export async function runPublication(
     throw new AdminApiError('VALIDATION_ERROR', 'Reload the page before continuing publication.');
   const budget = new AbortController();
   let signal = budget.signal;
-  const timer = setTimeout(
+  let preparationMs = 0;
+  let preparationStarted: number | undefined;
+  const phaseRemaining = () => {
+    const time = now();
+    return preparationStarted === undefined
+      ? RUN_MS - (time - started - preparationMs)
+      : RUN_MS - preparationMs - (time - preparationStarted);
+  };
+  let timer = setTimeout(
     () => budget.abort(new RunPaused('Publication time limit reached')),
     RUN_MS,
   );
+  const armPhaseBudget = () => {
+    clearTimeout(timer);
+    timer = setTimeout(
+      () => budget.abort(new RunPaused('Publication time limit reached')),
+      Math.max(0, phaseRemaining()),
+    );
+  };
   let requests = 0;
   let current: CatalogProductOperationStatus | undefined;
   let preparation: PreparationRunResult | undefined;
@@ -217,7 +232,8 @@ export async function runPublication(
       requests < MAX_REQUESTS &&
       Number.isFinite(time) &&
       time >= started &&
-      time - started < RUN_MS
+      time - started < 2 * RUN_MS &&
+      phaseRemaining() > 0
     );
   };
   const admit = () => {
@@ -371,27 +387,36 @@ export async function runPublication(
             message: 'Check the product photos before continuing this publication.',
             issues: [],
           });
-        preparation = await runPreparation(
-          { productId: binding.productId, ...(hint.job ? { jobId: hint.job.id } : {}) },
-          {
-            signal,
-            now,
-            wait,
-            request: async (command, preparationSignal) => {
-              if (
-                command.action === 'start' ||
-                command.action === 'continue' ||
-                command.action === 'retry'
-              ) {
-                await query();
-                if (terminal())
-                  throw new ScopeStopped('The original publication is no longer pending');
-              }
-              admit();
-              return preparationRequest(command, preparationSignal);
+        // Preparation and approval each keep a bounded budget; neither spends the other's time.
+        preparationStarted = now();
+        armPhaseBudget();
+        try {
+          preparation = await runPreparation(
+            { productId: binding.productId, ...(hint.job ? { jobId: hint.job.id } : {}) },
+            {
+              signal,
+              now,
+              wait,
+              request: async (command, preparationSignal) => {
+                if (
+                  command.action === 'start' ||
+                  command.action === 'continue' ||
+                  command.action === 'retry'
+                ) {
+                  await query();
+                  if (terminal())
+                    throw new ScopeStopped('The original publication is no longer pending');
+                }
+                admit();
+                return preparationRequest(command, preparationSignal);
+              },
             },
-          },
-        );
+          );
+        } finally {
+          preparationMs += now() - preparationStarted;
+          preparationStarted = undefined;
+          armPhaseBudget();
+        }
         const stopped = terminal();
         if (stopped) return stopped;
         if (observerFailed || paused) return result('paused');
