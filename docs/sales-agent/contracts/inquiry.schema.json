@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:inquiry:1.0",
+  "title": "Confirmed website inquiry event (proposed)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "client_id",
+    "business_line",
+    "source_installation_id",
+    "source",
+    "source_record_id",
+    "source_revision",
+    "submitted_at",
+    "contact",
+    "requirements",
+    "product_snapshot_refs",
+    "attachment_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "business_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "source_installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "source": {
+      "enum": [
+        "website_oem",
+        "website_product",
+        "website_assistant"
+      ]
+    },
+    "source_record_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "source_revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "contact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "email"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "company": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed_summary"
+      ],
+      "properties": {
+        "confirmed_summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000
+        }
+      }
+    },
+    "product_snapshot_refs": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "attachment_refs": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    }
+  }
+}
