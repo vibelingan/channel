@@ -5,13 +5,17 @@ import { identity } from './release/input.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 const hash = (c) => c.repeat(64);
 const code = (c) => c.repeat(40);
-export function compatibilityFixture() {
+export function compatibilityFixture({
+  name = 'public-api',
+  formats = ['catalog-v1', 'catalog-v2'],
+  apiContracts = ['catalog-ui-v1', 'catalog-ui-v2'],
+} = {}) {
   const target = { envId: 'fixture-env', siteOrigin: 'https://fixture.example' };
   const baseline = {
-    name: 'public-api',
+    name,
     codeSha: code('a'),
     sha256: hash('a'),
-    packagePath: 'functions/public-api.zip',
+    packagePath: `functions/${name}.zip`,
     runtime: 'Nodejs20.19',
     handler: 'index.main',
     role: 'fixture-role',
@@ -23,13 +27,13 @@ export function compatibilityFixture() {
     observedAt: 1792540800000,
     data: {
       revision: 'data-r2',
-      formats: ['catalog-v1', 'catalog-v2'],
+      formats: [...formats],
       constraintsSha256: hash('c'),
     },
-    exposedClientContracts: ['catalog-ui-v1', 'catalog-ui-v2'],
+    exposedClientContracts: [...apiContracts],
     functions: [
       {
-        name: 'public-api',
+        name,
         codeSha: code('b'),
         packageSha256: hash('b'),
         status: 'Active',
@@ -46,16 +50,16 @@ export function compatibilityFixture() {
     ],
   };
   const report = {
-    name: 'public-api',
+    name,
     contextSha256: functionRecoveryContext({
       target,
       baseline,
       observation,
       now: observation.observedAt,
     }).sha256,
-    readerFormats: ['catalog-v1', 'catalog-v2'],
-    writerFormats: ['catalog-v1', 'catalog-v2'],
-    apiContracts: ['catalog-ui-v1', 'catalog-ui-v2'],
+    readerFormats: [...formats],
+    writerFormats: [...formats],
+    apiContracts: [...apiContracts],
     preservesUnknownFields: true,
     checks: ['reader', 'writer-preserves-unknown', 'api-clients', 'configuration'].map((kind) => ({
       kind,
@@ -67,8 +71,8 @@ export function compatibilityFixture() {
 }
 
 // Synthetic archives and metadata; these are not evidence about production function compatibility.
-export function functionRecoveryFixture(t, { changeReport, packageA, packageB } = {}) {
-  const x = compatibilityFixture();
+export function functionRecoveryFixture(t, { changeReport, packageA, packageB, ...contract } = {}) {
+  const x = compatibilityFixture(contract);
   const bodyA = packageA ?? 'archived-A-function-bytes';
   const bodyB = packageB ?? 'archived-B-function-bytes';
   x.baseline.sha256 = digest(bodyA);
@@ -166,7 +170,7 @@ export function functionRecoveryFixture(t, { changeReport, packageA, packageB } 
     contentSha256: x.baseline.sha256,
     artifact: baselineInput.envelope.artifact,
   };
-  const composition = { static: { ...part }, 'function:public-api': part };
+  const composition = { static: { ...part }, [`function:${x.baseline.name}`]: part };
   const acceptedRun = {
     state: 'SUCCEEDED',
     targetId: normalizePolicy({ repository: baselineInput.policy.repository, ...x.target })
@@ -179,7 +183,7 @@ export function functionRecoveryFixture(t, { changeReport, packageA, packageB } 
     accepted: {
       sourceRunId: 'accepted-A',
       compositionHash: identity(composition),
-      seals: { 'function:public-api': baselineInput.acceptedSeal },
+      seals: { [`function:${x.baseline.name}`]: baselineInput.acceptedSeal },
     },
   };
   return {
@@ -188,6 +192,6 @@ export function functionRecoveryFixture(t, { changeReport, packageA, packageB } 
     compatibilityInput,
     acceptedRun,
     policy: baselineInput.policy,
-    names: ['public-api'],
+    names: [x.baseline.name],
   };
 }

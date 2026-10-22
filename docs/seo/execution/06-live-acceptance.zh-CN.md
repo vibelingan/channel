@@ -1,5 +1,7 @@
 # 06 真实交付验收
 
+2026-10-22 补充：按最新要求，先用独立假函数、假页面和测试集合演练，不通过修改真实 `public-api` 的版本标记来试恢复。当前本地实现、云端范围和逐步执行清单见[假业务演练](module-06-dummy-rehearsal.zh-CN.md)。本地通过与真实云端通过分别记录。
+
 状态 `in-progress / 404 fixed; static A/B/A pending`，MIU `SEO-REL-F1`。管理员准入和控制面已准备；公网 404 已修复并核对专用 noindex 正文。缓存与 A/B/A 仍待现场验收。最新原因与结果见[404 修复记录](module-06-404-fix.zh-CN.md)，此前历史见[现场记录](module-06-verification.zh-CN.md)。操作范围沿用[受控演练计划](../RECOVERY_DRILL_PLAN.zh-CN.md)。
 
 ## 执行输入与结果
@@ -34,7 +36,7 @@ await assertNoCanarySearchNotification();
 
 第一阶段的静态 canary 使用 A/B 的固定 scope 合同，拥有独立激活记录并共享环境写入锁；不能修改整站 active，不能顺便上传整份 dist 或生产 sitemap。它的成功仅证明 canary 范围。
 
-第二阶段若更改实际 `public-api` 函数中的安全健康标记，就使用 site scope 的真实函数组件和基线，静态组件引用保持原样。不能因为只改了标记，就在 canary 独立账本中悄悄改生产函数。恢复与最终 active 必须反映实际运行的函数版本；注入失败只影响标记验收，不破坏正常 API。
+第二阶段先使用 `seo-release-dummy` 假函数和独立测试集合，不改真实 `public-api`、`admin` 或同步函数。恢复执行代码继续复用 C2，演练记录单独存放，并遵守现有部署队列。先保存并验证可用 A、证明能够指定恢复 A，再发布 B 做 A→B→A。整套假业务云端演练通过后，才准备真实函数自己的兼容检查和受控切换。
 
 数据库默认保持当前值。专用 fixture B→A 只是带预期版本的受控补偿；期间创建的 C 必须保留。schema/历史字段不删除，不在生产原库上覆盖整库备份；PG 备份恢复如需验证另用隔离副本，当前不把它加入必经验收。
 

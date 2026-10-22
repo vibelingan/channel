@@ -11,10 +11,22 @@ import { planFunctionRecovery } from './release/function-recovery.mjs';
 import { sha256 } from './release/input.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
 
-export async function setupFunctionExecution(t, { failure, options = {}, start = true } = {}) {
-  const a = functionZip('exports.main = async () => "A";');
-  const b = functionZip('exports.main = async () => "B";');
-  const x = functionRecoveryFixture(t, { packageA: a, packageB: b });
+export async function setupFunctionExecution(
+  t,
+  {
+    failure,
+    options = {},
+    start = true,
+    name = 'public-api',
+    packageA,
+    packageB,
+    ...contract
+  } = {},
+) {
+  const a = packageA ?? functionZip('exports.main = async () => "A";');
+  const b = packageB ?? functionZip('exports.main = async () => "B";');
+  const x = functionRecoveryFixture(t, { packageA: a, packageB: b, name, ...contract });
+  const functionKey = `function:${name}`;
   const store = memoryStore();
   const client = createReleaseCoordinator({ store, policy: storePolicy, clock: () => x.now });
   const component = (input) => ({
@@ -41,9 +53,9 @@ export async function setupFunctionExecution(t, { failure, options = {}, start =
       kind: name === 'baseline-A' ? 'adopt' : 'publish',
       composition:
         name === 'baseline-A'
-          ? { static: component(input), 'function:public-api': component(input) }
-          : { 'function:public-api': component(input) },
-      ...(name === 'baseline-B' ? { deliveredComponents: ['function:public-api'] } : {}),
+          ? { static: component(input), [functionKey]: component(input) }
+          : { [functionKey]: component(input) },
+      ...(name === 'baseline-B' ? { deliveredComponents: [functionKey] } : {}),
       plan: descriptor,
     });
     if (name === 'baseline-B') {
@@ -51,12 +63,12 @@ export async function setupFunctionExecution(t, { failure, options = {}, start =
         guard,
         runId: name,
         stepId: 'seed-write',
-        component: 'function:public-api',
+        component: functionKey,
         kind: 'write',
         beforeHash: sha256(a),
         afterHash: sha256(b),
-        subject: 'code:public-api',
-        verifySubject: 'ready:public-api',
+        subject: `code:${x.baseline.name}`,
+        verifySubject: `ready:${x.baseline.name}`,
         executionId: 'seed-write',
       });
       await client.confirmStep({
@@ -82,7 +94,7 @@ export async function setupFunctionExecution(t, { failure, options = {}, start =
     await client.commitRun({ guard, runId: name, changeSetRef: 'fixture:historical-adoption' });
   }
   x.acceptedRun = await client.runStatus('baseline-A');
-  x.baselineInput.acceptedSeal = x.acceptedRun.accepted.seals['function:public-api'];
+  x.baselineInput.acceptedSeal = x.acceptedRun.accepted.seals[functionKey];
   const plan = planFunctionRecovery(x);
   const guard = start ? await client.acquire(runner('restore-worker')) : undefined;
   if (start)
@@ -92,15 +104,15 @@ export async function setupFunctionExecution(t, { failure, options = {}, start =
       scopeKey: 'site',
       kind: 'restore',
       restoreFromRunId: 'baseline-A',
-      deliveredComponents: ['function:public-api'],
+      deliveredComponents: [functionKey],
       plan: functionCoordinatorPlan(plan),
     });
-  const sdk = functionManagerFixture({ bytes: b });
+  const sdk = functionManagerFixture({ bytes: b, name });
   const provider = createCloudbaseFunctionProvider({
     ...sdk,
     target: x.target,
     region: 'ap-shanghai',
-    names: ['public-api'],
+    names: [name],
   });
   sdk.state.fail = failure;
   sdk.state.onUpdate = () => {

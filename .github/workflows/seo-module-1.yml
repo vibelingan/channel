@@ -8,6 +8,7 @@ on:
       - 'scripts/hosting-recovery*'
       - 'scripts/prepare-hosting-recovery*'
       - 'scripts/release/**'
+      - 'scripts/compatibility/**'
       - 'scripts/release-*.mjs'
       - 'scripts/recovery-kernel.test.mjs'
       - '.github/workflows/seo-module-1.yml'
