@@ -10,6 +10,7 @@ export function createCloudbaseFunctionProvider({
   target,
   region,
   names,
+  configurationKey,
   request = fetchFully,
 }) {
   const fixed = freeze(structuredClone(target));
@@ -24,7 +25,12 @@ export function createCloudbaseFunctionProvider({
   const allowed = new Set(names);
   const environment = manager.currentEnvironment();
   const functions = environment.getFunctionService();
-  const key = randomBytes(32);
+  if (
+    configurationKey !== undefined &&
+    (!Buffer.isBuffer(configurationKey) || configurationKey.length < 32)
+  )
+    throw new Error('Configuration identity key must contain at least 32 bytes');
+  const key = configurationKey ? Buffer.from(configurationKey) : randomBytes(32);
   const bound = async () => {
     if (
       !fixed.envId ||
@@ -128,6 +134,14 @@ export function createCloudbaseFunctionProvider({
       status: Status,
       availableStatus: AvailableStatus,
       configurationToken,
+      configurationReferences: variables
+        .map(({ Key, Value }) => ({
+          name: Key,
+          version: createHmac('sha256', key)
+            .update(identity({ envId: fixed.envId, name, key: Key, value: Value }))
+            .digest('hex'),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
       versionToken: identity({ ModTime, CodeSize, FunctionId: detail.FunctionId }),
       installDependency: InstallDependency,
       requestId: RequestId,

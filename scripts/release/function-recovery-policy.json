@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "repository": "vibelingan/channel",
+  "envId": "diversity-123-d9grnqfux221323bb",
+  "siteOrigin": "https://supplychainsai.com",
+  "apiOrigin": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+  "region": "ap-shanghai",
+  "canaryPrefix": "__release-canary/",
+  "workflowPath": ".github/workflows/seo-static-canary.yml",
+  "trustedRef": "refs/heads/feat/seo-foundation",
+  "controlPlaneReviewSha256": "ade149d24c39b4b413db0a5c2ca5db422115d3c116046dd01c4895a23a87c515",
+  "functions": ["public-api", "admin", "alibaba-catalog-sync"],
+  "writerInventorySha256": null,
+  "clientInventorySha256": null,
+  "compatibilitySuites": []
+}

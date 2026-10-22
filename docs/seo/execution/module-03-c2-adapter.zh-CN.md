@@ -59,7 +59,7 @@ SDK 路径是 `getFunctionDetail`、`getFunctionDownloadUrl`、`updateFunctionCo
 
 ## 下一步的边界
 
-C2 仍缺生产兼容报告生成、当前数据/已暴露客户端/配置版本观测来源，以及 D1 的正式函数入口接线。当前测试里的兼容证据是 synthetic fixture，不能拿来开放线上恢复。接线完成后再列具体函数、A/B 原包、最小 health 标记、恢复办法和停止条件，进行一次受控 A→B→A。F1 静态演练另记，不用 C2 离线通过代替现场完成。
+2026-10-22 后续交付已补上生产观测、固定测试/报告生产链和 D1 人工函数入口，见[本轮记录](module-04-function-entry.zh-CN.md)。目前生产资格仍缺 B2 全写入方/已暴露客户端版本状态、相应历史函数的已审查套件及可信 site 函数基线；synthetic fixture 不能作为这些证据。实际函数恢复和 A→B→A 仍未开放，静态 F1 另记。
 
 本轮未改正常部署脚本、现有 workflow、业务函数、pricing、UI 或 schema。Blog/Tiptap/Hermes 草稿接口仍按后续模块实施。
 

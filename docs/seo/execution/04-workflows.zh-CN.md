@@ -1,6 +1,6 @@
 # 04 CI/CD 与恢复入口
 
-D1 的 **static-canary 人工入口已实现，线上执行默认关闭**。整站发布接入、失败运行接管和 D2 自动恢复仍待实施。继续原 `feat/seo-foundation`；现有 Deploy Test、E2E、AI CloudRun 工作流及 pricing/product-sync 保持原样。普通 feature push 只触发现有 offline CI。
+D1 的静态 canary 人工入口已实现；2026-10-22 又接入生产版本观测、兼容测试/报告及人工函数恢复模式，见[本轮交付](module-04-function-entry.zh-CN.md)。两个 execute 开关均保持关闭。整站正常发布接入、失败运行接管和 D2 自动恢复仍待实施。继续原 `feat/seo-foundation`；普通 Deploy Test、E2E、AI CloudRun 及 pricing/product-sync 保持原样。下文原静态范围和历史准备记录继续保留，最新状态以本轮交付及现场结果为准。
 
 ## D1 当前交付范围
 
@@ -74,7 +74,7 @@ sequenceDiagram
 
 ## 开放线上演练前的门槛
 
-当前 `enabled:false`、权限审查 hash 为 null。2026-10-21 已通过仅新增 workflow 文件的默认分支提交注册入口，维护模式的记录归档和共享锁已实际运行；云端 execute 尚未运行。test 环境仍未允许 SEO 分支，当前账号修改准入规则返回 403，等待仓库管理员增加精确分支规则。不能移除环境限制绕过权限。见[F1 现场记录](module-06-verification.zh-CN.md)。
+当前 `enabled:false`、权限审查 hash 为 null。2026-10-21 已通过仅新增 workflow 文件的默认分支提交注册入口，维护模式的记录归档和共享锁已实际运行；云端 execute 尚未运行。历史 orocsy 账号的 403 已通过用户授权管理员账号解决，SEO 精确分支规则已加入，后续维护运行已实际执行；这不是当前待用户处理的阻塞。不能移除环境限制绕过权限。见[F1 现场记录](module-06-verification.zh-CN.md)。
 
 开放前先说明并核对：唯一目标 EnvId/origin、唯一静态路径、四个控制集合及有效权限、现有全局缓存/404 是否已符合要求、路径确实未占用、排除其他写入的演练窗口、artifact 保存期限和受信任 ref。按审查结果更新 policy，跑同 SHA CI，再生成正式 plan。更改全局缓存/404 或创建控制集合是另外的明确写入范围，不能夹在 canary execute 里执行。
 

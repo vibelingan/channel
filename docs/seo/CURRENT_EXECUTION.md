@@ -2,7 +2,7 @@
 
 2026-10-22：本文件保留历史阶段记录。当前方案、实施状态和剩余门禁请先读
 [最终交付索引](FINAL_DELIVERY.zh-CN.md)及[最终流程审阅](FINAL_REVIEW.zh-CN.md)。
-后续实施按[六模块执行计划](execution/README.zh-CN.md)交付，low-level design 与十个 MIU 均在所属模块；当前 A1/A2、B1、C1 与静态 canary 的 D1 已实现；F1 的 404 与 no-cache 已现场验证，A/B/A 尚未执行，canary 开关关闭。C2 的兼容/归档核心、SDK 代码适配、health 读回及 B1 日志集成已实现，106 项专项和 322 项发布回归通过；生产证据来源及 D1 正式函数接线尚未完成，本轮没有线上函数更新。最新结果见[404 记录](execution/module-06-404-fix.zh-CN.md)和[C2 适配交付](execution/module-03-c2-adapter.zh-CN.md)。
+后续实施按[六模块执行计划](execution/README.zh-CN.md)交付。A1/A2、B1、C1、D1 静态 canary 已实现；F1 404/no-cache 已现场验证，A/B/A 未执行。C2 的生产观测、固定兼容测试执行/报告归档和 D1 人工函数入口已接线，本地发布回归 373 项通过；函数 execute 保持关闭，B2 全写入方/客户端版本状态与历史兼容套件仍待接入。普通部署、pricing 和业务数据未修改。最新见[D1 函数入口交付](execution/module-04-function-entry.zh-CN.md)。
 下文旧分支、账号阻塞与测试结果保留原时点，不代表当前状态；本轮没有重新读取搜索平台数据。
 
 业务、品牌和平台需求不在本轮执行。

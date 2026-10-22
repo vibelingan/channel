@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertCanaryPolicy } from './canary.mjs';
+import { createGithubReadClient } from './github-read.mjs';
 import { freeze, sha256 } from './input.mjs';
 
 const positiveId = (id) =>
@@ -37,7 +38,18 @@ export function validateArtifactSource({
   policy,
   now = Date.now(),
   allowCurrentRunId,
+  artifactPrefix = 'static-canary-payload',
+  maxBytes = 1_048_576,
 }) {
+  if (
+    !['static-canary-payload', 'function-release-payload', 'function-compatibility-tests'].includes(
+      artifactPrefix,
+    ) ||
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > 134_217_728
+  )
+    throw new Error('Invalid artifact profile');
   const ref = policy.trustedRef.slice('refs/heads/'.length);
   if (
     !positiveId(artifact.id) ||
@@ -47,9 +59,9 @@ export function validateArtifactSource({
     !(Date.parse(artifact.expires_at) > now) ||
     !Number.isSafeInteger(artifact.size_in_bytes) ||
     artifact.size_in_bytes < 1 ||
-    artifact.size_in_bytes > 1_048_576 ||
+    artifact.size_in_bytes > maxBytes ||
     !/^sha256:[a-f0-9]{64}$/.test(artifact.digest) ||
-    artifact.name !== `static-canary-payload-${run.id}-${run.run_attempt}` ||
+    artifact.name !== `${artifactPrefix}-${run.id}-${run.run_attempt}` ||
     run.path !== policy.workflowPath ||
     run.event !== 'workflow_dispatch' ||
     run.head_branch !== ref ||
@@ -90,26 +102,7 @@ export function validateArtifactSource({
 export function createGithubSource({ policy, token, request = fetchFully }) {
   assertCanaryPolicy(policy);
   if (typeof token !== 'string' || !token) throw new Error('GitHub read token required');
-  const base = `https://api.github.com/repos/${policy.repository}`;
-  const get = (path, { redirect = 'error' } = {}) =>
-    request('GET', base + path, {
-      timeoutMs: 15_000,
-      maxBytes: 2_097_152,
-      redirect,
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: 'application/vnd.github+json',
-        'x-github-api-version': '2022-11-28',
-        'user-agent': 'channel-static-canary',
-      },
-    });
-  const api = async (path) => {
-    if (!/^\/actions\//.test(path) || path.includes('..'))
-      throw new Error('Invalid GitHub API path');
-    const result = await get(path);
-    if (result.status !== 200) throw new Error('GitHub API read failed');
-    return JSON.parse(result.body.toString('utf8'));
-  };
+  const { get, api, requireCI } = createGithubReadClient({ policy, token, request });
   const metadata = async (artifactId, options = {}) => {
     if (!positiveId(artifactId)) throw new Error('Explicit artifact ID required');
     const artifact = await api(`/actions/artifacts/${artifactId}`);
@@ -127,27 +120,8 @@ export function createGithubSource({ policy, token, request = fetchFully }) {
   };
   return Object.freeze({
     api,
+    requireCI,
     metadata,
-    async requireCI(codeSha) {
-      if (!/^[a-f0-9]{40}$/.test(codeSha)) throw new Error('Invalid executor SHA');
-      const result = await api(
-        `/actions/workflows/seo-module-1.yml/runs?head_sha=${codeSha}&status=completed&per_page=100`,
-      );
-      if (
-        !result.workflow_runs?.some(
-          (run) =>
-            run.head_sha === codeSha &&
-            run.path === '.github/workflows/seo-module-1.yml' &&
-            run.event === 'push' &&
-            run.head_branch === policy.trustedRef.slice(11) &&
-            run.status === 'completed' &&
-            run.conclusion === 'success' &&
-            run.repository?.full_name === policy.repository &&
-            run.head_repository?.full_name === policy.repository,
-        )
-      )
-        throw new Error('Exact executor SHA has no successful offline CI');
-    },
     async download(artifactId, directory, options = {}) {
       const source = await metadata(artifactId, options);
       const response = await get(`/actions/artifacts/${artifactId}/zip`, { redirect: 'manual' });

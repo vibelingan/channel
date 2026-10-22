@@ -1,6 +1,7 @@
 import { verifyReleaseArtifact } from './artifact.mjs';
 import { functionBuildPolicy } from './function-archive.mjs';
 import { evaluateCompatibility, functionRecoveryContext } from './function-compatibility.mjs';
+import { verifyFunctionReportArtifact } from './function-report-artifact.mjs';
 import { freeze, identity, readObject, sha256 } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
 
@@ -25,7 +26,10 @@ export function planFunctionRecovery({
   )
     throw new Error('Invalid requested function scope');
   const baseline = verifyReleaseArtifact({ ...baselineInput, policy, mode: 'recovery', now });
-  const proof = verifyReleaseArtifact({ ...compatibilityInput, policy, mode: 'candidate', now });
+  const proof =
+    compatibilityInput.envelope?.purpose === 'function-compatibility-payload'
+      ? verifyFunctionReportArtifact(compatibilityInput, policy, now)
+      : verifyReleaseArtifact({ ...compatibilityInput, policy, mode: 'candidate', now });
   const reportBytes = readObject(
     compatibilityInput.directory,
     proof.envelope.compatibilityRef.path,
