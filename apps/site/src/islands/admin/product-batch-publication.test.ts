@@ -11,6 +11,7 @@ import {
   workspace,
 } from '../../../../local-server/src/testing/catalog-operation-workspace.ts';
 import { assignmentCall, batchUpdateRecords } from './api.ts';
+import { runPreparation } from './catalog-preparation-api.ts';
 
 test('native table HTTP publication preserves mixed rejected drafts, classifications and existing non-publication actions', async (t) => {
   const h = await workspace(t, undefined, true);
@@ -79,6 +80,23 @@ test('native table HTTP publication preserves mixed rejected drafts, classificat
     ['stale', {}],
   ] as const)
     await db.create('products', { ...product, ...patch, _id: id });
+  // Valid selections have completed sync's background preparation; rejected rows stay intact.
+  for (const productId of ['ready', 'quote']) {
+    const prepared = await runPreparation(
+      { productId },
+      {
+        request: async (data) => {
+          const result = await handleAdminRequest(
+            { action: 'catalogPreparation', token, data },
+            config,
+          );
+          assert.ok(result.ok, JSON.stringify(result));
+          return result.data;
+        },
+      },
+    );
+    assert.equal(prepared.reason, 'ready');
+  }
   const ids = [
     'ready',
     'no-family',
