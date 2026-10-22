@@ -241,8 +241,7 @@ async function fetchCandidate(
     break;
   }
   if (!response) return { ok: false, reason: 'too-many-redirects' };
-  // Alibaba's image server answers 403 for a photo it no longer serves, like
-  // 404/410; retrying cannot bring it back (measured 2026-10-09).
+  // Preserve denied or missing sources for explicit retry; a 403 does not prove deletion.
   if (!response.ok)
     return {
       ok: false,

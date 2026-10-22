@@ -9,9 +9,11 @@ import {
   workspace,
 } from '../../../../local-server/src/testing/catalog-operation-workspace.ts';
 import { batchUpdateRecords, retryBatchUpdate } from './api.ts';
+import { runPreparation } from './catalog-preparation-api.ts';
 
 for (const fault of [
   'normal',
+  'slow-shared-photo',
   'completion',
   'public-read',
   'wrong-status',
@@ -28,6 +30,21 @@ for (const fault of [
     async (t) => {
       const h = await workspace(t, 0, true);
       const media = await coldOwnedMedia(h);
+      if (fault === 'slow-shared-photo') {
+        const read = media.storage.getObjectAsBase64.bind(media.storage);
+        let cold = true;
+        t.mock.method(
+          media.storage,
+          'getObjectAsBase64',
+          async (...args: Parameters<typeof read>) => {
+            if (cold) {
+              cold = false;
+              await new Promise((resolve) => setTimeout(resolve, 4000));
+            }
+            return read(...args);
+          },
+        );
+      }
       const token = await signSession('owned-continue-test-only', {
         sub: 'admin',
         role: 'admin',
@@ -80,6 +97,24 @@ for (const fault of [
           unitPrice: 5.7,
           moq: 1,
         });
+      // The normal case starts after sync's background check; slow shared media is separate.
+      if (fault === 'normal')
+        for (const productId of selected) {
+          const prepared = await runPreparation(
+            { productId },
+            {
+              request: async (data) => {
+                const result = await handleAdminRequest(
+                  { action: 'catalogPreparation', token, data },
+                  config,
+                );
+                assert.ok(result.ok, JSON.stringify(result));
+                return result.data;
+              },
+            },
+          );
+          assert.equal(prepared.reason, 'ready');
+        }
       const opened: CollectionDoc[] = await Promise.all(
         selected.map(async (id) => {
           const row = await h.adapter.get('products', id);
@@ -195,20 +230,31 @@ for (const fault of [
           });
         let result = await pending;
         if (
+          (fault === 'slow-shared-photo' && result.failures.length > 0) ||
           ['public-read', 'wrong-status', 'before-start', 'revoked', 'mutated-retry'].includes(
             fault,
           )
         ) {
-          assert.equal(result.updated, 0);
-          assert.equal(result.failures.length, 20);
+          if (fault === 'slow-shared-photo') {
+            assert.ok(result.updated > 0 && result.updated < 20);
+            assert.equal(result.updated + result.failures.length, 20);
+            assert.ok(
+              result.failures.every(
+                (failure) => failure.outcome === 'unconfirmed' && failure.retryable,
+              ),
+            );
+          } else {
+            assert.equal(result.updated, 0);
+            assert.equal(result.failures.length, 20);
+          }
           assert.ok(result.publication);
-          assert.equal(result.publication.checkpoints.length, 20);
-          const originalIds = new Map(
-            result.publication.checkpoints.map((entry) => [
-              entry.scope.productId,
-              entry.scope.operationId,
-            ]),
-          );
+          assert.equal(result.publication.checkpoints.length, result.failures.length);
+          const originalIds = new Map([
+            ...starts.map((command) => [command.productId, command.operationId] as const),
+            ...result.publication.checkpoints.map(
+              (entry) => [entry.scope.productId, entry.scope.operationId] as const,
+            ),
+          ]);
           if (fault === 'revoked') {
             assert.equal(starts.length, 0);
             await h.adapter.update('users', 'admin', { status: 'active' });

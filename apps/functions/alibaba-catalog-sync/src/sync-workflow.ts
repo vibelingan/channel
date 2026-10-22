@@ -23,6 +23,20 @@ const number = (value: unknown) =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 const stamp = (value: unknown) =>
   typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null;
+
+function historyResult(row: CollectionDoc): AlibabaSyncWorkflow['history'][number]['result'] {
+  if (row.status === 'running' || row.status === 'continuing' || row.preparationPending === true)
+    return 'in-progress';
+  const preparation = SyncPreparationSchema.safeParse(row.preparation);
+  if (
+    row.status === 'failed' ||
+    row.status === 'quarantined' ||
+    row.preparationError === 'invalid-state' ||
+    (preparation.success && preparation.data.phase === 'attention')
+  )
+    return 'attention';
+  return preparation.success && preparation.data.phase === 'complete' ? 'complete' : 'imported';
+}
 async function pendingPreparation() {
   const result = await list({
     collection: 'alibabaSyncRuns',
@@ -95,19 +109,7 @@ export async function syncWorkflowStatus(
     history: recent.items.map((row) => ({
       id: row._id,
       startedAt: stamp(row.startedAt),
-      result:
-        row.status === 'running' || row.status === 'continuing' || row.preparationPending === true
-          ? 'in-progress'
-          : row.status === 'failed' ||
-              row.status === 'quarantined' ||
-              row.preparationError === 'invalid-state' ||
-              (SyncPreparationSchema.safeParse(row.preparation).success &&
-                Reflect.get(row.preparation as object, 'phase') === 'attention')
-            ? 'attention'
-            : SyncPreparationSchema.safeParse(row.preparation).success &&
-                Reflect.get(row.preparation as object, 'phase') === 'complete'
-              ? 'complete'
-              : 'imported',
+      result: historyResult(row),
       processed: number(
         row.counters && typeof row.counters === 'object'
           ? Reflect.get(row.counters, 'itemsProcessed')

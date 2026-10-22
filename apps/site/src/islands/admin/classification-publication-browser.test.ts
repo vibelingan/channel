@@ -302,7 +302,6 @@ for (const engine of ['chromium', 'webkit'] as const)
           await held.wait;
         }
         const result = await handleAdminRequest(input, config);
-        held?.completed();
         if (!result.ok && input.action === 'catalogDetailApproval')
           failures.push({ productId: data.productId, action: data.action, error: result.error });
         if (
@@ -324,10 +323,14 @@ for (const engine of ['chromium', 'webkit'] as const)
           });
           return;
         }
-        await route.fulfill({
-          status: result.ok ? 200 : result.error.code === 'UNAUTHORIZED' ? 401 : 400,
-          json: result,
-        });
+        try {
+          await route.fulfill({
+            status: result.ok ? 200 : result.error.code === 'UNAUTHORIZED' ? 401 : 400,
+            json: result,
+          });
+        } finally {
+          held?.completed();
+        }
       });
       await page.route('**/api/products/**', async (route) => {
         if (blockPublic) {

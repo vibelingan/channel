@@ -142,7 +142,7 @@ test(
     await page.goto(origin);
     await expect(page.getByText('Actual operator photo example', { exact: true })).toBeVisible();
     await expect(page.locator('[data-sync-progress]')).toContainText(
-      '1 products need photo review',
+      '1 product needs photo review',
     );
     await expect(page.locator('[data-sync-progress]')).not.toContainText(
       '3 products need photo review',

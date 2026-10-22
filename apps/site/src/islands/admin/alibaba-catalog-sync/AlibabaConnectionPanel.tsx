@@ -109,7 +109,7 @@ export function AlibabaConnectionPanel({
                 ? 'Reported photo issues have been resolved. Retry sync to check for other updates.'
                 : issueText[workflow.issue]}
               {workflow.photoIssues > 0
-                ? ` ${workflow.photoIssues} products need photo review.`
+                ? ` ${workflow.photoIssues} ${workflow.photoIssues === 1 ? 'product needs' : 'products need'} photo review.`
                 : ''}
             </p>
           )}
