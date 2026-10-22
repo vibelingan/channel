@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "cloudbase",
+      "repository": "tencentcloudbase/cloudbase-skills",
+      "commit": "fe84b6ae5cc0be1166a7cd4db20db9da17822f20",
+      "archiveSha256": "38af3dd7cffea49cd5aa7229ef8c4ff9ddd815c0356e9d58d65b729e09435413",
+      "skills": [
+        {
+          "name": "cloudbase",
+          "path": "skills/cloudbase"
+        }
+      ]
+    },
+    {
+      "id": "humanizer",
+      "repository": "blader/humanizer",
+      "commit": "8c307f367c91bd974002f10f2be2965d642c13df",
+      "archiveSha256": "6a5c336d52a41589a034ab76f6a3638453cca754a13f0680a6a75e41a0d5aba8",
+      "skills": [
+        {
+          "name": "humanizer",
+          "path": "."
+        }
+      ]
+    },
+    {
+      "id": "archify",
+      "repository": "tt-a1i/archify",
+      "commit": "25cf37080fc8b1dbe758a4efc3935b55f3327083",
+      "archiveSha256": "48b8cc6e8d9725d0186b7cf7c19f4d0651559f5ad4bb8451ec8f8f65a1c9cd9b",
+      "skills": [
+        {
+          "name": "archify",
+          "path": "archify"
+        }
+      ]
+    },
+    {
+      "id": "engineering",
+      "repository": "mattpocock/skills",
+      "commit": "5beb35b040e3de97e54fa9e386d7e42d15c295c2",
+      "archiveSha256": "846bd1de940f9b086f41c9189b3a5c9877e0e809f70ae8fdd7844087b7a3c0d2",
+      "skills": [
+        {
+          "name": "handoff",
+          "path": "skills/productivity/handoff"
+        },
+        {
+          "name": "code-review",
+          "path": "skills/engineering/code-review"
+        },
+        {
+          "name": "tdd",
+          "path": "skills/engineering/tdd"
+        },
+        {
+          "name": "diagnosing-bugs",
+          "path": "skills/engineering/diagnosing-bugs"
+        },
+        {
+          "name": "codebase-design",
+          "path": "skills/engineering/codebase-design"
+        },
+        {
+          "name": "research",
+          "path": "skills/engineering/research"
+        }
+      ]
+    }
+  ]
+}

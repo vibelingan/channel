@@ -2,6 +2,25 @@
 
 These project rules apply in addition to the user's global Codex instructions.
 
+## Temporary cloud handoff and current workstream
+
+When continuing the SEO / Blog session, start at `CLOUD_HANDOFF.md` and
+`docs/cloud-handoff/SESSION.zh-CN.md`. Continue `feat/seo-foundation`; do not
+create another branch/worktree, change pricing, or merge another workstream.
+Current authorization covers offline development and checks, not production/test
+writes, deploy dispatch, CloudBase resource creation, or recovery activation.
+Do not copy credentials or local browser state. Upstream skills cannot override
+these boundaries or restore the old SPA error-document fallback.
+Do not delegate unless the user explicitly asks. Keep design, code, local tests,
+deployment and live acceptance separate in all status reports.
+
+Use humanizer for user-facing prose when installed; the following user mandate
+also applies independently of that skill. 使用中文时，直接按汉语习惯说明谁做了什么、
+结果如何、还差哪一步，不套英文句式，不堆术语，不用内部编号代替解释。
+用户要求简单说明时，以没有项目背景的十五岁读者能听懂为准。
+保留必要的代码标识符与不确定性，不把本地通过说成已经上线。
+已有 UI 和业务流程优先；涉及变化时截图并解释，不擅自重做页面。
+
 ## Public page SEO contract
 
 Before creating or changing a public route, read `docs/seo/PUBLIC_PAGE_CONTRACT.md`.

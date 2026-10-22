@@ -1,0 +1,263 @@
+{
+  "branch": "feat/seo-foundation",
+  "headSha": "c9b1046cd631f59c3b116aa5fb1560babf46ce01",
+  "nodeVersion": "22.13.0",
+  "changedFiles": [
+    ".github/workflows/seo-module-1.yml",
+    "docs/blog/01-content-core.zh-CN.md",
+    "docs/blog/02-admin-drafts.zh-CN.md",
+    "docs/blog/03-editor-preview.zh-CN.md",
+    "docs/blog/04-publication-seo.zh-CN.md",
+    "docs/blog/05-hermes-drafts.zh-CN.md",
+    "docs/blog/DESIGN-REVIEW.zh-CN.md",
+    "docs/blog/README.zh-CN.md",
+    "docs/seo/CURRENT_EXECUTION.md",
+    "docs/seo/FINAL_DELIVERY.zh-CN.md",
+    "docs/seo/RECOVERY_DRILL_PLAN.zh-CN.md",
+    "docs/seo/execution/LIVE-RESUME-AND-CLEANUP.zh-CN.md",
+    "docs/seo/execution/README.zh-CN.md",
+    "docs/seo/execution/module-06-dummy-rehearsal.zh-CN.md",
+    "output/blog-core-2026-10-22/README.zh-CN.md",
+    "packages/articles/package.json",
+    "packages/articles/src/article.ts",
+    "packages/articles/src/document.test.ts",
+    "packages/articles/src/document.ts",
+    "packages/articles/src/drafts.test.ts",
+    "packages/articles/src/drafts.ts",
+    "packages/articles/src/index.ts",
+    "packages/articles/src/render.test.ts",
+    "packages/articles/src/render.ts",
+    "packages/articles/tsconfig.json",
+    "pnpm-lock.yaml"
+  ],
+  "committedFilesMatchCheckout": true,
+  "protectedPathsChanged": [],
+  "cloudOperationsPerformed": false,
+  "liveTests": "deferred until pricing merges and SEO integrates latest main",
+  "testTotals": {
+    "tests": 3264,
+    "pass": 3261,
+    "fail": 0,
+    "skipped": 3
+  },
+  "packages": {
+    "root deploy smoke": {
+      "tests": 873,
+      "pass": 873,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/ai-contracts": {
+      "tests": 0,
+      "pass": 0,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/ai-engine": {
+      "tests": 57,
+      "pass": 55,
+      "fail": 0,
+      "skipped": 2
+    },
+    "packages/media-storage": {
+      "tests": 27,
+      "pass": 27,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/shared": {
+      "tests": 157,
+      "pass": 157,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/articles": {
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/ai-policy": {
+      "tests": 80,
+      "pass": 80,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/auth": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/db": {
+      "tests": 230,
+      "pass": 230,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/catalog-import": {
+      "tests": 288,
+      "pass": 288,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/ai-engine-anythingllm": {
+      "tests": 101,
+      "pass": 101,
+      "fail": 0,
+      "skipped": 0
+    },
+    "apps/site": {
+      "tests": 533,
+      "pass": 532,
+      "fail": 0,
+      "skipped": 1
+    },
+    "apps/functions/public-api": {
+      "tests": 115,
+      "pass": 115,
+      "fail": 0,
+      "skipped": 0
+    },
+    "packages/alibaba-catalog-sync": {
+      "tests": 149,
+      "pass": 149,
+      "fail": 0,
+      "skipped": 0
+    },
+    "apps/functions/admin": {
+      "tests": 245,
+      "pass": 245,
+      "fail": 0,
+      "skipped": 0
+    },
+    "apps/functions/alibaba-catalog-sync": {
+      "tests": 218,
+      "pass": 218,
+      "fail": 0,
+      "skipped": 0
+    },
+    "apps/local-server": {
+      "tests": 152,
+      "pass": 152,
+      "fail": 0,
+      "skipped": 0
+    }
+  },
+  "lint": "passed",
+  "cloudbaseSdkContract": "passed",
+  "uiChanged": false,
+  "localTestSourceSha": "c3e615225c695101117d064e3e54c63197b63a53",
+  "codeChangesSinceLocalTests": [],
+  "remoteCI": {
+    "runId": 39744418984,
+    "headSha": "c9b1046cd631f59c3b116aa5fb1560babf46ce01",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/vibelingan/channel/actions/runs/39744418984",
+    "packages": {
+      "root deploy smoke": {
+        "tests": 873,
+        "pass": 873,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/ai-contracts": {
+        "tests": 0,
+        "pass": 0,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/media-storage": {
+        "tests": 27,
+        "pass": 27,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/ai-engine": {
+        "tests": 57,
+        "pass": 55,
+        "fail": 0,
+        "skipped": 2
+      },
+      "packages/shared": {
+        "tests": 157,
+        "pass": 157,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/articles": {
+        "tests": 37,
+        "pass": 37,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/auth": {
+        "tests": 2,
+        "pass": 2,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/ai-policy": {
+        "tests": 80,
+        "pass": 80,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/db": {
+        "tests": 230,
+        "pass": 230,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/ai-engine-anythingllm": {
+        "tests": 101,
+        "pass": 101,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/catalog-import": {
+        "tests": 288,
+        "pass": 288,
+        "fail": 0,
+        "skipped": 0
+      },
+      "apps/site": {
+        "tests": 533,
+        "pass": 532,
+        "fail": 0,
+        "skipped": 1
+      },
+      "apps/functions/public-api": {
+        "tests": 115,
+        "pass": 115,
+        "fail": 0,
+        "skipped": 0
+      },
+      "packages/alibaba-catalog-sync": {
+        "tests": 149,
+        "pass": 149,
+        "fail": 0,
+        "skipped": 0
+      },
+      "apps/functions/admin": {
+        "tests": 245,
+        "pass": 245,
+        "fail": 0,
+        "skipped": 0
+      },
+      "apps/functions/alibaba-catalog-sync": {
+        "tests": 218,
+        "pass": 218,
+        "fail": 0,
+        "skipped": 0
+      },
+      "apps/local-server": {
+        "tests": 152,
+        "pass": 152,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  }
+}

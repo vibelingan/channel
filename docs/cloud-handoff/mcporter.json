@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "cloudbase": {
+      "command": "../../tools/cloud-handoff/node_modules/.bin/cloudbase-mcp",
+      "description": "Pinned CloudBase MCP; authenticate separately, no default environment."
+    }
+  },
+  "imports": []
+}
