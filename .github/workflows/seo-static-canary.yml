@@ -17,7 +17,7 @@ on:
       variant:
         description: A/B for static canary; an exact function name for function modes
         type: choice
-        options: [A, B, public-api, admin, alibaba-catalog-sync]
+        options: [A, B, public-api, admin]
         default: A
         required: true
       artifact_id:

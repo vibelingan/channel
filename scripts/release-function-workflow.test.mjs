@@ -62,6 +62,11 @@ test('function workflow runs credentials only in the two function commands and a
   assert.match(job.steps[execute].if, /function-certify/);
   assert(!JSON.stringify(job.steps.map((s) => s.run)).includes('${{ inputs.'));
   assert(!job.steps.some((s) => /deploy-cloudbase|pnpm build/.test(s.run ?? '')));
+  assert.deepEqual(
+    workflow.on.workflow_dispatch.inputs.variant.options.filter((x) => !['A', 'B'].includes(x)),
+    policy.functions,
+  );
+  assert(policy.observeFunctions.includes('alibaba-catalog-sync'));
   assert.equal(policy.enabled, false);
   assert.equal(policy.writerInventorySha256, null);
   assert.equal(policy.clientInventorySha256, null);

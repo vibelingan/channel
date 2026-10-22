@@ -1,6 +1,6 @@
 # D1 函数入口：生产观测、兼容报告与受控恢复
 
-2026-10-22。代码使用原 `feat/seo-foundation`。本次补齐 C2 的现场观测与兼容证据生产链，并接入 D1 人工函数入口；**真实函数恢复保持关闭**。本地发布回归 375 项、lint 870 个文件及 SDK 合同检查通过。精确提交 CI 和 Actions 只读现场结果保存在 `output/seo-module-04-function-entry-2026-10-22/`，不能用本地通过代替现场验收。
+2026-10-22。代码使用原 `feat/seo-foundation`。本次补齐 C2 的现场观测与兼容证据生产链，并接入 D1 人工函数入口；**真实函数恢复保持关闭**。本地发布回归 378 项、lint 870 个文件及 SDK 合同检查通过。精确提交 CI 和 Actions 只读现场结果保存在 `output/seo-module-04-function-entry-2026-10-22/`，不能用本地通过代替现场验收。
 
 ## D1 和 C2 的区别
 
@@ -26,7 +26,7 @@ D1 是操作者使用的发布/恢复入口：选择版本和范围、校验计�
 | `function-plan` | `artifact_id` 为已有兼容报告归档；只读重算计划 |
 | `function-execute` | 原报告 ID、明确 A run、当前激活、原因和 token；仅在仓库策略开放后执行 |
 
-函数模式中 `variant` 是 `public-api`、`admin` 或 `alibaba-catalog-sync`；静态模式仍使用 A/B。第一期人工 workflow 每次只选一个函数，底层协调器支持显式函数集合。`expected_activation_id` 和 `reason` 继续使用原输入，`plan_token` 仅 execute 需要。输入通过环境变量传给固定命令，不拼接 shell。
+函数恢复模式中 `variant` 只提供 `public-api`、`admin`；`function-observe` 始终读取这两个函数及 `alibaba-catalog-sync`，不靠选择框决定观测范围。Alibaba 已有定时触发器，暂不进入恢复名单；静态模式仍使用 A/B。第一期人工 workflow 每次只选一个函数，底层协调器支持显式函数集合。`expected_activation_id` 和 `reason` 继续使用原输入，`plan_token` 仅 execute 需要。输入通过环境变量传给固定命令，不拼接 shell。
 
 ## 生产观测如何成立
 
@@ -71,12 +71,22 @@ plan 不获取 B1 租约、不改控制记录。execute 先核对原 token，再
 
 复用了原 GitHub 只读 transport，静态 canary 的来源限制保持原值；新增 profile 只接受函数 payload 或兼容测试结果。原 canary、maintenance 的回归继续通过。新的流程测试验证所有模式恰好选择一个 job、凭证只进入两个固定入口步骤、归档先于执行、关闭策略在 SDK 调用前拒绝 execute。
 
-53 项新增测试覆盖观测、报告、测试执行、独立归档、实际 Manager SDK + B1 的 D1 恢复及 workflow。完整发布回归 375/375。测试还发现并修正了提交结果覆盖 `accepted` 状态的字段顺序问题。CloudBase 合同核对使用已安装 Manager 5.9.1、数据库 1.4.3 源码与官方 MCP 文档；Context7 不可用，没有新增 SDK shim 或依赖。
+56 项新增测试覆盖观测、报告、测试执行、独立归档、实际 Manager SDK + B1 的 D1 恢复及 workflow。完整发布回归 378/378。测试还发现并修正了提交结果覆盖 `accepted` 状态的字段顺序问题。CloudBase 合同核对使用已安装 Manager 5.9.1、数据库 1.4.3 源码与官方 MCP 文档；Context7 不可用，没有新增 SDK shim 或依赖。
 
-文字审阅覆盖本页、模块 03/04、执行索引和 CURRENT_EXECUTION。将“生产兼容通过”限定为“对应生产上下文的固定业务测试实际通过”；将“D1 全部完成”限定为“人工函数恢复入口接线完成，正常整站发布和自动恢复尚未切换”。核对事实为 375 项回归、870 文件 lint、原有发布文件保护及关闭策略。
+文字审阅覆盖本页、模块 03/04、执行索引和 CURRENT_EXECUTION。将“生产兼容通过”限定为“对应生产上下文的固定业务测试实际通过”；将“D1 全部完成”限定为“人工函数恢复入口接线完成，正常整站发布和自动恢复尚未切换”。核对事实为 378 项回归、870 文件 lint、原有发布文件保护及关闭策略。
 
 ## Actions 入口首次实测后的修正
 
 提交 `a1e7a272` 的整仓 CI 856/856 通过，但只读入口 39714879004 在 SDK 加载时失败。原因是入口从 `packages/media-storage` 解析 `@cloudbase/node-sdk`，而 pnpm 隔离安装下该依赖实际由 `packages/db` 直接持有。本地实际构造 SDK 客户端复现了 MODULE_NOT_FOUND；修复后同一客户端构造和 env/transaction 合同通过。静态 canary 入口也改为共用同一个 SDK 构造方法，普通 Deploy Test 不变。
 
 补充两项测试：真实 pnpm 依赖路径的客户端构造，以及不丢失 stage/code、也不泄露原始消息的失败诊断。首次任务只做过 CI/目标/控制面读取，没有函数、静态文件或业务数据写入。修复后的精确提交仍需通过 CI，再重跑只读现场入口；实际结果随远端证据归档。
+
+## 现场观测与恢复支持范围分开
+
+第二次只读入口 39715937623 已通过 SDK 构造，随后在观测时失败。独立 SDK 只读核对确认 Alibaba 同步函数为 Event/Nodejs20.19、Active/Available，但具有一个现存触发器，ZIP 为 9,071,488 bytes。此前把 C2 的“无触发器恢复范围”用于生产观测，提前拒绝了合法的只读请求。
+
+现在 provider 分为 `inspect` 与严格的 `read/updateCode`：inspect 可读取、下载和计算现存大包的 hash，也可记录触发器；恢复仍拒绝超出已支持配置范围的函数。读取预算是 16 MiB，待上传的旧 A ZIP 仍严格限制为 1.5 MiB 和固定双文件布局，不能把下载上限当作上传能力。新增测试确认读取一个有 timer 的大包不会产生更新，严格恢复仍被拒绝。
+
+仓库 policy 明确分开 `observeFunctions` 和允许恢复的 `functions`；目前观察三个函数，恢复入口仅列 public-api/admin，execute 仍关闭。Alibaba 不因“要完成观测”而被删除触发器、重新打包或加入恢复范围。进一步只读 SDK 验证已成功取得三个函数的包身份；最终 Actions 端到端结果另存现场证据。
+
+整轮观测按开始时间计算新鲜度；超过五分钟或时钟倒退就拒绝，不在最后一个请求完成时重置时间。对应慢读取回归先得到失败，再修正实现。

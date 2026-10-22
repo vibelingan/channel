@@ -1,6 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { fetchFully } from '../smoke-http.mjs';
-import { checkFunctionArchive, functionZipLimit } from './function-archive.mjs';
+import { checkFunctionArchive } from './function-archive.mjs';
 import { mergeFunctionEnvironment } from './function-config.mjs';
 import { assertOrigin, freeze, identity, isHash, sha256 } from './input.mjs';
 
@@ -53,7 +53,7 @@ export function createCloudbaseFunctionProvider({
   const select = (name) => {
     if (!allowed.has(name)) throw new Error('Unplanned function');
   };
-  const safe = async (callback) => {
+  const safe = async (callback, functionName) => {
     let stage = 'bind-target';
     try {
       await bound();
@@ -63,11 +63,11 @@ export function createCloudbaseFunctionProvider({
     } catch {
       throw Object.assign(
         new Error(`Function provider ${stage} unconfirmed; inspect the release journal`),
-        { code: 'FUNCTION_PROVIDER_UNCONFIRMED', stage },
+        { code: 'FUNCTION_PROVIDER_UNCONFIRMED', stage, functionName },
       );
     }
   };
-  const summarize = (detail, name) => {
+  const summarize = (detail, name, recovery) => {
     if (
       detail.FunctionName !== name ||
       detail.Namespace !== fixed.envId ||
@@ -85,14 +85,17 @@ export function createCloudbaseFunctionProvider({
       detail.CodeSecret
     )
       throw new Error('Unproven event function detail');
+    if (!Array.isArray(detail.Triggers)) throw new Error('Unproven function trigger inventory');
+    const recoveryReasons = [];
+    if (detail.Triggers.length) recoveryReasons.push('EXISTING_TRIGGER_OUTSIDE_RECOVERY_SCOPE');
     if (
-      !Array.isArray(detail.Triggers) ||
-      detail.Triggers.length ||
       detail.VpcConfig?.VpcId ||
       detail.VpcConfig?.SubnetId ||
       detail.VpcConfig?.vpc ||
       detail.VpcConfig?.subnet
     )
+      recoveryReasons.push('VPC_OUTSIDE_RECOVERY_SCOPE');
+    if (recovery && recoveryReasons.length)
       throw new Error('Function configuration outside initial recovery scope');
     const variables = detail.Environment.Variables;
     if (new Set(variables.map((x) => x.Key)).size !== variables.length)
@@ -145,14 +148,20 @@ export function createCloudbaseFunctionProvider({
       versionToken: identity({ ModTime, CodeSize, FunctionId: detail.FunctionId }),
       installDependency: InstallDependency,
       requestId: RequestId,
+      codeBytes: CodeSize,
+      triggerCount: detail.Triggers.length,
+      recoveryEligibility: {
+        status: recoveryReasons.length ? 'manual-required' : 'within-scope',
+        reasons: recoveryReasons,
+      },
     };
   };
-  const read = async (name, { signal } = {}) => {
+  const readSnapshot = async (name, recovery, { signal } = {}) => {
     select(name);
     signal?.throwIfAborted();
     return safe(async (stage) => {
       stage('read-configuration');
-      const first = summarize(await functions.getFunctionDetail(name), name);
+      const first = summarize(await functions.getFunctionDetail(name), name, recovery);
       signal?.throwIfAborted();
       if (first.status !== 'Active' || first.availableStatus !== 'Available')
         return freeze({ ...first, packageSha256: null });
@@ -173,13 +182,13 @@ export function createCloudbaseFunctionProvider({
       const response = await request('GET', url.href, {
         signal,
         timeoutMs: 15_000,
-        maxBytes: functionZipLimit,
+        maxBytes: 16 * 1024 * 1024,
         redirect: 'error',
       });
       signal?.throwIfAborted();
       if (response.status !== 200) throw new Error('Function download failed');
       stage('configuration-readback');
-      const after = summarize(await functions.getFunctionDetail(name), name);
+      const after = summarize(await functions.getFunctionDetail(name), name, recovery);
       signal?.throwIfAborted();
       stage('configuration-comparison');
       if (
@@ -189,13 +198,19 @@ export function createCloudbaseFunctionProvider({
         first.versionToken !== after.versionToken
       )
         throw new Error('Function changed during readback');
-      return freeze({ ...after, packageSha256: sha256(response.body) });
-    });
+      return freeze({
+        ...after,
+        packageSha256: sha256(response.body),
+        packageBytes: response.body.length,
+      });
+    }, name);
   };
+  const read = (name, options) => readSnapshot(name, true, options);
   return Object.freeze({
     target: fixed,
     region,
     read,
+    inspect: (name, options) => readSnapshot(name, false, options),
     async updateCode(input, { signal } = {}) {
       const { name, runtime, handler, expectedSnapshot } = structuredClone(input);
       select(name);
@@ -232,7 +247,7 @@ export function createCloudbaseFunctionProvider({
         });
         if (!result?.RequestId) throw new Error('Function update has no receipt');
         return { submitted: true, providerOperationId: result.RequestId };
-      });
+      }, name);
     },
   });
 }

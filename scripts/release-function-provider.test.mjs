@@ -209,3 +209,29 @@ test('aborted input does not start an update', async () => {
   );
   assert.equal(f.state.updates, 0);
 });
+
+test('read-only inspection observes a larger existing package and timer without widening code recovery', async () => {
+  const f = setup();
+  f.state.detail.Triggers = [{ Name: 'existing-timer' }];
+  f.state.bytes = Buffer.alloc(2 * 1024 * 1024, 1);
+  f.state.detail.CodeSize = f.state.bytes.length;
+  const inspected = await f.provider.inspect('public-api');
+  assert.equal(inspected.triggerCount, 1);
+  assert.equal(inspected.packageBytes, f.state.bytes.length);
+  assert.equal(inspected.recoveryEligibility.status, 'manual-required');
+  assert(inspected.recoveryEligibility.reasons.includes('EXISTING_TRIGGER_OUTSIDE_RECOVERY_SCOPE'));
+  await assert.rejects(f.provider.read('public-api'));
+  const bytes = functionZip();
+  await assert.rejects(
+    f.provider.updateCode({
+      name: 'public-api',
+      runtime: 'Nodejs20.19',
+      handler: 'index.main',
+      bytes,
+      sha256: sha256(bytes),
+      expectedSnapshot: inspected,
+    }),
+  );
+  assert.equal(f.state.updates, 0);
+  assert.equal(f.state.detail.Triggers.length, 1);
+});

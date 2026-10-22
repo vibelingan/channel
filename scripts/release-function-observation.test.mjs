@@ -219,3 +219,30 @@ test('contract revision changed during observation blocks a plan', async () => {
   });
   assert((await observer.inspect()).reasons.includes('CONTRACT_STATE_CHANGED_DURING_READ'));
 });
+
+test('observation records an existing scheduled writer while keeping recovery eligibility separate', async () => {
+  const f = setup();
+  f.sdk.state.detail.Triggers = [{ Name: 'existing-timer' }];
+  const r = await f.observer.inspect();
+  assert.equal(r.status, 'ready');
+  assert.equal(r.functionDetails[0].recoveryEligibility.status, 'manual-required');
+  assert.equal(r.observation.functions[0].codeSha, 'b'.repeat(40));
+  assert.equal(f.sdk.state.updates, 0);
+});
+
+test('a slow multi-read observation cannot label old snapshots as fresh', async () => {
+  const f = setup();
+  let now = f.x.now;
+  const observer = createFunctionObserver({
+    policy: f.policy,
+    provider: f.provider,
+    readContractState: async () => structuredClone(f.record),
+    clock: () => now,
+    readHealth: async (name) => {
+      now = f.x.now + 300001;
+      return { status: 'healthy', name, codeSha: 'b'.repeat(40), target: f.x.target };
+    },
+  });
+  await assert.rejects(observer.inspect(), /observation.*window/i);
+  assert.equal(f.sdk.state.updates, 0);
+});

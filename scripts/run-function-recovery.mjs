@@ -58,8 +58,13 @@ export async function runFunctionRecovery(command, env = process.env) {
   const checked = async (stage, callback) => {
     try {
       return await callback();
-    } catch {
-      throw Object.assign(new Error('Function recovery preflight unconfirmed'), { stage });
+    } catch (error) {
+      throw Object.assign(new Error('Function recovery preflight unconfirmed'), {
+        stage,
+        detailStage: error?.stage,
+        functionName: error?.functionName,
+        code: error?.code,
+      });
     }
   };
   if (!['prepare', 'run'].includes(command)) throw new Error('Use prepare or run');
@@ -103,7 +108,7 @@ export async function runFunctionRecovery(command, env = process.env) {
     manager,
     target,
     region: policy.region,
-    names: policy.functions,
+    names: policy.observeFunctions ?? policy.functions,
     configurationKey,
   });
   const reader = createCloudbaseContractReader({ db, policy });
@@ -304,6 +309,14 @@ export function safeFunctionFailure(error) {
       typeof error?.stage === 'string' && /^[a-z-]{1,40}$/.test(error.stage)
         ? error.stage
         : 'preflight-or-plan',
+    detailStage:
+      typeof error?.detailStage === 'string' && /^[a-z-]{1,40}$/.test(error.detailStage)
+        ? error.detailStage
+        : undefined,
+    functionName:
+      typeof error?.functionName === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(error.functionName)
+        ? error.functionName
+        : undefined,
     code:
       typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code)
         ? error.code

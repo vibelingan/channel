@@ -93,7 +93,7 @@ export function createFunctionObserver({
   clock = Date.now,
 }) {
   const target = freeze({ envId: policy.envId, siteOrigin: policy.siteOrigin });
-  const names = [...policy.functions];
+  const names = [...(policy.observeFunctions ?? policy.functions)];
   if (
     identity(provider.target) !== identity(target) ||
     !names.length ||
@@ -101,12 +101,15 @@ export function createFunctionObserver({
   )
     throw new Error('Observation target or scope mismatch');
   async function inspect({ signal } = {}) {
+    const observedAt = clock();
     signal?.throwIfAborted();
     const before = await readContractState();
     const functions = [];
+    const functionDetails = [];
+    const readSnapshot = provider.inspect ?? provider.read;
     const reasons = [];
     for (const name of names) {
-      const snapshot = await provider.read(name, { signal });
+      const snapshot = await readSnapshot(name, { signal });
       if (snapshot.status !== 'Active' || snapshot.availableStatus !== 'Available') {
         reasons.push('FUNCTION_NOT_ACTIVE');
         functions.push({
@@ -117,7 +120,7 @@ export function createFunctionObserver({
         continue;
       }
       const health = await readHealth(name, { signal });
-      const after = await provider.read(name, { signal });
+      const after = await readSnapshot(name, { signal });
       if (
         !code(health.codeSha) ||
         health.name !== name ||
@@ -130,6 +133,13 @@ export function createFunctionObserver({
         after.availableStatus !== 'Available'
       )
         throw new Error('Function changed during health observation');
+      functionDetails.push({
+        name,
+        packageBytes: after.packageBytes,
+        codeBytes: after.codeBytes,
+        triggerCount: after.triggerCount,
+        recoveryEligibility: after.recoveryEligibility,
+      });
       functions.push({
         name,
         codeSha: health.codeSha,
@@ -150,7 +160,14 @@ export function createFunctionObserver({
     if (identity(before) !== identity(current)) reasons.push('CONTRACT_STATE_CHANGED_DURING_READ');
     reasons.push(...validateContractState(current, { ...policy, target }, functions));
     signal?.throwIfAborted();
-    const observedAt = clock();
+    const finishedAt = clock();
+    if (
+      !Number.isSafeInteger(observedAt) ||
+      !Number.isSafeInteger(finishedAt) ||
+      finishedAt < observedAt ||
+      finishedAt - observedAt > 300_000
+    )
+      throw new Error('Production observation exceeded its freshness window');
     const observation = reasons.length
       ? null
       : {
@@ -172,6 +189,7 @@ export function createFunctionObserver({
       observedAt,
       reasons: [...new Set(reasons)],
       functions,
+      functionDetails,
       observation,
       contractStateSha256: observation
         ? identity({

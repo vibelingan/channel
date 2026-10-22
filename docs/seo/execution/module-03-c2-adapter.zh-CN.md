@@ -33,7 +33,7 @@ C1 处理静态文件，C2 处理 Cloud Functions 的代码包。例如发布 B 
 
 ## 支持范围与失败处理
 
-本轮只支持现有三种打包后的 Event 函数：`public-api`、`admin`、`alibaba-catalog-sync`。ZIP 仅含 `index.js` 和 `package.json`，不含运行时待安装依赖，最多 1.5 MiB；这个限制来自当前安装的 Manager SDK 内联上传路径。其他布局、容器、CBF、VPC、触发器、加密代码包或不能证明完整的配置均拒绝，不自动切换另一种上传方式。
+初版 SDK 设计面向三种打包后的 Event 函数；2026-10-22 现场发现 `alibaba-catalog-sync` 已有 timer 和约 9 MB 包，当前 D1 仅把 `public-api`、`admin` 放入恢复名单，Alibaba 只读观测，详见本轮入口记录。ZIP 仅含 `index.js` 和 `package.json`，不含运行时待安装依赖，最多 1.5 MiB；这个限制来自当前安装的 Manager SDK 内联上传路径。其他布局、容器、CBF、VPC、触发器、加密代码包或不能证明完整的配置均拒绝，不自动切换另一种上传方式。
 
 SDK 只暴露读取和代码更新；没有配置写入、创建/删除函数、触发器或路由接口。恢复保留当前业务配置，`InstallDependency=FALSE` 是计划明确绑定的打包策略。配置比较使用进程内随机密钥的 HMAC，输出不包含环境变量或可离线猜测的明文配置 hash。错误信息不透出 SDK 原始响应、签名 URL 或密钥。
 
