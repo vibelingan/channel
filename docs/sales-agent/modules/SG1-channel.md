@@ -1,0 +1,41 @@
+# SG1 官网询盘接入与受控业务资料
+
+实施单元：SG1.0、SG1.1、SG1.2。依赖按 [计划](../plan.json)。
+
+## 复用事实与写范围
+
+`03be923c` 的 OEM `submitProject` 在保存及附件激活后best-effort发SMTP确认；无持久发送账。较新 `a7e16aa2` 的产品页接到`submitPublicQuote`，`catalogQuoteRequests`有事务、幂等、快照、管理历史。legacy/cart/overstock仍有旧模拟组件；功能开关和部署未验证。SG1.0逐入口走通，选择既有实现，不在设计旧基线上复制新单品功能。
+
+候选新增范围：`apps/functions/sales-integration/`、`packages/db/src/sales-inquiry-*`及对应tests；现有OEM/单品保存路径只加最小交接，产品schema/限流/批准revision校验继续复用。SDK、Storage或事务代码实施前遵守项目CloudBase contract gate，核对选定基线的已安装包和官方合同。
+
+## 目标流程
+
+1. OEM、产品和客服确认表单各自保存原业务事实。只有最终成功才有资格被接入，附件激活失败/回滚不触发。
+2. 按同一InquirySubmitted输出，不要求数据库合表。`source_record_id`保留原ID，提交快照不可用当前产品字段覆盖。
+3. 保存后发送低延迟通知。独立补偿扫描读取已提交且有效记录，重复投递相同业务身份。外部通知失败不改成提交失败、不要求买家再填。
+4. 接入服务持久接受后创建稳定task，确认信/准备/联系人分支独立执行。接入cutover_at之前记录默认只归档，不批量补发。
+
+```ts
+// 当前OEM核心形状（03be923c，省略附件补偿）：
+project = await createDoc('oemProjects', projectData);
+await sendOemConfirmationEmail({ to: email.toLowerCase(), projectId: project._id, contact, company, category });
+// 目标：原记录是恢复依据；HTTP通知不是唯一可靠来源。
+await notifySales(stableEventFrom(finalizedProject)).catch(recordDeliveryHintFailure);
+// reconciler重读最终有效记录，幂等接入；不依赖进程内fire-and-forget。
+```
+
+保存与Hermes不共享事务。单品可用原事务扩展可靠交接标记；OEM多步骤以最终有效记录＋附件归属为准。具体标记如何原子写、扫描索引和分页合同在SG1.0按实际数据库核对，未经核对不添加想象的SDK方法。扫描有重叠窗口、稳定排序及周期完整核对，游标只在接受回执后推进。后端状态更新不算新询盘；相关业务关闭使未发任务暂停/需复核，而不是再发确认。
+
+## 给Agent的数据
+
+只读这条已授权询盘、批准产品事实及允许附件。联系信息是业务必要资料，直接在私有Sales范围传递；官网公开客服仍无这些私有工具。表单摘要可编辑确认，客服不自动提交、不关联完整conversation id。报价/交期/MOQ的商业依据有版本，没有依据返回missing，不能让模型填数。
+
+附件以归属检查后下载的bytes提供，限制大小和MIME，审计访问。不给万能DB查询、管理员token、任意URL抓取或公开桶链接。原始询盘不能由Agent直接改写；另建成果/回执关联。
+
+## 实施与验收
+
+- SG1.0：记录选定代码SHA、逐入口实际路由/开关/落盘/后台路径，列遗留模拟路径和补接范围；确认OEM最终有效条件。此步不迁移别人代码。
+- SG1.1：受控读取/产品查询/附件接口，fake与归属负向测试先落地。
+- SG1.2：通知、补扫、稳定事件身份、cutover及两种原表适配。
+
+目标测试 `three_confirmed_sources_share_envelope`、`chat_without_submit_creates_no_sales_task`、`oem_attachment_rollback_is_not_dispatched`、`save_succeeds_notification_fails_reconciler_recovers`、`same_submission_replays_same_task`、`admin_note_does_not_resend_ack`、`source_snapshot_survives_catalog_update`、`asset_from_other_client_is_denied`。现有单品快照/幂等测试继续执行，不删除原保护。

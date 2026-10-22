@@ -1,0 +1,392 @@
+{
+  "version": "0.1",
+  "date": "2026-10-23",
+  "mode": "design_only",
+  "worktree": "${SALES_WORKTREE}",
+  "branch": "feat/sales-agent-modular-design",
+  "units": [
+    {
+      "id": "SG0.1",
+      "title": "共同schema与假服务",
+      "depends_on": [],
+      "design": "modules/SG0-boundary.md",
+      "owner_role": "Channel合同维护方",
+      "write_scope": "packages/sales-contracts/；Hermes只消费固定版本",
+      "acceptance": "结构校验、未知版本拒绝、跨语言同fixture，fake不调用网络",
+      "primary_test": "contract_rejects_unknown_version",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG0.2",
+      "title": "客户连接与动作授权",
+      "depends_on": [
+        "SG0.1"
+      ],
+      "design": "modules/SG0-boundary.md",
+      "owner_role": "Hermes平台＋连接适配",
+      "write_scope": "客户绑定/工具scope/连接撤销tests，不改公开客服权限",
+      "acceptance": "A/B工具、连接、业务和操作者负向测试；无默认客户",
+      "primary_test": "client_a_cannot_read_or_send_for_b",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG1.0",
+      "title": "选定代码基线和三入口接线证据",
+      "depends_on": [],
+      "design": "modules/SG1-channel.md",
+      "owner_role": "Channel",
+      "write_scope": "只读路由/开关/持久化盘点与证据",
+      "acceptance": "记录OEM/单品/客服入口、旧dummy、有效提交条件和选定SHA",
+      "primary_test": "source_route_persistence_evidence",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG1.1",
+      "title": "询盘产品附件只读接口",
+      "depends_on": [
+        "SG0.2",
+        "SG1.0"
+      ],
+      "design": "modules/SG1-channel.md",
+      "owner_role": "Channel",
+      "write_scope": "sales-integration路由＋资料adapter，复用批准快照",
+      "acceptance": "越权/未提交/附件跨归属拒绝，固定版本事实可追溯",
+      "primary_test": "asset_from_other_client_is_denied",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG2.1",
+      "title": "客户Sales执行边界",
+      "depends_on": [
+        "SG0.2"
+      ],
+      "design": "modules/SG2-hermes-runtime.md",
+      "owner_role": "Hermes",
+      "write_scope": "Sales专属runtime/工具代理/记忆和目录适配",
+      "acceptance": "A/B同时运行不读错知识/文件/连接；遗漏scope拒绝",
+      "primary_test": "wrong_runtime_is_rejected",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG2.2",
+      "title": "事件接收根任务与可靠派发",
+      "depends_on": [
+        "SG0.1",
+        "SG0.2",
+        "SG2.1"
+      ],
+      "design": "modules/SG2-hermes-runtime.md",
+      "owner_role": "Hermes",
+      "write_scope": "sales_flow事件接入＋复用assignment/outbox",
+      "acceptance": "重复事件一个根task，崩溃恢复不丢已确认接收事件",
+      "primary_test": "duplicate_event_has_one_root_task",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG1.2",
+      "title": "询盘通知与补偿扫描",
+      "depends_on": [
+        "SG1.1",
+        "SG2.2"
+      ],
+      "design": "modules/SG1-channel.md",
+      "owner_role": "Channel",
+      "write_scope": "OEM/单品保存后最小hook及source reconciler",
+      "acceptance": "保存成功后通知丢失可补扫；附件回滚和历史记录不误发",
+      "primary_test": "save_succeeds_notification_fails_reconciler_recovers",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG2.3",
+      "title": "运行成果manifest与固定版本",
+      "depends_on": [
+        "SG2.2"
+      ],
+      "design": "modules/SG2-hermes-runtime.md",
+      "owner_role": "Hermes",
+      "write_scope": "运行目录/manifest/归档与旧run限制",
+      "acceptance": "并发run/符号链接/伪造hash拒绝；旧run不覆盖当前版本",
+      "primary_test": "late_run_cannot_replace_current_version",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG3.1",
+      "title": "业务规则Sales skill与样例",
+      "depends_on": [
+        "SG0.1",
+        "SG1.0"
+      ],
+      "design": "modules/SG3-sales.md",
+      "owner_role": "销售流程包",
+      "write_scope": "新规则/skill/schema/evaluation，不改Phase2客服循环",
+      "acceptance": "模糊采购、缺价、恶意输入和跨业务样例有预期",
+      "primary_test": "missing_price_never_invented",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG3.2",
+      "title": "资料到正文附件完整准备",
+      "depends_on": [
+        "SG1.1",
+        "SG2.3",
+        "SG3.1"
+      ],
+      "design": "modules/SG3-sales.md",
+      "owner_role": "销售流程包＋内容工厂适配",
+      "write_scope": "准备流水线/事实校验/成果提交",
+      "acceptance": "自动形成带来源、缺项、HTML/text及附件的审核版本",
+      "primary_test": "redraft_preserves_previous_snapshot",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG4.1",
+      "title": "Resend邮件适配器",
+      "depends_on": [
+        "SG0.2"
+      ],
+      "design": "modules/SG4-resend.md",
+      "owner_role": "发布工具维护方",
+      "write_scope": "草稿/显式发送/reply/fake合同及错误映射",
+      "acceptance": "HTML附件roundtrip、实际reply收件人、幂等和超时证据",
+      "primary_test": "draft_roundtrip_preserves_html_and_attachments",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG4.2",
+      "title": "Resend回调联系人与回信通知",
+      "depends_on": [
+        "SG4.1",
+        "SG2.2"
+      ],
+      "design": "modules/SG4-resend.md",
+      "owner_role": "发布工具维护方",
+      "write_scope": "回调接收/去重/联系资格/线程映射",
+      "acceptance": "伪造回调/错inbox/重复乱序不产生新任务或复活许可",
+      "primary_test": "webhook_replay_no_duplicate_action",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG5.1",
+      "title": "操作者控制与批准合同",
+      "depends_on": [
+        "SG0.2",
+        "SG2.2",
+        "SG2.3"
+      ],
+      "design": "modules/SG5-human-control.md",
+      "owner_role": "Hermes控制后端",
+      "write_scope": "企微身份/command/epoch/批准记录，保护旧文章流",
+      "acceptance": "对象不明不发；旧版本/无权限/暂停后批准均拒绝",
+      "primary_test": "wecom_text_without_identity_cannot_approve",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG5.2",
+      "title": "固定预览与网页共用批准",
+      "depends_on": [
+        "SG5.1",
+        "SG3.2"
+      ],
+      "design": "modules/SG5-human-control.md",
+      "owner_role": "Hermes客户门户",
+      "write_scope": "现有portal壳内sales预览route、附件及会话adapter",
+      "acceptance": "个人身份/权限检查、HTML sandbox、私有附件、失效版本",
+      "primary_test": "preview_link_does_not_grant_access",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG8.1",
+      "title": "持久审计结果回执和告警",
+      "depends_on": [
+        "SG2.3",
+        "SG4.2",
+        "SG5.1"
+      ],
+      "design": "modules/SG8-operations.md",
+      "owner_role": "各模块产生日志，Hermes归档",
+      "write_scope": "审计投影/告警/成本；ChannelReceipt可选",
+      "acceptance": "批准人/版本/发送ID可追溯，回执失败不重发邮件",
+      "primary_test": "channel_receipt_failure_does_not_resend",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG5.3",
+      "title": "受控发送与竞争恢复",
+      "depends_on": [
+        "SG3.2",
+        "SG4.1",
+        "SG4.2",
+        "SG5.1",
+        "SG5.2",
+        "SG8.1"
+      ],
+      "design": "modules/SG5-human-control.md",
+      "owner_role": "发送网关维护方",
+      "write_scope": "固定payload/唯一send_operation/outbox及对账",
+      "acceptance": "两入口批准、暂停竞争、超时已成功、24h窗外不盲重发",
+      "primary_test": "web_and_wecom_duplicate_approval_one_send",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG4.3",
+      "title": "确认模板一次发送与切换",
+      "depends_on": [
+        "SG1.2",
+        "SG5.3"
+      ],
+      "design": "modules/SG4-resend.md",
+      "owner_role": "Channel＋邮件工具协作",
+      "write_scope": "只停旧询盘确认hook，新确认共用发送账",
+      "acceptance": "两条确认路径互斥、历史不补发、密码重置不变",
+      "primary_test": "only_one_ack_path_enabled",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG8.2",
+      "title": "官网MVP演练与小范围启用",
+      "depends_on": [
+        "SG1.2",
+        "SG3.2",
+        "SG4.2",
+        "SG4.3",
+        "SG5.3",
+        "SG8.1"
+      ],
+      "design": "modules/SG8-operations.md",
+      "owner_role": "集成验收",
+      "write_scope": "端到端tests/runbook/客户接入与采样表",
+      "acceptance": "dry-run→测试收件人→获批真实询盘；退出与回滚可操作",
+      "primary_test": "rollback_does_not_double_ack",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG6.0",
+      "title": "Apollo客户授权和回复正文证据",
+      "depends_on": [
+        "SG0.2"
+      ],
+      "design": "modules/SG6-apollo.md",
+      "owner_role": "Apollo集成",
+      "write_scope": "workspace/连接/sequence规则/授权收件来源证据",
+      "acceptance": "Partner与Agent授权分开；证明真实回复正文获得路径",
+      "primary_test": "reply_body_source_evidence",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG6.1",
+      "title": "独立活动准备与批准执行",
+      "depends_on": [
+        "SG6.0",
+        "SG3.1",
+        "SG5.1",
+        "SG8.1"
+      ],
+      "design": "modules/SG6-apollo.md",
+      "owner_role": "获客流程包",
+      "write_scope": "ICP/受众/序列版本及批准/启动/暂停adapter",
+      "acceptance": "未批准不启动；受众/发件人/内容变化重新批准",
+      "primary_test": "changed_audience_requires_reapproval",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG6.2",
+      "title": "回复停发分类与Resend交接",
+      "depends_on": [
+        "SG6.1",
+        "SG4.2",
+        "SG5.3",
+        "SG8.1"
+      ],
+      "design": "modules/SG6-apollo.md",
+      "owner_role": "获客流程包＋同步adapter",
+      "write_scope": "持久reply事件、stop确认、正文匹配和路由",
+      "acceptance": "停发失败不继续外发；OOO/拒绝/缺正文不当营销许可",
+      "primary_test": "reply_event_without_body_requests_human",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG7.1",
+      "title": "一个其他渠道的联系人接入",
+      "depends_on": [
+        "SG0.2",
+        "SG4.2"
+      ],
+      "design": "modules/SG7-sources-maintenance.md",
+      "owner_role": "渠道adapter",
+      "write_scope": "获准文件导入或官方接口、来源/业务/许可映射",
+      "acceptance": "重复导入不重复；多来源不覆盖拒绝，归属不明隔离",
+      "primary_test": "multi_source_preserves_unsubscribe",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    },
+    {
+      "id": "SG7.2",
+      "title": "独立维护活动",
+      "depends_on": [
+        "SG7.1",
+        "SG3.2",
+        "SG5.3",
+        "SG8.1"
+      ],
+      "design": "modules/SG7-sources-maintenance.md",
+      "owner_role": "维护流程包",
+      "write_scope": "受众/内容固定版本、资格过滤和活动结果",
+      "acceptance": "入库不等于可营销；审批后退订发送前排除",
+      "primary_test": "unsubscribe_after_approval_excluded_before_send",
+      "status": "planned_not_implemented",
+      "live_enabled": false
+    }
+  ],
+  "milestones": {
+    "website_mvp": [
+      "SG0.1",
+      "SG0.2",
+      "SG1.0",
+      "SG1.1",
+      "SG2.1",
+      "SG2.2",
+      "SG1.2",
+      "SG2.3",
+      "SG3.1",
+      "SG3.2",
+      "SG4.1",
+      "SG4.2",
+      "SG5.1",
+      "SG5.2",
+      "SG8.1",
+      "SG5.3",
+      "SG4.3",
+      "SG8.2"
+    ],
+    "apollo": [
+      "SG6.0",
+      "SG6.1",
+      "SG6.2"
+    ],
+    "other_channels": [
+      "SG7.1",
+      "SG7.2"
+    ]
+  }
+}

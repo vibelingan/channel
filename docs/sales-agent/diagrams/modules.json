@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "询盘与获客：模块协作",
+    "subtitle": "设计目标 · 客户独立环境 · 官网询盘先落地",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      800
+    ]
+  },
+  "components": [
+    {
+      "id": "channel",
+      "type": "frontend",
+      "label": "SG1 · Channel",
+      "sublabel": "三种入口／询盘与产品事实",
+      "pos": [
+        50,
+        115
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "SG2 · 定海与任务",
+      "sublabel": "客户专属执行／成果留档",
+      "pos": [
+        585,
+        115
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "sales",
+      "type": "backend",
+      "label": "SG3 · Sales 能力",
+      "sublabel": "理解需求／查产品／正文附件",
+      "pos": [
+        1100,
+        115
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "resend",
+      "type": "external",
+      "label": "SG4 · Resend",
+      "sublabel": "联系人／草稿／收发邮件",
+      "pos": [
+        1100,
+        375
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "approval",
+      "type": "security",
+      "label": "SG5 · 人工控制",
+      "sublabel": "企微／网页审核、修改和接管",
+      "pos": [
+        585,
+        375
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "apollo",
+      "type": "external",
+      "label": "SG6 · Apollo",
+      "sublabel": "独立主动获客／回复分类交接",
+      "pos": [
+        50,
+        375
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "sources",
+      "type": "external",
+      "label": "SG7 · 其他渠道与维护",
+      "sublabel": "分开配置业务与联系资格",
+      "pos": [
+        50,
+        635
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "boundary",
+      "type": "security",
+      "label": "SG0 · 身份与接口",
+      "sublabel": "客户绑定／凭据／数据规范",
+      "pos": [
+        585,
+        635
+      ],
+      "size": [
+        250,
+        80
+      ]
+    },
+    {
+      "id": "ops",
+      "type": "database",
+      "label": "SG8 · 运行与审计",
+      "sublabel": "失败重试／告警／留存／成本",
+      "pos": [
+        1100,
+        635
+      ],
+      "size": [
+        250,
+        80
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "submitted",
+      "from": "channel",
+      "to": "runtime",
+      "label": "正式提交后自动触发",
+      "variant": "emphasis"
+    },
+    {
+      "id": "assigned",
+      "from": "runtime",
+      "to": "sales",
+      "label": "派发销售准备",
+      "variant": "emphasis"
+    },
+    {
+      "id": "draft",
+      "from": "sales",
+      "to": "resend",
+      "label": "保存正文与附件草稿",
+      "variant": "emphasis",
+      "labelDy": 74
+    },
+    {
+      "id": "review",
+      "from": "resend",
+      "to": "approval",
+      "label": "完整预览；批准固定版本",
+      "variant": "emphasis"
+    },
+    {
+      "id": "send",
+      "from": "approval",
+      "to": "resend",
+      "label": "受控执行发送",
+      "variant": "security",
+      "labelDy": 48
+    },
+    {
+      "id": "handoff",
+      "from": "apollo",
+      "to": "runtime",
+      "label": "有意向回复交接",
+      "variant": "dashed"
+    },
+    {
+      "id": "other",
+      "from": "sources",
+      "to": "runtime",
+      "label": "按渠道配置同步与准备",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [
+        [
+          500,
+          675
+        ],
+        [
+          500,
+          235
+        ],
+        [
+          710,
+          235
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "先实施官网闭环",
+      "items": [
+        "SG0 → SG1／SG2 → SG3／SG4 → SG5 → SG8 验收",
+        "固定确认信预先批准；实质邮件由人批准后发送"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "共用程序，业务分开",
+      "items": [
+        "SG6／SG7 后续接入；不把官网询盘丢入冷开发",
+        "SG0、SG8 贯穿所有模块；图中为设计，尚未实施"
+      ]
+    }
+  ]
+}
