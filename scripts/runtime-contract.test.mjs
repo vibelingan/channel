@@ -32,6 +32,18 @@ const functionBuildConfigs = FUNCTION_NAMES.map((name) => [
   name,
   tsxRequire(`../apps/functions/${name}/tsup.config.ts`, import.meta.url).default,
 ]);
+
+test('function bundles include every workspace dependency', () => {
+  for (const [name, config] of functionBuildConfigs) {
+    const manifest = JSON.parse(
+      readFileSync(new URL(`../apps/functions/${name}/package.json`, import.meta.url), 'utf8'),
+    );
+    for (const [dependency, version] of Object.entries(manifest.dependencies ?? {})) {
+      if (!version.startsWith('workspace:')) continue;
+      assert.ok(config.noExternal?.includes(dependency), `${name} must bundle ${dependency}`);
+    }
+  }
+});
 const scriptTrees = [
   [
     'deploy',

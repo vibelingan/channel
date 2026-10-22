@@ -100,6 +100,9 @@ importers:
 
   apps/functions/admin:
     dependencies:
+      '@vibelingan-channel/articles':
+        specifier: workspace:*
+        version: link:../../../packages/articles
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../../packages/auth
@@ -196,6 +199,9 @@ importers:
 
   apps/local-server:
     dependencies:
+      '@vibelingan-channel/articles':
+        specifier: workspace:*
+        version: link:../../packages/articles
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../packages/auth

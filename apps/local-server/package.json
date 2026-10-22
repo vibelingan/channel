@@ -12,6 +12,7 @@
     "import:dianxiaomi": "tsx src/dianxiaomi-import-cli.ts"
   },
   "dependencies": {
+    "@vibelingan-channel/articles": "workspace:*",
     "@vibelingan-channel/auth": "workspace:*",
     "@vibelingan-channel/catalog-import": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",

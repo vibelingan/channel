@@ -52,15 +52,29 @@ def select_files(data, source, skill):
             if total > MAX_SELECTED or len(selected) >= 10000:
                 raise ValueError('Selected skill exceeds size budget')
             selected[output.as_posix()] = archive.extractfile(member).read()
+        if 'codexEntry' in skill:
+            entry = ROOT / checked_path(skill['codexEntry'])
+            if not entry.resolve().is_relative_to(ROOT.resolve()):
+                raise ValueError('Codex entry must stay inside the repository')
+            if 'SKILL.md' in selected:
+                raise ValueError('Codex bridge must not replace an upstream SKILL.md')
+            bridge = entry.read_bytes()
+            if len(bridge) > 64 * 1024:
+                raise ValueError('Codex entry exceeds size budget')
+            selected['SKILL.md'] = bridge
         if 'SKILL.md' not in selected:
             raise ValueError('Selected skill has no SKILL.md')
-        for name in ('LICENSE', 'LICENSE.md', 'LICENSE.txt'):
+        notice = source.get('noticeFile')
+        names = (checked_path(notice).as_posix(),) if notice else ('LICENSE', 'LICENSE.md', 'LICENSE.txt')
+        for name in names:
             license_member = next((m for m in members if m.name == next(iter(roots)) + '/' + name), None)
             if license_member:
-                selected['UPSTREAM-LICENSE'] = archive.extractfile(license_member).read()
+                if not license_member.isfile() or license_member.size > MAX_SELECTED:
+                    raise ValueError('Upstream notice must be a bounded regular file')
+                selected['UPSTREAM-NOTICE' if notice else 'UPSTREAM-LICENSE'] = archive.extractfile(license_member).read()
                 break
         else:
-            raise ValueError('No upstream license found')
+            raise ValueError('No upstream license or explicit notice found')
     return selected
 
 

@@ -15,6 +15,7 @@ export interface ApiErr {
     code: ErrorCode;
     message: string;
     retryAfterSeconds?: number;
+    currentRevision?: number;
   };
 }
 

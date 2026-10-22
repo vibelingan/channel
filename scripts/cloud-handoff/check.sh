@@ -19,12 +19,14 @@ python3 - <<'CHECK_SKILLS'
 import json
 from pathlib import Path
 lock = json.loads(Path('docs/cloud-handoff/skills.lock.json').read_text())
+count = 0
 for source in lock['sources']:
     for skill in source['skills']:
+        count += 1
         path = Path('.agents/skills') / skill['name'] / 'SKILL.md'
         if not path.is_file():
             raise SystemExit('Missing GitHub skill: ' + skill['name'] + '; rerun setup')
-print('All 9 pinned GitHub skill entry files are present.')
+print(f'All {count} pinned GitHub skill entry files are present.')
 CHECK_SKILLS
 python3 scripts/cloud-handoff/test_install_skills.py
 pnpm --filter @vibelingan-channel/articles test

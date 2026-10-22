@@ -16,6 +16,7 @@ export default defineConfig({
     'process.env.CHANNEL_BUILD_TIME': JSON.stringify(buildTime),
   },
   noExternal: [
+    '@vibelingan-channel/articles',
     '@vibelingan-channel/catalog-import',
     '@vibelingan-channel/shared',
     '@vibelingan-channel/auth',

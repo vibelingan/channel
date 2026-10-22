@@ -16,6 +16,11 @@
  */
 import { Buffer } from 'node:buffer';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  type ArticleRepository,
+  isArticleDraftError,
+} from '@vibelingan-channel/articles/draft-repository';
+import { executeArticleDraftRequest } from '@vibelingan-channel/articles/draft-service';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
@@ -130,6 +135,7 @@ import {
 
 export interface AdminConfig {
   jwtSecret: string;
+  articleRepository?: ArticleRepository;
   enableInquiries?: boolean;
   /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
   enableDetailApproval?: boolean;
@@ -574,6 +580,11 @@ export async function handleAdminRequest(
     if (!claims) return err('UNAUTHORIZED', 'This session is no longer valid.');
 
     switch (req.action) {
+      case 'articleDrafts':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (!config.articleRepository)
+          return err('INTERNAL_ERROR', 'Article draft storage is not configured.');
+        return ok(await executeArticleDraftRequest(config.articleRepository, claims.sub, req.data));
       case 'me':
         return await me(claims);
       case 'inquiryCapabilities':
@@ -683,6 +694,15 @@ export async function handleAdminRequest(
         return err('BAD_REQUEST', `Unknown action: ${req.action}`);
     }
   } catch (e) {
+    if (isArticleDraftError(e))
+      return {
+        ok: false,
+        error: {
+          code: e.code,
+          message: e.message,
+          ...(e.currentRevision === undefined ? {} : { currentRevision: e.currentRevision }),
+        },
+      };
     if (e instanceof UnknownCollectionError) return err('UNKNOWN_COLLECTION', e.message);
     if (e instanceof CatalogProductWriteError) {
       if (

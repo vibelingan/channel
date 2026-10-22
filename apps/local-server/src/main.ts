@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
+import { errorStatus } from '@vibelingan-channel/fn-admin/http-adapter';
 import {
   type AlibabaSyncFunctionConfig,
   handleAlibabaSyncRequest,
@@ -45,6 +46,7 @@ const config: AdminConfig = {
 };
 
 const adapter = new JsonFileAdapter(DB_FILE, config.enableInquiries === true);
+config.articleRepository = adapter.articleRepository;
 setAdapter(adapter);
 
 // The DB stays file-backed locally, but media UPLOADS always mint a real
@@ -97,6 +99,10 @@ app.post('/api/admin', async (req, res) => {
     ?.trim();
   const sourceIp = forwarded || req.ip || req.socket.remoteAddress || '';
   const result = await handleAdminRequest(body ?? { action: '' }, config, { sourceIp });
+  if (body?.action === 'articleDrafts') {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(errorStatus(result));
+  }
   res.json(result);
 });
 

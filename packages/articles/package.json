@@ -6,7 +6,9 @@
   "description": "Versioned article documents, safe rendering and draft rules; no editor, database or network runtime.",
   "exports": {
     ".": "./src/index.ts",
-    "./drafts": "./src/drafts.ts"
+    "./drafts": "./src/drafts.ts",
+    "./draft-repository": "./src/draft-repository.ts",
+    "./draft-service": "./src/draft-service.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",

@@ -66,6 +66,7 @@ import {
 } from '@vibelingan-channel/shared';
 import type { InquiryResult } from '@vibelingan-channel/shared/catalog-inquiry';
 import { CatalogQuoteSubmissionSchema } from '@vibelingan-channel/shared/catalog-quote';
+import { createLocalArticleRepository } from './article-repository.ts';
 import { processCatalogInquiry } from './catalog-inquiry-store.ts';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -156,6 +157,23 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  readonly articleRepository = createLocalArticleRepository((operation) =>
+    this.withMutationLock(() => {
+      const copy = structuredClone(this.store);
+      const result = operation(copy);
+      if (result.changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result.value;
+    }),
+  );
   async mutateAlibabaProduct(input: AlibabaProductMutationInput) {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);

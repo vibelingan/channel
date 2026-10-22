@@ -14,7 +14,7 @@ Install / Setup script：
 bash scripts/cloud-handoff/setup.sh
 ```
 
-该脚本只做四件事：校验 Node；按独立 npm lock 安装工具；按根 pnpm lock 安装项目依赖且不运行生命周期脚本；从 GitHub 的固定提交下载 9 个技能并核对 SHA-256。不会登录、调用腾讯云业务 API、创建集合、部署、改分支或触发恢复。
+该脚本只做四件事：校验 Node；按独立 npm lock 安装工具；按根 pnpm lock 安装项目依赖且不运行生命周期脚本；从 GitHub 的固定提交下载 11 个技能并核对 SHA-256。不会登录、调用腾讯云业务 API、创建集合、部署、改分支或触发恢复。
 
 旧版环境可能先在默认分支运行 setup，而文件只在 SEO 分支。此时 setup 字段可用以下兼容写法；Maintenance 字段仍使用下面的严格脚本。兼容写法只允许默认 main 暂缓，其他错误分支立即失败：
 
@@ -78,7 +78,7 @@ rm -f "$fixture"
 
 继续离线开发时，不需要腾讯云密钥、后台 JWT、会员账号、数据库口令、WeCom webhook 或 Hermes 凭证。需要官方在线文档时再允许对应 OpenAI / CloudBase 文档域名；需要腾讯云管理时按[工具指南](TOOLS.zh-CN.md)开放真实端点。腾讯云部分只读调用也使用 POST，所以仅允许 GET 的网络政策无法完成 SDK 读取。网络放行不等于允许资源写入。
 
-云端环境尚未由本会话创建，因此本地安装验证和 GitHub Linux CI不能代替你的新实例验收。首次接手应记录 Node、pnpm、SHA、技能是否安装、MCP 是否可列出、是否实际登录，以及哪些测试未运行。
+2026-10-22 已在当前云实例验证 Node、固定版本 pnpm、依赖安装、技能、离线 MCP 列举、浏览器启动及本地检查，详情见 SESSION.zh-CN.md。换到新实例仍应记录 Node、pnpm、SHA、技能是否安装、MCP 是否可列出、是否实际登录，以及哪些测试未运行；当前实例通过不能代替真实 CloudBase 验收。
 
 ## 浏览器和本机工具
 

@@ -14,7 +14,11 @@ test('cloud skill installer rejects unsafe archives and preserves existing files
     timeout: 30_000,
   });
   assert.equal(result.status, 0, result.stderr || result.error?.message);
-  assert.match(result.stderr, /Ran 8 tests/);
+  const executed = result.stderr.match(/Ran (\d+) tests/);
+  assert.ok(
+    Number(executed?.[1]) >= 11,
+    'All archive, preservation and Codex bridge checks must run',
+  );
 });
 
 test('cloud shell entry points parse without executing setup or authentication', () => {

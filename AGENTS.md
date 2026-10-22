@@ -21,6 +21,14 @@ also applies independently of that skill. 使用中文时，直接按汉语习�
 保留必要的代码标识符与不确定性，不把本地通过说成已经上线。
 已有 UI 和业务流程优先；涉及变化时截图并解释，不擅自重做页面。
 
+Use the installed `.agents/skills/dev-pipeline/SKILL.md` Codex adapter proactively
+for full-pipeline guidance on feature work, and read
+`.agents/skills/engineering-craft/INDEX.md` plus the relevant categories before
+design/review. Reuse the existing approved spec and tracked feature plan/worklog.
+Apply judgment within the authorization above; do not treat upstream templates as
+permission to delegate, change branches, create a PR or deploy. Setup and pinned
+sources are documented in `docs/cloud-handoff/SKILLS.zh-CN.md`.
+
 ## Public page SEO contract
 
 Before creating or changing a public route, read `docs/seo/PUBLIC_PAGE_CONTRACT.md`.
