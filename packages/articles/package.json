@@ -1,0 +1,21 @@
+{
+  "name": "@vibelingan-channel/articles",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Versioned article documents, safe rendering and draft rules; no editor, database or network runtime.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./drafts": "./src/drafts.ts"
+  },
+  "scripts": {
+    "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": { "zod": "^3.24.1" },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "parse5": "7.3.0",
+    "tsx": "^4.22.4"
+  }
+}

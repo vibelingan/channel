@@ -1,5 +1,7 @@
 # SEO 交付、自动恢复与兼容性：当前方案入口
 
+2026-10-22 进度补充：部署/SSG 的剩余接线、真实腾讯云假业务演练与清理见[下一次现场窗口计划](execution/LIVE-RESUME-AND-CLEANUP.zh-CN.md)；等 pricing 合并 main 并更新 SEO 后执行。Blog 已开始[分模块实现](../blog/README.zh-CN.md)，先做文章核心。下文保留 10 月 20 日设计背景，不作为全部代码已完成的证明。
+
 2026-10-20，第二轮设计收口。当前分支 `feat/seo-foundation`；本轮代码审阅基线 `b3c5f3a89b44b6ff6f99e62a24fbfa413bfd9e8c`。本轮更新设计和图文交付，没有执行部署、数据库迁移、缓存修改或恢复演练，没有修改 pricing。
 
 ## 已确定的实施方向

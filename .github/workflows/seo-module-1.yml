@@ -5,6 +5,7 @@ on:
     branches: [feat/seo-foundation]
   pull_request:
     paths:
+      - 'packages/articles/**'
       - 'scripts/hosting-recovery*'
       - 'scripts/prepare-hosting-recovery*'
       - 'scripts/release/**'
