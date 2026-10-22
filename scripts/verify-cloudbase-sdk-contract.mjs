@@ -1092,6 +1092,28 @@ try {
   rmSync(`${localLeaseFile}.owner`, { force: true });
 }
 
+// Exercise the article adapter through the actual installed SDK in an isolated
+// process. Its test transport cannot issue network requests; no cloud login is used.
+try {
+  const tsxPackagePath = localServerRequire.resolve('tsx/package.json');
+  const meta = localServerRequire(tsxPackagePath);
+  const binary = typeof meta.bin === 'string' ? meta.bin : meta.bin?.tsx;
+  if (typeof binary !== 'string') throw new Error('Missing tsx CLI');
+  const output = execFileSync(
+    process.execPath,
+    [join(dirname(tsxPackagePath), binary), '--test', 'packages/db/src/article-repository.test.ts'],
+    { cwd: root, encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  requireCheck(
+    /^# fail 0$/m.test(output) &&
+      /^# skipped 0$/m.test(output) &&
+      Number(output.match(/^# tests (\d+)$/m)?.[1]) >= 16,
+    'article repository passes actual SDK transport, retry, projection and failure contracts',
+  );
+} catch (error) {
+  record(false, 'article repository actual SDK transport contracts', error.message);
+}
+
 const failures = results.filter((result) => !result.ok);
 for (const result of results) {
   const prefix = result.ok ? 'PASS' : 'FAIL';

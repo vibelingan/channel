@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { parse } from 'yaml';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
@@ -43,6 +44,53 @@ test('function bundles include every workspace dependency', () => {
       assert.ok(config.noExternal?.includes(dependency), `${name} must bundle ${dependency}`);
     }
   }
+});
+
+test('the actual admin cloud entry injects its CloudBase article repository without doing resource setup', async () => {
+  const source = readFileSync(
+    new URL('../apps/functions/admin/src/index.ts', import.meta.url),
+    'utf8',
+  );
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const database = {};
+  const repository = { marker: 'article-repository' };
+  let injected = 0;
+  const sdk = { database: () => database };
+  const modules = {
+    '@vibelingan-channel/db': { setAdapter() {} },
+    '@vibelingan-channel/db/cloudbase': {
+      initCloudBase() {},
+      cloudBaseAdapter: {},
+      cloudStorageSdk: () => sdk,
+    },
+    '@vibelingan-channel/db/article-repository': {
+      createCloudBaseArticleRepository: (value) => {
+        assert.equal(value, database);
+        injected++;
+        return repository;
+      },
+    },
+    '@vibelingan-channel/media-storage': { setMediaStorage() {} },
+    '@vibelingan-channel/media-storage/cloudbase': { createCloudBaseMediaStorage: () => ({}) },
+    '@vibelingan-channel/shared': {
+      requireEnv: (name) => `test-${name}`,
+      optionalEnv: () => undefined,
+    },
+    './handler.ts': { handleAdminRequest() {} },
+    './http-adapter.ts': { handleAdminFunctionEvent: (_event, config) => config.articleRepository },
+  };
+  const entry = {};
+  runInNewContext(compiled, {
+    exports: entry,
+    require: (name) => {
+      assert.ok(Object.hasOwn(modules, name), `Unexpected runtime import: ${name}`);
+      return modules[name];
+    },
+  });
+  assert.equal(await entry.main({ action: 'health' }), repository);
+  assert.equal(injected, 1);
 });
 const scriptTrees = [
   [

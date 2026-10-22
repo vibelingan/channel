@@ -31,7 +31,7 @@ const requestSchema = z.discriminatedUnion('operation', [
       operation: z.literal('list'),
       limit: z.number().int().min(1).max(50).default(20),
       query: z.string().trim().max(100).default(''),
-      cursor: z.string().min(1).max(512).optional(),
+      cursor: z.string().min(1).max(1024).optional(),
     })
     .strict(),
   z

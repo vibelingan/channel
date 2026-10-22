@@ -14,6 +14,7 @@
     "./catalog-detail-staging": "./src/catalog-detail-staging.ts",
     "./catalog-detail-storage": "./src/catalog-detail-storage.ts",
     "./catalog-quote": "./src/catalog-quote.ts",
+    "./article-repository": "./src/article-repository.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts"
   },
   "scripts": {
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "@cloudbase/node-sdk": "3.17.2",
+    "@vibelingan-channel/articles": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",
     "wx-server-sdk": "4.0.2",
     "zod": "^3.24.1"

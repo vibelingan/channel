@@ -21,6 +21,11 @@ also applies independently of that skill. 使用中文时，直接按汉语习�
 保留必要的代码标识符与不确定性，不把本地通过说成已经上线。
 已有 UI 和业务流程优先；涉及变化时截图并解释，不擅自重做页面。
 
+每次交付主动给简短中文 brief：做了什么、实际怎样测试、还差什么、下一步是什么，
+用简单例子解释必要的规则。完成的改动提交并推送原 SEO 分支，附提交和准确 SHA 的
+CI 状态，保留可跨端继续的交接；不要等用户重复提醒。截图只作辅助，编辑页还须
+真实浏览器操作与数据读回验收；分别报告本地、真实云库和部署状态。
+
 Use the installed `.agents/skills/dev-pipeline/SKILL.md` Codex adapter proactively
 for full-pipeline guidance on feature work, and read
 `.agents/skills/engineering-craft/INDEX.md` plus the relevant categories before

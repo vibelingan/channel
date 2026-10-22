@@ -305,7 +305,12 @@ function indexSignature(candidate) {
 }
 
 export function ensureNoSqlResources(callTool, log = console.log) {
-  for (const resource of REQUIRED_NOSQL_RESOURCES) {
+  return ensureNoSqlResourceSet(callTool, REQUIRED_NOSQL_RESOURCES, log);
+}
+
+/** Explicit resource sets allow separate preparation without changing the deploy manifest. */
+export function ensureNoSqlResourceSet(callTool, resources, log = console.log) {
+  for (const resource of resources) {
     const { collectionName, indexes, permission: requiredPermission } = resource;
     const collection = assertSucceeded(
       callTool('cloudbase.readNoSqlDatabaseStructure', {

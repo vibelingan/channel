@@ -120,3 +120,39 @@ export function parseArticleDraft(value: unknown): ArticleDraft {
     content: draft.content,
   });
 }
+
+const timestampSchema = z.string().datetime({ precision: 3 });
+const summarySchema = z
+  .object({
+    id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
+    revision: draftSchema.shape.revision,
+    title: ArticleContentSchema.shape.title,
+    excerpt: ArticleContentSchema.shape.excerpt,
+    authorName: ArticleContentSchema.shape.authorName,
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+    published: publishedSchema
+      .extend({
+        slug: z
+          .string()
+          .max(120)
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+        contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+        publishedAt: timestampSchema,
+        modifiedAt: timestampSchema,
+      })
+      .nullable(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      Date.parse(value.createdAt) <= Date.parse(value.updatedAt) &&
+      (!value.published ||
+        (value.published.revision <= value.revision &&
+          Date.parse(value.published.publishedAt) <= Date.parse(value.published.modifiedAt))),
+  );
+
+/** Validate a database projection without reading or inventing article bodies. */
+export function parseArticleDraftSummary(value: unknown): ArticleDraftSummary {
+  return readArticleInput(summarySchema, value);
+}
