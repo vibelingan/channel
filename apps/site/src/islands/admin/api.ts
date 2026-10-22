@@ -37,6 +37,7 @@ export class AdminApiError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly currentRevision?: number,
   ) {
     super(message);
     this.name = 'AdminApiError';
@@ -47,7 +48,7 @@ export class AdminApiError extends Error {
   }
 }
 
-async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+export async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -67,7 +68,7 @@ async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Pr
     );
   }
   if (!result.ok) {
-    throw new AdminApiError(result.error.code, result.error.message);
+    throw new AdminApiError(result.error.code, result.error.message, result.error.currentRevision);
   }
   return result.data;
 }

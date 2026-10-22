@@ -21,7 +21,7 @@ export interface DashboardSection {
    */
   catalog?: boolean;
   /** Custom page id: renders a dedicated component instead of CollectionView. */
-  custom?: 'alibaba-sync' | 'catalog-import' | 'product-inquiries';
+  custom?: 'alibaba-sync' | 'catalog-import' | 'product-inquiries' | 'articles';
 }
 
 export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
@@ -33,6 +33,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
   },
   { label: 'Products', collection: 'products', catalog: true },
   { label: 'Overstock', collection: 'overstock', catalog: true },
+  { label: 'Articles', collection: 'articleDrafts', adminOnly: true, custom: 'articles' },
   { label: 'OEM Requests', collection: 'oemProjects', inlineEdit: ['status'] },
   // Alibaba linked catalog sync (docs/alibaba-linked-catalog-sync, MIU 13).
   // The ops page is admin-only (the connection lifecycle requires the admin

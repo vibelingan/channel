@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getCollection } from '@vibelingan-channel/shared';
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { canManageUsers, getUser } from '../../lib/session.ts';
 import { CollectionView, type ProductClassificationReview } from './CollectionView.tsx';
@@ -12,6 +12,10 @@ import {
   listInquiries,
 } from './inquiries/inquiry-api.ts';
 import { DASHBOARD_SECTIONS, type DashboardSection } from './sections.ts';
+
+const ArticlesPage = lazy(() =>
+  import('./articles/ArticlesPage.tsx').then((module) => ({ default: module.ArticlesPage })),
+);
 
 const ProductInquiriesPage = lazy(() =>
   import('./inquiries/ProductInquiriesPage.tsx').then((module) => ({
@@ -62,7 +66,9 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
           : []
         : [
             ...DASHBOARD_SECTIONS.filter(
-              (s) => getCollection(s.collection) && (!s.adminOnly || canManageUsers(role)),
+              (s) =>
+                (s.custom === 'articles' || getCollection(s.collection)) &&
+                (!s.adminOnly || canManageUsers(role)),
             ),
             ...(cloudInquiries
               ? [
@@ -79,6 +85,15 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
   );
 
   const [active, setActive] = useState(sections[0]?.collection ?? '');
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const onGuardChange = useCallback((guard: (() => boolean) | null) => {
+    leaveGuard.current = guard;
+  }, []);
+  const canLeave = useCallback(() => leaveGuard.current?.() ?? true, []);
+  const selectSection = (next: string) => {
+    if (next === active || canLeave()) setActive(next);
+  };
+
   const [productSelection, setProductSelection] = useState<Record<string, boolean>>({});
   const [productReview, setProductReview] = useState<ProductClassificationReview | null>(null);
   const section = sections.find((s) => s.collection === active);
@@ -99,7 +114,7 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             <button
               type="button"
               key={s.collection}
-              onClick={() => setActive(s.collection)}
+              onClick={() => selectSection(s.collection)}
               className={`min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm transition ${
                 s.collection === active
                   ? 'bg-slate-900 text-white'
@@ -120,20 +135,25 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             options={sections.map((item) => ({ value: item.collection, label: item.label }))}
             className="w-full"
             onChange={(value) => {
-              if (sections.some((item) => item.collection === value)) setActive(value);
+              if (sections.some((item) => item.collection === value)) selectSection(value);
             }}
           />
         </div>
         <div className="flex gap-2 border-t border-slate-200 p-3 xl:block">
           <a
             href="/"
+            onClick={(event) => {
+              if (!canLeave()) event.preventDefault();
+            }}
             className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 xl:block xl:text-left"
           >
             ← Back to site
           </a>
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => {
+              if (canLeave()) onLogout();
+            }}
             className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 xl:mt-1 xl:w-full xl:text-left"
           >
             Sign out
@@ -142,7 +162,11 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto">
-        {section?.custom === 'product-inquiries' ? (
+        {section?.custom === 'articles' ? (
+          <Suspense fallback={<p className="p-6">Loading articles…</p>}>
+            <ArticlesPage onGuardChange={onGuardChange} canLeave={canLeave} />
+          </Suspense>
+        ) : section?.custom === 'product-inquiries' ? (
           <div className="p-4 sm:p-6">
             <Suspense fallback={<p>Loading inquiries…</p>}>
               <ProductInquiriesPage />

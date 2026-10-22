@@ -24,9 +24,9 @@ docs/cloud-handoff/SESSION.zh-CN.md 和 docs/cloud-handoff/ENVIRONMENT.zh-CN.md�
 本地草稿服务及 CloudBase 适配器源码已完成，先读 docs/blog/02-cloudbase-sdk-probe.zh-CN.md、
 02-cloudbase-drafts-plan.zh-CN.md 和 NEXT-STEPS.zh-CN.md。16 项实际 SDK 离线传输测试已接入
 SDK 总检查；文章集合准备函数单独导出，未加入自动部署，真实资源/权限/并发尚未验收。
-下一项是模块 03 的简洁编辑页：沿用 DashboardShell，先打通列表、编辑、保存、重开，
-主要操作保留保存草稿和预览，少放无用按钮。先补可视浏览器环境并做真实操作测试，
-不能用截图或少量无头脚本代替验收。随后在明确授权的测试范围连接真实 CloudBase 重走流程。
+模块 03 的 E1 编辑页已由本地接入并验证。先读 docs/blog/NEXT-STEPS.zh-CN.md
+及 03-editor-worklog-2026-10-23.zh-CN.md，以它们记录的状态和下一步为准，不重写已完成模块。
+下一小段为 E2 的文章图片用途、归属与鉴权字节预览；真实 CloudBase 验收仍需明确授权。
 保留权限、重复请求和版本保护；真实集合创建、业务写入和网站部署均不自动执行。
 发现设计和当前代码不一致时，修正当前模块并说明，不顺便改造公共请求层或 pricing。
 中文直接按汉语习惯解释，先说做了什么、有什么结果、还差什么，不用内部编号代替解释。

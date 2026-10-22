@@ -1,5 +1,7 @@
 # Blog：按模块交付
 
+当前进度统一见 [共同进度与接手记录](NEXT-STEPS.zh-CN.md)，本地和云端交付都更新同一页。
+
 2026-10-22。沿用原 `feat/seo-foundation`，不创建分支或 worktree，不部署现有 test 目标，也不操作生产。此前 10 月 16/18 日方案确定了 Tiptap OSS、结构化正文、草稿与公开版本分离、Hermes 只导入草稿；当时的 `BLOG-1` 范围过大，尚未形成逐模块的实现细节。
 
 用户最新要求及推荐顺序见 [下一步开发与浏览器验收计划](NEXT-STEPS.zh-CN.md)。CloudBase 草稿适配代码与离线测试已完成，接下来做简洁的后台编辑页；通过本地浏览器后接真实 CloudBase 重走完整流程。当前仍处于开发阶段，不部署网站。
@@ -23,3 +25,5 @@
 Tiptap 官方支持保存 JSON，以及不创建编辑器实例的静态渲染：[JSON 持久化](https://tiptap.dev/docs/guides/output-json-html)、[Static Renderer](https://tiptap.dev/docs/editor/api/utilities/static-renderer)。本模块先实现本站允许的节点及媒体映射；编辑器接入时必须使用同一节点范围做真实 getJSON/setContent 联测，不能把本轮格式测试冒充编辑器 UI 已验收。
 
 部署和 SSG 的待执行事项单独放在 [pricing 合并后的验收与清理计划](../seo/execution/LIVE-RESUME-AND-CLEANUP.zh-CN.md)。Blog 开发不因此开启发布或恢复开关。
+
+2026-10-23：本地已复核云端两个草稿提交，继续实现模块 03 的 E1 编辑页。验证和未完成项见共同记录及当日 worklog；E2 图片、真实库、公开文章和 Hermes 未因此完成。

@@ -8,13 +8,16 @@
     ".": "./src/index.ts",
     "./drafts": "./src/drafts.ts",
     "./draft-repository": "./src/draft-repository.ts",
-    "./draft-service": "./src/draft-service.ts"
+    "./draft-service": "./src/draft-service.ts",
+    "./document": "./src/document.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": { "zod": "^3.24.1" },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "parse5": "7.3.0",

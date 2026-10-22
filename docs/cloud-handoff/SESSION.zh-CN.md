@@ -1,4 +1,6 @@
-# 接着做什么：2026-10-22 会话交接
+# 会话交接（原始背景与当前入口）
+
+2026-10-23 当前状态和下一步统一在 [Blog 共同进度](../blog/NEXT-STEPS.zh-CN.md)；本文下方保留 10 月 22 日背景，不能拿旧的“下一项”覆盖共同进度。
 
 Blog 的后台草稿保存已完成本地服务与 CloudBase 适配器源码、权限接线和离线测试，下一项是简洁的后台编辑页。真实 CloudBase 集合、权限及并发尚未现场验收，网站未部署。继续前读 [SDK 依据](../blog/02-cloudbase-sdk-probe.zh-CN.md)、[本轮计划](../blog/02-cloudbase-drafts-plan.zh-CN.md) 和 [开发顺序](../blog/NEXT-STEPS.zh-CN.md)。商品 SEO 和发布恢复也不能把离线结果当成现场演练通过。
 

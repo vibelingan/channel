@@ -13,6 +13,7 @@ const readyFile = join(temporaryDirectory, 'api-ready.json');
 const readyToken = randomUUID();
 const formal = process.env.E2E_CATALOG_FORMAL === '1';
 const adminOnly = process.argv.includes('--admin-only');
+const articlesOnly = process.argv.includes('--articles-only');
 const reservation = createServer();
 await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve));
 const address = reservation.address();
@@ -228,7 +229,18 @@ try {
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
   };
-  if (adminOnly) {
+  if (articlesOnly) {
+    await run(
+      bin('.', 'playwright'),
+      [
+        'test',
+        'tests/e2e/admin-articles-local.spec.ts',
+        '--project=chromium',
+        ...(process.argv.includes('--headed') ? ['--headed'] : []),
+      ],
+      e2eEnvironment,
+    );
+  } else if (adminOnly) {
     await run(
       bin('.', 'playwright'),
       ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],

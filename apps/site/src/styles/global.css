@@ -73,3 +73,78 @@
     }
   }
 }
+
+/* Article editing and previews share their scoped typography. */
+.article-body {
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+.article-body p {
+  margin: 0.65em 0;
+}
+.article-body h2 {
+  font-size: 1.5rem;
+  font-weight: 650;
+  margin: 1em 0 0.5em;
+}
+.article-body h3 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  margin: 1em 0 0.5em;
+}
+.article-body h4 {
+  font-size: 1.1rem;
+  font-weight: 650;
+  margin: 1em 0 0.5em;
+}
+.article-body ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.article-body ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.article-body blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 1em;
+  color: #475569;
+}
+.article-body pre {
+  overflow-x: auto;
+  background: #f1f5f9;
+  padding: 1em;
+  border-radius: 0.5rem;
+}
+.article-body a {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+.article-body table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.article-body td,
+.article-body th {
+  border: 1px solid #cbd5e1;
+  padding: 0.5em;
+  vertical-align: top;
+}
+.article-body th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+.article-body hr {
+  margin: 1em 0;
+  border-top: 1px solid #cbd5e1;
+}
+.article-body .article-align-center {
+  text-align: center;
+}
+.article-body .article-align-right {
+  text-align: right;
+}
+.article-body .article-align-left {
+  text-align: left;
+}
