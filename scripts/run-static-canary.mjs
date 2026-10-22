@@ -1,5 +1,4 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import CloudBase from '@cloudbase/manager-node';
@@ -8,7 +7,10 @@ import { canaryArtifact, createCanaryPayload } from './release/canary.mjs';
 import { createGithubSource, validateInvocation } from './release/github-source.mjs';
 import { executeManualCanary, planManualCanary } from './release/orchestrator.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
-import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
+import {
+  createCloudbaseReleaseDatabase,
+  createCloudbaseReleaseStore,
+} from './release/store-cloudbase.mjs';
 
 export async function runStaticCanary(command, env = process.env) {
   if (!['prepare', 'run'].includes(command)) throw new Error('Use prepare or run');
@@ -46,11 +48,7 @@ export async function runStaticCanary(command, env = process.env) {
   const provider = createCanaryProvider({ manager, policy });
   console.log('Preflight: existing control collections and permissions');
   const readiness = await provider.controlPlane({ execute: env.CANARY_MODE === 'execute' });
-  const requireSdk = createRequire(
-    new URL('../packages/media-storage/package.json', import.meta.url),
-  );
-  const sdk = requireSdk('@cloudbase/node-sdk');
-  const db = sdk.init({ ...credentials, env: policy.envId }).database();
+  const db = createCloudbaseReleaseDatabase({ ...credentials, env: policy.envId });
   const coordinator = createReleaseCoordinator({
     store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
     policy,

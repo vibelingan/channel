@@ -1,6 +1,6 @@
 # 03 云端适配与兼容
 
-2026-10-22：C1 与 C2 SDK 适配已实现；C2 的现场版本观测、固定测试/报告生产链和 D1 函数恢复接线也已补上，发布回归 373 项通过。真实 execute 保持关闭；生产资格仍需 B2 的完整版本状态、对应历史函数兼容套件和已验收函数基线。详见[D1 函数入口](module-04-function-entry.zh-CN.md)、[C2 SDK 适配](module-03-c2-adapter.zh-CN.md)和[404 记录](module-06-404-fix.zh-CN.md)。
+2026-10-22：C1 与 C2 SDK 适配已实现；C2 的现场版本观测、固定测试/报告生产链和 D1 函数恢复接线也已补上，发布回归 375 项通过。真实 execute 保持关闭；生产资格仍需 B2 的完整版本状态、对应历史函数兼容套件和已验收函数基线。详见[D1 函数入口](module-04-function-entry.zh-CN.md)、[C2 SDK 适配](module-03-c2-adapter.zh-CN.md)和[404 记录](module-06-404-fix.zh-CN.md)。
 
 现有正常部署脚本、workflow、pricing、函数及业务 schema 均未改动。下文保留原模块设计与当时基线；最新实施范围以上述交付记录为准。
 

@@ -1,6 +1,5 @@
 import { createHmac } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import CloudBase from '@cloudbase/manager-node';
@@ -25,7 +24,10 @@ import { produceFunctionCompatibilityReport } from './release/function-report.mj
 import { runFunctionCompatibilityTests } from './release/function-test-runner.mjs';
 import { identity } from './release/input.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
-import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
+import {
+  createCloudbaseReleaseDatabase,
+  createCloudbaseReleaseStore,
+} from './release/store-cloudbase.mjs';
 
 export function validateFunctionInvocation(env, policy) {
   if (
@@ -88,12 +90,7 @@ export async function runFunctionRecovery(command, env = process.env) {
       execute: env.FUNCTION_MODE === 'execute',
     }),
   );
-  const requireSdk = createRequire(
-    new URL('../packages/media-storage/package.json', import.meta.url),
-  );
-  const db = requireSdk('@cloudbase/node-sdk')
-    .init({ ...credentials, env: policy.envId })
-    .database();
+  const db = createCloudbaseReleaseDatabase({ ...credentials, env: policy.envId });
   const coordinator = createReleaseCoordinator({
     store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
     policy,
@@ -300,14 +297,23 @@ export async function runFunctionRecovery(command, env = process.env) {
   }
 }
 
+export function safeFunctionFailure(error) {
+  return {
+    status: 'stopped',
+    stage:
+      typeof error?.stage === 'string' && /^[a-z-]{1,40}$/.test(error.stage)
+        ? error.stage
+        : 'preflight-or-plan',
+    code:
+      typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code)
+        ? error.code
+        : 'UNCONFIRMED',
+    evidence: 'Inspect retained observation/plan and release journal; no automatic retry.',
+  };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
   runFunctionRecovery(process.argv[2]).catch((error) => {
-    console.error(
-      JSON.stringify({
-        status: 'stopped',
-        stage: /^[a-z-]{1,40}$/.test(error.stage) ? error.stage : 'preflight-or-plan',
-        evidence: 'Inspect retained observation/plan and release journal; no automatic retry.',
-      }),
-    );
+    console.error(JSON.stringify(safeFunctionFailure(error)));
     process.exitCode = 1;
   });

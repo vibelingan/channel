@@ -87,3 +87,32 @@ test('invalid/local/automatic invocations and disabled execute stop before SDK o
     /disabled/,
   );
 });
+
+test('manual entry database construction resolves the installed SDK from its direct pnpm workspace owner', async () => {
+  const { createCloudbaseReleaseDatabase, createCloudbaseReleaseStore } = await import(
+    './release/store-cloudbase.mjs'
+  );
+  const db = createCloudbaseReleaseDatabase({
+    envId: 'fixture-env',
+    env: 'fixture-env',
+    region: 'ap-shanghai',
+    secretId: 'fixture-id',
+    secretKey: 'fixture-key',
+  });
+  assert.equal(db.config.env, 'fixture-env');
+  assert.equal(typeof db.runTransaction, 'function');
+  assert.equal(createCloudbaseReleaseStore({ db, envId: 'fixture-env' }).envId, 'fixture-env');
+});
+test('failure diagnostics retain a safe stage and code without raw messages or undefined identifiers', async () => {
+  const { safeFunctionFailure } = await import('./run-function-recovery.mjs');
+  assert.equal(safeFunctionFailure(new Error('private fixture value')).stage, 'preflight-or-plan');
+  assert.equal(
+    safeFunctionFailure({ stage: 'observe', code: 'MODULE_NOT_FOUND' }).code,
+    'MODULE_NOT_FOUND',
+  );
+  assert(
+    !JSON.stringify(
+      safeFunctionFailure({ stage: undefined, message: 'private fixture value' }),
+    ).includes('private fixture value'),
+  );
+});

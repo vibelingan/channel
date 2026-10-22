@@ -1,4 +1,12 @@
+import { createRequire } from 'node:module';
 import { fail, id, jsonCopy, tables } from './ledger.mjs';
+
+const dbRequire = createRequire(new URL('../../packages/db/package.json', import.meta.url));
+
+/** Resolve the SDK from its direct workspace owner under pnpm's isolated layout. */
+export function createCloudbaseReleaseDatabase(config) {
+  return dbRequire('@cloudbase/node-sdk').init(config).database();
+}
 
 /** Inject app.database() from @cloudbase/node-sdk with an explicit, fixed environment. */
 export function createCloudbaseReleaseStore({ db, envId }) {
