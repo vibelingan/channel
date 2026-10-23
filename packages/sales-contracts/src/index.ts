@@ -5,6 +5,7 @@ import { canonicalizeJson, parseStrictJson } from './canonical.ts';
 import { ContractValidationError } from './errors.ts';
 import type {
   Approval,
+  ClientBindings,
   ControlCommand,
   InquirySubmitted,
   MailSnapshot,
@@ -17,6 +18,7 @@ export type {
   ControlCommand,
   Approval,
   SalesRunContext,
+  ClientBindings,
 } from './types.generated.ts';
 export { canonicalizeJson, hashCanonicalJson, parseStrictJson } from './canonical.ts';
 export { ContractValidationError } from './errors.ts';
@@ -27,6 +29,7 @@ export interface ContractMap {
   'control-command': ControlCommand;
   approval: Approval;
   'run-context': SalesRunContext;
+  'client-bindings': ClientBindings;
 }
 export type ContractKind = keyof ContractMap;
 export const CONTRACT_KINDS: readonly ContractKind[] = [
@@ -35,6 +38,7 @@ export const CONTRACT_KINDS: readonly ContractKind[] = [
   'control-command',
   'approval',
   'run-context',
+  'client-bindings',
 ];
 const ajv = new Ajv2020({
   strict: true,

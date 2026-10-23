@@ -54,3 +54,13 @@ SG0.1离线实现完成。9个TS测试、6个Python测试、54个共享一致性
 SG1.0是源码审计，没有新增产品行为，不对生产代码进行RED/GREEN或声称旧产品测试已执行。通过范围为源码清单、文档及schema检查；最终命令和结果记录在SG1.0证据中。其余21个单元保持未实现，SG1.1仍依赖SG0.2授权及选定主线整合。
 
 最终检查通过：源码44份/80处/7组、6份跨分支同源；23单元DAG、文档链接、原稿哈希及schema样例通过；临时篡改源码哈希被检查器拒绝。具体命令和结果见[SG1.0-validation.json](evidence/SG1.0-validation.json)。原Channel与Hermes分支、本地HEAD及既有未提交文件保持原样；本轮仅更新销售目录中的文档和核对脚本。
+
+## SG0.2 客户连接及动作授权
+
+本轮实施计划797eaac2已先推远端。新增服务器registry schema和access库，复用SG0.1校验、JSON规范及类型生成，无新增依赖。客户绑定、连接凭据、actor动作及每次调用的范围检查集中在一个入口；公开客服和既有管理员会话不变。
+
+当前代码只有元数据校验，不能用`validateContract('run-context', input)`取得任何客户权限。新增路径为`access.execute(request, scopedOperation)`，由服务器加载最新配置和连接凭据，在操作前校验客户/业务/安装/runtime/环境/epoch；读取结果释放前再次检查。loaders属于可信后端，不把client_id和群名当认证。配置仅含credential refs，引用与外部账号真实归属需接入时验证。
+
+复用方案的成本是每次读取授权配置，避免长期缓存放过撤权。未选择按模型prompt、公共客服角色或Partner Seat自动授权。控制停用不宣称撤回已接受的外部请求；发送回调只能用于权限前置验证，SG5精确批准及发送账未实现。
+
+实际RED→GREEN：拒绝全部骨架下4个正向行为失败；实现允许路径后10项通过；新增publisher不能读取的反例先失败，补角色约束后12项通过。合同包21 TS/6 Python/58共享样例、生成类型、typecheck通过。查阅并核对access.ts、access.test.ts、client-bindings schema及包README；将“真实工具目标”改为“限定范围的工具目标”，明确测试仅为本地canary，不冒充真实平台联调。详见[SG0.2验证](evidence/SG0.2-VALIDATION.md)。

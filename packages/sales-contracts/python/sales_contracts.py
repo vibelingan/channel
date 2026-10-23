@@ -5,7 +5,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 
 ROOT = Path(__file__).resolve().parents[1]
-KINDS = ('inquiry', 'mail-snapshot', 'control-command', 'approval', 'run-context')
+KINDS = ('inquiry', 'mail-snapshot', 'control-command', 'approval', 'run-context', 'client-bindings')
 MAX_BYTES = 262_144
 MAX_INTEGER = 9_007_199_254_740_991
 

@@ -1,7 +1,14 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { compile } from 'json-schema-to-typescript';
 
-const kinds = ['inquiry', 'mail-snapshot', 'control-command', 'approval', 'run-context'];
+const kinds = [
+  'inquiry',
+  'mail-snapshot',
+  'control-command',
+  'approval',
+  'run-context',
+  'client-bindings',
+];
 const banner = '// Generated from schemas/*.schema.json. Run pnpm generate; do not edit.\n';
 const parts = [];
 for (const kind of kinds) {

@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./src/fake-mail.ts"
+    "./testing": "./src/fake-mail.ts",
+    "./access": "./src/access.ts"
   },
   "scripts": {
     "test": "tsx --test src/*.test.ts",
