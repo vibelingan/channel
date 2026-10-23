@@ -215,3 +215,5 @@ BLOG_DUMMY_CONFIRM_ACCEPTED=CONFIRM_VERIFIED_BLOG_TASK \
 需要继续已核对的 A 页面时，真实测试可设置 `E2E_BLOG_DUMMY_RESUME_ACCEPTED=1`：读取该次成功确认记录，从后台重新打开同一篇文章，再执行 B、恢复 A、重试 B 和撤回。不会删除 A 或另造一份 A 冒充同一次恢复。
 
 新 dummy CI 对本 SEO 分支的每次 push 都运行只读检查，避免依赖文件或测试文件改动漏掉触发。它不在 push 时获得云端写入入口；正式部署流程不改。
+
+2026-10-23 本轮实际已完成到：首个 A 的真实交付、经证据核对的状态补登记，以及重新打开后台和公开页的复查。按用户最新安排，B→A、重试和撤回暂缓。需要只核对既有 A、避免新建任务时，增加 `E2E_BLOG_DUMMY_VERIFY_ACCEPTED_ONLY=1`，并同时设置 `E2E_BLOG_DUMMY_RESUME_ACCEPTED=1`；该场景有独立名称，会在检查公开页面后结束。普通完整演练不要设置这个只读检查选项。

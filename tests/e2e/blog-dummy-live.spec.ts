@@ -5,6 +5,7 @@ import { type Page, expect, test } from '@playwright/test';
 const privateDirectory = process.env.BLOG_DUMMY_PRIVATE_DIR;
 const backendOnly = process.env.E2E_BLOG_DUMMY_BACKEND_ONLY === '1';
 const resumeAccepted = process.env.E2E_BLOG_DUMMY_RESUME_ACCEPTED === '1';
+const verifyAcceptedOnly = process.env.E2E_BLOG_DUMMY_VERIFY_ACCEPTED_ONLY === '1';
 test.skip(
   process.env.E2E_BLOG_DUMMY_LIVE !== '1',
   'Explicit isolated real-cloud test window required',
@@ -90,14 +91,18 @@ async function publication(page: Page, operation: string, button: string) {
   expect(result.ok).toBe(true);
   return result.data.task;
 }
-test(backendOnly
-  ? 'real editor and CloudBase save, reopen, image decoding, permissions and conflicting saves'
-  : 'real editor, cloud function, private storage and Actions publish A, recover A after B, retry B and withdraw', async ({
+test(verifyAcceptedOnly
+  ? 'real UI reads the confirmed article and renders its public page without starting a delivery'
+  : backendOnly
+    ? 'real editor and CloudBase save, reopen, image decoding, permissions and conflicting saves'
+    : 'real editor, cloud function, private storage and Actions publish A, recover A after B, retry B and withdraw', async ({
   page,
   context,
   request,
 }) => {
   test.setTimeout(60 * 60_000);
+  if (verifyAcceptedOnly && !resumeAccepted)
+    throw new Error('An accepted-only check requires the confirmed existing article');
   page.on('requestfailed', (request) => {
     const url = new URL(request.url());
     console.log(
@@ -317,6 +322,28 @@ test(backendOnly
     path: 'output/playwright/blog-dummy-live-published.png',
     fullPage: true,
   });
+  if (verifyAcceptedOnly) {
+    await writeFile(
+      join(privateDirectory, 'accepted-ui-results.json'),
+      JSON.stringify(
+        {
+          codeSha: prepared.codeSha,
+          url,
+          results,
+          verified: [
+            'published-status-after-reopen',
+            'public-initial-html',
+            'public-image-decoded',
+            'no-new-delivery',
+          ],
+        },
+        null,
+        2,
+      ),
+      { mode: 0o600 },
+    );
+    return;
+  }
   await page.getByLabel('Title', { exact: true }).fill('Dummy article B');
   const b = await publication(page, 'publish', 'Save and publish update');
   results.push({

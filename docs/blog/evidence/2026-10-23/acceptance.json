@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-23",
+  "scope": "isolated Blog dummy only",
+  "backend": {
+    "codeSha": "f6a24b2d8f576944200b2b56b3b9e3e6b03575bf",
+    "articleId": "article-3ce8a50b1341de13f6146a03aa7d1bca45581460b5190fd7aab278df04f0d7f5",
+    "stages": [
+      "save",
+      "signed-upload",
+      "private-blob-preview",
+      "image-decoded",
+      "reload-and-reopen",
+      "member-denied",
+      "unsigned-denied",
+      "conflict-keeps-local-text",
+      "server-keeps-confirmed-write"
+    ]
+  },
+  "first_static_delivery": {
+    "codeSha": "00a353b55e344d75861eae22d752f12cf3f3af33",
+    "githubRunId": 39965188199,
+    "githubConclusion": "failure after accepted static upload; article receipt shape mismatch",
+    "acceptedArtifactId": "12506975756",
+    "publicFileCount": 8
+  },
+  "confirmed_metadata": {
+    "task": {
+      "id": "release-4a72e9ac9c1ce07c51c2cfb3aa5e427301f695d51b8aef27452023f51969413e",
+      "articleId": "article-a6f57b3269d931dee67bfb9cca9f205c9a2a182ed41e08ed71df1fb3c3b6926e",
+      "operation": "publish",
+      "revision": 2,
+      "state": "SUCCEEDED",
+      "requestedAt": "2026-10-23T13:55:02.245Z",
+      "updatedAt": "2026-10-23T14:38:54.874Z",
+      "error": null
+    },
+    "receipt": {
+      "deliveryId": "blog-39965188199-1",
+      "artifactHash": "d9488f039ec04386337aabd0604f8f6b47d9122e85581eb9378cb87e698bfc3b",
+      "acceptedAt": "2026-10-23T14:01:09.597Z"
+    },
+    "sourceId": "blog-39965188199-1",
+    "artifactId": "12506975756",
+    "codeSha": "74710f962fc9e4d6b4b610c253f1c16991a15ef7"
+  },
+  "actual_ui_check": {
+    "codeSha": "74710f962fc9e4d6b4b610c253f1c16991a15ef7",
+    "url": "https://supplychainsai.com/__blog-dummy/dummy-live-1792763678266/",
+    "results": [
+      {
+        "stage": "A-confirmed-existing",
+        "taskId": "release-4a72e9ac9c1ce07c51c2cfb3aa5e427301f695d51b8aef27452023f51969413e",
+        "runId": 39965188199,
+        "confirmationCodeSha": "74710f962fc9e4d6b4b610c253f1c16991a15ef7"
+      }
+    ],
+    "verified": [
+      "published-status-after-reopen",
+      "public-initial-html",
+      "public-image-decoded",
+      "no-new-delivery"
+    ]
+  },
+  "not_live_tested": [
+    "B upload with controlled failure and restore A",
+    "retry B after restore",
+    "withdraw and ordinary URL 404 after deletion"
+  ],
+  "normal_blog_enabled": false,
+  "hold_reason": "User requested delivery of completed work while pricing continues to deploy"
+}
