@@ -201,6 +201,18 @@ for (const path of ['/overstock', '/teardown-lab', '/blue-ocean']) {
   await expectHttp('GET', `${siteUrl}${path}`, 404);
 }
 
+// Completed audit tools must not remain available after their targeted cleanup.
+for (const path of [
+  '/_admin-audit-durable-99aeb8f5-426a9e7b/index.html',
+  '/_admin-audit-99aeb8f5-a94c8c3ab8/index.html',
+]) {
+  await expectHttp(
+    'GET',
+    `${siteUrl}${path}?deployment-smoke=${encodeURIComponent(expectedReleaseId)}`,
+    404,
+  );
+}
+
 // Headphones page should now be live.
 await expectHttp('GET', `${siteUrl}/headphones`, 200);
 

@@ -437,6 +437,9 @@ function deployFunction(def) {
 // could delete live files with no safety net. Add an entry here whenever a page
 // or asset is intentionally removed from the site.
 const legacyHostingPaths = [
+  // Temporary authenticated audit tools have completed their acceptance work.
+  { cloudPath: '_admin-audit-durable-99aeb8f5-426a9e7b', isDir: true },
+  { cloudPath: '_admin-audit-99aeb8f5-a94c8c3ab8', isDir: true },
   { cloudPath: 'overstock', isDir: true },
   { cloudPath: 'overstock-item', isDir: true },
   // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
