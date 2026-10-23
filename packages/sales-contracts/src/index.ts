@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
 import addFormats from 'ajv-formats';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { canonicalizeJson, parseStrictJson } from './canonical.ts';
 import { ContractValidationError } from './errors.ts';
+import { CONTRACT_SCHEMAS } from './schemas.generated.ts';
 import type {
   Approval,
   ClientBindings,
@@ -49,12 +49,7 @@ const ajv = new Ajv2020({
 });
 addFormats(ajv);
 const validators = new Map(
-  CONTRACT_KINDS.map((kind) => [
-    kind,
-    ajv.compile(
-      JSON.parse(readFileSync(new URL(`../schemas/${kind}.schema.json`, import.meta.url), 'utf8')),
-    ),
-  ]),
+  CONTRACT_KINDS.map((kind) => [kind, ajv.compile(CONTRACT_SCHEMAS[kind])]),
 );
 
 export function validateContract<K extends ContractKind>(kind: K, value: unknown): ContractMap[K] {

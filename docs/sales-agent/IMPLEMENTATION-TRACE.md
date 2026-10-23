@@ -72,3 +72,29 @@ SG0.2原提交bf8e429b已推送，[远端检查39891019917](https://github.com/v
 直接merge main仅有锁文件冲突，机械补回销售依赖后frozen install和21个合同测试通过；但提交检查将主线历史文档的绝对用户路径算入此次新增而阻止提交。未改历史文档或关闭检查，已abort本次merge；改从404d1a25建立feat/sales-agent-integration，仅cherry-pick我们自己的5个销售提交。原分支和远端记录保留。
 
 当前与404d1a25的差异经NUL分隔路径检查，只有docs/sales-agent、packages/sales-contracts、独立sales CI及锁文件；其余产品文件逐字节匹配主线。锁文件保留main所有已有条目，只新增1个importer、11个package、11个snapshot，无其他依赖升级。后续SG1.1在此集成分支推进。
+
+## SG1.1 询盘及资料读取
+
+### 业务问题及数据边界
+
+现有数据只能经管理员或公开目录处理，Hermes不能使用管理员token或任意集合查询。新增单客户、单业务、单安装的服务入口，继续使用原表和不可变产品快照。源码为apps/functions/sales-integration；其他产品/SEO/pricing实现不改写。
+
+调用形状为`access.execute(authenticatedConnectionAndScope, grant => readBoundInstallation(grant))`，再以白名单输出contact、requirements、snapshot及私有附件ref。服务器绑定决定客户及安装；同客户另一业务、另一安装、撤销连接、旧epoch都不能借用当前入口。`source_revision`只散列提交资料，不因后台备注/状态再生成一次提交；API的200仅证明获权读取，不授予派发或发送。
+
+### 技术选择与检查
+
+旧OEM附件先存项目后激活，inline与storage元数据不同。当前仅交付active、正确purpose/owner、secret已清空、hash/大小/环境路径均可验证的storage文件。下载前后重读来源，先获得服务器私有URL，再在精确HTTPS host白名单内限时、限流式大小取bytes，拒绝redirect，校验bytes后返回；不把URL交给模型/浏览器。没有选择直接使用无大小上限的SDK内存下载或把旧文件一律当active。
+
+选择独立HTTP Function及Nodejs20.19 bootstrap，保留既有Event Function部署清单。实际复用public-api getProductDetail和源schema，不重新计算价格；新接口按ID有界读取，列表补扫留SG1.2。SDK官方合同、已安装类型和pnpm verify:cloudbase-sdk核对通过；未加环境别名或SDK shim。
+
+先执行404骨架，正常读取/认证/拒绝状态用例失败，再实现。新增错客户字段、同客户另一业务的反例分别观察到200而应404/403后修正；private-file骨架的正常读取和超限取消先失败，再实现流式限制。裸目录冷启动暴露import.meta schema读取错误，改为从唯一schema自动生成可内嵌数据后重跑成功。复用fixture移出test文件，避免重复计数。
+
+补查SCF官方文档确认HTTP响应仍受6MB上限约束，新增4MiB有界Range传输。先观察到“请求Range却返回200”和“10MiB不分段也返回200”的两项失败，修复后通过；每段重新鉴权、校验完整源文件，10MiB合成文件三段拼回后逐字节相同。
+
+最终相关6包565项回归、接口15项（已计入565）、Python 6项、跨语言58样例、typecheck/生成检查通过。loopback HTTP比较小文件、2MiB下载和10MiB分段附件；真实CloudBase网关和Hermes没有参与。已阅读并修订handler、sources、private-file、server、index、脚本、README与验证文档，把“真实测试”明确为“本地socket及合成附件测试”，另列[真实联调计划](evidence/LIVE-TEST-PLAN.md)。
+
+### 工作区与兼容
+
+内置盘反复ENOSPC后，备份未提交tracked patch，逐文件hash核对14份未提交源码，转外置盘独立检出继续同一分支；原副本保留，没有删除其他工作区或结束他人进程。check_design增加原Channel路径参数并继续核对相同受保护hash。
+
+推送前再次fetch，最终固定pricing 27611ff6、SEO cd4df7e2，写入交集只有锁文件。四个关键产品/询盘接口相对最初333c0240不变；公共产品读取继续调用原函数，可选新增参数不破坏前7个参数。SEO后增文章发布任务和独立dummy adapter，没有改变本接口使用的读取签名。主线20个importer和754组package/snapshot条目完整保留。没有出现必须修改对方业务实现才能继续的冲突；未合入对方未完成代码。详细结论见[SG1.1验证](evidence/SG1.1-VALIDATION.md)。

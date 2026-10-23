@@ -8,6 +8,8 @@ SG1.0已完成[源码核对](../evidence/SG1.0-BASELINE.md)。SG1.1使用以main
 
 候选新增范围：`apps/functions/sales-integration/`、`packages/db/src/sales-inquiry-*`及对应tests；现有OEM/单品保存路径只加最小交接，产品schema/限流/批准revision校验继续复用。SDK、Storage或事务代码实施前遵守项目CloudBase contract gate，核对选定基线的已安装包和官方合同。
 
+SG1.1实际只新增独立sales-integration HTTP函数并复用db/media-storage facade、InquiryDetailSchema及public-api的getProductDetail；没有改既有数据库公共接口、询盘保存、报价或SEO代码。接口为受信任后端服务调用，模型不能持有该服务凭据；SG2工具代理仍须把调用限定到任务来源和run。部署时固定一个客户/业务/安装/环境，不按请求切换全局adapter。完整边界及本地结果见[SG1.1验证](../evidence/SG1.1-VALIDATION.md)。
+
 ## 目标流程
 
 1. OEM、产品和客服确认表单各自保存原业务事实。只有最终成功才有资格被接入，附件激活失败/回滚不触发。
@@ -35,7 +37,7 @@ await notifySales(stableEventFrom(finalizedProject)).catch(recordDeliveryHintFai
 ## 实施与验收
 
 - SG1.0：已完成指定提交的路由/开关/落盘/后台核对及OEM完成条件缺口；清单44份文件、80处标记。此步不迁移别人代码，不证明线上实际启用。
-- SG1.1：受控读取/产品查询/附件接口，fake与归属负向测试先落地。
+- SG1.1：已完成受控读取、按ID查询批准产品及现代OEM私有附件；归属负向、loopback HTTP、stream上限及打包检查已通过。游标补扫和实际派发不在此单元；线上网关与Hermes尚未联调。
 - SG1.2：通知、补扫、稳定事件身份、cutover及两种原表适配。
 
 目标测试 `three_confirmed_sources_share_envelope`、`chat_without_submit_creates_no_sales_task`、`oem_attachment_rollback_is_not_dispatched`、`save_succeeds_notification_fails_reconciler_recovers`、`same_submission_replays_same_task`、`admin_note_does_not_resend_ack`、`source_snapshot_survives_catalog_update`、`asset_from_other_client_is_denied`。现有单品快照/幂等测试继续执行，不删除原保护。

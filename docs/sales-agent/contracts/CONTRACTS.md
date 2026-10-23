@@ -1,6 +1,6 @@
 # 接口与数据规则 v0.1
 
-2026-10-23 · SG0.1数据校验及SG0.2服务器授权库已实现；本节内部HTTP路由仍待SG1.1及其他模块接入，不表示已部署。官方服务的实际接口见 [能力依据](../evidence/PROVIDER-CAPABILITIES.md)。运行机制依 [状态规则](STATE-AND-CONCURRENCY.md)。
+2026-10-23 · SG0.1数据校验、SG0.2服务器授权库和SG1.1私有读取HTTP接口已实现并本地验证，尚未部署。下表其余路由仍待各模块接入。官方服务的实际接口见 [能力依据](../evidence/PROVIDER-CAPABILITIES.md)。运行机制依 [状态规则](STATE-AND-CONCURRENCY.md)。
 
 ## 1. 身份与范围
 
@@ -77,6 +77,8 @@ type InquirySubmitted = {
 | Apollo适配层 `POST /webhooks/apollo/:connection_id` | 配置的Workflow事件 | 连接级认证、防重放；不假设具备Resend/Svix签名机制 |
 
 GET读取可安全重试；POST 持久状态以业务幂等键去重。429按官方响应等待，5xx/网络错误退避。401/403/撤权不无限重试。来源永久缺失或格式错误进入隔离队列，通知负责人。响应不含凭据；日志只记录身份、散列、引用及结果。
+
+SG1.1当前实现inquiries/oem或product/:id、products/query、assets/:ref。产品查询支持有界ID和SKU分页，文本搜索继续复用公开产品工具；inquiries游标列表留SG1.2。读取返回私有存储事实及固定资料hash，不是InquirySubmitted派发回执或发送许可。产品现有表单无附件；assets当前只返回经归属和bytes校验的正式OEM附件。协议和部署配置见apps/functions/sales-integration/README.md。
 
 ## 4. Sales 输入和产物
 

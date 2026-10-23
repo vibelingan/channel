@@ -47,3 +47,7 @@ correction_rounds: 0 (visual stage)
 ## 后续两个单元
 
 SG0.1的实现及具体测试见[SG0.1-VALIDATION](SG0.1-VALIDATION.md)，提交595a4849的远端contracts工作流已成功。SG1.0的源码审计见[SG1.0-BASELINE](SG1.0-BASELINE.md)；它核对代码身份及业务接线，没有运行线上业务。plan.json现有2项完成各自范围的验证、21项未实现，均live_enabled=false。模块职责及业务流程没有改变，本轮未改模块图及其既有视觉回执。
+
+## SG0.2、SG1.1继续实施
+
+SG0.2原提交bf8e429b已推送并通过远端检查，随后才开始SG1.1。当前实际进度以plan.json为准：4项完成各自离线/源码范围，19项未实现；均未启用live。SG1.1私有HTTP、归属、bytes、流式上限、打包及相关回归见[验证记录](SG1.1-VALIDATION.md)。业务流程与模块职责未改变，未修改原模块图。后续按[真实测试计划](LIVE-TEST-PLAN.md)核对线上Infra，不能把当前结果当作部署/投递证据。

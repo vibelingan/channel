@@ -1,6 +1,6 @@
 # 下一轮从这里开始
 
-SG0.1和SG1.0已分别完成离线实现、源码审计；SG0.2服务器连接授权已完成本地验证，见[实施记录](../IMPLEMENTATION-TRACE.md)。用户已授权SG0.2验证、推送后继续SG1.1，并要求兼容pricing/SEO及安排基于线上Infra的真实测试。其余20个单元未实现，没有新建PR或连接客户账号。
+SG0.1、SG0.2、SG1.0和SG1.1已分别完成合同/假服务、连接授权、源码审计和读取接口的本地验证，见[实施记录](../IMPLEMENTATION-TRACE.md)。当前分支feat/sales-agent-integration位于外置盘独立检出；内置盘旧副本保留为备份，不继续修改或推送。其余19个单元未实现，没有新建PR、部署或连接客户账号。
 
 ## 开始实施前读什么
 
@@ -16,7 +16,7 @@ SG1.0逐入口证据及字段差异见[复用结论](../evidence/SG1.0-BASELINE.
 
 ## 后续开始条件
 
-SG1.1已获授权，须在SG0.2推送且远端验证后开始，再明确整合选定main代码；不能在旧起点复制新的RFQ功能。[本轮边界](../evidence/SG0.2-SG1.1-PLAN.md)记录pricing/SEO兼容范围和分层真实测试。SG1.2须补OEM最终完成标记、稳定事件身份和可靠补扫，不能只凭项目行存在、后台status或UI offset分页派发。客服预填仍归原Phase 2工作范围，当前只通过普通OEM链接不等于已实现第三来源。
+本轮授权的SG0.2及SG1.1已完成各自范围，后续按计划依赖推进Hermes runtime/事件持久接收，再做SG1.2。[本轮边界](../evidence/SG0.2-SG1.1-PLAN.md)记录pricing/SEO兼容范围，[真实测试计划](../evidence/LIVE-TEST-PLAN.md)要求先核对实际线上Infra。SG1.2须补OEM最终完成标记、稳定事件身份和可靠补扫，不能只凭项目行存在、后台status或UI offset分页派发。客服预填仍归原Phase 2工作范围，当前只通过普通OEM链接不等于已实现第三来源。
 
 ## 各模块后续交接说明
 

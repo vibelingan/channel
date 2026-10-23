@@ -530,6 +530,37 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  apps/functions/sales-integration:
+    dependencies:
+      '@vibelingan-channel/db':
+        specifier: workspace:*
+        version: link:../../../packages/db
+      '@vibelingan-channel/fn-public-api':
+        specifier: workspace:*
+        version: link:../public-api
+      '@vibelingan-channel/media-storage':
+        specifier: workspace:*
+        version: link:../../../packages/media-storage
+      '@vibelingan-channel/sales-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/sales-contracts
+      '@vibelingan-channel/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
 packages:
 
   '@astrojs/check@0.9.9':

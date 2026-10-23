@@ -9,6 +9,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent
 args_parser = argparse.ArgumentParser()
 args_parser.add_argument('--schema', action='store_true', help='Also validate JSON Schema with jsonschema package')
+args_parser.add_argument('--channel-source', type=Path, help='Original protected Channel checkout when validating from another clone')
 args = args_parser.parse_args()
 plan = json.loads((ROOT / 'plan.json').read_text())
 units = plan['units']
@@ -50,7 +51,7 @@ for file in ROOT.rglob('*.md'):
 common_git = Path(subprocess.check_output(['git', 'rev-parse', '--git-common-dir'], cwd=ROOT, text=True).strip())
 if not common_git.is_absolute():
     common_git = (ROOT / common_git).resolve()
-channel_source = common_git.parent
+channel_source = args.channel_source.resolve() if args.channel_source else common_git.parent
 def resolve_source_path(path):
     return Path(path.replace('${CHANNEL_SOURCE}', str(channel_source)).replace('${SALES_WORKTREE}', str(ROOT.parents[1])))
 

@@ -1,6 +1,6 @@
 # Sales Agent 分模块设计与执行入口
 
-2026-10-23 · SG0.1共同合同与假服务已通过离线验证及远端CI；SG1.0询盘源码核对已完成，详见[复用结论](evidence/SG1.0-BASELINE.md)。SG0.2服务器连接授权已通过本地验证，详见[验证记录](evidence/SG0.2-VALIDATION.md)，接下来为SG1.1。其余20个单元尚未实现。未连接客户账号、未接通真实发送。
+2026-10-23 · SG0.1、SG0.2已完成合同、假服务和服务器连接授权，SG1.0已完成源码核对；SG1.1已完成私有读取接口及本地验证，见[验证记录](evidence/SG1.1-VALIDATION.md)。其余19个单元尚未实现。尚未部署、连接客户账号或接通真实发送。[后续真实测试](evidence/LIVE-TEST-PLAN.md)按实际线上Infra版本开展。
 
 推荐先完成一条官网询盘闭环：保存正式询盘后自动准备需求摘要、邮件和附件，销售在企微或网页审核，系统通过 Resend 发送。Apollo 获客、其他渠道同步和维护活动在同一套客户边界、工具与审批能力上分别接入。
 
@@ -21,6 +21,7 @@ SG1.0源码核对可运行`python3 docs/sales-agent/check_source_snapshot.py`，
 ## 工作区
 
 - 新 worktree：`${SALES_WORKTREE}`
+- 内置盘反复ENOSPC后，当前在外置盘的独立销售检出继续同一分支；原设计worktree保留为备份。后续以当前检出及远端为准，不从旧副本继续编辑/推送。
 - 当前集成分支：`feat/sales-agent-integration`；原`feat/sales-agent-modular-design`保留在远端，包含SG0.2的原始提交。
 - 当前起点：main `404d1a257722175dcd70916e3f92ec6763fa0243`，仅带入我们自己的销售提交。原设计分支起点为`03be923c`。
 - 主线已有询盘、产品快照和后台代码已直接复用，逐字节保持main原内容；Phase 2的`a7e16aa2`仍用于客服设计参考。直接merge曾被仓库绝对路径检查拦住，改从main建立集成分支并带入销售提交，没有绕过检查或改主线历史文档。

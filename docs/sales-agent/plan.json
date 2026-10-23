@@ -58,8 +58,9 @@
       "write_scope": "sales-integration路由＋资料adapter，复用批准快照",
       "acceptance": "越权/未提交/附件跨归属拒绝，固定版本事实可追溯",
       "primary_test": "asset_from_other_client_is_denied",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG1.1-VALIDATION.md"
     },
     {
       "id": "SG2.1",

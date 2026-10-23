@@ -5,11 +5,13 @@ on:
     branches: [feat/sales-agent-modular-design, feat/sales-agent-integration]
     paths:
       - 'packages/sales-contracts/**'
+      - 'apps/functions/sales-integration/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/sales-contracts.yml'
   pull_request:
     paths:
       - 'packages/sales-contracts/**'
+      - 'apps/functions/sales-integration/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/sales-contracts.yml'
 
@@ -39,7 +41,7 @@ jobs:
           cache: pip
           cache-dependency-path: packages/sales-contracts/python/requirements.txt
       - name: Install locked workspace dependencies
-        run: pnpm --filter @vibelingan-channel/sales-contracts... install --frozen-lockfile
+        run: pnpm --filter @vibelingan-channel/sales-contracts... --filter @vibelingan-channel/fn-sales-integration... --filter @vibelingan-channel/local-server... install --frozen-lockfile
       - name: Install Python contract validator
         run: python -m pip install -r packages/sales-contracts/python/requirements.txt
       - run: pnpm --filter @vibelingan-channel/sales-contracts check:generated
@@ -47,3 +49,9 @@ jobs:
       - run: pnpm --filter @vibelingan-channel/sales-contracts test
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:python
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:conformance
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration typecheck
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration test
+      - run: pnpm verify:cloudbase-sdk
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration build
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration package:artifact
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration check:artifact
