@@ -61,8 +61,8 @@ jobs:
       BLOG_DUMMY_PERMISSION_HASH: ${{ inputs.permission_hash }}
       BLOG_DUMMY_CONFIRM: ${{ inputs.confirm }}
       BLOG_DUMMY_FAULT: ${{ inputs.fault }}
-      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
-      SITE_URL: ${{ vars.SITE_URL }}
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID || 'diversity-123-d9grnqfux221323bb' }}
+      SITE_URL: ${{ vars.SITE_URL || 'https://supplychainsai.com' }}
       CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
     steps:
       - uses: actions/checkout@v4

@@ -90,3 +90,5 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 现场只读检查另发现：缺失地址返回 HTTP 404，但网站错误文档配置当前为 `index.html`，正文仍是首页；`errors/not-found.html` 可正常读取。这说明此前修复的设置被旧的部署重新写回。pricing 当前 Deploy Test 尚在部署，本轮不抢占。继续采用原有 F1 维护入口排队、备份和重新核对后处理，不把“404 状态正确”当成错误页完整验收通过。正式页面摘要发生外部变化时，dummy 停止继续写入。
 
 首次推送 `1d2c7d4e`：dummy 专项远端检查 [39953453948](https://github.com/vibelingan/channel/actions/runs/39953453948) 通过，包括真正的 Astro 构建、函数包和后台浏览器操作。原有离线模块 CI [39953454093](https://github.com/vibelingan/channel/actions/runs/39953454093) 在格式检查阶段停止，原因是遗漏五个新文件的格式化（共七条诊断）；已补齐并在本地完整 `pnpm lint` 检查 991 个文件通过。这里保留首次失败，不将它改记为通过；修正提交继续由远端验收。
+
+现场入口再核对：仓库和 test 环境的 GitHub Variables 均为空，目标环境等值过去由部署脚本自行处理。新 dummy 入口已补上与仓库固定策略相同的默认环境和站点；若将来配置的变量与固定目标不同，运行程序仍拒绝执行。没有向 GitHub 全局或 test 环境写变量，因此不改变 pricing 的正常部署参数。
