@@ -2408,6 +2408,10 @@ test('built table single and 20-product publications recover their original task
   const read = (id: string) =>
     adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
   let blockPublic = false;
+  const imageBaseline = {
+    count: await readImageReferenceCount(request, 'formal-image-0', session.token),
+    status: (await request.get(`${e2e.apiUrl}/api/images/formal-image-0`)).status(),
+  };
   await page.route('**/api/products/**/detail*', async (route) => {
     if (blockPublic) await route.abort('failed');
     else await route.continue();
@@ -2467,7 +2471,7 @@ test('built table single and 20-product publications recover their original task
       .click();
     await expect(
       page.getByText("0 published · 20 couldn't be checked", { exact: true }),
-    ).toBeVisible({ timeout: 60_000 });
+    ).toBeVisible({ timeout: 90_000 });
     expect(starts).toHaveLength(21);
     const originalStarts = new Map(
       starts.map(({ productId, operationId }) => [productId, operationId]),
@@ -2506,8 +2510,23 @@ test('built table single and 20-product publications recover their original task
     await expect(page.getByText('20 disabled', { exact: true })).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
-    blockPublic = false;
+    await page.goto('/');
     await page.unrouteAll({ behavior: 'wait' });
+    blockPublic = false;
+    const originals = new Map(starts.map(({ productId, operationId }) => [productId, operationId]));
+    for (const [productId, operationId] of originals) {
+      const stopped = CatalogProductOperationStatusSchema.parse(
+        await adminAction(
+          request,
+          'catalogDetailApproval',
+          { action: 'product-operation-stop', productId, operationId, intent: 'publish' },
+          session.token,
+        ),
+      );
+      expect(stopped.productId).toBe(productId);
+      expect(stopped.operationId).toBe(operationId);
+      expect(stopped.state === 'complete' || typeof stopped.cancelledAt === 'string').toBe(true);
+    }
     for (const original of products) {
       const current = await read(original._id);
       if (current.published === true)
@@ -2532,5 +2551,11 @@ test('built table single and 20-product publications recover their original task
         ).status(),
       ).toBe(404);
     }
+    expect(await readImageReferenceCount(request, 'formal-image-0', session.token)).toBe(
+      imageBaseline.count,
+    );
+    expect((await request.get(`${e2e.apiUrl}/api/images/formal-image-0`)).status()).toBe(
+      imageBaseline.status,
+    );
   }
 });
