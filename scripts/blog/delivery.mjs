@@ -141,7 +141,6 @@ export async function deliverBlogDummy({
       deliveryId: key,
       artifactHash: plan.stateSha256,
       acceptedAt: new Date(committed.activation.acceptedAt).toISOString(),
-      activation: committed.activation,
     };
   }
   try {

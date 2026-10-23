@@ -451,3 +451,66 @@ test('a heartbeat after hosting acceptance does not invalidate the real receipt 
   await f.service.renew(claim.guard);
   assert.equal((await f.service.complete(claim.guard, receipt)).state, 'SUCCEEDED');
 });
+
+test('manual confirmation finishes only an expired uncertain task and preserves the newer draft', async () => {
+  const f = fixture();
+  const task = await f.service.request('admin', f.request);
+  const claim = await f.service.claim(task.id, 'worker-a');
+  await f.service.markDeploying(claim.guard);
+  f.tick();
+  const receipt = {
+    deliveryId: 'accepted-run-a',
+    artifactHash: 'a'.repeat(64),
+    acceptedAt: new Date(start + 1000).toISOString(),
+  };
+  await f.service.markUnknown(claim.guard);
+  await assert.rejects(f.service.confirmAccepted(claim.guard, receipt), /expired uncertain/);
+  f.tick(180001);
+  await assert.rejects(f.service.complete(claim.guard, receipt), /lease/);
+  await assert.rejects(
+    f.service.confirmAccepted({ ...claim.guard, attempt: 2 }, receipt),
+    /expired uncertain/,
+  );
+  const row = f.rows().get('articleDrafts/article-a');
+  assert(row);
+  row.draft = saveArticleDraft(f.draft, {
+    expectedRevision: 1,
+    editorId: 'admin',
+    now: new Date(start + 1001).toISOString(),
+    content: { ...content, title: 'Keep next draft' },
+  });
+  const confirmed = await f.service.confirmAccepted(claim.guard, receipt);
+  assert.equal(confirmed.state, 'SUCCEEDED');
+  assert.equal(confirmed.error, null);
+  const current = parseArticleDraft(f.rows().get('articleDrafts/article-a')?.draft);
+  assert.equal(current.content.title, 'Keep next draft');
+  assert.equal(current.revision, 2);
+  assert.equal(current.published?.revision, 1);
+  assert.deepEqual(await f.service.confirmAccepted(claim.guard, receipt), confirmed);
+  await assert.rejects(
+    f.service.confirmAccepted(claim.guard, { ...receipt, deliveryId: 'different-run' }),
+    /receipt/,
+  );
+});
+test('manual confirmation rejects a revoked requester and pre-request receipt', async () => {
+  const f = fixture();
+  const task = await f.service.request('admin', f.request);
+  const claim = await f.service.claim(task.id, 'worker-a');
+  await f.service.markDeploying(claim.guard);
+  await f.service.markUnknown(claim.guard);
+  f.tick(180001);
+  const receipt = {
+    deliveryId: 'accepted-run-a',
+    artifactHash: 'a'.repeat(64),
+    acceptedAt: new Date(start).toISOString(),
+  };
+  await assert.rejects(
+    f.service.confirmAccepted(claim.guard, {
+      ...receipt,
+      acceptedAt: new Date(start - 1).toISOString(),
+    }),
+    /expired uncertain/,
+  );
+  f.rows().set('users/admin', { _id: 'admin', role: 'member', status: 'active' });
+  await assert.rejects(f.service.confirmAccepted(claim.guard, receipt), /Admin/);
+});

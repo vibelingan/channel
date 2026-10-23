@@ -3,25 +3,6 @@ run-name: "Blog dummy ${{ inputs.task_id || 'offline' }}"
 on:
   push:
     branches: [feat/seo-foundation]
-    paths:
-      - 'scripts/blog/**'
-      - 'scripts/blog-delivery.test.mjs'
-      - 'packages/articles/**'
-      - 'packages/db/src/article-*.ts'
-      - 'apps/functions/admin/src/blog-dummy*.ts'
-      - 'apps/functions/admin/src/article-media.ts'
-      - 'apps/functions/admin/tsup.blog-dummy.config.ts'
-      - 'apps/site/src/dummy/**'
-      - 'apps/site/src/components/BlogView.astro'
-      - 'apps/site/src/lib/blog/**'
-      - 'apps/site/src/islands/admin/articles/**'
-      - 'apps/site/astro.blog-dummy.config.ts'
-      - 'tests/e2e/admin-article-*.spec.ts'
-      - 'tests/e2e/blog-dummy-live.spec.ts'
-      - 'tests/fixtures/prepare-blog*.ts'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/seo-blog-dummy.yml'
   workflow_dispatch:
     inputs:
       task_id:

@@ -79,6 +79,10 @@ export interface ArticleReleaseWorker extends ArticleReleases {
     guard: ArticleReleaseGuard,
     receipt: Receipt,
   ): Promise<z.infer<typeof ArticleReleaseViewSchema>>;
+  confirmAccepted(
+    guard: ArticleReleaseGuard,
+    receipt: Receipt,
+  ): Promise<z.infer<typeof ArticleReleaseViewSchema>>;
   failBuild(guard: ArticleReleaseGuard): Promise<void>;
   markUnknown(guard: ArticleReleaseGuard): Promise<void>;
   notWritten(guard: ArticleReleaseGuard): Promise<void>;
@@ -201,6 +205,112 @@ export function createArticleReleaseStore(
     if (checked.contentHash !== task.contentHash || checked.content.slug !== task.slug)
       throw new Error('Frozen article content changed');
     return checked;
+  }
+  // Manual confirmation is a server capability; its caller must attest the current
+  // accepted delivery and public bytes before entering this transaction.
+  function finish(guard: ArticleReleaseGuard, input: Receipt, confirming: boolean) {
+    return transaction(async (store) => {
+      const receipt = taskSchema.shape.receipt.unwrap().parse(input);
+      const { task, head } = await load(store, guard.taskId);
+      if (task.state === 'SUCCEEDED') {
+        if (
+          task.workerId !== guard.workerId ||
+          task.attempt !== guard.attempt ||
+          JSON.stringify(task.receipt) !== JSON.stringify(receipt)
+        )
+          conflict('The completion receipt does not match.');
+        return view(task);
+      }
+      const time = now();
+      if (confirming) {
+        if (
+          task.state !== 'UNKNOWN' ||
+          time < task.leaseUntil ||
+          head.taskId !== task.id ||
+          head.sequence !== task.sequence ||
+          task.id !== guard.taskId ||
+          task.workerId !== guard.workerId ||
+          task.attempt !== guard.attempt ||
+          receipt.acceptedAt < task.requestedAt ||
+          receipt.acceptedAt > new Date(time).toISOString()
+        )
+          conflict('An expired uncertain task with matching accepted evidence is required.');
+        await admin(store, task.actorId);
+      } else {
+        owner(task, head, guard, time);
+        if (
+          task.state !== 'DEPLOYING' ||
+          receipt.acceptedAt < task.updatedAt ||
+          receipt.acceptedAt > new Date(time).toISOString()
+        )
+          conflict('Delivery acceptance has not been confirmed.');
+      }
+      const raw = await row(store, 'articleDrafts', task.articleId);
+      if (!raw) throw new Error('Article draft disappeared during delivery');
+      const draft = parseArticleDraft(raw.draft);
+      if (
+        draft.id !== task.articleId ||
+        draft.revision < task.revision ||
+        JSON.stringify(draft.published) !== JSON.stringify(head.published)
+      )
+        throw new Error('Article publication reference changed');
+      const frozen = await candidate(store, task);
+      // Read the accepted row before writes to keep the CloudBase transaction contract.
+      await row(store, 'articleAccepted', task.articleId);
+      const publication = frozen
+        ? parsePublishedArticle({
+            status: 'accepted',
+            deliveryId: receipt.deliveryId,
+            articleId: task.articleId,
+            revision: task.revision,
+            contentHash: frozen.contentHash,
+            content: frozen.content,
+            publishedAt: task.publishedAt,
+            modifiedAt: task.modifiedAt,
+            acceptedAt: receipt.acceptedAt,
+            media: Object.fromEntries(
+              task.media.map((m) => [
+                m.id,
+                {
+                  mimeType: m.mimeType,
+                  sha256: m.checksumSha256,
+                  byteSize: m.byteSize,
+                  width: m.width,
+                  height: m.height,
+                },
+              ]),
+            ),
+          })
+        : null;
+      const published = publication
+        ? reference.parse({
+            revision: publication.revision,
+            slug: task.slug,
+            contentHash: publication.contentHash,
+            publishedAt: publication.publishedAt,
+            modifiedAt: publication.modifiedAt,
+          })
+        : null;
+      const next = taskSchema.parse({
+        ...task,
+        state: 'SUCCEEDED',
+        error: null,
+        updatedAt: new Date(time).toISOString(),
+        receipt,
+      });
+      await write(store, 'articleDrafts', task.articleId, {
+        ...raw,
+        draft: parseArticleDraft({ ...draft, published }),
+      });
+      await write(store, 'articleAccepted', task.articleId, { publication, taskId: task.id });
+      await write(store, 'articleReleaseHeads', task.articleId, {
+        ...head,
+        published,
+        firstPublishedAt: head.firstPublishedAt ?? publication?.publishedAt ?? null,
+      });
+      await write(store, 'articleReleaseTasks', task.id, next);
+      return view(next);
+    });
   }
   return {
     request: (actorId, input) =>
@@ -478,92 +588,8 @@ export function createArticleReleaseStore(
           updatedAt: new Date(time).toISOString(),
         });
       }),
-    complete: (guard, input) =>
-      transaction(async (store) => {
-        const receipt = taskSchema.shape.receipt.unwrap().parse(input);
-        const { task, head } = await load(store, guard.taskId);
-        if (task.state === 'SUCCEEDED') {
-          if (
-            task.workerId !== guard.workerId ||
-            task.attempt !== guard.attempt ||
-            JSON.stringify(task.receipt) !== JSON.stringify(receipt)
-          )
-            conflict('The completion receipt does not match.');
-          return view(task);
-        }
-        const time = now();
-        owner(task, head, guard, time);
-        if (
-          task.state !== 'DEPLOYING' ||
-          receipt.acceptedAt < task.updatedAt ||
-          receipt.acceptedAt > new Date(time).toISOString()
-        )
-          conflict('Delivery acceptance has not been confirmed.');
-        const raw = await row(store, 'articleDrafts', task.articleId);
-        if (!raw) throw new Error('Article draft disappeared during delivery');
-        const draft = parseArticleDraft(raw.draft);
-        if (
-          draft.id !== task.articleId ||
-          draft.revision < task.revision ||
-          JSON.stringify(draft.published) !== JSON.stringify(head.published)
-        )
-          throw new Error('Article publication reference changed');
-        const frozen = await candidate(store, task);
-        // Read the accepted row before writes to keep the CloudBase transaction contract.
-        await row(store, 'articleAccepted', task.articleId);
-        const publication = frozen
-          ? parsePublishedArticle({
-              status: 'accepted',
-              deliveryId: receipt.deliveryId,
-              articleId: task.articleId,
-              revision: task.revision,
-              contentHash: frozen.contentHash,
-              content: frozen.content,
-              publishedAt: task.publishedAt,
-              modifiedAt: task.modifiedAt,
-              acceptedAt: receipt.acceptedAt,
-              media: Object.fromEntries(
-                task.media.map((m) => [
-                  m.id,
-                  {
-                    mimeType: m.mimeType,
-                    sha256: m.checksumSha256,
-                    byteSize: m.byteSize,
-                    width: m.width,
-                    height: m.height,
-                  },
-                ]),
-              ),
-            })
-          : null;
-        const published = publication
-          ? reference.parse({
-              revision: publication.revision,
-              slug: task.slug,
-              contentHash: publication.contentHash,
-              publishedAt: publication.publishedAt,
-              modifiedAt: publication.modifiedAt,
-            })
-          : null;
-        const next = taskSchema.parse({
-          ...task,
-          state: 'SUCCEEDED',
-          updatedAt: new Date(time).toISOString(),
-          receipt,
-        });
-        await write(store, 'articleDrafts', task.articleId, {
-          ...raw,
-          draft: parseArticleDraft({ ...draft, published }),
-        });
-        await write(store, 'articleAccepted', task.articleId, { publication, taskId: task.id });
-        await write(store, 'articleReleaseHeads', task.articleId, {
-          ...head,
-          published,
-          firstPublishedAt: head.firstPublishedAt ?? publication?.publishedAt ?? null,
-        });
-        await write(store, 'articleReleaseTasks', task.id, next);
-        return view(next);
-      }),
+    complete: (guard, receipt) => finish(guard, receipt, false),
+    confirmAccepted: (guard, receipt) => finish(guard, receipt, true),
     failBuild: (guard) =>
       transaction(async (store) => {
         const { task, head } = await load(store, guard.taskId);

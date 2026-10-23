@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -137,7 +138,13 @@ async function fixture(t) {
 test('Blog uses actual HTTP GET/ETag checks through A, B and exact accepted A recovery', async (t) => {
   const f = await fixture(t);
   const a = f.source('A');
-  assert.equal((await f.deliver(a, 'A')).status, 'accepted');
+  const accepted = await f.deliver(a, 'A');
+  assert.equal(accepted.status, 'accepted');
+  execFileSync(
+    'apps/site/node_modules/.bin/tsx',
+    ['scripts/blog/receipt.integration.mjs', 'complete'],
+    { input: JSON.stringify(accepted.receipt), stdio: ['pipe', 'pipe', 'pipe'] },
+  );
   const before = f.objects.get('index.html');
   const b = f.source('B');
   const result = await f.deliver(b, 'B', {
@@ -146,6 +153,11 @@ test('Blog uses actual HTTP GET/ETag checks through A, B and exact accepted A re
     },
   });
   assert.equal(result.status, 'restored');
+  execFileSync(
+    'apps/site/node_modules/.bin/tsx',
+    ['scripts/blog/receipt.integration.mjs', 'restored'],
+    { input: JSON.stringify(result.receipt), stdio: ['pipe', 'pipe', 'pipe'] },
+  );
   assert.equal(f.objects.get('__blog-dummy/article/index.html').toString().includes('A'), true);
   assert.deepEqual(f.objects.get('index.html'), before);
   assert.ok(f.writes.every(([, path]) => path.startsWith('__blog-dummy/')));

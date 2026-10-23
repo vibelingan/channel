@@ -97,7 +97,7 @@ export function ArticlesPage({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-100">
+              <tr key={row.id} data-article-id={row.id} className="border-b border-slate-100">
                 <td className="max-w-xs break-words p-3">{row.title || 'Untitled article'}</td>
                 <td className="p-3">{row.published ? 'Published version exists' : 'Draft'}</td>
                 <td className="whitespace-nowrap p-3">
