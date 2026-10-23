@@ -10,6 +10,7 @@ import {
 import { CatalogProductOperationStatusSchema } from '../../packages/shared/src/catalog/product-operation.ts';
 import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
 import { type ListResult, adminAction, loginAdmin, loginUser } from './helpers/admin-api';
+import { CATALOG_PUBLICATION_WAIT_MS } from './helpers/catalog-publication';
 import {
   e2e,
   requireAdminCredentialsWhenEnabled,
@@ -2286,7 +2287,7 @@ test('20 mixed-category selections publish through Assign category while preserv
       dialog.getByText('20 products published. Existing classifications were kept.', {
         exact: true,
       }),
-    ).toBeVisible({ timeout: 90000 });
+    ).toBeVisible({ timeout: CATALOG_PUBLICATION_WAIT_MS });
     await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
     expect(assignments).toBe(0);
     expect(originals.size).toBe(20);
@@ -2471,7 +2472,7 @@ test('built table single and 20-product publications recover their original task
       .click();
     await expect(
       page.getByText("0 published · 20 couldn't be checked", { exact: true }),
-    ).toBeVisible({ timeout: 90_000 });
+    ).toBeVisible({ timeout: CATALOG_PUBLICATION_WAIT_MS });
     expect(starts).toHaveLength(21);
     const originalStarts = new Map(
       starts.map(({ productId, operationId }) => [productId, operationId]),

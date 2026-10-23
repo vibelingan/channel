@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { type Response as BrowserResponse, expect, test } from '@playwright/test';
 import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { CATALOG_PUBLICATION_WAIT_MS } from './helpers/catalog-publication';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
 import { readImageReferenceCount } from './helpers/image-reference-count';
 import { expectInquirySaved } from './helpers/inquiry-followup';
@@ -1305,7 +1306,7 @@ test('twenty source products publish through Assign category and restore shared-
       .getByRole('button', { name: 'Confirm save and publish', exact: true })
       .click();
     await expect(classification.getByRole('button', { name: 'Done', exact: true })).toBeVisible({
-      timeout: 90000,
+      timeout: CATALOG_PUBLICATION_WAIT_MS,
     });
     expect(refusedProductId).toBeDefined();
     expect(attempts.size).toBe(20);
@@ -1674,7 +1675,7 @@ test('large complete configurations remain usable through readonly preview, clas
     await classify.getByRole('button', { name: 'Save and publish', exact: true }).click();
     await classify.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
     await expect(classify.getByRole('button', { name: 'Done', exact: true })).toBeVisible({
-      timeout: 90000,
+      timeout: CATALOG_PUBLICATION_WAIT_MS,
     });
     await classify.getByRole('button', { name: 'Done', exact: true }).click();
     const saved = await adminAction<CollectionDoc>(

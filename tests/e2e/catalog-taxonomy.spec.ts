@@ -13,6 +13,7 @@ import {
 } from '../../packages/shared/src/catalog-taxonomy.ts';
 import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
 import { type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { CATALOG_PUBLICATION_WAIT_MS } from './helpers/catalog-publication';
 import {
   e2e,
   requireAdminCredentialsWhenEnabled,
@@ -99,7 +100,10 @@ test('local taxonomy: saved categories and assignments drive all four storefront
   page,
   request,
 }, info) => {
-  test.setTimeout(300_000);
+  const formal = process.env.E2E_CATALOG_FORMAL === '1';
+  test.setTimeout(
+    formal ? PRODUCT_FAMILY_OPTIONS.length * CATALOG_PUBLICATION_WAIT_MS + 60_000 : 300_000,
+  );
   const health = await request.get(`${e2e.apiUrl}/api/health`);
   expect(health.ok()).toBe(true);
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
@@ -350,10 +354,10 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(14);
       await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
       const publish = page.getByRole('button', { name: 'Publish', exact: true });
-      if (process.env.E2E_CATALOG_FORMAL === '1') {
+      if (formal) {
         await publish.click();
         await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
-          timeout: 60_000,
+          timeout: CATALOG_PUBLICATION_WAIT_MS,
         });
       } else {
         await expect(publish).toBeDisabled();
