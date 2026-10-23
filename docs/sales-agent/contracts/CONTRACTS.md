@@ -1,6 +1,6 @@
 # 接口与数据规则 v0.1
 
-2026-10-23 · 以下内部路由和数据结构均为待实施合同，不是现有 API。官方服务的实际接口见 [能力依据](../evidence/PROVIDER-CAPABILITIES.md)。字段由 SG0 先冻结；运行机制依 [状态规则](STATE-AND-CONCURRENCY.md)。
+2026-10-23 · SG0.1数据校验及SG0.2服务器授权库已实现；本节内部HTTP路由仍待SG1.1及其他模块接入，不表示已部署。官方服务的实际接口见 [能力依据](../evidence/PROVIDER-CAPABILITIES.md)。运行机制依 [状态规则](STATE-AND-CONCURRENCY.md)。
 
 ## 1. 身份与范围
 
@@ -25,6 +25,8 @@ type ClientBinding = {
   control_epoch: number;
 };
 ```
+
+上述早期简图的完整运行合同以packages/sales-contracts/schemas/client-bindings.schema.json为准：registry具有enabled，binding具有active和独立connections，connection明确actor、actions及凭据引用，并绑定Resend Team/inbox。不要按简图另外创建运行DTO。TypeScript服务器授权由包的access入口执行；Python数据校验本身不授予权限。
 
 凭据引用由服务端解析。密钥不写入模型上下文、群消息、附件、链接或普通日志。Partner Seat、Apollo OAuth、Resend Team 成员、企微操作人和 Channel 管理员是不同授权，分别绑定、撤销。
 

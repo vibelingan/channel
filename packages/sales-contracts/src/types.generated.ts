@@ -180,3 +180,136 @@ export interface SalesRunContext {
    */
   allowed_tools: string[];
 }
+
+export type Id = string;
+
+export interface ClientBindings {
+  schema_version: "1.0";
+  enabled: boolean;
+  /**
+   * @minItems 0
+   * @maxItems 50
+   */
+  bindings: {
+    client_id: Id;
+    active: boolean;
+    /**
+     * @minItems 1
+     * @maxItems 20
+     */
+    business_lines: [Id, ...Id[]];
+    source_installation_id: Id;
+    runtime_id: Id;
+    knowledge_scope_ref: Id;
+    credential_refs: {
+      channel: Id;
+      resend: Id;
+      apollo?: Id;
+    };
+    resend_team_id: Id;
+    resend_inbox_id: Id;
+    apollo_workspace_id?: Id;
+    /**
+     * @minItems 1
+     * @maxItems 20
+     */
+    allowed_sender_ids: [Id, ...Id[]];
+    /**
+     * @minItems 0
+     * @maxItems 50
+     */
+    permitted_operator_ids: Id[];
+    automation_mode: "disabled" | "draft_only" | "test_sending" | "approval_required";
+    /**
+     * @minItems 0
+     * @maxItems 100
+     */
+    test_recipient_allowlist: string[];
+    environment: "test" | "production";
+    control_epoch: number;
+    /**
+     * @minItems 1
+     * @maxItems 100
+     */
+    connections: [
+      {
+        connection_id: Id;
+        credential_ref: Id;
+        active: boolean;
+        actor: {
+          kind: "runtime" | "operator" | "publisher";
+          id: Id;
+        };
+        /**
+         * @minItems 1
+         * @maxItems 10
+         */
+        actions: [
+          (
+            | "inquiry.read"
+            | "product.read"
+            | "asset.read"
+            | "artifact.write"
+            | "mail.send"
+            | "mail.approve"
+            | "task.pause"
+            | "task.takeover"
+            | "task.resume"
+            | "connection.manage"
+          ),
+          ...(
+            | "inquiry.read"
+            | "product.read"
+            | "asset.read"
+            | "artifact.write"
+            | "mail.send"
+            | "mail.approve"
+            | "task.pause"
+            | "task.takeover"
+            | "task.resume"
+            | "connection.manage"
+          )[]
+        ];
+      },
+      ...{
+        connection_id: Id;
+        credential_ref: Id;
+        active: boolean;
+        actor: {
+          kind: "runtime" | "operator" | "publisher";
+          id: Id;
+        };
+        /**
+         * @minItems 1
+         * @maxItems 10
+         */
+        actions: [
+          (
+            | "inquiry.read"
+            | "product.read"
+            | "asset.read"
+            | "artifact.write"
+            | "mail.send"
+            | "mail.approve"
+            | "task.pause"
+            | "task.takeover"
+            | "task.resume"
+            | "connection.manage"
+          ),
+          ...(
+            | "inquiry.read"
+            | "product.read"
+            | "asset.read"
+            | "artifact.write"
+            | "mail.send"
+            | "mail.approve"
+            | "task.pause"
+            | "task.takeover"
+            | "task.resume"
+            | "connection.manage"
+          )[]
+        ];
+      }[]
+    ];
+  }[];
+}

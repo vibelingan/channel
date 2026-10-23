@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ContractsTest(unittest.TestCase):
     def test_all_contract_fixtures(self):
-        for kind in ('inquiry', 'mail-snapshot', 'control-command', 'approval', 'run-context'):
+        for kind in ('inquiry', 'mail-snapshot', 'control-command', 'approval', 'run-context', 'client-bindings'):
             with self.subTest(kind=kind):
                 value = json.loads((ROOT / 'fixtures' / f'{kind}.json').read_text())
                 self.assertEqual(validate_contract(kind, value), value)

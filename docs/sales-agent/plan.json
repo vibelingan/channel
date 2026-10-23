@@ -29,8 +29,9 @@
       "write_scope": "客户绑定/工具scope/连接撤销tests，不改公开客服权限",
       "acceptance": "A/B工具、连接、业务和操作者负向测试；无默认客户",
       "primary_test": "client_a_cannot_read_or_send_for_b",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG0.2-VALIDATION.md"
     },
     {
       "id": "SG1.0",
