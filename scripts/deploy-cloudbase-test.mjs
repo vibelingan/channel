@@ -12,6 +12,7 @@ import {
   requestIdFrom,
   toolMessage,
 } from './cloudbase-deploy-resources.mjs';
+import { confirmFunctionCode, deployFunctionCode } from './cloudbase-function-code-upload.mjs';
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { waitForFunctionActive } from './cloudbase-function-state.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
@@ -392,7 +393,7 @@ const functionDefs = buildFunctionDefs({
   optionalEnv,
 });
 
-function deployFunction(def) {
+async function deployFunction(def) {
   const artifactDir = resolve(functionRootPath, def.name);
   if (!existsSync(resolve(artifactDir, 'index.js'))) {
     throw new Error(`Missing packaged function artifact for ${def.name}: ${artifactDir}`);
@@ -407,11 +408,20 @@ function deployFunction(def) {
   }
 
   if (before) waitForActive(def.name);
-  deployFunctionWithCloudBaseCli(
-    def,
-    before ? 'primary CI code update' : 'primary CI create',
-    before ? 'update' : 'deploy',
-  );
+  const deployment = deployFunctionCode({
+    functionName: def.name,
+    artifactDir,
+    action: before ? 'update' : 'deploy',
+    envId,
+    region: process.env.CLOUDBASE_REGION || 'ap-shanghai',
+    callTool,
+    deployWithCli: () =>
+      deployFunctionWithCloudBaseCli(
+        def,
+        before ? 'primary CI code update' : 'primary CI create',
+        before ? 'update' : 'deploy',
+      ),
+  });
   const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
@@ -421,8 +431,17 @@ function deployFunction(def) {
   if (configAfter.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${configAfter.Runtime}`);
   }
+  if (deployment.method === 'private-staged-zip') {
+    await confirmFunctionCode({
+      functionName: def.name,
+      apiUrl,
+      routePath: def.routePath,
+      expectedRelease: process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local',
+    });
+  }
+  deployment.cleanup();
   console.log(
-    `${def.name}: deployed on ${configAfter.Runtime}; code deploy cloudbase-cli-primary; config request ${configRequestId}`,
+    `${def.name}: deployed on ${configAfter.Runtime}; code deploy ${deployment.method}; config request ${configRequestId}`,
   );
 }
 
@@ -520,7 +539,7 @@ callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);
 
 for (const def of functionDefs) {
-  deployFunction(def);
+  await deployFunction(def);
   ensureGateway(def, { callTool });
   reconcileTriggers(def, desiredTriggersFor(def.name), { callTool });
 }

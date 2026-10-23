@@ -5,6 +5,13 @@
       "args": ["@cloudbase/cloudbase-mcp@2.24.1"],
       "description": "CloudBase MCP",
       "lifecycle": "keep-alive"
+    },
+    "cloudbaseUpload": {
+      "command": "npx",
+      "args": ["-y", "@cloudbase/cloudbase-mcp@2.36.1"],
+      "env": { "CLOUDBASE_MCP_PLUGINS_ENABLED": "env,functions" },
+      "description": "CloudBase private function ZIP uploads",
+      "lifecycle": "keep-alive"
     }
   }
 }

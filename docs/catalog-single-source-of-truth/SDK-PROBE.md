@@ -883,3 +883,13 @@ Default Admin manager now invokes the existing native final transaction, followe
 ## P3e7c8 atomic supplier review acknowledgement
 
 No new SDK method/shim/dependency/env/table/lock. Existing transaction point reads catalogSourceObservations/catalogSourceLinks, current comparison shared with Admin. Installed Node3.17.2/database1.4.3/Wx4.0.2/Zod3.25.76 and prior official100ops/30s/source contracts retained; Context7 unavailable.651 Node20 HTTP-only controls=626+25. Normal unflagged final16 document ops unchanged; linkedNew/legacy/Edited17,Changed/Removed27-photo44,all3writes/global98.9 final badACK cases preserve pending flag and private product,then resume original operation; lost commit readback confirms both approval and acknowledgement. Native review fixture uses prebuilt trusted candidate, actual canonical API and PNG are separately checked. First new fixture block was outside helper scope; corrected. Initial supposed manualEdited fixture was linked; made explicit unlinked and added genuine linkedEdited positive/stale-digest tests.14mutations25overlap/3SHA restored,638focused/6062related-packages-and-scripts/3097Node20/19types+3affected-types-repeat/E2E/7Biome/standingSDK green. Inline review P2 linkedEdited bypass fixed red/green; exact packaged artifacts follow this commit. No cloudMVCC/COS/P95/test20 claim; original UI P1/unblessed/fullDeliveryReady=false.
+
+## 2026-10-23：函数大包上传合约
+
+当前 CLI `@cloudbase/cli@3.5.9` 的同步包更新连续两次失败：ZIP 直传被 1.5 MB 限制拒绝，COS 路径在内部 60 秒截止。已从安装包确认该截止写死于传输实现；尚不能据此断定底层网络或签名的具体原因。同步包包含必需的 Linux 图片解码器，不能通过删运行文件规避。
+
+只为代码上传新增固定版本的 `cloudbaseUpload` MCP 入口（`@cloudbase/cloudbase-mcp@2.36.1`），原 `cloudbase` 入口仍为 2.24.1。新增入口仅注册 env/functions；已用 Node 22.13.0 完成真实 stdio initialize/tools-list 握手，确认上传 URL action 和 code 三元组 schema，不调用云端资源。核对了安装包 `dist/index.js` 中的 `getFunctionUploadUrl` 和 `updateFunctionCode` 的 `code` 分支，并与[官方 MCP 工具文档](https://docs.cloudbase.net/en/ai/cloudbase-ai-toolkit/mcp-tools) 对照：签名 PUT 地址和 COS 三元组由同一环境返回；三元组原样提交，代码分支默认不安装依赖，不更新环境变量、运行时或触发器。Context7 本会话不可用；未添加 SDK 类型声明或运行依赖。
+
+更新已有函数时先打包 ZIP。小包维持原 CLI 路径，大包使用上述通道；已有新建函数路径不变。上传指定 `x-cos-acl: private`，再以匿名 HEAD 确认不可公开读取；[COS PUT Object 文档](https://intl.cloud.tencent.com/pt/document/product/436/7749) 支持该 ACL 请求头。签名和 token 只进入本地 0600 临时配置，不进入 argv 或日志；不跟随重定向。HTTP 失败不导入；导入未确认时保留私有来源包；原有 Active、运行时和配置检查完成，并从实际健康接口确认目标 releaseId 后，仅删除本次 staging object；旧版删除工具要求的 force=true 已按安装包验证并加入测试。本地临时文件始终清理。zip、unzip、curl 已核对实际 runner 的 [Ubuntu 24.04 软件清单](https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md)。
+
+部署单测包含实际 ZIP 压缩/解包后的完整字节比较、私有头、错误 URL/桶/地域/对象路径、HTTP/传输失败及凭据脱敏、未确认导入的保留、成功后的定点清理，以及小包/创建路径不变。这里的 HTTP 和管理工具回复是受控替身；真实云端上传与版本检查仍由最终 Deploy Test 执行，不记作已部署。
