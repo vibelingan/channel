@@ -1,0 +1,29 @@
+{
+  "name": "@vibelingan-channel/sales-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/fake-mail.ts"
+  },
+  "scripts": {
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "generate": "node scripts/generate-types.mjs",
+    "check:generated": "node scripts/generate-types.mjs --check",
+    "test:python": "node scripts/run-python.mjs",
+    "test:conformance": "tsx scripts/conformance.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "json-schema-to-typescript": "^16.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "^3.0.1",
+    "jsonc-parser": "3.3.1"
+  }
+}

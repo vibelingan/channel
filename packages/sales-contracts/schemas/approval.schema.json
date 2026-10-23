@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:approval:1.0",
+  "title": "Approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "approval_id",
+    "client_id",
+    "task_id",
+    "logical_message_id",
+    "operator_id",
+    "channel",
+    "snapshot_version",
+    "content_sha256",
+    "sender_id",
+    "recipients_sha256",
+    "control_epoch",
+    "context_epoch",
+    "approved_at",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "approval_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "logical_message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "operator_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "channel": {
+      "enum": [
+        "wecom",
+        "web"
+      ]
+    },
+    "snapshot_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "sender_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "recipients_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "control_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "context_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 27,
+      "pattern": "^(?!0000)[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?Z$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 27,
+      "pattern": "^(?!0000)[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?Z$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    }
+  }
+}

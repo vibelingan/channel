@@ -1,7 +1,7 @@
 {
   "version": "0.1",
   "date": "2026-10-23",
-  "mode": "design_only",
+  "mode": "initial_module_implementation",
   "worktree": "${SALES_WORKTREE}",
   "branch": "feat/sales-agent-modular-design",
   "units": [
@@ -14,8 +14,9 @@
       "write_scope": "packages/sales-contracts/；Hermes只消费固定版本",
       "acceptance": "结构校验、未知版本拒绝、跨语言同fixture，fake不调用网络",
       "primary_test": "contract_rejects_unknown_version",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG0.1-VALIDATION.md"
     },
     {
       "id": "SG0.2",

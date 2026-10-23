@@ -1,0 +1,1037 @@
+[
+  {
+    "id": "inquiry_valid",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-10-23T09:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "inquiry_unknown_version",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "2.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-10-23T09:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "mail-snapshot_valid",
+    "operation": "validate",
+    "kind": "mail-snapshot",
+    "value": {
+      "schema_version": "1.0",
+      "task_id": "task_demo_1",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "logical_message_id": "first_followup_demo_1",
+      "version": 1,
+      "source_revision": "1",
+      "context_epoch": 1,
+      "sender_id": "sender_demo_a",
+      "from": "sales@example.invalid",
+      "reply_to": [],
+      "to": [
+        "buyer@example.invalid"
+      ],
+      "cc": [],
+      "bcc": [],
+      "approved_headers": {},
+      "subject": "礼品采购需求跟进",
+      "html_ref": "artifact_html_demo_1",
+      "text_ref": "artifact_text_demo_1",
+      "attachments": [
+        {
+          "artifact_id": "artifact_pdf_demo_1",
+          "filename": "proposal.pdf",
+          "mime": "application/pdf",
+          "size": 128,
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "evidence_refs": [
+        "catalog_revision_demo_1"
+      ],
+      "unresolved_items": [],
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "mail-snapshot_unknown_version",
+    "operation": "validate",
+    "kind": "mail-snapshot",
+    "value": {
+      "schema_version": "2.0",
+      "task_id": "task_demo_1",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "logical_message_id": "first_followup_demo_1",
+      "version": 1,
+      "source_revision": "1",
+      "context_epoch": 1,
+      "sender_id": "sender_demo_a",
+      "from": "sales@example.invalid",
+      "reply_to": [],
+      "to": [
+        "buyer@example.invalid"
+      ],
+      "cc": [],
+      "bcc": [],
+      "approved_headers": {},
+      "subject": "礼品采购需求跟进",
+      "html_ref": "artifact_html_demo_1",
+      "text_ref": "artifact_text_demo_1",
+      "attachments": [
+        {
+          "artifact_id": "artifact_pdf_demo_1",
+          "filename": "proposal.pdf",
+          "mime": "application/pdf",
+          "size": 128,
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "evidence_refs": [
+        "catalog_revision_demo_1"
+      ],
+      "unresolved_items": [],
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "control-command_valid",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo_1",
+      "action": "approve",
+      "expected_task_revision": 2,
+      "target_version": 1,
+      "target_content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "control-command_unknown_version",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "2.0",
+      "command_id": "cmd_demo_1",
+      "action": "approve",
+      "expected_task_revision": 2,
+      "target_version": 1,
+      "target_content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "approval_valid",
+    "operation": "validate",
+    "kind": "approval",
+    "value": {
+      "schema_version": "1.0",
+      "approval_id": "approval_demo_1",
+      "client_id": "client_demo_a",
+      "task_id": "task_demo_1",
+      "logical_message_id": "first_followup_demo_1",
+      "operator_id": "operator_demo_a",
+      "channel": "wecom",
+      "snapshot_version": 1,
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sender_id": "sender_demo_a",
+      "recipients_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "control_epoch": 1,
+      "context_epoch": 1,
+      "approved_at": "2026-10-23T09:00:00Z",
+      "expires_at": "2026-10-24T09:00:00Z"
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "approval_unknown_version",
+    "operation": "validate",
+    "kind": "approval",
+    "value": {
+      "schema_version": "2.0",
+      "approval_id": "approval_demo_1",
+      "client_id": "client_demo_a",
+      "task_id": "task_demo_1",
+      "logical_message_id": "first_followup_demo_1",
+      "operator_id": "operator_demo_a",
+      "channel": "wecom",
+      "snapshot_version": 1,
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sender_id": "sender_demo_a",
+      "recipients_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "control_epoch": 1,
+      "context_epoch": 1,
+      "approved_at": "2026-10-23T09:00:00Z",
+      "expires_at": "2026-10-24T09:00:00Z"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "run-context_valid",
+    "operation": "validate",
+    "kind": "run-context",
+    "value": {
+      "schema_version": "1.0",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "task_id": "task_demo_1",
+      "run_id": "run_demo_1",
+      "runtime_id": "runtime_demo_a",
+      "source_ref": {
+        "installation_id": "channel_demo_a",
+        "kind": "website_oem",
+        "id": "oem_demo_001",
+        "revision": "1"
+      },
+      "control_epoch": 1,
+      "inquiry_snapshot_ref": "inquiry_demo_1",
+      "output_dir_ref": "output_demo_1",
+      "allowed_tools": [
+        "read_inquiry",
+        "read_products"
+      ]
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "run-context_unknown_version",
+    "operation": "validate",
+    "kind": "run-context",
+    "value": {
+      "schema_version": "2.0",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "task_id": "task_demo_1",
+      "run_id": "run_demo_1",
+      "runtime_id": "runtime_demo_a",
+      "source_ref": {
+        "installation_id": "channel_demo_a",
+        "kind": "website_oem",
+        "id": "oem_demo_001",
+        "revision": "1"
+      },
+      "control_epoch": 1,
+      "inquiry_snapshot_ref": "inquiry_demo_1",
+      "output_dir_ref": "output_demo_1",
+      "allowed_tools": [
+        "read_inquiry",
+        "read_products"
+      ]
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "inquiry.invalid-chat-link",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-10-23T09:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": [],
+      "conversation_id": "should_not_be_transferred"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "inquiry.invalid-missing-record",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_revision": "1",
+      "submitted_at": "2026-10-23T09:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "invalid_date",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-02-30T09:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "invalid_email",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-10-23T09:00:00Z",
+      "contact": {
+        "email": "buyer@@example.invalid"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "injected_subject",
+    "operation": "validate",
+    "kind": "mail-snapshot",
+    "value": {
+      "schema_version": "1.0",
+      "task_id": "task_demo_1",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "logical_message_id": "first_followup_demo_1",
+      "version": 1,
+      "source_revision": "1",
+      "context_epoch": 1,
+      "sender_id": "sender_demo_a",
+      "from": "sales@example.invalid",
+      "reply_to": [],
+      "to": [
+        "buyer@example.invalid"
+      ],
+      "cc": [],
+      "bcc": [],
+      "approved_headers": {},
+      "subject": "subject\n",
+      "html_ref": "artifact_html_demo_1",
+      "text_ref": "artifact_text_demo_1",
+      "attachments": [
+        {
+          "artifact_id": "artifact_pdf_demo_1",
+          "filename": "proposal.pdf",
+          "mime": "application/pdf",
+          "size": 128,
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "evidence_refs": [
+        "catalog_revision_demo_1"
+      ],
+      "unresolved_items": [],
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "forged_header",
+    "operation": "validate",
+    "kind": "mail-snapshot",
+    "value": {
+      "schema_version": "1.0",
+      "task_id": "task_demo_1",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "logical_message_id": "first_followup_demo_1",
+      "version": 1,
+      "source_revision": "1",
+      "context_epoch": 1,
+      "sender_id": "sender_demo_a",
+      "from": "sales@example.invalid",
+      "reply_to": [],
+      "to": [
+        "buyer@example.invalid"
+      ],
+      "cc": [],
+      "bcc": [],
+      "approved_headers": {
+        "Bcc": "outsider@example.invalid"
+      },
+      "subject": "礼品采购需求跟进",
+      "html_ref": "artifact_html_demo_1",
+      "text_ref": "artifact_text_demo_1",
+      "attachments": [
+        {
+          "artifact_id": "artifact_pdf_demo_1",
+          "filename": "proposal.pdf",
+          "mime": "application/pdf",
+          "size": 128,
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "evidence_refs": [
+        "catalog_revision_demo_1"
+      ],
+      "unresolved_items": [],
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "hash_trailing_newline",
+    "operation": "validate",
+    "kind": "mail-snapshot",
+    "value": {
+      "schema_version": "1.0",
+      "task_id": "task_demo_1",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "logical_message_id": "first_followup_demo_1",
+      "version": 1,
+      "source_revision": "1",
+      "context_epoch": 1,
+      "sender_id": "sender_demo_a",
+      "from": "sales@example.invalid",
+      "reply_to": [],
+      "to": [
+        "buyer@example.invalid"
+      ],
+      "cc": [],
+      "bcc": [],
+      "approved_headers": {},
+      "subject": "礼品采购需求跟进",
+      "html_ref": "artifact_html_demo_1",
+      "text_ref": "artifact_text_demo_1",
+      "attachments": [
+        {
+          "artifact_id": "artifact_pdf_demo_1",
+          "filename": "proposal.pdf",
+          "mime": "application/pdf",
+          "size": 128,
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "evidence_refs": [
+        "catalog_revision_demo_1"
+      ],
+      "unresolved_items": [],
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "pause_without_revision",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "pause"
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "takeover_without_revision",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "takeover"
+    },
+    "expected": {
+      "accepted": true
+    }
+  },
+  {
+    "id": "approve_without_revision",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "approve"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "resume_without_revision",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "resume"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "revise_without_revision",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "revise"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "canonical_0",
+    "operation": "canonical",
+    "raw": "{\"2\":2,\"10\":10,\"1\":1,\"😀\":1,\"\\uE000\":2}",
+    "expected": {
+      "accepted": true,
+      "canonical": "{\"1\":1,\"10\":10,\"2\":2,\"\":2,\"😀\":1}",
+      "sha256": "5dbbc39667b71b8985e479562c4f5d77d86d5bd4ee968765b2259b5f0e53053d"
+    }
+  },
+  {
+    "id": "canonical_1",
+    "operation": "canonical",
+    "raw": "{\"text\":\"é é \\n\\t\\b\\f\\r\\u0000 \\u2028\\u2029 / \\\" \\\\\"}",
+    "expected": {
+      "accepted": true,
+      "canonical": "{\"text\":\"é é \\n\\t\\b\\f\\r\\u0000    / \\\" \\\\\"}",
+      "sha256": "5403ade0f4accc6371e1200191d30057c8f4d3d1b9c70d585b26f4039bd063b7"
+    }
+  },
+  {
+    "id": "canonical_2",
+    "operation": "canonical",
+    "raw": "{\"array\":[null,true,false,-9007199254740991,9007199254740991]}",
+    "expected": {
+      "accepted": true,
+      "canonical": "{\"array\":[null,true,false,-9007199254740991,9007199254740991]}",
+      "sha256": "92e0154946f2bc976af797a0e54c185f9902161e5919e806bd5e4d02c9c39e45"
+    }
+  },
+  {
+    "id": "canonical_3",
+    "operation": "canonical",
+    "raw": "-0",
+    "expected": {
+      "accepted": true,
+      "canonical": "0",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    }
+  },
+  {
+    "id": "canonical_4",
+    "operation": "canonical",
+    "raw": "{\"__proto__\":{\"safe\":true}}",
+    "expected": {
+      "accepted": true,
+      "canonical": "{\"__proto__\":{\"safe\":true}}",
+      "sha256": "05e0daf9b918eb13ac646a329e744f724277e0fb9c67622f923804f69d0de5a2"
+    }
+  },
+  {
+    "id": "canonical_5",
+    "operation": "canonical",
+    "raw": "{\"é\":1,\"é\":2}",
+    "expected": {
+      "accepted": true,
+      "canonical": "{\"é\":2,\"é\":1}",
+      "sha256": "a7962fb10dc1255be368ece9c22b2256605921dc6d0a8c9409d3ee406bcb86e5"
+    }
+  },
+  {
+    "id": "rejected_json_0",
+    "operation": "canonical",
+    "raw": "{\"id\":1,\"\\u0069d\":2}",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_1",
+    "operation": "canonical",
+    "raw": "9007199254740993",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_2",
+    "operation": "canonical",
+    "raw": "-9007199254740992",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_3",
+    "operation": "canonical",
+    "raw": "1.0",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_4",
+    "operation": "canonical",
+    "raw": "1e0",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_5",
+    "operation": "canonical",
+    "raw": "NaN",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_6",
+    "operation": "canonical",
+    "raw": "Infinity",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_7",
+    "operation": "canonical",
+    "raw": "\"\\ud800\"",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_8",
+    "operation": "canonical",
+    "raw": "{\"a\":1,}",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_9",
+    "operation": "canonical",
+    "raw": "/*x*/{}",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_10",
+    "operation": "canonical",
+    "raw": "",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "rejected_json_11",
+    "operation": "canonical",
+    "raw": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_format_reject_0",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-10-23T09:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid\n"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_format_reject_1",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2016-12-31T23:59:60Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_format_reject_2",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-01-01 00:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_format_reject_3",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "0000-01-01T00:00:00Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_format_reject_4",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-01-01t00:00:00z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_format_reject_5",
+    "operation": "validate",
+    "kind": "inquiry",
+    "value": {
+      "schema_version": "1.0",
+      "event_id": "inquiry.demo.oem.001",
+      "client_id": "client_demo_a",
+      "business_line": "gift_oem",
+      "source_installation_id": "channel_demo_a",
+      "source": "website_oem",
+      "source_record_id": "oem_demo_001",
+      "source_revision": "1",
+      "submitted_at": "2026-01-01T00:00:00.1234567Z",
+      "contact": {
+        "email": "buyer@example.invalid",
+        "name": "示例买家",
+        "company": "示例公司"
+      },
+      "requirements": {
+        "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+        "quantity": 500
+      },
+      "product_snapshot_refs": [],
+      "attachment_refs": []
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_blank_reject_0",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "revise",
+      "expected_task_revision": 1,
+      "instruction": ""
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_blank_reject_1",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "revise",
+      "expected_task_revision": 1,
+      "instruction": "\u001c"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_blank_reject_2",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "revise",
+      "expected_task_revision": 1,
+      "instruction": "﻿"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "portable_blank_reject_3",
+    "operation": "validate",
+    "kind": "control-command",
+    "value": {
+      "schema_version": "1.0",
+      "command_id": "cmd_demo",
+      "action": "revise",
+      "expected_task_revision": 1,
+      "instruction": " \t\n"
+    },
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "depth_64_leaf_True",
+    "operation": "canonical",
+    "raw": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "expected": {
+      "accepted": true,
+      "canonical": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "sha256": "f0244ae1938270f711155b0a26a4307cde7050495140dd858a88a1cfc378cf40"
+    }
+  },
+  {
+    "id": "depth_65_leaf_False",
+    "operation": "canonical",
+    "raw": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "expected": {
+      "accepted": true,
+      "canonical": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "sha256": "d3ee90dfd8c7ae285b99965bc228314571a3a09deb168b69aa871a2d5bcef236"
+    }
+  },
+  {
+    "id": "depth_65_leaf_True",
+    "operation": "canonical",
+    "raw": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "expected": {
+      "accepted": false
+    }
+  },
+  {
+    "id": "depth_66_leaf_False",
+    "operation": "canonical",
+    "raw": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "expected": {
+      "accepted": false
+    }
+  }
+]

@@ -30,6 +30,8 @@ type ClientBinding = {
 
 ## 2. 正式询盘事件
 
+运行schema及生成类型见packages/sales-contracts；此处原有schema/样例相对链接指向唯一包来源。以下形状目前只完成SG0.1离线校验，不代表接口或授权已实现。
+
 统一事件由 Channel 适配器从已保存业务记录产生；`inquiry.schema.json` 及 [样例](inquiry.example.json) 给出最小可校验形状。事件带事实及有限摘要，不携带完整聊天。不同原表保留自己的 ID。
 
 ```ts
@@ -78,6 +80,7 @@ GET读取可安全重试；POST 持久状态以业务幂等键去重。429按官
 
 ```ts
 type SalesRunContext = {
+  schema_version: '1.0';
   client_id: string; business_line: string;
   task_id: string; run_id: string; runtime_id: string;
   source_ref: { installation_id: string; kind: string; id: string; revision: string };
@@ -85,6 +88,7 @@ type SalesRunContext = {
   output_dir_ref: string; allowed_tools: string[];
 };
 type MailSnapshot = {
+  schema_version: '1.0';
   task_id: string; client_id: string; business_line: string;
   logical_message_id: string; // 一封邮件的稳定身份，改稿不变
   version: number; source_revision: string; context_epoch: number;
@@ -106,6 +110,7 @@ type MailSnapshot = {
 
 ```ts
 type ControlCommand = {
+  schema_version: '1.0';
   command_id: string;
   action: 'revise' | 'approve' | 'reject' | 'pause' | 'takeover' | 'resume';
   expected_task_revision?: number; // approve/revise/reject/resume必填；pause/takeover对最新状态生效
@@ -115,6 +120,7 @@ type ControlCommand = {
 };
 // actor、client、角色从已验证会话/企微绑定注入，不接受模型自报。
 type Approval = {
+  schema_version: '1.0';
   approval_id: string; client_id: string; task_id: string; logical_message_id: string;
   operator_id: string; channel: 'wecom' | 'web';
   snapshot_version: number; content_sha256: string;
@@ -126,7 +132,9 @@ type Approval = {
 
 测试阶段由服务器固定test_recipient_allowlist和测试身份；确认信、回复、维护及Apollo测试活动统一约束实际To/CC/BCC与发件连接。采用独立合成测试任务，不把真实买家To改成测试邮箱而继续沿用真实业务归档。原生平台手动操作不受我方网关控制，测试使用隔离测试环境/明确操作限制。
 
-`approve` 必须绑定 snapshot 和主体权限；scope包含该业务及允许发件邮箱。网关由 Approval 读取真正 payload，模型不得向 send 动作另外传 to/html/attachments。首期建议审批有效期24小时（产品默认建议，非官方要求，可按客户规则调整）；新来信/改稿/暂停等即使未过期也撤销批准。
+`approve` 必须绑定 snapshot 和主体权限；scope包含该业务及允许发件邮箱。网关由 Approval 读取真正 payload，模型不得向 send 动作另外传 to/html/attachments。reject必须指定目标版本；revise必须有非空指令；这些只校验数据形状，是否获权仍由后续控制后端判断。
+
+首期建议审批有效期24小时（产品默认建议，非官方要求，可按客户规则调整）；新来信/改稿/暂停等即使未过期也撤销批准。
 
 批准/恢复/改稿需要严格匹配预期revision。暂停/接管由有权操作人针对同一任务最新状态原子执行，即便页面revision已旧也不拒绝安全停止；返回在途发送范围及结果。任务身份/客户授权仍不可省略。
 
@@ -139,3 +147,7 @@ type Approval = {
 联系人以 `(client_id, provider_contact_id)` 关联，email归并限定客户并保留业务/source多值。`marketing_permission` 为 unknown/allowed/denied，证据、目的/Topic与时间独立保存。维护发送要求对应许可；普通询盘回复也要遵守拒绝联系等规则。人工批准内容不等于替联系人授予营销许可。
 
 `ChannelReceipt` 只存来源引用、task_id、artifact_ref、send_operation_id/provider_id、状态与 revision/时间。它是已同步事实，显示同步时间；不声称实时Agent状态。第一期即使不回写，Hermes留档仍为必需，不能只靠群消息或临时文件。
+
+## SG0.1共同格式
+
+数据合同1.0要求邮箱为ASCII addr-spec/DNS域名并拒绝CR/LF；时间为0001至9999年、UTC大写T/Z、秒00至59和最多6位小数。JSON安全整数、根值深度0至64、原始输入/固定JSON最多262144字节。改稿空白字符集合由schema明确列出，避免两种语言的`\S`差异。该包只校验元数据；真实正文/附件的hash、地址类别冲突和授权在后续冻结/发送层验收。
