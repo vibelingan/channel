@@ -59,6 +59,12 @@
 
 现只给本文件五处只读身份探针加 `maxRetries: 1`，保持原有 HTTP 成功、mode=local、确切 DB 路径及凭据/变更开关检查。没有重试 POST 写操作、重跑整个测试组、跳过失败或变更业务预算。[官方 APIRequestContext 文档](https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get-option-max-retries) 与安装 Playwright1.61.1 类型均确认该选项只重试 ECONNRESET，默认不重试 HTTP 状态码。真实本地 HTTP 受控探针验证：默认单次 reset 失败；加一次重试后单次 reset 恢复；连续 reset 两次仍失败；HTTP500 只请求一次并仍返回500。未将缺少证据的具体 socket 关闭原因写成确定根因。 修正后同一完整后台组 12/12 通过（约 2.7 分钟，含单件、混合分类 20 件、表格 20 件及原生恢复计数），E2E 类型检查通过。
 
+## 准备控件测试的计数边界
+
+`bd241855` 的部署前完整回归在准备控件浏览器测试失败：实际动作多一个 `status`，取消和重试仍各一次，部署自动跳过。旧测试点击 Check result 后立即记录下一段动作的起点；慢响应下，上一次查看结果尚未到达路由，就被计入下一段。对该次状态读取注入 400ms 延迟，本地复现与 Linux 完全相同的额外 `status`。
+
+现在先等 Cancel preparation 按钮可用，确认上次状态读取及界面更新完成，再记录起点。原五步请求顺序、取消/重试次数、错误断言及所有恢复场景保持不变。相同延迟场景通过，正常完整用例通过；故意注入第二次 cancel 仍被原精确断言拦住。受控副本已删除；没有修改业务控件或新增重试、跳过、时间预算。
+
 ## 审查范围与结果
 
 按项目 `ENGINEERING_CRAFT.md`、SDK 合约要求、TypeScript 最佳实践及实际调用链检查。遵守所有者不使用子代理的要求，由当前执行者完成审查，没有声称进行独立多代理评审。

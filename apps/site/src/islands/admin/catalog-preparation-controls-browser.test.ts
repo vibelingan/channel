@@ -327,6 +327,9 @@ test(
     assert.equal(actions.at(-1), 'status');
     mode = 'cancel-success';
     await panel.getByRole('button', { name: 'Check result', exact: true }).click();
+    await expect(
+      panel.getByRole('button', { name: 'Cancel preparation', exact: true }),
+    ).toBeEnabled();
     const beforeConfirmedCancel = actions.length;
     await panel.getByRole('button', { name: 'Cancel preparation', exact: true }).click();
     await expect(panel).toContainText('Preparation was cancelled');
