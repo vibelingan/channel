@@ -992,6 +992,9 @@ test.describe('public browser smoke', () => {
         expect(count, `${id} request multiplicity`).toBeLessThanOrEqual(id === 'miu8-a1' ? 3 : 1);
       }
 
+      // Late web-font swaps can move the gallery and trigger scroll anchoring.
+      // Finish font layout before measuring whether pointer movement changes it.
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
       await frame.scrollIntoViewIfNeeded();
       await page.mouse.move(1, 1);
       // The detail expansion smooth-scrolls into view; sample only after the
