@@ -88,3 +88,5 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 第二段本地收尾：`pnpm test` 实际运行 3,379 项，3,376 通过，3 项既有跳过，零失败；随后补充的 HTTP/范围检查单独运行 11 项通过。SDK gate、交付入口类型检查、真实函数 bundle（无云凭证）、本地页面队列/取消/重试，以及公开文章三项浏览器检查和四种构建通过。完整 workspace 类型检查在最后修正测试类型后重跑。截图已保存到 [编辑页发布区域](evidence/2026-10-23/publication-queued.png)。
 
 现场只读检查另发现：缺失地址返回 HTTP 404，但网站错误文档配置当前为 `index.html`，正文仍是首页；`errors/not-found.html` 可正常读取。这说明此前修复的设置被旧的部署重新写回。pricing 当前 Deploy Test 尚在部署，本轮不抢占。继续采用原有 F1 维护入口排队、备份和重新核对后处理，不把“404 状态正确”当成错误页完整验收通过。正式页面摘要发生外部变化时，dummy 停止继续写入。
+
+首次推送 `1d2c7d4e`：dummy 专项远端检查 [39953453948](https://github.com/vibelingan/channel/actions/runs/39953453948) 通过，包括真正的 Astro 构建、函数包和后台浏览器操作。原有离线模块 CI [39953454093](https://github.com/vibelingan/channel/actions/runs/39953454093) 在格式检查阶段停止，原因是遗漏五个新文件的格式化（共七条诊断）；已补齐并在本地完整 `pnpm lint` 检查 991 个文件通过。这里保留首次失败，不将它改记为通过；修正提交继续由远端验收。

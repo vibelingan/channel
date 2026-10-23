@@ -6,8 +6,6 @@ import SiteHeader from '../components/SiteHeader.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import {
-  dummyBlogLocation,
-  publicBlogLocation,
   articleBody,
   articleDate,
   articlePage,
@@ -15,16 +13,22 @@ import {
   articleSummary,
   blogCopy,
   blogPage,
+  dummyBlogLocation,
+  publicBlogLocation,
 } from '../lib/blog/page.ts';
 
 interface Props {
- articles: ArticlePageData[]; article: ArticlePageData | null; dummy?: boolean;
+  articles: ArticlePageData[];
+  article: ArticlePageData | null;
+  dummy?: boolean;
 }
 const { articles, article, dummy = false } = Astro.props;
 const location = dummy ? dummyBlogLocation : publicBlogLocation;
 const site = getSiteContent(DEFAULT_LOCALE);
 const origin = (Astro.site ?? Astro.url.origin).toString();
-const page = article ? articlePage(article, origin, site.brand.name, location) : blogPage(articles, origin, site.brand.name, location);
+const page = article
+  ? articlePage(article, origin, site.brand.name, location)
+  : blogPage(articles, origin, site.brand.name, location);
 ---
 <BaseLayout page={page} lang="en">
   <SiteHeader brand={site.brand} nav={site.nav} />

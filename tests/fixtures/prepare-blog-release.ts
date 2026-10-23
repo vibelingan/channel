@@ -6,4 +6,19 @@ if (!directory) throw new Error('Owned fixture output required');
 const accepted = publishedArticleFixture();
 const { status: _status, deliveryId: _deliveryId, acceptedAt: _acceptedAt, ...data } = accepted;
 await mkdir(directory, { recursive: true });
-await writeFile(join(directory, 'release.json'), JSON.stringify({ siteOrigin: 'http://localhost:4321', release: { schemaVersion: 1, purpose: 'article-release', taskId: 'task-one', articleId: data.articleId, revision: data.revision, operation: 'publish', accepted: [], candidate: { ...data, taskId: 'task-one', status: 'candidate' } } }));
+await writeFile(
+  join(directory, 'release.json'),
+  JSON.stringify({
+    siteOrigin: 'http://localhost:4321',
+    release: {
+      schemaVersion: 1,
+      purpose: 'article-release',
+      taskId: 'task-one',
+      articleId: data.articleId,
+      revision: data.revision,
+      operation: 'publish',
+      accepted: [],
+      candidate: { ...data, taskId: 'task-one', status: 'candidate' },
+    },
+  }),
+);
