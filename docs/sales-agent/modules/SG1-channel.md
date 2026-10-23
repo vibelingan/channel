@@ -4,7 +4,7 @@
 
 ## 复用事实与写范围
 
-SG1.0已完成[源码核对](../evidence/SG1.0-BASELINE.md)。后续实现参考main `404d1a25`；正式单品询盘在该版本及Phase 2 `a7e16aa2`均已具备事务、幂等、快照、管理历史，生产transport已接线。OEM保存及附件激活后best-effort发SMTP确认，无持久发送账。旧模拟组件不等于当前正式目录在走dummy；客服预填仍是设计。功能开关和部署未验证，产品代码尚未整合到销售worktree。
+SG1.0已完成[源码核对](../evidence/SG1.0-BASELINE.md)。SG1.1使用以main `404d1a25`为起点的销售集成分支；正式单品询盘在该版本及Phase 2 `a7e16aa2`均已具备事务、幂等、快照、管理历史，生产transport已接线。OEM保存及附件激活后best-effort发SMTP确认，无持久发送账。旧模拟组件不等于当前正式目录在走dummy；客服预填仍是设计。功能开关和部署未验证，既有产品代码保持main原内容。
 
 候选新增范围：`apps/functions/sales-integration/`、`packages/db/src/sales-inquiry-*`及对应tests；现有OEM/单品保存路径只加最小交接，产品schema/限流/批准revision校验继续复用。SDK、Storage或事务代码实施前遵守项目CloudBase contract gate，核对选定基线的已安装包和官方合同。
 

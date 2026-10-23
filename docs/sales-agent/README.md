@@ -21,9 +21,9 @@ SG1.0源码核对可运行`python3 docs/sales-agent/check_source_snapshot.py`，
 ## 工作区
 
 - 新 worktree：`${SALES_WORKTREE}`
-- 分支：`feat/sales-agent-modular-design`
-- 起点：Channel `03be923c0d7f8cf0f8bfa86a9f8224ba07315f17`
-- 这是独立的销售模块工作区。SG1.0选定main的`404d1a25`为后续Channel实现参考，Phase 2的`a7e16aa2`用于客服设计参考。正式单品询盘已同时存在于两者；这些产品代码尚未整合到本worktree，不能把旧起点缺少代码误判成需要重写。
+- 当前集成分支：`feat/sales-agent-integration`；原`feat/sales-agent-modular-design`保留在远端，包含SG0.2的原始提交。
+- 当前起点：main `404d1a257722175dcd70916e3f92ec6763fa0243`，仅带入我们自己的销售提交。原设计分支起点为`03be923c`。
+- 主线已有询盘、产品快照和后台代码已直接复用，逐字节保持main原内容；Phase 2的`a7e16aa2`仍用于客服设计参考。直接merge曾被仓库绝对路径检查拦住，改从main建立集成分支并带入销售提交，没有绕过检查或改主线历史文档。
 - 原工作区及旧讨论文件保持原样。`reference/` 是有来源清单的历史设计副本，不是新的规范入口。
 
 本目录规定的是新增销售自动化范围。官网客服原有架构及 Phase 2 继续管理公开接待能力；HermesInfra 的跨项目改动在其独立工作区实施，不在本仓库伪造平台代码。客户方案是否签定不由本轮代替决定；未获客户授权前可做契约、假服务和测试，真实账号连接及对外动作仍需相应授权。

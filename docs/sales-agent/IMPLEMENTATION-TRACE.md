@@ -64,3 +64,11 @@ SG1.0是源码审计，没有新增产品行为，不对生产代码进行RED/GR
 复用方案的成本是每次读取授权配置，避免长期缓存放过撤权。未选择按模型prompt、公共客服角色或Partner Seat自动授权。控制停用不宣称撤回已接受的外部请求；发送回调只能用于权限前置验证，SG5精确批准及发送账未实现。
 
 实际RED→GREEN：拒绝全部骨架下4个正向行为失败；实现允许路径后10项通过；新增publisher不能读取的反例先失败，补角色约束后12项通过。合同包21 TS/6 Python/58共享样例、生成类型、typecheck通过。查阅并核对access.ts、access.test.ts、client-bindings schema及包README；将“真实工具目标”改为“限定范围的工具目标”，明确测试仅为本地canary，不冒充真实平台联调。详见[SG0.2验证](evidence/SG0.2-VALIDATION.md)。
+
+SG0.2原提交bf8e429b已推送，[远端检查39891019917](https://github.com/vibelingan/channel/actions/runs/39891019917)成功后开始SG1.1。
+
+### 主线整合的处理
+
+直接merge main仅有锁文件冲突，机械补回销售依赖后frozen install和21个合同测试通过；但提交检查将主线历史文档的绝对用户路径算入此次新增而阻止提交。未改历史文档或关闭检查，已abort本次merge；改从404d1a25建立feat/sales-agent-integration，仅cherry-pick我们自己的5个销售提交。原分支和远端记录保留。
+
+当前与404d1a25的差异经NUL分隔路径检查，只有docs/sales-agent、packages/sales-contracts、独立sales CI及锁文件；其余产品文件逐字节匹配主线。锁文件保留main所有已有条目，只新增1个importer、11个package、11个snapshot，无其他依赖升级。后续SG1.1在此集成分支推进。

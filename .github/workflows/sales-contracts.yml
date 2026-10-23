@@ -2,7 +2,7 @@ name: Sales contracts
 
 on:
   push:
-    branches: [feat/sales-agent-modular-design]
+    branches: [feat/sales-agent-modular-design, feat/sales-agent-integration]
     paths:
       - 'packages/sales-contracts/**'
       - 'pnpm-lock.yaml'
