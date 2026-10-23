@@ -156,6 +156,7 @@ for (const overrides of [{ TriggerDesc: '0 * * * * * *' }, { Type: 'http' }]) {
       action: 'deleteFunctionTrigger',
       functionName: def.name,
       triggerName: ALIBABA_SYNC_TIMER.name,
+      confirm: true,
     });
     assert.deepEqual(client.calls[3].args, {
       action: 'createFunctionTrigger',
@@ -246,6 +247,60 @@ test('equivalent reordered trigger readback preserves type and schedule without 
   reconcileTriggers(def, wanted, client);
   assert.ok(client.calls.every(({ args }) => args.action === 'getFunctionDetail'));
 });
+
+test('the live SCF JSON cron readback preserves an already correct timer', () => {
+  const live = timer({ TriggerDesc: JSON.stringify({ cron: ALIBABA_SYNC_TIMER.config }) });
+  const client = tools(detail([live]), detail([timer()]), detail([live]));
+  reconcileTriggers(def, desired, client);
+  assert.ok(client.calls.every(({ args }) => args.action === 'getFunctionDetail'));
+  assert.deepEqual(client.messages, []);
+});
+
+test('a changed JSON cron is replaced with explicit deletion confirmation and read back', () => {
+  let current = [timer({ TriggerDesc: JSON.stringify({ cron: '0 * * * * * *' }) })];
+  const calls = [];
+  reconcileTriggers(def, desired, {
+    logger: { log() {} },
+    callTool(_selector, args) {
+      calls.push(args.action);
+      if (args.action === 'getFunctionDetail') return detail(current);
+      if (args.action === 'deleteFunctionTrigger') {
+        if (args.confirm !== true) return failure();
+        assert.equal(args.triggerName, ALIBABA_SYNC_TIMER.name);
+        current = [];
+        return { success: true };
+      }
+      assert.equal(args.action, 'createFunctionTrigger');
+      assert.deepEqual(args.triggers, desired);
+      current = [timer({ TriggerDesc: JSON.stringify({ cron: ALIBABA_SYNC_TIMER.config }) })];
+      return { success: true };
+    },
+  });
+  assert.deepEqual(calls, [
+    'getFunctionDetail',
+    'deleteFunctionTrigger',
+    'getFunctionDetail',
+    'createFunctionTrigger',
+    'getFunctionDetail',
+  ]);
+});
+
+for (const config of [
+  '{',
+  '{}',
+  '{"cron":0}',
+  '{"cron":""}',
+  '{"cron":"0 * * * * * *","unknown":true}',
+]) {
+  test(`unrecognized timer JSON must fail before removing any trigger: ${config}`, () => {
+    const client = tools(
+      detail([timer(), timer({ TriggerName: 'unrecognized', TriggerDesc: config })]),
+    );
+    assert.throws(() => reconcileTriggers(def, desired, client), /invalid.*timer.*config/);
+    assert.equal(client.calls.length, 1);
+    assert.deepEqual(client.messages, []);
+  });
+}
 
 test('an acknowledged but ineffective trigger deletion fails final readback', () => {
   const stale = [timer({ TriggerDesc: '0 * * * * * *' })];

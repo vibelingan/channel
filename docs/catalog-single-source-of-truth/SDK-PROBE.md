@@ -911,3 +911,8 @@ No new SDK method/shim/dependency/env/table/lock. Existing transaction point rea
 调用预算现在显式传入CLI，外层execFileSync多10秒收尾。正常及allowFailure路径用同一解析器拒绝error/isError，不输出错误正文中的签名或token；不改变正常管理API返回数据。原进程错误脱敏和受控重试仍保留，上传外层最多一次仍保留。备用上传要求success=true且确认具体动作、对象键、本地ZIP路径，不再把缺success标记当成成功。没有新第三方SDK、环境变量或声明；仅使用已通过实际帮助和源码核对的CLI参数。
 
 修正后的真实CLI探针已完成：故障注入只作用于首个PUT；实际原配置MCP两版本负责环境/权限/上传，上传明确确认后，经实际CLI从同一对象完整下载9,082,431字节，与上传ZIP逐字节一致、SHA-256为104753f2919dd16fb0b15ffc92c9795849c78f6f391579e0371c7c240c7f44e9，匿名403，随后确切对象删除。函数导入被明确拦截，未计为真实部署，也未修改商品。日志为任务输出 acknowledged-native-cli-readback.log。本地最终部署测试542/542、协议/上传37/37、SDK合约及格式检查通过。
+
+
+### 2026-10-23：定时器创建参数与读回格式
+
+当前 test 环境实际 `listFunctionTriggers` 返回 `TriggerDesc` 为 JSON 字符串，内容仅有 `cron`，与 manifest 的纯 cron 参数表示同一设置。固定管理 MCP 2.24.1 安装源码确认：创建将 `trigger.config` 原样传给 SCF；删除入口先执行 `requireConfirm(input.action,input.confirm)`，再调用 SDK。当前 MCP 工具文档同样提供 `confirm?:boolean`。本次只规范化已观察到的 cron JSON 格式，未知结构拒绝执行；不改 SDK、类型声明或定时任务行为。正式 SDK 验证继续执行。Context7 在本会话不可用，依据为官方 MCP 文档、固定安装源码和实际读回。

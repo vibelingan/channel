@@ -98,6 +98,18 @@ function normalizeTrigger(trigger, label = 'trigger') {
     }
     normalized[field] = value;
   }
+  if (normalized.type === 'timer' && normalized.config.trimStart().startsWith('{')) {
+    let config;
+    try {
+      config = JSON.parse(normalized.config);
+    } catch {
+      throw new Error(`${label}: invalid timer config JSON.`);
+    }
+    if (!isRecord(config) || Object.keys(config).length !== 1 || !isNonEmptyString(config.cron)) {
+      throw new Error(`${label}: invalid timer config; expected only a non-empty cron.`);
+    }
+    normalized.config = config.cron;
+  }
   return normalized;
 }
 
@@ -127,6 +139,7 @@ export function reconcileTriggers(def, desired, { callTool, logger = console }) 
         action: 'deleteFunctionTrigger',
         functionName: def.name,
         triggerName: name,
+        confirm: true,
       });
       assertToolSucceeded(removed, `${def.name}/${name}: deleteFunctionTrigger`);
     }
