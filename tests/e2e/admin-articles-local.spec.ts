@@ -199,34 +199,65 @@ test('the real Tiptap schema round-trips every enabled node without losing saved
       data: {
         operation: 'create',
         requestId: 'editor-schema-roundtrip',
-        content: { title: 'Editor schema contract', slug: '', body: editorContractDocument },
+        content: {
+          title: 'Editor schema contract',
+          slug: '',
+          body: {
+            ...editorContractDocument,
+            document: {
+              type: 'doc',
+              content: editorContractDocument.document.content.filter(
+                (node) => node.type !== 'articleImage',
+              ),
+            },
+          },
+        },
       },
     },
   });
   expect(created.ok()).toBe(true);
   const record = await created.json();
   expect(record.ok).toBe(true);
+  if (!token) throw new Error('Local token required');
+  const mediaId = await apiUpload(page, token, record.data.id);
+  const document = structuredClone(editorContractDocument);
+  for (const node of document.document.content)
+    if (node.type === 'articleImage') node.attrs.mediaId = mediaId;
+  const saved = await page.request.post(`${api}/api/admin`, {
+    data: {
+      action: 'articleDrafts',
+      token,
+      data: {
+        operation: 'save',
+        articleId: record.data.id,
+        expectedRevision: 1,
+        content: { title: 'Editor schema contract', slug: '', body: document },
+      },
+    },
+  });
+  expect(saved.ok()).toBe(true);
+
   await page.reload();
   await page.getByRole('button', { name: 'Articles', exact: true }).click();
   await open(page, 'Editor schema contract');
   const body = page.getByRole('textbox', { name: 'Article body' });
   const before = await body.evaluate((element) => Reflect.get(element, 'editor').getJSON());
-  expect(fromTiptapJSON(before)).toEqual(editorContractDocument);
+  expect(fromTiptapJSON(before)).toEqual(document);
   await body.press('ControlOrMeta+End');
   await body.pressSequentially(' revised');
   const expected = fromTiptapJSON(
     await body.evaluate((element) => Reflect.get(element, 'editor').getJSON()),
   );
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByText('Saved · revision 2', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved · revision 3', { exact: true })).toBeVisible();
   const store = JSON.parse(await readFile(database ?? '', 'utf8'));
   const row = store.articleDrafts.find(
     (row: { draft: { id: string } }) => row.draft.id === record.data.id,
   );
   expect(row.draft.content.body).toEqual(expected);
-  expect(JSON.stringify(row.draft.content.body)).toContain('saved-image');
+  expect(JSON.stringify(row.draft.content.body)).toContain(mediaId);
   await page.getByRole('button', { name: 'Preview', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('image references are preserved');
+  await expect(page.getByRole('region', { name: 'Draft preview' }).locator('img')).toBeVisible();
 });
 
 test('common formatting controls, private preview and desktop/mobile layout remain usable', async ({
@@ -307,4 +338,236 @@ test('common formatting controls, private preview and desktop/mobile layout rema
       fullPage: true,
     });
   }
+});
+
+const articlePixel = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jV1sAAAAASUVORK5CYII=',
+  'base64',
+);
+async function apiUpload(page: Page, token: string, articleId: string) {
+  const { createHash } = await import('node:crypto');
+  const api = process.env.E2E_API_URL;
+  if (!api || new URL(api).hostname !== '127.0.0.1') throw new Error('Owned loopback API required');
+  const intentResponse = await page.request.post(`${api}/api/admin`, {
+    data: {
+      action: 'articleMedia',
+      token,
+      data: {
+        operation: 'intent',
+        articleId,
+        requestId: crypto.randomUUID(),
+        file: {
+          fileName: 'pixel.png',
+          mimeType: 'image/png',
+          byteSize: articlePixel.length,
+          checksumSha256: createHash('sha256').update(articlePixel).digest('hex'),
+        },
+      },
+    },
+  });
+  expect(intentResponse.ok()).toBe(true);
+  const { data: intent } = await intentResponse.json();
+  expect(
+    (
+      await page.request.put(intent.upload.url, {
+        headers: intent.upload.headers,
+        data: articlePixel,
+      })
+    ).ok(),
+  ).toBe(true);
+  const complete = await page.request.post(`${api}/api/admin`, {
+    data: {
+      action: 'articleMedia',
+      token,
+      data: { operation: 'complete', articleId, mediaId: intent.mediaId },
+    },
+  });
+  expect(complete.ok()).toBe(true);
+  return intent.mediaId as string;
+}
+
+test('real private image upload locks save, preserves bytes, previews and reopens without storage URLs', async ({
+  page,
+}) => {
+  await login(page);
+  await page.getByRole('button', { name: 'New article', exact: true }).click();
+  await page.getByLabel('Title', { exact: true }).fill('Private image acceptance');
+  await page.getByRole('textbox', { name: 'Article body' }).fill('Image acceptance body');
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/__local-test/article-uploads/**', async (route) => {
+    await pending;
+    await route.continue();
+  });
+  const photo = await readFile('apps/site/public/media/factory-oem.webp');
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Image', exact: true }).click();
+  await (await chooserPromise).setFiles({
+    name: 'factory.webp',
+    mimeType: 'image/webp',
+    buffer: photo,
+  });
+  await expect(page.getByText('Uploading and verifying image…', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeDisabled();
+  release();
+  const figure = page.locator('[data-article-image]');
+  await expect(figure.getByRole('img')).toBeVisible();
+  await expect
+    .poll(() =>
+      figure
+        .getByRole('img')
+        .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth),
+    )
+    .toBe(1228);
+  await figure.getByLabel('Image description').fill('Factory building');
+  await figure.getByLabel('Image caption').fill('Factory photo in a private draft');
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Saved · revision 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('region', { name: 'Draft preview' });
+  const image = preview.getByRole('img', { name: 'Factory building' });
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute('src', /^blob:/);
+  await expect(preview.locator('figcaption')).toHaveText('Factory photo in a private draft');
+  const store = JSON.parse(await readFile(database ?? '', 'utf8'));
+  const draft = store.articleDrafts.find(
+    (row: { draft: { content: { title: string } } }) =>
+      row.draft.content.title === 'Private image acceptance',
+  );
+  const media = store.articleMedia.find(
+    (row: { articleId: string }) => row.articleId === draft._id,
+  );
+  expect(media.status).toBe('active');
+  expect(media.width).toBe(1228);
+  expect(media.height).toBe(718);
+  const { join, dirname } = await import('node:path');
+  expect(await readFile(join(dirname(database ?? ''), 'media', media.storage.storagePath))).toEqual(
+    photo,
+  );
+  expect(media.purpose).toBe('article-image');
+  expect(JSON.stringify(draft)).not.toMatch(/blob:|storageFileId|http.*article-uploads/);
+  const api = process.env.E2E_API_URL;
+  const anonymous = await page.request.post(`${api}/api/admin`, {
+    data: {
+      action: 'articleMedia',
+      data: { operation: 'preview', articleId: draft._id, mediaId: media.id },
+    },
+  });
+  expect(anonymous.status()).toBe(401);
+  expect(anonymous.headers()['cache-control']).toBe('no-store');
+  expect((await page.request.get(`${api}/api/images/${media.id}`)).status()).toBe(404);
+  expect(
+    await page
+      .locator('img')
+      .evaluateAll((images) => images.map((img) => img.getAttribute('src')).filter(Boolean)),
+  ).not.toContain(media.storage.storageFileId);
+  await page.reload();
+  await page.getByRole('button', { name: 'Articles', exact: true }).click();
+  await open(page, 'Private image acceptance');
+  await expect(page.locator('[data-article-image] img')).toBeVisible();
+  await expect(page.getByLabel('Image description')).toHaveValue('Factory building');
+  if (process.env.E2E_BLOG_MEDIA_SCREENSHOTS === '1') {
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir('output/blog-media-2026-10-23', { recursive: true });
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.screenshot({
+      path: 'output/blog-media-2026-10-23/media-desktop.png',
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.screenshot({
+      path: 'output/blog-media-2026-10-23/media-mobile.png',
+      fullPage: true,
+    });
+  }
+});
+
+test('image response loss retries the same upload and replacement/removal release private object URLs', async ({
+  page,
+}) => {
+  const urls = new Set<string>();
+  await page.exposeFunction('articleObjectCreated', (url: string) => urls.add(url));
+  await page.exposeFunction('articleObjectRevoked', (url: string) => urls.delete(url));
+  await page.addInitScript(() => {
+    const originalCreate = URL.createObjectURL.bind(URL);
+    const originalRevoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      const url = originalCreate(blob);
+      Reflect.get(window, 'articleObjectCreated')(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      Reflect.get(window, 'articleObjectRevoked')(url);
+      return originalRevoke(url);
+    };
+  });
+  await login(page);
+  await create(page, 'Image retry and replacement');
+  let loseOnce = true;
+  await page.route('**/api/admin', async (route) => {
+    const req = route.request().postDataJSON();
+    if (loseOnce && req?.action === 'articleMedia' && req.data?.operation === 'complete') {
+      loseOnce = false;
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      await route.abort('failed');
+      return;
+    }
+    await route.continue();
+  });
+  await page
+    .getByLabel('Upload article image')
+    .setInputFiles({ name: 'retry.png', mimeType: 'image/png', buffer: articlePixel });
+  await expect(page.getByRole('button', { name: 'Retry upload', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Article body' })).toContainText(
+    'Acceptance body',
+  );
+  await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
+  await expect(page.locator('[data-article-image] img')).toBeVisible();
+  let store = JSON.parse(await readFile(database ?? '', 'utf8'));
+  const draft = store.articleDrafts.find(
+    (row: { draft: { content: { title: string } } }) =>
+      row.draft.content.title === 'Image retry and replacement',
+  );
+  expect(
+    store.articleMedia.filter((row: { articleId: string }) => row.articleId === draft._id),
+  ).toHaveLength(1);
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Saved · revision 2', { exact: true })).toBeVisible();
+  await expect.poll(() => urls.size).toBe(1);
+  await page.getByRole('button', { name: 'Preview', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Draft preview' }).locator('img')).toBeVisible();
+  await expect.poll(() => urls.size).toBe(2);
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+  await expect.poll(() => urls.size).toBe(1);
+  const replacementPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Replace image', exact: true }).click();
+  await (await replacementPromise).setFiles({
+    name: 'replacement.png',
+    mimeType: 'image/png',
+    buffer: articlePixel,
+  });
+  await expect
+    .poll(async () => {
+      const db = JSON.parse(await readFile(database ?? '', 'utf8'));
+      return db.articleMedia.filter((row: { articleId: string }) => row.articleId === draft._id)
+        .length;
+    })
+    .toBe(2);
+  await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Remove image', exact: true }).click();
+  await expect(page.locator('[data-article-image]')).toHaveCount(0);
+  await expect.poll(() => urls.size).toBe(0);
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await page.getByRole('button', { name: '← Articles', exact: true }).click();
+  store = JSON.parse(await readFile(database ?? '', 'utf8'));
+  expect(
+    store.articleMedia.filter((row: { articleId: string }) => row.articleId === draft._id),
+  ).toHaveLength(2);
 });

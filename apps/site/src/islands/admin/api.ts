@@ -552,15 +552,7 @@ export async function uploadImage(file: File): Promise<string> {
     byteSize: file.size,
   });
 
-  const put = await fetch(intent.upload.url, {
-    method: intent.upload.method,
-    headers: intent.upload.headers,
-    body: file,
-  });
-  if (!put.ok) {
-    // Leave the pending doc for orphan cleanup; surface a clear error.
-    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${put.status})`);
-  }
+  await putImageUpload(file, intent);
 
   await call('completeUpload', { imageId: intent.imageId });
   return intent.imageId;
@@ -663,4 +655,23 @@ export function publishConfirmedClassification(
     revisions.set(item.productId, item.updatedAt);
   }
   return batchUpdateRecords('products', ids, { published: true }, revisions);
+}
+
+/** Shared signed PUT sender; both catalog and article flows use the installed SDK wire contract. */
+export async function putImageUpload(
+  file: File,
+  intent: { upload: { method: 'PUT'; url: string; headers: Record<string, string> } },
+  signal?: AbortSignal,
+) {
+  const put = await fetch(intent.upload.url, {
+    method: intent.upload.method,
+    headers: intent.upload.headers,
+    body: file,
+    credentials: 'omit',
+    redirect: 'error',
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
+      : AbortSignal.timeout(60000),
+  });
+  if (!put.ok) throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${put.status})`);
 }

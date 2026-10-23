@@ -30,7 +30,7 @@ function fixture({ failReadback = false } = {}) {
 test('article resources are explicit function-only collections outside the default deploy manifest', () => {
   assert.deepEqual(
     ARTICLE_NOSQL_RESOURCES.map((item) => item.collectionName),
-    ['articleDrafts', 'articlePublications', 'articleSlugs'],
+    ['articleDrafts', 'articlePublications', 'articleSlugs', 'articleMedia'],
   );
   assert.ok(
     ARTICLE_NOSQL_RESOURCES.every(
@@ -53,7 +53,7 @@ test('explicit article preparation creates only its collections and verifies per
   assert.ok([...current.permissions.values()].every((value) => value === 'ADMINONLY'));
   assert.equal(
     current.calls.filter((item) => item.args.action === 'getResourcePermission').length,
-    6,
+    8,
   );
   assert.ok(
     current.calls.every((item) =>

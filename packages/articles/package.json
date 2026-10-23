@@ -9,7 +9,9 @@
     "./drafts": "./src/drafts.ts",
     "./draft-repository": "./src/draft-repository.ts",
     "./draft-service": "./src/draft-service.ts",
-    "./document": "./src/document.ts"
+    "./document": "./src/document.ts",
+    "./media": "./src/media.ts",
+    "./media-store": "./src/media-store.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",

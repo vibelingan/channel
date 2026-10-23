@@ -1,8 +1,14 @@
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { type ArticleDocument, fromTiptapJSON, toTiptapJSON } from '@vibelingan-channel/articles';
 import { safeArticleHref } from '@vibelingan-channel/articles/document';
-import { useEffect, useState } from 'react';
+import {
+  ARTICLE_IMAGE_MAX_COUNT,
+  type ArticleMediaView,
+  articleImageIds,
+} from '@vibelingan-channel/articles/media';
+import { useEffect, useRef, useState } from 'react';
 import { Select } from '../../../components/form/Select.tsx';
+import { ArticleImageContext } from './ArticleImageView.tsx';
 import { articleExtensions } from './editor-extensions.ts';
 
 export function ArticleEditor({
@@ -10,7 +16,11 @@ export function ArticleEditor({
   onChange,
   disabled,
   onValidityChange,
+  articleId,
+  onUploadImage,
 }: {
+  articleId: string | null;
+  onUploadImage: (file: File) => Promise<ArticleMediaView | null>;
   onValidityChange: (valid: boolean) => void;
   initial: ArticleDocument;
   onChange: (document: ArticleDocument) => void;
@@ -18,6 +28,70 @@ export function ArticleEditor({
 }) {
   const [error, setError] = useState('');
   const [link, setLink] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const target = useRef<number | null>(null);
+  const pendingFile = useRef<File | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  async function upload(file: File) {
+    if (
+      target.current === null &&
+      editor &&
+      articleImageIds(fromTiptapJSON(editor.getJSON())).length >= ARTICLE_IMAGE_MAX_COUNT
+    ) {
+      setUploadError(
+        'An article supports at most 20 different images. Remove one before adding another.',
+      );
+      return;
+    }
+    pendingFile.current = file;
+    setUploadError('');
+    const result = await onUploadImage(file);
+    if (!mounted.current) return;
+    if (!result) {
+      setUploadError(
+        'Image upload was not confirmed. Retry the same file, or choose another image.',
+      );
+      return;
+    }
+    if (target.current !== null) {
+      const node = editor?.state.doc.nodeAt(target.current);
+      if (node?.type.name !== 'articleImage') {
+        setUploadError('The image selection changed. Choose its replacement again.');
+        return;
+      }
+      editor
+        ?.chain()
+        .command(({ tr }) => {
+          tr.setNodeMarkup(target.current ?? 0, undefined, {
+            ...node.attrs,
+            mediaId: result.mediaId,
+          });
+          return true;
+        })
+        .run();
+    } else
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: 'articleImage',
+          attrs: {
+            mediaId: result.mediaId,
+            alt: file.name.slice(0, 300),
+            caption: '',
+            align: 'center',
+          },
+        })
+        .run();
+    pendingFile.current = null;
+  }
   const editor = useEditor({
     extensions: articleExtensions(),
     content: toTiptapJSON(initial),
@@ -122,6 +196,10 @@ export function ArticleEditor({
           selection?.ordered,
         )}
         {button('Link', () => setLink(editor?.getAttributes('link').href || ''))}
+        {button('Image', () => {
+          target.current = null;
+          fileInput.current?.click();
+        })}
         {button('Table', () =>
           editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
         )}
@@ -184,7 +262,46 @@ export function ArticleEditor({
           </button>
         </div>
       )}
-      <EditorContent editor={editor} />
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        aria-label="Upload article image"
+        className="hidden"
+        disabled={disabled}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) void upload(file);
+        }}
+      />
+      {uploadError && (
+        <p role="alert" className="px-3 py-2 text-sm text-red-700">
+          {uploadError}{' '}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              if (pendingFile.current) void upload(pendingFile.current);
+            }}
+            className="underline"
+          >
+            Retry upload
+          </button>
+        </p>
+      )}
+      <ArticleImageContext.Provider
+        value={{
+          articleId,
+          disabled,
+          replace: (position) => {
+            target.current = position;
+            fileInput.current?.click();
+          },
+        }}
+      >
+        <EditorContent editor={editor} />
+      </ArticleImageContext.Provider>
       {error && (
         <p role="alert" className="px-4 py-2 text-sm text-red-700">
           {error}

@@ -288,23 +288,30 @@ test('preview returns the saved body and media IDs and rejects an outdated revis
     {
       action: 'articleDrafts',
       token,
-      data: { operation: 'create', requestId: 'preview-create', content: withImage },
+      data: { operation: 'create', requestId: 'preview-create', content: content() },
     },
     config,
   );
   assert.ok(created.ok);
   const draft = created.data as { id: string };
+  // Seed an already saved image-bearing draft to test preview independently of media upload.
+  await adapter.articleRepository.save({
+    actorId: 'admin',
+    articleId: draft.id,
+    expectedRevision: 1,
+    content: parseArticleContent(withImage),
+  });
   const request = {
     action: 'articleDrafts',
     token,
-    data: { operation: 'preview', articleId: draft.id, expectedRevision: 1 },
+    data: { operation: 'preview', articleId: draft.id, expectedRevision: 2 },
   };
   const preview = await handleAdminRequest(request, config);
   assert.equal(preview.ok, true, 'A saved draft must have a revision-specific preview');
   if (!preview.ok) throw new Error('Draft preview failed');
   assert.deepEqual(preview.data, {
     articleId: draft.id,
-    revision: 1,
+    revision: 2,
     body: withImage.body,
     mediaIds: ['private-media-1'],
   });
@@ -316,8 +323,8 @@ test('preview returns the saved body and media IDs and rejects an outdated revis
       data: {
         operation: 'save',
         articleId: draft.id,
-        expectedRevision: 1,
-        content: { ...withImage, title: 'Changed title' },
+        expectedRevision: 2,
+        content: { ...content(), title: 'Changed title' },
       },
     },
     config,
@@ -328,7 +335,7 @@ test('preview returns the saved body and media IDs and rejects an outdated revis
   if (stale.ok) throw new Error('Preview silently used a different revision');
   assert.equal(stale.error.code, 'CONFLICT');
   assert.ok('currentRevision' in stale.error);
-  assert.equal(stale.error.currentRevision, 2);
+  assert.equal(stale.error.currentRevision, 3);
 });
 
 test('oversized article requests are rejected before accepting an otherwise valid body', async (t) => {

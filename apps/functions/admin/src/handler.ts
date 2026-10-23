@@ -125,6 +125,7 @@ import {
 } from '@vibelingan-channel/shared/catalog-inquiry';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
+import { executeArticleMediaRequest } from './article-media.ts';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
 import {
@@ -580,6 +581,12 @@ export async function handleAdminRequest(
     if (!claims) return err('UNAUTHORIZED', 'This session is no longer valid.');
 
     switch (req.action) {
+      case 'articleMedia': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (!config.articleRepository)
+          return err('INTERNAL_ERROR', 'Article storage is not configured.');
+        return ok(await executeArticleMediaRequest(config.articleRepository, claims.sub, req.data));
+      }
       case 'articleDrafts':
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
         if (!config.articleRepository)

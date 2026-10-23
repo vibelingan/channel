@@ -26,6 +26,7 @@ export default defineConfig({
     '@cloudbase/node-sdk',
     'hash-wasm',
     'jose',
+    'image-size',
     'nodemailer',
     'wx-server-sdk',
     'xlsx',

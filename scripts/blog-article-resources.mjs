@@ -2,7 +2,7 @@
 import { ensureNoSqlResourceSet } from './cloudbase-nosql-resources.mjs';
 
 export const ARTICLE_NOSQL_RESOURCES = Object.freeze(
-  ['articleDrafts', 'articlePublications', 'articleSlugs'].map((collectionName) =>
+  ['articleDrafts', 'articlePublications', 'articleSlugs', 'articleMedia'].map((collectionName) =>
     Object.freeze({
       collectionName,
       permission: 'ADMINONLY',

@@ -13,6 +13,7 @@ import {
   prepareArticlePublication,
   saveArticleDraft,
 } from '@vibelingan-channel/articles/drafts';
+import { runArticleMediaCommand } from '@vibelingan-channel/articles/media-store';
 import { z } from 'zod';
 
 interface ArticleDocumentReference {
@@ -186,6 +187,32 @@ async function write(
 
 export function createCloudBaseArticleRepository(db: ArticleDatabase): ArticleRepository {
   return {
+    media: {
+      execute: (actorId, articleId, command) =>
+        safe(() =>
+          db.runTransaction((transaction) =>
+            runArticleMediaCommand(
+              {
+                read: (collection, id) => read(transaction.collection(collection).doc(id)),
+                write: async (collection, id, value) => {
+                  const result = await transaction.collection(collection).doc(id).set(value);
+                  if (typeof result !== 'object' || result === null || Reflect.get(result, 'code'))
+                    throw internal();
+                  const inserted: unknown = Reflect.get(result, 'upserted');
+                  if (
+                    Reflect.get(result, 'updated') !== 1 &&
+                    !(Array.isArray(inserted) && inserted.length === 1 && inserted[0]?._id === id)
+                  )
+                    throw internal();
+                },
+              },
+              actorId,
+              articleId,
+              command,
+            ),
+          ),
+        ),
+    },
     create: (input) =>
       safe(async () => {
         const actorId = identity.parse(input.actorId);

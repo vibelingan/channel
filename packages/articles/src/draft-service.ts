@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { parseArticleContent } from './article.ts';
 import { type ArticleNode, ArticleValidationError } from './document.ts';
 import { ArticleDraftError, type ArticleRepository } from './draft-repository.ts';
+import { ARTICLE_IMAGE_MAX_COUNT, articleImageIds } from './media.ts';
 
 export const MAX_ARTICLE_REQUEST_BYTES = 256 * 1024;
 
@@ -63,6 +64,32 @@ export async function executeArticleDraftRequest(
     if (Buffer.byteLength(encoded, 'utf8') > MAX_ARTICLE_REQUEST_BYTES)
       throw new ArticleDraftError('VALIDATION_ERROR', 'Article draft request exceeds 256 KiB.');
     const request = requestSchema.parse(input);
+    if (request.operation === 'create' || request.operation === 'save') {
+      const content = parseArticleContent(request.content);
+      const ids = articleImageIds(content.body);
+      if (ids.length > ARTICLE_IMAGE_MAX_COUNT)
+        throw new ArticleDraftError(
+          'VALIDATION_ERROR',
+          'An article supports at most 20 different images.',
+        );
+      if (ids.length && request.operation === 'create')
+        throw new ArticleDraftError(
+          'VALIDATION_ERROR',
+          'Save the new draft before uploading article images.',
+        );
+      if (request.operation === 'save')
+        for (const mediaId of ids) {
+          const image = await repository.media?.execute(actorId, request.articleId, {
+            operation: 'get',
+            mediaId,
+          });
+          if (!image || image.status !== 'active')
+            throw new ArticleDraftError(
+              'VALIDATION_ERROR',
+              'Complete every image upload before saving this article.',
+            );
+        }
+    }
     if (request.operation === 'create') {
       return await repository.create({
         actorId,

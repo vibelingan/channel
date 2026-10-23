@@ -180,6 +180,7 @@ try {
       LOCAL_MEDIA_DIR: join(temporaryDirectory, 'media'),
       LOCAL_READY_FILE: readyFile,
       LOCAL_READY_TOKEN: readyToken,
+      LOCAL_ARTICLE_MEDIA_TEST_UPLOADS: articlesOnly ? '1' : '',
       ADMIN_EMAIL: 'admin@channel.local',
       ADMIN_PASSWORD: 'admin',
       TCB_ENV: '',

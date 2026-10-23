@@ -15,6 +15,7 @@
 
 /** Top-level storage namespaces; map to the path prefixes below. */
 export type MediaNamespace =
+  | 'articles'
   | 'catalog'
   | 'oem'
   | 'marketing'

@@ -1,14 +1,17 @@
-import {
-  type ArticleContent,
-  parseArticleContent,
-  renderArticle,
-} from '@vibelingan-channel/articles';
+import { type ArticleContent, parseArticleContent } from '@vibelingan-channel/articles';
 import type { ArticleDraft } from '@vibelingan-channel/articles/drafts';
+import {
+  ARTICLE_IMAGE_MAX_BYTES,
+  ARTICLE_IMAGE_MIMES,
+  type ArticleMediaView,
+} from '@vibelingan-channel/articles/media';
 import { useEffect, useRef, useState } from 'react';
 import { AdminApiError } from '../api.ts';
 import { ArticleEditor } from './ArticleEditor.tsx';
+import { ArticlePreview } from './ArticlePreview.tsx';
 import { type DraftWrite, getArticleDraft } from './article-api.ts';
 import { useArticlePreview, useWriteArticle } from './useArticleDrafts.ts';
+import { useUploadArticleImage } from './useArticleMedia.ts';
 
 export const emptyArticle = (): ArticleContent =>
   parseArticleContent({
@@ -35,12 +38,26 @@ export function ArticleForm({
   const write = useWriteArticle();
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(false);
-  const [preview, setPreview] = useState<{ html: string; revision: number } | null>(null);
+  const [preview, setPreview] = useState<Parameters<typeof ArticlePreview>[0]['preview'] | null>(
+    null,
+  );
+  const [uploading, setUploading] = useState(false);
+  const imageWrite = useUploadArticleImage();
+  const uploadController = useRef<AbortController | null>(null);
+  const uploadRetry = useRef<{ file: File; requestId: string } | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      uploadController.current?.abort();
+    };
+  }, []);
   const previewRequest = useArticlePreview();
   const previewing = previewRequest.isPending;
   const [valid, setValid] = useState(true);
   const dirty = JSON.stringify(content) !== baseline.current;
-  const locked = write.isPending || previewing || pending !== null;
+  const locked = write.isPending || previewing || uploading || pending !== null;
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty || locked;
   useEffect(() => {
@@ -128,18 +145,49 @@ export function ArticleForm({
         articleId: draft.id,
         revision: draft.revision,
       });
-      if (result.mediaIds.length) {
-        setError(
-          'This draft contains saved images. Full image previews will be available after media integration; the image references are preserved.',
-        );
-        return;
-      }
-      setPreview({
-        html: renderArticle(result.body, { mode: 'preview', media: {} }).html,
-        revision: result.revision,
-      });
+      setPreview({ ...result, title: draft.content.title });
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Preview could not be loaded.');
+    }
+  }
+  async function uploadImage(file: File): Promise<ArticleMediaView | null> {
+    if (uploadController.current || conflict || pending || !valid) return null;
+    if (
+      !ARTICLE_IMAGE_MIMES.some((mime) => mime === file.type) ||
+      file.size < 1 ||
+      file.size > ARTICLE_IMAGE_MAX_BYTES
+    ) {
+      setError('Choose a JPEG, PNG or WebP image up to 3 MiB.');
+      return null;
+    }
+    const controller = new AbortController();
+    uploadController.current = controller;
+    setUploading(true);
+    setError('');
+    setPreview(null);
+    try {
+      const draft = await save();
+      if (!draft || !alive.current) return null;
+      const requestId =
+        uploadRetry.current?.file === file ? uploadRetry.current.requestId : crypto.randomUUID();
+      uploadRetry.current = { file, requestId };
+      const result = await imageWrite.mutateAsync({
+        articleId: draft.id,
+        file,
+        requestId,
+        signal: controller.signal,
+      });
+      uploadRetry.current = null;
+      return alive.current ? result : null;
+    } catch (error) {
+      if (alive.current)
+        setError(
+          error instanceof Error ? error.message : 'Image upload failed. Retry the same file.',
+        );
+      return null;
+    } finally {
+      uploadController.current = null;
+      if (alive.current) setUploading(false);
     }
   }
   return (
@@ -147,7 +195,7 @@ export function ArticleForm({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           type="button"
-          disabled={write.isPending || previewing}
+          disabled={write.isPending || previewing || uploading}
           onClick={onBack}
           className="min-h-11 text-sm text-slate-600"
         >
@@ -155,15 +203,17 @@ export function ArticleForm({
         </button>
         <div className="flex flex-wrap items-center gap-3">
           <output aria-live="polite" className="text-sm text-slate-500">
-            {write.isPending
-              ? 'Saving…'
-              : pending
-                ? 'Save not confirmed'
-                : dirty
-                  ? 'Unsaved changes'
-                  : saved
-                    ? `Saved · revision ${saved.revision}`
-                    : 'New draft'}
+            {uploading
+              ? 'Uploading and verifying image…'
+              : write.isPending
+                ? 'Saving…'
+                : pending
+                  ? 'Save not confirmed'
+                  : dirty
+                    ? 'Unsaved changes'
+                    : saved
+                      ? `Saved · revision ${saved.revision}`
+                      : 'New draft'}
           </output>
           <button
             type="button"
@@ -176,7 +226,12 @@ export function ArticleForm({
           <button
             type="button"
             disabled={
-              write.isPending || previewing || conflict || !valid || (!dirty && !!saved && !pending)
+              write.isPending ||
+              previewing ||
+              uploading ||
+              conflict ||
+              !valid ||
+              (!dirty && !!saved && !pending)
             }
             onClick={() => void save()}
             className="min-h-11 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-40"
@@ -222,6 +277,8 @@ export function ArticleForm({
           />
         </label>
         <ArticleEditor
+          articleId={saved?.id ?? null}
+          onUploadImage={uploadImage}
           onValidityChange={setValid}
           initial={initial?.content.body ?? emptyArticle().body}
           disabled={locked}
@@ -276,25 +333,15 @@ export function ArticleForm({
         </details>
       </fieldset>
       <p className="text-xs text-slate-500">
-        Drafts are private. Saving does not publish an article. Image upload is not connected yet.
+        Drafts and images are private. Saving does not publish an article. Removing an image from
+        the article keeps its stored file.
       </p>
       {preview && (
-        <section
-          aria-label="Draft preview"
-          className="rounded-xl border border-slate-200 bg-white p-5"
-        >
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold">Draft preview · revision {preview.revision}</h2>
-            <button type="button" onClick={() => setPreview(null)} className="text-sm underline">
-              Close preview
-            </button>
-          </div>
-          <h3 className="mb-4 text-2xl font-semibold">
-            {saved?.content.title || 'Untitled article'}
-          </h3>
-          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is produced only by the shared strict article renderer from a revision-checked response. */}
-          <div className="article-body" dangerouslySetInnerHTML={{ __html: preview.html }} />
-        </section>
+        <ArticlePreview
+          key={`${preview.articleId}:${preview.revision}`}
+          preview={preview}
+          onClose={() => setPreview(null)}
+        />
       )}
     </div>
   );

@@ -158,9 +158,9 @@ function registerOwnerCleanup(): void {
 
 export class JsonFileAdapter implements DbAdapter {
   readonly articleRepository = createLocalArticleRepository((operation) =>
-    this.withMutationLock(() => {
+    this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
-      const result = operation(copy);
+      const result = await operation(copy);
       if (result.changed) {
         const previous = this.store;
         this.store = copy;

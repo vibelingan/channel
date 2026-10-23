@@ -25,6 +25,7 @@ import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-d
 import { optionalEnv } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import express from 'express';
+import { ArticleUploadTestTransport } from './article-upload-test-transport.ts';
 import { registerCatalogRoutes } from './catalog-routes.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
@@ -35,6 +36,15 @@ const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/
 const READY_FILE = optionalEnv('LOCAL_READY_FILE');
 const READY_TOKEN = optionalEnv('LOCAL_READY_TOKEN');
 const TCB_ENV = optionalEnv('TCB_ENV', '');
+const ARTICLE_TEST_UPLOADS = optionalEnv('LOCAL_ARTICLE_MEDIA_TEST_UPLOADS') === '1';
+if (ARTICLE_TEST_UPLOADS && (TCB_ENV || !READY_FILE || !READY_TOKEN))
+  throw new Error(
+    'Article upload test transport needs an owned local test server without CloudBase.',
+  );
+let articleUploadOrigin = '';
+const testStorage = ARTICLE_TEST_UPLOADS
+  ? new ArticleUploadTestTransport(MEDIA_DIR, () => articleUploadOrigin)
+  : null;
 
 // Dev defaults so the server runs with zero configuration.
 const config: AdminConfig = {
@@ -55,7 +65,9 @@ setAdapter(adapter);
 // createUploadIntent/completeUpload work locally too; the dynamic import keeps
 // wx-server-sdk out of the default (no-CloudBase) dev run. Otherwise fall back to
 // local-disk for byte DELIVERY only — uploads then fail loudly.
-if (TCB_ENV) {
+if (testStorage) {
+  setMediaStorage(testStorage);
+} else if (TCB_ENV) {
   const { cloudStorageSdk, initCloudBase } = await import('@vibelingan-channel/db/cloudbase');
   const { createCloudBaseMediaStorage } = await import(
     '@vibelingan-channel/media-storage/cloudbase'
@@ -76,12 +88,27 @@ const app = express();
 app.use(express.json({ limit: '20mb' }));
 
 // CORS for the Astro dev server (when not using its proxy).
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
+  if (testStorage && req.path.startsWith('/__local-test/article-uploads/')) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'PUT, OPTIONS');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Signature, x-cos-security-token, x-cos-meta-fileid, key',
+    );
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+    return;
+  }
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   next();
 });
+testStorage?.register(app);
 app.options('/api/admin', (_req, res) => res.sendStatus(204));
 
 // Same envelope as the production public-api health (parity with the e2e
@@ -99,7 +126,7 @@ app.post('/api/admin', async (req, res) => {
     ?.trim();
   const sourceIp = forwarded || req.ip || req.socket.remoteAddress || '';
   const result = await handleAdminRequest(body ?? { action: '' }, config, { sourceIp });
-  if (body?.action === 'articleDrafts') {
+  if (body?.action === 'articleDrafts' || body?.action === 'articleMedia') {
     res.setHeader('Cache-Control', 'no-store');
     res.status(errorStatus(result));
   }
@@ -256,6 +283,7 @@ app.get('/api/catalog-taxonomy', async (req, res) => {
 const server = app.listen(PORT, '127.0.0.1', () => {
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : PORT;
+  articleUploadOrigin = `http://127.0.0.1:${port}`;
   if (READY_FILE) {
     const temporaryReadyFile = `${READY_FILE}.${process.pid}.tmp`;
     writeFileSync(

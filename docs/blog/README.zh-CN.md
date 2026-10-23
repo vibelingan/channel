@@ -4,9 +4,9 @@
 
 2026-10-22。沿用原 `feat/seo-foundation`，不创建分支或 worktree，不部署现有 test 目标，也不操作生产。此前 10 月 16/18 日方案确定了 Tiptap OSS、结构化正文、草稿与公开版本分离、Hermes 只导入草稿；当时的 `BLOG-1` 范围过大，尚未形成逐模块的实现细节。
 
-用户最新要求及推荐顺序见 [下一步开发与浏览器验收计划](NEXT-STEPS.zh-CN.md)。CloudBase 草稿适配代码与离线测试已完成，接下来做简洁的后台编辑页；通过本地浏览器后接真实 CloudBase 重走完整流程。当前仍处于开发阶段，不部署网站。
+用户最新要求及推荐顺序见 [下一步开发与浏览器验收计划](NEXT-STEPS.zh-CN.md)。CloudBase 草稿适配、编辑页和文章图片已接入并完成本地验收；真实 CloudBase 仍要重走完整流程。当前仍处于开发阶段，不部署网站。
 
-本轮先补齐下面五个模块的设计和验收，再实现第一部分。第一部分不会给现有后台增加一个尚不可用的菜单，也不改变商品、价格、询盘或同步流程。
+下面按功能列出五个模块；准确进度只在共同记录更新。后台沿用现有 DashboardShell 和请求层，文章图片放在独立内部集合，不改变商品、价格、询盘或同步流程。
 
 | 模块 | 交付内容 | 独立验收要求 |
 | --- | --- | --- |
@@ -18,12 +18,10 @@
 
 每个模块只写自己的低层设计和 MIU，不再重复一份全量接口表。01 可独立交付；02 依赖 01，03 依赖 01/02，04 依赖文章核心、媒体接入及 SEO 发布链，05 依赖 01/02。Meta→Action、多人协作、收费扩展、Pages、AI 写作和定时发布不属于一期。
 
-当前实际状态：01 的 `packages/articles` 已写代码；02 的本地草稿服务、管理员 action 和本地存储已实现，原有 21 项新增行为测试见[草稿服务记录](02-admin-drafts-worklog-2026-10-22.zh-CN.md)。CloudBase 适配器、云函数源码接线与单独集合准备函数已实现，16 项实际 SDK 离线传输测试通过，依据见 [SDK 核对](02-cloudbase-sdk-probe.zh-CN.md)。真实集合、权限及并发尚未现场验收；03–05 仍只有设计，编辑器和网站文章尚不可用。设计中修正的问题见[本轮审阅](DESIGN-REVIEW.zh-CN.md)。
+原始后端与 SDK 依据保存在 [草稿记录](02-admin-drafts-worklog-2026-10-22.zh-CN.md) 和 [SDK 核对](02-cloudbase-sdk-probe.zh-CN.md)。编辑页结果见 [E1 记录](03-editor-worklog-2026-10-23.zh-CN.md)，图片与私有预览见 [E2 记录](03-media-worklog-2026-10-23.zh-CN.md)。这些本地检查不代表真实 CloudBase 或网站已验收；原设计审阅见 [设计记录](DESIGN-REVIEW.zh-CN.md)。
 
 通用部分放在 `packages/articles`，与站点后台、CloudBase 和 Hermes 分开。正文节点用清楚的类型、属性和版本规则扩展，不能从文章 JSON 执行 JavaScript 或任意请求。后台 UI 是业务组件，持久化由后端适配器负责，网站公开页不加载编辑器包。
 
 Tiptap 官方支持保存 JSON，以及不创建编辑器实例的静态渲染：[JSON 持久化](https://tiptap.dev/docs/guides/output-json-html)、[Static Renderer](https://tiptap.dev/docs/editor/api/utilities/static-renderer)。本模块先实现本站允许的节点及媒体映射；编辑器接入时必须使用同一节点范围做真实 getJSON/setContent 联测，不能把本轮格式测试冒充编辑器 UI 已验收。
 
 部署和 SSG 的待执行事项单独放在 [pricing 合并后的验收与清理计划](../seo/execution/LIVE-RESUME-AND-CLEANUP.zh-CN.md)。Blog 开发不因此开启发布或恢复开关。
-
-2026-10-23：本地已复核云端两个草稿提交，继续实现模块 03 的 E1 编辑页。验证和未完成项见共同记录及当日 worklog；E2 图片、真实库、公开文章和 Hermes 未因此完成。

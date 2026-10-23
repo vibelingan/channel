@@ -7,6 +7,7 @@ import {
   type PublishedArticleReference,
   saveArticleDraft,
 } from './drafts.ts';
+import type { ArticleMediaRepository } from './media.ts';
 
 export interface ArticleDraftSummary {
   id: string;
@@ -20,6 +21,7 @@ export interface ArticleDraftSummary {
 }
 
 export interface ArticleRepository {
+  media?: ArticleMediaRepository;
   create(input: {
     actorId: string;
     requestId: string;

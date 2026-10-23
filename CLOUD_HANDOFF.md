@@ -22,11 +22,12 @@ docs/cloud-handoff/SESSION.zh-CN.md 和 docs/cloud-handoff/ENVIRONMENT.zh-CN.md�
 本次允许继续写代码、跑离线测试，把改动提交并推送到原 SEO 分支，核对该提交的远端 CI。
 先运行 bash scripts/cloud-handoff/check.sh；工具未装好则按环境指南补齐。
 本地草稿服务及 CloudBase 适配器源码已完成，先读 docs/blog/02-cloudbase-sdk-probe.zh-CN.md、
-02-cloudbase-drafts-plan.zh-CN.md 和 NEXT-STEPS.zh-CN.md。16 项实际 SDK 离线传输测试已接入
+02-cloudbase-drafts-plan.zh-CN.md 和 NEXT-STEPS.zh-CN.md。20 项实际 SDK 离线传输测试（16 项草稿、4 项媒体）已接入
 SDK 总检查；文章集合准备函数单独导出，未加入自动部署，真实资源/权限/并发尚未验收。
-模块 03 的 E1 编辑页已由本地接入并验证。先读 docs/blog/NEXT-STEPS.zh-CN.md
-及 03-editor-worklog-2026-10-23.zh-CN.md，以它们记录的状态和下一步为准，不重写已完成模块。
-下一小段为 E2 的文章图片用途、归属与鉴权字节预览；真实 CloudBase 验收仍需明确授权。
+模块 03 的 E1 编辑页及 E2 图片上传/鉴权预览已接入并完成本地验收。先读
+docs/blog/NEXT-STEPS.zh-CN.md 及 03-media-worklog-2026-10-23.zh-CN.md，
+以它们记录的状态和下一步为准，不重写已完成模块。文章媒体使用内部 articleMedia 集合；
+不是商品 images 集合。真实 CloudBase 验收仍需明确授权，不能把本地签名测试传输当平台验收。
 保留权限、重复请求和版本保护；真实集合创建、业务写入和网站部署均不自动执行。
 发现设计和当前代码不一致时，修正当前模块并说明，不顺便改造公共请求层或 pricing。
 中文直接按汉语习惯解释，先说做了什么、有什么结果、还差什么，不用内部编号代替解释。

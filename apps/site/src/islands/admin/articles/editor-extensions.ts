@@ -3,8 +3,10 @@ import Link from '@tiptap/extension-link';
 import { OrderedList } from '@tiptap/extension-list';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
+import { ReactNodeViewRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { safeArticleHref } from '@vibelingan-channel/articles/document';
+import { ArticleImageView } from './ArticleImageView.tsx';
 
 const link = Link.extend({
   addAttributes() {
@@ -33,12 +35,14 @@ const cellAttributes = () => ({
 });
 const cell = TableCell.extend({ addAttributes: cellAttributes });
 const header = TableHeader.extend({ addAttributes: cellAttributes });
-// Images remain opaque media references until the dedicated media module is connected.
 const image = Node.create({
   name: 'articleImage',
   group: 'block',
   atom: true,
   draggable: false,
+  addNodeView() {
+    return ReactNodeViewRenderer(ArticleImageView);
+  },
   addAttributes() {
     return {
       mediaId: { default: '' },
@@ -58,7 +62,7 @@ const image = Node.create({
         contenteditable: 'false',
         class: 'rounded-lg border bg-slate-50 p-4 text-sm text-slate-600',
       },
-      `Image: ${node.attrs.alt || 'Saved image'} · preview available after media integration`,
+      `Image: ${node.attrs.alt || 'Saved image'}`,
     ];
   },
 });

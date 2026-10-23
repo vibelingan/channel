@@ -10,12 +10,15 @@ import {
   prepareArticlePublication,
   saveArticleDraft,
 } from '@vibelingan-channel/articles/drafts';
+import { runArticleMediaCommand } from '@vibelingan-channel/articles/media-store';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 
 type Store = Record<string, CollectionDoc[]>;
 export type ArticleTransaction = <T>(
-  operation: (store: Store) => { value: T; changed: boolean },
+  operation: (
+    store: Store,
+  ) => { value: T; changed: boolean } | Promise<{ value: T; changed: boolean }>,
 ) => Promise<T>;
 
 export const MAX_ARTICLE_RECORD_BYTES = 384 * 1024;
@@ -87,6 +90,31 @@ function requireAdmin(store: Store, actorId: string): void {
 
 export function createLocalArticleRepository(transaction: ArticleTransaction): ArticleRepository {
   return {
+    media: {
+      execute: (actorId, articleId, command) =>
+        transaction(async (store) => {
+          let changed = false;
+          const value = await runArticleMediaCommand(
+            {
+              read: async (collection, id) =>
+                store[collection]?.find((row) => row._id === id) ?? null,
+              write: async (collection, id, value) => {
+                store[collection] ??= [];
+                const rows = store[collection];
+                const index = rows.findIndex((row) => row._id === id);
+                const row = { ...value, _id: id };
+                if (index < 0) rows.push(row);
+                else rows[index] = row;
+                changed = true;
+              },
+            },
+            actorId,
+            articleId,
+            command,
+          );
+          return { value, changed };
+        }),
+    },
     create: (input) =>
       transaction((store) => {
         requireAdmin(store, input.actorId);

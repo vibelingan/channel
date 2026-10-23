@@ -1101,13 +1101,18 @@ try {
   if (typeof binary !== 'string') throw new Error('Missing tsx CLI');
   const output = execFileSync(
     process.execPath,
-    [join(dirname(tsxPackagePath), binary), '--test', 'packages/db/src/article-repository.test.ts'],
+    [
+      join(dirname(tsxPackagePath), binary),
+      '--test',
+      'packages/db/src/article-repository.test.ts',
+      'packages/db/src/article-media.test.ts',
+    ],
     { cwd: root, encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   requireCheck(
     /^# fail 0$/m.test(output) &&
       /^# skipped 0$/m.test(output) &&
-      Number(output.match(/^# tests (\d+)$/m)?.[1]) >= 16,
+      Number(output.match(/^# tests (\d+)$/m)?.[1]) >= 20,
     'article repository passes actual SDK transport, retry, projection and failure contracts',
   );
 } catch (error) {
