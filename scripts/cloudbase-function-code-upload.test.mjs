@@ -79,7 +79,12 @@ function fixture(t, overrides = {}) {
           binary,
         );
         if (!overrides.nativeUpload) throw new Error('private-signature private-token');
-        return { success: true };
+        return (
+          overrides.nativeReply ?? {
+            success: true,
+            data: { action: 'upload', cloudPath: objectKey, localPath: args.localPath },
+          }
+        );
       }
       if (args.action === 'updateFunctionCode') {
         if (overrides.importError) throw new Error('code import reply lost');
@@ -273,6 +278,20 @@ test('an SDK fallback never authorizes import before the anonymous privacy check
   assert.equal(client.calls.filter(({ args }) => args.action === 'upload').length, 1);
   assert.ok(!client.calls.some(({ args }) => args.action === 'updateFunctionCode'));
 });
+
+for (const nativeReply of [
+  { error: 'Call timed out after 60000ms', issue: { kind: 'offline' } },
+  { isError: true },
+  {},
+  { success: true, data: { action: 'upload', cloudPath: 'another/code.zip' } },
+]) {
+  test(`missing or unrelated upload acknowledgement cannot import code: ${JSON.stringify(nativeReply)}`, (t) => {
+    const client = fixture(t, { transportError: true, nativeUpload: true, nativeReply });
+    assert.throws(() => deployFunctionCode(client.options), /ZIP upload failed/);
+    assert.ok(!client.calls.some(({ args }) => args.action === 'updateFunctionCode'));
+    assert.ok(client.tempDirs.every((path) => !existsSync(path)));
+  });
+}
 
 test('unconfirmed code import keeps its private source package for recovery', (t) => {
   const client = fixture(t, { importError: true });

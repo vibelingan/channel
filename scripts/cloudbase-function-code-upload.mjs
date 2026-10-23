@@ -201,19 +201,23 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
   )
     throw new Error(`${functionName}: SDK upload requires verified private storage`);
   try {
-    assertToolSucceeded(
-      callTool(
-        'cloudbase.manageStorage',
-        {
-          action: 'upload',
-          localPath: zipPath,
-          cloudPath: upload.cosObjectName,
-          isDirectory: false,
-        },
-        { timeoutMs: 300_000, maxAttempts: 1 },
-      ),
-      `${functionName}: storage SDK upload`,
+    const result = callTool(
+      'cloudbase.manageStorage',
+      {
+        action: 'upload',
+        localPath: zipPath,
+        cloudPath: upload.cosObjectName,
+        isDirectory: false,
+      },
+      { timeoutMs: 300_000, maxAttempts: 1 },
     );
+    if (
+      result?.success !== true ||
+      result.data?.action !== 'upload' ||
+      result.data.cloudPath !== upload.cosObjectName ||
+      result.data.localPath !== zipPath
+    )
+      throw new Error('Storage SDK did not acknowledge the requested upload');
   } catch {
     // Upload results can include temporary URLs. Do not expose them in errors.
     throw new Error('Private function ZIP upload failed (storage SDK fallback)');

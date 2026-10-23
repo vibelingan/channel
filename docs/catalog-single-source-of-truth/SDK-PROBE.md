@@ -902,3 +902,12 @@ No new SDK method/shim/dependency/env/table/lock. Existing transaction point rea
 核对[管理 SDK uploadFile 官方文档](https://docs.cloudbase.net/api-reference/manager/node/storage)、MCP2.24.1/2.36.1 的实际 dist/index.cjs：`uploadFileCustom` 对5MiB以上使用 COS `sliceUploadFile`，AsyncLimit3；其桶来自当前绑定环境。该 SDK 未显式设置对象 ACL，按[官方分块初始化契约](https://cloud.tencent.com/document/product/436/7746)继承桶权限，因此先通过已有 `queryPermissions(getResourcePermission,storage,完整桶名)` 校验同环境、同资源、aclTag PRIVATE，以及权限记录中的确切资源/类型/PRIVATE。未知、非私有或返回其他桶记录时不上传；不修改权限以迁就上传。仍须匿名 HEAD403/404 后才可导入。所有操作复用原可信 COS 对象键及相同 ZIP 字节，后续健康确认和定点清理不变。Context7不可用，未增加 SDK、类型声明、云环境或对外接口。
 
 真实环境探针：同一9,082,431字节代码包经管理工具上传成功、匿名403，下载后的 SHA-256 与原件完全一致（104753f2919dd16fb0b15ffc92c9795849c78f6f391579e0371c7c240c7f44e9），随后删除确切探针对象；该探针不导入函数、不触碰商品。脚本受控测试另外证明超时后同字节备用成功、失败不导入、非私有/错桶拒绝、证书/HTTP403不走备用、匿名可读时清理。真实 GitHub 上传容错是否成功，仍须最终当前提交 Deploy Test 验证。
+
+
+### 2026-10-23：管理客户端的工具截止和错误回执
+
+核对实际 `mcporter call --help` 和安装包 `dist/cli/timeouts.js`：普通调用默认60,000ms；`--timeout` 优先于环境变量MCPORTER_CALL_TIMEOUT。该版本会把RPC超时输出为含error/issue的JSON，进程退出码仍可成功。只读1ms调用已真实复现这个协议，不是自行假定错误形状。与dfd部署上传阶段66秒后误判成功、随后COS对象不存在的现场相符。
+
+调用预算现在显式传入CLI，外层execFileSync多10秒收尾。正常及allowFailure路径用同一解析器拒绝error/isError，不输出错误正文中的签名或token；不改变正常管理API返回数据。原进程错误脱敏和受控重试仍保留，上传外层最多一次仍保留。备用上传要求success=true且确认具体动作、对象键、本地ZIP路径，不再把缺success标记当成成功。没有新第三方SDK、环境变量或声明；仅使用已通过实际帮助和源码核对的CLI参数。
+
+修正后的真实CLI探针已完成：故障注入只作用于首个PUT；实际原配置MCP两版本负责环境/权限/上传，上传明确确认后，经实际CLI从同一对象完整下载9,082,431字节，与上传ZIP逐字节一致、SHA-256为104753f2919dd16fb0b15ffc92c9795849c78f6f391579e0371c7c240c7f44e9，匿名403，随后确切对象删除。函数导入被明确拦截，未计为真实部署，也未修改商品。日志为任务输出 acknowledged-native-cli-readback.log。本地最终部署测试542/542、协议/上传37/37、SDK合约及格式检查通过。

@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { callMcporter, parseMcporterResult } from './mcporter-call.mjs';
 
 import {
   assertToolSucceeded,
@@ -72,32 +73,15 @@ function optionalEnv(name) {
   return value && value.length > 0 ? value : undefined;
 }
 
-function parseJsonWithNoise(output) {
-  const start = output.indexOf('{');
-  if (start < 0) {
-    throw new Error(
-      `No JSON object returned by mcporter. Output started with: ${output.slice(0, 120)}`,
-    );
-  }
-  return JSON.parse(output.slice(start));
-}
-
 function callTool(selector, args, options = {}) {
   const maxAttempts = options.maxAttempts ?? 3;
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const output = execFileSync(
-        'npx',
-        ['mcporter', 'call', selector, '--args', JSON.stringify(args), '--output', 'json'],
-        {
-          cwd: root,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-          timeout: options.timeoutMs ?? 180_000,
-        },
-      );
-      return parseJsonWithNoise(output);
+      return callMcporter(selector, args, {
+        cwd: root,
+        timeoutMs: options.timeoutMs ?? 180_000,
+      });
     } catch (error) {
       lastError = error;
       if (attempt < maxAttempts) continue;
@@ -106,7 +90,7 @@ function callTool(selector, args, options = {}) {
   if (options.allowFailure) {
     const text = `${lastError?.stdout ?? ''}${lastError?.stderr ?? ''}`;
     try {
-      return parseJsonWithNoise(text);
+      return parseMcporterResult(text, selector);
     } catch {
       return { success: false, message: `mcporter call failed for ${selector}` };
     }
