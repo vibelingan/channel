@@ -106,3 +106,9 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 随后图片真正上传到 CloudBase，并完成私有 Blob 预览和创建发布任务。首个手动构建 [39957081522](https://github.com/vibelingan/channel/actions/runs/39957081522) 在任何数据库领取/页面上传前停止：Node 的 strip-only 模式不支持项目既有的 TypeScript 构造函数参数属性。新入口改用已锁定的 site `tsx`，并增加实际加载完整 worker 依赖、在无凭证环境拒绝执行的检查。保留首次失败记录，修正提交重新跑远端检查；尚不将 A→B→A 记为成功。
 
 真实云函数另已确认：未登录拒绝、普通成员拒绝、越界商品操作拒绝。浏览器初进后台的商品列表和询盘能力请求被 dummy 白名单拒绝，属于隔离限制，不伪造业务列表成功。包含会话和签名的 Playwright trace 仅保存在仓库外私有目录，不上传 GitHub。
+
+修正提交 `56c82be076833e70552c4fe8d0be16a76d0dfc3d` 的全仓回归 [39957503149](https://github.com/vibelingan/channel/actions/runs/39957503149) 和专项 [39957503044](https://github.com/vibelingan/channel/actions/runs/39957503044) 均通过；全仓远端日志实际汇总为 3,382 项，3,379 通过、3 项既有跳过、零失败。专项浏览器依赖下载耗时较长，但最终完成。
+
+独立函数已更新到同一提交并实际调用 health 读回。重新创建的 dummy 发布任务 [39958819038](https://github.com/vibelingan/channel/actions/runs/39958819038) 被共享队列正确排在 pricing 的 Deploy Test 后面。为避免该正常发布重写托管配置后立即交错执行，本轮只取消自己的 pending 任务，未取消或改动 pricing；该任务没有进入构建或上传。之后通过真实业务接口取消对应 QUEUED 请求，并读回 CANCELLED。待正常发布结束、再次读回 404 后重跑，不能把主动取消记为线上交付成功。
+
+真实模式的完整浏览器记录和报告改为直接写入外部私有目录；公开截图另行审核后保存。已有记录也已移到该私有目录，避免 trace 中的短期会话或上传签名留在仓库输出目录。

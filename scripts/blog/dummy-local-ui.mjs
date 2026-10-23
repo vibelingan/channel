@@ -139,9 +139,21 @@ try {
         ? 'tests/e2e/blog-dummy-live.spec.ts'
         : 'tests/e2e/admin-article-publication-local.spec.ts',
       '--project=chromium',
+      ...(live ? ['--output', join(process.env.BLOG_DUMMY_PRIVATE_DIR, 'playwright-results')] : []),
     ],
     root,
-    { E2E_SITE_URL: origin, E2E_BLOG_PUBLICATION_LOCAL_DB: env.LOCAL_DB_FILE },
+    {
+      E2E_SITE_URL: origin,
+      E2E_BLOG_PUBLICATION_LOCAL_DB: env.LOCAL_DB_FILE,
+      ...(live
+        ? {
+            PLAYWRIGHT_HTML_OUTPUT_DIR: join(
+              process.env.BLOG_DUMMY_PRIVATE_DIR,
+              'playwright-report',
+            ),
+          }
+        : {}),
+    },
   );
   const code = await new Promise((done) => playwright.once('exit', done));
   if (code !== 0) throw new Error('Article publication UI acceptance failed');
