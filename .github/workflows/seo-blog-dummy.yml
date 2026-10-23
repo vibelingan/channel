@@ -78,7 +78,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-        run: node --experimental-strip-types scripts/blog/dummy-worker.ts prepare
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/dummy-worker.ts prepare
       - name: Archive exact candidate before upload
         id: payload
         uses: actions/upload-artifact@v4
@@ -93,14 +93,14 @@ jobs:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
           BLOG_DUMMY_ARTIFACT_ID: ${{ steps.payload.outputs.artifact-id }}
-        run: node --experimental-strip-types scripts/blog/dummy-worker.ts deliver
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/dummy-worker.ts deliver
       - name: Release a build-only task if a later preparation step failed
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-        run: node --experimental-strip-types scripts/blog/dummy-worker.ts cleanup
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/dummy-worker.ts cleanup
       - name: Keep delivery evidence only, without private input or worker credentials
         if: always()
         uses: actions/upload-artifact@v4

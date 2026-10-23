@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 const sha = process.env.CHANNEL_BUILD_SHA;
 if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('Exact bundle code SHA required');
@@ -29,4 +29,17 @@ assert.equal(result[1].error.code, 'UNAUTHORIZED');
 assert.equal(result[2].error.code, 'VALIDATION_ERROR');
 console.log(
   'Actual bundled dummy function health and access boundaries passed without cloud credentials.',
+);
+
+// Load the real worker dependency graph with the same runner used by Actions.
+const worker = spawnSync(
+  process.execPath,
+  [resolve('apps/site/node_modules/tsx/dist/cli.mjs'), 'scripts/blog/dummy-worker.ts', 'prepare'],
+  { encoding: 'utf8', timeout: 30000, env: { PATH: process.env.PATH } },
+);
+assert.equal(worker.status, 1);
+assert.match(worker.stderr, /Untrusted isolated Blog invocation/);
+assert.doesNotMatch(worker.stderr, /ERR_INVALID_TYPESCRIPT_SYNTAX|Cannot find module/);
+console.log(
+  'Actual delivery worker loaded and rejected an untrusted invocation before cloud access.',
 );

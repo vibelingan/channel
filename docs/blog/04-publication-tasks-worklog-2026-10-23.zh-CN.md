@@ -94,3 +94,15 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 现场入口再核对：完整分页读回后确认：仓库未配置 Variables；test 环境已有 37 项配置，包含上海地域，但缺少 TCB_ENV_ID 和 SITE_URL，这两个值过去由部署脚本自行处理。新 dummy 入口已补上与仓库固定策略相同的默认环境和站点；若将来配置的变量与固定目标不同，运行程序仍拒绝执行。没有向 GitHub 全局或 test 环境写变量，因此不改变 pricing 的正常部署参数。
 
 最后核对 GitHub 队列语义：`cancel-in-progress: false` 本身仍可能替换已有的等待任务。新 dummy 入口采用 `queue: max`；原 F1 入口保持不改，但申请维护窗口前必须先读回所有运行/等待的部署，存在任何一个就等它结束再申请。这样避免本任务把 pricing 的等待发布挤掉。依据：[GitHub 2026-05-07 官方队列说明](https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/)。
+
+### 真实验收第一轮及修正
+
+`e9db5abee19821845f7b2e09ea2093326488e625` 的两项远端检查均通过：dummy [39955388157](https://github.com/vibelingan/channel/actions/runs/39955388157)、全仓离线 [39955388348](https://github.com/vibelingan/channel/actions/runs/39955388348)。已创建独立函数、十二个 ADMINONLY 测试集合；有效窗口六小时。正式函数和业务集合未修改。
+
+原有 F1 维护任务 [39956303611](https://github.com/vibelingan/channel/actions/runs/39956303611) 已保存原网站配置并持有共享发布锁。专用错误文档重新应用后，普通、重新验证及条件请求均读回正确 404 正文；正式四个地址摘要未变。验收完成后仅结束本次维护任务，释放队列；该任务取消状态不表示配置检查失败。
+
+真实浏览器先发现两处环境设置问题：MCP 冷启动超过原来的三十秒就绪等待，真实模式改为两分钟；随机本地来源被存储 CORS 拦截，改用明确的空闲端口。本次临时增加 `127.0.0.1:58484`，读回 ENABLE 并实际 OPTIONS 确认可上传，结束后移除；未占用其他进程正在使用的 4321，也未将存储改为公有。
+
+随后图片真正上传到 CloudBase，并完成私有 Blob 预览和创建发布任务。首个手动构建 [39957081522](https://github.com/vibelingan/channel/actions/runs/39957081522) 在任何数据库领取/页面上传前停止：Node 的 strip-only 模式不支持项目既有的 TypeScript 构造函数参数属性。新入口改用已锁定的 site `tsx`，并增加实际加载完整 worker 依赖、在无凭证环境拒绝执行的检查。保留首次失败记录，修正提交重新跑远端检查；尚不将 A→B→A 记为成功。
+
+真实云函数另已确认：未登录拒绝、普通成员拒绝、越界商品操作拒绝。浏览器初进后台的商品列表和询盘能力请求被 dummy 白名单拒绝，属于隔离限制，不伪造业务列表成功。包含会话和签名的 Playwright trace 仅保存在仓库外私有目录，不上传 GitHub。

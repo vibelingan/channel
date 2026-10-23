@@ -94,6 +94,23 @@ test('real editor, cloud function, private storage and Actions publish A, recove
   request,
 }) => {
   test.setTimeout(30 * 60_000);
+  page.on('requestfailed', (request) => {
+    const url = new URL(request.url());
+    console.log(
+      'Live request failed:',
+      request.method(),
+      url.origin,
+      url.pathname,
+      request.failure()?.errorText,
+    );
+  });
+  page.on('console', (message) => {
+    if (message.type() === 'error')
+      console.log(
+        'Live browser error:',
+        message.text().replace(/https?:\/\/[^\s]+/g, '[request URL]'),
+      );
+  });
   if (!privateDirectory) throw new Error('Private prepared session file required');
   if (!['127.0.0.1', 'localhost'].includes(new URL(process.env.E2E_SITE_URL ?? '').hostname))
     throw new Error('This test uses an isolated local admin UI only');

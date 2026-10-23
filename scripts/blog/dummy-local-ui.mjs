@@ -15,7 +15,18 @@ if (live) {
 }
 const dir = await mkdtemp(join(tmpdir(), 'blog-publication-ui-'));
 const portServer = createServer();
-await new Promise((done) => portServer.listen(0, '127.0.0.1', done));
+const requestedPort = live ? Number(process.env.BLOG_DUMMY_ADMIN_PORT ?? 0) : 0;
+if (
+  !Number.isInteger(requestedPort) ||
+  requestedPort < 0 ||
+  requestedPort > 65535 ||
+  (requestedPort > 0 && requestedPort < 1024)
+)
+  throw new Error('Explicit loopback test port must be between 1024 and 65535');
+await new Promise((done, reject) => {
+  portServer.once('error', reject);
+  portServer.listen(requestedPort, '127.0.0.1', done);
+});
 const port = portServer.address().port;
 await new Promise((done) => portServer.close(done));
 const origin = `http://127.0.0.1:${port}`;
@@ -65,7 +76,7 @@ const api = live
   : start(bin('apps/local-server', 'tsx'), ['src/main.ts'], join(root, 'apps/local-server'));
 try {
   let ready;
-  const deadline = Date.now() + 30000;
+  const deadline = Date.now() + (live ? 120000 : 30000);
   while (Date.now() < deadline) {
     try {
       ready = JSON.parse(await readFile(env.LOCAL_READY_FILE, 'utf8'));
