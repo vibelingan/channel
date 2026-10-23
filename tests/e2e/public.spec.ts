@@ -1813,6 +1813,8 @@ test.describe('public browser smoke', () => {
     browser,
     page,
   }) => {
+    // This case visits the hosted site repeatedly across desktop and mobile sizes.
+    test.setTimeout(90_000);
     for (const viewport of [
       { width: 1360, height: 800 },
       { width: 1440, height: 900 },

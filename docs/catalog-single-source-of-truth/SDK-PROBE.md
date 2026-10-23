@@ -893,3 +893,12 @@ No new SDK method/shim/dependency/env/table/lock. Existing transaction point rea
 更新已有函数时先打包 ZIP。小包维持原 CLI 路径，大包使用上述通道；已有新建函数路径不变。上传指定 `x-cos-acl: private`，再以匿名 HEAD 确认不可公开读取；[COS PUT Object 文档](https://intl.cloud.tencent.com/pt/document/product/436/7749) 支持该 ACL 请求头。签名和 token 只进入本地 0600 临时配置，不进入 argv 或日志；不跟随重定向。HTTP 失败不导入；导入未确认时保留私有来源包；原有 Active、运行时和配置检查完成，并从实际健康接口确认目标 releaseId 后，仅删除本次 staging object；旧版删除工具要求的 force=true 已按安装包验证并加入测试。本地临时文件始终清理。zip、unzip、curl 已核对实际 runner 的 [Ubuntu 24.04 软件清单](https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md)。
 
 部署单测包含实际 ZIP 压缩/解包后的完整字节比较、私有头、错误 URL/桶/地域/对象路径、HTTP/传输失败及凭据脱敏、未确认导入的保留、成功后的定点清理，以及小包/创建路径不变。这里的 HTTP 和管理工具回复是受控替身；真实云端上传与版本检查仍由最终 Deploy Test 执行，不记作已部署。
+
+
+### 2026-10-23：已确认的网络上传备用通道
+
+原单次 PUT 在 GitHub 连续两次 curl28/HTTP100/240秒截止，本机相同协议 22.9秒成功；不据此确定具体网络根因。补充复用原固定版本 MCP2.24.1 的 `manageStorage(upload)`，仅在 curl DNS/连接/中断/超时错误且没有拒绝响应时尝试一次。HTTP403、重定向、证书验证错误不触发。`maxAttempts:1` 防止外层管理调用把整份上传重做三遍；其调用预算300秒，不修改业务函数时间预算。
+
+核对[管理 SDK uploadFile 官方文档](https://docs.cloudbase.net/api-reference/manager/node/storage)、MCP2.24.1/2.36.1 的实际 dist/index.cjs：`uploadFileCustom` 对5MiB以上使用 COS `sliceUploadFile`，AsyncLimit3；其桶来自当前绑定环境。该 SDK 未显式设置对象 ACL，按[官方分块初始化契约](https://cloud.tencent.com/document/product/436/7746)继承桶权限，因此先通过已有 `queryPermissions(getResourcePermission,storage,完整桶名)` 校验同环境、同资源、aclTag PRIVATE，以及权限记录中的确切资源/类型/PRIVATE。未知、非私有或返回其他桶记录时不上传；不修改权限以迁就上传。仍须匿名 HEAD403/404 后才可导入。所有操作复用原可信 COS 对象键及相同 ZIP 字节，后续健康确认和定点清理不变。Context7不可用，未增加 SDK、类型声明、云环境或对外接口。
+
+真实环境探针：同一9,082,431字节代码包经管理工具上传成功、匿名403，下载后的 SHA-256 与原件完全一致（104753f2919dd16fb0b15ffc92c9795849c78f6f391579e0371c7c240c7f44e9），随后删除确切探针对象；该探针不导入函数、不触碰商品。脚本受控测试另外证明超时后同字节备用成功、失败不导入、非私有/错桶拒绝、证书/HTTP403不走备用、匿名可读时清理。真实 GitHub 上传容错是否成功，仍须最终当前提交 Deploy Test 验证。

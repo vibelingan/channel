@@ -45,10 +45,42 @@ function fixture(t, overrides = {}) {
         throw new Error('ZipFile exceeds 1.5MB; COS upload timed out after 60 seconds');
       }
     },
-    callTool(selector, args) {
+    callTool(selector, args, settings) {
       calls.push({ selector, args });
       if (args.action === 'set_env') return { success: true };
       if (args.action === 'getFunctionUploadUrl') return { success: true, data: upload };
+      if (args.action === 'getResourcePermission')
+        return {
+          success: true,
+          data: {
+            envId: options.envId,
+            resourceType: 'storage',
+            resourceId: 'channel-test-123456',
+            aclTag: overrides.storagePermission ?? 'PRIVATE',
+            permissions: [
+              {
+                Resource: overrides.permissionResource ?? 'channel-test-123456',
+                ResourceType: 'storage',
+                Permission: overrides.storagePermission ?? 'PRIVATE',
+              },
+            ],
+          },
+        };
+      if (args.action === 'upload') {
+        assert.equal(selector, 'cloudbase.manageStorage');
+        assert.equal(args.cloudPath, objectKey);
+        assert.equal(args.isDirectory, false);
+        assert.equal(settings.maxAttempts, 1);
+        assert.equal(settings.timeoutMs, 300_000);
+        assert.deepEqual(
+          execFileSync('unzip', ['-p', args.localPath, 'vendor/decoder.node'], {
+            maxBuffer: binary.length + 65536,
+          }),
+          binary,
+        );
+        if (!overrides.nativeUpload) throw new Error('private-signature private-token');
+        return { success: true };
+      }
       if (args.action === 'updateFunctionCode') {
         if (overrides.importError) throw new Error('code import reply lost');
         return { success: true, data: { raw: { RequestId: 'original-import' } } };
@@ -169,6 +201,8 @@ for (const upload of [
 for (const overrides of [
   { transportError: true },
   { transportError: true, transportExit: 22, transportStatus: '403' },
+  { transportError: true, transportExit: 28, transportStatus: '403' },
+  { transportError: true, transportExit: 60 },
   { httpStatus: '403' },
   { httpStatus: '302' },
 ]) {
@@ -184,10 +218,61 @@ for (const overrides of [
       },
     );
     assert.equal(client.uploadCalls(), 1);
+    if (overrides.transportStatus === '403' || overrides.transportExit === 60)
+      assert.ok(!client.calls.some(({ args }) => args.action === 'upload'));
     assert.ok(!client.calls.some(({ args }) => args.action === 'updateFunctionCode'));
     assert.ok(client.tempDirs.every((path) => !existsSync(path)));
   });
 }
+
+test('a timed-out PUT falls back once to the same private object with the exact ZIP bytes', (t) => {
+  const client = fixture(t, {
+    transportError: true,
+    transportExit: 28,
+    transportStatus: '100',
+    nativeUpload: true,
+  });
+  const deployment = deployFunctionCode(client.options);
+  assert.equal(client.calls.filter(({ args }) => args.action === 'upload').length, 1);
+  assert.ok(client.calls.some(({ args }) => args.action === 'getResourcePermission'));
+  assert.ok(client.calls.some(({ args }) => args.action === 'updateFunctionCode'));
+  deployment.cleanup();
+  assert.ok(client.tempDirs.every((path) => !existsSync(path)));
+});
+
+test('SDK fallback rejects a private permission returned for a different bucket', (t) => {
+  const client = fixture(t, {
+    transportError: true,
+    nativeUpload: true,
+    permissionResource: 'another-bucket',
+  });
+  assert.throws(() => deployFunctionCode(client.options), /private storage/);
+  assert.ok(!client.calls.some(({ args }) => args.action === 'upload'));
+});
+
+for (const storagePermission of ['READONLY', 'CUSTOM', '']) {
+  test(`network fallback refuses non-private storage: ${JSON.stringify(storagePermission)}`, (t) => {
+    const client = fixture(t, {
+      transportError: true,
+      nativeUpload: true,
+      storagePermission,
+    });
+    assert.throws(() => deployFunctionCode(client.options), /private storage/);
+    assert.ok(!client.calls.some(({ args }) => args.action === 'upload'));
+    assert.ok(!client.calls.some(({ args }) => args.action === 'updateFunctionCode'));
+  });
+}
+
+test('an SDK fallback never authorizes import before the anonymous privacy check', (t) => {
+  const client = fixture(t, {
+    transportError: true,
+    nativeUpload: true,
+    anonymousStatus: '200',
+  });
+  assert.throws(() => deployFunctionCode(client.options), /privacy check failed/);
+  assert.equal(client.calls.filter(({ args }) => args.action === 'upload').length, 1);
+  assert.ok(!client.calls.some(({ args }) => args.action === 'updateFunctionCode'));
+});
 
 test('unconfirmed code import keeps its private source package for recovery', (t) => {
   const client = fixture(t, { importError: true });

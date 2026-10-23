@@ -136,10 +136,15 @@ function uploadZip({ run, zipPath, configPath, upload }) {
     const exit = Number.isInteger(error?.status) ? error.status : 'unknown';
     const response = typeof error?.stdout === 'string' ? error.stdout.trim() : '';
     const http = /^\d{3}$/.test(response) ? `, HTTP ${response}` : '';
-    throw new Error(`Private function ZIP upload failed (curl ${exit}${http})`);
+    const failure = new Error(`Private function ZIP upload failed (curl ${exit}${http})`);
+    if ([6, 7, 18, 28, 52, 55, 56].includes(exit) && ['000', '100', '200'].includes(response))
+      failure.code = 'ZIP_TRANSPORT_ERROR';
+    throw failure;
   }
   if (status !== '200') throw new Error(`Private function ZIP upload failed (HTTP ${status})`);
+}
 
+function verifyPrivateZip({ run, upload }) {
   const privateUrl = new URL(upload.uploadUrl);
   privateUrl.search = '';
   let anonymousStatus;
@@ -167,6 +172,51 @@ function uploadZip({ run, zipPath, configPath, upload }) {
   }
   if (!['403', '404'].includes(anonymousStatus)) {
     throw new Error(`Function ZIP privacy check failed (HTTP ${anonymousStatus})`);
+  }
+}
+
+function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }) {
+  assertToolSucceeded(
+    callTool('cloudbase.auth', { action: 'set_env', envId }),
+    `${functionName}: bind storage upload environment`,
+  );
+  const bucket = new URL(upload.uploadUrl).hostname.split('.cos.')[0];
+  const permission = callTool('cloudbase.queryPermissions', {
+    action: 'getResourcePermission',
+    resourceType: 'storage',
+    resourceId: bucket,
+  });
+  assertToolSucceeded(permission, `${functionName}: inspect private storage`);
+  if (
+    permission.data?.envId !== envId ||
+    permission.data.resourceType !== 'storage' ||
+    permission.data.resourceId !== bucket ||
+    permission.data.aclTag !== 'PRIVATE' ||
+    !permission.data.permissions?.some(
+      (entry) =>
+        entry.Resource === bucket &&
+        entry.ResourceType === 'storage' &&
+        entry.Permission === 'PRIVATE',
+    )
+  )
+    throw new Error(`${functionName}: SDK upload requires verified private storage`);
+  try {
+    assertToolSucceeded(
+      callTool(
+        'cloudbase.manageStorage',
+        {
+          action: 'upload',
+          localPath: zipPath,
+          cloudPath: upload.cosObjectName,
+          isDirectory: false,
+        },
+        { timeoutMs: 300_000, maxAttempts: 1 },
+      ),
+      `${functionName}: storage SDK upload`,
+    );
+  } catch {
+    // Upload results can include temporary URLs. Do not expose them in errors.
+    throw new Error('Private function ZIP upload failed (storage SDK fallback)');
   }
 }
 
@@ -227,7 +277,15 @@ export function deployFunctionCode({
     });
     assertToolSucceeded(result, `${functionName}: get private code upload`);
     upload = checkedUpload(result.data, functionName, region);
-    uploadZip({ run, zipPath, configPath: join(temporary, 'curl.conf'), upload });
+    try {
+      uploadZip({ run, zipPath, configPath: join(temporary, 'curl.conf'), upload });
+    } catch (error) {
+      if (error?.code !== 'ZIP_TRANSPORT_ERROR') throw error;
+      // The manager SDK splits files over 5 MiB; reuse only this attempt's object.
+      logger.log(`${functionName}: ${error.message}; trying the storage SDK once`);
+      uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload });
+    }
+    verifyPrivateZip({ run, upload });
     logger.log(
       `${functionName}: private ZIP uploaded (${zipBytes} bytes); staging object ${upload.cosObjectName}`,
     );
