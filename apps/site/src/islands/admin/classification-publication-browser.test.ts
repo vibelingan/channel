@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import type { Route } from '@playwright/test';
 import { CatalogProductOperationStatusSchema } from '@vibelingan-channel/shared/catalog-product-operation';
 import { z } from 'zod';
 import { signSession } from '../../../../../packages/auth/src/jwt.ts';
@@ -224,7 +225,25 @@ for (const engine of ['chromium', 'webkit'] as const)
         },
         { token },
       );
-      await page.route('**/api/admin', async (route) => {
+      const pendingRoutes = new Set<Promise<void>>();
+      const track = (handler: (route: Route) => Promise<void>) => (route: Route) => {
+        const pending = handler(route);
+        pendingRoutes.add(pending);
+        void pending.then(
+          () => pendingRoutes.delete(pending),
+          () => pendingRoutes.delete(pending),
+        );
+        return pending;
+      };
+      const settle = async () => {
+        const recovery = page.getByRole('button', {
+          name: 'Recover original publication',
+          exact: true,
+        });
+        if (await recovery.count()) await expect(recovery).toBeEnabled();
+        while (pendingRoutes.size) await Promise.all([...pendingRoutes]);
+      };
+      const handleAdminRoute = async (route: Route) => {
         assert.equal(new URL(route.request().url()).origin, new URL(origin).origin);
         const input = route.request().postDataJSON();
         const data = input.data ?? {};
@@ -331,8 +350,9 @@ for (const engine of ['chromium', 'webkit'] as const)
         } finally {
           held?.completed();
         }
-      });
-      await page.route('**/api/products/**', async (route) => {
+      };
+      await page.route('**/api/admin', track(handleAdminRoute));
+      const handlePublicRoute = async (route: Route) => {
         if (blockPublic) {
           await route.fulfill({
             status: 503,
@@ -357,8 +377,11 @@ for (const engine of ['chromium', 'webkit'] as const)
           body: result.body,
           headers: result.headers,
         });
-      });
+      };
+      await page.route('**/api/products/**', track(handlePublicRoute));
       const open = async (group: string) => {
+        // Finish readback and response delivery before replacing its document.
+        await settle();
         blockPublic = false;
         loseCommit = false;
         pauseContinuation = false;
@@ -624,10 +647,13 @@ for (const engine of ['chromium', 'webkit'] as const)
               (a) => a.action === 'catalogCategories' && a.data.kind === 'assignment',
             ).length;
             const startCount = starts.size;
+            await settle();
             await page.reload();
             await expect(
               page.getByRole('button', { name: 'Save and publish', exact: true }),
             ).toBeDisabled();
+            // Loading categories moves the action row, which can lose a WebKit click.
+            await expect(page.getByText('Loading categories...', { exact: true })).toHaveCount(0);
             await page
               .getByRole('button', { name: 'Recover original publication', exact: true })
               .click();
@@ -1100,6 +1126,7 @@ for (const engine of ['chromium', 'webkit'] as const)
             }
           },
         );
+        await settle();
         assert.deepEqual(errors, [], JSON.stringify({ errors, networkFailures }));
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
