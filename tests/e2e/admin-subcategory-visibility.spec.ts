@@ -169,12 +169,37 @@ test('product creation keeps one original draft across response loss, reload and
   }
 });
 
-test('built creation recovery checks and opens a real published product using its original task', async ({
+test('built creation recovery honors availability and opens a real published product using its original task', async ({
   page,
   request,
 }) => {
   test.setTimeout(90_000);
   const session = await loginAdmin(request);
+  const capabilities = await adminAction<{ enabled: boolean }>(
+    request,
+    'catalogDetailCapabilities',
+    undefined,
+    session.token,
+  );
+  expect(capabilities.enabled).toBe(process.env.E2E_CATALOG_FORMAL === '1');
+  if (!capabilities.enabled) {
+    await expect(
+      adminAction(
+        request,
+        'catalogDetailApproval',
+        {
+          action: 'product-operation-start',
+          productId: 'disabled-publication-probe',
+          operationId: crypto.randomUUID(),
+          intent: 'publish',
+          expectedUpdatedAt: null,
+          values: {},
+        },
+        session.token,
+      ),
+    ).rejects.toThrow('Catalog detail approval is not enabled.');
+    return;
+  }
   await page.addInitScript(({ token, user }) => {
     localStorage.setItem('channel.token', token);
     localStorage.setItem('channel.user', JSON.stringify(user));
@@ -1411,14 +1436,35 @@ test('tablet product actions keep classification visible and visibility commands
     )
       writes.push('publish');
   });
-  await actions.getByRole('button', { name: 'Publish', exact: true }).click();
+  if (process.env.E2E_CATALOG_FORMAL === '1') {
+    await actions.getByRole('button', { name: 'Publish', exact: true }).click();
+  } else {
+    const publish = actions.getByRole('button', { name: 'Publish', exact: true });
+    await expect(publish).toBeDisabled();
+    await expect(publish).toHaveAttribute(
+      'title',
+      'Publishing is unavailable in this environment.',
+    );
+    expect(writes).toEqual([]);
+    // The legacy API remains supported; arrange a live row to exercise the withdrawal controls.
+    await adminAction(
+      request,
+      'update',
+      { collection: 'products', id: product._id, values: { published: true } },
+      session.token,
+    );
+    await page.reload();
+    await choose(page, 'Section', 'Products');
+    await page.getByPlaceholder(/^Search name/).fill(String(product.name));
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+  }
   await expect(
     page
       .getByRole('row')
       .filter({ hasText: String(product.name) })
       .getByRole('button', { name: 'Published' }),
   ).toBeVisible();
-  expect(writes).toEqual(['publish']);
+  expect(writes).toEqual(process.env.E2E_CATALOG_FORMAL === '1' ? ['publish'] : []);
   const row = page.getByRole('row').filter({ hasText: String(product.name) });
   await row.getByRole('checkbox', { name: 'Select row' }).check();
   let releaseUpdate!: () => void;

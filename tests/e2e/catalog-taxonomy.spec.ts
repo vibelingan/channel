@@ -349,10 +349,27 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await openProducts(page, `${e2e.runId} Taxonomy ${family}`);
       await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(14);
       await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
-      await page.getByRole('button', { name: 'Publish', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
-        timeout: 60_000,
-      });
+      const publish = page.getByRole('button', { name: 'Publish', exact: true });
+      if (process.env.E2E_CATALOG_FORMAL === '1') {
+        await publish.click();
+        await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
+          timeout: 60_000,
+        });
+      } else {
+        await expect(publish).toBeDisabled();
+        await expect(publish).toHaveAttribute(
+          'title',
+          'Publishing is unavailable in this environment.',
+        );
+        // Arrange legacy public records through its supported API for the storefront assertions.
+        for (const product of products)
+          await adminAction(
+            request,
+            'update',
+            { collection: 'products', id: product._id, values: { published: true } },
+            session.token,
+          );
+      }
       await expect
         .poll(async () =>
           (await Promise.all(products.map((product) => readProduct(product._id)))).every(

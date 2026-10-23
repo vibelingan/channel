@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { type Page, expect, test } from '@playwright/test';
+import { adminListResponse } from './helpers/admin-list-response';
 
 const adminUser = {
   id: 'user-1',
@@ -59,9 +60,13 @@ test('list and editor retain a known source MOQ without a usable source price', 
     const data =
       body.action === 'me'
         ? { user: adminUser }
-        : body.action === 'list'
-          ? { items: [draft], total: 1, page: 1, pageSize: 20 }
-          : {};
+        : body.action === 'get'
+          ? draft
+          : body.action === 'catalogDetailCapabilities'
+            ? { enabled: false }
+            : body.action === 'list'
+              ? adminListResponse(body.data, [draft])
+              : {};
     await route.fulfill({ json: { ok: true, data } });
   });
   await page.goto('/admin');
@@ -111,11 +116,15 @@ test('editor uses desktop space, contains scrolling, previews images and protect
     const data =
       body.action === 'me'
         ? { user: adminUser }
-        : body.action === 'getImagePreview'
-          ? { id: body.data.id, mimeType: 'image/png', dataBase64: png }
-          : body.action === 'list'
-            ? { items: [draft], total: 1, page: 1, pageSize: 20 }
-            : {};
+        : body.action === 'get'
+          ? draft
+          : body.action === 'catalogDetailCapabilities'
+            ? { enabled: false }
+            : body.action === 'getImagePreview'
+              ? { id: body.data.id, mimeType: 'image/png', dataBase64: png }
+              : body.action === 'list'
+                ? adminListResponse(body.data, [draft])
+                : {};
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -291,8 +300,11 @@ test('source gallery imports every distinct image, retains partial success, and 
     };
     let response: unknown;
     if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+    else if (body.action === 'get') response = { ok: true, data: saved };
+    else if (body.action === 'catalogDetailCapabilities')
+      response = { ok: true, data: { enabled: false } };
     else if (body.action === 'list')
-      response = { ok: true, data: { items: [saved], total: 1, page: 1, pageSize: 20 } };
+      response = { ok: true, data: adminListResponse(body.data, [saved]) };
     else if (body.action === 'getImagePreview')
       response = {
         ok: true,
@@ -341,11 +353,18 @@ test('product edit form groups fields, clears incompatible category, and enforce
     const response =
       body.action === 'me'
         ? { ok: true, data: { user: adminUser } }
-        : body.action === 'list'
-          ? { ok: true, data: { items: [product], total: 1, page: 1, pageSize: 20 } }
-          : body.action === 'getImagePreview'
-            ? { ok: true, data: { id: 'image', mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' } }
-            : { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
+        : body.action === 'get'
+          ? { ok: true, data: product }
+          : body.action === 'catalogDetailCapabilities'
+            ? { ok: true, data: { enabled: false } }
+            : body.action === 'list'
+              ? { ok: true, data: adminListResponse(body.data, [product]) }
+              : body.action === 'getImagePreview'
+                ? {
+                    ok: true,
+                    data: { id: 'image', mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' },
+                  }
+                : { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -395,12 +414,13 @@ test('product server errors attach to slug and publication fields', async ({ pag
     };
     let response: unknown;
     if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+    else if (body.action === 'get') response = { ok: true, data: { ...product, imageIds: [] } };
     else if (body.action === 'catalogDetailCapabilities')
       response = { ok: true, data: { enabled: false } };
     else if (body.action === 'list') {
       response = {
         ok: true,
-        data: { items: [{ ...product, imageIds: [] }], total: 1, page: 1, pageSize: 20 },
+        data: adminListResponse(body.data, [{ ...product, imageIds: [] }]),
       };
     } else if (body.action === 'update') {
       updateAttempt += 1;
@@ -450,6 +470,18 @@ test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submi
   page,
 }) => {
   await seedAdminSession(page);
+  const draft = {
+    ...product,
+    productFamily: 'toys',
+    category: undefined,
+    skuCode: '',
+    slug: '',
+    imageIds: [],
+    moq: 1,
+    unitPrice: 134.18,
+    wholesalePrice: 118.31,
+    manualCatalogPricing: '',
+  };
   let updateValues: Record<string, unknown> | undefined;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON() as {
@@ -458,28 +490,13 @@ test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submi
     };
     let response: unknown;
     if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+    else if (body.action === 'get') response = { ok: true, data: draft };
+    else if (body.action === 'catalogDetailCapabilities')
+      response = { ok: true, data: { enabled: false } };
     else if (body.action === 'list') {
       response = {
         ok: true,
-        data: {
-          items: [
-            {
-              ...product,
-              productFamily: 'toys',
-              category: undefined,
-              skuCode: '',
-              slug: '',
-              imageIds: [],
-              moq: 1,
-              unitPrice: 134.18,
-              wholesalePrice: 118.31,
-              manualCatalogPricing: '',
-            },
-          ],
-          total: 1,
-          page: 1,
-          pageSize: 20,
-        },
+        data: adminListResponse(body.data, [draft]),
       };
     } else if (body.action === 'update') {
       updateValues = body.data?.values;
@@ -579,6 +596,7 @@ for (const purpose of ['gallery', 'description'] as const) {
     page,
   }) => {
     await seedAdminSession(page);
+    const draft = { ...product, imageIds: product.imageIds.slice(0, 8) };
     let releaseIntent: (() => void) | undefined;
     const intentReleased = new Promise<void>((resolve) => {
       releaseIntent = resolve;
@@ -591,15 +609,13 @@ for (const purpose of ['gallery', 'description'] as const) {
       };
       let response: unknown;
       if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+      else if (body.action === 'get') response = { ok: true, data: draft };
+      else if (body.action === 'catalogDetailCapabilities')
+        response = { ok: true, data: { enabled: false } };
       else if (body.action === 'list') {
         response = {
           ok: true,
-          data: {
-            items: [{ ...product, imageIds: product.imageIds.slice(0, 8) }],
-            total: 1,
-            page: 1,
-            pageSize: 20,
-          },
+          data: adminListResponse(body.data, [draft]),
         };
       } else if (body.action === 'createUploadIntent') {
         await intentReleased;
