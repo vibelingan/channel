@@ -196,6 +196,14 @@ jobs:
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm smoke:cloudbase
 
+      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
+      - name: Use the Ubuntu archive for browser dependencies
+        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
       - name: Install Playwright Chromium and WebKit
         if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
         run: pnpm exec playwright install --with-deps chromium webkit
@@ -251,6 +259,13 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
       - run: pnpm exec playwright install --with-deps chromium
       - name: Verify deployed release and exercise approved catalog scope
         env:

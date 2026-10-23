@@ -6,9 +6,11 @@
 
 ## CI 的改动和此前失败
 
-仓库原有 CI 已包含类型检查、lint、单元/集成测试、站点及函数构建、隔离数据库上的浏览器测试。相对上述 main，本分支在 `ci.yml` 中的唯一改动是将已有 Chromium/WebKit 安装步骤移到 `pnpm test` 之前，因为站点测试中已包含使用浏览器的组件测试。没有增加工作任务，也没有在 CI 中登录线上后台发布真实商品。
+仓库原有 CI 已包含类型检查、lint、单元/集成测试、站点及函数构建、隔离数据库上的浏览器测试。相对上述 main，本分支在 `ci.yml` 中最初的改动是将已有 Chromium/WebKit 安装步骤移到 `pnpm test` 之前，因为站点测试中已包含使用浏览器的组件测试。没有增加工作任务，也没有在 CI 中登录线上后台发布真实商品。
 
-`deploy-test.yml` 只增加 `PUBLIC_CATALOG_READY_DEFAULT` 的传递，默认仍为 `0`。窄屏分页修复是后台布局修复，不是 CI 流程变更。
+10 月 23 日额外处理了远端运行器安装依赖异常缓慢：PR 检查和部署前检查的 Azure Ubuntu 镜像下载均明显变慢，重新分配运行器后其中一组恢复，PR 组仍反复缓慢。保存日志中 `libcodec2` 约 9 MB 的下载耗时近 111 秒。现只在浏览器安装前，将 `/etc/apt/apt-mirrors.txt` 中的 `azure.archive.ubuntu.com` 替换为 Ubuntu 官方 `archive.ubuntu.com`；文件不存在时不操作。CI、部署后公开浏览器检查及原有可选验收入口都使用相同准备步骤。保留 APT 包签名、已有软件源条目、浏览器安装命令、所有测试、原超时和部署依赖。没有增加 job 或商品操作。APT 镜像列表机制已对照 Ubuntu 官方 `apt-transport-mirror` 手册；三个 shell 片段和 workflow YAML 均解析通过，既有部署合约测试 505/505、lint 1,104 文件通过。该配置须由最终 Linux CI 实际确认，不能把本地配置解析当作远端安装成功。
+
+`deploy-test.yml` 除上述镜像准备外，只增加 `PUBLIC_CATALOG_READY_DEFAULT` 的传递，默认仍为 `0`。窄屏分页修复是后台布局修复，不是 CI 流程变更。
 
 旧 CI `39658870353` 的失败发生在 `catalog-table-publication.test.ts` 的 normal 用例：20 个临时商品中，17 个在首次调用内确认完成，另外 3 个返回可继续的 `OPERATION_UNCONFIRMED`。该用例使用临时 JSON 数据库、本地 PNG 和测试 JWT，拦截请求并限制为 `https://table.test`；不访问 Alibaba 或云端商品。
 
