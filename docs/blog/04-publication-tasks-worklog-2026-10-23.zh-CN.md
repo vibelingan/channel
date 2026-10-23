@@ -91,4 +91,6 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 
 首次推送 `1d2c7d4e`：dummy 专项远端检查 [39953453948](https://github.com/vibelingan/channel/actions/runs/39953453948) 通过，包括真正的 Astro 构建、函数包和后台浏览器操作。原有离线模块 CI [39953454093](https://github.com/vibelingan/channel/actions/runs/39953454093) 在格式检查阶段停止，原因是遗漏五个新文件的格式化（共七条诊断）；已补齐并在本地完整 `pnpm lint` 检查 991 个文件通过。这里保留首次失败，不将它改记为通过；修正提交继续由远端验收。
 
-现场入口再核对：仓库和 test 环境的 GitHub Variables 均为空，目标环境等值过去由部署脚本自行处理。新 dummy 入口已补上与仓库固定策略相同的默认环境和站点；若将来配置的变量与固定目标不同，运行程序仍拒绝执行。没有向 GitHub 全局或 test 环境写变量，因此不改变 pricing 的正常部署参数。
+现场入口再核对：完整分页读回后确认：仓库未配置 Variables；test 环境已有 37 项配置，包含上海地域，但缺少 TCB_ENV_ID 和 SITE_URL，这两个值过去由部署脚本自行处理。新 dummy 入口已补上与仓库固定策略相同的默认环境和站点；若将来配置的变量与固定目标不同，运行程序仍拒绝执行。没有向 GitHub 全局或 test 环境写变量，因此不改变 pricing 的正常部署参数。
+
+最后核对 GitHub 队列语义：`cancel-in-progress: false` 本身仍可能替换已有的等待任务。新 dummy 入口采用 `queue: max`；原 F1 入口保持不改，但申请维护窗口前必须先读回所有运行/等待的部署，存在任何一个就等它结束再申请。这样避免本任务把 pricing 的等待发布挤掉。依据：[GitHub 2026-05-07 官方队列说明](https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/)。

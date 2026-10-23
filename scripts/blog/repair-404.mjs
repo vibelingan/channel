@@ -37,6 +37,26 @@ const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).tri
 const mcp = await connectBlogMcp();
 try {
   if (command === 'start-lock') {
+    for (const status of ['in_progress', 'queued', 'pending', 'waiting']) {
+      const runs = gh([
+        'api',
+        `repos/${policy.repository}/actions/runs?status=${status}&per_page=100`,
+      ]);
+      if (runs.total_count > 100 || !Array.isArray(runs.workflow_runs))
+        throw new Error('Deployment activity cannot be fully checked');
+      if (
+        runs.workflow_runs.some((run) =>
+          [
+            '.github/workflows/deploy-test.yml',
+            '.github/workflows/seo-static-canary.yml',
+            policy.workflowPath,
+          ].includes(run.path),
+        )
+      )
+        throw new Error(
+          'An existing deployment is running or waiting; let it finish before requesting this maintenance window',
+        );
+    }
     const record = await readFile(file);
     if (record.length > 40000)
       throw new Error('Maintenance record exceeds the registered entry budget');
