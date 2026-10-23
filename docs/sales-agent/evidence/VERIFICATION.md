@@ -1,6 +1,6 @@
 # 设计检查记录
 
-2026-10-23。本文件最终记录本轮文档、依赖、来源和图的检查，不代表产品实现测试或真实账号联调。
+2026-10-23。本文件记录初始设计文档、依赖、来源和图的检查；后续实施状态见文末。不代表真实账号联调。
 
 ## 范围与写作核对
 
@@ -25,7 +25,7 @@
 - 原Channel工作区分支/HEAD/未提交状态与开始时一致，四份受保护文档哈希一致；Hermes分支/HEAD及原有未跟踪文件状态一致。
 - 本轮只新增docs/sales-agent。`git diff --check`通过。没有运行产品测试，因为没有修改产品实现。
 
-所有23个实施单元仍为planned_not_implemented，未连接或修改客户账号，未执行真实外发。
+初始设计提交时，23个实施单元均为planned_not_implemented；后续状态以下节及plan.json为准。未连接或修改客户账号，未执行真实外发。
 
 ## 图的交付身份
 
@@ -43,3 +43,7 @@ correction_rounds: 0 (visual stage)
 ## 可迁移的记录
 
 仓库提交检查要求不包含本机用户目录。提交版回执仅把本机路径换成`${SALES_WORKTREE}`等占位，保留specification/artifact的SHA-256、bytes及全部测量值；原始工具回执另保存在忽略的`evidence/local/`中，没有改动可信HTML或截图。源码清单同样使用路径占位，检查脚本从Git共同目录解析原Channel工作区。
+
+## 后续两个单元
+
+SG0.1的实现及具体测试见[SG0.1-VALIDATION](SG0.1-VALIDATION.md)，提交595a4849的远端contracts工作流已成功。SG1.0的源码审计见[SG1.0-BASELINE](SG1.0-BASELINE.md)；它核对代码身份及业务接线，没有运行线上业务。plan.json现有2项完成各自范围的验证、21项未实现，均live_enabled=false。模块职责及业务流程没有改变，本轮未改模块图及其既有视觉回执。

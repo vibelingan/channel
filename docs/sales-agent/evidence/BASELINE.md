@@ -2,12 +2,14 @@
 
 核对日期2026-10-23。只读源码/本地文档与官方文档，没有登录客户账号、运行真实业务测试或确认当前WeCom部署版本。
 
+本文件保留最初设计核对的来源。后续SG1.0已比较远端main与Phase 2并完成逐入口复核，当前实现参考及44份源码清单见[SG1.0复用结论](SG1.0-BASELINE.md)。其中正式单品询盘在main也已具备，旧模拟组件不能一概归为当前正式入口；本表不作为线上启用证明。
+
 ## 工作区和保存边界
 
 | 对象 | 分支/提交 | 解释 |
 |---|---|---|
 | 原Channel工作区 | feat/ai-assistant-platform-design / 03be923c0d7f8cf0f8bfa86a9f8224ba07315f17 | 有别人的未提交文档及.cloudbase/output，保持原样 |
-| 新设计worktree | feat/sales-agent-modular-design，自03be923c创建 | 仅新增docs/sales-agent；无合并/搬运产品代码 |
+| 新销售worktree | feat/sales-agent-modular-design，自03be923c创建 | 初始设计后已新增独立sales-contracts及其CI；无合并/搬运产品代码 |
 | 较新Phase2参考 | origin/feat/ai-assistant-phase2 / a7e16aa2c89792cbb3fe49f9330848aea0b05405 | 用git show读取；不是当前worktree中已有的全部功能 |
 | Hermes本地参考 | /Volumes/Lexar-Mac/Projects/hermesinfra，feat/react-router-scaffold / ff066b12a52fbc435478bf6d1de3cfba68933e20 | 有现成任务基础；未证明与运行部署相同 |
 
@@ -27,7 +29,7 @@
 | Phase2 `apps/site/src/islands/shop/InquiryForm.tsx:30-35`及其cart/legacy/overstock调用 | 旧模拟路径残留；应逐路由盘点，不能统称已全部连通 |
 | Phase2 `apps/functions/admin/src/handler.ts:570-572,614-629`及`InquiryDetailPanel.tsx:193-195` | 后台跟进记录不发邮件；notification disabled |
 | Phase2 `packages/db/src/catalog-inquiry.ts:134-178` | 业务status/备注/操作历史及并发版本控制已存在；后台操作人可completed/closed |
-| Phase2 `apps/functions/admin/src/handler.ts:1150-1213`，当前03be版本`:1080-1125` | OEM保存、附件激活/失败补偿、best-effort确认信 |
+| SG1.0主线 `apps/functions/admin/src/handler.ts:1088-1226` | OEM保存、附件激活/失败补偿、best-effort确认信；按固定main提交校正定位，详细失败窗口见SG1.0 |
 | `packages/email/src/index.ts:20-75,116-121` | SMTP缺配置不发送；失败返回false。未见询盘邮件持久发送账、收信/审批；模板含24小时回复承诺 |
 | Phase2 `packages/ai-store/src/migrations/001_ai_assistant.up.sql:114-141`及`apps/ai-worker/src/worker.ts:263-268` | 有leads/部分outbox枚举不代表已实现销售处理；worker只处理start/cancel，其他handler未配置 |
 | Phase2 `CLIENT-ANSWERS-2026-10-12.md:89-107,177-189`，`PLAN.md:298-303` | IMAP/SMTP/Channel审阅及“销售脑留Channel”是旧建议；被本轮Resend/Hermes业务方向替代 |

@@ -41,8 +41,9 @@
       "write_scope": "只读路由/开关/持久化盘点与证据",
       "acceptance": "记录OEM/单品/客服入口、旧dummy、有效提交条件和选定SHA",
       "primary_test": "source_route_persistence_evidence",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "verified_code_snapshot",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG1.0-BASELINE.md"
     },
     {
       "id": "SG1.1",
