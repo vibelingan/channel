@@ -28,7 +28,15 @@ interface PageInput {
   schemaNodes?: Record<string, unknown>[];
 }
 
-const PRIVATE_ROOTS = ['/admin', '/account', '/login', '/register', '/reset', '/api'];
+const PRIVATE_ROOTS = [
+  '/admin',
+  '/account',
+  '/login',
+  '/register',
+  '/reset',
+  '/api',
+  '/__blog-dummy',
+];
 const FOLLOW_SHELLS = new Set(['/products/item/', '/success-stories/', '/404/', '/404.html']);
 
 export function canonicalPath(input: string): string {

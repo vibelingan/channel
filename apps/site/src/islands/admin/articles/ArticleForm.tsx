@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AdminApiError } from '../api.ts';
 import { ArticleEditor } from './ArticleEditor.tsx';
 import { ArticlePreview } from './ArticlePreview.tsx';
+import { ArticlePublication } from './ArticlePublication.tsx';
 import { type DraftWrite, getArticleDraft } from './article-api.ts';
 import { useArticlePreview, useWriteArticle } from './useArticleDrafts.ts';
 import { useUploadArticleImage } from './useArticleMedia.ts';
@@ -41,6 +42,7 @@ export function ArticleForm({
   const [preview, setPreview] = useState<Parameters<typeof ArticlePreview>[0]['preview'] | null>(
     null,
   );
+  const [publicationBusy, setPublicationBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const imageWrite = useUploadArticleImage();
   const uploadController = useRef<AbortController | null>(null);
@@ -57,7 +59,7 @@ export function ArticleForm({
   const previewing = previewRequest.isPending;
   const [valid, setValid] = useState(true);
   const dirty = JSON.stringify(content) !== baseline.current;
-  const locked = write.isPending || previewing || uploading || pending !== null;
+  const locked = write.isPending || previewing || uploading || pending !== null || publicationBusy;
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty || locked;
   useEffect(() => {
@@ -262,6 +264,12 @@ export function ArticleForm({
           )}
         </div>
       )}
+      <ArticlePublication
+        saved={saved}
+        locked={locked || conflict || !valid}
+        save={save}
+        onBusy={setPublicationBusy}
+      />
       <fieldset disabled={locked} className="space-y-5 disabled:opacity-70">
         <label className="block text-sm font-medium text-slate-700">
           Title

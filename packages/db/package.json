@@ -16,7 +16,9 @@
     "./catalog-quote": "./src/catalog-quote.ts",
     "./article-repository": "./src/article-repository.ts",
     "./article-dummy": "./src/article-dummy.ts",
-    "./cloudbase": "./src/cloudbase-adapter.ts"
+    "./cloudbase": "./src/cloudbase-adapter.ts",
+    "./article-release-source": "./src/article-release-source.ts",
+    "./article-build-assets": "./src/article-build-assets.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

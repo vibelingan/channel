@@ -282,8 +282,8 @@ test('standard product route binds the validated public page descriptor to BaseL
   );
 });
 
-test('Blog route binds its validated public descriptor and language to BaseLayout', async () => {
-  const { ast, diagnostics } = await parse(read('../pages/blog/[...slug].astro'));
+test('Shared Blog view binds its validated public descriptor and language to BaseLayout', async () => {
+  const { ast, diagnostics } = await parse(read('../components/BlogView.astro'));
   assert.deepEqual(diagnostics, []);
   const layouts: ComponentNode[] = [];
   const visit = (node: AstroNode) => {
@@ -313,6 +313,8 @@ test('sitemap follows published catalog content and excludes private routes', ()
     '/register/',
     '/products/item/',
     '/success-stories/',
+    '/__blog-dummy/',
+    '/__blog-dummy/article/',
   ]) {
     assert.equal(includeInSitemap(`https://example.test${path}`), false, path);
   }

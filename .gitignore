@@ -68,3 +68,6 @@ scripts/pipeline-e2e.sh
 
 # Downloaded, checksum-verified skills for the temporary cloud handoff
 /.agents/skills/
+
+# Isolated Blog function bundle; source and build configuration are versioned.
+/apps/functions/admin/dist-blog-dummy/

@@ -94,3 +94,89 @@ dummy 验收可先由本地浏览器操作页面、实际调用独立云函数�
 - 已进入交付的未知结果保留占用；确认恢复完成后的状态转换，以及 UNKNOWN 的现场核对入口，必须与共享交付记录一起实现。目前只有构建失败可直接登记失败。
 - worker 当前有领取、续期、交付前检查和完成登记代码；这些方法还未接真实文件上传、共享环境锁和普通 URL 读回。测试里的回执只验证事务规则，不证明线上交付成功。
 - 请求人的权限变化会阻止领取或开始交付；取消尚未开始的任务及更换处理人的操作，需在页面接线前补上，不能靠删除记录解锁。
+
+## 第二段接线的具体做法（2026-10-23）
+
+构建、后台操作和实际上传分开，后台不用等一条 HTTP 请求持续构建。管理员先提交任务，后台定时读取这条任务的状态；本次 dummy 由操作者指定任务号，启动独立的 GitHub Actions。正式站点自动调度仍保持关闭。
+
+1. `packages/articles/src/build.ts` 校验内部候选：任务号、文章、修订、正文摘要、日期、地址和图片清单都必须匹配。公开快照入口继续只收 `accepted`，内部候选明确标为 `candidate`。
+2. `article-release-source.ts` 通过现有 SDK 分页读取已验收文章；`article-build-assets.ts` 取固定的私有图片并核对归属、类型、尺寸和字节摘要。构建期间持有交付锁，避免两次文章发布互相覆盖。
+3. 正常 `/blog/` 和 dummy 共用 `BlogView.astro`、正文解析器、页面描述和样式。dummy 另外使用 `astro.blog-dummy.config.ts`，只构建 `__blog-dummy/` 目录的列表、文章、图片及必要资源，不构建商品页，也不上传正式 sitemap。
+4. `payload.mjs` 固定本次全部文件；上一版本的图片和脚本保留，撤回只精确删除不再公开的文章 HTML。包先上传 GitHub Artifact，再通过 GitHub 元数据核对来源、代码版本、有效期和 ZIP 摘要；不捏造本地产物编号。
+5. `delivery.mjs` 复用已实现的交付记录、租约、逐步写入与普通 URL/ETag 验收。它不能改网站、网关、缓存和正常发布配置。上传的不确定结果保留为 UNKNOWN；只有明确完成的上传和可用的原 A，才允许自动恢复一次。
+6. 编辑页的 `ArticlePublication` 使用公共 `call` 和 React Query，支持保存后发布、状态重开、取消排队、重试原候选、更新与撤回。撤回保留草稿、图片和地址归属。正式后端没有启用开关，因此正常后台不显示发布按钮。
+
+### dummy 怎样避免与 pricing 互相影响
+
+- 仅新增函数 `seo-blog-dummy`，不改 `admin`、`public-api`、`alibaba-catalog-sync`，不绑定公开函数网关。
+- 八个文章集合使用已约定的 `blogDummy20261023*`；四个交付记录集合另外使用 `blogDummy20261023ReleaseTargets/ReleaseScopes/ReleaseRuns/ReleaseSteps`。函数只能访问八个文章集合；交付进程才能访问另外四个记录集合。
+- 这四个测试记录集合复用原来交付工具的代码，与正式记录分开保存。**现有正常部署尚未接同一套数据库锁，故不能只靠数据库锁宣称互斥**；真正的部署入口还使用既有 `cloudbase-deploy-test` GitHub 并发队列，与 Deploy Test、原 canary 排队执行。不会取消其他正在发布的任务。
+- 云存储只写 `__blog-dummy/articles/…`；静态托管只写 `__blog-dummy/…`。私有图片不返回存储地址，仍通过鉴权字节生成 Blob 预览；发布后的图片才进入 dummy 静态目录。
+- 测试会话密钥和 JWT 只存在机器上的外部私有目录及独立函数配置中，不提交 Git，不放进网页和 GitHub Artifact。函数测试窗口自动到期；到期后拒绝操作，不自动删除数据。
+
+### 一次实际测试怎么走
+
+`provision-dummy.mjs plan` 先只读核对环境、命名占用、现有页面摘要，写出待执行范围。通过本地及远端检查后，以同一代码版本执行 `provision`，创建私有集合和独立函数、读回权限与代码身份，再启动本地页面到真实函数的桥接。
+
+从编辑页创建 A、上传图片、保存、预览并发布。后台排队的任务号传给 `seo-blog-dummy.yml`，Actions 构建、保存候选包、上传并验收，再由页面读回 SUCCEEDED。然后编辑 B，选择仅用于 dummy 的 `after-upload`，在 B 的所有文件上传并验收后制造一次失败，恢复到已经验证过的 A；页面应显示恢复完成且 B 发布失败。B 草稿与新字段保留，再重试同一个 B 候选，最后做撤回与实际 404。
+
+这套真实测试由本地页面、独立云函数、真实 NoSQL、真实私有存储、GitHub 执行进程和网站测试目录组成；不能写成“后台已经部署到云端”。尚未运行的步骤继续列为待验收，不用离线测试替代。
+
+### 收尾与停止
+
+目标、权限、代码版本、原站页面摘要或文件归属发生变化时，停止新的写入并查明原因。原来正常发布正在进行时排队等待。未知上传、租约过期、恢复结果不确定时，不递归恢复，不自动解锁或删除记录。
+
+测试结束先停本地桥接并等待独立函数测试窗口到期。默认保留记录、原件及备份；删除资源需要单独列明精确清单并核对用户要求，不做目录级清理。
+
+## 实际执行命令
+
+本地与云端都先切回既有 `feat/seo-foundation` 并核对共同进度；不用创建新分支。下面需要 Node 22.13.0、仓库依赖、`tools/cloud-handoff` 中已锁定的 CloudBase MCP、GitHub CLI 登录及对应环境的管理连接。连接检查与云端资源检查都由脚本执行；需要重新登录时才发 OAuth 链接。
+
+```bash
+# 私有目录必须在仓库之外，不能放在 output 或上传为 Artifact。
+export BLOG_DUMMY_PRIVATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/channel-blog-private.XXXXXX")"
+node scripts/blog/provision-dummy.mjs plan
+
+# 完成本地/远端验证并核对 plan 后，构建同一提交的独立函数。
+export CHANNEL_BUILD_SHA="$(git rev-parse HEAD)"
+pnpm --filter @vibelingan-channel/fn-admin exec tsup --config tsup.blog-dummy.config.ts
+node scripts/blog/function-bundle.integration.mjs
+export BLOG_DUMMY_EXPECTED_SHA="$CHANNEL_BUILD_SHA"
+node scripts/blog/provision-dummy.mjs provision
+
+# 只为隔离测试身份签发短期会话，不输出密码、密钥或 JWT。
+node --experimental-strip-types scripts/blog/prepare-session.ts
+E2E_BLOG_DUMMY_LIVE=1 node scripts/blog/dummy-local-ui.mjs
+```
+
+`BLOG_DUMMY_EXPECTED_SHA` 只是核对“正在部署哪一份代码”的 Git 提交号，不是 AI token、费用或额外审批。`plan` 只读；`provision` 会创建上面明确列出的隔离资源。最后一条才会从页面触发真实保存、图片上传、指定任务的 Actions 和静态目录写入，不可在普通 CI 中设置 `E2E_BLOG_DUMMY_LIVE=1`。
+
+检查入口：
+
+- `pnpm exec tsc --project scripts/blog/tsconfig.json --noEmit`：交付入口类型检查。
+- `node --test scripts/blog-delivery.test.mjs`：上传恢复、范围、HTTP 与浏览器跨域边界。
+- `node scripts/blog/dummy-build.integration.mjs`：真正的独立 Astro 构建。
+- `node scripts/blog/dummy-local-ui.mjs`：本地真实服务和页面操作，默认不会连接云端。
+- `pnpm verify:cloudbase-sdk`、`pnpm test`、`pnpm typecheck`：原有回归继续执行。
+
+本次 `seo-blog-dummy.yml` 的 push 任务仅运行离线检查；云端写入只能通过指定分支上的人工入口，并要求精确的任务号、权限摘要和隔离确认文字。正常 Deploy Test 和既有 canary workflow 不改动。
+
+### 现场 404 设置被旧部署重写时
+
+2026-10-23 的只读检查发现现有设置又是 `ErrorDocument: index.html`。沿用之前已授权的 F1 修复范围：只将错误正文指向现有 `errors/not-found.html` 并保留原始错误状态；首页文档仍为 index.html，不改业务文件、函数、数据库、域名、路由或缓存策略。
+
+`repair-404.mjs plan` 保存完整配置与首页/分类/sitemap 摘要；`start-lock` 请求原有 F1 维护入口并先把这份原始配置保存为 GitHub Artifact。等待 pricing 的 Deploy Test 结束并取得维护队列后，`apply` 要同时核对执行代码、运行中的维护步骤、已保存备份的实际内容和配置没有漂移，才写一次网站配置。之后用普通请求、重新验证与条件请求核对缺失网址确实返回专用 404，正常页面摘要不变。
+
+如果需要恢复原有行为，使用相同备份和仍在运行的维护任务执行 `restore`，恢复保存的原始参数；不会回滚数据库或函数，也不删除任何文件。上传或配置写入结果不明时先读回，不反复提交。旧的首页兜底本身不是正确的 SEO 错误页，因此恢复原始配置只是故障时恢复原有行为，不能写成通过新的 404 验收。
+
+```bash
+node scripts/blog/repair-404.mjs plan
+node scripts/blog/repair-404.mjs start-lock
+# 从 GitHub 读回本次排队任务，确认它实际进入 maintenance 步骤。
+export F1_MAINTENANCE_RUN_ID="本次实际任务编号"
+node scripts/blog/repair-404.mjs apply
+# 仅在确认需要恢复原设置时，仍持相同队列并执行：
+# node scripts/blog/repair-404.mjs restore
+```
+
+SDK 使用当前管理连接给出的临时凭证，仅保存在该进程内，不显示、不写文件。此修复不能阻止另一个旧版本 Deploy Test 再次设置 index.html；本分支正式合并并采用新的部署约定前，每次现场验收仍须重新检查。

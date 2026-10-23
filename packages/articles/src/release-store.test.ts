@@ -362,3 +362,92 @@ test('empty content and a missing owned image fail before creating any release r
     assert.equal(f.rows().size, 2);
   }
 });
+
+test('cancel stops queued work only; retry preserves the frozen revision after further editing', async () => {
+  const f = fixture();
+  const first = await f.service.request('admin', f.request);
+  const cancelled = await f.service.control('admin', {
+    operation: 'cancel',
+    articleId: f.draft.id,
+    taskId: first.id,
+    requestId: 'cancel-one',
+  });
+  assert.equal(cancelled.error, 'CANCELLED');
+  const row = f.rows().get('articleDrafts/article-a');
+  assert(row);
+  f.tick();
+  row.draft = saveArticleDraft(f.draft, {
+    expectedRevision: 1,
+    editorId: 'admin',
+    now: new Date(start + 1000).toISOString(),
+    content: { ...content, title: 'New unsent draft' },
+  });
+  const retry = {
+    operation: 'retry',
+    articleId: f.draft.id,
+    taskId: first.id,
+    requestId: 'retry-one',
+  } as const;
+  const next = await f.service.control('admin', retry);
+  assert.equal(next.revision, 1);
+  assert.notEqual(next.id, first.id);
+  assert.deepEqual(await f.service.control('admin', retry), next);
+  const claimed = await f.service.claim(next.id, 'worker');
+  assert.equal(claimed.candidate?.content.title, content.title);
+  await assert.rejects(
+    f.service.control('admin', {
+      ...retry,
+      operation: 'cancel',
+      taskId: next.id,
+      requestId: 'late-cancel',
+    }),
+  );
+});
+
+test('verified recovery marks failure without moving the accepted publication; unknown cannot be retried', async () => {
+  const f = fixture();
+  const a = await f.service.request('admin', f.request);
+  const claim = await f.service.claim(a.id, 'worker');
+  await f.service.markDeploying(claim.guard);
+  f.tick();
+  await f.service.restored(claim.guard, {
+    deliveryId: 'restore-a',
+    artifactHash: 'b'.repeat(64),
+    acceptedAt: new Date(start + 1000).toISOString(),
+  });
+  assert.equal((await f.service.latest('admin', f.draft.id))?.error, 'RESTORED');
+  assert.equal(savedDraft(f.rows().get('articleDrafts/article-a')?.draft).published, null);
+  const next = await f.service.control('admin', {
+    operation: 'retry',
+    articleId: f.draft.id,
+    taskId: a.id,
+    requestId: 'retry',
+  });
+  const second = await f.service.claim(next.id, 'worker');
+  await f.service.markDeploying(second.guard);
+  await f.service.markUnknown(second.guard);
+  await assert.rejects(
+    f.service.control('admin', {
+      operation: 'retry',
+      articleId: f.draft.id,
+      taskId: next.id,
+      requestId: 'unsafe',
+    }),
+  );
+});
+
+test('a heartbeat after hosting acceptance does not invalidate the real receipt timestamp', async () => {
+  const f = fixture();
+  const task = await f.service.request('admin', f.request);
+  const claim = await f.service.claim(task.id, 'worker');
+  await f.service.markDeploying(claim.guard);
+  f.tick();
+  const receipt = {
+    deliveryId: 'accepted',
+    artifactHash: 'b'.repeat(64),
+    acceptedAt: new Date(start + 1000).toISOString(),
+  };
+  f.tick();
+  await f.service.renew(claim.guard);
+  assert.equal((await f.service.complete(claim.guard, receipt)).state, 'SUCCEEDED');
+});

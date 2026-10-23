@@ -12,6 +12,7 @@ import {
 } from './media.ts';
 import { articleMediaPath, parsePublishedArticle } from './publication.ts';
 import {
+  ArticleReleaseControlSchema,
   ArticleReleaseRequestSchema,
   ArticleReleaseViewSchema,
   type ArticleReleases,
@@ -80,6 +81,8 @@ export interface ArticleReleaseWorker extends ArticleReleases {
   ): Promise<z.infer<typeof ArticleReleaseViewSchema>>;
   failBuild(guard: ArticleReleaseGuard): Promise<void>;
   markUnknown(guard: ArticleReleaseGuard): Promise<void>;
+  notWritten(guard: ArticleReleaseGuard): Promise<void>;
+  restored(guard: ArticleReleaseGuard, receipt: Receipt): Promise<void>;
 }
 
 function conflict(message: string): never {
@@ -339,6 +342,65 @@ export function createArticleReleaseStore(
         );
         return view(task);
       }),
+    control: (actorId, input) =>
+      transaction(async (store) => {
+        const request = ArticleReleaseControlSchema.parse(input);
+        await admin(store, actorId);
+        const id = `release-${digest([actorId, request.requestId])}`;
+        const requestHash = digest([request.operation, request.articleId, request.taskId]);
+        const existing = await row(store, 'articleReleaseTasks', id);
+        if (existing) {
+          const task = taskSchema.parse(existing);
+          if (task.actorId !== actorId || task.requestHash !== requestHash)
+            conflict('This request ID was already used.');
+          return view(task);
+        }
+        const { task, head } = await load(store, request.taskId);
+        if (
+          task.articleId !== request.articleId ||
+          head.taskId !== task.id ||
+          head.sequence !== task.sequence
+        )
+          conflict('This is not the current article task.');
+        const time = new Date(now()).toISOString();
+        if (time < task.updatedAt) throw new Error('Article release clock moved backwards');
+        if (request.operation === 'cancel') {
+          if (task.state === 'FAILED' && task.error === 'CANCELLED') return view(task);
+          if (task.state !== 'QUEUED') conflict('Only queued tasks can be cancelled.');
+          const next = {
+            ...task,
+            state: 'FAILED' as const,
+            error: 'CANCELLED' as const,
+            updatedAt: time,
+          };
+          await write(store, 'articleReleaseTasks', task.id, next);
+          return view(next);
+        }
+        if (task.state !== 'FAILED') conflict('Only a confirmed failed task can be retried.');
+        await candidate(store, task);
+        const next = taskSchema.parse({
+          ...task,
+          id,
+          actorId,
+          sequence: count.parse(head.sequence + 1),
+          requestHash,
+          state: 'QUEUED',
+          error: null,
+          requestedAt: time,
+          updatedAt: time,
+          workerId: null,
+          attempt: 0,
+          leaseUntil: 0,
+          receipt: null,
+        });
+        await write(store, 'articleReleaseTasks', id, next);
+        await write(store, 'articleReleaseHeads', task.articleId, {
+          ...head,
+          taskId: id,
+          sequence: next.sequence,
+        });
+        return view(next);
+      }),
     latest: (actorId, articleId) =>
       transaction(async (store) => {
         articleIdentity.parse(articleId);
@@ -400,7 +462,6 @@ export function createArticleReleaseStore(
         await write(store, 'articleReleaseTasks', task.id, {
           ...task,
           leaseUntil: time + leaseMs,
-          updatedAt: new Date(time).toISOString(),
         });
       }),
     markDeploying: (guard) =>
@@ -514,6 +575,39 @@ export function createArticleReleaseStore(
           ...task,
           state: 'FAILED',
           error: 'BUILD_FAILED',
+          updatedAt: new Date(time).toISOString(),
+        });
+      }),
+    notWritten: (guard) =>
+      transaction(async (store) => {
+        const { task, head } = await load(store, guard.taskId);
+        const time = now();
+        owner(task, head, guard, time);
+        if (task.state !== 'DEPLOYING') conflict('This task has not entered delivery.');
+        await write(store, 'articleReleaseTasks', task.id, {
+          ...task,
+          state: 'FAILED',
+          error: 'DELIVERY_STOPPED',
+          updatedAt: new Date(time).toISOString(),
+        });
+      }),
+    restored: (guard, input) =>
+      transaction(async (store) => {
+        const receipt = taskSchema.shape.receipt.unwrap().parse(input);
+        const { task, head } = await load(store, guard.taskId);
+        const time = now();
+        owner(task, head, guard, time);
+        if (
+          task.state !== 'DEPLOYING' ||
+          receipt.acceptedAt < task.updatedAt ||
+          receipt.acceptedAt > new Date(time).toISOString()
+        )
+          conflict('Recovery has not been confirmed.');
+        await write(store, 'articleReleaseTasks', task.id, {
+          ...task,
+          state: 'FAILED',
+          error: 'RESTORED',
+          receipt,
           updatedAt: new Date(time).toISOString(),
         });
       }),

@@ -45,3 +45,23 @@ test('article conflict errors retain the server revision for the shared admin re
     globalThis.fetch = originalFetch;
   }
 });
+
+test('release responses validate article and requested revision instead of trusting a successful HTTP result', async () => {
+  const { readArticleReleaseResponse } = await import('./article-release-api.ts');
+  const task = {
+    id: 'task-a',
+    articleId: 'article-a',
+    operation: 'publish',
+    revision: 3,
+    state: 'QUEUED',
+    requestedAt: '2026-10-23T00:00:00.000Z',
+    updatedAt: '2026-10-23T00:00:00.000Z',
+    error: null,
+  };
+  assert.equal(readArticleReleaseResponse({ task }, 'article-a', 3)?.id, 'task-a');
+  assert.throws(() => readArticleReleaseResponse({ task }, 'article-b'));
+  assert.throws(() => readArticleReleaseResponse({ task }, 'article-a', 4));
+  assert.throws(() =>
+    readArticleReleaseResponse({ task: { ...task, candidate: { private: true } } }, 'article-a'),
+  );
+});

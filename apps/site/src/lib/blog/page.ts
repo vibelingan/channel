@@ -1,14 +1,24 @@
 import { createHash } from 'node:crypto';
 import { articleText, renderArticle } from '@vibelingan-channel/articles';
-import { type PublishedArticle, articleMediaPath } from '@vibelingan-channel/articles/publication';
+import type { ArticlePageData } from '@vibelingan-channel/articles/build';
+import { articleMediaPath } from '@vibelingan-channel/articles/publication';
 import { canonicalUrl, createPageDescriptor } from '../seo/page.ts';
 
 export const blogCopy = {
   title: 'Insights',
   description: 'Guides and practical notes on product development, sourcing and manufacturing.',
 };
-export const articlePath = (article: PublishedArticle) => `/blog/${article.content.slug}/`;
-export const articleSummary = (article: PublishedArticle) =>
+export const publicBlogLocation = { root: '/blog/', mediaPrefix: '', dummy: false };
+export const dummyBlogLocation = {
+  root: '/__blog-dummy/',
+  mediaPrefix: '/__blog-dummy',
+  dummy: true,
+};
+export const articlePath = (article: ArticlePageData, location = publicBlogLocation) =>
+  `${location.root}${article.content.slug}/`;
+export const blogMediaPath = (id: string, media: unknown, location = publicBlogLocation) =>
+  `${location.mediaPrefix}${articleMediaPath(id, media)}`;
+export const articleSummary = (article: ArticlePageData) =>
   article.content.excerpt || articleText(article.content.body).replace(/\s+/g, ' ').slice(0, 240);
 export const articleDate = (time: string) =>
   new Intl.DateTimeFormat('en', {
@@ -18,7 +28,7 @@ export const articleDate = (time: string) =>
     timeZone: 'UTC',
   }).format(new Date(time));
 
-export function articleBody(article: PublishedArticle): string {
+export function articleBody(article: ArticlePageData, location = publicBlogLocation): string {
   return renderArticle(article.content.body, {
     mode: 'public',
     media: Object.fromEntries(
@@ -26,7 +36,7 @@ export function articleBody(article: PublishedArticle): string {
         id,
         {
           kind: 'public',
-          url: articleMediaPath(id, media),
+          url: blogMediaPath(id, media, location),
           mimeType: media.mimeType,
           width: media.width,
           height: media.height,
@@ -36,20 +46,29 @@ export function articleBody(article: PublishedArticle): string {
   }).html;
 }
 
-export function articlePage(article: PublishedArticle, origin: string, brand: string) {
+export function articlePage(
+  article: ArticlePageData,
+  origin: string,
+  brand: string,
+  location = publicBlogLocation,
+) {
   const { content } = article;
-  const path = articlePath(article);
+  const path = articlePath(article, location);
   const url = canonicalUrl(path, origin);
   const images = Object.entries(article.media).map(
-    ([id, media]) => new URL(articleMediaPath(id, media), origin).href,
+    ([id, media]) => new URL(blogMediaPath(id, media, location), origin).href,
   );
   return createPageDescriptor({
     path,
     kind: 'article',
+    ...(location.dummy ? { robots: 'noindex,nofollow' as const } : {}),
     title: `${content.seoTitle || content.title} | ${brand}`,
     description: content.seoDescription || articleSummary(article),
     content: {
-      source: 'accepted-article-publication',
+      source:
+        article.status === 'candidate'
+          ? 'article-release-candidate'
+          : 'accepted-article-publication',
       revision: article.contentHash,
       updatedAt: article.modifiedAt,
     },
@@ -68,7 +87,7 @@ export function articlePage(article: PublishedArticle, origin: string, brand: st
       breadcrumb(
         [
           { name: 'Home', path: '/' },
-          { name: blogCopy.title, path: '/blog/' },
+          { name: blogCopy.title, path: location.root },
           { name: content.title, path },
         ],
         origin,
@@ -77,12 +96,19 @@ export function articlePage(article: PublishedArticle, origin: string, brand: st
   });
 }
 
-export function blogPage(articles: PublishedArticle[], origin: string, brand: string) {
-  if (!articles.length) throw new Error('An empty Blog does not create an indexable shell');
+export function blogPage(
+  articles: ArticlePageData[],
+  origin: string,
+  brand: string,
+  location = publicBlogLocation,
+) {
+  if (!articles.length && !location.dummy)
+    throw new Error('An empty Blog does not create an indexable shell');
   const rows = [...articles].sort((a, b) => a.articleId.localeCompare(b.articleId));
   return createPageDescriptor({
-    path: '/blog/',
+    path: location.root,
     kind: 'collection',
+    ...(location.dummy ? { robots: 'noindex,nofollow' as const } : {}),
     title: `${blogCopy.title} | ${brand}`,
     description: blogCopy.description,
     content: {
@@ -108,7 +134,7 @@ export function blogPage(articles: PublishedArticle[], origin: string, brand: st
       breadcrumb(
         [
           { name: 'Home', path: '/' },
-          { name: blogCopy.title, path: '/blog/' },
+          { name: blogCopy.title, path: location.root },
         ],
         origin,
       ),

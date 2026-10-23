@@ -1,21 +1,18 @@
 import { createHash } from 'node:crypto';
 import { open, realpath } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
-import {
-  type PublishedArticle,
-  articleMediaPath,
-  parsePublishedArticle,
-} from '@vibelingan-channel/articles/publication';
+import { type ArticlePageData, prepareArticleBuild } from '@vibelingan-channel/articles/build';
+import { articleMediaPath, parsePublishedArticle } from '@vibelingan-channel/articles/publication';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { siteOrigin } from '../seo/page.ts';
 
 export interface BlogSnapshot {
   schemaVersion: 1;
-  purpose: 'public' | 'fixture';
+  purpose: 'public' | 'fixture' | 'article-release';
   siteOrigin: string;
   total: number;
-  articles: PublishedArticle[];
+  articles: ArticlePageData[];
 }
 export interface BlogAsset {
   path: string;
@@ -81,13 +78,17 @@ export function decodeBlogSnapshot(input: unknown, site: string): BlogSnapshot {
 export async function readBlogBuild(
   site: string,
   inputFile = process.env.SEO_BLOG_SNAPSHOT ?? '',
+  releaseFile = process.env.SEO_BLOG_RELEASE_INPUT ?? '',
+  expectedTaskId = process.env.SEO_BLOG_TASK_ID ?? '',
 ): Promise<BlogBuild> {
-  if (!inputFile) return { snapshot: null, assets: [] };
-  const snapshotFile = await realpath(inputFile);
-  const snapshot = decodeBlogSnapshot(
-    JSON.parse((await boundedRead(snapshotFile, MAX_SNAPSHOT_BYTES)).toString('utf8')),
-    site,
-  );
+  if (inputFile && releaseFile)
+    throw new Error('Choose accepted snapshot or release input, not both');
+  if (!inputFile && !releaseFile) return { snapshot: null, assets: [] };
+  const snapshotFile = await realpath(releaseFile || inputFile);
+  const raw = JSON.parse((await boundedRead(snapshotFile, MAX_SNAPSHOT_BYTES)).toString('utf8'));
+  const snapshot = releaseFile
+    ? decodeBlogReleaseInput(raw, site, expectedTaskId)
+    : decodeBlogSnapshot(raw, site);
   const assets: BlogAsset[] = [];
   let totalBytes = 0;
   for (const article of snapshot.articles)
@@ -138,4 +139,22 @@ async function boundedRead(file: string, limit: number): Promise<Buffer> {
   } finally {
     await handle.close();
   }
+}
+
+export function decodeBlogReleaseInput(
+  input: unknown,
+  site: string,
+  expectedTaskId: string,
+): BlogSnapshot {
+  const value = z.object({ siteOrigin: z.string(), release: z.unknown() }).strict().parse(input);
+  if (siteOrigin(value.siteOrigin) !== siteOrigin(site))
+    throw new Error('Blog release SITE_URL mismatch');
+  const articles = prepareArticleBuild(value.release, expectedTaskId);
+  return {
+    schemaVersion: 1,
+    purpose: 'article-release',
+    siteOrigin: siteOrigin(site),
+    total: articles.length,
+    articles,
+  };
 }

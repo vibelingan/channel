@@ -27,18 +27,21 @@ const mediaSchema = z
   .strict()
   .refine((media) => media.width * media.height <= 32_000_000);
 export type PublishedArticleMedia = z.infer<typeof mediaSchema>;
+export const articlePageDataShape = {
+  articleId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
+  revision: z.number().int().positive().safe(),
+  contentHash: hash,
+  content: ArticleContentSchema,
+  publishedAt: timestamp,
+  modifiedAt: timestamp,
+  media: z.record(identity, mediaSchema),
+};
 const publicationSchema = z
   .object({
+    ...articlePageDataShape,
     status: z.literal('accepted'),
     deliveryId: identity,
-    articleId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
-    revision: z.number().int().positive().safe(),
-    contentHash: hash,
-    content: ArticleContentSchema,
-    publishedAt: timestamp,
-    modifiedAt: timestamp,
     acceptedAt: timestamp,
-    media: z.record(identity, mediaSchema),
   })
   .strict();
 export type PublishedArticle = z.infer<typeof publicationSchema>;
@@ -46,10 +49,19 @@ export type PublishedArticle = z.infer<typeof publicationSchema>;
 /** Consumes the publisher's explicit public projection, never a draft or database row. */
 export function parsePublishedArticle(input: unknown): PublishedArticle {
   const value = publicationSchema.parse(input);
+  const content = checkArticlePageData(value).content;
+  if (value.modifiedAt > value.acceptedAt)
+    throw new Error('Article publication dates are out of order');
+  return { ...value, content };
+}
+
+export function checkArticlePageData<T extends z.infer<z.ZodObject<typeof articlePageDataShape>>>(
+  value: T,
+): T {
   const content = parsePublicationContent(value.content);
   if (articleContentHash(content) !== value.contentHash)
     throw new Error('Article content hash mismatch');
-  if (value.publishedAt > value.modifiedAt || value.modifiedAt > value.acceptedAt)
+  if (value.publishedAt > value.modifiedAt)
     throw new Error('Article publication dates are out of order');
   const images = new Set(articleImageIds(content.body));
   if (

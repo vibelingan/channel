@@ -36,14 +36,26 @@ export const ArticleReleaseViewSchema = z
     state: ArticleReleaseStateSchema,
     requestedAt: releaseTime,
     updatedAt: releaseTime,
-    error: z.enum(['BUILD_FAILED', 'RESTORED', 'CHECK_REQUIRED']).nullable(),
+    error: z
+      .enum(['BUILD_FAILED', 'RESTORED', 'CHECK_REQUIRED', 'CANCELLED', 'DELIVERY_STOPPED'])
+      .nullable(),
   })
   .strict();
 export type ArticleReleaseView = z.infer<typeof ArticleReleaseViewSchema>;
 export function articleReleaseActive(state: ArticleReleaseView['state']): boolean {
   return !['SUCCEEDED', 'FAILED'].includes(state);
 }
+export const ArticleReleaseControlSchema = z
+  .object({
+    operation: z.enum(['retry', 'cancel']),
+    articleId: articleIdentity,
+    taskId: articleIdentity,
+    requestId: articleIdentity,
+  })
+  .strict();
+export type ArticleReleaseControl = z.infer<typeof ArticleReleaseControlSchema>;
 export interface ArticleReleases {
+  control(actorId: string, request: ArticleReleaseControl): Promise<ArticleReleaseView>;
   request(actorId: string, request: ArticleReleaseRequest): Promise<ArticleReleaseView>;
   latest(actorId: string, articleId: string): Promise<ArticleReleaseView | null>;
 }

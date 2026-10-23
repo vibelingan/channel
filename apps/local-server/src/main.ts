@@ -36,6 +36,9 @@ const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/
 const READY_FILE = optionalEnv('LOCAL_READY_FILE');
 const READY_TOKEN = optionalEnv('LOCAL_READY_TOKEN');
 const TCB_ENV = optionalEnv('TCB_ENV', '');
+const ARTICLE_TEST_RELEASES = optionalEnv('LOCAL_ARTICLE_RELEASE_TESTS') === '1';
+if (ARTICLE_TEST_RELEASES && (TCB_ENV || !READY_FILE || !READY_TOKEN))
+  throw new Error('Article publication tests require an owned local server without CloudBase.');
 const ARTICLE_TEST_UPLOADS = optionalEnv('LOCAL_ARTICLE_MEDIA_TEST_UPLOADS') === '1';
 if (ARTICLE_TEST_UPLOADS && (TCB_ENV || !READY_FILE || !READY_TOKEN))
   throw new Error(
@@ -48,6 +51,7 @@ const testStorage = ARTICLE_TEST_UPLOADS
 
 // Dev defaults so the server runs with zero configuration.
 const config: AdminConfig = {
+  enableArticleReleases: ARTICLE_TEST_RELEASES,
   jwtSecret: optionalEnv('JWT_SECRET', 'dev-secret-do-not-use-in-production'),
   loginUrl: optionalEnv('LOGIN_URL', 'http://localhost:4321/login'),
   resetPasswordUrl: optionalEnv('RESET_PASSWORD_URL', 'http://localhost:4321/reset'),

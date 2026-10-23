@@ -2,7 +2,11 @@ import { z } from 'zod';
 import { ArticleValidationError } from './document.ts';
 import { ArticleDraftError } from './draft-repository.ts';
 import { articleIdentity } from './media.ts';
-import { ArticleReleaseRequestSchema, type ArticleReleases } from './release.ts';
+import {
+  ArticleReleaseControlSchema,
+  ArticleReleaseRequestSchema,
+  type ArticleReleases,
+} from './release.ts';
 
 const getSchema = z.object({ operation: z.literal('get'), articleId: articleIdentity }).strict();
 
@@ -18,6 +22,8 @@ export async function executeArticleReleaseRequest(
       throw new ArticleDraftError('VALIDATION_ERROR', 'Article release request exceeds 4 KiB.');
     const get = getSchema.safeParse(input);
     if (get.success) return { task: await repository.latest(actorId, get.data.articleId) };
+    const control = ArticleReleaseControlSchema.safeParse(input);
+    if (control.success) return { task: await repository.control(actorId, control.data) };
     return { task: await repository.request(actorId, ArticleReleaseRequestSchema.parse(input)) };
   } catch (error) {
     if (error instanceof z.ZodError || error instanceof ArticleValidationError)

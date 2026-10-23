@@ -114,3 +114,40 @@ test('build reads exact image bytes and rejects missing, modified or escaping as
     await rm(outside, { recursive: true, force: true });
   }
 });
+
+test('explicit candidate build accepts only its task; it cannot masquerade as a public export', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'blog-candidate-'));
+  try {
+    const {
+      status: _status,
+      deliveryId: _deliveryId,
+      acceptedAt: _acceptedAt,
+      ...data
+    } = publishedArticleFixture();
+    const file = join(dir, 'release.json');
+    await writeFile(
+      file,
+      JSON.stringify({
+        siteOrigin: site,
+        release: {
+          schemaVersion: 1,
+          purpose: 'article-release',
+          taskId: 'task-one',
+          operation: 'publish',
+          articleId: data.articleId,
+          revision: data.revision,
+          accepted: [],
+          candidate: { ...data, status: 'candidate', taskId: 'task-one' },
+        },
+      }),
+    );
+    const build = await readBlogBuild(site, '', file, 'task-one');
+    assert.equal(build.snapshot?.articles[0]?.status, 'candidate');
+    await assert.rejects(readBlogBuild(site, '', file, 'other-task'));
+    await assert.rejects(readBlogBuild(site, file));
+    await assert.rejects(readBlogBuild(site, file, file, 'task-one'), /not both/);
+    await assert.rejects(readBlogBuild('https://example.com', '', file, 'task-one'), /SITE_URL/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

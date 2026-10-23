@@ -34,3 +34,40 @@ export function createBlogDummyDatabase(db: ArticleDatabase, envId: string): Art
       ),
   };
 }
+
+export const BLOG_DUMMY_CONTROL_COLLECTIONS = Object.freeze({
+  siteReleaseTargets: 'blogDummy20261023ReleaseTargets',
+  siteReleaseScopes: 'blogDummy20261023ReleaseScopes',
+  siteReleaseRuns: 'blogDummy20261023ReleaseRuns',
+  siteReleaseSteps: 'blogDummy20261023ReleaseSteps',
+});
+/** Same coordinator/SDK; isolated records. The GitHub deployment queue remains shared. */
+export function createBlogDummyControlDatabase(db: ArticleDatabase, envId: string) {
+  const config: unknown = Reflect.get(db, 'config');
+  if (!config || typeof config !== 'object' || Reflect.get(config, 'env') !== envId)
+    throw new Error('Dummy control environment mismatch');
+  return {
+    config: { env: envId },
+    runTransaction: <T>(
+      operation: (transaction: {
+        collection(name: string): {
+          doc(id: string): {
+            get(): Promise<unknown>;
+            set(data: Record<string, unknown>): Promise<unknown>;
+          };
+        };
+      }) => Promise<T>,
+    ) =>
+      db.runTransaction(async (transaction) =>
+        operation({
+          collection: (name) => {
+            if (!Object.hasOwn(BLOG_DUMMY_CONTROL_COLLECTIONS, name))
+              throw new Error('Foreign dummy control collection');
+            const mapped: unknown = Reflect.get(BLOG_DUMMY_CONTROL_COLLECTIONS, name);
+            if (typeof mapped !== 'string') throw new Error('Invalid dummy control collection');
+            return transaction.collection(mapped);
+          },
+        }),
+      ),
+  };
+}
