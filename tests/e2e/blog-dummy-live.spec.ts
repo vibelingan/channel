@@ -3,13 +3,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type Page, expect, test } from '@playwright/test';
 const privateDirectory = process.env.BLOG_DUMMY_PRIVATE_DIR;
+const backendOnly = process.env.E2E_BLOG_DUMMY_BACKEND_ONLY === '1';
 test.skip(
   process.env.E2E_BLOG_DUMMY_LIVE !== '1',
   'Explicit isolated real-cloud test window required',
 );
 test.describe.configure({ retries: 0 });
 const pixel = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jV1sAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAUAAAABgCAIAAADjKTx/AAACn0lEQVR4nO3ToZGDUAAFwOvlNDoa/SWDQiBQDPLrtBETg4nBYDAYDI1dFc9cdmZb2J/f8opqyjvqUdaotnyiStmi+rJHjeWImssZVcsV9Sx31I/AAgsssMACCyywwAILLLDAAgsssMACCyywwAILLLDAAgsssMACCyywwAILLLDAAgsssMACCyywwAILLLDAAgsssMACC/z/A3evqKZ7Rz26NartPlGl26L6bo8auyNq7s6o2l1Rz+6OElhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBvyDw8IpqhnfUY1ij2uETVYYtqh/2qHE4oubhjKrDFfUc7iiBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFvgLAk+vqGZ6Rz2mNaqdPlFl2qL6aY8apyNqns6oOl1Rz+mOElhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBvyDw8opqlnfUY1mj2uUTVZYtql/2qHE5oubljKrLFfVc7iiBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFvgLAtdXVFPfUY+6RrX1E1XqFtXXPWqsR9Rcz6har6hnvaMEFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWGCBBRZYYIEFFlhggQUWWOB/H/gPbt/tfynqKNsAAAAASUVORK5CYII=',
   'base64',
 );
 const gh = (args: string[]) =>
@@ -88,7 +89,9 @@ async function publication(page: Page, operation: string, button: string) {
   expect(result.ok).toBe(true);
   return result.data.task;
 }
-test('real editor, cloud function, private storage and Actions publish A, recover A after B, retry B and withdraw', async ({
+test(backendOnly
+  ? 'real editor and CloudBase save, reopen, image decoding, permissions and conflicting saves'
+  : 'real editor, cloud function, private storage and Actions publish A, recover A after B, retry B and withdraw', async ({
   page,
   context,
   request,
@@ -124,22 +127,117 @@ test('real editor, cloud function, private storage and Actions publish A, recove
   await page.getByRole('button', { name: 'Articles', exact: true }).click();
   await page.getByRole('button', { name: 'New article', exact: true }).click();
   const slug = `dummy-live-${Date.now()}`;
-  await page.getByLabel('Title', { exact: true }).fill('Dummy article A');
+  const title = backendOnly ? `Backend check ${slug}` : 'Dummy article A';
+  await page.getByLabel('Title', { exact: true }).fill(title);
   await page.getByRole('textbox', { name: 'Article body' }).fill('Real cloud acceptance body A.');
   await page.getByText('Article details and search settings', { exact: true }).click();
   await page.getByLabel('authorName', { exact: true }).fill('Dummy editor');
   await page.getByLabel('slug', { exact: true }).fill(slug);
+  const createdResponse = page.waitForResponse((response) => {
+    try {
+      const value = response.request().postDataJSON();
+      return value?.action === 'articleDrafts' && value.data?.operation === 'create';
+    } catch {
+      return false;
+    }
+  });
   await page
     .getByLabel('Upload article image')
     .setInputFiles({ name: 'dummy.png', mimeType: 'image/png', buffer: pixel });
   const figure = page.locator('[data-article-image]');
   await expect(figure.getByRole('img')).toBeVisible({ timeout: 60000 });
+  await expect
+    .poll(() => figure.getByRole('img').evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(320);
   await figure.getByLabel('Image description').fill('Isolated test image');
   await page.getByRole('button', { name: 'Preview', exact: true }).click();
   const preview = page.getByRole('region', { name: 'Draft preview' });
   await expect(preview.getByRole('img')).toBeVisible();
+  await expect
+    .poll(() => preview.getByRole('img').evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(320);
   expect(await preview.getByRole('img').getAttribute('src')).toMatch(/^blob:/);
   await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+  const created = await createdResponse;
+  const articleId = (await created.json()).data.id;
+  if (backendOnly) {
+    const endpoint = created.url();
+    const call = (action: string, data: unknown, token = admin.token) =>
+      request.post(endpoint, { data: { action, data, token } });
+    const read = await call('articleDrafts', { operation: 'get', articleId });
+    const current = (await read.json()).data.draft;
+    expect(current.createdBy).toBe('dummy-admin');
+    expect(current.content.slug).toBe(slug);
+    expect(current.published).toBeNull();
+    await page.reload();
+    await page.getByRole('button', { name: 'Articles', exact: true }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: title })
+      .getByRole('button', { name: 'Edit', exact: true })
+      .click();
+    await expect(page.getByLabel('Title', { exact: true })).toHaveValue(title);
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-article-image]')
+          .getByRole('img')
+          .evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBe(320);
+    const member = prepared.sessions.find((session: { role: string }) => session.role === 'member');
+    const denied = await call('articleDrafts', { operation: 'get', articleId }, member.token);
+    expect(denied.status()).toBe(403);
+    expect((await denied.json()).error.code).toBe('FORBIDDEN');
+    const unsigned = await request.post(endpoint, {
+      data: { action: 'articleDrafts', data: { operation: 'get', articleId } },
+    });
+    expect(unsigned.status()).toBe(401);
+    const remoteTitle = `${title} remote`;
+    const updated = await call('articleDrafts', {
+      operation: 'save',
+      articleId,
+      expectedRevision: current.revision,
+      content: { ...current.content, title: remoteTitle },
+    });
+    expect((await updated.json()).ok).toBe(true);
+    await page.getByLabel('Title', { exact: true }).fill('Keep my unsaved local text');
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Another save changed this article');
+    await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+      'Keep my unsaved local text',
+    );
+    const final = await call('articleDrafts', { operation: 'get', articleId });
+    expect((await final.json()).data.draft.content.title).toBe(remoteTitle);
+    await page.screenshot({
+      path: 'output/playwright/blog-dummy-live-conflict.png',
+      fullPage: true,
+    });
+    await writeFile(
+      join(privateDirectory, 'backend-results.json'),
+      JSON.stringify(
+        {
+          codeSha: prepared.codeSha,
+          articleId,
+          stages: [
+            'save',
+            'signed-upload',
+            'private-blob-preview',
+            'image-decoded',
+            'reload-and-reopen',
+            'member-denied',
+            'unsigned-denied',
+            'conflict-keeps-local-text',
+            'server-keeps-confirmed-write',
+          ],
+        },
+        null,
+        2,
+      ),
+      { mode: 0o600 },
+    );
+    return;
+  }
   const a = await publication(page, 'publish', 'Save and publish');
   const results = [];
   results.push({
