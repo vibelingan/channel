@@ -41,7 +41,7 @@ function assertOffline(workflow) {
   assert.equal(checkout.with.ref, '${{ github.sha }}');
   assert.equal(checkout.with['persist-credentials'], false);
   const commands = workflow.jobs.offline.steps.filter((s) => s.run).map((s) => s.run);
-  assert.equal(commands.length, 4);
+  assert.equal(commands.length, 5);
   assert.equal(commands[0], 'pnpm install --frozen-lockfile --ignore-scripts');
   assert.equal(commands[1], 'pnpm lint');
   assert.equal(commands[2], 'pnpm verify:cloudbase-sdk');
@@ -49,6 +49,7 @@ function assertOffline(workflow) {
     commands[3],
     'set -o pipefail\nmkdir -p output/seo-module-1\npnpm test 2>&1 | tee output/seo-module-1/tests.log\n',
   );
+  assert.equal(commands[4], 'node scripts/run-blog-public-local-e2e.mjs --build-only');
 }
 
 test('module CI has only read permissions, offline tests and GitHub test artifacts', () =>

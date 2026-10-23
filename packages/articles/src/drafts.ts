@@ -79,7 +79,20 @@ export function prepareArticlePublication(current: ArticleDraft, now: string): A
   validateDraft(current);
   if (timestamp(now) < timestamp(current.updatedAt))
     throw new Error('ARTICLE_CLOCK_MOVED_BACKWARDS');
-  const content = parseArticleContent(current.content);
+  const content = parsePublicationContent(current.content, current.published?.slug);
+  const candidate: ArticleCandidate = {
+    articleId: current.id,
+    revision: current.revision,
+    content,
+    contentHash: articleContentHash(content),
+    frozenAt: now,
+  };
+  freeze(candidate);
+  return candidate;
+}
+
+export function parsePublicationContent(input: unknown, publishedSlug?: string): ArticleContent {
+  const content = parseArticleContent(input);
   const issues: { path: string; message: string }[] = [];
   if (!content.title)
     issues.push({ path: 'title', message: 'A title is required for publication' });
@@ -89,21 +102,17 @@ export function prepareArticlePublication(current: ArticleDraft, now: string): A
     issues.push({ path: 'authorName', message: 'An author is required for publication' });
   if (!articleText(content.body))
     issues.push({ path: 'body', message: 'The article body is empty' });
-  if (current.published && current.published.slug !== content.slug)
+  if (publishedSlug !== undefined && publishedSlug !== content.slug)
     issues.push({
       path: 'slug',
       message: 'Changing a published URL requires an explicit redirect plan',
     });
   if (issues.length) throw new ArticleValidationError(issues);
-  const candidate: ArticleCandidate = {
-    articleId: current.id,
-    revision: current.revision,
-    content,
-    contentHash: createHash('sha256').update(canonical(content)).digest('hex'),
-    frozenAt: now,
-  };
-  freeze(candidate);
-  return candidate;
+  return content;
+}
+
+export function articleContentHash(content: ArticleContent): string {
+  return createHash('sha256').update(canonical(content)).digest('hex');
 }
 
 function validateDraft(draft: ArticleDraft): void {

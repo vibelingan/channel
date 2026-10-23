@@ -68,3 +68,5 @@ jobs:
           path: output/seo-module-1/tests.log
           if-no-files-found: warn
           retention-days: 14
+      - name: Build and verify public Blog fixtures without cloud access
+        run: node scripts/run-blog-public-local-e2e.mjs --build-only

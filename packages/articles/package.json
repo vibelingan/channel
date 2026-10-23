@@ -11,7 +11,8 @@
     "./draft-service": "./src/draft-service.ts",
     "./document": "./src/document.ts",
     "./media": "./src/media.ts",
-    "./media-store": "./src/media-store.ts"
+    "./media-store": "./src/media-store.ts",
+    "./publication": "./src/publication.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",
