@@ -1,6 +1,6 @@
 # 下一轮从这里开始
 
-已获授权从SG0.1及SG1.0开始，按[执行依赖](../plan.json)逐项验证。SG0.1已完成离线实现，当前状态见实施记录。没有新建PR或连接客户账号。
+本轮授权的SG0.1和SG1.0已分别完成离线实现、源码审计；当前状态见[实施记录](../IMPLEMENTATION-TRACE.md)。SG0.1提交595a4849已推送且远端CI成功。其余21个单元未实现，没有新建PR或连接客户账号。
 
 ## 开始实施前读什么
 
@@ -8,13 +8,15 @@
 - 所负责模块、[共同合同](../contracts/CONTRACTS.md)、[状态规则](../contracts/STATE-AND-CONCURRENCY.md)。
 - 所选仓库AGENTS、现有源码与真实工作区状态。来源分支不等于已合并/已部署。
 
-## 第一个可直接使用的实施说明
+## 已完成的两个单元
 
-> 在指定Channel实施worktree中实施SG0.1“共同schema与假服务”。只新增销售合同及验证，不接真实账号、不发邮件，不改官网公开客服或其他人分支。以docs/sales-agent/contracts为业务依据，先补有效/无效fixtures及TypeScript/Python一致校验，再建立fake provider。核对已有包命名、工具链和安装依赖；合同作为唯一数据规范，不能各写一套漂移的DTO。完成后报告变更范围、提交、针对性检查和未实施的范围。SG0.2客户运行授权尚未完成前，不将schema校验称为隔离保证。
+SG0.1代码位于packages/sales-contracts。五种schema、生成TS类型、双语言校验、固定JSON摘要、无网络fake及54个共享样例均有检查命令，详见[验证记录](../evidence/SG0.1-VALIDATION.md)。继续复用该包；SG0.2尚未完成，不能将schema校验称为隔离保证。
 
-## 可独立进行的源码核对说明
+SG1.0逐入口证据及字段差异见[复用结论](../evidence/SG1.0-BASELINE.md)。后续实现参考main 404d1a25，Phase 2 a7e16aa2用于客服设计；正式单品RFQ两者都有，无需重做。`python3 docs/sales-agent/check_source_snapshot.py`可复查固定源码。该代码尚未整合到销售worktree，本轮没有merge别人分支。
 
-> 实施SG1.0，先只读。比较当前指定Channel实施基线与a7e16aa2中的新单品询盘链，逐入口记录页面→transport→后端→持久化→后台查看，以及功能开关、附件最终有效条件。区分OEM、新单品与legacy/cart/overstock模拟入口；核对客服Phase2实现状态。输出应该复用的提交/文件和最小待接范围，不merge他人分支、不重复写询盘功能。只有确定选定代码基线后才实施SG1.1。
+## 后续开始条件
+
+SG1.1依赖SG0.2客户连接及动作授权。继续获授权后，先完成SG0.2的服务器绑定与越权负向验证，再明确整合选定main代码；不能在旧起点复制新的RFQ功能。SG1.2须补OEM最终完成标记、稳定事件身份和可靠补扫，不能只凭项目行存在、后台status或UI offset分页派发。客服预填仍归原Phase 2工作范围，当前只通过普通OEM链接不等于已实现第三来源。
 
 ## 各模块后续交接说明
 

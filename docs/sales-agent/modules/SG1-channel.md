@@ -4,7 +4,7 @@
 
 ## 复用事实与写范围
 
-`03be923c` 的 OEM `submitProject` 在保存及附件激活后best-effort发SMTP确认；无持久发送账。较新 `a7e16aa2` 的产品页接到`submitPublicQuote`，`catalogQuoteRequests`有事务、幂等、快照、管理历史。legacy/cart/overstock仍有旧模拟组件；功能开关和部署未验证。SG1.0逐入口走通，选择既有实现，不在设计旧基线上复制新单品功能。
+SG1.0已完成[源码核对](../evidence/SG1.0-BASELINE.md)。后续实现参考main `404d1a25`；正式单品询盘在该版本及Phase 2 `a7e16aa2`均已具备事务、幂等、快照、管理历史，生产transport已接线。OEM保存及附件激活后best-effort发SMTP确认，无持久发送账。旧模拟组件不等于当前正式目录在走dummy；客服预填仍是设计。功能开关和部署未验证，产品代码尚未整合到销售worktree。
 
 候选新增范围：`apps/functions/sales-integration/`、`packages/db/src/sales-inquiry-*`及对应tests；现有OEM/单品保存路径只加最小交接，产品schema/限流/批准revision校验继续复用。SDK、Storage或事务代码实施前遵守项目CloudBase contract gate，核对选定基线的已安装包和官方合同。
 
@@ -24,7 +24,7 @@ await notifySales(stableEventFrom(finalizedProject)).catch(recordDeliveryHintFai
 // reconciler重读最终有效记录，幂等接入；不依赖进程内fire-and-forget。
 ```
 
-保存与Hermes不共享事务。单品可用原事务扩展可靠交接标记；OEM多步骤以最终有效记录＋附件归属为准。具体标记如何原子写、扫描索引和分页合同在SG1.0按实际数据库核对，未经核对不添加想象的SDK方法。扫描有重叠窗口、稳定排序及周期完整核对，游标只在接受回执后推进。后端状态更新不算新询盘；相关业务关闭使未发任务暂停/需复核，而不是再发确认。
+保存与Hermes不共享事务。单品可用原事务扩展可靠交接标记；OEM多步骤以最终有效记录＋附件归属为准。SG1.0发现项目先写、storage附件后激活且补偿可能失败，现有项目行没有最终完成标记；legacy inline附件也不能套用storage元数据。SG1.2必须实现可恢复的完成标记及各分支校验，不能只扫描项目行是否存在。扫描索引及SDK分页合同在实施前单独核对；后台列表offset不充当补扫游标。扫描有重叠窗口、稳定排序及周期完整核对，游标只在接受回执后推进。后端状态更新不算新询盘；相关业务关闭使未发任务暂停/需复核，而不是再发确认。
 
 ## 给Agent的数据
 
@@ -34,7 +34,7 @@ await notifySales(stableEventFrom(finalizedProject)).catch(recordDeliveryHintFai
 
 ## 实施与验收
 
-- SG1.0：记录选定代码SHA、逐入口实际路由/开关/落盘/后台路径，列遗留模拟路径和补接范围；确认OEM最终有效条件。此步不迁移别人代码。
+- SG1.0：已完成指定提交的路由/开关/落盘/后台核对及OEM完成条件缺口；清单44份文件、80处标记。此步不迁移别人代码，不证明线上实际启用。
 - SG1.1：受控读取/产品查询/附件接口，fake与归属负向测试先落地。
 - SG1.2：通知、补扫、稳定事件身份、cutover及两种原表适配。
 

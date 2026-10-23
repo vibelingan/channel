@@ -28,4 +28,6 @@
 
 ## 边界与下一步
 
-校验通过不代表客户隔离或有权发送；真实正文/附件bytes、地址跨类别冲突、审批/发送状态持久化尚未实现。SG0.2及之后模块仍planned。SG0.1完成提交并推送后才开始SG1.0代码盘点；远端实际SHA/CI结论在交付时核对，不预报成功。
+校验通过不代表客户隔离或有权发送；真实正文/附件bytes、地址跨类别冲突、审批/发送状态持久化尚未实现。SG0.2及后续实现模块仍planned。SG0.1完成提交并推送后才开始SG1.0代码盘点。
+
+提交595a48495033b538d6393def52f8c2294a4325bc已在origin/feat/sales-agent-modular-design；[远端contracts工作流](https://github.com/vibelingan/channel/actions/runs/39882624469)为completed/success，headSha与该提交一致。该工作流验证合同包，不部署官网或连接邮件服务。
