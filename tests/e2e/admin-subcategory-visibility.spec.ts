@@ -2280,11 +2280,12 @@ test('20 mixed-category selections publish through Assign category while preserv
       'with their existing classifications',
     );
     await dialog.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
+    // A full batch can still be running after 60s on the shared local JSON store.
     await expect(
       dialog.getByText('20 products published. Existing classifications were kept.', {
         exact: true,
       }),
-    ).toBeVisible({ timeout: 60000 });
+    ).toBeVisible({ timeout: 90000 });
     await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeEnabled();
     expect(assignments).toBe(0);
     expect(originals.size).toBe(20);
@@ -2321,6 +2322,21 @@ test('20 mixed-category selections publish through Assign category while preserv
     expect(errors).toEqual([]);
   } finally {
     await page.unrouteAll({ behavior: 'wait' });
+    await page.goto('/');
+    // Navigation does not stop admitted server work. Cancel unfinished original tasks before withdrawal.
+    for (const [productId, operationId] of originals) {
+      const stopped = CatalogProductOperationStatusSchema.parse(
+        await adminAction(
+          request,
+          'catalogDetailApproval',
+          { action: 'product-operation-stop', productId, operationId, intent: 'publish' },
+          session.token,
+        ),
+      );
+      expect(stopped.productId).toBe(productId);
+      expect(stopped.operationId).toBe(operationId);
+      expect(stopped.state === 'complete' || typeof stopped.cancelledAt === 'string').toBe(true);
+    }
     for (const before of products) {
       const after = await read(before._id);
       if (after.published === true) {
