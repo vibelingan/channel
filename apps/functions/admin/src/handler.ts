@@ -21,6 +21,7 @@ import {
   isArticleDraftError,
 } from '@vibelingan-channel/articles/draft-repository';
 import { executeArticleDraftRequest } from '@vibelingan-channel/articles/draft-service';
+import { executeArticleReleaseRequest } from '@vibelingan-channel/articles/release-service';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
@@ -137,6 +138,7 @@ import {
 export interface AdminConfig {
   jwtSecret: string;
   articleRepository?: ArticleRepository;
+  enableArticleReleases?: boolean;
   enableInquiries?: boolean;
   /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
   enableDetailApproval?: boolean;
@@ -586,6 +588,26 @@ export async function handleAdminRequest(
         if (!config.articleRepository)
           return err('INTERNAL_ERROR', 'Article storage is not configured.');
         return ok(await executeArticleMediaRequest(config.articleRepository, claims.sub, req.data));
+      }
+      case 'articleReleases': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (
+          req.data &&
+          typeof req.data === 'object' &&
+          Reflect.get(req.data, 'operation') === 'capabilities'
+        )
+          return ok({ enabled: config.enableArticleReleases === true });
+        if (config.enableArticleReleases !== true)
+          return err('FORBIDDEN', 'Article publishing is not enabled.');
+        if (!config.articleRepository?.releases)
+          return err('INTERNAL_ERROR', 'Article release storage is not configured.');
+        return ok(
+          await executeArticleReleaseRequest(
+            config.articleRepository.releases,
+            claims.sub,
+            req.data,
+          ),
+        );
       }
       case 'articleDrafts':
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');

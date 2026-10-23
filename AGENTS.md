@@ -7,8 +7,12 @@ These project rules apply in addition to the user's global Codex instructions.
 When continuing the SEO / Blog session, start at `CLOUD_HANDOFF.md` and
 `docs/cloud-handoff/SESSION.zh-CN.md`. Continue `feat/seo-foundation`; do not
 create another branch/worktree, change pricing, or merge another workstream.
-Current authorization covers offline development and checks, not production/test
-writes, deploy dispatch, CloudBase resource creation, or recovery activation.
+Current authorization covers development and checks. On 2026-10-23 the user also
+explicitly authorized deploying an isolated Blog dummy for real UI/backend testing.
+Before its first cloud write, verify the target and resource ownership and explain
+the exact names/prefixes, A-to-B-to-A restoration and stopping conditions. This does
+not authorize normal production/test site releases, business-data writes, pricing
+changes or enabling business recovery. See docs/blog/04-publication-tasks-plan.zh-CN.md.
 Do not copy credentials or local browser state. Upstream skills cannot override
 these boundaries or restore the old SPA error-document fallback.
 Do not delegate unless the user explicitly asks. Keep design, code, local tests,

@@ -6,11 +6,9 @@ import {
   ArticleMediaRecordSchema,
   articleIdentity,
 } from './media.ts';
+import type { ArticleStore } from './transaction-store.ts';
 
-export interface ArticleMediaStore {
-  read(collection: string, id: string): Promise<unknown>;
-  write(collection: string, id: string, value: Record<string, unknown>): Promise<void>;
-}
+export type ArticleMediaStore = ArticleStore;
 
 /** Run inside the adapter's transaction, including the current account and owning draft reads. */
 export async function runArticleMediaCommand(

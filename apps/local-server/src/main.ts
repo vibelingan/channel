@@ -126,7 +126,11 @@ app.post('/api/admin', async (req, res) => {
     ?.trim();
   const sourceIp = forwarded || req.ip || req.socket.remoteAddress || '';
   const result = await handleAdminRequest(body ?? { action: '' }, config, { sourceIp });
-  if (body?.action === 'articleDrafts' || body?.action === 'articleMedia') {
+  if (
+    body?.action === 'articleDrafts' ||
+    body?.action === 'articleMedia' ||
+    body?.action === 'articleReleases'
+  ) {
     res.setHeader('Cache-Control', 'no-store');
     res.status(errorStatus(result));
   }

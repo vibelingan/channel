@@ -14,6 +14,8 @@ import {
   saveArticleDraft,
 } from '@vibelingan-channel/articles/drafts';
 import { runArticleMediaCommand } from '@vibelingan-channel/articles/media-store';
+import { createArticleReleaseStore } from '@vibelingan-channel/articles/release-store';
+import type { ArticleStoreTransaction } from '@vibelingan-channel/articles/transaction-store';
 import { z } from 'zod';
 
 interface ArticleDocumentReference {
@@ -185,32 +187,42 @@ async function write(
   throw internal();
 }
 
+/** Fixed SDK calls shared by media and release commands, with checked write acknowledgements. */
+function articleTransaction(db: ArticleDatabase): ArticleStoreTransaction {
+  return (operation) =>
+    safe(() =>
+      db.runTransaction(async (transaction) =>
+        operation({
+          read: (collection, id) => read(transaction.collection(collection).doc(id)),
+          write: async (collection, id, value) => {
+            checkSize(value);
+            const result = await transaction.collection(collection).doc(id).set(value);
+            if (typeof result !== 'object' || result === null || Reflect.get(result, 'code'))
+              throw internal();
+            const inserted: unknown = Reflect.get(result, 'upserted');
+            if (
+              Reflect.get(result, 'updated') !== 1 &&
+              !(Array.isArray(inserted) && inserted.length === 1 && inserted[0]?._id === id)
+            )
+              throw internal();
+          },
+        }),
+      ),
+    );
+}
+
+/** Server-only worker capability. Never exposed by the browser request dispatcher. */
+export function createCloudBaseArticleReleaseWorker(db: ArticleDatabase) {
+  return createArticleReleaseStore(articleTransaction(db));
+}
+
 export function createCloudBaseArticleRepository(db: ArticleDatabase): ArticleRepository {
   return {
+    releases: createCloudBaseArticleReleaseWorker(db),
     media: {
       execute: (actorId, articleId, command) =>
-        safe(() =>
-          db.runTransaction((transaction) =>
-            runArticleMediaCommand(
-              {
-                read: (collection, id) => read(transaction.collection(collection).doc(id)),
-                write: async (collection, id, value) => {
-                  const result = await transaction.collection(collection).doc(id).set(value);
-                  if (typeof result !== 'object' || result === null || Reflect.get(result, 'code'))
-                    throw internal();
-                  const inserted: unknown = Reflect.get(result, 'upserted');
-                  if (
-                    Reflect.get(result, 'updated') !== 1 &&
-                    !(Array.isArray(inserted) && inserted.length === 1 && inserted[0]?._id === id)
-                  )
-                    throw internal();
-                },
-              },
-              actorId,
-              articleId,
-              command,
-            ),
-          ),
+        articleTransaction(db)((store) =>
+          runArticleMediaCommand(store, actorId, articleId, command),
         ),
     },
     create: (input) =>

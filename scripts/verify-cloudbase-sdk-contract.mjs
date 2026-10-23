@@ -1106,13 +1106,15 @@ try {
       '--test',
       'packages/db/src/article-repository.test.ts',
       'packages/db/src/article-media.test.ts',
+      'packages/db/src/article-release.test.ts',
+      'packages/db/src/article-dummy.test.ts',
     ],
     { cwd: root, encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   requireCheck(
     /^# fail 0$/m.test(output) &&
       /^# skipped 0$/m.test(output) &&
-      Number(output.match(/^# tests (\d+)$/m)?.[1]) >= 20,
+      Number(output.match(/^# tests (\d+)$/m)?.[1]) >= 26,
     'article repository passes actual SDK transport, retry, projection and failure contracts',
   );
 } catch (error) {

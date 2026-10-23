@@ -15,6 +15,7 @@
     "./catalog-detail-storage": "./src/catalog-detail-storage.ts",
     "./catalog-quote": "./src/catalog-quote.ts",
     "./article-repository": "./src/article-repository.ts",
+    "./article-dummy": "./src/article-dummy.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts"
   },
   "scripts": {

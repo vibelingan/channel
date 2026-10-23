@@ -11,6 +11,8 @@ import {
   saveArticleDraft,
 } from '@vibelingan-channel/articles/drafts';
 import { runArticleMediaCommand } from '@vibelingan-channel/articles/media-store';
+import { createArticleReleaseStore } from '@vibelingan-channel/articles/release-store';
+import type { ArticleStoreTransaction } from '@vibelingan-channel/articles/transaction-store';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 
@@ -88,32 +90,39 @@ function requireAdmin(store: Store, actorId: string): void {
     throw new ArticleDraftError('FORBIDDEN', 'Admin permission is required.');
 }
 
+function commandTransaction(transaction: ArticleTransaction): ArticleStoreTransaction {
+  return (operation) =>
+    transaction(async (store) => {
+      let changed = false;
+      const value = await operation({
+        read: async (collection, id) => store[collection]?.find((row) => row._id === id) ?? null,
+        write: async (collection, id, value) => {
+          checkRecordSize(value);
+          store[collection] ??= [];
+          const rows = store[collection];
+          const index = rows.findIndex((row) => row._id === id);
+          const row = { ...value, _id: id };
+          if (index < 0) rows.push(row);
+          else rows[index] = row;
+          changed = true;
+        },
+      });
+      return { value, changed };
+    });
+}
+
+export function createLocalArticleReleaseWorker(transaction: ArticleTransaction) {
+  return createArticleReleaseStore(commandTransaction(transaction));
+}
+
 export function createLocalArticleRepository(transaction: ArticleTransaction): ArticleRepository {
   return {
+    releases: createLocalArticleReleaseWorker(transaction),
     media: {
       execute: (actorId, articleId, command) =>
-        transaction(async (store) => {
-          let changed = false;
-          const value = await runArticleMediaCommand(
-            {
-              read: async (collection, id) =>
-                store[collection]?.find((row) => row._id === id) ?? null,
-              write: async (collection, id, value) => {
-                store[collection] ??= [];
-                const rows = store[collection];
-                const index = rows.findIndex((row) => row._id === id);
-                const row = { ...value, _id: id };
-                if (index < 0) rows.push(row);
-                else rows[index] = row;
-                changed = true;
-              },
-            },
-            actorId,
-            articleId,
-            command,
-          );
-          return { value, changed };
-        }),
+        commandTransaction(transaction)((store) =>
+          runArticleMediaCommand(store, actorId, articleId, command),
+        ),
     },
     create: (input) =>
       transaction((store) => {

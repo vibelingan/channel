@@ -12,7 +12,11 @@
     "./document": "./src/document.ts",
     "./media": "./src/media.ts",
     "./media-store": "./src/media-store.ts",
-    "./publication": "./src/publication.ts"
+    "./publication": "./src/publication.ts",
+    "./release": "./src/release.ts",
+    "./release-store": "./src/release-store.ts",
+    "./release-service": "./src/release-service.ts",
+    "./transaction-store": "./src/transaction-store.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",
