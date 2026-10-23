@@ -116,7 +116,8 @@ jobs:
   checks:
     name: Build and smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Unit tests and function packaging precede both complete browser configurations.
+    timeout-minutes: 45
 
     env:
       CI: 'true'
