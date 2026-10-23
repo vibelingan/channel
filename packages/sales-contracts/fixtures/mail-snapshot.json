@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "task_id": "task_demo_1",
+  "client_id": "client_demo_a",
+  "business_line": "gift_oem",
+  "logical_message_id": "first_followup_demo_1",
+  "version": 1,
+  "source_revision": "1",
+  "context_epoch": 1,
+  "sender_id": "sender_demo_a",
+  "from": "sales@example.invalid",
+  "reply_to": [],
+  "to": [
+    "buyer@example.invalid"
+  ],
+  "cc": [],
+  "bcc": [],
+  "approved_headers": {},
+  "subject": "礼品采购需求跟进",
+  "html_ref": "artifact_html_demo_1",
+  "text_ref": "artifact_text_demo_1",
+  "attachments": [
+    {
+      "artifact_id": "artifact_pdf_demo_1",
+      "filename": "proposal.pdf",
+      "mime": "application/pdf",
+      "size": 128,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "evidence_refs": [
+    "catalog_revision_demo_1"
+  ],
+  "unresolved_items": [],
+  "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

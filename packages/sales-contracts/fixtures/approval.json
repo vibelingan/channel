@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "approval_id": "approval_demo_1",
+  "client_id": "client_demo_a",
+  "task_id": "task_demo_1",
+  "logical_message_id": "first_followup_demo_1",
+  "operator_id": "operator_demo_a",
+  "channel": "wecom",
+  "snapshot_version": 1,
+  "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sender_id": "sender_demo_a",
+  "recipients_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "control_epoch": 1,
+  "context_epoch": 1,
+  "approved_at": "2026-10-23T09:00:00Z",
+  "expires_at": "2026-10-24T09:00:00Z"
+}

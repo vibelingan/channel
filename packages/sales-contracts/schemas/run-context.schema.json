@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:run-context:1.0",
+  "title": "SalesRunContext",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "client_id",
+    "business_line",
+    "task_id",
+    "run_id",
+    "runtime_id",
+    "source_ref",
+    "control_epoch",
+    "inquiry_snapshot_ref",
+    "output_dir_ref",
+    "allowed_tools"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "business_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "runtime_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installation_id",
+        "kind",
+        "id",
+        "revision"
+      ],
+      "properties": {
+        "installation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "kind": {
+          "enum": [
+            "website_oem",
+            "website_product",
+            "website_assistant"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        }
+      }
+    },
+    "control_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "inquiry_snapshot_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "output_dir_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "allowed_tools": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[^\\r\\n]+$",
+        "not": {
+          "pattern": "[\\r\\n]"
+        }
+      },
+      "maxItems": 30,
+      "minItems": 0,
+      "uniqueItems": true
+    }
+  }
+}

@@ -14,7 +14,11 @@ plan = json.loads((ROOT / 'plan.json').read_text())
 units = plan['units']
 by_id = {item['id']: item for item in units}
 assert len(by_id) == len(units) == 23
-assert all(item['status'] == 'planned_not_implemented' and not item['live_enabled'] for item in units)
+allowed_statuses = {'planned_not_implemented', 'implemented_verified_offline', 'verified_code_snapshot'}
+assert all(item['status'] in allowed_statuses and not item['live_enabled'] for item in units)
+for item in units:
+    if item['status'] != 'planned_not_implemented':
+        assert (ROOT / item['evidence_ref']).is_file(), item['id']
 visited, visiting, order = set(), set(), []
 def visit(key):
     assert key in by_id, f'Unknown dependency: {key}'
