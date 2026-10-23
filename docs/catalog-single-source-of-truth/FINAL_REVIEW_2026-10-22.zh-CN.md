@@ -53,6 +53,12 @@
 
 第一次完整本地复测因系统临时盘 ENOSPC 中断，不算通过。仅停止已核对 PID/命令的本次测试进程，将后续临时目录放到 Lexar 的专用私有目录，不删除其他项目或会话文件。受控探针源码已移除，原日志保留。
 
+## 只读健康检查的连接重置
+
+`27611ff6` 的 PR 完整 CI `39896467270` 和部署前完整 CI 均通过；独立 test CI `39896463433` 在第 8 个后台用例开始前的 `/api/health` GET 遇到 ECONNRESET，40ms 内失败，尚未登录或执行业务操作。没有把该失败忽略后合并：已取消 test 部署。日志显示取消时仅完成前三个集合的部署预检，仍在查询 catalogDetailApprovals 权限；未上传函数或站点。独立线上健康读取确认 public-api/admin 仍为 d0556537，sync 仍为 11135f6b，均健康。
+
+现只给本文件五处只读身份探针加 `maxRetries: 1`，保持原有 HTTP 成功、mode=local、确切 DB 路径及凭据/变更开关检查。没有重试 POST 写操作、重跑整个测试组、跳过失败或变更业务预算。[官方 APIRequestContext 文档](https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get-option-max-retries) 与安装 Playwright1.61.1 类型均确认该选项只重试 ECONNRESET，默认不重试 HTTP 状态码。真实本地 HTTP 受控探针验证：默认单次 reset 失败；加一次重试后单次 reset 恢复；连续 reset 两次仍失败；HTTP500 只请求一次并仍返回500。未将缺少证据的具体 socket 关闭原因写成确定根因。 修正后同一完整后台组 12/12 通过（约 2.7 分钟，含单件、混合分类 20 件、表格 20 件及原生恢复计数），E2E 类型检查通过。
+
 ## 审查范围与结果
 
 按项目 `ENGINEERING_CRAFT.md`、SDK 合约要求、TypeScript 最佳实践及实际调用链检查。遵守所有者不使用子代理的要求，由当前执行者完成审查，没有声称进行独立多代理评审。

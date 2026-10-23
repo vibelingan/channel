@@ -29,9 +29,10 @@ if (
   throw new Error('Admin subcategories require the runner mutation opt-in and local credentials.');
 }
 test.describe.configure({ mode: 'serial', retries: 0 });
-// Every case, including response-loss recovery, verifies the owned API before login or writes.
+// Every case verifies the owned API before login or writes.
+// Retry a reset once for this read; an unavailable API or wrong DB still fails.
 test.beforeEach(async ({ request }) => {
-  const response = await request.get(`${e2e.apiUrl}/api/health`);
+  const response = await request.get(`${e2e.apiUrl}/api/health`, { maxRetries: 1 });
   expect(response.ok()).toBe(true);
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await response.json();
   expect(healthBody.data?.mode).toBe('local');
@@ -45,7 +46,7 @@ test('product creation keeps one original draft across response loss, reload and
   request,
 }) => {
   test.setTimeout(90_000);
-  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  const health = await request.get(`${e2e.apiUrl}/api/health`, { maxRetries: 1 });
   const body: { data?: { mode?: unknown; db?: unknown } } = await health.json();
   expect(body.data?.mode).toBe('local');
   expect(body.data?.db).toBe(e2e.catalogLocalDb);
@@ -451,7 +452,7 @@ test('local admin subcategories: saved names, scoped filter, pagination and read
   request,
 }, info) => {
   test.setTimeout(240_000);
-  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  const health = await request.get(`${e2e.apiUrl}/api/health`, { maxRetries: 1 });
   expect(health.ok()).toBe(true);
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
   expect(healthBody.data?.mode).toBe('local');
@@ -756,7 +757,7 @@ test('confirmed publication keeps its receipt when the product status refresh fa
     'Original publication receipts require the enabled formal protocol; the disabled branch is covered by bulk classification.',
   );
   test.setTimeout(90_000);
-  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  const health = await request.get(`${e2e.apiUrl}/api/health`, { maxRetries: 1 });
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
   expect(healthBody.data?.mode).toBe('local');
   expect(healthBody.data?.db).toBe(e2e.catalogLocalDb);
@@ -2387,7 +2388,7 @@ test('built table single and 20-product publications recover their original task
     'Requires the enabled native publication protocol and owned PNG fixture.',
   );
   test.setTimeout(150_000);
-  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  const health = await request.get(`${e2e.apiUrl}/api/health`, { maxRetries: 1 });
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
   expect(healthBody.data?.mode).toBe('local');
   expect(healthBody.data?.db).toBe(e2e.catalogLocalDb);
