@@ -5,7 +5,6 @@ on:
   pull_request:
   push:
     branches:
-      - test
       - main
 
 permissions:
@@ -110,14 +109,53 @@ jobs:
       - name: Smoke the running services
         run: pnpm smoke:ai
 
+  unit:
+    name: Unit tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: scripts
+            command: pnpm test:deploy-smoke
+          - suite: packages
+            command: pnpm -r --filter './packages/**' --filter '!@vibelingan-channel/ai-store' test
+          - suite: services
+            command: pnpm -r --filter './apps/**' --filter '!@vibelingan-channel/site' --filter '!@vibelingan-channel/ai-bff' --filter '!@vibelingan-channel/ai-worker' test
+          - suite: site
+            command: pnpm --filter @vibelingan-channel/site test
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Install browser for component unit tests
+        if: ${{ matrix.suite == 'site' }}
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run unit group
+        run: ${{ matrix.command }}
+
   # Listed after ai-store on purpose. Other branches add steps to the end of this
   # job, and a job appended after it here collided with them at the end of the
   # file on every merge. Job order does not affect how the jobs run.
   checks:
     name: Build and smoke
     runs-on: ubuntu-latest
-    # Unit tests and function packaging precede both complete browser configurations.
-    timeout-minutes: 45
+    needs: unit
+    timeout-minutes: 15
 
     env:
       CI: 'true'
@@ -154,19 +192,6 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
-      - name: Use the Ubuntu archive for browser dependencies
-        run: |
-          if [ -f /etc/apt/apt-mirrors.txt ]; then
-            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
-          fi
-
-      - name: Install Playwright Chromium and WebKit
-        run: pnpm exec playwright install --with-deps chromium webkit
-
-      - name: Unit tests
-        run: pnpm test
-
       - name: Package CloudBase functions
         run: pnpm package:functions
 
@@ -197,24 +222,3 @@ jobs:
 
       - name: Discover Playwright specs
         run: pnpm test:e2e --list
-
-      - name: Exercise built catalog and Admin with an isolated local database
-        env:
-          # Only synthetic local credentials/data exist in this owned fixture lane.
-          E2E_RECORD_ARTIFACTS: '1'
-        run: pnpm test:e2e:catalog-admin-local
-
-      - name: Exercise approved details and inquiry follow-up on ordinary routes
-        env:
-          E2E_RECORD_ARTIFACTS: '1'
-          E2E_CATALOG_FORMAL: '1'
-        run: pnpm test:e2e:catalog-admin-local
-
-      - name: Preserve failed local browser evidence
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: catalog-local-browser-${{ github.sha }}
-          path: output/playwright/
-          retention-days: 7
-          if-no-files-found: ignore

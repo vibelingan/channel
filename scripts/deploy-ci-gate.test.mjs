@@ -70,9 +70,9 @@ test('normal deployment awaits hosted asset integrity before pruning or declarin
 function assertReleaseGate(ci, release) {
   assert.ok(Object.hasOwn(ci.on, 'workflow_call'), 'CI must be callable by the deploy graph');
   const prerequisite = release.jobs.ci;
-  assert.ok(prerequisite, 'deploy must run the full CI prerequisite');
+  assert.ok(prerequisite, 'deploy must run the same-SHA code checks');
   assert.equal(prerequisite.uses, './.github/workflows/ci.yml', 'reuse CI at the caller SHA');
-  assert.equal(prerequisite.secrets, undefined, 'full CI does not need deployment secrets');
+  assert.equal(prerequisite.secrets, undefined, 'code checks do not need deployment secrets');
   assert.equal(prerequisite['continue-on-error'], undefined);
   const deploy = release.jobs.deploy;
   assert.deepEqual([deploy.needs].flat(), ['ci']);
@@ -92,36 +92,35 @@ function assertReleaseGate(ci, release) {
       'build the triggering SHA, not branch HEAD',
     );
   }
+  assert.deepEqual([ci.jobs.checks.needs].flat(), ['unit']);
+  assert.equal(ci.jobs.unit['continue-on-error'], undefined);
+  const groups = ci.jobs.unit.strategy.matrix.include;
+  assert.deepEqual(groups.map((group) => group.suite).sort(), [
+    'packages',
+    'scripts',
+    'services',
+    'site',
+  ]);
+  assert.ok(groups.every((group) => typeof group.command === 'string'));
   assert.equal(ci.jobs.checks.if, undefined);
   assert.equal(ci.jobs.checks['continue-on-error'], undefined);
   for (const command of [
     'pnpm verify:cloudbase-sdk',
     'pnpm lint',
     'pnpm typecheck',
-    'pnpm test',
     'pnpm package:functions',
     'pnpm build',
     'pnpm test:e2e --list',
-    'pnpm exec playwright install --with-deps chromium webkit',
   ]) {
     const step = ci.jobs.checks.steps.find((candidate) => candidate.run === command);
     assert.ok(step, `full CI is missing ${command}`);
     assert.equal(step.if, undefined, `${command} must not be optional`);
     assert.equal(step['continue-on-error'], undefined, `${command} must fail closed`);
   }
-  for (const formal of [false, true]) {
-    const step = ci.jobs.checks.steps.find(
-      (candidate) =>
-        candidate.run === 'pnpm test:e2e:catalog-admin-local' &&
-        (candidate.env?.E2E_CATALOG_FORMAL === '1') === formal,
-    );
-    assert.ok(step, `Missing ${formal ? 'formal inquiry' : 'legacy catalog'} browser lane`);
-    assert.equal(step.if, undefined);
-    assert.equal(step['continue-on-error'], undefined);
-  }
+  assert.ok(!ci.jobs.checks.steps.some((step) => step.run === 'pnpm test:e2e:catalog-admin-local'));
 }
 
-test('push and manual deployments require same-SHA full CI before entering the environment', () => {
+test('push and manual deployments require same-SHA unit, build and SDK checks', () => {
   const ci = workflow('ci');
   const release = workflow('deploy-test');
   assertReleaseGate(ci, release);
@@ -130,38 +129,53 @@ test('push and manual deployments require same-SHA full CI before entering the e
   assert.deepEqual(Object.keys(release.jobs).sort(), ['catalog-acceptance', 'ci', 'deploy']);
 });
 
-test('CI installs browser engines before root unit tests that launch them', () => {
-  const steps = workflow('ci').jobs.checks.steps;
-  const install = steps.findIndex(
-    (step) => step.run === 'pnpm exec playwright install --with-deps chromium webkit',
+test('browser component units install Chromium only in the site unit group', () => {
+  const ci = workflow('ci');
+  const unit = ci.jobs.unit;
+  const install = unit.steps.findIndex(
+    (step) => step.run === 'pnpm exec playwright install --with-deps chromium',
   );
-  const unitTests = steps.findIndex((step) => step.run === 'pnpm test');
-  assert.ok(install >= 0, 'Chromium and WebKit must be installed');
-  assert.ok(unitTests >= 0, 'full unit tests must run');
-  assert.ok(install < unitTests, 'browser-backed unit tests require installed engines');
+  const tests = unit.steps.findIndex((step) => step.run === '${{ matrix.command }}');
+  assert.ok(install >= 0 && install < tests);
+  assert.equal(unit.steps[install].if, "${{ matrix.suite == 'site' }}");
+  assert.equal(unit.steps[tests].if, undefined);
+  assert.equal(unit.steps[tests]['continue-on-error'], undefined);
+  assert.ok(
+    !ci.on.push.branches.includes('test'),
+    'Deploy Test already invokes the same-SHA checks',
+  );
 });
 
-test('mobile regressions run in WebKit and Chromium before and after deployment', () => {
-  const release = workflow('deploy-test');
-  const install = release.jobs.deploy.steps.find(
-    (step) => step.run === 'pnpm exec playwright install --with-deps chromium webkit',
+test('full business regressions run separately for business changes and manual requests', () => {
+  const regression = workflow('browser-regression');
+  assert.ok(regression.on.pull_request.paths.includes('apps/site/**'));
+  assert.ok(regression.on.pull_request.paths.includes('packages/**'));
+  assert.ok(regression.on.pull_request.paths.includes('tests/**'));
+  assert.ok(Object.hasOwn(regression.on, 'workflow_dispatch'));
+  const job = regression.jobs.browser;
+  assert.equal(
+    job.environment,
+    undefined,
+    'local regressions do not enter the shared cloud environment',
   );
-  const browser = release.jobs.deploy.steps.find(
+  assert.deepEqual(job.strategy.matrix.formal, ['0', '1']);
+  assert.equal(job.env.E2E_CATALOG_FORMAL, '${{ matrix.formal }}');
+  assert.ok(job.steps.some((step) => step.run === 'pnpm test:e2e:catalog-admin-local'));
+  assert.ok(!JSON.stringify(job).includes('secrets.'));
+});
+
+test('deployed full browser suites are explicit requests rather than automatic release gates', () => {
+  const release = workflow('deploy-test');
+  assert.equal(release.on.workflow_dispatch.inputs.run_public_e2e.default, false);
+  const step = release.jobs.deploy.steps.find(
     (step) => step.run === 'pnpm test:e2e:public && pnpm test:e2e:catalog',
   );
-  assert.ok(install);
-  assert.ok(browser);
-  assert.match(install.if, /github.event_name == 'push'/);
-  assert.match(browser.if, /github.event_name == 'push'/);
-  assert.equal(browser['continue-on-error'], undefined);
-  const config = readFileSync(new URL('../playwright.config.ts', import.meta.url), 'utf8');
-  assert.match(config, /name: 'webkit-mobile'/);
-  assert.match(config, /grep: \/@mobile-regression\//);
-  for (const file of ['header-navigation', 'sku-detail']) {
-    assert.ok(config.includes(`**/${file}.spec.ts`));
-    const spec = readFileSync(new URL(`../tests/e2e/${file}.spec.ts`, import.meta.url), 'utf8');
-    assert.match(spec, /tag: '@mobile-regression'/);
-  }
+  assert.ok(step);
+  assert.equal(step.if, "${{ github.event.inputs.run_public_e2e == 'true' }}");
+  assert.equal(step['continue-on-error'], undefined);
+  assert.ok(
+    release.jobs.deploy.steps.some((step) => step.run === 'pnpm smoke:cloudbase' && !step.if),
+  );
 });
 
 test('acceptance-only dispatch cannot deploy and cannot bypass CI or use infrastructure credentials', () => {
@@ -217,26 +231,13 @@ test('release guard detects missing dependencies, success bypass, moving refs an
       candidate.jobs.checks['continue-on-error'] = true;
     },
     (candidate) => {
-      candidate.jobs.checks.steps.find((step) => step.run === 'pnpm test').if = 'false';
+      candidate.jobs.checks.needs = undefined;
     },
     (candidate) => {
-      candidate.jobs.checks.steps.find((step) => step.run === 'pnpm test').run =
-        'pnpm test:deploy-smoke';
+      candidate.jobs.unit['continue-on-error'] = true;
     },
     (candidate) => {
-      candidate.jobs.checks.steps.find((step) => step.run === 'pnpm test:e2e:catalog-admin-local')[
-        'continue-on-error'
-      ] = true;
-    },
-    (candidate) => {
-      candidate.jobs.checks.steps.find(
-        (step) => step.run === 'pnpm test:e2e:catalog-admin-local',
-      ).run = 'pnpm test:e2e --list';
-    },
-    (candidate) => {
-      candidate.jobs.checks.steps.find(
-        (step) => step.env?.E2E_CATALOG_FORMAL === '1',
-      ).env.E2E_CATALOG_FORMAL = '0';
+      candidate.jobs.unit.strategy.matrix.include.pop();
     },
   ]) {
     const mutatedCi = structuredClone(ci);

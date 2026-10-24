@@ -33,6 +33,43 @@ export function assertToolSucceeded(result, label) {
   }
 }
 
+export function uploadHostingDirectory(distPath, { envId, runCli }) {
+  if (typeof envId !== 'string' || !envId.trim()) {
+    throw new Error('Hosting upload requires an explicit environment.');
+  }
+  const result = runCli(
+    [
+      'hosting',
+      'deploy',
+      distPath,
+      '/',
+      '--env-id',
+      envId,
+      '--concurrency',
+      '5',
+      '--retry-count',
+      '3',
+      '--retry-interval',
+      '2000',
+      '--json',
+    ],
+    { timeoutMs: 900_000 },
+  );
+  const receipt = result?.data;
+  // CLI 3.5.9 can exit zero with failedCount > 0 in JSON mode.
+  if (
+    result?.error ||
+    result?.success === false ||
+    !Number.isSafeInteger(receipt?.totalFiles) ||
+    receipt.totalFiles <= 0 ||
+    receipt.successCount !== receipt.totalFiles ||
+    receipt.failedCount !== 0
+  ) {
+    throw new Error('Static hosting upload returned an incomplete file receipt.');
+  }
+  return result;
+}
+
 function assertReadbackArray(value, label) {
   if (!Array.isArray(value)) {
     throw new Error(`${label}: invalid readback; expected an explicit array (empty [] is valid).`);

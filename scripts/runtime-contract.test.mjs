@@ -172,26 +172,17 @@ test('leaving the function smoke runtime active cannot pass the site build gate'
   }
 });
 
-test('CI budgets both required built-browser gates without disabling either', () => {
-  assert.ok(
-    Number.isInteger(ciJob['timeout-minutes']) &&
-      ciJob['timeout-minutes'] >= 30 &&
-      ciJob['timeout-minutes'] <= 45,
-    'CI needs a bounded 30-45 minute budget for both complete browser lanes',
+test('code checks have a bounded budget without whole business browser journeys', () => {
+  assert.ok(ciJob['timeout-minutes'] <= 15);
+  assert.equal(
+    ciJob.steps.filter((step) => step.run === 'pnpm test:e2e:catalog-admin-local').length,
+    0,
   );
-  const browserSteps = ciJob.steps.filter(
-    (step) => step.run === 'pnpm test:e2e:catalog-admin-local',
-  );
-  assert.equal(browserSteps.length, 2);
-  for (const step of browserSteps) {
-    assert.equal(step.if, undefined);
-    assert.notEqual(step['continue-on-error'], true);
-  }
-  assert.equal(browserSteps[1].env.E2E_CATALOG_FORMAL, '1');
+  assert.deepEqual([ciJob.needs].flat(), ['unit']);
 });
 
 test('Deploy Test runs deployment contracts before packaging', () => {
-  findUniqueStep(ciJob, (step) => step.run === 'pnpm test', 'CI root test gate');
+  assert.deepEqual([ciJob.needs].flat(), ['unit'], 'all unit groups gate the build');
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,

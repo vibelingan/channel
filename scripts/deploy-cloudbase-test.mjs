@@ -12,6 +12,7 @@ import {
   reconcileTriggers,
   requestIdFrom,
   toolMessage,
+  uploadHostingDirectory,
 } from './cloudbase-deploy-resources.mjs';
 import { confirmFunctionCode, deployFunctionCode } from './cloudbase-function-code-upload.mjs';
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
@@ -480,23 +481,15 @@ async function deployWebApp() {
   }
 
   const assets = hostedAssetManifest(distPath);
+  ensureCloudBaseCliAuth();
   await publishVerifiedAssets({
     upload: () => {
-      const uploaded = callTool(
-        'cloudbase.manageHosting',
-        {
-          action: 'upload',
-          localPath: distPath,
-          cloudPath: '/',
-          isDir: true,
-        },
-        { timeoutMs: 300_000 },
-      );
-      assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
-      const uploadRequestId =
-        uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
+      const uploaded = uploadHostingDirectory(distPath, {
+        envId,
+        runCli: (args, options) => parseCliJsonWithNoise(runCloudBaseCli(args, options)),
+      });
       console.log(
-        `${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`,
+        `${webAppServiceName}: static hosting uploaded ${uploaded.data.successCount}/${uploaded.data.totalFiles} files`,
       );
     },
     verify: () => verifyHostedAssets(assets, siteUrl),

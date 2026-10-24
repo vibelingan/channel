@@ -6,8 +6,10 @@ import {
   reconcileTriggers,
   requestIdFrom,
   toolMessage,
+  uploadHostingDirectory,
 } from './cloudbase-deploy-resources.mjs';
 import { ALIBABA_SYNC_TIMER, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
+import { publishVerifiedAssets } from './hosting-integrity.mjs';
 
 const def = { name: 'alibaba-catalog-sync', routePath: '/api/alibaba-catalog-sync' };
 const desired = [ALIBABA_SYNC_TIMER];
@@ -22,6 +24,105 @@ const detail = (triggers = []) => ({
   data: { functionDetail: { Triggers: triggers } },
 });
 const failure = (data = {}) => ({ success: false, message: 'operation refused', data });
+
+test('hosting uses the official bounded per-file uploader before build verification', async () => {
+  const events = [];
+  const result = { data: { totalFiles: 139, successCount: 139, failedCount: 0 } };
+  const runCli = (args, options) => {
+    events.push('upload');
+    assert.deepEqual(args, [
+      'hosting',
+      'deploy',
+      '/built-site',
+      '/',
+      '--env-id',
+      'test-env',
+      '--concurrency',
+      '5',
+      '--retry-count',
+      '3',
+      '--retry-interval',
+      '2000',
+      '--json',
+    ]);
+    assert.equal(options.timeoutMs, 900_000);
+    return result;
+  };
+  await publishVerifiedAssets({
+    upload: () =>
+      assert.equal(uploadHostingDirectory('/built-site', { envId: 'test-env', runCli }), result),
+    verify: async () => {
+      events.push('verify');
+      return [];
+    },
+  });
+  assert.deepEqual(events, ['upload', 'verify']);
+});
+
+test('an uncertain hosting upload is not restarted or accepted as a verified build', async () => {
+  const error = new Error('upload acknowledgement unavailable');
+  let requests = 0;
+  let verifications = 0;
+  const runCli = () => {
+    requests += 1;
+    throw error;
+  };
+  await assert.rejects(
+    publishVerifiedAssets({
+      upload: () => uploadHostingDirectory('/built-site', { envId: 'test-env', runCli }),
+      verify: async () => {
+        verifications += 1;
+        return [];
+      },
+    }),
+    (caught) => caught === error,
+  );
+  assert.equal(requests, 1);
+  assert.equal(verifications, 0);
+});
+
+test('hosting refuses incomplete or ambiguous CLI receipts even after exit zero', () => {
+  for (const data of [
+    undefined,
+    { totalFiles: 139, successCount: 138, failedCount: 1 },
+    { totalFiles: 139, successCount: 138, failedCount: 0 },
+    { totalFiles: 0, successCount: 0, failedCount: 0 },
+    { totalFiles: '139', successCount: 139, failedCount: 0 },
+    { totalFiles: 139, successCount: 139 },
+  ]) {
+    assert.throws(
+      () =>
+        uploadHostingDirectory('/built-site', {
+          envId: 'test-env',
+          runCli: () => ({ data }),
+        }),
+      /hosting upload.*incomplete/i,
+    );
+  }
+  assert.throws(
+    () =>
+      uploadHostingDirectory('/built-site', {
+        envId: 'test-env',
+        runCli: () => ({
+          success: false,
+          data: { totalFiles: 139, successCount: 139, failedCount: 0 },
+        }),
+      }),
+    /hosting upload.*incomplete/i,
+  );
+  let requested = false;
+  assert.throws(
+    () =>
+      uploadHostingDirectory('/built-site', {
+        envId: '',
+        runCli: () => {
+          requested = true;
+        },
+      }),
+    /environment/i,
+  );
+  assert.equal(requested, false);
+});
 
 function tools(...responses) {
   const calls = [];

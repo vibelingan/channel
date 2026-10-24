@@ -916,3 +916,10 @@ No new SDK method/shim/dependency/env/table/lock. Existing transaction point rea
 ### 2026-10-23：定时器创建参数与读回格式
 
 当前 test 环境实际 `listFunctionTriggers` 返回 `TriggerDesc` 为 JSON 字符串，内容仅有 `cron`，与 manifest 的纯 cron 参数表示同一设置。固定管理 MCP 2.24.1 安装源码确认：创建将 `trigger.config` 原样传给 SCF；删除入口先执行 `requireConfirm(input.action,input.confirm)`，再调用 SDK。当前 MCP 工具文档同样提供 `confirm?:boolean`。本次只规范化已观察到的 cron JSON 格式，未知结构拒绝执行；不改 SDK、类型声明或定时任务行为。正式 SDK 验证继续执行。Context7 在本会话不可用，依据为官方 MCP 文档、固定安装源码和实际读回。
+
+
+### 2026-10-24 JST：固定CLI的网站目录上传
+
+官方 https://docs.cloudbase.net/cli-v1/hosting 及 searchKnowledgeBase(mode=docs, action=searchDocs) 均给出大文件/弱网场景的 concurrency/retry-count/retry-interval。已执行当前固定 @cloudbase/cli@3.5.9 的 hosting deploy --help，核对安装包 dist/standalone/cli.js 中 HostingDeploy.execute：目录路径交给 uploadDirectoryCustom，concurrency转为parallel，设置单文件重试；不自行实现文件传输。使用参数 concurrency=5、retry-count=3、retry-interval=2000，显式envId。其JSON分支在failedFiles判断之前return，故退出码0不足以确认完整上传；本地检查data.totalFiles/successCount/failedCount全部一致后才进入原网站散列验证。未知/部分成功结果均失败，不在等待回执时重发目录。
+
+没有增加SDK依赖、角色、凭证或类型声明。Context7不可用；依据为官方文档检索、已安装CLI源码及实际help输出。原云函数代码包上传和已有私有存储权限保持不变。

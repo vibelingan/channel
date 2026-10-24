@@ -1,0 +1,78 @@
+name: Browser regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/site/**'
+      - 'apps/local-server/**'
+      - 'apps/functions/**'
+      - 'packages/**'
+      - 'tests/**'
+      - 'playwright.config.ts'
+      - 'scripts/run-catalog-admin-local-e2e.mjs'
+      - 'scripts/local-site-readiness.mjs'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/browser-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/site/**'
+      - 'apps/local-server/**'
+      - 'apps/functions/**'
+      - 'packages/**'
+      - 'tests/**'
+      - 'playwright.config.ts'
+      - 'scripts/run-catalog-admin-local-e2e.mjs'
+      - 'scripts/local-site-readiness.mjs'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/browser-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Catalog regression (formal=${{ matrix.formal }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        formal: ['0', '1']
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+      E2E_RECORD_ARTIFACTS: '1'
+      E2E_CATALOG_FORMAL: ${{ matrix.formal }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Exercise the built site and isolated local services
+        run: pnpm test:e2e:catalog-admin-local
+      - name: Preserve failed local browser evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-local-browser-${{ matrix.formal }}-${{ github.sha }}
+          path: output/playwright/
+          retention-days: 7
+          if-no-files-found: ignore
