@@ -2,7 +2,6 @@ import { readFile } from 'node:fs/promises';
 import { type Page, expect, test } from '@playwright/test';
 import { signInAdminThroughUi } from './helpers/ui-admin-login.ts';
 
-test.describe.configure({ mode: 'serial' });
 const database = process.env.E2E_CATALOG_LOCAL_DB;
 const site = process.env.E2E_SITE_URL;
 // @skip-when No disposable local runner was requested; production mutation suites must not run this fixture lane.
@@ -15,13 +14,18 @@ test.beforeAll(() => {
   if (!site || !['127.0.0.1', 'localhost'].includes(new URL(site).hostname))
     throw new Error('Local-only article acceptance requires an owned localhost site.');
 });
+// The disk-backed runner survives browser retries; each attempt owns distinct records.
+function ownedLabel(value: string) {
+  const { retry, repeatEachIndex } = test.info();
+  return retry || repeatEachIndex ? `${value}--retry${retry}-repeat${repeatEachIndex}` : value;
+}
 async function login(page: Page) {
   await signInAdminThroughUi(page, 'admin@channel.local', 'admin');
   await page.getByRole('button', { name: 'Articles', exact: true }).click();
 }
 async function create(page: Page, title: string) {
   await page.getByRole('button', { name: 'New article', exact: true }).click();
-  await page.getByLabel('Title', { exact: true }).fill(title);
+  await page.getByLabel('Title', { exact: true }).fill(ownedLabel(title));
   await page.getByRole('textbox', { name: 'Article body' }).fill('Acceptance body');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText('Saved · revision 1', { exact: true })).toBeVisible();
@@ -29,10 +33,10 @@ async function create(page: Page, title: string) {
 async function open(page: Page, title: string) {
   await page
     .getByRole('row')
-    .filter({ hasText: title })
+    .filter({ has: page.getByRole('cell', { name: ownedLabel(title), exact: true }) })
     .getByRole('button', { name: 'Edit', exact: true })
     .click();
-  await expect(page.getByLabel('Title', { exact: true })).toHaveValue(title);
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue(ownedLabel(title));
 }
 
 test('real editor saves formatted content to disk, previews, reopens and survives refresh', async ({
@@ -54,7 +58,7 @@ test('real editor saves formatted content to disk, previews, reopens and survive
   expect(
     store.articleDrafts.find(
       (row: { draft: { content: { title: string } } }) =>
-        row.draft.content.title === 'Blog local persistence',
+        row.draft.content.title === ownedLabel('Blog local persistence'),
     ).draft.revision,
   ).toBe(2);
   await page.getByRole('button', { name: '← Articles', exact: true }).click();
@@ -99,7 +103,7 @@ test('failed connection preserves the draft and retries the same creation withou
 }) => {
   await login(page);
   await page.getByRole('button', { name: 'New article', exact: true }).click();
-  await page.getByLabel('Title', { exact: true }).fill('Blog offline retry');
+  await page.getByLabel('Title', { exact: true }).fill(ownedLabel('Blog offline retry'));
   await page.getByRole('textbox', { name: 'Article body' }).fill('Kept offline');
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
@@ -112,7 +116,7 @@ test('failed connection preserves the draft and retries the same creation withou
   expect(
     store.articleDrafts.filter(
       (row: { draft: { content: { title: string } } }) =>
-        row.draft.content.title === 'Blog offline retry',
+        row.draft.content.title === ownedLabel('Blog offline retry'),
     ),
   ).toHaveLength(1);
 });
@@ -143,7 +147,7 @@ test('a lost acknowledgement retries real create and save without duplicate revi
 }) => {
   await login(page);
   await page.getByRole('button', { name: 'New article', exact: true }).click();
-  await page.getByLabel('Title', { exact: true }).fill('Blog lost acknowledgement');
+  await page.getByLabel('Title', { exact: true }).fill(ownedLabel('Blog lost acknowledgement'));
   await page.getByRole('textbox', { name: 'Article body' }).fill('Stored even if reply is lost');
   let dropped = false;
   await page.route('**/api/admin', async (route) => {
@@ -178,7 +182,7 @@ test('a lost acknowledgement retries real create and save without duplicate revi
   const store = JSON.parse(await readFile(database ?? '', 'utf8'));
   const rows = store.articleDrafts.filter(
     (row: { draft: { content: { title: string } } }) =>
-      row.draft.content.title === 'Blog lost acknowledgement',
+      row.draft.content.title === ownedLabel('Blog lost acknowledgement'),
   );
   expect(rows).toHaveLength(1);
   expect(rows[0].draft.revision).toBe(2);
@@ -200,9 +204,9 @@ test('the real Tiptap schema round-trips every enabled node without losing saved
       token,
       data: {
         operation: 'create',
-        requestId: 'editor-schema-roundtrip',
+        requestId: ownedLabel('editor-schema-roundtrip'),
         content: {
-          title: 'Editor schema contract',
+          title: ownedLabel('Editor schema contract'),
           slug: '',
           body: {
             ...editorContractDocument,
@@ -233,7 +237,7 @@ test('the real Tiptap schema round-trips every enabled node without losing saved
         operation: 'save',
         articleId: record.data.id,
         expectedRevision: 1,
-        content: { title: 'Editor schema contract', slug: '', body: document },
+        content: { title: ownedLabel('Editor schema contract'), slug: '', body: document },
       },
     },
   });
@@ -267,7 +271,7 @@ test('common formatting controls, private preview and desktop/mobile layout rema
 }) => {
   await login(page);
   await page.getByRole('button', { name: 'New article', exact: true }).click();
-  await page.getByLabel('Title', { exact: true }).fill('Editorial workspace');
+  await page.getByLabel('Title', { exact: true }).fill(ownedLabel('Editorial workspace'));
   const body = page.getByRole('textbox', { name: 'Article body' });
   await body.fill('A clear place to write, revise, and save private drafts.');
   await body.press('ControlOrMeta+A');
@@ -304,11 +308,16 @@ test('common formatting controls, private preview and desktop/mobile layout rema
   await expect(body).toContainText('A clear place');
   await body.locator('p').last().click();
   await body.press('End');
+  await expect
+    .poll(() => body.evaluate((element) => Reflect.get(element, 'editor').state.selection.empty))
+    .toBe(true);
+  const paragraphs = await body.locator('p').count();
   await body.press('Enter');
-  await expect(body).toContainText('A clear place');
-  expect(
-    await body.evaluate((element) => Reflect.get(element, 'editor').state.selection.empty),
-  ).toBe(true);
+  await expect(body.locator('p')).toHaveCount(paragraphs + 1);
+  await expect(body).toContainText('A clear place to write, revise, and save private drafts.');
+  await expect
+    .poll(() => body.evaluate((element) => Reflect.get(element, 'editor').state.selection.empty))
+    .toBe(true);
   await page.getByRole('button', { name: 'Table', exact: true }).click();
   await expect(body.locator('table')).toBeVisible();
   await page.getByRole('button', { name: 'Add row', exact: true }).click();
@@ -317,7 +326,7 @@ test('common formatting controls, private preview and desktop/mobile layout rema
   await expect(body.locator('tr').first().locator('th,td')).toHaveCount(4);
   await page.getByRole('button', { name: 'Delete table', exact: true }).click();
   await expect(body.locator('table')).toHaveCount(0);
-  await expect(body).toContainText('A clear place');
+  await expect(body).toContainText('A clear place to write, revise, and save private drafts.');
   await page.getByText('More formatting', { exact: true }).click();
   await page.getByRole('button', { name: 'Center', exact: true }).click();
   await page.getByRole('button', { name: 'Left', exact: true }).click();
@@ -393,7 +402,7 @@ test('real private image upload locks save, preserves bytes, previews and reopen
 }) => {
   await login(page);
   await page.getByRole('button', { name: 'New article', exact: true }).click();
-  await page.getByLabel('Title', { exact: true }).fill('Private image acceptance');
+  await page.getByLabel('Title', { exact: true }).fill(ownedLabel('Private image acceptance'));
   await page.getByRole('textbox', { name: 'Article body' }).fill('Image acceptance body');
   let release = () => {};
   const pending = new Promise<void>((resolve) => {
@@ -437,7 +446,7 @@ test('real private image upload locks save, preserves bytes, previews and reopen
   const store = JSON.parse(await readFile(database ?? '', 'utf8'));
   const draft = store.articleDrafts.find(
     (row: { draft: { content: { title: string } } }) =>
-      row.draft.content.title === 'Private image acceptance',
+      row.draft.content.title === ownedLabel('Private image acceptance'),
   );
   const media = store.articleMedia.find(
     (row: { articleId: string }) => row.articleId === draft._id,
@@ -535,7 +544,7 @@ test('image response loss retries the same upload and replacement/removal releas
   let store = JSON.parse(await readFile(database ?? '', 'utf8'));
   const draft = store.articleDrafts.find(
     (row: { draft: { content: { title: string } } }) =>
-      row.draft.content.title === 'Image retry and replacement',
+      row.draft.content.title === ownedLabel('Image retry and replacement'),
   );
   expect(
     store.articleMedia.filter((row: { articleId: string }) => row.articleId === draft._id),
