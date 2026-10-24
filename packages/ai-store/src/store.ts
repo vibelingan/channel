@@ -29,7 +29,24 @@ export interface EventRow {
   type: EventType;
   payload: Record<string, unknown>;
   createdAt: string;
+  /**
+   * The visitor message this event's run answers: the `messageId` the visitor
+   * got back when they posted it. Null for an event without a run.
+   */
+  replyTo: string | null;
 }
+
+/**
+ * The visitor message answered by the run of event row `e`. A run answers
+ * exactly one message, stamped when the run is reserved; the LIMIT keeps a
+ * broken invariant from ever duplicating an event in the stream.
+ */
+const EVENT_REPLY_TO = `(
+  SELECT q.id FROM conversation_messages q
+  WHERE q.conversation_id = e.conversation_id AND q.answered_by_run = e.run_id
+    AND q.role = 'visitor'
+  ORDER BY q.created_at, q.id LIMIT 1
+)`;
 
 export interface NewRun {
   id: string;
@@ -446,7 +463,14 @@ export class AiStore {
     return status === 'pending' ? 'retry' : status === 'dead_letter' ? 'dead_letter' : 'stale';
   }
 
-  async getRunExecutionContext(runId: string): Promise<RunExecutionContext | null> {
+  /**
+   * `maxTurns` comes from the caller's answer policy, so the store reads the
+   * same window the policy keeps instead of holding its own copy of the number.
+   */
+  async getRunExecutionContext(
+    runId: string,
+    maxTurns: number,
+  ): Promise<RunExecutionContext | null> {
     const run = await this.pool.query<{
       conversation_id: string;
       id: string;
@@ -463,12 +487,30 @@ export class AiStore {
     );
     const row = run.rows[0];
     if (!row) return null;
+    // Turns follow the runs that answered them, question before answer, not the
+    // time each message was stored. A question sent while an earlier answer was
+    // being written is stored BEFORE that answer, so storage order made the old
+    // answer the last turn, and the engine reads the last turn as the question
+    // being asked. Runs start one at a time, in the order their questions are
+    // taken up, so this run's own question is always last.
+    //
+    // Pick the NEWEST turns in that order, then return them oldest first.
+    // Ordering ascending before the LIMIT kept the oldest turns, so once a
+    // conversation outgrew the window the question being answered was cut off.
     const turns = await this.pool.query<{ role: 'visitor' | 'assistant'; content: string }>(
-      `SELECT role, content FROM conversation_messages
-       WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
-         AND (role = 'assistant' OR answered_by_run IS NOT NULL)
-       ORDER BY created_at ASC, id ASC LIMIT 30`,
-      [row.conversation_id],
+      `SELECT role, content FROM (
+         SELECT m.role, m.content, m.created_at, m.id,
+                COALESCE(r.created_at, m.created_at) AS turn_at,
+                CASE m.role WHEN 'assistant' THEN 1 ELSE 0 END AS is_answer
+         FROM conversation_messages m
+         LEFT JOIN ai_runs r
+           ON r.conversation_id = m.conversation_id AND r.id = m.answered_by_run
+         WHERE m.conversation_id = $1 AND m.role IN ('visitor', 'assistant')
+           AND (m.role = 'assistant' OR m.answered_by_run IS NOT NULL)
+         ORDER BY turn_at DESC, is_answer DESC, m.created_at DESC, m.id DESC LIMIT $2
+       ) AS newest
+       ORDER BY turn_at ASC, is_answer ASC, created_at ASC, id ASC`,
+      [row.conversation_id, maxTurns],
     );
     return {
       conversationId: row.conversation_id,
@@ -731,6 +773,7 @@ export class AiStore {
       type: EventType;
       payload: Record<string, unknown>;
       created_at: Date;
+      reply_to: string | null;
     }>(
       `WITH fenced_sequence AS (
          UPDATE conversations AS c
@@ -764,8 +807,9 @@ export class AiStore {
          ON CONFLICT (conversation_id, idempotency_key) DO NOTHING
          RETURNING id
        )
-       SELECT id, conversation_id, run_id, sequence, type, payload, created_at
-       FROM inserted_event`,
+       SELECT e.id, e.conversation_id, e.run_id, e.sequence, e.type, e.payload, e.created_at,
+              ${EVENT_REPLY_TO} AS reply_to
+       FROM inserted_event e`,
       [
         input.conversationId,
         input.runId,
@@ -1034,11 +1078,13 @@ export class AiStore {
       type: EventType;
       payload: Record<string, unknown>;
       created_at: Date;
+      reply_to: string | null;
     }>(
-      `SELECT id, conversation_id, run_id, sequence, type, payload, created_at
-       FROM conversation_events
-       WHERE conversation_id = $1 AND sequence > $2
-       ORDER BY sequence ASC LIMIT $3`,
+      `SELECT e.id, e.conversation_id, e.run_id, e.sequence, e.type, e.payload, e.created_at,
+              ${EVENT_REPLY_TO} AS reply_to
+       FROM conversation_events e
+       WHERE e.conversation_id = $1 AND e.sequence > $2
+       ORDER BY e.sequence ASC LIMIT $3`,
       [conversationId, afterSequence, limit],
     );
     return result.rows.map(mapEvent);
@@ -1069,6 +1115,7 @@ function mapEvent(row: {
   type: EventType;
   payload: Record<string, unknown>;
   created_at: Date;
+  reply_to: string | null;
 }): EventRow {
   return {
     id: row.id,
@@ -1078,5 +1125,6 @@ function mapEvent(row: {
     type: row.type,
     payload: row.payload,
     createdAt: row.created_at.toISOString(),
+    replyTo: row.reply_to,
   };
 }
