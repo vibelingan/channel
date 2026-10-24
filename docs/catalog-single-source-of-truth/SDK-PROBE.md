@@ -923,3 +923,7 @@ No new SDK method/shim/dependency/env/table/lock. Existing transaction point rea
 官方 https://docs.cloudbase.net/cli-v1/hosting 及 searchKnowledgeBase(mode=docs, action=searchDocs) 均给出大文件/弱网场景的 concurrency/retry-count/retry-interval。已执行当前固定 @cloudbase/cli@3.5.9 的 hosting deploy --help，核对安装包 dist/standalone/cli.js 中 HostingDeploy.execute：目录路径交给 uploadDirectoryCustom，concurrency转为parallel，设置单文件重试；不自行实现文件传输。使用参数 concurrency=5、retry-count=3、retry-interval=2000，显式envId。其JSON分支在failedFiles判断之前return，故退出码0不足以确认完整上传；本地检查data.totalFiles/successCount/failedCount全部一致后才进入原网站散列验证。未知/部分成功结果均失败，不在等待回执时重发目录。
 
 没有增加SDK依赖、角色、凭证或类型声明。Context7不可用；依据为官方文档检索、已安装CLI源码及实际help输出。原云函数代码包上传和已有私有存储权限保持不变。
+
+### 2026-10-24 JST：大函数包直接走已验证的SDK上传
+
+1acb7363 的真实GitHub日志记录：原始PUT在04:10:18Z再次超时(curl28/HTTP100)，同一对象随后由既有MCP2.24.1 manageStorage(upload)在04:12:09Z明确确认9,082,471字节，函数导入后健康版本一致；网站CLI同时139/139成功、54项内容一致。此次不引入新SDK或API参数，直接将已经实际成功的uploadWithStorageSdk作为大包唯一传输，移除uploadZip原始PUT及curl签名文件。MCP返回action/cloudPath/localPath/success四项核对与私有桶检查保留；匿名HEAD、导入、健康确认、删除顺序不变。Context7不可用，复用已核对的官方Storage文档、安装MCP上传实现及本轮实际成功读回证据。

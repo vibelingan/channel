@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertToolSucceeded } from './cloudbase-deploy-resources.mjs';
@@ -90,60 +90,6 @@ function checkedUpload(data, functionName, region) {
   return data;
 }
 
-function uploadZip({ run, zipPath, configPath, upload }) {
-  const headers = [
-    'x-cos-acl: private',
-    ...upload.uploadHeaders.map(({ Key, Value }) => `${Key}: ${Value}`),
-  ];
-  writeFileSync(
-    configPath,
-    [
-      `url = ${JSON.stringify(upload.uploadUrl)}`,
-      'request = "PUT"',
-      ...headers.map((header) => `header = ${JSON.stringify(header)}`),
-      '',
-    ].join('\n'),
-    { mode: 0o600 },
-  );
-  const maxTime = Math.min(240, upload.expiresInSeconds - 15);
-  let status;
-  try {
-    status = run(
-      'curl',
-      [
-        '--config',
-        configPath,
-        '--proto',
-        '=https',
-        '--max-time',
-        String(maxTime),
-        '--connect-timeout',
-        '20',
-        '--silent',
-        '--show-error',
-        '--fail',
-        '--upload-file',
-        zipPath,
-        '--output',
-        '/dev/null',
-        '--write-out',
-        '%{http_code}',
-      ],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: (maxTime + 10) * 1000 },
-    ).trim();
-  } catch (error) {
-    // The transport error may contain the signed URL or temporary credentials.
-    const exit = Number.isInteger(error?.status) ? error.status : 'unknown';
-    const response = typeof error?.stdout === 'string' ? error.stdout.trim() : '';
-    const http = /^\d{3}$/.test(response) ? `, HTTP ${response}` : '';
-    const failure = new Error(`Private function ZIP upload failed (curl ${exit}${http})`);
-    if ([6, 7, 18, 28, 52, 55, 56].includes(exit) && ['000', '100', '200'].includes(response))
-      failure.code = 'ZIP_TRANSPORT_ERROR';
-    throw failure;
-  }
-  if (status !== '200') throw new Error(`Private function ZIP upload failed (HTTP ${status})`);
-}
-
 function verifyPrivateZip({ run, upload }) {
   const privateUrl = new URL(upload.uploadUrl);
   privateUrl.search = '';
@@ -220,7 +166,7 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
       throw new Error('Storage SDK did not acknowledge the requested upload');
   } catch {
     // Upload results can include temporary URLs. Do not expose them in errors.
-    throw new Error('Private function ZIP upload failed (storage SDK fallback)');
+    throw new Error('Private function ZIP upload failed (storage SDK)');
   }
 }
 
@@ -281,14 +227,8 @@ export function deployFunctionCode({
     });
     assertToolSucceeded(result, `${functionName}: get private code upload`);
     upload = checkedUpload(result.data, functionName, region);
-    try {
-      uploadZip({ run, zipPath, configPath: join(temporary, 'curl.conf'), upload });
-    } catch (error) {
-      if (error?.code !== 'ZIP_TRANSPORT_ERROR') throw error;
-      // The manager SDK splits files over 5 MiB; reuse only this attempt's object.
-      logger.log(`${functionName}: ${error.message}; trying the storage SDK once`);
-      uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload });
-    }
+    // The storage SDK handles multipart uploads for large ZIPs.
+    uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload });
     verifyPrivateZip({ run, upload });
     logger.log(
       `${functionName}: private ZIP uploaded (${zipBytes} bytes); staging object ${upload.cosObjectName}`,
