@@ -129,14 +129,19 @@ test('push and manual deployments require same-SHA unit, build and SDK checks', 
   assert.deepEqual(Object.keys(release.jobs).sort(), ['catalog-acceptance', 'ci', 'deploy']);
 });
 
-test('browser component units install Chromium only in the site unit group', () => {
+test('browser component units retain both required engines in the site unit group', () => {
   const ci = workflow('ci');
   const unit = ci.jobs.unit;
   const install = unit.steps.findIndex(
-    (step) => step.run === 'pnpm exec playwright install --with-deps chromium',
+    (step) => step.run === 'pnpm exec playwright install --with-deps chromium webkit',
   );
   const tests = unit.steps.findIndex((step) => step.run === '${{ matrix.command }}');
   assert.ok(install >= 0 && install < tests);
+  const mirror = unit.steps.findIndex(
+    (step) => step.name === 'Use the Ubuntu archive for browser dependencies',
+  );
+  assert.ok(mirror >= 0 && mirror < install);
+  assert.equal(unit.steps[mirror].if, "${{ matrix.suite == 'site' }}");
   assert.equal(unit.steps[install].if, "${{ matrix.suite == 'site' }}");
   assert.equal(unit.steps[tests].if, undefined);
   assert.equal(unit.steps[tests]['continue-on-error'], undefined);
