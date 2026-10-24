@@ -2,8 +2,12 @@ import { strict as assert } from 'node:assert';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { format } from 'node:util';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import { type ImageUploadCommand, runImageUpload } from '@vibelingan-channel/db';
+import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import {
   type AdapterListQuery,
   type CatalogProductSaveInput,
@@ -19,6 +23,12 @@ import {
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
+import {
+  type ApprovalPersistenceCommand,
+  runStagedApproval,
+} from '@vibelingan-channel/db/catalog-detail-staging';
+import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
+import { publicationContentFingerprint } from '@vibelingan-channel/db/catalog-publication-fingerprint';
 import {
   type MediaStorageAdapter,
   type UploadCredential,
@@ -40,11 +50,15 @@ import {
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
+import { CatalogIssueSchema } from '@vibelingan-channel/shared/catalog-issues';
+import { z } from 'zod';
+import { completeSourceMirrorFixtures } from '../../alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import {
   type AdminConfig,
   type AdminResult,
   type RequestContext,
   handleAdminRequest,
+  isTransactionConflict,
 } from './handler.ts';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -54,11 +68,14 @@ class MemoryAdapter implements DbAdapter {
   /** Records every list() query so tests can assert pagination parameters. */
   readonly listQueries: AdapterListQuery[] = [];
 
-  constructor(private readonly store: Store) {}
+  constructor(private readonly store: Store) {
+    completeSourceMirrorFixtures(store);
+  }
 
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
+    if (query.hidePreparing) docs = docs.filter((doc) => doc.alibabaPhotosPending !== true);
     if (query.needsClassification) {
       docs = docs.filter((doc) =>
         matchesFilter(doc, {
@@ -166,6 +183,36 @@ class MemoryAdapter implements DbAdapter {
     return next;
   }
 
+  async manageImageUpload(command: ImageUploadCommand) {
+    return runImageUpload(
+      {
+        get: (collection, id) => this.get(collection, id),
+        set: async (collection, row) => {
+          if (!(await this.update(collection, row._id, row)))
+            throw new Error('Unconfirmed image quarantine');
+        },
+        remove: async (collection, id) => {
+          if (!(await this.remove(collection, id))) throw new Error('Unconfirmed image removal');
+        },
+      },
+      command,
+    );
+  }
+  async manageImageDeletion(command: ImageDeletionCommand) {
+    return runImageDeletion(
+      {
+        get: (collection, id) => this.get(collection, id),
+        set: async (collection, row) => {
+          if (!(await this.update(collection, row._id, row)))
+            throw new Error('Unconfirmed image quarantine');
+        },
+        remove: async (collection, id) => {
+          if (!(await this.remove(collection, id))) throw new Error('Unconfirmed image removal');
+        },
+      },
+      command,
+    );
+  }
   async acquireImageMutation(
     imageId: string,
     owner: string,
@@ -333,6 +380,120 @@ class ReviewRaceAdapter extends MemoryAdapter {
     return super.saveCatalogProductWithIdentities(input);
   }
 }
+
+test('publishing an approval built from older supplier data keeps the "changed" flag', async () => {
+  // A sync saw newer data (last-seen digest) after the approval's prepare read
+  // the older one (receipt digest): clearing the flag would hide that change.
+  const product = (id: string, lastSeen: string) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published: false }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'changed',
+      alibabaSourcePublicDigest: lastSeen,
+      catalogDetailApprovalReceipt: { revision: 'r1', sourceDigest: 'a'.repeat(64) },
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [product('older', 'b'.repeat(64)), product('current', 'a'.repeat(64))],
+    catalogProductIdentities: [],
+  });
+  const admin = await adminToken();
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'older', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.equal(row('older').published, true);
+  assert.deepEqual(
+    { pending: row('older').alibabaReviewPending, reason: row('older').alibabaReviewReason },
+    { pending: true, reason: 'changed' },
+  );
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'current', values: { published: true } },
+      admin,
+    ),
+  );
+  // Archiving takes the product out of the catalog: the flag clears regardless.
+  store.products?.push(product('archived', 'b'.repeat(64)));
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'archived', values: { archived: true } },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    { pending: row('archived').alibabaReviewPending, reason: row('archived').alibabaReviewReason },
+    { pending: false, reason: null },
+  );
+  assert.deepEqual(
+    { pending: row('current').alibabaReviewPending, reason: row('current').alibabaReviewReason },
+    { pending: false, reason: null },
+  );
+});
+
+test('publish and archive clear the review reason; unpublish never does; mark reviewed is for "new" only (MIU-21)', async () => {
+  const flagged = (id: string, reason: string, published = false) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: reason,
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [
+      flagged('changed-publish', 'changed'),
+      flagged('changed-unpublish', 'changed', true),
+      flagged('changed-archive', 'changed'),
+      flagged('changed-mark', 'changed'),
+      flagged('new-mark', 'new'),
+    ],
+    catalogProductIdentities: [],
+  });
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  const flag = (id: string) => ({
+    pending: row(id).alibabaReviewPending,
+    reason: row(id).alibabaReviewReason,
+  });
+  const admin = await adminToken();
+  const update = (id: string, values: Record<string, unknown>) =>
+    call('update', { collection: 'products', id, values }, admin);
+
+  okData(await update('changed-publish', { published: true }));
+  assert.deepEqual(flag('changed-publish'), { pending: false, reason: null });
+
+  // Hiding a product publishes nothing: the change still needs review (DEC-11).
+  okData(await update('changed-unpublish', { published: false }));
+  assert.deepEqual(flag('changed-unpublish'), { pending: true, reason: 'changed' });
+
+  okData(await update('changed-archive', { archived: true }));
+  assert.deepEqual(flag('changed-archive'), { pending: false, reason: null });
+
+  // Allow-list: an unknown reason is not "new" either.
+  store.products?.push(flagged('odd-mark', 'something-else'));
+  expectErr(await call('markProductReviewed', { productId: 'odd-mark' }, admin), 'CONFLICT');
+  const before = structuredClone(row('changed-mark'));
+  expectErr(await call('markProductReviewed', { productId: 'changed-mark' }, admin), 'CONFLICT');
+  assert.deepEqual(row('changed-mark'), before, 'refused without a write');
+
+  okData(await call('markProductReviewed', { productId: 'new-mark' }, admin));
+  assert.deepEqual(flag('new-mark'), { pending: false, reason: null });
+  const reviewed = structuredClone(row('new-mark'));
+  const again = okData<CollectionDoc>(
+    await call('markProductReviewed', { productId: 'new-mark' }, admin),
+  );
+  assert.equal(Reflect.get(again, 'alreadyReviewed'), true);
+  assert.deepEqual(row('new-mark'), reviewed, 're-acknowledging leaves the row unchanged');
+});
 
 for (const action of ['mark', 'publish', 'archive'] as const) {
   test(`Alibaba review acknowledgement ${action} rejects a concurrent relink at the write boundary`, async () => {
@@ -2315,6 +2476,100 @@ test('abandonUpload is refused while any registered collection references the im
   );
 });
 
+test('abandonUpload is refused while an unfinished approval would publish the image (DEC-21)', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  // Approval reads shared photos without writing them, so the job itself is
+  // what tells a delete the photo is in use.
+  store.catalogDetailApprovals = [
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication: {
+        state: 'approved',
+        revision: 'r1',
+        variantCount: 0,
+        variantImageIds: [intent.imageId],
+        header: { _id: 'p-1', name: 'Headset', images: [], facts: [], offers: [] },
+      },
+    },
+  ];
+
+  const result = await call('abandonUpload', { imageId: intent.imageId }, token);
+
+  expectErr(result, 'CONFLICT');
+  assert.deepEqual(storage.deleted, []);
+  store.catalogDetailApprovals = [
+    { ...(store.catalogDetailApprovals[0] as CollectionDoc), state: 'complete' },
+  ];
+  assert.equal((await call('abandonUpload', { imageId: intent.imageId }, token)).ok, true);
+});
+
+test('a photo whose approval finishes between the delete checks is not deleted (DEC-21)', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  const publication = {
+    state: 'approved',
+    revision: 'r1',
+    variantCount: 0,
+    variantImageIds: [intent.imageId],
+    header: { _id: 'p-1', name: 'Headset', images: [], facts: [], offers: [] },
+  };
+  store.products = [{ _id: 'p-1', name: 'Headset', published: false }];
+  store.catalogDetailApprovals = [
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication,
+    },
+  ];
+  // The approval commits (product and job in one transaction) right after the
+  // delete has read the products: whichever check comes second must see it.
+  let committed = false;
+  class CommitDuringScan extends MemoryAdapter {
+    override async list(query: AdapterListQuery) {
+      const page = await super.list(query);
+      if (query.collection === 'products' && !committed) {
+        committed = true;
+        store.products = [
+          { _id: 'p-1', name: 'Headset', published: false, catalogDetailPublication: publication },
+        ];
+        store.catalogDetailApprovals = [
+          {
+            _id: 'job-1',
+            productId: 'p-1',
+            state: 'complete',
+            createdAt: new Date().toISOString(),
+            publication,
+          },
+        ];
+      }
+      return page;
+    }
+  }
+  setAdapter(new CommitDuringScan(store));
+
+  const result = await call('abandonUpload', { imageId: intent.imageId }, token);
+
+  expectErr(result, 'CONFLICT');
+  assert.deepEqual(storage.deleted, []);
+  assert.ok(store.images?.some((image) => image._id === intent.imageId));
+});
+
 test('abandonUpload keeps metadata retryable when storage deletion fails', async () => {
   const store = imageStore([]);
   setup(store);
@@ -2425,6 +2680,7 @@ test('a deletion claim blocks a concurrent imageIds writer', async () => {
   );
   releaseDelete?.();
 
+  // The quarantined image is unavailable: nothing may save a dangling reference.
   expectErr(createResult, 'CONFLICT');
   assert.equal((await abandonment).ok, true);
   assert.equal(store.successStories?.length ?? 0, 0);
@@ -2481,7 +2737,7 @@ test('completeUpload leaves the doc PENDING (retryable) when the object is not y
   assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'pending');
 });
 
-test('completeUpload: a null activation (row removed mid-flight) fails + deletes the object, never fabricates success', async () => {
+test('completeUpload: an unconfirmed activation preserves its tracked object and reports conflict', async () => {
   const store = imageStore([]);
   setup(store);
   const bytes = jpegBytes('valid image');
@@ -2491,15 +2747,15 @@ test('completeUpload: a null activation (row removed mid-flight) fails + deletes
   const intent = okData<{ imageId: string }>(
     await call('createUploadIntent', { ...validUpload, byteSize: bytes.byteLength }, token),
   );
-  const storageFileId = store.images?.find((i) => i._id === intent.imageId)
-    ?.storageFileId as string;
-  // Model the row vanishing between the pending-check and activation: update now
-  // returns null while get/media still resolve. A null activation must surface an
-  // error AND compensate the now-orphaned object (rule e603f34), not return ok.
-  setupFailingUpdate(store, 'null');
-  setMediaStorage(fake);
+  class MissingActivation extends MemoryAdapter {
+    override async manageImageUpload() {
+      return { status: 'missing' as const };
+    }
+  }
+  setAdapter(new MissingActivation(store));
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
-  assert.deepEqual(fake.deleted, [storageFileId]);
+  assert.deepEqual(fake.deleted, []);
+  assert.equal(store.images?.find((row) => row._id === intent.imageId)?.status, 'pending');
 });
 
 // --- Password reset: token issuance + consume-once (timing-safe recover) -----
@@ -3100,8 +3356,7 @@ test('completeUpload rejects an over-cap landed object (server re-checks size)',
   // Declared small at intent (passes), but the object that landed is over the cap.
   setMediaStorage(
     makeFakeMediaStorage({
-      objectBytes: Buffer.from('x'),
-      reportByteSize: CATALOG_IMAGE_MAX_BYTES + 1,
+      objectBytes: Buffer.concat([jpegBytes('over cap'), Buffer.alloc(CATALOG_IMAGE_MAX_BYTES)]),
     }),
   );
   const token = await adminToken();
@@ -3176,7 +3431,7 @@ test('completeUpload marks the doc failed on a checksum mismatch', async () => {
   assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'failed');
 });
 
-test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', async () => {
+test('completeUpload: unknown id → NOT_FOUND; finalizing twice replays the confirmed completion', async () => {
   const store = imageStore([]);
   setup(store);
   setMediaStorage(makeFakeMediaStorage({ objectBytes: jpegBytes('x') }));
@@ -3184,13 +3439,13 @@ test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', 
   expectErr(await call('completeUpload', { imageId: 'does-not-exist' }, token), 'NOT_FOUND');
   const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
   await call('completeUpload', { imageId: intent.imageId }, token); // → active
-  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
 });
 
 test('completeUpload rejects landed bytes that are not the declared image type (HTML payload)', async () => {
   // The pre-signed credential fixes only the KEY, so the browser can PUT
   // arbitrary bytes. An HTML/JS document behind photo.jpg must fail the magic-
-  // byte sniff, mark the row failed, and delete the object — otherwise it would
+  // byte sniff, mark the row failed and retain its target for cleanup — otherwise it would
   // later be served from the API origin with an attacker-useful Content-Type.
   const store = imageStore([]);
   setup(store);
@@ -3203,7 +3458,7 @@ test('completeUpload rejects landed bytes that are not the declared image type (
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
   const doc = store.images?.find((i) => i._id === intent.imageId);
   assert.equal(doc?.status, 'failed');
-  assert.deepEqual(fake.deleted, [doc?.storageFileId]);
+  assert.deepEqual(fake.deleted, [], 'failed target stays tracked for safe expiry cleanup');
 });
 
 test('completeUpload rejects bytes whose signature is a DIFFERENT image type than declared', async () => {
@@ -3222,8 +3477,8 @@ test('completeUpload rejects bytes whose signature is a DIFFERENT image type tha
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
   const doc = store.images?.find((i) => i._id === intent.imageId);
   assert.equal(doc?.status, 'failed');
-  // Same cleanup contract as the HTML-payload path: the rejected object is deleted.
-  assert.deepEqual(fake.deleted, [doc?.storageFileId]);
+  // Same contract as HTML rejection: keep the failed target for safe cleanup.
+  assert.deepEqual(fake.deleted, [], 'failed target stays tracked for safe expiry cleanup');
 });
 
 test('completeUpload ACCEPTS a valid PNG under an image/png intent (sniff does not over-reject)', async () => {
@@ -4916,4 +5171,1134 @@ test('Alibaba hash/envelope fields are not filterable or sortable (query oracle 
     ),
     'BAD_REQUEST',
   );
+});
+
+// ── MIU-7: price summary backfill ──────────────────────────────────────────────
+const approvalConfig = { ...config, enableDetailApproval: true } satisfies AdminConfig;
+const backfillHeader = {
+  schemaVersion: 'catalog-product-detail-v1',
+  _id: 'approved-1',
+  name: 'Headset',
+  images: [],
+  facts: [],
+  offers: [],
+};
+const approvedVariantRow = (variantId: string, amountMinor: number, position: number) => ({
+  _id: approvedVariantDocumentId('approved-1', 'r1', variantId),
+  productId: 'approved-1',
+  variantId,
+  catalogDetailRevision: 'r1',
+  catalogDetailPosition: position,
+  catalogDetailApproved: {
+    id: variantId,
+    options: [],
+    images: [],
+    inventory: { state: 'unknown' },
+    offers: [
+      {
+        kind: 'supplier',
+        basis: 'source-quote',
+        pricing: { mode: 'fixed', currency: 'USD', amountMinor },
+      },
+    ],
+  },
+});
+function backfillStore(): Store {
+  return {
+    users: [],
+    products: [
+      {
+        _id: 'approved-1',
+        name: 'Headset',
+        published: true,
+        catalogDetailPublication: {
+          state: 'approved',
+          revision: 'r1',
+          header: backfillHeader,
+          variantCount: 2,
+          variantStorage: 'immutable-v1',
+        },
+      },
+      { _id: 'manual-1', name: 'Manual', published: true },
+    ],
+    catalogDetailVariants: [approvedVariantRow('a', 500, 0), approvedVariantRow('b', 120, 1)],
+  };
+}
+class BackfillAdapter extends MemoryAdapter {
+  constructor(private readonly backing: Store) {
+    super(backing);
+  }
+  async persistCatalogDetailApproval(actorId: string, input: ApprovalPersistenceCommand) {
+    return runStagedApproval(
+      {
+        get: async (collection, id) =>
+          structuredClone(this.backing[collection]?.find((row) => row._id === id) ?? null),
+        set: async (collection, row) => {
+          const rows = this.backing[collection] ?? [];
+          this.backing[collection] = rows;
+          const index = rows.findIndex((existing) => existing._id === row._id);
+          if (index < 0) rows.push(structuredClone(row));
+          else rows[index] = structuredClone(row);
+        },
+      },
+      actorId,
+      input,
+    );
+  }
+}
+const backfillCall = (data: unknown, token: string, override: AdminConfig = approvalConfig) =>
+  handleAdminRequest(
+    { action: 'backfillPublicationPriceSummary', token, data } as Parameters<
+      typeof handleAdminRequest
+    >[0],
+    override,
+  );
+
+test('price summary backfill is admin-only and needs catalog detail approval', async () => {
+  setup(backfillStore());
+  const contributor = await sessionToken({
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await backfillCall({ mode: 'plan' }, contributor), 'FORBIDDEN');
+  expectErr(await backfillCall({ mode: 'plan' }, await adminToken(), config), 'FORBIDDEN');
+  expectErr(await backfillCall({ mode: 'delete' }, await adminToken()), 'VALIDATION_ERROR');
+});
+
+test('price summary backfill plans read-only, then applies only reviewed rows idempotently', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const token = await adminToken();
+  const plan = okData<{ rows: Array<Record<string, unknown>>; nextAfterId: string; done: boolean }>(
+    await backfillCall({ mode: 'plan' }, token),
+  );
+  const summary = {
+    source: 'sku',
+    variantId: 'b',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 120 },
+  };
+  assert.deepEqual(plan.rows, [
+    {
+      productId: 'approved-1',
+      revision: 'r1',
+      variantCount: 2,
+      outcome: 'ready',
+      priceSummary: summary,
+    },
+    { productId: 'manual-1', outcome: 'not-approved' },
+  ]);
+  assert.equal(plan.done, true);
+  assert.equal(
+    Object.hasOwn(store.products?.[0]?.catalogDetailPublication as object, 'priceSummary'),
+    false,
+    'planning writes nothing',
+  );
+  const rows = [{ productId: 'approved-1', revision: 'r1', priceSummary: summary }];
+  const applied = okData<{ results: unknown[] }>(
+    await backfillCall({ mode: 'apply', rows }, token),
+  );
+  assert.deepEqual(applied.results, [
+    { productId: 'approved-1', result: { ok: true, backfill: 'applied' } },
+  ]);
+  assert.deepEqual(
+    (store.products?.[0]?.catalogDetailPublication as Record<string, unknown>).priceSummary,
+    summary,
+  );
+  const again = okData<{ results: unknown[] }>(await backfillCall({ mode: 'apply', rows }, token));
+  assert.deepEqual(again.results, [
+    {
+      productId: 'approved-1',
+      result: { ok: true, backfill: 'skipped', reason: 'already-present' },
+    },
+  ]);
+  expectErr(
+    await backfillCall({ mode: 'apply', rows: Array.from({ length: 21 }, () => rows[0]) }, token),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('price summary backfill apply writes the server-derived summary, never a caller-supplied one', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const token = await adminToken();
+  const forged = {
+    source: 'sku',
+    variantId: 'b',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 1 },
+  };
+  const result = okData<{ results: unknown[] }>(
+    await backfillCall(
+      { mode: 'apply', rows: [{ productId: 'approved-1', revision: 'r1', priceSummary: forged }] },
+      token,
+    ),
+  );
+  assert.deepEqual(result.results, [
+    {
+      productId: 'approved-1',
+      result: { ok: true, backfill: 'skipped', reason: 'summary-changed' },
+    },
+  ]);
+  assert.equal(
+    Object.hasOwn(store.products?.[0]?.catalogDetailPublication as object, 'priceSummary'),
+    false,
+  );
+  const stale = okData<{ results: unknown[] }>(
+    await backfillCall(
+      { mode: 'apply', rows: [{ productId: 'manual-1', revision: 'r1', priceSummary: forged }] },
+      token,
+    ),
+  );
+  assert.deepEqual(stale.results, [
+    { productId: 'manual-1', result: { ok: true, backfill: 'skipped', reason: 'plan-changed' } },
+  ]);
+  const tooLarge = await backfillCall({ mode: 'plan', afterId: 'x'.repeat(70_000) }, token);
+  expectErr(tooLarge, 'VALIDATION_ERROR');
+  // The size cap answers before the schema does.
+  assert.equal(
+    tooLarge.ok ? undefined : tooLarge.error.message,
+    'Price summary backfill request is too large.',
+  );
+});
+
+test('price summary backfill apply skips a row reviewed against an older revision', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const token = await adminToken();
+  const plan = okData<{ rows: Array<Record<string, unknown>> }>(
+    await backfillCall({ mode: 'plan' }, token),
+  );
+  const current = plan.rows[0];
+  const result = okData<{ results: unknown[] }>(
+    await backfillCall(
+      {
+        mode: 'apply',
+        rows: [{ productId: 'approved-1', revision: 'r0', priceSummary: current?.priceSummary }],
+      },
+      token,
+    ),
+  );
+  assert.deepEqual(result.results, [
+    {
+      productId: 'approved-1',
+      result: { ok: true, backfill: 'skipped', reason: 'summary-changed' },
+    },
+  ]);
+  assert.equal(
+    Object.hasOwn(store.products?.[0]?.catalogDetailPublication as object, 'priceSummary'),
+    false,
+  );
+});
+
+// --- MIU-38: one-time "changed since approval" audit, through the handler ---
+
+const auditCall = (data: unknown, token: string, override: AdminConfig = approvalConfig) =>
+  handleAdminRequest(
+    { action: 'auditChangesSinceApproval', token, data } as Parameters<
+      typeof handleAdminRequest
+    >[0],
+    override,
+  );
+
+test('change audit is admin-only, needs detail approval and validates its request', async () => {
+  setup(backfillStore());
+  const contributor = await sessionToken({
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await auditCall({ mode: 'plan' }, contributor), 'FORBIDDEN');
+  const admin = await adminToken();
+  expectErr(await auditCall({ mode: 'plan' }, admin, config), 'FORBIDDEN');
+  expectErr(await auditCall({ mode: 'apply', rows: [] }, admin), 'VALIDATION_ERROR');
+  expectErr(
+    await auditCall(
+      { mode: 'apply', rows: [{ productId: 'p', revision: 'r', outcome: 'maybe' }] },
+      admin,
+    ),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('change audit plan reads products through the real wiring and writes nothing', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const before = structuredClone(store.products);
+  const plan = okData<{ rows: Array<Record<string, unknown>>; done: boolean }>(
+    await auditCall({ mode: 'plan' }, await adminToken()),
+  );
+  assert.equal(plan.done, true);
+  assert.equal(plan.rows.length, store.products?.length);
+  // Neither fixture product has an Alibaba source with a stored observation.
+  assert.ok(plan.rows.every((row) => row.outcome === 'skipped'));
+  assert.deepEqual(store.products, before);
+});
+
+// --- DEC-19: the read-only supplier review, through the handler ---
+
+test('supplier review is admin-only and read-only through the approval action', async () => {
+  const store = setup({ users: [{ _id: 'admin-1', role: 'admin' }], products: [] });
+  const supplierReview = (token: string, override: AdminConfig = approvalConfig) =>
+    handleAdminRequest(
+      {
+        action: 'catalogDetailApproval',
+        token,
+        data: { action: 'supplier-review', productId: 'missing' },
+      } as Parameters<typeof handleAdminRequest>[0],
+      override,
+    );
+  const contributor = await sessionToken({
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await supplierReview(contributor), 'FORBIDDEN');
+  expectErr(await supplierReview(await adminToken(), config), 'FORBIDDEN');
+  const before = structuredClone(store);
+  expectErr(await supplierReview(await adminToken()), 'NOT_FOUND');
+  assert.deepEqual(store, before);
+});
+
+// --- DEC-19: supplier decisions gate the Changed flag; contributors cannot save flagged products ---
+
+function supplierObservation(sourceKey: string, text: string) {
+  return {
+    _id: sourceObservationDocumentId('alibaba', sourceKey),
+    observation: {
+      schemaVersion: 'catalog-source-observation-v1',
+      source: {
+        provider: 'alibaba',
+        sourceProductKey: sourceKey,
+        externalProductId: '987',
+        observedAt: '2026-10-01T00:00:00.000Z',
+        captureMode: 'full',
+        completeness: 'full-product',
+      },
+      identity: { title: 'Supplier title', matchHints: {}, attributes: [] },
+      content: {
+        description: {
+          text,
+          placeholder: false,
+          sanitized: true,
+          provenance: 'provider-description',
+        },
+        media: [],
+      },
+      lifecycle: { sourceListingStatus: 'published' },
+      variants: [],
+      offers: [],
+      evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+      warnings: [],
+    },
+  };
+}
+const descriptionDigest = (text: string) =>
+  createHash('sha256')
+    .update(JSON.stringify(['description', text]))
+    .digest('hex');
+
+test('publishing keeps the Changed flag until every supplier change has a decision', async () => {
+  const flagged = (id: string, extra: Record<string, unknown> = {}) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published: false, description: 'Our text' }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'changed',
+      ...extra,
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [
+      flagged('undecided'),
+      flagged('kept', {
+        supplierDecisions: {
+          description: { choice: 'keep', incomingDigest: descriptionDigest('Supplier text') },
+        },
+      }),
+      flagged('stale-decision', {
+        supplierDecisions: {
+          description: { choice: 'keep', incomingDigest: descriptionDigest('Older text') },
+        },
+      }),
+      flagged('taken'),
+    ],
+    catalogProductIdentities: [],
+    catalogSourceObservations: ['undecided', 'kept', 'stale-decision', 'taken'].map((id) =>
+      supplierObservation(`source-${id}`, 'Supplier text'),
+    ),
+  });
+  const admin = await adminToken();
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  const publish = (id: string, values: Record<string, unknown> = {}) =>
+    call('update', { collection: 'products', id, values: { ...values, published: true } }, admin);
+  okData(await publish('undecided'));
+  okData(await publish('kept'));
+  okData(await publish('stale-decision'));
+  // "Use incoming": the website now shows the supplier's text, nothing is left to decide.
+  okData(await publish('taken', { description: 'Supplier text' }));
+  const flags = (id: string) => [
+    row(id).published,
+    row(id).alibabaReviewPending,
+    row(id).alibabaReviewReason,
+  ];
+  assert.deepEqual(flags('undecided'), [true, true, 'changed']);
+  assert.deepEqual(flags('kept'), [true, false, null]);
+  assert.deepEqual(flags('stale-decision'), [true, true, 'changed'], 'decided for an older value');
+  assert.deepEqual(flags('taken'), [true, false, null]);
+});
+
+test('an admin edit to a part that matched Alibaba is recorded as kept, so publishing clears the flag', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'price-only',
+        ...publishableProduct({ published: false, description: 'Supplier text' }),
+        alibabaPrimarySourceKey: 'source-price-only',
+        alibabaReviewPending: true,
+        alibabaReviewReason: 'changed',
+      } as CollectionDoc,
+    ],
+    catalogProductIdentities: [],
+    catalogSourceObservations: [supplierObservation('source-price-only', 'Supplier text')],
+  });
+  const admin = await adminToken();
+  const row = () => store.products?.find((item) => item._id === 'price-only') as CollectionDoc;
+  // Flagged for a price change only; the admin fixes a typo in the description.
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'price-only', values: { description: 'Our fixed text' } },
+      admin,
+    ),
+  );
+  assert.deepEqual(row().supplierDecisions, {
+    description: { choice: 'keep', incomingDigest: descriptionDigest('Supplier text') },
+  });
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'price-only', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    [row().description, row().alibabaReviewPending, row().alibabaReviewReason],
+    ['Our fixed text', false, null],
+  );
+});
+
+test('contributors cannot save a flagged product or write supplier decisions and photo choices', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'flagged',
+        ...publishableProduct({ published: true }),
+        alibabaPrimarySourceKey: 'source-flagged',
+        alibabaReviewPending: true,
+        alibabaReviewReason: 'changed',
+      } as CollectionDoc,
+      { _id: 'plain', ...publishableProduct({ published: false }) } as CollectionDoc,
+    ],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  const before = structuredClone(store.products);
+  expectErr(
+    await call(
+      'update',
+      { collection: 'products', id: 'flagged', values: { name: 'Edit' } },
+      contributor,
+    ),
+    'FORBIDDEN',
+  );
+  for (const values of [
+    { supplierDecisions: { description: { choice: 'keep', incomingDigest: 'a'.repeat(64) } } },
+    { configurationPhotos: { v1: ['imgA'] } },
+  ]) {
+    expectErr(
+      await call('update', { collection: 'products', id: 'plain', values }, contributor),
+      'FORBIDDEN',
+    );
+    expectErr(
+      await call(
+        'create',
+        {
+          collection: 'products',
+          values: { ...publishableProduct({ published: false }), ...values },
+        },
+        contributor,
+      ),
+      'FORBIDDEN',
+    );
+  }
+  assert.deepEqual(store.products, before);
+});
+
+// --- MIU-37, OWN-1: with approval on, products go live only as their approved version ---
+
+const callWithApproval = (action: string, data: unknown, token: string) =>
+  handleAdminRequest(
+    { action, token, data } as Parameters<typeof handleAdminRequest>[0],
+    approvalConfig,
+  );
+
+test('with approval on, a new product cannot be created already published; a draft is stored (MIU-37)', async () => {
+  const store = setup({ users: [], products: [], catalogProductIdentities: [] });
+  const admin = await adminToken();
+  const refused = await callWithApproval(
+    'create',
+    { collection: 'products', values: publishableProduct() },
+    admin,
+  );
+  expectErr(refused, 'VALIDATION_ERROR');
+  assert.match(refused.ok ? '' : refused.error.message, /starts as a draft/);
+  assert.equal(store.products?.length, 0);
+  assert.equal(store.catalogProductIdentities?.length, 0);
+  const draft = okData<CollectionDoc>(
+    await callWithApproval(
+      'create',
+      { collection: 'products', values: publishableProduct({ published: false }) },
+      admin,
+    ),
+  );
+  assert.equal(draft.published, false);
+  assert.equal(store.products?.length, 1);
+});
+
+test('with approval on, a contributor edit on a live product is saved as a draft and flagged Edited (OWN-1)', async () => {
+  const live = { _id: 'live', ...publishableProduct({ name: 'Approved name' }) } as CollectionDoc;
+  live.catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(live) };
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  const row = () => store.products?.find((item) => item._id === 'live') as CollectionDoc;
+  const contributor = await contributorToken();
+  const edit = (values: Record<string, unknown>) =>
+    callWithApproval('update', { collection: 'products', id: 'live', values }, contributor);
+  // The edit form sends Published as it stands.
+  okData(await edit({ name: 'Contributor name', published: true }));
+  assert.deepEqual(
+    [row().name, row().published, row().alibabaReviewPending, row().alibabaReviewReason],
+    ['Contributor name', true, true, 'edited'],
+  );
+  assert.deepEqual(row().catalogDetailApprovalReceipt, live.catalogDetailApprovalReceipt);
+  // A second edit while it waits is still an edit, not a refused review acknowledgement.
+  okData(await edit({ description: 'More words', published: true }));
+  assert.equal(row().alibabaReviewReason, 'edited');
+  // An admin publishes it after approving the edited version; the flag clears.
+  row().catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(row()) };
+  okData(
+    await callWithApproval(
+      'update',
+      { collection: 'products', id: 'live', values: { published: true } },
+      await adminToken(),
+    ),
+  );
+  assert.deepEqual([row().alibabaReviewPending, row().alibabaReviewReason], [false, null]);
+  // Taking a product offline is not an edit to review.
+  okData(await edit({ published: false }));
+  assert.deepEqual([row().published, row().alibabaReviewPending], [false, false]);
+});
+
+test('a contributor Save with nothing changed does not flag a live product; a New flag becomes Edited', async () => {
+  const live = { _id: 'live', ...publishableProduct({ name: 'Approved name' }) } as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  const row = () => store.products?.find((item) => item._id === 'live') as CollectionDoc;
+  const contributor = await contributorToken();
+  const { _id, ...unchanged } = live;
+  okData(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: 'live',
+        values: { ...unchanged, description: live.description },
+      },
+      contributor,
+    ),
+  );
+  assert.equal(row().alibabaReviewPending, undefined);
+  Object.assign(row(), { alibabaReviewPending: true, alibabaReviewReason: 'new' });
+  okData(
+    await callWithApproval(
+      'update',
+      { collection: 'products', id: 'live', values: { name: 'Edited name', published: true } },
+      contributor,
+    ),
+  );
+  assert.deepEqual([row().alibabaReviewPending, row().alibabaReviewReason], [true, 'edited']);
+});
+
+test('a contributor cannot change the category, URL or SKU of a live product (they go live from the row)', async () => {
+  const live = { _id: 'live', ...publishableProduct() } as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  for (const values of [
+    { productFamily: 'toys' },
+    { slug: 'another-url' },
+    { skuCode: 'another-sku' },
+  ]) {
+    expectErr(
+      await callWithApproval('update', { collection: 'products', id: 'live', values }, contributor),
+      'FORBIDDEN',
+    );
+  }
+  assert.deepEqual(store.products, [live]);
+  // Sending the same values, as the edit form does, is fine.
+  okData(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: 'live',
+        values: { productFamily: live.productFamily, slug: live.slug, skuCode: live.skuCode },
+      },
+      contributor,
+    ),
+  );
+});
+
+test('with approval off, contributor edits on live products save as before', async () => {
+  const store = setup({
+    users: [],
+    products: [{ _id: 'live', ...publishableProduct() } as CollectionDoc],
+    catalogProductIdentities: [],
+  });
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'live', values: { name: 'Renamed', published: true } },
+      await contributorToken(),
+    ),
+  );
+  const product = store.products?.[0];
+  assert.deepEqual(
+    [product?.name, product?.published, product?.alibabaReviewPending],
+    ['Renamed', true, undefined],
+  );
+});
+
+// --- Classification "Save and publish" clears a New flag under the classification guard ---
+
+test('publishing a New Alibaba draft with the classification revision acknowledges it; a stale revision is refused', async () => {
+  const draft = (id: string) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published: false }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'new',
+      updatedAt: '2026-10-09T02:00:00.000Z',
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [draft('fresh'), draft('stale')],
+    catalogProductIdentities: [],
+  });
+  const admin = await adminToken();
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  okData(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'fresh',
+        values: { published: true },
+        expectedUpdatedAt: '2026-10-09T02:00:00.000Z',
+      },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    [row('fresh').published, row('fresh').alibabaReviewPending, row('fresh').alibabaReviewReason],
+    [true, false, null],
+  );
+  const before = structuredClone(row('stale'));
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'stale',
+        values: { published: true },
+        expectedUpdatedAt: '2026-10-09T01:00:00.000Z',
+      },
+      admin,
+    ),
+    'CONFLICT',
+  );
+  assert.deepEqual(row('stale'), before);
+});
+
+test('a contributor save that only clears an old Headphones category is not a category change', async () => {
+  const live = {
+    _id: 'live',
+    ...publishableProduct({ productFamily: 'toys' }),
+    category: 'wired',
+  } as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [structuredClone(live)],
+    catalogProductIdentities: [],
+  });
+  okData(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: 'live',
+        values: { name: 'Renamed toy', productFamily: 'toys', category: '', published: true },
+      },
+      await contributorToken(),
+    ),
+  );
+  const row = store.products?.[0];
+  assert.deepEqual(
+    [row?.name, row?.published, row?.alibabaReviewReason],
+    ['Renamed toy', true, 'edited'],
+  );
+});
+
+// --- PT-G: drafts waiting for their photos stay out of the admin list ---
+
+test('the admin product list and review counts leave out drafts still waiting for photos', async () => {
+  setup({
+    users: [],
+    products: [
+      { _id: 'ready', name: 'Ready', published: false, alibabaReviewPending: true },
+      {
+        _id: 'preparing',
+        name: 'Preparing',
+        published: false,
+        alibabaReviewPending: true,
+        alibabaPhotosPending: true,
+      },
+      { _id: 'shown', name: 'Shown', published: false, alibabaPhotosPending: false },
+    ],
+  });
+  const admin = await adminToken();
+  const listed = okData<{ items: CollectionDoc[]; total: number }>(
+    await call('list', { collection: 'products', page: 1, pageSize: 20 }, admin),
+  );
+  assert.deepEqual(listed.items.map((item) => item._id).sort(), ['ready', 'shown']);
+  assert.equal(listed.total, 2);
+  const summary = okData<{ pendingTotal: number }>(await call('productReviewSummary', {}, admin));
+  assert.equal(summary.pendingTotal, 1);
+  // Other collections are unaffected.
+  const users = okData<{ items: CollectionDoc[] }>(
+    await call('list', { collection: 'users', page: 1, pageSize: 20 }, admin),
+  );
+  assert.ok(users.items.length >= 1);
+});
+
+test('a database transaction conflict answers BUSY (nothing saved, retry), never a server error', async () => {
+  const store = setup();
+  const token = await adminToken();
+  const mem = new MemoryAdapter(store);
+  const conflict = Object.assign(new Error('write conflict'), {
+    code: 'DATABASE_TRANSACTION_CONFLICT',
+  });
+  setAdapter({
+    list: async () => {
+      throw conflict;
+    },
+    get: (c, i) => mem.get(c, i),
+    findByField: (c, f, v) => mem.findByField(c, f, v),
+    create: (c, d) => mem.create(c, d),
+    update: (c, i, d) => mem.update(c, i, d),
+    remove: (c, i) => mem.remove(c, i),
+    incrementField: (c, i, f, d) => mem.incrementField(c, i, f, d),
+  });
+  const result = await call('list', { collection: 'products', page: 1, pageSize: 1 }, token);
+  expectErr(result, 'BUSY');
+  assert.equal(isTransactionConflict(conflict), true);
+  assert.equal(isTransactionConflict(new Error('other')), false);
+});
+
+test('prepare response identifies invalid website fields without returning private source values', async () => {
+  const source = supplierObservation('clock-source', 'Safe description');
+  const observation = {
+    ...source.observation,
+    identity: {
+      ...source.observation.identity,
+      attributes: [{ sourceName: 'Material', value: 'private-source-value-'.repeat(120) }],
+    },
+  };
+  setup({
+    users: [],
+    products: [
+      {
+        _id: 'clock',
+        name: 'Clock',
+        alibabaPrimarySourceKey: 'clock-source',
+        productFamily: 'misc',
+      },
+    ],
+    catalogSourceObservations: [{ ...source, observation }],
+  });
+  const result = await handleAdminRequest(
+    {
+      action: 'catalogDetailApproval',
+      token: await adminToken(),
+      data: { action: 'prepare', productId: 'clock', page: 0 },
+    },
+    approvalConfig,
+  );
+  expectErr(result, 'VALIDATION_ERROR');
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error.message, /preparing the product/);
+    assert.match(result.error.message, /Specification 1 value/);
+    const issues = z.array(CatalogIssueSchema).parse(Reflect.get(result.error, 'issues'));
+    assert.equal(issues[0]?.path, 'facts.0.value');
+    assert.equal(issues[0]?.remedy, 'resync');
+    assert.match(result.error.message, /2000/);
+    assert.doesNotMatch(result.error.message, /private-source-value|private-evidence/);
+  }
+});
+
+for (const scenario of [
+  'clear-reviewed',
+  'missing-guard',
+  'publication-patch',
+  'withdrawn',
+  'contributor',
+] as const) {
+  test(`refresh-live intent: ${scenario}`, async () => {
+    const revision = '2026-10-13T00:00:00.000Z';
+    const live = {
+      _id: 'refresh-live',
+      ...publishableProduct(),
+      updatedAt: revision,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'edited',
+    } as CollectionDoc;
+    live.catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(live) };
+    const store = setup({ users: [], products: [live], catalogProductIdentities: [] });
+    const token = scenario === 'contributor' ? await contributorToken() : await adminToken();
+    if (scenario === 'withdrawn') {
+      live.published = false;
+      live.updatedAt = '2026-10-13T00:00:01.000Z';
+    }
+    const before = structuredClone(store.products);
+    const result = await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: live._id,
+        intent: 'refresh-live',
+        values: scenario === 'publication-patch' ? { published: false } : {},
+        ...(scenario === 'missing-guard' ? {} : { expectedUpdatedAt: revision }),
+      },
+      token,
+    );
+    if (scenario === 'clear-reviewed') {
+      const saved = okData<CollectionDoc>(result);
+      assert.equal(saved.published, true);
+      assert.equal(saved.alibabaReviewPending, false);
+    } else {
+      expectErr(
+        result,
+        scenario === 'contributor'
+          ? 'FORBIDDEN'
+          : scenario === 'withdrawn'
+            ? 'CONFLICT'
+            : 'BAD_REQUEST',
+      );
+      assert.deepEqual(store.products, before);
+    }
+  });
+}
+
+test('refresh-live CAS rejects a withdrawal between the handler read and the database write', async () => {
+  const revision = '2026-10-13T00:00:00.000Z';
+  const live = {
+    _id: 'refresh-race',
+    ...publishableProduct(),
+    updatedAt: revision,
+    alibabaReviewPending: true,
+    alibabaReviewReason: 'edited',
+  } as CollectionDoc;
+  live.catalogDetailApprovalReceipt = { contentFingerprint: publicationContentFingerprint(live) };
+  const store = setup({ users: [], products: [live], catalogProductIdentities: [] });
+  const token = await adminToken();
+  class WithdrawalAdapter extends MemoryAdapter {
+    override async saveCatalogProductWithIdentities(input: CatalogProductSaveInput) {
+      assert.equal(input.data.published, undefined);
+      assert.equal(input.expectedUpdatedAt, revision);
+      live.published = false;
+      live.updatedAt = '2026-10-13T00:00:01.000Z';
+      return super.saveCatalogProductWithIdentities(input);
+    }
+  }
+  setAdapter(new WithdrawalAdapter(store));
+  expectErr(
+    await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: live._id,
+        intent: 'refresh-live',
+        expectedUpdatedAt: revision,
+        values: {},
+      },
+      token,
+    ),
+    'CONFLICT',
+  );
+  assert.equal(live.published, false);
+  assert.equal(live.alibabaReviewPending, true);
+});
+
+for (const cause of ['stale-source', 'undecided-source', 'unapproved-content'] as const) {
+  test(`refresh-live preserves review boundaries: ${cause}`, async () => {
+    const revision = '2026-10-13T00:00:00.000Z';
+    const live = {
+      _id: 'refresh-boundary',
+      ...publishableProduct(),
+      updatedAt: revision,
+      alibabaPrimarySourceKey: 'refresh-source',
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'changed',
+      alibabaSourcePublicDigest: 'a'.repeat(64),
+    } as CollectionDoc;
+    live.catalogDetailApprovalReceipt = {
+      contentFingerprint: publicationContentFingerprint(live),
+      sourceDigest: cause === 'stale-source' ? 'b'.repeat(64) : 'a'.repeat(64),
+    };
+    if (cause === 'unapproved-content') live.name = 'Unapproved later edit';
+    const store = setup({
+      users: [],
+      products: [live],
+      catalogProductIdentities: [],
+      catalogSourceObservations:
+        cause === 'undecided-source'
+          ? [supplierObservation('refresh-source', 'Unreviewed incoming text')]
+          : [],
+    });
+    const token = await adminToken();
+    const result = await callWithApproval(
+      'update',
+      {
+        collection: 'products',
+        id: live._id,
+        intent: 'refresh-live',
+        expectedUpdatedAt: revision,
+        values: {},
+      },
+      token,
+    );
+    if (cause === 'unapproved-content') expectErr(result, 'VALIDATION_ERROR');
+    else {
+      const saved = okData<CollectionDoc>(result);
+      assert.equal(saved.alibabaReviewPending, true);
+      assert.equal(saved.alibabaReviewReason, 'changed');
+    }
+    assert.equal(store.products?.[0]?.published, true);
+  });
+}
+
+for (const kind of ['conflict', 'transport'] as const) {
+  test(`image lock acquisition ${kind} releases prior locks and preserves a safe retry result`, async (t) => {
+    const store = imageStore(['imgA', 'imgB']);
+    for (const image of store.images ?? [])
+      Object.assign(image, { status: 'active', uploadedByUserId: 'admin-1' });
+    store.products = [
+      {
+        _id: 'locked-draft',
+        ...publishableProduct({ published: false, imageIds: [] }),
+      } as CollectionDoc,
+    ];
+    setup(store);
+    const token = await adminToken();
+    const logs: string[] = [];
+    t.mock.method(console, 'error', (...args: unknown[]) => logs.push(format(...args)));
+    class ThrowingAcquireAdapter extends MemoryAdapter {
+      override async acquireImageMutation(
+        id: string,
+        owner: string,
+        at: string,
+      ): Promise<ImageMutationAcquireResult> {
+        if (id === 'imgB')
+          throw Object.assign(new Error('private-link?token=synthetic-secret'), {
+            code: kind === 'conflict' ? 'DATABASE_TRANSACTION_CONFLICT' : 'ETIMEDOUT',
+          });
+        return super.acquireImageMutation(id, owner, at);
+      }
+    }
+    setAdapter(new ThrowingAcquireAdapter(store));
+    const before = structuredClone(store.products);
+    const result = await call(
+      'update',
+      { collection: 'products', id: 'locked-draft', values: { imageIds: ['imgA', 'imgB'] } },
+      token,
+    );
+    expectErr(result, kind === 'conflict' ? 'BUSY' : 'INTERNAL_ERROR');
+    assert.deepEqual(store.products, before);
+    const first = store.images?.find((image) => image._id === 'imgA');
+    assert.equal(first?.imageMutationOwner, '');
+    assert.equal(first?.imageMutationStartedAt, '');
+    assert.equal(JSON.stringify(logs).includes('synthetic-secret'), false);
+  });
+}
+
+for (const prior of [undefined, null]) {
+  test(`ordinary editor null CAS accepts legacy row once and rejects stale retry (${prior})`, async () => {
+    const product = {
+      _id: 'legacy-editor',
+      ...publishableProduct(),
+      published: false,
+    } as CollectionDoc;
+    Reflect.set(product, 'updatedAt', prior);
+    const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+    const token = await adminToken();
+    const data = {
+      collection: 'products',
+      id: product._id,
+      values: { name: 'First edit' },
+      expectedUpdatedAt: null,
+    };
+    const saved = okData<CollectionDoc>(await callWithApproval('update', data, token));
+    assert.equal(saved.name, 'First edit');
+    assert.equal(typeof saved.updatedAt, 'string');
+    const before = structuredClone(store.products);
+    expectErr(
+      await callWithApproval('update', { ...data, values: { name: 'Stale edit' } }, token),
+      'CONFLICT',
+    );
+    assert.deepEqual(store.products, before);
+  });
+}
+
+test('abandonUpload quarantines storage before deletion and resumes an unconfirmed row removal', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  class UnconfirmedRemoval extends MemoryAdapter {
+    failNext = true;
+    override async remove(collection: string, id: string) {
+      if (collection === 'images' && this.failNext) {
+        this.failNext = false;
+        return false;
+      }
+      return super.remove(collection, id);
+    }
+  }
+  setAdapter(new UnconfirmedRemoval(store));
+  const originalDelete = storage.deleteObject.bind(storage);
+  storage.deleteObject = async (fileId) => {
+    assert.equal(store.images?.find((row) => row._id === intent.imageId)?.status, 'deleted');
+    return originalDelete(fileId);
+  };
+  assert.equal((await call('abandonUpload', { imageId: intent.imageId }, token)).ok, false);
+  assert.equal(store.images?.find((row) => row._id === intent.imageId)?.status, 'deleted');
+  assert.equal((await call('abandonUpload', { imageId: intent.imageId }, token)).ok, true);
+  assert.equal(
+    store.images?.some((row) => row._id === intent.imageId),
+    false,
+  );
+});
+
+test('image get and list omit private protection protocol fields for both staff roles', async () => {
+  setup({
+    users: [],
+    images: [
+      {
+        _id: 'private-protection-image',
+        name: 'Clock photo',
+        mimeType: 'image/png',
+        status: 'active',
+        storageProvider: 'local-disk',
+        storageFileId: 'local-disk:private.png',
+        catalogStorageProtection: {
+          kind: 'catalog-protected-target-v1',
+          intentId: 'private-intent',
+          attemptId: 'private-attempt',
+        },
+        catalogProtectionIntentId: 'pending-private-intent',
+      },
+    ],
+  });
+  for (const token of [await adminToken(), await contributorToken()]) {
+    const one = okData<CollectionDoc>(
+      await call('get', { collection: 'images', id: 'private-protection-image' }, token),
+    );
+    const list = okData<ListResult<CollectionDoc>>(
+      await call('list', { collection: 'images', page: 1, pageSize: 20 }, token),
+    );
+    for (const image of [one, ...list.items]) {
+      assert.equal(image.name, 'Clock photo');
+      assert.equal(Object.hasOwn(image, 'catalogStorageProtection'), false);
+      assert.equal(Object.hasOwn(image, 'catalogProtectionIntentId'), false);
+    }
+  }
+});
+test('ordinary image updates cannot forge or remove protection fields and name edits preserve the server marker', async () => {
+  const marker = {
+    kind: 'catalog-protected-target-v1',
+    intentId: 'private-intent',
+    attemptId: 'private-attempt',
+  };
+  const store = setup({
+    users: [],
+    images: [
+      {
+        _id: 'protected-edit',
+        name: 'Clock photo',
+        mimeType: 'image/png',
+        status: 'active',
+        storageProvider: 'local-disk',
+        storageFileId: 'local-disk:private.png',
+        catalogStorageProtection: marker,
+        catalogProtectionIntentId: 'pending-private-intent',
+      },
+    ],
+  });
+  const token = await adminToken();
+  for (const values of [
+    { catalogStorageProtection: null },
+    { catalogProtectionIntentId: 'forged' },
+  ]) {
+    expectErr(
+      await call('update', { collection: 'images', id: 'protected-edit', values }, token),
+      'VALIDATION_ERROR',
+    );
+    assert.deepEqual(store.images?.[0]?.catalogStorageProtection, marker);
+    assert.equal(store.images?.[0]?.catalogProtectionIntentId, 'pending-private-intent');
+  }
+  const edited = okData<CollectionDoc>(
+    await call(
+      'update',
+      { collection: 'images', id: 'protected-edit', values: { name: 'My clock photo' } },
+      token,
+    ),
+  );
+  assert.equal(edited.name, 'My clock photo');
+  assert.deepEqual(store.images?.[0]?.catalogStorageProtection, marker);
+  assert.equal(Object.hasOwn(edited, 'catalogStorageProtection'), false);
+  assert.equal(Object.hasOwn(edited, 'catalogProtectionIntentId'), false);
 });

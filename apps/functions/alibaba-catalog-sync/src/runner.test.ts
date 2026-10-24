@@ -42,10 +42,16 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
+import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import { linkExistingProduct, unlinkProduct } from './linking.ts';
 import { promoteLinkedProduct } from './promotion.ts';
-import { approveQuarantinedRun } from './quarantine.ts';
+import {
+  approveQuarantinedRun,
+  computeQuarantineCandidateHash,
+  snapshotQuarantineCandidate,
+} from './quarantine.ts';
 import { runSyncTick } from './runner.ts';
+import { sourceObservationFixture } from './testing/source-observation-fixture.ts';
 
 // --- full-surface memory adapter --------------------------------------------
 
@@ -963,6 +969,59 @@ test('unsupported currency quarantines BEFORE promotion; approval promotes the f
   assert.equal(promotedProduct.unitPrice, 12.5, 'legacy untouched throughout');
 });
 
+test('quarantine approval flags a reviewed product "changed" only when its source moved (MIU-20)', async () => {
+  for (const sameSource of [false, true]) {
+    setup();
+    const sourceKey = alibabaSourceKey('primary', 'item-1');
+    store.alibabaProductLinks = [productLink('item-1')];
+    store.products = [
+      {
+        _id: 'p-1',
+        name: 'Curated',
+        category: 'bluetooth',
+        alibabaPrimarySourceKey: sourceKey,
+        // Reviewed and approved earlier: never resurrected as "new".
+        alibabaReviewPending: false,
+        alibabaReviewedAt: '2026-08-01T00:00:00.000Z',
+      } as CollectionDoc,
+    ];
+    const backend = fakeBackend(() => [
+      { id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' },
+    ]);
+    const originalFetch = backend.fetchImpl;
+    const sabotaged = (async (url: unknown, init?: RequestInit) => {
+      const response = await originalFetch(String(url), init);
+      return new Response((await response.text()).replace('"USD"', '"EUR"'), { status: 200 });
+    }) as typeof fetch;
+    const report = await runSyncTick({ deps: makeDeps(sabotaged), trigger: 'timer' });
+    assert.equal(report.outcome, 'quarantined');
+    const observed = store.catalogSourceObservations?.[0]?.observation;
+    assert.ok(observed, 'the run stores the observation');
+    const product = store.products?.[0] as CollectionDoc;
+    product.catalogDetailApprovalReceipt = {
+      revision: 'r1',
+      sourceDigest: sameSource
+        ? publicSourceDigest(observed as Parameters<typeof publicSourceDigest>[0])
+        : 'f'.repeat(64),
+    };
+    const run = store.alibabaSyncRuns?.[0] as CollectionDoc;
+    const approved = await approveQuarantinedRun({
+      runId: String(run._id),
+      candidateHash: String(run.candidateHash),
+      approvedByUserId: 'admin-1',
+      now,
+      alert: async () => {},
+    });
+    assert.equal(approved.ok, true, String(sameSource));
+    const after = store.products?.[0] as CollectionDoc;
+    assert.deepEqual(
+      { pending: after.alibabaReviewPending, reason: after.alibabaReviewReason },
+      sameSource ? { pending: false, reason: undefined } : { pending: true, reason: 'changed' },
+      sameSource ? 'unchanged source stays reviewed' : 'changed source is flagged',
+    );
+  }
+});
+
 async function quarantineLinkedProducts(count = 1, products?: CollectionDoc[]) {
   setup();
   const items = Array.from({ length: count }, (_, index) => ({
@@ -1311,33 +1370,20 @@ for (const target of ['p-2', 'p-1']) {
   });
 }
 
-function frozenSingleProductHash(runId: string, sourceKey: string): string {
-  return computeCandidateHash({
-    schemaVersion: 'alibaba-quarantine-identity-v2',
-    runId,
-    candidates: [
-      {
-        sourceKey,
-        expectation: {
-          productId: 'p-1',
-          expectedRevision: 0,
-          expectedPrimarySourceKey: sourceKey,
-          expectedLinks: [productLink('item-1')],
-        },
-      },
-    ],
-    tombstones: [],
-  });
+async function frozenSingleProductHash(runId: string, sourceKey: string): Promise<string> {
+  const source = store.alibabaSourceProducts?.find((row) => row._id === sourceKey);
+  assert.ok(source);
+  store.catalogSourceObservations = [sourceObservationFixture(source)];
+  const candidate = await snapshotQuarantineCandidate(sourceKey);
+  assert.equal(candidate.expectation?.productId, 'p-1');
+  assert.ok(candidate.expectedSource, 'the valid fixture reaches the source version gate');
+  return computeQuarantineCandidateHash({ runId, candidates: [candidate], tombstones: [] });
 }
 
 test('quarantine approval rejects a mirror changed immediately before lease acquisition', async () => {
   setup();
   const runId = 'quarantined-race';
   const sourceKey = alibabaSourceKey('primary', 'item-1');
-  const candidateHash = frozenSingleProductHash(runId, sourceKey);
-  store.alibabaSyncRuns = [
-    { _id: runId, status: 'quarantined', mode: 'incremental', candidateHash },
-  ];
   store.alibabaSourceProducts = [
     {
       _id: sourceKey,
@@ -1350,6 +1396,10 @@ test('quarantine approval rejects a mirror changed immediately before lease acqu
   ];
   store.alibabaProductLinks = [productLink('item-1')];
   store.products = [{ _id: 'p-1', unitPrice: 12.5, alibabaPrimarySourceKey: sourceKey }];
+  const candidateHash = await frozenSingleProductHash(runId, sourceKey);
+  store.alibabaSyncRuns = [
+    { _id: runId, status: 'quarantined', mode: 'incremental', candidateHash },
+  ];
   class InterveningSyncAdapter extends RunnerMemoryAdapter {
     override async acquireAlibabaSyncLease(
       connectionId: string,
@@ -1382,10 +1432,6 @@ for (const takeoverCollection of ['products', 'alibabaSyncRuns']) {
     setup();
     const runId = 'quarantined-takeover';
     const sourceKey = alibabaSourceKey('primary', 'item-1');
-    const candidateHash = frozenSingleProductHash(runId, sourceKey);
-    store.alibabaSyncRuns = [
-      { _id: runId, status: 'quarantined', mode: 'incremental', candidateHash },
-    ];
     store.alibabaSourceProducts = [
       {
         _id: sourceKey,
@@ -1398,6 +1444,10 @@ for (const takeoverCollection of ['products', 'alibabaSyncRuns']) {
     ];
     store.alibabaProductLinks = [productLink('item-1')];
     store.products = [{ _id: 'p-1', unitPrice: 12.5, alibabaPrimarySourceKey: sourceKey }];
+    const candidateHash = await frozenSingleProductHash(runId, sourceKey);
+    store.alibabaSyncRuns = [
+      { _id: runId, status: 'quarantined', mode: 'incremental', candidateHash },
+    ];
     let takeoverCount = 0;
     class TakeoverAdapter extends RunnerMemoryAdapter {
       override async mutateAlibabaProduct(

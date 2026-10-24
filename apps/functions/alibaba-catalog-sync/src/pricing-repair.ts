@@ -21,6 +21,7 @@ import {
   releaseAlibabaSyncLease,
   renewAlibabaSyncLease,
 } from '@vibelingan-channel/db';
+import { advanceCatalogProduct } from '@vibelingan-channel/db/catalog-product-state';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   createAlibabaPricingAdapter,
@@ -67,6 +68,7 @@ export interface PricingRepairOutcome {
   reason: string;
   inputHash: string;
   protectedHash: string;
+  expectedProtectedHash?: string;
   sourceKey?: string;
   sourceProductId?: string;
   expectedRevision?: number;
@@ -292,6 +294,9 @@ export async function planProductPricingRepair(product: CollectionDoc): Promise<
       ...base,
       ...extra,
       status: 'eligible',
+      expectedProtectedHash: protectedPricingFieldsHash(
+        advanceCatalogProduct(product, { ...product, ...patch }, now()),
+      ),
       reason: Object.hasOwn(product, 'alibabaCatalogPricing')
         ? 'Invalid, null or unavailable summary; valid source quote exists.'
         : 'Price summary absent; valid source quote exists.',
@@ -354,7 +359,7 @@ async function verifyPricingReadback(outcome: PricingRepairOutcome, revision: nu
   if (
     !after ||
     after.alibabaLinkRevision !== revision ||
-    protectedPricingFieldsHash(after) !== outcome.protectedHash ||
+    protectedPricingFieldsHash(after) !== outcome.expectedProtectedHash ||
     fingerprint({
       alibabaCatalogPricing: after.alibabaCatalogPricing,
       alibabaPrimaryOfferKey: after.alibabaPrimaryOfferKey,

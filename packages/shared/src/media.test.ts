@@ -213,11 +213,17 @@ test('catalog image upload schema rejects blocked MIME, oversize, and empty name
 });
 
 test('catalog image upload MIME is a whitelist, not an SVG-only blocklist', () => {
-  // image/gif is neither allowed nor in BLOCKED_IMAGE_MIME_TYPES — it must still
+  // image/bmp is neither allowed nor in BLOCKED_IMAGE_MIME_TYPES — it must still
   // be rejected, proving enforcement is the allowlist enum (a regression to a
   // naive `!== 'image/svg+xml'` blocklist would be caught here).
   assert.throws(() =>
-    catalogImageUploadSchema.parse({ fileName: 'p.gif', mimeType: 'image/gif', byteSize: 10 }),
+    catalogImageUploadSchema.parse({ fileName: 'p.bmp', mimeType: 'image/bmp', byteSize: 10 }),
+  );
+  // GIF is allowed (animated supplier photos, owner 2026-10-09).
+  assert.equal(
+    catalogImageUploadSchema.parse({ fileName: 'p.gif', mimeType: 'image/gif', byteSize: 10 })
+      .mimeType,
+    'image/gif',
   );
   assert.throws(() =>
     catalogImageUploadSchema.parse({

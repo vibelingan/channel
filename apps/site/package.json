@@ -10,7 +10,7 @@
     "astro": "astro",
     "typecheck": "astro check",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test \"src/**/*.test.ts\""
+    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test --test-concurrency=2 \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",

@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeCatalogProductDetail } from '@vibelingan-channel/shared/catalog-detail';
-import { type CatalogDetailBindings, buildCatalogDetailCandidate } from './detail-candidate.ts';
+import {
+  type CatalogDetailBindings,
+  buildCatalogDetailCandidate,
+  buildCompleteCatalogPreparationPlan,
+} from './detail-candidate.ts';
 import {
   dianxiaomiObservationAdapter,
   parseDianxiaomiWorkbook,
 } from './providers/dianxiaomi/adapter.ts';
 import type { CatalogSourceObservation } from './source-observations.ts';
+import { clockFactsSamples } from './testing/clock-source-facts.ts';
 import { buildAcceptanceWorkbook } from './testing/dianxiaomi-acceptance-fixture.ts';
 
 function observation(provider: 'alibaba' | 'dianxiaomi' = 'alibaba'): CatalogSourceObservation {
@@ -312,3 +317,296 @@ test('malformed money fails the common boundary instead of becoming a display nu
     );
   }
 });
+
+for (const field of ['title', 'description'] as const) {
+  test(`website-owned ${field} is applied before the shared detail validation`, () => {
+    const item = observation();
+    if (field === 'title') item.identity.title = 'Unused supplier title '.repeat(30).trim();
+    else {
+      assert.ok(item.content.description);
+      item.content.description = { ...item.content.description, text: 'x'.repeat(30001) };
+    }
+    const bound = {
+      ...bindings(),
+      websiteProduct: {
+        _id: 'product-1',
+        name: 'Reviewed website title',
+        description: 'Reviewed website text',
+        imageIds: ['image-1'],
+        detailSourceOwner: 'alibaba:private-parent',
+      },
+    };
+    const result = buildCatalogDetailCandidate(item, bound);
+    assert.ok(result.ok, result.ok ? undefined : result.errors.join('; '));
+    assert.equal(result.value.name, 'Reviewed website title');
+    assert.equal(result.value.descriptionText, 'Reviewed website text');
+    assert.equal(
+      item.content.description?.text?.length,
+      field === 'description' ? 30001 : 9,
+      'source evidence remains complete',
+    );
+  });
+}
+
+test('effective website validation still rejects an invalid chosen description', () => {
+  const bound = {
+    ...bindings(),
+    websiteProduct: {
+      _id: 'product-1',
+      name: 'Reviewed',
+      description: 'x'.repeat(30001),
+      imageIds: ['image-1'],
+      detailSourceOwner: 'alibaba:private-parent',
+    },
+  };
+  const result = buildCatalogDetailCandidate(observation(), bound);
+  assert.equal(result.ok, false);
+});
+
+test('website field ownership cannot cross product identities', () => {
+  const bound = {
+    ...bindings(),
+    websiteProduct: {
+      _id: 'another-product',
+      name: 'Other product',
+      description: 'Other text',
+      imageIds: ['other-image'],
+      detailSourceOwner: 'alibaba:private-parent',
+    },
+  };
+  assert.equal(buildCatalogDetailCandidate(observation(), bound).ok, false);
+});
+
+for (const sample of clockFactsSamples) {
+  test(`stored ${sample.specimen} multi-value specifications remain complete in a valid candidate`, () => {
+    const item = observation();
+    item.identity.attributes = sample.attributes;
+    const before = structuredClone(item);
+    const result = buildCatalogDetailCandidate(item, bindings());
+    assert.ok(result.ok, result.ok ? undefined : result.errors.join('; '));
+    assert.equal(result.value.facts.length, sample.attributes.length);
+    assert.deepEqual(
+      result.value.facts,
+      sample.attributes.map((fact) => ({
+        name: fact.sourceName,
+        value: String(fact.value).trim(),
+      })),
+    );
+    assert.deepEqual(item, before, 'private observation is unchanged');
+  });
+}
+
+test('source facts keep every conflicting and duplicate row with its original order', () => {
+  const item = observation();
+  item.identity.attributes = [
+    { sourceName: 'Finish', value: 'Matte', canonicalKey: 'finish' },
+    { sourceName: 'Power', value: 0 },
+    { sourceName: 'Finish', value: 'Gloss', canonicalKey: 'finish' },
+    { sourceName: 'Finish', value: 'Matte', canonicalKey: 'finish' },
+    { sourceName: 'Power', value: false },
+    { sourceName: 'Finish', value: 'Other context', canonicalKey: 'other-finish' },
+    { sourceName: 'finish', value: 'Lowercase' },
+  ];
+  const result = buildCatalogDetailCandidate(item, bindings());
+  assert.ok(result.ok);
+  assert.deepEqual(
+    result.value.facts,
+    item.identity.attributes.map((fact) => ({
+      name: fact.sourceName,
+      value: String(fact.value),
+    })),
+  );
+  assert.deepEqual(result.value.variants.items[0]?.options, [{ name: 'Color', value: 'Blue' }]);
+});
+
+test('source fact capacity is bounded without truncating values or retaining only the first page', () => {
+  const item = observation();
+  item.identity.attributes = Array.from({ length: 256 }, (_, i) => ({
+    sourceName: `Fact ${i}`,
+    value: i === 255 ? 'Last value' : 'Value',
+  }));
+  const result = buildCatalogDetailCandidate(item, bindings());
+  assert.ok(result.ok);
+  assert.equal(result.value.facts.length, 256);
+  assert.deepEqual(result.value.facts.at(-1), { name: 'Fact 255', value: 'Last value' });
+  item.identity.attributes.push({ sourceName: 'Fact 256', value: 'Beyond capacity' });
+  assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, false, 'never truncate at 256');
+  item.identity.attributes = [{ sourceName: 'Value boundary', value: 'x'.repeat(2000) }];
+  assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, true);
+  item.identity.attributes[0] = { sourceName: 'Value boundary', value: 'x'.repeat(2001) };
+  assert.equal(buildCatalogDetailCandidate(item, bindings()).ok, false);
+});
+
+for (const count of [21, 105]) {
+  for (const fault of ['sku', 'options', 'offers'] as const) {
+    test(`first preparation page rejects ${fault} outside its visible page (${count} configurations)`, () => {
+      const item = observation();
+      const original = item.variants[0];
+      assert.ok(original);
+      item.variants = Array.from({ length: count }, (_, index) => ({
+        ...structuredClone(original),
+        sourceVariantKey: `private-${index}`,
+        sku: `SKU-${index}`,
+      }));
+      item.offers = [];
+      const last = item.variants.at(-1);
+      assert.ok(last);
+      if (fault === 'sku') last.sku = 'x'.repeat(201);
+      if (fault === 'options')
+        last.options = Array.from({ length: 51 }, (_, index) => ({
+          sourceName: `Option ${index}`,
+          value: 'Value',
+        }));
+      if (fault === 'offers')
+        item.offers = Array.from({ length: 33 }, (_, index) => ({
+          sourceOfferKey: `private-offer-${index}`,
+          sourceVariantKey: last.sourceVariantKey,
+          kind: 'supplier',
+          pricing: { mode: 'fixed', currency: 'USD', amountMinor: index + 1 },
+        }));
+      const bound = {
+        ...bindings(),
+        variants: new Map(
+          item.variants.map((variant, index) => [variant.sourceVariantKey, `variant-${index}`]),
+        ),
+      };
+      const before = structuredClone(item);
+      const result = buildCatalogDetailCandidate(item, bound, 1, 20);
+      assert.equal(
+        result.ok,
+        false,
+        'all configurations must be valid before the first page is staged',
+      );
+      assert.deepEqual(item, before, 'private source remains complete');
+    });
+  }
+}
+
+test('105 valid configurations keep exact offer ownership, order and paging', () => {
+  const item = observation();
+  const original = item.variants[0];
+  assert.ok(original);
+  item.variants = Array.from({ length: 105 }, (_, index) => ({
+    ...structuredClone(original),
+    sourceVariantKey: `private-${index}`,
+    sku: `SKU-${index}`,
+  }));
+  item.offers = item.variants.map((variant, index) => ({
+    sourceOfferKey: `offer-${index}`,
+    sourceVariantKey: variant.sourceVariantKey,
+    kind: 'supplier',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: index + 1 },
+  }));
+  item.offers.push({
+    sourceOfferKey: 'root',
+    kind: 'supplier',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 999 },
+  });
+  const bound = {
+    ...bindings(),
+    variants: new Map(
+      item.variants.map((variant, index) => [variant.sourceVariantKey, `variant-${index}`]),
+    ),
+  };
+  const ids: string[] = [];
+  for (let page = 1; page <= 6; page++) {
+    const result = buildCatalogDetailCandidate(item, bound, page, 20);
+    assert.ok(result.ok, result.ok ? undefined : result.errors.join('; '));
+    assert.equal(result.value.variants.total, 105);
+    assert.equal(result.value.offers.length, 1);
+    for (const [index, variant] of result.value.variants.items.entries()) {
+      ids.push(variant.id);
+      assert.equal(variant.offers.length, 1);
+      assert.deepEqual(variant.offers[0]?.pricing, {
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: (page - 1) * 20 + index + 1,
+      });
+    }
+  }
+  assert.deepEqual(
+    ids,
+    item.variants.map((_, index) => `variant-${index}`),
+  );
+});
+
+test('the complete configuration count uses the same 10000-row manifest bound', () => {
+  const item = observation();
+  item.offers = [];
+  item.variants = Array.from({ length: 10000 }, (_, index) => ({
+    sourceVariantKey: `private-${index}`,
+    sku: `SKU-${index}`,
+    options: [],
+    inventory: [],
+    media: [],
+  }));
+  const bound = {
+    ...bindings(),
+    variants: new Map(
+      item.variants.map((variant, index) => [variant.sourceVariantKey, `variant-${index}`]),
+    ),
+  };
+  const valid = buildCatalogDetailCandidate(item, bound, 1, 20);
+  assert.ok(valid.ok);
+  assert.equal(valid.value.variants.total, 10000);
+  assert.equal(valid.value.variants.items.length, 20);
+  item.variants.push({
+    sourceVariantKey: 'private-overflow',
+    sku: 'Overflow',
+    options: [],
+    inventory: [],
+    media: [],
+  });
+  bound.variants.set('private-overflow', 'variant-overflow');
+  assert.equal(buildCatalogDetailCandidate(item, bound, 1, 20).ok, false);
+});
+
+for (const count of [0, 1, 20, 21, 50, 105]) {
+  test(`complete source plan keeps every one of ${count} configurations and the private source header`, () => {
+    const source = observation();
+    source.offers = [];
+    source.variants = Array.from({ length: count }, (_, index) => ({
+      sourceVariantKey: `source-${index}`,
+      sku: `SKU-${index}`,
+      media: [],
+      inventory: [],
+      options: [
+        { sourceName: 'Color', value: `Color ${index}` },
+        { sourceName: 'Color', value: 'Extra' },
+      ],
+    }));
+    source.identity.title = 's'.repeat(1001);
+    const before = structuredClone(source);
+    const bound = {
+      ...bindings(),
+      variants: new Map(source.variants.map((v, i) => [v.sourceVariantKey, `variant-${i}`])),
+      websiteProduct: {
+        _id: 'product-1',
+        name: 'Website title',
+        description: 'Website description',
+        detailSourceOwner: 'alibaba:source',
+        imageIds: ['image-1'],
+      },
+    };
+    const complete = buildCompleteCatalogPreparationPlan(source, bound);
+    assert.ok(complete.ok);
+    assert.equal(complete.value.header.name, 'Website title');
+    assert.equal(complete.sourceHeader.name.length, 1001);
+    assert.equal(complete.value.variants.length, count);
+    assert.deepEqual(
+      complete.value.variants.map((v) => v.sku),
+      Array.from({ length: count }, (_, i) => `SKU-${i}`),
+    );
+    for (const variant of complete.value.variants) assert.equal(variant.options.length, 2);
+    const folded = [];
+    for (let page = 1; page <= Math.max(1, Math.ceil(count / 50)); page++) {
+      const view = buildCatalogDetailCandidate(source, bound, page, 50);
+      assert.ok(view.ok);
+      assert.equal(Object.hasOwn(view, 'sourceHeader'), false);
+      assert.equal(view.value.variants.total, count);
+      folded.push(...view.value.variants.items);
+    }
+    assert.deepEqual(folded, complete.value.variants);
+    assert.deepEqual(source, before);
+  });
+}

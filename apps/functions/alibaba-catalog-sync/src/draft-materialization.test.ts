@@ -15,12 +15,17 @@ import {
 } from '@vibelingan-channel/shared';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 import { createDraftForSource, draftProductId } from './linking.ts';
+import { sourceObservationFixture } from './testing/source-observation-fixture.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
   private mutationQueue = Promise.resolve();
-  constructor(readonly store: Store) {}
+  constructor(readonly store: Store) {
+    store.catalogSourceObservations ??= (store.alibabaSourceProducts ?? []).map((source) =>
+      sourceObservationFixture(source, store.alibabaSupplierOffers ?? []),
+    );
+  }
   async mutateAlibabaProduct(
     input: AlibabaProductMutationInput,
   ): Promise<AlibabaProductMutationResult> {
@@ -209,4 +214,48 @@ test('propagates identity conflicts without changing products or links', async (
   });
   assert.deepEqual(store.products, before.products);
   assert.deepEqual(store.alibabaProductLinks, before.alibabaProductLinks);
+});
+
+test('a new draft with Alibaba photos starts hidden until its photos are copied (PT-G)', async () => {
+  const withPhotos = {
+    ...source('photos'),
+    sourceImageUrls: ['https://sc04.alicdn.com/a.jpg'],
+  } as CollectionDoc;
+  const store: Store = { alibabaSourceProducts: [withPhotos, source('none')] };
+  setAdapter(new MemoryAdapter(store));
+  await materializeAlibabaDraftPage({ limit: 5, now: () => '2026-10-09T05:00:00.000Z' });
+  const bySource = (key: string) =>
+    store.products?.find((product) => product.alibabaPrimarySourceKey === key);
+  assert.equal(bySource('source-photos')?.alibabaPhotosPending, true);
+  assert.equal(bySource('source-none')?.alibabaPhotosPending, undefined, 'nothing to copy');
+  // Materializing again never hides an existing draft.
+  const existing = bySource('source-photos') as CollectionDoc;
+  existing.alibabaPhotosPending = false;
+  await materializeAlibabaDraftPage({ limit: 5, now: () => '2026-10-09T05:01:00.000Z' });
+  assert.equal(bySource('source-photos')?.alibabaPhotosPending, false);
+});
+
+test('background recovery only materializes the requested completed or approved run; quarantine is preserved', async () => {
+  const statuses = ['completed', 'approved', 'quarantined', 'running'];
+  const rows = statuses.map((status) => ({ ...source(status), lastSeenRunId: status }));
+  const store: Store = {
+    alibabaSourceProducts: rows,
+    alibabaSyncRuns: statuses.map((status) => ({ _id: status, status })),
+  };
+  setAdapter(new MemoryAdapter(store));
+  const calls: string[] = [];
+  for (const status of statuses) {
+    const result = await materializeAlibabaDraftPage({
+      completedOnly: true,
+      runId: status,
+      onPrepared: async (key) => {
+        calls.push(key);
+      },
+    });
+    assert.equal(result.visited, 1);
+    assert.equal(result.created, ['completed', 'approved'].includes(status) ? 1 : 0);
+  }
+  assert.deepEqual(calls, ['source-completed', 'source-approved']);
+  assert.equal(store.products?.length, 2);
+  assert.ok(store.products?.every((product) => product.published === false));
 });

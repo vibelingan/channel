@@ -30,6 +30,7 @@ const validPage: SourceObservationReplayPage = {
     attributedVariants: 49,
     attributePairs: 90,
     warnings: 19,
+    productHeadlineDropped: 2,
   },
   priceModes: { tiered: 25, unavailable: 25 },
   failures: [],
@@ -61,6 +62,8 @@ test('replay page decoder fails closed on malformed, inconsistent, or unknown da
     { ...validPage, counts: { ...validPage.counts, sourceProducts: 21 } },
     { ...validPage, unknownField: true },
     { ...validPage, counts: { ...validPage.counts, unknownCount: 1 } },
+    { ...validPage, counts: { ...validPage.counts, productHeadlineDropped: -1 } },
+    { ...validPage, counts: { ...validPage.counts, productHeadlineDropped: 21 } },
     { ...validPage, counts: { ...validPage.counts, observations: 19 } },
     { ...validPage, nextSourceKey: '' },
     { ...validPage, done: true },
@@ -110,6 +113,7 @@ test('replay control requires validation before apply and renders safe aggregate
     }),
   );
   assert.ok(validated.includes('Validation passed for 20 source products.'));
+  assert.match(validated, /Headline prices removed<\/dt><dd[^>]*>2<\/dd>/);
   assert.ok(validated.includes('tiered 25'));
   assert.ok(!/data-replay-apply="true"[^>]*disabled=""/.test(validated));
   assert.ok(!validated.includes('Bearer '));
@@ -135,6 +139,7 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
       attributedVariants: 8,
       attributePairs: 14,
       warnings: 5,
+      productHeadlineDropped: 1,
     },
     priceModes: { tiered: 3, unavailable: 5 },
   };
@@ -164,6 +169,7 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
     assert.equal(plan.ready, true);
     assert.equal(plan.pages.length, 2);
     assert.equal(plan.counts.sourceProducts, 25);
+    assert.equal(plan.counts.productHeadlineDropped, 3);
     assert.deepEqual(progress, [20, 25]);
     assert.equal(await applySourceObservationReplay(plan), 25);
     assert.deepEqual(

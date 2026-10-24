@@ -2,7 +2,19 @@
 import { z } from 'zod';
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import { PublicProductSchema } from './index.ts';
+import { catalogIssuesFromZod } from './issues.ts';
 import { catalogOfferPricingSchema } from './offer-pricing.ts';
+import { CatalogPriceSummarySchema } from './price-summary.ts';
+
+export { manualDetailCandidate, manualFacts } from './manual-detail.ts';
+export {
+  type CatalogPriceSummary,
+  CatalogPriceSummarySchema,
+  derivePriceSummary,
+  lowestOrderableAmountMinor,
+  type PriceSummaryInput,
+  priceSummaryMoq,
+} from './price-summary.ts';
 
 const text = (max: number) =>
   z
@@ -69,6 +81,8 @@ export const CatalogDetailVariantSchema = z
   })
   .strict();
 
+// Keep repeated source values as separate facts; display decides which are notes.
+export const CATALOG_DETAIL_FACT_MAX_COUNT = 256;
 export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, name: true })
   .extend({
     _id: text(200),
@@ -79,7 +93,7 @@ export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, n
     descriptionText: text(30000).optional(),
     descriptionImages: z.array(image).max(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT).optional(),
     images: z.array(image).max(9),
-    facts: z.array(fact).max(100),
+    facts: z.array(fact).max(CATALOG_DETAIL_FACT_MAX_COUNT),
     offers: z.array(offer).max(32),
   })
   .strict();
@@ -94,6 +108,12 @@ export const CatalogDetailPublicationSchema = z
     noteBlocks: CatalogNoteBlocksSchema.optional(),
     variantCount: count,
     variantStorage: z.literal('immutable-v1').optional(),
+    /**
+     * The card's "From $X", derived from this same approved version at approval
+     * time. Beside `header`, never inside it: the header is decoded strictly by
+     * the product page, so a new header key would fail every page.
+     */
+    priceSummary: CatalogPriceSummarySchema.optional(),
     /** Private publication manifest for SKU-only media; not a product gallery. */
     variantImageIds: z
       .array(z.string().regex(/^[A-Za-z0-9_-]+$/))
@@ -186,7 +206,15 @@ const CatalogDetailViewSchema = z.union([
 export type CatalogDetailView = z.infer<typeof CatalogDetailViewSchema>;
 export function decodeCatalogDetailView(input: unknown) {
   const parsed = CatalogDetailViewSchema.safeParse(input);
-  return parsed.success ? { ok: true as const, value: parsed.data } : { ok: false as const };
+  return parsed.success
+    ? { ok: true as const, value: parsed.data }
+    : {
+        ok: false as const,
+        issues: catalogIssuesFromZod(parsed.error.issues, input, {
+          stage: 'effective-content',
+          remedy: 'edit',
+        }),
+      };
 }
 
 export type CatalogProductDetail = z.infer<typeof CatalogProductDetailSchema>;
@@ -199,5 +227,9 @@ export function decodeCatalogProductDetail(input: unknown) {
     : {
         ok: false as const,
         errors: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+        issues: catalogIssuesFromZod(parsed.error.issues, input, {
+          stage: 'effective-content',
+          remedy: 'edit',
+        }),
       };
 }

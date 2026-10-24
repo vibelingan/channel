@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "exports": {
     ".": "./src/index.ts",
-    "./handler": "./src/handler.ts"
+    "./handler": "./src/handler.ts",
+    "./catalog-preparation": "./src/catalog-preparation.ts"
   },
   "scripts": {
     "build": "tsup",
@@ -18,6 +19,7 @@
     "@vibelingan-channel/auth": "workspace:*",
     "@vibelingan-channel/catalog-import": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/fn-admin": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",
     "zod": "^3.24.1"

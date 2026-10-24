@@ -1,0 +1,47 @@
+✖ design review: category-only refresh must not undo a concurrent unpublish (50.199541ms)
+✔ design review: a retry read about another product cannot prove completion (0.27325ms)
+✖ design review: missing manual-save revision must not remove the classification guard (2.193917ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 621.551167
+
+✖ failing tests:
+
+test at ../../../../../../../../../private/tmp/channel-design-counterexamples.mts:1:237
+✖ design review: category-only refresh must not undo a concurrent unpublish (50.199541ms)
+  AssertionError [ERR_ASSERTION]: Concurrent withdrawal was undone by [{"collection":"products","id":"live","values":{"productFamily":"misc"}},{"collection":"products","id":"live","values":{"published":true}}]
+  
+  true !== false
+  
+      at TestContext.<anonymous> (/private/tmp/channel-design-counterexamples.mts:24:9)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../../../../../private/tmp/channel-design-counterexamples.mts:1:2021
+✖ design review: missing manual-save revision must not remove the classification guard (2.193917ms)
+  AssertionError [ERR_ASSERTION]: Missing revision was accepted; final writes=[{"collection":"products","id":"manual","values":{"published":true}}]
+  
+  false !== true
+  
+      at TestContext.<anonymous> (/private/tmp/channel-design-counterexamples.mts:50:9)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

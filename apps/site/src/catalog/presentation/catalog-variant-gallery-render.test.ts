@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { CatalogDetailVariant } from '@vibelingan-channel/shared/catalog-detail';
@@ -211,12 +214,26 @@ test('main-image priority and thumbnail lazy loading remain separate', () => {
 test(
   'browser gallery clicks, failures, selection resets, scrolling and legacy controls',
   { skip: process.env.GALLERY_BROWSER_TEST !== '1', timeout: 90_000 },
-  async () => {
+  async (t) => {
+    const cacheDirectory = await mkdtemp(join(tmpdir(), 'channel-gallery-vite-'));
+    t.after(() => rm(cacheDirectory, { recursive: true, force: true }));
     const { chromium, expect } = await import('@playwright/test');
     const { createServer } = await import('vite');
     const { default: tailwindcss } = await import('@tailwindcss/vite');
     const server = await createServer({
       configFile: false,
+      cacheDir: cacheDirectory,
+      optimizeDeps: {
+        noDiscovery: true,
+        include: [
+          'react',
+          'react-dom',
+          'react-dom/client',
+          'react/jsx-runtime',
+          'react/jsx-dev-runtime',
+          'zod',
+        ],
+      },
       root: fileURLToPath(new URL('../../../', import.meta.url)),
       plugins: [
         tailwindcss(),

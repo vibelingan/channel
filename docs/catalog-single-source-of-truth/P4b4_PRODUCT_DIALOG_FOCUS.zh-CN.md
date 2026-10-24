@@ -1,0 +1,19 @@
+# P4b4：完整商品弹窗关闭后恢复键盘位置
+
+P3d2冻结批量的相关789项已通过，实际生产构建的公开41与目录90通过，正式流程10通过/1失败；隔离20件分类发布、BUSY及共享图恢复和大配置分页均通过。失败的是未改动的旧Preview流程：Escape关闭后刷新列表，原Preview按钮失去焦点。保留该失败，不把这轮称全流程通过，后续visibility/taxonomy未运行。
+
+现有useModalDialog捕获原HTMLElement并在cleanup中focus；CollectionView关闭Preview会invalidate列表，isFetching改变recordWritePending和columns，旧按钮可能被替换。即使原先focus成功，刷新后的同一产品按钮是新节点。不能删掉必要的列表刷新或移除原键盘断言。
+
+在现有CollectionView记录本次外部入口的集合/产品ID/动作key与唯一对象身份，Edit/Preview/读取失败及内层Preview→Edit沿同一入口。弹窗全关闭且读写/列表刷新结束后，在当前根节点找同ID/动作新按钮；对象已不在列表或读取失败时回到原页面标题。只用响应局部ref，不存储或修改商品，不重用旧DOM指针。
+
+等待刷新时若用户已经点击/按键开始新操作，取消该次延后focus；监听绑定本次对象，不能清掉更晚同商品请求，完成/新弹窗/unmount都移除监听。不能通过延迟固定毫秒数、强制点击或全局查找同名按钮掩盖问题。沿用原Modal和样式，非产品行为不变。
+
+先以真实浏览器覆盖Preview关闭/刷新、Edit取消、读取失败Close、Preview→Edit、刷新失败标题fallback、等待刷新时用户新搜索不被抢焦点，并保留原始draft整文件字节。再实现、分别review和反例，与P3d2串联整体再测。此修复与冻结批量有各自验证，整体fullDeliveryReady=false；稳定操作与云端验收继续。
+
+## 执行结果
+
+修正夹具持久GET失败以覆盖React StrictMode重复读取后，首轮7场景有5正控/2真实焦点失败。第一实现仍在用户新输入时抢焦点（6正控/1失败），随后增加input监听；不能只监听pointerdown/keydown，因为实际fill/输入路径必须独立保护。最终8种焦点场景与既有Products正控共9通过，原始draft整文件字节不变。另以新点击、新按键独立场景区分三类取消事件。
+
+7项焦点源码故障逐项检出，覆盖原入口记录、产品ID、等待刷新、页面标题fallback及input/pointer/keyboard；恢复字节/SHA一致。完整site797通过；原完整正式Preview键盘流程本轮通过，不能删旧断言或删刷新。完整visibility在丢发布响应确认处仍失败，属于后续持久回执集成门槛，保留且阻断发版。
+
+原焦点失败、StrictMode夹具错误、第一轮输入抢焦点，以及定位和格式错误全部留日志；不把定位/编译错误当业务红测。新增逻辑只在产品弹窗全关闭、刷新结束时寻找当前根内同产品/动作按钮；缺目标回标题。无固定延时，无商品写入、样式和字段改动。等待期事件与对象身份绑定并清理，非产品入口不启用。review继续与P3d2串联检查，fullDeliveryReady=false。

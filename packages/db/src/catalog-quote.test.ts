@@ -99,3 +99,41 @@ test('server quote snapshot needs published matching revision and selected SKU; 
       false,
     );
 });
+
+test('an approved manual product (no configurations) records a customization quote; an unapproved one is unavailable', () => {
+  const websitePricing = {
+    basis: 'website-manual',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 430, minimumOrderQuantity: 1000 },
+  };
+  const manual = {
+    _id: 'p1',
+    published: true,
+    catalogDetailPublication: {
+      ...product.catalogDetailPublication,
+      variantCount: 0,
+      header: { ...product.catalogDetailPublication.header, websitePricing },
+    },
+  };
+  const customization = {
+    ...input,
+    target: { intent: 'customization', productId: 'p1', revision: 'r1' },
+    fields: {
+      ...input.fields,
+      intent: 'customization',
+      customizationTypes: ['logo'],
+      brief: 'Our logo on the headband, 1,000 pieces.',
+    },
+  };
+  const options = { notification: 'disabled', now: '2026-09-07T00:00:00.000Z' } as const;
+  const accepted = planCatalogQuote(customization, manual, null, options);
+  assert.ok(accepted.ok);
+  assert.deepEqual(accepted.record.snapshot.websitePricing, websitePricing);
+  assert.equal(accepted.record.snapshot.productName, 'Authoritative title');
+  const unapproved = planCatalogQuote(
+    customization,
+    { _id: 'p1', published: true, name: 'Row only' },
+    null,
+    options,
+  );
+  assert.deepEqual(unapproved, { ok: false, code: 'unavailable' });
+});

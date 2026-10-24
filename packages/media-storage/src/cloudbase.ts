@@ -10,40 +10,39 @@
  * `wx-server-sdk@4.0.2` does not expose `getUploadMetadata`, so upload credential
  * minting uses node-sdk directly via dependency injection.
  */
+import { ReadStream } from 'node:fs';
+import { type CloudBaseReadTransport, readCloudBaseBytes } from './cloudbase-get.ts';
+import { type CloudBasePutOptions, checkedUploadUrl, putCloudBaseBytes } from './cloudbase-put.ts';
 import {
+  type MediaObjectReadOptions,
   type MediaStorageAdapter,
   type PutMediaObjectInput,
+  type PutMediaObjectOptions,
   type StoredMediaObject,
   type UploadCredential,
   objectStoragePath,
 } from './index.ts';
+import {
+  assertBrowserWritableMediaPath,
+  assertProtectedMediaCheckpoint,
+} from './protected-path.ts';
 
-/**
- * The exact subset of the CloudBase server SDK this adapter uses. `wx-server-sdk`'s
- * default export structurally satisfies this; the signatures match the installed
- * `@cloudbase/node-sdk@3.17.2` (notably `getTempFileURL`'s `fileList` is a
- * `(string | { fileID, maxAge? })[]` union — design §24.3 C1).
- */
+/** The injected node-sdk 3.17.2 storage surface; wx-server-sdk lacks the minter. */
 export interface CloudBaseStorageSdk {
   uploadFile(options: {
     cloudPath: string;
-    fileContent: Buffer | Uint8Array | NodeJS.ReadableStream;
+    fileContent: Buffer | ReadStream;
   }): Promise<{ fileID: string }>;
   getTempFileURL(options: {
-    fileList: (string | { fileID: string; maxAge?: number })[];
+    fileList: (string | { fileID: string; maxAge?: number; urlType?: 'COS_URL' })[];
   }): Promise<{ fileList: { fileID: string; tempFileURL: string; code?: string }[] }>;
-  // `fileContent` is optional to match the installed SDK (a failed download
-  // yields no content); getObjectAsBase64 guards it. node-sdk 3.x types the
-  // content as `string | Buffer` (string only when an encoding is requested —
-  // this adapter never requests one), so accept the wider type and validate
-  // the runtime shape at the call site.
+  // The installed type permits missing or string content. Byte integrity
+  // requires a Buffer; the adapter checks it rather than treating text as bytes.
   downloadFile(options: {
     fileID: string;
   }): Promise<{ fileContent: Buffer | string | undefined }>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
-  // Mints a single-object direct COS form credential. The node-sdk returns
-  // `{ data: { url, authorization, token, fileId, cosFileId } }` and its own
-  // `uploadFile` implementation posts those fields as multipart/form-data.
+  // Mints raw PUT header credentials; verify:cloudbase-sdk pins the sender body.
   getUploadMetadata(options: { cloudPath: string }): Promise<{
     data?: {
       url?: unknown;
@@ -111,32 +110,106 @@ function inspectDeleteEntry(entry: unknown): {
   return { fileID, ok: false, reason };
 }
 
-export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStorageAdapter {
-  return {
-    async putObject(input: PutMediaObjectInput): Promise<StoredMediaObject> {
+export function createCloudBaseMediaStorage(
+  sdk: CloudBaseStorageSdk,
+  transport: CloudBasePutOptions & CloudBaseReadTransport = {},
+): MediaStorageAdapter {
+  async function mintUploadCredential(cloudPath: string): Promise<UploadCredential> {
+    const meta = await sdk.getUploadMetadata({ cloudPath });
+    const data = meta?.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error(
+        `media-storage(cloudbase): incomplete upload metadata (missing data) for ${cloudPath}`,
+      );
+    }
+    const fields = data as Record<string, unknown>;
+    // Every field is either a browser request header or the durable id the
+    // image doc depends on. Treat the SDK response as untrusted at runtime so
+    // a contract mismatch fails during mint instead of returning a
+    // half-credential.
+    const uploadUrl = requireStringField(fields, 'url', cloudPath);
+    const authorization = requireStringField(fields, 'authorization', cloudPath);
+    const token = requireStringField(fields, 'token', cloudPath);
+    const cosFileId = requireStringField(fields, 'cosFileId', cloudPath);
+    const storageFileId = requireStringField(fields, 'fileId', cloudPath);
+    // Mirror the installed SDK's own `uploadFile` exactly: a raw PUT whose
+    // headers carry the credential (Signature + the lowercase `authorization`
+    // duplicate + the URI-encoded key). node-sdk 3.x requests the signature
+    // for `method: 'put'`, so a multipart POST is rejected 403
+    // SignatureDoesNotMatch.
+    return {
+      uploadUrl,
+      method: 'PUT',
+      headers: {
+        Signature: authorization,
+        'x-cos-security-token': token,
+        'x-cos-meta-fileid': cosFileId,
+        authorization,
+        key: encodeURIComponent(cloudPath),
+      },
+      storageFileId,
+    };
+  }
+
+  const storage: MediaStorageAdapter = {
+    async putObject(
+      input: PutMediaObjectInput,
+      options: PutMediaObjectOptions = {},
+    ): Promise<StoredMediaObject> {
+      assertProtectedMediaCheckpoint(input.namespace, options.beforeWrite);
       const storagePath = objectStoragePath(input);
-      const { fileID } = await sdk.uploadFile({
-        cloudPath: storagePath,
-        fileContent: input.content,
-      });
+      const knownSize =
+        input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {};
+      // Native uploadFile cannot checkpoint its internally minted target.
+      // Generic streams also require this path: the installed SDK only accepts
+      // Buffer or fs.ReadStream, despite the broader facade stream contract.
+      if (
+        options.beforeWrite ||
+        !(input.content instanceof Uint8Array || input.content instanceof ReadStream)
+      ) {
+        const credential = await mintUploadCredential(storagePath);
+        checkedUploadUrl(credential.uploadUrl);
+        const target: StoredMediaObject = {
+          storageProvider: 'cloudbase-storage',
+          storageMode: 'classic-nosql-storage',
+          storageFileId: credential.storageFileId,
+          storagePath,
+          ...knownSize,
+        };
+        await options.beforeWrite?.({ ...target });
+        await putCloudBaseBytes(credential, input.content, transport);
+        return target;
+      }
+      const content =
+        input.content instanceof Uint8Array && !Buffer.isBuffer(input.content)
+          ? Buffer.from(input.content)
+          : input.content;
+      const { fileID } = await sdk.uploadFile({ cloudPath: storagePath, fileContent: content });
+      if (typeof fileID !== 'string' || fileID.length === 0)
+        throw new Error('media-storage(cloudbase): upload returned no permanent file ID');
       return {
         storageProvider: 'cloudbase-storage',
         storageMode: 'classic-nosql-storage',
         storageFileId: fileID,
         storagePath,
-        // Buffer/Uint8Array carry a known length; a stream does not.
-        ...(input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {}),
+        ...knownSize,
       };
     },
 
-    async getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }> {
+    async getObjectAsBase64(
+      fileId: string,
+      options?: MediaObjectReadOptions,
+    ): Promise<{ body: string; byteSize?: number }> {
+      if (options) {
+        const bytes = await readCloudBaseBytes(sdk, fileId, options, transport);
+        return { body: bytes.toString('base64'), byteSize: bytes.byteLength };
+      }
       const { fileContent } = await sdk.downloadFile({ fileID: fileId });
       if (!fileContent) {
         throw new Error(`media-storage(cloudbase): download returned no content for ${fileId}`);
       }
       if (!Buffer.isBuffer(fileContent)) {
-        // No encoding is ever requested, so a string here means the SDK
-        // contract shifted; fail loudly instead of base64-ing mojibake.
+        // Text is not byte evidence, even when the SDK type allows it.
         throw new Error(
           `media-storage(cloudbase): download returned non-buffer content for ${fileId}`,
         );
@@ -161,40 +234,8 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
     },
 
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
-      const meta = await sdk.getUploadMetadata({ cloudPath });
-      const data = meta?.data;
-      if (!data || typeof data !== 'object' || Array.isArray(data)) {
-        throw new Error(
-          `media-storage(cloudbase): incomplete upload metadata (missing data) for ${cloudPath}`,
-        );
-      }
-      const fields = data as Record<string, unknown>;
-      // Every field is either a browser request header or the durable id the
-      // image doc depends on. Treat the SDK response as untrusted at runtime so
-      // a contract mismatch fails during mint instead of returning a
-      // half-credential.
-      const uploadUrl = requireStringField(fields, 'url', cloudPath);
-      const authorization = requireStringField(fields, 'authorization', cloudPath);
-      const token = requireStringField(fields, 'token', cloudPath);
-      const cosFileId = requireStringField(fields, 'cosFileId', cloudPath);
-      const storageFileId = requireStringField(fields, 'fileId', cloudPath);
-      // Mirror the installed SDK's own `uploadFile` exactly: a raw PUT whose
-      // headers carry the credential (Signature + the lowercase `authorization`
-      // duplicate + the URI-encoded key). node-sdk 3.x requests the signature
-      // for `method: 'put'`, so a multipart POST is rejected 403
-      // SignatureDoesNotMatch.
-      return {
-        uploadUrl,
-        method: 'PUT',
-        headers: {
-          Signature: authorization,
-          'x-cos-security-token': token,
-          'x-cos-meta-fileid': cosFileId,
-          authorization,
-          key: encodeURIComponent(cloudPath),
-        },
-        storageFileId,
-      };
+      assertBrowserWritableMediaPath(cloudPath);
+      return mintUploadCredential(cloudPath);
     },
 
     async deleteObject(fileId: string): Promise<void> {
@@ -218,6 +259,7 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
       }
     },
   };
+  return storage;
 }
 
 /**

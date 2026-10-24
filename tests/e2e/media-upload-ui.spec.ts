@@ -11,7 +11,7 @@ import { e2e, hasAdminCredentials } from './helpers/env';
  * Chromium page: a browser-origin login through the AuthForm, opening a catalog
  * record form, picking a file through the hidden `ImageManager` file input, and
  * asserting the upload completes and the image previews. Bytes still go
- * browser → COS directly (multipart POST); this proves the React `ImageManager` +
+ * browser → COS directly (signed PUT); this proves the React `ImageManager` +
  * `api.ts` wiring works end-to-end against the deployed site, not just the contract.
  */
 test.describe.configure({ mode: 'serial' });
@@ -57,18 +57,17 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
 
       // Open the Products collection and a new record form,
       // which renders the RecordForm + ImageManager for the `imageIds` field.
-      await page.getByRole('button', { name: 'Products' }).click();
+      await page.getByRole('button', { name: 'Products', exact: true }).click();
       await page.getByRole('button', { name: /^New / }).click();
 
-      // The ImageManager file input is hidden behind a styled label; set files on it
-      // directly. This drives the real intent → COS multipart POST → completeUpload.
-      const fileInput = page.locator('input[type="file"]');
+      // The product form has one uploader per photo list (product photos,
+      // description photos); use the product photos one. Its file input is
+      // hidden behind a styled label, so set files on it directly. This drives
+      // the real intent → COS PUT → completeUpload. Assertions stay inside this
+      // uploader: the table behind the form also renders `img[alt=""]`.
+      const imageManager = page.locator('[data-image-manager="gallery"]');
+      const fileInput = imageManager.locator('input[type="file"]');
       await fileInput.waitFor({ state: 'attached' });
-      // Scope preview assertions to the ImageManager's own tile row (the flex
-      // container that also holds the upload file input), NOT the whole page — the
-      // background CollectionView table always renders `img[alt=""]` row thumbnails,
-      // so a page-wide selector would pass vacuously without ever uploading.
-      const imageManager = page.locator('div.flex.flex-wrap', { has: fileInput });
       await fileInput.setInputFiles({ name: fileName, mimeType: 'image/png', buffer: onePixelPng });
 
       // The transient "Uploading…" tile clears and the uploaded image previews via an
@@ -98,9 +97,9 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
         `expected an images doc named ${fileName} after the UI upload`,
       ).toBeGreaterThanOrEqual(1);
     } finally {
-      // The completeUpload step created an active image doc (publishedRefCount 0);
-      // remove it by its file name. The underlying COS object is left for MIU-06
-      // orphan cleanup (acceptable for the test env; `e2e-`/`ui` naming identifies it).
+      // The completeUpload step created an active, unreferenced image doc (the
+      // form is never saved); abandon it by its file name — images are removed
+      // only through abandonUpload, which also deletes the stored object.
       try {
         const session = await loginAdmin(request);
         const matches = await adminAction<ListResult<CollectionDoc>>(
@@ -117,15 +116,17 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
         for (const img of matches.items) {
           await adminAction<{ deleted: boolean }>(
             request,
-            'remove',
-            { collection: 'images', id: img._id },
+            'abandonUpload',
+            { imageId: img._id },
             session.token,
-          ).catch(() => {
-            /* best-effort cleanup */
+          ).catch((error: unknown) => {
+            // Never fail the test on teardown, but say so: a silent failure
+            // here hid a server bug (missing collections, 2026-10-09).
+            console.warn(`MIU-09 UI cleanup: abandon ${img._id} failed: ${String(error)}`);
           });
         }
-      } catch {
-        /* best-effort cleanup; never fail the test on teardown */
+      } catch (error) {
+        console.warn(`MIU-09 UI cleanup failed: ${String(error)}`);
       }
     }
   });

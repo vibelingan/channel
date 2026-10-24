@@ -1,10 +1,3 @@
-/**
- * Browser API client for the admin dashboard.
- *
- * All requests go to a single endpoint (`/api/admin`) using the same
- * `{ action, data, token }` protocol the cloud function and local-server speak.
- * The session token is shared with the rest of the site via `lib/session`.
- */
 import {
   type CatalogClassificationAssignmentRequest,
   CatalogClassificationAssignmentRequestSchema,
@@ -25,11 +18,40 @@ import {
   type SessionUser,
   type SortClause,
   isProductFamily,
+  validateProductPublication,
 } from '@vibelingan-channel/shared';
+import {
+  ADMIN_PRODUCT_LIST_MARKER,
+  ADMIN_PRODUCT_LIST_PAGE_MAX_BYTES,
+  ADMIN_PRODUCT_LIST_VIEW,
+  type AdminProductListView,
+  fitsJsonBudget,
+  isAdminProductListRow,
+} from '@vibelingan-channel/shared/admin-product-list';
+import type { CatalogIssue } from '@vibelingan-channel/shared/catalog-issues';
+import type { CatalogReadiness } from '@vibelingan-channel/shared/catalog-preparation';
+/**
+ * Browser API client for the admin dashboard.
+ *
+ * All requests go to a single endpoint (`/api/admin`) using the same
+ * `{ action, data, token }` protocol the cloud function and local-server speak.
+ * The session token is shared with the rest of the site via `lib/session`.
+ */
+import {
+  type SupplierReview,
+  SupplierReviewSchema,
+} from '@vibelingan-channel/shared/catalog-supplier-review';
 import { z } from 'zod';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
+import {
+  AdminSessionPausedError,
+  bindAdminErrorSession,
+  captureAdminRequestSession,
+  confirmAdminRequestSession,
+  reportExpiredAdminSession,
+} from './admin-session-guard.ts';
 
 const ENDPOINT = apiUrl('/api/admin');
 
@@ -37,6 +59,7 @@ export class AdminApiError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly issues: readonly CatalogIssue[] = [],
   ) {
     super(message);
     this.name = 'AdminApiError';
@@ -47,11 +70,80 @@ export class AdminApiError extends Error {
   }
 }
 
-async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+/** The new product was saved as a draft, but publishing it failed (MIU-37). */
+export class DraftSavedError extends AdminApiError {
+  constructor(
+    code: string,
+    message: string,
+    public readonly draft: CollectionDoc,
+    issues?: readonly CatalogIssue[],
+  ) {
+    super(code, `Saved as a draft, not published: ${message}`, issues);
+    this.name = 'DraftSavedError';
+  }
+}
+
+/**
+ * BUSY means a database transaction collided with another and rolled back:
+ * nothing was saved, so the same request is sent again after a short random
+ * pause (DEC-21). Any other answer is returned as it is.
+ */
+export const BUSY_RETRIES = 3;
+const busyPause = (attempt: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const stop = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(
+      () => {
+        signal?.removeEventListener('abort', stop);
+        resolve();
+      },
+      (0.4 + Math.random()) * 600 * attempt,
+    );
+    signal?.addEventListener('abort', stop, { once: true });
+  });
+
+async function call<T>(
+  action: string,
+  data?: unknown,
+  signal?: AbortSignal,
+  guard?: () => void,
+): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      guard?.();
+      const value = await callOnce<T>(action, data, signal);
+      guard?.();
+      return value;
+    } catch (error) {
+      if (
+        !(error instanceof AdminApiError) ||
+        error.code !== 'BUSY' ||
+        attempt > BUSY_RETRIES ||
+        signal?.aborted
+      )
+        throw error;
+      await busyPause(attempt, signal);
+      if (signal?.aborted) throw error;
+    }
+  }
+}
+
+async function callOnce<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+  let ticket: ReturnType<typeof captureAdminRequestSession>;
+  try {
+    ticket = captureAdminRequestSession(action);
+  } catch (error) {
+    if (error instanceof AdminSessionPausedError)
+      throw new AdminApiError('SESSION_PAUSED', error.message);
+    throw error;
+  }
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data, token: getToken() }),
+    body: JSON.stringify({ action, data, token: ticket.token }),
     credentials: 'omit',
     redirect: 'error',
     signal: signal
@@ -60,20 +152,79 @@ async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Pr
   });
 
   const result = await readApiEnvelope<T>(res);
+  if (res.status === 401 || (result && !result.ok && result.error.code === 'UNAUTHORIZED'))
+    reportExpiredAdminSession(ticket);
   if (!result) {
-    throw new AdminApiError(
-      res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
-      `Request failed (${res.status})`,
+    throw bindAdminErrorSession(
+      new AdminApiError(
+        res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+        `Request failed (${res.status})`,
+      ),
+      ticket,
     );
   }
   if (!result.ok) {
-    throw new AdminApiError(result.error.code, result.error.message);
+    throw bindAdminErrorSession(
+      new AdminApiError(result.error.code, result.error.message, result.error.issues),
+      ticket,
+    );
+  }
+  try {
+    confirmAdminRequestSession(ticket);
+  } catch (error) {
+    if (error instanceof AdminSessionPausedError)
+      throw new AdminApiError('SESSION_PAUSED', error.message);
+    throw error;
   }
   return result.data;
 }
 
+/** An unknown worker invocation must be queried before another write is considered. */
+export function catalogPreparationCall(data: unknown, signal?: AbortSignal) {
+  return callOnce<unknown>('catalogPreparation', data, signal);
+}
+
+export function catalogProductCreateCall(data: unknown, guard: () => void) {
+  return call<unknown>('catalogProductCreate', data, undefined, guard);
+}
+
 export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
   return call<unknown>('catalogDetailApproval', data, signal);
+}
+
+/** Publication recovery queries its original operation before considering another write. */
+export function catalogProductOperationCall(data: unknown, signal?: AbortSignal) {
+  return callOnce<unknown>('catalogDetailApproval', data, signal);
+}
+
+const PhotoSourceSchema = z.object({ url: z.string(), imageId: z.string().nullable() });
+const PhotoSourcesSchema = z.object({
+  ok: z.literal(true),
+  gallery: z.array(PhotoSourceSchema),
+  description: z.array(PhotoSourceSchema),
+});
+
+/** Every Alibaba photo of a product with our copy when we have one; admins only. */
+export async function fetchPhotoSources(productId: string): Promise<{
+  gallery: z.infer<typeof PhotoSourceSchema>[];
+  description: z.infer<typeof PhotoSourceSchema>[];
+}> {
+  const parsed = PhotoSourcesSchema.safeParse(
+    await catalogApprovalCall({ action: 'photo-sources', productId }),
+  );
+  if (!parsed.success)
+    throw new AdminApiError('INVALID_RESPONSE', 'The Alibaba photos could not be read.');
+  return { gallery: parsed.data.gallery, description: parsed.data.description };
+}
+
+/** What changed at Alibaba for one product (DEC-19, DEC-20); read-only, admins only. */
+export async function fetchSupplierReview(productId: string): Promise<SupplierReview> {
+  const parsed = SupplierReviewSchema.safeParse(
+    await catalogApprovalCall({ action: 'supplier-review', productId }),
+  );
+  if (!parsed.success)
+    throw new AdminApiError('INVALID_RESPONSE', 'The supplier review could not be read.');
+  return parsed.data;
 }
 
 export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
@@ -185,6 +336,8 @@ export interface ListArgs {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  catalogReadiness?: CatalogReadiness;
+  catalogListView?: AdminProductListView;
   /** Admin-only; valid only with `productFamily`, resolved against the saved registry by the server. */
   subcategoryIds?: string[];
   page?: number;
@@ -194,13 +347,50 @@ export interface ListArgs {
   sort?: SortClause[];
 }
 
-export function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
-  return call<ListResult<CollectionDoc>>('list', args);
+const ListResponseSchema = z
+  .object({
+    items: z.array(z.object({ _id: z.string().min(1) }).passthrough()).max(100),
+    total: z.number().int().nonnegative().safe(),
+    page: z.number().int().positive().safe(),
+    pageSize: z.number().int().positive().max(100),
+    catalogListView: z.literal(ADMIN_PRODUCT_LIST_VIEW).optional(),
+  })
+  .passthrough();
+
+export async function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
+  const summary =
+    args.catalogListView === ADMIN_PRODUCT_LIST_VIEW && args.collection === 'products';
+  if (args.catalogListView !== undefined && !summary)
+    throw new AdminApiError('INVALID_RESPONSE', 'The product list view is invalid.');
+  const checked = ListResponseSchema.safeParse(await call<unknown>('list', args));
+  if (
+    !checked.success ||
+    (summary
+      ? checked.data.catalogListView !== ADMIN_PRODUCT_LIST_VIEW ||
+        checked.data.items.some((row) => !isAdminProductListRow(row)) ||
+        !fitsJsonBudget({ ok: true, data: checked.data }, ADMIN_PRODUCT_LIST_PAGE_MAX_BYTES)
+      : Object.hasOwn(checked.data, 'catalogListView') ||
+        checked.data.items.some((row) => Object.hasOwn(row, ADMIN_PRODUCT_LIST_MARKER))) ||
+    checked.data.page !== (args.page ?? 1) ||
+    checked.data.pageSize !== (args.pageSize ?? 20) ||
+    checked.data.items.length > checked.data.pageSize ||
+    new Set(checked.data.items.map((row) => row._id)).size !== checked.data.items.length
+  ) {
+    throw new AdminApiError('INVALID_RESPONSE', 'The list could not be checked. Retry the list.');
+  }
+  return checked.data;
 }
 
-export async function getRecord(collection: string, id: string): Promise<CollectionDoc> {
-  const record = await call<CollectionDoc>('get', { collection, id });
-  if (record?._id !== id)
+export async function getRecord(
+  collection: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<CollectionDoc> {
+  const record = await call<CollectionDoc>('get', { collection, id }, signal);
+  if (
+    record?._id !== id ||
+    (collection === 'products' && Object.hasOwn(record, ADMIN_PRODUCT_LIST_MARKER))
+  )
     throw new AdminApiError(
       'INVALID_RESPONSE',
       'Product status response did not match the request.',
@@ -258,55 +448,211 @@ export function markProductReviewed(productId: string): Promise<CollectionDoc> {
   return call<CollectionDoc>('markProductReviewed', { productId });
 }
 
-export function createRecord(
+export async function createRecord(
   collection: string,
   values: Record<string, unknown>,
+  creation?: import('./catalog-product-create-api.ts').ProductCreationAttempt,
+  creationGuard?: () => void,
 ): Promise<CollectionDoc> {
-  return call<CollectionDoc>('create', { collection, values });
+  if (collection !== 'products') return call<CollectionDoc>('create', { collection, values });
+  if (values.published === true && values.archived === true)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'An archived product cannot be published. Clear Archived or save it unpublished.',
+    );
+  // Reject incomplete publication input before creating a draft.
+  if (values.published === true && !isProductFamily(values.productFamily))
+    throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
+  if (
+    values.published === true &&
+    (!Array.isArray(values.imageIds) || values.imageIds.length === 0)
+  )
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'Add at least one product image before publishing.',
+    );
+  if (values.published === true) {
+    const issues = validateProductPublication(values);
+    if (issues.length)
+      throw new AdminApiError('VALIDATION_ERROR', issues.map((issue) => issue.message).join('; '));
+  }
+  // A new product has no approved version, so it starts as a draft and
+  // publishing it is an approval, like any other product (MIU-37).
+  const { captureProductCreation, startProductCreation, CreatedProductChangedError } = await import(
+    './catalog-product-create-api.ts'
+  );
+  if (
+    creation &&
+    JSON.stringify(creation.values) !== JSON.stringify({ ...values, published: false })
+  )
+    throw new AdminApiError(
+      'CONFLICT',
+      'These values differ from the original creation. Check its result before saving different edits.',
+    );
+  const attempt = creation ?? (await captureProductCreation({ ...values, published: false }));
+  const draft = (await startProductCreation(attempt, undefined, creationGuard)).product;
+  if (values.published !== true) return draft;
+  if (draft.published === true || draft.archived === true || draft.updatedAt !== draft.createdAt)
+    throw new CreatedProductChangedError(draft);
+  const { publishSavedProduct } = await import('./catalog-product-publication.ts');
+  creationGuard?.();
+  return publishSavedProduct(draft, creationGuard);
+}
+
+export type ProductWriteIntent =
+  | 'save-draft'
+  | 'refresh-live'
+  | 'publish'
+  | 'unpublish'
+  | 'archive';
+
+/** Save against the exact product snapshot that populated the editor. */
+export function updateProductFromEditor(
+  opened: CollectionDoc,
+  values: Record<string, unknown>,
+): Promise<CollectionDoc> {
+  const revision = opened.updatedAt ?? null;
+  if (revision !== null && typeof revision !== 'string')
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The product revision is invalid. Reload before saving.',
+    );
+  if (opened.published !== true && values.published === true && Object.keys(values).length === 1) {
+    const captured = { ...opened };
+    return import('./catalog-table-publication.ts').then(({ publishTableProduct }) =>
+      publishTableProduct(captured),
+    );
+  }
+  const intent: ProductWriteIntent =
+    values.archived === true
+      ? 'archive'
+      : values.published === false
+        ? 'unpublish'
+        : opened.published === true
+          ? 'refresh-live'
+          : values.published === true
+            ? 'publish'
+            : 'save-draft';
+  return updateRecord('products', opened._id, values, revision, intent);
 }
 
 export async function updateRecord(
   collection: string,
   id: string,
-  values: Record<string, unknown>,
-  expectedUpdatedAt?: string,
+  inputValues: Record<string, unknown>,
+  expectedUpdatedAt?: string | null,
+  intent?: ProductWriteIntent,
 ): Promise<CollectionDoc> {
-  let refreshPublishedDetail = false;
+  let refreshPublishedDetail = intent === 'refresh-live' && inputValues.archived !== true;
+  const { published: _published, ...draftValues } = inputValues;
+  const values = refreshPublishedDetail ? draftValues : inputValues;
   if (
     collection === 'products' &&
+    !refreshPublishedDetail &&
+    values.archived !== true &&
     values.published === undefined &&
     isProductFamily(values.productFamily)
   ) {
-    const current = await call<CollectionDoc>('get', { collection, id });
-    if (current.published === true && typeof current.alibabaPrimarySourceKey === 'string') {
+    const current = await getRecord(collection, id);
+    if (current.published === true) {
       // Refresh the approved detail without inventing publication intent. Another
-      // admin may withdraw the product while this operation is in flight.
+      // admin may withdraw the product while this operation is in flight. Manual
+      // products too: an admin edit is their source (MIU-32).
       refreshPublishedDetail = true;
     }
   }
-  if (collection === 'products' && (values.published === true || refreshPublishedDetail)) {
-    const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities');
-    if (typeof capabilities?.enabled !== 'boolean')
+  if (
+    collection === 'products' &&
+    values.archived !== true &&
+    (values.published === true || refreshPublishedDetail)
+  ) {
+    // Approval is for admins. A contributor's save goes straight to the server,
+    // which keeps an edit on a live product as a draft for an admin (OWN-1).
+    const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities').catch(
+      (error: unknown) => {
+        if (error instanceof AdminApiError && error.code === 'FORBIDDEN') return null;
+        throw error;
+      },
+    );
+    if (capabilities !== null && typeof capabilities?.enabled !== 'boolean')
       throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
-    if (capabilities.enabled) {
-      let current = await call<CollectionDoc>('get', { collection, id });
+    if (capabilities?.enabled) {
+      let current = await getRecord(collection, id);
+      if (expectedUpdatedAt !== undefined && (current.updatedAt ?? null) !== expectedUpdatedAt)
+        throw new AdminApiError(
+          'CONFLICT',
+          'Product changed since classification or editing. Keep your edits and reload before saving.',
+        );
+      if (refreshPublishedDetail && (current.published !== true || current.archived === true))
+        throw new AdminApiError(
+          'CONFLICT',
+          'Product was withdrawn or archived. Keep your edits and reload before saving.',
+        );
+      if (typeof current.alibabaPrimarySourceKey !== 'string')
+        return approveManualProduct(collection, id, values, current, {
+          refreshPublishedDetail,
+          ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
+        });
       if (typeof current.alibabaPrimarySourceKey === 'string') {
-        if (expectedUpdatedAt)
-          throw new AdminApiError(
-            'CONFLICT',
-            'Open Edit to review supplier media and approve this product before publishing.',
-          );
-        // Save reviewed form edits first without changing publication. Preparation
-        // and approval have resumable, server-checked requests, not one long call.
+        // A guarded publish (classification "Save and publish") is an approval
+        // like Publish: from the revision the classification saved, each write
+        // carrying the revision the previous one returned.
+        let guard = expectedUpdatedAt;
+        if (guard !== undefined) {
+          if ((current.updatedAt ?? null) !== guard)
+            throw new AdminApiError(
+              'CONFLICT',
+              'Product changed since classification. Refresh before publishing.',
+            );
+          if (
+            intent === undefined &&
+            current.alibabaReviewPending === true &&
+            ['changed', 'removed'].includes(String(current.alibabaReviewReason))
+          )
+            throw new AdminApiError(
+              'CONFLICT',
+              'This product has Alibaba changes to review. Open Edit to review them, then publish.',
+            );
+        }
+        const write = async (writeValues: Record<string, unknown>) => {
+          const saved = await call<CollectionDoc>('update', {
+            collection,
+            id,
+            values: writeValues,
+            ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
+          });
+          guard = savedProductRevision(saved, id, guard);
+          return saved;
+        };
+        // Save reviewed form edits first without changing publication. The server
+        // then approves in one request (step-by-step fallback, same operation id).
         const { published: _published, ...draftValues } = values;
-        if (Object.keys(draftValues).length)
-          current = await call<CollectionDoc>('update', { collection, id, values: draftValues });
+        if (Object.keys(draftValues).length) current = await write(draftValues);
         if (!isProductFamily(current.productFamily))
           throw new AdminApiError(
             'INVALID_PRODUCT',
             'Choose a website category before publishing.',
           );
+        // First publication only. A re-approval never takes newer supplier
+        // text or photos on its own; the admin chooses them (DEC-18). The
+        // website shows up to 18 description photos: the first 18 in
+        // Alibaba's order are taken, as the Edit import does.
+        const descriptionSources =
+          !refreshPublishedDetail &&
+          current.published !== true &&
+          current.descriptionImageIds === undefined &&
+          Array.isArray(current.alibabaDescriptionImageUrls)
+            ? current.alibabaDescriptionImageUrls
+            : [];
         if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
+          if (
+            !Array.isArray(current.alibabaSourceImageUrls) ||
+            current.alibabaSourceImageUrls.length === 0
+          )
+            throw new AdminApiError(
+              'MEDIA_NOT_READY',
+              'This product has no photos and Alibaba sent none. Add a photo in Edit, then publish.',
+            );
           const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
             import('./alibaba-gallery-import.ts'),
             import('./alibaba-catalog-sync/alibaba-api.ts'),
@@ -322,30 +668,15 @@ export async function updateRecord(
               'MEDIA_NOT_READY',
               'Some images could not be imported. Open Edit and retry the source gallery.',
             );
-          if (imported.imageIds.length)
-            await call('update', { collection, id, values: { imageIds: imported.imageIds } });
+          if (imported.imageIds.length) await write({ imageIds: imported.imageIds });
         }
-        if (
-          // Existing publications keep their reviewed website media. A later
-          // sync is not permission to import/publish additional supplier images
-          // as a side effect of Save or a category-only refresh.
-          !refreshPublishedDetail &&
-          current.published !== true &&
-          current.descriptionImageIds === undefined &&
-          Array.isArray(current.alibabaDescriptionImageUrls) &&
-          current.alibabaDescriptionImageUrls.length
-        ) {
-          if (current.alibabaDescriptionImageUrls.length > PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
-            throw new AdminApiError(
-              'MEDIA_NOT_READY',
-              `Import up to ${PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT} description images in Edit and review them before publishing.`,
-            );
+        if (descriptionSources.length > 0) {
           const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
             import('./alibaba-gallery-import.ts'),
             import('./alibaba-catalog-sync/alibaba-api.ts'),
           ]);
           const imported = await importAlibabaGallery({
-            sourceUrls: current.alibabaDescriptionImageUrls,
+            sourceUrls: descriptionSources,
             imageIds: [],
             maxItems: PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
             importImage: importAlibabaSourceImage,
@@ -356,24 +687,16 @@ export async function updateRecord(
               'MEDIA_NOT_READY',
               'Review and import description images in Edit before publishing.',
             );
-          if (imported.imageIds.length)
-            await call('update', {
-              collection,
-              id,
-              values: { descriptionImageIds: imported.imageIds },
-            });
+          if (imported.imageIds.length) await write({ descriptionImageIds: imported.imageIds });
         }
-        const { prepareDetailReview, approveDetailReview } = await import(
-          './catalog-detail-approval-api.ts'
-        );
-        const review = await prepareDetailReview(id);
-        await approveDetailReview(review, crypto.randomUUID());
-        if (refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
+        const { approveProduct } = await import('./catalog-detail-approval-api.ts');
+        await approveProduct(id);
+        if (refreshPublishedDetail) return refreshedProduct(collection, id);
         return call<CollectionDoc>('update', {
           collection,
           id,
           values: { published: true },
-          ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+          ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
         });
       }
     }
@@ -382,7 +705,104 @@ export async function updateRecord(
     collection,
     id,
     values,
-    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
+  });
+}
+
+/** Confirm an approved live edit without changing its publication state. */
+async function refreshedProduct(collection: string, id: string): Promise<CollectionDoc> {
+  const latest = await getRecord(collection, id);
+  if (latest.published !== true || latest.archived === true)
+    throw new AdminApiError(
+      'CONFLICT',
+      'Your draft was saved, but the product was withdrawn or archived. Keep your edits and check its current state.',
+    );
+  if (latest.alibabaReviewPending !== true) return latest;
+  const revision = productRevision(latest, id);
+  return call<CollectionDoc>('update', {
+    collection,
+    id,
+    intent: 'refresh-live',
+    values: {},
+    expectedUpdatedAt: revision,
+  });
+}
+
+/** A save may advance an existing guard only for the same product and a returned revision. */
+function savedProductRevision(
+  saved: CollectionDoc,
+  productId: string,
+  guard: string | null | undefined,
+): string | undefined {
+  if (saved?._id !== productId)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The save returned a different product identity. Check the result before continuing.',
+    );
+  return guard === undefined ? undefined : productRevision(saved, productId);
+}
+
+function productRevision(saved: CollectionDoc, productId: string): string {
+  if (saved?._id !== productId)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The save returned a different product identity. Check the result before continuing.',
+    );
+  if (typeof saved.updatedAt !== 'string' || saved.updatedAt.trim() === '')
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'The save did not return its revision. Check the result before publishing.',
+    );
+  return saved.updatedAt;
+}
+
+/**
+ * A manual product is approved like a synced one (MIU-32): save the form edits,
+ * build its version from the row (no Alibaba imports), approve, then publish.
+ * A revision guard from a classification flow carries through to each write.
+ */
+async function approveManualProduct(
+  collection: string,
+  id: string,
+  values: Record<string, unknown>,
+  initial: CollectionDoc,
+  options: { refreshPublishedDetail: boolean; expectedUpdatedAt?: string | null },
+): Promise<CollectionDoc> {
+  let current = initial;
+  let guard = options.expectedUpdatedAt;
+  if (guard !== undefined && (current.updatedAt ?? null) !== guard)
+    throw new AdminApiError(
+      'CONFLICT',
+      'Product changed since classification. Refresh before publishing.',
+    );
+  const { published: _published, ...draftValues } = values;
+  // Checked on the would-be product before anything is saved, so a refusal is a
+  // definite rejection that batch publish reports with its reason.
+  const prospective = { ...initial, ...draftValues };
+  if (!isProductFamily(prospective.productFamily))
+    throw new AdminApiError('VALIDATION_ERROR', 'Choose a website category before publishing.');
+  if (!Array.isArray(prospective.imageIds) || prospective.imageIds.length === 0)
+    throw new AdminApiError(
+      'VALIDATION_ERROR',
+      'Add at least one product image before publishing.',
+    );
+  if (Object.keys(draftValues).length) {
+    current = await call<CollectionDoc>('update', {
+      collection,
+      id,
+      values: draftValues,
+      ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
+    });
+    guard = savedProductRevision(current, id, guard);
+  }
+  const { approveProduct } = await import('./catalog-detail-approval-api.ts');
+  await approveProduct(id);
+  if (options.refreshPublishedDetail) return refreshedProduct(collection, id);
+  return call<CollectionDoc>('update', {
+    collection,
+    id,
+    values: { published: true },
+    ...(guard !== undefined ? { expectedUpdatedAt: guard } : {}),
   });
 }
 
@@ -395,21 +815,73 @@ export interface BatchUpdateFailure {
   code: string;
   message: string;
   outcome: 'rejected' | 'unconfirmed' | 'not-attempted';
+  /** Trying the same update again may work (no fix needed first). */
+  retryable?: boolean;
 }
+
+/**
+ * Answers that are definite: the product was not (further) changed, and the
+ * message says why. Anything else is unclear and is checked after the batch.
+ */
+const DEFINITE_REJECTIONS = new Set([
+  'BAD_REQUEST',
+  'VALIDATION_ERROR',
+  'NOT_FOUND',
+  'CONFLICT',
+  'UNAUTHORIZED',
+  'FORBIDDEN',
+  // Refused by the admin page before publishing: the product stays a draft.
+  'MEDIA_NOT_READY',
+  'INVALID_PRODUCT',
+  // A colliding transaction rolled back (still colliding after retries).
+  'BUSY',
+]);
 
 export interface BatchUpdateResult {
   updated: number;
   items: CollectionDoc[];
   failures: BatchUpdateFailure[];
+  unchanged?: CollectionDoc[];
+  publication?: import('./catalog-table-publication.ts').TablePublicationRecovery;
 }
+
+const SIGN_IN_STOP = 'your sign-in expired or lacks permission. Sign in again, then try again.';
+
+/**
+ * Whether a product read back after an unclear answer proves the batch change.
+ * Publishing, and a category change on a live product, include an approval
+ * the fields cannot show: a product counts as published only when nothing on
+ * it still waits for review (publishing clears that flag), and a live
+ * product's new category is never taken as proof. "unproven" is sent again.
+ */
+export function readbackProves(
+  current: CollectionDoc,
+  values: Record<string, unknown>,
+): 'done' | 'not-done' | 'unproven' {
+  if (!Object.entries(values).every(([key, value]) => current[key] === value)) return 'not-done';
+  if (values.published === true && current.alibabaReviewPending === true) return 'unproven';
+  if (
+    values.published === undefined &&
+    isProductFamily(values.productFamily) &&
+    current.published === true
+  )
+    return 'unproven';
+  return 'done';
+}
+
+/** Products updated at once in a batch: enough to hide gateway latency, few enough to stay polite. */
+export const BATCH_CONCURRENCY = 4;
 
 /** Products must use the server's per-product validation, identity and media locks. */
 export async function batchUpdateRecords(
   collection: string,
   ids: string[],
-  values: Record<string, unknown>,
-  expectedRevisions?: ReadonlyMap<string, string>,
+  inputValues: Record<string, unknown>,
+  expectedRevisions?: ReadonlyMap<string, string | null>,
+  opened?: readonly CollectionDoc[],
 ): Promise<BatchUpdateResult> {
+  const values = { ...inputValues };
+  const openedProducts = opened?.map((row) => ({ ...row }));
   if (collection !== 'products') {
     const result = await call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
       collection,
@@ -419,6 +891,7 @@ export async function batchUpdateRecords(
     return { ...result, failures: [] };
   }
   const uniqueIds = [...new Set(ids)];
+  const revisions = expectedRevisions === undefined ? undefined : new Map(expectedRevisions);
   const isArchive =
     Object.keys(values).length === 2 && values.archived === true && values.published === false;
   const isSingleFieldUpdate =
@@ -435,59 +908,178 @@ export async function batchUpdateRecords(
       'Select up to 20 products to publish, disable, classify or archive.',
     );
   }
-  const items: CollectionDoc[] = [];
-  const failures: BatchUpdateFailure[] = [];
-  let stopped = false;
-  for (const id of uniqueIds) {
-    if (stopped) {
-      failures.push({
-        id,
-        code: 'NOT_ATTEMPTED',
-        message: 'Not attempted because the batch stopped. Refresh before retrying.',
-        outcome: 'not-attempted',
-      });
-      continue;
-    }
-    try {
-      const item = await updateRecord(collection, id, values, expectedRevisions?.get(id));
-      if (
-        !item ||
-        item._id !== id ||
-        Object.entries(values).some(([key, value]) => item[key] !== value)
-      ) {
-        throw new AdminApiError(
-          'INVALID_RESPONSE',
-          'The returned product did not confirm the requested status.',
-        );
-      }
-      items.push(item);
-    } catch (error) {
-      // A transport/5xx/malformed response may follow a committed write. Never
-      // auto-retry or claim rollback; stop and ask the operator to refresh.
-      const rejected =
-        error instanceof AdminApiError &&
-        [
-          'BAD_REQUEST',
-          'VALIDATION_ERROR',
-          'NOT_FOUND',
-          'CONFLICT',
-          'UNAUTHORIZED',
-          'FORBIDDEN',
-        ].includes(error.code);
-      stopped =
-        !rejected ||
-        (error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code));
-      failures.push({
-        id,
-        code: error instanceof AdminApiError ? error.code : 'NETWORK_ERROR',
-        message:
-          rejected && error instanceof Error
-            ? error.message
-            : 'Result not confirmed. Refresh the product status before retrying.',
-        outcome: rejected ? 'rejected' : 'unconfirmed',
-      });
-    }
+  if (
+    revisions !== undefined &&
+    uniqueIds.some((id) => {
+      const revision = revisions.get(id);
+      return (
+        !revisions.has(id) ||
+        (revision !== null && (typeof revision !== 'string' || revision.trim() === ''))
+      );
+    })
+  )
+    throw new AdminApiError(
+      'BAD_REQUEST',
+      'Product snapshot revisions were incomplete. Refresh products before trying again.',
+    );
+  if (values.published === true) {
+    const { publishTableSelection } = await import('./catalog-table-publication.ts');
+    const result = await publishTableSelection(uniqueIds, revisions, openedProducts);
+    if (result !== null) return result;
   }
+  // Each product is its own request chain, and most of its time is gateway
+  // latency, so a few run at once. One unclear result (no answer, an
+  // unexpected answer) affects only its own product: the batch carries on and
+  // checks it afterwards. It stops starting products only when the session is
+  // refused or the server fails twice in a row. Results keep the selection order.
+  const outcomes: Array<{ item: CollectionDoc } | { failure: BatchUpdateFailure }> = [];
+  let stopReason: string | null = null;
+  let unclearInARow = 0;
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < uniqueIds.length) {
+      const index = nextIndex++;
+      const id = uniqueIds[index] as string;
+      if (stopReason) {
+        outcomes[index] = {
+          failure: {
+            id,
+            code: 'NOT_ATTEMPTED',
+            message: `Not tried because ${stopReason}`,
+            outcome: 'not-attempted',
+            // After a refused sign-in, trying again is refused too.
+            retryable: stopReason !== SIGN_IN_STOP,
+          },
+        };
+        continue;
+      }
+      try {
+        const item = await updateRecord(collection, id, values, revisions?.get(id));
+        if (
+          !item ||
+          item._id !== id ||
+          Object.entries(values).some(([key, value]) => item[key] !== value)
+        ) {
+          throw new AdminApiError(
+            'INVALID_RESPONSE',
+            'The returned product did not confirm the requested status.',
+          );
+        }
+        unclearInARow = 0;
+        outcomes[index] = { item };
+      } catch (error) {
+        const code = error instanceof AdminApiError ? error.code : 'NETWORK_ERROR';
+        // A definite answer: nothing (more) was saved for this product.
+        const rejected = DEFINITE_REJECTIONS.has(code);
+        if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') stopReason = SIGN_IN_STOP;
+        if (rejected) unclearInARow = 0;
+        else if (++unclearInARow >= 2)
+          stopReason ??= 'the server stopped answering. Try again in a minute.';
+        outcomes[index] = {
+          failure: {
+            id,
+            code,
+            message:
+              code === 'BUSY'
+                ? 'Another change happened at the same moment. Try again.'
+                : rejected && error instanceof Error
+                  ? error.message
+                  : 'Checking whether it went through…',
+            outcome: rejected ? 'rejected' : 'unconfirmed',
+            retryable: code === 'BUSY' || !rejected,
+          },
+        };
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(BATCH_CONCURRENCY, uniqueIds.length) }, () => worker()),
+  );
+  // Unclear results are checked now, all at once, so the admin is told what
+  // happened instead of being asked to refresh.
+  await Promise.all(
+    outcomes.map(async (outcome, index) => {
+      if (!('failure' in outcome) || outcome.failure.outcome !== 'unconfirmed') return;
+      const { id } = outcome.failure;
+      let current: CollectionDoc;
+      try {
+        current = await call<CollectionDoc>('get', { collection, id }, AbortSignal.timeout(8000));
+        // An answer about another product says nothing about this one.
+        if (current?._id !== id) throw new AdminApiError('INVALID_RESPONSE', 'Wrong product');
+      } catch {
+        outcomes[index] = {
+          failure: {
+            ...outcome.failure,
+            message:
+              "Couldn't check whether it went through. Refresh the list to see, then try again if needed.",
+          },
+        };
+        return;
+      }
+      // A matching row cannot identify a frozen operation after its answer was lost.
+      // Its durable receipt is required before claiming this attempt succeeded.
+      const proof = revisions === undefined ? readbackProves(current, values) : 'unproven';
+      outcomes[index] =
+        proof === 'done'
+          ? { item: current }
+          : {
+              failure: {
+                ...outcome.failure,
+                ...(proof === 'not-done'
+                  ? {
+                      message: "Didn't go through: the server didn't answer in time. Try again.",
+                      outcome: 'rejected' as const,
+                    }
+                  : {
+                      message:
+                        revisions === undefined
+                          ? "Couldn't confirm the website shows this change. Try again."
+                          : "Couldn't confirm this operation. Try again, or open Edit to check the product.",
+                    }),
+                retryable: true,
+              },
+            };
+    }),
+  );
+  const items = outcomes.flatMap((outcome) => ('item' in outcome ? [outcome.item] : []));
+  const failures = outcomes.flatMap((outcome) => ('failure' in outcome ? [outcome.failure] : []));
+  return { updated: items.length, items, failures };
+}
+
+/** Retry frozen product inputs without replacing the user's base with a newer row. */
+export async function retryBatchUpdate(
+  previous: BatchUpdateResult,
+  ids: readonly string[],
+  inputValues: Record<string, unknown>,
+  expectedRevisions?: ReadonlyMap<string, string | null>,
+): Promise<BatchUpdateResult> {
+  const values = { ...inputValues };
+  if (values.published === true) {
+    if (!previous.publication)
+      throw new AdminApiError(
+        'RECOVERY_MISSING',
+        'The original publication task is missing. Refresh and review the products before starting a new publication.',
+      );
+    const original = structuredClone(previous);
+    const selected = [...ids];
+    const { recoverTablePublication } = await import('./catalog-table-publication.ts');
+    return recoverTablePublication(original, selected, 'continue');
+  }
+  const wanted = new Set(ids);
+  const retry = previous.failures.filter((failure) => failure.retryable && wanted.has(failure.id));
+  const send = retry.map((failure) => failure.id);
+  const revisions = expectedRevisions === undefined ? undefined : new Map(expectedRevisions);
+  const sent = send.length
+    ? await batchUpdateRecords('products', send, values, revisions)
+    : { updated: 0, items: [], failures: [] };
+  const retried = new Set(retry.map((failure) => failure.id));
+  const answers = new Map(sent.failures.map((failure) => [failure.id, failure]));
+  const failures = previous.failures.flatMap((failure) => {
+    if (!retried.has(failure.id)) return [failure];
+    const still = answers.get(failure.id);
+    return still ? [still] : [];
+  });
+  const items = [...previous.items, ...sent.items];
   return { updated: items.length, items, failures };
 }
 
@@ -571,12 +1163,27 @@ export async function uploadImage(file: File): Promise<string> {
  * instead of the public `/api/images/:id` (which is `publishedRefCount`-gated and
  * 404s unpublished images). Serves legacy `data` rows and `active` storage rows.
  */
-export async function getImagePreview(id: string): Promise<string> {
-  const res = await call<{ id: string; mimeType: string; dataBase64: string }>('getImagePreview', {
+export function getImagePreview(id: string): Promise<string> {
+  // An image's bytes never change under its id, so one fetch serves the list
+  // thumbnail, the edit form and the preview alike. Failures are not kept.
+  const known = imagePreviews.get(id);
+  if (known) return known;
+  const loading = call<{ id: string; mimeType: string; dataBase64: string }>('getImagePreview', {
     id,
+  }).then((res) => `data:${res.mimeType};base64,${res.dataBase64}`);
+  imagePreviews.set(id, loading);
+  loading.catch(() => {
+    if (imagePreviews.get(id) === loading) imagePreviews.delete(id);
   });
-  return `data:${res.mimeType};base64,${res.dataBase64}`;
+  if (imagePreviews.size > IMAGE_PREVIEW_CACHE_LIMIT) {
+    const oldest = imagePreviews.keys().next().value;
+    if (oldest !== undefined) imagePreviews.delete(oldest);
+  }
+  return loading;
 }
+
+const IMAGE_PREVIEW_CACHE_LIMIT = 60;
+const imagePreviews = new Map<string, Promise<string>>();
 
 export async function taxonomyCall(
   input: CatalogTaxonomyCommand,
@@ -605,10 +1212,23 @@ export async function taxonomyCall(
   return response.data;
 }
 
+export async function fetchCatalogDetailCapabilities(
+  signal?: AbortSignal,
+): Promise<{ enabled: boolean }> {
+  const parsed = z
+    .object({ enabled: z.boolean() })
+    .strict()
+    .safeParse(await call<unknown>('catalogDetailCapabilities', undefined, signal));
+  if (!parsed.success)
+    throw new AdminApiError('INVALID_RESPONSE', 'Publication availability could not be confirmed.');
+  return parsed.data;
+}
+
 export async function assignmentCall(
   input: CatalogClassificationAssignmentRequest,
   signal?: AbortSignal,
   expectedSuggestion?: Extract<CategorySuggestion, { status: 'ready' }>,
+  guard?: () => void,
 ): Promise<CatalogClassificationAssignmentResult> {
   const command = CatalogClassificationAssignmentRequestSchema.parse(input);
   const evidence =
@@ -618,6 +1238,7 @@ export async function assignmentCall(
       'catalogCategories',
       evidence ? { ...command, expectedSuggestion: evidence } : command,
       signal,
+      guard,
     ),
   );
   if (!response.success) {
@@ -638,28 +1259,4 @@ export async function assignmentCall(
     );
   }
   return response.data;
-}
-
-export function publishConfirmedClassification(
-  command: CatalogClassificationAssignmentRequest,
-  result: CatalogClassificationAssignmentResult,
-): Promise<BatchUpdateResult> | null {
-  const ids = command.products.map((item) => item.productId);
-  const confirmed = new Set(result.results.map((item) => item.productId));
-  if (
-    command.includeSavedRevision !== true ||
-    result.refreshRequired ||
-    ids.length === 0 ||
-    ids.length !== new Set(ids).size ||
-    ids.length !== confirmed.size ||
-    result.results.length !== ids.length ||
-    ids.some((id) => !confirmed.has(id))
-  )
-    return null;
-  const revisions = new Map<string, string>();
-  for (const item of result.results) {
-    if (item.status !== 'saved' || typeof item.updatedAt !== 'string') return null;
-    revisions.set(item.productId, item.updatedAt);
-  }
-  return batchUpdateRecords('products', ids, { published: true }, revisions);
 }

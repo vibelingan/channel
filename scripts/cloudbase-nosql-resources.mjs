@@ -29,6 +29,22 @@ export const REQUIRED_NOSQL_RESOURCES = [
     indexes: [],
   },
   {
+    collectionName: 'catalogPreparationJobs',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'catalogImageObservations',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('catalog_preparation_image_hold', [
+        ['kind', '1'],
+        ['imageId', '1'],
+        ['_id', '1'],
+      ]),
+    ],
+  },
+  {
     collectionName: 'catalogDetailVariants',
     permission: 'ADMINONLY',
     indexes: [
@@ -114,6 +130,13 @@ export const REQUIRED_NOSQL_RESOURCES = [
     permission: 'ADMINONLY',
     indexes: [],
   },
+  // Website 2.0 content collections. Registered for the admin, but nothing
+  // created them in the deployed database, so listing them (and the image
+  // reference scan behind abandonUpload, which visits every collection with
+  // `imageIds`) failed with a server error (found 2026-10-09).
+  { collectionName: 'successStories', permission: 'ADMINONLY', indexes: [] },
+  { collectionName: 'teardownReports', permission: 'ADMINONLY', indexes: [] },
+  { collectionName: 'blueOceanProducts', permission: 'ADMINONLY', indexes: [] },
   // Existing canonical catalog collection. Declared here so the pending-review
   // queue's default All/family ordering cannot depend on an operator-created
   // console index. The collection is already function-only (ADMINONLY).

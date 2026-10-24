@@ -12,22 +12,39 @@ import {
   readProductSubcategories,
   validateProductSubcategories,
 } from '@vibelingan-channel/shared';
-import { useEffect, useRef, useState } from 'react';
+import {
+  type ConfigurationPhotos,
+  ConfigurationPhotosSchema,
+  type SupplierReview,
+  type SupplierReviewPart,
+  type SupplierReviewPartName,
+} from '@vibelingan-channel/shared/catalog-supplier-review';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { AlibabaPhotoPicker, type AlibabaPhotoSource } from './AlibabaPhotoPicker.tsx';
+import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
 import { ImageViewer, PreviewImageContent } from './ImageViewer.tsx';
 import { ProductPricingEditor } from './ProductPricingEditor.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
 import { SavedClassificationSummary } from './SavedClassificationSummary.tsx';
+import { SupplierChangesPanel } from './SupplierChangesPanel.tsx';
+import { useAdminDraftExport } from './admin-draft-recovery.ts';
 import {
   importAlibabaSourceImage,
   removeAlibabaImportedImage,
 } from './alibaba-catalog-sync/alibaba-api.ts';
 import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
-import { AdminApiError } from './api.ts';
+import { AdminApiError, fetchPhotoSources, fetchSupplierReview } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
+import {
+  PENDING_SUPPLIER_CHANGE_NOTICE,
+  pendingSupplierChange,
+  reviewLabel,
+} from './review-reason.ts';
+import { type SupplierChoices, withSupplierChoices } from './supplier-review-ui.ts';
 import { taxonomyQuery } from './taxonomy-ui-state.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
 
@@ -42,7 +59,21 @@ interface RecordFormProps {
   error: Error | null;
   onSubmit: (values: Record<string, unknown>) => void;
   onCancel: () => void;
+  /** Opens the preview, which shows what changed on Alibaba (DEC-12). */
+  onSeeChanges?: () => void;
+  /** Admins see the supplier review and configuration photos (DEC-19, DEC-20). */
+  canReviewSupplier?: boolean;
+  /** Why this record cannot be saved by the current user; Save is disabled. */
+  readOnlyReason?: string;
+  closeBlockedReason?: string;
+  protectEdits?: boolean;
+  recovery?: (
+    readDraft: () => Readonly<Record<string, string | boolean>>,
+    cleanupCandidates: () => Promise<void>,
+  ) => ReactNode;
 }
+
+type PhotoField = 'imageIds' | 'descriptionImageIds';
 
 type FormState = Record<string, string | boolean>;
 
@@ -91,6 +122,7 @@ export function productFamilyTransition(
 
 export function productFormErrorTargets(error: Error | null): Record<string, string> {
   if (!(error instanceof AdminApiError)) return {};
+  if (error.code === 'CONFLICT' && !/slug|sku/i.test(error.message)) return {};
   const targets: Record<string, string> = {};
   for (const message of error.message
     .split(';')
@@ -152,9 +184,27 @@ export function RecordForm({
   error,
   onSubmit,
   onCancel,
+  onSeeChanges,
+  canReviewSupplier = false,
+  readOnlyReason,
+  closeBlockedReason,
+  protectEdits = false,
+  recovery,
 }: RecordFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
+  // Async imports must include selection changes that have not rendered yet.
+  const photoValuesRef = useRef({
+    imageIds: state.imageIds,
+    descriptionImageIds: state.descriptionImageIds,
+  });
+  photoValuesRef.current = {
+    imageIds: state.imageIds,
+    descriptionImageIds: state.descriptionImageIds,
+  };
   const [localError, setLocalError] = useState('');
+  useEffect(() => {
+    if (error || !closeBlockedReason) setLocalError('');
+  }, [error, closeBlockedReason]);
   const [fieldAnnouncement, setFieldAnnouncement] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
   const [descriptionImageBusy, setDescriptionImageBusy] = useState(false);
@@ -171,10 +221,104 @@ export function RecordForm({
   const initialStateRef = useRef(state);
   const cancelInFlight = useRef(false);
   const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
-  const busy = submitting || mediaBusy;
-  const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
+  // Only while Save would keep the product live; unticking Published unpublishes instead.
+  const supplierChange =
+    initial && state.published !== false ? pendingSupplierChange(initial) : null;
+  const supplierChangeId = useId();
+  // Supplier review (DEC-19) and configuration photos (DEC-20), admins only.
+  const linkedProductId =
+    collection.name === 'products' && initial && typeof initial.alibabaPrimarySourceKey === 'string'
+      ? initial._id
+      : undefined;
+  const [supplierReviewAttempt, setSupplierReviewAttempt] = useState(0);
+  const supplierReviewAttemptRef = useRef(supplierReviewAttempt);
+  supplierReviewAttemptRef.current = supplierReviewAttempt;
+  const [supplierReview, setSupplierReview] = useState<{
+    data?: SupplierReview;
+    isError?: boolean;
+    loading?: boolean;
+  }>({});
+  useEffect(() => {
+    if (!canReviewSupplier || linkedProductId === undefined) {
+      setSupplierReview({});
+      return;
+    }
+    let cancelled = false;
+    setSupplierReview({ loading: true });
+    fetchSupplierReview(linkedProductId).then(
+      (data) => {
+        if (!cancelled && supplierReviewAttemptRef.current === supplierReviewAttempt)
+          setSupplierReview({ data });
+      },
+      () => {
+        if (!cancelled && supplierReviewAttemptRef.current === supplierReviewAttempt)
+          setSupplierReview({ isError: true });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canReviewSupplier, linkedProductId, supplierReviewAttempt]);
+  // Every Alibaba photo, for adding ones beyond those filled automatically.
+  const [photoSources, setPhotoSources] = useState<Awaited<
+    ReturnType<typeof fetchPhotoSources>
+  > | null>(null);
+  const [photoSourcesAttempt, setPhotoSourcesAttempt] = useState(0);
+  const photoSourcesAttemptRef = useRef(photoSourcesAttempt);
+  photoSourcesAttemptRef.current = photoSourcesAttempt;
+  const [photoSourcesState, setPhotoSourcesState] = useState<
+    'idle' | 'loading' | 'error' | 'ready'
+  >('idle');
+  const [photoAddBusy, setPhotoAddBusy] = useState<{ field: PhotoField; url: string } | null>(null);
+  useEffect(() => {
+    if (!canReviewSupplier || linkedProductId === undefined) {
+      setPhotoSources(null);
+      setPhotoSourcesState('idle');
+      return;
+    }
+    let cancelled = false;
+    setPhotoSources(null);
+    setPhotoSourcesState('loading');
+    fetchPhotoSources(linkedProductId).then(
+      (data) => {
+        if (!cancelled && photoSourcesAttemptRef.current === photoSourcesAttempt) {
+          setPhotoSources(data);
+          setPhotoSourcesState('ready');
+        }
+      },
+      () => {
+        if (!cancelled && photoSourcesAttemptRef.current === photoSourcesAttempt)
+          setPhotoSourcesState('error');
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canReviewSupplier, linkedProductId, photoSourcesAttempt]);
+  const [supplierChoices, setSupplierChoices] = useState<SupplierChoices>({});
+  const [supplierBusy, setSupplierBusy] = useState<SupplierReviewPartName | null>(null);
+  const [supplierError, setSupplierError] = useState('');
+  const [configurationPhotos, setConfigurationPhotos] = useState<ConfigurationPhotos>();
+  // Importing Alibaba's photos blocks Save and Close like any media import.
+  const busy = submitting || mediaBusy || supplierBusy !== null || photoAddBusy !== null;
+  const flaggedForSupplier =
+    initial !== undefined && ['Changed', 'Removed'].includes(String(reviewLabel(initial)));
+  const dirty =
+    JSON.stringify(state) !== JSON.stringify(initialStateRef.current) ||
+    Object.keys(supplierChoices).length > 0 ||
+    configurationPhotos !== undefined;
+  useEffect(() => {
+    if (!protectEdits || (!dirty && !closeBlockedReason)) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [protectEdits, dirty, closeBlockedReason]);
 
   function setField(name: string, value: string | boolean) {
+    if (name === 'imageIds' || name === 'descriptionImageIds') photoValuesRef.current[name] = value;
     if (collection.name === 'sourceCategoryMappings' && name === 'productFamily') {
       if (value === state.productFamily) return;
       setFieldAnnouncement(
@@ -199,10 +343,15 @@ export function RecordForm({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || pricingInvalid || mappingInvalid || discardRequested) return;
+    if (busy || pricingInvalid || mappingInvalid || discardRequested || readOnlyReason) return;
     setLocalError('');
     try {
-      const values = coerceValues(collection, state, initial);
+      const values = withSupplierChoices(
+        coerceValues(collection, state, initial),
+        initial,
+        supplierChoices,
+        configurationPhotos,
+      );
       onSubmit(values);
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : 'Invalid input');
@@ -217,6 +366,128 @@ export function RecordForm({
   );
   const descriptionPreviewUrls = descriptionPreview.urls;
   const descriptionSourceOverflow = descriptionPreview.total > descriptionPreviewUrls.length;
+
+  const photoField = (part: SupplierReviewPartName) =>
+    part === 'gallery' ? 'imageIds' : 'descriptionImageIds';
+  function keepWebsite(part: SupplierReviewPart) {
+    if (busy || discardRequested || readOnlyReason) return;
+    // Undo an earlier "Use Alibaba's" in this form; other edits stay.
+    if (supplierChoices[part.part]?.choice === 'incoming') {
+      if (part.part === 'description') setField('description', part.website.text ?? '');
+      else setField(photoField(part.part), JSON.stringify(part.website.imageIds ?? []));
+    }
+    setSupplierChoices((current) => ({
+      ...current,
+      [part.part]: { choice: 'keep', incomingDigest: part.incomingDigest },
+    }));
+  }
+  async function useIncoming(part: SupplierReviewPart) {
+    if (busy || discardRequested || readOnlyReason) return;
+    setSupplierError('');
+    if (part.part === 'description') {
+      setField('description', part.incoming.text ?? '');
+    } else {
+      setSupplierBusy(part.part);
+      try {
+        const result = await importAlibabaGallery({
+          sourceUrls: part.incoming.urls ?? [],
+          maxItems: part.part === 'gallery' ? 9 : 18,
+          imageIds: [],
+          importImage: importAlibabaSourceImage,
+          onProgress: () => {},
+        });
+        setNewSourceImageIds((ids) => [...new Set([...ids, ...result.createdIds])]);
+        if (result.failures.length || result.remaining || result.imageIds.length === 0) {
+          setSupplierError('Some Alibaba photos could not be imported. Try again.');
+          return;
+        }
+        setField(photoField(part.part), JSON.stringify(result.imageIds));
+      } catch (importError) {
+        setSupplierError(
+          importError instanceof Error ? importError.message : 'Alibaba photo import failed.',
+        );
+        return;
+      } finally {
+        setSupplierBusy(null);
+      }
+    }
+    setSupplierChoices((current) => ({
+      ...current,
+      [part.part]: { choice: 'incoming', incomingDigest: part.incomingDigest },
+    }));
+  }
+  const galleryIds = (() => {
+    try {
+      const parsed: unknown = JSON.parse(String(state.imageIds || '[]'));
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  })();
+  const savedConfigurationPhotos = ConfigurationPhotosSchema.safeParse(
+    initial?.configurationPhotos ?? {},
+  );
+
+  const fieldIds = (field: PhotoField) => {
+    try {
+      const parsed: unknown = JSON.parse(String(photoValuesRef.current[field] || '[]'));
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  /** Adds one Alibaba photo: our copy when we have it, otherwise copied first. */
+  async function addSourcePhoto(field: PhotoField, source: AlibabaPhotoSource) {
+    const limit = field === 'imageIds' ? 9 : 18;
+    if (
+      photoAddBusy ||
+      (field === 'imageIds' ? imageBusy : descriptionImageBusy) ||
+      fieldIds(field).length >= limit
+    )
+      return;
+    setPhotoAddBusy({ field, url: source.url });
+    setSourceImageNotice('');
+    try {
+      let imageId = source.imageId;
+      if (!imageId) {
+        const imported = await importAlibabaSourceImage(source.url);
+        imageId = imported.imageId;
+        if (!imported.deduplicated)
+          setNewSourceImageIds((ids) => [...new Set([...ids, imported.imageId])]);
+        const added = imported.imageId;
+        setPhotoSources(
+          (current) =>
+            current && {
+              ...current,
+              [field === 'imageIds' ? 'gallery' : 'description']: current[
+                field === 'imageIds' ? 'gallery' : 'description'
+              ].map((item) => (item.url === source.url ? { ...item, imageId: added } : item)),
+            },
+        );
+      }
+      const ids = fieldIds(field);
+      if (ids.includes(imageId)) {
+        setSourceImageNotice('Photo is already selected. Save to keep it.');
+      } else if (ids.length >= limit) {
+        setSourceImageNotice(
+          `Photo copied. All ${limit} places are taken. Remove a photo, then add this one again.`,
+        );
+      } else {
+        setField(field, JSON.stringify([...ids, imageId]));
+        setSourceImageNotice('Photo added. Save to keep it.');
+      }
+    } catch (error) {
+      setSourceImageNotice(
+        error instanceof Error ? error.message : 'The Alibaba photo could not be added.',
+      );
+    } finally {
+      setPhotoAddBusy(null);
+    }
+  }
 
   async function importSourceGallery(description = false) {
     const sourceUrls = description ? descriptionPreviewUrls : sourcePreviewUrls;
@@ -265,16 +536,28 @@ export function RecordForm({
     }
   }
 
+  async function cleanupCandidates() {
+    await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
+  }
+
   async function cancelWithCandidateCleanup() {
     if (busy || cancelInFlight.current) return;
+    if (closeBlockedReason) {
+      setLocalError(closeBlockedReason);
+      return;
+    }
     cancelInFlight.current = true;
     setSourceImageBusy(true);
-    await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
+    await cleanupCandidates();
     onCancel();
   }
 
   function requestClose() {
     if (busy) return;
+    if (closeBlockedReason) {
+      setLocalError(closeBlockedReason);
+      return;
+    }
     if (dirty) setDiscardRequested(true);
     else void cancelWithCandidateCleanup();
   }
@@ -301,6 +584,12 @@ export function RecordForm({
     },
   ];
   const fieldErrors = collection.name === 'products' ? productFormErrorTargets(error) : {};
+  const currentDraft = useRef<FormState>(state);
+  useAdminDraftExport(title, () => ({ ...currentDraft.current }));
+  currentDraft.current = { ...state };
+  const decisions = withSupplierChoices({}, initial, supplierChoices, configurationPhotos);
+  for (const [field, value] of Object.entries(decisions))
+    if (value !== undefined) currentDraft.current[field] = JSON.stringify(value);
   const aggregateError =
     localError || (Object.keys(fieldErrors).length === 0 ? error?.message : '');
 
@@ -335,6 +624,67 @@ export function RecordForm({
           data-record-form-body
           className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
         >
+          {recovery?.(() => ({ ...currentDraft.current }), cleanupCandidates)}
+          {readOnlyReason && (
+            <p
+              role="note"
+              data-record-read-only
+              className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              {readOnlyReason}
+            </p>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.data && (
+            <div className="mb-6">
+              <SupplierChangesPanel
+                review={supplierReview.data}
+                choices={supplierChoices}
+                busyPart={supplierBusy}
+                disabled={busy || discardRequested || Boolean(readOnlyReason)}
+                error={supplierError}
+                onKeep={keepWebsite}
+                onUseIncoming={(part) => void useIncoming(part)}
+              />
+            </div>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.loading && (
+            <output className="mb-4 block text-sm text-slate-600">Loading Alibaba changes…</output>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.isError && (
+            <div role="alert" className="mb-4 text-sm text-red-700">
+              <p>The Alibaba changes could not be loaded. Your edits are still in this form.</p>
+              <button
+                type="button"
+                className="min-h-11 underline"
+                onClick={() => {
+                  setSupplierReview({ loading: true });
+                  setSupplierReviewAttempt((attempt) => attempt + 1);
+                }}
+              >
+                Retry Alibaba changes
+              </button>
+            </div>
+          )}
+          {canReviewSupplier &&
+            linkedProductId !== undefined &&
+            photoSourcesState === 'loading' && (
+              <output className="mb-4 block text-sm text-slate-600">Loading Alibaba photos…</output>
+            )}
+          {canReviewSupplier && linkedProductId !== undefined && photoSourcesState === 'error' && (
+            <div role="alert" className="mb-4 text-sm text-red-700">
+              <p>Alibaba photos could not be loaded. Your edits are still in this form.</p>
+              <button
+                type="button"
+                className="min-h-11 underline"
+                onClick={() => {
+                  setPhotoSourcesState('loading');
+                  setPhotoSourcesAttempt((attempt) => attempt + 1);
+                }}
+              >
+                Retry Alibaba photos
+              </button>
+            </div>
+          )}
           {sections.length > 0 ? (
             <div className="grid min-w-0 gap-6 lg:grid-cols-2">
               {sectionColumns
@@ -347,7 +697,13 @@ export function RecordForm({
                     {column.sections.map((section) => (
                       <fieldset
                         key={section.heading}
-                        disabled={submitting || sourceImageBusy || discardRequested}
+                        disabled={
+                          submitting ||
+                          sourceImageBusy ||
+                          supplierBusy !== null ||
+                          discardRequested ||
+                          Boolean(readOnlyReason)
+                        }
                         className="min-w-0 space-y-4 rounded-xl border border-slate-200 p-4"
                       >
                         <legend className="font-semibold text-slate-900">{section.heading}</legend>
@@ -392,6 +748,7 @@ export function RecordForm({
                                     }
                                     value={state[field.name]}
                                     error={fieldErrors[field.name]}
+                                    reservedSlots={photoAddBusy?.field === field.name ? 1 : 0}
                                     onBusyChange={
                                       field.name === 'imageIds'
                                         ? setImageBusy
@@ -447,6 +804,15 @@ export function RecordForm({
                                 </button>
                               ))}
                             </div>
+                            <AlibabaPhotoPicker
+                              title="Alibaba photos"
+                              sources={photoSources?.gallery ?? null}
+                              currentIds={galleryIds}
+                              limit={9}
+                              disabled={imageBusy}
+                              busyUrl={photoAddBusy?.url ?? null}
+                              onAdd={(source) => void addSourcePhoto('imageIds', source)}
+                            />
                           </div>
                         )}
                         {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
@@ -475,6 +841,15 @@ export function RecordForm({
                                   ? `Import first ${descriptionPreviewUrls.length} description images`
                                   : 'Import description images'}
                             </button>
+                            <AlibabaPhotoPicker
+                              title="Alibaba description photos"
+                              sources={photoSources?.description ?? null}
+                              currentIds={fieldIds('descriptionImageIds')}
+                              limit={18}
+                              disabled={descriptionImageBusy}
+                              busyUrl={photoAddBusy?.url ?? null}
+                              onAdd={(source) => void addSourcePhoto('descriptionImageIds', source)}
+                            />
                           </div>
                         )}
                         {section.heading === 'Media' && sourceImageNotice && (
@@ -482,6 +857,21 @@ export function RecordForm({
                             {sourceImageNotice}
                           </output>
                         )}
+                        {canReviewSupplier &&
+                          section.heading === 'Media' &&
+                          supplierReview.data && (
+                            <ConfigurationPhotosEditor
+                              configurations={supplierReview.data.configurations}
+                              galleryIds={galleryIds}
+                              value={
+                                configurationPhotos ??
+                                (savedConfigurationPhotos.success
+                                  ? savedConfigurationPhotos.data
+                                  : {})
+                              }
+                              onChange={setConfigurationPhotos}
+                            />
+                          )}
                       </fieldset>
                     ))}
                   </div>
@@ -498,7 +888,10 @@ export function RecordForm({
               )}
             </div>
           ) : (
-            <fieldset disabled={busy || discardRequested} className="mt-4 min-w-0 space-y-4">
+            <fieldset
+              disabled={busy || discardRequested || Boolean(readOnlyReason)}
+              className="mt-4 min-w-0 space-y-4"
+            >
               {editableFields.map((field) =>
                 collection.name === 'sourceCategoryMappings' && field.name === 'subcategoryIds' ? (
                   <MappingSubcategories
@@ -564,23 +957,44 @@ export function RecordForm({
               </div>
             </div>
           ) : (
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={requestClose}
-                disabled={busy}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={busy || pricingInvalid || mappingInvalid}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+            <>
+              {supplierChange && (
+                <div
+                  data-pending-supplier-change
+                  role="note"
+                  className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
+                  <p id={supplierChangeId}>{PENDING_SUPPLIER_CHANGE_NOTICE[supplierChange]}</p>
+                  {onSeeChanges && (
+                    <button
+                      type="button"
+                      onClick={onSeeChanges}
+                      className="min-h-11 rounded-lg border border-amber-400 bg-white px-3 font-medium focus-visible:ring-2 focus-visible:ring-brand-600"
+                    >
+                      See changes
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  disabled={busy}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy || pricingInvalid || mappingInvalid || Boolean(readOnlyReason)}
+                  aria-describedby={supplierChange ? supplierChangeId : undefined}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </>
           )}
         </footer>
       </form>
@@ -705,6 +1119,7 @@ function Field({
   error,
   onBusyChange,
   onValidityChange,
+  reservedSlots = 0,
   onChange,
 }: {
   field: FieldDef;
@@ -712,6 +1127,7 @@ function Field({
   error?: string;
   onBusyChange?: (busy: boolean) => void;
   onValidityChange?: (invalid: boolean) => void;
+  reservedSlots?: number;
   onChange: (value: string | boolean) => void;
 }) {
   const label = (
@@ -747,6 +1163,7 @@ function Field({
             purpose={field.name === 'descriptionImageIds' ? 'description' : 'gallery'}
             inputId={field.name}
             maxItems={field.maxItems}
+            reservedSlots={reservedSlots}
             errorId={describedBy}
             onBusyChange={onBusyChange}
             onChange={(next) => onChange(JSON.stringify(next))}

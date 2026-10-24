@@ -3,6 +3,12 @@ packages:
   - 'apps/functions/*'
   - 'packages/*'
 
+# Preserve local native tools while preparing the deployed CloudBase Linux ABI.
+supportedArchitectures:
+  os: [current, linux]
+  cpu: [current, x64]
+  libc: [current, glibc]
+
 allowBuilds:
   '@biomejs/biome': true
   # Transitive dep of @cloudbase/node-sdk 3.x; its install script only prints

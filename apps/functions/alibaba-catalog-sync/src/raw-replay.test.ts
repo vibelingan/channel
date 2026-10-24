@@ -2,8 +2,15 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import {
+  alibabaOfferKey,
+  alibabaSourceKey,
+  extractProductDetail,
+  normalizeProductDetail,
+  parseAlibabaApiResponse,
+} from '@vibelingan-channel/alibaba-catalog-sync';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { contentFingerprint } from './ingest.ts';
 import { type AlibabaRawReplayPort, replayAlibabaRawPage } from './raw-replay.ts';
 
 const NOW = '2026-09-04T08:00:00.000Z';
@@ -71,7 +78,7 @@ test('targeted replay rejects missing, disabled, wrong-account or changed raw ev
   }
 });
 
-test('versioned raw repair adds only the previously omitted product quote and preserves known MOQ', async () => {
+test('versioned raw replay of a wholesale product with SKUs stores no headline product quote and keeps the SKU MOQ', async () => {
   const f = fixture('local-raw-camping-light');
   f.bodyText = readFileSync(
     new URL('../../../../tests/fixtures/alibaba-camping-light-wire.json', import.meta.url),
@@ -88,7 +95,8 @@ test('versioned raw repair adds only the previously omitted product quote and pr
   const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
   assert.ok(dry.ok);
   assert.equal(dry.ready, true);
-  assert.equal(dry.counts.offers, 2);
+  // The 7.67 wholesale headline summarises the SKUs; it is not a product price.
+  assert.equal(dry.counts.offers, 1);
   assert.equal(harness.updatedOffers.length, 0);
   const applied = await replayAlibabaRawPage(
     {
@@ -102,17 +110,193 @@ test('versioned raw repair adds only the previously omitted product quote and pr
   );
   assert.ok(applied.ok);
   assert.equal(applied.applied, 1);
-  assert.equal(harness.updatedOffers.length, 2);
-  const productOffer = harness.updatedOffers.find(
-    (o) => o.id === alibabaOfferKey('channeltec', 'local-raw-camping-light'),
+  assert.equal(harness.updatedOffers.length, 1);
+  assert.equal(
+    harness.updatedOffers.some(
+      (o) => o.id === alibabaOfferKey('channeltec', 'local-raw-camping-light'),
+    ),
+    false,
   );
-  assert.ok(productOffer);
-  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'amountMinor'), 767);
-  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'sourceMoq'), 1);
+  const skuOffer = harness.updatedOffers[0];
+  assert.equal(skuOffer?.id, f.offer._id);
+  assert.equal(Reflect.get(skuOffer?.patch.pricing as object, 'sourceMoq'), 1);
   assert.equal(
     JSON.stringify(harness.observations[0]?.value).includes('raw-fixture-detail-16'),
     true,
   );
+});
+
+function campingLightFixture() {
+  const f = fixture('local-raw-camping-light');
+  f.bodyText = readFileSync(
+    new URL('../../../../tests/fixtures/alibaba-camping-light-wire.json', import.meta.url),
+    'utf8',
+  );
+  f.payloadId = createHash('sha256').update(f.bodyText).digest('hex');
+  f.source.payloadId = f.payloadId;
+  f.payload._id = f.payloadId;
+  f.payload.responseSha256 = f.payloadId;
+  f.payload.byteLength = Buffer.byteLength(f.bodyText);
+  f.offer._id = alibabaOfferKey('channeltec', 'local-raw-camping-light', 'local-white-sku');
+  f.offer.sourceSkuId = 'local-white-sku';
+  return f;
+}
+
+test('replay deactivates a stored wholesale headline offer that is no longer a product price', async () => {
+  const f = campingLightFixture();
+  const headlineKey = alibabaOfferKey('channeltec', 'local-raw-camping-light');
+  const harness = port(f);
+  harness.p.listActiveOffers = async () => [
+    f.offer,
+    { ...f.offer, _id: headlineKey, sourceSkuId: '@product' },
+  ];
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.ok(dry.ok);
+  assert.equal(dry.ready, true);
+  assert.deepEqual(dry.failures, []);
+  assert.equal(dry.counts.productHeadlineDropped, 1);
+  assert.equal(harness.updatedOffers.length, 0);
+  assert.equal(harness.updatedSources.length, 0);
+  const applied = await replayAlibabaRawPage(
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    },
+    harness.p,
+  );
+  assert.ok(applied.ok);
+  assert.equal(applied.applied, 1);
+  assert.deepEqual(
+    harness.deactivatedOffers.map((o) => [o.id, o.patch.active, o.patch.parserVersion]),
+    [[headlineKey, false, 'alibaba-content-media-v6']],
+  );
+  assert.equal(
+    harness.updatedOffers.some((o) => o.id === headlineKey),
+    false,
+  );
+  assert.ok(harness.updatedOffers.some((o) => o.id === f.offer._id && o.patch.active === true));
+  // The source's content hash is recomputed with the new parser so the next sync
+  // does not count this product as changed (surge guard).
+  assert.equal(harness.updatedSources.length, 1);
+  assert.equal(harness.updatedSources[0]?.id, f.sourceKey);
+  // Exactly what the next ingest computes, whatever its clock or payload id.
+  const response = parseAlibabaApiResponse(f.bodyText);
+  assert.equal(response.kind, 'success');
+  if (response.kind !== 'success') return;
+  const normalized = normalizeProductDetail({
+    connectionId: 'channeltec',
+    detail: extractProductDetail(response.root),
+    payloadId: 'a-later-payload',
+    now: '2026-12-31T00:00:00.000Z',
+  });
+  assert.ok(normalized.ok);
+  assert.equal(
+    harness.updatedSources[0]?.patch.contentHash,
+    contentFingerprint(normalized.sourceProduct, normalized.offers),
+  );
+});
+
+test('a repeated apply after a committed or interrupted headline retirement is safe', async () => {
+  for (const interruption of ['committed', 'lease-lost-after-deactivation'] as const) {
+    const f = campingLightFixture();
+    const headlineKey = alibabaOfferKey('channeltec', 'local-raw-camping-light');
+    const harness = port(f);
+    // A store that reflects writes, unlike the default harness.
+    let active: CollectionDoc[] = [
+      f.offer,
+      { ...f.offer, _id: headlineKey, sourceSkuId: '@product' },
+    ];
+    harness.p.listActiveOffers = async () => active;
+    let renewals = 0;
+    harness.p.updateOffer = async (id, patch) => {
+      harness.deactivatedOffers.push({ id, patch });
+      if (patch.active === false) active = active.filter((offer) => offer._id !== id);
+      return true;
+    };
+    const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+    assert.ok(dry.ok && dry.ready);
+    const apply = {
+      mode: 'apply' as const,
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    };
+    if (interruption === 'lease-lost-after-deactivation') {
+      const renew = harness.p.renewLease;
+      harness.p.updateSourceProduct = async () => false; // lease lost right after deactivation
+      const lost = await replayAlibabaRawPage(apply, harness.p);
+      assert.deepEqual(lost, { ok: false, reason: 'lease-lost' });
+      harness.p.updateSourceProduct = async (id, patch) => {
+        harness.updatedSources.push({ id, patch });
+        return true;
+      };
+      harness.p.renewLease = async (...args) => {
+        renewals += 1;
+        return renew(...args);
+      };
+    } else {
+      const first = await replayAlibabaRawPage(apply, harness.p);
+      assert.ok(first.ok && first.applied === 1);
+    }
+    const retried = await replayAlibabaRawPage(apply, harness.p);
+    assert.ok(retried.ok, interruption);
+    assert.equal(retried.applied, 1, interruption);
+    assert.equal(
+      harness.deactivatedOffers.filter((o) => o.id === headlineKey).length,
+      1,
+      `${interruption}: headline deactivated exactly once`,
+    );
+    assert.ok(active.every((offer) => offer._id !== headlineKey));
+    if (interruption === 'lease-lost-after-deactivation') assert.ok(renewals > 0);
+  }
+});
+
+test('a stale product-level offer on a non-wholesale product still fails the offer-set check', async () => {
+  const f = fixture('sourcing-no-FOB');
+  const harness = port(f);
+  harness.p.listActiveOffers = async () => [
+    f.offer,
+    { ...f.offer, _id: alibabaOfferKey('channeltec', 'sourcing-no-FOB'), sourceSkuId: '@product' },
+  ];
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.ok(dry.ok);
+  assert.equal(dry.ready, false);
+  assert.deepEqual(
+    dry.failures.map((failure) => failure.reason),
+    ['offer-set-mismatch'],
+  );
+  assert.equal(dry.counts.productHeadlineDropped, 0);
+  assert.equal(harness.deactivatedOffers.length, 0);
+});
+
+test('replay still refuses an offer set that differs by more than the dropped headline', async () => {
+  const f = campingLightFixture();
+  const harness = port(f);
+  harness.p.listActiveOffers = async () => [
+    f.offer,
+    {
+      ...f.offer,
+      _id: alibabaOfferKey('channeltec', 'local-raw-camping-light'),
+      sourceSkuId: '@product',
+    },
+    {
+      ...f.offer,
+      _id: alibabaOfferKey('channeltec', 'local-raw-camping-light', 'gone-sku'),
+      sourceSkuId: 'gone-sku',
+    },
+  ];
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.ok(dry.ok);
+  assert.equal(dry.ready, false);
+  assert.deepEqual(
+    dry.failures.map((failure) => failure.reason),
+    ['offer-set-mismatch'],
+  );
+  assert.equal(dry.counts.productHeadlineDropped, 0);
 });
 
 test('raw replay admits a missing sourcing FOB offer without admitting changed SKU identities', async () => {
@@ -232,6 +416,8 @@ function fixture(sourceProductId = 'live-product', connectionId = 'channeltec') 
 
 function port(f = fixture()) {
   const updatedOffers: Array<{ id: string; patch: Record<string, unknown> }> = [];
+  const updatedSources: Array<{ id: string; patch: Record<string, unknown> }> = [];
+  const deactivatedOffers: Array<{ id: string; patch: Record<string, unknown> }> = [];
   const observations: Array<{ id: string; value: Record<string, unknown> }> = [];
   const manifests = new Map<string, CollectionDoc>();
   const p: AlibabaRawReplayPort = {
@@ -257,12 +443,20 @@ function port(f = fixture()) {
       observations.push({ id, value: { ...createOnly, ...value } });
       return true;
     },
+    updateOffer: async (id, patch) => {
+      deactivatedOffers.push({ id, patch });
+      return true;
+    },
+    updateSourceProduct: async (id, patch) => {
+      updatedSources.push({ id, patch });
+      return true;
+    },
     upsertReplayManifest: async (id, value, createOnly) => {
       manifests.set(id, { _id: id, ...createOnly, ...(manifests.get(id) ?? {}), ...value });
       return true;
     },
   };
-  return { p, updatedOffers, observations, manifests };
+  return { p, updatedOffers, updatedSources, deactivatedOffers, observations, manifests };
 }
 
 test('dry-run reconstructs the exact current page without writing', async () => {
@@ -282,6 +476,7 @@ test('dry-run reconstructs the exact current page without writing', async () => 
     attributedVariants: 1,
     attributePairs: 1,
     warnings: 0,
+    productHeadlineDropped: 0,
   });
   assert.deepEqual(result.priceModes, { tiered: 1 });
   assert.equal(updatedOffers.length, 0);
@@ -345,7 +540,7 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
   if (!applied.ok) return;
   assert.equal(applied.applied, 1);
   assert.deepEqual(harness.updatedOffers[0]?.patch.sourceAttributes, { Color: 'Blue' });
-  assert.equal(harness.updatedOffers[0]?.patch.parserVersion, 'alibaba-content-media-v5');
+  assert.equal(harness.updatedOffers[0]?.patch.parserVersion, 'alibaba-content-media-v6');
   assert.equal(Reflect.get(harness.updatedOffers[0]?.patch.pricing as object, 'sourceMoq'), 10);
   assert.equal(harness.observations.length, 1);
   assert.equal(harness.observations[0]?.value.lastSeenOperationId, 'full-current');
@@ -585,4 +780,45 @@ test('raw byte-size and run provenance mismatches fail closed before writes', as
   assert.equal(provenanceResult.failures[0]?.reason, 'invalid-source-row');
   assert.equal(provenanceHarness.updatedOffers.length, 0);
   assert.equal(provenanceHarness.observations.length, 0);
+});
+
+test('resync replay rebuilds the complete mirror and clears absent source classification', async () => {
+  const f = fixture();
+  const original = f.bodyText;
+  f.bodyText = f.bodyText
+    .replace('"category_id":44,', '')
+    .replace('"description":"<p>Safe</p>",', '');
+  assert.notEqual(f.bodyText, original);
+  f.payloadId = createHash('sha256').update(f.bodyText).digest('hex');
+  f.source.payloadId = f.payloadId;
+  Object.assign(f.source, {
+    sourceCategoryId: 'old-category',
+    sourceDescription: 'Old source description',
+    sourceCategoryPath: ['Old category'],
+    sourceUpdatedAt: NOW,
+  });
+  f.payload._id = f.payloadId;
+  f.payload.responseSha256 = f.payloadId;
+  f.payload.byteLength = Buffer.byteLength(f.bodyText);
+  const h = port(f);
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, h.p);
+  assert.ok(dry.ok && dry.ready);
+  const applied = await replayAlibabaRawPage(
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    },
+    h.p,
+  );
+  assert.ok(applied.ok && applied.applied === 1);
+  const mirror = h.updatedSources[0]?.patch;
+  assert.ok(mirror);
+  assert.equal(mirror.sourceCategoryId, null);
+  assert.equal(mirror.sourceDescription, null);
+  assert.deepEqual(mirror.sourceCategoryPath, []);
+  assert.equal(mirror.sourceUpdatedAt, null);
+  assert.equal(h.observations[0]?.value.sourceContentHash, mirror.contentHash);
 });

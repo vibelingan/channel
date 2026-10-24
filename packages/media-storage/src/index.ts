@@ -13,9 +13,13 @@
  * See docs/IMAGE_UPLOAD_STORAGE_DESIGN.md §20.4 (MIU-02).
  */
 
+import { catalogProtectedStoragePath } from './protected-path.ts';
+export { catalogProtectedStoragePath };
+
 /** Top-level storage namespaces; map to the path prefixes below. */
 export type MediaNamespace =
   | 'catalog'
+  | 'catalog-sealed'
   | 'oem'
   | 'marketing'
   | 'smoke'
@@ -74,9 +78,44 @@ export interface UploadCredential {
   storageFileId: string;
 }
 
+export interface PutMediaObjectOptions {
+  /** Must commit the exact permanent target before the first byte is written.
+   * Rejection prevents the write; a later unknown outcome retains this target.
+   */
+  beforeWrite?: (target: Readonly<StoredMediaObject>) => Promise<void>;
+}
+
+export interface MediaObjectReadOptions {
+  readonly maxBytes: number;
+  readonly timeoutMs: number;
+}
+const MEDIA_READ_ERROR = Symbol.for('@vibelingan-channel/media-read-error');
+export class MediaReadError extends Error {
+  readonly [MEDIA_READ_ERROR] = true;
+  constructor(readonly reason: 'too-large' | 'timeout' | 'unavailable') {
+    super(`Media read ${reason}.`);
+    this.name = 'MediaReadError';
+  }
+}
+
+/** The package can be loaded through both CJS and ESM in the same server. */
+export function isMediaReadError(value: unknown): value is MediaReadError {
+  return (
+    value instanceof Error &&
+    Reflect.get(value, MEDIA_READ_ERROR) === true &&
+    ['too-large', 'timeout', 'unavailable'].includes(Reflect.get(value, 'reason'))
+  );
+}
+
 export interface MediaStorageAdapter {
-  putObject(input: PutMediaObjectInput): Promise<StoredMediaObject>;
-  getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
+  putObject(
+    input: PutMediaObjectInput,
+    options?: PutMediaObjectOptions,
+  ): Promise<StoredMediaObject>;
+  getObjectAsBase64(
+    fileId: string,
+    options?: MediaObjectReadOptions,
+  ): Promise<{ body: string; byteSize?: number }>;
   getTempUrl(fileId: string, maxAgeSeconds?: number): Promise<{ url: string; expiresAt?: string }>;
   deleteObject(fileId: string): Promise<void>;
   /**
@@ -166,6 +205,8 @@ function yearMonth(now: Date): { yyyy: string; mm: string } {
 export function objectStoragePath(
   input: Pick<PutMediaObjectInput, 'namespace' | 'logicalId' | 'fileName'> & { now?: Date },
 ): string {
+  if (input.namespace === 'catalog-sealed')
+    return catalogProtectedStoragePath(input.logicalId, input.fileName);
   const safe = safeFileName(input.fileName);
   if (input.namespace === 'smoke') return `smoke/${safe}`;
   if (input.namespace === 'alibaba-raw') return alibabaRawStoragePath(input.logicalId);

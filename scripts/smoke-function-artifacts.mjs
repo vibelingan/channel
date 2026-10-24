@@ -3,6 +3,10 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  smokeCatalogImageDecoder,
+  usesCatalogImageDecoder,
+} from './catalog-image-decoder-artifact.mjs';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 import { REQUIRED_NOSQL_RESOURCES } from './cloudbase-nosql-resources.mjs';
 
@@ -119,6 +123,48 @@ function smokePublicCatalog(artifactDir) {
   }
 }
 
+function smokeAdminProductList(artifactDir) {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-admin-list-behavior-'));
+  try {
+    cpSync(artifactDir, tempRoot, { recursive: true });
+    const result = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/admin-list-artifact-probe.cjs'), join(tempRoot, 'index.js')],
+      { env: { ...process.env }, encoding: 'utf8', timeout: 15000 },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `admin native list artifact smoke failed\n${result.stdout}\n${result.stderr}`,
+      );
+    console.log(
+      `admin: native list budget + full GET + fixed SDK projection passed\n${result.stdout.trim()}`,
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
+function smokeAdminProductWrites(artifactDir) {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-admin-write-behavior-'));
+  try {
+    cpSync(artifactDir, tempRoot, { recursive: true });
+    const result = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/product-write-artifact-probe.cjs'), join(tempRoot, 'index.js')],
+      { env: { ...process.env }, encoding: 'utf8', timeout: 15000 },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `admin native product write artifact smoke failed\n${result.stdout}\n${result.stderr}`,
+      );
+    console.log(
+      `admin: native product write ACK + rollback + retry passed\n${result.stdout.trim()}`,
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
 for (const name of functions) {
   const artifactDir = join(artifactRoot, name);
   const indexFile = join(artifactDir, 'index.js');
@@ -128,6 +174,19 @@ for (const name of functions) {
 
   assertNoUnresolvedImports(name, indexFile);
   smokeRequire(name, artifactDir);
+  if (usesCatalogImageDecoder(readFileSync(indexFile, 'utf8'))) {
+    const temp = mkdtempSync(join(tmpdir(), 'channel-pixel-smoke-'));
+    try {
+      cpSync(artifactDir, temp, { recursive: true });
+      smokeCatalogImageDecoder(temp);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  }
+  if (name === 'admin') {
+    smokeAdminProductList(artifactDir);
+    smokeAdminProductWrites(artifactDir);
+  }
   if (name === 'public-api') smokePublicCatalog(artifactDir);
   console.log(`${name}: artifact smoke passed`);
 }

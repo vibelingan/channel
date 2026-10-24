@@ -20,9 +20,10 @@ import {
   type AlibabaProductMutationResult,
   mutateAlibabaProduct,
 } from '@vibelingan-channel/db';
+import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import {
   buildAlibabaSourceReview,
-  loadAlibabaObservation,
+  loadAlibabaBindingSnapshot,
   snapshotAlibabaProductIdentity,
 } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
@@ -87,7 +88,10 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   }
 
   const source = await getDoc('alibabaSourceProducts', input.sourceKey);
-  const observation = source ? await loadAlibabaObservation(source) : null;
+  if (!source) return { ok: false, reason: 'source-not-found' };
+  const sourceSnapshot = await loadAlibabaBindingSnapshot(source);
+  if (!sourceSnapshot.ok) return sourceSnapshot;
+  const observation = sourceSnapshot.observation;
   const sourceReview = observation ? buildAlibabaSourceReview(observation) : null;
   const offers = await activeOffers(input.sourceKey);
   // Read the OPERATOR pin, never the sync's own previous selection
@@ -152,10 +156,13 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   const result = await mutateAlibabaProduct({
     ...snapshot.expectation,
     action: 'promote',
+    expectedSource: sourceSnapshot.expectation,
     sourceKey: input.sourceKey,
     guard: input.guard,
     now: input.now,
     patch,
+    // The transaction compares it with the approved digest (MIU-19).
+    ...(observation ? { publicSourceDigest: publicSourceDigest(observation) } : {}),
   });
   if (!result.ok) {
     if (result.reason === 'product-not-found') return { ok: false, reason: 'product-missing' };

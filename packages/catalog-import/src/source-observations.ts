@@ -16,6 +16,7 @@
 import { createHash } from 'node:crypto';
 import { catalogOfferPricingSchema as catalogSourcePricingSchema } from '@vibelingan-channel/shared/catalog-pricing';
 export { catalogOfferPricingSchema as catalogSourcePricingSchema } from '@vibelingan-channel/shared/catalog-pricing';
+import { type CatalogIssue, catalogIssuesFromZod } from '@vibelingan-channel/shared/catalog-issues';
 import { type ZodIssue, z } from 'zod';
 import type { CatalogProvider } from './contracts.ts';
 
@@ -266,7 +267,7 @@ export interface CatalogObservationAdapter<Input> {
 
 export type CatalogSourceObservationValidation =
   | { ok: true; value: CatalogSourceObservation }
-  | { ok: false; errors: string[] };
+  | { ok: false; errors: string[]; issues: CatalogIssue[] };
 
 export function validateCatalogSourceObservation(
   value: unknown,
@@ -284,5 +285,6 @@ export function validateCatalogSourceObservation(
   return {
     ok: false,
     errors: [...new Set(formatIssues(parsed.error.issues))],
+    issues: catalogIssuesFromZod(parsed.error.issues, value, { stage: 'source', remedy: 'resync' }),
   };
 }

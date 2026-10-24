@@ -78,6 +78,15 @@ export const OPERATOR_OWNED_PRODUCT_FIELDS: readonly string[] = [
 type SaveOutcome = Awaited<ReturnType<typeof saveCatalogProductWithIdentities>>;
 
 /** Plain-language reason a product could not be written or published. */
+/** Refused only because the product has no approved version yet. */
+function needsApproval(outcome: SaveOutcome): boolean {
+  return (
+    outcome.result === 'invalid-product' &&
+    outcome.issues.length > 0 &&
+    outcome.issues.every((issue) => issue.field === 'published')
+  );
+}
+
 function describeSaveFailure(outcome: SaveOutcome): string {
   switch (outcome.result) {
     case 'conflict':
@@ -284,6 +293,13 @@ export interface PublishSampleInput {
   fetchImages?: number;
   /** Make the sample publicly visible when it satisfies publication rules. */
   makePublic?: boolean;
+  /**
+   * Publishing needs an approved version, like every other way a product goes
+   * live (DEC-15; importers create drafts an admin publishes, OWN-2). On by
+   * default; pass false only where the catalog's approval is switched off
+   * (`CATALOG_DETAIL_APPROVAL_ENABLED` unset), as the admin function does.
+   */
+  requireApproval?: boolean;
   /**
    * LOCAL PROOF ONLY. A stand-in image used when no source image could be
    * fetched, so the storefront path can be exercised end to end on a machine
@@ -571,8 +587,9 @@ export async function publishImportedSample(
 
     // 7. Optionally make it public. The decision is the CATALOG's, not this
     //    file's: `saveCatalogProductWithIdentities` runs the same publication
-    //    rules the admin form runs, so an imported product can never reach the
-    //    storefront by a route an operator-edited one could not.
+    //    rules the admin form runs, including the approval gate, so an
+    //    imported product can never reach the storefront by a route an
+    //    operator-edited one could not.
     if (input.makePublic === true) {
       const publishPatch = { published: true };
       assertNoAlibabaFields(publishPatch, 'catalog import publish');
@@ -580,13 +597,16 @@ export async function publishImportedSample(
         mode: 'update',
         productId,
         data: publishPatch,
+        requireDetailApproval: input.requireApproval === false ? false : 'publication-or-pricing',
       });
       if (promoted.result === 'saved') {
         result.publishedPublic += 1;
       } else {
         result.blocked.push({
           parentSku: candidate.parentSku,
-          reason: describeSaveFailure(promoted),
+          reason: needsApproval(promoted)
+            ? 'saved as a draft: publishing needs an approval — approve and publish it in Admin → Products'
+            : describeSaveFailure(promoted),
         });
       }
     }

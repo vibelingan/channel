@@ -24,9 +24,13 @@ import {
   list,
   mutateAlibabaProduct,
 } from '@vibelingan-channel/db';
+import { sourceBindingSnapshot } from '@vibelingan-channel/db/catalog-source-binding';
 import {
   type CollectionDoc,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  PRODUCT_IMAGE_MAX_COUNT,
+  alibabaPhotoSources,
   isProductFamily,
 } from '@vibelingan-channel/shared';
 import { listAllDocs } from './list-all.ts';
@@ -108,10 +112,13 @@ export async function linkExistingProduct(
   if (!snapshot.ok) return snapshot;
   const source = await getDoc('alibabaSourceProducts', sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
-  const observation = await loadAlibabaObservation(source);
+  const sourceSnapshot = await loadAlibabaBindingSnapshot(source);
+  if (!sourceSnapshot.ok) return sourceSnapshot;
+  const observation = sourceSnapshot.observation;
   const result = await mutateAlibabaProduct({
     ...snapshot.expectation,
     action: 'link',
+    expectedSource: sourceSnapshot.expectation,
     sourceKey,
     linkedByUserId: context.userId ?? '',
     now: context.now,
@@ -155,7 +162,10 @@ export async function unlinkProduct(
 
 export type DraftResult =
   | { ok: true; productId: string; created: boolean }
-  | { ok: false; reason: 'source-not-found' | 'linked-elsewhere' };
+  | {
+      ok: false;
+      reason: 'source-not-found' | 'source-not-ready' | 'source-changed' | 'linked-elsewhere';
+    };
 
 type DraftMutationResult =
   | Extract<DraftResult, { ok: true }>
@@ -309,6 +319,14 @@ export async function loadAlibabaObservation(
     : null;
 }
 
+export async function loadAlibabaBindingSnapshot(source: CollectionDoc) {
+  const row = await getDoc(
+    'catalogSourceObservations',
+    sourceObservationDocumentId('alibaba', source._id),
+  );
+  return sourceBindingSnapshot(source, row);
+}
+
 export async function loadAlibabaSourceReview(
   source: Record<string, unknown> & { _id: string },
 ): Promise<AlibabaSourceReview | null> {
@@ -319,16 +337,18 @@ export async function loadAlibabaSourceReview(
 async function reconcileLinkedDraft(
   expectation: AlibabaProductIdentitySnapshot,
   source: Record<string, unknown> & { _id: string },
-  observation: CatalogSourceObservation | null,
+  sourceSnapshot: Extract<Awaited<ReturnType<typeof loadAlibabaBindingSnapshot>>, { ok: true }>,
   now: string,
 ): Promise<DraftMutationResult> {
+  const observation = sourceSnapshot.observation;
   const patch: Record<string, unknown> = {
-    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
-    ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
+    alibabaDescriptionImageUrls: observation.content.description?.imageUrls ?? [],
+    alibabaSourceReview: buildAlibabaSourceReview(observation),
   };
   const result = await mutateAlibabaProduct({
     ...expectation,
     action: 'reconcile',
+    expectedSource: sourceSnapshot.expectation,
     sourceKey: source._id,
     patch,
     now,
@@ -425,7 +445,12 @@ export async function createDraftForSource(
     ? result
     : {
         ok: false,
-        reason: result.reason === 'source-not-found' ? 'source-not-found' : 'linked-elsewhere',
+        reason:
+          result.reason === 'source-not-found' ||
+          result.reason === 'source-not-ready' ||
+          result.reason === 'source-changed'
+            ? result.reason
+            : 'linked-elsewhere',
       };
 }
 
@@ -474,9 +499,10 @@ async function materializeDraftForSource(
   if (!snapshot.ok) return snapshot;
   const source = await getDoc('alibabaSourceProducts', sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
-  const observation = await loadAlibabaObservation(source);
+  const sourceSnapshot = await loadAlibabaBindingSnapshot(source);
+  if (!sourceSnapshot.ok) return sourceSnapshot;
   if (product && expectedClaim?.productId === productId) {
-    return reconcileLinkedDraft(snapshot.expectation, source, observation, context.now);
+    return reconcileLinkedDraft(snapshot.expectation, source, sourceSnapshot, context.now);
   }
   const category = await (context.resolveCategory ?? createAlibabaCategoryResolver())(
     String(source.sourceCategoryId ?? ''),
@@ -489,7 +515,7 @@ async function materializeDraftForSource(
     },
     expectedClaim,
     category,
-    observation,
+    sourceSnapshot,
     context.now,
   );
   if (!result.ok && result.reason === 'identity-conflict' && product === null) {
@@ -514,14 +540,24 @@ async function createLinkedDraft(
   expectation: AlibabaProductIdentitySnapshot,
   expectedClaim: AlibabaProductLinkIdentity | null,
   category: { productFamily?: string; channelCategory?: string },
-  observation: CatalogSourceObservation | null,
+  snapshot: Extract<Awaited<ReturnType<typeof loadAlibabaBindingSnapshot>>, { ok: true }>,
   now: string,
 ): Promise<DraftMutationResult> {
+  const observation = snapshot.observation;
   const observedTitle = observation?.identity.title;
   const observedDescription = observation?.content.description?.text;
 
+  const sourceImageUrls = Array.isArray(source.sourceImageUrls)
+    ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
+    : [];
+  const descriptionImageUrls = observation?.content.description?.imageUrls ?? [];
+  // A new draft stays out of the admin list until its photos are copied
+  // (PT-G); photo preparation shows it.
+  const hasPhotosToCopy =
+    alibabaPhotoSources(sourceImageUrls, PRODUCT_IMAGE_MAX_COUNT).length > 0 ||
+    alibabaPhotoSources(descriptionImageUrls, PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT).length > 0;
   const draft: Record<string, unknown> = {
-    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
+    alibabaDescriptionImageUrls: descriptionImageUrls,
     name:
       typeof observedTitle === 'string' && observedTitle.trim() !== ''
         ? observedTitle
@@ -543,12 +579,11 @@ async function createLinkedDraft(
     alibabaPrimarySourceKey: source._id,
     alibabaSourceProductId: String(source.sourceProductId ?? ''),
     alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
-    alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
-      ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
-      : [],
+    alibabaSourceImageUrls: sourceImageUrls,
     alibabaSourceStatus: source.active === true ? 'available' : 'removed',
     alibabaSourceLastSyncedAt: now,
     alibabaReviewPending: true,
+    ...(hasPhotosToCopy ? { alibabaPhotosPending: true } : {}),
     ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
     createdAt: now,
     updatedAt: now,
@@ -558,6 +593,7 @@ async function createLinkedDraft(
   const result = await mutateAlibabaProduct({
     ...expectation,
     action: 'create-draft',
+    expectedSource: snapshot.expectation,
     sourceKey: source._id,
     expectedClaim,
     draft,

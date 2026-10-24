@@ -5,12 +5,11 @@ import { CatalogDescriptionImages } from '../../catalog/presentation/CatalogDesc
 import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../../catalog/presentation/CatalogVariantGallery.tsx';
 import { getSharedDetailContent } from '../../i18n/catalog.ts';
+import { CatalogIssuesPanel } from './CatalogIssuesPanel.tsx';
+import { CatalogPreparationControls } from './CatalogPreparationControls.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
-import {
-  type DetailReview,
-  prepareDetailReview,
-  readDetailReview,
-} from './catalog-detail-approval-api.ts';
+import { type DetailPreview, readDetailPreview } from './catalog-detail-approval-api.ts';
+import { catalogPreviewFailure } from './catalog-preview-failure.ts';
 import { useAdminImagePreviews } from './use-admin-image-previews.ts';
 
 /** Uses the same validated detail DTO and components as the buyer, without publication or RFQ. */
@@ -19,14 +18,16 @@ export default function AdminDetailPreview({
   images,
   sourceImages,
   descriptionImages = [],
+  onEdit,
 }: {
   productId: string;
   images: readonly string[];
   sourceImages: boolean;
   descriptionImages?: readonly string[];
+  onEdit: () => void;
 }) {
-  const [review, setReview] = useState<DetailReview>();
-  const [error, setError] = useState('');
+  const [review, setReview] = useState<DetailPreview>();
+  const [error, setError] = useState<ReturnType<typeof catalogPreviewFailure>>();
   const [requestPage, setRequestPage] = useState({ page: 1 });
   const page = requestPage.page;
   const digest = useRef<string | undefined>(undefined);
@@ -44,55 +45,64 @@ export default function AdminDetailPreview({
   useEffect(() => {
     const controller = new AbortController();
     setBusy(true);
-    setError('');
-    const request =
-      requestPage.page === 1
-        ? prepareDetailReview(productId, controller.signal)
-        : readDetailReview(productId, requestPage.page, digest.current, controller.signal);
+    setError(undefined);
+    const request = readDetailPreview(
+      productId,
+      requestPage.page,
+      requestPage.page === 1 ? undefined : digest.current,
+      controller.signal,
+    );
     void request
       .then((next) => {
         if (!controller.signal.aborted) {
           setReview(next);
-          digest.current = next.expectedDigest;
+          digest.current = next.inputDigest;
           setSelected(undefined);
         }
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted)
-          setError(cause instanceof Error ? cause.message : 'Product preview could not be loaded.');
+        if (!controller.signal.aborted) setError(catalogPreviewFailure(cause));
       })
       .finally(() => {
         if (!controller.signal.aborted) setBusy(false);
       });
     return () => controller.abort();
   }, [productId, requestPage]);
+  const controls = (
+    <CatalogPreparationControls
+      key={productId}
+      productId={productId}
+      onEdit={onEdit}
+      onReady={() => {
+        digest.current = undefined;
+        setRequestPage({ page: 1 });
+      }}
+    />
+  );
   if (error)
     return (
-      <div
-        role="alert"
-        className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800"
-      >
-        <p>{error}</p>
-        <button
-          type="button"
-          className="mt-3 min-h-11 underline"
-          onClick={() => {
-            setRequestPage({ page: 1 });
-          }}
-        >
-          Retry product preview
-        </button>
-      </div>
+      <>
+        {controls}
+        <CatalogIssuesPanel
+          message={error.message}
+          issues={error.issues}
+          onRetry={() => setRequestPage({ page: 1 })}
+          onEdit={onEdit}
+        />
+      </>
     );
   if (busy || !review)
     return (
-      <output className="block p-8 text-sm text-slate-600">
-        Loading product images, configurations and prices…
-      </output>
+      <>
+        {controls}
+        <output className="block p-8 text-sm text-slate-600">
+          Loading product images, configurations and prices…
+        </output>
+      </>
     );
   const pages: DetailPages = {
     mode: review.detail.variants.hasMore || page > 1 ? 'paged' : 'complete',
-    currentPage: { ...review.detail, revision: `admin-preview-${review.expectedDigest}` },
+    currentPage: { ...review.detail, revision: `admin-preview-${review.inputDigest}` },
     items: review.detail.variants.items,
     retainedBytes: JSON.stringify(review.detail).length,
   };
@@ -109,6 +119,7 @@ export default function AdminDetailPreview({
     : descriptionImages;
   return (
     <>
+      {controls}
       <p className="mx-6 mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
         Preview of saved changes using the website layout. Viewing does not publish this product or
         submit an inquiry.
@@ -148,7 +159,7 @@ export default function AdminDetailPreview({
             images={galleryImages}
             name={review.detail.name}
             productId={productId}
-            revision={review.expectedDigest}
+            revision={review.inputDigest}
             selection={selection}
             variants={pages.items}
             loadingImages={imagePreview.loading}

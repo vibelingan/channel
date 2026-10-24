@@ -74,6 +74,12 @@ export interface Product {
   alibabaSourceLastSyncedAt?: string;
   /** Imported variants, present only on products that have any. */
   variants?: ProductVariant[];
+  /**
+   * The approved version's card price (`CatalogPriceSummary`). Unvalidated as
+   * received: read it only through `readPriceSummary` (catalog-pricing.ts), so a
+   * malformed value reads as absent instead of failing the page.
+   */
+  priceSummary?: unknown;
 }
 
 export interface CatalogPage {

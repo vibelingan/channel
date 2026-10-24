@@ -1,0 +1,28 @@
+# P3e7d1 原发布任务与官网详情确认
+
+基线34968424。C9b的committed表示原事务有完成回执；客户“已发布”计数还需要官网读回。旧批量readbackProves只比较行字段，带分类revision时保留unproven，无法把丢失回应与同一次原生发布绑定。此MIU增加只读确认，供下一共享队列使用，暂不改旧客户producer。
+
+输入只有原scope，第一次await前校验/复制。先get原任务；未complete返回not-complete，历史complete/current=false返回historical，都不尝试发布。原complete/current有效时读取公开detail首页，携带原批准revision、pageSize=1和byte-budget-v1，复用实际公共DTO/字节预算。官网确认不重做source sync/mapping，不读取原始供应商记录。
+
+公开详情必须同商品、同revision、合法DTO和第一页。随后再get同scope：只在仍complete/current且批准revision不变时confirmed。公开错误后也再查原任务，识别期间已撤回/替换，不能把503/404当发布失败后重新start。原根complete的revisionCurrent=false可属于合法同步元数据变化，不单独据此否定同一公开revision。
+
+总检查预算8秒，abort/超时只停止检查；保存scope供再次check，没有任何写命令。公开响应在读取流时受共享CATALOG_DETAIL_PAGE_MAX_BYTES约束，超限取消reader；不因注入的假fetch绕过默认认证/credentials/URL检查。两次native get之间不能构成跨请求事务，confirmed只证明最后查询时仍是同一公开版本，后来他人撤回仍由刷新显示。
+
+检查先红：同scope三次只读、未完成/历史、公开404/503/坏DTO/错商品/错revision/非第一页、公开读取中撤回、最终状态/输入变化、权限失效、取消、输入在等待时被改、超限响应、失败后再次确认无新start。再串联实际Admin/JSON/PNG的真实发布、公开详情、实际撤回和旧回执确认。之后队列按confirmed计数，unknown保留“检查原任务”入口；原UI P1/JSON80原因未明/getter/其余test门槛仍开放，fullDeliveryReady=false。
+
+
+## 实施与回归
+
+checkPublication仅能发送原scope的get，不接受命令或重发start。结果使用区分联合：confirmed必须同时带最终complete回执、官网revision和名称；其他结果不带这些确认字段。首个只读回执补齐未知digest，之后两次响应都核对原输入；公开GET不携token/body/credentials，不跟随redirect，明确no-store，绑定同revision和一条SKU的首页，复用共享1792KiB响应预算与DTO解码。最后根查询覆盖公开读取期间的撤回/替换；检查超时8秒或外部取消均只pause，不谎称原服务器取消。
+
+初始控制先红再绿；流与取消边界31项中2项失败，分别是非法UTF-8后没有取消剩余body、首根回应时已取消却仍调用public fetch。已修复并保留取消/解码/预算的finally清理。最后33控制与12条既有加新增的实际API串联全绿，其中本步4条新增：0/105SKU公开投影+原回执确认、实际公开503后再次只读确认且JSON原字节不变、读到公开字节后真实Admin撤回必须historical。每例实际withdraw/公开404/引用归零/保留分类与临时目录清理，旧回执没有新的start。默认两次POST和一次匿名GET另用真实客户端模块/envelope测试，避免所有控制只验证注入函数。
+
+15故障两轮全部检出，每轮20重叠失败，源码SHA恢复；包括把get变写、接受未完成/历史、错ID/revision/输入、漏末次get、误拒合法元数据变化、字节预算/解码清理/取消、公开错误当confirmed与附带credentials。最终非法输入断言收紧到AdminApiError/VALIDATION_ERROR，避免任意TypeError也算通过；随后33控制及完整site/Node20组合重新通过。超限流有独立watchdog，只在保护被删时终止挂起，不影响正常检测或当作性能证明。
+
+site1015、Node20客户端216，19包和E2E类型、既有site测试类型、三文件Biome与15页构建通过；相关证据合计6280，其他未变包复用C8且核对哈希。完整Node203266仍67091f62；651安装SDK、精确三函数14进程仍4e5e13bf，没有以新客户端检查冒称重跑后端或云验收。本步没有改变公开API/SDK/env/表、后台写事务或客户producer。
+
+## Review与剩余门槛
+
+实际review/simplify核对三个代码/测试、共享public DTO/分页预算、真实HTTP路由的revision参数、原任务get与最终事务、API envelope和测试清理。按TypeScript规则把可构造的空confirmed收紧为必需确认字段，取消和流错误都消费迟到拒绝；humanizer核对本记录与IMPLEMENTATION_LOG，将“官网成功”限定为“三次只读后仍是同一公开版本”，未承诺未来他人不能撤回。
+
+复查发现已有媒体authority允许5秒签发偏差，原发布任务年龄检查却对任何age<0判expired。这里只记录为待做偏移对照的风险，不能把原JSON80一次begin失败归因于它；原失败缺返回码、后续未复现的事实保留。下一步需分别以时间偏差、商品版本变化、prepared校验做可证伪控制，并继续原JSON80诊断。共享队列/Classification接线、会话getter、P5修复/live-edit/新上传、实际云角色竞争/性能、三时钟resync和真实20件发布后回退仍开放。fullDeliveryReady=false，不bless/部署。

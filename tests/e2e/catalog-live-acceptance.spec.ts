@@ -495,12 +495,7 @@ for (const sample of mediaRepairs)
       adminAction<{
         detail: unknown;
         previewMedia: { variantSources: { id: string; sources: string[] }[] };
-      }>(
-        request,
-        'catalogDetailApproval',
-        { action: 'review', productId: id, includePreviewMedia: true },
-        session.token,
-      );
+      }>(request, 'catalogDetailApproval', { action: 'preview', productId: id }, session.token);
     const rawReview = await readReview();
     const rawDetail = decodeCatalogDetailView(rawReview.detail);
     expect(rawDetail.ok).toBe(true);

@@ -13,6 +13,7 @@ export async function fetchFully(method, url, options = {}) {
     headers,
     maxBytes = DEFAULT_SMOKE_HTTP_MAX_BYTES,
     timeoutMs = DEFAULT_SMOKE_HTTP_TIMEOUT_MS,
+    redirect = 'follow',
   } = options;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     throw new TypeError(`timeoutMs must be a positive safe integer, got ${timeoutMs}`);
@@ -31,6 +32,7 @@ export async function fetchFully(method, url, options = {}) {
       headers,
       body,
       signal: controller.signal,
+      redirect,
     });
     const reader = response.body?.getReader();
     const chunks = [];

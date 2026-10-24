@@ -94,6 +94,48 @@ requireCheck(
   'If this changes in a future SDK, update the design and integration intentionally.',
 );
 const wxDatabase = wx.database();
+
+const listFieldProbe = `
+  import assert from 'node:assert/strict';
+  import { createRequire } from 'node:module';
+  import { ADMIN_PRODUCT_LIST_PROJECTION } from './packages/db/src/catalog-product-list-view.ts';
+  const require = createRequire(new URL('./packages/db/package.json', import.meta.url));
+  const wx = require('wx-server-sdk'); wx.init({ env: 'offline-admin-list-field' });
+  const node = require('@cloudbase/node-sdk');
+  for (const [name, db] of [['wx', wx.database()], ['node', node.init({ env: 'offline-admin-list-field' }).database()]]) {
+    const base = db.collection('products').where({ _id: 'owned-projection' });
+    const projected = base.field(ADMIN_PRODUCT_LIST_PROJECTION);
+    const options = query => (query._query ?? query)._apiOptions;
+    assert.notEqual(projected, base);
+    assert.equal(options(base).projection, undefined);
+    assert.deepEqual(options(projected).projection,
+      Object.fromEntries(Object.keys(ADMIN_PRODUCT_LIST_PROJECTION).map(field => [field, 1])));
+    assert.equal(options(projected).projection['alibabaAutoPhotos.gallery'], 1);
+    assert.equal(Object.hasOwn(options(projected).projection, 'description'), false);
+    const query = projected._query ?? projected;
+    let sent = 0;
+    query._request.send = async (api, params) => {
+      assert.equal(api, 'database.getDocument');
+      assert.deepEqual(JSON.parse(params.projection),
+        Object.fromEntries(Object.keys(ADMIN_PRODUCT_LIST_PROJECTION).map(field => [field, { $numberInt: '1' }])));
+      sent++;
+      return { data: { list: [] }, requestId: 'owned-field-send' };
+    };
+    await projected.get();
+    assert.equal(sent, 1);
+    console.log(name + ':fixed-product-list-field-ok');
+  }
+`;
+const listFieldEvidence = execFileSync(
+  process.execPath,
+  ['--experimental-strip-types', '--input-type=module', '--eval', listFieldProbe],
+  { cwd: root, encoding: 'utf8' },
+);
+requireCheck(
+  listFieldEvidence.includes('wx:fixed-product-list-field-ok') &&
+    listFieldEvidence.includes('node:fixed-product-list-field-ok'),
+  'both installed SDKs encode the actual fixed admin list projection without mutating the base query',
+);
 requireCheck(
   typeof wxDatabase.command.exists === 'function' && wxDatabase.command.exists(false) !== undefined,
   'wx-server-sdk command exposes exists(false) for strict missing-field queries',
@@ -189,6 +231,34 @@ for (const [position, family] of ['headphones', 'ai-gadgets', 'toys', 'misc'].en
   );
 }
 
+const readinessProbe = `
+  import { createRequire } from 'node:module';
+  import { dirname, join } from 'node:path';
+  import assert from 'node:assert/strict';
+  import { catalogReadinessWhere } from './packages/db/src/catalog-readiness-query.ts';
+  const require = createRequire(new URL('./packages/db/package.json', import.meta.url));
+  const sdkRequire = createRequire(require.resolve('@cloudbase/node-sdk/package.json'));
+  const { QuerySerializer } = sdkRequire(join(dirname(sdkRequire.resolve('@cloudbase/database')), 'serializer/query.js'));
+  const nodeSdk = require('@cloudbase/node-sdk');
+  const wxSdk = require('wx-server-sdk');
+  wxSdk.init({ env: 'offline-readiness-contract' });
+  const commands = [nodeSdk.init({ env: 'offline-readiness-contract' }).database().command, wxSdk.database().command];
+  const plain = { and: c => ({$and:c}), or: c => ({$or:c}), eq: v => ({$eq:v}), in: v => ({$in:v}), expr: v => ({$expr:v}) };
+  for (const scope of ['all','normal','issues','preparing','unchecked']) {
+    const expected = catalogReadinessWhere(plain,scope);
+    for (const command of commands) assert.deepEqual(QuerySerializer.encode(catalogReadinessWhere(command,scope)),expected);
+  }
+  console.log('five native readiness scopes preserved by both installed SDK serializers');
+`;
+requireCheck(
+  execFileSync(
+    process.execPath,
+    ['--experimental-strip-types', '--input-type=module', '--eval', readinessProbe],
+    { cwd: root, encoding: 'utf8' },
+  ).includes('five native readiness scopes preserved'),
+  'node and wx serializers preserve readiness identity, scalar, guarded numeric and before-page expressions',
+);
+
 const nodeTypes = readPackageFile(
   nodeSdk,
   nodeSdk.meta.types ?? nodeSdk.meta.typings ?? 'types/index.d.ts',
@@ -222,6 +292,8 @@ requireCheck(
     'await transaction.rollback();',
     'ERRORS.DATABASE_TRANSACTION_CONFLICT.code',
     'return await runTransaction.bind(this)(callback, --times);',
+    // docs/agents/cloudbase.md: "retries 3 times with no pause".
+    'async function runTransaction(callback, times = 3)',
   ]),
   '@cloudbase/database runTransaction commits, returns callback results, rolls back, and retries conflicts',
 );
@@ -285,6 +357,88 @@ try {
         ]),
     '@cloudbase/database runTransaction behavior passes commit, rollback, result, and retry probes',
   );
+  // DEC-21: the admin function answers BUSY by this code once the SDK's own
+  // retries run out, so the same error must come back, code intact.
+  transactionCalls.length = 0;
+  let exhaustedCode = null;
+  try {
+    await fakeDatabase.runTransaction(async () => {
+      throw { code: 'DATABASE_TRANSACTION_CONFLICT' };
+    }, 1);
+  } catch (error) {
+    exhaustedCode = error?.code ?? null;
+  }
+  requireCheck(
+    exhaustedCode === 'DATABASE_TRANSACTION_CONFLICT' &&
+      transactionCalls.filter((api) => api === 'database.startTransaction').length === 2 &&
+      transactionCalls.includes('database.abortTransaction'),
+    '@cloudbase/database rethrows DATABASE_TRANSACTION_CONFLICT after its retries (admin answers BUSY, DEC-21)',
+  );
+  // DEC-21: production goes through @cloudbase/node-sdk, whose request layer
+  // THROWS a coded database answer (throwOnCode defaults to true), so
+  // runTransaction sees the conflict code and retries.
+  const nodeSdkRoot = dirname(nodeSdk.packagePath);
+  const nodeSdkUtils = readFileSync(join(nodeSdkRoot, 'dist/utils/utils.js'), 'utf8');
+  const nodeSdkRequester = readFileSync(join(nodeSdkRoot, 'dist/utils/tcbapirequester.js'), 'utf8');
+  requireCheck(
+    containsAll(nodeSdkUtils, ['let throwOnCode = true;', 'throw E(Object.assign({}, result));']) &&
+      containsAll(nodeSdkRequester, ['return processReturn(result);']),
+    '@cloudbase/node-sdk throws a coded database answer by default (throwOnCode true)',
+  );
+  // Ownerless legacy intent fields must stay absent, never become null on wire.
+  const ownerlessWrites = [];
+  class OwnerlessTransactionRequest {
+    async send(api, params) {
+      if (api === 'database.startTransaction') return { transactionId: 'ownerless-probe' };
+      if (api === 'database.modifyDocument') {
+        ownerlessWrites.push(params);
+        return { data: { updated: 1, upsert_id: 'ownerless' }, requestId: 'ownerless-set' };
+      }
+      return { requestId: 'ownerless-request' };
+    }
+  }
+  databaseModule.Db.reqClass = OwnerlessTransactionRequest;
+  const ownerlessDb = new databaseModule.Db({});
+  const ownerlessTransaction = await ownerlessDb.startTransaction();
+  await ownerlessTransaction
+    .collection('probe')
+    .doc('ownerless')
+    .set({
+      uploadedByUserId: undefined,
+      imageDeletion: {
+        schemaVersion: 'image-deletion-ownerless-v1',
+        uploadedByUserId: undefined,
+        storageFileIds: ['cloud://Env.Bucket/Case%20Key '],
+      },
+    });
+  const ownerlessWire = JSON.parse(ownerlessWrites[0].data);
+  requireCheck(
+    !Object.hasOwn(ownerlessWire, 'uploadedByUserId') &&
+      !Object.hasOwn(ownerlessWire.imageDeletion, 'uploadedByUserId') &&
+      ownerlessWire.imageDeletion.schemaVersion === 'image-deletion-ownerless-v1' &&
+      ownerlessWire.imageDeletion.storageFileIds[0] === 'cloud://Env.Bucket/Case%20Key ',
+    '@cloudbase/database native set preserves absent ownerless fields and exact permanent identifiers',
+  );
+  // The bare @cloudbase/database API instead ANSWERS a failed read or write with
+  // { code }, not thrown; the approval wrappers rethrow it (sdkAnswer).
+  class CodedTransactionRequest {
+    async send(api) {
+      if (api === 'database.startTransaction') return { transactionId: 'transaction-coded' };
+      if (api === 'database.modifyDocument' || api === 'database.getDocument')
+        return { code: 'DATABASE_TRANSACTION_CONFLICT', message: 'probe' };
+      return { requestId: 'request-coded' };
+    }
+  }
+  databaseModule.Db.reqClass = CodedTransactionRequest;
+  const codedDatabase = new databaseModule.Db({});
+  const codedTransaction = await codedDatabase.startTransaction();
+  const codedSet = await codedTransaction.collection('probe').doc('probe').set({ value: 1 });
+  const codedGet = await codedTransaction.collection('probe').doc('probe').get();
+  requireCheck(
+    codedSet?.code === 'DATABASE_TRANSACTION_CONFLICT' &&
+      codedGet?.code === 'DATABASE_TRANSACTION_CONFLICT',
+    '@cloudbase/database answers a failed in-transaction set/get with { code } instead of throwing (sdkAnswer rethrows it, DEC-21)',
+  );
 } finally {
   databaseModule.Db.reqClass = originalRequestClass;
 }
@@ -322,6 +476,20 @@ requireCheck(
   ]),
   '@cloudbase/database doc.remove is transaction-aware and returns the deleted count',
 );
+// wx-server-sdk wraps @cloudbase/database's delete count as
+// `{ stats: { removed } }`; the adapter's plain `remove()` reads it there
+// (`wxRemovedCount`). Reading `deleted` made every delete report failure.
+const wxRuntime = readFileSync(join(dirname(wxSdk.packagePath), 'index.js'), 'utf8');
+requireCheck(
+  containsAll(wxRuntime, ['stats: {', 'removed: removeResult.deleted || 0']),
+  'wx-server-sdk doc.remove resolves { stats: { removed } }',
+);
+requireCheck(
+  containsAll(readFileSync(join(root, 'packages/db/src/cloudbase-adapter.ts'), 'utf8'), [
+    'return wxRemovedCount(res) > 0;',
+  ]),
+  'cloudbase-adapter remove() reads the wx-server-sdk removed count',
+);
 // Runtime probe: drive a transaction through get(miss) -> set -> update ->
 // remove and pin the API sequence + transaction params actually sent.
 {
@@ -332,6 +500,8 @@ requireCheck(
       if (api === 'database.startTransaction') return { transactionId: 'lease-probe-tx' };
       if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
       if (api === 'database.modifyDocument') {
+        if (params?.query?.includes('update-not-found'))
+          return { requestId: 'r', data: { updated: 0 } };
         if (params?.query?.includes('approval-new'))
           return { requestId: 'r', data: { updated: 0, upsert_id: 'approval-new' } };
         return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
@@ -350,9 +520,14 @@ requireCheck(
       const ref = transaction.collection('alibabaSyncLeases').doc('conn-1');
       const missing = await ref.get();
       const setResult = await ref.set({ holder: 'h', fence: 1 });
-      await ref.update({ heartbeatAt: 'x' });
+      const updateResult = await ref.update({ heartbeatAt: 'x' });
       const removeResult = await ref.remove();
-      return { missing: missing.data, updated: setResult.updated, deleted: removeResult.deleted };
+      return {
+        missing: missing.data,
+        updated: setResult.updated,
+        updateCount: updateResult.updated,
+        deleted: removeResult.deleted,
+      };
     });
     const apiSequence = txCalls.map((call) => call.api);
     const setCall = txCalls.find(
@@ -383,6 +558,18 @@ requireCheck(
         removeCall?.params?.transactionId === 'lease-probe-tx' &&
         removeCall?.params?.query?.includes('conn-1'),
       '@cloudbase/database transaction get/set/update/remove probe matches deterministic write contracts',
+    );
+
+    requireCheck(
+      probeResult.updateCount === 1,
+      '@cloudbase/database update exposes the exact affected-document count',
+    );
+    const notUpdated = await probeDb.runTransaction((transaction) =>
+      transaction.collection('probe').doc('update-not-found').update({ value: 'changed' }),
+    );
+    requireCheck(
+      notUpdated.updated === 0,
+      '@cloudbase/database update preserves a zero-write ACK for caller rejection',
     );
 
     txCalls.length = 0;
@@ -529,7 +716,7 @@ requireCheck(
   const writeSites = [
     /\.update\(\{ data: replaceNestedObjects\(patch, db\.command\) \}\)/,
     /await ref\.update\(replaceNestedObjects\(merged, db\.command\)\)/,
-    /await targetRef\.update\(replaceNestedObjects\(/,
+    /await targetRef\.update\(\s*replaceNestedObjects\(/,
   ];
   requireCheck(
     writeSites.every((pattern) => pattern.test(adapterSource)),
@@ -595,6 +782,91 @@ function sdkFunctionBody(source, name) {
   const end = source.indexOf(`exports.${name} =`, start);
   return end > start ? source.slice(start, end) : source.slice(start);
 }
+const nodeFunctionBody = sdkFunctionBody(
+  readPackageFile(nodeSdk, 'dist/functions/index.js'),
+  'callFunction',
+);
+requireCheck(
+  typeof storageApp.callFunction === 'function' &&
+    containsAll(nodeTypes, [
+      'ICallFunctionOptions',
+      'ICustomReqOpts',
+      'CallFunctionResult',
+      'retryOptions?: IRetryOptions',
+    ]),
+  'installed node-sdk exposes the typed function invocation and per-request retry options',
+);
+requireCheck(
+  containsAll(nodeFunctionBody, [
+    "action: 'functions.invokeFunction'",
+    'function_name: name',
+    'request_data: transformData',
+    'JSON.stringify(data)',
+    "method: 'post'",
+    'opts,',
+    'JSON.parse(res.data.response_data)',
+    'requestId: res.requestId',
+    'if (res.code)',
+  ]),
+  'installed callFunction body serializes data and returns result or provider error in its actual envelope',
+);
+const preparationInvocationConsumers = execFileSync(
+  'git',
+  ['ls-files', '--cached', '--others', '--exclude-standard', 'apps', 'packages'],
+  { cwd: root, encoding: 'utf8' },
+)
+  .split('\n')
+  .filter(
+    (file) =>
+      /\.(?:ts|tsx|astro|js|mjs)$/.test(file) &&
+      !/\.test\.[cm]?[jt]sx?$/.test(file) &&
+      existsSync(join(root, file)) &&
+      /\bcallFunction\b/.test(readFileSync(join(root, file), 'utf8')),
+  )
+  .sort();
+requireCheck(
+  isDeepStrictEqual(preparationInvocationConsumers, [
+    'apps/functions/admin/src/catalog-preparation-invoker.ts',
+  ]),
+  'server SDK function invocation consumer population is acknowledged',
+  preparationInvocationConsumers.join(', '),
+);
+const invocationLoader = join(
+  dirname(localServerRequire.resolve('tsx/package.json')),
+  'dist/loader.mjs',
+);
+const invocationProbe = execFileSync(
+  process.execPath,
+  [
+    '--import',
+    invocationLoader,
+    '--test',
+    '--test-reporter=tap',
+    'apps/functions/admin/src/catalog-preparation-invoker.test.ts',
+  ],
+  { cwd: root, encoding: 'utf8', timeout: 20000, maxBuffer: 4 * 1024 * 1024 },
+);
+const invocationCounts =
+  /# tests (\d+)[\s\S]*# pass (\d+)[\s\S]*# fail (\d+)[\s\S]*# cancelled (\d+)[\s\S]*# skipped (\d+)/.exec(
+    invocationProbe,
+  );
+requireCheck(
+  invocationCounts !== null &&
+    Number(invocationCounts[1]) >= 15 &&
+    invocationCounts[1] === invocationCounts[2] &&
+    invocationCounts.slice(3).every((value) => value === '0') &&
+    [
+      'installed SDK invocation encodes only the signed server call with fixed target deadline and no retries',
+      'installed SDK may return a provider error object instead of throwing',
+      'installed SDK keeps non-JSON response_data as a string instead of granting a worker result',
+      'installed SDK uses zero retries even when its configured default permits retries',
+      'installed SDK startup remains inside the total deadline before any response exists',
+      'an already-streaming installed SDK request cannot extend the total preparation wait',
+      'preparation deadline handles a late rejection without repeating the invocation',
+    ].every((name) => invocationProbe.includes(name)),
+  'actual installed function SDK encoding, error envelope, zero retry and streaming total deadline probes pass without skips',
+);
+
 const uploadFileBody = sdkFunctionBody(nodeStorage, 'uploadFile');
 requireCheck(
   uploadFileBody.length > 0 && /method:\s*['"]put['"]/.test(uploadFileBody),
@@ -605,6 +877,36 @@ requireCheck(
     containsAll(uploadFileBody, ['Signature', 'x-cos-security-token', 'x-cos-meta-fileid']),
   '@cloudbase/node-sdk uploadFile carries the credential in HEADERS, with no multipart form',
 );
+requireCheck(
+  uploadFileBody.includes(
+    'if (!(fileContent instanceof fs_1.default.ReadStream) && !(fileContent instanceof Buffer))',
+  ),
+  '@cloudbase/node-sdk uploadFile accepts only fs.ReadStream or Buffer at runtime',
+);
+const trackedSender = readFileSync(
+  join(root, 'packages/media-storage/src/cloudbase-put.ts'),
+  'utf8',
+);
+const trackedSenderStart = trackedSender.indexOf('export async function putCloudBaseBytes(');
+if (trackedSenderStart < 0) throw new Error('Tracked sender function is missing');
+const trackedSenderBody = trackedSender.slice(trackedSenderStart);
+requireCheck(
+  /request\(url,\s*\{ method: 'PUT', headers: credential\.headers \}/.test(trackedSenderBody) &&
+    /pipeline\(source, destination\)/.test(trackedSenderBody) &&
+    !/FormData|formFields|method: 'POST'/.test(trackedSenderBody),
+  'tracked server uploader sends the SDK-minted PUT headers and raw bytes',
+);
+requireCheck(
+  /if \(response\.statusCode !== 200\) \{/.test(trackedSenderBody) &&
+    /response\.on\('data', \(\) => \{\s*reject\(new Error\('media-storage\(cloudbase\): unexpected upload response body'\)\);\s*response\.destroy\(\);\s*\}\)/.test(
+      trackedSenderBody,
+    ) &&
+    /setTimeout\(\s*\(\) => destination\.destroy\(new Error\('media-storage\(cloudbase\): upload timed out'\)\),\s*timeoutMs/.test(
+      trackedSenderBody,
+    ),
+  'tracked server uploader requires bounded empty HTTP 200 acknowledgement',
+);
+
 const uploadMetadataBody = sdkFunctionBody(nodeStorage, 'getUploadMetadata');
 requireCheck(
   /method:\s*['"]put['"]/.test(uploadMetadataBody),
@@ -632,6 +934,29 @@ for (const clientPath of [
     `${clientPath} sends credential headers with a raw body (no multipart form)`,
   );
 }
+
+const uploadConsumers = execFileSync(
+  'git',
+  ['ls-files', '-z', '-co', '--exclude-standard', '--', 'apps', 'packages'],
+  { cwd: root, encoding: 'utf8' },
+)
+  .split('\0')
+  .filter(
+    (file) =>
+      /\.(?:ts|tsx|astro)$/.test(file) &&
+      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
+      existsSync(join(root, file)),
+  )
+  .filter((file) =>
+    /\b(?:fetch|request)\([^;\n]{0,200}\{[\s\S]{0,200}\bheaders:\s*(?:credential\.headers|intent\.upload\.headers)/.test(
+      readFileSync(join(root, file), 'utf8'),
+    ),
+  );
+requireCheck(
+  uploadConsumers.length === 3,
+  'SDK credential sender population is exactly three clients; new senders require contract verification',
+  uploadConsumers.join(', '),
+);
 
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
 requireCheck(
@@ -684,35 +1009,6 @@ requireCheck(
   ]),
   'db cloudbase strict publication/archive and legacy Headphones filters are composed server-side',
 );
-const acquireMutationStart = cloudbaseAdapter.indexOf('  async acquireImageMutation');
-const acquireMutationEnd = cloudbaseAdapter.indexOf(
-  '  async releaseImageMutation',
-  acquireMutationStart,
-);
-const acquireMutationMethod =
-  acquireMutationStart >= 0 && acquireMutationEnd > acquireMutationStart
-    ? cloudbaseAdapter.slice(acquireMutationStart, acquireMutationEnd)
-    : '';
-requireCheck(
-  acquireMutationMethod.includes('db.runTransaction') &&
-    acquireMutationMethod.includes("transaction.collection('images')") &&
-    acquireMutationMethod.includes('transitionImageMutationAcquire(doc, owner, startedAt)') &&
-    acquireMutationMethod.includes('...transition.patch'),
-  'db cloudbase adapter acquires image mutation ownership transactionally',
-);
-const releaseMutationStart = cloudbaseAdapter.indexOf('  async releaseImageMutation');
-const releaseMutationEnd = cloudbaseAdapter.indexOf('\n};', releaseMutationStart);
-const releaseMutationMethod =
-  releaseMutationStart >= 0 && releaseMutationEnd > releaseMutationStart
-    ? cloudbaseAdapter.slice(releaseMutationStart, releaseMutationEnd)
-    : '';
-requireCheck(
-  releaseMutationMethod.includes('db.runTransaction') &&
-    releaseMutationMethod.includes("transaction.collection('images')") &&
-    releaseMutationMethod.includes('transitionImageMutationRelease(doc, owner)') &&
-    releaseMutationMethod.includes('...transition.patch'),
-  'db cloudbase adapter releases image mutation ownership transactionally for the exact owner',
-);
 const typescript = rootRequire('typescript');
 const adapterAst = typescript.createSourceFile(
   'cloudbase-adapter.ts',
@@ -749,28 +1045,63 @@ function objectMethodCalls(variableName, methodName) {
   visit(adapterAst);
   return calls;
 }
+// Bind the production adapter to the exact tested helper, then inspect only
+// that helper's transaction callback. Other methods cannot satisfy this gate.
+for (const [method, helper, transition] of [
+  ['acquireImageMutation', 'acquireImageMutationInCloudBase', 'transitionImageMutationAcquire'],
+  ['releaseImageMutation', 'releaseImageMutationInCloudBase', 'transitionImageMutationRelease'],
+]) {
+  requireCheck(
+    objectMethodCalls('cloudBaseAdapter', method).includes(helper) &&
+      objectMethodCalls('cloudBaseAdapter', method).includes('cloudStorageSdk().database'),
+    `db cloudbase ${method} delegates to its tested native SDK helper`,
+  );
+  const calls = transactionFunctionCalls(helper);
+  requireCheck(
+    ['transaction.collection', 'ref.get', 'ref.update', transition, 'confirmDocumentWrite'].every(
+      (call) => calls.includes(call),
+    ),
+    `db cloudbase ${method} checks ownership and confirms its write inside runTransaction`,
+  );
+}
 requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes(
-    'transitionImageMutationAcquire',
+  objectMethodCalls('cloudBaseAdapter', 'manageImageDeletion').includes(
+    'manageImageDeletionInCloudBase',
   ) &&
-    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes(
-      'transitionImageMutationRelease',
+    ['catalogRowStore', 'runImageDeletion'].every((call) =>
+      transactionFunctionCalls('manageImageDeletionInCloudBase').includes(call),
     ),
-  'db cloudbase acquire/release methods invoke shared ownership transitions',
+  'image deletion production bridge executes the shared state machine in one native SDK transaction',
 );
-// The transition must execute INSIDE a database transaction — a text needle
-// alone would also match a non-transactional TOCTOU rewrite, so assert the
-// actual call expressions in each method body.
 requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes('db.runTransaction') &&
-    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes('db.runTransaction') &&
-    objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes(
-      'transaction.collection',
-    ) &&
-    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes(
-      'transaction.collection',
+  objectMethodCalls('cloudBaseAdapter', 'manageImageUpload').includes(
+    'manageImageUploadInCloudBase',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'manageImageUpload').includes(
+      'cloudStorageSdk().database',
     ),
-  'db cloudbase acquire/release run their transitions inside runTransaction',
+  'upload finalization production adapter delegates to its tested node-sdk transaction helper',
+);
+requireCheck(
+  ['catalogRowStore', 'runImageUpload'].every((call) =>
+    transactionFunctionCalls('manageImageUploadInCloudBase').includes(call),
+  ),
+  'upload finalization executes inside one native SDK transaction callback',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'manageSourceMediaImport').includes(
+    'manageSourceMediaImportInCloudBase',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'manageSourceMediaImport').includes(
+      'cloudStorageSdk().database',
+    ),
+  'source media production adapter delegates to its tested node-sdk transaction helper',
+);
+requireCheck(
+  ['catalogRowStore', 'runSourceMediaImport'].every((call) =>
+    transactionFunctionCalls('manageSourceMediaImportInCloudBase').includes(call),
+  ),
+  'source media state transitions execute inside one native SDK transaction callback',
 );
 // The FENCED conditional write (R1 E2) is the branch's one architecture
 // amendment, and its PRODUCTION implementations had zero coverage — every
@@ -782,7 +1113,6 @@ for (const method of [
   'acquireAlibabaSyncLease',
   'renewAlibabaSyncLease',
   'releaseAlibabaSyncLease',
-  'updateDocWithAlibabaLease',
   'createDocWithId',
   'upsertDocWithId',
 ]) {
@@ -832,72 +1162,169 @@ requireCheck(
     ].every((name) => productTransactionCalls.includes(name)),
   'db cloudbase catalog save plans and writes product identities inside one transaction callback',
 );
+function transactionFunctionCalls(name) {
+  const declaration = adapterAst.statements.find(
+    (node) => typescript.isFunctionDeclaration(node) && node.name?.text === name,
+  );
+  if (!declaration?.body) throw new Error(`Missing production transaction helper: ${name}`);
+  const calls = [];
+  const inspect = (node) => {
+    if (
+      typescript.isCallExpression(node) &&
+      node.expression.getText(adapterAst) === 'db.runTransaction'
+    ) {
+      const callback = node.arguments[0];
+      if (
+        callback &&
+        (typescript.isArrowFunction(callback) || typescript.isFunctionExpression(callback))
+      ) {
+        const collect = (child) => {
+          if (typescript.isCallExpression(child)) calls.push(child.expression.getText(adapterAst));
+          typescript.forEachChild(child, collect);
+        };
+        collect(callback.body);
+      }
+    }
+    typescript.forEachChild(node, inspect);
+  };
+  inspect(declaration.body);
+  return calls;
+}
+
+function catalogBranchCalls(methodName) {
+  let method;
+  const find = (node) => {
+    if (
+      typescript.isVariableDeclaration(node) &&
+      node.name.getText(adapterAst) === 'cloudBaseAdapter' &&
+      node.initializer &&
+      typescript.isObjectLiteralExpression(node.initializer)
+    )
+      method = node.initializer.properties.find(
+        (item) =>
+          typescript.isMethodDeclaration(item) && item.name.getText(adapterAst) === methodName,
+      );
+    typescript.forEachChild(node, find);
+  };
+  find(adapterAst);
+  if (!method?.body) throw new Error(`Missing production adapter method: ${methodName}`);
+  const guard = method.body.statements.find(
+    (node) =>
+      typescript.isIfStatement(node) &&
+      typescript.isCallExpression(node.expression) &&
+      node.expression.expression.getText(adapterAst) === 'isCatalogRowCollection',
+  );
+  if (!guard) throw new Error(`Missing catalog branch: ${methodName}`);
+  const calls = [];
+  const collect = (node) => {
+    if (typescript.isCallExpression(node)) calls.push(node.expression.getText(adapterAst));
+    typescript.forEachChild(node, collect);
+  };
+  collect(guard.thenStatement);
+  return calls;
+}
+for (const method of [
+  'create',
+  'update',
+  'remove',
+  'incrementField',
+  'createDocWithId',
+  'upsertDocWithId',
+  'removeDocIfFieldEquals',
+]) {
+  requireCheck(
+    catalogBranchCalls(method).includes('mutateCatalogRowInCloudBase'),
+    `catalog ${method} uses the tested child/parent transaction inside its collection branch`,
+  );
+}
 requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
-    'holdsAlibabaLease',
-  ) &&
-    objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
-      'replaceNestedObjects',
+  ['catalogRowStore', 'runCatalogRowMutation'].every((call) =>
+    transactionFunctionCalls('mutateCatalogRowInCloudBase').includes(call),
+  ),
+  'catalog input mutation plans and writes inside one runTransaction callback',
+);
+for (const helper of [
+  'updateDocWithAlibabaLeaseInCloudBase',
+  'upsertDocWithAlibabaLeaseInCloudBase',
+]) {
+  requireCheck(
+    ['holdsAlibabaLease', 'catalogRowStore', 'runCatalogRowMutation'].every((call) =>
+      transactionFunctionCalls(helper).includes(call),
     ),
-  'db cloudbase updateDocWithAlibabaLease re-verifies the fence and replaces nested fields',
+    `${helper} reuses its existing fenced transaction for catalog inputs`,
+  );
+}
+const rowBridge = adapterAst.statements.find(
+  (node) => typescript.isFunctionDeclaration(node) && node.name?.text === 'catalogRowStore',
 );
+if (!rowBridge?.body) throw new Error('Missing catalogRowStore SDK bridge');
+const rowBridgeCalls = [];
+const collectBridge = (node) => {
+  if (typescript.isCallExpression(node)) rowBridgeCalls.push(node.expression.getText(adapterAst));
+  typescript.forEachChild(node, collectBridge);
+};
+collectBridge(rowBridge.body);
 requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'upsertDocWithAlibabaLease').includes(
+  [
+    'transaction.collection(collection).doc(id).get',
+    'transaction.collection(collection).doc(_id).set',
+    'transaction.collection(collection).doc(id).remove',
+    'confirmDocumentWrite',
+    'sdkAnswer',
+  ].every((call) => rowBridgeCalls.includes(call)),
+  'catalog row bridge uses the verified SDK get/set/remove and confirms writes/deletions',
+);
+
+for (const [method, helper, required] of [
+  [
+    'updateDocWithAlibabaLease',
+    'updateDocWithAlibabaLeaseInCloudBase',
+    [
+      'transaction.collection',
+      'holdsAlibabaLease',
+      'target.get',
+      'target.update',
+      'replaceNestedObjects',
+      'sourceInvalidation',
+      'writeInvalidatedProduct',
+    ],
+  ],
+  [
+    'upsertDocWithAlibabaLease',
     'upsertDocWithAlibabaLeaseInCloudBase',
-  ),
-  'db cloudbase upsertDocWithAlibabaLease delegates to the takeover-tested production helper',
-);
-const fencedUpsertStart = cloudbaseAdapter.indexOf(
-  'export async function upsertDocWithAlibabaLeaseInCloudBase',
-);
-const fencedUpsertEnd = cloudbaseAdapter.indexOf(
-  'export const cloudBaseAdapter',
-  fencedUpsertStart,
-);
-const fencedUpsert =
-  fencedUpsertStart >= 0 && fencedUpsertEnd > fencedUpsertStart
-    ? cloudbaseAdapter.slice(fencedUpsertStart, fencedUpsertEnd)
-    : '';
-requireCheck(
-  containsAll(fencedUpsert, [
-    'db.runTransaction',
-    'leaseRef.get',
-    'holdsAlibabaLease',
-    'targetRef.get',
-    'replaceNestedObjects',
-    'targetRef.set',
-  ]),
-  'takeover-tested production fenced upsert reads lease and target inside one transaction',
-);
-requireCheck(
-  objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes(
+    [
+      'transaction.collection',
+      'leaseRef.get',
+      'holdsAlibabaLease',
+      'targetRef.get',
+      'replaceNestedObjects',
+      'targetRef.set',
+      'sourceInvalidation',
+      'writeInvalidatedProduct',
+    ],
+  ],
+  [
+    'upsertCatalogSourceObservation',
     'upsertCatalogSourceObservationInCloudBase',
-  ),
-  'db cloudbase source observation upsert delegates to the behavior-tested production helper',
-);
-const observationUpsertStart = cloudbaseAdapter.indexOf(
-  'export async function upsertCatalogSourceObservationInCloudBase',
-);
-const observationUpsertEnd = cloudbaseAdapter.indexOf(
-  'export const cloudBaseAdapter',
-  observationUpsertStart,
-);
-const observationUpsert =
-  observationUpsertStart >= 0 && observationUpsertEnd > observationUpsertStart
-    ? cloudbaseAdapter.slice(observationUpsertStart, observationUpsertEnd)
-    : '';
-requireCheck(
-  containsAll(observationUpsert, [
-    'db.runTransaction',
-    'ref.get',
-    'Date.parse',
-    'previousAt',
-    'incomingAt',
-    'replaceNestedObjects',
-    'ref.set',
-  ]),
-  'behavior-tested production source observation helper compares recency and owns the transaction',
-);
+    [
+      'transaction.collection',
+      'ref.get',
+      'Date.parse',
+      'replaceNestedObjects',
+      'ref.set',
+      'sourceInvalidation',
+      'writeInvalidatedProduct',
+      'confirmDocumentWrite',
+    ],
+  ],
+]) {
+  const calls = transactionFunctionCalls(helper);
+  requireCheck(
+    objectMethodCalls('cloudBaseAdapter', method).includes(helper) &&
+      required.every((name) => calls.includes(name)),
+    `db cloudbase ${method} delegates to its tested source/product transaction, with reads, guards and writes inside it`,
+  );
+}
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'claimAlibabaSyncRun').includes(
     'claimAlibabaSyncRunInCloudBase',
@@ -963,9 +1390,156 @@ requireCheck(
   ]) && !mediaCloudbase.includes('formFields'),
   'media-storage maps node-sdk upload metadata to PUT header credentials',
 );
+const trackedUploadStart = mediaCloudbase.indexOf('async putObject(');
+const trackedUploadEnd = mediaCloudbase.indexOf('async getObjectAsBase64(', trackedUploadStart);
+if (trackedUploadStart < 0 || trackedUploadEnd < 0)
+  throw new Error('Tracked adapter upload method is missing');
+const trackedUploadBody = mediaCloudbase.slice(trackedUploadStart, trackedUploadEnd);
+requireCheck(
+  /await options\.beforeWrite\?\.\(\{ \.\.\.target \}\)/.test(trackedUploadBody) &&
+    trackedUploadBody.indexOf('await options.beforeWrite?.({ ...target })') <
+      trackedUploadBody.indexOf('await putCloudBaseBytes(') &&
+    /Buffer\.from\(input\.content\)/.test(trackedUploadBody),
+  'tracked upload checkpoints the permanent target before bytes and adapts Uint8Array to Buffer',
+);
+
 requireCheck(
   !mediaCloudbase.includes('cloudObjectMeta') && !mediaCloudbase.includes('cloudObjectId'),
   'media-storage does not use stale top-level cloudObjectMeta/cloudObjectId fields',
+);
+
+// The bounded reader sends the URL itself, so pin the SDK's corresponding wire path.
+const sdkDownloadBody = sdkFunctionBody(nodeStorage, 'downloadFile');
+const sdkTempUrlBody = sdkFunctionBody(nodeStorage, 'getTempFileURL');
+requireCheck(
+  containsAll(sdkDownloadBody, [
+    "urlType === 'COS_URL' ? res.tempFileURL : encodeURI(res.tempFileURL)",
+    "method: 'get'",
+    "res.code !== 'SUCCESS'",
+    'res.statusCode === 200',
+  ]) &&
+    sdkTempUrlBody.includes('url_type: file.urlType') &&
+    nodeTypes.includes("urlType?: 'COS_URL'"),
+  'installed storage COS_URL download is raw GET requiring SUCCESS and complete HTTP 200',
+);
+const boundedGetPath = 'packages/media-storage/src/cloudbase-get.ts';
+const boundedGetAst = typescript.createSourceFile(
+  boundedGetPath,
+  readFileSync(join(root, boundedGetPath), 'utf8'),
+  typescript.ScriptTarget.Latest,
+);
+function callNodes(node) {
+  const calls = [];
+  const visit = (entry) => {
+    if (typescript.isCallExpression(entry)) calls.push(entry);
+    typescript.forEachChild(entry, visit);
+  };
+  visit(node);
+  return calls;
+}
+function assignedProperty(node, name) {
+  if (!node || !typescript.isObjectLiteralExpression(node)) return undefined;
+  return node.properties.find(
+    (item) =>
+      typescript.isPropertyAssignment(item) &&
+      (typescript.isIdentifier(item.name) || typescript.isStringLiteral(item.name)) &&
+      item.name.text === name,
+  )?.initializer;
+}
+function requestsCosUrl(node) {
+  const list = assignedProperty(node.arguments[0], 'fileList');
+  const first = list && typescript.isArrayLiteralExpression(list) ? list.elements[0] : undefined;
+  const type = assignedProperty(first, 'urlType');
+  return type && typescript.isStringLiteral(type) && type.text === 'COS_URL';
+}
+const boundedGetFunction = boundedGetAst.statements.find(
+  (node) => typescript.isFunctionDeclaration(node) && node.name?.text === 'readCloudBaseBytes',
+);
+if (!boundedGetFunction?.body) throw new Error('Missing bounded COS GET function');
+const boundedGetCalls = callNodes(boundedGetFunction.body);
+const boundedMint = boundedGetCalls.find(
+  (node) => node.expression.getText(boundedGetAst) === 'sdk.getTempFileURL',
+);
+const boundedSend = boundedGetCalls.find(
+  (node) => node.expression.getText(boundedGetAst) === 'request',
+);
+const boundedMethod = assignedProperty(boundedSend?.arguments[1], 'method');
+const mediaCloudAst = typescript.createSourceFile(
+  'cloudbase.ts',
+  mediaCloudbase,
+  typescript.ScriptTarget.Latest,
+);
+let boundedAdapterBranch;
+const inspectReadAdapter = (node) => {
+  if (
+    typescript.isMethodDeclaration(node) &&
+    node.name.getText(mediaCloudAst) === 'getObjectAsBase64'
+  ) {
+    boundedAdapterBranch = node.body?.statements.find(
+      (statement) =>
+        typescript.isIfStatement(statement) &&
+        statement.expression.getText(mediaCloudAst) === 'options',
+    );
+  }
+  typescript.forEachChild(node, inspectReadAdapter);
+};
+inspectReadAdapter(mediaCloudAst);
+requireCheck(
+  boundedMint &&
+    requestsCosUrl(boundedMint) &&
+    boundedMethod &&
+    typescript.isStringLiteral(boundedMethod) &&
+    boundedMethod.text === 'GET' &&
+    !assignedProperty(boundedSend.arguments[1], 'headers') &&
+    boundedGetCalls.some((node) => node.expression.getText(boundedGetAst) === 'readMediaBytes') &&
+    boundedAdapterBranch &&
+    callNodes(boundedAdapterBranch.thenStatement).some(
+      (node) =>
+        node.expression.getText(mediaCloudAst) === 'readCloudBaseBytes' &&
+        node.arguments.map((argument) => argument.getText(mediaCloudAst)).join(',') ===
+          'sdk,fileId,options,transport',
+    ),
+  'production bounded adapter delegates options to the exact SDK-minted COS_URL raw GET reader',
+);
+const cosUrlConsumers = execFileSync(
+  'git',
+  [
+    'ls-files',
+    '-z',
+    '-co',
+    '--exclude-standard',
+    '--',
+    'apps/functions',
+    'apps/local-server',
+    'packages',
+  ],
+  { cwd: root, encoding: 'utf8' },
+)
+  .split('\0')
+  .filter(
+    (file) =>
+      /\.[cm]?[jt]sx?$/.test(file) &&
+      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
+      !file.includes('/testing/') &&
+      existsSync(join(root, file)),
+  )
+  .filter((file) => {
+    const ast = typescript.createSourceFile(
+      file,
+      readFileSync(join(root, file), 'utf8'),
+      typescript.ScriptTarget.Latest,
+    );
+    return callNodes(ast).some(
+      (node) =>
+        typescript.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'getTempFileURL' &&
+        requestsCosUrl(node),
+    );
+  });
+requireCheck(
+  cosUrlConsumers.length === 1 && cosUrlConsumers[0] === boundedGetPath,
+  'SDK COS_URL direct-download sender population is exactly the reviewed bounded reader',
+  cosUrlConsumers.join(', '),
 );
 
 const localLeaseFile = join(root, `.cloudbase-sdk-contract-${process.pid}.json`);

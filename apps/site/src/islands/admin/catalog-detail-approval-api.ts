@@ -11,7 +11,7 @@ const progress = z
     complete: z.boolean(),
   })
   .strict();
-const review = z
+const reviewResponse = z
   .object({
     ok: z.literal(true),
     kind: z.literal('review'),
@@ -46,6 +46,49 @@ const review = z
       .optional(),
   })
   .strict();
+const preview = z
+  .object({
+    ok: z.literal(true),
+    kind: z.literal('preview'),
+    productId: z.string(),
+    inputDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    detail: z.unknown(),
+    previewMedia: reviewResponse.shape.previewMedia
+      .unwrap()
+      .omit({ importDigest: true })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export async function readDetailPreview(
+  productId: string,
+  page = 1,
+  inputDigest?: string,
+  signal?: AbortSignal,
+) {
+  const parsed = preview.safeParse(
+    await catalogApprovalCall(
+      { action: 'preview', productId, page, ...(inputDigest ? { inputDigest } : {}) },
+      signal,
+    ),
+  );
+  if (!parsed.success)
+    throw new Error('Product preview could not be read. Reload the saved preview.');
+  const result = parsed.data;
+  const detail = decodeCatalogDetailView(result.detail);
+  if (
+    !detail.ok ||
+    result.productId !== productId ||
+    detail.value._id !== productId ||
+    detail.value.variants.page !== page ||
+    (inputDigest !== undefined && result.inputDigest !== inputDigest)
+  )
+    throw new Error('Product preview changed. Reload the saved preview.');
+  return { ...result, detail: detail.value };
+}
+export type DetailPreview = Awaited<ReturnType<typeof readDetailPreview>>;
+
 export async function prepareDetailReview(productId: string, signal?: AbortSignal) {
   let page = 0;
   for (let attempts = 0; attempts < 500; attempts++) {
@@ -65,7 +108,7 @@ export async function readDetailReview(
   expectedDigest?: string,
   signal?: AbortSignal,
 ) {
-  const result = review.parse(
+  const result = reviewResponse.parse(
     await catalogApprovalCall(
       {
         action: 'review',
@@ -88,6 +131,7 @@ export async function approveDetailReview(
   operationId: string,
   signal?: AbortSignal,
 ) {
+  reviewResponse.parse(initialReview);
   let review = initialReview;
   // Conversion to owned media is an explicit approval step, never a Preview side effect.
   // Import only the source mappings the operator just reviewed. Re-read and fail
@@ -158,4 +202,39 @@ export async function approveDetailReview(
     );
   if (!result.complete) throw new Error('Approval was not confirmed.');
   return result;
+}
+
+const approveOnce = z.discriminatedUnion('status', [
+  z
+    .object({
+      ok: z.literal(true),
+      status: z.literal('approved'),
+      jobId: z.string(),
+      revision: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      status: z.literal('needs-browser'),
+      reason: z.enum(['media-import', 'time-budget']),
+    })
+    .strict(),
+]);
+
+/**
+ * Approve a product. Each request to the backend costs about a second of
+ * gateway time, so the server runs the whole approval in one request; it hands
+ * back only when configuration photos must be imported first, or a very large
+ * product needs more time. Then the step-by-step protocol continues under the
+ * same operation id, which resumes the same job.
+ */
+export async function approveProduct(productId: string, signal?: AbortSignal) {
+  const operationId = crypto.randomUUID();
+  const result = approveOnce.parse(
+    await catalogApprovalCall({ action: 'approve', productId, operationId }, signal),
+  );
+  if (result.status === 'approved') return;
+  const review = await prepareDetailReview(productId, signal);
+  await approveDetailReview(review, operationId, signal);
 }

@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { updateRecord, retryBatchUpdate } from '/Volumes/Lexar-Mac/Projects/channel/.claude/worktrees/customer-service-agent-phase2-9e0b73/apps/site/src/islands/admin/api.ts';
+
+test('design review: category-only refresh must not undo a concurrent unpublish', async(t)=>{
+ let published=true;
+ let gets=0;
+ const writes:unknown[]=[];
+ t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+  const body=JSON.parse(String(init.body));
+  if(body.action==='catalogDetailCapabilities')return Response.json({ok:true,data:{enabled:true}});
+  if(body.action==='get'){
+   gets++;
+   const snapshot={_id:'live',published,productFamily:'misc',imageIds:['owned'],alibabaPrimarySourceKey:'a'.repeat(64),alibabaReviewPending:true};
+   if(gets===3)published=false;
+   return Response.json({ok:true,data:snapshot});
+  }
+  if(body.action==='catalogDetailApproval')return Response.json({ok:true,data:{ok:true,status:'approved',jobId:'j',revision:'approved-r'}});
+  assert.equal(body.action,'update');writes.push(body.data);
+  if(typeof body.data.values.published==='boolean')published=body.data.values.published;
+  return Response.json({ok:true,data:{_id:'live',published,productFamily:'misc',imageIds:['owned'],alibabaPrimarySourceKey:'a'.repeat(64),alibabaReviewPending:true}});
+ });
+ await updateRecord('products','live',{productFamily:'misc'});
+ assert.equal(published,false,`Concurrent withdrawal was undone by ${JSON.stringify(writes)}`);
+});
+
+test('design review: a retry read about another product cannot prove completion',async(t)=>{
+ t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+  const body=JSON.parse(String(init.body));
+  assert.equal(body.action,'get');
+  return Response.json({ok:true,data:{_id:'wrong-product',published:true,updatedAt:'r1'}});
+ });
+ const result=await retryBatchUpdate({updated:0,items:[],failures:[{id:'wanted',code:'NETWORK_ERROR',message:'lost response',outcome:'unconfirmed',retryable:true}]},['wanted'],{published:true});
+ assert.equal(result.updated,0,`Another product was counted as completed: ${JSON.stringify(result)}`);
+});
+
+test('design review: missing manual-save revision must not remove the classification guard',async(t)=>{
+ const publicationWrites:unknown[]=[];
+ t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+  const body=JSON.parse(String(init.body));
+  if(body.action==='catalogDetailCapabilities')return Response.json({ok:true,data:{enabled:true}});
+  if(body.action==='get')return Response.json({ok:true,data:{_id:'manual',published:false,productFamily:'misc',imageIds:['owned'],updatedAt:'r1'}});
+  if(body.action==='catalogDetailApproval')return Response.json({ok:true,data:{ok:true,status:'approved',jobId:'j',revision:'approved-r'}});
+  assert.equal(body.action,'update');
+  if(body.data.values.published===true)publicationWrites.push(body.data);
+  return Response.json({ok:true,data:{_id:'manual',published:body.data.values.published===true,productFamily:'misc',imageIds:['owned']}});
+ });
+ let refused=false;
+ try {await updateRecord('products','manual',{name:'Revised',published:true},'r1');}catch{refused=true;}
+ assert.equal(refused,true,`Missing revision was accepted; final writes=${JSON.stringify(publicationWrites)}`);
+});

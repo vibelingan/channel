@@ -6,18 +6,23 @@
  * `storageFileId` is `local-disk:<storagePath>`; the path is always resolved
  * back under `baseDir` and rejected if it escapes (no traversal).
  */
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { pathToFileURL } from 'node:url';
 import {
+  type MediaObjectReadOptions,
   type MediaStorageAdapter,
   type PutMediaObjectInput,
+  type PutMediaObjectOptions,
   type StoredMediaObject,
   type UploadCredential,
   objectStoragePath,
 } from './index.ts';
+import { assertProtectedMediaCheckpoint } from './protected-path.ts';
+
+import { readMediaBytes } from './read-limits.ts';
 
 const LOCAL_DISK_PREFIX = 'local-disk:';
 
@@ -42,9 +47,20 @@ export class LocalDiskMediaStorage implements MediaStorageAdapter {
     return fileId.startsWith(LOCAL_DISK_PREFIX) ? fileId.slice(LOCAL_DISK_PREFIX.length) : fileId;
   }
 
-  async putObject(input: PutMediaObjectInput): Promise<StoredMediaObject> {
+  async putObject(
+    input: PutMediaObjectInput,
+    options: PutMediaObjectOptions = {},
+  ): Promise<StoredMediaObject> {
+    assertProtectedMediaCheckpoint(input.namespace, options.beforeWrite);
     const storagePath = objectStoragePath(input);
     const abs = this.resolveSafe(storagePath);
+    await options.beforeWrite?.({
+      storageProvider: 'local-disk',
+      storageMode: 'local-disk',
+      storageFileId: this.toFileId(storagePath),
+      storagePath,
+      ...(input.content instanceof Uint8Array ? { byteSize: input.content.byteLength } : {}),
+    });
     await mkdir(dirname(abs), { recursive: true });
 
     let byteSize: number;
@@ -67,9 +83,17 @@ export class LocalDiskMediaStorage implements MediaStorageAdapter {
     };
   }
 
-  async getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }> {
+  async getObjectAsBase64(
+    fileId: string,
+    options?: MediaObjectReadOptions,
+  ): Promise<{ body: string; byteSize?: number }> {
     const abs = this.resolveSafe(this.toStoragePath(fileId));
-    const buf = await readFile(abs);
+    const buf = options
+      ? await readMediaBytes(
+          async (signal) => createReadStream(abs, { start: 0, end: options.maxBytes, signal }),
+          options,
+        )
+      : await readFile(abs);
     return { body: buf.toString('base64'), byteSize: buf.byteLength };
   }
 

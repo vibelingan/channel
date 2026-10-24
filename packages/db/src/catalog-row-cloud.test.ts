@@ -1,0 +1,690 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import test from 'node:test';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CATALOG_PREPARATION_POLICY } from '@vibelingan-channel/shared/catalog-preparation';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import {
+  CatalogPreparationCommitSchema,
+  catalogPreparationInputDigest,
+  readCatalogPreparationInputs,
+} from './catalog-preparation-store.ts';
+import { type CatalogRowMutation, isCatalogRowCollection } from './catalog-row-mutation.ts';
+import * as cloud from './cloudbase-adapter.ts';
+
+const now = '2026-10-13T00:00:00.000Z';
+function fixture(seed: Record<string, CollectionDoc> = {}) {
+  let store = new Map<string, CollectionDoc>([
+    [
+      'products/p',
+      {
+        _id: 'p',
+        name: 'Before',
+        productFamily: 'misc',
+        published: false,
+        catalogContentGeneration: 4,
+        detailSourceReady: true,
+        alibabaPrimarySourceKey: 'k',
+      },
+    ],
+    [
+      'products/q',
+      {
+        _id: 'q',
+        name: 'Other',
+        productFamily: 'misc',
+        published: false,
+        catalogContentGeneration: 9,
+        detailSourceReady: true,
+      },
+    ],
+    ['alibabaProductLinks/k', { _id: 'k', sourceKey: 'k', productId: 'p' }],
+    [
+      'alibabaSourceProducts/k',
+      {
+        _id: 'k',
+        sourceKey: 'k',
+        connectionId: 'primary',
+        sourceProductId: 'external',
+        sourceTitle: 'Before',
+        updatedAt: now,
+        sourceCategoryId: 1,
+        active: true,
+        catalogBindingGeneration: 3,
+      },
+    ],
+    [
+      'catalogSourceObservations/obs',
+      {
+        _id: 'obs',
+        provider: 'alibaba',
+        sourceProductKey: 'k',
+        active: true,
+        observation: {
+          source: { provider: 'alibaba', sourceProductKey: 'k' },
+          identity: { title: 'Before' },
+        },
+      },
+    ],
+    ['productVariants/v', { _id: 'v', productId: 'p', sku: 'Before', inventoryQuantity: 2 }],
+    [
+      'alibabaSyncLeases/primary',
+      {
+        _id: 'primary',
+        holder: 'owner',
+        fence: 2,
+        heartbeatAt: now,
+        expiresAt: '2026-10-13T00:03:00.000Z',
+        releasedAt: '',
+      },
+    ],
+  ]);
+  for (const [key, row] of Object.entries(seed)) store.set(key, structuredClone(row));
+  const control = {
+    fail: '',
+    silent: '',
+    coded: '',
+    wrongId: '',
+    arrayReads: false,
+    maximumOperations: 0,
+    totalWrites: 0,
+  };
+  const collection = (name: string, copy: typeof store) => ({
+    doc: (id: string) => {
+      const key = `${name}/${id}`;
+      return {
+        get: async () => {
+          const row = structuredClone(copy.get(key) ?? null);
+          return { data: control.arrayReads ? (row ? [row] : []) : row };
+        },
+        update: async (_patch: Record<string, unknown>) => {
+          throw new Error('catalog inputs use full-replace set');
+        },
+        set: async (data: Record<string, unknown>) => {
+          assert.equal(Object.hasOwn(data, '_id'), false, 'SDK set payload excludes identity');
+          if (control.fail === key) throw new Error('synthetic-write-fault');
+          if (control.coded === key) return { code: 'DATABASE_TRANSACTION_CONFLICT' };
+          if (control.silent === key) return { updated: 0 };
+          const existed = copy.has(key);
+          copy.set(key, { ...structuredClone(data), _id: id });
+          return control.wrongId === key
+            ? { upserted: [{ _id: 'wrong-id' }] }
+            : existed
+              ? { updated: 1 }
+              : { upserted: [{ _id: id }] };
+        },
+        remove: async () => {
+          if (control.fail === key) throw new Error('synthetic-write-fault');
+          if (control.silent === key) return { deleted: 0 };
+          return { deleted: copy.delete(key) ? 1 : 0 };
+        },
+      };
+    },
+  });
+  const db = {
+    command: { set: (value: unknown) => value },
+    runTransaction: async <T>(
+      operation: (tx: {
+        collection: (name: string) => ReturnType<typeof collection>;
+      }) => Promise<T>,
+    ): Promise<T> => {
+      const copy = structuredClone(store);
+      let writes = false;
+      let operations = 0;
+      const tracked = (name: string) => ({
+        doc: (id: string) => {
+          const ref = collection(name, copy).doc(id);
+          return {
+            get: async () => {
+              assert.equal(writes, false, 'read before write');
+              operations++;
+              return ref.get();
+            },
+            update: async (patch: Record<string, unknown>) => {
+              control.totalWrites++;
+              writes = true;
+              operations++;
+              return ref.update(patch);
+            },
+            set: async (data: Record<string, unknown>) => {
+              control.totalWrites++;
+              writes = true;
+              operations++;
+              return ref.set(data);
+            },
+            remove: async () => {
+              control.totalWrites++;
+              writes = true;
+              operations++;
+              return ref.remove();
+            },
+          };
+        },
+      });
+      try {
+        const result = await operation({ collection: tracked });
+        store = copy;
+        return result;
+      } finally {
+        control.maximumOperations = Math.max(control.maximumOperations, operations);
+      }
+    },
+  };
+  return {
+    db,
+    control,
+    get: (collection: string, id: string) =>
+      structuredClone(store.get(`${collection}/${id}`) ?? null),
+    snapshot: () => structuredClone(store),
+  };
+}
+const updateVariant: CatalogRowMutation = {
+  action: 'update',
+  collection: 'productVariants',
+  id: 'v',
+  data: { sku: 'After' },
+};
+
+for (const action of ['update', 'upsert'] as const)
+  test(`Cloud production fenced ${action} invalidates the variant parent in the same transaction`, async () => {
+    const h = fixture();
+    const guard = { connectionId: 'primary', holder: 'owner', fence: 2, now };
+    const result =
+      action === 'update'
+        ? await cloud.updateDocWithAlibabaLeaseInCloudBase(
+            h.db,
+            'productVariants',
+            'v',
+            { sku: 'After' },
+            guard,
+          )
+        : await cloud.upsertDocWithAlibabaLeaseInCloudBase(
+            h.db,
+            'productVariants',
+            'v',
+            { sku: 'After' },
+            {},
+            guard,
+          );
+    assert.equal(result, true);
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+    assert.equal(h.get('products', 'p')?.detailSourceReady, false);
+  });
+
+for (const action of ['create', 'create-if-missing', 'upsert'] as const)
+  test(`Cloud ${action} creates an unprepared product with zero versions`, async () => {
+    const h = fixture();
+    const result = await cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      { action, collection: 'products', id: 'new', data: { name: 'New', detailSourceReady: true } },
+      now,
+    );
+    assert.equal(result.status, 'written');
+    assert.equal(h.get('products', 'new')?.catalogContentGeneration, 0);
+    assert.equal(h.get('products', 'new')?.detailSourceReady, false);
+  });
+
+for (const action of ['update', 'upsert', 'remove', 'increment'] as const)
+  test(`Cloud variant ${action} invalidates its parent atomically`, async () => {
+    const h = fixture();
+    const command: CatalogRowMutation =
+      action === 'remove'
+        ? { action, collection: 'productVariants', id: 'v' }
+        : action === 'increment'
+          ? { action, collection: 'productVariants', id: 'v', field: 'inventoryQuantity', delta: 1 }
+          : { ...updateVariant, action };
+    await cloud.mutateCatalogRowInCloudBase(h.db, command, now);
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+    assert.equal(h.get('products', 'p')?.detailSourceReady, false);
+  });
+
+test('Cloud variant move invalidates both parents and stays within six doc operations', async () => {
+  const h = fixture();
+  await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    { ...updateVariant, data: { productId: 'q' } },
+    now,
+  );
+  assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+  assert.equal(h.get('products', 'q')?.catalogContentGeneration, 10);
+  assert.equal(h.control.maximumOperations, 6);
+});
+
+test('Cloud no-op variant, conditional miss and unrelated product counter retain readiness', async () => {
+  const h = fixture();
+  await cloud.mutateCatalogRowInCloudBase(h.db, { ...updateVariant, data: { sku: 'Before' } }, now);
+  const removed = await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    {
+      action: 'remove',
+      collection: 'productVariants',
+      id: 'v',
+      expectedField: { field: 'productId', value: 'q' },
+    },
+    now,
+  );
+  assert.equal(removed.status, 'missing');
+  await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    { action: 'increment', collection: 'products', id: 'p', field: 'views', delta: 1 },
+    now,
+  );
+  assert.equal(h.get('products', 'p')?.catalogContentGeneration, 4);
+  assert.equal(h.get('products', 'p')?.detailSourceReady, true);
+});
+
+for (const control of ['fail', 'silent', 'coded', 'wrongId'] as const)
+  test(`Cloud ${control} write refuses success and rolls back the child plus parent`, async () => {
+    const h = fixture();
+    h.control[control] = 'products/p';
+    const before = h.snapshot();
+    await assert.rejects(cloud.mutateCatalogRowInCloudBase(h.db, updateVariant, now));
+    assert.deepEqual(h.snapshot(), before);
+  });
+
+test('Cloud silent deletion cannot invalidate the parent without deleting the child', async () => {
+  const h = fixture();
+  h.control.silent = 'productVariants/v';
+  const before = h.snapshot();
+  await assert.rejects(
+    cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      { action: 'remove', collection: 'productVariants', id: 'v' },
+      now,
+    ),
+  );
+  assert.deepEqual(h.snapshot(), before);
+});
+
+test('Cloud array-shaped reads preserve exact nested replacements and authoritative private versions', async () => {
+  const h = fixture();
+  h.control.arrayReads = true;
+  await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    {
+      action: 'update',
+      collection: 'products',
+      id: 'p',
+      data: { name: 'After', catalogContentGeneration: 0, manualCatalogPricing: { mode: 'fixed' } },
+    },
+    now,
+  );
+  assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+  assert.deepEqual(h.get('products', 'p')?.manualCatalogPricing, { mode: 'fixed' });
+});
+
+for (const action of ['create', 'create-if-missing', 'upsert'] as const)
+  test(`Cloud variant ${action} writes its new row and invalidates an existing parent`, async () => {
+    const h = fixture();
+    await cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      { action, collection: 'productVariants', id: 'new-v', data: { productId: 'p', sku: 'New' } },
+      now,
+    );
+    assert.equal(h.get('productVariants', 'new-v')?.sku, 'New');
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+  });
+
+test('Cloud fenced catalog writer refuses a stale holder without touching either row', async () => {
+  const h = fixture();
+  const before = h.snapshot();
+  assert.equal(
+    await cloud.updateDocWithAlibabaLeaseInCloudBase(
+      h.db,
+      'productVariants',
+      'v',
+      { sku: 'After' },
+      { connectionId: 'primary', holder: 'old-owner', fence: 1, now },
+    ),
+    false,
+  );
+  assert.deepEqual(h.snapshot(), before);
+});
+
+for (const field of [
+  'catalogContentGeneration',
+  'catalogLifecycleVersion',
+  'catalogClassificationRevision',
+])
+  test(`Cloud ordinary increment cannot mutate private ${field}`, async () => {
+    const h = fixture();
+    const before = h.snapshot();
+    await assert.rejects(
+      cloud.mutateCatalogRowInCloudBase(
+        h.db,
+        { action: 'increment', collection: 'products', id: 'p', field, delta: 1 },
+        now,
+      ),
+    );
+    assert.deepEqual(h.snapshot(), before);
+  });
+
+for (const identity of [null, 17, ['bad-id']])
+  test('Cloud create refuses a supplied non-string identity before SDK access', async () => {
+    await assert.rejects(
+      cloud.cloudBaseAdapter.create('products', { _id: identity, name: 'Invalid identity' }),
+      /Catalog row identity must be a string/,
+    );
+  });
+
+for (const collection of ['alibabaSourceProducts', 'catalogSourceObservations'] as const)
+  for (const fault of ['fail', 'silent', 'coded', 'wrongId'] as const)
+    for (const target of ['source', 'product'] as const)
+      test(`Cloud ${collection} ${fault} at ${target} rolls back input and invalidation`, async () => {
+        const h = fixture();
+        const id = collection === 'alibabaSourceProducts' ? 'k' : 'obs';
+        h.control[fault] = target === 'product' ? 'products/p' : `${collection}/${id}`;
+        const before = h.snapshot();
+        await assert.rejects(
+          cloud.mutateCatalogRowInCloudBase(
+            h.db,
+            { action: 'update', collection, id, data: { active: false } },
+            now,
+          ),
+        );
+        assert.deepEqual(h.snapshot(), before);
+        assert.ok(h.control.maximumOperations <= 5);
+      });
+
+for (const action of ['upsert', 'update'] as const)
+  test(`Cloud fenced mirror ${action} invalidates in one bounded transaction`, async () => {
+    const h = fixture();
+    const guard = { connectionId: 'primary', holder: 'owner', fence: 2, now };
+    const applied =
+      action === 'upsert'
+        ? await cloud.upsertDocWithAlibabaLeaseInCloudBase(
+            h.db,
+            'alibabaSourceProducts',
+            'k',
+            { sourceTitle: 'After' },
+            {},
+            guard,
+          )
+        : await cloud.updateDocWithAlibabaLeaseInCloudBase(
+            h.db,
+            'alibabaSourceProducts',
+            'k',
+            { active: false },
+            guard,
+          );
+    assert.equal(applied, true);
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+    assert.equal(h.get('products', 'p')?.detailSourceReady, false);
+    assert.equal(h.control.maximumOperations, 7, 'four reads plus lease/source/product writes');
+  });
+
+for (const collection of ['alibabaSourceProducts', 'catalogSourceObservations'] as const)
+  test(`Cloud ${collection} deletion is atomic with invalidation and checks ACK`, async () => {
+    const id = collection === 'alibabaSourceProducts' ? 'k' : 'obs';
+    const h = fixture();
+    const before = h.snapshot();
+    h.control.silent = `${collection}/${id}`;
+    await assert.rejects(
+      cloud.mutateCatalogRowInCloudBase(h.db, { action: 'remove', collection, id }, now),
+    );
+    assert.deepEqual(h.snapshot(), before);
+    h.control.silent = '';
+    assert.deepEqual(
+      await cloud.mutateCatalogRowInCloudBase(h.db, { action: 'remove', collection, id }, now),
+      { status: 'removed' },
+    );
+    assert.equal(h.get('products', 'p')?.catalogContentGeneration, 5);
+    assert.equal(h.get('products', 'p')?.detailSourceReady, false);
+  });
+
+test('Cloud identical source upsert confirms the existing row without an ambiguous zero-update write', async () => {
+  const h = fixture();
+  h.control.silent = 'alibabaSourceProducts/k';
+  const result = await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    {
+      action: 'upsert',
+      collection: 'alibabaSourceProducts',
+      id: 'k',
+      data: { sourceTitle: 'Before' },
+    },
+    now,
+  );
+  assert.equal(result.status, 'written');
+  assert.equal(h.control.maximumOperations, 1);
+  assert.equal(h.get('products', 'p')?.catalogContentGeneration, 4);
+});
+
+test('production input collection predicate routes all four catalog input kinds', () => {
+  for (const collection of [
+    'products',
+    'productVariants',
+    'alibabaSourceProducts',
+    'catalogSourceObservations',
+  ])
+    assert.equal(isCatalogRowCollection(collection), true, collection);
+  for (const collection of [
+    'images',
+    'catalogDetailApprovals',
+    'alibabaSupplierOffers',
+    'catalogSourceLinks',
+  ])
+    assert.equal(isCatalogRowCollection(collection), false, collection);
+});
+
+for (const action of ['update', 'upsert', 'create'] as const) {
+  test(`Cloud ${action} cannot install a forged ready report`, async () => {
+    const h = fixture();
+    const id = action === 'create' ? 'new-report' : 'p';
+    await cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      {
+        action,
+        collection: 'products',
+        id,
+        data: {
+          name: action === 'create' ? 'New' : 'Clock p',
+          catalogPreparationState: 'ready',
+          catalogPreparationPolicy: 'forged',
+          catalogPreparationReport: { state: 'ready' },
+        },
+      },
+      now,
+    );
+    const saved = h.get('products', id);
+    assert.ok(saved);
+    assert.equal(Object.hasOwn(saved, 'catalogPreparationPolicy'), false);
+    assert.equal(Object.hasOwn(saved, 'catalogPreparationReport'), false);
+    assert.notEqual(saved.catalogPreparationPolicy, 'forged');
+    assert.equal(saved.published, action === 'create' ? undefined : false);
+  });
+}
+
+async function preparationCommand(h: ReturnType<typeof fixture>, id = 'q') {
+  const product = h.get('products', id);
+  assert.ok(product);
+  const inputs = await readCatalogPreparationInputs(
+    { get: async (collection, key) => h.get(collection, key) },
+    product,
+  );
+  return CatalogPreparationCommitSchema.parse({
+    action: 'preparation-report',
+    report: {
+      schemaVersion: 'catalog-preparation-report-v2',
+      productId: id,
+      inputDigest: catalogPreparationInputDigest(inputs),
+      policyVersion: CATALOG_PREPARATION_POLICY,
+      contentGeneration: product.catalogContentGeneration,
+      checkedAt: now,
+      state: 'preparing',
+      previewReady: true,
+      mediaReady: false,
+      issues: [],
+    },
+  });
+}
+for (const arrayReads of [false, true])
+  test(`Cloud native preparation report accepts installed get shape array=${arrayReads} and preserves other state`, async () => {
+    const h = fixture({ 'users/admin': { _id: 'admin', role: 'admin' } });
+    h.control.arrayReads = arrayReads;
+    const command = await preparationCommand(h);
+    const before = h.get('products', 'q');
+    assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', command), {
+      ok: true,
+      preparation: 'stored',
+      productId: 'q',
+    });
+    assert.deepEqual(h.get('products', 'q'), {
+      ...before,
+      catalogPreparationState: 'preparing',
+      catalogPreparationPolicy: CATALOG_PREPARATION_POLICY,
+      catalogPreparationReport: command.report,
+    });
+    assert.equal(h.control.maximumOperations, 3);
+    assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', command), {
+      ok: true,
+      preparation: 'unchanged',
+      productId: 'q',
+    });
+  });
+for (const fault of ['fail', 'silent', 'coded', 'wrongId'] as const)
+  test(`Cloud preparation report ${fault} ACK never reports success and rolls back`, async () => {
+    const h = fixture({ 'users/admin': { _id: 'admin', role: 'admin' } });
+    const command = await preparationCommand(h);
+    const before = h.snapshot();
+    h.control[fault] = 'products/q';
+    await assert.rejects(persistStagedApprovalInCloud(h.db, 'admin', command));
+    assert.deepEqual(h.snapshot(), before);
+  });
+test('Cloud preparation report refuses a source update committed after its calculation', async () => {
+  const h = fixture({ 'users/admin': { _id: 'admin', role: 'admin' } });
+  const command = await preparationCommand(h, 'p');
+  await cloud.mutateCatalogRowInCloudBase(
+    h.db,
+    {
+      action: 'update',
+      collection: 'alibabaSourceProducts',
+      id: 'k',
+      data: { sourceTitle: 'Changed' },
+    },
+    now,
+  );
+  const before = h.snapshot();
+  assert.deepEqual(await persistStagedApprovalInCloud(h.db, 'admin', command), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.deepEqual(h.snapshot(), before);
+});
+
+for (const [field, value] of [
+  ['alibabaPhotosPending', true],
+  [
+    'alibabaAutoPhotos',
+    {
+      configurations: {
+        sources: ['https://sc04.alicdn.com/a.jpg'],
+        imageIds: [],
+        missing: [],
+        unusable: [],
+      },
+    },
+  ],
+] as const) {
+  test(`Cloud photo preparation ${field} is an input even without gallery changes`, async () => {
+    const h = fixture();
+    const before = h.get('products', 'p');
+    assert.ok(before);
+    const result = await cloud.mutateCatalogRowInCloudBase(
+      h.db,
+      { action: 'update', collection: 'products', id: 'p', data: { [field]: value } },
+      now,
+    );
+    assert.equal(result.status, 'written');
+    const saved = h.get('products', 'p');
+    assert.ok(saved);
+    assert.equal(saved.catalogContentGeneration, 5);
+    assert.equal(saved.catalogPreparationState, 'stale');
+    assert.equal(saved.detailSourceReady, false);
+    assert.equal(saved.published, before.published);
+    assert.equal(h.control.maximumOperations, 2);
+  });
+}
+
+for (const arrayReads of [false, true])
+  test(`native operation reservation accepts exact insert acknowledgement and reads without writes: arrays=${arrayReads}`, async () => {
+    const h = fixture({
+      'users/admin': { _id: 'admin', role: 'admin' },
+      'products/p': {
+        _id: 'p',
+        name: 'Clock',
+        description: '',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: now,
+      },
+    });
+    h.control.arrayReads = arrayReads;
+    const before = h.get('products', 'p');
+    const input = {
+      action: 'operation-start',
+      productId: 'p',
+      operationId: '12345678-1234-4234-8234-123456789012',
+      intent: 'publish',
+      expectedUpdatedAt: now,
+      values: { description: 'Reviewed' },
+    } as const;
+    const begun = await persistStagedApprovalInCloud(h.db, 'admin', input);
+    assert.ok(begun.ok && 'record' in begun);
+    assert.equal(begun.current, true);
+    assert.equal(h.control.maximumOperations, 4);
+    assert.equal(h.control.totalWrites, 1);
+    const snapshot = h.snapshot();
+    const read = await persistStagedApprovalInCloud(h.db, 'admin', {
+      action: 'operation-get',
+      productId: 'p',
+      operationId: input.operationId,
+    });
+    assert.ok(read.ok && 'record' in read);
+    assert.deepEqual(read.record, begun.record);
+    assert.ok((await persistStagedApprovalInCloud(h.db, 'admin', input)).ok);
+    assert.deepEqual(
+      await persistStagedApprovalInCloud(h.db, 'admin', {
+        action: 'finish',
+        jobId: begun.record._id,
+      }),
+      { ok: false, code: 'NOT_FOUND' },
+      'a reservation cannot be finished as an approval',
+    );
+    assert.equal(h.control.totalWrites, 1);
+    assert.deepEqual(h.snapshot(), snapshot);
+    assert.deepEqual(h.get('products', 'p'), before);
+  });
+for (const fault of ['silent', 'wrongId', 'coded', 'fail'] as const)
+  test(`native operation reservation refuses ${fault} write and rolls back`, async () => {
+    const h = fixture({
+      'users/admin': { _id: 'admin', role: 'admin' },
+      'products/p': {
+        _id: 'p',
+        name: 'Clock',
+        productFamily: 'misc',
+        published: false,
+        archived: false,
+        updatedAt: now,
+      },
+    });
+    const operationId = '12345678-1234-4234-8234-123456789012';
+    const key = createHash('sha256')
+      .update(JSON.stringify(['admin', 'p', operationId]))
+      .digest('hex');
+    h.control[fault] = `catalogDetailApprovals/${key}`;
+    const before = h.snapshot();
+    await assert.rejects(
+      persistStagedApprovalInCloud(h.db, 'admin', {
+        action: 'operation-start',
+        productId: 'p',
+        operationId,
+        intent: 'unpublish',
+        expectedUpdatedAt: now,
+        values: {},
+      }),
+    );
+    assert.deepEqual(h.snapshot(), before);
+    assert.ok(h.control.maximumOperations <= 4);
+  });

@@ -1,6 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { readFile, writeFile } from 'node:fs/promises';
+import { type Response as BrowserResponse, expect, test } from '@playwright/test';
+import { clockFactsSamples } from '../../packages/catalog-import/src/testing/clock-source-facts.ts';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { CATALOG_PUBLICATION_WAIT_MS } from './helpers/catalog-publication';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
+import { readImageReferenceCount } from './helpers/image-reference-count';
 import { expectInquirySaved } from './helpers/inquiry-followup';
 import { expectProductSaved } from './helpers/product-save';
 
@@ -47,6 +51,26 @@ test('real raw color mappings → owned media → Admin Preview → approval →
   await page.getByPlaceholder(/^Search name/).fill('Raw Color Headphones');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: 'Raw Color Headphones' });
+  const beforePreview = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  const previewActions: string[] = [];
+  const capturePreview = (request: import('@playwright/test').Request) => {
+    if (request.method() !== 'POST') return;
+    const body: unknown = request.postDataJSON();
+    if (!body || typeof body !== 'object') return;
+    const action = Reflect.get(body, 'action');
+    const data = Reflect.get(body, 'data');
+    if (action === 'importSourceImage') previewActions.push(action);
+    if (action === 'catalogDetailApproval' && data && typeof data === 'object') {
+      const detailAction = Reflect.get(data, 'action');
+      if (typeof detailAction === 'string') previewActions.push(detailAction);
+    }
+  };
+  page.on('request', capturePreview);
   await row.getByRole('button', { name: 'Preview', exact: true }).click();
   const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
   await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
@@ -67,6 +91,16 @@ test('real raw color mappings → owned media → Admin Preview → approval →
   // Viewing and changing selection never publish private media.
   expect((await request.get(`${e2e.apiUrl}/api/images/raw-color-image-6`)).status()).toBe(404);
   await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  page.off('request', capturePreview);
+  expect(previewActions).toEqual(['preview']);
+  const afterPreview = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  expect(afterPreview).toEqual(beforePreview);
+
   await page.getByRole('checkbox', { name: 'Select all rows' }).check();
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await expect
@@ -179,7 +213,8 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   expect(draft.wholesalePrice).toBeUndefined();
   expect(draft.alibabaSourceReview).toMatchObject({
     minimumOrderQuantity: 1,
-    primaryPricing: { mode: 'fixed', amountMinor: 767 },
+    // No headline price since MIU-1: the only quote is the SKU's, which has none.
+    primaryPricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
   });
   const publicBefore = await request.get(`${e2e.apiUrl}/api/images/raw-wire-image-6`);
   expect(publicBefore.status()).toBe(404);
@@ -194,7 +229,7 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await page.getByPlaceholder(/^Search name/).fill('Raw Wire Camping Light');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: 'Raw Wire Camping Light' });
-  await expect(row).toContainText('7.67');
+  await expect(row).not.toContainText('7.67');
   let mediaFailureInjected = false;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON();
@@ -220,7 +255,10 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(preview.getByRole('alert')).toContainText('Saved images have not been removed');
   expect(mediaFailureInjected).toBe(true);
   await preview.getByRole('button', { name: 'Retry images' }).click();
-  await expect(preview.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
+  const previewPrice = preview.locator('[data-catalog-compact-price]');
+  await expect(previewPrice).toContainText('Request a quote');
+  await expect(previewPrice.locator('[data-quote-moq]')).toHaveText('≥1 piece');
+  await expect(previewPrice).not.toContainText('7.67');
   // 30 unambiguous facts + 17 values under repeated labels. The latter stay
   // in notes, not misleading single-valued headline specs.
   await expect(preview.locator('[data-catalog-specifications] dd')).toHaveCount(30);
@@ -254,7 +292,7 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
   await row.getByRole('button', { name: 'Edit', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
-  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).not.toContainText(
     '7.67',
   );
   await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
@@ -297,7 +335,10 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible();
   await expect(page.locator('[data-catalog-specifications] dd')).toHaveCount(30);
   await expect(page.locator('[data-catalog-notes] p')).toHaveCount(17);
-  await expect(page.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
+  const pagePrice = page.locator('[data-catalog-compact-price]');
+  await expect(pagePrice).toContainText('Request a quote');
+  await expect(pagePrice.locator('[data-quote-moq]')).toHaveText('≥1 piece');
+  await expect(pagePrice).not.toContainText('7.67');
   await expect(page.locator('section[data-catalog-notes] p').first()).toBeVisible();
   await expect(page.locator('section[data-description-images] img').first()).toBeVisible();
   await expect(
@@ -505,9 +546,38 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await expect(preview).toBeFocused();
   // A transient service error must allow retry without approving or losing the draft.
   let injected = false;
+  let injectDataIssue = false;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON();
-    if (!injected && body.action === 'catalogDetailApproval') {
+    if (
+      injectDataIssue &&
+      body.action === 'catalogDetailApproval' &&
+      body.data?.action === 'preview' &&
+      body.data.productId === 'local-untouched-draft'
+    ) {
+      injectDataIssue = false;
+      await route.fulfill({
+        status: 400,
+        json: {
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Saved source data needs attention.',
+            issues: [
+              {
+                code: 'TOO_LONG',
+                stage: 'effective-content',
+                path: 'variants.items.54.sku',
+                severity: 'error',
+                remedy: 'resync',
+                expected: { maxChars: 200 },
+                observed: { chars: 201 },
+              },
+            ],
+          },
+        },
+      });
+    } else if (!injected && body.action === 'catalogDetailApproval') {
       injected = true;
       await route.fulfill({
         status: 503,
@@ -524,8 +594,20 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await dialog.getByRole('button', { name: 'Retry product preview' }).click();
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
   await close.click();
-  // Edit must not revert to a contradictory legacy unavailable price after Preview works.
-  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  // A structured source rejection stays actionable even when no website DTO was returned.
+  injectDataIssue = true;
+  await preview.click();
+  const issues = dialog.getByRole('list', { name: 'Product data issues' });
+  await expect(issues).toBeVisible();
+  await expect(issues).toContainText('Configuration 55 SKU');
+  await expect(issues).toContainText('Length: 201; limit: 200');
+  await expect(issues).toContainText('Alibaba Sync');
+  await issues.getByText('Show issue details', { exact: true }).click();
+  await expect(issues.locator('code')).toHaveText('TOO_LONG · variants.items.54.sku');
+  await dialog.getByRole('button', { name: 'Open item to repair', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  // The same existing Edit action opens the exact saved draft and keeps its pricing.
+
   const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
   const pricePreview = editor.getByRole('region', { name: 'Effective website pricing' });
   await expect(pricePreview).toContainText('USD 7.89');
@@ -539,7 +621,14 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   expect(after.catalogDetailPublication).toBeUndefined();
   expect(after.alibabaReviewPending).toBe(true);
   expect(commands.length).toBeGreaterThan(0);
-  expect(commands.every((action) => ['prepare', 'review'].includes(action))).toBe(true);
+  expect(
+    after,
+    'preview, selection, retry and Edit reads leave the entire saved draft unchanged',
+  ).toEqual(before);
+  // Preview does not prepare; Edit only reads supplier choices and photo sources.
+  expect(
+    commands.every((action) => ['preview', 'supplier-review', 'photo-sources'].includes(action)),
+  ).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -609,24 +698,51 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   expect(sourceMediaImports).toEqual([]);
   expect(Object.hasOwn(product, 'subcategoryIds')).toBe(false);
   for (const label of ['Misc', 'Headphones']) {
-    let withdrawnDuringPreparation = false;
+    let withdrawnBeforeReply = false;
+    const liveStarts: string[] = [];
     if (label === 'Misc') {
       await page.route('**/api/admin', async (route) => {
         const body = route.request().postDataJSON();
-        if (
-          !withdrawnDuringPreparation &&
-          body.action === 'catalogDetailApproval' &&
-          body.data?.action === 'prepare'
-        ) {
-          // A separate real API request withdraws the product while the browser
-          // is classifying it. Approval must not manufacture a republish command.
-          withdrawnDuringPreparation = true;
-          await adminAction(
-            request,
-            'update',
-            { collection: 'products', id, values: { published: false } },
-            session.token,
-          );
+        if (body.action !== 'catalogDetailApproval' || body.data?.productId !== id) {
+          await route.continue();
+          return;
+        }
+        if (body.data.action === 'product-operation-start') {
+          expect(body.data.intent).toBe('refresh-live');
+          liveStarts.push(body.data.operationId);
+        }
+        if (!withdrawnBeforeReply && body.data.action === 'product-operation-continue') {
+          const response = await route.fetch();
+          const result = await response.json();
+          if (result.ok && result.data?.state === 'complete') {
+            // Commit the live edit, then withdraw through the real guarded API
+            // before the browser receives its ACK. Its readback/recovery must not relive it.
+            const completed = await adminAction<CollectionDoc>(
+              request,
+              'get',
+              { collection: 'products', id },
+              session.token,
+            );
+            expect(completed.published).toBe(true);
+            expect(completed.catalogDetailPublication).toMatchObject({
+              state: 'approved',
+              header: { categoryLabel: label },
+            });
+            await adminAction(
+              request,
+              'update',
+              {
+                collection: 'products',
+                id,
+                expectedUpdatedAt: completed.updatedAt,
+                values: { published: false },
+              },
+              session.token,
+            );
+            withdrawnBeforeReply = true;
+          }
+          await route.fulfill({ response });
+          return;
         }
         await route.continue();
       });
@@ -652,14 +768,24 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       if (!response.url().endsWith('/api/admin') || response.request().method() !== 'POST')
         return false;
       const command = response.request().postDataJSON();
-      if (!['get', 'update'].includes(command.action) || command.data?.id !== id) return false;
+      if (
+        command.action !== 'catalogDetailApproval' ||
+        command.data?.action !== 'product-operation-continue' ||
+        command.data?.productId !== id
+      )
+        return false;
       const body = await response.json();
-      return body.ok && body.data?.catalogDetailPublication?.header?.categoryLabel === label;
+      return body.ok && body.data?.state === 'complete';
     });
     await classification.getByRole('button', { name: 'Save', exact: true }).click();
-    // This is the terminal read (or the old buggy republish response), not an
-    // intermediate approved snapshot followed by an unnoticed publication write.
-    expect((await (await committed).json()).data.published).toBe(label !== 'Misc');
+    await committed;
+    const committedProduct = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id },
+      session.token,
+    );
+    expect(committedProduct.published).toBe(label !== 'Misc');
     // Category refresh no longer sends a publication patch. Await the persisted
     // approval, not a stale status message from the previous batch.
     await expect
@@ -676,7 +802,27 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
         { timeout: 30000 },
       )
       .toMatchObject({ state: 'approved', header: { categoryLabel: label } });
-    await expectProductSaved(page);
+    if (label === 'Misc') {
+      await expect(classification.locator('[data-record-form-error]')).toContainText(
+        /Publication is not confirmed|Publishing needs attention|Publication was confirmed on the website/i,
+      );
+      expect(withdrawnBeforeReply).toBe(true);
+      expect(liveStarts).toHaveLength(1);
+      expect((await request.get(`${e2e.apiUrl}/api/products/${id}/detail`)).status()).toBe(404);
+      await classification.getByRole('button', { name: 'Check publication', exact: true }).click();
+      await expect(
+        classification.getByRole('button', { name: 'Check publication', exact: true }),
+      ).toHaveCount(0);
+      expect(liveStarts).toHaveLength(1);
+      const stillPrivate = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id },
+        session.token,
+      );
+      expect(stillPrivate.published).toBe(false);
+      await classification.getByRole('button', { name: 'Cancel', exact: true }).click();
+    } else await expectProductSaved(page);
     const saved = await adminAction<CollectionDoc>(
       request,
       'get',
@@ -692,7 +838,7 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       header: { categoryLabel: label },
     });
     if (label === 'Misc') {
-      expect(withdrawnDuringPreparation).toBe(true);
+      expect(withdrawnBeforeReply).toBe(true);
       await page.unroute('**/api/admin');
       // Explicit operator intent, after proving category-only refresh kept it
       // private. Restore this disposable fixture for the remaining buyer journey.
@@ -870,4 +1016,739 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
     fullPage: true,
   });
   expect(errors).toEqual([]);
+});
+
+test('manual products go live only through approval; the shared page shows their tiers; a legacy image is refused (MIU-31, MIU-34, MIU-37)', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const prefix = `${e2e.runId} Manual`;
+  const manualCatalogPricing = {
+    schemaVersion: 'manual-catalog-pricing-v1',
+    currency: 'USD',
+    tiers: [
+      { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+      { minQuantity: 13, unitAmountMinor: 11_831 },
+    ],
+  };
+  const values = (label: string, imageId: string) => ({
+    name: `${prefix} ${label}`,
+    productFamily: 'toys',
+    description: 'Disposable manual product approved through the admin.',
+    series: 'MIU-34',
+    imageIds: [imageId],
+    manualCatalogPricing,
+    archived: false,
+  });
+  // A new product has no approved version, so it cannot be created already published.
+  await expect(
+    adminAction(
+      request,
+      'create',
+      {
+        collection: 'products',
+        values: { ...values('Refused', 'formal-manual-image'), published: true },
+      },
+      session.token,
+    ),
+  ).rejects.toThrow(/starts as a draft/);
+  const ready = await adminAction<CollectionDoc>(
+    request,
+    'create',
+    {
+      collection: 'products',
+      values: { ...values('Ready', 'formal-manual-image'), published: false },
+    },
+    session.token,
+  );
+  // A legacy embedded image (bytes in the record, not in storage) cannot be approved.
+  const legacy = await adminAction<CollectionDoc>(
+    request,
+    'create',
+    {
+      collection: 'products',
+      values: { ...values('Legacy image', '0e0afdc26a68209e00523aa031e56460'), published: false },
+    },
+    session.token,
+  );
+  // Publishing without an approved version is refused.
+  await expect(
+    adminAction(
+      request,
+      'update',
+      { collection: 'products', id: ready._id, values: { published: true } },
+      session.token,
+    ),
+  ).rejects.toThrow(/approve/i);
+
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill(prefix);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
+  await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  const feedback = page.getByRole('alert').filter({ hasText: 'not published' });
+  await expect(feedback).toContainText('1 published · 1 not published', { timeout: 30000 });
+  await expect(feedback).toContainText(
+    'Check the product photos before continuing this publication.',
+  );
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  const [published, refused] = await Promise.all([read(ready._id), read(legacy._id)]);
+  expect(published.published).toBe(true);
+  expect(published.catalogDetailPublication).toMatchObject({ state: 'approved' });
+  expect(refused.published).toBe(false);
+  expect(refused.catalogDetailPublication).toBeUndefined();
+
+  // The shared product page and the list card read the same approved version.
+  await page.goto(`/products/item/?id=${ready._id}`);
+  await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  const tiers = page.locator('[data-catalog-compact-price] [data-price-tier]');
+  await expect(tiers).toHaveCount(2);
+  await expect(tiers.nth(0)).toContainText('134.18');
+  await expect(tiers.nth(1)).toContainText('118.31');
+  await page.goto('/toys/');
+  await expect(
+    page.locator(`[data-product-card="${ready._id}"] [data-product-card-price]`),
+  ).toContainText('118.31');
+});
+
+test('an Alibaba draft with photos copied ahead is published by "Save and publish" when its category is assigned', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const list = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Classify Ready Headset', pageSize: 5 },
+    session.token,
+  );
+  const draft = list.items[0];
+  if (!draft) throw new Error('Classification fixture missing');
+  expect(draft.published).toBe(false);
+  // Photos were copied ahead, so publishing needs no import (this lane has no network).
+  expect(Array.isArray(draft.imageIds) && draft.imageIds.length).toBeTruthy();
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Classify Ready Headset');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(1);
+  await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+  await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+  const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+  await classification
+    .getByRole('combobox', { name: 'Website main category' })
+    .and(page.locator('button'))
+    .click();
+  await page
+    .getByRole('listbox', { name: 'Website main category' })
+    .getByRole('option', { name: 'Miscellaneous', exact: true })
+    .click();
+  await classification.getByRole('button', { name: 'Save and publish', exact: true }).click();
+  await classification
+    .getByRole('button', { name: 'Confirm save and publish', exact: true })
+    .click();
+  await expect
+    .poll(
+      async () =>
+        (
+          await adminAction<CollectionDoc>(
+            request,
+            'get',
+            { collection: 'products', id: draft._id },
+            session.token,
+          )
+        ).published,
+      { timeout: 60000 },
+    )
+    .toBe(true);
+  const saved = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  expect(saved.productFamily).toBe('misc');
+  expect(saved.catalogDetailPublication).toMatchObject({ state: 'approved' });
+  expect(saved.alibabaReviewPending).toBe(false);
+  await page.goto(`/products/item/?id=${draft._id}`);
+  await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+});
+
+test('twenty source products publish through Assign category and restore shared-image counts after a BUSY retry', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(180000);
+  const session = apiSession;
+  const drafts = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Batch Twenty Clock', pageSize: 20 },
+    session.token,
+  );
+  expect(drafts.total).toBe(20);
+  expect(drafts.items).toHaveLength(20);
+  for (const draft of drafts.items) {
+    expect(draft.published).toBe(false);
+    expect(draft.productFamily).toBe('misc');
+    expect(draft.imageIds).toHaveLength(6);
+  }
+  const referenceCount = (imageId: string) =>
+    readImageReferenceCount(request, imageId, session.token);
+  const sharedIds = Array.from({ length: 9 }, (_, index) => `raw-color-image-${index}`);
+  const before = await Promise.all(sharedIds.map(referenceCount));
+  const operations = new Map<string, string>();
+  const wireTrace: Record<string, unknown>[] = [];
+  const pendingTrace = new Set<Promise<void>>();
+  const object = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+  const captureResponse = async (response: BrowserResponse) => {
+    const url = new URL(response.url());
+    if (url.pathname !== '/api/admin' && !/^\/api\/products\/[^/]+\/detail$/.test(url.pathname))
+      return;
+    try {
+      const request = response.request();
+      const input: unknown = request.method() === 'POST' ? request.postDataJSON() : {};
+      const command = object(input) && object(input.data) ? input.data : {};
+      const body: unknown = await response.json();
+      const data = object(body) && object(body.data) ? body.data : {};
+      const progress = object(data.progress) ? data.progress : {};
+      const error = object(body) && object(body.error) ? body.error : {};
+      wireTrace.push({
+        at: new Date().toISOString(),
+        path: url.pathname,
+        durationMs: Math.round(Date.now() - request.timing().startTime),
+        httpStatus: response.status(),
+        action: object(input) ? input.action : undefined,
+        command: command.action,
+        productId: command.productId ?? command.id ?? data.productId,
+        operationId: command.operationId ?? data.operationId,
+        jobId: command.jobId ?? data.jobId ?? progress.jobId,
+        ok: object(body) ? body.ok : undefined,
+        errorCode: error.code,
+        state: data.state,
+        outcome: data.outcome,
+        progressState: progress.state,
+      });
+    } catch {
+      wireTrace.push({ at: new Date().toISOString(), path: url.pathname, unreadable: true });
+    }
+  };
+  const onResponse = (response: BrowserResponse) => {
+    const pending = captureResponse(response);
+    pendingTrace.add(pending);
+    void pending.then(() => pendingTrace.delete(pending));
+  };
+  page.on('response', onResponse);
+  try {
+    await page.goto('/login?returnTo=%2Fadmin');
+    await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+    await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/?$/);
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill('Batch Twenty Clock');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(20);
+    let refusedProductId: string | undefined;
+    const attempts = new Map<string, number>();
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON();
+      if (body.action === 'catalogDetailApproval') {
+        const id = String(body.data?.productId);
+        if (body.data?.action === 'product-operation-start') {
+          const operation = String(body.data.operationId);
+          expect(operations.get(id) ?? operation).toBe(operation);
+          operations.set(id, operation);
+        }
+        if (body.data?.action === 'product-operation-continue') {
+          expect(body.data.operationId).toBe(operations.get(id));
+          attempts.set(id, (attempts.get(id) ?? 0) + 1);
+          if (refusedProductId === undefined) {
+            refusedProductId = id;
+            await route.fulfill({
+              status: 409,
+              json: {
+                ok: false,
+                error: { code: 'BUSY', message: 'Nothing was saved; try again.' },
+              },
+            });
+            return;
+          }
+        }
+      }
+      await route.continue();
+    });
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+    await expect(
+      classification
+        .getByRole('combobox', { name: 'Website main category' })
+        .and(page.locator('button')),
+    ).toContainText('Miscellaneous');
+    await classification.getByRole('button', { name: 'Save and publish', exact: true }).click();
+    await classification
+      .getByRole('button', { name: 'Confirm save and publish', exact: true })
+      .click();
+    await expect(classification.getByRole('button', { name: 'Done', exact: true })).toBeVisible({
+      timeout: CATALOG_PUBLICATION_WAIT_MS,
+    });
+    expect(refusedProductId).toBeDefined();
+    expect(attempts.size).toBe(20);
+    expect(attempts.get(refusedProductId ?? '')).toBeGreaterThanOrEqual(2);
+    for (const draft of drafts.items) {
+      const saved = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: draft._id },
+        session.token,
+      );
+      expect(saved.published).toBe(true);
+      expect(saved.catalogDetailPublication).toMatchObject({ state: 'approved', variantCount: 3 });
+      expect(saved.productFamily).toBe(draft.productFamily);
+      expect(saved.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+      const publication = saved.catalogDetailPublication as { revision: string };
+      expect(saved.catalogDetailApprovalReceipt).toMatchObject({
+        revision: publication.revision,
+        operationId: operations.get(draft._id),
+      });
+      const detailResponse = await request.get(`${e2e.apiUrl}/api/products/${draft._id}/detail`);
+      expect(detailResponse.status()).toBe(200);
+      const detail = (await detailResponse.json()).data;
+      expect(detail.variants.items).toHaveLength(3);
+      expect(detail.images).toHaveLength(6);
+      const clock =
+        clockFactsSamples[Number(String(draft.name).split(' ').at(-1)) % clockFactsSamples.length];
+      expect(clock).toBeDefined();
+      expect(detail.facts).toEqual(
+        (clock?.attributes ?? []).map((fact) => ({
+          name: fact.sourceName,
+          value: String(fact.value).trim(),
+        })),
+      );
+      for (const variant of detail.variants.items)
+        expect(variant.offers[0].pricing).toMatchObject({
+          mode: 'tiered',
+          currency: 'USD',
+          tiers: [
+            { minimumQuantity: 2, unitAmountMinor: 570 },
+            { minimumQuantity: 500, unitAmountMinor: 500 },
+            { minimumQuantity: 1000, unitAmountMinor: 380 },
+          ],
+        });
+    }
+    for (const [index, id] of sharedIds.entries())
+      expect(await referenceCount(id)).toBe(Number(before[index]) + 20);
+    await page.screenshot({ path: info.outputPath('twenty-published.png'), fullPage: true });
+    await classification.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page.getByRole('button', { name: 'Disable', exact: true }).click();
+    await expect(
+      page
+        .getByRole('row')
+        .filter({ hasText: 'Batch Twenty Clock' })
+        .getByRole('button', { name: 'Disabled', exact: true }),
+    ).toHaveCount(20, { timeout: 60000 });
+    for (const draft of drafts.items) {
+      const saved = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: draft._id },
+        session.token,
+      );
+      expect(saved.published).toBe(false);
+      expect((await request.get(`${e2e.apiUrl}/api/products/${draft._id}/detail`)).status()).toBe(
+        404,
+      );
+    }
+    for (const [index, id] of sharedIds.entries())
+      expect(await referenceCount(id)).toBe(before[index]);
+    await page.screenshot({ path: info.outputPath('twenty-restored.png'), fullPage: true });
+  } catch (error) {
+    await Promise.allSettled([...pendingTrace]);
+    await writeFile(info.outputPath('twenty-wire-trace.json'), JSON.stringify(wireTrace, null, 2));
+    const file = process.env.E2E_CATALOG_LOCAL_DB;
+    if (file && /channel-catalog-e2e-[^/]+\/db\.json$/.test(file)) {
+      const snapshot = JSON.parse(await readFile(file, 'utf8'));
+      await writeFile(info.outputPath('twenty-failed-local-db.json'), JSON.stringify(snapshot));
+    }
+    throw error;
+  } finally {
+    page.off('response', onResponse);
+    await page.goto('/');
+    // A failed assertion may leave an admitted request in flight. Stop its
+    // original native task before withdrawal; a browser navigation is not cancellation.
+    for (const [productId, operationId] of operations) {
+      const response = await request.post(`${e2e.apiUrl}/api/admin`, {
+        data: {
+          action: 'catalogDetailApproval',
+          token: session.token,
+          data: { action: 'product-operation-get', productId, operationId },
+        },
+      });
+      const original = await response.json();
+      if (original.ok) {
+        expect(original.data.productId).toBe(productId);
+        expect(original.data.operationId).toBe(operationId);
+        // A completed task cannot run again. After withdrawal its original
+        // revision is historical, so cancelling it would correctly conflict.
+        if (original.data.state === 'complete' || original.data.cancelledAt) continue;
+        await adminAction(
+          request,
+          'catalogDetailApproval',
+          {
+            action: 'product-operation-cancel',
+            productId,
+            operationId,
+            inputDigest: original.data.inputDigest,
+          },
+          session.token,
+        );
+      } else expect(original.error?.code).toBe('NOT_FOUND');
+    }
+    for (const draft of drafts.items) {
+      await adminAction(
+        request,
+        'update',
+        { collection: 'products', id: draft._id, values: { published: false } },
+        session.token,
+      );
+      const restored = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: draft._id },
+        session.token,
+      );
+      expect(restored.published).toBe(false);
+      expect(restored.productFamily).toBe(draft.productFamily);
+      expect(restored.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+      expect((await request.get(`${e2e.apiUrl}/api/products/${draft._id}/detail`)).status()).toBe(
+        404,
+      );
+    }
+    for (const [index, id] of sharedIds.entries())
+      expect(await referenceCount(id)).toBe(before[index]);
+  }
+});
+
+test('ordinary Edit keeps stale input, saves current drafts and live edits, and cannot revive a withdrawal', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const name = `${e2e.runId} Editor CAS Clock`;
+  const product = await adminAction<CollectionDoc>(
+    request,
+    'create',
+    {
+      collection: 'products',
+      values: {
+        name,
+        description: 'Editor concurrency fixture',
+        productFamily: 'misc',
+        imageIds: ['formal-manual-image'],
+        unitPrice: 5,
+        published: false,
+        archived: false,
+      },
+    },
+    session.token,
+  );
+  const read = () =>
+    adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: product._id },
+      session.token,
+    );
+  const imageCount = () => readImageReferenceCount(request, 'formal-manual-image', session.token);
+  const baseline = await imageCount();
+  const search = async () => {
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(name);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+  };
+  const row = page.getByRole('row').filter({ hasText: name });
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  try {
+    // This lane already exercised UI login above. Reuse its real API login
+    // here so the editor test does not add another login to the shared limiter.
+    await page.addInitScript(
+      ({ token, user, origin }) => {
+        if (location.origin !== origin || !location.pathname.startsWith('/admin')) return;
+        localStorage.setItem('channel.token', token);
+        localStorage.setItem('channel.user', JSON.stringify(user));
+      },
+      { ...session, origin: new URL(e2e.siteUrl).origin },
+    );
+    await page.goto('/admin');
+    await expect(page.getByRole('button', { name: 'Products', exact: true })).toBeVisible();
+    await search();
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} unsaved`);
+    await adminAction(
+      request,
+      'update',
+      {
+        collection: 'products',
+        id: product._id,
+        values: { description: 'Concurrent administrator description' },
+      },
+      session.token,
+    );
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(editor.locator('[data-record-form-error]')).toContainText(/changed|refresh/i);
+    await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(`${name} unsaved`);
+    expect((await read()).description).toBe('Concurrent administrator description');
+    expect((await read()).name).toBe(name);
+    await editor.getByRole('button', { name: 'Stop original save', exact: true }).click();
+    const download = page.waitForEvent('download');
+    await editor.getByRole('button', { name: 'Download current edits', exact: true }).click();
+    const file = await (await download).path();
+    if (!file) throw new Error('Stale draft export was not saved');
+    expect(JSON.parse(await readFile(file, 'utf8')).name).toBe(`${name} unsaved`);
+    await editor.getByRole('button', { name: 'Open saved product', exact: true }).click();
+    await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(name);
+    await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.reload();
+    await search();
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} draft`);
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expectProductSaved(page);
+    expect((await read()).published).toBe(false);
+    await row.getByRole('checkbox', { name: 'Select row', exact: true }).check();
+    await page.getByRole('button', { name: 'Publish', exact: true }).click();
+    await expect.poll(async () => (await read()).published, { timeout: 30000 }).toBe(true);
+    await expect.poll(imageCount).toBe(baseline + 1);
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} live`);
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expectProductSaved(page);
+    expect((await read()).published).toBe(true);
+    const detail = await request.get(
+      `${e2e.apiUrl}/api/products/${product._id}/detail?view=sections`,
+    );
+    expect(detail.ok()).toBe(true);
+    expect((await detail.json()).data.name).toBe(`${name} live`);
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.getByRole('textbox', { name: /^Name \*$/ }).fill(`${name} stale live`);
+    const live = await read();
+    await adminAction(
+      request,
+      'update',
+      {
+        collection: 'products',
+        id: product._id,
+        values: { published: false },
+        expectedUpdatedAt: live.updatedAt,
+      },
+      session.token,
+    );
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(editor.locator('[data-record-form-error]')).toContainText(/changed|withdrawn/i);
+    await expect(editor.getByRole('textbox', { name: /^Name \*$/ })).toHaveValue(
+      `${name} stale live`,
+    );
+    expect((await read()).published).toBe(false);
+    expect((await read()).name).toBe(`${name} live`);
+    expect(
+      (
+        await request.get(`${e2e.apiUrl}/api/products/${product._id}/detail?view=sections`)
+      ).status(),
+    ).toBe(404);
+  } finally {
+    await page.goto('/');
+    await adminAction(
+      request,
+      'update',
+      { collection: 'products', id: product._id, values: { published: false, archived: true } },
+      session.token,
+    );
+    expect((await read()).published).toBe(false);
+    expect(await imageCount()).toBe(baseline);
+  }
+});
+
+test('large complete configurations remain usable through readonly preview, classification publish and public byte paging', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(180000);
+  const session = apiSession;
+  const list = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Byte Budget Headset', pageSize: 20 },
+    session.token,
+  );
+  expect(list.items).toHaveLength(1);
+  const draft = list.items[0];
+  if (!draft) throw Error('byte fixture');
+  expect(draft.published).toBe(false);
+  if (
+    !Array.isArray(draft.imageIds) ||
+    !draft.imageIds.every((id): id is string => typeof id === 'string')
+  )
+    throw Error('owned fixture gallery');
+  const imageIds = draft.imageIds;
+  const count = async (id: string) =>
+    (await adminAction<CollectionDoc>(request, 'get', { collection: 'images', id }, session.token))
+      .publishedRefCount;
+  const baseline = await Promise.all(imageIds.map(count));
+  const before = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  const { decodeCatalogDetailView } = await import(
+    '../../packages/shared/src/catalog/product-detail.ts'
+  );
+  const prepared = await adminAction<unknown>(
+    request,
+    'catalogDetailApproval',
+    { action: 'preview', productId: draft._id },
+    session.token,
+  );
+  if (!prepared || typeof prepared !== 'object' || !('detail' in prepared))
+    throw Error('preview response');
+  const firstPreview = decodeCatalogDetailView(prepared.detail);
+  if (!firstPreview.ok) throw Error('preview DTO');
+  const width = firstPreview.value.variants.pageSize;
+  expect(width).toBeLessThan(50);
+  expect(firstPreview.value.variants.total).toBe(50);
+  const pageCount = Math.ceil(50 / width);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Byte Budget Headset');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Byte Budget Headset' });
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  for (let number = 2; number <= pageCount; number++) {
+    await preview.getByRole('button', { name: 'Next configurations', exact: true }).click();
+    await expect(preview).toContainText(`Page ${number} of ${pageCount}`);
+  }
+  await expect(
+    preview.getByRole('button', { name: 'Next configurations', exact: true }),
+  ).toBeDisabled();
+  await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  expect(
+    await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: draft._id },
+      session.token,
+    ),
+  ).toEqual(before);
+  try {
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const classify = page.getByRole('dialog', { name: 'Edit website classification' });
+    await expect(
+      classify.getByRole('combobox', { name: 'Website main category' }).and(page.locator('button')),
+    ).toContainText('Headphones');
+    await classify.getByRole('button', { name: 'Save and publish', exact: true }).click();
+    await classify.getByRole('button', { name: 'Confirm save and publish', exact: true }).click();
+    await expect(classify.getByRole('button', { name: 'Done', exact: true })).toBeVisible({
+      timeout: CATALOG_PUBLICATION_WAIT_MS,
+    });
+    await classify.getByRole('button', { name: 'Done', exact: true }).click();
+    const saved = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: draft._id },
+      session.token,
+    );
+    expect(saved.published).toBe(true);
+    expect(saved.productFamily).toBe(draft.productFamily);
+    expect(saved.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+    const { CatalogDetailPaginationSchema } = await import(
+      '../../packages/shared/src/catalog/pagination.ts'
+    );
+    const hint = CatalogDetailPaginationSchema.parse(saved.catalogDetailPagination);
+    expect(hint.pageSize).toBeLessThan(50);
+    const seen: string[] = [];
+    for (let number = 1; number <= Math.ceil(50 / hint.pageSize); number++) {
+      const response = await request.get(
+        `${e2e.apiUrl}/api/products/${draft._id}/detail?view=sections-media&pagination=byte-budget-v1&page=${number}&pageSize=${hint.pageSize}&revision=${hint.revision}`,
+      );
+      expect(response.status()).toBe(200);
+      expect((await response.body()).byteLength).toBeLessThan(2 * 1024 * 1024);
+      const body: unknown = await response.json();
+      if (!body || typeof body !== 'object' || !('data' in body)) throw Error('public response');
+      const decoded = decodeCatalogDetailView(body.data);
+      if (!decoded.ok) throw Error('public DTO');
+      expect(decoded.value.variants.total).toBe(50);
+      for (const variant of decoded.value.variants.items) {
+        expect(variant.options).toHaveLength(seen.length === 49 ? 42 : 1);
+        seen.push(variant.id);
+      }
+    }
+    expect(new Set(seen).size).toBe(50);
+    expect(seen).toHaveLength(50);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/headphones/?id=${draft._id}`);
+    const selector = page.locator('[data-catalog-variant-selector] select');
+    await expect(selector.locator('option')).toHaveCount(51, { timeout: 30000 });
+    const lastId = seen.at(-1);
+    if (!lastId) throw Error('last configuration');
+    await selector.selectOption(lastId);
+    await expect(selector).toHaveValue(lastId);
+    await expect(page).toHaveURL(new RegExp(lastId));
+    await page.screenshot({
+      path: info.outputPath('large-byte-paging-mobile.png'),
+      fullPage: true,
+    });
+    expect(errors).toEqual([]);
+  } finally {
+    await page.goto('/');
+    await adminAction(
+      request,
+      'update',
+      { collection: 'products', id: draft._id, values: { published: false } },
+      session.token,
+    );
+    const restored = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: draft._id },
+      session.token,
+    );
+    expect(restored.published).toBe(false);
+    expect(restored.productFamily).toBe(draft.productFamily);
+    expect(restored.subcategoryIds ?? []).toEqual(draft.subcategoryIds ?? []);
+    expect(
+      (
+        await request.get(
+          `${e2e.apiUrl}/api/products/${draft._id}/detail?pagination=byte-budget-v1`,
+        )
+      ).status(),
+    ).toBe(404);
+    expect(await Promise.all(imageIds.map(count))).toEqual(baseline);
+  }
 });

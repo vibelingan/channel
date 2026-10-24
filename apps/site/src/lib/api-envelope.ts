@@ -1,4 +1,7 @@
 import { type ApiResult, ERROR_CODES, type ErrorCode } from '@vibelingan-channel/shared';
+import { CatalogIssueSchema } from '@vibelingan-channel/shared/catalog-issues';
+import { z } from 'zod';
+const catalogIssues = z.array(CatalogIssueSchema).max(50);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -15,6 +18,7 @@ function isApiResult<T>(value: unknown): value is ApiResult<T> {
   if (!isRecord(error) || !isErrorCode(error.code) || typeof error.message !== 'string') {
     return false;
   }
+  if (error.issues !== undefined && !catalogIssues.safeParse(error.issues).success) return false;
   return error.retryAfterSeconds === undefined || typeof error.retryAfterSeconds === 'number';
 }
 

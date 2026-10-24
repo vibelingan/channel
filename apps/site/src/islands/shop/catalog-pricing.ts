@@ -3,7 +3,20 @@ import {
   createAlibabaPricingAdapter,
   resolveCatalogPricing,
 } from '@vibelingan-channel/shared/catalog';
+import {
+  type CatalogPriceSummary,
+  CatalogPriceSummarySchema,
+  priceSummaryMoq,
+} from '@vibelingan-channel/shared/catalog-detail';
 import type { AlibabaCatalogPricing, Product, ProductFamily } from './catalog-types.ts';
+
+/** The approved price summary, or undefined when absent or malformed (never throws). */
+export function readPriceSummary(product: {
+  priceSummary?: unknown;
+}): CatalogPriceSummary | undefined {
+  const parsed = CatalogPriceSummarySchema.safeParse(product.priceSummary);
+  return parsed.success ? parsed.data : undefined;
+}
 
 const alibabaAdapter = createAlibabaPricingAdapter();
 
@@ -12,9 +25,15 @@ export function effectiveCatalogPricing(product: CatalogPricingInput) {
   return resolveCatalogPricing(product, alibabaAdapter);
 }
 
+/**
+ * Card/detail MOQ. An approved product's summary is the only input (MIU-12), so a
+ * stale row `moq` or Alibaba quote from an old cached payload never shows.
+ */
 export function effectiveCatalogMoq(
-  product: CatalogPricingInput & { moq?: unknown },
+  product: CatalogPricingInput & { moq?: unknown; priceSummary?: unknown },
 ): number | undefined {
+  const summary = readPriceSummary(product);
+  if (summary) return priceSummaryMoq(summary);
   const decision = effectiveCatalogPricing(product);
   if (decision.source === 'alibaba') return decision.pricing.sourceMoq;
   if (decision.source === 'manual-tiered') return decision.pricing.tiers[0]?.minQuantity;

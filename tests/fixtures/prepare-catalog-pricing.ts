@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 // Owned, disposable database only. No live credentials, API calls or product writes.
@@ -22,6 +23,10 @@ if (
 const db = new JsonFileAdapter(file);
 setAdapter(db);
 await seed(db);
+const fixturePngBase64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAYAAAAMJL+VAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAJUlEQVQ4jWMQMglroCVmGLVAaDSIhEZTkdBoRjMZLSpMBnlpCgCQpqoQR9aKMgAAAABJRU5ErkJggg==';
+const fixturePngBytes = Buffer.from(fixturePngBase64, 'base64');
+const fixturePngChecksum = createHash('sha256').update(fixturePngBytes).digest('hex');
 // The deployed hero points at three reviewed image identities. Supply owned
 // synthetic bytes under those identities in this disposable DB, not live COS.
 const heroIds = [
@@ -36,7 +41,7 @@ for (const id of heroIds)
     status: 'active',
     publishedRefCount: 1,
     refCount: 1,
-    data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+    data: fixturePngBase64,
   });
 const heroOwner = await db.findByField('products', 'name', 'AuraBeat Classic');
 if (!heroOwner) throw new Error('Owned hero product fixture missing');
@@ -79,19 +84,15 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   for (const [i, url] of urls.entries()) {
     const id = `formal-image-${i}`;
     const storagePath = `${id}.png`;
-    await writeFile(
-      resolve(mediaDir, storagePath),
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    );
+    await writeFile(resolve(mediaDir, storagePath), Buffer.from(fixturePngBase64, 'base64'));
     await db.createDocWithId('images', id, {
       status: 'active',
       storageProvider: 'local-disk',
       storagePath,
       storageFileId: `local-disk:${storagePath}`,
       mimeType: 'image/png',
+      byteSize: fixturePngBytes.byteLength,
+      checksumSha256: fixturePngChecksum,
       publishedRefCount: 1,
     });
     await db.createDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', url), {
@@ -106,6 +107,7 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     source: {
       provider: 'alibaba',
       sourceProductKey: sourceKey,
+      externalProductId: 'local-formal-linked',
       accountKey: 'local-only',
       observedAt: '2026-09-09T00:00:00.000Z',
       captureMode: 'selected',
@@ -159,6 +161,21 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     sourceObservationDocumentId('alibaba', sourceKey),
     { observation: valid.value },
   );
+  await db.createDocWithId('alibabaSourceProducts', sourceKey, {
+    sourceKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-formal-linked',
+    sourceTitle: product.name,
+    sourceImageUrls: urls,
+    active: true,
+  });
+  await db.createDocWithId('alibabaProductLinks', sourceKey, {
+    sourceKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-formal-linked',
+    productId: product._id,
+    linkedAt: '2026-09-09T00:00:00.000Z',
+  });
   await db.update('products', product._id, {
     imageIds: ['formal-image-0', 'formal-image-1'],
     alibabaSourceImageUrls: urls,
@@ -180,7 +197,19 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   };
   const untouchedObservation = validateCatalogSourceObservation({
     ...observation,
-    source: { ...observation.source, sourceProductKey: untouchedKey },
+    source: {
+      ...observation.source,
+      sourceProductKey: untouchedKey,
+      externalProductId: 'local-only-draft',
+    },
+    content: {
+      ...observation.content,
+      media: Array.from({ length: 9 }, (_, position) => ({
+        sourceUrl: `https://s.alicdn.com/formal-draft-${position}.png`,
+        position,
+        role: position === 0 ? 'primary' : 'gallery',
+      })),
+    },
     identity: { ...observation.identity, title: 'Untouched Sync Headset' },
     variants: Array.from({ length: 55 }, (_, i) => ({
       ...observation.variants[0],
@@ -198,6 +227,24 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
       observation: untouchedObservation.value,
     },
   );
+  await db.createDocWithId('alibabaSourceProducts', untouchedKey, {
+    sourceKey: untouchedKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-only-draft',
+    sourceTitle: 'Untouched Sync Headset',
+    sourceImageUrls: Array.from(
+      { length: 9 },
+      (_, i) => `https://s.alicdn.com/formal-draft-${i}.png`,
+    ),
+    active: true,
+  });
+  await db.createDocWithId('alibabaProductLinks', untouchedKey, {
+    sourceKey: untouchedKey,
+    connectionId: 'local-only',
+    sourceProductId: 'local-only-draft',
+    productId: 'local-untouched-draft',
+    linkedAt: '2026-09-09T00:00:00.000Z',
+  });
   await db.createDocWithId('products', 'local-untouched-draft', {
     name: 'Untouched Sync Headset',
     description: product.description,
@@ -223,5 +270,21 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
       minimumOrderQuantity: 10,
       primaryPricing: untouchedPricing,
     },
+  });
+  // A stored photo no product uses yet, for the manual product the admin
+  // publishes through approval (MIU-34).
+  await writeFile(
+    resolve(mediaDir, 'formal-manual-image.png'),
+    Buffer.from(fixturePngBase64, 'base64'),
+  );
+  await db.createDocWithId('images', 'formal-manual-image', {
+    status: 'active',
+    storageProvider: 'local-disk',
+    storagePath: 'formal-manual-image.png',
+    storageFileId: 'local-disk:formal-manual-image.png',
+    mimeType: 'image/png',
+    byteSize: fixturePngBytes.byteLength,
+    checksumSha256: fixturePngChecksum,
+    publishedRefCount: 0,
   });
 }

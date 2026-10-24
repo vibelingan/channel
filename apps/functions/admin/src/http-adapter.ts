@@ -143,6 +143,8 @@ export function errorStatus(result: AdminResult): number {
       return 500;
     case 'RATE_LIMITED':
       return 429;
+    case 'BUSY':
+      return 409;
     case 'INTERNAL_ERROR':
       return 500;
     default: {

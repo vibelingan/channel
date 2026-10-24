@@ -8,40 +8,55 @@
  * verified by magic bytes (the MIME is DERIVED from bytes, never from
  * headers) and deduplicated by SHA-256.
  *
- * Imported candidates enter the EXISTING media lifecycle as
- * status 'active' + publishedRefCount 0 + unattached — admin-visible,
- * public-invisible ('pending' would be reaped by the 24h orphan sweep,
- * R1 M12). The fixed sentinel owner engages the reference locks; the
- * dedicated removal action below is their only delete path (R1 M13).
+ * Each copy owns a durable pending image and URL claim before uploading.
+ * A confirmed copy atomically becomes active with its URL binding, still
+ * unattached with publishedRefCount 0. Cleanup must quarantine a pending
+ * copy through the same state machine before deleting any bytes.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
+import { isDeepStrictEqual } from 'node:util';
 import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  SOURCE_MEDIA_IMPORT_LEASE_MS,
+  SOURCE_MEDIA_IMPORT_OWNER,
+  type SourceMediaImportCommand,
+  type SourceMediaImportResult,
+  type SourceMediaTarget,
+  SourceMediaTargetSchema,
   acquireImageMutation,
-  findByField,
+  executeImageDeletion,
   list,
+  manageImageDeletion,
+  manageSourceMediaImport,
+  preparationUsingImage,
+  readImageMutationState,
   releaseImageMutation,
-  upsertDocWithId,
+  unfinishedApprovalUsingImage,
 } from '@vibelingan-channel/db';
-import { mediaStorage, objectStoragePath } from '@vibelingan-channel/media-storage';
+import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   COLLECTIONS,
   SIGNATURE_MIME,
+  alibabaPhotoSource,
   catalogReferencedImageIds,
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
-import { createDoc, getDoc, removeDoc } from './repo.ts';
+import { getDoc } from './repo.ts';
 
-export const ALIBABA_IMAGE_IMPORT_OWNER = 'alibaba-catalog-sync';
+export const ALIBABA_IMAGE_IMPORT_OWNER = SOURCE_MEDIA_IMPORT_OWNER;
 const ALLOWED_HOST_SUFFIXES = ['alicdn.com', 'alibaba.com'];
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 15_000;
-const IMPORTABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const IMPORTABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 export interface MediaImportDeps {
+  /** Backend-only repository callback; every phase retains the caller's current lease. */
+  persistImport?: (command: SourceMediaImportCommand) => Promise<SourceMediaImportResult>;
   fetchImpl?: typeof fetch;
+  /** How long the photo body may take after its headers (default 15 s). */
+  bodyTimeoutMs?: number;
   /** Injectable resolver for tests; returns every address for the host. */
   resolveDns?: (hostname: string) => Promise<string[]>;
   now?: () => string;
@@ -53,13 +68,16 @@ export type MediaImportFailure =
   | 'dns-blocked'
   | 'too-many-redirects'
   | 'fetch-failed'
+  /** The photo is gone at Alibaba (404/410): trying again cannot help. */
+  | 'not-found'
   | 'too-large'
   | 'bad-content'
-  | 'write-failed';
+  | 'write-failed'
+  | 'busy';
 
 export type MediaImportResult =
   | { ok: true; imageId: string; deduplicated: boolean }
-  | { ok: false; reason: MediaImportFailure };
+  | { ok: false; reason: MediaImportFailure; failureRecorded?: true };
 
 /** Loopback/private/link-local/CGN/multicast/reserved — v4 and v6. */
 export function isBlockedAddress(ip: string): boolean {
@@ -115,16 +133,39 @@ async function defaultResolveDns(hostname: string): Promise<string[]> {
   return results.map((entry) => entry.address);
 }
 
-async function readBodyCapped(response: Response): Promise<Buffer | null> {
+async function readBodyCapped(
+  response: Response,
+  timeoutMs: number,
+): Promise<Buffer | null | 'timeout'> {
+  const deadline = Date.now() + timeoutMs;
+  const withinDeadline = async <T>(work: Promise<T>): Promise<T | 'timeout'> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), Math.max(0, deadline - Date.now()));
+    });
+    try {
+      return await Promise.race([work, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const reader = response.body?.getReader();
   if (!reader) {
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const body = await withinDeadline(response.arrayBuffer());
+    if (body === 'timeout') return 'timeout';
+    const buffer = Buffer.from(body);
     return buffer.byteLength > CATALOG_IMAGE_MAX_BYTES ? null : buffer;
   }
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
-    const { done, value } = await reader.read();
+    // A photo that stalls mid-download must not hold the copy job (PT-G).
+    const read = await withinDeadline(reader.read());
+    if (read === 'timeout') {
+      await reader.cancel().catch(() => {});
+      return 'timeout';
+    }
+    const { done, value } = read;
     if (done) break;
     if (value) {
       total += value.byteLength;
@@ -138,23 +179,15 @@ async function readBodyCapped(response: Response): Promise<Buffer | null> {
   return Buffer.concat(chunks);
 }
 
-/** Import one remote candidate image; never attaches it to any product. */
-export async function importCandidateImage(
+type FetchCandidateResult =
+  | { ok: true; bytes: Buffer; mimeType: string }
+  | { ok: false; reason: Exclude<MediaImportFailure, 'busy'> };
+async function fetchCandidate(
   sourceUrl: string,
-  deps: MediaImportDeps = {},
-): Promise<MediaImportResult> {
+  deps: MediaImportDeps,
+): Promise<FetchCandidateResult> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const resolveDns = deps.resolveDns ?? defaultResolveDns;
-  const bind = async (imageId: string) => {
-    await upsertDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl), {
-      kind: 'media',
-      provider: 'alibaba',
-      sourceUrl,
-      imageId,
-      updatedAt: deps.now?.() ?? new Date().toISOString(),
-    });
-  };
-
   let current = allowedUrl(sourceUrl);
   if (!current) {
     return {
@@ -208,9 +241,15 @@ export async function importCandidateImage(
     break;
   }
   if (!response) return { ok: false, reason: 'too-many-redirects' };
-  if (!response.ok) return { ok: false, reason: 'fetch-failed' };
+  // Preserve denied or missing sources for explicit retry; a 403 does not prove deletion.
+  if (!response.ok)
+    return {
+      ok: false,
+      reason: [403, 404, 410].includes(response.status) ? 'not-found' : 'fetch-failed',
+    };
 
-  const bytes = await readBodyCapped(response);
+  const bytes = await readBodyCapped(response, deps.bodyTimeoutMs ?? FETCH_TIMEOUT_MS);
+  if (bytes === 'timeout') return { ok: false, reason: 'fetch-failed' };
   if (bytes === null) return { ok: false, reason: 'too-large' };
 
   // MIME derives from magic bytes; header Content-Type is untrusted.
@@ -218,66 +257,168 @@ export async function importCandidateImage(
   const mimeType = signature === 'unknown' ? '' : (SIGNATURE_MIME[signature] ?? '');
   if (!IMPORTABLE_MIME.has(mimeType)) return { ok: false, reason: 'bad-content' };
 
-  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
-  const existing = await findByField('images', 'checksumSha256', checksumSha256);
-  if (existing?.status === 'active') {
+  return { ok: true, bytes, mimeType };
+}
+
+/** Repeat the same idempotent operation once after an unknown database ACK. */
+async function persistImport(
+  command: SourceMediaImportCommand,
+  persist = manageSourceMediaImport,
+): Promise<SourceMediaImportResult> {
+  try {
+    return await persist(command);
+  } catch {
+    return persist(command);
+  }
+}
+
+/** Import one remote candidate image; never attaches it to any product. */
+export async function importCandidateImage(
+  rawSourceUrl: string,
+  deps: MediaImportDeps = {},
+): Promise<MediaImportResult> {
+  const validated = allowedUrl(rawSourceUrl);
+  const sourceUrl = validated ? alibabaPhotoSource(rawSourceUrl) : undefined;
+  if (!sourceUrl)
+    return {
+      ok: false,
+      reason: rawSourceUrl.toLowerCase().startsWith('https:') ? 'host-not-allowed' : 'invalid-url',
+    };
+  const persist = (command: SourceMediaImportCommand) => persistImport(command, deps.persistImport);
+  const operationId = randomUUID();
+  const imageId = randomUUID();
+  const now = () => deps.now?.() ?? new Date().toISOString();
+  const base = { sourceUrl, operationId, imageId };
+  const fail = async (reason: Exclude<MediaImportFailure, 'busy'>): Promise<MediaImportResult> => {
     try {
-      await bind(existing._id);
-      return { ok: true, imageId: existing._id, deduplicated: true };
+      const result = await persist({ ...base, action: 'fail', reason, now: now() });
+      if (result.status === 'ready')
+        return { ok: true, imageId: result.imageId, deduplicated: result.deduplicated };
+      return result.status === 'failed'
+        ? { ok: false, reason, failureRecorded: true }
+        : { ok: false, reason: 'write-failed' };
     } catch {
       return { ok: false, reason: 'write-failed' };
     }
-  }
-
-  const now = deps.now?.() ?? new Date().toISOString();
-  const logicalId = randomUUID();
-  const fileName = `alibaba-${checksumSha256.slice(0, 12)}.${mimeType.split('/')[1]}`;
+  };
   try {
-    const stored = await mediaStorage().putObject({
-      namespace: 'catalog',
-      logicalId,
-      fileName,
-      mimeType,
-      content: bytes,
-    });
-    try {
-      const doc = await createDoc('images', {
-        name: fileName,
-        mimeType,
-        purpose: 'catalog-image',
-        storageProvider: stored.storageProvider,
-        storageMode: stored.storageMode,
-        storagePath: objectStoragePath({ namespace: 'catalog', logicalId, fileName }),
-        storageFileId: stored.storageFileId,
-        status: 'active',
-        publishedRefCount: 0,
-        uploadedByUserId: ALIBABA_IMAGE_IMPORT_OWNER,
-        byteSize: bytes.byteLength,
-        checksumSha256,
-        createdAt: now,
-        updatedAt: now,
-      });
-      // Binding failure leaves a valid unreferenced image, retryable by checksum.
-      // Do not delete its bytes after a successful image-row commit.
-      try {
-        await bind(doc._id);
-      } catch {
-        return { ok: false, reason: 'write-failed' };
-      }
-      return { ok: true, imageId: doc._id, deduplicated: false };
-    } catch (docError) {
-      // Compensation order: object first, then (missing) doc — never leak.
-      await mediaStorage()
-        .deleteObject(stored.storageFileId)
-        .catch((e) =>
-          console.error('[alibaba-catalog-sync] import compensation delete failed:', e),
-        );
-      console.error('[alibaba-catalog-sync] import doc write failed:', docError);
-      return { ok: false, reason: 'write-failed' };
-    }
-  } catch (storageError) {
-    console.error('[alibaba-catalog-sync] import storage write failed:', storageError);
+    const claimed = await persist({ ...base, action: 'claim', now: now() });
+    if (claimed.status === 'ready')
+      return { ok: true, imageId: claimed.imageId, deduplicated: true };
+    if (claimed.status !== 'claimed')
+      return { ok: false, reason: claimed.status === 'busy' ? 'busy' : 'write-failed' };
+  } catch {
     return { ok: false, reason: 'write-failed' };
+  }
+  let fetched: FetchCandidateResult;
+  try {
+    fetched = await fetchCandidate(sourceUrl, deps);
+  } catch {
+    return fail('fetch-failed');
+  }
+  if (!fetched.ok) return fail(fetched.reason);
+  const { bytes, mimeType } = fetched;
+  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+  try {
+    const existing = (
+      await list({
+        collection: 'images',
+        page: 1,
+        pageSize: 1,
+        search: '',
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'checksumSha256', op: 'eq', value: checksumSha256 },
+            { field: 'status', op: 'eq', value: 'active' },
+          ],
+        },
+      })
+    ).items[0];
+    if (existing?.status === 'active') {
+      let acquired: boolean;
+      try {
+        acquired = (await acquireImageMutation(existing._id, operationId, now())) === 'acquired';
+      } catch {
+        const reread = await getDoc('images', existing._id);
+        const lock = reread ? readImageMutationState(reread) : null;
+        acquired = lock?.state === 'owned' && lock.owner === operationId;
+      }
+      if (!acquired) {
+        await fail('write-failed');
+        return { ok: false, reason: 'busy' };
+      }
+      try {
+        const reused = await persist({
+          ...base,
+          action: 'reuse',
+          existingImageId: existing._id,
+          checksumSha256,
+          now: now(),
+        });
+        if (reused.status === 'ready')
+          return { ok: true, imageId: reused.imageId, deduplicated: true };
+        if (reused.status === 'busy') {
+          await fail('write-failed');
+          return { ok: false, reason: 'busy' };
+        }
+      } finally {
+        await releaseImageMutation(existing._id, operationId)
+          .catch(() => releaseImageMutation(existing._id, operationId))
+          .catch(() => {});
+      }
+    }
+    const name = `alibaba-${checksumSha256.slice(0, 12)}.${mimeType.split('/')[1]}`;
+    let checkpoint: SourceMediaTarget | undefined;
+    const stored = await mediaStorage().putObject(
+      { namespace: 'catalog', logicalId: imageId, fileName: name, mimeType, content: bytes },
+      {
+        beforeWrite: async (target) => {
+          const startedAt = now();
+          const intended = SourceMediaTargetSchema.parse({
+            ...target,
+            name,
+            mimeType,
+            checksumSha256,
+            byteSize: bytes.byteLength,
+          });
+          const saved = await persist({
+            ...base,
+            action: 'checkpoint',
+            target: intended,
+            now: startedAt,
+          });
+          if (saved.status !== 'checkpointed')
+            throw new Error('Source image checkpoint was not confirmed');
+          // Leave at least one complete raw-PUT deadline inside the claim lease.
+          // A delayed DB response must not start bytes after cleanup may take over.
+          if (Date.parse(now()) - Date.parse(startedAt) >= SOURCE_MEDIA_IMPORT_LEASE_MS - 60_000)
+            throw new Error('Source image checkpoint expired before upload');
+          checkpoint = intended;
+        },
+      },
+    );
+    const returned = SourceMediaTargetSchema.parse({
+      ...stored,
+      name,
+      mimeType,
+      checksumSha256,
+      byteSize: bytes.byteLength,
+    });
+    if (!checkpoint || !isDeepStrictEqual(checkpoint, returned)) return fail('write-failed');
+    const committed = await persist({
+      ...base,
+      action: 'activate',
+      target: checkpoint,
+      now: now(),
+    });
+    if (committed.status === 'ready')
+      return { ok: true, imageId: committed.imageId, deduplicated: committed.deduplicated };
+    return fail('write-failed');
+  } catch {
+    // A failed/unknown upload or DB ACK retains the exact pending target.
+    // Never destroy bytes that an activation may already have committed.
+    return fail('write-failed');
   }
 }
 
@@ -344,8 +485,8 @@ async function findCandidateReference(
  * owner means no admin's own uploader-identity delete path can ever match
  * (R1 M13). Mirrors abandonUpload's lifecycle discipline (review R2 #1):
  * mutation lock, re-read under the lock, full reference scan, and a storage
- * delete failure is TERMINAL — the doc survives so the object is never
- * orphaned. Object first, then the doc.
+ * quarantine is durable before deleting bytes. Failures retain the original
+ * storage targets for retry; the row is removed only after storage confirms.
  */
 export async function removeImportedCandidate(imageId: string): Promise<RemoveImportResult> {
   const image = await getDoc('images', imageId);
@@ -353,10 +494,14 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
   if (image.uploadedByUserId !== ALIBABA_IMAGE_IMPORT_OWNER) {
     return { ok: false, reason: 'not-imported' };
   }
-  if (image.status !== 'active') return { ok: false, reason: 'not-active' };
+  if (image.status !== 'active' && image.status !== 'deleted')
+    return { ok: false, reason: 'not-active' };
 
   const owner = randomUUID();
-  const lock = await acquireImageMutation(imageId, owner, new Date().toISOString());
+  const lock =
+    image.status === 'deleted'
+      ? 'acquired'
+      : await acquireImageMutation(imageId, owner, new Date().toISOString());
   if (lock === 'missing') return { ok: false, reason: 'not-found' };
   if (lock !== 'acquired') return { ok: false, reason: 'busy' };
   let deleted = false;
@@ -367,28 +512,53 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
     if (current.uploadedByUserId !== ALIBABA_IMAGE_IMPORT_OWNER) {
       return { ok: false, reason: 'not-imported' };
     }
-    if (current.status !== 'active') return { ok: false, reason: 'not-active' };
-    if (
-      typeof current.publishedRefCount !== 'number' ||
-      !Number.isFinite(current.publishedRefCount) ||
-      current.publishedRefCount !== 0
-    ) {
-      return { ok: false, reason: 'still-referenced' };
-    }
-    const reference = await findCandidateReference(imageId);
-    if (reference) return { ok: false, reason: 'still-referenced' };
-
-    const storageFileId =
-      typeof current.storageFileId === 'string' ? current.storageFileId.trim() : '';
-    if (storageFileId) {
-      try {
-        await mediaStorage().deleteObject(storageFileId);
-      } catch (error) {
-        console.error('[alibaba-catalog-sync] imported-candidate object delete failed:', error);
-        return { ok: false, reason: 'delete-failed' };
+    if (current.status !== 'active' && current.status !== 'deleted')
+      return { ok: false, reason: 'not-active' };
+    if (current.status === 'active') {
+      if (
+        !Object.hasOwn(current, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD) &&
+        (typeof current.publishedRefCount !== 'number' ||
+          !Number.isFinite(current.publishedRefCount) ||
+          current.publishedRefCount !== 0)
+      ) {
+        return { ok: false, reason: 'still-referenced' };
       }
+      // Approval reads shared photos without writing them (DEC-21): an
+      // unfinished approval that would publish this photo still uses it. Jobs
+      // first, references second: a job that finishes in between has recorded
+      // its product (same transaction) before the reference scan reads it.
+      if (await preparationUsingImage(imageId)) return { ok: false, reason: 'still-referenced' };
+      if (await unfinishedApprovalUsingImage(imageId))
+        return { ok: false, reason: 'still-referenced' };
+      const reference = await findCandidateReference(imageId);
+      if (reference) return { ok: false, reason: 'still-referenced' };
     }
-    await removeDoc('images', imageId);
+    const result = await executeImageDeletion(
+      {
+        manage: manageImageDeletion,
+        get: (id) => getDoc('images', id),
+      },
+      {
+        action: 'begin',
+        imageId,
+        uploadedByUserId: ALIBABA_IMAGE_IMPORT_OWNER,
+        owner,
+        startedAt: new Date().toISOString(),
+      },
+      (fileId) => mediaStorage().deleteObject(fileId),
+    );
+    if (result !== 'deleted')
+      return {
+        ok: false,
+        reason:
+          result === 'missing'
+            ? 'not-found'
+            : result === 'conflict'
+              ? 'still-referenced'
+              : result === 'forbidden'
+                ? 'not-imported'
+                : 'delete-failed',
+      };
     deleted = true;
     return { ok: true, imageId };
   } finally {

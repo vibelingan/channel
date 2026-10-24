@@ -1,4 +1,8 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import {
+  PRODUCT_LIST_DETAILS_LABEL,
+  productListLimited,
+} from '@vibelingan-channel/shared/admin-product-list';
 import { effectiveCatalogPriceSummary } from '../shop/EffectiveCatalogPricingBlock.tsx';
 import { effectiveCatalogMoq, effectiveCatalogPricing } from '../shop/catalog-pricing.ts';
 import { adminCatalogPricingInput } from './product-pricing-editor.ts';
@@ -280,6 +284,7 @@ export function productReviewCellValue(
   doc: Pick<CollectionDoc, string>,
   cell: ProductReviewCell,
 ): string {
+  if (productListLimited(doc)) return PRODUCT_LIST_DETAILS_LABEL;
   const review = decodeAlibabaSourceReview(doc.alibabaSourceReview);
   const input = adminCatalogPricingInput(doc);
   const sourceFallback = adminSourcePricingFallback(doc);

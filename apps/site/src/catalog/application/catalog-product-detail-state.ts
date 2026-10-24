@@ -140,7 +140,12 @@ export function reduceProductDetail(
       if (
         detail._id !== state.productId ||
         detail.variants.page !== state.request.page ||
-        detail.variants.pageSize !== state.request.pageSize
+        (detail.variants.pageSize !== state.request.pageSize &&
+          !(
+            state.request.page === 1 &&
+            state.request.revision === undefined &&
+            detail.variants.pageSize < (state.request.pageSize ?? 50)
+          ))
       )
         return fail(state, { status: 'invalid-response' });
       const assembled =

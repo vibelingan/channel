@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { type SourceMediaImportCommand, runSourceMediaImport } from '@vibelingan-channel/db';
+import { type ImageDeletionCommand, runImageDeletion } from '@vibelingan-channel/db';
 import type {
   AdapterListQuery,
   DbAdapter,
@@ -15,22 +17,76 @@ import {
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
+  type PutMediaObjectOptions,
   objectStoragePath,
   setMediaStorage,
 } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, ListResult } from '@vibelingan-channel/shared';
 import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from '../../../../packages/db/src/catalog-image-references.ts';
+import {
   ALIBABA_IMAGE_IMPORT_OWNER,
+  type MediaImportFailure,
+  type MediaImportResult,
   importCandidateImage,
   isBlockedAddress,
   removeImportedCandidate,
 } from './media-import.ts';
+
+/** These assertions check the rejection reason; persistence metadata is internal. */
+function assertImportFailure(
+  actual: MediaImportResult,
+  expected: { ok: false; reason: MediaImportFailure },
+) {
+  assert.equal(actual.ok, expected.ok);
+  if (!actual.ok) assert.equal(actual.reason, expected.reason);
+}
 
 // --- harness -----------------------------------------------------------------
 
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
+  private sourceMediaQueue: Promise<void> = Promise.resolve();
+  async manageSourceMediaImport(command: SourceMediaImportCommand) {
+    const operation = this.sourceMediaQueue.then(async () => {
+      if (command.action === 'claim' && this.store.__failCreate)
+        throw new Error('simulated reservation failure');
+      const copy = structuredClone(this.store);
+      const result = await runSourceMediaImport(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((row) => row._id === id) ?? -1;
+            if (!rows || index < 0) throw new Error('Unconfirmed pending image removal');
+            rows.splice(index, 1);
+          },
+        },
+        command,
+      );
+      for (const key of Object.keys(this.store)) delete this.store[key];
+      Object.assign(this.store, copy);
+      return result;
+    });
+    this.sourceMediaQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
+
   private nextId = 1;
   constructor(readonly store: Store) {}
   private docs(collection: string): CollectionDoc[] {
@@ -88,6 +144,20 @@ class MemoryAdapter implements DbAdapter {
   async incrementField(): Promise<number | null> {
     throw new Error('not used');
   }
+  async manageImageDeletion(command: ImageDeletionCommand) {
+    return runImageDeletion(
+      {
+        get: (collection, id) => this.get(collection, id),
+        set: async (collection, row) => {
+          await this.upsertDocWithId(collection, row._id, row);
+        },
+        remove: async (collection, id) => {
+          if (!(await this.remove(collection, id))) throw new Error('Unconfirmed image removal');
+        },
+      },
+      command,
+    );
+  }
   async acquireImageMutation(
     imageId: string,
     owner: string,
@@ -117,16 +187,19 @@ class MemoryAdapter implements DbAdapter {
 class MemoryMediaStorage implements MediaStorageAdapter {
   readonly puts: PutMediaObjectInput[] = [];
   readonly deletes: string[] = [];
-  async putObject(input: PutMediaObjectInput) {
-    this.puts.push(input);
+  async putObject(input: PutMediaObjectInput, options: PutMediaObjectOptions = {}) {
     const storagePath = objectStoragePath(input);
-    return {
+    const target = {
       storageProvider: 'local-disk' as const,
       storageMode: 'local-disk' as const,
       storageFileId: `mem://${storagePath}`,
       storagePath,
     };
+    await options.beforeWrite?.(target);
+    this.puts.push(input);
+    return target;
   }
+
   async getObjectAsBase64(): Promise<{ body: string }> {
     throw new Error('not used');
   }
@@ -159,6 +232,7 @@ const PUBLIC_DNS = async () => ['104.16.1.1'];
 
 test('each source URL retains its owned image binding, including byte-deduplicated URLs', async () => {
   setup();
+  let firstImageId: string | undefined;
   for (const sourceUrl of ['https://img.alicdn.com/one.png', 'https://img.alicdn.com/two.png']) {
     const result = await importCandidateImage(sourceUrl, {
       ...fakeImageFetch(),
@@ -166,7 +240,9 @@ test('each source URL retains its owned image binding, including byte-deduplicat
     });
     assert.equal(result.ok, true);
     const link = store.catalogSourceLinks?.find((row) => row.sourceUrl === sourceUrl);
-    assert.equal(link?.imageId, 'img-1');
+    assert.ok(result.ok);
+    firstImageId ??= result.imageId;
+    assert.equal(link?.imageId, firstImageId);
     assert.equal(link?.provider, 'alibaba');
   }
   assert.equal(storage.puts.length, 1);
@@ -227,23 +303,23 @@ test('rejects non-HTTPS, disallowed hosts, userinfo, and odd ports before any fe
   setup();
   const { fetchImpl, urls } = fakeImageFetch();
   const deps = { fetchImpl, resolveDns: PUBLIC_DNS };
-  assert.deepEqual(await importCandidateImage('http://sc04.alicdn.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('http://sc04.alicdn.com/a.png', deps), {
     ok: false,
     reason: 'invalid-url',
   });
-  assert.deepEqual(await importCandidateImage('https://evil.example.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://evil.example.com/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
-  assert.deepEqual(await importCandidateImage('https://evilalibaba.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://evilalibaba.com/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
-  assert.deepEqual(await importCandidateImage('https://user:pw@sc04.alicdn.com/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://user:pw@sc04.alicdn.com/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
-  assert.deepEqual(await importCandidateImage('https://sc04.alicdn.com:8443/a.png', deps), {
+  assertImportFailure(await importCandidateImage('https://sc04.alicdn.com:8443/a.png', deps), {
     ok: false,
     reason: 'host-not-allowed',
   });
@@ -257,7 +333,7 @@ test('DNS resolving to a private address blocks the fetch (rebinding defense)', 
     fetchImpl,
     resolveDns: async () => ['104.16.1.1', '10.0.0.7'],
   });
-  assert.deepEqual(result, { ok: false, reason: 'dns-blocked' });
+  assertImportFailure(result, { ok: false, reason: 'dns-blocked' });
   assert.equal(urls.length, 0);
 });
 
@@ -270,7 +346,7 @@ test('redirects are validated hop-by-hop; off-allowlist targets are blocked', as
     [start]: { status: 302, location: 'https://internal.example.com/a.png' },
   });
   const result = await importCandidateImage(start, { fetchImpl, resolveDns: PUBLIC_DNS });
-  assert.deepEqual(result, { ok: false, reason: 'host-not-allowed' });
+  assertImportFailure(result, { ok: false, reason: 'host-not-allowed' });
 });
 
 test('an allowlisted redirect chain is followed; endless chains stop', async () => {
@@ -289,7 +365,7 @@ test('an allowlisted redirect chain is followed; endless chains stop', async () 
     [loop]: { status: 302, location: loop },
   });
   const looped = await importCandidateImage(loop, { fetchImpl: loopFetch, resolveDns: PUBLIC_DNS });
-  assert.deepEqual(looped, { ok: false, reason: 'too-many-redirects' });
+  assertImportFailure(looped, { ok: false, reason: 'too-many-redirects' });
 });
 
 // --- content verification ----------------------------------------------------
@@ -298,7 +374,7 @@ test('non-image bytes are rejected regardless of headers; oversize bodies are ca
   setup();
   const html = Buffer.from('<html>not an image</html>');
   const { fetchImpl } = fakeImageFetch(html);
-  assert.deepEqual(
+  assertImportFailure(
     await importCandidateImage('https://sc04.alicdn.com/x.png', {
       fetchImpl,
       resolveDns: PUBLIC_DNS,
@@ -308,13 +384,56 @@ test('non-image bytes are rejected regardless of headers; oversize bodies are ca
 
   const huge = Buffer.concat([PNG_BYTES, Buffer.alloc(10 * 1024 * 1024, 1)]);
   const { fetchImpl: hugeFetch } = fakeImageFetch(huge);
-  assert.deepEqual(
+  assertImportFailure(
     await importCandidateImage('https://sc04.alicdn.com/big.png', {
       fetchImpl: hugeFetch,
       resolveDns: PUBLIC_DNS,
     }),
     { ok: false, reason: 'too-large' },
   );
+});
+
+test('a download that stalls after its headers gives up instead of hanging (PT-G)', async () => {
+  setup();
+  const stalled: typeof fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(PNG_BYTES.subarray(0, 8));
+          // Never closes: the rest of the photo never arrives.
+        },
+      }),
+      { status: 200 },
+    );
+  const started = Date.now();
+  assertImportFailure(
+    await importCandidateImage('https://sc04.alicdn.com/slow.png', {
+      fetchImpl: stalled,
+      resolveDns: PUBLIC_DNS,
+      bodyTimeoutMs: 50,
+    }),
+    { ok: false, reason: 'fetch-failed' },
+  );
+  assert.ok(Date.now() - started < 2_000);
+});
+
+test('a photo gone at Alibaba is reported as not found, a server error as a passing failure', async () => {
+  setup();
+  for (const [status, reason] of [
+    [403, 'not-found'],
+    [404, 'not-found'],
+    [410, 'not-found'],
+    [429, 'fetch-failed'],
+    [503, 'fetch-failed'],
+  ] as const) {
+    assertImportFailure(
+      await importCandidateImage('https://sc04.alicdn.com/gone.png', {
+        fetchImpl: async () => new Response('', { status }),
+        resolveDns: PUBLIC_DNS,
+      }),
+      { ok: false, reason },
+    );
+  }
 });
 
 // --- lifecycle ---------------------------------------------------------------
@@ -331,13 +450,27 @@ test('a verified import lands as an ACTIVE, unreferenced, sentinel-owned candida
   if (!result.ok) return;
   assert.equal(result.deduplicated, false);
   const image = store.images?.[0] as CollectionDoc;
-  assert.equal(image.status, 'active', 'pending would be orphan-swept (R1 M12)');
+  assert.equal(image.status, 'active', 'only a confirmed copy is active');
   assert.equal(image.publishedRefCount, 0, 'public-invisible via refcount gate');
   assert.equal(image.uploadedByUserId, ALIBABA_IMAGE_IMPORT_OWNER);
   assert.equal(image.mimeType, 'image/png', 'MIME derived from magic bytes');
   assert.equal(image.purpose, 'catalog-image');
   assert.equal(image.checksumSha256, createHash('sha256').update(PNG_BYTES).digest('hex'));
   assert.equal(storage.puts[0]?.namespace, 'catalog');
+});
+
+test('an animated GIF from Alibaba is copied as a GIF (owner 2026-10-09)', async () => {
+  setup();
+  const gif = Buffer.from('GIF89a\x16\x03\x3a\x05\xf7\x00\x00', 'latin1');
+  const { fetchImpl } = fakeImageFetch(gif);
+  const result = await importCandidateImage('https://sc04.alicdn.com/kf/H7ca8.jpg', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(result.ok, true, 'named .jpg, but the bytes decide');
+  const image = store.images?.[0] as CollectionDoc;
+  assert.equal(image.mimeType, 'image/gif');
+  assert.match(String(image.name), /\.gif$/);
 });
 
 test('identical bytes deduplicate by checksum (one object, one row)', async () => {
@@ -355,22 +488,80 @@ test('identical bytes deduplicate by checksum (one object, one row)', async () =
   assert.equal(storage.puts.length, 1);
 });
 
-test('a doc-write failure compensates by deleting the stored object first', async () => {
+test('an unconfirmed pending reservation writes no bytes and needs no compensation', async () => {
   setup();
-  store.__failCreate = [] as unknown as CollectionDoc[];
+  store.__failCreate = [];
   const { fetchImpl } = fakeImageFetch();
   const result = await importCandidateImage('https://sc04.alicdn.com/a.png', {
     fetchImpl,
     resolveDns: PUBLIC_DNS,
   });
-  assert.deepEqual(result, { ok: false, reason: 'write-failed' });
-  assert.equal(storage.deletes.length, 1, 'object compensated');
+  assertImportFailure(result, { ok: false, reason: 'write-failed' });
+  assert.equal(storage.puts.length, 0, 'reservation must precede every byte');
+  assert.equal(storage.deletes.length, 0);
   assert.equal(store.images?.length ?? 0, 0);
 });
 
 // --- removal action ----------------------------------------------------------
 
-test('removal deletes only unreferenced sentinel-owned candidates (object first)', async () => {
+test('a photo whose approval finishes between the removal checks is kept (DEC-21)', async () => {
+  setup();
+  const { fetchImpl } = fakeImageFetch();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+  const images = store.images as CollectionDoc[];
+  images[0] = { ...(images[0] as CollectionDoc), publishedRefCount: 0 };
+  const publication = {
+    state: 'approved',
+    header: { _id: 'p-1', images: [`/api/images/${imported.imageId}`] },
+  };
+  store.products = [{ _id: 'p-1', published: false }];
+  store.catalogDetailApprovals = [
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication,
+    } as CollectionDoc,
+  ];
+  // The approval commits (product and job in one transaction) right after the
+  // removal has read the products: whichever check comes second must see it.
+  const shared = store;
+  let committed = false;
+  class CommitDuringScan extends MemoryAdapter {
+    override async list(query: AdapterListQuery) {
+      const page = await super.list(query);
+      if (query.collection === 'products' && !committed) {
+        committed = true;
+        shared.products = [{ _id: 'p-1', published: false, catalogDetailPublication: publication }];
+        shared.catalogDetailApprovals = [
+          {
+            _id: 'job-1',
+            productId: 'p-1',
+            state: 'complete',
+            createdAt: new Date().toISOString(),
+            publication,
+          } as CollectionDoc,
+        ];
+      }
+      return page;
+    }
+  }
+  setAdapter(new CommitDuringScan(store));
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'still-referenced',
+  });
+  assert.equal(store.images?.length, 1);
+  assert.equal(storage.deletes.length, 0);
+});
+
+test('removal deletes only unreferenced sentinel-owned candidates', async () => {
   setup();
   const { fetchImpl } = fakeImageFetch();
   const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
@@ -389,6 +580,24 @@ test('removal deletes only unreferenced sentinel-owned candidates (object first)
   });
 
   images[0] = { ...(images[0] as CollectionDoc), publishedRefCount: 0 };
+  // An unfinished approval that would publish it still uses it (DEC-21).
+  store.catalogDetailApprovals = [
+    {
+      _id: 'job-1',
+      productId: 'p-1',
+      state: 'staging',
+      createdAt: new Date().toISOString(),
+      publication: {
+        state: 'approved',
+        header: { _id: 'p-1', images: [`/api/images/${imported.imageId}`] },
+      },
+    } as CollectionDoc,
+  ];
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'still-referenced',
+  });
+  store.catalogDetailApprovals = [];
   const removed = await removeImportedCandidate(imported.imageId);
   assert.deepEqual(removed, { ok: true, imageId: imported.imageId });
   assert.equal(store.images?.length, 0);
@@ -431,7 +640,7 @@ test('removal is blocked by an UNPUBLISHED document reference (refCount 0)', asy
   assert.equal(removed.ok, true);
 });
 
-test('a storage delete failure is TERMINAL: the doc survives and a retry succeeds', async () => {
+test('a storage delete failure retains quarantined metadata and a retry succeeds', async () => {
   setup();
   const { fetchImpl } = fakeImageFetch();
   const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
@@ -457,7 +666,7 @@ test('a storage delete failure is TERMINAL: the doc survives and a retry succeed
   });
   assert.equal(store.images?.length, 1, 'doc NEVER removed before the object');
 
-  // The mutation lock was released on failure — the retry can acquire it.
+  // Retry resumes the durable terminal intent without waiting for a lock timeout.
   const retried = await removeImportedCandidate(imported.imageId);
   assert.deepEqual(retried, { ok: true, imageId: imported.imageId });
   assert.equal(store.images?.length, 0);
@@ -485,3 +694,125 @@ test('a held mutation lock refuses removal as busy', async () => {
     reason: 'busy',
   });
 });
+
+test('removal quarantines the image before deleting its first byte', async () => {
+  setup();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    ...fakeImageFetch(),
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+  const originalDelete = storage.deleteObject.bind(storage);
+  storage.deleteObject = async (fileId) => {
+    assert.equal(store.images?.find((row) => row._id === imported.imageId)?.status, 'deleted');
+    return originalDelete(fileId);
+  };
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: true,
+    imageId: imported.imageId,
+  });
+});
+
+test('an unconfirmed row removal retains a quarantined retry target', async () => {
+  setup();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    ...fakeImageFetch(),
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+  class UnconfirmedRemoval extends MemoryAdapter {
+    failNext = true;
+    override async remove(collection: string, id: string) {
+      if (collection === 'images' && this.failNext) {
+        this.failNext = false;
+        return false;
+      }
+      return super.remove(collection, id);
+    }
+  }
+  setAdapter(new UnconfirmedRemoval(store));
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'delete-failed',
+  });
+  assert.equal(store.images?.find((row) => row._id === imported.imageId)?.status, 'deleted');
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: true,
+    imageId: imported.imageId,
+  });
+  assert.equal(store.images?.length, 0);
+});
+
+test('injected source persistence owns every import phase and retries the exact unknown ACK command', async () => {
+  setup();
+  const adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
+  const persist = adapter.manageSourceMediaImport.bind(adapter);
+  adapter.manageSourceMediaImport = async () => {
+    throw Error('unscoped source persistence forbidden');
+  };
+  const commands: SourceMediaImportCommand[] = [];
+  let lost = false;
+  const result = await importCandidateImage('https://sc04.alicdn.com/scoped.png', {
+    resolveDns: PUBLIC_DNS,
+    fetchImpl: async () => new Response(new Uint8Array(PNG_BYTES)),
+    persistImport: async (command) => {
+      commands.push(structuredClone(command));
+      const reply = await persist(command);
+      if (!lost) {
+        lost = true;
+        throw Error('committed claim ACK lost');
+      }
+      return reply;
+    },
+  });
+  assert.ok(result.ok);
+  assert.deepEqual(
+    commands.map((c) => c.action),
+    ['claim', 'claim', 'checkpoint', 'activate'],
+  );
+  assert.deepEqual(commands[0], commands[1]);
+  assert.equal(storage.puts.length, 1);
+});
+
+for (const kind of ['addition', 'removal', 'missing', 'cancel'] as const)
+  test(`imported candidate cleanup respects complete reference state ${kind}`, async () => {
+    setup();
+    const { fetchImpl } = fakeImageFetch();
+    const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+      fetchImpl,
+      resolveDns: PUBLIC_DNS,
+    });
+    assert.ok(imported.ok);
+    const image = store.images?.find((row) => row._id === imported.imageId);
+    assert.ok(image);
+    const removing = kind === 'removal';
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      removing ? [imported.imageId] : [],
+      removing ? [] : [imported.imageId],
+    );
+    image.publishedRefCount = removing ? 1 : 0;
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    store.catalogDetailApprovals =
+      kind === 'missing'
+        ? []
+        : [kind === 'cancel' ? catalogImageReferenceCancelProof(plan.proof) : plan.proof];
+    const result = await removeImportedCandidate(imported.imageId);
+    if (kind === 'removal' || kind === 'cancel') {
+      assert.deepEqual(result, { ok: true, imageId: imported.imageId });
+      assert.equal(store.images?.length, 0);
+      assert.equal(storage.deletes.length, 1);
+      assert.ok(store.catalogDetailApprovals.some((row) => row._id === plan.proof._id));
+    } else {
+      assert.deepEqual(result, { ok: false, reason: 'still-referenced' });
+      assert.equal(store.images?.length, 1);
+      assert.equal(storage.deletes.length, 0);
+    }
+  });

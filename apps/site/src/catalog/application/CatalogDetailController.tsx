@@ -158,6 +158,8 @@ export function CatalogDetailController({
             unavailableLabel={copy.imageUnavailableLabel}
             selection={selection}
             variants={pages.items}
+            // "Belongs to exactly one" needs every configuration loaded.
+            {...(pages.mode === 'complete' ? { onSelectVariant: select } : {})}
           />
         }
         pagination={

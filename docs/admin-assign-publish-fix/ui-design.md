@@ -41,6 +41,8 @@ For a single product show its name once, with its saved current-public/draft sta
 
 Reserve a compact status band so changing text/count never shifts the actions or rows. A single `aria-live="polite"` region announces each significant change; counts use tabular numerals.
 
+> Superseded 2026-10-12 by DEC-21 (`docs/catalog-single-source-of-truth/DESIGN.md`): one unclear result no longer stops a batch; unclear products are read back; "busy" answers are resent automatically; results say "N published · M not published" with a Try again button.
+
 | Stage | Visible state | Operator can do |
 | --- | --- | --- |
 | Ready | Exact chosen outcome + affected count, no server write. | Edit choices, expand names, select Save or Save and publish. |

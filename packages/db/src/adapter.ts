@@ -6,7 +6,6 @@
  * development wires a file-backed adapter. This keeps the persistence layer
  * swappable without any module-aliasing tricks.
  */
-import { isDeepStrictEqual } from 'node:util';
 import type {
   CollectionDoc,
   FilterModel,
@@ -23,10 +22,13 @@ import {
   validateProductPublication,
 } from '@vibelingan-channel/shared';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
+import type { ImageUploadCommand, ImageUploadResult } from './image-upload.ts';
+import type { SourceMediaImportCommand, SourceMediaImportResult } from './source-media-import.ts';
 export {
   alibabaPricingFingerprint,
   type AlibabaPricingEvidenceExpectation,
 } from './alibaba-pricing-fingerprint.ts';
+import { CatalogProductStateError, advanceCatalogProduct } from './catalog-product-state.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import type { CatalogExpectedSuggestion } from './catalog-suggestion-save.ts';
 export {
@@ -40,6 +42,7 @@ export { planProductSubcategorySave } from './product-subcategory-save.ts';
 export {
   ALIBABA_PRODUCT_LINK_LIMIT,
   alibabaLinkRevision,
+  flagForReview,
   runAlibabaProductMutation,
   type AlibabaProductLinkIdentity,
   type AlibabaProductMutationInput,
@@ -51,25 +54,52 @@ export interface AdapterListQuery {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  /** Leave out new drafts still waiting for their Alibaba photos (PT-G). */
+  hidePreparing?: boolean;
+  /** Opt-in server summary scope; default admission requires the historical-data audit. */
+  catalogReadiness?: import('@vibelingan-channel/shared/catalog-preparation').CatalogReadiness;
+  /** Explicit admin summary DTO; complete reads must still use get(). */
+  catalogListView?: import('@vibelingan-channel/shared/admin-product-list').AdminProductListView;
   productSubcategories?: ProductSubcategoryScope;
   page: number;
   pageSize: number;
   search: string;
+  /** Fields `search` matches instead of the collection's `searchableFields`. */
+  searchFields?: readonly string[];
   filter?: FilterModel;
   sort?: SortClause[];
 }
 
+import type { ImageDeletionCommand, ImageDeletionResult } from './image-deletion.ts';
+
 export type ImageMutationAcquireResult = 'acquired' | 'missing' | 'busy' | 'corrupt';
 export type ImageMutationReleaseResult = 'released' | 'missing' | 'not-owner' | 'corrupt';
+
+/**
+ * The fields a free-text search matches: the caller's narrower set when given
+ * (the public storefront leaves out admin-only ids), else the collection's.
+ */
+export function listSearchFields(
+  query: Pick<AdapterListQuery, 'searchFields'>,
+  def: { searchableFields: readonly string[] } | undefined,
+): readonly string[] {
+  return query.searchFields ?? def?.searchableFields ?? [];
+}
 
 export interface CatalogProductSaveInput {
   mode: 'create' | 'update';
   productId: string;
   data: Record<string, unknown>;
-  expectedUpdatedAt?: string;
+  expectedUpdatedAt?: string | null;
   rejectPendingReview?: boolean;
   expectedPrimarySourceKey?: string | null;
   requireDetailApproval?: boolean | 'publication-or-pricing';
+  /** Refuse (as stale) when the product was approved, published or archived (PT-G photo job). */
+  requireUnapprovedDraft?: boolean;
+  /** Server-only binding to the immutable input reserved by this actor. */
+  expectedOperation?: { actorId: string; operationId: string; inputDigest: string };
+  /** Server-only owner of existing image mutexes held across an owned draft save. */
+  expectedImageMutationOwner?: string;
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
     productUpdatedAt: string | null;
@@ -90,10 +120,20 @@ export interface CatalogProductIdentity {
 
 export type CatalogProductSaveResult =
   | { result: 'saved'; doc: CollectionDoc; previous: CollectionDoc | null }
+  | { result: 'media-busy' }
   | { result: 'alibaba-identity-conflict' }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
-  | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
+  | {
+      result: 'invalid-product';
+      issues: Array<
+        | ReturnType<typeof validateProductPublication>[number]
+        | {
+            field: 'catalogPreparationState' | 'descriptionImageIds' | 'configurationPhotos';
+            message: string;
+          }
+      >;
+    }
   | { result: 'missing' | 'exists' | 'stale' };
 
 export type CatalogSourceObservationUpsertResult =
@@ -161,6 +201,7 @@ export function planCatalogProductSave(
   existing: CollectionDoc | null,
   input: CatalogProductSaveInput,
   now: string,
+  options: { cancelPendingPublication?: boolean; clearManualPricing?: boolean } = {},
 ): CatalogProductSavePlan {
   if (input.mode === 'create' && existing) return { result: 'exists' };
   const expected = input.expectedAlibabaIdentity;
@@ -174,7 +215,17 @@ export function planCatalogProductSave(
     return { result: 'alibaba-identity-conflict' };
   }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
-  if (input.expectedUpdatedAt !== undefined && existing?.updatedAt !== input.expectedUpdatedAt)
+  if (
+    input.expectedUpdatedAt !== undefined &&
+    (existing?.updatedAt ?? null) !== input.expectedUpdatedAt
+  )
+    return { result: 'stale' };
+  if (
+    input.requireUnapprovedDraft &&
+    (existing?.published === true ||
+      existing?.archived === true ||
+      Boolean(existing?.catalogDetailApprovalReceipt))
+  )
     return { result: 'stale' };
   if (
     input.rejectPendingReview &&
@@ -187,15 +238,22 @@ export function planCatalogProductSave(
     input.mode === 'create'
       ? { published: false, archived: false, ...inputData }
       : { ...inputData };
+  if (
+    input.mode === 'update' &&
+    (options.cancelPendingPublication || options.clearManualPricing) &&
+    data.manualCatalogPricing === null
+  )
+    data.manualCatalogPricing = '';
   if (expected && existing?.alibabaReviewPending === false && data.alibabaReviewPending === false) {
     const {
       alibabaReviewPending: _pending,
+      alibabaReviewReason: _reason,
       alibabaReviewedAt: _reviewedAt,
       alibabaReviewedByUserId: _reviewer,
       ...remainingData
     } = data;
     data = remainingData;
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && !options.cancelPendingPublication) {
       return { result: 'ready', doc: existing, identities: [], staleIdentities: [] };
     }
   }
@@ -204,19 +262,12 @@ export function planCatalogProductSave(
     const willBeArchived = data.archived === true;
     if (wasArchived !== willBeArchived) data.published = false;
   }
-  const previousUpdatedAt =
-    typeof existing?.updatedAt === 'string' ? Date.parse(existing.updatedAt) : Number.NaN;
-  const nowMs = Date.parse(now);
-  const updatedAt =
-    Number.isFinite(nowMs) && Number.isFinite(previousUpdatedAt) && previousUpdatedAt >= nowMs
-      ? new Date(previousUpdatedAt + 1).toISOString()
-      : now;
-  const doc = {
+  let doc = {
     ...(existing ?? {}),
     ...data,
     _id: input.productId,
     createdAt: existing?.createdAt ?? now,
-    updatedAt,
+    updatedAt: now,
   } as CollectionDoc;
   if (
     Object.hasOwn(data, 'productFamily') &&
@@ -229,6 +280,9 @@ export function planCatalogProductSave(
   // stale value after moving to another family. Clear it in the transaction on the
   // next write so unrelated edits stay possible and no caller must know old storage
   // cleanup rules. Empty string is the established clear sentinel for patch writes.
+  // The category as the row had it, for the approval check below: approval
+  // fingerprinted the stored row, before this cleanup.
+  const categoryBeforeCleanup = doc.category;
   if (
     isProductFamily(doc.productFamily) &&
     doc.productFamily !== 'headphones' &&
@@ -237,26 +291,40 @@ export function planCatalogProductSave(
   ) {
     doc.category = '';
   }
+  try {
+    doc = advanceCatalogProduct(existing, doc, now, {
+      lifecyclePatch: options.cancelPendingPublication ? { ...data, published: false } : data,
+    });
+  } catch (error) {
+    if (!(error instanceof CatalogProductStateError)) throw error;
+    return {
+      result: 'invalid-product',
+      issues: [{ field: 'catalogPreparationState', message: error.message }],
+    };
+  }
   const issues = validateProductPublication(doc);
+  // Every product, synced or manual, is published only as its approved version
+  // (DEC-15). A row edit on a published product (a price, say) is accepted:
+  // buyers keep seeing the approved version until the next approval (MIU-31).
   if (
     input.requireDetailApproval &&
     doc.published === true &&
-    typeof doc.alibabaPrimarySourceKey === 'string' &&
-    (input.requireDetailApproval === true ||
-      data.published === true ||
-      ['catalogPricingMode', 'manualCatalogPricing', 'unitPrice', 'wholesalePrice', 'moq'].some(
-        (field) => !isDeepStrictEqual(existing?.[field], doc[field]),
-      ))
+    (input.requireDetailApproval === true || data.published === true)
   ) {
     const receipt = existing?.catalogDetailApprovalReceipt;
     if (
       !receipt ||
       typeof receipt !== 'object' ||
-      Reflect.get(receipt, 'contentFingerprint') !== publicationContentFingerprint(doc)
+      (Reflect.get(receipt, 'contentFingerprint') !== publicationContentFingerprint(doc) &&
+        Reflect.get(receipt, 'contentFingerprint') !==
+          publicationContentFingerprint({ ...doc, category: categoryBeforeCleanup }))
     )
       issues.push({
         field: 'published',
-        message: 'Review and approve the current product details before publishing.',
+        message:
+          input.mode === 'create'
+            ? 'A new product starts as a draft. Save it unpublished, then approve it to publish.'
+            : 'Review and approve the current product details before publishing.',
       });
   }
   if (issues.length > 0) return { result: 'invalid-product', issues };
@@ -497,6 +565,15 @@ export interface DbAdapter {
   mutateAlibabaProduct?(
     input: import('./alibaba-product-identity.ts').AlibabaProductMutationInput,
   ): Promise<import('./alibaba-product-identity.ts').AlibabaProductMutationResult>;
+  /** Internal same-snapshot effective media references; no pending-reference producer. */
+  readCatalogImageReference?(
+    command: import('./catalog-image-reference-store.ts').CatalogImageReferenceReadCommand,
+  ): Promise<import('./catalog-image-reference-store.ts').CatalogImageReferenceSnapshot>;
+  manageCatalogPreparationJob?(
+    authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
+    command: import('./catalog-preparation-jobs.ts').CatalogPreparationJobCommand,
+    now?: number,
+  ): Promise<import('./catalog-preparation-jobs.ts').CatalogPreparationJobResult>;
   persistCatalogDetailApproval?(
     actorId: string,
     input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
@@ -514,6 +591,8 @@ export interface DbAdapter {
     actorId: string,
     input: unknown,
   ): Promise<import('@vibelingan-channel/shared/catalog-inquiry').InquiryResult>;
+  /** Internal targeted query; older adapters retain the paged full-job fallback. */
+  findUnfinishedApprovalUsingImage?(imageId: string, startedAfter: string): Promise<string | null>;
   list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   /** Find the first document where `field` exactly equals `value`. */
@@ -527,8 +606,9 @@ export interface DbAdapter {
   remove(collection: string, id: string): Promise<boolean>;
   /**
    * Atomically add `delta` to one numeric field of a document and return the
-   * new value, or `null` if the document does not exist. A trusted server-side
-   * primitive for maintaining server-managed counters (e.g.
+   * new value, or `null` if the document does not exist. An absent legacy
+   * images.publishedRefCount also returns null because its base is unknown.
+   * A trusted server-side primitive for maintaining server-managed counters (e.g.
    * `images.publishedRefCount`) that are read-only on the generic write surface.
    */
   incrementField(
@@ -546,6 +626,10 @@ export interface DbAdapter {
     owner: string,
     startedAt: string,
   ): Promise<ImageMutationAcquireResult>;
+  /** Atomically quarantine or finalize an image deletion; never calls storage. */
+  manageImageDeletion?(command: ImageDeletionCommand): Promise<ImageDeletionResult>;
+  manageImageUpload?(command: ImageUploadCommand): Promise<ImageUploadResult>;
+  manageSourceMediaImport?(command: SourceMediaImportCommand): Promise<SourceMediaImportResult>;
   /** Release only when the caller still owns the image mutation lock. */
   releaseImageMutation?(imageId: string, owner: string): Promise<ImageMutationReleaseResult>;
   /**

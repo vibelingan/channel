@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
+import { adminListResponse } from './helpers/admin-list-response';
 
 const adminUser = {
   id: 'user-1',
@@ -41,14 +42,11 @@ test('Products family tabs compose list queries, recover URL state, and prefill 
         contentType: 'application/json',
         body: JSON.stringify({
           ok: true,
-          data: {
-            items: productsPage
-              ? [{ _id: 'product-1', name: 'Product One', productFamily: 'toys' }]
-              : [],
-            total: productsPage ? 40 : 0,
-            page: body.data?.page ?? 1,
-            pageSize: 20,
-          },
+          data: adminListResponse(
+            body.data,
+            productsPage ? [{ _id: 'product-1', name: 'Product One', productFamily: 'toys' }] : [],
+            productsPage ? 40 : 0,
+          ),
         }),
       });
       return;
@@ -126,7 +124,9 @@ test('mobile Products view exposes a full-width family select', async ({ page })
       body: JSON.stringify(
         body.action === 'me'
           ? { ok: true, data: { user: adminUser } }
-          : { ok: true, data: { items: [], total: 0, page: 1, pageSize: 20 } },
+          : body.action === 'catalogDetailCapabilities'
+            ? { ok: true, data: { enabled: false } }
+            : { ok: true, data: adminListResponse(body.data, []) },
       ),
     });
   });
@@ -208,7 +208,9 @@ test('narrow section picker supports keyboard navigation without writes', async 
       json:
         body.action === 'me'
           ? { ok: true, data: { user: adminUser } }
-          : { ok: true, data: { items: [], total: 0, page: 1, pageSize: 20 } },
+          : body.action === 'catalogDetailCapabilities'
+            ? { ok: true, data: { enabled: false } }
+            : { ok: true, data: adminListResponse(body.data, []) },
     });
   });
   await page.goto('/admin');
@@ -233,13 +235,15 @@ test('narrow section picker excludes admin-only sections for contributors', asyn
     localStorage.setItem('channel.user', JSON.stringify(user));
   }, contributor);
   await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as { action?: string };
+    const body = route.request().postDataJSON() as { action?: string; data?: unknown };
     await route.fulfill({
       status: 200,
       json:
         body.action === 'me'
           ? { ok: true, data: { user: contributor } }
-          : { ok: true, data: { items: [], total: 0, page: 1, pageSize: 20 } },
+          : body.action === 'catalogDetailCapabilities'
+            ? { ok: true, data: { enabled: false } }
+            : { ok: true, data: adminListResponse(body.data, []) },
     });
   });
   await page.goto('/admin');

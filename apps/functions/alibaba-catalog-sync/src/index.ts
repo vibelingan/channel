@@ -7,12 +7,15 @@
  * boots every function with stub env only).
  */
 import { setAdapter } from '@vibelingan-channel/db';
+import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import { runCatalogPreparationCall } from './catalog-preparation.ts';
 import type { AlibabaSyncFunctionConfig } from './config.ts';
 import { handleAlibabaSyncFunctionEvent, parseAllowedOrigins } from './http-adapter.ts';
+import { isTrustedSyncTimerEvent } from './timer-event.ts';
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
@@ -20,6 +23,7 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: AlibabaSyncFunctionConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
+  backgroundSyncEnabled: optionalEnv('ALIBABA_SYNC_BACKGROUND_ENABLED') === '1',
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')
     ? { corsAllowedOrigins: parseAllowedOrigins(optionalEnv('CORS_ALLOWED_ORIGINS') as string) }
     : {}),
@@ -45,23 +49,23 @@ const config: AlibabaSyncFunctionConfig = {
   },
 };
 
-/** CloudBase timer trigger envelope ({Type:'Timer', TriggerName, Time}). */
-function isTimerEvent(event: unknown): boolean {
-  return (
-    typeof event === 'object' &&
-    event !== null &&
-    ((event as { Type?: unknown }).Type === 'Timer' ||
-      typeof (event as { TriggerName?: unknown }).TriggerName === 'string')
-  );
-}
+const preparationAuthority = createCatalogPreparationAuthority({
+  secret: config.jwtSecret,
+  environmentId: requireEnv('TCB_ENV'),
+});
 
 export const main = async (event: unknown): Promise<unknown> => {
-  if (isTimerEvent(event)) {
-    // Timer tick (production only — the test env never receives a timer,
-    // MIU 14): full 720s budget under the fenced lease.
+  if (
+    typeof event === 'object' &&
+    event !== null &&
+    Reflect.get(event, 'kind') === 'catalog-preparation-call-v1'
+  )
+    return runCatalogPreparationCall(preparationAuthority, event);
+  if (isTrustedSyncTimerEvent(event, process.env.TRIGGER_SRC)) {
     const { resolveRuntime } = await import('./handler.ts');
     const { getConnectionAccessToken } = await import('./oauth.ts');
-    const { runSyncTick } = await import('./runner.ts');
+    const { resumeSyncWorkflow } = await import('./sync-workflow.ts');
+    const { prepareSyncedCatalogSource } = await import('./sync-readiness.ts');
     const runtime = resolveRuntime(config);
     if (!runtime.ok) {
       console.warn('[alibaba-catalog-sync] timer tick skipped: not configured');
@@ -69,14 +73,15 @@ export const main = async (event: unknown): Promise<unknown> => {
     }
     // Token resolves INSIDE the runner, after the lease (review R2 #3):
     // refresh is single-flight and a transport outage is never terminal.
-    return runSyncTick({
-      deps: {
+    return resumeSyncWorkflow({
+      enabled: config.backgroundSyncEnabled === true,
+      prepareSource: (input) => prepareSyncedCatalogSource(preparationAuthority, input),
+      runner: {
         client: runtime.runtime.deps.client,
         getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
         now: runtime.runtime.deps.now,
         alert: runtime.runtime.deps.alert,
       },
-      trigger: 'timer',
     });
   }
   return handleAlibabaSyncFunctionEvent(event, config);

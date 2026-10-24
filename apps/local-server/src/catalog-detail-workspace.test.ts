@@ -18,6 +18,7 @@ import {
   CatalogApprovalManifestSchema,
   catalogApprovalDigest,
 } from '@vibelingan-channel/db/catalog-detail-commit';
+import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
 import { migrateImageLocally } from '@vibelingan-channel/fn-admin/catalog-import-media';
 import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
 import { handlePublicApiEvent } from '@vibelingan-channel/fn-public-api/http-adapter';
@@ -570,13 +571,20 @@ test('replay cannot replace a published product title or gallery with unapproved
 });
 
 test('partial input does not mark removals; a failed materialization cannot be approved', async (t) => {
-  await workspace(t);
+  const local = await workspace(t);
   const source = observation();
   const product = await materialize(source);
   source.source.completeness = 'partial-product';
   source.variants = [];
   await assert.rejects(materialize(source), /Complete product required/);
-  await updateDoc('products', product.productId, { detailSourceReady: false });
+  const current = await get('products', product.productId);
+  assert.ok(current && typeof current.detailSourceOwner === 'string');
+  await local.adapter.prepareLocalDetailClone({
+    action: 'begin',
+    productId: product.productId,
+    owner: current.detailSourceOwner,
+    revision: randomUUID(),
+  });
   await assert.rejects(approveLocalDetail(product.productId), /incomplete/);
   assert.equal((await read(product.productId)).statusCode, 404);
 });
@@ -588,16 +596,18 @@ test('corrupt canonical variant identity and unpublish during a read fail closed
   const before = detail((await read(product.productId)).body);
   const variant = before.variants.items[0];
   assert.ok(variant);
-  await updateDoc('productVariants', variant.id, {
+  assert.ok(typeof before.revision === 'string');
+  const storedId = approvedVariantDocumentId(product.productId, before.revision, variant.id);
+  await updateDoc('catalogDetailVariants', storedId, {
     catalogDetailApproved: { ...variant, id: 'wrong-id' },
   });
   assert.equal((await read(product.productId)).statusCode, 409);
-  await updateDoc('productVariants', variant.id, {
+  await updateDoc('catalogDetailVariants', storedId, {
     catalogDetailApproved: variant,
     archived: 'false',
   });
   assert.equal((await read(product.productId)).statusCode, 409);
-  await updateDoc('productVariants', variant.id, { archived: false });
+  await updateDoc('catalogDetailVariants', storedId, { archived: false });
   const originalGet = local.adapter.get.bind(local.adapter);
   let productReads = 0;
   local.adapter.get = async (collection, id) => {
@@ -607,4 +617,196 @@ test('corrupt canonical variant identity and unpublish during a read fail closed
     return doc;
   };
   assert.equal((await read(product.productId)).statusCode, 409);
+});
+
+test('local preparation seam refuses unowned products without a write', async (t) => {
+  const local = await workspace(t);
+  await createDocWithId('products', 'ordinary', {
+    name: 'Ordinary',
+    published: false,
+    archived: false,
+    detailSourceOwner: 'ui02:ordinary',
+  });
+  const before = await get('products', 'ordinary');
+  await assert.rejects(
+    local.adapter.prepareLocalDetailClone({
+      action: 'begin',
+      productId: 'ordinary',
+      owner: 'ui02:ordinary',
+      revision: randomUUID(),
+    }),
+    /local clone/,
+  );
+  assert.deepEqual(await get('products', 'ordinary'), before);
+});
+
+test('local preparation seam checks generation, source revision and complete owned manifest', async (t) => {
+  const local = await workspace(t);
+  const { productId } = await materialize(observation());
+  const product = await get('products', productId);
+  assert.ok(product && typeof product.detailSourceOwner === 'string');
+  const owner = product.detailSourceOwner;
+  const revision = String(product.detailSourceRevision);
+  const generation = Number(product.catalogContentGeneration ?? 0);
+  for (const input of [
+    { expectedGeneration: generation + 1, revision },
+    { expectedGeneration: generation, revision: randomUUID() },
+  ]) {
+    await assert.rejects(
+      local.adapter.prepareLocalDetailClone({
+        action: 'seal',
+        productId,
+        owner,
+        ...input,
+      }),
+      /changed/,
+    );
+    assert.deepEqual(await get('products', productId), product);
+  }
+  const manifest = CatalogApprovalManifestSchema.parse(product.detailSourceManifest);
+  await updateDoc('products', productId, {
+    detailSourceManifest: { revision, variantIds: manifest.variantIds.slice(1) },
+  });
+  const before = await get('products', productId);
+  await assert.rejects(
+    local.adapter.prepareLocalDetailClone({
+      action: 'seal',
+      productId,
+      owner,
+      revision,
+      expectedGeneration: generation,
+    }),
+    /manifest/,
+  );
+  assert.deepEqual(await get('products', productId), before);
+});
+
+test('a newly begun local materialization blocks approval of the previous complete manifest', async (t) => {
+  const local = await workspace(t);
+  const { productId } = await materialize(observation());
+  await approveLocalDetail(productId);
+  const before = detail((await read(productId)).body);
+  const product = await get('products', productId);
+  assert.ok(product && typeof product.detailSourceOwner === 'string');
+  await local.adapter.prepareLocalDetailClone({
+    action: 'begin',
+    productId,
+    owner: product.detailSourceOwner,
+    revision: randomUUID(),
+  });
+  await assert.rejects(approveLocalDetail(productId), /incomplete/);
+  assert.deepEqual(detail((await read(productId)).body), before);
+});
+
+test('local approval uses staged immutable snapshots and preserves operator edits', async (t) => {
+  await workspace(t);
+  const { productId } = await materialize(observation('alibaba', 21));
+  await updateDoc('products', productId, { name: 'My edited title' });
+  assert.equal((await get('products', productId))?.detailSourceReady, false);
+  const result = await approveLocalDetail(productId);
+  const saved = await get('products', productId);
+  assert.ok(saved);
+  const publication = saved.catalogDetailPublication;
+  assert.ok(publication && typeof publication === 'object');
+  assert.equal(Reflect.get(publication, 'variantStorage'), 'immutable-v1');
+  assert.equal(Reflect.get(publication, 'revision'), result.revision);
+  const receipt = saved.catalogDetailApprovalReceipt;
+  assert.ok(receipt && typeof receipt === 'object');
+  assert.equal(Reflect.get(receipt, 'revision'), result.revision);
+  assert.equal(detail((await read(productId)).body).name, 'My edited title');
+});
+
+test('another UI-02 owner and an older local seal cannot claim a valid clone', async (t) => {
+  const local = await workspace(t);
+  const { productId } = await materialize(observation());
+  const product = await get('products', productId);
+  assert.ok(
+    product &&
+      typeof product.detailSourceOwner === 'string' &&
+      typeof product.detailSourceRevision === 'string',
+  );
+  const before = structuredClone(product);
+  await assert.rejects(
+    local.adapter.prepareLocalDetailClone({
+      action: 'begin',
+      productId,
+      owner: 'ui02:another-owner',
+      revision: randomUUID(),
+    }),
+    /owned/,
+  );
+  assert.deepEqual(await get('products', productId), before);
+  await local.adapter.prepareLocalDetailClone({
+    action: 'begin',
+    productId,
+    owner: product.detailSourceOwner,
+    revision: randomUUID(),
+  });
+  const pending = await get('products', productId);
+  await assert.rejects(
+    local.adapter.prepareLocalDetailClone({
+      action: 'seal',
+      productId,
+      owner: product.detailSourceOwner,
+      revision: product.detailSourceRevision,
+      expectedGeneration: Number(product.catalogContentGeneration ?? 0),
+    }),
+    /changed/,
+  );
+  assert.deepEqual(await get('products', productId), pending);
+  assert.equal(pending?.detailSourceReady, false);
+});
+
+test('an existing local replay validates retained website text instead of unused long incoming text', async (t) => {
+  await workspace(t);
+  for (const provider of ['alibaba', 'dianxiaomi'] as const) {
+    const source = observation(provider, 105);
+    const { productId } = await materialize(source);
+    await updateDoc('products', productId, {
+      name: 'Retained website title',
+      description: 'Retained website description',
+    });
+    await approveLocalDetail(productId);
+    const publicBefore = (await read(productId)).body;
+    const old = await get('products', productId);
+    assert.ok(old);
+    source.source.observedAt = '2026-09-06T02:00:00.000Z';
+    source.identity.title = 'x'.repeat(1001);
+    const description = source.content.description;
+    assert.ok(description);
+    description.text = 'y'.repeat(30001);
+    const replayed = await materialize(source);
+    assert.equal(replayed.productId, productId);
+    assert.equal(replayed.variants, 105);
+    const current = await get('products', productId);
+    assert.equal(current?.name, 'Retained website title');
+    assert.equal(current?.description, 'Retained website description');
+    assert.equal(current?.published, true);
+    assert.deepEqual(current?.catalogDetailPublication, old.catalogDetailPublication);
+    assert.equal((await read(productId)).body, publicBefore);
+    await approveLocalDetail(productId);
+    const view = detail((await read(productId)).body);
+    assert.equal(view.name, 'Retained website title');
+    assert.equal(view.descriptionText, 'Retained website description');
+    assert.equal(view.variants.total, 105);
+  }
+});
+
+test('a new clone with invalid adopted text reserves no product or configuration identity', async (t) => {
+  const { adapter } = await workspace(t);
+  for (const provider of ['alibaba', 'dianxiaomi'] as const) {
+    for (const fault of ['title', 'description']) {
+      const source = observation(provider, 105);
+      if (fault === 'title') source.identity.title = 'x'.repeat(1001);
+      else {
+        assert.ok(source.content.description);
+        source.content.description.text = 'y'.repeat(30001);
+      }
+      await assert.rejects(materialize(source), /name:|descriptionText:/);
+      for (const collection of ['products', 'productVariants', 'catalogSourceLinks']) {
+        const rows = await adapter.list({ collection, page: 1, pageSize: 100, search: '' });
+        assert.equal(rows.total, 0, `${collection} unchanged before any identity reservation`);
+      }
+    }
+  }
 });

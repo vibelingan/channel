@@ -119,6 +119,12 @@ export function AlibabaObservationReplay({
                 {plan.counts.warnings.toLocaleString('en-US')}
               </dd>
             </div>
+            <div>
+              <dt className="text-xs text-slate-500">Headline prices removed</dt>
+              <dd className="mt-0.5 font-medium text-slate-900">
+                {plan.counts.productHeadlineDropped.toLocaleString('en-US')}
+              </dd>
+            </div>
           </dl>
           <p className="mt-3 text-xs text-slate-600">Prices: {priceModeSummary(plan)}</p>
           {applied !== null && (

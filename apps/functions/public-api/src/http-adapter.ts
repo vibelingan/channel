@@ -23,8 +23,7 @@ import {
 
 export interface PublicHttpConfig extends PublicApiConfig {
   corsAllowedOrigins?: readonly string[];
-  /** UI-02 opt-in. Not wired from cloud env; local review server enables this. */
-  enableCatalogDetail?: boolean;
+  // `enableCatalogDetail` lives on PublicApiConfig: the catalog projection uses it too.
   /** Explicit cloud rollout gate; no email, checkout or OEM side effects. */
   enableInquiries?: boolean;
 }
@@ -132,6 +131,8 @@ function statusFor(result: ApiResult<unknown>): number {
       return 409;
     case 'RATE_LIMITED':
       return 429;
+    case 'BUSY':
+      return 409;
     case 'INTERNAL_ERROR':
       return 500;
     default: {
@@ -337,6 +338,11 @@ async function routeGet(
     ) {
       return jsonResponse(event, config, err('VALIDATION_ERROR', 'Invalid detail view.'));
     }
+    if (
+      params.getAll('pagination').length > 1 ||
+      (params.has('pagination') && params.get('pagination') !== 'byte-budget-v1')
+    )
+      return jsonResponse(event, config, err('VALIDATION_ERROR', 'Invalid detail pagination.'));
     const integer = (name: string, fallback: number) => {
       const value = params.get(name);
       return value === null ? fallback : /^\d+$/.test(value) ? Number(value) : Number.NaN;
@@ -352,6 +358,7 @@ async function routeGet(
         params.has('view'),
         ['sections', 'sections-media'].includes(params.get('view') ?? ''),
         params.get('view') === 'sections-media',
+        params.get('pagination') === 'byte-budget-v1',
       ),
       undefined,
       { ...CATALOG_CACHE_HEADERS, 'Cache-Control': 'no-store' },

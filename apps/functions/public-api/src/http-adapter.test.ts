@@ -1460,3 +1460,196 @@ test('overstock payloads never carry alibaba keys (shared allowlist, unchanged s
     false,
   );
 });
+
+// --- MIU-8: one public version (approved version wins over row fields) ----------
+
+const summaryTiers = {
+  mode: 'tiered',
+  currency: 'USD',
+  minimumOrderQuantity: 10,
+  tiers: [
+    { minimumQuantity: 10, maximumQuantity: 499, unitAmountMinor: 130 },
+    { minimumQuantity: 500, unitAmountMinor: 120 },
+  ],
+};
+function approvedRow(id: string, extra: Record<string, unknown> = {}): CollectionDoc {
+  return {
+    _id: id,
+    name: 'Row name (stale)',
+    published: true,
+    productFamily: 'headphones',
+    slug: `${id}-slug`,
+    series: 'S1',
+    imageIds: ['row-image'],
+    description: 'Row description',
+    unitPrice: 9,
+    wholesalePrice: 8,
+    moq: 2,
+    vipPrice: 7,
+    clearancePrice: 6,
+    catalogDetailPublication: {
+      state: 'approved',
+      revision: 'r1',
+      header: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: id,
+        name: 'Approved name',
+        images: ['/api/images/approved-a', '/api/images/approved-b'],
+        descriptionText: 'Approved description',
+        facts: [],
+        offers: [],
+      },
+      variantCount: 1,
+      variantStorage: 'immutable-v1',
+      priceSummary: { source: 'sku', variantId: 'v1', pricing: summaryTiers },
+    },
+    ...extra,
+  };
+}
+const syncedApproved = approvedRow('synced-1', {
+  alibabaPrimarySourceKey: 'a'.repeat(64),
+  alibabaSourceStatus: 'available',
+  alibabaSourceLastSyncedAt: '2026-10-01T00:00:00.000Z',
+  alibabaCatalogPricing: { mode: 'fixed', currency: 'USD', amountMinor: 99 },
+});
+const manualApproved = approvedRow('manual-1', {
+  catalogPricingMode: 'manual',
+  manualCatalogPricing: { schemaVersion: 'manual-catalog-pricing-v1', currency: 'USD', tiers: [] },
+});
+function versionStore(): Store {
+  return {
+    products: [syncedApproved, manualApproved],
+    productVariants: [
+      { _id: 'row-variant', productId: 'synced-1', sku: 'ROW', position: 0, optionValues: {} },
+    ],
+  };
+}
+const versionConfig = { apiBaseUrl: 'https://api.example.test', enableCatalogDetail: true };
+async function listItems(config: Record<string, unknown>) {
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products', queryStringParameters: {} },
+    config,
+  );
+  return (body(response) as { data: { items: CollectionDoc[] } }).data.items;
+}
+
+test('approved products project their approved name, photos, description, price summary and MOQ', async () => {
+  setup(versionStore());
+  const item = (await listItems(versionConfig)).find((doc) => doc._id === 'synced-1');
+  assert.ok(item);
+  assert.equal(item.name, 'Approved name');
+  assert.deepEqual(item.images, [
+    'https://api.example.test/api/images/approved-a',
+    'https://api.example.test/api/images/approved-b',
+  ]);
+  assert.equal(item.description, 'Approved description');
+  assert.deepEqual(item.priceSummary, { source: 'sku', variantId: 'v1', pricing: summaryTiers });
+  assert.equal(item.moq, 10);
+  for (const key of [
+    'unitPrice',
+    'wholesalePrice',
+    'clearancePrice',
+    'vipPrice',
+    'manualCatalogPricing',
+    'catalogPricingMode',
+    'alibabaCatalogPricing',
+    'alibabaPrimarySourceKey',
+    'alibabaSourceStatus',
+    'alibabaSourceLastSyncedAt',
+    'variants',
+  ]) {
+    assert.equal(key in item, false, key);
+  }
+  assert.equal(item.slug, 'synced-1-slug');
+  assert.equal(item.productFamily, 'headphones');
+});
+
+test('approved synced and manual products carry identical public keys (DEC-14)', async () => {
+  setup(versionStore());
+  const items = await listItems(versionConfig);
+  const keys = (id: string) => Object.keys(items.find((doc) => doc._id === id) ?? {}).sort();
+  assert.deepEqual(keys('synced-1'), keys('manual-1'));
+  assert.ok(keys('synced-1').every((key) => !key.startsWith('alibaba')));
+});
+
+test('feature off or not yet approved: the row projection is unchanged', async () => {
+  setup(versionStore());
+  const off = (await listItems({ apiBaseUrl: 'https://api.example.test' })).find(
+    (doc) => doc._id === 'synced-1',
+  );
+  assert.equal(off?.name, 'Row name (stale)');
+  assert.equal(off?.unitPrice, 9);
+  assert.equal(off?.alibabaPrimarySourceKey, 'linked');
+  assert.equal('priceSummary' in (off ?? {}), false);
+  setup({ products: [{ ...manualApproved, catalogDetailPublication: undefined }] });
+  const row = (await listItems(versionConfig))[0];
+  assert.equal(row?.name, 'Row name (stale)');
+  assert.equal(row?.unitPrice, 9);
+});
+
+test('an approved product without a stored summary ships no price at all, never the row price', async () => {
+  // An approval made before summaries existed, not yet backfilled (runbook R4):
+  // the card shows "Request a quote" rather than any row or sync price.
+  const bare = approvedRow('bare-1');
+  const publication = bare.catalogDetailPublication as Record<string, unknown>;
+  const { priceSummary: _summary, ...withoutSummary } = publication;
+  const { descriptionText: _text, ...header } = publication.header as Record<string, unknown>;
+  setup({ products: [{ ...bare, catalogDetailPublication: { ...withoutSummary, header } }] });
+  const item = (await listItems(versionConfig))[0];
+  assert.ok(item);
+  assert.equal(item.name, 'Approved name');
+  for (const key of [
+    'priceSummary',
+    'moq',
+    'description',
+    'unitPrice',
+    'wholesalePrice',
+    'clearancePrice',
+    'vipPrice',
+    'manualCatalogPricing',
+    'catalogPricingMode',
+  ])
+    assert.equal(key in item, false, key);
+});
+
+test('an entitled VIP viewer gets no row price for an approved product either', async () => {
+  const store = seedStore();
+  setup({ ...store, products: [syncedApproved] });
+  const token = await memberToken('member');
+  const response = await handlePublicApiEvent(authEvent('/api/products', token), {
+    ...versionConfig,
+    jwtSecret: JWT_SECRET,
+  });
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal(item?.name, 'Approved name');
+  assert.equal('vipPrice' in (item ?? {}), false);
+  assert.equal('wholesalePrice' in (item ?? {}), false);
+});
+
+test('a product not yet approved projects identically with the feature on or off', async () => {
+  const unapproved = { ...syncedApproved, catalogDetailPublication: undefined };
+  setup({ ...versionStore(), products: [unapproved] });
+  const on = await listItems(versionConfig);
+  const off = await listItems({ apiBaseUrl: 'https://api.example.test' });
+  assert.deepEqual(on, off);
+  assert.equal(on[0]?.unitPrice, 9);
+});
+
+test('item and slug endpoints return the same approved projection as the list', async () => {
+  setup(versionStore());
+  const fromList = (await listItems(versionConfig)).find((doc) => doc._id === 'synced-1');
+  const item = body(
+    await handlePublicApiEvent(
+      { httpMethod: 'GET', path: '/api/products/synced-1' },
+      versionConfig,
+    ),
+  ) as { data: CollectionDoc };
+  const bySlug = body(
+    await handlePublicApiEvent(
+      { httpMethod: 'GET', path: '/api/products/slug/synced-1-slug' },
+      versionConfig,
+    ),
+  ) as { data: CollectionDoc };
+  assert.deepEqual(item.data, fromList);
+  assert.deepEqual(bySlug.data, fromList);
+});

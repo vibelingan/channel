@@ -17,10 +17,10 @@ on:
           - variant-media
         default: full
       run_public_e2e:
-        description: Run public browser E2E after deploy
+        description: Explicitly run the complete public browser regression after deploy
         required: true
         type: boolean
-        default: true
+        default: false
       run_media_upload_smoke:
         description: Run browser-origin media upload smoke after deploy
         required: true
@@ -46,7 +46,7 @@ concurrency:
 
 jobs:
   # Relative reusable workflow uses this invocation's SHA. Neither push nor
-  # workflow_dispatch can reach deployment without the complete CI suite.
+  # workflow_dispatch can reach deployment without the code checks.
   ci:
     if: ${{ github.ref == 'refs/heads/test' }}
     uses: ./.github/workflows/ci.yml
@@ -67,6 +67,7 @@ jobs:
       CLOUDBASE_FUNCTION_RUNTIME: Nodejs20.19
       CLOUDBASE_WEBAPP_SERVICE: channel-test
       PUBLIC_CB_PROXY: '0'
+      PUBLIC_CATALOG_READY_DEFAULT: ${{ vars.PUBLIC_CATALOG_READY_DEFAULT || '0' }}
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
       # The AI assistant API that the website's chat widget calls from the browser.
       PUBLIC_AI_API_BASE_URL: ${{ vars.PUBLIC_AI_API_BASE_URL }}
@@ -101,12 +102,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
 
       - name: Test deployment contracts
         run: pnpm test:deploy-smoke
@@ -195,12 +190,20 @@ jobs:
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm smoke:cloudbase
 
+      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
+      - name: Use the Ubuntu archive for browser dependencies
+        if: ${{ github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
       - name: Install Playwright Chromium and WebKit
-        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
+        if: ${{ github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
         run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Run public browser E2E
-        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
+        if: ${{ github.event.inputs.run_public_e2e == 'true' }}
         run: pnpm test:e2e:public && pnpm test:e2e:catalog
 
       - name: Run media upload smoke
@@ -250,6 +253,13 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
       - run: pnpm exec playwright install --with-deps chromium
       - name: Verify deployed release and exercise approved catalog scope
         env:

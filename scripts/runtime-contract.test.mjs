@@ -151,6 +151,16 @@ test('site build engine and active workflow Node versions satisfy the Astro buil
   }
 });
 
+test('the installed source-image HTTP client supports the declared minimum project runtime', () => {
+  const client = functionRequire('undici/package.json');
+  const floor = /^>=(\d+\.\d+\.\d+)$/.exec(client.engines?.node ?? '');
+  assert.ok(floor, 'review the HTTP client runtime range before accepting a new engine contract');
+  assert.ok(
+    compareVersions(buildFloor, floor[1]) >= 0,
+    `undici ${client.version} requires Node ${client.engines.node}, above project floor ${buildFloor}`,
+  );
+});
+
 test('leaving the function smoke runtime active cannot pass the site build gate', () => {
   for (const [name, workflow, jobName] of buildWorkflows) {
     const job = structuredClone(workflow.jobs[jobName]);
@@ -162,26 +172,17 @@ test('leaving the function smoke runtime active cannot pass the site build gate'
   }
 });
 
-test('CI budgets both required built-browser gates without disabling either', () => {
-  assert.ok(
-    Number.isInteger(ciJob['timeout-minutes']) &&
-      ciJob['timeout-minutes'] >= 30 &&
-      ciJob['timeout-minutes'] <= 45,
-    'CI needs a bounded 30-45 minute budget for both complete browser lanes',
+test('code checks have a bounded budget without whole business browser journeys', () => {
+  assert.ok(ciJob['timeout-minutes'] <= 15);
+  assert.equal(
+    ciJob.steps.filter((step) => step.run === 'pnpm test:e2e:catalog-admin-local').length,
+    0,
   );
-  const browserSteps = ciJob.steps.filter(
-    (step) => step.run === 'pnpm test:e2e:catalog-admin-local',
-  );
-  assert.equal(browserSteps.length, 2);
-  for (const step of browserSteps) {
-    assert.equal(step.if, undefined);
-    assert.notEqual(step['continue-on-error'], true);
-  }
-  assert.equal(browserSteps[1].env.E2E_CATALOG_FORMAL, '1');
+  assert.deepEqual([ciJob.needs].flat(), ['unit']);
 });
 
 test('Deploy Test runs deployment contracts before packaging', () => {
-  findUniqueStep(ciJob, (step) => step.run === 'pnpm test', 'CI root test gate');
+  assert.deepEqual([ciJob.needs].flat(), ['unit'], 'all unit groups gate the build');
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,

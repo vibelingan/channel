@@ -51,6 +51,6 @@ export function matchVariantOptions(
     .filter((row) => [...selected].every(([name, value]) => row.axes?.get(name) === value))
     .map((row) => row.variant);
   if (variants.length === 0) return { status: 'no-match' };
-  if (variants.length === 1) return { status: 'matched', variant: variants[0] };
+  if (variants.length === 1 && variants[0]) return { status: 'matched', variant: variants[0] };
   return { status: 'ambiguous', variants };
 }

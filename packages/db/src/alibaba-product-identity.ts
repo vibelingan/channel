@@ -1,4 +1,10 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import {
+  type CollectionDoc,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  PRODUCT_IMAGE_MAX_COUNT,
+  alibabaPhotoSources,
+} from '@vibelingan-channel/shared';
 import {
   createAlibabaPricingAdapter,
   resolveManualCatalogPricing,
@@ -9,20 +15,25 @@ import {
   holdsAlibabaLease,
 } from './adapter.ts';
 import {
+  type AlibabaProductLinkIdentity,
+  parseAlibabaProductLink as linkIdentity,
+} from './alibaba-link-identity.ts';
+import {
   type AlibabaPricingEvidenceExpectation,
   alibabaPricingFingerprint,
 } from './alibaba-pricing-fingerprint.ts';
+import {
+  type CatalogSourceBindingExpectation,
+  CatalogSourceBindingExpectationSchema,
+  advanceSourceBindingFence,
+  sourceBindingSnapshot,
+} from './catalog-source-binding.ts';
+
+import { advanceCatalogProduct, assertCatalogProductVersions } from './catalog-product-state.ts';
 
 export const ALIBABA_PRODUCT_LINK_LIMIT = 40;
 
-export interface AlibabaProductLinkIdentity {
-  _id: string;
-  sourceKey: string;
-  connectionId: string;
-  sourceProductId: string;
-  productId: string;
-  linkedAt: string;
-}
+export type { AlibabaProductLinkIdentity } from './alibaba-link-identity.ts';
 
 interface AlibabaProductExpectation {
   productId: string;
@@ -35,11 +46,23 @@ interface AlibabaProductExpectation {
 export type AlibabaProductMutationInput = AlibabaProductExpectation &
   (
     | { action: 'unlink' }
-    | { action: 'link'; sourceKey: string; linkedByUserId: string; patch: Record<string, unknown> }
+    | {
+        action: 'link';
+        sourceKey: string;
+        linkedByUserId: string;
+        patch: Record<string, unknown>;
+        expectedSource: CatalogSourceBindingExpectation;
+      }
     | { action: 'pin'; sourceKey: string; offerKey: string }
-    | { action: 'reconcile'; sourceKey: string; patch: Record<string, unknown> }
+    | {
+        action: 'reconcile';
+        sourceKey: string;
+        patch: Record<string, unknown>;
+        expectedSource: CatalogSourceBindingExpectation;
+      }
     | {
         action: 'create-draft';
+        expectedSource: CatalogSourceBindingExpectation;
         sourceKey: string;
         expectedClaim: AlibabaProductLinkIdentity | null;
         draft: Record<string, unknown>;
@@ -54,9 +77,12 @@ export type AlibabaProductMutationInput = AlibabaProductExpectation &
       }
     | {
         action: 'promote';
+        expectedSource: CatalogSourceBindingExpectation;
         sourceKey: string;
         guard: AlibabaLeaseGuard;
         patch: Record<string, unknown>;
+        /** What a buyer would see from the source now (MIU-16); flags "changed". */
+        publicSourceDigest?: string;
       }
   );
 
@@ -67,6 +93,8 @@ export type AlibabaProductMutationResult =
       reason:
         | 'product-not-found'
         | 'source-not-found'
+        | 'source-not-ready'
+        | 'source-changed'
         | 'source-linked-elsewhere'
         | 'not-linked'
         | 'offer-not-found'
@@ -95,8 +123,12 @@ const clearedFields = {
   alibabaSourceStatus: null,
   alibabaSourceReview: null,
   alibabaReviewPending: null,
+  alibabaReviewReason: null,
+  alibabaSourcePublicDigest: null,
   alibabaReviewedAt: null,
   alibabaReviewedByUserId: null,
+  // An unlinked product is never hidden as a draft waiting for photos (PT-G).
+  alibabaPhotosPending: null,
 };
 
 const writableFields = new Set([
@@ -111,6 +143,7 @@ const writableFields = new Set([
   'alibabaSourceLastSyncedAt',
   'alibabaSourceReview',
   'alibabaReviewPending',
+  'alibabaReviewReason',
 ]);
 
 const reconciliationFields = new Set(['alibabaDescriptionImageUrls', 'alibabaSourceReview']);
@@ -122,50 +155,116 @@ const draftFields = new Set([
   'published',
   'archived',
   'alibabaClassifiedCategoryId',
+  'alibabaPhotosPending',
   'createdAt',
   'updatedAt',
   ...writableFields,
 ]);
+
+const PHOTO_SOURCE_PARTS = [
+  {
+    field: 'imageIds',
+    sources: 'alibabaSourceImageUrls',
+    part: 'gallery',
+    limit: PRODUCT_IMAGE_MAX_COUNT,
+  },
+  {
+    field: 'descriptionImageIds',
+    sources: 'alibabaDescriptionImageUrls',
+    part: 'description',
+    limit: PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  },
+] as const;
+
+/**
+ * One product is one unit (PT-G, owner 2026-10-09): when a sync changes the
+ * Alibaba photos of a draft whose photos are still the sync's, the draft is
+ * hidden until photo preparation has copied the new ones, so nobody works on
+ * new data with old photos. Live, approved or archived products never hide,
+ * and photos an admin chose are theirs.
+ */
+export function photosRefresh(product: CollectionDoc, patch: Record<string, unknown>) {
+  if (
+    product.published === true ||
+    product.archived === true ||
+    Boolean(product.catalogDetailApprovalReceipt)
+  )
+    return {};
+  const auto = product.alibabaAutoPhotos;
+  const refreshes = PHOTO_SOURCE_PARTS.some(({ field, sources, part, limit }) => {
+    if (!Object.hasOwn(patch, sources)) return false;
+    // Compared as the photo job reads them (normalized, first `limit`), so a
+    // change it would not act on does not hide the draft.
+    if (
+      JSON.stringify(alibabaPhotoSources(patch[sources], limit)) ===
+      JSON.stringify(alibabaPhotoSources(product[sources], limit))
+    )
+      return false;
+    const filled = auto && typeof auto === 'object' ? Reflect.get(auto, part) : undefined;
+    const filledIds =
+      filled && typeof filled === 'object' ? Reflect.get(filled, 'imageIds') : undefined;
+    // The sync's while never set, or while it still equals what the sync filled.
+    return filledIds === undefined
+      ? product[field] === undefined
+      : JSON.stringify(product[field] ?? []) === JSON.stringify(filledIds);
+  });
+  return refreshes ? { alibabaPhotosPending: true } : {};
+}
 
 function reconciliationPatch(product: CollectionDoc, patch: Record<string, unknown>) {
   const reviewed =
     typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
   return {
     ...patch,
+    // A row from before the review flag gets one; 'new' only when it is pending.
     ...(typeof product.alibabaReviewPending === 'boolean'
       ? {}
-      : { alibabaReviewPending: !reviewed }),
+      : { alibabaReviewPending: !reviewed, alibabaReviewReason: reviewed ? null : 'new' }),
   };
+}
+
+const REASON_STRENGTH = { new: 0, edited: 1, changed: 2, removed: 3 } as const;
+type FlagReason = keyof typeof REASON_STRENGTH;
+
+/** The review fields after flagging `reason`, keeping a stronger reason already set. */
+export function flagForReview(product: CollectionDoc, reason: FlagReason) {
+  const existing = product.alibabaReviewReason;
+  const keep =
+    product.alibabaReviewPending === true &&
+    typeof existing === 'string' &&
+    Object.hasOwn(REASON_STRENGTH, existing) &&
+    REASON_STRENGTH[existing as FlagReason] > REASON_STRENGTH[reason];
+  return { alibabaReviewPending: true, alibabaReviewReason: keep ? existing : reason };
+}
+
+/**
+ * A sync flags an approved product whose source no longer matches what was
+ * approved: 'removed' when the source is inactive, 'changed' when the public
+ * digest differs (MIU-19). Never clears a flag; an existing flag keeps the
+ * stronger reason. Products without an approved digest are left to the
+ * one-time change audit; archived products are never flagged.
+ */
+function sourceChangeFlag(
+  product: CollectionDoc,
+  sourceActive: boolean,
+  digest: string | undefined,
+): Record<string, unknown> {
+  const receipt = product.catalogDetailApprovalReceipt;
+  const approved =
+    receipt && typeof receipt === 'object' ? Reflect.get(receipt, 'sourceDigest') : undefined;
+  if (typeof approved !== 'string' || product.archived === true) return {};
+  const reason: FlagReason | undefined = !sourceActive
+    ? 'removed'
+    : digest !== undefined && digest !== approved
+      ? 'changed'
+      : undefined;
+  return reason ? flagForReview(product, reason) : {};
 }
 
 export function alibabaLinkRevision(product: CollectionDoc): number | null {
   const value = product.alibabaLinkRevision;
   if (value === undefined) return 0;
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
-}
-
-function linkIdentity(
-  row: CollectionDoc | AlibabaProductLinkIdentity,
-  allowEmptyClaim = false,
-): AlibabaProductLinkIdentity | null {
-  const { _id, sourceKey, connectionId, sourceProductId, productId, linkedAt } = row;
-  if (
-    [_id, sourceKey, connectionId, sourceProductId, linkedAt].some(
-      (value) => typeof value !== 'string' || value.trim() === '',
-    ) ||
-    typeof productId !== 'string' ||
-    (productId.trim() === '' && !(allowEmptyClaim && productId === '')) ||
-    _id !== sourceKey
-  )
-    return null;
-  return {
-    _id,
-    sourceKey,
-    connectionId,
-    sourceProductId,
-    productId,
-    linkedAt,
-  } as AlibabaProductLinkIdentity;
 }
 
 function sameLink(
@@ -213,6 +312,9 @@ export async function runAlibabaProductMutation(
   const product = await transaction.get('products', input.productId);
   if (!product && input.action !== 'create-draft')
     return { ok: false, reason: 'product-not-found' };
+  assertCatalogProductVersions(product);
+  const writeProduct = (next: CollectionDoc) =>
+    transaction.set('products', advanceCatalogProduct(product, next, input.now));
   const revision = product ? alibabaLinkRevision(product) : null;
   const primary = product?.alibabaPrimarySourceKey ?? null;
   if (
@@ -246,7 +348,7 @@ export async function runAlibabaProductMutation(
     ) {
       return { ok: true, revision, clearedLinks: 0 };
     }
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       ...clearedFields,
       alibabaLinkRevision: revision + 1,
@@ -261,6 +363,7 @@ export async function runAlibabaProductMutation(
   const link = await transaction.get('alibabaProductLinks', input.sourceKey);
   const source = await transaction.get('alibabaSourceProducts', input.sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
+  if (source._id !== input.sourceKey) return { ok: false, reason: 'identity-conflict' };
   if (
     typeof source.connectionId !== 'string' ||
     source.connectionId.trim() === '' ||
@@ -292,6 +395,38 @@ export async function runAlibabaProductMutation(
     return { ok: false, reason: 'identity-conflict' };
   }
 
+  let sourceFences: CollectionDoc[] = [];
+  if (
+    input.action === 'link' ||
+    input.action === 'create-draft' ||
+    input.action === 'reconcile' ||
+    input.action === 'promote'
+  ) {
+    const expected = CatalogSourceBindingExpectationSchema.safeParse(input.expectedSource);
+    if (!expected.success) return { ok: false, reason: 'invalid-patch' };
+    const observed = await transaction.get(
+      'catalogSourceObservations',
+      sourceObservationDocumentId('alibaba', input.sourceKey),
+    );
+    const snapshot = sourceBindingSnapshot(source, observed);
+    if (!snapshot.ok) return snapshot;
+    if (
+      snapshot.expectation.sourceHash !== expected.data.sourceHash ||
+      snapshot.expectation.observationHash !== expected.data.observationHash
+    )
+      return { ok: false, reason: 'source-changed' };
+    if (
+      (input.action === 'link' || input.action === 'create-draft') &&
+      (!alreadyLinked || primary !== input.sourceKey)
+    )
+      sourceFences = [advanceSourceBindingFence(source), advanceSourceBindingFence(snapshot.row)];
+  }
+  const writeSourceFences = async () => {
+    const [sourceFence, observationFence] = sourceFences;
+    if (sourceFence) await transaction.set('alibabaSourceProducts', sourceFence);
+    if (observationFence) await transaction.set('catalogSourceObservations', observationFence);
+  };
+
   if (input.action === 'create-draft') {
     if (product && primary !== input.sourceKey) return { ok: false, reason: 'identity-conflict' };
     if (
@@ -311,6 +446,7 @@ export async function runAlibabaProductMutation(
       ? {
           ...product,
           ...reconciliationPatch(product, reviewPatch),
+          ...photosRefresh(product, reviewPatch),
           alibabaLinkRevision: nextRevision,
           updatedAt: input.now,
         }
@@ -324,12 +460,14 @@ export async function runAlibabaProductMutation(
           alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
           alibabaSourceStatus: source.active === true ? 'available' : 'removed',
           alibabaReviewPending: true,
+          alibabaReviewReason: 'new',
           alibabaLinkRevision: nextRevision,
           alibabaSourceLastSyncedAt: input.now,
           createdAt: input.now,
           updatedAt: input.now,
         };
-    await transaction.set('products', nextProduct);
+    await writeSourceFences();
+    await writeProduct(nextProduct);
     if (!alreadyLinked)
       await transaction.set('alibabaProductLinks', {
         ...link,
@@ -424,7 +562,7 @@ export async function runAlibabaProductMutation(
     )
       return { ok: false, reason: 'fence-rejected' };
     await transaction.set(ALIBABA_SYNC_LEASE_COLLECTION, lease);
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       ...input.patch,
       alibabaLinkRevision: revision + 1,
@@ -440,7 +578,7 @@ export async function runAlibabaProductMutation(
         return { ok: false, reason: 'offer-not-found' };
       if (offer.active !== true) return { ok: false, reason: 'offer-not-active' };
     }
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       alibabaPinnedOfferKey: input.offerKey,
       alibabaLinkRevision: revision + 1,
@@ -454,9 +592,10 @@ export async function runAlibabaProductMutation(
     if (Object.keys(input.patch).some((field) => !reconciliationFields.has(field)))
       return { ok: false, reason: 'invalid-patch' };
     if (primary !== input.sourceKey) return { ok: true, revision, clearedLinks: 0 };
-    await transaction.set('products', {
+    await writeProduct({
       ...product,
       ...reconciliationPatch(product, input.patch),
+      ...photosRefresh(product, input.patch),
       alibabaLinkRevision: revision + 1,
       updatedAt: input.now,
     });
@@ -486,6 +625,7 @@ export async function runAlibabaProductMutation(
   } else {
     if (!alreadyLinked && observedLinks.length === ALIBABA_PRODUCT_LINK_LIMIT)
       return { ok: false, reason: 'link-limit' };
+    await writeSourceFences();
     await transaction.set('alibabaProductLinks', {
       ...link,
       _id: input.sourceKey,
@@ -500,7 +640,7 @@ export async function runAlibabaProductMutation(
     });
   }
 
-  await transaction.set('products', {
+  await writeProduct({
     ...product,
     ...(input.action === 'link' && primary !== input.sourceKey ? clearedFields : {}),
     ...input.patch,
@@ -509,6 +649,14 @@ export async function runAlibabaProductMutation(
     alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
     ...(input.action === 'link'
       ? { alibabaSourceStatus: source.active === true ? 'available' : 'removed' }
+      : {}),
+    ...(input.action === 'promote'
+      ? sourceChangeFlag(product, source.active === true, input.publicSourceDigest)
+      : {}),
+    ...(input.action === 'promote' ? photosRefresh(product, input.patch) : {}),
+    // What the sync last saw; publishing an approval of older data keeps the flag.
+    ...(input.action === 'promote' && input.publicSourceDigest !== undefined
+      ? { alibabaSourcePublicDigest: input.publicSourceDigest }
       : {}),
     alibabaLinkRevision: revision + 1,
     alibabaSourceLastSyncedAt: input.now,

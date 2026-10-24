@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
-import { catalogApprovalDigest } from './catalog-detail-commit.ts';
+import {
+  CatalogDetailPublicationSchema,
+  CatalogDetailVariantSchema,
+} from '@vibelingan-channel/shared/catalog-detail';
+import { CatalogValidationReportSchema } from '@vibelingan-channel/shared/catalog-issues';
+import { planCatalogProductSave } from './adapter.ts';
+import { catalogApprovalDigest, prepareCatalogApprovalPlan } from './catalog-detail-commit.ts';
 import {
   beginStagedApproval,
   finishStagedApproval,
@@ -12,9 +18,19 @@ import {
   stageApprovalPage,
 } from './catalog-detail-staging.ts';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceCancelProof,
+  catalogImageReferenceEntry,
+} from './catalog-image-references.ts';
+import { runCatalogRowMutation } from './catalog-row-mutation.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 
-function fixture(count = 105) {
+function fixture(
+  count = 105,
+  offersAt: (position: number) => unknown[] = () => [],
+  productExtra: Record<string, unknown> = {},
+) {
   const variants = Array.from({ length: count }, (_, position) => ({
     _id: `v${position}`,
     productId: 'p',
@@ -23,13 +39,13 @@ function fixture(count = 105) {
     detailSourceMissing: false,
     position,
     sku: `sku-${position}`,
-    optionValues: { Color: String(position) },
+    optionValues: Object.fromEntries([['Color', String(position)]]),
     imageIds: ['image'],
     detailSourceCandidate: {
       id: `v${position}`,
-      options: [],
+      options: Array<{ name: string; value: string }>(),
       images: ['/api/images/image'],
-      offers: [],
+      offers: offersAt(position),
       inventory: { state: 'unknown' },
     },
   }));
@@ -55,6 +71,7 @@ function fixture(count = 105) {
     detailSourceCandidate: header,
     detailSourceManifest: { revision: 'source-r1', variantIds: variants.map((v) => v._id) },
     catalogDetailPublication: { state: 'approved', revision: 'old', header, variantCount: 0 },
+    ...productExtra,
   };
   const command = {
     productId: 'p',
@@ -192,7 +209,7 @@ test('zero-SKU publication needs no page, and a failed final commit leaves the o
   const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
   assert.ok(begin.ok && begin.pages === 0);
   assert.equal((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok, false);
-  h.fail(7); // after writing the prospective product pointer, before transaction commit
+  h.fail(6); // the job write: after the prospective product pointer, before commit (no photo write, DEC-21)
   await assert.rejects(
     h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)),
     /injected/,
@@ -201,6 +218,145 @@ test('zero-SKU publication needs no page, and a failed final commit leaves the o
   h.fail(Number.POSITIVE_INFINITY);
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, true);
   assert.equal(h.publication().variantCount, 0);
+});
+
+test('the approved version carries the price summary planned from every SKU across pages', async () => {
+  const fixed = (amountMinor: number) => [
+    {
+      kind: 'supplier',
+      basis: 'source-quote',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor },
+    },
+  ];
+  const h = fixture(25, (position) => fixed(position === 22 ? 99 : 500 + position));
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  for (let page = 0; page < begin.pages; page++) {
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, page))).ok);
+  }
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  // The cheapest SKU sits on the second staging page; the summary still finds it.
+  assert.deepEqual(h.publication().priceSummary, {
+    source: 'sku',
+    variantId: 'v22',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 99 },
+  });
+  assert.equal(h.publication().revision, h.prepared.revision);
+});
+
+test('the approval receipt records the public source digest prepared with the candidate (MIU-18)', async () => {
+  const sourceDigest = 'd'.repeat(64);
+  const h = fixture(0, undefined, { detailSourcePublicDigest: sourceDigest });
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  const receipt = h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>;
+  assert.equal(receipt.sourceDigest, sourceDigest);
+});
+
+test('a product prepared before digests existed still approves, with no digest on the receipt', async () => {
+  const h = fixture(0);
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  const receipt = h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>;
+  assert.equal('sourceDigest' in receipt, false);
+});
+
+test("the receipt records which parts were still the supplier's own at approval (MIU-39)", async () => {
+  const approve = async (extra: Record<string, unknown>) => {
+    const h = fixture(0, undefined, extra);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    return (h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>)
+      .supplierParts;
+  };
+  const supplier = {
+    schemaVersion: 'catalog-product-detail-v1',
+    _id: 'p',
+    name: 'Headset',
+    images: ['/api/images/image'],
+    facts: [],
+    offers: [],
+    descriptionText: 'Soft ear pads',
+  };
+  assert.deepEqual(
+    await approve({
+      description: ' Soft ear pads ',
+      detailSourceCandidate: supplier,
+      detailSourceSupplierMedia: { gallery: ['image'], descriptionImages: [] },
+    }),
+    { description: true, gallery: true, descriptionImages: true },
+  );
+  assert.deepEqual(
+    await approve({
+      description: 'Our own words',
+      detailSourceCandidate: supplier,
+      detailSourceSupplierMedia: { gallery: ['other'], descriptionImages: null },
+    }),
+    { description: false, gallery: false, descriptionImages: false },
+  );
+  // Prepared before this MIU, or a photo not yet imported: photos count as ours.
+  assert.deepEqual(
+    await approve({ description: 'Soft ear pads', detailSourceCandidate: supplier }),
+    { description: true, gallery: false, descriptionImages: false },
+  );
+});
+
+test('a part the supplier owned stays theirs while nobody edits it, even when not taken (MIU-39)', async () => {
+  // E.g. new supplier photos were left for a later approval (image limit), or
+  // a sync landed between the plan and prepare: the row still shows what was
+  // approved, so it is not an admin edit and a later approval may take them.
+  const approve = async (extra: Record<string, unknown>) => {
+    const h = fixture(0, undefined, extra);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    return (h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>)
+      .supplierParts;
+  };
+  const published = {
+    state: 'approved',
+    revision: 'old',
+    header: {
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'p',
+      name: 'Headset',
+      images: ['/api/images/image'],
+      facts: [],
+      offers: [],
+      descriptionText: 'Old text',
+    },
+    variantCount: 0,
+  };
+  const owned = { supplierParts: { description: true, gallery: true, descriptionImages: true } };
+  const supplierMoved = {
+    description: 'Old text',
+    detailSourceCandidate: { ...published.header, descriptionText: 'New text' },
+    detailSourceSupplierMedia: { gallery: ['newer'], descriptionImages: null },
+    catalogDetailPublication: published,
+  };
+  assert.deepEqual(
+    await approve({
+      ...supplierMoved,
+      catalogDetailApprovalReceipt: { revision: 'old', ...owned },
+    }),
+    { description: true, gallery: true, descriptionImages: true },
+  );
+  // An edit since the approval, or no earlier ownership, ends it.
+  assert.deepEqual(
+    await approve({
+      ...supplierMoved,
+      description: 'Our own words',
+      catalogDetailApprovalReceipt: { revision: 'old', ...owned },
+    }),
+    { description: false, gallery: true, descriptionImages: true },
+  );
+  assert.deepEqual(
+    await approve({ ...supplierMoved, catalogDetailApprovalReceipt: { revision: 'old' } }),
+    { description: false, gallery: false, descriptionImages: false },
+  );
 });
 
 test('review digest covers manual pricing: editing price after review cannot prepare a stale approval', () => {
@@ -318,7 +474,7 @@ test('server review includes all 105 SKUs, exposes bounded pages and never excee
   assert.deepEqual(changed, { ok: false, code: 'CONFLICT' });
 });
 
-test('media rollover budgets every read/write and rejects overflow before changing the approved revision', async () => {
+test('media rollover counts unchanged photos as reads without an arbitrary image limit', async () => {
   for (const newDescriptionCount of [10, 11]) {
     const h = fixture(1);
     const product = h.row('products', 'p');
@@ -369,13 +525,9 @@ test('media rollover budgets every read/write and rejects overflow before changi
     assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
     const before = structuredClone(h.store());
     const result = await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId));
-    if (newDescriptionCount === 10) {
-      assert.ok(result.ok);
-      assert.equal(h.maximumOperations(), 97);
-    } else {
-      assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
-      assert.deepEqual(h.store(), before);
-    }
+    assert.ok(result.ok);
+    assert.equal(h.maximumOperations(), newDescriptionCount === 10 ? 78 : 79);
+    assert.notDeepEqual(h.store(), before);
   }
 });
 
@@ -493,7 +645,25 @@ test('missing and busy media cannot switch a fully staged approval; a newer appr
   h.row('images', 'image').status = 'active';
   h.row('images', 'image').imageMutationOwner = 'upload';
   h.row('images', 'image').imageMutationStartedAt = new Date().toISOString();
-  assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, false);
+  // Locked by a save in progress: "busy, try again" (DEC-21), not "fix the photos".
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'MEDIA_BUSY',
+  });
+  // A stale lock (its holder crashed) or a corrupt one does not clear by
+  // waiting: a definite "not ready", never an endless "try again".
+  h.row('images', 'image').imageMutationStartedAt = new Date(
+    Date.now() - 20 * 60 * 1000,
+  ).toISOString();
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
+  h.row('images', 'image').imageMutationStartedAt = '';
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
   h.row('images', 'image').imageMutationOwner = '';
   h.row('images', 'image').imageMutationStartedAt = '';
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, true);
@@ -503,6 +673,58 @@ test('missing and busy media cannot switch a fully staged approval; a newer appr
   };
   assert.equal((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok, false);
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, false);
+});
+
+test('approval never writes a photo whose live-use count does not change (DEC-21: shared photos)', async () => {
+  // Products share stored photos (a seller's banners in hundreds of listings).
+  // Writing every photo in each approval made any two approvals sharing one
+  // collide; only a real change of a live product's photo set may write.
+  for (const published of [false, true]) {
+    const h = fixture(1);
+    const p = h.row('products', 'p');
+    p.published = published;
+    h.row('images', 'image').publishedRefCount = published ? 1 : 0;
+    const prepared = prepareStagedApproval(
+      'admin',
+      { ...h.command, expectedDigest: catalogApprovalDigest(p, [h.row('productVariants', 'v0')]) },
+      p,
+      [h.row('productVariants', 'v0')],
+    );
+    assert.ok(prepared.ok);
+    const before = structuredClone(h.row('images', 'image'));
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    assert.notEqual(h.publication().revision, 'old', 'the approval went through');
+    assert.deepEqual(h.row('images', 'image'), before, `photo untouched (published=${published})`);
+  }
+});
+
+test('an approval job older than an hour can no longer finish; a finished one still answers (DEC-21)', async () => {
+  const h = fixture(1);
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+  // Each run replaces the store, so the job is read again before each change.
+  const startedMinutesAgo = (minutes: number) => {
+    h.row('catalogDetailApprovals', begin.jobId).createdAt = new Date(
+      Date.now() - minutes * 60 * 1000,
+    ).toISOString();
+  };
+  // Photo deletes stop waiting for a job this old, so it must not publish.
+  startedMinutesAgo(61);
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+    ok: false,
+    code: 'APPROVAL_EXPIRED',
+  });
+  assert.deepEqual(h.store(), before, 'nothing written');
+  startedMinutesAgo(59);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  // Asking again a day later still answers: the job is complete.
+  startedMinutesAgo(24 * 60);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
 });
 
 test('independent SKU media stays private until atomic approval, with retry-safe reference rollover', async () => {
@@ -658,4 +880,1006 @@ test('reapproval atomically releases old snapshot-only media; failure and retry 
   assert.equal(h.row('images', 'image').publishedRefCount, 1);
   assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
   assert.equal(h.row('images', 'old-image').publishedRefCount, 0);
+});
+
+test('a configuration photo edit changes the approval fingerprint; products without one keep theirs (DEC-20)', async () => {
+  const { approvalProductFingerprint } = await import('./catalog-detail-staging.ts');
+  const { publicationContentFingerprint } = await import('./catalog-publication-fingerprint.ts');
+  const product = { _id: 'p', name: 'Headset', imageIds: ['a'] };
+  const withChoice = { ...product, configurationPhotos: { v1: ['a'] } };
+  assert.notEqual(approvalProductFingerprint(withChoice), approvalProductFingerprint(product));
+  assert.notEqual(
+    publicationContentFingerprint(withChoice),
+    publicationContentFingerprint(product),
+  );
+  assert.equal(
+    approvalProductFingerprint({ ...product, configurationPhotos: undefined }),
+    approvalProductFingerprint(product),
+  );
+});
+
+test('a source A-to-B-to-A generation cannot finish an older job even after its content is restored', async () => {
+  const h = fixture(0, () => [], { catalogContentGeneration: 1, detailSourceContentGeneration: 1 });
+  const begun = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begun.ok);
+  await h.run(async (tx) => {
+    const current = await tx.get('products', 'p');
+    assert.ok(current);
+    await tx.set('products', { ...current, catalogContentGeneration: 3 });
+  });
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', h.prepared._id)), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.equal(h.publication().revision, 'old');
+});
+
+for (const field of ['catalogLifecycleVersion', 'catalogClassificationRevision']) {
+  test(`an ABA transition of ${field} cannot finish an old approval`, async () => {
+    const h = fixture(0, () => [], { [field]: 0 });
+    const begun = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(begun.ok);
+    await h.run(async (tx) => {
+      const current = await tx.get('products', 'p');
+      assert.ok(current);
+      await tx.set('products', { ...current, [field]: 2 });
+    });
+    assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', h.prepared._id)), {
+      ok: false,
+      code: 'CONFLICT',
+    });
+    assert.equal(h.publication().revision, 'old');
+  });
+}
+
+test('oversized UTF-8 configuration reports its exact byte budget without losing source data', () => {
+  const h = fixture(1);
+  const original = h.variants[0];
+  assert.ok(original);
+  const options = Array.from({ length: 44 }, (_, index) => ({
+    name: `Option ${index}`,
+    value: '中'.repeat(1000),
+  }));
+  const row = {
+    ...original,
+    detailSourceCandidate: { ...original.detailSourceCandidate, options },
+    optionValues: Object.fromEntries(options.map((option) => [option.name, option.value])),
+  };
+  const variants = [row];
+  const before = structuredClone(row);
+  const result = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(h.product, variants) },
+    h.product,
+    variants,
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.equal(result.validation.issues[0]?.code, 'TOO_LARGE');
+  assert.equal(result.validation.issues[0]?.path, 'variants.items.0');
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 128 * 1024 });
+  assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 128 * 1024);
+  assert.doesNotMatch(JSON.stringify(result), /中/);
+  assert.deepEqual(row, before);
+});
+
+test('oversized approval job reports a separate exact job budget before persistence', () => {
+  const h = fixture(0);
+  const facts = Array.from({ length: 256 }, (_, index) => ({
+    name: `Fact ${index}`,
+    value: '中'.repeat(1000),
+  }));
+  const product = {
+    ...h.product,
+    detailSourceCandidate: { ...h.product.detailSourceCandidate, facts },
+  };
+  const before = structuredClone(product);
+  const result = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(product, []) },
+    product,
+    [],
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.equal(result.validation.issues[0]?.code, 'TOO_LARGE');
+  assert.equal(result.validation.issues[0]?.stage, 'commit');
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 512 * 1024 });
+  assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 512 * 1024);
+  assert.doesNotMatch(JSON.stringify(result), /中/);
+  assert.deepEqual(product, before);
+});
+
+test('malformed workflow requests retain a safe validation report before any product read', async () => {
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async (collection, id) => {
+        assert.equal(collection, 'users');
+        return { _id: id, role: 'admin' };
+      },
+      persist: async () => {
+        throw new Error('Malformed request cannot persist');
+      },
+    },
+    'admin',
+    { action: 'review', productId: 'p', page: -1, PRIVATE_KEY: 'PRIVATE_SOURCE_TOKEN' },
+  );
+  assert.ok(
+    !result.ok && result.code === 'VALIDATION_ERROR' && 'validation' in result && result.validation,
+  );
+  const validation = CatalogValidationReportSchema.parse(result.validation);
+  assert.ok(validation.issues.some((issue) => issue.path === 'page' && issue.remedy === 'reload'));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_KEY|PRIVATE_SOURCE_TOKEN/);
+});
+
+test('a legacy collapsed-options approval cannot stage a new projection, and a freshly reviewed operation recovers', async () => {
+  const h = fixture(21);
+  // h.prepared represents the old last-value projection; the source retains both values.
+  for (const row of h.variants) {
+    const current = h.row('productVariants', row._id);
+    const source = CatalogDetailVariantSchema.parse(current.detailSourceCandidate);
+    current.detailSourceCandidate = {
+      ...source,
+      options: [
+        { name: 'Color', value: 'First' },
+        { name: 'Color', value: row.optionValues.Color },
+      ],
+    };
+  }
+  assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok);
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => stageApprovalPage(tx, 'admin', h.prepared._id, 0)), {
+    ok: false,
+    code: 'CONFLICT',
+  });
+  assert.deepEqual(h.store(), before, 'no new page or cursor is mixed into the older job');
+  assert.equal(h.publication().revision, 'old');
+  const product = h.row('products', 'p');
+  const rows = h.variants.map((row) => h.row('productVariants', row._id));
+  const renewed = prepareStagedApproval(
+    'admin',
+    {
+      ...h.command,
+      operationId: '22345678-1234-4234-8234-123456789012',
+      expectedDigest: catalogApprovalDigest(product, rows),
+    },
+    product,
+    rows,
+  );
+  assert.ok(renewed.ok);
+  assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', renewed.value))).ok);
+  for (let page = 0; page < renewed.value.pageHashes.length; page++)
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', renewed.value._id, page))).ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', renewed.value._id))).ok);
+  assert.equal(h.publication().revision, renewed.value.revision);
+  assert.equal(h.publication().variantCount, 21);
+  assert.equal(h.row('products', 'p').published, false);
+});
+
+test('staged begin builds the complete effective configuration plan once for both digest and job', () => {
+  const h = fixture();
+  const first = h.variants[0];
+  assert.ok(first);
+  const values = first.optionValues;
+  let reads = 0;
+  Object.defineProperty(first, 'optionValues', {
+    enumerable: true,
+    get: () => {
+      reads++;
+      return values;
+    },
+  });
+  const prepared = prepareStagedApproval('admin', h.command, h.product, h.variants);
+  assert.ok(prepared.ok);
+  assert.equal(reads, 1, 'one effective plan for matching digest and the final job');
+  assert.equal(prepared.value.variantIds.length, 105);
+  assert.equal(prepared.value.pageHashes.length, 6);
+});
+
+test('readonly review builds its complete effective plan once for digest and displayed page', async () => {
+  const h = fixture();
+  const first = h.variants[0];
+  assert.ok(first);
+  const values = first.optionValues;
+  let reads = 0;
+  Object.defineProperty(first, 'optionValues', {
+    enumerable: true,
+    get: () => {
+      reads++;
+      return values;
+    },
+  });
+  const review = await runCatalogApprovalWorkflow(
+    {
+      get: async (collection, id) => h.store()[collection]?.[id] ?? null,
+      persist: async () => {
+        throw new Error('Readonly review attempted persistence');
+      },
+    },
+    'admin',
+    { action: 'review', productId: 'p' },
+  );
+  assert.ok(review.ok && 'kind' in review && review.kind === 'review');
+  assert.equal(reads, 1, 'one effective plan for digest and the review page');
+  assert.equal(review.expectedDigest, h.command.expectedDigest);
+  assert.equal(review.detail.variants.total, 105);
+  assert.equal(h.store().catalogDetailApprovals, undefined);
+});
+
+const digestBaselines = new Map([
+  [0, '65ce6a3801573b3e0524d916045577faa22de1b9f59e895abdb3c76d2c70c29d'],
+  [1, 'c8f29158c6ea9cb3f46fd146ef4692574205b9d4fdd7b648e39bad13ddab27db'],
+  [20, '5c6e7f5e0db034a1da7cbf8f717e6ff3122d42fad9436c1c743658ac5c86d33a'],
+  [21, '3abe41d69a79a32f26079a2cbdb0305674254528cda0c3a378d5ff93a2fbccf6'],
+  [105, '6ba7acde91343171015925275b54ebe3882ae3b86b1be6b3b16721104ce969aa'],
+]);
+for (const [count, expected] of digestBaselines) {
+  test(`approval digest baseline remains exact for ${count} configurations and a chosen revision`, () => {
+    const h = fixture(count);
+    assert.equal(catalogApprovalDigest(h.product, h.variants), expected);
+    const revision = '22222222-2222-4222-8222-222222222222';
+    const prepared = prepareCatalogApprovalPlan(h.product, h.variants, revision);
+    assert.equal(
+      prepared.digest,
+      expected,
+      'target revision must not change the existing review identity',
+    );
+    assert.equal(prepared.plan.publication.revision, revision);
+    assert.equal(prepared.plan.variants.length, count);
+    CatalogDetailPublicationSchema.parse(prepared.plan.publication);
+  });
+}
+test('manual zero-configuration digest baseline remains exact', () => {
+  const h = fixture(0, () => [], {
+    detailSourceOwner: 'manual:p',
+    skuCode: 'M-0',
+    unitPrice: 2.5,
+    moq: 25,
+  });
+  assert.equal(
+    catalogApprovalDigest(h.product, h.variants),
+    'bf50d123a1df4a5adef4714ccae37704fa23e99632f9a84252db65c4893a49a6',
+  );
+});
+
+test('whole-media status is opt-in so ordinary strict review clients keep the same metadata shape', async () => {
+  const h = fixture();
+  const store = {
+    get: async (collection: string, id: string) => h.store()[collection]?.[id] ?? null,
+    persist: async () => {
+      throw new Error('Readonly review attempted a write');
+    },
+  };
+  const ordinary = await runCatalogApprovalWorkflow(store, 'admin', {
+    action: 'review',
+    productId: 'p',
+    includePreviewMedia: true,
+  });
+  assert.ok(ordinary.ok && 'kind' in ordinary && ordinary.kind === 'review');
+  assert.ok(ordinary.previewMedia);
+  assert.equal(Object.hasOwn(ordinary.previewMedia, 'allVariantsBound'), false);
+  h.row('productVariants', 'v104').detailSourceUnboundMediaSources = [
+    'https://sc04.alicdn.com/final-photo.png',
+  ];
+  const summary = await runCatalogApprovalWorkflow(store, 'admin', {
+    action: 'review',
+    productId: 'p',
+    includePreviewMedia: true,
+    includeMediaSummary: true,
+  });
+  assert.ok(summary.ok && 'kind' in summary && summary.kind === 'review');
+  assert.equal(summary.previewMedia?.allVariantsBound, false);
+  assert.equal(summary.previewMedia?.variantSources.length, 50);
+  assert.ok(
+    summary.previewMedia?.variantSources.every((variant) => variant.unboundSources.length === 0),
+  );
+});
+
+test('a media summary cannot be requested without the matching preview metadata', async () => {
+  const h = fixture();
+  const result = await runCatalogApprovalWorkflow(
+    {
+      get: async (collection, id) => {
+        assert.equal(collection, 'users', 'reject before reading any product or configuration');
+        return h.store()[collection]?.[id] ?? null;
+      },
+      persist: async () => {
+        throw new Error('Invalid request attempted a write');
+      },
+    },
+    'admin',
+    { action: 'review', productId: 'p', includeMediaSummary: true },
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR');
+});
+
+test('full legal gallery rollover and unchanged SKU media use the actual transaction budget', async () => {
+  for (const [published, retiredSkuCount, shouldFinish, expectedOperations] of [
+    [true, 0, true, 86],
+    [true, 6, true, 98],
+    [true, 7, false, 3],
+    [false, 39, true, 98],
+    [false, 40, false, 3],
+  ] as const) {
+    const h = fixture(1);
+    const product = h.row('products', 'p');
+    const oldGallery = Array.from({ length: 9 }, (_, i) => `old-gallery-${i}`);
+    const oldDescription = Array.from({ length: 18 }, (_, i) => `old-description-${i}`);
+    const newGallery = Array.from({ length: 9 }, (_, i) => `new-gallery-${i}`);
+    const newDescription = Array.from({ length: 18 }, (_, i) => `new-description-${i}`);
+    const retired = Array.from({ length: retiredSkuCount }, (_, i) => `old-sku-${i}`);
+    product.published = published;
+    product.imageIds = newGallery;
+    product.descriptionImageIds = newDescription;
+    for (const variant of h.variants) {
+      variant.imageIds = [newGallery[0] ?? 'new-gallery-0'];
+      variant.detailSourceCandidate.images = ['/api/images/new-gallery-0'];
+    }
+    const previous = h.publication();
+    product.catalogDetailPublication = {
+      ...previous,
+      variantImageIds: retired,
+      header: {
+        ...previous.header,
+        images: oldGallery.map((id) => `/api/images/${id}`),
+        descriptionImages: oldDescription.map((id) => `/api/images/${id}`),
+      },
+    };
+    const imageStore = h.store().images;
+    assert.ok(imageStore);
+    for (const id of [
+      ...oldGallery,
+      ...oldDescription,
+      ...newGallery,
+      ...newDescription,
+      ...retired,
+    ])
+      imageStore[id] = {
+        _id: id,
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        publishedRefCount: published ? 1 : 0,
+      };
+    const prepared = prepareStagedApproval(
+      'admin',
+      {
+        ...h.command,
+        expectedDigest: catalogApprovalDigest(product, h.variants),
+      },
+      product,
+      h.variants,
+    );
+    assert.ok(prepared.ok);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+    const before = structuredClone(h.store());
+    let operations = 0;
+    const result = await h.run((tx) =>
+      finishStagedApproval(
+        {
+          get: (collection, id) => {
+            operations++;
+            return tx.get(collection, id);
+          },
+          set: (collection, row) => {
+            operations++;
+            return tx.set(collection, row);
+          },
+        },
+        'admin',
+        begin.jobId,
+      ),
+    );
+    assert.equal(result.ok, shouldFinish, `published=${published}, retired=${retiredSkuCount}`);
+    assert.equal(operations, expectedOperations);
+    if (!shouldFinish) {
+      assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
+      assert.deepEqual(h.store(), before);
+      continue;
+    }
+    for (const id of [...oldGallery, ...oldDescription, ...retired])
+      assert.equal(h.row('images', id).publishedRefCount, 0);
+    for (const id of [...newGallery, ...newDescription])
+      assert.equal(h.row('images', id).publishedRefCount, published ? 1 : 0);
+    const committed = structuredClone(h.store());
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    assert.deepEqual(h.store(), committed, 'finish replay must not update counters again');
+  }
+});
+
+for (const fault of ['whole-job', 'last-configuration'] as const) {
+  test(`readonly review rejects ${fault} byte overflow without writes`, async () => {
+    const h = fixture(fault === 'whole-job' ? 0 : 105);
+    if (fault === 'whole-job') {
+      h.row('products', 'p').detailSourceCandidate = {
+        ...h.product.detailSourceCandidate,
+        facts: Array.from({ length: 256 }, (_, i) => ({
+          name: `Fact ${i}`,
+          value: '中'.repeat(1000),
+        })),
+      };
+    } else {
+      const last = h.row('productVariants', 'v104');
+      const variant = CatalogDetailVariantSchema.parse(last.detailSourceCandidate);
+      const options = Array.from({ length: 44 }, (_, i) => ({
+        name: `Option ${i}`,
+        value: '中'.repeat(1000),
+      }));
+      last.detailSourceCandidate = { ...variant, options };
+      last.optionValues = Object.fromEntries(options.map((o) => [o.name, o.value]));
+    }
+    const before = structuredClone(h.store());
+    const review = await runCatalogApprovalWorkflow(
+      {
+        get: async (collection, id) => structuredClone(h.store()[collection]?.[id] ?? null),
+        persist: async () => {
+          throw Error('review cannot persist');
+        },
+      },
+      'admin',
+      { action: 'review', productId: 'p' },
+    );
+    assert.ok(!review.ok && review.code === 'VALIDATION_ERROR' && review.validation, fault);
+    const issue = review.validation.issues[0];
+    assert.equal(issue?.code, 'TOO_LARGE');
+    assert.deepEqual(issue?.expected, { maxBytes: (fault === 'whole-job' ? 512 : 128) * 1024 });
+    assert.equal(issue?.path, fault === 'whole-job' ? 'data' : 'variants.items.104');
+    const begin = prepareStagedApproval(
+      'admin',
+      {
+        ...h.command,
+        expectedDigest: catalogApprovalDigest(h.row('products', 'p'), h.variants),
+      },
+      h.row('products', 'p'),
+      h.variants,
+    );
+    assert.ok(!begin.ok && begin.code === 'VALIDATION_ERROR' && begin.validation);
+    assert.deepEqual(
+      begin.validation.issues,
+      review.validation.issues,
+      'review and begin share exact budgets',
+    );
+    assert.deepEqual(h.store(), before);
+    assert.doesNotMatch(JSON.stringify(review), /中/);
+  });
+}
+
+test('capacity preflight reserves legal actor and history identities before admitting a near-limit job', () => {
+  const h = fixture(0);
+  const facts = Array.from({ length: 256 }, (_, i) => ({
+    name: `Fact ${i}`,
+    value: 'a'.repeat(2000),
+  }));
+  const product = {
+    ...h.product,
+    detailSourceCandidate: { ...h.product.detailSourceCandidate, facts },
+  };
+  const shortJob = () => ({
+    ...h.prepared,
+    publication: {
+      ...prepareCatalogApprovalPlan(product, [], h.prepared.revision).plan.publication,
+      revision: h.prepared.revision,
+    },
+  });
+  const targetBytes = 512 * 1024 - 500;
+  assert.ok(Buffer.byteLength(JSON.stringify(shortJob())) < targetBytes);
+  for (const fact of facts) {
+    const remaining = targetBytes - Buffer.byteLength(JSON.stringify(shortJob()));
+    if (remaining === 0) break;
+    fact.name += 'n'.repeat(Math.min(remaining, 200 - fact.name.length));
+  }
+  assert.equal(Buffer.byteLength(JSON.stringify(shortJob())), targetBytes);
+  const legalIdentity = '\u0001'.repeat(200);
+  assert.ok(
+    Buffer.byteLength(
+      JSON.stringify({ ...shortJob(), actorId: legalIdentity, expectedRevision: legalIdentity }),
+    ) >
+      512 * 1024,
+  );
+  const result = prepareStagedApproval(
+    'admin',
+    {
+      ...h.command,
+      expectedDigest: catalogApprovalDigest(product, []),
+    },
+    product,
+    [],
+  );
+  assert.ok(!result.ok && result.code === 'VALIDATION_ERROR' && result.validation);
+  assert.deepEqual(result.validation.issues[0]?.expected, { maxBytes: 512 * 1024 });
+  assert.ok((result.validation.issues[0]?.observed?.bytes ?? 0) > 512 * 1024);
+});
+
+test('large complete approval persists a revision-bound public page width and keeps all immutable configurations', async () => {
+  const h = fixture(105);
+  for (const row of h.variants) {
+    const options = Array.from({ length: 42 }, (_, i) => ({
+      name: `Option ${i}`,
+      value: '中'.repeat(1000),
+    }));
+    row.detailSourceCandidate.options = options;
+    row.optionValues = Object.fromEntries(options.map((o) => [o.name, o.value]));
+  }
+  const prepared = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(h.product, h.variants) },
+    h.product,
+    h.variants,
+  );
+  assert.ok(prepared.ok);
+  assert.ok((prepared.value.publicPageSize ?? 50) < 50);
+  const start = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+  assert.ok(start.ok);
+  for (let page = 0; page < prepared.value.pageHashes.length; page++)
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', start.jobId, page))).ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', start.jobId))).ok);
+  assert.deepEqual(h.row('products', 'p').catalogDetailPagination, {
+    policyVersion: 'catalog-detail-pagination-v1',
+    revision: start.revision,
+    pageSize: prepared.value.publicPageSize,
+  });
+  assert.equal(Object.keys(h.store().catalogDetailVariants ?? {}).length, 105);
+  assert.equal(h.publication().variantCount, 105);
+  const before = structuredClone(h.store());
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', start.jobId))).ok);
+  assert.deepEqual(h.store(), before);
+  assert.equal(h.row('products', 'p').published, false);
+});
+
+for (const provider of [['cloudbase-storage'], ['local-disk'], [['local-disk']], null, 'unknown'])
+  test(`finish refuses malformed media provider without changing publication: ${JSON.stringify(provider)}`, async () => {
+    const h = fixture(1);
+    const start = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(start.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', start.jobId, 0))).ok);
+    h.row('images', 'image').storageProvider = provider;
+    const before = structuredClone(h.store());
+    assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', start.jobId)), {
+      ok: false,
+      code: 'MEDIA_NOT_READY',
+    });
+    assert.deepEqual(h.store(), before);
+  });
+
+for (const writer of ['save-plan', 'ordinary-row-update'] as const)
+  for (const step of ['begin', 'page', 'finish'] as const)
+    test(`same-state Disable invalidates older approval at ${step} through ${writer}`, async () => {
+      const h = fixture(1);
+      if (step !== 'begin')
+        assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok);
+      if (step === 'finish')
+        assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', h.prepared._id, 0))).ok);
+      const old = structuredClone(h.row('products', 'p'));
+      const imagesBefore = structuredClone(h.store().images);
+      await h.run(async (tx) => {
+        if (writer === 'save-plan') {
+          const saved = planCatalogProductSave(
+            await tx.get('products', 'p'),
+            { mode: 'update', productId: 'p', data: { published: false } },
+            '2026-10-18T00:00:00.000Z',
+          );
+          assert.equal(saved.result, 'ready');
+          if (saved.result === 'ready') await tx.set('products', saved.doc);
+        } else {
+          await runCatalogRowMutation(
+            {
+              ...tx,
+              remove: async () => {
+                throw Error('No removal expected');
+              },
+            },
+            { action: 'update', collection: 'products', id: 'p', data: { published: false } },
+            '2026-10-18T00:00:00.000Z',
+          );
+        }
+      });
+      const after = h.row('products', 'p');
+      assert.equal(after.published, false);
+      assert.deepEqual(after.catalogDetailPublication, old.catalogDetailPublication);
+      const beforeAttempt = structuredClone(h.store());
+      const refused = await h.run((tx) =>
+        step === 'begin'
+          ? beginStagedApproval(tx, 'admin', h.prepared)
+          : step === 'page'
+            ? stageApprovalPage(tx, 'admin', h.prepared._id, 0)
+            : finishStagedApproval(tx, 'admin', h.prepared._id),
+      );
+      assert.deepEqual(refused, { ok: false, code: 'CONFLICT' });
+      assert.deepEqual(h.store(), beforeAttempt);
+      assert.deepEqual(h.store().images, imagesBefore);
+      assert.equal(after.catalogLifecycleVersion, 1);
+      assert.equal(after.detailSourceReady, old.detailSourceReady);
+    });
+
+for (const first of ['withdraw', 'finish'] as const)
+  test(`concurrent approval and same-state withdrawal serialize safely: ${first} starts first`, async () => {
+    const h = fixture(1);
+    assert.ok((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', h.prepared._id, 0))).ok);
+    const withdraw = () =>
+      h.run(async (tx) => {
+        const saved = planCatalogProductSave(
+          await tx.get('products', 'p'),
+          { mode: 'update', productId: 'p', data: { published: false } },
+          '2026-10-18T00:00:00.000Z',
+        );
+        assert.equal(saved.result, 'ready');
+        if (saved.result === 'ready') await tx.set('products', saved.doc);
+        return saved;
+      });
+    const finish = () => h.run((tx) => finishStagedApproval(tx, 'admin', h.prepared._id));
+    const work = first === 'withdraw' ? [withdraw(), finish()] : [finish(), withdraw()];
+    const settled = await Promise.allSettled(work);
+    assert.ok(settled.every((result) => result.status === 'fulfilled'));
+    const finished = settled[first === 'withdraw' ? 1 : 0];
+    assert.ok(finished?.status === 'fulfilled');
+    assert.deepEqual(
+      finished.value,
+      first === 'withdraw'
+        ? { ok: false, code: 'CONFLICT' }
+        : {
+            ok: true,
+            jobId: h.prepared._id,
+            revision: h.prepared.revision,
+            nextPage: 1,
+            pages: 1,
+            complete: true,
+          },
+    );
+    const current = h.row('products', 'p');
+    assert.equal(current.published, false);
+    assert.equal(current.catalogLifecycleVersion, 1);
+    assert.equal(h.row('images', 'image').publishedRefCount, 0);
+    assert.equal(h.publication().revision, first === 'withdraw' ? 'old' : h.prepared.revision);
+  });
+
+async function legacyReferenceStage() {
+  const h = fixture(1);
+  const p = h.row('products', 'p');
+  p.published = true;
+  p.catalogDetailPublication = {
+    ...h.product.catalogDetailPublication,
+    variantImageIds: ['old-sku'],
+  };
+  const variant = h.row('productVariants', 'v0');
+  const source = h.variants[0];
+  assert.ok(source);
+  variant.imageIds = ['new-sku'];
+  variant.detailSourceCandidate = {
+    ...source.detailSourceCandidate,
+    images: ['/api/images/new-sku'],
+  };
+  const images = h.store().images;
+  assert.ok(images);
+  const image = h.row('images', 'image');
+  image.publishedRefCount = 1;
+  images['old-sku'] = { ...image, _id: 'old-sku', publishedRefCount: 1 };
+  images['new-sku'] = { ...image, _id: 'new-sku', publishedRefCount: 0 };
+  const prepared = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(p, [variant]) },
+    p,
+    [variant],
+  );
+  assert.ok(prepared.ok);
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+  return { ...h, jobId: begin.jobId };
+}
+for (const terminal of ['addition', 'removal'] as const)
+  test(`legacy staged approval uses effective references for committed ${terminal}`, async () => {
+    const h = await legacyReferenceStage();
+    const plan = buildCatalogImageReferencePlan(
+      '1'.repeat(64),
+      terminal === 'removal' ? ['old-sku'] : [],
+      terminal === 'addition' ? ['old-sku'] : [],
+    );
+    const image = h.row('images', 'old-sku');
+    image.publishedRefCount = terminal === 'addition' ? 0 : 1;
+    image.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 4,
+      pending: [catalogImageReferenceEntry(plan, 0)],
+    };
+    const proofs = h.store().catalogDetailApprovals;
+    assert.ok(proofs);
+    proofs[plan.proof._id] = plan.proof;
+    const before = structuredClone(h.store());
+    const result = await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId));
+    if (terminal === 'removal') {
+      assert.deepEqual(result, { ok: false, code: 'MEDIA_NOT_READY' });
+      assert.deepEqual(h.store(), before);
+    } else {
+      assert.ok(result.ok, JSON.stringify(result));
+      assert.equal(h.row('images', 'old-sku').publishedRefCount, 0);
+      assert.deepEqual(h.row('images', 'old-sku').catalogPublishedReferenceLedger, {
+        version: 'catalog-image-reference-ledger-v1',
+        epoch: 5,
+        pending: [],
+      });
+      assert.equal(h.row('images', 'new-sku').publishedRefCount, 1);
+      const after = structuredClone(h.store());
+      assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId))).ok);
+      assert.deepEqual(h.store(), after);
+    }
+  });
+test('legacy staged approval rejects a managed image with a missing base before writes', async () => {
+  const h = await legacyReferenceStage();
+  const image = h.row('images', 'image');
+  Reflect.deleteProperty(image, 'publishedRefCount');
+  image.catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [],
+  };
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
+  assert.deepEqual(h.store(), before);
+});
+
+function stagedCancelledReferences(
+  h: Awaited<ReturnType<typeof legacyReferenceStage>>,
+  imageId: string,
+  count: number,
+) {
+  const plans = Array.from({ length: count }, (_, i) =>
+    buildCatalogImageReferencePlan(
+      createHash('sha256').update(`${imageId}:${i}`).digest('hex'),
+      [],
+      [imageId],
+    ),
+  );
+  h.row('images', imageId).catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: plans.map((p) => catalogImageReferenceEntry(p, 0)),
+  };
+  const proofs = h.store().catalogDetailApprovals;
+  assert.ok(proofs);
+  for (const plan of plans) proofs[plan.proof._id] = catalogImageReferenceCancelProof(plan.proof);
+  return plans;
+}
+test('legacy staged approval accepts80resolved references within91totaloperations and keeps unchanged images readonly', async () => {
+  const h = await legacyReferenceStage();
+  stagedCancelledReferences(h, 'old-sku', 80);
+  const unchanged = structuredClone(h.row('images', 'image'));
+  const writes: string[] = [];
+  const result = await h.run((tx) =>
+    finishStagedApproval(
+      {
+        ...tx,
+        set: async (collection, row) => {
+          if (collection === 'images') writes.push(row._id);
+          await tx.set(collection, row);
+        },
+      },
+      'admin',
+      h.jobId,
+    ),
+  );
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal(h.maximumOperations(), 91);
+  assert.deepEqual(writes.sort(), ['new-sku', 'old-sku']);
+  assert.deepEqual(h.row('images', 'image'), unchanged);
+  assert.deepEqual(h.row('images', 'old-sku').catalogPublishedReferenceLedger, {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 5,
+    pending: [],
+  });
+});
+test('legacy staged approval rejects excessive total proof reads before fetching any proof or writing', async () => {
+  const h = await legacyReferenceStage();
+  const plans = [
+    ...stagedCancelledReferences(h, 'old-sku', 80),
+    ...stagedCancelledReferences(h, 'new-sku', 80),
+  ];
+  const ids = new Set(plans.map((plan) => plan.proof._id));
+  let proofReads = 0;
+  const before = structuredClone(h.store());
+  const result = await h.run((tx) =>
+    finishStagedApproval(
+      {
+        ...tx,
+        get: async (collection, id) => {
+          if (collection === 'catalogDetailApprovals' && ids.has(id)) proofReads++;
+          return tx.get(collection, id);
+        },
+      },
+      'admin',
+      h.jobId,
+    ),
+  );
+  assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
+  assert.equal(proofReads, 0);
+  assert.deepEqual(h.store(), before);
+});
+test('legacy staged approval does not read80unchanged shared-image proofs', async () => {
+  const h = await legacyReferenceStage();
+  const plans = stagedCancelledReferences(h, 'image', 80);
+  const ids = new Set(plans.map((p) => p.proof._id));
+  const before = structuredClone(h.row('images', 'image'));
+  const result = await h.run((tx) =>
+    finishStagedApproval(
+      {
+        ...tx,
+        get: async (collection, id) => {
+          assert.equal(ids.has(id), false, 'unchanged references need no terminal read');
+          return tx.get(collection, id);
+        },
+      },
+      'admin',
+      h.jobId,
+    ),
+  );
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.deepEqual(h.row('images', 'image'), before);
+});
+test('legacy staged approval cannot initialize an unknown legacy count while adding a live reference', async () => {
+  const h = await legacyReferenceStage();
+  Reflect.deleteProperty(h.row('images', 'new-sku'), 'publishedRefCount');
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
+  assert.deepEqual(h.store(), before);
+});
+test('legacy staged approval preserves absent unchanged legacy counters', async () => {
+  const h = await legacyReferenceStage();
+  Reflect.deleteProperty(h.row('images', 'image'), 'publishedRefCount');
+  const before = structuredClone(h.row('images', 'image'));
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId))).ok);
+  assert.deepEqual(h.row('images', 'image'), before);
+});
+
+function stagedSingleReference(
+  h: Awaited<ReturnType<typeof legacyReferenceStage>>,
+  imageId: string,
+  direction: 'addition' | 'removal',
+  present = true,
+) {
+  const plan = buildCatalogImageReferencePlan(
+    '3'.repeat(64),
+    direction === 'removal' ? [imageId] : [],
+    direction === 'addition' ? [imageId] : [],
+  );
+  h.row('images', imageId).catalogPublishedReferenceLedger = {
+    version: 'catalog-image-reference-ledger-v1',
+    epoch: 4,
+    pending: [catalogImageReferenceEntry(plan, 0)],
+  };
+  const proofs = h.store().catalogDetailApprovals;
+  assert.ok(proofs);
+  if (present) proofs[plan.proof._id] = plan.proof;
+  return plan;
+}
+test('legacy staged approval preserves unresolved entries while applying its own delta', async () => {
+  const h = await legacyReferenceStage();
+  stagedSingleReference(h, 'old-sku', 'addition', false);
+  const ledger = structuredClone(h.row('images', 'old-sku').catalogPublishedReferenceLedger);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId))).ok);
+  assert.equal(h.row('images', 'old-sku').publishedRefCount, 0);
+  assert.deepEqual(h.row('images', 'old-sku').catalogPublishedReferenceLedger, ledger);
+  assert.equal(h.row('images', 'new-sku').publishedRefCount, 1);
+});
+test('legacy staged approval computes the whole net before safe-integer overflow checks', async () => {
+  const h = await legacyReferenceStage();
+  h.row('images', 'new-sku').publishedRefCount = Number.MAX_SAFE_INTEGER;
+  stagedSingleReference(h, 'new-sku', 'removal');
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId))).ok);
+  assert.equal(h.row('images', 'new-sku').publishedRefCount, Number.MAX_SAFE_INTEGER);
+});
+for (const failure of ['corrupt-proof', 'changed-image', 'missing-image', 'vendor-error'] as const)
+  test(`legacy staged approval rejects ${failure} before any publication writes`, async () => {
+    const h = await legacyReferenceStage();
+    const plan = stagedSingleReference(h, 'old-sku', 'addition');
+    if (failure === 'corrupt-proof') {
+      const proofs = h.store().catalogDetailApprovals;
+      assert.ok(proofs);
+      proofs[plan.proof._id] = { ...plan.proof, treeRoot: 'f'.repeat(64) };
+    }
+    let imageReads = 0;
+    const before = structuredClone(h.store());
+    const action = h.run((tx) =>
+      finishStagedApproval(
+        {
+          ...tx,
+          get: async (collection, id) => {
+            if (failure === 'vendor-error' && id === plan.proof._id)
+              throw new Error('fixture-vendor-failure');
+            const row = await tx.get(collection, id);
+            if (collection === 'images' && id === 'old-sku' && ++imageReads === 2) {
+              if (failure === 'changed-image')
+                return { ...row, _id: id, name: 'changed-after-first-read' };
+              if (failure === 'missing-image') return null;
+            }
+            return row;
+          },
+        },
+        'admin',
+        h.jobId,
+      ),
+    );
+    if (failure === 'vendor-error')
+      await assert.rejects(action, { message: 'fixture-vendor-failure' });
+    else assert.deepEqual(await action, { ok: false, code: 'MEDIA_NOT_READY' });
+    assert.deepEqual(h.store(), before);
+  });
+test('legacy staged approval aborts all image and publication changes on a later image write failure', async () => {
+  const h = await legacyReferenceStage();
+  h.row('images', 'old-sku').publishedRefCount = 0;
+  stagedSingleReference(h, 'old-sku', 'addition');
+  const before = structuredClone(h.store());
+  h.fail(10);
+  await assert.rejects(
+    h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId)),
+    /injected failure/,
+  );
+  assert.deepEqual(h.store(), before);
+  h.fail(Number.POSITIVE_INFINITY);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId))).ok);
+  assert.equal(h.row('images', 'old-sku').publishedRefCount, 0);
+  assert.equal(h.row('images', 'new-sku').publishedRefCount, 1);
+});
+
+test('legacy staged approval reserves actor/product/image writes when92extra reads would total102operations', async () => {
+  const h = await legacyReferenceStage();
+  const plans = [
+    ...stagedCancelledReferences(h, 'old-sku', 50),
+    ...stagedCancelledReferences(h, 'new-sku', 40),
+  ];
+  const ids = new Set(plans.map((p) => p.proof._id));
+  let proofReads = 0;
+  const before = structuredClone(h.store());
+  assert.deepEqual(
+    await h.run((tx) =>
+      finishStagedApproval(
+        {
+          ...tx,
+          get: async (collection, id) => {
+            if (ids.has(id)) proofReads++;
+            return tx.get(collection, id);
+          },
+        },
+        'admin',
+        h.jobId,
+      ),
+    ),
+    { ok: false, code: 'APPROVAL_TOO_LARGE' },
+  );
+  assert.equal(proofReads, 0);
+  assert.deepEqual(h.store(), before);
+});
+test('legacy staged approval cannot overflow a legacy count before publication writes', async () => {
+  const h = await legacyReferenceStage();
+  h.row('images', 'new-sku').publishedRefCount = Number.MAX_SAFE_INTEGER;
+  const before = structuredClone(h.store());
+  assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', h.jobId)), {
+    ok: false,
+    code: 'MEDIA_NOT_READY',
+  });
+  assert.deepEqual(h.store(), before);
+});
+
+test('legacy staged approval rejects a returned image with another identity before planning', async () => {
+  const h = await legacyReferenceStage();
+  const before = structuredClone(h.store());
+  const result = await h.run((tx) =>
+    finishStagedApproval(
+      {
+        ...tx,
+        get: async (collection, id) => {
+          const row = await tx.get(collection, id);
+          return collection === 'images' && id === 'old-sku' ? { ...row, _id: 'other-sku' } : row;
+        },
+      },
+      'admin',
+      h.jobId,
+    ),
+  );
+  assert.deepEqual(result, { ok: false, code: 'MEDIA_NOT_READY' });
+  assert.deepEqual(h.store(), before);
 });

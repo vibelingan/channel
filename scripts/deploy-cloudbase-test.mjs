@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { callMcporter, parseMcporterResult } from './mcporter-call.mjs';
 
 import {
   assertToolSucceeded,
@@ -11,7 +12,9 @@ import {
   reconcileTriggers,
   requestIdFrom,
   toolMessage,
+  uploadHostingDirectory,
 } from './cloudbase-deploy-resources.mjs';
+import { confirmFunctionCode, deployFunctionCode } from './cloudbase-function-code-upload.mjs';
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { waitForFunctionActive } from './cloudbase-function-state.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
@@ -71,32 +74,15 @@ function optionalEnv(name) {
   return value && value.length > 0 ? value : undefined;
 }
 
-function parseJsonWithNoise(output) {
-  const start = output.indexOf('{');
-  if (start < 0) {
-    throw new Error(
-      `No JSON object returned by mcporter. Output started with: ${output.slice(0, 120)}`,
-    );
-  }
-  return JSON.parse(output.slice(start));
-}
-
 function callTool(selector, args, options = {}) {
   const maxAttempts = options.maxAttempts ?? 3;
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const output = execFileSync(
-        'npx',
-        ['mcporter', 'call', selector, '--args', JSON.stringify(args), '--output', 'json'],
-        {
-          cwd: root,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-          timeout: options.timeoutMs ?? 180_000,
-        },
-      );
-      return parseJsonWithNoise(output);
+      return callMcporter(selector, args, {
+        cwd: root,
+        timeoutMs: options.timeoutMs ?? 180_000,
+      });
     } catch (error) {
       lastError = error;
       if (attempt < maxAttempts) continue;
@@ -105,7 +91,7 @@ function callTool(selector, args, options = {}) {
   if (options.allowFailure) {
     const text = `${lastError?.stdout ?? ''}${lastError?.stderr ?? ''}`;
     try {
-      return parseJsonWithNoise(text);
+      return parseMcporterResult(text, selector);
     } catch {
       return { success: false, message: `mcporter call failed for ${selector}` };
     }
@@ -392,7 +378,7 @@ const functionDefs = buildFunctionDefs({
   optionalEnv,
 });
 
-function deployFunction(def) {
+async function deployFunction(def) {
   const artifactDir = resolve(functionRootPath, def.name);
   if (!existsSync(resolve(artifactDir, 'index.js'))) {
     throw new Error(`Missing packaged function artifact for ${def.name}: ${artifactDir}`);
@@ -407,11 +393,20 @@ function deployFunction(def) {
   }
 
   if (before) waitForActive(def.name);
-  deployFunctionWithCloudBaseCli(
-    def,
-    before ? 'primary CI code update' : 'primary CI create',
-    before ? 'update' : 'deploy',
-  );
+  const deployment = deployFunctionCode({
+    functionName: def.name,
+    artifactDir,
+    action: before ? 'update' : 'deploy',
+    envId,
+    region: process.env.CLOUDBASE_REGION || 'ap-shanghai',
+    callTool,
+    deployWithCli: () =>
+      deployFunctionWithCloudBaseCli(
+        def,
+        before ? 'primary CI code update' : 'primary CI create',
+        before ? 'update' : 'deploy',
+      ),
+  });
   const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
@@ -421,8 +416,17 @@ function deployFunction(def) {
   if (configAfter.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${configAfter.Runtime}`);
   }
+  if (deployment.method === 'private-staged-zip') {
+    await confirmFunctionCode({
+      functionName: def.name,
+      apiUrl,
+      routePath: def.routePath,
+      expectedRelease: process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local',
+    });
+  }
+  deployment.cleanup();
   console.log(
-    `${def.name}: deployed on ${configAfter.Runtime}; code deploy cloudbase-cli-primary; config request ${configRequestId}`,
+    `${def.name}: deployed on ${configAfter.Runtime}; code deploy ${deployment.method}; config request ${configRequestId}`,
   );
 }
 
@@ -437,6 +441,9 @@ function deployFunction(def) {
 // could delete live files with no safety net. Add an entry here whenever a page
 // or asset is intentionally removed from the site.
 const legacyHostingPaths = [
+  // Temporary authenticated audit tools have completed their acceptance work.
+  { cloudPath: '_admin-audit-durable-99aeb8f5-426a9e7b', isDir: true },
+  { cloudPath: '_admin-audit-99aeb8f5-a94c8c3ab8', isDir: true },
   { cloudPath: 'overstock', isDir: true },
   { cloudPath: 'overstock-item', isDir: true },
   // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
@@ -474,23 +481,15 @@ async function deployWebApp() {
   }
 
   const assets = hostedAssetManifest(distPath);
+  ensureCloudBaseCliAuth();
   await publishVerifiedAssets({
     upload: () => {
-      const uploaded = callTool(
-        'cloudbase.manageHosting',
-        {
-          action: 'upload',
-          localPath: distPath,
-          cloudPath: '/',
-          isDir: true,
-        },
-        { timeoutMs: 300_000 },
-      );
-      assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
-      const uploadRequestId =
-        uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
+      const uploaded = uploadHostingDirectory(distPath, {
+        envId,
+        runCli: (args, options) => parseCliJsonWithNoise(runCloudBaseCli(args, options)),
+      });
       console.log(
-        `${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`,
+        `${webAppServiceName}: static hosting uploaded ${uploaded.data.successCount}/${uploaded.data.totalFiles} files`,
       );
     },
     verify: () => verifyHostedAssets(assets, siteUrl),
@@ -517,7 +516,7 @@ callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);
 
 for (const def of functionDefs) {
-  deployFunction(def);
+  await deployFunction(def);
   ensureGateway(def, { callTool });
   reconcileTriggers(def, desiredTriggersFor(def.name), { callTool });
 }

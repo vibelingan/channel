@@ -277,10 +277,8 @@ test('superseded Success Stories code and TWS asset are removed', () => {
     'retired TWS asset is pruned from additive hosting',
   );
   assert.ok(
-    deployScript.includes(
-      'assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`)',
-    ),
-    'hosting upload failures block deployment',
+    deployScript.includes('const uploaded = uploadHostingDirectory(distPath,'),
+    'hosting uses the checked upload entry point',
   );
   for (const mediaPath of [
     '/media/portfolio/cases/sleep-clock.webp',

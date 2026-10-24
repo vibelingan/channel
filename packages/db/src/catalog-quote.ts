@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import {
-  CatalogDetailPublicationSchema,
-  CatalogDetailVariantSchema,
-} from '@vibelingan-channel/shared/catalog-detail';
+import { CatalogDetailVariantSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { InquiryDetailSchema } from '@vibelingan-channel/shared/catalog-inquiry';
+import { resolvePublicVersion } from '@vibelingan-channel/shared/catalog-public-version';
 import {
   CatalogQuoteSubmissionSchema,
   quoteFieldsForDate,
@@ -34,16 +32,17 @@ export function planCatalogQuote(
   if (!Number.isFinite(now.getTime())) return fail('validation');
   const today = new Date(now.getTime() + 8 * 3600000).toISOString().slice(0, 10);
   if (!quoteFieldsForDate(today).safeParse(fields).success) return fail('validation');
-  const approved = CatalogDetailPublicationSchema.safeParse(product?.catalogDetailPublication);
+  // The same public-version rule as the list and the product page (DEC-1).
+  const approved = resolvePublicVersion(product, { detailEnabled: true });
   if (
     !product ||
     product.published !== true ||
     (Object.hasOwn(product, 'archived') && product.archived !== false) ||
-    !approved.success ||
-    approved.data.header._id !== target.productId
+    approved.kind !== 'approved' ||
+    approved.publication.header._id !== target.productId
   )
     return fail('unavailable');
-  if (product._id !== target.productId || approved.data.revision !== target.revision)
+  if (product._id !== target.productId || approved.publication.revision !== target.revision)
     return fail('stale-context');
   const selected = CatalogDetailVariantSchema.safeParse(variant?.catalogDetailApproved);
   if (
@@ -60,20 +59,20 @@ export function planCatalogQuote(
   const failure = validateQuoteTarget(target, {
     available: true,
     productId: product._id,
-    revision: approved.data.revision,
+    revision: approved.publication.revision,
     ...(target.variantId && selected.success
       ? { variant: { id: selected.data.id, productId: product._id } }
       : {}),
   });
   if (failure) return fail(failure);
   const snapshot = {
-    productName: approved.data.header.name,
+    productName: approved.publication.header.name,
     productId: product._id,
-    revision: approved.data.revision,
-    images: approved.data.header.images,
-    productOffers: approved.data.header.offers,
-    ...(approved.data.header.websitePricing
-      ? { websitePricing: approved.data.header.websitePricing }
+    revision: approved.publication.revision,
+    images: approved.publication.header.images,
+    productOffers: approved.publication.header.offers,
+    ...(approved.publication.header.websitePricing
+      ? { websitePricing: approved.publication.header.websitePricing }
       : {}),
     ...(target.variantId && selected.success ? { variant: selected.data } : {}),
   };

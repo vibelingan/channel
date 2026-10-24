@@ -15,6 +15,7 @@ export default defineConfig({
     'process.env.CHANNEL_BUILD_SHA': JSON.stringify(releaseId),
     'process.env.CHANNEL_BUILD_TIME': JSON.stringify(buildTime),
   },
+  external: ['#catalog-image-decoder'],
   noExternal: [
     '@vibelingan-channel/shared',
     '@vibelingan-channel/auth',

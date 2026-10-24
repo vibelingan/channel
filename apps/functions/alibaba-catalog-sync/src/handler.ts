@@ -37,12 +37,14 @@ import {
   probeConnection,
   startOAuth,
 } from './oauth.ts';
+import { photoPreparationStatus, prepareAlibabaPhotosPage } from './photo-preparation.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
 import { enforceOAuthRateLimit, hashSourceIp } from './rate-limit.ts';
 import { replayAlibabaRawPage } from './raw-replay.ts';
 import { getDoc } from './repo.ts';
 import { runSyncTick } from './runner.ts';
 import { syncSelectedAlibabaProduct } from './selected-sync.ts';
+import { startSyncWorkflow, syncWorkflowStatus } from './sync-workflow.ts';
 
 export interface AlibabaSyncRequest {
   action?: unknown;
@@ -235,6 +237,47 @@ export async function handleAlibabaSyncRequest(
         );
       }
       return ok(result);
+    }
+    case 'workflowStatus': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      return ok(await syncWorkflowStatus(config.backgroundSyncEnabled === true));
+    }
+    case 'startSync': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      if (!config.backgroundSyncEnabled)
+        return err(
+          'CONFLICT',
+          'Background synchronization is not available. Contact the site administrator.',
+        );
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok)
+        return err(
+          'CONFLICT',
+          'The Alibaba connection is not configured. Contact the site administrator.',
+        );
+      try {
+        return ok(
+          await startSyncWorkflow(
+            {
+              client: runtime.runtime.deps.client,
+              getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
+              now: runtime.runtime.deps.now,
+              alert: runtime.runtime.deps.alert,
+            },
+            true,
+            admin.data.userId,
+          ),
+        );
+      } catch (error) {
+        return err(
+          'CONFLICT',
+          error instanceof Error
+            ? error.message
+            : 'The sync request was not confirmed. Check its saved status before retrying.',
+        );
+      }
     }
     case 'runNow': {
       // Manual run (MIU 11): a SHORT bounded slice executes inline — the
@@ -441,6 +484,37 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(result);
     }
+    case 'prepareAlibabaPhotos': {
+      // Copies Alibaba photos ahead into our storage and fills untouched
+      // drafts; shows new drafts once their photos are in (PT-G).
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = preparePhotosSchema.safeParse(parsed.data.data ?? {});
+      if (!payload.success)
+        return err('VALIDATION_ERROR', 'The photo cursor or page limit is invalid.');
+      return ok(
+        await prepareAlibabaPhotosPage({
+          ...(payload.data.productId ? { productId: payload.data.productId } : {}),
+          ...(payload.data.afterProductId ? { afterProductId: payload.data.afterProductId } : {}),
+          ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
+          ...(payload.data.pendingOnly ? { pendingOnly: true } : {}),
+          ...(payload.data.retryUnavailable ? { retryUnavailable: true } : {}),
+          ...(payload.data.retryFailedBefore
+            ? { retryFailedBefore: payload.data.retryFailedBefore }
+            : {}),
+        }),
+      );
+    }
+    case 'photoPreparationStatus': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = z
+        .object({ includeIssues: z.boolean().optional() })
+        .strict()
+        .safeParse(parsed.data.data ?? {});
+      if (!payload.success) return err('VALIDATION_ERROR', 'Invalid photo status request.');
+      return ok(await photoPreparationStatus(payload.data.includeIssues === true));
+    }
     case 'importSourceImage': {
       // Candidate-only import (MIU 12): fetches ONE allowlisted source image
       // through the SSRF pipeline; never attaches it to a product.
@@ -449,7 +523,10 @@ export async function handleAlibabaSyncRequest(
       const payload = importImageSchema.safeParse(parsed.data.data);
       if (!payload.success) return err('VALIDATION_ERROR', 'url is required.');
       const result = await importCandidateImage(payload.data.url);
-      if (!result.ok) return err('VALIDATION_ERROR', `Import rejected: ${result.reason}.`);
+      if (!result.ok)
+        return result.reason === 'busy'
+          ? err('BUSY', 'This photo is being prepared. Try again shortly.')
+          : err('VALIDATION_ERROR', `Import rejected: ${result.reason}.`);
       return ok(result);
     }
     case 'removeImportedImage': {
@@ -537,6 +614,16 @@ const rawReplaySchema = z
       }
     }
   });
+const preparePhotosSchema = z
+  .object({
+    productId: z.string().min(1).max(200).optional(),
+    afterProductId: z.string().max(200).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    pendingOnly: z.boolean().optional(),
+    retryUnavailable: z.boolean().optional(),
+    retryFailedBefore: z.string().datetime().optional(),
+  })
+  .strict();
 const importImageSchema = z.object({ url: z.string().min(1) });
 const removeImageSchema = z.object({ imageId: z.string().min(1) });
 

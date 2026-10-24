@@ -9,6 +9,22 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { setImmediate as yieldToIo } from 'node:timers/promises';
+import {
+  type ImageUploadCommand,
+  ImageUploadCommandSchema,
+  runImageUpload,
+} from '@vibelingan-channel/db';
+import {
+  type SourceMediaImportCommand,
+  SourceMediaImportCommandSchema,
+  runSourceMediaImport,
+} from '@vibelingan-channel/db';
+import {
+  type ImageDeletionCommand,
+  ImageDeletionCommandSchema,
+  runImageDeletion,
+} from '@vibelingan-channel/db';
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   type AdapterListQuery,
@@ -34,14 +50,23 @@ import {
   ALIBABA_PRODUCT_LINK_LIMIT,
   type AlibabaProductMutationInput,
   catalogSuggestionChanged,
+  listSearchFields,
   parseCatalogExpectedSuggestion,
   planCatalogSuggestionSave,
   planProductSubcategorySave,
   runAlibabaProductMutation,
 } from '@vibelingan-channel/db/adapter';
-import { commitCatalogApproval } from '@vibelingan-channel/db/catalog-detail-commit';
+import { firstApprovalImageHold } from '@vibelingan-channel/db/catalog-approval-image-hold';
+import {
+  CatalogApprovalManifestSchema,
+  commitCatalogApproval,
+} from '@vibelingan-channel/db/catalog-detail-commit';
 import {
   type ApprovalPersistenceCommand,
+  captureApprovalPersistenceCommand,
+  captureProductOperationSave,
+  prepareProductOperationSave,
+  productOperationSaveReceipt,
   runStagedApproval,
 } from '@vibelingan-channel/db/catalog-detail-staging';
 import {
@@ -49,10 +74,43 @@ import {
   canonicalApprovedVariant,
 } from '@vibelingan-channel/db/catalog-detail-storage';
 import {
+  CatalogImageReferenceIncrementSchema,
+  type CatalogImageReferenceReadCommand,
+  CatalogImageReferenceReadSchema,
+  type CatalogImageReferenceStore,
+  runCatalogImageReferenceIncrement,
+  runCatalogImageReferenceRead,
+} from '@vibelingan-channel/db/catalog-image-reference-store';
+import {
+  assertOrdinaryImageReferenceRemoval,
+  assertOrdinaryImageReferenceWrite,
+} from '@vibelingan-channel/db/catalog-image-reference-write';
+import {
+  type CatalogPreparationAuthority,
+  type CatalogPreparationJobCommand,
+  runCatalogPreparationJob,
+} from '@vibelingan-channel/db/catalog-preparation-jobs';
+import {
+  projectProductListResult,
+  usesProductListView,
+} from '@vibelingan-channel/db/catalog-product-list-view';
+import { assertCatalogProductVersions } from '@vibelingan-channel/db/catalog-product-state';
+import {
   hashQuoteValue,
   planCatalogQuote,
   quoteFingerprint,
 } from '@vibelingan-channel/db/catalog-quote';
+import {
+  catalogReadinessSort,
+  matchesCatalogReadiness,
+} from '@vibelingan-channel/db/catalog-readiness-query';
+import {
+  type CatalogRowMutation,
+  type CatalogRowMutationResult,
+  isCatalogRowCollection,
+  runCatalogRowMutation,
+} from '@vibelingan-channel/db/catalog-row-mutation';
+import { planSourceInvalidation } from '@vibelingan-channel/db/catalog-source-invalidation';
 import { runCategoryCommand } from '@vibelingan-channel/db/category-transaction';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
 import {
@@ -64,6 +122,7 @@ import {
   normalizeProductSlug,
   normalizeSkuCode,
 } from '@vibelingan-channel/shared';
+import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import type { InquiryResult } from '@vibelingan-channel/shared/catalog-inquiry';
 import { CatalogQuoteSubmissionSchema } from '@vibelingan-channel/shared/catalog-quote';
 import { processCatalogInquiry } from './catalog-inquiry-store.ts';
@@ -156,6 +215,198 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  async readCatalogImageReference(input: CatalogImageReferenceReadCommand) {
+    const command = CatalogImageReferenceReadSchema.parse(input);
+    return this.imageReferenceTransaction((tx) => runCatalogImageReferenceRead(tx, command));
+  }
+  private imageReferenceTransaction<T>(
+    run: (tx: CatalogImageReferenceStore) => Promise<T>,
+  ): Promise<T> {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await run({
+        get: async (collection, id) =>
+          structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+        set: async (collection, row) => {
+          const rows = copy[collection];
+          const index = rows?.findIndex((existing) => existing._id === row._id) ?? -1;
+          if (!rows || index < 0) throw Error('Reference image disappeared');
+          rows[index] = structuredClone(row);
+          changed = true;
+        },
+      });
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+  async manageCatalogPreparationJob(
+    authority: CatalogPreparationAuthority,
+    command: CatalogPreparationJobCommand,
+    now?: number,
+  ) {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runCatalogPreparationJob(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          remove: async (collection, id) => {
+            const rows = copy[collection] ?? [];
+            const index = rows.findIndex((row) => row._id === id);
+            if (index < 0) throw Error('Database document removal was not confirmed');
+            rows.splice(index, 1);
+            changed = true;
+          },
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+        },
+        authority,
+        command,
+        now,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
+  async manageSourceMediaImport(command: SourceMediaImportCommand) {
+    const input = SourceMediaImportCommandSchema.parse(command);
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runSourceMediaImport(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((row) => row._id === id) ?? -1;
+            if (!rows || index < 0) throw new Error('Pending source image disappeared');
+            rows.splice(index, 1);
+            changed = true;
+          },
+        },
+        input,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
+  /** Isolated UI-02 fixture preparation only; absent from DbAdapter and cloud/HTTP actions. */
+  async prepareLocalDetailClone(
+    input: {
+      productId: string;
+      owner: string;
+      revision: string;
+    } & ({ action: 'begin' } | { action: 'seal'; expectedGeneration: number }),
+  ): Promise<void> {
+    return this.withMutationLock(() => {
+      const product = this.docs('products').find((row) => row._id === input.productId);
+      if (
+        !product ||
+        product.localDetailClone !== true ||
+        !input.owner.startsWith('ui02:') ||
+        product.detailSourceOwner !== input.owner
+      )
+        throw new Error('Not an owned UI-02 local clone');
+      assertCatalogProductVersions(product);
+      let next: CollectionDoc;
+      if (input.action === 'begin') {
+        CatalogApprovalManifestSchema.parse({ revision: input.revision, variantIds: [] });
+        next = {
+          ...product,
+          detailSourceReady: false,
+          localDetailPreparationRevision: input.revision,
+          localDetailPreparationState: 'writing',
+        };
+      } else {
+        if (
+          product.localDetailPreparationRevision !== input.revision ||
+          product.detailSourceRevision !== input.revision ||
+          !Number.isSafeInteger(input.expectedGeneration) ||
+          input.expectedGeneration !== (product.catalogContentGeneration ?? 0)
+        )
+          throw new Error('Local preparation inputs changed');
+        const manifest = CatalogApprovalManifestSchema.parse(product.detailSourceManifest);
+        const rows = this.docs('productVariants').filter(
+          (row) =>
+            row.productId === product._id &&
+            row.detailSourceOwner === input.owner &&
+            row.detailSourceMissing === false &&
+            row.archived !== true,
+        );
+        const ids = new Set(manifest.variantIds);
+        if (
+          manifest.revision !== input.revision ||
+          rows.length !== ids.size ||
+          rows.some((row) => !ids.has(row._id) || row.detailSourceRevision !== input.revision)
+        )
+          throw new Error('Incomplete local source manifest');
+        next = {
+          ...product,
+          detailSourceReady: true,
+          detailSourceContentGeneration: input.expectedGeneration,
+          localDetailPreparationState: 'complete',
+        };
+        planCatalogDetailApproval({ product: next, variants: rows, revision: 'local-validation' });
+      }
+      const previous = this.store;
+      this.store = {
+        ...this.store,
+        products: this.docs('products').map((row) => (row._id === product._id ? next : row)),
+      };
+      try {
+        this.persist();
+      } catch (error) {
+        this.store = previous;
+        throw error;
+      }
+    });
+  }
   async mutateAlibabaProduct(input: AlibabaProductMutationInput) {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
@@ -200,24 +451,34 @@ export class JsonFileAdapter implements DbAdapter {
     });
   }
   async persistCatalogDetailApproval(actorId: string, input: ApprovalPersistenceCommand) {
+    const captured = captureApprovalPersistenceCommand(input);
+    if (!captured.ok) return captured;
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);
+      let changed = false;
       const result = await runStagedApproval(
         {
           get: async (collection, id) =>
             structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
           set: async (collection, row) => {
+            changed = true;
             copy[collection] ??= [];
             const rows = copy[collection];
             const index = rows.findIndex((existing) => existing._id === row._id);
             if (index < 0) rows.push(structuredClone(row));
             else rows[index] = structuredClone(row);
           },
+          patch: async (collection, id, fields) => {
+            const row = copy[collection]?.find((item) => item._id === id);
+            if (!row) throw new Error('Approval mutex row disappeared');
+            changed = true;
+            Object.assign(row, structuredClone(fields));
+          },
         },
         actorId,
-        input,
+        captured.command,
       );
-      if (result.ok) {
+      if (result.ok && changed) {
         const previous = this.store;
         this.store = copy;
         try {
@@ -418,7 +679,12 @@ export class JsonFileAdapter implements DbAdapter {
     mutationQueues.set(this.file, tail);
     await previous;
     try {
+      // Whole-file transactions do synchronous IO. A promise-only queue can
+      // starve socket delivery and timers across many publication stages.
+      // Yield while owning the FIFO slot and its fresh snapshot;
+      // each transaction and its atomic rename still run under the same lock.
       this.store = this.load();
+      await yieldToIo();
       return await operation();
     } finally {
       release?.();
@@ -426,11 +692,28 @@ export class JsonFileAdapter implements DbAdapter {
     }
   }
 
+  async findUnfinishedApprovalUsingImage(
+    imageId: string,
+    startedAfter: string,
+  ): Promise<string | null> {
+    return this.withMutationLock(() =>
+      firstApprovalImageHold(this.docs('catalogDetailApprovals'), imageId, startedAfter),
+    );
+  }
+
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
+    const summary = usesProductListView(query);
     return this.withMutationLock(() => {
       const def = getCollection(query.collection);
       let docs = [...this.docs(query.collection)];
 
+      if (query.hidePreparing) docs = docs.filter((doc) => doc.alibabaPhotosPending !== true);
+      if (query.catalogReadiness) {
+        if (query.collection !== 'products')
+          throw Error('Readiness scope is only available for products');
+        const scope = query.catalogReadiness;
+        docs = docs.filter((doc) => matchesCatalogReadiness(doc, scope));
+      }
       if (query.needsClassification) {
         docs = docs.filter((doc) =>
           matchesFilter(doc, {
@@ -471,8 +754,9 @@ export class JsonFileAdapter implements DbAdapter {
 
       if (query.search && def) {
         const needle = query.search.toLowerCase();
+        const searchFields = listSearchFields(query, def);
         docs = docs.filter((doc) =>
-          def.searchableFields.some((field) =>
+          searchFields.some((field) =>
             String(doc[field] ?? '')
               .toLowerCase()
               .includes(needle),
@@ -485,8 +769,8 @@ export class JsonFileAdapter implements DbAdapter {
         docs = docs.filter((doc) => matchesFilter(doc, filter));
       }
 
-      if (query.sort && query.sort.length > 0) {
-        const sort = query.sort;
+      const sort = query.catalogReadiness ? catalogReadinessSort(query.sort) : query.sort;
+      if (sort && sort.length > 0) {
         docs.sort((a, b) => compareBySort(a, b, sort));
       } else {
         docs.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
@@ -495,7 +779,8 @@ export class JsonFileAdapter implements DbAdapter {
       const total = docs.length;
       const start = (query.page - 1) * query.pageSize;
       const items = docs.slice(start, start + query.pageSize);
-      return { items, total, page: query.page, pageSize: query.pageSize };
+      const result = { items, total, page: query.page, pageSize: query.pageSize };
+      return summary ? projectProductListResult(result) : result;
     });
   }
 
@@ -563,10 +848,50 @@ export class JsonFileAdapter implements DbAdapter {
     );
   }
 
+  private catalogRowMutation(command: CatalogRowMutation, now: string) {
+    return runCatalogRowMutation(
+      {
+        get: async (collection, id) => this.docs(collection).find((row) => row._id === id) ?? null,
+        set: async (collection, row) => {
+          const docs = this.docs(collection);
+          const index = docs.findIndex((doc) => doc._id === row._id);
+          if (index < 0) docs.push(row);
+          else docs[index] = row;
+        },
+        remove: async (collection, id) => {
+          const docs = this.docs(collection);
+          const index = docs.findIndex((doc) => doc._id === id);
+          if (index < 0) throw new Error('Catalog row disappeared during its mutation');
+          docs.splice(index, 1);
+        },
+      },
+      command,
+      now,
+    );
+  }
+  private writtenCatalogRow(result: CatalogRowMutationResult): CollectionDoc {
+    if (result.status !== 'written') throw new Error('Catalog row was not written');
+    this.persist();
+    return result.doc;
+  }
+
   async create(collection: string, data: Record<string, unknown>): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, input);
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const id = input._id === undefined ? randomUUID() : input._id;
+        if (typeof id !== 'string') throw new Error('Catalog row identity must be a string');
+        return this.writtenCatalogRow(
+          await this.catalogRowMutation(
+            { action: 'create', collection, id, data: input },
+            new Date().toISOString(),
+          ),
+        );
+      });
     return this.withMutationLock(() => {
       const now = new Date().toISOString();
-      const doc: CollectionDoc = { _id: randomUUID(), ...data, createdAt: now, updatedAt: now };
+      const doc: CollectionDoc = { _id: randomUUID(), ...input, createdAt: now, updatedAt: now };
       this.docs(collection).push(doc);
       this.persist();
       return doc;
@@ -578,12 +903,23 @@ export class JsonFileAdapter implements DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<CollectionDoc | null> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'update', collection, id, data: input },
+          new Date().toISOString(),
+        );
+        return result.status === 'missing' ? null : this.writtenCatalogRow(result);
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
       if (index === -1) return null;
       const existing = docs[index] as CollectionDoc;
-      const updated: CollectionDoc = { ...existing, ...data, updatedAt: new Date().toISOString() };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, input);
+      const updated: CollectionDoc = { ...existing, ...input, updatedAt: new Date().toISOString() };
+      if (collection === 'images') updated._id = id;
       docs[index] = updated;
       this.persist();
       return updated;
@@ -591,10 +927,22 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async remove(collection: string, id: string): Promise<boolean> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'remove', collection, id },
+          new Date().toISOString(),
+        );
+        if (result.status === 'missing') return false;
+        this.persist();
+        return result.status === 'removed';
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
       if (index === -1) return false;
+      if (collection === 'images')
+        assertOrdinaryImageReferenceRemoval(docs[index] as CollectionDoc);
       docs.splice(index, 1);
       this.persist();
       return true;
@@ -607,6 +955,23 @@ export class JsonFileAdapter implements DbAdapter {
     field: string,
     delta: number,
   ): Promise<number | null> {
+    if (collection === 'images' && field === 'publishedRefCount') {
+      const command = CatalogImageReferenceIncrementSchema.parse({ imageId: id, delta });
+      return this.imageReferenceTransaction((tx) => runCatalogImageReferenceIncrement(tx, command));
+    }
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, { [field]: delta });
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'increment', collection, id, field, delta },
+          new Date().toISOString(),
+        );
+        if (result.status === 'missing') return null;
+        const doc = this.writtenCatalogRow(result);
+        const value = doc[field];
+        if (typeof value !== 'number') throw new Error('Catalog counter result was not numeric');
+        return value;
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((d) => d._id === id);
@@ -616,6 +981,88 @@ export class JsonFileAdapter implements DbAdapter {
       docs[index] = { ...existing, [field]: next, updatedAt: new Date().toISOString() };
       this.persist();
       return next;
+    });
+  }
+
+  async manageImageUpload(command: ImageUploadCommand) {
+    const input = ImageUploadCommandSchema.parse(command);
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runImageUpload(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((value) => value._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection] ?? [];
+            const index = rows.findIndex((row) => row._id === id);
+            if (index < 0) throw new Error('Image disappeared during deletion');
+            rows.splice(index, 1);
+            changed = true;
+          },
+        },
+        input,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
+  async manageImageDeletion(command: ImageDeletionCommand) {
+    const input = ImageDeletionCommandSchema.parse(command);
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      let changed = false;
+      const result = await runImageDeletion(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((value) => value._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection] ?? [];
+            const index = rows.findIndex((row) => row._id === id);
+            if (index < 0) throw new Error('Image disappeared during deletion');
+            rows.splice(index, 1);
+            changed = true;
+          },
+        },
+        input,
+      );
+      if (changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
     });
   }
 
@@ -661,10 +1108,22 @@ export class JsonFileAdapter implements DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<'created' | 'exists'> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'create-if-missing', collection, id, data: input },
+          new Date().toISOString(),
+        );
+        if (result.status === 'exists') return 'exists';
+        this.writtenCatalogRow(result);
+        return 'created';
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       if (docs.some((document) => document._id === id)) return 'exists';
-      const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
+      const { _id, ...payload } = input as Record<string, unknown> & { _id?: unknown };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(null, payload);
       docs.push({ _id: id, ...payload } as CollectionDoc);
       this.persist();
       return 'created';
@@ -677,12 +1136,24 @@ export class JsonFileAdapter implements DbAdapter {
     field: string,
     expectedValue: unknown,
   ): Promise<boolean> {
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () => {
+        const result = await this.catalogRowMutation(
+          { action: 'remove', collection, id, expectedField: { field, value: expectedValue } },
+          new Date().toISOString(),
+        );
+        if (result.status === 'missing') return false;
+        this.persist();
+        return result.status === 'removed';
+      });
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex(
         (document) => document._id === id && document[field] === expectedValue,
       );
       if (index < 0) return false;
+      if (collection === 'images')
+        assertOrdinaryImageReferenceRemoval(docs[index] as CollectionDoc);
       docs.splice(index, 1);
       this.persist();
       return true;
@@ -690,9 +1161,11 @@ export class JsonFileAdapter implements DbAdapter {
   }
 
   async saveCatalogProductWithIdentities(
-    input: CatalogProductSaveInput,
+    request: CatalogProductSaveInput,
   ): Promise<CatalogProductSaveResult> {
-    return this.withMutationLock(() => {
+    const input = captureProductOperationSave(request);
+    if (!input) return { result: 'stale' };
+    return this.withMutationLock(async () => {
       const expectedSuggestion =
         input.expectedSuggestion === undefined
           ? undefined
@@ -705,7 +1178,30 @@ export class JsonFileAdapter implements DbAdapter {
       const productIndex = products.findIndex((document) => document._id === input.productId);
       const existing = productIndex >= 0 ? (products[productIndex] as CollectionDoc) : null;
       if (expectedSuggestion && !existing) return catalogSuggestionChanged();
-      const plan = planCatalogProductSave(existing, input, new Date().toISOString());
+      const operationTx = {
+        get: async (collection: string, id: string) =>
+          copy[collection]?.find((row) => row._id === id) ?? null,
+        set: async (collection: string, row: CollectionDoc) => {
+          copy[collection] ??= [];
+          const index = copy[collection].findIndex((existing) => existing._id === row._id);
+          if (index < 0) copy[collection].push(row);
+          else copy[collection][index] = row;
+        },
+      };
+      const operation = await prepareProductOperationSave(operationTx, existing, input);
+      if (
+        operation.result === 'stale' ||
+        operation.result === 'invalid-product' ||
+        operation.result === 'media-busy'
+      )
+        return operation;
+      if (operation.result === 'replay' && existing)
+        return { result: 'saved', doc: existing, previous: existing };
+      const plan = planCatalogProductSave(existing, input, new Date().toISOString(), {
+        cancelPendingPublication:
+          operation.result === 'ready' && operation.record.operation.intent !== 'refresh-live',
+        clearManualPricing: operation.result === 'ready',
+      });
       if (plan.result !== 'ready') return plan;
 
       const family = expectedSuggestion
@@ -741,6 +1237,14 @@ export class JsonFileAdapter implements DbAdapter {
       if (suggestion.result !== 'ready') return suggestion;
       const classification = planProductSubcategorySave(existing, input, registry, actor);
       if (classification.result !== 'ready') return classification;
+      if (
+        operation.result === 'unbound' &&
+        plan.doc === existing &&
+        !actor &&
+        !classification.registryFence &&
+        suggestion.fences.length === 0
+      )
+        return { result: 'saved', doc: existing, previous: existing };
 
       copy.catalogProductIdentities ??= [];
       const identityDocs = copy.catalogProductIdentities;
@@ -795,6 +1299,13 @@ export class JsonFileAdapter implements DbAdapter {
         );
         if (index >= 0) identityDocs.splice(index, 1);
       }
+      if (operation.result === 'ready')
+        await operationTx.set(
+          'catalogDetailApprovals',
+          productOperationSaveReceipt(operation.record, plan.doc),
+        );
+      if (operation.result === 'ready' && operation.referenceProof)
+        await operationTx.set('catalogDetailApprovals', operation.referenceProof);
       const previous = this.store;
       this.store = copy;
       try {
@@ -813,18 +1324,30 @@ export class JsonFileAdapter implements DbAdapter {
     data: Record<string, unknown>,
     createOnly: Record<string, unknown> = {},
   ): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
+    if (isCatalogRowCollection(collection))
+      return this.withMutationLock(async () =>
+        this.writtenCatalogRow(
+          await this.catalogRowMutation(
+            { action: 'upsert', collection, id, data: input, createOnly: initial },
+            new Date().toISOString(),
+          ),
+        ),
+      );
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
       const index = docs.findIndex((document) => document._id === id);
       const now = new Date().toISOString();
-      const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      const { _id, ...patch } = input as Record<string, unknown> & { _id?: unknown };
       if (index >= 0) {
+        if (collection === 'images') assertOrdinaryImageReferenceWrite(docs[index] ?? null, patch);
         const next = { ...(docs[index] as CollectionDoc), ...patch, updatedAt: now };
         docs[index] = next;
         this.persist();
         return next;
       }
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
         _id?: unknown;
       };
       const created = {
@@ -834,10 +1357,31 @@ export class JsonFileAdapter implements DbAdapter {
         ...safeCreateOnly,
         ...patch,
       } as CollectionDoc;
+      if (collection === 'images')
+        assertOrdinaryImageReferenceWrite(null, { ...safeCreateOnly, ...patch });
       docs.push(created);
       this.persist();
       return created;
     });
+  }
+
+  private sourceInvalidation(before: CollectionDoc | null, next: CollectionDoc, now: string) {
+    return planSourceInvalidation(
+      {
+        get: async (collection, id) => this.docs(collection).find((row) => row._id === id) ?? null,
+      },
+      before,
+      next,
+      now,
+    );
+  }
+
+  private writeInvalidatedProduct(product: CollectionDoc | null): void {
+    if (!product) return;
+    const products = this.docs('products');
+    const index = products.findIndex((row) => row._id === product._id);
+    if (index < 0) throw new Error('Bound product disappeared inside the mutation lock');
+    products[index] = product;
   }
 
   async upsertCatalogSourceObservation(
@@ -845,36 +1389,37 @@ export class JsonFileAdapter implements DbAdapter {
     data: Record<string, unknown>,
     createOnly: Record<string, unknown>,
   ): Promise<CatalogSourceObservationUpsertResult> {
-    return this.withMutationLock(() => {
+    return this.withMutationLock(async () => {
       const docs = this.docs('catalogSourceObservations');
       const index = docs.findIndex((document) => document._id === id);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
       const now = new Date().toISOString();
-      const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
-      if (index >= 0) {
-        const existing = docs[index] as CollectionDoc;
-        const previousAt = Date.parse(String(existing.observedAt ?? ''));
-        const incomingAt = Date.parse(String(patch.observedAt ?? ''));
-        if (Number.isFinite(previousAt) && previousAt > incomingAt) {
-          return { result: 'stale', doc: existing };
-        }
-        const next = { ...existing, ...patch, updatedAt: now };
-        docs[index] = next;
-        this.persist();
-        return { result: 'applied', doc: next };
-      }
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      const {
+        _id: _patchId,
+        catalogBindingGeneration: _incomingFence,
+        ...patch
+      } = data as Record<string, unknown> & { _id?: unknown };
+      if (
+        existing &&
+        Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt ?? ''))
+      )
+        return { result: 'stale', doc: existing };
+      const {
+        _id: _createId,
+        catalogBindingGeneration: _createdFence,
+        ...safeCreateOnly
+      } = createOnly as Record<string, unknown> & {
         _id?: unknown;
       };
-      const created = {
-        _id: id,
-        createdAt: now,
-        updatedAt: now,
-        ...safeCreateOnly,
-        ...patch,
-      } as CollectionDoc;
-      docs.push(created);
+      const next = existing
+        ? { ...existing, ...patch, updatedAt: now }
+        : { ...safeCreateOnly, ...patch, _id: id, createdAt: now, updatedAt: now };
+      const invalidated = await this.sourceInvalidation(existing, next, now);
+      if (index >= 0) docs[index] = next;
+      else docs.push(next);
+      this.writeInvalidatedProduct(invalidated);
       this.persist();
-      return { result: 'applied', doc: created };
+      return { result: 'applied', doc: next };
     });
   }
 
@@ -943,22 +1488,35 @@ export class JsonFileAdapter implements DbAdapter {
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean> {
-    return this.withMutationLock(() => {
-      // Lease recheck + target write in ONE critical section (R1 E2).
-      const leases = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
-      const lease = leases.find((document) => document._id === guard.connectionId) ?? null;
+    const input = collection === 'images' ? structuredClone(patch) : patch;
+    if (collection === 'images') Reflect.deleteProperty(input, '_id');
+    return this.withMutationLock(async () => {
+      const lease =
+        this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
+        null;
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      if (isCatalogRowCollection(collection)) {
+        const result = await this.catalogRowMutation(
+          { action: 'update', collection, id, data: input },
+          guard.now,
+        );
+        if (result.status === 'missing') return false;
+        this.writtenCatalogRow(result);
+        return true;
+      }
       const docs = this.docs(collection);
-      const index = docs.findIndex((document) => document._id === id);
+      const index = docs.findIndex((row) => row._id === id);
       if (index < 0) return false;
-      const baseline =
-        collection === 'products' ? categorySyncBaseline(docs[index] as CollectionDoc, patch) : {};
-      docs[index] = {
-        ...(docs[index] as CollectionDoc),
-        ...patch,
-        ...baseline,
-        updatedAt: guard.now,
-      };
+      const existing = docs[index] as CollectionDoc;
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, input);
+      const baseline = collection === 'products' ? categorySyncBaseline(existing, input) : {};
+      const next = { ...existing, ...input, ...baseline, updatedAt: guard.now };
+      const invalidated =
+        collection === 'catalogSourceObservations'
+          ? await this.sourceInvalidation(existing, next, guard.now)
+          : null;
+      docs[index] = next;
+      this.writeInvalidatedProduct(invalidated);
       this.persist();
       return true;
     });
@@ -971,31 +1529,44 @@ export class JsonFileAdapter implements DbAdapter {
     createOnly: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean> {
-    return this.withMutationLock(() => {
-      const leases = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
-      const lease = leases.find((document) => document._id === guard.connectionId) ?? null;
+    const input = collection === 'images' ? structuredClone(patch) : patch;
+    const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
+    return this.withMutationLock(async () => {
+      const lease =
+        this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((row) => row._id === guard.connectionId) ??
+        null;
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
-      const docs = this.docs(collection);
-      const index = docs.findIndex((document) => document._id === id);
-      const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
-      if (index >= 0) {
-        docs[index] = {
-          ...(docs[index] as CollectionDoc),
-          ...safePatch,
-          updatedAt: guard.now,
-        };
-      } else {
-        const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
-          _id?: unknown;
-        };
-        docs.push({
-          _id: id,
-          ...safeCreateOnly,
-          ...safePatch,
-          createdAt: guard.now,
-          updatedAt: guard.now,
-        } as CollectionDoc);
+      if (isCatalogRowCollection(collection)) {
+        this.writtenCatalogRow(
+          await this.catalogRowMutation(
+            { action: 'upsert', collection, id, data: input, createOnly: initial },
+            guard.now,
+          ),
+        );
+        return true;
       }
+      const docs = this.docs(collection);
+      const index = docs.findIndex((row) => row._id === id);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
+      const { _id: _patchId, ...safePatch } = input as Record<string, unknown> & { _id?: unknown };
+      const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      if (collection === 'images')
+        assertOrdinaryImageReferenceWrite(
+          existing,
+          existing ? safePatch : { ...safeCreateOnly, ...safePatch },
+        );
+      const next = existing
+        ? { ...existing, ...safePatch, updatedAt: guard.now }
+        : { ...safeCreateOnly, ...safePatch, _id: id, createdAt: guard.now, updatedAt: guard.now };
+      const invalidated =
+        collection === 'catalogSourceObservations'
+          ? await this.sourceInvalidation(existing, next, guard.now)
+          : null;
+      if (index >= 0) docs[index] = next;
+      else docs.push(next);
+      this.writeInvalidatedProduct(invalidated);
       this.persist();
       return true;
     });

@@ -320,7 +320,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   const messages = [];
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 28);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 33);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
@@ -501,4 +501,55 @@ test('deployment docs match restored routes and post-baseline resource contracts
   ]) {
     assert.ok(deploymentDesign.includes(contract), `deployment design keeps ${contract}`);
   }
+});
+
+test('every registered collection exists in the deployed database', async () => {
+  // Created before this deploy step existed (verified in production
+  // 2026-10-09); every newer collection must be provisioned here, or listing it
+  // and scanning it for image references fails with a server error.
+  const createdBeforeProvisioning = new Set([
+    'users',
+    'oemProjects',
+    'overstock',
+    'images',
+    'files',
+  ]);
+  const { COLLECTIONS } = await import('../packages/shared/src/collections.ts');
+  const provisioned = new Set(REQUIRED_NOSQL_RESOURCES.map((r) => r.collectionName));
+  const missing = COLLECTIONS.map((definition) => definition.name).filter(
+    (name) => !provisioned.has(name) && !createdBeforeProvisioning.has(name),
+  );
+  assert.deepEqual(missing, []);
+});
+
+test('durable preparation jobs are provisioned privately before any worker can write', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (entry) => entry.collectionName === 'catalogPreparationJobs',
+  );
+  assert.ok(resource, 'a CloudBase document write cannot create its missing collection');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes, []);
+  const source = readFileSync(
+    new URL('../packages/db/src/catalog-preparation-jobs.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs'/);
+  // Background workers remain disabled until explicitly configured; provisioning is independent.
+  assert.ok(deploySource.includes('ensureNoSqlResources'));
+});
+
+test('image observations are private coordination state provisioned with the preparation jobs', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (entry) => entry.collectionName === 'catalogImageObservations',
+  );
+  assert.ok(resource);
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.equal(resource.indexes.length, 1);
+  assert.equal(resource.indexes[0].IndexName, 'catalog_preparation_image_hold');
+  assert.deepEqual(resource.indexes[0].MgoKeySchema.MgoIndexKeys, [
+    { Name: 'kind', Direction: '1' },
+    { Name: 'imageId', Direction: '1' },
+    { Name: '_id', Direction: '1' },
+  ]);
+  assert.equal(resource.indexes[0].MgoKeySchema.MgoIsUnique, false);
 });

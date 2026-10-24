@@ -130,3 +130,21 @@ test('decodeUtf8 strips a leading UTF-8 byte-order mark', () => {
   const encoded = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"ok":true}')]);
   assert.deepEqual(JSON.parse(decodeUtf8(encoded)), { ok: true });
 });
+
+test('fetchFully retains redirect following for existing callers', async () => {
+  await withServer(
+    (request, response) => {
+      if (request.url === '/start') {
+        response.writeHead(302, { location: '/finish' });
+        response.end();
+      } else {
+        response.end('complete redirect body');
+      }
+    },
+    async (origin) => {
+      const result = await fetchFully('GET', `${origin}/start`);
+      assert.equal(result.status, 200);
+      assert.equal(decodeUtf8(result.body), 'complete redirect body');
+    },
+  );
+});

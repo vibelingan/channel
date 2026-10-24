@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, getCollection } from '@vibelingan-channel/shared';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { ProductFamilyTab, ProductThumbnail } from './CollectionView.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
+import { RecordForm } from './RecordForm.tsx';
+import { pendingSupplierChange, splitForBatchPublish } from './review-reason.ts';
 
 const pending = {
   _id: 'p-new',
@@ -54,7 +58,9 @@ test('family tab exposes an accessible notification dot only when pending', () =
       onSelect: () => {},
     }),
   );
-  assert.ok(withPending.includes('3 new products to review'));
+  // Counts every flagged product, not only new ones (MIU-23).
+  assert.ok(withPending.includes('3 products to review'));
+  assert.ok(!withPending.includes('new products'));
   const clear = renderToStaticMarkup(
     createElement(ProductFamilyTab, {
       label: 'Toys',
@@ -98,4 +104,215 @@ test('malformed source review data degrades without throwing or rendering attack
   );
   assert.ok(html.includes('New Alibaba product'));
   assert.ok(!html.includes('polluted'));
+});
+
+test('the badge names why a product needs review; nothing when it does not (MIU-23)', () => {
+  const badge = (extra: object) =>
+    renderToStaticMarkup(createElement(ProductThumbnail, { doc: { ...pending, ...extra } }));
+  assert.match(badge({ alibabaReviewReason: 'changed' }), />Changed</);
+  assert.match(badge({ alibabaReviewReason: 'removed' }), />Removed</);
+  assert.match(badge({ alibabaReviewReason: 'edited' }), />Edited</);
+  assert.match(badge({}), />New</, 'a pending row without a reason is new');
+  assert.doesNotMatch(badge({ alibabaReviewPending: false }), /New|Changed|Removed|Edited/);
+});
+
+test('the preview chip names the reason; "Mark reviewed" is offered only for new products', () => {
+  const preview = (extra: object) =>
+    renderToStaticMarkup(
+      createElement(PreviewModal, {
+        doc: { ...pending, ...extra } as CollectionDoc,
+        canMarkReviewed: true,
+        onMarkReviewed: () => {},
+        onClose: () => {},
+        onEdit: () => {},
+      }),
+    );
+  const changed = preview({ alibabaReviewReason: 'changed' });
+  assert.ok(changed.includes('Changed · review needed'));
+  assert.ok(!changed.includes('Mark reviewed'));
+  assert.ok(preview({ alibabaReviewReason: 'new' }).includes('Mark reviewed'));
+});
+
+test('"Review changes" appears on a published product flagged changed, removed or edited (MIU-24, DEC-19)', () => {
+  const preview = (extra: object) =>
+    renderToStaticMarkup(
+      createElement(PreviewModal, {
+        doc: { ...pending, ...extra } as CollectionDoc,
+        canMarkReviewed: true,
+        onMarkReviewed: () => {},
+        onReviewChanges: () => {},
+        onUnpublish: () => {},
+        onClose: () => {},
+        onEdit: () => {},
+      }),
+    );
+  const changed = preview({ published: true, alibabaReviewReason: 'changed' });
+  assert.ok(changed.includes('>Review changes<'));
+  assert.ok(!changed.includes('Approve changes'), 'approval happens in the edit form');
+  assert.ok(
+    changed.includes('href="/products/item/?id=p-new"'),
+    'a link to compare with the live page',
+  );
+  assert.ok(!changed.includes('>Unpublish<'));
+  const removed = preview({ published: true, alibabaReviewReason: 'removed' });
+  assert.ok(removed.includes('>Review changes<'));
+  assert.ok(removed.includes('>Unpublish<'), 'a removed source can also be taken offline');
+  // Unpublished or new products use Publish / Mark reviewed instead.
+  assert.ok(
+    !preview({ published: false, alibabaReviewReason: 'changed' }).includes('Review changes'),
+  );
+  assert.ok(!preview({ published: true, alibabaReviewReason: 'new' }).includes('Review changes'));
+  assert.ok(!preview({ published: true, alibabaReviewPending: false }).includes('Review changes'));
+});
+
+test('"Review changes" opens the edit form, where the supplier changes are decided', () => {
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(
+    source,
+    /onReviewChanges=\{\(\) => \{\s*openRecord\(previewing, 'edit'\);\s*setPreviewing\(null\);\s*\}\}/,
+  );
+  assert.ok(!source.includes('approveChangesMutation'), 'no approval straight from the preview');
+});
+
+test('a pending supplier change is a published product flagged changed or removed (DEC-12)', () => {
+  const doc = (extra: object) => ({ ...pending, ...extra }) as CollectionDoc;
+  assert.equal(
+    pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'changed' })),
+    'Changed',
+  );
+  assert.equal(
+    pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'removed' })),
+    'Removed',
+  );
+  // Publish is the approval for drafts; new and edited are not Alibaba changes.
+  assert.equal(
+    pendingSupplierChange(doc({ published: false, alibabaReviewReason: 'changed' })),
+    null,
+  );
+  assert.equal(pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'new' })), null);
+  assert.equal(
+    pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'edited' })),
+    null,
+  );
+  assert.equal(
+    pendingSupplierChange(
+      doc({ published: true, alibabaReviewPending: false, alibabaReviewReason: 'changed' }),
+    ),
+    null,
+  );
+});
+
+test('the edit form warns above Save when saving would publish pending Alibaba changes (MIU-25)', () => {
+  const products = getCollection('products');
+  assert.ok(products);
+  const form = (extra: object) =>
+    renderToStaticMarkup(
+      createElement(RecordForm, {
+        collection: products,
+        title: 'Edit Product',
+        initial: { ...pending, ...extra } as CollectionDoc,
+        submitting: false,
+        error: null,
+        onSubmit: () => undefined,
+        onCancel: () => undefined,
+        onSeeChanges: () => undefined,
+      }),
+    );
+  const changed = form({ published: true, alibabaReviewReason: 'changed' });
+  assert.ok(
+    changed.includes(
+      'Alibaba data changed since the last approval. Saving publishes these changes too.',
+    ),
+  );
+  assert.ok(changed.includes('See changes'));
+  assert.ok(
+    changed.indexOf('data-pending-supplier-change') < changed.indexOf('type="submit"'),
+    'the notice sits above Save',
+  );
+  // Screen readers hear the warning with the Save button.
+  const noticeId = /<p id="([^"]+)">Alibaba data changed/.exec(changed)?.[1];
+  assert.ok(noticeId);
+  assert.match(changed, new RegExp(`type="submit"[^>]*aria-describedby="${noticeId}"`));
+  const removed = form({ published: true, alibabaReviewReason: 'removed' });
+  assert.ok(removed.includes('removed on Alibaba since the last approval'));
+  for (const quiet of [
+    { published: true, alibabaReviewPending: false },
+    { published: true, alibabaReviewReason: 'new' },
+    { published: false, alibabaReviewReason: 'changed' },
+  ]) {
+    const html = form(quiet);
+    assert.ok(!html.includes('data-pending-supplier-change'), JSON.stringify(quiet));
+    assert.doesNotMatch(html, /type="submit"[^>]*aria-describedby/, JSON.stringify(quiet));
+  }
+});
+
+test('"See changes" opens a read-only preview, so nothing changes under the open form', () => {
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(source, /onSeeChanges=\{\(\) => setChangesPreview\(editing\)\}/);
+  const preview = source.slice(source.indexOf('{changesPreview && ('));
+  const element = preview.slice(0, preview.indexOf('/>'));
+  assert.ok(element.includes('doc={changesPreview}'));
+  // It still shows the supplier preview and the live-page link (review P2).
+  assert.ok(element.includes('canMarkReviewed={canReviewAlibabaProducts}'));
+  for (const action of ['onReviewChanges', 'onUnpublish', 'onMarkReviewed'])
+    assert.ok(!element.includes(action), `${action} must not be offered over the form`);
+});
+
+test('batch Publish skips products with Alibaba changes to review, live or not (DEC-19)', () => {
+  const live = { ...pending, _id: 'live', name: 'Live headset', published: true } as CollectionDoc;
+  const flagged = { ...live, _id: 'flagged', alibabaReviewReason: 'changed' } as CollectionDoc;
+  const removedDraft = {
+    ...pending,
+    _id: 'removed-draft',
+    alibabaReviewReason: 'removed',
+  } as CollectionDoc;
+  const fresh = { ...pending, _id: 'fresh' } as CollectionDoc;
+  assert.deepEqual(
+    splitForBatchPublish([live, flagged, removedDraft, fresh]).map((group) =>
+      group.map((doc) => doc._id),
+    ),
+    [
+      ['flagged', 'removed-draft'],
+      ['live', 'fresh'],
+    ],
+  );
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(source, /splitForBatchPublish\(docs\)/);
+  assert.match(source, /setSkippedOnly\(\{ skipped, names \}\)/, 'nothing left: no request');
+  // The single-row switch opens Edit for a flagged product instead of publishing it.
+  assert.match(source, /\? openRecord\(row\.original, 'edit'\)\s*: patch\(row\.original,/);
+  // A publish that kept the flag says so.
+  assert.match(source, /data-still-flagged/);
+  const feedback = renderToStaticMarkup(
+    createElement(BatchUpdateFeedback, {
+      result: { updated: 1, items: [], failures: [] },
+      names: { flagged: 'Changed headset' },
+      published: true,
+      skipped: ['flagged'],
+      onDismiss: () => {},
+    }),
+  );
+  assert.ok(feedback.includes('1 published'));
+  assert.ok(feedback.includes('Skipped (Alibaba changes to review)'));
+  assert.ok(feedback.includes('Changed headset'));
+  assert.ok(feedback.includes('Open each in Edit'));
+});
+
+test('the product list jumps to a typed page number, kept within the pages that exist', async () => {
+  const { PageJump, requestedPage } = await import('./PageJump.tsx');
+  assert.equal(requestedPage('7', 56), 7);
+  assert.equal(requestedPage(' 99 ', 56), 56);
+  assert.equal(requestedPage('0', 56), 1);
+  assert.equal(requestedPage('abc', 56), null);
+  const html = renderToStaticMarkup(
+    createElement(PageJump, { page: 3, pageCount: 56, onJump: () => {} }),
+  );
+  assert.match(
+    html,
+    /<label[^>]*>Go to page<\/label><input[^>]*type="number"[^>]*max="56"[^>]*value="3"/,
+  );
+  assert.match(html, /<button type="submit"[^>]*>Go<\/button>/);
+  // The "page / pages" indicator stays as it was; the jump box sits beside it.
+  const view = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(view, /\{page\} \/ \{pageCount\}/);
 });

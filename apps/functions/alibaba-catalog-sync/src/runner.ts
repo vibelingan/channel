@@ -64,6 +64,7 @@ import {
   getDoc,
   upsertDocWithAlibabaLease,
 } from './repo.ts';
+import { initialSyncPreparation } from './sync-preparation.ts';
 
 const LIST_METHOD = 'alibaba.icbu.product.list';
 const DETAIL_METHOD = 'alibaba.icbu.product.get';
@@ -83,6 +84,7 @@ function formatChinaDateTime(atMs: number): string {
 }
 
 export interface RunnerDeps {
+  requestedBy?: string;
   client: AlibabaClient;
   /**
    * Resolved AFTER the lease is acquired (review R2 finding: pre-fetching
@@ -373,6 +375,7 @@ export async function runSyncTick(input: {
           connectionId: PRIMARY_CONNECTION_ID,
           mode,
           trigger: input.trigger,
+          ...(deps.requestedBy ? { requestedBy: deps.requestedBy } : {}),
           status: 'running',
           holder,
           fence,
@@ -756,6 +759,7 @@ async function executeSlice(
     }
 
     let priceMoves = 0;
+    let promotionFailures = 0;
     for (const candidate of linkedCandidates) {
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
       const promoted = await promoteLinkedProduct({
@@ -764,6 +768,7 @@ async function executeSlice(
         now: deps.now(),
       });
       if (promoted.ok && promoted.priceMoveAlert) priceMoves += 1;
+      if (!promoted.ok && promoted.reason !== 'fence-rejected') promotionFailures += 1;
       if (!promoted.ok && promoted.reason === 'fence-rejected') {
         return { outcome: 'lease-lost', runId: state.activeRunId };
       }
@@ -811,6 +816,15 @@ async function executeSlice(
       );
     }
 
+    if (
+      !(await updateDocWithAlibabaLease(
+        'alibabaSyncRuns',
+        state.activeRunId,
+        { draftPreparationRequired: draftFailures > 0 || promotionFailures > 0 },
+        guard(deps.now()),
+      ))
+    )
+      return { outcome: 'lease-lost', runId: state.activeRunId };
     state.stage = state.mode === 'full' ? 'tombstone' : 'promote';
     if (state.mode !== 'full') {
       if (!(await completeRun(state, counters, guard, deps))) {
@@ -1144,8 +1158,8 @@ async function clearActiveRun(
   mode: 'incremental' | 'full' | null = null,
   committedCursor?: string,
 ): Promise<boolean> {
-  const now = deps.now();
   const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
+  const now = deps.now();
   const applied = await updateDocWithAlibabaLease(
     'alibabaSyncCheckpoints',
     PRIMARY_CONNECTION_ID,
@@ -1169,16 +1183,27 @@ async function completeRun(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
 ): Promise<boolean> {
-  const now = deps.now();
   // Mark the run terminal first. If the fenced checkpoint clear then loses its
   // lease, the active slot still points at a terminal row and the next tick's
   // self-heal can recover `windowEnd` as the committed cursor. Clearing first
   // could orphan a non-terminal run that no later tick can discover.
+  const currentRun = await getDoc('alibabaSyncRuns', state.activeRunId);
+  const now = deps.now();
+  const preparation = initialSyncPreparation(
+    now,
+    typeof currentRun?.requestedBy === 'string' ? currentRun.requestedBy : undefined,
+  );
+  if (currentRun?.draftPreparationRequired === true) {
+    preparation.phase = 'drafts';
+    preparation.resumePhase = 'drafts';
+  }
   const completed = await updateDocWithAlibabaLease(
     'alibabaSyncRuns',
     state.activeRunId,
     {
       status: 'completed',
+      preparationPending: true,
+      preparation,
       counters,
       completedAt: now,
       // A retryable page failure remains visible while the run is continuing,

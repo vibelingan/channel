@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detailFixture } from '../testing/detail-fixture.ts';
 import { createCatalogMediaState } from './catalog-media.ts';
-import { variantMediaSources } from './catalog-variant-media.ts';
+import { configurationForPhoto, variantMediaSources } from './catalog-variant-media.ts';
 
 test('an unmapped selected color must not present a different color from the product gallery', () => {
   const variant = detailFixture().variants.items[0];
@@ -50,4 +50,25 @@ test('preparing gallery sources never changes canonical selection or guesses fro
   variantMediaSources(['/api/images/first', '/api/images/second'], selection);
   assert.equal(JSON.stringify(selection), before);
   assert.equal(selection.variant.id, 'variant-1');
+});
+
+test('a photo selects the configuration only when it belongs to exactly that one', () => {
+  const variants = [
+    { id: 'pink', images: ['/api/images/pink'] },
+    { id: 'white', images: ['/api/images/white', '/api/images/white-side'] },
+    { id: 'black-a', images: ['/api/images/black'] },
+    { id: 'black-b', images: ['/api/images/black'] },
+    { id: 'none', images: [] },
+  ];
+  assert.equal(configurationForPhoto(variants, '/api/images/white-side'), 'white');
+  assert.equal(configurationForPhoto(variants, '/api/images/pink'), 'pink');
+  // Shared by two configurations, or by none: no guess, the selection stays.
+  assert.equal(configurationForPhoto(variants, '/api/images/black'), undefined);
+  assert.equal(configurationForPhoto(variants, '/api/images/gallery-only'), undefined);
+  // The gallery hands over normalised URLs; both sides are compared the same way.
+  const normalize = (source: string) => `https://api.example${source}`;
+  assert.equal(
+    configurationForPhoto(variants, 'https://api.example/api/images/pink', normalize),
+    'pink',
+  );
 });

@@ -1,5 +1,12 @@
 import { verifySession } from '@vibelingan-channel/auth/jwt';
-import { findByField, get, list } from '@vibelingan-channel/db';
+import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  emptyCatalogImageReferenceCount,
+  findByField,
+  get,
+  list,
+  readCatalogImageReference,
+} from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -18,9 +25,12 @@ import {
   normalizeSkuCode,
   ok,
   productFamilyForDoc,
+  publicSearchFields,
   toRole,
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
+import { priceSummaryMoq } from '@vibelingan-channel/shared/catalog-detail';
+import { resolvePublicVersion } from '@vibelingan-channel/shared/catalog-public-version';
 import { readCatalogTaxonomy } from './catalog-taxonomy.ts';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
@@ -48,6 +58,11 @@ export interface PublicApiConfig {
    * tiers ever attached), which is the safe default.
    */
   jwtSecret?: string;
+  /**
+   * Approved product detail is on. Also decides which version of a product is
+   * public everywhere (DEC-1): the approved version when this is on.
+   */
+  enableCatalogDetail?: boolean;
 }
 
 /**
@@ -164,8 +179,9 @@ const PUBLIC_CATALOG_FIELDS = [
   'manualCatalogPricing',
   'catalogPricingMode',
   // Alibaba-linked catalog fields (docs/alibaba-linked-catalog-sync, MIU 9).
-  // Ungated by design: anonymous and authenticated callers receive IDENTICAL
-  // Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey
+  // Row path only: an approved product never ships these (ROW_ONLY_FIELDS in
+  // `publicItem`). Ungated by design: anonymous and authenticated callers
+  // receive IDENTICAL Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey
   // is deliberately absent. The nested pricing object is sub-projected below
   // — offer provenance never ships. Overstock rows can never carry these
   // keys (strict write schema), so the shared allowlist leaves overstock
@@ -293,6 +309,67 @@ const PUBLIC_VARIANTS_PER_PRODUCT_CAP = 50;
  */
 const GATED_CATALOG_FIELDS = ['vipPrice'] as const;
 
+/** Row fields that carry price or source state; never shipped for an approved product. */
+const ROW_ONLY_FIELDS = new Set<string>([
+  'unitPrice',
+  'wholesalePrice',
+  'clearancePrice',
+  'moq',
+  'manualCatalogPricing',
+  'catalogPricingMode',
+  'alibabaPrimarySourceKey',
+  'alibabaCatalogPricing',
+  'alibabaSourceStatus',
+  'alibabaSourceLastSyncedAt',
+]);
+
+/**
+ * One product's public projection plus which version it came from. An approved
+ * product shows its approved name, photos, description, price summary and MOQ;
+ * row prices and Alibaba markers never ship for it, so a synced and a manual
+ * product look the same (DEC-14).
+ */
+export function publicItem(
+  collection: PublicCatalog,
+  doc: CollectionDoc,
+  config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
+): { doc: CollectionDoc; kind: 'approved' | 'row' } {
+  const version =
+    collection === 'products'
+      ? resolvePublicVersion(doc, { detailEnabled: config.enableCatalogDetail === true })
+      : ({ kind: 'row' } as const);
+  if (version.kind === 'row')
+    return { doc: publicDoc(collection, doc, config, viewer), kind: 'row' };
+  const { header, priceSummary } = version.publication;
+  const out: CollectionDoc = {
+    _id: doc._id,
+    name: header.name,
+    images: header.images.slice(0, PRODUCT_IMAGE_MAX_COUNT).map((path) => apiUrl(path, config)),
+  };
+  for (const key of PUBLIC_CATALOG_FIELDS) {
+    if (key === '_id' || key === 'name' || key === 'description' || key === 'category') continue;
+    if (ROW_ONLY_FIELDS.has(key) || !(key in doc)) continue;
+    out[key] = doc[key];
+  }
+  if (header.descriptionText) out.description = header.descriptionText;
+  if (priceSummary) out.priceSummary = priceSummary;
+  const moq = priceSummaryMoq(version.publication.priceSummary);
+  if (moq !== undefined) out.moq = moq;
+  const productFamily = productFamilyForDoc(doc);
+  if (productFamily !== null) {
+    out.productFamily = productFamily;
+    if (productFamily === 'headphones' && typeof doc.category === 'string') {
+      out.category = doc.category;
+    }
+  }
+  const skuCode = normalizeSkuCode(doc.skuCode);
+  const slug = normalizeProductSlug(doc.slug);
+  if (skuCode !== null) out.skuCode = skuCode;
+  if (slug !== null) out.slug = slug;
+  return { doc: out, kind: 'approved' };
+}
+
 export function publicDoc(
   collection: PublicCatalog,
   doc: CollectionDoc,
@@ -402,14 +479,22 @@ export async function listCatalog(
     page,
     pageSize,
     search: query.search ?? '',
+    // Buyers search what they can see; internal ids (Alibaba's) stay admin-only.
+    searchFields: publicSearchFields(collection),
     filter: { combinator: 'and' as const, clauses },
     sort: [{ field: '_id', dir: 'asc' }],
   });
 
-  const variants = await attachVariants(collection, result.items);
+  const projections = result.items.map((doc) => publicItem(collection, doc, config, viewer));
+  // Row configurations are not part of an approved version; only row-fallback
+  // products keep them.
+  const variants = await attachVariants(
+    collection,
+    result.items.filter((_, index) => projections[index]?.kind === 'row'),
+  );
   return ok({
-    items: result.items.map((doc) => {
-      const projected = publicDoc(collection, doc, config, viewer);
+    items: result.items.map((doc, index) => {
+      const projected = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
       const own = variants.get(doc._id);
       // Only products that actually have variants gain the key, so existing
       // legacy and Alibaba-linked payloads stay byte-identical.
@@ -435,7 +520,7 @@ export async function getCatalogItem(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(await withVariants(collection, doc, publicDoc(collection, doc, config, viewer)));
+  return ok(await withVariants(collection, doc, publicItem(collection, doc, config, viewer)));
 }
 
 export async function getCatalogItemBySlug(
@@ -452,15 +537,17 @@ export async function getCatalogItemBySlug(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(await withVariants('products', doc, publicDoc('products', doc, config, viewer)));
+  return ok(await withVariants('products', doc, publicItem('products', doc, config, viewer)));
 }
 
 /** Attach variants to one already-projected document, when it has any. */
 async function withVariants(
   collection: PublicCatalog,
   doc: CollectionDoc,
-  projected: CollectionDoc,
+  item: { doc: CollectionDoc; kind: 'approved' | 'row' },
 ): Promise<CollectionDoc> {
+  const projected = item.doc;
+  if (item.kind === 'approved') return projected;
   const variants = (await attachVariants(collection, [doc])).get(doc._id);
   return variants === undefined || variants.length === 0 ? projected : { ...projected, variants };
 }
@@ -542,8 +629,8 @@ function binaryImage(doc: CollectionDoc, body: string): BinaryResult {
 }
 
 export async function getCatalogImage(imageId: string): Promise<ApiResult<unknown> | BinaryResult> {
-  const doc = await get('images', imageId);
-  if (!doc) return err('NOT_FOUND', 'Image not found');
+  let doc = await get('images', imageId);
+  if (!doc || doc._id !== imageId) return err('NOT_FOUND', 'Image not found');
 
   // The placeholder is public by explicit id — never gated on refcount/status.
   if (imageId === PLACEHOLDER_IMAGE_ID) {
@@ -552,12 +639,38 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
       : err('NOT_FOUND', 'Image not found');
   }
 
+  let refCount = doc.publishedRefCount;
+  if (Object.hasOwn(doc, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD)) {
+    try {
+      const emptyCount = emptyCatalogImageReferenceCount(doc);
+      if (emptyCount !== null) refCount = emptyCount;
+      else {
+        const snapshot = await readCatalogImageReference({ action: 'read', imageId });
+        if (
+          snapshot.state !== 'counted' ||
+          snapshot.image._id !== imageId ||
+          !Object.hasOwn(snapshot.image, 'publishedRefCount') ||
+          !Number.isSafeInteger(snapshot.effectiveCount) ||
+          snapshot.effectiveCount < 0 ||
+          snapshot.settled
+        )
+          return err('NOT_FOUND', 'Image not found');
+        doc = snapshot.image;
+        refCount = snapshot.effectiveCount;
+      }
+    } catch (error) {
+      const value = error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+      const code =
+        typeof value === 'string' && /^[A-Z0-9_]{1,80}$/.test(value) ? value : 'UNAVAILABLE';
+      console.error('[fn-public-api] image reference snapshot unavailable', { imageId, code });
+      return err('NOT_FOUND', 'Image not found');
+    }
+  }
   const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : 'legacy-base64';
   // publishedRefCount is "valid" only as a finite NUMBER. The writer/backfill
   // always store a number (and `isStorageBackedImage` narrows on
   // `typeof === 'number'`), so a numeric STRING like "1" — or any non-number — is
   // a corrupt value and must fail closed, not coerce to a positive count.
-  const refCount = doc.publishedRefCount;
   const visibleByRefCount =
     typeof refCount === 'number' && Number.isFinite(refCount) && refCount > 0;
   const hasRefCountField = Object.hasOwn(doc, 'publishedRefCount');

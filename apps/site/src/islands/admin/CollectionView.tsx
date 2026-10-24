@@ -19,33 +19,73 @@ import {
   isProductFamily,
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ADMIN_PRODUCT_LIST_VIEW,
+  PRODUCT_LIST_CORE_MESSAGE,
+  PRODUCT_LIST_DETAILS_LABEL,
+  PRODUCT_LIST_SELECTION_MESSAGE,
+  productListCoreIncomplete,
+  productListLimited,
+} from '@vibelingan-channel/shared/admin-product-list';
+import {
+  type CatalogReadiness,
+  CatalogReadinessSchema,
+} from '@vibelingan-channel/shared/catalog-preparation';
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { getToken, getUser, onAuthChange } from '../../lib/session.ts';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
 import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
+import { PageJump } from './PageJump.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import {
   type UnresolvedClassificationSnapshot,
   matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
+import { ProductCreateForm } from './ProductCreateForm.tsx';
+import { ProductEditForm } from './ProductEditForm.tsx';
+import { ProductPublicationInbox } from './ProductPublicationInbox.tsx';
+import { ProductRecordLoader } from './ProductRecordLoader.tsx';
 import { RecordForm } from './RecordForm.tsx';
-import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
+  type BatchUpdateResult,
+  DraftSavedError,
   batchRemoveRecords,
   batchUpdateRecords,
   createRecord,
+  fetchCatalogDetailCapabilities,
   fetchProductReviewSummary,
   getRecord,
   imageUrl,
   listRecords,
   markProductReviewed,
   removeRecord,
+  retryBatchUpdate,
+  updateProductFromEditor,
   updateRecord,
 } from './api.ts';
+import { TablePublicationError, mergeTablePublication } from './catalog-table-publication.ts';
+import {
+  PRODUCT_CHECK_LABELS,
+  productCheckDefault,
+  productCheckFromSearch,
+  productCheckListArgs,
+  productCheckPublishBlock,
+  productCheckSearch,
+  productClassificationCountArgs,
+} from './product-check-status.ts';
 import {
   ADMIN_PRODUCT_FAMILY_LABELS,
   type AdminProductFamily,
@@ -54,6 +94,8 @@ import {
   adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
+import { adminThumbnail, productThumbnailSource } from './product-thumbnail.ts';
+import { reviewLabel, splitForBatchPublish } from './review-reason.ts';
 import type { DashboardSection } from './sections.ts';
 import {
   savedProductSubcategories,
@@ -63,6 +105,9 @@ import {
 } from './taxonomy-ui-state.ts';
 
 const PAGE_SIZE = 20;
+const defaultProductCheckStatus = productCheckDefault(
+  import.meta.env?.PUBLIC_CATALOG_READY_DEFAULT,
+);
 
 export interface ProductClassificationReview {
   snapshot: UnresolvedClassificationSnapshot;
@@ -70,7 +115,15 @@ export interface ProductClassificationReview {
   beforeProducts: readonly CollectionDoc[];
 }
 
+interface ProductOpenRequest {
+  productId: string;
+  kind: 'edit' | 'preview';
+  sequence: number;
+}
+
 interface Props {
+  initialProductId?: string | null;
+  onInitialProductOpened?: () => void;
   collection: CollectionDef;
   section: DashboardSection;
   role: string;
@@ -80,7 +133,13 @@ interface Props {
   onProductReviewChange: Dispatch<SetStateAction<ProductClassificationReview | null>>;
 }
 
+function recordFocusKey(collection: string, id: string, action: string): string {
+  return JSON.stringify([collection, id, action]);
+}
+
 export function CollectionView({
+  initialProductId,
+  onInitialProductOpened,
   collection,
   section,
   role,
@@ -102,8 +161,37 @@ export function CollectionView({
   const currentSelectionRef = useRef(rowSelection);
   currentSelectionRef.current = rowSelection;
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
+  const [openingProduct, setOpeningProduct] = useState<ProductOpenRequest | null>(null);
+  const currentOpening = useRef<ProductOpenRequest | null>(null);
+  const openSequence = useRef(0);
+  const recordFocusRoot = useRef<HTMLDivElement>(null);
+  const recordFocusReturn = useRef<{ key: string } | null>(null);
+  useEffect(() => {
+    if (!isProducts || !initialProductId) return;
+    const request: ProductOpenRequest = {
+      productId: initialProductId,
+      kind: 'edit',
+      sequence: ++openSequence.current,
+    };
+    currentOpening.current = request;
+    setOpeningProduct(request);
+    onInitialProductOpened?.();
+  }, [isProducts, initialProductId, onInitialProductOpened]);
   const [creating, setCreating] = useState(false);
+  const [publicationFeedback, setPublicationFeedback] = useState<BatchUpdateResult | null>(null);
+  const [publicationRefresh, setPublicationRefresh] = useState(0);
+  const [publicationBusy, setPublicationBusy] = useState(false);
+  const publicationEpoch = useRef(0);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
+  // Batch Publish where every selected product was skipped: no request, just the notice.
+  const [skippedOnly, setSkippedOnly] = useState<{
+    skipped: string[];
+    names: Record<string, string>;
+  } | null>(null);
+  // A publish that kept "Changed": some supplier change still needs a decision (DEC-19).
+  const [stillFlagged, setStillFlagged] = useState<string | null>(null);
+  // "See changes" from the edit form: read-only, so nothing changes under the form.
+  const [changesPreview, setChangesPreview] = useState<CollectionDoc | null>(null);
   const [classifying, setClassifying] = useState<{
     products: CollectionDoc[];
     publishOnSave: boolean;
@@ -147,6 +235,35 @@ export function CollectionView({
       ? adminSubcategoryFromSearch(window.location.search)
       : null,
   );
+  const [checkStatus, setCheckStatus] = useState<CatalogReadiness>(() =>
+    isProducts && typeof window !== 'undefined'
+      ? productCheckFromSearch(window.location.search, defaultProductCheckStatus)
+      : isProducts
+        ? defaultProductCheckStatus
+        : 'all',
+  );
+  const publicationCapabilities = useQuery({
+    queryKey: ['catalog-publication-capabilities'],
+    queryFn: ({ signal }) => fetchCatalogDetailCapabilities(signal),
+    enabled: isProducts && role === 'admin',
+    staleTime: 60000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const capabilityBlock =
+    isProducts && role === 'admin'
+      ? publicationCapabilities.isPending || publicationCapabilities.isFetching
+        ? 'Checking publishing availability…'
+        : publicationCapabilities.error
+          ? 'Publishing availability could not be checked. Retry the publishing check.'
+          : publicationCapabilities.data?.enabled !== true
+            ? 'Publishing is unavailable in this environment.'
+            : null
+      : null;
+  const publishBlockReason = isProducts
+    ? (productCheckPublishBlock(checkStatus) ?? capabilityBlock)
+    : null;
+  const showGlobalReviewHints = checkStatus === 'all' && !search && !filter && !subcategoryId;
   const isUsers = collection.name === 'users';
   const inlineEdit = useMemo(() => new Set(section.inlineEdit ?? []), [section.inlineEdit]);
   const singular = section.label.replace(/s$/, '');
@@ -161,26 +278,32 @@ export function CollectionView({
     collection.name,
     productFamily,
     subcategoryId,
+    isProducts ? checkStatus : null,
     page,
     search,
     filter,
     sortClauses,
+    isProducts ? ADMIN_PRODUCT_LIST_VIEW : null,
   ] as const;
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
     queryFn: () =>
       listRecords(
-        productFamilyListArgs(
-          {
-            collection: collection.name,
-            page,
-            pageSize: PAGE_SIZE,
-            search,
-            ...(filter ? { filter } : {}),
-            ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
-          },
-          productFamily,
-          subcategoryId,
+        productCheckListArgs(
+          productFamilyListArgs(
+            {
+              collection: collection.name,
+              ...(isProducts ? { catalogListView: ADMIN_PRODUCT_LIST_VIEW } : {}),
+              page,
+              pageSize: PAGE_SIZE,
+              search,
+              ...(filter ? { filter } : {}),
+              ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
+            },
+            productFamily,
+            subcategoryId,
+          ),
+          checkStatus,
         ),
       ),
   });
@@ -191,17 +314,77 @@ export function CollectionView({
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
-  const { data: unclassifiedSummary } = useQuery({
-    queryKey: ['list', 'products', 'unclassified-count'],
+  const {
+    data: unclassifiedSummary,
+    error: unclassifiedError,
+    isFetching: countFetching,
+    refetch: refetchCount,
+  } = useQuery({
+    queryKey: [
+      'list',
+      'products',
+      'unclassified-count',
+      checkStatus,
+      search,
+      filter,
+      ADMIN_PRODUCT_LIST_VIEW,
+    ],
     queryFn: () =>
-      listRecords({ collection: 'products', needsClassification: true, page: 1, pageSize: 1 }),
+      listRecords(
+        productClassificationCountArgs(
+          {
+            collection: 'products',
+            catalogListView: ADMIN_PRODUCT_LIST_VIEW,
+            search,
+            ...(filter ? { filter } : {}),
+          },
+          checkStatus,
+        ),
+      ),
     enabled: isProducts,
     staleTime: 15_000,
   });
+  const classificationCount =
+    !unclassifiedError && unclassifiedSummary ? ` (${unclassifiedSummary.total})` : '';
+  const listUnavailable = isLoading || isFetching || Boolean(error);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', collection.name] });
     if (isProducts) queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
+  }
+
+  function openRecord(doc: CollectionDoc, kind: ProductOpenRequest['kind']) {
+    if (isProducts) {
+      const active = document.activeElement;
+      const key =
+        active instanceof HTMLElement && recordFocusRoot.current?.contains(active)
+          ? active.dataset.recordFocusKey
+          : undefined;
+      if (key) recordFocusReturn.current = { key };
+      else if (!recordFocusReturn.current)
+        recordFocusReturn.current = { key: recordFocusKey(collection.name, doc._id, kind) };
+    }
+    if (!isProducts) {
+      if (kind === 'edit') setEditing(doc);
+      else setPreviewing(doc);
+      return;
+    }
+    const request = { productId: doc._id, kind, sequence: ++openSequence.current };
+    currentOpening.current = request;
+    setOpeningProduct(request);
+  }
+
+  function closeProductOpen() {
+    currentOpening.current = null;
+    setOpeningProduct(null);
+  }
+
+  function finishProductOpen(request: ProductOpenRequest, product: CollectionDoc) {
+    // Cancellation can race a response even when the transport ignores abort.
+    if (currentOpening.current !== request) return;
+    closeProductOpen();
+    if (request.kind === 'edit') setEditing(product);
+    else setPreviewing(product);
   }
 
   function clearSelection() {
@@ -244,14 +427,46 @@ export function CollectionView({
       setCreating(false);
       invalidate();
     },
+    onError: (error) => {
+      // The draft exists: close the form so a retry cannot create it twice; the
+      // reason it was not published shows above the list.
+      if (error instanceof DraftSavedError) {
+        setCreating(false);
+        invalidate();
+      }
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vars: { id: string; values: Record<string, unknown> }) =>
-      updateRecord(collection.name, vars.id, vars.values),
-    onSuccess: () => {
+    mutationFn: (vars: { id: string; values: Record<string, unknown>; opened?: CollectionDoc }) =>
+      vars.opened
+        ? updateProductFromEditor(vars.opened, vars.values)
+        : updateRecord(collection.name, vars.id, vars.values),
+    onMutate: () => {
+      setPublicationFeedback(null);
+      setSkippedOnly(null);
+      return { epoch: publicationEpoch.current };
+    },
+    onSuccess: (saved, _variables, context) => {
+      if (!mounted.current || context?.epoch !== publicationEpoch.current) return;
       setEditing(null);
+      setStillFlagged(
+        saved.published === true && ['Changed', 'Removed'].includes(String(reviewLabel(saved)))
+          ? String(saved.name || saved._id)
+          : null,
+      );
       invalidate();
+    },
+    onError: (error, _variables, context) => {
+      if (!mounted.current || context?.epoch !== publicationEpoch.current) return;
+      if (error instanceof TablePublicationError) {
+        setPublicationFeedback(error.result);
+        invalidate();
+      }
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (mounted.current && context?.epoch === publicationEpoch.current)
+        setPublicationRefresh((current) => current + 1);
     },
   });
 
@@ -260,20 +475,69 @@ export function CollectionView({
     onSuccess: invalidate,
   });
 
+  const retryStarted = useRef(false);
   const batchUpdateMutation = useMutation({
     mutationFn: (vars: {
       ids: string[];
       values: Record<string, unknown>;
       names: Record<string, string>;
-    }) => batchUpdateRecords(collection.name, vars.ids, vars.values),
-    onSuccess: (result) => {
-      const completed = new Set(result.items.map((item) => item._id));
+      skipped?: string[];
+      expectedRevisions?: ReadonlyMap<string, string | null>;
+      openedProducts?: readonly CollectionDoc[];
+      /** Set when trying again: the answers are folded into this result. */
+      previous?: BatchUpdateResult;
+    }) =>
+      vars.previous
+        ? retryBatchUpdate(vars.previous, vars.ids, vars.values, vars.expectedRevisions)
+        : batchUpdateRecords(
+            collection.name,
+            vars.ids,
+            vars.values,
+            vars.expectedRevisions,
+            vars.openedProducts,
+          ),
+    onMutate: () => {
+      setPublicationFeedback(null);
+      setSkippedOnly(null);
+      return { epoch: publicationEpoch.current };
+    },
+    onSuccess: (result, _variables, context) => {
+      if (!mounted.current || context?.epoch !== publicationEpoch.current) return;
+      setPublicationFeedback(result.publication ? result : null);
+      const completed = new Set(
+        [...result.items, ...(result.unchanged ?? [])].map((item) => item._id),
+      );
       setRowSelection((current) =>
         Object.fromEntries(Object.entries(current).filter(([id]) => !completed.has(id))),
       );
       invalidate();
     },
+    onSettled: (_data, _error, _variables, context) => {
+      if (mounted.current && context?.epoch === publicationEpoch.current)
+        setPublicationRefresh((current) => current + 1);
+    },
   });
+
+  const resetUpdate = updateMutation.reset;
+  const resetBatchUpdate = batchUpdateMutation.reset;
+  useEffect(() => {
+    if (!isProducts) return;
+    const identity = () => JSON.stringify([getUser()?.id ?? null, getToken()]);
+    let previous = identity();
+    return onAuthChange(() => {
+      const current = identity();
+      if (current === previous) return;
+      previous = current;
+      publicationEpoch.current++;
+      setPublicationFeedback(null);
+      setSkippedOnly(null);
+      setStillFlagged(null);
+      resetUpdate();
+      resetBatchUpdate();
+      setRowSelection({});
+      setPublicationRefresh((value) => value + 1);
+    });
+  }, [isProducts, resetUpdate, resetBatchUpdate, setRowSelection]);
 
   const batchRemoveMutation = useMutation({
     mutationFn: (ids: string[]) => batchRemoveRecords(collection.name, ids),
@@ -290,20 +554,76 @@ export function CollectionView({
       invalidate();
     },
   });
-  const recordWritePending =
+  const unpublishFromReviewMutation = useMutation({
+    mutationFn: (productId: string) => updateRecord('products', productId, { published: false }),
+    onSuccess: (updated) => {
+      setPreviewing(updated);
+      invalidate();
+    },
+  });
+  const recordMutationPending =
     updateMutation.isPending ||
     removeMutation.isPending ||
     batchUpdateMutation.isPending ||
     batchRemoveMutation.isPending;
+  const recordWritePending =
+    publicationBusy || recordMutationPending || (isProducts && listUnavailable);
+
+  useEffect(() => {
+    if (!isProducts) {
+      recordFocusReturn.current = null;
+      return;
+    }
+    if (openingProduct || editing || previewing) return;
+    const pending = recordFocusReturn.current;
+    if (!pending) return;
+    if (recordMutationPending || isLoading || isFetching) {
+      // New user input takes precedence over a delayed return from a closed dialog.
+      const cleanup = () => {
+        document.removeEventListener('pointerdown', cancel, true);
+        document.removeEventListener('keydown', cancel, true);
+        document.removeEventListener('input', cancel, true);
+      };
+      const cancel = () => {
+        if (recordFocusReturn.current === pending) recordFocusReturn.current = null;
+        cleanup();
+      };
+      document.addEventListener('pointerdown', cancel, true);
+      document.addEventListener('keydown', cancel, true);
+      document.addEventListener('input', cancel, true);
+      return cleanup;
+    }
+    recordFocusReturn.current = null;
+    const root = recordFocusRoot.current;
+    const opener = Array.from(
+      root?.querySelectorAll<HTMLButtonElement>('button[data-record-focus-key]') ?? [],
+    ).find(
+      (button) =>
+        button.dataset.recordFocusKey === pending.key &&
+        !button.disabled &&
+        button.getClientRects().length > 0,
+    );
+    (opener ?? root?.querySelector<HTMLElement>('[data-record-focus-fallback]'))?.focus();
+  }, [
+    isProducts,
+    openingProduct,
+    editing,
+    previewing,
+    recordMutationPending,
+    isLoading,
+    isFetching,
+  ]);
 
   const visibleMutationError =
+    (!creating && createMutation.error instanceof DraftSavedError && createMutation.error) ||
     batchUpdateMutation.error ||
     (!editing && updateMutation.error) ||
     removeMutation.error ||
     batchRemoveMutation.error;
 
-  function patch(id: string, values: Record<string, unknown>) {
-    updateMutation.mutate({ id, values });
+  function patch(opened: CollectionDoc, values: Record<string, unknown>) {
+    if (isProducts && productListCoreIncomplete(opened)) return;
+    updateMutation.mutate({ id: opened._id, values, ...(isProducts ? { opened } : {}) });
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: selection resets only when the visible scope changes
@@ -313,7 +633,7 @@ export function CollectionView({
         ? Object.fromEntries(classificationReview.snapshot.submittedIds.map((id) => [id, true]))
         : {},
     );
-  }, [search, filter, page, productFamily, subcategoryId]);
+  }, [search, filter, page, productFamily, subcategoryId, checkStatus, sorting]);
 
   useEffect(() => {
     if (!classifying && classificationReview && document.activeElement === document.body)
@@ -334,6 +654,16 @@ export function CollectionView({
     pushProductScope(next, null);
   }
 
+  function changeCheckStatus(next: CatalogReadiness) {
+    setCheckStatus(next);
+    setPage(1);
+    clearSelection();
+    if (typeof window !== 'undefined') {
+      const nextUrl = `${window.location.pathname}${productCheckSearch(window.location.search, next, defaultProductCheckStatus)}${window.location.hash}`;
+      window.history.pushState(null, '', nextUrl);
+    }
+  }
+
   function changeSubcategory(next: string | null) {
     setSubcategoryId(next);
     setPage(1);
@@ -345,6 +675,7 @@ export function CollectionView({
     if (!isProducts) return;
     const recoverFamily = () => {
       setProductFamily(adminProductFamilyFromSearch(window.location.search));
+      setCheckStatus(productCheckFromSearch(window.location.search, defaultProductCheckStatus));
       setSubcategoryId(
         canReadSubcategories ? adminSubcategoryFromSearch(window.location.search) : null,
       );
@@ -415,7 +746,28 @@ export function CollectionView({
           isProducts && field.name === 'productFamily' ? 'Website main category' : field.label,
         cell: ({ row }) => {
           const doc = row.original;
+          if (isProducts && field.name === 'name' && productListLimited(doc))
+            return (
+              <div className="max-w-56">
+                <TextCell field={field.name} value={doc.name} />
+                <button
+                  type="button"
+                  disabled={recordWritePending}
+                  data-record-focus-key={recordFocusKey(collection.name, doc._id, 'summary')}
+                  onClick={() =>
+                    openRecord(doc, productListCoreIncomplete(doc) ? 'edit' : 'preview')
+                  }
+                  className="mt-1 block text-left text-xs text-brand-700 underline disabled:opacity-50"
+                >
+                  {productListCoreIncomplete(doc)
+                    ? PRODUCT_LIST_CORE_MESSAGE
+                    : 'More details in Preview.'}
+                </button>
+              </div>
+            );
           if (isProducts && field.name === 'productFamily') {
+            if (productListCoreIncomplete(doc))
+              return <TextCell field={field.name} value={PRODUCT_LIST_DETAILS_LABEL} />;
             const family = productFamilyForDoc(doc);
             return (
               <TextCell
@@ -429,7 +781,7 @@ export function CollectionView({
               <InlineSelect
                 field={field}
                 value={doc[field.name]}
-                onChange={(v) => patch(doc._id, { [field.name]: v })}
+                onChange={(v) => patch(doc, { [field.name]: v })}
               />
             );
           }
@@ -478,15 +830,26 @@ export function CollectionView({
         id: 'status',
         header: 'Status',
         enableSorting: false,
-        cell: ({ row }) => (
-          <PublishToggle
-            published={row.original.published === true}
-            busy={recordWritePending}
-            onToggle={() =>
-              patch(row.original._id, { published: !(row.original.published === true) })
-            }
-          />
-        ),
+        cell: ({ row }) =>
+          isProducts && productListCoreIncomplete(row.original) ? (
+            <TextCell field="status" value={PRODUCT_LIST_DETAILS_LABEL} />
+          ) : (
+            <PublishToggle
+              published={row.original.published === true}
+              busy={recordWritePending}
+              focusKey={recordFocusKey(collection.name, row.original._id, 'status')}
+              {...(publishBlockReason && row.original.published !== true
+                ? { blockReason: publishBlockReason }
+                : {})}
+              onToggle={() =>
+                // Publishing a flagged product goes through its review in Edit (DEC-19).
+                row.original.published !== true &&
+                ['Changed', 'Removed'].includes(String(reviewLabel(row.original)))
+                  ? openRecord(row.original, 'edit')
+                  : patch(row.original, { published: !(row.original.published === true) })
+              }
+            />
+          ),
       });
     }
 
@@ -501,13 +864,20 @@ export function CollectionView({
             {isProducts && role === 'admin' && (
               <button
                 type="button"
-                disabled={classificationBlocked || recordWritePending}
-                title={
-                  classificationBlocked
-                    ? 'Resolve the pending classification result before starting another'
-                    : undefined
+                disabled={
+                  classificationBlocked || recordWritePending || productListCoreIncomplete(doc)
                 }
-                onClick={() => setClassifying({ products: [doc], publishOnSave: false })}
+                title={
+                  productListCoreIncomplete(doc)
+                    ? PRODUCT_LIST_CORE_MESSAGE
+                    : classificationBlocked
+                      ? 'Resolve the pending classification result before starting another'
+                      : undefined
+                }
+                onClick={() => {
+                  if (!productListCoreIncomplete(doc))
+                    setClassifying({ products: [doc], publishOnSave: false });
+                }}
                 className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
               >
                 Classify
@@ -516,7 +886,8 @@ export function CollectionView({
             {isCatalog && (
               <button
                 type="button"
-                onClick={() => setPreviewing(doc)}
+                data-record-focus-key={recordFocusKey(collection.name, doc._id, 'preview')}
+                onClick={() => openRecord(doc, 'preview')}
                 className="text-sm font-medium text-brand-700 hover:text-brand-900"
               >
                 Preview
@@ -525,18 +896,23 @@ export function CollectionView({
             <button
               type="button"
               disabled={recordWritePending}
-              onClick={() => setEditing(doc)}
+              data-record-focus-key={recordFocusKey(collection.name, doc._id, 'edit')}
+              onClick={() => openRecord(doc, 'edit')}
               className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
               Edit
             </button>
             <button
               type="button"
-              disabled={recordWritePending || (isProducts && doc.archived === true)}
+              disabled={
+                recordWritePending ||
+                (isProducts && (doc.archived === true || productListCoreIncomplete(doc)))
+              }
               onClick={() => {
                 if (isProducts) {
+                  if (productListCoreIncomplete(doc)) return;
                   if (confirm('Archive this product? It will no longer be published.'))
-                    patch(doc._id, { archived: true, published: false });
+                    patch(doc, { archived: true, published: false });
                 } else if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
               className="ml-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
@@ -551,6 +927,7 @@ export function CollectionView({
     return cols;
   }, [
     tableFields,
+    collection.name,
     isCatalog,
     isProducts,
     canReadSubcategories,
@@ -558,6 +935,7 @@ export function CollectionView({
     inlineEdit,
     classificationBlocked,
     recordWritePending,
+    publishBlockReason,
   ]);
 
   const table = useReactTable({
@@ -565,7 +943,11 @@ export function CollectionView({
     columns,
     state: { sorting, rowSelection },
     getRowId: (row) => row._id,
-    onSortingChange: setSorting,
+    onSortingChange: (next) => {
+      setSorting(next);
+      setPage(1);
+      clearSelection();
+    },
     onRowSelectionChange: setRowSelection,
     manualSorting: true,
     manualPagination: true,
@@ -575,20 +957,40 @@ export function CollectionView({
   });
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original._id);
+  const selectedRevisions = isProducts
+    ? new Map(
+        table
+          .getSelectedRowModel()
+          .rows.map(({ original }) => [original._id, original.updatedAt ?? null] as const),
+      )
+    : undefined;
+  const selectedCoreIncomplete =
+    isProducts &&
+    table.getSelectedRowModel().rows.some((row) => productListCoreIncomplete(row.original));
+  const shownBatchResult = publicationFeedback ?? batchUpdateMutation.data;
   const colCount = columns.length;
 
   return (
-    <div className="min-w-0 p-4 sm:p-8">
+    <div ref={recordFocusRoot} className="min-w-0 p-4 sm:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">{section.label}</h1>
+          <h1
+            data-record-focus-fallback={isProducts || undefined}
+            tabIndex={isProducts ? -1 : undefined}
+            className="text-xl font-semibold text-slate-900"
+          >
+            {section.label}
+          </h1>
           {collection.description && (
             <p className="mt-1 text-sm text-slate-500">{collection.description}</p>
           )}
         </div>
         <button
           type="button"
-          onClick={() => setCreating(true)}
+          onClick={() => {
+            createMutation.reset();
+            setCreating(true);
+          }}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
         >
           New {singular}
@@ -603,11 +1005,11 @@ export function CollectionView({
               label="All products"
               value={null}
               selected={productFamily === null}
-              pendingCount={reviewSummary?.pendingTotal ?? 0}
+              pendingCount={showGlobalReviewHints ? (reviewSummary?.pendingTotal ?? 0) : 0}
               onSelect={changeProductFamily}
             />
             <ProductFamilyTab
-              label={`Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`}
+              label={`Needs classification${classificationCount}`}
               value="unclassified"
               selected={productFamily === 'unclassified'}
               pendingCount={0}
@@ -619,7 +1021,7 @@ export function CollectionView({
                 label={productFamilyLabel(value)}
                 value={value}
                 selected={productFamily === value}
-                pendingCount={reviewSummary?.byFamily[value] ?? 0}
+                pendingCount={showGlobalReviewHints ? (reviewSummary?.byFamily[value] ?? 0) : 0}
                 onSelect={changeProductFamily}
               />
             ))}
@@ -627,15 +1029,15 @@ export function CollectionView({
           <Select
             ariaLabel="Product family"
             value={productFamily ?? ''}
-            placeholder={`All products${(reviewSummary?.pendingTotal ?? 0) > 0 ? ' • New' : ''}`}
+            placeholder={`All products${showGlobalReviewHints && (reviewSummary?.pendingTotal ?? 0) > 0 ? ' • Needs review' : ''}`}
             options={[
               {
                 value: 'unclassified',
-                label: `Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`,
+                label: `Needs classification${classificationCount}`,
               },
               ...PRODUCT_FAMILY_OPTIONS.map((value) => ({
                 value,
-                label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
+                label: `${productFamilyLabel(value)}${showGlobalReviewHints && (reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • Needs review' : ''}`,
               })),
             ]}
             className="block xl:hidden"
@@ -644,6 +1046,52 @@ export function CollectionView({
               changeProductFamily(isProductFamily(value) || value === 'unclassified' ? value : null)
             }
           />
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Select
+              label="Check status"
+              ariaLabel="Check status"
+              value={checkStatus}
+              placeholder=""
+              options={CatalogReadinessSchema.options.map((value) => ({
+                value,
+                label: PRODUCT_CHECK_LABELS[value],
+              }))}
+              className="w-full sm:w-80"
+              triggerClassName="mt-1"
+              onChange={(value) => {
+                const checked = CatalogReadinessSchema.safeParse(value);
+                changeCheckStatus(checked.success ? checked.data : 'all');
+              }}
+            />
+            {unclassifiedError && (
+              <output className="block text-sm text-red-700">
+                Classification count unavailable.{' '}
+                <button
+                  type="button"
+                  disabled={countFetching}
+                  onClick={() => void refetchCount()}
+                  className="min-h-11 font-medium underline"
+                >
+                  Retry count
+                </button>
+              </output>
+            )}
+          </div>
+          {publishBlockReason && (
+            <p className="mt-2 text-sm text-slate-600">{publishBlockReason}</p>
+          )}
+          {publicationCapabilities.error && isProducts && role === 'admin' && (
+            <button
+              type="button"
+              className="mt-2 min-h-11 font-semibold underline"
+              disabled={publicationCapabilities.isFetching}
+              onClick={() => {
+                void publicationCapabilities.refetch();
+              }}
+            >
+              Retry publishing check
+            </button>
+          )}
           {productFamily === 'unclassified' && (
             <p className="mt-3 text-sm text-slate-600">
               These products have no website category. Their source categories are preserved. Open a
@@ -683,10 +1131,10 @@ export function CollectionView({
         >
           <p className="font-semibold">
             {classificationReview.snapshot.unresolvedIds.length > 0
-              ? 'Classification result not confirmed for:'
+              ? "Couldn't check the result for:"
               : classificationReview.snapshot.attentionIds.length > 0
-                ? 'Classification needs attention for:'
-                : 'Product status refresh failed for:'}
+                ? 'These products need a fix:'
+                : "Couldn't refresh the status of:"}
           </p>
           <p className="mt-1 break-words">
             {(reviewIds.length > 0 ? reviewIds : classificationReview.snapshot.submittedIds)
@@ -694,10 +1142,10 @@ export function CollectionView({
               .join(', ')}
           </p>
           <p className="mt-1">
-            {classificationReview.snapshot.confirmedPublishedIds.length} confirmed published;{' '}
-            {classificationReview.snapshot.unresolvedIds.length} unresolved;{' '}
-            {classificationReview.snapshot.attentionIds.length} need attention. Check product
-            statuses before retrying.
+            {classificationReview.snapshot.confirmedPublishedIds.length} published ·{' '}
+            {classificationReview.snapshot.unresolvedIds.length} couldn't be checked ·{' '}
+            {classificationReview.snapshot.attentionIds.length} need a fix. Each product's reason is
+            listed below.
           </p>
           {classificationReview.snapshot.unresolvedIds.length > 0 && (
             <ul aria-label="Products to verify" className="mt-2 list-disc space-y-1 pl-5">
@@ -705,7 +1153,7 @@ export function CollectionView({
                 <li key={id} className="break-words">
                   {classificationReview.names[id] ?? id}:{' '}
                   {classificationReview.snapshot.issuesById[id] ??
-                    'Result not confirmed; inspect before retrying.'}
+                    "Couldn't check whether it went through. Refresh statuses to see."}
                 </li>
               ))}
             </ul>
@@ -715,7 +1163,7 @@ export function CollectionView({
               {classificationReview.snapshot.attentionIds.map((id) => (
                 <li key={id} className="break-words">
                   {classificationReview.names[id] ?? id}:{' '}
-                  {classificationReview.snapshot.issuesById[id] ?? 'Review product status'}
+                  {classificationReview.snapshot.issuesById[id] ?? 'Open it in Edit to see why.'}
                 </li>
               ))}
             </ul>
@@ -776,6 +1224,11 @@ export function CollectionView({
         />
       </div>
 
+      {selectedCoreIncomplete && (
+        <output className="mt-4 block text-sm text-slate-600">
+          {PRODUCT_LIST_SELECTION_MESSAGE}
+        </output>
+      )}
       {selectedIds.length > 0 && (
         <BatchBar
           count={selectedIds.length}
@@ -783,25 +1236,56 @@ export function CollectionView({
           isUsers={isUsers}
           canClassify={isProducts && role === 'admin'}
           classifyBlocked={classificationBlocked}
+          {...(publishBlockReason ? { publishBlockReason } : {})}
           collection={collection}
-          busy={recordWritePending}
+          busy={recordWritePending || selectedCoreIncomplete}
           onClear={() => {
             clearSelection();
           }}
-          onClassify={() =>
+          onClassify={() => {
+            if (selectedCoreIncomplete) return;
             setClassifying({
               products: rows.filter((row) => selectedIds.includes(row._id)),
               publishOnSave: true,
-            })
-          }
-          onSetValues={(values) =>
+            });
+          }}
+          onSetValues={(values) => {
+            if (selectedCoreIncomplete) return;
+            if (isProducts && values.published === true && publishBlockReason) return;
+            const names = Object.fromEntries(
+              rows.map((row) => [row._id, String(row.name ?? row._id)]),
+            );
+            const docs = rows.filter((row) => selectedIds.includes(row._id));
+            setSkippedOnly(null);
+            setPublicationFeedback(null);
+            batchUpdateMutation.reset();
+            if (isProducts && values.published === true) {
+              // Products with Alibaba changes are reviewed one by one (DEC-19).
+              const [flagged, others] = splitForBatchPublish(docs);
+              const skipped = flagged.map((row) => row._id);
+              if (others.length === 0) {
+                setSkippedOnly({ skipped, names });
+                return;
+              }
+              batchUpdateMutation.mutate({
+                ids: others.map((row) => row._id),
+                openedProducts: others,
+                values,
+                names,
+                ...(skipped.length ? { skipped } : {}),
+                ...(selectedRevisions ? { expectedRevisions: selectedRevisions } : {}),
+              });
+              return;
+            }
             batchUpdateMutation.mutate({
               ids: selectedIds,
               values,
-              names: Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)])),
-            })
-          }
+              names,
+              ...(selectedRevisions ? { expectedRevisions: selectedRevisions } : {}),
+            });
+          }}
           onDelete={() => {
+            if (selectedCoreIncomplete) return;
             if (isProducts) {
               if (
                 confirm(`Archive ${selectedIds.length} products? They will no longer be published.`)
@@ -809,6 +1293,7 @@ export function CollectionView({
                 batchUpdateMutation.mutate({
                   ids: selectedIds,
                   values: { archived: true, published: false },
+                  ...(selectedRevisions ? { expectedRevisions: selectedRevisions } : {}),
                   names: Object.fromEntries(
                     rows.map((row) => [row._id, String(row.name ?? row._id)]),
                   ),
@@ -820,22 +1305,108 @@ export function CollectionView({
         />
       )}
 
+      {skippedOnly && (
+        <BatchUpdateFeedback
+          result={{ updated: 0, items: [], failures: [] }}
+          names={skippedOnly.names}
+          published
+          skipped={skippedOnly.skipped}
+          onDismiss={() => setSkippedOnly(null)}
+        />
+      )}
+
       {batchUpdateMutation.isPending && (
         <output className="mt-4 block text-sm text-slate-600">
           Updating selected records. Please keep this page open.
         </output>
       )}
-      {!batchUpdateMutation.isPending && batchUpdateMutation.data && (
+      {!batchUpdateMutation.isPending && shownBatchResult && (
         <BatchUpdateFeedback
-          result={batchUpdateMutation.data}
-          names={batchUpdateMutation.variables?.names ?? {}}
-          published={
-            typeof batchUpdateMutation.variables?.values.published === 'boolean'
-              ? batchUpdateMutation.variables.values.published
-              : undefined
+          result={shownBatchResult}
+          names={
+            batchUpdateMutation.variables?.names ??
+            Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)]))
           }
-          onDismiss={() => batchUpdateMutation.reset()}
+          skipped={batchUpdateMutation.variables?.skipped ?? []}
+          published={
+            publicationFeedback
+              ? true
+              : typeof batchUpdateMutation.variables?.values.published === 'boolean'
+                ? batchUpdateMutation.variables.values.published
+                : undefined
+          }
+          {...(isProducts && batchUpdateMutation.variables && !publicationFeedback?.publication
+            ? {
+                onRetry: (ids: string[]) => {
+                  const { variables } = batchUpdateMutation;
+                  const data = publicationFeedback ?? batchUpdateMutation.data;
+                  // Two clicks before the panel re-renders start one retry.
+                  if (!variables || !data || retryStarted.current) return;
+                  retryStarted.current = true;
+                  batchUpdateMutation.mutate(
+                    { ...variables, ids, previous: data },
+                    {
+                      onSettled: () => {
+                        retryStarted.current = false;
+                      },
+                    },
+                  );
+                },
+              }
+            : {})}
+          onDismiss={() => {
+            setPublicationFeedback(null);
+            batchUpdateMutation.reset();
+          }}
         />
+      )}
+      {isProducts &&
+        role === 'admin' &&
+        !classifying &&
+        !classificationReview &&
+        !creating &&
+        !editing &&
+        !previewing && (
+          <ProductPublicationInbox
+            refreshKey={publicationRefresh}
+            busy={recordWritePending}
+            names={Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)]))}
+            onBusyChange={setPublicationBusy}
+            onRecovered={(result, selected) => {
+              setPublicationFeedback((previous) =>
+                previous ? mergeTablePublication(previous, result, selected) : previous,
+              );
+              const confirmed = new Set(result.items.map((item) => item._id));
+              setRowSelection((current) =>
+                Object.fromEntries(Object.entries(current).filter(([id]) => !confirmed.has(id))),
+              );
+              const error = updateMutation.error;
+              if (
+                error instanceof TablePublicationError &&
+                mergeTablePublication(error.result, result, selected) !== error.result
+              )
+                updateMutation.reset();
+              invalidate();
+            }}
+          />
+        )}
+      {stillFlagged && (
+        <output
+          data-still-flagged
+          className="mt-4 block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <p>
+            Saved “{stillFlagged}”. It stays flagged Changed until every supplier change has a
+            decision. Open Edit to decide.
+          </p>
+          <button
+            type="button"
+            className="mt-2 min-h-11 underline"
+            onClick={() => setStillFlagged(null)}
+          >
+            Dismiss
+          </button>
+        </output>
       )}
       {visibleMutationError && (
         <div
@@ -851,6 +1422,7 @@ export function CollectionView({
             type="button"
             className="mt-2 underline"
             onClick={() => {
+              createMutation.reset();
               batchUpdateMutation.reset();
               updateMutation.reset();
               removeMutation.reset();
@@ -903,7 +1475,17 @@ export function CollectionView({
             {error && (
               <tr>
                 <td colSpan={colCount} className="px-4 py-8 text-center text-red-600">
-                  {(error as Error).message}
+                  <div role="alert">
+                    <p>{(error as Error).message}</p>
+                    <button
+                      type="button"
+                      disabled={isFetching}
+                      onClick={() => void refetch()}
+                      className="mt-2 min-h-11 font-medium underline"
+                    >
+                      Retry list
+                    </button>
+                  </div>
                 </td>
               </tr>
             )}
@@ -921,7 +1503,7 @@ export function CollectionView({
                   ))}
                 </tr>
               ))}
-            {data && rows.length === 0 && !isLoading && (
+            {data && rows.length === 0 && !isLoading && !error && (
               <tr>
                 <td colSpan={colCount} className="px-4 py-8 text-center text-slate-400">
                   No records.
@@ -932,14 +1514,18 @@ export function CollectionView({
         </table>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
         <span>
-          {total} record{total === 1 ? '' : 's'}
+          {error
+            ? 'Record count unavailable'
+            : isLoading
+              ? 'Loading records…'
+              : `${total} record${total === 1 ? '' : 's'}`}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={page <= 1}
+            disabled={listUnavailable || page <= 1}
             onClick={() => setPage((p) => p - 1)}
             className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40"
           >
@@ -950,12 +1536,15 @@ export function CollectionView({
           </span>
           <button
             type="button"
-            disabled={page >= pageCount}
+            disabled={listUnavailable || page >= pageCount}
             onClick={() => setPage((p) => p + 1)}
             className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40"
           >
             Next
           </button>
+          {!listUnavailable && pageCount > 1 && (
+            <PageJump page={page} pageCount={pageCount} onJump={setPage} />
+          )}
         </div>
       </div>
 
@@ -963,6 +1552,7 @@ export function CollectionView({
         <ClassificationDialog
           products={classifying.products}
           publishOnSave={classifying.publishOnSave}
+          {...(publishBlockReason ? { publishBlockReason } : {})}
           onClose={() => setClassifying(null)}
           onUnresolved={(snapshot) => {
             setReviewMessage('');
@@ -998,7 +1588,23 @@ export function CollectionView({
           }}
         />
       )}
-      {creating && (
+      {creating && isProducts && (
+        <ProductCreateForm
+          collection={collection}
+          title={`New ${singular}`}
+          {...(isProductFamily(productFamily) ? { defaults: { productFamily } } : {})}
+          onCancel={() => setCreating(false)}
+          onSaved={(product, openEditor) => {
+            setCreating(false);
+            invalidate();
+            if (openEditor) {
+              updateMutation.reset();
+              setEditing(product);
+            }
+          }}
+        />
+      )}
+      {creating && !isProducts && (
         <RecordForm
           collection={collection}
           title={`New ${singular}`}
@@ -1010,7 +1616,48 @@ export function CollectionView({
         />
       )}
 
-      {editing && (
+      {openingProduct && (
+        <ProductRecordLoader
+          key={openingProduct.sequence}
+          productId={openingProduct.productId}
+          onLoaded={(product) => finishProductOpen(openingProduct, product)}
+          onClose={closeProductOpen}
+        />
+      )}
+
+      {editing && isProducts && role === 'admin' && (
+        <ProductEditForm
+          key={`${editing._id}:${editing.updatedAt ?? ''}`}
+          collection={collection}
+          title={`Edit ${singular}`}
+          initial={editing}
+          showSavedClassification={canReadSubcategories}
+          nativeSaveAvailable={publicationCapabilities.data?.enabled}
+          onRetryAvailability={() => {
+            void publicationCapabilities.refetch();
+          }}
+          submitting={updateMutation.isPending}
+          error={updateMutation.error as Error | null}
+          onCancel={() => setEditing(null)}
+          onSubmit={(values) => updateMutation.mutate({ id: editing._id, values, opened: editing })}
+          onSaved={(product, openEditor) => {
+            setPublicationFeedback(null);
+            setSkippedOnly(null);
+            setEditing(openEditor ? product : null);
+            setStillFlagged(
+              product.published === true &&
+                ['Changed', 'Removed'].includes(String(reviewLabel(product)))
+                ? String(product.name || product._id)
+                : null,
+            );
+            invalidate();
+            setPublicationRefresh((current) => current + 1);
+          }}
+          onSeeChanges={() => setChangesPreview(editing)}
+          canReviewSupplier={true}
+        />
+      )}
+      {editing && (!isProducts || role !== 'admin') && (
         <RecordForm
           collection={collection}
           title={`Edit ${singular}`}
@@ -1019,22 +1666,58 @@ export function CollectionView({
           submitting={updateMutation.isPending}
           error={updateMutation.error as Error | null}
           onCancel={() => setEditing(null)}
-          onSubmit={(values) => updateMutation.mutate({ id: editing._id, values })}
+          onSubmit={(values) =>
+            updateMutation.mutate({
+              id: editing._id,
+              values,
+              ...(isProducts ? { opened: editing } : {}),
+            })
+          }
+          onSeeChanges={() => setChangesPreview(editing)}
+          canReviewSupplier={role === 'admin'}
+          {...(role !== 'admin' && ['Changed', 'Removed'].includes(String(reviewLabel(editing)))
+            ? {
+                readOnlyReason:
+                  'This product has Alibaba changes waiting for an admin’s review. Ask an admin to review it.',
+              }
+            : {})}
         />
       )}
 
       {previewing && (
         <PreviewModal
           doc={previewing}
+          onSourceRefreshed={(product) =>
+            setPreviewing((current) => (current?._id === product._id ? product : current))
+          }
           canMarkReviewed={canReviewAlibabaProducts}
-          reviewBusy={reviewMutation.isPending}
-          reviewError={reviewMutation.error as Error | null}
+          reviewBusy={reviewMutation.isPending || unpublishFromReviewMutation.isPending}
+          reviewError={(reviewMutation.error ?? unpublishFromReviewMutation.error) as Error | null}
           onMarkReviewed={() => reviewMutation.mutate(previewing._id)}
-          onClose={() => setPreviewing(null)}
-          onEdit={() => {
-            setEditing(previewing);
+          // Supplier changes are reviewed side by side in the edit form (DEC-19).
+          onReviewChanges={() => {
+            openRecord(previewing, 'edit');
             setPreviewing(null);
           }}
+          onUnpublish={() => unpublishFromReviewMutation.mutate(previewing._id)}
+          onClose={() => {
+            setPreviewing(null);
+            invalidate();
+          }}
+          onEdit={() => {
+            openRecord(previewing, 'edit');
+            setPreviewing(null);
+          }}
+        />
+      )}
+
+      {changesPreview && (
+        <PreviewModal
+          doc={changesPreview}
+          // The supplier preview and the live-page link, without any action.
+          canMarkReviewed={canReviewAlibabaProducts}
+          onClose={() => setChangesPreview(null)}
+          onEdit={() => setChangesPreview(null)}
         />
       )}
     </div>
@@ -1047,11 +1730,13 @@ function productFamilyLabel(productFamily: ProductFamily): string {
 
 /** Read-only: rows show what the website uses; nothing here writes product data. */
 function SavedSubcategoriesCell({ doc }: { doc: CollectionDoc }) {
-  const family = productFamilyForDoc(doc);
+  const family = productListCoreIncomplete(doc) ? null : productFamilyForDoc(doc);
   const registry = useQuery({
     ...taxonomyQuery(family ?? 'headphones'),
     enabled: family !== null,
   });
+  if (productListCoreIncomplete(doc))
+    return <TextCell field="websiteSubcategories" value={PRODUCT_LIST_DETAILS_LABEL} />;
   if (!family) return <TextCell field="websiteSubcategories" value="" />;
   if (registry.error) {
     return (
@@ -1176,8 +1861,8 @@ export function ProductFamilyTab({
         {label}
         {pendingCount > 0 && (
           <span
-            aria-label={`${pendingCount} new product${pendingCount === 1 ? '' : 's'} to review`}
-            title={`${pendingCount} new product${pendingCount === 1 ? '' : 's'} to review`}
+            aria-label={`${pendingCount} product${pendingCount === 1 ? '' : 's'} to review`}
+            title={`${pendingCount} product${pendingCount === 1 ? '' : 's'} to review`}
             className={`h-2 w-2 rounded-full ${selected ? 'bg-amber-300' : 'bg-amber-500'}`}
           />
         )}
@@ -1192,6 +1877,7 @@ function BatchBar({
   isUsers,
   canClassify,
   classifyBlocked,
+  publishBlockReason,
   collection,
   busy,
   onClear,
@@ -1204,6 +1890,7 @@ function BatchBar({
   isUsers: boolean;
   canClassify: boolean;
   classifyBlocked: boolean;
+  publishBlockReason?: string;
   collection: CollectionDef;
   busy: boolean;
   onClear: () => void;
@@ -1216,14 +1903,15 @@ function BatchBar({
   const compactActions = collection.name === 'products';
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+    <div className="relative mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
       <span className="text-sm font-semibold text-brand-900">{count} selected</span>
 
       {isCatalog && (
         <>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || Boolean(publishBlockReason)}
+            title={publishBlockReason}
             onClick={() => onSetValues({ published: true })}
             className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50`}
           >
@@ -1282,16 +1970,17 @@ function BatchBar({
       </button>
 
       {compactActions && (
-        <details className="relative xl:hidden">
+        <details className="xl:hidden">
           <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700">
             Actions
           </summary>
-          <div className="absolute left-0 z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md sm:left-auto sm:right-0">
+          <div className="absolute right-0 top-full z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md">
             {isCatalog && (
               <>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || Boolean(publishBlockReason)}
+                  title={publishBlockReason}
                   onClick={() => onSetValues({ published: true })}
                   className="min-h-11 rounded-lg bg-green-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
                 >
@@ -1409,48 +2098,92 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
 }
 
 export function ProductThumbnail({ doc }: { doc: CollectionDoc }) {
-  const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
-  const badge =
-    doc.alibabaReviewPending === true ? (
-      <span className="absolute -left-1 -top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white shadow-sm">
-        New
-      </span>
-    ) : null;
-  if (ids[0]) {
-    return (
-      <span className="relative inline-block">
-        <img
-          src={imageUrl(ids[0])}
-          alt=""
-          className="h-10 w-10 rounded-md border border-slate-200 object-cover"
-        />
-        {badge}
-      </span>
+  const source = productThumbnailSource(doc);
+  const label = reviewLabel(doc);
+  // A live product's photo the public address refuses (e.g. added after the
+  // last approval), or an Alibaba original taken down after we copied it,
+  // falls back to the admin preview of our stored photo.
+  const [primaryFailed, setPrimaryFailed] = useState(false);
+  const previewId =
+    source?.kind === 'admin'
+      ? source.imageId
+      : primaryFailed && source
+        ? (source.imageId ?? null)
+        : null;
+  const [preview, setPreview] = useState<{ id: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!previewId) return;
+    let cancelled = false;
+    adminThumbnail(previewId).then(
+      (url) => !cancelled && setPreview({ id: previewId, url }),
+      () => !cancelled && setPreview({ id: previewId, url: null }),
     );
-  }
-  const sourceUrl = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls, 1)[0];
-  if (sourceUrl) {
-    return (
-      <span className="relative inline-block">
-        <img
-          src={sourceUrl}
-          alt=""
-          referrerPolicy="no-referrer"
-          className="h-10 w-10 rounded-md border border-dashed border-slate-300 object-cover"
-          title="Alibaba source preview; not yet imported for publication"
-        />
-        {badge}
-      </span>
-    );
-  }
-  return (
+    return () => {
+      cancelled = true;
+    };
+  }, [previewId]);
+  const badge = label ? (
+    <span className="absolute -left-1 -top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white shadow-sm">
+      {label}
+    </span>
+  ) : null;
+  const frame = (image: ReactNode) => (
     <span className="relative inline-block">
-      <span className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-slate-300">
-        —
-      </span>
+      {image}
       {badge}
     </span>
   );
+  const empty = frame(
+    <span className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-slate-300">
+      —
+    </span>,
+  );
+  if (source?.kind === 'public' && !primaryFailed)
+    return frame(
+      <img
+        src={imageUrl(source.imageId)}
+        alt=""
+        onError={() => setPrimaryFailed(true)}
+        className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+      />,
+    );
+  if (source?.kind === 'alibaba' && !(primaryFailed && source.imageId))
+    return frame(
+      <img
+        src={source.url}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={source.imageId ? () => setPrimaryFailed(true) : undefined}
+        className={`h-10 w-10 rounded-md border object-cover ${
+          source.imageId ? 'border-slate-200' : 'border-dashed border-slate-300'
+        }`}
+        title={
+          source.imageId
+            ? 'Copied to our storage from this Alibaba photo'
+            : 'Alibaba source preview; not yet imported for publication'
+        }
+      />,
+    );
+  if (previewId) {
+    const url = preview?.id === previewId ? preview.url : undefined;
+    if (url)
+      return frame(
+        <img
+          src={url}
+          alt=""
+          className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+        />,
+      );
+    if (url === undefined)
+      return frame(
+        <span
+          aria-hidden="true"
+          data-thumbnail-loading
+          className="block h-10 w-10 animate-pulse rounded-md bg-slate-100"
+        />,
+      );
+  }
+  return empty;
 }
 
 function InlineSelect({
@@ -1478,14 +2211,24 @@ function PublishToggle({
   published,
   busy,
   onToggle,
-}: { published: boolean; busy: boolean; onToggle: () => void }) {
+  blockReason,
+  focusKey,
+}: {
+  published: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  blockReason?: string;
+  focusKey?: string;
+}) {
   return (
     <button
       type="button"
-      disabled={busy}
+      disabled={busy || Boolean(blockReason)}
+      data-record-focus-key={focusKey}
       onClick={onToggle}
       title={
-        published ? 'Click to disable (hide from public)' : 'Click to publish (show to public)'
+        blockReason ??
+        (published ? 'Click to disable (hide from public)' : 'Click to publish (show to public)')
       }
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition ${
         published

@@ -18,6 +18,8 @@ Retain the existing shared assignment schema and Admin function. Classifying a p
 
 ## Current-release call flow
 
+> Superseded 2026-10-12 by DEC-21 (`docs/catalog-single-source-of-truth/DESIGN.md`): one unclear result no longer stops a batch; unclear products are read back; "busy" answers are resent automatically; results say "N published · M not published" with a Try again button.
+
 1. Preview: 1–20 selected products, saved public/draft flags, taxonomy revision and per-product `updatedAt` determine eligibility. Save and publish is unavailable for already-public or mixed selections; Save classification warns that same-family public edits can change storefront filters immediately. A published product moving to another main family remains blocked by server rules.
 2. Confirm: construct the existing assignment request. Save only omits `includeSavedRevision`; Save and publish requests it. The UI does not send either command until a second intent-named confirmation.
 3. Assign: one existing `catalogCategories` assignment call returns a result per product. Only complete `saved` statuses with known revisions may enter automatic publication; a transport error may follow a committed write, so unknown outcomes require a status read, not a retry.

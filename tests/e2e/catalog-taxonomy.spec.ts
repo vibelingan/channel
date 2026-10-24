@@ -13,6 +13,7 @@ import {
 } from '../../packages/shared/src/catalog-taxonomy.ts';
 import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
 import { type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { CATALOG_PUBLICATION_WAIT_MS } from './helpers/catalog-publication';
 import {
   e2e,
   requireAdminCredentialsWhenEnabled,
@@ -99,7 +100,10 @@ test('local taxonomy: saved categories and assignments drive all four storefront
   page,
   request,
 }, info) => {
-  test.setTimeout(300_000);
+  const formal = process.env.E2E_CATALOG_FORMAL === '1';
+  test.setTimeout(
+    formal ? PRODUCT_FAMILY_OPTIONS.length * CATALOG_PUBLICATION_WAIT_MS + 60_000 : 300_000,
+  );
   const health = await request.get(`${e2e.apiUrl}/api/health`);
   expect(health.ok()).toBe(true);
   const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
@@ -349,10 +353,27 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await openProducts(page, `${e2e.runId} Taxonomy ${family}`);
       await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(14);
       await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
-      await page.getByRole('button', { name: 'Publish', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
-        timeout: 60_000,
-      });
+      const publish = page.getByRole('button', { name: 'Publish', exact: true });
+      if (formal) {
+        await publish.click();
+        await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
+          timeout: CATALOG_PUBLICATION_WAIT_MS,
+        });
+      } else {
+        await expect(publish).toBeDisabled();
+        await expect(publish).toHaveAttribute(
+          'title',
+          'Publishing is unavailable in this environment.',
+        );
+        // Arrange legacy public records through its supported API for the storefront assertions.
+        for (const product of products)
+          await adminAction(
+            request,
+            'update',
+            { collection: 'products', id: product._id, values: { published: true } },
+            session.token,
+          );
+      }
       await expect
         .poll(async () =>
           (await Promise.all(products.map((product) => readProduct(product._id)))).every(

@@ -5,7 +5,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { buildCompleteCatalogPreparationPlan } from '@vibelingan-channel/catalog-import/detail-candidate';
 import {
   type CatalogSourceObservation,
   validateCatalogSourceObservation,
@@ -15,18 +15,22 @@ import {
   backfillPublishedRefCounts,
   get,
   list,
+  manageCatalogDetailApproval,
   saveCatalogProductWithIdentities,
   setAdapter,
   updateDoc,
 } from '@vibelingan-channel/db';
 import {
+  SOURCE_LINKS,
   bindProduct,
   bindVariant,
+  groupLinkId,
   writeVariant,
 } from '@vibelingan-channel/fn-admin/catalog-import-store';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import type { CollectionDoc, ProductFamily } from '@vibelingan-channel/shared';
+import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { JsonFileAdapter } from './json-adapter.ts';
 
@@ -39,6 +43,7 @@ function activateLocalWorkspace() {
   if (!localWorkspace) throw new Error('Wire an isolated local workspace first');
   setAdapter(localWorkspace.adapter);
   setMediaStorage(localWorkspace.storage);
+  return localWorkspace;
 }
 
 export function wireLocalDetailWorkspace(databaseFile: string, mediaDirectory: string) {
@@ -77,7 +82,7 @@ export async function materializeLocalDetail(input: {
   productFamily: ProductFamily;
   images: ReadonlyMap<string, string>;
 }) {
-  activateLocalWorkspace();
+  const workspace = activateLocalWorkspace();
   const parsed = validateCatalogSourceObservation(input.observation);
   if (!parsed.ok) throw new Error('Invalid source observation');
   const observation = parsed.value;
@@ -85,11 +90,21 @@ export async function materializeLocalDetail(input: {
     throw new Error('Complete product required');
   const owner = scope(observation);
   const now = new Date().toISOString();
-  // Validate the entire candidate before reserving persistent identities.
-  const preliminary = buildCatalogDetailCandidate(observation, {
+  // Read an existing clone before validating text it has already chosen to retain.
+  const link = await get(SOURCE_LINKS, groupLinkId(owner));
+  const previous =
+    typeof link?.productId === 'string' ? await get('products', link.productId) : null;
+  if (previous) {
+    requireClone(previous);
+    if (previous.detailSourceOwner !== owner) throw new Error('Source ownership mismatch');
+  }
+  const preliminary = buildCompleteCatalogPreparationPlan(observation, {
     productId: 'validation-only',
     images: input.images,
     variants: new Map(observation.variants.map((v, i) => [v.sourceVariantKey, `validation-${i}`])),
+    ...(previous
+      ? { websiteProduct: { ...previous, _id: 'validation-only', archived: false } }
+      : {}),
   });
   if (!preliminary.ok) throw new Error(preliminary.errors.join('; '));
   const binding = await bindProduct(
@@ -105,7 +120,7 @@ export async function materializeLocalDetail(input: {
   const productFields = {
     name: observation.identity.title,
     description: observation.content.description?.text ?? '',
-    imageIds: preliminary.value.images.map((url) => url.slice('/api/images/'.length)),
+    imageIds: preliminary.sourceHeader.images.map((url) => url.slice('/api/images/'.length)),
   };
   let product = await get('products', productId);
   if (!product) {
@@ -116,7 +131,7 @@ export async function materializeLocalDetail(input: {
         name: observation.identity.title,
         productFamily: input.productFamily,
         description: observation.content.description?.text ?? '',
-        imageIds: preliminary.value.images.map((url) => url.slice('/api/images/'.length)),
+        imageIds: preliminary.sourceHeader.images.map((url) => url.slice('/api/images/'.length)),
         detailSourceProductFields: productFields,
         localDetailClone: true,
         detailSourceOwner: owner,
@@ -153,7 +168,12 @@ export async function materializeLocalDetail(input: {
   }
   const active = new Set(bindings.values());
   const sourceRevision = randomUUID();
-  await updateDoc('products', productId, { detailSourceReady: false });
+  await workspace.adapter.prepareLocalDetailClone({
+    action: 'begin',
+    productId,
+    owner,
+    revision: sourceRevision,
+  });
   const previousProductFields = product.detailSourceProductFields;
   const productPatch: Record<string, unknown> = {};
   for (const [field, value] of Object.entries(productFields)) {
@@ -173,63 +193,62 @@ export async function materializeLocalDetail(input: {
     // untouched draft gallery; a replay never changes a published gallery.
     ...(product.published !== true ? { detailSourceProductFields: productFields } : {}),
   });
-  const warnings = new Set<string>();
-  for (let page = 1; page <= Math.max(1, Math.ceil(observation.variants.length / 50)); page++) {
-    const candidate = buildCatalogDetailCandidate(
-      observation,
-      { productId, images: input.images, variants: bindings },
-      page,
-    );
-    if (!candidate.ok) throw new Error(candidate.errors.join('; '));
-    for (const warning of candidate.warnings) warnings.add(warning);
-    for (const [offset, variant] of candidate.value.variants.items.entries()) {
-      const position = (page - 1) * 50 + offset;
-      const existing = await get('productVariants', variant.id);
-      const fields = {
-        sku: variant.sku ?? '',
-        position,
-        optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
-        imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
-      };
-      if (!existing)
-        await writeVariant({ variantId: variant.id, productId, ...fields, inventory: undefined });
-      // Three-way update: preserve operator edits; only move values still equal
-      // to the previous source write. Approval snapshots never change here.
-      const previous = existing?.detailSourceFields;
-      const patch: Record<string, unknown> = {};
-      for (const [field, value] of Object.entries(fields)) {
-        if (
-          !existing ||
-          (typeof previous === 'object' &&
-            previous !== null &&
-            Object.hasOwn(previous, field) &&
-            isDeepStrictEqual(existing[field], Reflect.get(previous, field)))
-        ) {
-          patch[field] = value;
-        }
+  const currentProduct = await get('products', productId);
+  requireClone(currentProduct);
+  const candidate = buildCompleteCatalogPreparationPlan(observation, {
+    productId,
+    images: input.images,
+    variants: bindings,
+    websiteProduct: { ...currentProduct, archived: false },
+  });
+  if (!candidate.ok) throw new Error(candidate.errors.join('; '));
+  const warnings = new Set(candidate.warnings);
+  for (const [position, variant] of candidate.value.variants.entries()) {
+    const existing = await get('productVariants', variant.id);
+    const fields = {
+      sku: variant.sku ?? '',
+      position,
+      optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
+      imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
+    };
+    if (!existing)
+      await writeVariant({ variantId: variant.id, productId, ...fields, inventory: undefined });
+    // Three-way update: preserve operator edits; only move values still equal
+    // to the previous source write. Approval snapshots never change here.
+    const previous = existing?.detailSourceFields;
+    const patch: Record<string, unknown> = {};
+    for (const [field, value] of Object.entries(fields)) {
+      if (
+        !existing ||
+        (typeof previous === 'object' &&
+          previous !== null &&
+          Object.hasOwn(previous, field) &&
+          isDeepStrictEqual(existing[field], Reflect.get(previous, field)))
+      ) {
+        patch[field] = value;
       }
-      await updateDoc('productVariants', variant.id, {
-        ...patch,
-        detailSourceOwner: owner,
-        detailSourceRevision: sourceRevision,
-        detailSourceFields: fields,
-        detailSourceCandidate: variant,
-        detailSourceMissing: false,
-      });
     }
-    if (page === 1) {
-      const { variants: _variants, revision: _revision, ...header } = candidate.value;
-      const structured = buildStructuredContent(observation.content.description);
-      for (const warning of structured.warnings) warnings.add(warning);
-      await updateDoc('products', productId, {
-        detailSourceCandidate: header,
-        detailSourceRevision: sourceRevision,
-        detailSourceContentCandidate: structured.content ?? null,
-        detailSourceContentWarnings: structured.warnings,
-        detailSourceNoteBlocksCandidate: structured.noteBlocks ?? null,
-      });
-    }
+    await updateDoc('productVariants', variant.id, {
+      ...patch,
+      detailSourceOwner: owner,
+      detailSourceRevision: sourceRevision,
+      detailSourceFields: fields,
+      detailSourceCandidate: variant,
+      detailSourceMissing: false,
+    });
   }
+  const structured =
+    candidate.value.header.descriptionText === candidate.sourceHeader.descriptionText
+      ? buildStructuredContent(observation.content.description)
+      : { content: undefined, noteBlocks: undefined, warnings: [] };
+  for (const warning of structured.warnings) warnings.add(warning);
+  await updateDoc('products', productId, {
+    detailSourceCandidate: candidate.sourceHeader,
+    detailSourceRevision: sourceRevision,
+    detailSourceContentCandidate: structured.content ?? null,
+    detailSourceContentWarnings: structured.warnings,
+    detailSourceNoteBlocksCandidate: structured.noteBlocks ?? null,
+  });
   for (const variant of await variantsFor(productId)) {
     if (variant.detailSourceOwner === owner && !active.has(variant._id)) {
       await updateDoc('productVariants', variant._id, { detailSourceMissing: true });
@@ -238,54 +257,107 @@ export async function materializeLocalDetail(input: {
   await updateDoc('products', productId, {
     detailSourceObservedAt: observation.source.observedAt,
     detailSourceManifest: { revision: sourceRevision, variantIds: [...active] },
-    detailSourceReady: true,
+  });
+  const prepared = await get('products', productId);
+  if (!prepared) throw new Error('Local clone disappeared');
+  await workspace.adapter.prepareLocalDetailClone({
+    action: 'seal',
+    productId,
+    owner,
+    revision: sourceRevision,
+    expectedGeneration: Number(prepared.catalogContentGeneration ?? 0),
   });
   return { productId, variants: active.size, stale: false, warnings: [...warnings] };
 }
 
 /** Explicit approval of a LOCAL clone only. Never exported as a cloud action. */
 export async function approveLocalDetail(productId: string) {
-  activateLocalWorkspace();
+  const workspace = activateLocalWorkspace();
   const product = await get('products', productId);
   requireClone(product);
-  if (product.detailSourceReady !== true) throw new Error('Source materialization is incomplete');
+  if (product.localDetailPreparationState !== 'complete')
+    throw new Error('Source materialization is incomplete');
   if (product.archived !== false) throw new Error('Archived clone cannot be approved');
+  if (
+    typeof product.detailSourceOwner !== 'string' ||
+    typeof product.detailSourceRevision !== 'string'
+  )
+    throw new Error('Source materialization is incomplete');
+  // Operator edits invalidate readiness; revalidate the complete effective clone before approval.
+  await workspace.adapter.prepareLocalDetailClone({
+    action: 'seal',
+    productId,
+    owner: product.detailSourceOwner,
+    revision: product.detailSourceRevision,
+    expectedGeneration: Number(product.catalogContentGeneration ?? 0),
+  });
+  const current = await get('products', productId);
+  requireClone(current);
   const rows = (await variantsFor(productId)).filter(
     (row) =>
-      row.detailSourceOwner === product.detailSourceOwner &&
+      row.detailSourceOwner === current.detailSourceOwner &&
       row.detailSourceMissing === false &&
       row.archived !== true,
   );
-  const revision = randomUUID();
-  const {
-    publication,
-    variants: approved,
-    imageIds,
-  } = planCatalogDetailApproval({
-    product,
+  const plan = planCatalogDetailApproval({
+    product: current,
     variants: rows,
-    revision,
+    revision: 'local-check',
   });
-  for (const id of imageIds) {
+  if (plan.publication.header.images.length === 0)
+    throw new Error('Local publication failed: invalid-product');
+  for (const id of plan.imageIds) {
     const image = await get('images', id);
     if (!image || image.status !== 'active' || image.storageProvider !== 'local-disk')
       throw new Error('Local image is not ready');
   }
-  // No partially replaced snapshot can be served during this bounded rehearsal.
-  await updateDoc('products', productId, { catalogDetailPublication: null });
-  for (const [position, variant] of approved.entries()) {
-    await updateDoc('productVariants', variant.id, {
-      catalogDetailApproved: variant,
-      catalogDetailRevision: revision,
-      catalogDetailPosition: position,
+  const actorId = 'ui02-local-approval-admin';
+  await workspace.adapter.createDocWithId('users', actorId, {
+    role: 'admin',
+    username: 'Isolated local rehearsal',
+    status: 'active',
+  });
+  const reviewed = await manageCatalogDetailApproval(actorId, { action: 'review', productId });
+  if (!reviewed.ok || !('kind' in reviewed) || reviewed.kind !== 'review')
+    throw new Error(`Local review failed: ${reviewed.ok ? 'unexpected-result' : reviewed.code}`);
+  const operationId = randomUUID();
+  const began = await manageCatalogDetailApproval(actorId, {
+    action: 'begin',
+    command: {
+      productId,
+      operationId,
+      expectedDigest: reviewed.expectedDigest,
+      expectedRevision: reviewed.expectedRevision,
+    },
+  });
+  if (!began.ok || !('jobId' in began))
+    throw new Error(`Local approval failed: ${began.ok ? 'unexpected-result' : began.code}`);
+  for (let page = began.nextPage; page < began.pages; page++) {
+    const staged = await manageCatalogDetailApproval(actorId, {
+      action: 'page',
+      jobId: began.jobId,
+      page,
     });
+    if (!staged.ok) throw new Error(`Local approval failed: ${staged.code}`);
   }
+  const finished = await manageCatalogDetailApproval(actorId, {
+    action: 'finish',
+    jobId: began.jobId,
+  });
+  if (!finished.ok || !('jobId' in finished) || !finished.complete)
+    throw new Error(`Local approval failed: ${finished.ok ? 'unexpected-result' : finished.code}`);
+  const approved = await get('products', productId);
+  requireClone(approved);
+  const publication = CatalogDetailPublicationSchema.parse(approved.catalogDetailPublication);
+  if (publication.revision !== finished.revision) throw new Error('Local approval changed');
   const saved = await saveCatalogProductWithIdentities({
     mode: 'update',
     productId,
-    data: { published: true, catalogDetailPublication: publication },
+    expectedUpdatedAt: typeof approved.updatedAt === 'string' ? approved.updatedAt : null,
+    requireDetailApproval: true,
+    data: { published: true },
   });
   if (saved.result !== 'saved') throw new Error(`Local publication failed: ${saved.result}`);
   await backfillPublishedRefCounts();
-  return { productId, revision, variants: approved.length };
+  return { productId, revision: publication.revision, variants: publication.variantCount };
 }

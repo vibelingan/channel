@@ -1,6 +1,10 @@
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  packageCatalogImageDecoder,
+  usesCatalogImageDecoder,
+} from './catalog-image-decoder-artifact.mjs';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -38,6 +42,7 @@ for (const name of functions) {
     )}\n`,
     'utf8',
   );
+  if (usesCatalogImageDecoder(readFileSync(indexFile, 'utf8'))) packageCatalogImageDecoder(target);
 }
 
 console.log(`Packaged ${functions.length} functions into ${artifactRoot}`);

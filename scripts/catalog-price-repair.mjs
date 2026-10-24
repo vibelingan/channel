@@ -70,6 +70,22 @@ export function verifyPage(page, mode, afterId) {
   return page;
 }
 
+/**
+ * After a repair, the public item must show the repaired sync price, unless the
+ * product is served from its approved version (catalog single source of truth,
+ * MIU-8): then the public item never carries the sync price, and its card and
+ * page change only through re-approval.
+ */
+export function publicPriceVerified(projected, price) {
+  const item = projected ?? {};
+  const approved =
+    Object.hasOwn(item, 'priceSummary') ||
+    (!Object.hasOwn(item, 'alibabaPrimarySourceKey') &&
+      !Object.hasOwn(item, 'alibabaCatalogPricing'));
+  if (approved) return 'approved-version';
+  return isDeepStrictEqual(item.alibabaCatalogPricing, price) ? 'verified' : 'mismatch';
+}
+
 export async function auditCatalog(call, save, manifest) {
   if (manifest.status !== 'collecting')
     throw new Error('Audit is already complete; use a new manifest for a new inventory.');
@@ -219,7 +235,7 @@ async function main() {
           ([key]) => !['sourceOfferKey', 'sourceProductId', 'sourceSkuId'].includes(key),
         ),
       );
-      if (!isDeepStrictEqual(projected.alibabaCatalogPricing, price))
+      if (publicPriceVerified(projected, price) === 'mismatch')
         throw new Error(`Public price verification failed for ${row.productId}.`);
     });
     // A fresh inventory is required to account for concurrent additions and deferred records.

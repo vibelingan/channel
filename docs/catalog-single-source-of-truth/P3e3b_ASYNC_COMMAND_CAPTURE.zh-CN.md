@@ -1,0 +1,19 @@
+# P3e3b：事务启动前冻结命令
+
+基线62dddaa。当前修复已通过本轮包/运行时验证；精确提交产物在审查侧车补录。完整发布恢复尚未完成，原formal丢响应P1保留，fullDeliveryReady=false。没有test部署或客户写入。
+
+已确认一个独立P1：原生persistStagedApprovalInCloud先等SDK启动事务、本地persistCatalogDetailApproval先等文件锁，然后才由runStagedApproval/runProductOperation解析/复制输入。调用方在这段等待期间改原对象，旧代码会保存改后的输入、读取另一个被选中的任务，或把旧审批中审阅过的标题换掉。事务回调里的复制无法保护事务启动前的等待。
+
+8个本地反例400正控/8红；实际installedSDK Node20仅替换HTTP，暂停真正database.startTransaction响应，分别对save-draft、publish、get、legacy四种命令复现4个业务红。另走完旧begin→finish：最终私有批准标题是“Changed after actual start”，不是原审阅的Clock；商品仍未发布。新代码同流程保留原标题。这不是浏览器提交prepared对象的权限漏洞，HTTP仍只接受受控命令；问题是server-only输入引用在异步等待时没有固定。
+
+修复沿原两个持久化入口：用一个captureApprovalPersistenceCommand在SDK调用/文件锁之前structuredClone整个命令，再交给原schema、权限、输入版本和写回执校验。新操作及旧source/manual/begin/page/finish等命令均走相同边界。没有新字节限额、集合、SDK调用或权限写入，原字段/组件容量不变。无法复制的非JSON输入返回受控VALIDATION_ERROR、data路径与reload补救，原生不启动事务，本地零写；不把DataCloneError抛给用户。
+
+新增16项：两种意图的嵌套输入、查询selector和旧审批正文在native启动/本地排队时固定；三种无法复制的函数/Symbol/WeakMap分别检查两种adapter；两种adapter保留合法的256事实UTF-8审批（超过256KiB、低于512KiB），防止把启动请求的小预算错误套在已有审批上。JSON读回会省略undefined可选字段，因此仅把该测试期望按文件序列化归一化；生产使用structuredClone保留原数据语义，未用JSON串行化代替。
+
+六源码反例全部检出51重叠失败断言：保留原引用、只浅复制、在原生事务内才复制、在文件锁内才复制、复制失败直接抛异常、给旧审批误套256KiB预算。2生产文件finally还原核SHA。51不是独立缺陷数量。保留原输入冻结核心断言，并新增真实外层等待窗口，修正fake runTransaction会立即执行callback而掩盖SDK启动等待的盲点。
+
+实际SDK新探针5个场景通过，包括错误输入零SDK调用；最终旧审批完整begin/finish的旧红/新绿独立确认。原来源publish草稿16docops/10坏ACK回滚/6源冲突、普通草稿10坏ACK/2字段错误/6正常描述及重试零写均在新bundle回归通过。两个四进程Node24/20禁网流程（普通草稿、来源publish草稿）保存后丢答案/重开/重复零写/fixture清理通过，来源sample1917bytes。不是云端MVCC/adminHTTP/P95验收。
+
+最终七包与脚本4680：shared309/DB1407/admin637/local607/public131/sync304/site797+scripts488，0fail/skip/cancel；Node20相关493，针对性416。19项目types、Astro216零error/warning8既有hint、四完整文件Biome、SDK/diff通过。无原生adapter分类actor块改动；原无效precommit --silent输出不作证。这里不包含尚未转绿的原formal发布用例，不能称所有流程已通过。
+
+简化和措辞复核：本次4代码/测试路径、两种持久化入口、runStagedApproval/core捕获顺序、SDK启动sender与原source/approval消费者已读。一个捕获函数复用原验证与存储引擎，没有第二状态机。将“事务中已经冻结输入”改为“外层等待发生前冻结完整命令”，并明确旧标题错误发生于私有批准，未冒称客户商品已错误上线。下一步仍是同记录审批状态/游标、自身最终可见性回执和冻结分类/供应商上下文；媒体、大内容/事务预算、create/live、所有HTTP/UI、历史审计、云race/P95/test真实三时钟及20件发布恢复都还需完成。

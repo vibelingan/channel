@@ -121,3 +121,32 @@ test('authorization, unknown rule, malformed command and published products fail
     'protected',
   );
 });
+
+test('category assignment invalidates content and advances classification without regressing an existing timestamp', async () => {
+  const f = fixture();
+  Object.assign(f.product, {
+    updatedAt: '2026-09-08T00:00:00.010Z',
+    catalogContentGeneration: 2,
+    catalogClassificationRevision: 4,
+    detailSourceReady: true,
+    catalogPreparationState: 'ready',
+  });
+  await runCategoryCommand(f.tx, 'admin', { kind: 'configure', sourceCategoryId: '152801' }, now);
+  const preview = previewCategory(
+    f.product,
+    f.state.sourceCategoryMappings['alibaba-icbu-152801'],
+    now,
+  );
+  assert.equal(preview.status, 'ready');
+  assert.ok(preview.command);
+  assert.equal(
+    (await runCategoryCommand(f.tx, 'admin', { ...preview.command, operationId: op }, now)).status,
+    'applied',
+  );
+  const saved = f.state.products.clock;
+  assert.equal(saved.catalogContentGeneration, 3);
+  assert.equal(saved.catalogClassificationRevision, 5);
+  assert.equal(saved.detailSourceReady, false);
+  assert.equal(saved.updatedAt, '2026-09-08T00:00:00.011Z');
+  assert.equal(saved.published, false);
+});

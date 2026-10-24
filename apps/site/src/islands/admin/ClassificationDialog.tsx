@@ -9,6 +9,7 @@ import { useModalDialog } from './use-modal-dialog.ts';
 export function ClassificationDialog({
   products,
   publishOnSave = false,
+  publishBlockReason,
   onClose,
   onSaved,
   onUnresolved,
@@ -16,6 +17,7 @@ export function ClassificationDialog({
 }: {
   products: readonly CollectionDoc[];
   publishOnSave?: boolean;
+  publishBlockReason?: string;
   onClose: () => void;
   onSaved: () => void;
   onUnresolved?: (snapshot: UnresolvedClassificationSnapshot) => void;
@@ -36,6 +38,7 @@ export function ClassificationDialog({
       <ProductClassificationEditor
         products={products}
         publishOnSave={publishOnSave}
+        {...(publishBlockReason ? { publishBlockReason } : {})}
         onBusyChange={setBusy}
         onUnresolved={onUnresolved}
         onVerified={onVerified}

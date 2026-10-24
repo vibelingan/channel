@@ -6,7 +6,8 @@ import {
   requireCatalogLocalSeedWhenEnabled,
 } from './helpers/env';
 
-test.describe.configure({ mode: 'serial' });
+// These tests share one disposable database. Retrying the serial group would reuse mutations.
+test.describe.configure({ mode: 'serial', retries: 0 });
 
 test.describe('Admin catalog lifecycle', () => {
   // @skip-when the disposable local catalog lane is off. Spec DISCOVERY (`test:e2e --list`)
@@ -125,7 +126,7 @@ test.describe('Admin catalog lifecycle', () => {
     expect(errors).toEqual([]);
   });
 
-  test('selected main-category assignment and mixed publication use real API persistence', async ({
+  test('selected main-category assignment persists while approval publishing is unavailable', async ({
     page,
     request,
   }) => {
@@ -244,43 +245,29 @@ test.describe('Admin catalog lifecycle', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
-    await page.getByRole('button', { name: 'Publish', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('1 published · 1 need attention');
-    await expect(page.getByRole('alert')).toContainText('image');
-    const [ready, invalid] = await Promise.all(
-      ids.map((id) =>
-        adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token),
-      ),
+    const publish = page.getByRole('button', { name: 'Publish', exact: true });
+    await expect(publish).toBeDisabled();
+    await expect(publish).toHaveAttribute(
+      'title',
+      'Publishing is unavailable in this environment.',
     );
-    expect(ready?.published).toBe(true);
-    expect(invalid?.published).toBe(false);
+    for (const id of ids) {
+      const saved = await adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id },
+        session.token,
+      );
+      expect(saved.published).toBe(false);
+      expect(saved.productFamily).toBe('misc');
+      expect(saved.imageIds).toEqual(originals.get(id)?.imageIds);
+    }
     const publicResponse = await request.get(
       `${e2e.apiUrl}/api/products?search=${encodeURIComponent(prefix)}`,
     );
+    expect(publicResponse.ok()).toBe(true);
     const publicBody = await publicResponse.json();
-    expect(publicBody.data.items.map((row: CollectionDoc) => row._id)).toEqual([ids[0]]);
-    await page.reload();
-    await page.getByRole('button', { name: 'Products', exact: true }).click();
-    await page.getByPlaceholder(/^Search name/).fill(`${prefix} Ready`);
-    await page.getByRole('button', { name: 'Search', exact: true }).click();
-    await page
-      .getByRole('row')
-      .filter({ hasText: `${prefix} Ready` })
-      .getByRole('button', { name: 'Published', exact: true })
-      .click();
-    await expect
-      .poll(
-        async () =>
-          (
-            await adminAction<CollectionDoc>(
-              request,
-              'get',
-              { collection: 'products', id: ids[0] },
-              session.token,
-            )
-          ).published,
-      )
-      .toBe(false);
+    expect(publicBody.data.items).toEqual([]);
   });
 
   test('admin assigns a website category from the unclassified queue and the API keeps the product private', async ({

@@ -8,33 +8,49 @@ const valid = (amount: number) => Number.isSafeInteger(amount) && amount >= 0;
 
 type PricePair = { amount: string; quantity?: string };
 
+const count = (value: number) => value.toLocaleString('en-US');
+const piecesText = (value: number, copy: SharedDetailContent) =>
+  `${count(value)} ${value === 1 ? copy.quotePieceLabel : copy.quotePiecesLabel}`;
+const atLeastText = (value: number, copy: SharedDetailContent) => `≥${piecesText(value, copy)}`;
+
+/**
+ * DEC-16: a price with nothing orderable to show may still state a minimum
+ * order. Callers pass only offers that render no price row, so any stated
+ * minimum counts (also a tiered price whose every tier ends below it), as in
+ * the card summary's `isMeaningful`.
+ */
+function quoteMoq(offers: readonly { pricing: Offer['pricing'] }[]): number | undefined {
+  return offers.find(({ pricing }) => pricing.minimumOrderQuantity !== undefined)?.pricing
+    .minimumOrderQuantity;
+}
+
 function pricePairs(pricing: Offer['pricing'], copy: SharedDetailContent): PricePair[] {
   if (pricing.mode === 'unavailable' || pricing.mode === 'negotiable') return [];
-  const count = (value: number) => value.toLocaleString('en-US');
-  const pieces = (value: number) =>
-    `${count(value)} ${value === 1 ? copy.quotePieceLabel : copy.quotePiecesLabel}`;
-  const atLeast = (value: number) => `≥${pieces(value)}`;
+  const pieces = (value: number) => piecesText(value, copy);
+  const atLeast = (value: number) => atLeastText(value, copy);
   const format = (amount: number) => formatCatalogQuoteAmount(amount, pricing.currency);
   if (pricing.mode === 'tiered') {
     // Contiguous tiers at one price read as one window; a gap between them
-    // stays visible so no unquoted quantity appears covered.
+    // stays visible so no unquoted quantity appears covered. Quantities below
+    // the minimum order cannot be ordered, so they are never shown as windows.
+    const moq = pricing.minimumOrderQuantity;
     const windows: Array<{ minimum: number; maximum?: number; amount: number }> = [];
     for (const tier of pricing.tiers) {
       if (!valid(tier.unitAmountMinor)) continue;
+      if (moq !== undefined && tier.maximumQuantity !== undefined && tier.maximumQuantity < moq)
+        continue;
+      const minimum =
+        moq !== undefined ? Math.max(tier.minimumQuantity, moq) : tier.minimumQuantity;
       const previous = windows.at(-1);
       if (
         previous?.amount === tier.unitAmountMinor &&
         previous.maximum !== undefined &&
-        previous.maximum + 1 === tier.minimumQuantity
+        previous.maximum + 1 === minimum
       ) {
         previous.maximum = tier.maximumQuantity;
         continue;
       }
-      windows.push({
-        minimum: tier.minimumQuantity,
-        maximum: tier.maximumQuantity,
-        amount: tier.unitAmountMinor,
-      });
+      windows.push({ minimum, maximum: tier.maximumQuantity, amount: tier.unitAmountMinor });
     }
     return windows.map(({ minimum, maximum, amount }) => ({
       amount: format(amount),
@@ -90,8 +106,16 @@ function PriceTiers({ pairs, copy }: { pairs: PricePair[]; copy: SharedDetailCon
   );
 }
 
-const inquiry = (copy: SharedDetailContent) => (
-  <p className="text-xl font-semibold leading-snug text-brand-950">{copy.inquiryLabel}</p>
+/** "Request a quote", with the stated minimum order underneath when there is one. */
+const inquiry = (copy: SharedDetailContent, moq?: number) => (
+  <div>
+    <p className="text-xl font-semibold leading-snug text-brand-950">{copy.inquiryLabel}</p>
+    {moq !== undefined && (
+      <p data-quote-moq className="mt-1 text-sm leading-5 tabular-nums text-ink-muted">
+        {atLeastText(moq, copy)}
+      </p>
+    )}
+  </div>
 );
 
 /** One price block: website price, else the selected configuration's own
@@ -122,7 +146,11 @@ export function CatalogCompactPrice({
       {websitePricing ? (
         (() => {
           const pairs = pricePairs(websitePricing.pricing, copy);
-          return pairs.length ? <PriceTiers pairs={pairs} copy={copy} /> : inquiry(copy);
+          return pairs.length ? (
+            <PriceTiers pairs={pairs} copy={copy} />
+          ) : (
+            inquiry(copy, quoteMoq([websitePricing]))
+          );
         })()
       ) : scope ? (
         <div data-quote-scope={scope} className="min-w-0 space-y-3">
@@ -141,7 +169,11 @@ export function CatalogCompactPrice({
           )}
         </div>
       ) : (
-        inquiry(copy)
+        // The product's own quote first, then the selected configuration's.
+        // The card's summary (price-summary.ts, rule 4) takes the first
+        // configuration that states one, so on the configuration the page
+        // opens on they differ only when it states none (DEC-17).
+        inquiry(copy, quoteMoq(productOffers) ?? quoteMoq(variantOffers ?? []))
       )}
     </div>
   );

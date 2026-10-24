@@ -326,7 +326,9 @@ test('raw product attributes preserve repeated names and stay separate from SKU 
   assert.ok(observation.warnings.some((w) => w.code === 'invalid-product-attribute'));
 });
 
-test('wholesale USD quote is product-scoped, tolerates only decimal serialization noise, not an invented SKU tier', () => {
+test('wholesale headline is not a price when SKUs exist, even if every SKU quote is invalid', () => {
+  // The wholesale headline is Alibaba's cheapest-tier summary of the SKUs, not a
+  // price at MOQ. With SKUs present, prices come only from the SKUs.
   const observation = observeRaw({
     ...invalidSkuProduct,
     product_type: 'wholesale',
@@ -337,14 +339,30 @@ test('wholesale USD quote is product-scoped, tolerates only decimal serializatio
       price: '7.6699999999999999289457264239899814128875732421875',
     },
   });
-  const productOffer = observation.offers.find((o) => o.sourceVariantKey === undefined);
-  assert.deepEqual(productOffer?.pricing, {
+  assert.equal(
+    observation.offers.find((o) => o.sourceVariantKey === undefined),
+    undefined,
+  );
+  assert.equal(observation.offers.find((o) => o.sourceVariantKey)?.pricing.mode, 'unavailable');
+});
+
+test('wholesale USD headline without SKUs is the product price and tolerates only decimal serialization noise', () => {
+  const observation = observeRaw({
+    product_id: 'headline-only',
+    product_type: 'wholesale',
+    wholesale_trade: {
+      min_order_quantity: 1,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+      price: '7.6699999999999999289457264239899814128875732421875',
+    },
+  });
+  assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey === undefined)?.pricing, {
     mode: 'fixed',
     currency: 'USD',
     amountMinor: 767,
     minimumOrderQuantity: 1,
   });
-  assert.equal(observation.offers.find((o) => o.sourceVariantKey)?.pricing.mode, 'unavailable');
   for (const price of ['7.671', '7.675', 'garbage', '-1', '0', '10000000']) {
     const invalid = observeRaw({
       product_id: 'invalid',
@@ -400,12 +418,68 @@ test('wholesale SKU quantity prices retain the USD contract when product.get omi
     observation.offers.find((o) => o.externalVariantId === 'unquoted')?.pricing.mode,
     'unavailable',
   );
-  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
-    mode: 'fixed',
-    currency: 'USD',
-    amountMinor: 390,
-    minimumOrderQuantity: 5,
+  // The 3.90 headline equals the cheapest tier; it is not a product price.
+  assert.equal(
+    observation.offers.find((o) => !o.sourceVariantKey),
+    undefined,
+  );
+});
+
+test('wholesale product without SKUs uses its product ladder, not the headline', () => {
+  const observation = observeRaw({
+    product_id: 'wholesale-ladder',
+    product_type: 'wholesale',
+    wholesale_trade: {
+      price: '1.20',
+      min_order_quantity: 10,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+    },
+    ladder_prices: [
+      { min_quantity: 10, price: '1.30' },
+      { min_quantity: 500, price: '1.22' },
+      { min_quantity: 1000, price: '1.20' },
+    ],
   });
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 10, maximumQuantity: 499, unitAmountMinor: 130 },
+      { minimumQuantity: 500, maximumQuantity: 999, unitAmountMinor: 122 },
+      { minimumQuantity: 1000, unitAmountMinor: 120 },
+    ],
+  });
+});
+
+test('wholesale product without SKUs: unsupported trade, currency or ladder never becomes a price', () => {
+  const product = {
+    product_id: 'wholesale-no-sku-boundaries',
+    product_type: 'wholesale',
+    wholesale_trade: {
+      price: '1.20',
+      min_order_quantity: 10,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+    },
+    ladder_prices: [
+      { min_quantity: 10, price: '1.30' },
+      { min_quantity: 500, price: '1.20' },
+    ],
+  };
+  const productPricing = (patch: object) =>
+    observeRaw({ ...product, ...patch }).offers.find((o) => !o.sourceVariantKey)?.pricing;
+  for (const patch of [
+    { currency: 'CNY' },
+    { wholesale_trade: { ...product.wholesale_trade, sale_type: 'batch' } },
+    { wholesale_trade: { ...product.wholesale_trade, unit_type: 'Lot' } },
+    { ladder_prices: [{ min_quantity: -1, price: '1.30' }] },
+  ]) {
+    assert.equal(productPricing(patch)?.mode, 'unavailable', JSON.stringify(patch));
+  }
+  // Headline only (no ladder) in a non-USD currency is not a USD price either.
+  assert.equal(productPricing({ ladder_prices: undefined, currency: 'CNY' })?.mode, 'unavailable');
 });
 
 test('wholesale SKU currency does not bless conflicting currencies, units or invalid tiers', () => {
@@ -487,7 +561,7 @@ test('image-only descriptions retain ordered description media separately from t
   assert.deepEqual(candidate.value.images, []);
 });
 
-test('captured wire regression retains 47 attributes, 17 description images and both price scopes', () => {
+test('captured wire regression retains 47 attributes, 17 description images and only the SKU price scope', () => {
   const raw = readFileSync(
     new URL('../../../tests/fixtures/alibaba-camping-light-wire.json', import.meta.url),
     'utf8',
@@ -498,12 +572,11 @@ test('captured wire regression retains 47 attributes, 17 description images and 
   assert.equal(observation.content.description?.imageUrls?.length, 17);
   assert.equal(observation.content.description?.placeholder, false);
   assert.equal(observation.variants[0]?.options.length, 3);
-  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
-    mode: 'fixed',
-    currency: 'USD',
-    amountMinor: 767,
-    minimumOrderQuantity: 1,
-  });
+  // Wholesale with SKUs: the 7.67 headline is not stored as a product price.
+  assert.equal(
+    observation.offers.find((o) => !o.sourceVariantKey),
+    undefined,
+  );
   assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey)?.pricing, {
     mode: 'unavailable',
     minimumOrderQuantity: 1,

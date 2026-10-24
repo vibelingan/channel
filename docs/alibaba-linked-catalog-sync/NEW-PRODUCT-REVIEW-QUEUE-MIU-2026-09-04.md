@@ -83,3 +83,13 @@ resurrect a reviewed product as New. Unlinking clears the Alibaba review state.
 7. Production-like CloudBase indexes exist before enabling the UI query.
 8. Browser verification confirms real data, notification dots, New badges, and
    no public publication side effect.
+
+## Update 2026-10-08 — "changed" and "removed" (catalog single source of truth)
+
+"Never resurrect as New" still holds: nothing sets the review reason `'new'` on a
+product an admin already reviewed. A second rule now sits beside it: when a sync
+or a quarantine approval sees that the source's public content differs from what
+was approved (or the source is gone), the product is flagged again with reason
+`'changed'` (or `'removed'`). See
+`docs/catalog-single-source-of-truth/DESIGN.md` (DEC-6, DEC-7) and MIU-19/MIU-20 in
+`MIU_BREAKDOWN.md`.

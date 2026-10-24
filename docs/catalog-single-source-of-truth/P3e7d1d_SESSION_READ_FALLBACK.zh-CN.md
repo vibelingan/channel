@@ -1,0 +1,12 @@
+# P3e7d1d 浏览器会话读取失效保护
+
+基线5024700b。恢复记录已处理localStorage失效，但getToken/getUser仍在getter/getItem时直接抛异常，useSession和DashboardShell可在渲染/同步时崩溃。此MIU只保证会话读取在不可访问时返回未登录，不缓存旧token、不凭恢复记录授予身份、不改变登录写入/退出语义、JWT/角色/服务端授权。存储恢复后下一次读取使用真实最新值。
+
+先对真正抛SecurityError的getter/getItem、无浏览器存储、正常/坏JSON和恢复后新身份写控制；在既有Chromium/WebKit真实存储场景内验证actual session模块。红后收拢两getter到可失败的读取函数，再完整相关站点/Node20客户端和类型/构建，review。批量队列仍需每次私有RPC前确认原actor/环境，存储不可读时不能发送新发布写；登录写入失败的现有错误不被此MIU吞掉，不能宣称磁盘不可用时持久登录已完成。fullDeliveryReady=false。
+
+
+## 实施与复核
+
+两getter共用readSessionValue，getter/getItem/无全局都返回不可用值；JSON解析、角色函数、写入和服务端鉴权语义保留。7新控制和2增强实际Chromium/WebKit场景先9项3过6败，再含10条既有auth通知的19项全绿；真实浏览器验证恢复后原token仍可重新读取、pageerror0、所有Storage覆盖finally还原。两种删除保护故障触发10重叠失败并恢复源码SHA。site1040、Node20客户端241、站点/E2E/既有测试类型、3Biome/15页构建通过；未变完整Node203349/后台包沿用5024700b与9efd824c，相关证据6323含复用，未冒称此步重跑657SDK/14原生产物。
+
+实际review/simplify核对三代码/测试、useSession、DashboardShell、AdminApp与AccountMenu。发现登录守卫/退出还会调用未保护的clearSession；本步只关闭读取getter问题，完整“存储不可用的后台流程”仍需其写入/清除失败的明确反馈。humanizer核对本文与实施记录，把“后台降级已完成”收紧为“实际session模块读取不抛错”，保留后续清除/登录失败与队列每次身份绑定门槛。不能通过内存旧token或恢复记录绕过登录，fullDeliveryReady=false。

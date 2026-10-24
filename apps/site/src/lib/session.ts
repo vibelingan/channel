@@ -30,14 +30,20 @@ export class SessionApiError extends Error {
   }
 }
 
+function readSessionValue(key: string): string | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 export function getToken(): string {
-  if (typeof localStorage === 'undefined') return '';
-  return localStorage.getItem(TOKEN_KEY) ?? '';
+  return readSessionValue(TOKEN_KEY) ?? '';
 }
 
 export function getUser(): SessionUser | null {
-  if (typeof localStorage === 'undefined') return null;
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = readSessionValue(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as SessionUser;
@@ -47,23 +53,40 @@ export function getUser(): SessionUser | null {
 }
 
 export function setSession(token: string, user: SessionUser): void {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    throw new SessionApiError(
+      'STORAGE_UNAVAILABLE',
+      'This browser could not save your session. Allow site storage, then sign in again.',
+    );
+  }
   window.dispatchEvent(new Event(AUTH_EVENT));
 }
 
 export function clearSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    throw new SessionApiError(
+      'STORAGE_UNAVAILABLE',
+      'This browser could not confirm sign out. Allow site storage, then try signing out again.',
+    );
+  }
   window.dispatchEvent(new Event(AUTH_EVENT));
 }
 
 export function onAuthChange(handler: () => void): () => void {
+  const storageChanged = (event: StorageEvent) => {
+    if (event.key === null || event.key === TOKEN_KEY || event.key === USER_KEY) handler();
+  };
   window.addEventListener(AUTH_EVENT, handler);
-  window.addEventListener('storage', handler);
+  window.addEventListener('storage', storageChanged);
   return () => {
     window.removeEventListener(AUTH_EVENT, handler);
-    window.removeEventListener('storage', handler);
+    window.removeEventListener('storage', storageChanged);
   };
 }
 

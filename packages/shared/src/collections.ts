@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { ROLES, type Role, canEditCollection, canReadCollection } from './auth.ts';
 import { PRODUCT_FAMILY_OPTIONS } from './catalog-product.ts';
+import { ConfigurationPhotosSchema, SupplierDecisionsSchema } from './catalog/supplier-review.ts';
 import { manualCatalogPricingSchema } from './manual-catalog-pricing.ts';
 import {
   CATALOG_IMAGE_MAX_COUNT,
@@ -77,6 +78,12 @@ export interface CollectionDef {
   description?: string;
   /** Fields the free-text search box matches against. */
   searchableFields: readonly string[];
+  /**
+   * Fields the public storefront search matches, when narrower than the admin
+   * search: internal identifiers (e.g. the Alibaba product ID) stay admin-only.
+   * Absent means the same as `searchableFields`.
+   */
+  publicSearchableFields?: readonly string[];
   fields: readonly FieldDef[];
   /** Hide from the dashboard navigation (managed indirectly, e.g. images). */
   hideFromNav?: boolean;
@@ -99,6 +106,13 @@ export const ALIBABA_SOURCE_STATUS_OPTIONS = [
   'removed',
   'unknown',
 ] as const;
+
+/**
+ * Why a product needs review: first sight, a supplier change since approval,
+ * removal at the source, or a contributor edit waiting for an admin (DEC-7).
+ */
+export const ALIBABA_REVIEW_REASON_OPTIONS = ['new', 'changed', 'removed', 'edited'] as const;
+export type AlibabaReviewReason = (typeof ALIBABA_REVIEW_REASON_OPTIONS)[number];
 
 /** Run lifecycle states for alibabaSyncRuns (ARCHITECTURE §12, R1). */
 export const ALIBABA_SYNC_RUN_STATUS_OPTIONS = [
@@ -276,6 +290,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     label: 'Products',
     description: 'Catalog products (headphones and other categories).',
     searchableFields: ['name', 'series', 'modName', 'alibabaSourceProductId'],
+    publicSearchableFields: ['name', 'series', 'modName'],
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       {
@@ -338,6 +353,24 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         label: 'Source description images',
         type: 'json',
         readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
+      },
+      {
+        // Gallery photos shown for each configuration when Alibaba gives none
+        // or the admin chooses others (DEC-20). Approval publishes them.
+        name: 'configurationPhotos',
+        label: 'Configuration photos',
+        type: 'json',
+        hideInTable: true,
+        hideInForm: true,
+      },
+      {
+        // The admin's Keep / Use incoming per part, for one exact incoming
+        // supplier value (DEC-19). The Changed flag stays until each is decided.
+        name: 'supplierDecisions',
+        label: 'Supplier decisions',
+        type: 'json',
         hideInTable: true,
         hideInForm: true,
       },
@@ -444,6 +477,16 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         hideInTable: true,
       },
       {
+        // Why the product needs review (DEC-7). Absent on older rows: a pending
+        // row without a reason means 'new'.
+        name: 'alibabaReviewReason',
+        label: 'Alibaba Review Reason',
+        type: 'select',
+        options: ALIBABA_REVIEW_REASON_OPTIONS,
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
         name: 'alibabaReviewedAt',
         label: 'Alibaba Reviewed At',
         type: 'date',
@@ -456,6 +499,27 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         type: 'string',
         readOnly: true,
         hideInTable: true,
+      },
+      {
+        // A new draft stays out of the admin list until its Alibaba photos are
+        // copied into our storage (PT-G).
+        name: 'alibabaPhotosPending',
+        label: 'Alibaba Photos Pending',
+        type: 'boolean',
+        readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
+      },
+      {
+        // What the sync filled in automatically, per part: the sources copied
+        // and the photo ids set. A part equal to this is still the sync's to
+        // refresh; anything else is the admin's (PT-G).
+        name: 'alibabaAutoPhotos',
+        label: 'Alibaba Auto Photos',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
       },
     ],
   },
@@ -1678,6 +1742,12 @@ export function getCollection(name: string): CollectionDef | undefined {
   return COLLECTION_MAP.get(name);
 }
 
+/** Fields the public storefront search may match (never admin-only identifiers). */
+export function publicSearchFields(name: string): readonly string[] {
+  const def = getCollection(name);
+  return def?.publicSearchableFields ?? def?.searchableFields ?? [];
+}
+
 export function isKnownCollection(name: string): boolean {
   return COLLECTION_MAP.has(name);
 }
@@ -1740,16 +1810,20 @@ function zodForField(field: FieldDef): z.ZodTypeAny {
       schema =
         field.name === 'manualCatalogPricing'
           ? manualCatalogPricingSchema
-          : field.maxItems === undefined
-            ? z.unknown()
-            : z.unknown().superRefine((value, ctx) => {
-                if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
-                  ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: `${field.label} must contain at most ${field.maxItems} items`,
+          : field.name === 'supplierDecisions'
+            ? SupplierDecisionsSchema
+            : field.name === 'configurationPhotos'
+              ? ConfigurationPhotosSchema
+              : field.maxItems === undefined
+                ? z.unknown()
+                : z.unknown().superRefine((value, ctx) => {
+                    if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
+                      ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: `${field.label} must contain at most ${field.maxItems} items`,
+                      });
+                    }
                   });
-                }
-              });
       break;
     default:
       schema = z.string();

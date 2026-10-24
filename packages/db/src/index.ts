@@ -1,3 +1,60 @@
+import {
+  type CatalogImageReferenceReadCommand,
+  CatalogImageReferenceReadSchema,
+} from './catalog-image-reference-store.ts';
+import { isImageReferenceWriteConflict } from './catalog-image-reference-write.ts';
+export {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  emptyCatalogImageReferenceCount,
+} from './catalog-image-reference-store.ts';
+export function readCatalogImageReference(command: CatalogImageReferenceReadCommand) {
+  const input = CatalogImageReferenceReadSchema.parse(command);
+  const adapter = db();
+  if (!adapter.readCatalogImageReference)
+    throw Error('Image reference snapshot adapter is not configured');
+  return adapter.readCatalogImageReference(input);
+}
+import { approvalImageHoldCancelled } from './catalog-approval-image-hold.ts';
+import { findCatalogPreparationImageHold } from './catalog-preparation-image-hold.ts';
+import { CATALOG_PREPARATION_JOBS, readCatalogPreparationJob } from './catalog-preparation-jobs.ts';
+import { type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
+export {
+  runImageUpload,
+  imageUploadInputDigest,
+  hasImageUploadCompletion,
+  canReverifyLegacyImageUpload,
+  ImageUploadCommandSchema,
+} from './image-upload.ts';
+export type { ImageUploadCommand, ImageUploadResult } from './image-upload.ts';
+export function manageImageUpload(command: ImageUploadCommand) {
+  const input = ImageUploadCommandSchema.parse(command);
+  const adapter = db();
+  if (!adapter.manageImageUpload) throw new Error('Image upload adapter is not configured');
+  return adapter.manageImageUpload(input);
+}
+import {
+  type SourceMediaImportCommand,
+  SourceMediaImportCommandSchema,
+} from './source-media-import.ts';
+export {
+  runSourceMediaImport,
+  SOURCE_MEDIA_IMPORT_OWNER,
+  SOURCE_MEDIA_IMPORT_LEASE_MS,
+  SourceMediaImportCommandSchema,
+  SourceMediaTargetSchema,
+} from './source-media-import.ts';
+export type {
+  SourceMediaImportCommand,
+  SourceMediaImportResult,
+  SourceMediaTarget,
+} from './source-media-import.ts';
+export function manageSourceMediaImport(command: SourceMediaImportCommand) {
+  const input = SourceMediaImportCommandSchema.parse(command);
+  const adapter = db();
+  if (!adapter.manageSourceMediaImport)
+    throw new Error('Source media import adapter is not configured');
+  return adapter.manageSourceMediaImport(input);
+}
 /**
  * Repository facade. Backend code (cloud functions, local-server) imports these
  * functions and never touches a concrete database. The active `DbAdapter` is
@@ -27,7 +84,48 @@ import type {
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
+export type {
+  ProductOperationRecord,
+  ProductOperationResult,
+} from './catalog-product-operation.ts';
+import { APPROVAL_JOB_DELETE_MARGIN_MS, APPROVAL_JOB_MAX_AGE_MS } from './approval-job-age.ts';
+import { type ImageDeletionCommand, ImageDeletionCommandSchema } from './image-deletion.ts';
+export { executeImageDeletion } from './image-deletion-runner.ts';
+export {
+  runImageDeletion,
+  readImageDeletionIntent,
+  ImageDeletionCommandSchema,
+} from './image-deletion.ts';
+export type {
+  ImageDeletionCommand,
+  ImageDeletionResult,
+  ImageDeletionIntent,
+  ImageDeletionStore,
+} from './image-deletion.ts';
+
+export function manageImageDeletion(command: ImageDeletionCommand) {
+  const input = ImageDeletionCommandSchema.parse(command);
+  const adapter = db();
+  if (!adapter.manageImageDeletion) throw new Error('Image deletion adapter is not configured');
+  return adapter.manageImageDeletion(input);
+}
+
+import { CatalogProductOperationBindingSchema } from '@vibelingan-channel/shared/catalog-product-operation';
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+import {
+  type OwnedApprovalCandidateReader,
+  prepareOwnedApprovalSeed,
+} from './catalog-operation-approval-seed.ts';
+export type {
+  OwnedApprovalCandidate,
+  OwnedApprovalCandidateReader,
+} from './catalog-operation-approval-seed.ts';
+import { persistOwnedReferencePageWithRecovery } from './catalog-operation-reference-recovery.ts';
+import {
+  type ProductOperationSaveContinuation,
+  type ProductOperationStartNormalizer,
+  runProductOperationWorkflow,
+} from './catalog-product-operation-workflow.ts';
 export function manageCatalogCategory(actorId: string, input: unknown) {
   const adapter = db();
   if (!adapter.manageCatalogCategory)
@@ -41,6 +139,7 @@ export {
   ALIBABA_PRODUCT_LINK_LIMIT,
   alibabaPricingFingerprint,
   alibabaLinkRevision,
+  flagForReview,
   readImageMutationState,
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
@@ -109,16 +208,96 @@ export async function mutateAlibabaProduct(
   }
   return adapter.mutateAlibabaProduct(input);
 }
+export async function manageCatalogPreparationJob(
+  authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
+  command: import('./catalog-preparation-jobs.ts').CatalogPreparationJobCommand,
+  now?: number,
+) {
+  const adapter = db();
+  if (!adapter.manageCatalogPreparationJob)
+    throw new Error('Preparation job persistence unavailable');
+  return adapter.manageCatalogPreparationJob(authority, command, now);
+}
+/** Server-only point read. Generic CRUD keeps the private jobs collection unregistered. */
+export async function readCatalogPreparationLease(
+  authority: import('./catalog-preparation-jobs.ts').CatalogPreparationAuthority,
+  jobId: string,
+  lease: unknown,
+  now = Date.now(),
+) {
+  if (authority.cleanupLeaseScope(lease)?.jobId !== jobId) return null;
+  const job = readCatalogPreparationJob(
+    await db().get(CATALOG_PREPARATION_JOBS, jobId),
+    jobId,
+    now,
+  );
+  return job ? authority.currentLeaseScope(lease, job) : null;
+}
+export async function prepareCatalogProductOperationApproval(
+  actorId: string,
+  input: unknown,
+  canBegin: () => boolean = () => true,
+  readCandidate?: OwnedApprovalCandidateReader,
+) {
+  const parsed = CatalogProductOperationBindingSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
+  const scope = parsed.data;
+  const result = await prepareOwnedApprovalSeed(
+    { get, persist: persistCatalogDetailApproval },
+    actorId,
+    scope,
+    canBegin,
+    readCandidate,
+  );
+  if (!result.ok) return result;
+  return manageCatalogProductOperation(actorId, {
+    action: 'product-operation-get',
+    productId: scope.productId,
+    operationId: scope.operationId,
+  });
+}
+export function manageCatalogProductOperation(
+  actorId: string,
+  input: unknown,
+  normalizeStart?: ProductOperationStartNormalizer,
+  save?: (input: CatalogProductSaveInput) => Promise<CatalogProductSaveResult>,
+  continuation?: ProductOperationSaveContinuation,
+) {
+  return runProductOperationWorkflow(
+    { persist: persistCatalogDetailApproval, save: save ?? saveCatalogProductWithIdentities },
+    actorId,
+    input,
+    normalizeStart,
+    continuation,
+  );
+}
 export function manageCatalogDetailApproval(actorId: string, input: unknown) {
   return runCatalogApprovalWorkflow({ get, persist: persistCatalogDetailApproval }, actorId, input);
 }
 export async function persistCatalogDetailApproval(
   actorId: string,
   input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
+  referenceRecovery?: unknown,
+  referenceBudgetMs?: number,
 ) {
   const adapter = db();
   if (!adapter.persistCatalogDetailApproval)
     throw new Error('Staged approval persistence unavailable');
+  if (
+    input.action === 'operation-approval-reference-page' ||
+    input.action === 'operation-live-save-reference-page'
+  )
+    return persistOwnedReferencePageWithRecovery(
+      {
+        get: adapter.get.bind(adapter),
+        persist: adapter.persistCatalogDetailApproval.bind(adapter),
+      },
+      actorId,
+      input,
+      referenceRecovery,
+      undefined,
+      referenceBudgetMs,
+    );
   return adapter.persistCatalogDetailApproval(actorId, input);
 }
 export async function approveCatalogDetail(actorId: string, input: unknown) {
@@ -161,10 +340,14 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
     collection: query.collection,
     ...(query.productFamily ? { productFamily: query.productFamily } : {}),
     ...(query.needsClassification ? { needsClassification: true } : {}),
+    ...(query.hidePreparing ? { hidePreparing: true } : {}),
+    ...(query.catalogReadiness ? { catalogReadiness: query.catalogReadiness } : {}),
+    ...(query.catalogListView !== undefined ? { catalogListView: query.catalogListView } : {}),
     ...(query.productSubcategories ? { productSubcategories: query.productSubcategories } : {}),
     page,
     pageSize,
     search: (query.search ?? '').trim(),
+    ...(query.searchFields ? { searchFields: query.searchFields } : {}),
     ...(query.filter ? { filter: query.filter } : {}),
     ...(query.sort ? { sort: query.sort } : {}),
   });
@@ -230,7 +413,8 @@ export function updateDoc(
  * Trusted, server-side atomic increment of one numeric field, bypassing the
  * registry write-schema. Used to maintain server-managed counters such as
  * `images.publishedRefCount` (read-only on the generic CRUD surface). Returns
- * the new value, or `null` if the document does not exist.
+ * the new value, or `null` if the document does not exist. Image reference counters
+ * also return null for a legacy row whose counter is absent, preserving its unknown base.
  */
 export function incrementField(
   collection: string,
@@ -299,13 +483,7 @@ export function releaseImageMutation(
  * silently coerce it to 0 and diverge. `delta` is assumed already validated
  * (finite integer) by `incrementField`.
  */
-export function nextCounterValue(current: unknown, delta: number): number {
-  if (current === undefined || current === null) return delta;
-  if (typeof current === 'number' && Number.isFinite(current)) return current + delta;
-  throw new Error(
-    `@vibelingan-channel/db: cannot increment a non-numeric counter value (got ${typeof current}).`,
-  );
-}
+export { nextCounterValue } from './counter-value.ts';
 
 export function remove(collection: string, id: string): Promise<boolean> {
   assertKnown(collection);
@@ -640,14 +818,71 @@ export interface BackfillRefCountsReport {
   dryRun: boolean;
   imagesScanned: number;
   changes: { imageId: string; from: number | null; to: number }[];
+  skipped?: { imageId: string; reason: 'managed-references' | 'missing' }[];
+}
+
+/**
+ * The unfinished approval job, if any, whose version would publish this photo.
+ *
+ * Approval reads shared photos and never writes them (DEC-21), so a delete
+ * path cannot rely on a write conflict with the approval. Delete paths call
+ * this after locking the photo: a job begun before the lock is found here; a
+ * job begun after it finds the photo locked and refuses inside its own
+ * transaction. A job older than the approval limit (plus a margin) is
+ * ignored: it can no longer finish.
+ */
+export async function unfinishedApprovalUsingImage(imageId: string): Promise<string | null> {
+  const startedAfter = new Date(
+    Date.now() - APPROVAL_JOB_MAX_AGE_MS - APPROVAL_JOB_DELETE_MARGIN_MS,
+  ).toISOString();
+  const adapter = db();
+  if (adapter.findUnfinishedApprovalUsingImage)
+    return adapter.findUnfinishedApprovalUsingImage(imageId, startedAfter);
+  let afterId = '';
+  for (;;) {
+    const page = await list({
+      collection: 'catalogDetailApprovals',
+      page: 1,
+      pageSize: 100,
+      search: '',
+      sort: [{ field: '_id', dir: 'asc' }],
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'state', op: 'eq', value: 'staging' },
+          // Older jobs can no longer finish (finishStagedApproval refuses them).
+          { field: 'createdAt', op: 'gt', value: startedAfter },
+          ...(afterId ? [{ field: '_id', op: 'gt' as const, value: afterId }] : []),
+        ],
+      },
+    });
+    for (const job of page.items) {
+      if (approvalImageHoldCancelled(job)) continue;
+      const productId = typeof job.productId === 'string' ? job.productId : '';
+      if (
+        productId &&
+        catalogReferencedImageIds({
+          _id: productId,
+          catalogDetailPublication: job.publication,
+        }).includes(imageId)
+      )
+        return productId;
+    }
+    if (page.items.length < 100) return null;
+    const last = page.items.at(-1)?._id;
+    // Fail closed: a page we cannot continue past must not read as "no approval".
+    if (typeof last !== 'string' || !last) throw new Error('Approval job without an id');
+    afterId = last;
+  }
 }
 
 /**
  * recompute `images.publishedRefCount` from the current public catalog: for each
  * image, the number of PUBLISHED products/overstock documents that reference it.
  * Scope comes from `PUBLIC_CATALOG_COLLECTIONS`, shared with routing and online
- * counter maintenance. Every image's counter is set to
- * its tally (0 when unreferenced); duplicate ids within one document count once.
+ * counter maintenance. Legacy image counters are set to their tally (0 when
+ * unreferenced); duplicate ids within one document count once. Images with a
+ * publication reference ledger are reported as skipped and cannot be reset here.
  *
  * This is the canonical reconciliation for MIU-04 (design §20.6 step 5): it
  * repairs drift from the non-transactional maintenance path and initialises rows
@@ -657,8 +892,8 @@ export interface BackfillRefCountsReport {
  *
  * Run during a quiescent window: it writes ABSOLUTE counts, so a live increment
  * (Phase B maintenance) landing between this function's read and its write can be
- * transiently clobbered — re-run to reconcile. Not a concern for the local seed
- * or a one-shot admin maintenance call.
+ * transiently clobbered. A one-shot admin invocation still requires that window;
+ * the write-time ledger guard only prevents overwriting managed reference state.
  */
 export async function backfillPublishedRefCounts(
   opts: { dryRun?: boolean } = {},
@@ -690,6 +925,7 @@ export async function backfillPublishedRefCounts(
 
   // Set every image's counter to its tally.
   const changes: BackfillRefCountsReport['changes'] = [];
+  const skipped: NonNullable<BackfillRefCountsReport['skipped']> = [];
   let imagesScanned = 0;
   let page = 1;
   for (;;) {
@@ -703,16 +939,45 @@ export async function backfillPublishedRefCounts(
     for (const image of res.items) {
       imagesScanned += 1;
       const id = String(image._id);
+      if (Object.hasOwn(image, 'catalogPublishedReferenceLedger')) {
+        skipped.push({ imageId: id, reason: 'managed-references' });
+        continue;
+      }
       const to = counts.get(id) ?? 0;
       const from = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : null;
       if (from !== to) {
+        if (!dryRun) {
+          try {
+            const updated = await updateDoc('images', id, { publishedRefCount: to });
+            if (!updated || Object.hasOwn(updated, 'catalogPublishedReferenceLedger')) {
+              skipped.push({ imageId: id, reason: updated ? 'managed-references' : 'missing' });
+              continue;
+            }
+          } catch (error) {
+            if (!isImageReferenceWriteConflict(error)) throw error;
+            skipped.push({ imageId: id, reason: 'managed-references' });
+            continue;
+          }
+        }
         changes.push({ imageId: id, from, to });
-        if (!dryRun) await updateDoc('images', id, { publishedRefCount: to });
       }
     }
     if (res.items.length === 0 || page * res.pageSize >= res.total) break;
     page += 1;
   }
 
-  return { dryRun, imagesScanned, changes };
+  return { dryRun, imagesScanned, changes, ...(skipped.length ? { skipped } : {}) };
 }
+
+/** Must run under the image mutex, before ordinary reference scans. */
+export async function preparationUsingImage(imageId: string): Promise<string | null> {
+  const adapter = db();
+  return findCatalogPreparationImageHold(
+    { get: (collection, id) => adapter.get(collection, id), list: (query) => adapter.list(query) },
+    imageId,
+    Date.now(),
+    readCatalogPreparationJob,
+  );
+}
+
+export { projectCatalogProductOperationStatus } from './catalog-product-operation-workflow.ts';

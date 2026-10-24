@@ -1,23 +1,60 @@
 /** Bounded server-only source preparation. No provider calls and no publication writes. */
 import { createHash } from 'node:crypto';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   CatalogContentSchema,
-  CatalogDetailHeaderSchema,
+  type CatalogDetailVariant,
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  CatalogSourceDetailHeaderSchema,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  type PublicSourceDigestInput,
+  publicSourceDigest,
+} from '@vibelingan-channel/shared/catalog-source-digest';
 import { z } from 'zod';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
+import {
+  CatalogPreparedSourceBindingSchema,
+  primarySourceLinkSnapshot,
+} from './catalog-source-binding.ts';
+import { sourceBindingHash, sourceInputDigest } from './catalog-source-inputs.ts';
 
 const id = z.string().trim().min(1).max(200);
 export const sourceDigest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
+/**
+ * The admin's photo set: gallery, description photos and configuration photo
+ * choices (DEC-20). Fields absent on older rows keep the digest they had.
+ */
 export const sourceGalleryDigest = (product: Record<string, unknown>) =>
   sourceDigest(
-    product.descriptionImageIds === undefined
-      ? (product.imageIds ?? [])
-      : [product.imageIds ?? [], product.descriptionImageIds],
+    product.configurationPhotos !== undefined
+      ? [product.imageIds ?? [], product.descriptionImageIds ?? null, product.configurationPhotos]
+      : product.descriptionImageIds === undefined
+        ? (product.imageIds ?? [])
+        : [product.imageIds ?? [], product.descriptionImageIds],
   );
+/**
+ * What a buyer would see from the observation this candidate was built from
+ * (MIU-17). A stored row without the public fields records no digest; the
+ * one-time change audit (MIU-38) handles products prepared without one.
+ */
+function publicDigestOf(observation: unknown): string | undefined {
+  const value = observation as Partial<PublicSourceDigestInput> | null;
+  return value &&
+    Array.isArray(value.variants) &&
+    Array.isArray(value.offers) &&
+    Array.isArray(value.identity?.attributes) &&
+    Array.isArray(value.content?.media)
+    ? publicSourceDigest(value as PublicSourceDigestInput)
+    : undefined;
+}
+
 export const SourcePageSchema = z
   .object({
     action: z.literal('source-page'),
@@ -25,14 +62,16 @@ export const SourcePageSchema = z
     sourceKey: id,
     observationId: id,
     observationDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    expectedBinding: CatalogPreparedSourceBindingSchema,
     revision: z.string().regex(/^[a-f0-9]{64}$/),
     galleryDigest: z.string().regex(/^[a-f0-9]{64}$/),
-    header: CatalogDetailHeaderSchema,
+    contentGeneration: z.number().int().nonnegative().safe().optional(),
+    header: CatalogSourceDetailHeaderSchema,
     content: CatalogContentSchema.nullable(),
     noteBlocks: CatalogNoteBlocksSchema.nullable(),
     variantIds: z
       .array(id)
-      .max(10000)
+      .max(CATALOG_DETAIL_VARIANT_MAX_COUNT)
       .refine((ids) => new Set(ids).size === ids.length),
     page: z.number().int().min(0).max(499),
     variants: z.array(CatalogDetailVariantSchema).max(20),
@@ -47,6 +86,17 @@ export const SourcePageSchema = z
           .strict(),
       )
       .max(20)
+      .optional(),
+    /**
+     * Our image ids for the supplier's gallery and description images, in
+     * order; null while any of them is not imported yet (MIU-39).
+     */
+    supplierMedia: z
+      .object({
+        gallery: z.array(id).max(9).nullable(),
+        descriptionImages: z.array(id).max(18).nullable(),
+      })
+      .strict()
       .optional(),
   })
   .strict();
@@ -64,13 +114,23 @@ export async function stageSourcePage(
   if (actor?.role !== 'admin' || actor.status === 'suspended') return fail('FORBIDDEN');
   const product = await tx.get('products', input.productId);
   const observed = await tx.get('catalogSourceObservations', input.observationId);
+  const source = await tx.get('alibabaSourceProducts', input.sourceKey);
+  const link = await tx.get('alibabaProductLinks', input.sourceKey);
+  const primaryLink = source ? primarySourceLinkSnapshot(source, link, input.productId) : null;
   if (
     !product ||
     product.alibabaPrimarySourceKey !== input.sourceKey ||
     product.archived === true ||
     !observed ||
+    !source ||
+    !primaryLink?.ok ||
+    input.observationId !== sourceObservationDocumentId('alibaba', input.sourceKey) ||
+    sourceBindingHash(source) !== input.expectedBinding.sourceHash ||
+    sourceInputDigest(observed) !== input.expectedBinding.observationHash ||
+    primaryLink.linkHash !== input.expectedBinding.linkHash ||
     sourceDigest(observed.observation) !== input.observationDigest ||
-    sourceGalleryDigest(product) !== input.galleryDigest
+    sourceGalleryDigest(product) !== input.galleryDigest ||
+    (product.catalogContentGeneration ?? 0) !== (input.contentGeneration ?? 0)
   )
     return fail('CONFLICT');
   if (input.header._id !== product._id) return fail('VALIDATION_ERROR');
@@ -95,7 +155,24 @@ export async function stageSourcePage(
     pages,
     complete: nextPage === pages,
   });
-  if (same && cursor > input.page) return progress(cursor);
+  if (same && cursor > input.page) {
+    // Already prepared from this exact observation (the revision covers it).
+    // Products prepared before digests existed get theirs now; otherwise every
+    // later approval would carry none and the sync could never flag them.
+    // An import since the last prepare may have linked a supplier photo.
+    const publicDigest = publicDigestOf(observed.observation);
+    const patch = {
+      ...(publicDigest !== undefined && product.detailSourcePublicDigest !== publicDigest
+        ? { detailSourcePublicDigest: publicDigest }
+        : {}),
+      ...(input.supplierMedia &&
+      JSON.stringify(product.detailSourceSupplierMedia) !== JSON.stringify(input.supplierMedia)
+        ? { detailSourceSupplierMedia: input.supplierMedia }
+        : {}),
+    };
+    if (Object.keys(patch).length > 0) await tx.set('products', { ...product, ...patch });
+    return progress(cursor);
+  }
   if (input.page !== cursor) return fail('SOURCE_NOT_READY');
   const owner = `alibaba:${input.sourceKey}`;
   const rows = [];
@@ -103,40 +180,90 @@ export async function stageSourcePage(
     const existing = await tx.get('productVariants', variant.id);
     if (existing && (existing.productId !== product._id || existing.detailSourceOwner !== owner))
       return fail('CONFLICT');
-    rows.push({
-      ...existing,
-      _id: variant.id,
-      productId: product._id,
-      detailSourceOwner: owner,
-      detailSourceRevision: input.revision,
-      detailSourceMissing: false,
-      archived: false,
-      position: input.page * 20 + offset,
-      sku: variant.sku ?? '',
-      optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
-      imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
-      detailSourceMediaSources: input.variantMedia?.find((m) => m.id === variant.id)?.sources ?? [],
-      detailSourceUnboundMediaSources:
-        input.variantMedia?.find((m) => m.id === variant.id)?.unboundSources ?? [],
-      detailSourceCandidate: variant,
-    });
+    rows.push(
+      projectCatalogSourceVariantRow(
+        existing,
+        input,
+        input.page * 20 + offset,
+        variant,
+        input.variantMedia?.find((m) => m.id === variant.id),
+      ),
+    );
   }
   for (const row of rows) await tx.set('productVariants', row);
   // Write the observed row too: concurrent sync is a transaction conflict, not a stale seal.
   await tx.set('catalogSourceObservations', {
     ...observed,
-    detailPreparationFence: input.revision,
+    detailPreparationFence: sourceDigest([input.revision, input.page]),
   });
-  await tx.set('products', {
-    ...product,
-    detailSourceOwner: owner,
+  await tx.set('products', projectCatalogSourceProduct(product, input, observed.observation));
+  return progress(input.page + 1);
+}
+
+type SourceInput = z.infer<typeof SourcePageSchema>;
+
+/** The same canonical fields are used by preflight and the native page write. */
+export function projectCatalogSourceVariantRow(
+  existing: CollectionDoc | null,
+  input: Pick<SourceInput, 'productId' | 'sourceKey' | 'revision'>,
+  position: number,
+  variant: CatalogDetailVariant,
+  media: NonNullable<SourceInput['variantMedia']>[number] | undefined,
+): CollectionDoc {
+  return {
+    ...existing,
+    _id: variant.id,
+    productId: input.productId,
+    detailSourceOwner: `alibaba:${input.sourceKey}`,
     detailSourceRevision: input.revision,
+    detailSourceMissing: false,
+    archived: false,
+    position,
+    sku: variant.sku ?? '',
+    optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
+    imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
+    detailSourceMediaSources: media?.sources ?? [],
+    detailSourceUnboundMediaSources: media?.unboundSources ?? [],
+    detailSourceCandidate: variant,
+  };
+}
+
+/** Model the stored candidate without changing the saved product or its lifecycle. */
+export function projectCatalogSourceProduct(
+  product: CollectionDoc,
+  input: Pick<
+    SourceInput,
+    | 'sourceKey'
+    | 'revision'
+    | 'contentGeneration'
+    | 'variantIds'
+    | 'page'
+    | 'header'
+    | 'content'
+    | 'noteBlocks'
+    | 'supplierMedia'
+  >,
+  observation: unknown,
+): CollectionDoc {
+  const publicDigest = publicDigestOf(observation);
+  // A re-prepare without these must not keep old ones.
+  const {
+    detailSourcePublicDigest: _previous,
+    detailSourceSupplierMedia: _previousMedia,
+    ...current
+  } = product;
+  return {
+    ...current,
+    detailSourceOwner: `alibaba:${input.sourceKey}`,
+    detailSourceRevision: input.revision,
+    detailSourceContentGeneration: input.contentGeneration ?? 0,
     detailSourceManifest: { revision: input.revision, variantIds: input.variantIds },
     detailSourceNextPage: input.page + 1,
-    detailSourceReady: input.page + 1 === pages,
+    detailSourceReady: input.page + 1 === Math.max(1, Math.ceil(input.variantIds.length / 20)),
     detailSourceCandidate: input.header,
     detailSourceContentCandidate: input.content,
     detailSourceNoteBlocksCandidate: input.noteBlocks,
-  });
-  return progress(input.page + 1);
+    ...(publicDigest === undefined ? {} : { detailSourcePublicDigest: publicDigest }),
+    ...(input.supplierMedia ? { detailSourceSupplierMedia: input.supplierMedia } : {}),
+  };
 }

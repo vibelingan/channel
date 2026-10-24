@@ -5,8 +5,7 @@ import {
 } from '@vibelingan-channel/db';
 import {
   type CollectionDoc,
-  normalizeProductSlug,
-  normalizeSkuCode,
+  canonicalizeCatalogProductIdentities,
 } from '@vibelingan-channel/shared';
 
 export type CatalogProductWriteErrorCode =
@@ -36,39 +35,13 @@ function canonicalizeIdentityFields(values: unknown): Record<string, unknown> {
   if (!values || typeof values !== 'object' || Array.isArray(values)) {
     throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product values are invalid.');
   }
-  const record = values as Record<string, unknown>;
-  const canonical = { ...record };
-  if (Object.hasOwn(record, 'slug')) {
-    if (
-      record.slug === undefined ||
-      record.slug === null ||
-      (typeof record.slug === 'string' && record.slug.trim() === '')
-    ) {
-      canonical.slug = typeof record.slug === 'string' ? '' : record.slug;
-    } else {
-      const slug = normalizeProductSlug(record.slug);
-      if (slug === null) {
-        throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product slug is invalid.');
-      }
-      canonical.slug = slug;
-    }
-  }
-  if (Object.hasOwn(record, 'skuCode')) {
-    if (
-      record.skuCode === undefined ||
-      record.skuCode === null ||
-      (typeof record.skuCode === 'string' && record.skuCode.trim() === '')
-    ) {
-      canonical.skuCode = typeof record.skuCode === 'string' ? '' : record.skuCode;
-    } else {
-      const skuCode = normalizeSkuCode(record.skuCode);
-      if (skuCode === null) {
-        throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product SKU code is invalid.');
-      }
-      canonical.skuCode = skuCode;
-    }
-  }
-  return canonical;
+  const canonical = canonicalizeCatalogProductIdentities(values as Record<string, unknown>);
+  if (!canonical.ok)
+    throw new CatalogProductWriteError(
+      'INVALID_IDENTITY',
+      canonical.kind === 'slug' ? 'Product slug is invalid.' : 'Product SKU code is invalid.',
+    );
+  return canonical.values;
 }
 
 async function saveCatalogProduct(input: {
@@ -76,7 +49,7 @@ async function saveCatalogProduct(input: {
   productId: string;
   values: unknown;
   requireDetailApproval?: CatalogProductSaveInput['requireDetailApproval'];
-  expectedUpdatedAt?: string;
+  expectedUpdatedAt?: string | null;
   rejectPendingReview?: boolean;
   expectedPrimarySourceKey?: string | null;
 }): Promise<CatalogProductWriteTransition> {
@@ -84,7 +57,9 @@ async function saveCatalogProduct(input: {
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
-    ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
+    ...(input.expectedUpdatedAt !== undefined
+      ? { expectedUpdatedAt: input.expectedUpdatedAt }
+      : {}),
     ...(input.rejectPendingReview
       ? { rejectPendingReview: true, expectedPrimarySourceKey: input.expectedPrimarySourceKey }
       : {}),
@@ -121,15 +96,16 @@ async function saveCatalogProduct(input: {
 export function createCatalogProductRecord(
   values: unknown,
   productId: string = randomUUID(),
+  requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
 ): Promise<CatalogProductWriteTransition> {
-  return saveCatalogProduct({ mode: 'create', productId, values });
+  return saveCatalogProduct({ mode: 'create', productId, values, requireDetailApproval });
 }
 
 export function updateCatalogProductRecord(
   productId: string,
   values: unknown,
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
-  expectedUpdatedAt?: string,
+  expectedUpdatedAt?: string | null,
   rejectPendingReview = false,
   expectedPrimarySourceKey: string | null = null,
 ): Promise<CatalogProductWriteTransition> {
@@ -138,7 +114,7 @@ export function updateCatalogProductRecord(
     productId,
     values,
     requireDetailApproval,
-    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
     ...(rejectPendingReview ? { rejectPendingReview: true, expectedPrimarySourceKey } : {}),
   });
 }

@@ -4,10 +4,12 @@ import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlo
 import { formatPrice } from '../shop/api.ts';
 import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
 import { PreviewErrorBoundary } from './PreviewErrorBoundary.tsx';
+import { AlibabaProductRefresh } from './alibaba-catalog-sync/AlibabaProductRefresh.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
 import { adminCatalogPricingInput } from './product-pricing-editor.ts';
+import { reviewLabel } from './review-reason.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
 
 const AdminDetailPreview = lazy(() => import('./AdminDetailPreview.tsx'));
@@ -16,10 +18,15 @@ interface Props {
   doc: CollectionDoc;
   onClose: () => void;
   onEdit: () => void;
+  onSourceRefreshed?: (product: CollectionDoc) => void;
   canMarkReviewed?: boolean;
   reviewBusy?: boolean;
   reviewError?: Error | null;
   onMarkReviewed?: () => void;
+  /** Approve a published product's flagged changes: the full approval, then publish (MIU-24). */
+  onReviewChanges?: () => void;
+  /** Take a product whose source was removed offline. */
+  onUnpublish?: () => void;
 }
 
 /**
@@ -30,13 +37,18 @@ export function PreviewModal({
   doc,
   onClose,
   onEdit,
+  onSourceRefreshed,
   canMarkReviewed = false,
   reviewBusy = false,
   reviewError = null,
   onMarkReviewed,
+  onReviewChanges,
+  onUnpublish,
 }: Props) {
   const dialogRef = useModalDialog();
-  const sharedPreview = canMarkReviewed && typeof doc.alibabaPrimarySourceKey === 'string';
+  // Manual products are approved like synced ones (MIU-32), so admins preview
+  // the same shared product page for both.
+  const sharedPreview = canMarkReviewed;
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
   const descriptionIds = Array.isArray(doc.descriptionImageIds)
@@ -132,9 +144,9 @@ export function PreviewModal({
             <h2 id="product-preview-title" className="text-lg font-semibold text-slate-900">
               Product preview
             </h2>
-            {doc.alibabaReviewPending === true && (
+            {reviewLabel(doc) && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                New · review needed
+                {reviewLabel(doc)} · review needed
               </span>
             )}
             <span
@@ -174,6 +186,7 @@ export function PreviewModal({
                 <AdminDetailPreview
                   key={doc._id}
                   productId={doc._id}
+                  onEdit={onEdit}
                   images={
                     imageIds.length
                       ? galleryIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
@@ -324,6 +337,9 @@ export function PreviewModal({
           )}
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+          {canMarkReviewed && onSourceRefreshed && (
+            <AlibabaProductRefresh key={doc._id} product={doc} onRefreshed={onSourceRefreshed} />
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -331,7 +347,46 @@ export function PreviewModal({
           >
             Close
           </button>
-          {canMarkReviewed && doc.alibabaReviewPending === true && onMarkReviewed && (
+          {/* "Mark reviewed" is for first sight only; a changed, removed or edited
+              product is approved (published) or archived instead (DEC-11). */}
+          {canMarkReviewed &&
+            published &&
+            reviewLabel(doc) !== null &&
+            reviewLabel(doc) !== 'New' && (
+              <>
+                {reviewLabel(doc) === 'Removed' && onUnpublish && (
+                  <button
+                    type="button"
+                    disabled={reviewBusy}
+                    onClick={onUnpublish}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Unpublish
+                  </button>
+                )}
+                {/* The preview shows the current source; the live page shows what
+                    is approved now. Compare before approving (DEC-12, R7). */}
+                <a
+                  href={`/products/item/?id=${encodeURIComponent(doc._id)}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="self-center text-sm font-medium text-brand-700 underline"
+                >
+                  Compare with the live page
+                </a>
+                {onReviewChanges && (
+                  <button
+                    type="button"
+                    disabled={reviewBusy}
+                    onClick={onReviewChanges}
+                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Review changes
+                  </button>
+                )}
+              </>
+            )}
+          {canMarkReviewed && reviewLabel(doc) === 'New' && onMarkReviewed && (
             <button
               type="button"
               disabled={reviewBusy}

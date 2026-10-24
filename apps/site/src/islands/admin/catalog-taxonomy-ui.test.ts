@@ -10,7 +10,8 @@ import {
 } from '@vibelingan-channel/shared';
 import { type ReactNode, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { assignmentCall, publishConfirmedClassification, taxonomyCall } from './api.ts';
+import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
+import { assignmentCall, taxonomyCall } from './api.ts';
 import {
   classificationChoices,
   classificationRequest,
@@ -328,6 +329,7 @@ test('requests reject unknown children, newly assigned archived children and app
 
 function renderWithTaxonomy(content: ReactNode, seeded = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  client.setQueryData(['catalog-publication-capabilities'], { enabled: true });
   if (seeded) {
     for (const family of PRODUCT_FAMILY_OPTIONS) {
       client.setQueryData(
@@ -604,112 +606,9 @@ test('confirmed final state resolves a lost publication response without replayi
   );
 });
 
-test('bulk publish runs only after every selected assignment is confirmed', async (context) => {
-  const input = {
-    ...command(),
-    includeSavedRevision: true as const,
-    products: [
-      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-    ],
-  } satisfies CatalogClassificationAssignmentRequest;
-  const fetchMock = context.mock.method(
-    globalThis,
-    'fetch',
-    async (_url: unknown, init: RequestInit) => {
-      const request = JSON.parse(String(init.body));
-      if (request.action === 'catalogDetailCapabilities')
-        return Response.json({ ok: true, data: { enabled: false } });
-      assert.equal(request.action, 'update');
-      assert.deepEqual(request.data.values, { published: true });
-      assert.equal(request.data.expectedUpdatedAt, '2026-09-24T00:00:00.000Z');
-      return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
-    },
-  );
-  const saved = {
-    kind: 'assignment' as const,
-    results: input.products.map(({ productId }) => ({
-      productId,
-      status: 'saved' as const,
-      updatedAt: '2026-09-24T00:00:00.000Z',
-    })),
-  };
-  for (const response of [
-    {
-      ...saved,
-      results: [{ productId: 'product-1', status: 'conflict' as const }, saved.results[1]],
-    },
-    {
-      ...saved,
-      results: [{ productId: 'product-1', status: 'unknown' as const }, saved.results[1]],
-    },
-    { ...saved, results: saved.results.slice(0, 1) },
-    { ...saved, results: [{ productId: 'other', status: 'saved' as const }, saved.results[1]] },
-    { ...saved, refreshRequired: true as const },
-    { ...saved, results: [{ productId: 'product-1', status: 'saved' as const }, saved.results[1]] },
-  ]) {
-    assert.equal(await publishConfirmedClassification(input, response), null);
-  }
-  assert.equal(fetchMock.mock.callCount(), 0);
-  const result = await publishConfirmedClassification(input, saved);
-  assert.equal(result?.updated, 2);
-  assert.equal(fetchMock.mock.callCount(), 4);
-});
-
-test('revisioned bulk publish never approves unseen supplier detail', async (context) => {
-  const input = {
-    ...command(),
-    includeSavedRevision: true as const,
-    products: [
-      { productId: 'supplier-linked', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-      { productId: 'ordinary-draft', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
-    ],
-  } satisfies CatalogClassificationAssignmentRequest;
-  const revision = '2026-09-24T00:00:00.000Z';
-  const actions: string[] = [];
-  context.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const request = JSON.parse(String(init.body));
-    actions.push(request.action);
-    if (request.action === 'catalogDetailCapabilities')
-      return Response.json({ ok: true, data: { enabled: true } });
-    if (request.action === 'get')
-      return Response.json({
-        ok: true,
-        data: {
-          _id: request.data.id,
-          published: false,
-          ...(request.data.id === 'supplier-linked'
-            ? { alibabaPrimarySourceKey: 'a'.repeat(64) }
-            : {}),
-        },
-      });
-    assert.equal(request.action, 'update');
-    assert.equal(request.data.id, 'ordinary-draft');
-    assert.equal(request.data.expectedUpdatedAt, revision);
-    assert.deepEqual(request.data.values, { published: true });
-    return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
-  });
-  const result = await publishConfirmedClassification(input, {
-    kind: 'assignment',
-    results: input.products.map(({ productId }) => ({
-      productId,
-      status: 'saved',
-      updatedAt: revision,
-    })),
-  });
-  assert.equal(result?.updated, 1);
-  assert.deepEqual(
-    result?.failures.map(({ id, code, outcome }) => ({ id, code, outcome })),
-    [{ id: 'supplier-linked', code: 'CONFLICT', outcome: 'rejected' }],
-  );
-  assert.deepEqual(actions, [
-    'catalogDetailCapabilities',
-    'get',
-    'catalogDetailCapabilities',
-    'get',
-    'update',
-  ]);
-});
+// Native classification receipt completeness is tested by classification-publication.test.ts;
+// source-change rejection and valid-sibling progress run against real HTTP in
+// product-batch-publication.test.ts and the actual classification editor browser suite.
 
 test('malformed product IDs block assignment and registry reads show a loading state', async () => {
   const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');

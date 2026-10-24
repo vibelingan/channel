@@ -8,7 +8,7 @@
  * mirrors created before draft materialization was enabled can catch up
  * without repeating 1,074 provider detail calls.
  */
-import { list } from '@vibelingan-channel/db';
+import { get, list } from '@vibelingan-channel/db';
 import { createAlibabaCategoryResolver, createDraftForSource } from './linking.ts';
 import {
   type PricingMaterializationOutcome,
@@ -22,6 +22,10 @@ export interface DraftMaterializationPageInput {
   limit?: number;
   sourceCategoryId?: string;
   now?: () => string;
+  /** Background catch-up never materializes unapproved or incomplete source runs. */
+  completedOnly?: boolean;
+  runId?: string;
+  onPrepared?: (sourceKey: string) => Promise<void>;
 }
 
 export interface DraftMaterializationFailure {
@@ -51,6 +55,7 @@ export async function materializeAlibabaDraftPage(
   const sourceCategoryId = input.sourceCategoryId?.trim() ?? '';
   const clauses = [
     { field: 'active', op: 'eq' as const, value: true },
+    ...(input.runId ? [{ field: 'lastSeenRunId', op: 'eq' as const, value: input.runId }] : []),
     ...(afterSourceKey ? [{ field: '_id', op: 'gt' as const, value: afterSourceKey }] : []),
     ...(sourceCategoryId
       ? [{ field: 'sourceCategoryId', op: 'eq' as const, value: sourceCategoryId }]
@@ -72,6 +77,13 @@ export async function materializeAlibabaDraftPage(
   const now = input.now ?? (() => new Date().toISOString());
   const resolveCategory = createAlibabaCategoryResolver();
   for (const source of page.items) {
+    if (input.completedOnly) {
+      const run =
+        typeof source.lastSeenRunId === 'string'
+          ? await get('alibabaSyncRuns', source.lastSeenRunId)
+          : null;
+      if (!run || !['completed', 'approved'].includes(String(run.status))) continue;
+    }
     const result = await createDraftForSource(source._id, { now: now(), resolveCategory });
     if (!result.ok) {
       failures.push({ sourceKey: source._id, reason: result.reason });
@@ -80,7 +92,10 @@ export async function materializeAlibabaDraftPage(
     } else {
       existing += 1;
     }
-    if (result.ok) pricing.push(await materializeCompletedProductPricing(result.productId));
+    if (result.ok) {
+      pricing.push(await materializeCompletedProductPricing(result.productId));
+      await input.onPrepared?.(source._id);
+    }
   }
 
   const last = page.items.at(-1);

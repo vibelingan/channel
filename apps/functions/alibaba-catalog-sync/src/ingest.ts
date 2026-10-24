@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import {
   type AlibabaProductDetailDraft,
+  type NormalizedSourceProduct,
   alibabaObservationAdapter,
   extractProductDetail,
   normalizeProductDetail,
@@ -129,7 +130,7 @@ export type IngestDetailResult =
  * how many linked products CHANGED, not how many were seen — without this the
  * guard trips on every full run, since a full run sees the whole catalog.
  */
-function contentFingerprint(product: Record<string, unknown>, offers: unknown[]): string {
+export function contentFingerprint(product: object, offers: unknown[]): string {
   const stamps = new Set([
     'lastSeenRunId',
     'firstSeenRunId',
@@ -166,6 +167,18 @@ function contentFingerprint(product: Record<string, unknown>, offers: unknown[])
   return createHash('sha256')
     .update(JSON.stringify(canonical({ product, offers })))
     .digest('hex');
+}
+
+/** Missing fields in a full capture clear previous provider values; website fields are separate. */
+export function sourceMirrorValues(source: NormalizedSourceProduct) {
+  return {
+    ...source,
+    sourceTitle: source.sourceTitle ?? null,
+    sourceDescription: source.sourceDescription ?? null,
+    sourceCategoryId: source.sourceCategoryId ?? null,
+    sourceCategoryPath: source.sourceCategoryPath ?? [],
+    sourceUpdatedAt: source.sourceUpdatedAt ?? null,
+  };
 }
 
 export async function ingestProductDetail(input: IngestDetailInput): Promise<IngestDetailResult> {
@@ -209,16 +222,13 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
     return { ok: false, error: 'invalid-source-observation' };
   }
   const existingProduct = await getDoc('alibabaSourceProducts', sourceProduct.sourceKey);
-  const contentHash = contentFingerprint(
-    sourceProduct as unknown as Record<string, unknown>,
-    offers,
-  );
+  const contentHash = contentFingerprint(sourceProduct, offers);
   const changed = String(existingProduct?.contentHash ?? '') !== contentHash;
   const sourceWritten = await upsertDocWithAlibabaLease(
     'alibabaSourceProducts',
     sourceProduct.sourceKey,
     {
-      ...sourceProduct,
+      ...sourceMirrorValues(sourceProduct),
       lastSeenRunId: input.runId,
       contentHash,
       lastChangedRunId: changed
@@ -274,6 +284,7 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
       sourceProductKey: sourceProduct.sourceKey,
       externalProductId: sourceProduct.sourceProductId,
       schemaVersion: observation.schemaVersion,
+      sourceContentHash: contentHash,
       observedAt: observation.source.observedAt,
       ...(observation.source.sourceUpdatedAt === undefined
         ? {}

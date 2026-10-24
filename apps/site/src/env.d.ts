@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly PUBLIC_AI_API_BASE_URL?: string;
   readonly PUBLIC_CB_HOST?: string;
   readonly PUBLIC_CB_PROXY?: string;
+  readonly PUBLIC_CATALOG_READY_DEFAULT?: string;
 }
 
 interface ImportMeta {

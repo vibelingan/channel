@@ -1,11 +1,18 @@
+import { AlibabaSyncWorkflowSchema, alibabaPhotoSource } from '@vibelingan-channel/shared';
 /**
  * Client for the alibaba-catalog-sync function's admin actions (MIU 13).
  * Same Bearer/JSON envelope as the admin API: {action, token, data} POSTs —
  * the session rides the body, never a cookie (ARCHITECTURE §8.1). Responses
  * never contain token material; the panel renders redacted status only.
  */
+import { z } from 'zod';
 import { apiUrl } from '../../../lib/api-url.ts';
 import { getToken } from '../../../lib/session.ts';
+import {
+  captureAdminRequestSession,
+  confirmAdminRequestSession,
+  reportExpiredAdminSession,
+} from '../admin-session-guard.ts';
 
 const ENDPOINT = apiUrl('/api/alibaba-catalog-sync');
 const SOURCE_PRODUCT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -336,6 +343,143 @@ export async function materializeAlibabaDrafts(
   throw new AlibabaSyncApiError('CONFLICT', 'Draft materialization exceeded the page limit.');
 }
 
+const count = z.number().int().nonnegative();
+const PhotoPreparationPageSchema = z.object({
+  afterProductId: z.string(),
+  nextProductId: z.string(),
+  done: z.boolean(),
+  visited: count,
+  prepared: count,
+  photosCopied: count,
+  photosReused: count,
+  photosFailed: count,
+  busy: count,
+  /** Products whose photos failed briefly; the whole product tries again later. */
+  waiting: count.default(0),
+  failures: z.array(z.object({ productId: z.string(), reason: z.string() })),
+  /** A retry run's start (server time), passed to the run's later calls. */
+  retryFailedBefore: z.string().datetime().optional(),
+});
+const PhotoPreparationStatusSchema = z.object({
+  hiddenDrafts: count,
+  draftsToFill: count,
+  draftsMissingPhotos: count,
+  issues: z
+    .array(
+      z.object({
+        productId: z.string(),
+        name: z.string(),
+        sourceProductId: z.string(),
+        photos: z.array(
+          z.object({
+            part: z.enum(['gallery', 'description', 'configurations']),
+            position: count,
+            sourceUrl: z
+              .string()
+              .url()
+              .refine((value) => alibabaPhotoSource(value) === value),
+            reason: z.string(),
+          }),
+        ),
+        truncated: z.boolean(),
+      }),
+    )
+    .max(20)
+    .optional(),
+});
+
+export interface PhotoPreparationProgress {
+  prepared: number;
+  photosCopied: number;
+  photosReused: number;
+  photosFailed: number;
+  busy: number;
+  waiting: number;
+  failures: number;
+  /** Drafts whose save failed (first 20), for the admin to look at. */
+  failedProducts: string[];
+}
+export type PhotoPreparationStatus = z.infer<typeof PhotoPreparationStatusSchema>;
+
+/** How many new drafts are hidden while prepared, and drafts still to fill (PT-G). */
+export async function fetchPhotoPreparationStatus(
+  includeIssues = false,
+): Promise<PhotoPreparationStatus> {
+  const parsed = PhotoPreparationStatusSchema.safeParse(
+    await call<unknown>('photoPreparationStatus', includeIssues ? { includeIssues: true } : {}),
+  );
+  if (!parsed.success || (includeIssues && !parsed.data.issues))
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'The photo status could not be read.');
+  return parsed.data;
+}
+
+/**
+ * Copies Alibaba photos into our storage and fills untouched drafts, page after
+ * page on the server until every product was looked at (PT-G). A product that
+ * ran out of time resumes on the next page; photos already copied are reused.
+ */
+export async function prepareAlibabaPhotos(
+  onProgress?: (progress: PhotoPreparationProgress) => void,
+  options: {
+    productId?: string;
+    pendingOnly?: boolean;
+    /** Also try photos earlier found unavailable ("Copy photos now"). */
+    retryUnavailable?: boolean;
+    from?: PhotoPreparationProgress;
+  } = {},
+): Promise<PhotoPreparationProgress> {
+  const total: PhotoPreparationProgress = options.from
+    ? { ...options.from, failedProducts: [...options.from.failedProducts] }
+    : {
+        prepared: 0,
+        photosCopied: 0,
+        photosReused: 0,
+        photosFailed: 0,
+        busy: 0,
+        waiting: 0,
+        failures: 0,
+        failedProducts: [],
+      };
+  let afterProductId = '';
+  // A retry run starts on the server's clock and keeps that start for its
+  // later calls, so photos that fail during the run are not fetched again.
+  let retryFailedBefore: string | undefined;
+  for (let pageNumber = 0; pageNumber < 5_000; pageNumber += 1) {
+    const parsed = PhotoPreparationPageSchema.safeParse(
+      await call<unknown>('prepareAlibabaPhotos', {
+        afterProductId,
+        ...(options.productId ? { productId: options.productId } : {}),
+        ...(options.pendingOnly ? { pendingOnly: true } : {}),
+        ...(retryFailedBefore
+          ? { retryFailedBefore }
+          : options.retryUnavailable
+            ? { retryUnavailable: true }
+            : {}),
+      }),
+    );
+    if (!parsed.success || parsed.data.afterProductId !== afterProductId)
+      throw new AlibabaSyncApiError(
+        'INTERNAL_ERROR',
+        'Photo preparation returned an invalid page summary.',
+      );
+    const page = parsed.data;
+    if (options.retryUnavailable) retryFailedBefore ??= page.retryFailedBefore;
+    total.prepared += page.prepared;
+    total.photosCopied += page.photosCopied;
+    total.photosReused += page.photosReused;
+    total.photosFailed += page.photosFailed;
+    total.busy += page.busy;
+    total.waiting += page.waiting;
+    total.failures += page.failures.length;
+    for (const failure of page.failures)
+      if (total.failedProducts.length < 20) total.failedProducts.push(failure.productId);
+    onProgress?.({ ...total, failedProducts: [...total.failedProducts] });
+    if (page.done) return total;
+    afterProductId = page.nextProductId;
+  }
+  throw new AlibabaSyncApiError('CONFLICT', 'Photo preparation exceeded the page limit.');
+}
+
 export type SourceObservationReplayMode = 'dry-run' | 'apply';
 
 export interface SourceObservationReplayCounts {
@@ -346,6 +490,8 @@ export interface SourceObservationReplayCounts {
   attributedVariants: number;
   attributePairs: number;
   warnings: number;
+  /** Stored wholesale headline offers retired by the replay (not a price). */
+  productHeadlineDropped: number;
 }
 
 export interface SourceObservationReplayFailure {
@@ -404,6 +550,7 @@ const REPLAY_COUNT_KEYS = [
   'attributedVariants',
   'attributePairs',
   'warnings',
+  'productHeadlineDropped',
 ] as const satisfies readonly (keyof SourceObservationReplayCounts)[];
 const MAX_REPLAY_PAGES = 1_000;
 const REPLAY_PAGE_SIZE = 20;
@@ -513,6 +660,7 @@ export function decodeSourceObservationReplayPage(
     counts.observations + failures.length !== counts.sourceProducts ||
     counts.attributedVariants > counts.variants ||
     counts.attributePairs < counts.attributedVariants ||
+    counts.productHeadlineDropped > counts.observations ||
     pricedOffers !== counts.offers ||
     totalSourceProducts < counts.sourceProducts ||
     !cursorIsValid ||
@@ -579,6 +727,7 @@ function emptyReplayCounts(): SourceObservationReplayCounts {
     attributedVariants: 0,
     attributePairs: 0,
     warnings: 0,
+    productHeadlineDropped: 0,
   };
 }
 
@@ -1099,3 +1248,25 @@ export async function repairAlibabaSourcePricing(
 export function removeAlibabaImportedImage(imageId: string): Promise<{ imageId: string }> {
   return call('removeImportedImage', { imageId });
 }
+
+/** A single durable start. Follow-up requests are read-only status polls. */
+async function workflowCall(action: 'startSync' | 'workflowStatus') {
+  const ticket = captureAdminRequestSession(action);
+  try {
+    const value = await call<unknown>(action, undefined, AbortSignal.timeout(15_000));
+    confirmAdminRequestSession(ticket);
+    const parsed = AlibabaSyncWorkflowSchema.safeParse(value);
+    if (!parsed.success)
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Sync status could not be confirmed. Checking saved progress is safe.',
+      );
+    return parsed.data;
+  } catch (error) {
+    if (error instanceof AlibabaSyncApiError && error.code === 'UNAUTHORIZED')
+      reportExpiredAdminSession(ticket);
+    throw error;
+  }
+}
+export const fetchSyncWorkflow = () => workflowCall('workflowStatus');
+export const startSync = () => workflowCall('startSync');

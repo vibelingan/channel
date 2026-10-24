@@ -29,6 +29,10 @@ interface BrowserFetchResult {
   bodySnippet: string;
 }
 
+type ApproveOnce =
+  | { ok: true; status: 'approved' }
+  | { ok: true; status: 'needs-browser'; reason: string };
+
 interface ApiSuccess<T> {
   ok: true;
   data: T;
@@ -161,7 +165,8 @@ test.describe('MIU-09 deployed media upload smoke', () => {
         password: e2e.adminPassword,
       });
       token = session.token;
-      expect(['admin', 'contributor']).toContain(session.user.role);
+      // Publishing is an approval, which only an admin may give (MIU-37).
+      expect(session.user.role).toBe('admin');
 
       const fileName = `${e2e.runId}-miu09.png`;
       const intent = await browserAdminAction<UploadIntent>(
@@ -205,29 +210,53 @@ test.describe('MIU-09 deployed media upload smoke', () => {
       );
       expect(unpublished.status).toBe(404);
 
-      const product = await browserAdminAction<CollectionDoc>(
+      // A new product starts as a draft; publishing it is an approval, the
+      // same steps the admin page takes (create draft → approve → publish).
+      const draft = await browserAdminAction<CollectionDoc>(
         page,
         'create',
         {
           collection: 'products',
           values: {
             name: `${e2e.runId} MIU-09 Upload Smoke`,
-            category: 'wired',
+            productFamily: 'headphones',
             series: 'MIU-09',
             modName: 'Storage Upload Smoke',
-            modType: 'Browser POST',
-            description: 'Created by MIU-09 media upload smoke and removed during cleanup.',
+            modType: 'Browser PUT',
+            description: 'Created by MIU-09 media upload smoke and archived during cleanup.',
             moq: 1,
             unitPrice: 1,
             wholesalePrice: 1,
-            vipPrice: 1,
             imageIds: [imageId],
-            published: true,
+            published: false,
           },
         },
         token,
       );
-      productId = product._id;
+      productId = draft._id;
+      const capabilities = await browserAdminAction<{ enabled: boolean }>(
+        page,
+        'catalogDetailCapabilities',
+        undefined,
+        token,
+      );
+      if (capabilities.enabled) {
+        const approval = await browserAdminAction<ApproveOnce>(
+          page,
+          'catalogDetailApproval',
+          { action: 'approve', productId, operationId: crypto.randomUUID() },
+          token,
+        );
+        expect(approval.status, 'a one-image manual product approves in one request').toBe(
+          'approved',
+        );
+      }
+      await browserAdminAction<CollectionDoc>(
+        page,
+        'update',
+        { collection: 'products', id: productId, values: { published: true } },
+        token,
+      );
 
       await expect
         .poll(
@@ -242,25 +271,24 @@ test.describe('MIU-09 deployed media upload smoke', () => {
         )
         .toBe(true);
     } finally {
+      // Products are archived, never deleted (archiving also unpublishes). The
+      // archived product keeps its 1x1 image; an image no product used is
+      // abandoned through the upload flow, the only way images are removed.
       if (productId && token) {
-        await adminAction<{ deleted: boolean }>(
+        await adminAction<CollectionDoc>(
           request,
-          'remove',
-          { collection: 'products', id: productId },
+          'update',
+          { collection: 'products', id: productId, values: { archived: true } },
           token,
         ).catch((error: unknown) => {
-          console.warn(`MIU-09 cleanup: product remove failed: ${apiErrorMessage(error)}`);
+          console.warn(`MIU-09 cleanup: product archive failed: ${apiErrorMessage(error)}`);
         });
-      }
-      if (imageId && token) {
-        await adminAction<{ deleted: boolean }>(
-          request,
-          'remove',
-          { collection: 'images', id: imageId },
-          token,
-        ).catch((error: unknown) => {
-          console.warn(`MIU-09 cleanup: image metadata remove failed: ${apiErrorMessage(error)}`);
-        });
+      } else if (imageId && token) {
+        await adminAction<{ deleted: boolean }>(request, 'abandonUpload', { imageId }, token).catch(
+          (error: unknown) => {
+            console.warn(`MIU-09 cleanup: image abandon failed: ${apiErrorMessage(error)}`);
+          },
+        );
       }
     }
   });

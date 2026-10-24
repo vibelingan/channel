@@ -257,8 +257,14 @@ test('several offers in the shown scope keep their own labels and currencies', (
   ];
   const primary = primaryArea(renderPanel(detail));
   assert.deepEqual(tierTexts(primary), ['CNY 5.70 per unit', 'USD 0.80 per unit']);
-  assert.ok(primary.indexOf('Regular source quote') < primary.indexOf('CNY 5.70'));
-  assert.ok(primary.indexOf('Promotional source quote') < primary.indexOf('USD 0.80'));
+  for (const [label, price] of [
+    ['Regular source quote', 'CNY 5.70'],
+    ['Promotional source quote', 'USD 0.80'],
+  ]) {
+    const labelAt = primary.indexOf(label);
+    assert.ok(labelAt >= 0, `${label} renders`);
+    assert.ok(labelAt < primary.indexOf(price), `${label} precedes ${price}`);
+  }
   assert.doesNotMatch(primary, /EUR/);
 });
 
@@ -282,6 +288,88 @@ test('unknown configuration prices never pass as the configuration price and aut
     assert.match(website, /Request a quote/);
     assert.doesNotMatch(website, /EUR|12\.00|0\.00/);
   }
+});
+
+test('a "request a quote" price that states a minimum order shows it under the label (DEC-16)', () => {
+  const website = pricedDetail({
+    websitePricing: {
+      basis: 'website-manual',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: 50 },
+    },
+  });
+  const websiteArea = primaryArea(renderPanel(website));
+  assert.match(websiteArea, /Request a quote<\/p>/);
+  assert.match(websiteArea, /data-quote-moq[^>]*>≥50 pieces</);
+  assert.doesNotMatch(websiteArea, /data-price-tier|EUR/);
+
+  const productOnly = pricedDetail({
+    offers: [
+      {
+        kind: 'supplier',
+        basis: 'source-quote',
+        pricing: { mode: 'negotiable', minimumOrderQuantity: 200 },
+      },
+    ],
+  });
+  productOnly.variants.items[0].offers = [];
+  assert.match(primaryArea(renderPanel(productOnly)), /data-quote-moq[^>]*>≥200 pieces</);
+
+  const configurationOnly = pricedDetail({ offers: [] });
+  configurationOnly.variants.items[0].offers = [
+    {
+      kind: 'regular',
+      basis: 'source-quote',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
+    },
+  ];
+  assert.match(primaryArea(renderPanel(configurationOnly)), /data-quote-moq[^>]*>≥1 piece</);
+
+  const noMoq = pricedDetail({
+    websitePricing: { basis: 'website-manual', pricing: { mode: 'unavailable' } },
+  });
+  assert.doesNotMatch(primaryArea(renderPanel(noMoq)), /data-quote-moq/);
+
+  // The product's own quote comes before the configuration's.
+  const both = pricedDetail({
+    offers: [
+      {
+        kind: 'supplier',
+        basis: 'source-quote',
+        pricing: { mode: 'negotiable', minimumOrderQuantity: 200 },
+      },
+    ],
+  });
+  both.variants.items[0].offers = [
+    {
+      kind: 'regular',
+      basis: 'source-quote',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: 50 },
+    },
+  ];
+  assert.match(primaryArea(renderPanel(both)), /data-quote-moq[^>]*>≥200 pieces</);
+
+  // A website price is authoritative: without its own MOQ, none is borrowed.
+  const websiteWithoutMoq = { ...both, websitePricing: noMoq.websitePricing };
+  assert.doesNotMatch(primaryArea(renderPanel(websiteWithoutMoq)), /data-quote-moq/);
+
+  // Every tier ends below the minimum order: nothing orderable, MOQ still shown.
+  const belowMoq = pricedDetail({
+    websitePricing: {
+      basis: 'website-manual',
+      pricing: {
+        mode: 'tiered',
+        currency: 'USD',
+        minimumOrderQuantity: 100,
+        tiers: [
+          { minimumQuantity: 1, maximumQuantity: 49, unitAmountMinor: 500 },
+          { minimumQuantity: 50, maximumQuantity: 99, unitAmountMinor: 400 },
+        ],
+      },
+    },
+  });
+  const belowArea = primaryArea(renderPanel(belowMoq));
+  assert.match(belowArea, /Request a quote<\/p>/);
+  assert.match(belowArea, /data-quote-moq[^>]*>≥100 pieces</);
 });
 
 test('a configuration without any quote of its own shows the product quote without a notice', () => {
@@ -312,6 +400,24 @@ test('compact prices retain zero, exact hundredths, and a single amount for equa
     assert.ok(html.includes(['JPY 0.00', 'EUR 90071992547409.91', 'USD 5.70'][index]));
     if (pricing.mode === 'tiered') assert.equal((html.match(/USD 5\.70/g) ?? []).length, 1);
   }
+});
+
+test('tiers below the minimum order are never offered as orderable windows', () => {
+  const pricing: Pricing = {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 1, maximumQuantity: 4, unitAmountMinor: 600 },
+      { minimumQuantity: 5, maximumQuantity: 49, unitAmountMinor: 500 },
+      { minimumQuantity: 50, unitAmountMinor: 450 },
+    ],
+  };
+  const html = primaryArea(
+    renderPanel(pricedDetail({ websitePricing: { basis: 'website-manual', pricing } })),
+  );
+  assert.deepEqual(tierTexts(html), ['USD 5.00 10-49 pieces', 'USD 4.50 ≥50 pieces']);
+  assert.doesNotMatch(html, /USD 6\.00|1-4 pieces|5-49 pieces/);
 });
 
 test('no-SKU products enable one product customization quote while unselected variants stay disabled', () => {

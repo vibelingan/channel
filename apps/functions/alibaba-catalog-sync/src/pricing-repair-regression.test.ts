@@ -19,6 +19,7 @@ import { publicDoc } from '../../public-api/src/handler.ts';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 import { handleAlibabaSyncRequest } from './handler.ts';
 import { planProductPricingRepair, repairMissingSourcePricing } from './pricing-repair.ts';
+import { sourceObservationFixture } from './testing/source-observation-fixture.ts';
 
 async function linked(
   db: JsonFileAdapter,
@@ -85,6 +86,12 @@ async function fixture(t: TestContext, sourceProductIds = ['g2']) {
         syncedAt: '2026-09-03T00:00:00.000Z',
       },
     });
+    const source = await db.get('alibabaSourceProducts', `source-${sourceProductId}`);
+    const offer = await db.get('alibabaSupplierOffers', `offer-${sourceProductId}`);
+    assert.ok(source);
+    assert.ok(offer);
+    const observation = sourceObservationFixture(source, [offer]);
+    await db.create('catalogSourceObservations', observation);
   }
   return db;
 }
@@ -247,7 +254,15 @@ test('repair preserves every field outside price and internal revision/timestamp
           ].includes(key),
       ),
     );
-  assert.deepEqual(protectedFields(after), protectedFields(product));
+  assert.deepEqual(
+    protectedFields(after),
+    protectedFields({
+      ...product,
+      catalogContentGeneration: Number(product.catalogContentGeneration ?? 0) + 1,
+      detailSourceReady: false,
+      catalogPreparationState: 'stale',
+    }),
+  );
 });
 
 test('catch-up draft materialization includes its own completed source quote', async (t) => {
@@ -510,4 +525,32 @@ test('automatic selection keeps USD preference, respects a valid CNY pin, and ne
         pinned ? 'offer-cny' : 'offer-g2',
       );
     });
+});
+
+test('price repair refuses a readback whose content generation advanced again after the committed repair', async (t) => {
+  const db = await fixture(t);
+  const product = await linked(db);
+  const dry = await repairMissingSourcePricing({});
+  const mutate = db.mutateAlibabaProduct.bind(db);
+  const get = db.get.bind(db);
+  let committed = false;
+  t.mock.method(db, 'mutateAlibabaProduct', async (input: AlibabaProductMutationInput) => {
+    const result = await mutate(input);
+    if (result.ok) committed = true;
+    return result;
+  });
+  t.mock.method(db, 'get', async (collection: string, id: string) => {
+    const row = await get(collection, id);
+    return committed && collection === 'products' && id === product._id && row
+      ? { ...row, catalogContentGeneration: Number(row.catalogContentGeneration ?? 0) + 1 }
+      : row;
+  });
+  const applied = await repairMissingSourcePricing({
+    mode: 'apply',
+    expectedPageHash: dry.pageHash,
+  });
+  assert.equal(committed, true);
+  assert.equal(applied.repaired, 0);
+  assert.equal(applied.stopped, 'write-unconfirmed');
+  assert.equal(applied.outcomes[0]?.status, 'error');
 });

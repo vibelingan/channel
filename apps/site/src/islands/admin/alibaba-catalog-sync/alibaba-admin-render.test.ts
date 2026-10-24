@@ -53,7 +53,11 @@ test('connection panel states: loading, not-connected, active, expired, not-conf
   assert.ok(active.includes('merchant@example.com'));
   // Only redacted METADATA renders (expiry stamp); the status payload carries
   // no credential values by construction, and none appear here.
-  assert.ok(active.includes('Access token valid until 2026-08-06 22:00'));
+  assert.ok(active.includes('Connection settings'));
+  assert.ok(
+    !active.includes('Access token valid until'),
+    'token internals stay out of the operator flow',
+  );
   assert.ok(!active.includes('Bearer '), 'no credential-shaped content renders');
 
   const announcedNotice = renderPanel({ notice: 'Detail inspection completed.' });
@@ -70,42 +74,40 @@ test('connection panel states: loading, not-connected, active, expired, not-conf
     status: { status: 'not_connected', notConfigured: true, missing: ['ALI_APP_KEY'] },
   });
   assert.ok(notConfigured.includes('data-not-configured'));
-  assert.ok(notConfigured.includes('ALI_APP_KEY'));
+  assert.ok(notConfigured.includes('Contact the site administrator'));
+  assert.ok(!notConfigured.includes('ALI_APP_KEY'));
   assert.ok(notConfigured.includes('disabled'), 'connect disabled while unconfigured');
 });
 
-test('run table renders rows with status badges; empty state stands alone', () => {
+test('run history shows dates, processed counts and readable results without internal run data', () => {
   assert.ok(
-    renderToStaticMarkup(createElement(AlibabaSyncRunTable, { runs: [] })).includes(
+    renderToStaticMarkup(createElement(AlibabaSyncRunTable, { history: [] })).includes(
       'data-alibaba-runs-empty',
     ),
   );
   const html = renderToStaticMarkup(
     createElement(AlibabaSyncRunTable, {
-      runs: [
+      history: [
         {
-          _id: 'incremental-2026-08-06',
-          mode: 'incremental',
-          trigger: 'timer',
-          status: 'completed',
+          id: 'incremental-2026-08-06',
           startedAt: '2026-08-06T12:16:00.000Z',
-          completedAt: '2026-08-06T12:17:00.000Z',
-          errorSummary: '',
-        } as CollectionDoc,
+          processed: 429,
+          result: 'complete',
+        },
         {
-          _id: 'full-2026-08-02',
-          mode: 'full',
-          trigger: 'manual',
-          status: 'quarantined',
+          id: 'full-2026-08-02',
           startedAt: '2026-08-02T18:30:00.000Z',
-          errorSummary: 'unsupported-currency',
-        } as CollectionDoc,
+          processed: 3,
+          result: 'attention',
+        },
       ],
     }),
   );
-  assert.ok(html.includes('incremental-2026-08-06'));
-  assert.ok(html.includes('quarantined'));
-  assert.ok(html.includes('unsupported-currency'));
+  assert.ok(html.includes('429'));
+  assert.ok(html.includes('Ready for review'));
+  assert.ok(html.includes('Needs attention'));
+  assert.ok(!html.includes('unsupported-currency'));
+  assert.ok(!html.includes('>continuing<'));
 });
 
 test('quarantine review lists quarantined runs and wires approval; hides when empty', () => {

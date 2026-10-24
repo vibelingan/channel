@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { Buffer } from 'node:buffer';
+import { createServer } from 'node:http';
 import test from 'node:test';
+import { Agent, fetch as clientFetch } from 'undici';
 import {
   MAX_IMAGE_BYTES,
   MAX_REDIRECTS,
@@ -48,6 +50,30 @@ const WEBP = (() => {
 })();
 
 const publicHost = async () => ['203.0.113.10'];
+
+test('the installed HTTP client and its own Agent deliver bytes over a real socket', async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'image/png' });
+    response.end(PNG);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const agent = new Agent();
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const response = await clientFetch(`http://127.0.0.1:${address.port}/image`, {
+      dispatcher: agent,
+      signal: AbortSignal.timeout(5_000),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), PNG);
+  } finally {
+    await agent.close();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
 
 function respond(body: Buffer, init: ResponseInit = {}): Response {
   return new Response(new Uint8Array(body), init);
@@ -347,6 +373,12 @@ test('dimensions are read from the header of each accepted format', () => {
     height: 600,
   });
 
+  // GIF (animated supplier photos, owner 2026-10-09): logical screen 790 x 1338.
+  const gif = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x16, 0x03, 0x3a, 0x05, 0xf7, 0x00]);
+  assert.equal(sniffImageMime(gif), 'image/gif');
+  assert.deepEqual(readImageDimensions(gif, 'image/gif'), { width: 790, height: 1338 });
+  assert.equal(readImageDimensions(gif.subarray(0, 8), 'image/gif'), null);
+
   // JPEG: SOI, then a SOF0 frame declaring 480 high by 640 wide.
   const jpeg = Buffer.concat([
     Buffer.from([0xff, 0xd8]),
@@ -429,7 +461,7 @@ test('vector, document and markup payloads are all refused', async () => {
     ['svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>')],
     ['html', Buffer.from('<!DOCTYPE html><html><body>hi</body></html>')],
     ['pdf', Buffer.from('%PDF-1.7\n1 0 obj')],
-    ['gif', Buffer.from('GIF89a')],
+    ['tiff', Buffer.from([0x49, 0x49, 0x2a, 0x00])],
     ['bmp', Buffer.from('BM')],
     ['zip', Buffer.from([0x50, 0x4b, 0x03, 0x04])],
     ['ico', Buffer.from([0x00, 0x00, 0x01, 0x00])],

@@ -2,10 +2,17 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
-import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
+import {
+  CATALOG_DETAIL_VARIANT_MAX_COUNT,
+  planCatalogDetailApproval,
+} from '@vibelingan-channel/shared/catalog-detail-approval';
+import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/catalog-detail-pagination';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
+import { planApprovalImageReferences } from './catalog-approval-image-references.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
+import { sdkAnswer } from './cloudbase-sdk-answer.ts';
+import { serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
 
 const identity = z
   .string()
@@ -17,7 +24,7 @@ export const CatalogApprovalManifestSchema = z
     revision: identity,
     variantIds: z
       .array(identity)
-      .max(10000)
+      .max(CATALOG_DETAIL_VARIANT_MAX_COUNT)
       .refine((ids) => new Set(ids).size === ids.length),
   })
   .strict();
@@ -44,6 +51,8 @@ export type CatalogApprovalResult =
     };
 export interface CatalogApprovalTransaction {
   get(collection: string, id: string): Promise<CollectionDoc | null>;
+  /** Change mutex fields without resending legacy image bytes. */
+  patch?(collection: string, id: string, fields: Record<string, unknown>): Promise<void>;
   /** Replace an existing row, including its unchanged private fields. Throw on any failed write. */
   set(collection: string, row: CollectionDoc): Promise<void>;
 }
@@ -52,9 +61,18 @@ const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(valu
 
 /** Digest the exact reviewable plan, not opaque unrelated source evidence or a mutable timestamp. */
 export function catalogApprovalDigest(product: CollectionDoc, variants: CollectionDoc[]): string {
+  return prepareCatalogApprovalPlan(product, variants).digest;
+}
+
+/** One effective plan for both review identity and its eventual publication revision. */
+export function prepareCatalogApprovalPlan(
+  product: CollectionDoc,
+  variants: CollectionDoc[],
+  revision = 'review-candidate',
+) {
   const manifest = CatalogApprovalManifestSchema.parse(product.detailSourceManifest);
   const sourceIds = new Set(manifest.variantIds);
-  const plan = planCatalogDetailApproval({ product, variants, revision: 'review-candidate' });
+  const plan = planCatalogDetailApproval({ product, variants, revision });
   if (
     product.detailSourceRevision !== manifest.revision ||
     manifest.variantIds.length !== variants.length ||
@@ -63,7 +81,7 @@ export function catalogApprovalDigest(product: CollectionDoc, variants: Collecti
     )
   )
     throw new Error('Incomplete or mixed source generation');
-  return hash({
+  const digest = hash({
     manifest: { revision: manifest.revision, variantIds: [...manifest.variantIds].sort() },
     owner: product.detailSourceOwner,
     published: product.published ?? null,
@@ -78,8 +96,12 @@ export function catalogApprovalDigest(product: CollectionDoc, variants: Collecti
       sourceKey: product.alibabaPrimarySourceKey ?? null,
       sourcePricing: product.alibabaCatalogPricing ?? null,
     },
-    plan,
+    plan: {
+      ...plan,
+      publication: { ...plan.publication, revision: 'review-candidate' },
+    },
   });
+  return { plan, digest };
 }
 
 /** Execute only inside an adapter's atomic transaction. No external effects or transaction nesting. */
@@ -168,9 +190,9 @@ export async function commitCatalogApproval(
   // Revision is server-generated, not the caller's retry key: a reused key can never resurrect a historical revision.
   const revision = randomUUID();
   try {
-    plan = planCatalogDetailApproval({ product, variants: rows, revision });
-    if (catalogApprovalDigest(product, rows) !== command.expectedDigest)
-      return { ok: false, code: 'CONFLICT' };
+    const prepared = prepareCatalogApprovalPlan(product, rows, revision);
+    if (prepared.digest !== command.expectedDigest) return { ok: false, code: 'CONFLICT' };
+    plan = prepared.plan;
   } catch {
     return { ok: false, code: 'VALIDATION_ERROR' };
   }
@@ -194,6 +216,7 @@ export async function commitCatalogApproval(
     const image = await tx.get('images', id);
     if (
       !image ||
+      image._id !== id ||
       image.status !== 'active' ||
       readImageMutationState(image).state !== 'free' ||
       (image.storageProvider !== 'cloudbase-storage' && image.storageProvider !== 'local-disk') ||
@@ -207,16 +230,22 @@ export async function commitCatalogApproval(
   }
   const referenceDelta = (id: string) =>
     product.published === true ? Number(afterImages.has(id)) - Number(beforeImages.has(id)) : 0;
-  if (images.some((image) => Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) < 0))
-    return { ok: false, code: 'MEDIA_NOT_READY' };
+  const references = await planApprovalImageReferences(
+    tx,
+    images,
+    referenceDelta,
+    98 - (3 + 2 * rows.length + 2 * imageIds.size),
+  );
+  if (!references.ok) return references;
   // Every deterministic rejection is above this boundary. Exceptions below MUST abort the transaction.
-  // Unchanged media writes include lifecycle rows in conflict detection; reading alone is snapshot isolation.
-  for (const image of images)
+  // This one-request path creates no approval job, so photo deletes cannot see it in flight
+  // (they check unfinished jobs, DEC-21). It keeps writing every photo so the database's
+  // write-conflict check catches a concurrent delete. Production approves through the staged
+  // path (finishStagedApproval), which reads shared photos without writing them; wire this path
+  // into a production action only with a job, or keep this write.
+  for (const { image } of references.images)
     await tx.set('images', {
       ...image,
-      ...(referenceDelta(image._id)
-        ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) }
-        : {}),
       catalogDetailApprovalFence: revision,
     });
   const byId = new Map(rows.map((row) => [row._id, row]));
@@ -233,6 +262,11 @@ export async function commitCatalogApproval(
   await tx.set('products', {
     ...product,
     catalogDetailPublication: plan.publication,
+    catalogDetailPagination: {
+      policyVersion: CATALOG_DETAIL_PAGINATION_POLICY,
+      revision,
+      pageSize: plan.publicPageSize ?? 50,
+    },
     catalogDetailApprovalReceipt: {
       operationId: command.operationId,
       revision,
@@ -272,11 +306,12 @@ export async function approveCatalogDetailInCloud(
   return db.runTransaction((tx) =>
     commitCatalogApproval(
       {
-        get: async (collection, id) =>
-          document((await tx.collection(collection).doc(id).get()).data),
+        get: serializeCloudBaseTransactionReads(async (collection, id) =>
+          document(sdkAnswer(await tx.collection(collection).doc(id).get()).data),
+        ),
         set: async (collection, row) => {
           const { _id, ...data } = row;
-          const result = await tx.collection(collection).doc(_id).set(data);
+          const result = sdkAnswer(await tx.collection(collection).doc(_id).set(data));
           if (result.updated !== 1) throw new Error('Approval write not confirmed');
         },
       },

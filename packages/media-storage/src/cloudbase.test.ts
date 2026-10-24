@@ -1,6 +1,9 @@
 import { strict as assert } from 'node:assert';
 import { Buffer } from 'node:buffer';
-import { Readable } from 'node:stream';
+import { createReadStream } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   type CloudBaseStorageSdk,
@@ -105,7 +108,13 @@ test('cloudbase putObject (Buffer): server path, fileID, provider/mode, byteSize
   assert.equal(stored.byteSize, 3);
 });
 
-test('cloudbase putObject (stream): byteSize is omitted', async () => {
+test('cloudbase putObject (fs.ReadStream): byteSize is omitted', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'channel-sdk-stream-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, 'file');
+  await writeFile(path, 'streamed');
+  const stream = createReadStream(path);
+  t.after(() => stream.destroy());
   const sdk = new FakeSdk();
   const store = createCloudBaseMediaStorage(sdk);
   const stored = await store.putObject({
@@ -113,7 +122,7 @@ test('cloudbase putObject (stream): byteSize is omitted', async () => {
     logicalId: 'img2',
     fileName: 'original-s.jpg',
     mimeType: 'image/jpeg',
-    content: Readable.from([Buffer.from('streamed')]),
+    content: stream,
   });
   assert.equal(stored.byteSize, undefined);
   assert.ok(!Object.hasOwn(stored, 'byteSize') || stored.byteSize === undefined);
@@ -257,3 +266,33 @@ test('deleteCloudBaseObjects resolves when every object is confirmed deleted', a
   ); // must not throw — all entries report status 0
   assert.equal(sdk.deleteFileLists.flat().length, 51);
 });
+
+test('cloudbase Uint8Array is converted to the installed SDK Buffer contract', async () => {
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  const stored = await store.putObject({
+    namespace: 'catalog',
+    logicalId: 'uint',
+    fileName: 'uint.png',
+    mimeType: 'image/png',
+    content: new Uint8Array([1, 2, 3]),
+  });
+  assert.ok(Buffer.isBuffer(sdk.uploads[0]?.fileContent));
+  assert.deepEqual(sdk.uploads[0]?.fileContent, Buffer.from([1, 2, 3]));
+  assert.equal(stored.byteSize, 3);
+});
+
+for (const path of [
+  'catalog/sealed/a.png',
+  '/catalog/sealed/a.png',
+  'catalog//sealed/a.png',
+  'catalog/x/../sealed/a.png',
+  'catalog/%73ealed/a.png',
+  'catalog\\sealed\\a.png',
+])
+  test(`browser upload broker refuses reserved path before mint: ${path}`, async () => {
+    const sdk = new FakeSdk();
+    const storage = createCloudBaseMediaStorage(sdk);
+    await assert.rejects(storage.getUploadCredential(path), /protected|reserved/i);
+    assert.deepEqual(sdk.uploadMetaPaths, []);
+  });

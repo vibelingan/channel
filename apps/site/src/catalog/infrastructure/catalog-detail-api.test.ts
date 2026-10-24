@@ -42,7 +42,7 @@ test('reads a validated detail through the explicit route without entitlement to
     fetch: async (url, init) => {
       assert.equal(
         url,
-        '/api/products/canonical-product/detail?page=1&pageSize=50&view=sections-media',
+        '/api/products/canonical-product/detail?page=1&pageSize=50&view=sections-media&pagination=byte-budget-v1',
       );
       assert.equal(init?.signal, abort.signal);
       assert.equal(init?.credentials, 'omit');
@@ -65,7 +65,7 @@ test('encodes the product identity and carries revision on later pages', async (
       fetch: async (url) => {
         assert.equal(
           url,
-          '/api/products/id%2Fwith%20%3F%23/detail?page=2&pageSize=50&view=sections-media&revision=r%262',
+          '/api/products/id%2Fwith%20%3F%23/detail?page=2&pageSize=50&view=sections-media&pagination=byte-budget-v1&revision=r%262',
         );
         return responseFor(data);
       },
@@ -98,7 +98,7 @@ test('rejects mismatched identity page size page number and missing revision', a
     { ...detailFixture(), _id: 'foreign' },
     { ...detailFixture(), revision: undefined },
     detailFixture(3, 2),
-    detailFixture(3, 1, 3),
+    detailFixture(3, 1, 51),
   ]) {
     assert.deepEqual(
       await fetchCatalogDetailPage(request, { fetch: async () => responseFor(data) }),
@@ -278,4 +278,26 @@ test('accepts chunk-split UTF-8 and an exact-limit valid body while rejecting on
     await fetchCatalogDetailPage(request, { fetch: async () => new Response(`${limitBody} `) }),
     { status: 'limit-exceeded' },
   );
+});
+
+test('first page negotiates a smaller byte width and later requests keep that width and revision', async () => {
+  const first = await fetchCatalogDetailPage(request, {
+    fetch: async () => responseFor(detailFixture(31, 1, 10)),
+  });
+  assert.equal(first.status, 'ready');
+  if (first.status !== 'ready') throw Error('first page');
+  const nextRequest = {
+    ...request,
+    page: 2,
+    pageSize: first.detail.variants.pageSize,
+    revision: first.detail.revision,
+  };
+  const next = await fetchCatalogDetailPage(nextRequest, {
+    fetch: async () => responseFor(detailFixture(31, 2, 10)),
+  });
+  assert.equal(next.status, 'ready');
+  const wrong = await fetchCatalogDetailPage(nextRequest, {
+    fetch: async () => responseFor(detailFixture(31, 2, 5)),
+  });
+  assert.deepEqual(wrong, { status: 'invalid-response' });
 });

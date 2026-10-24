@@ -17,6 +17,7 @@ import {
   createAlibabaCategoryResolver,
   createDraftForSource,
 } from '../../functions/alibaba-catalog-sync/src/linking.ts';
+import { sourceObservationFixture } from '../../functions/alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
 import { categoryAcceptanceFixture } from './category-acceptance-fixture.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 
@@ -158,6 +159,10 @@ test('Alibaba category baseline sync and draft reconciliation preserve manual su
       sourceTitle: 'Synthetic supplier product',
       active: true,
     });
+    const source = await database.get('alibabaSourceProducts', sourceKey);
+    assert.ok(source);
+    const observation = sourceObservationFixture(source);
+    await database.createDocWithId('catalogSourceObservations', observation._id, observation);
     const draft = await createDraftForSource(sourceKey, { now });
     assert.equal(draft.ok, true);
     assert.ok(draft.ok);
