@@ -6,18 +6,25 @@ import {
   limits,
   productFile,
   productPath,
-  readJson,
-  readObject,
+  readHostingObject,
 } from './input.mjs';
 
 /** Read only the sealed local files. No remote sitemap or entity resolution. */
 export function readPublicOutput(directory, entries, siteOrigin, publicPaths) {
   assertOrigin(siteOrigin);
   const paths = new Set(entries.map((entry) => entry.path));
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+  const read = (path, maxBytes) => {
+    const entry = byPath.get(path);
+    if (!entry) throw new Error(`Missing sealed file: ${path}`);
+    return readHostingObject(directory, entry, maxBytes);
+  };
+  const json = (path) =>
+    JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(read(path, limits.jsonBytes)));
   const html = entries
     .filter((entry) => productFile.test(entry.path))
     .map((entry) => `/${entry.path.slice(0, -10)}`);
-  const { pages, files: discoveryPaths } = readSitemaps(directory, paths, siteOrigin);
+  const { pages, files: discoveryPaths } = readSitemaps(read, paths, siteOrigin);
   const sitemapProducts = pages.filter((path) => productPath.test(path));
   const hasProducts = paths.has('products/manifest.json');
   const hasSeo = paths.has('seo-manifest.json');
@@ -32,8 +39,8 @@ export function readPublicOutput(directory, entries, siteOrigin, publicPaths) {
   if (!hasProducts && !hasSeo && !html.length && !sitemapProducts.length)
     return { products: [], legacy: true, discoveryPaths };
   if (!hasProducts || !hasSeo) throw new Error('Missing public product/SEO manifest.');
-  const products = readJson(directory, 'products/manifest.json');
-  const seo = readJson(directory, 'seo-manifest.json');
+  const products = json('products/manifest.json');
+  const seo = json('seo-manifest.json');
   if (
     products?.schemaVersion !== 1 ||
     products.purpose !== 'public' ||
@@ -90,7 +97,7 @@ export function readPublicOutput(directory, entries, siteOrigin, publicPaths) {
   };
 }
 
-function readSitemaps(directory, paths, origin) {
+function readSitemaps(read, paths, origin) {
   const files = [...paths].filter(isSitemap);
   const queue = (path) => {
     const file = assertHostingPath(path.slice(1));
@@ -103,7 +110,7 @@ function readSitemaps(directory, paths, origin) {
   if (files.length > limits.sitemaps) throw new Error('Sitemap file count limit exceeded.');
   if (paths.has('robots.txt')) {
     const robots = new TextDecoder('utf-8', { fatal: true }).decode(
-      readObject(directory, 'robots.txt', limits.jsonBytes),
+      read('robots.txt', limits.jsonBytes),
     );
     for (const line of robots.split(/\r?\n/)) {
       const directive = /^\s*Sitemap:\s*(.*?)\s*$/i.exec(line);
@@ -114,7 +121,7 @@ function readSitemaps(directory, paths, origin) {
   const pages = [];
   const referenced = new Set();
   for (const file of files) {
-    const parsed = parseSitemap(readObject(directory, file, limits.xmlBytes), origin);
+    const parsed = parseSitemap(read(file, limits.xmlBytes), origin);
     if (parsed.kind === 'urlset') pages.push(...parsed.locations);
     else
       for (const path of parsed.locations) {

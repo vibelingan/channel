@@ -3,13 +3,14 @@ import { verifyReleaseArtifact } from './release/artifact.mjs';
 import {
   assertHostingPath,
   assertOrigin,
+  backupObjectPath,
   checkEntries,
   freeze,
   identity,
   isSitemap,
   limits,
   productPath,
-  readObject,
+  readHostingObject,
 } from './release/input.mjs';
 import { readPublicOutput } from './release/public-output.mjs';
 export { assertHostingPath } from './release/input.mjs';
@@ -65,7 +66,10 @@ export function sealHostingBackup({
   configBefore,
   configAfter,
   contentProofs = [],
+  storageLayout = 'paths',
 }) {
+  if (!['paths', 'sha256-path-v1'].includes(storageLayout))
+    throw new Error('Unknown backup layout.');
   assertOrigin(before.site);
   const configuration = hostingConfigurationIdentity(configBefore);
   if (
@@ -79,7 +83,8 @@ export function sealHostingBackup({
   )
     throw new Error('Hosting changed during backup; capture again before any write.');
   const entries = inventoryIdentity(before.entries).map(([path, bytes, etag]) => {
-    const body = readObject(directory, path);
+    const sourcePath = storageLayout === 'sha256-path-v1' ? backupObjectPath(path) : undefined;
+    const body = readHostingObject(directory, { path, sourcePath });
     if (body.length !== bytes) throw new Error(`Backup size mismatch: ${path}`);
     const md5 = etag.replaceAll('"', '');
     if (/^[a-f0-9]{32}$/i.test(md5)) {
@@ -91,7 +96,7 @@ export function sealHostingBackup({
       if (proof?.etag !== etag || proof?.bytes !== bytes || proof?.sha256 !== hash('sha256', body))
         throw new Error(`Cannot prove backup content against the object ETag: ${path}`);
     }
-    return { path, bytes, sha256: hash('sha256', body) };
+    return { path, bytes, sha256: hash('sha256', body), ...(sourcePath ? { sourcePath } : {}) };
   });
   if (!entries.some((entry) => entry.path === 'index.html')) throw new Error('Empty site backup.');
   return {
@@ -101,6 +106,7 @@ export function sealHostingBackup({
     site: before.site,
     capturedAt: new Date().toISOString(),
     source: 'online-backup',
+    storageLayout,
     entries,
     configuration,
     configurationSha256: hash('sha256', JSON.stringify(configuration)),
@@ -123,7 +129,14 @@ export function verifyRecoveryInput(manifest, directory, target) {
   const seen = new Set();
   for (const entry of manifest.entries) {
     seen.add(entry.path);
-    const body = readObject(directory, entry.path);
+    if (
+      manifest.storageLayout === 'sha256-path-v1' &&
+      entry.sourcePath !== backupObjectPath(entry.path)
+    )
+      throw new Error('Missing backup object mapping.');
+    if (![undefined, 'paths', 'sha256-path-v1'].includes(manifest.storageLayout))
+      throw new Error('Unknown backup layout.');
+    const body = readHostingObject(directory, entry);
     if (body.length !== entry.bytes || hash('sha256', body) !== entry.sha256)
       throw new Error(`Corrupt recovery file: ${entry.path}`);
   }

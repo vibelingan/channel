@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -41,21 +41,22 @@ function setup(t) {
       };
     if (args.action === 'listRoutes')
       return { success: true, data: { raw: { Domains: [{ Domain: 'fixture.example' }] } } };
-    if (args.action === 'downloadDirectory') return { success: true }; // SDK missed the file
-    if (args.action === 'downloadFile') {
-      writeFileSync(args.localPath, 'home');
-      return { success: true };
-    }
     throw new Error(`Unexpected tool: ${selector} ${args.action}`);
   };
-  return { output, target, calls, callTool };
+  return {
+    output,
+    target,
+    calls,
+    callTool,
+    request: async () => ({ status: 200, body: Buffer.from('home'), headers: new Headers() }),
+  };
 }
 
-test('capture repairs a missing SDK download and seals only after a second complete inventory', async (t) => {
+test('capture uses bounded HTTP reads and seals only after a second complete inventory', async (t) => {
   const f = setup(t);
   const manifest = await captureHostingBackup(f);
   assert.equal(manifest.entries.length, 1);
-  assert.equal(f.calls.filter((c) => c.args.action === 'downloadFile').length, 1);
+  assert.equal(f.calls.filter((c) => c.selector === 'cloudbase.manageHosting').length, 0);
   assert.equal(f.calls.filter((c) => c.args.action === 'listFiles').length, 2);
   assert.equal(
     f.calls.some((c) =>
@@ -86,4 +87,46 @@ test('truncated pagination without a cursor cannot produce an apparently complet
     }),
     /pagination/,
   );
+});
+
+test('capture seals conflicting object keys and recovery preserves their original URLs', async (t) => {
+  const { planHostingRecovery, verifyRecoveryInput } = await import('./hosting-recovery.mjs');
+  const f = setup(t);
+  const bodies = { 'index.html': 'home', legacy: 'one', 'legacy/file.js': 'two' };
+  const original = f.callTool;
+  f.callTool = async (selector, args) =>
+    args.action === 'listFiles'
+      ? {
+          success: true,
+          data: {
+            files: Object.entries(bodies).map(([key, body]) => ({
+              key,
+              size: String(body.length),
+              ETag: `"${createHash('md5').update(body).digest('hex')}"`,
+              lastModified: '2026-10-24T00:00:00Z',
+            })),
+            totalCount: 3,
+            isTruncated: false,
+          },
+        }
+      : original(selector, args);
+  f.request = async (_method, url) => ({
+    status: 200,
+    body: Buffer.from(bodies[new URL(url).pathname.slice(1)]),
+    headers: new Headers(),
+  });
+  const manifest = await captureHostingBackup(f);
+  const directory = join(f.output, 'files');
+  verifyRecoveryInput(manifest, directory, f.target);
+  const plan = planHostingRecovery({
+    manifest,
+    directory,
+    target: f.target,
+    currentOwnedPaths: [],
+    publicProductPaths: [],
+  });
+  assert.deepEqual(plan.uploads.map((item) => item.path).sort(), Object.keys(bodies).sort());
+  const corrupt = structuredClone(manifest);
+  corrupt.entries[0].sourcePath = corrupt.entries[1].sourcePath;
+  assert.throws(() => verifyRecoveryInput(corrupt, directory, f.target), /mapping/);
 });

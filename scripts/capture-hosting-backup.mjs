@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { assertToolSucceeded } from './cloudbase-deploy-resources.mjs';
-import { assertHostingPath, sealHostingBackup } from './hosting-recovery.mjs';
+import { downloadHostingBackupFiles } from './hosting-backup-download.mjs';
+import { sealHostingBackup } from './hosting-recovery.mjs';
 import { fetchFully } from './smoke-http.mjs';
 
 async function inventory(callTool, target) {
@@ -83,46 +83,19 @@ export async function captureHostingBackup({ callTool, target, output, request =
   save('configuration-before.json', configBefore);
   const directory = resolve(output, 'files');
   mkdirSync(directory);
-  const downloaded = await callTool('cloudbase.manageHosting', {
-    action: 'downloadDirectory',
-    cloudPath: '/',
-    localPath: directory,
+  const cdnDomain = configBefore.website?.CdnDomain;
+  if (
+    cdnDomain !== undefined &&
+    (typeof cdnDomain !== 'string' || !/^[a-z0-9.-]+$/i.test(cdnDomain))
+  )
+    throw new Error('Invalid hosting CDN domain.');
+  const { contentProofs } = await downloadHostingBackupFiles({
+    origin: cdnDomain ? `https://${cdnDomain}` : target.site,
+    directory,
+    entries: before.entries,
+    storageLayout: 'sha256-path-v1',
+    request,
   });
-  assertToolSucceeded(downloaded, 'Download hosted site');
-  // The installed SDK can return success with missing files. Retry only those
-  // explicit keys once, then let the seal reject missing or corrupt bytes.
-  for (const entry of before.entries.filter((item) => !item.path.endsWith('/'))) {
-    assertHostingPath(entry.path);
-    const localPath = resolve(directory, entry.path);
-    if (!existsSync(localPath)) {
-      mkdirSync(dirname(localPath), { recursive: true });
-      const retry = await callTool('cloudbase.manageHosting', {
-        action: 'downloadFile',
-        cloudPath: entry.path,
-        localPath,
-      });
-      assertToolSucceeded(retry, `Download missing backup file ${entry.path}`);
-    }
-  }
-  const contentProofs = [];
-  for (const entry of before.entries.filter(
-    (item) => !item.path.endsWith('/') && !/^"?[a-f0-9]{32}"?$/i.test(item.etag),
-  )) {
-    if (entry.bytes > 64 * 1024 * 1024)
-      throw new Error('Multipart backup proof exceeds bounded reader.');
-    const response = await request('GET', new URL(entry.path, `${target.site}/`).href, {
-      timeoutMs: 60000,
-      maxBytes: entry.bytes + 1,
-      headers: { 'cache-control': 'no-cache' },
-    });
-    if (response.status !== 200) throw new Error(`Backup proof returned HTTP ${response.status}.`);
-    contentProofs.push({
-      path: entry.path,
-      etag: response.headers.get('etag'),
-      bytes: response.body.length,
-      sha256: createHash('sha256').update(response.body).digest('hex'),
-    });
-  }
   save('content-proofs.json', contentProofs);
   const after = await inventory(callTool, target);
   const configAfter = await configuration(callTool, target.site);
@@ -135,6 +108,7 @@ export async function captureHostingBackup({ callTool, target, output, request =
     configBefore,
     configAfter,
     contentProofs,
+    storageLayout: 'sha256-path-v1',
   });
   save('recovery-manifest.json', manifest);
   return manifest;

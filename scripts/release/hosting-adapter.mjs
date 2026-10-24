@@ -17,7 +17,7 @@ import {
   identity,
   isSitemap,
   limits,
-  readObject,
+  readHostingObject,
   sha256,
 } from './input.mjs';
 
@@ -237,7 +237,7 @@ export function createHostingRecoveryAdapters({
       const ctx = freeze(structuredClone(inputContext));
       object(entry);
       context(ctx, `upload:${entry.path}`, entry.sha256);
-      const body = readObject(directory, entry.path);
+      const body = readHostingObject(directory, entry);
       if (body.length !== entry.bytes || sha256(body) !== entry.sha256)
         throw new Error('Hosting artifact changed');
       let step;

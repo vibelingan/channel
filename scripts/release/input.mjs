@@ -22,6 +22,13 @@ export const limits = Object.freeze({
   depth: 32,
 });
 export const sha256 = (body) => createHash('sha256').update(body).digest('hex');
+export const backupObjectPath = (path) =>
+  `.recovery-objects/${sha256(assertHostingPath(path))}.bin`;
+export function readHostingObject(directory, entry, maxBytes = limits.fileBytes) {
+  if (entry.sourcePath !== undefined && entry.sourcePath !== backupObjectPath(entry.path))
+    throw new Error('Invalid backup object mapping.');
+  return readObject(directory, entry.sourcePath ?? entry.path, maxBytes);
+}
 export const isHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 export const productPath = /^\/products\/p-[A-Za-z0-9_-]{1,200}\/$/;
 export const productFile = /^products\/p-[A-Za-z0-9_-]{1,200}\/index\.html$/;
