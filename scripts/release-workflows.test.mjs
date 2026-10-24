@@ -65,5 +65,5 @@ test('maintenance holds the same target lock without cloud credentials, environm
     JSON.stringify(maintenance),
     /TENCENTCLOUD|secrets\.|deploy-cloudbase|run-static-canary/,
   );
-  assert.match(workflow.jobs.canary.if, /inputs.mode != 'maintenance'/);
+  assert.match(workflow.jobs.canary.if, /inputs.mode == 'plan' \|\| inputs.mode == 'execute'/);
 });

@@ -179,3 +179,19 @@ test('CloudBase never uploads the reserved root fallback or deletes its configur
   assert.equal(state.calls.length, 0);
   assert.equal(state.files.size, 0);
 });
+
+test('installed SDK inventory reads every page and retains exact object versions without cloud writes', async () => {
+  const { manager, state } = managerFixture();
+  state.listPageSize = 2;
+  for (const path of ['a.txt', 'b.txt', 'c.txt']) state.files.set(path, Buffer.from(path));
+  const port = createCloudbaseHostingProvider({ manager, target });
+  const files = await port.readInventory();
+  assert.deepEqual(
+    files.map((entry) => entry.path),
+    ['a.txt', 'b.txt', 'c.txt'],
+  );
+  assert.ok(files.every((entry) => entry.etag && entry.lastModified && entry.bytes === 5));
+  assert.equal(state.calls.filter((call) => call.action === 'cos-list').length, 2);
+  assert.equal(state.uploads, 0);
+  assert.equal(state.deleted, 0);
+});

@@ -1,0 +1,72 @@
+name: Blog API expansion
+on:
+  workflow_call:
+    secrets:
+      TENCENTCLOUD_SECRETID: {required: true}
+      TENCENTCLOUD_SECRETKEY: {required: true}
+      E2E_ADMIN_PASSWORD: {required: true}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: test
+    env:
+      CI: 'true'
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Build exactly the reviewed admin function
+        run: pnpm --filter @vibelingan-channel/fn-admin build
+      - name: Archive current admin before writes; prepare private article storage and expand only its code
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        with:
+          script: |
+            const { spawn } = require('node:child_process');
+            await new Promise((resolve, reject) => {
+              const child = spawn('./apps/site/node_modules/.bin/tsx', ['scripts/blog/bootstrap-admin.ts'], {stdio:'inherit', env:process.env});
+              child.once('error', reject);
+              child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Controlled admin preparation failed (${code})`)));
+            });
+      - name: Install acceptance browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Operate the real editor against formal CloudBase
+        env:
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: node scripts/blog/formal-ui.mjs
+      - name: Independently verify database records and stored image bytes
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/verify-formal-ui.ts
+      - name: Keep preparation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blog-bootstrap-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/blog-bootstrap/result.json
+            output/blog-bootstrap/update-result.json
+            output/blog-bootstrap/resources.json
+            output/blog-bootstrap/ui-proof.json
+            output/blog-bootstrap/database-proof.json
+            output/blog-bootstrap/editor-*.png
+          if-no-files-found: ignore
+          retention-days: 90

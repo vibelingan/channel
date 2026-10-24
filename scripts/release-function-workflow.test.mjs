@@ -37,7 +37,9 @@ test('all manual modes select exactly one job and retain the existing shared tar
         ? 'functions'
         : mode === 'maintenance'
           ? 'maintenance'
-          : 'canary',
+          : mode === 'blog-bootstrap'
+            ? 'blog_bootstrap'
+            : 'canary',
     ]);
   }
   assert.deepEqual(workflow.concurrency, {

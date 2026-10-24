@@ -58,6 +58,7 @@
     "ai:eval": "node --experimental-strip-types scripts/ai-eval.mjs"
   },
   "devDependencies": {
+    "@actions/artifact": "2.3.2",
     "@biomejs/biome": "^1.9.4",
     "@cloudbase/manager-node": "5.9.1",
     "@playwright/test": "^1.61.1",

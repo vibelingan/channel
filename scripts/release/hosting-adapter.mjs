@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { assertErrorDocument } from '../hosting-contract.mjs';
+import { verifyRetainedHostingFiles } from '../hosting-delta.mjs';
 import { recoveryStateIdentity } from '../hosting-recovery.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import {
@@ -231,7 +232,14 @@ export function createHostingRecoveryAdapters({
       activeSignal.removeEventListener('abort', onAbort);
     }
   }
+  async function verifyRetained() {
+    if (!plan.retained?.length) return;
+    if (typeof provider.readInventory !== 'function')
+      throw new Error('Authenticated retained-object inventory required.');
+    verifyRetainedHostingFiles(plan.retained, await provider.readInventory());
+  }
   const api = {
+    verifyRetained,
     async upload(inputEntry, inputContext) {
       const entry = freeze(structuredClone(inputEntry));
       const ctx = freeze(structuredClone(inputContext));
@@ -416,6 +424,7 @@ export function createHostingRecoveryAdapters({
     async accept(inputContext) {
       const ctx = freeze(structuredClone(inputContext));
       context(ctx, 'accept', plan.stateSha256);
+      await verifyRetained();
       let step;
       try {
         return await leased(async (activeSignal) => {
@@ -464,7 +473,7 @@ export function createHostingRecoveryAdapters({
   return Object.freeze(api);
 }
 function validatePlan(plan, configurationPlan) {
-  checkEntries(plan.uploads);
+  checkEntries([...plan.uploads, ...(plan.retained ?? [])]);
   if (plan.uploads.some((entry) => entry.path === '404.html'))
     throw new Error('Reserved CloudBase fallback path');
   if (

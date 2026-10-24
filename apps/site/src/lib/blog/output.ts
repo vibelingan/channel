@@ -16,7 +16,7 @@ export async function validateBlogOutput(
 ): Promise<void> {
   const { snapshot, assets } = await readBlogBuild(origin, inputFile);
   const articles = snapshot?.articles ?? [];
-  const expected = articles.length
+  const expected = snapshot
     ? [
         blogPage(articles, origin, ''),
         ...articles.map((article) => articlePage(article, origin, '')),

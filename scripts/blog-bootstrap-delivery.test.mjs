@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { replaceAdminCode } from './blog/bootstrap-delivery.mjs';
+import { functionManagerFixture, functionZip } from './release-function-manager-fixture.mjs';
+import { createCloudbaseFunctionProvider } from './release/function-provider.mjs';
+import { sha256 } from './release/input.mjs';
+async function setup() {
+  const f = functionManagerFixture({ name: 'admin' });
+  const original = Buffer.from(f.state.bytes);
+  const candidate = functionZip('exports.main=async()=>({version:"B"});');
+  const provider = createCloudbaseFunctionProvider({
+    ...f,
+    target: { envId: 'fixture-env', siteOrigin: 'https://fixture.example' },
+    region: 'ap-shanghai',
+    names: ['admin'],
+  });
+  const before = await provider.read('admin');
+  let time = 0;
+  return {
+    ...f,
+    provider,
+    before,
+    original,
+    candidate,
+    beforeVersion: 'A',
+    expectedVersion: 'B',
+    timeoutMs: 20,
+    now: () => time,
+    pause: async () => {
+      time += 10;
+    },
+    readHealth: async () => (sha256(f.state.bytes) === sha256(candidate) ? 'B' : 'A'),
+  };
+}
+test('code update preserves configuration and verifies actual package plus running version', async () => {
+  const f = await setup();
+  const result = await replaceAdminCode(f);
+  assert.equal(result.status, 'accepted');
+  assert.equal(f.state.updates, 1);
+  assert.equal(result.snapshot.configurationToken, f.before.configurationToken);
+});
+test('a known activated B with failed health restores exact saved A once', async () => {
+  const f = await setup();
+  f.readHealth = async () => (sha256(f.state.bytes) === sha256(f.candidate) ? 'unhealthy' : 'A');
+  const result = await replaceAdminCode(f);
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(f.state.bytes, f.original);
+  assert.equal(f.state.updates, 2);
+});
+test('lost update reply is resolved by actual package and health without repeating the write', async () => {
+  const f = await setup();
+  f.state.fail = 'lost-ack';
+  const result = await replaceAdminCode(f);
+  assert.equal(result.status, 'accepted');
+  assert.equal(f.state.updates, 1);
+});
+for (const failure of ['drift', 'wrong-bytes'])
+  test(`unexpected ${failure} stops without restoring over unknown state`, async () => {
+    const f = await setup();
+    f.state.fail = failure;
+    const result = await replaceAdminCode(f);
+    assert.equal(result.status, 'unknown');
+    assert.equal(f.state.updates, 1);
+  });
+
+test('rerunning acceptance for identical installed code makes no code write', async () => {
+  const f = await setup();
+  f.candidate = f.original;
+  f.expectedVersion = f.beforeVersion;
+  f.readHealth = async () => f.beforeVersion;
+  const result = await replaceAdminCode(f);
+  assert.equal(result.status, 'accepted');
+  assert.equal(result.alreadyInstalled, true);
+  assert.equal(f.state.updates, 0);
+});
+test('the same version label cannot authorize different code', async () => {
+  const f = await setup();
+  f.expectedVersion = f.beforeVersion;
+  await assert.rejects(() => replaceAdminCode(f), /different program bytes/);
+  assert.equal(f.state.updates, 0);
+});

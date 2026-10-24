@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import CloudBase from '@cloudbase/manager-node';
 import { configuration, target } from './release-hosting-fixtures.mjs';
@@ -64,6 +65,21 @@ export function managerFixture({ request, initialConfiguration = configuration()
   });
   const storage = manager.currentEnvironment().getStorageService();
   storage.getCos = () => ({
+    getBucket(options, callback) {
+      state.calls.push({ action: 'cos-list', marker: options.Marker });
+      const all = [...state.files.keys()].sort().filter((key) => key > (options.Marker ?? ''));
+      const keys = all.slice(0, state.listPageSize ?? options.MaxKeys);
+      callback(null, {
+        Contents: keys.map((Key) => ({
+          Key,
+          Size: String(state.files.get(Key).length),
+          ETag: `"${createHash('md5').update(state.files.get(Key)).digest('hex')}"`,
+          LastModified: '2026-10-24T00:00:00Z',
+        })),
+        IsTruncated: keys.length < all.length,
+        ...(keys.length < all.length ? { NextMarker: keys.at(-1) } : {}),
+      });
+    },
     uploadFiles(options, callback) {
       state.uploads++;
       if (state.fail === 'upload') {

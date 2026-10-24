@@ -235,3 +235,14 @@ test('read-only inspection observes a larger existing package and timer without 
   assert.equal(f.state.updates, 0);
   assert.equal(f.state.detail.Triggers.length, 1);
 });
+
+test('capture returns the exact online ZIP with a secret-free stable snapshot', async () => {
+  const f = setup();
+  const captured = await f.provider.capture('public-api');
+  assert.equal(sha256(captured.bytes), captured.snapshot.packageSha256);
+  assert.equal(captured.bytes.length, captured.snapshot.packageBytes);
+  assert(!JSON.stringify(captured.snapshot).includes('sdk-fixture-secret'));
+  const read = await f.provider.inspect('public-api');
+  assert.equal(read.configurationToken, captured.snapshot.configurationToken);
+  assert.equal(read.packageSha256, captured.snapshot.packageSha256);
+});

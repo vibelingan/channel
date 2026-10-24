@@ -66,13 +66,32 @@ export async function captureHostingBackup({ callTool, target, output, request =
   const auth = await callTool('cloudbase.auth', { action: 'status' });
   if (auth.auth_status !== 'READY' || auth.current_env_id !== target.envId)
     throw new Error('Authenticated environment differs from backup target.');
+  return captureBoundHostingBackup({
+    target,
+    output,
+    request,
+    reader: {
+      inventory: () => inventory(callTool, target),
+      configuration: () => configuration(callTool, target.site),
+    },
+  });
+}
+
+/** Read ports are supplied by an authenticated, environment-bound management adapter. */
+export async function captureBoundHostingBackup({ target, output, request = fetchFully, reader }) {
+  if (
+    !target.envId ||
+    new URL(target.site).origin !== target.site ||
+    !target.site.startsWith('https://')
+  )
+    throw new Error('Explicit environment and HTTPS origin are required.');
   if (existsSync(output))
     throw new Error('Backup directory already exists; preserve it and use a new path.');
   mkdirSync(output, { recursive: true });
   const save = (name, value) =>
     writeFileSync(resolve(output, name), `${JSON.stringify(value, null, 2)}\n`);
-  const before = await inventory(callTool, target);
-  const configBefore = await configuration(callTool, target.site);
+  const before = await reader.inventory();
+  const configBefore = await reader.configuration();
   if (
     !configBefore.gateway?.Domains?.some(
       (domain) => domain.Domain === new URL(target.site).hostname,
@@ -97,8 +116,8 @@ export async function captureHostingBackup({ callTool, target, output, request =
     request,
   });
   save('content-proofs.json', contentProofs);
-  const after = await inventory(callTool, target);
-  const configAfter = await configuration(callTool, target.site);
+  const after = await reader.inventory();
+  const configAfter = await reader.configuration();
   save('inventory-after.json', after);
   save('configuration-after.json', configAfter);
   const manifest = sealHostingBackup({

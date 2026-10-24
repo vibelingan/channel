@@ -6,6 +6,7 @@ import { REQUIRED_NOSQL_RESOURCES } from './cloudbase-nosql-resources.mjs';
 function fixture({ failReadback = false } = {}) {
   const collections = new Set();
   const permissions = new Map();
+  const indexes = new Map();
   const calls = [];
   const call = (name, args) => {
     calls.push({ name, args });
@@ -15,7 +16,19 @@ function fixture({ failReadback = false } = {}) {
       collections.add(args.collectionName);
       return { success: true };
     }
-    if (args.action === 'listIndexes') return { success: true, indexes: [] };
+    if (args.action === 'listIndexes')
+      return { success: true, indexes: indexes.get(args.collectionName) ?? [] };
+    if (args.action === 'updateCollection') {
+      indexes.set(
+        args.collectionName,
+        args.updateOptions.CreateIndexes.map((index) => ({
+          Name: index.IndexName,
+          Unique: index.MgoKeySchema.MgoIsUnique,
+          Keys: index.MgoKeySchema.MgoIndexKeys,
+        })),
+      );
+      return { success: true };
+    }
     if (args.action === 'getResourcePermission')
       return { success: true, aclTag: permissions.get(args.resourceId) ?? 'READONLY' };
     if (args.action === 'updateResourcePermission') {
@@ -42,7 +55,9 @@ test('article resources are explicit function-only collections outside the defau
   );
   assert.ok(
     ARTICLE_NOSQL_RESOURCES.every(
-      (item) => item.permission === 'ADMINONLY' && item.indexes.length === 0,
+      (item) =>
+        item.permission === 'ADMINONLY' &&
+        item.indexes.length === (item.collectionName === 'articleReleaseTasks' ? 1 : 0),
     ),
   );
   assert.equal(

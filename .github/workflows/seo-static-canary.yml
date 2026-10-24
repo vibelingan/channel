@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap]
         default: plan
         required: true
       action:
@@ -48,7 +48,7 @@ concurrency:
 
 jobs:
   canary:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode != 'maintenance' && !startsWith(inputs.mode, 'function-') }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'plan' || inputs.mode == 'execute') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: test
@@ -238,3 +238,11 @@ jobs:
             output/function-recovery/accepted.json
           if-no-files-found: warn
           retention-days: 90
+
+  blog_bootstrap:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-bootstrap' }}
+    uses: ./.github/workflows/seo-blog-bootstrap.yml
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}

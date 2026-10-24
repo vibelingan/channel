@@ -216,3 +216,26 @@ test('a receipt from an earlier execution of the same plan cannot satisfy a new 
     );
   }
 });
+
+test('retained object evidence must be checked before the first external write', async (t) => {
+  const f = setup(t);
+  const { identity } = await import('./release/input.mjs');
+  const plan = structuredClone(f.plan);
+  const entry = plan.uploads.pop();
+  plan.retained = [{ ...entry, proof: { etag: 'test', lastModified: 'test' } }];
+  plan.stateSha256 = recoveryStateIdentity(plan);
+  const { planSha256, ...body } = plan;
+  plan.planSha256 = identity(body);
+  await assert.rejects(executeHostingRecovery(plan, f.adapters), /Retained/);
+  assert.deepEqual(f.calls, []);
+  await assert.rejects(
+    executeHostingRecovery(plan, {
+      ...f.adapters,
+      verifyRetained: async () => {
+        throw new Error('retained object changed');
+      },
+    }),
+    /changed/,
+  );
+  assert.deepEqual(f.calls, []);
+});

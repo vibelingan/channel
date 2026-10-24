@@ -42,5 +42,5 @@ test('collection revision and last modified derive from public content, never th
     blogPage([article], 'https://example.com', 'Brand').content.updatedAt,
     article.modifiedAt,
   );
-  assert.throws(() => blogPage([], 'https://example.com', 'Brand'));
+  assert.equal(blogPage([], 'https://example.com', 'Brand').robots, 'noindex,follow');
 });

@@ -180,6 +180,24 @@ export function planReleaseRecovery({ artifactInput, currentOwnedPaths, publicPr
   });
 }
 
+/** Formal publishing requires the current public-product allowlist as well as the complete payload. */
+export function planSiteReleaseCandidate({ artifactInput, currentOwnedPaths, publicProductPaths }) {
+  const { envelope, staticManifest } = verifyReleaseArtifact({
+    ...artifactInput,
+    mode: 'candidate',
+  });
+  if (envelope.scope.kind !== 'site') throw new Error('Formal candidate must cover the site scope');
+  return makePlan({
+    entries: staticManifest.entries,
+    configurationSha256: staticManifest.configurationSha256,
+    directory: artifactInput.directory,
+    target: { envId: envelope.target.envId, site: envelope.target.siteOrigin },
+    scope: envelope.scope,
+    currentOwnedPaths,
+    publicProductPaths,
+  });
+}
+
 /** New canary candidates use source verification without inventing an accepted seal. */
 export function planReleaseCandidate({ artifactInput, currentOwnedPaths }) {
   const { envelope, staticManifest } = verifyReleaseArtifact({
@@ -276,6 +294,11 @@ export async function executeHostingRecovery(input, inputAdapters) {
     throw new Error('Invalid recovery plan identity.');
   for (const name of ['upload', 'verify', 'remove', 'configure', 'accept'])
     if (typeof adapters[name] !== 'function') throw new Error(`Missing recovery adapter: ${name}`);
+  if (plan.retained?.length) {
+    if (typeof adapters.verifyRetained !== 'function')
+      throw new Error('Retained files require fresh inventory verification.');
+    await adapters.verifyRetained();
+  }
   const executionId = randomUUID();
   const context = (subject, expectedHash) =>
     freeze({ executionId, planSha256, subject, expectedHash });
@@ -320,7 +343,7 @@ export function recoveryStateIdentity(plan) {
   return identity({
     target: plan.target,
     scope: plan.scope,
-    files: plan.uploads
+    files: [...plan.uploads, ...(plan.retained ?? [])]
       .map(({ path, sha256 }) => ({ path, sha256 }))
       .sort((a, b) => a.path.localeCompare(b.path)),
     absent: [...plan.deletes].sort(),

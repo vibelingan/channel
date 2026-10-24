@@ -1,28 +1,38 @@
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { prepareArticleBuild } from '@vibelingan-channel/articles/build';
+import { type ArticlePageData, prepareArticleBuild } from '@vibelingan-channel/articles/build';
 import { ArticleMediaRecordSchema } from '@vibelingan-channel/articles/media';
 import { articleMediaPath } from '@vibelingan-channel/articles/publication';
 import { z } from 'zod';
 import type { ArticleDatabase } from './article-repository.ts';
-export async function writeBlogBuildAssets({
-  db,
-  sdk,
-  input,
-  directory,
-  taskId,
-  assertFileId,
-}: {
+interface AssetOptions {
   db: ArticleDatabase;
   sdk: { downloadFile(options: { fileID: string }): Promise<{ fileContent?: unknown }> };
-  input: { release: unknown };
   directory: string;
-  taskId: string;
   assertFileId: (fileId: string) => void;
-}) {
+}
+export async function writeBlogBuildAssets(
+  options: AssetOptions & {
+    input: { release: unknown };
+    taskId: string;
+  },
+) {
+  return writeBlogArticleAssets({
+    ...options,
+    articles: prepareArticleBuild(options.input.release, options.taskId),
+  });
+}
+/** Resolve verified public image bytes for accepted snapshots and frozen candidates alike. */
+export async function writeBlogArticleAssets({
+  db,
+  sdk,
+  articles,
+  directory,
+  assertFileId,
+}: AssetOptions & { articles: ArticlePageData[] }) {
   let total = 0;
-  for (const article of prepareArticleBuild(input.release, taskId)) {
+  for (const article of articles) {
     for (const [id, media] of Object.entries(article.media)) {
       const raw = await db.runTransaction(async (tx) =>
         tx.collection('articleMedia').doc(id).get(),

@@ -102,13 +102,15 @@ export function blogPage(
   brand: string,
   location = publicBlogLocation,
 ) {
-  if (!articles.length && !location.dummy)
-    throw new Error('An empty Blog does not create an indexable shell');
   const rows = [...articles].sort((a, b) => a.articleId.localeCompare(b.articleId));
   return createPageDescriptor({
     path: location.root,
     kind: 'collection',
-    ...(location.dummy ? { robots: 'noindex,nofollow' as const } : {}),
+    ...(location.dummy
+      ? { robots: 'noindex,nofollow' as const }
+      : !articles.length
+        ? { robots: 'noindex,follow' as const }
+        : {}),
     title: `${blogCopy.title} | ${brand}`,
     description: blogCopy.description,
     content: {

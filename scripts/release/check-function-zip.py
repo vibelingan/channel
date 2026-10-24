@@ -1,4 +1,4 @@
-import io, json, pathlib, stat, sys, zipfile
+import hashlib, io, json, pathlib, stat, sys, zipfile
 
 try:
     body = sys.stdin.buffer.read(1572865)
@@ -26,7 +26,7 @@ try:
             for name, value in files.items():
                 with (root / name).open('xb') as f:
                     f.write(value)
-        print(json.dumps({'format': 'channel-bundled-zip-v1', 'files': sorted(files)}))
+        print(json.dumps({'format': 'channel-bundled-zip-v1', 'files': sorted(files), 'contentSha256': {name: hashlib.sha256(value).hexdigest() for name,value in files.items()}}))
 except Exception:
     sys.stderr.write('Invalid bundled function ZIP\n')
     sys.exit(1)

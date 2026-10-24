@@ -95,6 +95,9 @@ test('desktop and narrow layouts preserve the site shell, readable content and k
       path: 'output/blog-public-2026-10-23/article-desktop.png',
       fullPage: true,
     });
+  await expect(
+    page.locator('[data-site-header]').getByRole('link', { name: 'Insights', exact: true }).first(),
+  ).toHaveAttribute('href', '/blog/');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

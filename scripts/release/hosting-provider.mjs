@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { hostingConfigurationIdentity } from '../hosting-recovery.mjs';
+import { hostingConfigurationIdentity, inventoryIdentity } from '../hosting-recovery.mjs';
 import { errorDocumentPath, validateConfigurationChange } from './hosting-configuration.mjs';
 import { assertHostingPath, assertOrigin, freeze, isSitemap, limits } from './input.mjs';
 
@@ -66,6 +66,40 @@ export function createCloudbaseHostingProvider({ manager, target }) {
   return Object.freeze({
     target: fixed,
     readConfiguration,
+    async readInventory() {
+      return safe(async () => {
+        const entries = [];
+        const markers = new Set();
+        let marker;
+        for (;;) {
+          const page = await hosting.findFiles({
+            prefix: '',
+            maxKeys: 1000,
+            ...(marker ? { marker } : {}),
+          });
+          if (
+            !Array.isArray(page.Contents) ||
+            ![true, false, 'true', 'false'].includes(page.IsTruncated)
+          )
+            throw new Error('Incomplete hosting inventory');
+          entries.push(
+            ...page.Contents.map((item) => ({
+              path: item.Key,
+              bytes: Number(item.Size),
+              etag: item.ETag,
+              lastModified: item.LastModified,
+            })),
+          );
+          if (entries.length > limits.files) throw new Error('Hosting inventory count limit');
+          if ([false, 'false'].includes(page.IsTruncated)) break;
+          marker = page.NextMarker;
+          if (!marker || markers.has(marker)) throw new Error('Incomplete hosting pagination');
+          markers.add(marker);
+        }
+        inventoryIdentity(entries);
+        return entries.filter((entry) => !entry.path.endsWith('/'));
+      });
+    },
     async upload(path, input, { signal } = {}) {
       assertHostingPath(path);
       if (path === '404.html') throw new Error('Reserved CloudBase fallback path');

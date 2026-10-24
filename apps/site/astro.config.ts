@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import { loadEnv } from 'vite';
 import { parseDocument } from 'yaml';
+import { readBlogBuild } from './src/lib/blog/snapshot.ts';
 import { seoGate } from './src/lib/seo/integration.ts';
 import {
   includeInSitemap as includePage,
@@ -25,6 +26,7 @@ const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
 // local instead of silently stamping production canonicals.
 const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
+const blog = await readBlogBuild(site);
 
 const catalogSource = readFileSync(
   new URL('./src/i18n/content/catalog/en-US.md', import.meta.url),
@@ -48,6 +50,8 @@ export function isSitemapPathIncluded(
   return includePath(path, paths);
 }
 export function includeInSitemap(page: string): boolean {
+  if (new URL(page).pathname.replace(/\/$/, '') === '/blog' && !blog.snapshot?.articles.length)
+    return false;
   return includePage(page, published);
 }
 

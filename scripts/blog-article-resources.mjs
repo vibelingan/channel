@@ -14,7 +14,23 @@ export const ARTICLE_NOSQL_RESOURCES = Object.freeze(
     Object.freeze({
       collectionName,
       permission: 'ADMINONLY',
-      indexes: Object.freeze([]),
+      indexes: Object.freeze(
+        collectionName === 'articleReleaseTasks'
+          ? [
+              {
+                IndexName: 'article_release_queue',
+                MgoKeySchema: {
+                  MgoIsUnique: false,
+                  MgoIndexKeys: [
+                    { Name: 'state', Direction: '1' },
+                    { Name: 'createdAt', Direction: '1' },
+                    { Name: '_id', Direction: '1' },
+                  ],
+                },
+              },
+            ]
+          : [],
+      ),
     }),
   ),
 );

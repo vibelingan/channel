@@ -156,7 +156,7 @@ export function createCloudbaseFunctionProvider({
       },
     };
   };
-  const readSnapshot = async (name, recovery, { signal } = {}) => {
+  const readSnapshot = async (name, recovery, { signal, includeBytes = false } = {}) => {
     select(name);
     signal?.throwIfAborted();
     return safe(async (stage) => {
@@ -198,11 +198,12 @@ export function createCloudbaseFunctionProvider({
         first.versionToken !== after.versionToken
       )
         throw new Error('Function changed during readback');
-      return freeze({
+      const snapshot = freeze({
         ...after,
         packageSha256: sha256(response.body),
         packageBytes: response.body.length,
       });
+      return includeBytes ? { snapshot, bytes: Buffer.from(response.body) } : snapshot;
     }, name);
   };
   const read = (name, options) => readSnapshot(name, true, options);
@@ -211,6 +212,7 @@ export function createCloudbaseFunctionProvider({
     region,
     read,
     inspect: (name, options) => readSnapshot(name, false, options),
+    capture: (name, options) => readSnapshot(name, false, { ...options, includeBytes: true }),
     async updateCode(input, { signal } = {}) {
       const { name, runtime, handler, expectedSnapshot } = structuredClone(input);
       select(name);

@@ -73,7 +73,17 @@ async function build(stage) {
   assert.equal(manifest.entries.filter((entry) => entry.kind === 'product').length, 2);
   const sitemap = await readFile(join(siteDirectory, 'sitemap-0.xml'), 'utf8');
   assert.ok(!sitemap.includes('private-draft'));
-  if (stage === 'withdrawn') {
+  if (stage === 'empty') {
+    assert.equal(manifest.entries.filter((entry) => entry.path.startsWith('/blog/')).length, 1);
+    assert.equal(
+      manifest.entries.find((entry) => entry.path === '/blog/').robots,
+      'noindex,follow',
+    );
+    assert.ok(!sitemap.includes('/blog/'));
+    const html = await readFile(join(siteDirectory, 'blog/index.html'), 'utf8');
+    assert.ok(html.includes('No published articles'));
+    await assert.rejects(readFile(join(siteDirectory, 'blog/manufacturing-guide/index.html')));
+  } else if (stage === 'withdrawn') {
     await assert.rejects(readFile(join(siteDirectory, 'blog/manufacturing-guide/index.html')));
     assert.ok(!sitemap.includes('/blog/manufacturing-guide/'));
     assert.equal(manifest.entries.filter((entry) => entry.path.startsWith('/blog/')).length, 2);
@@ -143,6 +153,7 @@ try {
   assert.notEqual(pick(initial).content.revision, pick(updated).content.revision);
   assert.equal(pick(updated).content.updatedAt, '2026-10-22T11:00:00.000Z');
   await build('withdrawn');
+  await build('empty');
   await run(bin('apps/site', 'astro'), ['build', '--outDir', siteDirectory], {
     cwd: join(root, 'apps/site'),
     env: { ...env, SEO_BLOG_SNAPSHOT: '' },
@@ -151,7 +162,7 @@ try {
   assert.equal(disabled.entries.filter((entry) => entry.path.startsWith('/blog/')).length, 0);
   await assert.rejects(readFile(join(siteDirectory, 'blog/index.html')));
   console.log(
-    '[blog-public] Initial, updated, withdrawn and disabled builds passed; no cloud resource was accessed.',
+    '[blog-public] Initial, updated, withdrawn, empty and disabled builds passed; no cloud resource was accessed.',
   );
 } finally {
   await Promise.all([...children].map(stop));

@@ -18,6 +18,12 @@ const catalogPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 // Auth-related nav entries are handled by the AccountMenu island instead.
 const AUTH_HREFS = ['/admin', '/login', '/register'];
 const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
+if (
+  (process.env.SEO_BLOG_SNAPSHOT || process.env.SEO_BLOG_RELEASE_INPUT) &&
+  !menuItems.some((item) => item.href === '/blog/')
+) {
+  menuItems.push({ label: 'Insights', href: '/blog/' });
+}
 const orderedMenuItems = orderPrimaryNavItems(menuItems);
 const catalogPosition = orderedMenuItems.findIndex((item) => item.href === '/headphones');
 const beforeCatalog = orderedMenuItems.slice(0, Math.max(0, catalogPosition));

@@ -7,7 +7,7 @@ import { articleContentHash, createArticleDraft } from '../../packages/articles/
 import { articleMediaPath } from '../../packages/articles/src/publication.ts';
 
 const [directory, stage = 'initial'] = process.argv.slice(2);
-if (!directory || !['initial', 'updated', 'withdrawn'].includes(stage))
+if (!directory || !['initial', 'updated', 'withdrawn', 'empty'].includes(stage))
   throw new Error('Provide a fixture directory and initial/updated/withdrawn stage');
 const site = process.env.SITE_URL || 'http://localhost:4321';
 const article = publishedArticleFixture();
@@ -50,7 +50,7 @@ const other = publishedArticleFixture('reference-sample');
 other.content.title = 'Planning a reference sample';
 other.content.excerpt = 'Use an agreed reference sample to confirm the production requirements.';
 other.contentHash = articleContentHash(other.content);
-const articles = stage === 'withdrawn' ? [other] : [article, other];
+const articles = stage === 'empty' ? [] : stage === 'withdrawn' ? [other] : [article, other];
 const snapshot = decodeBlogSnapshot(
   { schemaVersion: 1, purpose: 'fixture', siteOrigin: site, total: articles.length, articles },
   site,
