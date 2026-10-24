@@ -25,6 +25,7 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
+  enableArticleReleases: optionalEnv('ARTICLE_PUBLISHING_ENABLED') === '1',
   articleRepository: createCloudBaseArticleRepository(cloudStorageSdk().database()),
   preparationAuthority: createCatalogPreparationAuthority({
     secret: requireEnv('JWT_SECRET'),

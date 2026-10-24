@@ -164,3 +164,12 @@ test('release probes include product canonical URLs and discovery files with the
     /probe path/,
   );
 });
+
+test('normal deployment preserves the dedicated fallback object and original error status', async () => {
+  const { WEBSITE_DOCUMENTS } = await import('./hosting-contract.mjs');
+  assert.deepEqual(WEBSITE_DOCUMENTS, {
+    indexDocument: 'index.html',
+    errorDocument: 'errors/not-found.html',
+    originalHttpStatus: 'Enabled',
+  });
+});

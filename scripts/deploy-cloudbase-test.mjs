@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { callMcporter, parseMcporterResult } from './mcporter-call.mjs';
 
+import { ensureArticleNoSqlResources } from './blog-article-resources.mjs';
 import {
   assertToolSucceeded,
   ensureGateway,
@@ -532,6 +533,7 @@ if (!hostingBefore.passed) {
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
 callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);
+ensureArticleNoSqlResources(callTool);
 
 for (const def of functionDefs) {
   await deployFunction(def);

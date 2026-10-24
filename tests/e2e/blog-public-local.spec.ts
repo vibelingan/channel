@@ -4,14 +4,16 @@ import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 const site = process.env.E2E_SITE_URL;
-if (
-  !site ||
-  !['localhost', '127.0.0.1'].includes(new URL(site).hostname) ||
-  process.env.E2E_BLOG_LOCAL_FIXTURE !== '1'
-)
-  throw new Error(
-    'Run this fixture suite through run-blog-public-local-e2e.mjs against its owned loopback build',
-  );
+test.beforeAll(() => {
+  if (
+    !site ||
+    !['localhost', '127.0.0.1'].includes(new URL(site).hostname) ||
+    process.env.E2E_BLOG_LOCAL_FIXTURE !== '1'
+  )
+    throw new Error(
+      'Run this fixture suite through run-blog-public-local-e2e.mjs against its owned loopback build',
+    );
+});
 
 test('read a published article without JavaScript, including exact image bytes and SEO', async ({
   browser,

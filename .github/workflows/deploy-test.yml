@@ -78,6 +78,7 @@ jobs:
       BOOTSTRAP_ENABLED: '0'
       CATALOG_RFQ_ENABLED: '1'
       CATALOG_DETAIL_APPROVAL_ENABLED: '1'
+      ARTICLE_PUBLISHING_ENABLED: ${{ vars.ARTICLE_PUBLISHING_ENABLED || '0' }}
       E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
 

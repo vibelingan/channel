@@ -1323,7 +1323,7 @@ test('manual tiers drive card, in-page detail, slug detail, and AggregateOffer w
   expect(familyRequest.searchParams.get('pageSize')).toBe('12');
   await expect(page.locator('[data-product-card-price]')).toHaveText('From $118.31');
   const productLink = page.getByRole('link', { name: /Interactive Tiered Toy/ });
-  await expect(productLink).toHaveAttribute('href', `/products/p-${tieredToy.id}/`);
+  await expect(productLink).toHaveAttribute('href', `/products/p-${tieredToy._id}/`);
   await productLink.click();
   await expect(page.locator('[data-manual-tier-pricing]')).toContainText('1–12');
   await expect(page.locator('[data-manual-tier-pricing]')).toContainText('13+');

@@ -3,7 +3,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fetchFully } from './smoke-http.mjs';
 
-export const WEBSITE_DOCUMENTS = { indexDocument: 'index.html', errorDocument: '404.html' };
+export const WEBSITE_DOCUMENTS = {
+  indexDocument: 'index.html',
+  errorDocument: 'errors/not-found.html',
+  originalHttpStatus: 'Enabled',
+};
 const digest = (body) => createHash('sha256').update(body).digest('hex');
 const routes = [
   { path: '/', file: 'index.html', status: 200 },
@@ -55,6 +59,10 @@ export function assertErrorDocument(body) {
 
 /** Validate required output before any cloud mutation and pin ordinary GETs to these bytes. */
 export function hostingContractHashes(dist) {
+  const fallback = readFileSync(join(dist, WEBSITE_DOCUMENTS.errorDocument));
+  assertErrorDocument(fallback);
+  if (digest(fallback) !== digest(readFileSync(join(dist, '404.html'))))
+    throw new Error('Dedicated fallback differs from the built 404 page.');
   assertErrorDocument(readFileSync(join(dist, WEBSITE_DOCUMENTS.errorDocument)));
   const manifest = JSON.parse(readFileSync(join(dist, 'products/manifest.json'), 'utf8'));
   const product = manifest.products?.[0]?.path;

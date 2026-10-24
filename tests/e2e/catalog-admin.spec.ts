@@ -565,7 +565,8 @@ test.describe('Admin catalog lifecycle', () => {
     expect(projected?.manualCatalogPricing).toEqual(manualCatalogPricing);
 
     await page.goto('/toys/');
-    const card = page.getByRole('button', { name: new RegExp(name) });
+    const card = page.getByRole('link', { name: new RegExp(name) });
+    await expect(card).toHaveAttribute('href', `/products/p-${draft._id}/`);
     await expect(card).toContainText('From $118.31');
     await card.click();
     const detail = page.locator(`[data-product-detail="${draft._id}"]`);

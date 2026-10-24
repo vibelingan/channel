@@ -1,3 +1,5 @@
+import { copyFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AstroIntegration } from 'astro';
 import { validateBlogOutput } from '../blog/output.ts';
@@ -8,7 +10,11 @@ export function seoGate(origin: string): AstroIntegration {
     name: 'channel-rendered-seo-gate',
     hooks: {
       'astro:build:done': async ({ dir, logger }) => {
-        const entries = await validateSiteOutput(fileURLToPath(dir), origin);
+        const directory = fileURLToPath(dir);
+        // CloudBase reserves /404.html; its fallback must point to an ordinary object.
+        await mkdir(join(directory, 'errors'), { recursive: true });
+        await copyFile(join(directory, '404.html'), join(directory, 'errors/not-found.html'));
+        const entries = await validateSiteOutput(directory, origin);
         await validateBlogOutput(fileURLToPath(dir), origin, entries);
         logger.info(
           `Verified ${entries.length} HTML pages, ${entries.filter((entry) => entry.robots === 'index,follow').length} indexable canonical URLs, sitemap and ownership files.`,

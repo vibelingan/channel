@@ -191,3 +191,14 @@ test('artifact smoke rejects a residual xlsx import before cold start', () => {
     rmSync(tempRoot, { force: true, recursive: true });
   }
 });
+
+test('article publishing flag reaches only admin and remains opt-in', () => {
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) => (name === 'ARTICLE_PUBLISHING_ENABLED' ? '1' : optionalEnvFixture(name)),
+  });
+  assert.deepEqual(
+    defs.map((def) => def.envVariables.ARTICLE_PUBLISHING_ENABLED),
+    ['1', undefined, undefined],
+  );
+});
