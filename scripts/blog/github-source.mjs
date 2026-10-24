@@ -37,7 +37,7 @@ export function validateBlogArtifactSource(
     !/^sha256:[a-f0-9]{64}$/.test(artifact.digest) ||
     artifact.name !== `${artifactPrefix}-${run.id}-${run.run_attempt}` ||
     run.path !== sourcePolicy.workflowPath ||
-    run.event !== 'workflow_dispatch' ||
+    !(sourcePolicy.events ?? ['workflow_dispatch']).includes(run.event) ||
     run.head_branch !== sourcePolicy.trustedRef.slice(11) ||
     !/^[a-f0-9]{40}$/.test(run.head_sha) ||
     run.repository?.full_name !== sourcePolicy.repository ||

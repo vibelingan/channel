@@ -11,6 +11,7 @@ function assertSharedEnvironmentLock(release, e2e) {
     assert.deepEqual(candidate.concurrency, {
       group: 'cloudbase-deploy-test',
       'cancel-in-progress': false,
+      queue: 'max',
     });
   }
   assert.equal(e2e.jobs.e2e.environment, release.jobs.deploy.environment);
@@ -128,7 +129,17 @@ function assertReleaseGate(ci, release) {
   assert.ok(Object.hasOwn(ci.on, 'workflow_call'), 'CI must be callable by the deploy graph');
   const prerequisite = release.jobs.ci;
   assert.ok(prerequisite, 'deploy must run the same-SHA code checks');
-  assert.equal(prerequisite.uses, './.github/workflows/ci.yml', 'reuse CI at the caller SHA');
+  assert.equal(
+    prerequisite.uses,
+    './.github/workflows/seo-module-1.yml',
+    'reuse complete checks at the caller SHA',
+  );
+  const complete = workflow('seo-module-1');
+  assert.ok(Object.hasOwn(complete.on, 'workflow_call'));
+  assert.equal(complete.jobs.ci.uses, './.github/workflows/ci.yml');
+  assert.deepEqual(complete.jobs.ready.needs, ['ci', 'catalog', 'blog']);
+  assert.equal(complete.jobs.ready.name, 'Required release checks');
+  assert.equal(prerequisite.name, 'Verified source and browser checks');
   assert.equal(prerequisite.secrets, undefined, 'code checks do not need deployment secrets');
   assert.equal(prerequisite['continue-on-error'], undefined);
   const deploy = release.jobs.deploy;
@@ -332,4 +343,45 @@ test('both package producers smoke the exact release on the deployed Node 20 run
     }
     assert.equal(smoked, true, 'packaged runtime check must execute');
   }
+});
+
+test('normal static publication reuses the frozen build and common recovery while preserving all backend delivery', () => {
+  const release = workflow('deploy-test');
+  const steps = release.jobs.deploy.steps;
+  const position = (name) => steps.findIndex((step) => step.name === name);
+  const exportBlog = position('Export accepted articles and verified images from formal CloudBase');
+  const build = position('Build site');
+  const seal = position('Record the complete same-run build and frozen public inputs');
+  const functionBackup = position(
+    'Capture all existing function packages before updating any function',
+  );
+  const preserve = position('Preserve function originals and configuration fingerprints');
+  const backend = position('Deploy to CloudBase test');
+  const delivery = position('Deliver the already verified full build through shared site recovery');
+  const browser = position('Install the public acceptance browser before static writes');
+  assert(
+    exportBlog >= 0 &&
+      exportBlog < build &&
+      build < seal &&
+      seal < functionBackup &&
+      functionBackup < preserve &&
+      preserve < backend &&
+      backend < delivery,
+  );
+  assert(browser >= 0 && browser < backend);
+  assert(steps[build].env.SEO_BLOG_SNAPSHOT.endsWith('/blog/snapshot.json'));
+  assert.equal(release.jobs.deploy.env.CHANNEL_COORDINATED_SITE_DELIVERY, '1');
+  for (const index of [exportBlog, seal, functionBackup, preserve, delivery]) {
+    assert.equal(steps[index].if, undefined);
+    assert.equal(steps[index]['continue-on-error'], undefined);
+  }
+  assert.equal(steps[delivery].env.SITE_DELIVERY_BUILT_INPUT, '1');
+  assert.equal(steps[delivery].uses, 'actions/github-script@v7');
+  assert.match(steps[delivery].with.script, /run-site-delivery.ts/);
+  assert.equal(steps[delivery].env.JWT_SECRET, undefined);
+  const complete = workflow('seo-module-1');
+  assert.equal(
+    `${release.jobs.ci.name} / ${complete.jobs.ready.name}`,
+    'Verified source and browser checks / Required release checks',
+  );
 });

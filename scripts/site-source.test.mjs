@@ -72,6 +72,7 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
   const bytes = readFileSync(file);
   const metadata = { ...artifact, digest: `sha256:${sha256(bytes)}`, size_in_bytes: bytes.length };
   const requests = [];
+  let sourceRun = run;
   const client = createSiteGithubSource({
     token: 'private-api-token',
     request: async (method, url, options) => {
@@ -84,13 +85,31 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
         };
       return {
         status: 200,
-        body: Buffer.from(JSON.stringify(url.includes('/attempts/') ? run : metadata)),
+        body: Buffer.from(JSON.stringify(url.includes('/attempts/') ? sourceRun : metadata)),
       };
     },
   });
   const output = join(root, 'download');
   assert.equal((await client.download('11', output, { acceptedRunId: '101' })).runId, '101');
   assert.equal(readFileSync(join(output, 'index.html'), 'utf8'), 'index.html');
+  sourceRun = { ...run, status: 'in_progress', conclusion: null };
+  await assert.rejects(
+    client.download('11', join(root, 'not-current'), { acceptedRunId: '101' }),
+    /Untrusted/,
+  );
+  const current = await client.download('11', join(root, 'current-accepted'), {
+    acceptedRunId: '101',
+    currentRunId: '101',
+  });
+  assert.equal(current.runId, '101');
+  await assert.rejects(
+    client.download('11', join(root, 'wrong-current'), {
+      acceptedRunId: '101',
+      currentRunId: '102',
+    }),
+    /Untrusted/,
+  );
+
   assert.equal(
     requests.find((r) => r.url.startsWith('https://storage.example')).headers?.authorization,
     undefined,

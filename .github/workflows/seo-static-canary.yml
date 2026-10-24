@@ -57,6 +57,7 @@ permissions:
 concurrency:
   group: cloudbase-deploy-test
   cancel-in-progress: false
+  queue: max
 
 jobs:
   canary:
@@ -260,7 +261,7 @@ jobs:
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
 
   site_delivery:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-delivery' }}
+    if: ${{ (github.ref == 'refs/heads/feat/seo-foundation' || github.ref == 'refs/heads/test') && inputs.mode == 'site-delivery' }}
     uses: ./.github/workflows/seo-site-delivery.yml
     with:
       action: ${{ inputs.action }}

@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { verifyReleaseArtifact } from './artifact.mjs';
 import { configurationHash } from './hosting-configuration.mjs';
 import { assertHostingPath, checkEntries, limits, readJson, sha256 } from './input.mjs';
+import { siteProducerPolicy } from './site-producers.mjs';
 const metadataPaths = new Set([
   'static-manifest.json',
   'product-snapshot.json',
@@ -107,6 +108,7 @@ export function siteArtifact({
 }) {
   if (!['push', 'workflow_dispatch'].includes(run.event))
     throw new Error('Untrusted site release event');
+  const producer = siteProducerPolicy(policy, run);
   const payload = readJson(directory, 'payload-manifest.json');
   const envelope = {
     ...payload,
@@ -121,9 +123,9 @@ export function siteArtifact({
   };
   const artifactPolicy = {
     repository: policy.repository,
-    workflowPath: policy.workflowPath,
+    workflowPath: producer.workflowPath,
     event: run.event,
-    ref: policy.trustedRef,
+    ref: producer.trustedRef,
     target: { envId: policy.envId, siteOrigin: policy.siteOrigin },
     scope: { kind: 'site' },
   };

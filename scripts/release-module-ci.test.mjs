@@ -8,7 +8,12 @@ const read = (name) =>
 
 function assertOffline(workflow) {
   assert.deepEqual(workflow.permissions, { contents: 'read' });
-  assert.deepEqual(Object.keys(workflow.jobs), ['ci', 'catalog', 'blog']);
+  assert.deepEqual(Object.keys(workflow.jobs), ['ci', 'catalog', 'blog', 'ready']);
+  assert.deepEqual(workflow.jobs.ready.needs, ['ci', 'catalog', 'blog']);
+  assert.equal(workflow.jobs.ready.if, 'always()');
+  assert.equal(workflow.jobs.ready.environment, undefined);
+  assert(!JSON.stringify(workflow.jobs.ready).includes('secrets.'));
+  assert.ok(Object.hasOwn(workflow.on, 'workflow_call'));
   assert.deepEqual(workflow.on.push.branches, ['feat/seo-foundation']);
   assert.equal(Object.hasOwn(workflow.on, 'workflow_run'), false);
   assert.equal(Object.hasOwn(workflow.on, 'pull_request_target'), false);

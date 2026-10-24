@@ -15,6 +15,8 @@ import { blogWorkerSdk } from './blog/worker-source.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
+import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
+import { readBuiltSite } from './release/site-build-record.mjs';
 import {
   assertPublicSiteDeliveryFiles,
   assertSameAcceptedBlog,
@@ -41,7 +43,12 @@ const codeSha = env.GITHUB_SHA ?? '';
 if (!env.TENCENTCLOUD_SECRETID || !env.TENCENTCLOUD_SECRETKEY || !env.GITHUB_TOKEN)
   throw Error('Existing deployment credentials required');
 const github = createSiteGithubSource({ token: env.GITHUB_TOKEN });
-await github.requireCI(codeSha);
+await github.requireCI(codeSha, {
+  ref: env.GITHUB_REF,
+  event: env.GITHUB_EVENT_NAME,
+  runId: env.GITHUB_RUN_ID,
+  workflowRef: env.GITHUB_WORKFLOW_REF,
+});
 const manager = new CloudBase({
   envId: policy.envId,
   region: policy.region,
@@ -62,6 +69,7 @@ const coordinator = createReleaseCoordinator({
   store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
   policy,
 });
+const automatic = env.SITE_ARTICLE_TASK_ID === 'auto';
 let requestedTaskId = env.SITE_ARTICLE_TASK_ID ?? '';
 if (env.SITE_DELIVERY_MODE === 'publish' && requestedTaskId === 'auto') {
   const uncertain = await db
@@ -194,6 +202,7 @@ async function loadAccepted(run: {
   const destination = join(directory, `accepted-${artifact.artifactId}`);
   const source = await github.download(artifact.artifactId, destination, {
     acceptedRunId: artifact.runId,
+    currentRunId: env.GITHUB_RUN_ID,
   });
   const input = siteArtifact({
     directory: destination,
@@ -237,7 +246,19 @@ try {
   let baseline = status.scope.baseline
     ? await loadAccepted(await coordinator.runStatus(status.scope.baseline.sourceRunId))
     : null;
+  if (automatic && baseline?.envelope.codeSha !== codeSha)
+    throw Error('The content executor must match the currently accepted website code');
   const productFile = join(directory, 'product-snapshot.json');
+  const built =
+    env.SITE_DELIVERY_BUILT_INPUT === '1'
+      ? readBuiltSite({
+          codeSha,
+          dist: 'apps/site/dist',
+          productFile: 'output/seo-release/product-snapshot.json',
+          blogFile: 'output/seo-release/blog/snapshot.json',
+          recordFile: 'output/seo-release/build-record.json',
+        })
+      : null;
   let pathRead = 0;
   const readPublicProductPaths = async () => {
     const output = join(directory, `public-paths-${++pathRead}.json`);
@@ -351,8 +372,35 @@ try {
       .get();
     if (!Array.isArray(uncertain.data) || uncertain.data.length)
       throw Error('An article publication requires technical readback first');
+    if (env.SITE_DELIVERY_FAULT === 'after-upload') {
+      const rows = await db
+        .collection('articleReleaseTasks')
+        .where({ _id: requestedTaskId })
+        .limit(1)
+        .get();
+      assert(Array.isArray(rows.data) && rows.data.length === 1, 'Exact owned drill task required');
+      const task = rows.data[0];
+      assert(
+        typeof task.articleId === 'string' && /^[A-Za-z0-9:_-]{1,128}$/.test(task.articleId),
+        'Invalid drill article identity',
+      );
+      const drafts = await db
+        .collection('articleDrafts')
+        .where({ _id: task.articleId })
+        .limit(1)
+        .get();
+      assert(
+        Array.isArray(drafts.data) && drafts.data.length === 1,
+        'Exact owned drill draft required',
+      );
+      assertOwnedArticleDrill({ taskId: requestedTaskId, task, draft: drafts.data[0].draft });
+    }
     if (requestedTaskId) claim = await worker.claim(requestedTaskId, runId);
-    if (env.SITE_PRODUCT_SOURCE === 'accepted') {
+    if (built) {
+      await writeFile(productFile, await readFile('output/seo-release/product-snapshot.json'), {
+        flag: 'wx',
+      });
+    } else if (env.SITE_PRODUCT_SOURCE === 'accepted') {
       const pathsFile = join(directory, 'reuse-public-paths.json');
       await writeFile(pathsFile, JSON.stringify(await readPublicProductPaths()), { flag: 'wx' });
       await command(
@@ -380,43 +428,63 @@ try {
       productPath(p.product._id),
     );
     const accepted = await readAcceptedArticles(db);
-    const blogDir = join(directory, 'blog');
-    await mkdir(blogDir);
-    const input = claim ? articleReleaseBuildInput(claim, accepted, policy.siteOrigin) : null;
-    const articles = claim && input ? prepareArticleBuild(input.release, claim.task.id) : accepted;
-    const assertFileId = (id: string) => {
-      if (!id.startsWith(`cloud://${policy.envId}.`) || !id.includes('/articles/'))
-        throw Error('Foreign Blog media');
-    };
-    await writeBlogArticleAssets({ db, sdk, articles, directory: blogDir, assertFileId });
-    const blogFile = join(blogDir, claim ? 'release.json' : 'snapshot.json');
-    await writeFile(
-      blogFile,
-      JSON.stringify(
-        input ?? {
+    let files: Map<string, Buffer>;
+    if (built) {
+      const exported = JSON.parse(await readFile('output/seo-release/blog/snapshot.json', 'utf8'));
+      const articles = accepted;
+      assert.deepEqual(
+        exported,
+        {
           schemaVersion: 1,
           purpose: 'public',
           siteOrigin: policy.siteOrigin,
           total: articles.length,
           articles,
         },
-      ),
-      { flag: 'wx' },
-    );
-    const dist = join(root, 'apps/site/.astro/formal-site-delivery/site');
-    await command(
-      join(root, 'apps/site/node_modules/.bin/astro'),
-      ['build', '--outDir', dist],
-      join(root, 'apps/site'),
-      {
-        SEO_CATALOG_SNAPSHOT: productFile,
-        SEO_BLOG_SNAPSHOT: claim ? '' : blogFile,
-        SEO_BLOG_RELEASE_INPUT: claim ? blogFile : '',
-        SEO_BLOG_TASK_ID: claim?.task.id ?? '',
-        PUBLIC_BLOG_WORKSPACE: '0',
-      },
-    );
-    const files = retainSiteAssets(filesFromSiteBuild(dist), baseline);
+        'Accepted articles changed after the normal site build',
+      );
+      files = built;
+    } else {
+      const blogDir = join(directory, 'blog');
+      await mkdir(blogDir);
+      const input = claim ? articleReleaseBuildInput(claim, accepted, policy.siteOrigin) : null;
+      const articles =
+        claim && input ? prepareArticleBuild(input.release, claim.task.id) : accepted;
+      const assertFileId = (id: string) => {
+        if (!id.startsWith(`cloud://${policy.envId}.`) || !id.includes('/articles/'))
+          throw Error('Foreign Blog media');
+      };
+      await writeBlogArticleAssets({ db, sdk, articles, directory: blogDir, assertFileId });
+      const blogFile = join(blogDir, claim ? 'release.json' : 'snapshot.json');
+      await writeFile(
+        blogFile,
+        JSON.stringify(
+          input ?? {
+            schemaVersion: 1,
+            purpose: 'public',
+            siteOrigin: policy.siteOrigin,
+            total: articles.length,
+            articles,
+          },
+        ),
+        { flag: 'wx' },
+      );
+      const dist = join(root, 'apps/site/.astro/formal-site-delivery/site');
+      await command(
+        join(root, 'apps/site/node_modules/.bin/astro'),
+        ['build', '--outDir', dist],
+        join(root, 'apps/site'),
+        {
+          SEO_CATALOG_SNAPSHOT: productFile,
+          SEO_BLOG_SNAPSHOT: claim ? '' : blogFile,
+          SEO_BLOG_RELEASE_INPUT: claim ? blogFile : '',
+          SEO_BLOG_TASK_ID: claim?.task.id ?? '',
+          PUBLIC_BLOG_WORKSPACE: '0',
+        },
+      );
+      files = filesFromSiteBuild(dist);
+    }
+    files = retainSiteAssets(files, baseline);
     assertPublicSiteDeliveryFiles(files, env.PUBLIC_AI_API_BASE_URL);
     const payload = join(directory, 'candidate');
     createSitePayload({

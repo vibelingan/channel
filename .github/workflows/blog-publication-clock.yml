@@ -12,15 +12,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Ask the verified SEO executor to inspect its article queue
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh workflow run seo-static-canary.yml --ref feat/seo-foundation \
-            -f mode=site-delivery \
-            -f action=publish \
-            -f variant=A \
-            -f artifact_id=auto \
-            -f expected_activation_id=none \
-            -f reason='Process one queued article from the existing admin'
+      - name: Defer to shared environment work, otherwise inspect one article task
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const paths = new Set([
+              '.github/workflows/deploy-test.yml',
+              '.github/workflows/seo-static-canary.yml',
+              '.github/workflows/deploy-ai-cloudrun.yml',
+              '.github/workflows/e2e.yml',
+              '.github/workflows/seo-blog-dummy.yml',
+            ]);
+            for (const status of ['in_progress','queued','waiting','pending','requested']) {
+              for await (const page of github.paginate.iterator(github.rest.actions.listWorkflowRunsForRepo, {...context.repo, status, per_page:100})) {
+                if (!Array.isArray(page.data)) throw new Error('Incomplete workflow run inventory');
+                if (page.data.some(run => paths.has(run.path))) {
+                  core.info('Shared environment work is active or pending. Article tasks remain queued for the next tick.');
+                  return;
+                }
+              }
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              ...context.repo, workflow_id:'seo-static-canary.yml', ref:'test',
+              inputs:{mode:'site-delivery',action:'publish',variant:'A',artifact_id:'auto',expected_activation_id:'none',reason:'Process one queued article from the existing admin'},
+            });

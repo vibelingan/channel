@@ -57,6 +57,7 @@ test('all manual modes select exactly one job and retain the existing shared tar
   assert.deepEqual(workflow.concurrency, {
     group: 'cloudbase-deploy-test',
     'cancel-in-progress': false,
+    queue: 'max',
   });
   assert.equal(workflow.jobs.functions.environment, 'test');
   assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 10);

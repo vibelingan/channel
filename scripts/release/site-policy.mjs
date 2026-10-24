@@ -7,18 +7,50 @@ export const SITE_DELIVERY_POLICY = Object.freeze({
   siteOrigin: 'https://supplychainsai.com',
   trustedRef: 'refs/heads/feat/seo-foundation',
   workflowPath: '.github/workflows/seo-static-canary.yml',
+  sources: [
+    {
+      workflowPath: '.github/workflows/seo-static-canary.yml',
+      trustedRef: 'refs/heads/feat/seo-foundation',
+      events: ['workflow_dispatch'],
+    },
+    {
+      workflowPath: '.github/workflows/seo-static-canary.yml',
+      trustedRef: 'refs/heads/test',
+      events: ['workflow_dispatch'],
+    },
+    {
+      workflowPath: '.github/workflows/deploy-test.yml',
+      trustedRef: 'refs/heads/test',
+      events: ['push', 'workflow_dispatch'],
+    },
+  ],
 });
 export function assertSiteDeliveryInvocation(env) {
   const p = SITE_DELIVERY_POLICY;
+  const normal =
+    env.GITHUB_REF === 'refs/heads/test' &&
+    env.GITHUB_WORKFLOW_REF ===
+      `${p.repository}/.github/workflows/deploy-test.yml@refs/heads/test` &&
+    ['push', 'workflow_dispatch'].includes(env.GITHUB_EVENT_NAME);
+  const content =
+    ['refs/heads/feat/seo-foundation', 'refs/heads/test'].includes(env.GITHUB_REF) &&
+    env.GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+    ((!env.GITHUB_WORKFLOW_REF && env.GITHUB_REF === p.trustedRef) ||
+      env.GITHUB_WORKFLOW_REF ===
+        `${p.repository}/.github/workflows/seo-static-canary.yml@${env.GITHUB_REF}`);
   if (
     env.GITHUB_ACTIONS !== 'true' ||
-    env.GITHUB_EVENT_NAME !== 'workflow_dispatch' ||
+    (!normal && !content) ||
     env.GITHUB_REPOSITORY !== p.repository ||
-    env.GITHUB_REF !== p.trustedRef ||
     env.TCB_ENV_ID !== p.envId ||
     env.SITE_URL !== p.siteOrigin ||
     env.CLOUDBASE_REGION !== p.region ||
     !['publish', 'restore'].includes(env.SITE_DELIVERY_MODE) ||
+    (normal &&
+      (env.SITE_DELIVERY_MODE !== 'publish' ||
+        env.SITE_ARTICLE_TASK_ID ||
+        env.SITE_DELIVERY_FAULT === 'after-upload')) ||
+    normal !== (env.SITE_DELIVERY_BUILT_INPUT === '1') ||
     !['fresh', 'accepted'].includes(env.SITE_PRODUCT_SOURCE ?? 'fresh') ||
     !['none', 'after-upload'].includes(env.SITE_DELIVERY_FAULT ?? 'none') ||
     (env.SITE_DELIVERY_FAULT === 'after-upload' &&
@@ -30,5 +62,11 @@ export function assertSiteDeliveryInvocation(env) {
     env.SITE_DELIVERY_CONFIRM !== 'FORMAL_SITE_ONLY'
   )
     throw Error('Untrusted formal site invocation');
-  return p;
+  return env.GITHUB_REF === p.trustedRef
+    ? p
+    : Object.freeze({
+        ...p,
+        trustedRef: env.GITHUB_REF,
+        workflowPath: normal ? '.github/workflows/deploy-test.yml' : p.workflowPath,
+      });
 }

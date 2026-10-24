@@ -37,26 +37,29 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   # Static key: env-scoped vars (TCB_ENV_ID) are unavailable at workflow-level
   # concurrency, so every writer to the shared test CloudBase env must serialize.
   group: cloudbase-deploy-test
   cancel-in-progress: false
+  queue: max
 
 jobs:
   # Relative reusable workflow uses this invocation's SHA. Neither push nor
   # workflow_dispatch can reach deployment without the code checks.
   ci:
     if: ${{ github.ref == 'refs/heads/test' }}
-    uses: ./.github/workflows/ci.yml
+    name: Verified source and browser checks
+    uses: ./.github/workflows/seo-module-1.yml
 
   deploy:
     needs: ci
     if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     environment: test
 
     env:
@@ -67,6 +70,7 @@ jobs:
       CLOUDBASE_FUNCTION_RUNTIME: Nodejs20.19
       CLOUDBASE_WEBAPP_SERVICE: channel-test
       PUBLIC_CB_PROXY: '0'
+      CHANNEL_COORDINATED_SITE_DELIVERY: '1'
       PUBLIC_CATALOG_READY_DEFAULT: ${{ vars.PUBLIC_CATALOG_READY_DEFAULT || '0' }}
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
       # The AI assistant API that the website's chat widget calls from the browser.
@@ -132,9 +136,16 @@ jobs:
           mkdir -p output/seo-release
           pnpm --filter @vibelingan-channel/site seo:snapshot "$GITHUB_WORKSPACE/output/seo-release/product-snapshot.json"
 
+      - name: Export accepted articles and verified images from formal CloudBase
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/export-public.ts output/seo-release/blog
+
       - name: Build site
         env:
           SEO_CATALOG_SNAPSHOT: ${{ github.workspace }}/output/seo-release/product-snapshot.json
+          SEO_BLOG_SNAPSHOT: ${{ github.workspace }}/output/seo-release/blog/snapshot.json
         run: pnpm build
 
       - name: Scan built site for server secret names
@@ -161,6 +172,9 @@ jobs:
             exit 1
           fi
 
+      - name: Record the complete same-run build and frozen public inputs
+        run: node scripts/release/site-build-record.mjs
+
       - name: Preserve accepted site recovery inputs before deployment
         uses: actions/upload-artifact@v4
         with:
@@ -168,6 +182,8 @@ jobs:
           path: |
             apps/site/dist/
             output/seo-release/product-snapshot.json
+            output/seo-release/blog/
+            output/seo-release/build-record.json
           if-no-files-found: error
           retention-days: 14
 
@@ -180,6 +196,9 @@ jobs:
             echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
             exit 1
           fi
+
+      - name: Install the public acceptance browser before static writes
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Capture the current hosted site before cloud mutation
         env:
@@ -195,6 +214,20 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
+
+      - name: Capture all existing function packages before updating any function
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/capture-function-backups.mjs output/function-backup-before
+
+      - name: Preserve function originals and configuration fingerprints
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/function-backup-before/
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Deploy to CloudBase test
         env:
@@ -215,6 +248,35 @@ jobs:
           ALI_TOKEN_ENCRYPTION_KEY_V1: ${{ secrets.ALI_TOKEN_ENCRYPTION_KEY_V1 }}
           WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         run: pnpm deploy:cloudbase:test
+
+      - name: Deliver the already verified full build through shared site recovery
+        uses: actions/github-script@v7
+        env:
+          SITE_DELIVERY_CONFIRM: FORMAL_SITE_ONLY
+          SITE_DELIVERY_MODE: publish
+          SITE_DELIVERY_BUILT_INPUT: '1'
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        with:
+          script: |
+            const { spawn } = require('node:child_process');
+            await new Promise((resolve, reject) => {
+              const child = spawn('./apps/site/node_modules/.bin/tsx', ['scripts/run-site-delivery.ts'], {stdio:'inherit', env:process.env});
+              child.once('error', reject);
+              child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Controlled site delivery stopped (${code})`)));
+            });
+
+      - name: Preserve actual site delivery and recovery results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-delivery-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/site-delivery/result.json
+            output/site-delivery/public-browser/
+          if-no-files-found: ignore
+          retention-days: 90
 
       - name: Verify ordinary hosting URLs and error document
         run: node scripts/verify-hosting-contract.mjs --site "$SITE_URL" --dist apps/site/dist --report output/seo-release/hosting-contract.json

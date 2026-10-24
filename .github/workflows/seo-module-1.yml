@@ -1,6 +1,7 @@
 name: SEO release modules (offline)
 
 on:
+  workflow_call:
   push:
     branches: [feat/seo-foundation]
   workflow_dispatch:
@@ -51,3 +52,16 @@ jobs:
           path: output/playwright/
           if-no-files-found: ignore
           retention-days: 7
+
+  ready:
+    name: Required release checks
+    needs: [ci, catalog, blog]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require complete source, browser and article checks
+        env:
+          SOURCE: ${{ needs.ci.result }}
+          CATALOG: ${{ needs.catalog.result }}
+          BLOG: ${{ needs.blog.result }}
+        run: test "$SOURCE" = success && test "$CATALOG" = success && test "$BLOG" = success

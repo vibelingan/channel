@@ -25,6 +25,7 @@ concurrency:
   # The same key as Deploy Test: both change the one CloudBase environment.
   group: cloudbase-deploy-test
   cancel-in-progress: false
+  queue: max
 
 jobs:
   # CI runs these checks as well, but separately: a tag push neither waits for CI

@@ -35,6 +35,15 @@ const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
 const siteRootPath = resolve(root, 'apps/site');
 const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
+const coordinatedSite = process.env.CHANNEL_COORDINATED_SITE_DELIVERY === '1';
+if (
+  coordinatedSite &&
+  (process.env.GITHUB_ACTIONS !== 'true' ||
+    process.env.GITHUB_REF !== 'refs/heads/test' ||
+    process.env.GITHUB_WORKFLOW_REF !==
+      'vibelingan/channel/.github/workflows/deploy-test.yml@refs/heads/test')
+)
+  throw Error('Coordinated function-only step requires the reviewed normal test workflow');
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
 const functionActiveTimeoutMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS', 300_000);
 const functionPollIntervalMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_POLL_INTERVAL_MS', 5_000);
@@ -541,6 +550,10 @@ for (const def of functionDefs) {
   reconcileTriggers(def, desiredTriggersFor(def.name), { callTool });
 }
 
-await deployWebApp();
+if (coordinatedSite)
+  console.log(
+    'Function delivery complete. The same-run site will be uploaded and accepted by the shared recovery entry.',
+  );
+else await deployWebApp();
 
 console.log(`Deployment submitted for ${siteUrl}`);
