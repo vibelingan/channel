@@ -2,6 +2,8 @@
 
 实施单元：SG2.1、SG2.2、SG2.3。
 
+2026-10-24：SG2.1、SG2.2已在Hermes独立分支feat/sales-agent-runtime完成代码、代码复核和隔离Docker/MySQL CI，见[验证记录](../evidence/SG2.1-SG2.2-VALIDATION.md)。实现采用单客户专属Sales服务/数据库和固定绑定，复用原dispatcher；没有改全局路由或现有文章流。SG2.3仍待实施。以下保留整体设计，不能据此认定已接通线上定海或邮件发送。
+
 ## 复用和缺口
 
 复用Hub assignments、事务outbox、dispatcher租约/退避/死信；不另建任务调度平台。当前`registry.resolve(capability)`未按客户限定，角色级HOME卷和`/app`时间窗收集不能证明客户隔离。目标是试点客户明确的执行边界，不借这轮销售设计重构全部Hermes业务。

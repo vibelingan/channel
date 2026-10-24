@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "date": "2026-10-23",
+  "date": "2026-10-24",
   "mode": "initial_module_implementation",
   "worktree": "${SALES_WORKTREE}",
   "branch": "feat/sales-agent-integration",
@@ -73,8 +73,9 @@
       "write_scope": "Sales专属runtime/工具代理/记忆和目录适配",
       "acceptance": "A/B同时运行不读错知识/文件/连接；遗漏scope拒绝",
       "primary_test": "wrong_runtime_is_rejected",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG2.1-SG2.2-VALIDATION.md"
     },
     {
       "id": "SG2.2",
@@ -89,8 +90,9 @@
       "write_scope": "sales_flow事件接入＋复用assignment/outbox",
       "acceptance": "重复事件一个根task，崩溃恢复不丢已确认接收事件",
       "primary_test": "duplicate_event_has_one_root_task",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG2.1-SG2.2-VALIDATION.md"
     },
     {
       "id": "SG1.2",

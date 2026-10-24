@@ -98,3 +98,9 @@ SG0.2原提交bf8e429b已推送，[远端检查39891019917](https://github.com/v
 内置盘反复ENOSPC后，备份未提交tracked patch，逐文件hash核对14份未提交源码，转外置盘独立检出继续同一分支；原副本保留，没有删除其他工作区或结束他人进程。check_design增加原Channel路径参数并继续核对相同受保护hash。
 
 推送前再次fetch，最终固定pricing 27611ff6、SEO cd4df7e2，写入交集只有锁文件。四个关键产品/询盘接口相对最初333c0240不变；公共产品读取继续调用原函数，可选新增参数不破坏前7个参数。SEO后增文章发布任务和独立dummy adapter，没有改变本接口使用的读取签名。主线20个importer和754组package/snapshot条目完整保留。没有出现必须修改对方业务实现才能继续的冲突；未合入对方未完成代码。详细结论见[SG1.1验证](evidence/SG1.1-VALIDATION.md)。
+
+## SG2.1／SG2.2 跨仓库交付
+
+2026-10-24，Hermes独立worktree从main 52d0365开展，先推送说明，再依次完成客户运行边界和可靠接收。逐项代码、回滚/并发/身份反例和CI证据见[验证记录](evidence/SG2.1-SG2.2-VALIDATION.md)。最终Hermes代码2fbc50c、CI40065259862通过，旧共享调度和文章入口未改。Channel只更新销售文档和计划，不改pricing/SEO代码。
+
+本轮实际阅读并复核Hermes registry、assignments、dispatcher、001_schema、全部sales_flow源码/测试及Channel合同、模块和交接；补出共用root、布尔值冒充整数和TLS反例后修正。明确写成“worker持久接收，等待SG3准备”，避免把受理回执描述为Agent已完成销售内容；修正旧交接中“SG0.2尚未完成”“main尚未整合”的过期说明。已说明OCR未配置模型导致独立审查未执行，未把自审冒充第三方review。
