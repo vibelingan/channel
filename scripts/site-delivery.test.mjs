@@ -42,8 +42,8 @@ async function setup(t) {
       body,
       status: files.has(p) ? 200 : 404,
       etag: `"${createHash('md5').update(body).digest('hex')}"`,
-      cacheControl: 'no-store',
-      type: p.endsWith('.xml')
+      cache: 'no-store',
+      mime: p.endsWith('.xml')
         ? 'application/xml'
         : p.endsWith('.json')
           ? 'application/json'
@@ -81,11 +81,11 @@ async function setup(t) {
   };
   const coordinator = createReleaseCoordinator({ store: memoryStore(), policy });
   const sources = new Map();
-  function source(label, { article = false } = {}) {
+  function source(label, { article = false, products = [] } = {}) {
     const id = String(++seq);
     const data = new Map(
       Object.entries({
-        ...publicFiles([]),
+        ...publicFiles(products),
         'errors/not-found.html': errorHtml,
         'index.html': `<main>${label}</main>`,
       }).map(([p, b]) => [p, Buffer.from(b)]),
@@ -209,4 +209,22 @@ test('unknown upload outcome stops and never starts speculative recovery', async
   assert.equal(result.status, 'unknown');
   assert.equal(f.writes.length, 1);
   assert((await f.coordinator.status()).pendingStep);
+});
+
+test('a newly withdrawn product can be removed from accepted A; stale recovery cannot revive it', async (t) => {
+  const f = await setup(t);
+  const path = '/products/p-withdrawn/';
+  const a = f.source('Product A', { products: [path] });
+  const stops = [];
+  const first = await f.deliver(a.input, 'publish', {
+    publicProductPaths: [path],
+    onStop: (phase, error) => stops.push({ phase, message: error.message, code: error.code }),
+  });
+  assert.equal(first.status, 'accepted', JSON.stringify({ first, stops }));
+  const b = f.source('Withdrawn B');
+  assert.equal(
+    (await f.deliver(b.input, 'publish', { publicProductPaths: [] })).status,
+    'accepted',
+  );
+  assert(!f.files.has('products/p-withdrawn/index.html'));
 });

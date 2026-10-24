@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, site-delivery]
         default: plan
         required: true
       action:
@@ -21,7 +21,7 @@ on:
         default: A
         required: true
       artifact_id:
-        description: Static payload ID; function-report uses a test-evidence ID, function-plan/execute use a report payload ID
+        description: Static payload ID; function modes use test/report IDs; site-delivery uses an article task ID, auto, or empty for a site-only build
         type: string
       restore_run_id:
         description: Exact accepted canary ledger run; required to restore
@@ -246,3 +246,14 @@ jobs:
       TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
+  site_delivery:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-delivery' }}
+    uses: ./.github/workflows/seo-site-delivery.yml
+    with:
+      action: ${{ inputs.action }}
+      article_task_id: ${{ inputs.artifact_id }}
+      restore_run_id: ${{ inputs.restore_run_id }}
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}

@@ -1,5 +1,5 @@
 import { assertErrorDocument, assertMutableCachePolicy } from '../hosting-contract.mjs';
-import { selectChangedHostingFiles } from '../hosting-delta.mjs';
+import { assertAcceptedHostingFiles, selectChangedHostingFiles } from '../hosting-delta.mjs';
 import {
   executeHostingRecovery,
   planReleaseCandidate,
@@ -22,11 +22,12 @@ export async function deliverStaticContent(
     input,
     loadAccepted,
     mode = 'publish',
-    restoreRunId = null,
+    restoreRunId = /** @type {string|null} */ (null),
     request = fetchFully,
     postCheck = async (_context) => {},
     adapterOptions = {},
-    publicProductPaths = [],
+    publicProductPaths = /** @type {string[]} */ ([]),
+    readPublicProductPaths = async () => publicProductPaths,
     onStop = (_phase, _error) => {},
   },
   { policy, scopeKey = 'canary' },
@@ -41,6 +42,7 @@ export async function deliverStaticContent(
   let baseline = null;
   let baselineRun = null;
   let owned = [];
+  const baselineProofs = [];
   async function acceptedSource(run) {
     if (
       run?.state !== 'SUCCEEDED' ||
@@ -68,18 +70,19 @@ export async function deliverStaticContent(
         configurationStateHash(configurationPlan.before)
     )
       throw new Error('Blog delivery cannot change hosting configuration');
+    const currentPublicProductPaths = scopeKey === 'site' ? await readPublicProductPaths() : [];
     let plan =
       action === 'restore'
         ? planReleaseRecovery({
             artifactInput: source,
             currentOwnedPaths: owned,
-            publicProductPaths,
+            publicProductPaths: currentPublicProductPaths,
           })
         : scopeKey === 'site'
           ? planSiteReleaseCandidate({
               artifactInput: source,
               currentOwnedPaths: owned,
-              publicProductPaths,
+              publicProductPaths: currentPublicProductPaths,
             })
           : planReleaseCandidate({ artifactInput: source, currentOwnedPaths: owned });
     if (
@@ -97,6 +100,7 @@ export async function deliverStaticContent(
         plan,
         directory: source.directory,
         inventory: await provider.readInventory(),
+        contentProofs: baselineProofs,
       });
       if (action === 'adopt' && (plan.uploads.length || plan.deletes.length))
         throw new Error('Baseline differs from the live site');
@@ -198,20 +202,34 @@ export async function deliverStaticContent(
       if (scopeKey === 'canary')
         for (const entry of expected) await verifyHostingObject({ target, entry, request });
       else {
-        const baselinePlan = planReleaseRecovery({
-          artifactInput: baseline,
-          currentOwnedPaths: [],
-          publicProductPaths,
-        });
-        const check = selectChangedHostingFiles({
-          plan: baselinePlan,
-          directory: baseline.directory,
+        const inventory = await provider.readInventory();
+        for (const entry of expected) {
+          const current = inventory.find((e) => e.path === entry.path);
+          if (
+            current &&
+            !/^"?[a-f0-9]{32}"?$/i.test(current.etag) &&
+            !(
+              entry.objectVersion?.etag === current.etag &&
+              entry.objectVersion?.lastModified === current.lastModified
+            )
+          ) {
+            const observed = await verifyHostingObject({ target, entry, request });
+            if (observed.etag !== current.etag)
+              throw Object.assign(Error('Accepted object changed during readback'), {
+                code: 'STOP_EXTERNAL_CHANGE',
+              });
+            baselineProofs.push({
+              ...entry,
+              etag: current.etag,
+              lastModified: current.lastModified,
+            });
+          }
+        }
+        assertAcceptedHostingFiles({
+          source: baseline,
           inventory: await provider.readInventory(),
+          contentProofs: baselineProofs,
         });
-        if (check.uploads.length)
-          throw Object.assign(new Error('Accepted site changed outside this release'), {
-            code: 'STOP_EXTERNAL_CHANGE',
-          });
       }
     } else if (owned.length && mode !== 'adopt') throw new Error('Delivery baseline is required');
     if (mode === 'adopt') {

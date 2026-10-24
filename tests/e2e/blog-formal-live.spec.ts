@@ -4,11 +4,46 @@ import { expect, test } from '@playwright/test';
 import { parseArticleDraft } from '../../packages/articles/src/draft-repository.ts';
 
 test.describe.configure({ mode: 'serial' });
+test.use({
+  viewport: { width: 1440, height: 1100 },
+  ignoreHTTPSErrors: process.env.E2E_BLOG_FORMAL_PREVIEW === '1',
+  launchOptions: {
+    args:
+      process.env.E2E_BLOG_FORMAL_PREVIEW === '1'
+        ? ['--host-resolver-rules=MAP supplychainsai.com 127.0.0.1']
+        : [],
+  },
+});
 test.skip(process.env.E2E_BLOG_FORMAL_LIVE !== '1', 'Explicit formal CloudBase acceptance only.');
+test.afterEach(async ({ page }, info) => {
+  if (info.status !== info.expectedStatus) {
+    await mkdir('output/blog-bootstrap', { recursive: true });
+    await writeFile(
+      'output/blog-bootstrap/browser-failure.json',
+      JSON.stringify(
+        {
+          path: new URL(page.url()).pathname,
+          role: await page.evaluate(() => {
+            try {
+              return JSON.parse(localStorage.getItem('channel.user') ?? 'null')?.role ?? null;
+            } catch {
+              return null;
+            }
+          }),
+          viewport: page.viewportSize(),
+          headings: await page.getByRole('heading').allTextContents(),
+        },
+        null,
+        2,
+      ),
+    );
+    await page.screenshot({ path: 'output/blog-bootstrap/browser-failure.png', fullPage: true });
+  }
+});
 test.beforeAll(() => {
   if (
     process.env.GITHUB_ACTIONS !== 'true' ||
-    process.env.E2E_SITE_URL !== 'http://localhost:4321' ||
+    process.env.E2E_SITE_URL !== 'https://supplychainsai.com' ||
     process.env.E2E_API_URL !== 'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com'
   )
     throw Error('Unapproved live target');
@@ -25,9 +60,21 @@ test('real administrator saves, uploads, previews, reopens and resolves a concur
   await page.goto('/login?returnTo=/admin');
   await page.getByLabel('Email', { exact: true }).fill(process.env.E2E_ADMIN_EMAIL ?? '');
   await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_ADMIN_PASSWORD ?? '');
+  const authReply = page.waitForResponse(
+    (r) => r.url().endsWith('/api/admin') && r.request().postDataJSON()?.action === 'login',
+  );
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.waitForURL('**/admin');
-  await page.getByRole('button', { name: 'Articles', exact: true }).click();
+  const loginResponse = await authReply;
+  const login = await loginResponse.json();
+  if (loginResponse.status() !== 200 || login.ok !== true)
+    throw Error(
+      `Real administrator login failed (${loginResponse.status()}:${login.error?.code ?? 'unknown'})`,
+    );
+  expect(login.data?.user?.role).toBe('admin');
+  await page.waitForURL((url) => url.pathname === '/admin');
+  if (process.env.PUBLIC_BLOG_WORKSPACE !== '1')
+    await page.getByRole('button', { name: 'Articles', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'New article', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'New article', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill(title);
   await page.getByRole('textbox', { name: 'Article body' }).fill(body);

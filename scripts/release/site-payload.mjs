@@ -17,6 +17,7 @@ export function createSitePayload({
   releaseId,
   files,
   snapshot,
+  objectProofs = /** @type {{path:string,bytes:number,sha256:string,etag:string,lastModified:string}[]} */ ([]),
   now = Date.now(),
 }) {
   if (
@@ -24,7 +25,7 @@ export function createSitePayload({
     !files.size ||
     files.size > limits.files ||
     !/^[a-f0-9]{40}$/.test(codeSha) ||
-    !/^[A-Za-z0-9:_-]{1,200}$/.test(releaseId) ||
+    !/^[A-Za-z0-9_-]{1,200}$/.test(releaseId) ||
     snapshot?.siteOrigin !== policy.siteOrigin ||
     !files.has('index.html')
   )
@@ -41,7 +42,20 @@ export function createSitePayload({
     data.set(path, Buffer.from(body));
   }
   const entry = ([path, body]) => ({ path, bytes: body.length, sha256: sha256(body) });
-  const entries = [...data].map(entry);
+  const entries = [...data].map(entry).map((value) => {
+    const proof = objectProofs.find(
+      (p) => p.path === value.path && p.bytes === value.bytes && p.sha256 === value.sha256,
+    );
+    if (!proof) return value;
+    if (
+      typeof proof.etag !== 'string' ||
+      !proof.etag ||
+      typeof proof.lastModified !== 'string' ||
+      !proof.lastModified
+    )
+      throw Error('Incomplete verified object version');
+    return { ...value, objectVersion: { etag: proof.etag, lastModified: proof.lastModified } };
+  });
   checkEntries(entries);
   const manifest = {
     schemaVersion: 2,
@@ -84,7 +98,13 @@ export function createSitePayload({
   }
   return payload;
 }
-export function siteArtifact({ directory, policy, run, acceptedSeal = null, now = Date.now() }) {
+export function siteArtifact({
+  directory,
+  policy,
+  run,
+  acceptedSeal = /** @type {unknown} */ (null),
+  now = Date.now(),
+}) {
   if (!['push', 'workflow_dispatch'].includes(run.event))
     throw new Error('Untrusted site release event');
   const payload = readJson(directory, 'payload-manifest.json');

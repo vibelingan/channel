@@ -44,3 +44,38 @@ test('matching size without a matching MD5 is uploaded and corrupt local bytes s
     /Corrupt/,
   );
 });
+
+test('multipart objects require a sealed byte/version proof and remain rechecked before acceptance', (t) => {
+  const f = fixture(t);
+  const plan = planHostingRecovery({ ...f, target, currentOwnedPaths: [], publicProductPaths: [] });
+  const inventory = plan.uploads.map((e) => ({
+    path: e.path,
+    bytes: e.bytes,
+    etag: '"multipart-3"',
+    lastModified: '2026-10-24T00:00:00Z',
+  }));
+  const contentProofs = plan.uploads.map((e) => ({
+    ...e,
+    etag: '"multipart-3"',
+    lastModified: '2026-10-24T00:00:00Z',
+  }));
+  assert.equal(
+    selectChangedHostingFiles({ plan, directory: f.directory, inventory }).retained.length,
+    0,
+  );
+  const next = selectChangedHostingFiles({
+    plan,
+    directory: f.directory,
+    inventory,
+    contentProofs,
+  });
+  assert.equal(next.uploads.length, 0);
+  verifyRetainedHostingFiles(next.retained, inventory);
+  const changed = inventory.map((e) => ({ ...e, lastModified: '2026-10-24T00:00:01Z' }));
+  assert.throws(() => verifyRetainedHostingFiles(next.retained, changed));
+  assert.equal(
+    selectChangedHostingFiles({ plan, directory: f.directory, inventory: changed, contentProofs })
+      .retained.length,
+    0,
+  );
+});

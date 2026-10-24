@@ -68,5 +68,6 @@ jobs:
             output/blog-bootstrap/ui-proof.json
             output/blog-bootstrap/database-proof.json
             output/blog-bootstrap/editor-*.png
+            output/blog-bootstrap/browser-failure.*
           if-no-files-found: ignore
           retention-days: 90

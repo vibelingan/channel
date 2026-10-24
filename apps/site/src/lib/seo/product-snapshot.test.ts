@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
-import { collectProductSnapshot, decodeProductSnapshot } from './product-snapshot.ts';
+import {
+  collectProductSnapshot,
+  collectPublicProductPaths,
+  decodeProductSnapshot,
+} from './product-snapshot.ts';
 
 const origin = 'https://example.com';
 const row = {
@@ -70,5 +74,25 @@ test('duplicate public inventory identities are rejected before detail acquisiti
   await assert.rejects(
     () => collectProductSnapshot(origin, origin, api),
     /Duplicate public inventory ID/,
+  );
+});
+
+test('fresh recovery allowlists use only anonymous inventory requests and share canonical product identities', async () => {
+  let calls = 0;
+  const api: typeof fetch = async (input, init) => {
+    calls++;
+    assert(!new URL(String(input)).pathname.endsWith('/detail'));
+    return transport()(input, init);
+  };
+  assert.deepEqual(await collectPublicProductPaths(origin, api), [
+    '/products/p-canonical-product/',
+  ]);
+  assert.equal(calls, 1);
+  await assert.rejects(
+    () =>
+      collectPublicProductPaths(origin, async () =>
+        Response.json({ ok: true, data: { items: [], total: 1, page: 1, pageSize: 48 } }),
+      ),
+    /incomplete/,
   );
 });

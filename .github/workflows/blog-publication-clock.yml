@@ -12,16 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Ask the tested test branch to inspect its article queue
+      - name: Ask the verified SEO executor to inspect its article queue
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh workflow run deploy-test.yml --ref test \
-            -f content_only=true \
-            -f article_task_id=auto \
-            -f catalog_acceptance_only=false \
-            -f catalog_acceptance_scope=full \
-            -f run_public_e2e=false \
-            -f run_media_upload_smoke=false \
-            -f run_oem_upload_smoke=false
+          gh workflow run seo-static-canary.yml --ref feat/seo-foundation \
+            -f mode=site-delivery \
+            -f action=publish \
+            -f variant=A \
+            -f artifact_id=auto \
+            -f expected_activation_id=none \
+            -f reason='Process one queued article from the existing admin'

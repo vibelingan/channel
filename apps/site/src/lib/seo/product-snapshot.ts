@@ -9,7 +9,7 @@ import {
   fetchCatalogDetailPage,
 } from '../../catalog/infrastructure/catalog-detail-api.ts';
 import { siteOrigin } from './page.ts';
-import { productKey } from './product-identity.ts';
+import { productKey, productPath } from './product-identity.ts';
 
 // Strip unknown top-level fields. Nested pricing still uses the strict shared contracts.
 // Missing family/slug are historical public data, never a reason to remove a product.
@@ -161,7 +161,7 @@ async function inventory(api: typeof fetch): Promise<SeoPublicProduct[]> {
     const result = z
       .object({
         items: z.array(z.unknown()),
-        total: z.number().int().nonnegative().safe(),
+        total: z.number().int().nonnegative().safe().max(50000),
         page: z.number().int().positive(),
         pageSize: z.number().int().min(1).max(100),
       })
@@ -201,13 +201,9 @@ async function mapPublic<T, U>(items: readonly T[], work: (item: T) => Promise<U
   return output;
 }
 
-export async function collectProductSnapshot(
-  site: string,
-  origin: string,
-  fetcher: typeof fetch = globalThis.fetch,
-): Promise<ProductSnapshot> {
+function publicCatalogFetch(origin: string, fetcher: typeof fetch): typeof fetch {
   const apiOrigin = siteOrigin(origin);
-  const api: typeof fetch = (input, init) => {
+  return (input, init) => {
     const url = new URL(String(input), apiOrigin);
     if (url.origin !== apiOrigin || !url.pathname.startsWith('/api/products'))
       throw new Error('Unexpected public snapshot endpoint');
@@ -219,6 +215,25 @@ export async function collectProductSnapshot(
       signal: AbortSignal.timeout(20000),
     });
   };
+}
+
+/** Cheap public URL allowlist for withdrawal checks; this never fetches product details. */
+export async function collectPublicProductPaths(
+  origin: string,
+  fetcher: typeof fetch = globalThis.fetch,
+): Promise<string[]> {
+  return (await inventory(publicCatalogFetch(origin, fetcher))).map((product) =>
+    productPath(product._id),
+  );
+}
+
+export async function collectProductSnapshot(
+  site: string,
+  origin: string,
+  fetcher: typeof fetch = globalThis.fetch,
+): Promise<ProductSnapshot> {
+  const apiOrigin = siteOrigin(origin);
+  const api = publicCatalogFetch(origin, fetcher);
   const products = await inventory(api);
   const entries = await mapPublic(products, async (listed): Promise<ProductSnapshotEntry> => {
     const result = await fetchCatalogDetailPage({ productId: listed._id }, { fetch: api });

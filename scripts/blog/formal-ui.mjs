@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
@@ -14,7 +14,7 @@ if (
 const root = process.cwd();
 await mkdir('apps/site/.astro', { recursive: true });
 const directory = await mkdtemp(join(root, 'apps/site/.astro/formal-article-ui-'));
-const origin = 'http://localhost:4321';
+const origin = policy.siteOrigin;
 const api = `https://${policy.envId}.service.tcloudbase.com`;
 const env = {
   ...process.env,
@@ -29,6 +29,7 @@ const env = {
   E2E_SITE_URL: origin,
   E2E_API_URL: api,
   E2E_BLOG_FORMAL_LIVE: '1',
+  E2E_BLOG_FORMAL_PREVIEW: '1',
   E2E_RECORD_ARTIFACTS: '0',
 };
 let preview;
@@ -54,29 +55,62 @@ try {
     ['build', '--outDir', join(directory, 'site')],
     join(root, 'apps/site'),
   );
-  // Refuse an occupied port; never test an unrelated server.
-  const { createServer } = await import('node:net');
-  const reservation = createServer();
-  await new Promise((resolve, reject) => {
-    reservation.once('error', reject);
-    reservation.listen(4321, '127.0.0.1', resolve);
-  });
-  await new Promise((resolve) => reservation.close(resolve));
-  preview = start(
-    join(root, 'apps/site/node_modules/.bin/astro'),
-    ['preview', '--outDir', join(directory, 'site'), '--host', '127.0.0.1', '--port', '4321'],
-    join(root, 'apps/site'),
+  const key = join(directory, 'preview.key');
+  const certificate = join(directory, 'preview.crt');
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-keyout',
+      key,
+      '-out',
+      certificate,
+      '-days',
+      '1',
+      '-subj',
+      '/CN=supplychainsai.com',
+      '-addext',
+      'subjectAltName=DNS:supplychainsai.com',
+    ],
+    { stdio: 'ignore', timeout: 30000 },
+  );
+  const readyFile = join(directory, 'preview-ready.json');
+  // The disposable runner binds 443; this process receives no login or cloud credentials.
+  preview = spawn(
+    'sudo',
+    [
+      '-n',
+      '/usr/bin/env',
+      'GITHUB_ACTIONS=true',
+      process.execPath,
+      join(root, 'scripts/blog/formal-preview.mjs'),
+      join(directory, 'site'),
+      key,
+      certificate,
+      readyFile,
+    ],
+    {
+      cwd: root,
+      detached: true,
+      env: { PATH: process.env.PATH, GITHUB_ACTIONS: 'true' },
+      stdio: 'inherit',
+    },
   );
   let available = false;
   for (let i = 0; i < 100; i++) {
-    if (preview.exitCode !== null) throw Error('Owned preview exited');
+    if (preview.exitCode !== null) throw Error('Owned HTTPS preview exited');
     try {
-      available = (await fetch(`${origin}/login`)).ok;
+      const ready = JSON.parse(await readFile(readyFile, 'utf8'));
+      available = ready.port === 443 && ready.root === join(directory, 'site');
       if (available) break;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  if (!available) throw Error('Owned formal UI did not become ready');
+  if (!available) throw Error('Owned HTTPS preview did not become ready');
   await run(join(root, 'node_modules/.bin/playwright'), [
     'test',
     'tests/e2e/blog-formal-live.spec.ts',
@@ -84,13 +118,16 @@ try {
     '--retries=0',
   ]);
 } finally {
-  if (preview && preview.exitCode === null) {
-    preview.kill('SIGTERM');
+  if (preview && preview.exitCode === null && preview.pid) {
+    try {
+      execFileSync('sudo', ['-n', 'kill', '-TERM', '--', `-${preview.pid}`], {
+        stdio: 'ignore',
+        timeout: 5000,
+      });
+    } catch {}
     await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        preview.kill('SIGKILL');
-        resolve();
-      }, 3000);
+      if (preview.exitCode !== null) return resolve();
+      const timer = setTimeout(resolve, 3000);
       preview.once('exit', () => {
         clearTimeout(timer);
         resolve();
