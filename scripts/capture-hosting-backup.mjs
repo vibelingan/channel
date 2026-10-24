@@ -136,7 +136,7 @@ export async function captureBoundHostingBackup({ target, output, request = fetc
 }
 
 /** Website backups exclude the platform's separate historical backup namespace. */
-export function captureProviderHostingBackup({ provider, target, output, request }) {
+export function captureProviderHostingBackup({ provider, target, output, request = undefined }) {
   if (identity(provider.target) !== identity(target)) throw Error('Backup manager target differs.');
   return captureBoundHostingBackup({
     target,

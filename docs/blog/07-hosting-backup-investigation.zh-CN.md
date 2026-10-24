@@ -75,6 +75,7 @@ node --test scripts/hosting-backup-sdk.test.mjs
 node --test scripts/hosting-backup-download.test.mjs scripts/capture-hosting-backup.test.mjs scripts/hosting-recovery.test.mjs scripts/hosting-object-reader.test.mjs scripts/smoke-http.test.mjs
 pnpm test:deploy-smoke
 pnpm verify:cloudbase-sdk
+pnpm exec tsc --project scripts/blog/tsconfig.json --noEmit
 pnpm lint
 ```
 
@@ -102,3 +103,5 @@ pnpm lint
 - [Node #57736](https://github.com/nodejs/node/issues/57736)、[Undici #4068](https://github.com/nodejs/undici/issues/4068)：参考调查线索，不当作本次已证实根因。
 
 本轮实际校对了下载器、完整备份入口、HTTP 读取、COS 源站适配、SDK 诊断、workflow 先后顺序及原始日志。把“网络中断导致 SDK 崩溃”改成“旧日志只证明进程关闭；现有路径布局可独立重现崩溃”，保留能够证明的事实和未能追溯的部分。
+
+远端首轮 `40116358947` 发现合并入口的可选 `request` 被 JS 类型推断当成必填参数；增加显式 `undefined` 默认值，运行时语义不变，独立 Blog 脚本类型检查和备份用例通过。原失败保留，后续以修复提交的远端结果为准。

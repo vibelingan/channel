@@ -10,7 +10,7 @@
     "offlineDiagnosticCases": 5
   },
   "implementationFiles": {
-    "scripts/capture-hosting-backup.mjs": "d02f83e7b914fae95504556f2290a6d3dd603e7b67034342d31ea21d5a57aaf8",
+    "scripts/capture-hosting-backup.mjs": "321d212437e427a73ac581c3bebd920ba6c40cd308f2e646ec194fba0065949e",
     "scripts/hosting-backup-download.mjs": "7cece790072a8a3a790d68fcd9975fc691bd505831ad15ce11d569c01b062d9e",
     "scripts/smoke-http.mjs": "94d3e3448d223efe1b6fbb5a4de7fd05af31784fc2b32a2c4fcd57620010906b",
     "scripts/release/hosting-backup-reader.mjs": "6789bf24bc894b3cc434648e821026b46dedde71e5e860d97232b17c8715a29b",
@@ -100,7 +100,8 @@
     "rootScriptTestsPassed": 1142,
     "sdkContract": "passed",
     "types": "passed",
-    "lint": "passed"
+    "lint": "passed",
+    "blogScriptsTypecheck": "passed"
   },
   "cloudWrites": 0,
   "ticketSubmitted": false,
@@ -134,6 +135,11 @@
       "case": "unfiltered direct CLI inventory",
       "reason": "controlled stop after identifying platform historical backups; partial local files preserved; unified reader fixes scope",
       "recoveryManifest": false
+    },
+    {
+      "case": "remote Blog script typecheck 40116358947",
+      "reason": "optional request callback inferred as required; explicit undefined default preserves runtime behavior and passes exact script typecheck",
+      "cloudWrites": 0
     }
   ]
 }
