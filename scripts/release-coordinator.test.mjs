@@ -12,6 +12,7 @@ import {
   runner,
   stepInput,
 } from './release-state-fixtures.mjs';
+import { hostingBatchBeforeHash, hostingRemovalHash } from './release/hosting-batches.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
 
 const setup = () => {
@@ -220,6 +221,38 @@ async function verifyAll(f, run) {
   const acceptance = await f.client.beginStep({ ...run, ...stepInput('accept') });
   await f.client.confirmStep({ ...run, stepId: acceptance.stepId, receipt: receipt(acceptance) });
 }
+test('coordinator binds removal paths and before states to the signed intent', async () => {
+  const f = setup();
+  await accepted(f);
+  const run = await publish(f);
+  const removals = [{ path: 'products/p-retired/index.html', beforeHash: hashA }];
+  const hash = hostingRemovalHash(removals.map((row) => row.path));
+  const input = {
+    ...run,
+    ...stepInput(),
+    beforeHash: hostingBatchBeforeHash(removals),
+    afterHash: hash,
+    subject: `remove-batch:${hash}`,
+    verifySubject: `remove-batch:${hash}`,
+    removals,
+  };
+  await assert.rejects(f.client.beginStep({ ...input, beforeHash: hashA }), {
+    code: 'INVALID_BATCH_INTENT',
+  });
+  await assert.rejects(
+    f.client.beginStep({ ...input, removals: [{ ...removals[0], path: 'other.html' }] }),
+    { code: 'INVALID_BATCH_INTENT' },
+  );
+  const step = await f.client.beginStep(input);
+  assert.deepEqual(step.removals, removals);
+  const saved = f.store
+    .inspect()
+    .find(([key, row]) => key.startsWith('steps/') && row.operationId === step.operationId);
+  assert(saved);
+  saved[1].removals[0].path = 'other.html';
+  f.store.replace('steps', saved[0].split('/')[1], saved[1]);
+  await assert.rejects(f.client.status(), { code: 'CORRUPT_STEP' });
+});
 const proof = (status, time, step) => ({
   runnerRef: status.target.lease.runnerRef,
   checkedAt: time.now(),

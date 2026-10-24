@@ -7,7 +7,9 @@ import { fetchFully } from '../smoke-http.mjs';
 import {
   hostingBatchBeforeHash,
   hostingBatchHash,
+  hostingRemovalHash,
   mapHostingBounded,
+  siteRemovalBatches,
   siteUploadBatches,
 } from './hosting-batches.mjs';
 import {
@@ -36,7 +38,7 @@ export function hostingCoordinatorPlan(plan, configurationPlan) {
     acceptanceHash: plan.stateSha256,
     stepCount:
       (siteUploadBatches(plan)?.length ?? plan.uploads.length) +
-      plan.deletes.length +
+      (siteRemovalBatches(plan)?.length ?? plan.deletes.length) +
       configurationPlan.changes.length +
       1,
   });
@@ -120,7 +122,7 @@ export function createHostingRecoveryAdapters({
     afterHash,
     kind,
     activeSignal,
-    members,
+    batch = {},
   ) => {
     activeSignal.throwIfAborted();
     const step = await coordinator.beginStep({
@@ -134,7 +136,7 @@ export function createHostingRecoveryAdapters({
       subject,
       verifySubject,
       executionId: ctx.executionId,
-      ...(members ? { members } : {}),
+      ...batch,
     });
     if (activeSignal.aborted) {
       await unknown(step);
@@ -306,7 +308,7 @@ export function createHostingRecoveryAdapters({
             hash,
             'write',
             activeSignal,
-            members,
+            { members },
           );
           if (step.state !== 'verified') {
             await mapHostingBounded(batch, 4, async (entry, index) => {
@@ -424,6 +426,64 @@ export function createHostingRecoveryAdapters({
             status: 'verified',
             observedHash: observed.sha256,
           });
+        });
+      } catch (error) {
+        await unknown(step);
+        throw error;
+      }
+    },
+    async removeBatch(inputPaths, inputContext) {
+      const paths = freeze(structuredClone(inputPaths));
+      if (
+        !siteRemovalBatches(plan)?.some((batch) => identity(batch) === identity(paths)) ||
+        !errorDocument
+      )
+        throw Error('Unplanned hosting removal batch');
+      const ctx = freeze(structuredClone(inputContext));
+      const hash = hostingRemovalHash(paths);
+      context(ctx, `remove-batch:${hash}`, hash);
+      let step;
+      try {
+        return await leased(async (activeSignal) => {
+          const removals = await mapHostingBounded(paths, 4, async (path) => ({
+            path,
+            beforeHash: await beforeHash(path, activeSignal),
+          }));
+          step = await begin(
+            ctx,
+            ctx.subject,
+            ctx.subject,
+            hostingBatchBeforeHash(removals),
+            hash,
+            'write',
+            activeSignal,
+            { removals },
+          );
+          if (step.state !== 'verified') {
+            await mapHostingBounded(paths, 4, async (path) => {
+              activeSignal.throwIfAborted();
+              const result = await provider.remove(path, { signal: activeSignal });
+              if (result?.terminal !== true) throw Error('Hosting delete is not terminal');
+            });
+            activeSignal.throwIfAborted();
+            await coordinator.recordSubmitted({
+              guard,
+              runId,
+              stepId: step.stepId,
+              receipt: ledgerReceipt(step, 'submitted'),
+            });
+          }
+          const evidence = await mapHostingBounded(paths, 4, (path) =>
+            verify(errorDocument, path, 404, activeSignal),
+          );
+          activeSignal.throwIfAborted();
+          await coordinator.confirmStep({
+            guard,
+            runId,
+            stepId: step.stepId,
+            receipt: ledgerReceipt(step, 'verified', { evidence }),
+          });
+          return kernelReceipt(ctx, step.operationId, { status: 'verified', observedHash: hash });
         });
       } catch (error) {
         await unknown(step);

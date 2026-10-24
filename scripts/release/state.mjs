@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import {
   assertHostingBatchMembers,
+  assertHostingRemovals,
   hostingBatchBeforeHash,
   hostingBatchHash,
+  hostingRemovalHash,
 } from './hosting-batches.mjs';
 import { freeze, identity, isHash } from './input.mjs';
 import {
@@ -163,6 +165,19 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
         )
           fail('INVALID_BATCH_INTENT');
       }
+      if (request.removals !== undefined) {
+        assertHostingRemovals(request.removals);
+        if (
+          request.members !== undefined ||
+          kind !== 'write' ||
+          component !== 'static' ||
+          beforeHash !== hostingBatchBeforeHash(request.removals) ||
+          afterHash !== hostingRemovalHash(request.removals.map((row) => row.path)) ||
+          subject !== `remove-batch:${afterHash}` ||
+          verifySubject !== subject
+        )
+          fail('INVALID_BATCH_INTENT');
+      }
       id(request.stepId);
       text(component);
       text(subject);
@@ -210,6 +225,7 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
           sequence: run.verifiedSteps,
           fence: run.fence,
           ...(request.members ? { members: request.members } : {}),
+          ...(request.removals ? { removals: request.removals } : {}),
         };
         const step = {
           ...intent,
@@ -747,6 +763,7 @@ function stepIdentity(step) {
         'sequence',
         'fence',
         ...(step.members ? ['members'] : []),
+        ...(step.removals ? ['removals'] : []),
       ].map((key) => [key, step[key]]),
     ),
   );

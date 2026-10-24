@@ -3,6 +3,8 @@ import { verifyReleaseArtifact } from './release/artifact.mjs';
 import {
   hostingBatchHash,
   hostingFilePhase,
+  hostingRemovalHash,
+  siteRemovalBatches,
   siteUploadBatches,
 } from './release/hosting-batches.mjs';
 import {
@@ -334,12 +336,24 @@ export async function executeHostingRecovery(input, inputAdapters) {
       assertReceipt(receipt, read, 'verified');
       receipts.push(receipt);
     }
-  for (const path of plan.deletes) {
-    const intent = context(`remove:${path}`, 'absent');
-    const receipt = await adapters.remove(path, intent);
-    assertReceipt(receipt, intent, 'verified');
-    receipts.push(receipt);
-  }
+  const removalBatches = siteRemovalBatches(plan);
+  if (removalBatches) {
+    if (typeof adapters.removeBatch !== 'function')
+      throw Error('Site removal batch adapter is required');
+    for (const paths of removalBatches) {
+      const hash = hostingRemovalHash(paths);
+      const intent = context(`remove-batch:${hash}`, hash);
+      const receipt = await adapters.removeBatch(paths, intent);
+      assertReceipt(receipt, intent, 'verified');
+      receipts.push(receipt);
+    }
+  } else
+    for (const path of plan.deletes) {
+      const intent = context(`remove:${path}`, 'absent');
+      const receipt = await adapters.remove(path, intent);
+      assertReceipt(receipt, intent, 'verified');
+      receipts.push(receipt);
+    }
   const config = context('configure', plan.configurationSha256);
   const configured = await adapters.configure(config);
   assertReceipt(configured, config, 'verified');

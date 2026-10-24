@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { expectPageAllowsIndexing } from './helpers/seo-indexability.ts';
 
 test.skip(process.env.E2E_SEO_PUBLIC_LIVE !== '1', 'Explicit real-site read-only acceptance only.');
 test.use({ viewport: { width: 1440, height: 1100 } });
@@ -41,14 +42,16 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
   const plain = await browser.newContext({ javaScriptEnabled: false });
   try {
     const html = await plain.newPage();
-    await html.goto(`${process.env.E2E_SITE_URL}${path}`, { waitUntil: 'domcontentloaded' });
+    const initial = await html.goto(`${process.env.E2E_SITE_URL}${path}`, {
+      waitUntil: 'domcontentloaded',
+    });
     await expect(html.locator('[data-shared-detail-heading]')).toBeVisible();
     expect((await html.locator('h1').innerText()).trim().length).toBeGreaterThan(0);
     await expect(html.locator('link[rel=canonical]')).toHaveAttribute(
       'href',
       `${process.env.E2E_SITE_URL}${path}`,
     );
-    await expect(html.locator('meta[name=robots]')).not.toHaveAttribute('content', /noindex/);
+    await expectPageAllowsIndexing(html, initial);
     const graphs = await html.locator('script[type="application/ld+json"]').allTextContents();
     expect(
       graphs.some((text) => JSON.stringify(JSON.parse(text)).includes('"@type":"Product"')),
@@ -125,7 +128,8 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
         `https://supplychainsai.com${articlePath}`,
       );
     } else {
-      await page.goto(articlePath, { waitUntil: 'domcontentloaded' });
+      const articleResponse = await page.goto(articlePath, { waitUntil: 'domcontentloaded' });
+      await expectPageAllowsIndexing(page, articleResponse);
       await expect(page.locator('link[rel=canonical]')).toHaveAttribute(
         'href',
         `https://supplychainsai.com${articlePath}`,

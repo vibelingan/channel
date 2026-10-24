@@ -12,6 +12,7 @@ import {
   objectResponse,
 } from './release-hosting-fixtures.mjs';
 import { memoryStore } from './release-state-fixtures.mjs';
+import { hostingBatchBeforeHash, hostingRemovalHash } from './release/hosting-batches.mjs';
 import { identity } from './release/input.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
@@ -326,9 +327,14 @@ async function reconcileFixture(f) {
   f.expireLease();
   const digest = (path) =>
     f.files.has(path) ? createHash('sha256').update(f.files.get(path)).digest('hex') : 'absent';
+  const removed = step.removals?.map((row) => ({ path: row.path, beforeHash: digest(row.path) }));
   const observedHash = step.members
     ? identity(step.members.map((e) => ({ path: e.path, sha256: digest(e.path) })))
-    : digest(step.subject.replace(/^(?:upload|remove):/, ''));
+    : removed
+      ? removed.every((row) => row.beforeHash === 'absent')
+        ? hostingRemovalHash(removed.map((row) => row.path))
+        : hostingBatchBeforeHash(removed)
+      : digest(step.subject.replace(/^(?:upload|remove):/, ''));
   await f.coordinator.reconcile({
     expectedVersion: state.target.version,
     expectedFence: state.target.lease.fence,
@@ -361,6 +367,7 @@ test('recovery interrupted during deletion can be resumed using the complete A/B
     failedCandidates: [{ run: failedB, input: b.input }],
   });
   assert.equal(firstRestore.status, 'unknown');
+  assert.equal((await f.coordinator.status()).pendingStep.removals.length, 2);
   const failedRestore = await reconcileFixture(f);
   f.setUnknownRemove(false);
   const chain = [

@@ -3,9 +3,12 @@ import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   assertHostingBatchMembers,
+  assertHostingRemovals,
   hostingBatchBeforeHash,
   hostingBatchHash,
+  hostingRemovalHash,
   mapHostingBounded,
+  siteRemovalBatches,
   siteUploadBatches,
   withSiteUploadBatches,
 } from './release/hosting-batches.mjs';
@@ -53,6 +56,37 @@ test('batch membership includes exact before states and refuses ambiguous or dup
     Array.from({ length: 13 }, (_, i) => ({ ...m[0], path: `${i}.html` })),
   ])
     assert.throws(() => assertHostingBatchMembers(bad));
+});
+test('site removals preserve exact paths in bounded batches, while old plans stay sequential', () => {
+  const raw = plan([]);
+  const { planSha256, ...body } = raw;
+  body.deletes = Array.from({ length: 25 }, (_, n) => `products/p-${n}/index.html`);
+  const source = { ...body, planSha256: identity(body) };
+  const next = withSiteUploadBatches(source);
+  assert.deepEqual(
+    siteRemovalBatches(next).map((batch) => batch.length),
+    [12, 12, 1],
+  );
+  assert.deepEqual(siteRemovalBatches(next).flat(), body.deletes);
+  assert.equal(siteRemovalBatches({ ...source, delivery: { batchSize: 12, parallel: 4 } }), null);
+  assert.throws(() =>
+    siteRemovalBatches({ ...next, delivery: { ...next.delivery, removeBatchSize: 100 } }),
+  );
+});
+test('a removal intent binds unique exact paths and before states without inventing file hashes', () => {
+  const rows = [{ path: 'blog/retired/index.html', beforeHash: 'a'.repeat(64) }];
+  assert.doesNotThrow(() => assertHostingRemovals(rows));
+  for (const bad of [
+    [],
+    [...rows, ...rows],
+    [{ ...rows[0], beforeHash: 'unknown' }],
+    Array.from({ length: 13 }, (_, n) => ({ ...rows[0], path: `blog/${n}/index.html` })),
+  ])
+    assert.throws(() => assertHostingRemovals(bad));
+  assert.notEqual(
+    hostingRemovalHash(rows.map((r) => r.path)),
+    hostingRemovalHash(['blog/other/index.html']),
+  );
 });
 test('bounded work waits for in-flight operations and schedules nothing further after failure', async () => {
   const started = [];

@@ -245,6 +245,9 @@ jobs:
       - name: Exercise initial product HTML and existing buyer interactions
         run: node scripts/verify-product-seo.mjs apps/site/dist /tmp/channel-product-seo-fixture.json output/playwright/product-seo
 
+      - name: Verify default and restricted indexing rules in a browser
+        run: pnpm exec playwright test tests/e2e/seo-indexability.spec.ts --project=chromium --retries=0
+
       - name: Preserve failed local browser evidence
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4

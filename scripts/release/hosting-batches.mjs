@@ -1,4 +1,4 @@
-import { checkEntries, freeze, identity, isHash } from './input.mjs';
+import { assertHostingPath, checkEntries, freeze, identity, isHash } from './input.mjs';
 export function hostingFilePhase(entry, output) {
   const discovery =
     /(?:^|\/)sitemap(?:-[A-Za-z0-9_-]+)?\.xml$/.test(entry.path) ||
@@ -17,6 +17,23 @@ export const hostingBatchHash = (entries) =>
   identity(entries.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })));
 export const hostingBatchBeforeHash = (members) =>
   identity(members.map(({ path, beforeHash }) => ({ path, beforeHash })));
+export const hostingRemovalHash = (paths) =>
+  identity(paths.map((path) => ({ path, state: 'absent' })));
+export function assertHostingRemovals(removals) {
+  if (!Array.isArray(removals) || !removals.length || removals.length > 12)
+    throw Error('Invalid hosting removal batch size');
+  const paths = new Set();
+  for (const row of removals) {
+    assertHostingPath(row.path);
+    if (
+      paths.has(row.path) ||
+      (!isHash(row.beforeHash) && row.beforeHash !== 'absent') ||
+      Object.keys(row).sort().join(',') !== 'beforeHash,path'
+    )
+      throw Error('Invalid hosting removal member');
+    paths.add(row.path);
+  }
+}
 export function assertHostingBatchMembers(members) {
   if (!Array.isArray(members) || members.length > 12 || !members.length)
     throw Error('Invalid hosting batch size');
@@ -41,11 +58,27 @@ export function siteUploadBatches(plan) {
   }
   return freeze(batches);
 }
+export function siteRemovalBatches(plan) {
+  if (!plan.delivery || plan.delivery.removeBatchSize === undefined) return null;
+  siteUploadBatches(plan);
+  if (plan.delivery.removeBatchSize !== 12 || !Array.isArray(plan.deletes))
+    throw Error('Unreviewed hosting removal batch settings');
+  const paths = new Set();
+  for (const path of plan.deletes) {
+    assertHostingPath(path);
+    if (paths.has(path)) throw Error('Duplicate hosting removal path');
+    paths.add(path);
+  }
+  const batches = [];
+  for (let index = 0; index < plan.deletes.length; index += 12)
+    batches.push(plan.deletes.slice(index, index + 12));
+  return freeze(batches);
+}
 export function withSiteUploadBatches(plan) {
   const { planSha256, ...body } = plan;
   if (identity(body) !== planSha256 || plan.delivery || plan.scope.kind !== 'site')
     throw Error('Invalid unbatched site plan');
-  const next = { ...body, delivery: { batchSize: 12, parallel: 4 } };
+  const next = { ...body, delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4 } };
   return freeze({ ...next, planSha256: identity(next) });
 }
 /** Stop scheduling after failure; wait for all already started work before rejecting. */

@@ -30,6 +30,7 @@ import {
   createHostingRecoveryAdapters,
   hostingCoordinatorPlan,
 } from './release/hosting-adapter.mjs';
+import { withSiteUploadBatches } from './release/hosting-batches.mjs';
 import {
   configurationHash,
   prepareHostingConfiguration,
@@ -47,6 +48,7 @@ async function setup(
     scopeKey = 'site',
     coordinatorTarget = {},
     cacheChange = false,
+    batchedRemovals = 0,
   } = {},
 ) {
   const sdk = managerFixture(cacheChange ? { initialConfiguration: domainConfiguration() } : {});
@@ -86,6 +88,13 @@ async function setup(
     plan = { ...body, planSha256: identity(body) };
     sdk.state.files.set('__release-canary/index.html', Buffer.from('<h1>Canary old</h1>'));
     sdk.state.files.set('__release-canary/retired/index.html', Buffer.from('retired'));
+  }
+  if (batchedRemovals) {
+    const { planSha256, ...body } = plan;
+    body.deletes = Array.from({ length: batchedRemovals }, (_, n) => `products/p-${n}/index.html`);
+    body.stateSha256 = recoveryStateIdentity(body);
+    plan = withSiteUploadBatches({ ...body, planSha256: identity(body) });
+    for (const path of body.deletes) sdk.state.files.set(path, Buffer.from(`Old ${path}`));
   }
   sdk.state.files.set('index.html', Buffer.from('<h1>Old home</h1>'));
   sdk.state.files.set('retired/index.html', Buffer.from('retired'));
@@ -181,6 +190,99 @@ async function setup(
     provider,
   };
 }
+
+test('batched restoration journals exact removals before SDK effects and verifies every real HTTP 404', async (t) => {
+  const f = await setup(t, { batchedRemovals: 25 });
+  const removed = [];
+  const original = f.provider.remove;
+  const provider = {
+    ...f.provider,
+    remove: async (path, options) => {
+      const status = await f.coordinator.status();
+      assert.equal(status.pendingStep.subject.startsWith('remove-batch:'), true);
+      assert(
+        status.pendingStep.removals.some(
+          (row) => row.path === path && /^[a-f0-9]{64}$/.test(row.beforeHash),
+        ),
+      );
+      removed.push(path);
+      return original(path, options);
+    },
+  };
+  const adapters = createHostingRecoveryAdapters({
+    plan: f.plan,
+    directory: f.source.directory,
+    configurationPlan: f.conf,
+    coordinator: f.coordinator,
+    guard: f.guard,
+    runId: 'recover-A',
+    provider,
+    request: f.http.request,
+    errorDocument: entry('errors/not-found.html', errorHtml),
+    operationTimeoutMs: 5000,
+    heartbeatMs: 50,
+    pollIntervalMs: 2,
+    requestTimeoutMs: 500,
+  });
+  await executeHostingRecovery(f.plan, adapters);
+  assert.deepEqual([...removed].sort(), [...f.plan.deletes].sort());
+  for (const path of f.plan.deletes) assert.equal(f.state.files.has(path), false);
+  const records = f.store
+    .inspect()
+    .filter(([key, value]) => key.startsWith('steps/') && value.removals);
+  assert.deepEqual(
+    records.map(([, row]) => row.removals.length).sort((a, b) => a - b),
+    [1, 12, 12],
+  );
+  for (const [, row] of records) {
+    assert.equal(row.state, 'verified');
+    assert.equal(row.receipt.evidence.length, row.removals.length);
+    for (const observed of row.receipt.evidence)
+      assert.deepEqual(
+        observed.checks.map((check) => check.status),
+        [404, 404, 304],
+      );
+  }
+  assert.equal((await f.coordinator.runStatus('recover-A')).verifiedSteps, f.descriptor.stepCount);
+});
+
+test('lost deletion acknowledgement keeps the whole batch pending and prevents later batches', async (t) => {
+  const f = await setup(t, { batchedRemovals: 25 });
+  const removed = [];
+  const provider = {
+    ...f.provider,
+    remove: async (path, options) => {
+      removed.push(path);
+      if (path !== f.plan.deletes[0]) await new Promise((done) => setTimeout(done, 20));
+      const result = await f.provider.remove(path, options);
+      if (path === f.plan.deletes[0]) throw Error('Actual delete completed, acknowledgement lost');
+      return result;
+    },
+  };
+  const adapters = createHostingRecoveryAdapters({
+    plan: f.plan,
+    directory: f.source.directory,
+    configurationPlan: f.conf,
+    coordinator: f.coordinator,
+    guard: f.guard,
+    runId: 'recover-A',
+    provider,
+    request: f.http.request,
+    errorDocument: entry('errors/not-found.html', errorHtml),
+    operationTimeoutMs: 5000,
+    heartbeatMs: 50,
+    pollIntervalMs: 2,
+    requestTimeoutMs: 500,
+  });
+  await assert.rejects(executeHostingRecovery(f.plan, adapters));
+  assert(removed.length <= 4);
+  const status = await f.coordinator.status();
+  assert.equal(status.pendingStep.state, 'unknown');
+  assert.equal(status.pendingStep.removals.length, 12);
+  assert.equal(f.state.files.has(f.plan.deletes[0]), false);
+  assert.equal(f.state.files.has(f.plan.deletes[12]), true);
+  await assert.rejects(f.coordinator.acquire(runner('another-writer')), { code: 'LEASE_BUSY' });
+});
 
 test('A2 + B1 + installed Manager SDK restores local HTTP bytes with a journal before every effect', async (t) => {
   const f = await setup(t);
