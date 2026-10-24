@@ -208,7 +208,7 @@ export function createHostingRecoveryAdapters({
     if (response.status !== 200) throw new Error('Cannot establish hosting before state');
     return sha256(response.body);
   }
-  async function leased(callback) {
+  async function leased(callback, timeoutMs = operationTimeoutMs) {
     signal?.throwIfAborted();
     await coordinator.renew(guard);
     const controller = new AbortController();
@@ -228,7 +228,7 @@ export function createHostingRecoveryAdapters({
     const deadline = setTimeout(
       () =>
         controller.abort(new Error('Hosting operation timed out; cloud work may still be running')),
-      operationTimeoutMs,
+      timeoutMs,
     );
     let onAbort;
     const aborted = new Promise((_, reject) => {
@@ -266,6 +266,18 @@ export function createHostingRecoveryAdapters({
       throw Error('Unplanned hosting batch');
     return batch;
   };
+  const acceptanceTimeoutMs = plan.delivery
+    ? Math.min(
+        900_000,
+        Math.max(
+          operationTimeoutMs,
+          (Math.ceil(plan.uploads.length / 4) + Math.ceil(plan.deletes.length / 4)) *
+            requestTimeoutMs *
+            3 +
+            30_000,
+        ),
+      )
+    : operationTimeoutMs;
   const api = {
     verifyRetained,
     async uploadBatch(inputEntries, inputContext) {
@@ -552,7 +564,9 @@ export function createHostingRecoveryAdapters({
               return { ...entry, sha256: observed.sha256 };
             },
           );
-          for (const path of plan.deletes) await verify(errorDocument, path, 404, activeSignal);
+          await mapHostingBounded(plan.deletes, plan.delivery ? 4 : 1, (path) =>
+            verify(errorDocument, path, 404, activeSignal),
+          );
           const config = await provider.readConfiguration();
           activeSignal.throwIfAborted();
           if (configurationStateHash(config) !== configurationStateHash(configurationPlan.after))
@@ -573,7 +587,7 @@ export function createHostingRecoveryAdapters({
             }),
           });
           return kernelReceipt(ctx, step.operationId, { status: 'verified', observedHash });
-        });
+        }, acceptanceTimeoutMs);
       } catch (error) {
         await unknown(step);
         throw error;

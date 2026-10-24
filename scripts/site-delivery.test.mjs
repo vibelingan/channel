@@ -184,6 +184,7 @@ async function setup(t) {
     deliver,
     writes,
     files,
+    request: http.request,
     coordinator,
     onWrite: (hook) => {
       writeHook = hook;
@@ -392,4 +393,30 @@ test('every batched upload has its exact path and hash in the persisted intent b
   });
   assert.equal((await f.deliver(b.input)).status, 'accepted');
   assert(checked >= 3);
+});
+
+test('final full-site acceptance has a bounded whole-site budget and still reads every ordinary URL', async (t) => {
+  const f = await setup(t);
+  const b = f.source('B', { article: true });
+  const reads = [];
+  const request = async (method, url, options) => {
+    const state = await f.coordinator.status({ scopeKey: 'site' });
+    if (state.pendingStep?.kind === 'accept') {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      reads.push(new URL(url).pathname);
+    }
+    return f.request(method, url, options);
+  };
+  const result = await f.deliver(b.input, 'publish', {
+    request,
+    adapterOptions: {
+      heartbeatMs: 10,
+      pollIntervalMs: 1,
+      operationTimeoutMs: 100,
+      requestTimeoutMs: 2000,
+    },
+  });
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  assert(reads.filter((path) => path === '/').length >= 3);
+  assert(reads.filter((path) => path === '/blog/one/').length >= 3);
 });

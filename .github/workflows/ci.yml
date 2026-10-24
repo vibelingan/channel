@@ -234,8 +234,13 @@ jobs:
       - name: Discover Playwright specs
         run: pnpm test:e2e --list
 
-      - name: Install Playwright Chromium and WebKit
-        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+      - name: Install Chromium for the product HTML check
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Exercise initial product HTML and existing buyer interactions
         run: node scripts/verify-product-seo.mjs apps/site/dist /tmp/channel-product-seo-fixture.json output/playwright/product-seo

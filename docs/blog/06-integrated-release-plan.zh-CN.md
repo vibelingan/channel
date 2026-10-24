@@ -39,6 +39,18 @@
 
 公开内容继续 Astro 构建时生成 HTML；不迁移 Next.js。依据：[Astro 静态与按需渲染](https://docs.astro.build/en/guides/on-demand-rendering/)、[Google JavaScript SEO](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)、[sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)。
 
+### 已接入的分段检查
+
+1. 源码测试分成 site、packages、services、scripts 四组，PostgreSQL 单独检查。
+2. 商品浏览器按前台、后台、分类管理拆开，每组都跑两种商品模式，共六组；Blog 编辑器和公开文章另验。它们各自使用独立的本地服务与数据，不进入线上。
+3. 构建、类型、SDK、Linux函数包冷启动和SEO输出检查全部通过后，才产生可供发布使用的成功结果。手机Safari和双引擎组件检查保留。
+4. 正常代码发布先采集公开商品、导出已确认文章及图片，然后只构建一次，保存完整产物和输入指纹。任何采集或构建失败都发生在写入前，不恢复旧站，也不拿空内容替代失败。
+5. 保存现场网站和函数原包、持有共享部署锁后，更新既有函数，再把已保存的网站产物交给同一个静态交付器。文章内容发布只运行静态部分，不重发商品同步函数。
+6. 静态文件按资源、详情、入口、发现文件分四阶段；每批最多12个，同批最多4个并发。逐个文件的原状态、目标hash先写发布记录，再上传；普通访问、重新验证、条件请求逐项检查，最后重新确认整站。最终检查单独限时，最多15分钟。
+7. 写后确定失败时，只恢复本次写入前的已确认版本一次。回执丢失、外部改动或恢复再次中断时，留下具体文件和历史记录，先读回再继续；历史包和私有原图一直保留。整站恢复不倒退数据库。
+
+显式复用商品快照用于API异常时的受控发布；仍要新读当前公开商品目录、排除撤回并拒绝漏掉新商品。默认仍全量采集，不用自动降级掩盖故障。前端打开或刷新商品页后继续请求当前API，静态HTML是首次可读内容，不冒充实时数据。
+
 ## 界面方向
 
 公开 Blog 沿用当前 SiteHeader、SiteFooter、BaseLayout、PageHero 和品牌 tokens。列表保持清楚的标题、摘要、作者和日期；详情使用适合长文的单栏宽度、清楚的标题层级与图片说明。沿用实际品牌色、`font-display`/正文 tokens、现有留白和按钮，不换一套视觉语言。桌面与手机单独检查阅读宽度、表格/长链接、键盘焦点及图片稳定性；截图与真实操作配对。

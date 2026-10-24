@@ -393,3 +393,32 @@ test('normal static publication reuses the frozen build and common recovery whil
     'Verified source and browser checks / Required release checks',
   );
 });
+
+test('browser setup follows actual consumers without dropping mobile or component-engine coverage', () => {
+  const ci = workflow('ci');
+  assert(
+    ci.jobs.checks.steps.some((s) => s.run === 'pnpm exec playwright install --with-deps chromium'),
+  );
+  assert(
+    !ci.jobs.checks.steps.some(
+      (s) => s.run === 'pnpm exec playwright install --with-deps chromium webkit',
+    ),
+  );
+  const source = readFileSync(new URL('./verify-product-seo.mjs', import.meta.url), 'utf8');
+  assert.match(source, /import \{ chromium \} from '@playwright\/test'/);
+  const blog = workflow('seo-module-1').jobs.blog;
+  assert(blog.steps.some((s) => s.run === 'pnpm exec playwright install --with-deps chromium'));
+  const regression = workflow('browser-regression');
+  assert(
+    regression.jobs.browser.steps.some(
+      (s) => s.run === 'pnpm exec playwright install --with-deps chromium webkit',
+    ),
+  );
+  assert(
+    ci.jobs.unit.steps.some(
+      (s) =>
+        s.if === "${{ matrix.suite == 'site' }}" &&
+        s.run === 'pnpm exec playwright install --with-deps chromium webkit',
+    ),
+  );
+});

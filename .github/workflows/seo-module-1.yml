@@ -39,7 +39,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+      - run: pnpm exec playwright install --with-deps chromium
       - name: Exercise actual editor and local persistent backend
         run: node scripts/run-catalog-admin-local-e2e.mjs --articles-only
       - name: Exercise published, updated and withdrawn Blog output
