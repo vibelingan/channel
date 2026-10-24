@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { publicBuildEnvironment } from '../release/public-build-env.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
 const policy = assertBlogBootstrapInvocation(process.env);
 const ready = JSON.parse(await readFile('output/blog-bootstrap/result.json', 'utf8'));
@@ -33,11 +34,11 @@ const env = {
   E2E_RECORD_ARTIFACTS: '0',
 };
 let preview;
-function start(command, args, cwd = root) {
-  return spawn(command, args, { cwd, env, stdio: 'inherit' });
+function start(command, args, cwd = root, childEnv = env) {
+  return spawn(command, args, { cwd, env: childEnv, stdio: 'inherit' });
 }
-function run(command, args, cwd) {
-  const child = start(command, args, cwd);
+function run(command, args, cwd, childEnv) {
+  const child = start(command, args, cwd, childEnv);
   return new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', (code) =>
@@ -46,14 +47,17 @@ function run(command, args, cwd) {
   });
 }
 try {
-  await run(join(root, 'apps/site/node_modules/.bin/tsx'), [
-    'apps/site/scripts/prepare-product-seo.ts',
-    env.SEO_CATALOG_SNAPSHOT,
-  ]);
+  await run(
+    join(root, 'apps/site/node_modules/.bin/tsx'),
+    ['apps/site/scripts/prepare-product-seo.ts', env.SEO_CATALOG_SNAPSHOT],
+    root,
+    publicBuildEnvironment(env),
+  );
   await run(
     join(root, 'apps/site/node_modules/.bin/astro'),
     ['build', '--outDir', join(directory, 'site')],
     join(root, 'apps/site'),
+    publicBuildEnvironment(env),
   );
   const key = join(directory, 'preview.key');
   const certificate = join(directory, 'preview.crt');

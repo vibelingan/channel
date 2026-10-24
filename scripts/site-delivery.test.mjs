@@ -32,6 +32,8 @@ async function setup(t) {
   const writes = [];
   let clock = 0;
   let unknown = false;
+  let unknownRemove = false;
+  let writeHook = async (_path) => {};
   let seq = 0;
   const stamp = () => new Date(Date.UTC(2026, 9, 24, 0, 0, ++clock)).toISOString();
   const http = await httpFixture(t, (req, res) => {
@@ -63,23 +65,26 @@ async function setup(t) {
         lastModified: times.get(path),
       })),
     upload: async (path, bytes) => {
+      await writeHook(path);
       writes.push(['put', path]);
       files.set(path, Buffer.from(bytes));
       times.set(path, stamp());
-      if (unknown) throw Error('lost upload acknowledgement');
+      if (unknown === true || unknown === path) throw Error('lost upload acknowledgement');
       return { terminal: true };
     },
     remove: async (path) => {
       writes.push(['remove', path]);
       files.delete(path);
       times.delete(path);
+      if (unknownRemove) throw Error('lost delete acknowledgement');
       return { terminal: true };
     },
     configure: async () => {
       throw Error('Global configuration forbidden');
     },
   };
-  const coordinator = createReleaseCoordinator({ store: memoryStore(), policy });
+  let now = Date.now();
+  const coordinator = createReleaseCoordinator({ store: memoryStore(), policy, clock: () => now });
   const sources = new Map();
   function source(label, { article = false, products = [], image = false } = {}) {
     const id = String(++seq);
@@ -171,12 +176,23 @@ async function setup(t) {
   assert.equal(writes.length, 0);
   return {
     source,
+    a,
+    now: () => now,
+    expireLease: () => {
+      now += 200000;
+    },
     deliver,
     writes,
     files,
     coordinator,
-    setUnknown: () => {
-      unknown = true;
+    onWrite: (hook) => {
+      writeHook = hook;
+    },
+    setUnknownRemove: (value) => {
+      unknownRemove = value;
+    },
+    setUnknown: (value = true) => {
+      unknown = value;
     },
   };
 }
@@ -252,4 +268,128 @@ test('failed or withdrawn publication removes only unreferenced public article i
   assert.equal((await f.deliver(d.input)).status, 'accepted');
   assert(!f.files.has(path));
   assert(f.files.has('foreign.html'));
+});
+
+test('a stopped runner is reconciled by actual readback, then manual restoration removes partial B and restores accepted A', async (t) => {
+  const f = await setup(t);
+  const a = await f.coordinator.status({ scopeKey: 'site' });
+  const b = f.source('B', { article: true });
+  f.setUnknown();
+  assert.equal((await f.deliver(b.input)).status, 'unknown');
+  const stuck = await f.coordinator.status({ scopeKey: 'site' });
+  assert(stuck.pendingStep);
+  f.expireLease();
+  const path =
+    stuck.pendingStep.members?.[0]?.path ?? stuck.pendingStep.subject.replace(/^upload:/, '');
+  await f.coordinator.reconcile({
+    expectedVersion: stuck.target.version,
+    expectedFence: stuck.target.lease.fence,
+    proof: {
+      runnerRef: stuck.target.lease.runnerRef,
+      job: { status: 'completed', evidenceRef: 'github:completed' },
+      cloud: {
+        status: 'quiescent',
+        operationId: stuck.pendingStep.operationId,
+        observedHash: stuck.pendingStep.members
+          ? identity(
+              stuck.pendingStep.members.map((e) => ({
+                path: e.path,
+                sha256: f.files.has(e.path)
+                  ? createHash('sha256').update(f.files.get(e.path)).digest('hex')
+                  : 'absent',
+              })),
+            )
+          : createHash('sha256').update(f.files.get(path)).digest('hex'),
+        evidenceRef: 'actual-object-readback',
+      },
+      checkedAt: f.now(),
+    },
+  });
+  f.setUnknown(false);
+  const result = await f.deliver(f.a.input, 'restore', {
+    restoreRunId: a.scope.baseline.sourceRunId,
+    failedCandidates: [
+      { run: await f.coordinator.runStatus(stuck.target.dirtyRunId), input: b.input },
+    ],
+  });
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  assert.equal(f.files.get('index.html').toString(), '<main>A</main>');
+  assert(!f.files.has('blog/one/index.html'));
+  assert(f.files.has('foreign.html'));
+  assert.equal((await f.coordinator.status()).target.dirtyRunId, null);
+});
+
+async function reconcileFixture(f) {
+  const state = await f.coordinator.status({ scopeKey: 'site' });
+  const step = state.pendingStep;
+  f.expireLease();
+  const digest = (path) =>
+    f.files.has(path) ? createHash('sha256').update(f.files.get(path)).digest('hex') : 'absent';
+  const observedHash = step.members
+    ? identity(step.members.map((e) => ({ path: e.path, sha256: digest(e.path) })))
+    : digest(step.subject.replace(/^(?:upload|remove):/, ''));
+  await f.coordinator.reconcile({
+    expectedVersion: state.target.version,
+    expectedFence: state.target.lease.fence,
+    proof: {
+      runnerRef: state.target.lease.runnerRef,
+      job: { status: 'completed', evidenceRef: 'finished-fixture-runner' },
+      cloud: {
+        status: 'quiescent',
+        operationId: step.operationId,
+        observedHash,
+        evidenceRef: 'fixture-http-and-inventory',
+      },
+      checkedAt: f.now(),
+    },
+  });
+  return f.coordinator.runStatus(state.target.dirtyRunId);
+}
+
+test('recovery interrupted during deletion can be resumed using the complete A/B history', async (t) => {
+  const f = await setup(t);
+  const initial = await f.coordinator.status({ scopeKey: 'site' });
+  const b = f.source('B', { article: true, image: true });
+  f.setUnknown('index.html');
+  assert.equal((await f.deliver(b.input)).status, 'unknown');
+  const failedB = await reconcileFixture(f);
+  f.setUnknown(false);
+  f.setUnknownRemove(true);
+  const firstRestore = await f.deliver(f.a.input, 'restore', {
+    restoreRunId: initial.scope.baseline.sourceRunId,
+    failedCandidates: [{ run: failedB, input: b.input }],
+  });
+  assert.equal(firstRestore.status, 'unknown');
+  const failedRestore = await reconcileFixture(f);
+  f.setUnknownRemove(false);
+  const chain = [
+    { run: failedRestore, input: f.a.input },
+    { run: failedB, input: b.input },
+  ];
+  const secondRestore = await f.deliver(f.a.input, 'restore', {
+    restoreRunId: initial.scope.baseline.sourceRunId,
+    failedCandidates: chain,
+  });
+  assert.equal(secondRestore.status, 'accepted', JSON.stringify(secondRestore));
+  assert.equal(f.files.get('index.html').toString(), '<main>A</main>');
+  assert(!f.files.has('blog/one/index.html'));
+  assert(!f.files.has(`media/articles/owned-image/${'c'.repeat(64)}.png`));
+  assert(f.files.has('foreign.html'));
+});
+
+test('every batched upload has its exact path and hash in the persisted intent before the SDK writes', async (t) => {
+  const f = await setup(t);
+  const b = f.source('B', { article: true, image: true });
+  let checked = 0;
+  f.onWrite(async (path) => {
+    const state = await f.coordinator.status({ scopeKey: 'site' });
+    assert.equal(state.pendingStep.state, 'intent');
+    const member = state.pendingStep.members.find((e) => e.path === path);
+    assert(member);
+    assert(member.beforeHash);
+    assert(member.sha256);
+    checked++;
+  });
+  assert.equal((await f.deliver(b.input)).status, 'accepted');
+  assert(checked >= 3);
 });

@@ -5,6 +5,12 @@ import { verifyRetainedHostingFiles } from '../hosting-delta.mjs';
 import { recoveryStateIdentity } from '../hosting-recovery.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import {
+  hostingBatchBeforeHash,
+  hostingBatchHash,
+  mapHostingBounded,
+  siteUploadBatches,
+} from './hosting-batches.mjs';
+import {
   configurationHash,
   configurationStateHash,
   errorDocumentPath,
@@ -28,7 +34,11 @@ export function hostingCoordinatorPlan(plan, configurationPlan) {
   return freeze({
     planSha256: identity({ hostingPlan: plan.planSha256, configurationPlan }),
     acceptanceHash: plan.stateSha256,
-    stepCount: plan.uploads.length + plan.deletes.length + configurationPlan.changes.length + 1,
+    stepCount:
+      (siteUploadBatches(plan)?.length ?? plan.uploads.length) +
+      plan.deletes.length +
+      configurationPlan.changes.length +
+      1,
   });
 }
 
@@ -102,7 +112,16 @@ export function createHostingRecoveryAdapters({
       throw new Error('Unplanned hosting object');
     return allowed;
   };
-  const begin = async (ctx, subject, verifySubject, beforeHash, afterHash, kind, activeSignal) => {
+  const begin = async (
+    ctx,
+    subject,
+    verifySubject,
+    beforeHash,
+    afterHash,
+    kind,
+    activeSignal,
+    members,
+  ) => {
     activeSignal.throwIfAborted();
     const step = await coordinator.beginStep({
       guard,
@@ -115,6 +134,7 @@ export function createHostingRecoveryAdapters({
       subject,
       verifySubject,
       executionId: ctx.executionId,
+      ...(members ? { members } : {}),
     });
     if (activeSignal.aborted) {
       await unknown(step);
@@ -239,8 +259,94 @@ export function createHostingRecoveryAdapters({
       throw new Error('Authenticated retained-object inventory required.');
     verifyRetainedHostingFiles(plan.retained, await provider.readInventory());
   }
+  const checkedBatch = (inputEntries) => {
+    const batch = freeze(structuredClone(inputEntries));
+    batch.forEach(object);
+    if (!siteUploadBatches(plan)?.some((allowed) => identity(allowed) === identity(batch)))
+      throw Error('Unplanned hosting batch');
+    return batch;
+  };
   const api = {
     verifyRetained,
+    async uploadBatch(inputEntries, inputContext) {
+      const batch = checkedBatch(inputEntries);
+      const ctx = freeze(structuredClone(inputContext));
+      const hash = hostingBatchHash(batch);
+      context(ctx, `upload-batch:${hash}`, hash);
+      const bodies = batch.map((entry) => {
+        const body = readHostingObject(directory, entry);
+        if (body.length !== entry.bytes || sha256(body) !== entry.sha256)
+          throw Error('Hosting artifact changed');
+        return body;
+      });
+      let step;
+      try {
+        return await leased(async (activeSignal) => {
+          const members = await mapHostingBounded(batch, 4, async (entry) => ({
+            ...entry,
+            beforeHash: await beforeHash(entry.path, activeSignal),
+          }));
+          step = await begin(
+            ctx,
+            ctx.subject,
+            `read-batch:${hash}`,
+            hostingBatchBeforeHash(members),
+            hash,
+            'write',
+            activeSignal,
+            members,
+          );
+          if (step.state !== 'verified') {
+            await mapHostingBounded(batch, 4, async (entry, index) => {
+              activeSignal.throwIfAborted();
+              const result = await provider.upload(entry.path, bodies[index], {
+                signal: activeSignal,
+              });
+              if (result?.terminal !== true) throw Error('Hosting upload is not terminal');
+            });
+            activeSignal.throwIfAborted();
+            await coordinator.recordSubmitted({
+              guard,
+              runId,
+              stepId: step.stepId,
+              receipt: ledgerReceipt(step, 'submitted'),
+            });
+          }
+          pending.set(step.operationId, step);
+          return kernelReceipt(ctx, step.operationId, { status: 'submitted' });
+        });
+      } catch (error) {
+        await unknown(step);
+        throw error;
+      }
+    },
+    async verifyBatch(inputEntries, inputContext) {
+      const batch = checkedBatch(inputEntries);
+      const ctx = freeze(structuredClone(inputContext));
+      const hash = hostingBatchHash(batch);
+      context(ctx, `read-batch:${hash}`, hash);
+      const step = pending.get(ctx.operationId);
+      if (!step || step.executionId !== ctx.executionId || step.verifySubject !== ctx.subject)
+        throw Error('No matching submitted hosting batch');
+      try {
+        return await leased(async (activeSignal) => {
+          const evidence = await mapHostingBounded(batch, 4, (entry) =>
+            verify(entry, entry.path, 200, activeSignal),
+          );
+          activeSignal.throwIfAborted();
+          await coordinator.confirmStep({
+            guard,
+            runId,
+            stepId: step.stepId,
+            receipt: ledgerReceipt(step, 'verified', { evidence }),
+          });
+          return kernelReceipt(ctx, step.operationId, { status: 'verified', observedHash: hash });
+        });
+      } catch (error) {
+        await unknown(step);
+        throw error;
+      }
+    },
     async upload(inputEntry, inputContext) {
       const entry = freeze(structuredClone(inputEntry));
       const ctx = freeze(structuredClone(inputContext));
@@ -438,11 +544,14 @@ export function createHostingRecoveryAdapters({
             'accept',
             activeSignal,
           );
-          const files = [];
-          for (const entry of plan.uploads) {
-            const observed = await verify(entry, entry.path, 200, activeSignal);
-            files.push({ ...entry, sha256: observed.sha256 });
-          }
+          const files = await mapHostingBounded(
+            plan.uploads,
+            plan.delivery ? 4 : 1,
+            async (entry) => {
+              const observed = await verify(entry, entry.path, 200, activeSignal);
+              return { ...entry, sha256: observed.sha256 };
+            },
+          );
           for (const path of plan.deletes) await verify(errorDocument, path, 404, activeSignal);
           const config = await provider.readConfiguration();
           activeSignal.throwIfAborted();

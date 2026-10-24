@@ -8,9 +8,12 @@ import {
 } from '../hosting-recovery.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { createHostingRecoveryAdapters, hostingCoordinatorPlan } from './hosting-adapter.mjs';
+import { withSiteUploadBatches } from './hosting-batches.mjs';
 import { configurationStateHash, prepareHostingConfiguration } from './hosting-configuration.mjs';
 import { verifyHostingObject } from './hosting-readback.mjs';
 import { identity, sha256 } from './input.mjs';
+import { ownedSitePaths } from './site-files.mjs';
+import { assertDirtySiteInventory, assertSiteRecoveryChain } from './site-recovery.mjs';
 
 /** No global configuration or broad directory removal is allowed by this entry. */
 export async function deliverStaticContent(
@@ -21,6 +24,7 @@ export async function deliverStaticContent(
     runId,
     input,
     loadAccepted,
+    failedCandidates = /** @type {Array<{run:object,input:object}>|null} */ (null),
     mode = 'publish',
     restoreRunId = /** @type {string|null} */ (null),
     request = fetchFully,
@@ -102,6 +106,7 @@ export async function deliverStaticContent(
         inventory: await provider.readInventory(),
         contentProofs: baselineProofs,
       });
+      plan = withSiteUploadBatches(plan);
       if (action === 'adopt' && (plan.uploads.length || plan.deletes.length))
         throw new Error('Baseline differs from the live site');
     }
@@ -181,9 +186,18 @@ export async function deliverStaticContent(
       status.target.lease.fence !== guard.fence ||
       status.pendingStep ||
       status.target.currentRunId ||
-      status.target.dirtyRunId
+      (status.target.dirtyRunId && mode !== 'restore')
     )
       throw new Error('Blog delivery target is busy or unresolved');
+    if (status.target.dirtyRunId) {
+      if (scopeKey !== 'site' || !failedCandidates)
+        throw Error('Exact failed site artifact required');
+      assertSiteRecoveryChain({
+        chain: failedCandidates,
+        policy,
+        dirtyRunId: status.target.dirtyRunId,
+      });
+    }
     owned =
       scopeKey === 'site'
         ? (await provider.readInventory())
@@ -203,33 +217,44 @@ export async function deliverStaticContent(
         for (const entry of expected) await verifyHostingObject({ target, entry, request });
       else {
         const inventory = await provider.readInventory();
-        for (const entry of expected) {
-          const current = inventory.find((e) => e.path === entry.path);
-          if (
-            current &&
-            !/^"?[a-f0-9]{32}"?$/i.test(current.etag) &&
-            !(
-              entry.objectVersion?.etag === current.etag &&
-              entry.objectVersion?.lastModified === current.lastModified
-            )
-          ) {
-            const observed = await verifyHostingObject({ target, entry, request });
-            if (observed.etag !== current.etag)
-              throw Object.assign(Error('Accepted object changed during readback'), {
-                code: 'STOP_EXTERNAL_CHANGE',
+        if (!status.target.dirtyRunId)
+          for (const entry of expected) {
+            const current = inventory.find((e) => e.path === entry.path);
+            if (
+              current &&
+              !/^"?[a-f0-9]{32}"?$/i.test(current.etag) &&
+              !(
+                entry.objectVersion?.etag === current.etag &&
+                entry.objectVersion?.lastModified === current.lastModified
+              )
+            ) {
+              const observed = await verifyHostingObject({ target, entry, request });
+              if (observed.etag !== current.etag)
+                throw Object.assign(Error('Accepted object changed during readback'), {
+                  code: 'STOP_EXTERNAL_CHANGE',
+                });
+              baselineProofs.push({
+                ...entry,
+                etag: current.etag,
+                lastModified: current.lastModified,
               });
-            baselineProofs.push({
-              ...entry,
-              etag: current.etag,
-              lastModified: current.lastModified,
-            });
+            }
           }
-        }
-        assertAcceptedHostingFiles({
-          source: baseline,
-          inventory: await provider.readInventory(),
-          contentProofs: baselineProofs,
-        });
+        if (status.target.dirtyRunId) {
+          const inventory = await provider.readInventory();
+          assertDirtySiteInventory({
+            baseline,
+            failed: failedCandidates.map((c) => c.input),
+            inventory,
+          });
+          const paths = new Set(failedCandidates.flatMap((c) => ownedSitePaths(c.input, baseline)));
+          owned = inventory.filter((entry) => paths.has(entry.path)).map((entry) => entry.path);
+        } else
+          assertAcceptedHostingFiles({
+            source: baseline,
+            inventory: await provider.readInventory(),
+            contentProofs: baselineProofs,
+          });
       }
     } else if (owned.length && mode !== 'adopt') throw new Error('Delivery baseline is required');
     if (mode === 'adopt') {

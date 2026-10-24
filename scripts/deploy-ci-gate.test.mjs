@@ -92,7 +92,15 @@ test('deployment captures one explicit public snapshot and retains recovery inpu
     assert.equal(step.if, undefined);
     assert.equal(step['continue-on-error'], undefined);
   }
-  assert.match(steps[capture].run, /seo:snapshot/);
+  assert.match(steps[capture].run, /prepare-products.ts/);
+  assert.deepEqual(workflow('deploy-test').on.workflow_dispatch.inputs.product_source.options, [
+    'fresh',
+    'accepted',
+  ]);
+  assert.equal(
+    workflow('deploy-test').jobs.deploy.env.SITE_PRODUCT_SOURCE,
+    "${{ github.event.inputs.product_source || 'fresh' }}",
+  );
   assert.ok(steps[capture].env.SEO_CATALOG_API_ORIGIN);
   assert.equal(
     steps[build].env.SEO_CATALOG_SNAPSHOT,

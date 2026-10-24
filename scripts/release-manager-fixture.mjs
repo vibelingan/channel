@@ -80,9 +80,39 @@ export function managerFixture({ request, initialConfiguration = configuration()
         ...(keys.length < all.length ? { NextMarker: keys.at(-1) } : {}),
       });
     },
+    putObject(options, callback) {
+      state.calls.push({ action: 'cos-put', key: options.Key });
+      if (state.fail === 'upload') {
+        options.Body.on('error', () => {});
+        options.Body.destroy();
+        callback(new Error('fixture upload failure'));
+        return;
+      }
+      state.lastFilePath = options.Body.path;
+      const chunks = [];
+      options.Body.on('data', (chunk) => chunks.push(chunk));
+      options.Body.on('error', callback);
+      options.Body.on('end', () => {
+        state.onEffect?.();
+        state.files.set(options.Key, Buffer.concat(chunks));
+        if (state.fail === 'parallel-lost-ack') {
+          callback(new Error('lost acknowledgement'));
+          return;
+        }
+        callback(
+          null,
+          state.fail === 'missing-callback'
+            ? {}
+            : {
+                statusCode: 200,
+                headers: { 'x-cos-request-id': 'put-file' },
+              },
+        );
+      });
+    },
     uploadFiles(options, callback) {
       state.uploads++;
-      if (state.fail === 'upload') {
+      if (['upload', 'parallel-fallback', 'parallel-lost-ack'].includes(state.fail)) {
         callback(new Error('fixture upload failure'));
         return;
       }

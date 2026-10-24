@@ -56,5 +56,14 @@ export async function connectBlogMcp() {
     await client.close();
     throw new Error('CloudBase login and exact isolated test environment must be checked first');
   }
-  return { call, close: () => client.close() };
+  return {
+    call,
+    async describe(name) {
+      const list = await client.listTools();
+      const tool = list.tools.find((tool) => tool.name === name);
+      if (!tool) throw new Error('CloudBase tool is not available');
+      return tool.inputSchema;
+    },
+    close: () => client.close(),
+  };
 }

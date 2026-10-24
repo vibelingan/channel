@@ -140,7 +140,7 @@ test('shared hosting bucket prefixes stay on upload/delete and bucket-global web
   assert.equal(state.calls.filter((c) => c.action === 'cos-website').length, 0);
 });
 
-test('SDK counts without an actual matching per-file completion do not confirm upload', async () => {
+test('SDK counts without a matching file completion do not confirm upload', async () => {
   const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.fail = 'missing-callback';
   const port = createCloudbaseHostingProvider({ manager, target });
@@ -194,4 +194,24 @@ test('installed SDK inventory reads every page and retains exact object versions
   assert.equal(state.calls.filter((call) => call.action === 'cos-list').length, 2);
   assert.equal(state.uploads, 0);
   assert.equal(state.deleted, 0);
+});
+
+test('installed SDK parallel failure followed by serial success confirms the exact file', async () => {
+  const { manager, state } = managerFixture();
+  const port = createCloudbaseHostingProvider({ manager, target });
+  state.fail = 'parallel-fallback';
+  assert.equal((await port.upload('canary/a.html', Buffer.from('hello'))).terminal, true);
+  assert.equal(state.files.get('canary/a.html').toString(), 'hello');
+  assert.equal(state.calls.filter((c) => c.action === 'cos-put').length, 1);
+  assert.equal(state.uploads, 1);
+});
+
+test('an SDK fallback with a lost acknowledgement remains unknown and is never retried by the provider', async () => {
+  const { manager, state } = managerFixture();
+  const port = createCloudbaseHostingProvider({ manager, target });
+  state.fail = 'parallel-lost-ack';
+  await assert.rejects(port.upload('canary/a.html', Buffer.from('hello')));
+  assert.equal(state.files.get('canary/a.html').toString(), 'hello');
+  assert.equal(state.calls.filter((c) => c.action === 'cos-put').length, 1);
+  assert.equal(state.uploads, 1);
 });

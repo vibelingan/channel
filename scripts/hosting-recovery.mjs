@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { verifyReleaseArtifact } from './release/artifact.mjs';
 import {
+  hostingBatchHash,
+  hostingFilePhase,
+  siteUploadBatches,
+} from './release/hosting-batches.mjs';
+import {
   articleMediaFile,
   assertHostingPath,
   assertOrigin,
@@ -256,22 +261,17 @@ function makePlan({
     )
       throw new Error(`Unclassified owned XML path requires discovery ownership proof: ${path}`);
   }
-  const phase = (entry) =>
-    isDiscovery(entry.path) || publicOutput.discoveryPaths?.includes(entry.path)
-      ? 3
-      : /^(?:products\/p-[A-Za-z0-9_-]+|blog\/[a-z0-9-]+)\/index\.html$/.test(entry.path) &&
-          entry.path !== 'blog/index.html'
-        ? 1
-        : entry.path.endsWith('.html')
-          ? 2
-          : 0;
   const plan = {
     schemaVersion: 2,
     target,
     configurationSha256,
     scope,
     publicOutput,
-    uploads: restored.sort((a, b) => phase(a) - phase(b) || a.path.localeCompare(b.path)),
+    uploads: restored.sort(
+      (a, b) =>
+        hostingFilePhase(a, publicOutput) - hostingFilePhase(b, publicOutput) ||
+        a.path.localeCompare(b.path),
+    ),
     deletes: owned.filter(
       (path) =>
         !protectedPath.test(path) &&
@@ -307,15 +307,33 @@ export async function executeHostingRecovery(input, inputAdapters) {
   const context = (subject, expectedHash) =>
     freeze({ executionId, planSha256, subject, expectedHash });
   const receipts = [];
-  for (const entry of plan.uploads) {
-    const intent = context(`upload:${entry.path}`, entry.sha256);
-    const write = await adapters.upload(entry, intent);
-    assertReceipt(write, intent, 'submitted');
-    const read = { ...context(`read:${entry.path}`, entry.sha256), operationId: write.operationId };
-    const receipt = await adapters.verify(entry, freeze(read));
-    assertReceipt(receipt, read, 'verified');
-    receipts.push(receipt);
-  }
+  const batches = siteUploadBatches(plan);
+  if (batches) {
+    if (typeof adapters.uploadBatch !== 'function' || typeof adapters.verifyBatch !== 'function')
+      throw Error('Site batch adapters are required');
+    for (const entries of batches) {
+      const hash = hostingBatchHash(entries);
+      const intent = context(`upload-batch:${hash}`, hash);
+      const write = await adapters.uploadBatch(entries, intent);
+      assertReceipt(write, intent, 'submitted');
+      const read = { ...context(`read-batch:${hash}`, hash), operationId: write.operationId };
+      const receipt = await adapters.verifyBatch(entries, freeze(read));
+      assertReceipt(receipt, read, 'verified');
+      receipts.push(receipt);
+    }
+  } else
+    for (const entry of plan.uploads) {
+      const intent = context(`upload:${entry.path}`, entry.sha256);
+      const write = await adapters.upload(entry, intent);
+      assertReceipt(write, intent, 'submitted');
+      const read = {
+        ...context(`read:${entry.path}`, entry.sha256),
+        operationId: write.operationId,
+      };
+      const receipt = await adapters.verify(entry, freeze(read));
+      assertReceipt(receipt, read, 'verified');
+      receipts.push(receipt);
+    }
   for (const path of plan.deletes) {
     const intent = context(`remove:${path}`, 'absent');
     const receipt = await adapters.remove(path, intent);

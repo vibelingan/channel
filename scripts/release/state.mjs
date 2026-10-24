@@ -1,4 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import {
+  assertHostingBatchMembers,
+  hostingBatchBeforeHash,
+  hostingBatchHash,
+} from './hosting-batches.mjs';
 import { freeze, identity, isHash } from './input.mjs';
 import {
   assertScope,
@@ -146,6 +151,18 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
       const operationId = randomUUID();
       const { component, kind, beforeHash, afterHash, subject, verifySubject, executionId } =
         request;
+      if (request.members !== undefined) {
+        assertHostingBatchMembers(request.members);
+        if (
+          kind !== 'write' ||
+          component !== 'static' ||
+          beforeHash !== hostingBatchBeforeHash(request.members) ||
+          afterHash !== hostingBatchHash(request.members) ||
+          subject !== `upload-batch:${afterHash}` ||
+          verifySubject !== `read-batch:${afterHash}`
+        )
+          fail('INVALID_BATCH_INTENT');
+      }
       id(request.stepId);
       text(component);
       text(subject);
@@ -192,6 +209,7 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
           planSha256: run.plan.planSha256,
           sequence: run.verifiedSteps,
           fence: run.fence,
+          ...(request.members ? { members: request.members } : {}),
         };
         const step = {
           ...intent,
@@ -728,6 +746,7 @@ function stepIdentity(step) {
         'planSha256',
         'sequence',
         'fence',
+        ...(step.members ? ['members'] : []),
       ].map((key) => [key, step[key]]),
     ),
   );

@@ -130,7 +130,11 @@ export function createCloudbaseHostingProvider({ manager, target }) {
             prune: false,
             verify: false,
             onFileFinish: (error, result, file) => {
-              if (!error && file?.cloudFileKey === path && result?.statusCode === 200) {
+              if (
+                !error &&
+                file?.cloudFileKey === path &&
+                (result?.statusCode === 200 || (result && Object.keys(result).length === 0))
+              ) {
                 completed = true;
                 providerOperationId = result.headers?.['x-cos-request-id'];
               }

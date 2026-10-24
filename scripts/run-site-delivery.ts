@@ -15,6 +15,7 @@ import { blogWorkerSdk } from './blog/worker-source.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
+import { publicBuildEnvironment } from './release/public-build-env.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
 import { readBuiltSite } from './release/site-build-record.mjs';
 import {
@@ -142,7 +143,11 @@ async function command(
 ) {
   check();
   await new Promise<void>((done, reject) => {
-    const child = spawn(bin, args, { cwd, env: { ...env, ...extra }, stdio: 'inherit' });
+    const child = spawn(bin, args, {
+      cwd,
+      env: publicBuildEnvironment(env, extra),
+      stdio: 'inherit',
+    });
     child.once('error', reject);
     child.once('exit', (code) =>
       code === 0 ? done() : reject(Error(`Site build/check failed (${code})`)),
@@ -241,7 +246,11 @@ async function archivePayload(payload: string, prefix: string) {
 }
 try {
   const status = await coordinator.status({ scopeKey: 'site' });
-  if (status.pendingStep || status.target.currentRunId || status.target.dirtyRunId)
+  if (
+    status.pendingStep ||
+    status.target.currentRunId ||
+    (status.target.dirtyRunId && env.SITE_DELIVERY_MODE !== 'restore')
+  )
     throw Error('An earlier delivery requires readback before another publication');
   let baseline = status.scope.baseline
     ? await loadAccepted(await coordinator.runStatus(status.scope.baseline.sourceRunId))
@@ -342,7 +351,28 @@ try {
       throw Error('Exact accepted site run required');
     const target = await loadAccepted(await coordinator.runStatus(sourceRunId));
     assertSameAcceptedBlog(target, baseline);
-    target.ownedPaths = ownedSitePaths(target, baseline);
+    const failedCandidates = [];
+    let failedRunId = status.target.dirtyRunId;
+    const seenFailures = new Set();
+    while (failedRunId) {
+      if (seenFailures.has(failedRunId) || failedCandidates.length >= 16)
+        throw Error('Invalid or excessive recovery chain');
+      seenFailures.add(failedRunId);
+      const run = await coordinator.runStatus(failedRunId);
+      const input = await github.downloadFailed(
+        run,
+        join(directory, `failed-candidate-${failedCandidates.length}`),
+        failedRunId,
+      );
+      failedCandidates.push({ run, input });
+      failedRunId = run.failedRunId;
+    }
+    target.ownedPaths = [
+      ...new Set([
+        ...ownedSitePaths(target, baseline),
+        ...failedCandidates.flatMap((c) => ownedSitePaths(c.input, baseline)),
+      ]),
+    ];
     const result = await deliverStaticContent(
       {
         coordinator,
@@ -350,6 +380,7 @@ try {
         guard,
         runId,
         input: target,
+        failedCandidates: failedCandidates.length ? failedCandidates : null,
         loadAccepted,
         mode: 'restore',
         restoreRunId: sourceRunId,
