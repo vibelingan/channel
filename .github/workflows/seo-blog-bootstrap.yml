@@ -7,6 +7,7 @@ on:
       TENCENTCLOUD_SECRETID: {required: true}
       TENCENTCLOUD_SECRETKEY: {required: true}
       E2E_ADMIN_PASSWORD: {required: true}
+      BLOG_QUEUE_STATUS_KEY: {required: false}
 permissions:
   contents: read
   actions: read
@@ -63,6 +64,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           BLOG_ENABLE_CONFIRM: ENABLE_AFTER_ACCEPTED_SITE
+          BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}

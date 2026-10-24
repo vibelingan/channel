@@ -8,6 +8,7 @@ on:
       TENCENTCLOUD_SECRETID: {required: true}
       TENCENTCLOUD_SECRETKEY: {required: true}
       E2E_ADMIN_PASSWORD: {required: true}
+      BLOG_QUEUE_STATUS_KEY: {required: true}
 permissions:
   contents: read
   actions: read
@@ -48,6 +49,7 @@ jobs:
         run: pnpm exec playwright test tests/e2e/blog-publication-live.spec.ts --project=chromium --retries=0
       - name: Independently read the exact owned draft, task and original image bytes
         env:
+          BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
         run: ./apps/site/node_modules/.bin/tsx scripts/blog/verify-publication-ui.ts

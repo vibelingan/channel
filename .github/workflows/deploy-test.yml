@@ -90,6 +90,7 @@ jobs:
       CATALOG_RFQ_ENABLED: '1'
       CATALOG_DETAIL_APPROVAL_ENABLED: '1'
       ARTICLE_PUBLISHING_ENABLED: ${{ vars.ARTICLE_PUBLISHING_ENABLED || '0' }}
+      BLOG_QUEUE_STATUS_KEY_HASH: ${{ vars.BLOG_QUEUE_STATUS_KEY_HASH }}
       E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
 
@@ -161,7 +162,7 @@ jobs:
 
       - name: Scan built site for server secret names
         run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
+          if grep -R -I -n -E 'JWT_SECRET|BLOG_QUEUE_STATUS_KEY|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
             exit 1
           fi
@@ -310,6 +311,12 @@ jobs:
           E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm smoke:cloudbase
+
+      - name: Verify the restricted article queue query against the deployed API
+        if: ${{ vars.BLOG_QUEUE_STATUS_KEY_HASH != '' }}
+        env:
+          BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
+        run: node scripts/blog/queue-probe.mjs output/seo-release/queue-proof.json
 
       # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
       - name: Use the Ubuntu archive for browser dependencies

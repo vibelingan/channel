@@ -5,6 +5,7 @@ import { parseArticleDraft } from '../../packages/articles/src/draft-repository.
 import { ArticleMediaRecordSchema, articleImageIds } from '../../packages/articles/src/media.ts';
 import { ArticleReleaseViewSchema } from '../../packages/articles/src/release.ts';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
+import { verifyArticleQueueProbe } from './queue-probe.mjs';
 import { blogWorkerSdk } from './worker-source.ts';
 assertBlogBootstrapInvocation(process.env);
 function record(value: unknown): Record<string, unknown> {
@@ -70,6 +71,13 @@ if (media.status !== 'active') throw Error('Original image is no longer active')
 const image = await sdk.downloadFile({ fileID: media.storage.storageFileId });
 assert(Buffer.isBuffer(image.fileContent));
 assert.equal(createHash('sha256').update(image.fileContent).digest('hex'), proof.imageSha256);
+const queue = await verifyArticleQueueProbe({ key: process.env.BLOG_QUEUE_STATUS_KEY });
+assert(queue.enabled && !queue.hasUnknown, 'Article queue is not ready');
+if (proof.operation !== 'check')
+  assert(queue.hasQueued, 'The real requested task was not observable');
+await writeFile('output/blog-publication/queue-proof.json', JSON.stringify(queue, null, 2), {
+  flag: 'wx',
+});
 await writeFile(
   'output/blog-publication/database-proof.json',
   JSON.stringify(

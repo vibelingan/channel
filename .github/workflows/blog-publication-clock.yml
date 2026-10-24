@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Defer to shared environment work, otherwise inspect one article task
         uses: actions/github-script@v7
+        env:
+          BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
         with:
           script: |
             const paths = new Set([
@@ -31,6 +33,40 @@ jobs:
                   return;
                 }
               }
+            }
+            const key = process.env.BLOG_QUEUE_STATUS_KEY;
+            if (!key || !/^[a-f0-9]{64}$/.test(key)) throw new Error('The restricted queue query key is not configured');
+            const response = await fetch('https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/admin', {
+              method:'POST', redirect:'error', signal:AbortSignal.timeout(15000),
+              headers:{'content-type':'application/json'},
+              body:JSON.stringify({action:'articleQueueStatus',token:key}),
+            });
+            if (response.status !== 200 || !response.body || !/(?:^|,)\s*no-store(?:\s|,|$)/i.test(response.headers.get('cache-control') || '')) {
+              await response.body?.cancel();
+              throw new Error('Queue status is unavailable; no publication was dispatched');
+            }
+            const reader = response.body.getReader();
+            const chunks = [];
+            let bytes = 0;
+            let done = false;
+            try {
+              for (;;) {
+                const part = await reader.read();
+                if (part.done) { done = true; break; }
+                bytes += part.value.byteLength;
+                if (bytes > 2048) throw new Error('Invalid queue status size');
+                chunks.push(part.value);
+              }
+            } finally { if (!done) await reader.cancel(); }
+            const result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            const state = result?.data;
+            if (result?.ok !== true || !state ||
+                ['enabled','hasQueued','hasUnknown'].some(name => typeof state[name] !== 'boolean'))
+              throw new Error('Queue status is not confirmed');
+            if (state.hasUnknown) throw new Error('An unfinished publication requires readback; no new publication was dispatched');
+            if (!state.enabled || !state.hasQueued) {
+              core.info('Publication is paused or no article is queued. No build worker was started.');
+              return;
             }
             await github.rest.actions.createWorkflowDispatch({
               ...context.repo, workflow_id:'seo-static-canary.yml', ref:'test',

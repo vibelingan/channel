@@ -5,6 +5,7 @@
  * adapter-agnostic `handleAdminRequest`.
  */
 import { setAdapter } from '@vibelingan-channel/db';
+import { readArticleQueueStatus } from '@vibelingan-channel/db/article-release-source';
 import { createCloudBaseArticleRepository } from '@vibelingan-channel/db/article-repository';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
@@ -26,6 +27,8 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
   enableArticleReleases: optionalEnv('ARTICLE_PUBLISHING_ENABLED') === '1',
+  articleQueueStatusKeyHash: optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),
+  articleQueueStatus: () => readArticleQueueStatus(cloudStorageSdk().database()),
   articleRepository: createCloudBaseArticleRepository(cloudStorageSdk().database()),
   preparationAuthority: createCatalogPreparationAuthority({
     secret: requireEnv('JWT_SECRET'),

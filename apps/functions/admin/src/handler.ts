@@ -154,6 +154,7 @@ import { CatalogReadinessSchema } from '@vibelingan-channel/shared/catalog-prepa
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
 import { executeArticleMediaRequest } from './article-media.ts';
+import { readArticleQueueStatusRequest } from './article-queue-status.ts';
 import { approveInOneRequest } from './catalog-approve-once.ts';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
 import {
@@ -191,6 +192,8 @@ import type { OwnedFinalContinuationStep } from './catalog-operation-final-conti
 export interface AdminConfig {
   jwtSecret: string;
   articleRepository?: ArticleRepository;
+  articleQueueStatusKeyHash?: string;
+  articleQueueStatus?: () => Promise<{ hasQueued: boolean; hasUnknown: boolean }>;
   enableArticleReleases?: boolean;
   enableInquiries?: boolean;
   /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
@@ -618,7 +621,7 @@ export async function handleAdminRequest(
   context?: RequestContext,
 ): Promise<AdminResult> {
   try {
-    // ---- Public auth actions ------------------------------------------
+    // Entry points with their own authentication.
     switch (req.action) {
       case 'register':
         return await register(req, config);
@@ -632,6 +635,8 @@ export async function handleAdminRequest(
         return await resetPassword(req, context);
       case 'health':
         return ok(releaseInfo('admin'));
+      case 'articleQueueStatus':
+        return await readArticleQueueStatusRequest(req, config);
       case 'submitProject':
         return await submitProject(req, context);
       case 'createOemFileUploadIntent':

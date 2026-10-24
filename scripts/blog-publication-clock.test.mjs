@@ -5,7 +5,12 @@ import { parse } from 'yaml';
 const workflow = parse(readFileSync('.github/workflows/blog-publication-clock.yml', 'utf8'));
 const script = workflow.jobs.dispatch.steps[0].with.script;
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-async function execute(rows = [], failure = false) {
+async function execute(
+  rows = [],
+  failure = false,
+  status = { enabled: true, hasQueued: true, hasUnknown: false },
+  overrides = {},
+) {
   const calls = [];
   const method = () => {};
   const github = {
@@ -26,10 +31,24 @@ async function execute(rows = [], failure = false) {
       },
     },
   };
-  await new AsyncFunction('github', 'context', 'core', script)(
+  const fetchStatus = async (url, options) => {
+    assert.equal(url, 'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/admin');
+    assert.equal(options.redirect, 'error');
+    assert.deepEqual(JSON.parse(options.body), {
+      action: 'articleQueueStatus',
+      token: 'a'.repeat(64),
+    });
+    return new Response(JSON.stringify({ ok: true, data: status }), {
+      status: 200,
+      headers: { 'cache-control': 'no-store' },
+    });
+  };
+  await new AsyncFunction('github', 'context', 'core', 'fetch', 'process', script)(
     github,
     { repo: { owner: 'fixture', repo: 'channel' } },
     { info: () => {} },
+    overrides.fetch ?? fetchStatus,
+    { env: overrides.env ?? { BLOG_QUEUE_STATUS_KEY: 'a'.repeat(64) } },
   );
   return calls;
 }
@@ -64,4 +83,25 @@ test('all current shared environment entrypoints retain an actual pending queue 
       queue: 'max',
     });
   }
+});
+
+test('idle, paused and empty queues never start a build worker', async () => {
+  for (const status of [
+    { enabled: false, hasQueued: true, hasUnknown: false },
+    { enabled: true, hasQueued: false, hasUnknown: false },
+  ])
+    assert.deepEqual(await execute([], false, status), []);
+});
+test('unresolved tasks, missing keys, malformed, oversized and failed responses stop without dispatch', async () => {
+  await assert.rejects(execute([], false, { enabled: true, hasQueued: true, hasUnknown: true }));
+  await assert.rejects(execute([], false, undefined, { env: {} }));
+  for (const response of [
+    new Response('no', { status: 500 }),
+    new Response('not json', { headers: { 'cache-control': 'no-store' } }),
+    new Response('x'.repeat(2050), { headers: { 'cache-control': 'no-store' } }),
+    new Response(
+      JSON.stringify({ ok: true, data: { enabled: true, hasQueued: 'yes', hasUnknown: false } }),
+    ),
+  ])
+    await assert.rejects(execute([], false, undefined, { fetch: async () => response }));
 });

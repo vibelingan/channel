@@ -39,3 +39,27 @@ export async function readAcceptedArticles(db: ArticleDatabase) {
   }
   throw new Error('Article accepted inventory scan limit exceeded');
 }
+
+/** Read only a bounded existence signal; callers must not receive drafts or task records. */
+export async function readArticleQueueStatus(db: ArticleDatabase) {
+  const states = ['QUEUED', 'BUILDING', 'DEPLOYING', 'UNKNOWN'];
+  const found = await Promise.all(
+    states.map(async (state) => {
+      const result = rows(
+        await db
+          .collection('articleReleaseTasks')
+          .where({ state })
+          .field({ _id: true })
+          .limit(1)
+          .get(),
+      );
+      if (result.length > 1) throw Error('Queue probe exceeded its read limit');
+      for (const row of result)
+        z.object({ _id: z.string().min(1) })
+          .strict()
+          .parse(row);
+      return result.length > 0;
+    }),
+  );
+  return { hasQueued: found[0] === true, hasUnknown: found.slice(1).some(Boolean) };
+}

@@ -19,6 +19,7 @@ import {
 } from '../release/store-cloudbase.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
 import { setArticlePublishing } from './publishing-switch.mjs';
+import { readArticleQueueProbe } from './queue-probe.mjs';
 import { readAdminRuntimeVersion } from './runtime-health.mjs';
 assertBlogBootstrapInvocation(process.env);
 const env = process.env;
@@ -132,11 +133,14 @@ try {
   );
   if (!archived.id || !archived.digest) throw Error('Activation intent not archived');
   if (lost) throw Error('Publication activation lost its shared lease');
+  await readArticleQueueProbe({ key: env.BLOG_QUEUE_STATUS_KEY });
   const result = await setArticlePublishing({
     manager,
     envId: policy.envId,
     expectedVersion: env.GITHUB_SHA,
     readHealth: () => readAdminRuntimeVersion(policy.envId),
+    readEnabled: async () =>
+      (await readArticleQueueProbe({ key: env.BLOG_QUEUE_STATUS_KEY })).enabled,
     readPackageHash: async () => (await functions.inspect('admin')).packageSha256,
     beforeChange: async () => {
       if (lost) throw Error('Publication activation lost its shared lease');

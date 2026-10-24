@@ -202,3 +202,16 @@ test('article publishing flag reaches only admin and remains opt-in', () => {
     ['1', undefined, undefined],
   );
 });
+
+test('the restricted queue key hash reaches only admin and never another function', () => {
+  const hash = 'a'.repeat(64);
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) =>
+      name === 'BLOG_QUEUE_STATUS_KEY_HASH' ? hash : optionalEnvFixture(name),
+  });
+  assert.deepEqual(
+    defs.map((d) => d.envVariables.BLOG_QUEUE_STATUS_KEY_HASH),
+    [hash, undefined, undefined],
+  );
+});

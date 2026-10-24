@@ -38,6 +38,7 @@ export function buildFunctionDefs(ctx) {
         APP_ENV: ctx.appEnv,
         ADMIN_EMAIL: ctx.adminEmail,
         ARTICLE_PUBLISHING_ENABLED: ctx.optionalEnv('ARTICLE_PUBLISHING_ENABLED'),
+        BLOG_QUEUE_STATUS_KEY_HASH: ctx.optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),
         CATALOG_RFQ_ENABLED: ctx.optionalEnv('CATALOG_RFQ_ENABLED'),
         CATALOG_DETAIL_APPROVAL_ENABLED: ctx.optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED'),
         JWT_SECRET: ctx.requireEnv('JWT_SECRET'),

@@ -57,6 +57,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   const database = {};
   const repository = { marker: 'article-repository' };
   let injected = 0;
+  let queueReads = 0;
   const sdk = { database: () => database };
   const preparationAuthority = { marker: 'preparation-authority' };
   const preparationInvoke = () => {};
@@ -66,6 +67,13 @@ test('the actual admin cloud entry injects its CloudBase article repository with
       initCloudBase() {},
       cloudBaseAdapter: {},
       cloudStorageSdk: () => sdk,
+    },
+    '@vibelingan-channel/db/article-release-source': {
+      readArticleQueueStatus: async (value) => {
+        assert.equal(value, database);
+        queueReads++;
+        return { hasQueued: false, hasUnknown: false };
+      },
     },
     '@vibelingan-channel/db/article-repository': {
       createCloudBaseArticleRepository: (value) => {
@@ -109,6 +117,9 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   assert.equal(config.preparationAuthority, preparationAuthority);
   assert.equal(config.preparationInvoke, preparationInvoke);
   assert.equal(injected, 1);
+  assert.equal(queueReads, 0);
+  assert.deepEqual(await config.articleQueueStatus(), { hasQueued: false, hasUnknown: false });
+  assert.equal(queueReads, 1);
 });
 const scriptTrees = [
   [

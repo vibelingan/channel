@@ -282,6 +282,7 @@ jobs:
       TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
 
   blog_acceptance:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'blog-create' || inputs.mode == 'blog-retry' || inputs.mode == 'blog-update' || inputs.mode == 'blog-withdraw' || inputs.mode == 'blog-check') }}
@@ -293,3 +294,4 @@ jobs:
       TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}

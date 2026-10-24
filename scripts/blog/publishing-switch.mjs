@@ -9,6 +9,7 @@ export async function setArticlePublishing({
   expectedVersion,
   readHealth,
   readPackageHash,
+  readEnabled = /** @type {null|(()=>Promise<boolean>)} */ (null),
   beforeChange = async () => {},
   now = Date.now,
   pause = () => new Promise((done) => setTimeout(done, 2000)),
@@ -66,7 +67,10 @@ export async function setArticlePublishing({
     (await readHealth()) !== expectedVersion
   )
     throw Error('Verified active admin version required before enabling publication');
-  if (prior[key] === '1') return { status: 'accepted', alreadyEnabled: true };
+  if (prior[key] === '1') {
+    if (readEnabled && !(await readEnabled())) return { status: 'unknown' };
+    return { status: 'accepted', alreadyEnabled: true };
+  }
   const fixed = rest(before);
   const desired = mergeFunctionEnvironment({
     current: { status: 'complete', variables: prior },
@@ -97,7 +101,9 @@ export async function setArticlePublishing({
         if (vars[key] !== value) return { status: 'different', detail };
         let healthy = false;
         try {
-          healthy = (await readHealth()) === expectedVersion;
+          healthy =
+            (await readHealth()) === expectedVersion &&
+            (!readEnabled || (await readEnabled()) === (value === '1'));
         } catch {}
         stable = healthy ? stable + 1 : 0;
         if (stable === 2) return { status: 'accepted' };

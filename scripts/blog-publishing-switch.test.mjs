@@ -65,3 +65,25 @@ test('an already enabled switch is idempotent; wrong target or unhealthy initial
   await assert.rejects(() => setArticlePublishing({ ...setup(), envId: 'foreign' }));
   await assert.rejects(() => setArticlePublishing({ ...setup(), readHealth: async () => 'wrong' }));
 });
+
+test('active configuration is not enough when the actual publication endpoint still reports disabled', async () => {
+  const f = setup();
+  f.readEnabled = async () => false;
+  assert.equal((await setArticlePublishing(f)).status, 'restored');
+  assert.equal(f.state.configUpdates, 2);
+});
+test('publication waits for the real endpoint to reflect a rolling configuration change without another write', async () => {
+  const f = setup();
+  let reads = 0;
+  f.readEnabled = async () => ++reads > 1;
+  assert.equal((await setArticlePublishing(f)).status, 'accepted');
+  assert.equal(f.state.configUpdates, 1);
+  assert(reads >= 3);
+});
+test('an enabled configuration with an inconsistent endpoint is not reported already enabled', async () => {
+  const f = setup();
+  f.state.detail.Environment.Variables.push({ Key: 'ARTICLE_PUBLISHING_ENABLED', Value: '1' });
+  f.readEnabled = async () => false;
+  assert.equal((await setArticlePublishing(f)).status, 'unknown');
+  assert.equal(f.state.configUpdates, undefined);
+});
