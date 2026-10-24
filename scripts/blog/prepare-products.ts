@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { publicBuildEnvironment } from '../release/public-build-env.mjs';
 import { createSiteGithubSource } from '../release/site-github-source.mjs';
 import { siteArtifact } from '../release/site-payload.mjs';
-import { assertSiteDeliveryInvocation } from '../release/site-policy.mjs';
+import { assertCleanAcceptedSite, assertSiteDeliveryInvocation } from '../release/site-policy.mjs';
 import { createReleaseCoordinator } from '../release/state.mjs';
 import {
   createCloudbaseReleaseDatabase,
@@ -29,6 +29,20 @@ await github.requireCI(env.GITHUB_SHA, {
   runId: env.GITHUB_RUN_ID,
   workflowRef: env.GITHUB_WORKFLOW_REF,
 });
+if (!env.TENCENTCLOUD_SECRETID || !env.TENCENTCLOUD_SECRETKEY)
+  throw Error('Existing read-capable environment credentials required');
+const db = createCloudbaseReleaseDatabase({
+  env: policy.envId,
+  region: policy.region,
+  secretId: env.TENCENTCLOUD_SECRETID,
+  secretKey: env.TENCENTCLOUD_SECRETKEY,
+});
+const coordinator = createReleaseCoordinator({
+  store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
+  policy,
+});
+const status = await coordinator.status({ scopeKey: 'site' });
+assertCleanAcceptedSite(status);
 async function command(args: string[]) {
   await new Promise<void>((done, reject) => {
     const child = spawn(resolve('apps/site/node_modules/.bin/tsx'), args, {
@@ -48,27 +62,6 @@ if (source === 'fresh')
     resolve(output, 'product-snapshot.json'),
   ]);
 else {
-  if (!env.TENCENTCLOUD_SECRETID || !env.TENCENTCLOUD_SECRETKEY)
-    throw Error('Existing read-capable environment credentials required');
-  const db = createCloudbaseReleaseDatabase({
-    env: policy.envId,
-    region: policy.region,
-    secretId: env.TENCENTCLOUD_SECRETID,
-    secretKey: env.TENCENTCLOUD_SECRETKEY,
-  });
-  const coordinator = createReleaseCoordinator({
-    store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
-    policy,
-  });
-  const status = await coordinator.status({ scopeKey: 'site' });
-  if (
-    status.state !== 'idle' ||
-    status.pendingStep ||
-    status.target?.currentRunId ||
-    status.target?.dirtyRunId ||
-    !status.scope.baseline
-  )
-    throw Error('A clean accepted website is required to reuse product details');
   const accepted = await coordinator.runStatus(status.scope.baseline.sourceRunId);
   assert.equal(accepted.state, 'SUCCEEDED');
   const artifact = accepted.composition.static.artifact;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateBlogArtifactSource } from './blog/github-source.mjs';
 import { NORMAL_READY_JOB, requireSiteChecks } from './release/site-checks.mjs';
-import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
+import { assertCleanAcceptedSite, SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 import { siteProducerPolicy } from './release/site-producers.mjs';
 const sha = 'a'.repeat(40);
 const repository = { id: 7, full_name: policy.repository };
@@ -23,6 +23,29 @@ const context = {
   runId: '123',
   workflowRef: `${policy.repository}/.github/workflows/deploy-test.yml@refs/heads/test`,
 };
+test('normal deployment requires a clean accepted site before either product source is read', () => {
+  const clean = {
+    state: 'idle',
+    pendingStep: null,
+    target: { lease: null, currentRunId: null, dirtyRunId: null, unresolvedOperation: null },
+    scope: { scopeKey: 'site', baseline: { sourceRunId: 'accepted-A' } },
+  };
+  assert.equal(assertCleanAcceptedSite(clean), clean.scope.baseline);
+  for (const state of ['uninitialized', 'leased', 'stalled', 'recovery-required'])
+    assert.throws(() => assertCleanAcceptedSite({ ...clean, state }));
+  for (const field of ['lease', 'currentRunId', 'dirtyRunId', 'unresolvedOperation'])
+    assert.throws(() =>
+      assertCleanAcceptedSite({ ...clean, target: { ...clean.target, [field]: 'unfinished' } }),
+    );
+  for (const bad of [
+    null,
+    { ...clean, target: null },
+    { ...clean, pendingStep: {} },
+    { ...clean, scope: { ...clean.scope, baseline: null } },
+    { ...clean, scope: { ...clean.scope, scopeKey: 'canary' } },
+  ])
+    assert.throws(() => assertCleanAcceptedSite(bad));
+});
 test('site recovery authenticates both reviewed producer paths without allowing other branches or pull requests', () => {
   for (const run of [
     normal,

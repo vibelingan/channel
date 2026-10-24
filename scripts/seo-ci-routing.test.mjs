@@ -29,3 +29,10 @@ test('Blog regression exercises real local editor and published HTML without clo
   assert.doesNotMatch(commands, /--build-only|workflow run|deploy:cloudbase|continue-on-error/);
   assert.ok(job.steps.every((step) => step['continue-on-error'] === undefined));
 });
+test('manual restore keeps its HTTP checks without installing an unused browser', () => {
+  const job = workflow('seo-site-delivery').jobs.site;
+  const browser = job.steps.find((step) => step.run?.includes('playwright install'));
+  assert.equal(browser.if, "${{ inputs.action == 'publish' }}");
+  assert(job.steps.some((step) => step.with?.script?.includes('run-site-delivery.ts')));
+  assert(job.steps.every((step) => step['continue-on-error'] === undefined));
+});

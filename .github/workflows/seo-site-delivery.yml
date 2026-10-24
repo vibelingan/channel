@@ -43,6 +43,7 @@ jobs:
         with: {node-version: 22.13.0, cache: pnpm}
       - run: pnpm install --frozen-lockfile
       - name: Install real public acceptance browser before cloud writes
+        if: ${{ inputs.action == 'publish' }}
         run: pnpm exec playwright install --with-deps chromium
       - name: Collect, build, archive, publish and verify under the existing shared queue
         uses: actions/github-script@v7

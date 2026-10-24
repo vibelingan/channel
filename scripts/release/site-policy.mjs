@@ -25,6 +25,20 @@ export const SITE_DELIVERY_POLICY = Object.freeze({
     },
   ],
 });
+export function assertCleanAcceptedSite(status) {
+  if (
+    status?.state !== 'idle' ||
+    status.pendingStep !== null ||
+    !status.target ||
+    ['lease', 'currentRunId', 'dirtyRunId', 'unresolvedOperation'].some(
+      (field) => status.target[field] !== null,
+    ) ||
+    status.scope?.scopeKey !== 'site' ||
+    !status.scope.baseline?.sourceRunId
+  )
+    throw Error('Finish the existing website delivery or restoration before normal deployment');
+  return status.scope.baseline;
+}
 export function assertSiteDeliveryInvocation(env) {
   const p = SITE_DELIVERY_POLICY;
   const normal =
