@@ -1,0 +1,18 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id":"operator","type":"ellipse","x":60,"y":220,"width":200,"height":90,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#b2f2bb","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Admin operator\nClassify / publish","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"site","type":"rectangle","x":475,"y":170,"width":300,"height":190,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Channel Admin\nAstro + React dialog\nTwo explicit outcomes","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"admin-api","type":"rectangle","x":1010,"y":90,"width":260,"height":105,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Existing CloudBase Admin function\nRole / revision / media guards","fontSize":16,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"db","type":"rectangle","x":1010,"y":365,"width":260,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Products / taxonomy / images\nExisting CloudBase documents","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"visitor","type":"ellipse","x":475,"y":520,"width":300,"height":90,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#b2f2bb","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Website visitor\nPublished catalog only","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"a-operator","type":"arrow","x":260,"y":265,"width":215,"height":0,"points":[[0,0],[215,0]],"startBinding":{"elementId":"operator","gap":5,"focus":0},"endBinding":{"elementId":"site","gap":5,"focus":0},"label":{"text":"Choose save or publish","fontSize":14,"fontFamily":5}},
+    {"id":"a-admin","type":"arrow","x":775,"y":230,"width":235,"height":-85,"points":[[0,0],[235,-85]],"startBinding":{"elementId":"site","gap":5,"focus":-0.3},"endBinding":{"elementId":"admin-api","gap":5,"focus":0},"label":{"text":"Existing Admin actions","fontSize":14,"fontFamily":5}},
+    {"id":"a-db","type":"arrow","x":1140,"y":195,"width":0,"height":170,"points":[[0,0],[0,170]],"startBinding":{"elementId":"admin-api","gap":5,"focus":0},"endBinding":{"elementId":"db","gap":5,"focus":0},"label":{"text":"Revisioned writes","fontSize":14,"fontFamily":5}},
+    {"id":"a-visitor","type":"arrow","x":1140,"y":460,"width":-365,"height":95,"points":[[0,0],[-365,95]],"startBinding":{"elementId":"db","gap":5,"focus":0},"endBinding":{"elementId":"visitor","gap":5,"focus":0},"label":{"text":"Existing public projection","fontSize":14,"fontFamily":5}}
+  ],
+  "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
+  "files": {}
+}

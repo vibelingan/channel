@@ -1,0 +1,26 @@
+# P3e7c3b 复用来源候选，关闭大候选初始化进展缺口
+
+基线55a11924。该提交35新增、593相关/5823整包/2858Node20/551SDK与精确三函数/site、12进程编译Admin continue/PNG检查通过；仍有全候选从首SKU重读的P1，不启用客户producer。
+
+本MIU目标：实际Admin路径从已经一次读取的完整unified source observation和既有网站映射构造服务器候选，不再在审批根建立前逐个读取所有派生SKU缓存。来源准备仍按原native source-page分页可续接；候选完整计划只在当前request保存，复用既有mapper，不新建表、不保存第二份来源/网站patch。原source公开返回shape保持，私有candidate通过可选内部捕获回调/独立owned factory传递，不能混入Preview/HTTP。
+
+DB seed只接受服务器函数参数中的候选reader，浏览器依然只有productId/operationId/inputDigest。reader返回虚拟投影product/rows和独立计算的来源身份：key/linkRevision/sourceHash/observationHash/linkHash，必须精确匹配原根冻结的source。注意packet.observationDigest是原观察摘要，不能代替expectedBinding.observationHash；后者与root一样排除capture时间/原始evidence。candidate还必须对应同一product，映射后的审批fingerprint与当前ready源缓存匹配；否则走现有source prepare或明确失败，不能把一个过期缓存直接冻结成新审批。
+
+已有createCatalogSourcePreparer及公共来源返回不变。新owned factory使用同一prepareSourcePage并在完整源计划计算时捕获虚拟product/rows；actor/product不符或准备失败清除缓存。source complete后可保留本request私有候选，seed重查实际product的ready/generation/manifest与fingerprint，再核对源绑定。manual路径保留原配置保护并覆盖ready缓存后新增manual row的情形；纯manual投影提取复用，不能另写一套字段规则。
+
+不在seed前逐条查缓存意味着坏/缺失SKU缓存可能在后续原生配置页才被识别，因此必须保留原页哈希、产品/源版本和写入事务检查。测试独立走完0/21/105配置的所有native页，校验真实缓存与冻结计划一致；故意篡改/删除缓存不能生成通过的配置页或公开数据，修复/重建fallback继续由P5完成。不能把初始化成功称为完整大商品发布成功。
+
+先写红测：cold和warm禁止事务外SKU点读仍可初始化、cold完整来源只读一次、准备前篡改缓存不能被冻结批准、source mirror/observation已更新但产品缓存旧时应重投影正确来源；再加入独立source binding/actor/scope/预算/legacy返回隐私与大合法候选的测试。最终review、fault、实际SDK、组合/精确编译产物验证。原UI P1、剩余配置/媒体/引用/finalcontinue、live候选/新图/review/DataIssues/真实provider/P95/三时钟20件仍未完成，fullDeliveryReady=false。
+
+
+已实现实际Admin请求级候选复用，server reader精确核对原根source五元组和productId；候选投影使用与native source-page相同的Zod字段顺序，保证JSON审批fingerprint与页hash吻合。手工投影直接提取原native纯规则复用，ready手工缓存仍检查活动配置。预算覆盖来源/主链接读取及每个100照片链接批次的异步边界；超时状态查询返回原操作，不继续追加native写。此预算不取消已发出的provider请求。
+
+新增16项，69相关，完整5839（shared334/DB2192/admin638/local900/public182/sync308/site797/scripts488）、实际Node20 2874、19包types/E2Etypes/standingSDK/七文件Biome通过。cold105/warm21在禁止事务外SKU点读的条件下初始化，完整来源仅一次读取，随后独立跑完全部native配置页；坏/缺失实际生效配置页拒绝且零写、未公开。4096合法来源仅初始化205配置页计划，缓存行故意缺失，第一native页拒绝；没有把它算成4096配置发布验收或P95。
+
+10组故障全部检出，76重叠断言失败，四个源码SHA恢复后69相关和567SDK重建通过。567SDK=原551控制（原实际continue所用无完整来源夹具改为明确拒绝反例）+16完整来源控制：cold0/warm21/cold105在实际Admin模块、index和native持久化上初始化，SKU事务外点读0，观察读一次，再跑全部原生配置页；同根重开零写、三个坏ACK回滚、已提交seed丢确认重开、coded/malformed读拒绝、有效缓存篡改拒绝。测得warm21事务6/6/7/6操作，cold105来源页47操作、尾页17，原套最高98保留。只有HTTP替换，未证明真实云MVCC、网络/COS或延迟。
+
+两项实际修正：虚拟投影最初未经native schema排序，逻辑深相等但JSON指纹不同，改为相同schema投影；新增parse最初将201字符供应商图片ID异常抛出，旧整包红测检出，已恢复原source-page字段错误。缓存篡改用例最初只改detailSourceCandidate.options，现有网站planner会采用optionValues覆盖它，因此补改实际生效字段再验证拒绝；没有修改业务覆盖规则。capture evidence用例最初构造非法对象，改用原契约raw-payload数组后验证只变采集时间/evidence不变原操作semantic source绑定。SDK扩展脚本一次helper作用域错误在新增断言前终止，修正后完成567，不计业务反例。
+
+人工review及simplify/humanizer逐一核对七代码/测试文件、原native页hash/owned根source snapshot与只读productVariants注册，后者adminAccess:none/optionValues只读，未加入新的SKU编辑规则。把“审批已完成”限定为“初始化及原生配置子流程”，把4096用例限定为缺缓存反例。未增加表、vendor方法、shim、锁、环境变量或依赖，既有公开source结果五键不带私有候选。
+
+边界：消除了整个SKU缓存逐条外读；完整来源本身和照片链接集合仍需当前请求读取，极慢provider或大量照片链接可能在预算内无法完成初始化，真实provider/P95仍是发布前门槛。该MIU不声称所有大来源在真实云已可完成。后续配置页自动continue、媒体/引用/final、liveedit/新图/review/DataIssues、原UI P1与三时钟resync/真实20件发布回退均未完成，fullDeliveryReady=false。下一步接原生配置页有界推进并测丢回应、超时续接、取消/并发编辑与缓存修复fallback，再继续完整链路。

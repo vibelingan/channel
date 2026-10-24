@@ -1,0 +1,16 @@
+---
+import BlogView from '../../components/BlogView.astro';
+import { readBlogBuild } from '../../lib/blog/snapshot.ts';
+export async function getStaticPaths() {
+  const { snapshot } = await readBlogBuild(process.env.SITE_URL || 'http://localhost:4321');
+  const articles = snapshot?.articles ?? [];
+  return [
+    { params: { slug: undefined }, props: { articles, article: null } },
+    ...articles.map((article) => ({
+      params: { slug: article.content.slug },
+      props: { articles: [], article },
+    })),
+  ];
+}
+---
+<BlogView {...Astro.props} dummy />

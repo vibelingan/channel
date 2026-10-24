@@ -1,0 +1,15 @@
+{
+  "name": "channel-cloud-handoff-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Temporary cloud handoff tools, isolated from the application workspace.",
+  "engines": {
+    "node": "22.13.0"
+  },
+  "dependencies": {
+    "@cloudbase/cloudbase-mcp": "2.36.1",
+    "@playwright/mcp": "0.0.83",
+    "mcporter": "0.7.3",
+    "pnpm": "11.5.0"
+  }
+}

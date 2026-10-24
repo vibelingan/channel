@@ -1,0 +1,142 @@
+{
+  "date": "2026-10-19",
+  "timezone": "Asia/Tokyo",
+  "branch": "feat/seo-foundation",
+  "main": "37bcea5b38284210159e95f8d10f3a9b5cf2ee44",
+  "applicationCommit": "a9e1b92e39ec79794b22fed3f7fd5ce572db7192",
+  "sourceBeforeDocs": "b43dc098d16b5c2231c2ab4597814056eab3e59f",
+  "snapshot": {
+    "publicProducts": 487,
+    "structured": 487,
+    "legacy": 0,
+    "bytes": 5416513,
+    "sha256": "4677d4ff16746f5f864edba3d668050fd7b179f42b4a39d659ef55da1c865863"
+  },
+  "siteTests": {
+    "total": 532,
+    "passed": 531,
+    "failed": 0,
+    "skipped": 1
+  },
+  "typecheck": {
+    "errors": 0,
+    "warnings": 0,
+    "hints": 7
+  },
+  "build": {
+    "passed": true,
+    "htmlPages": 502,
+    "indexableUrls": 495
+  },
+  "browser": {
+    "noJsProducts": 487,
+    "localQuoteSubmissions": 1,
+    "checks": [
+      "hydrated body remains visible while refresh is held",
+      "variant selection updates URL; refresh restores it without changing canonical; complete RFQ submits to local stub with correct product/variant/revision",
+      "existing gallery thumbnail changes the displayed photo",
+      "plain card click retains category expansion and exposes canonical href",
+      "category Back action restores the mounted list",
+      "transient failure retains body; authoritative 404 removes interactive product and quote",
+      "unknown standard route returns HTTP 404; no pageerror"
+    ],
+    "hydrationErrors": 0
+  },
+  "legacyFixture": {
+    "noJsProducts": 2,
+    "browserChecks": 7
+  },
+  "scriptTests": {
+    "passed": 16,
+    "failed": 0
+  },
+  "lifecycle": {
+    "update": {
+      "visibleBody": true,
+      "revision": "approved-r2"
+    },
+    "withdrawal": {
+      "oldHtmlRemoved": true,
+      "sitemapRemoved": true,
+      "remainingProducts": 1
+    },
+    "scope": "local build only"
+  },
+  "ssrRemovalMutationRejected": true,
+  "pricing": {
+    "seo": "081982f",
+    "pricing": "9d9cfdebaf28930efe969821bc33766917a7185a",
+    "tree": "734e88e52f9b7915d3d9c4ece7814777a269a962",
+    "mergeExitCode": 0,
+    "overlapFiles": [
+      "apps/site/src/catalog/application/CatalogDetailController.tsx",
+      "apps/site/src/catalog/application/catalog-product-detail-state.ts",
+      "apps/site/src/catalog/infrastructure/catalog-detail-api.test.ts",
+      "apps/site/src/catalog/infrastructure/catalog-detail-api.ts",
+      "apps/site/src/islands/shop/catalog-family-render.test.ts"
+    ],
+    "patch": "docs/seo/pricing-card-anchor-test.patch",
+    "firstMergedSuite": {
+      "total": 1212,
+      "passed": 1209,
+      "failed": 2,
+      "skipped": 1
+    },
+    "focusedTests": {
+      "total": 14,
+      "passed": 14
+    },
+    "pricingBaseline": {
+      "total": 1192,
+      "passed": 1191,
+      "failed": 0,
+      "skipped": 1
+    },
+    "mergedBuild": {
+      "passed": true,
+      "html": 502,
+      "indexable": 495
+    },
+    "mergedTestsAfterSelectorPatch": {
+      "total": 1212,
+      "passed": 1211,
+      "failed": 0,
+      "skipped": 1
+    },
+    "mergedTypecheck": {
+      "errors": 0,
+      "warnings": 0,
+      "hints": 7
+    },
+    "mergedBrowser": {
+      "noJsProducts": 487,
+      "checks": [
+        "hydrated body remains visible while refresh is held",
+        "variant selection updates URL; refresh restores it without changing canonical; complete RFQ submits to local stub with correct product/variant/revision",
+        "existing gallery thumbnail changes the displayed photo",
+        "plain card click retains category expansion and exposes canonical href",
+        "category Back action restores the mounted list",
+        "transient failure retains body; authoritative 404 removes interactive product and quote",
+        "unknown standard route returns HTTP 404; no pageerror"
+      ],
+      "localQuoteSubmissions": 1
+    }
+  },
+  "state": {
+    "pushed": false,
+    "deployed": false,
+    "pricingWorktreeModified": false,
+    "contentPublisherImplemented": false,
+    "blogImplemented": false,
+    "hermesModified": false
+  },
+  "branchAtAcceptance": "feat/seo-product-pages",
+  "consolidation": {
+    "sourceCommit": "cf0c9bcd4af323f351de64dd89cb232189f8ca87",
+    "mode": "fast-forward",
+    "preservedFiles": 1296,
+    "preservedBytes": 291253246,
+    "sha256Verified": true,
+    "manifest": "output/seo-consolidation-2026-10-19/preserved-files.json"
+  }
+}

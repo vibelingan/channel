@@ -1,0 +1,19 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id":"dialog","type":"rectangle","x":40,"y":175,"width":240,"height":125,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"CollectionView + dialog\nReact: outcomes / waiting","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"client","type":"rectangle","x":480,"y":175,"width":230,"height":125,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Existing Admin API client\nValidate + sequential publish","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"function","type":"rectangle","x":910,"y":175,"width":235,"height":125,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Admin Cloud Function\nAssign / update guards","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"data","type":"rectangle","x":910,"y":445,"width":235,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"CloudBase documents\nProducts / images / taxonomy","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"query","type":"rectangle","x":480,"y":445,"width":230,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#ffd43b","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"TanStack Query cache\nActive status refetch","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"a-client","type":"arrow","x":280,"y":235,"width":200,"height":0,"points":[[0,0],[200,0]],"startBinding":{"elementId":"dialog","gap":5,"focus":0},"endBinding":{"elementId":"client","gap":5,"focus":0},"label":{"text":"Confirmed intent","fontSize":14,"fontFamily":5}},
+    {"id":"a-function","type":"arrow","x":710,"y":235,"width":200,"height":0,"points":[[0,0],[200,0]],"startBinding":{"elementId":"client","gap":5,"focus":0},"endBinding":{"elementId":"function","gap":5,"focus":0},"label":{"text":"Existing POST actions","fontSize":14,"fontFamily":5}},
+    {"id":"a-data","type":"arrow","x":1027,"y":300,"width":0,"height":145,"points":[[0,0],[0,145]],"startBinding":{"elementId":"function","gap":5,"focus":0},"endBinding":{"elementId":"data","gap":5,"focus":0},"label":{"text":"Revisioned write","fontSize":14,"fontFamily":5}},
+    {"id":"a-query","type":"arrow","x":910,"y":495,"width":-200,"height":0,"points":[[0,0],[-200,0]],"startBinding":{"elementId":"data","gap":5,"focus":0},"endBinding":{"elementId":"query","gap":5,"focus":0},"label":{"text":"Read back status","fontSize":14,"fontFamily":5}},
+    {"id":"a-refresh","type":"arrow","x":480,"y":492,"width":-200,"height":-192,"points":[[0,0],[-200,-192]],"startBinding":{"elementId":"query","gap":5,"focus":0},"endBinding":{"elementId":"dialog","gap":5,"focus":0},"label":{"text":"Confirmed / unknown","fontSize":14,"fontFamily":5}}
+  ],
+  "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
+  "files": {}
+}

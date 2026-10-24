@@ -1,0 +1,434 @@
+# Catalog single source of truth — design
+
+Status: **Planned (docs only).** Agreed with the product owner in conversation on
+2026-10-06/07. No code in this change. Execution follows
+[MIU_BREAKDOWN.md](MIU_BREAKDOWN.md); progress is logged in
+[EXECUTION_LOG.md](EXECUTION_LOG.md).
+
+## 1. Background
+
+The public catalog shows each product in three places:
+
+| Place | Endpoint / code | What a buyer sees |
+|---|---|---|
+| Product list (category pages, cards) | `GET /api/products` — `apps/functions/public-api/src/handler.ts` | Name, photo, "From $X", MOQ |
+| Product page | `GET /api/products/:id/detail` — `apps/functions/public-api/src/catalog-detail.ts` | Photos, configurations (colour etc.), Alibaba-style tier prices, quote button |
+| Quote request record | `packages/db/src/catalog-quote.ts` | What the admin receives when a buyer asks for a quote |
+
+Product data comes from Alibaba (ICBU) through the catalog sync, or is typed in by
+an admin (manual products). Alibaba data is meant to be reviewed by an admin before
+it goes public.
+
+On 2026-10-02 the product-page price block was redesigned to the Alibaba style
+(one row of tier prices with the quantity under each; PR #64 to `test`, commits
+`5913f20` and `7984dea` on `feat/catalog-alibaba-price-tiers`). Checking it on the
+live site exposed that some product pages show a different price from their card.
+This document records the investigation and the agreed redesign.
+
+### Terms
+
+- **SKU / configuration** — one sellable combination of attributes (colour + plug +
+  mic …). A product has one or more SKUs. Each SKU can have its own price ladder.
+  On the product page a SKU is a "configuration" the buyer selects.
+- **Price ladder / tiers** — quantity breaks, e.g. 10–499 pcs $1.30, 500–999 $1.22,
+  ≥1,000 $1.20.
+- **Approved version** — what an admin approved: `products.catalogDetailPublication`
+  (header) plus immutable `catalogDetailVariants` rows keyed by product + revision +
+  SKU. Each approval writes a new revision; the product points at the newest.
+- **Headline price** — the single product-level price Alibaba sends for a wholesale
+  product (`wholesaleTrade.price`).
+
+## 2. Investigation (live data, 2026-10-06/07)
+
+All numbers come from the public API on supplychainsai.com (CloudBase `test`
+environment) unless marked as code.
+
+### 2.1 List and product page disagree on price for 21 products
+
+137 products are in the public list. 130 have an approved product page; 7 do not
+(§2.5). Comparing list vs product page for the 130:
+
+| Field | Mismatches |
+|---|---|
+| Name | 0 |
+| Main photo | 0 |
+| **Price** | **21** |
+
+Example — *Lightweight Foldable 3.5mm Wired Music Earphones*: the card has three
+tiers (10–499 $1.30, 500–999 $1.22, ≥1,000 $1.20). The product page shows one price,
+"USD 1.20, ≥10 pieces", which is false: 10 pieces cost $1.30.
+
+### 2.2 Why: two copies of the price, written by two paths
+
+| Path | Added | Writes | Read by |
+|---|---|---|---|
+| Sync promotion (`apps/functions/alibaba-catalog-sync/src/promotion.ts`, `selectPrimaryOffer` in `packages/alibaba-catalog-sync/src/alibaba-merge-policy.ts`) | 2026-08-06 (`c618711`) | `products.alibabaCatalogPricing` — the cheapest SKU's ladder — **directly, no approval** | Product list |
+| Approval (`packages/db/src/catalog-detail-commit.ts`, `packages/shared/src/catalog/detail-approval.ts`) | on `main` 2026-09-15 (`dbf802b`) | Approved version, including its own copy of every SKU's price | Product page, quote request |
+
+When the approved version was introduced, the older direct path was left running.
+Nothing made one of them the owner of "the price".
+
+On 2026-09-21 the price repair (`fcf1431`, `docs/catalog-price-repair/`) re-ran
+the Alibaba parser over stored raw payloads and restored 1,661 SKU prices from
+"unavailable" to real ladders. By design it did not touch approved versions. The
+list picked up the repaired prices; the 21 product pages kept their pre-repair
+copies, in which every SKU price is "unavailable".
+
+### 2.3 The headline price is stored as a "fixed" price
+
+With every SKU price "unavailable", the product page fell back to the product-level
+offer. For wholesale products the normalizer
+(`packages/alibaba-catalog-sync/src/alibaba-normalizer.ts`, wholesale branch of
+`normalizeProductDetail`) stores Alibaba's headline price as `mode: 'fixed'`.
+
+It is not a fixed price. In **21 of 21** live products where it can be compared
+with a ladder, the headline equals the **cheapest** tier, not the price at the
+minimum order. The 2026-10-02 price block then paired it with the MOQ
+("≥10 pieces"), turning a "from" price into a specific, wrong claim.
+
+Products whose data has only one tier (25 live products, e.g. "USD 4.30, ≥1,000
+pieces") are displayed correctly; their source data genuinely has one tier.
+
+### 2.4 Per-SKU prices are modelled correctly
+
+Checked end to end in code:
+
+| Step | Per-SKU price kept? |
+|---|---|
+| Normalizer stores one offer per Alibaba SKU (`alibaba-normalizer.ts`) | Yes |
+| Approved version stores each SKU's offers (`packages/catalog-import/src/detail-candidate.ts`) | Yes |
+| Product page shows the **selected** configuration's price (`apps/site/src/catalog/presentation/CatalogQuotePanel.tsx` passes `variant?.offers` to `CatalogCompactPrice`) | Yes |
+| Card shows "From $X" from the cheapest SKU (`selectPrimaryOffer`) | Yes (summary) |
+| Quote request records the selected SKU (`catalog-quote.ts`) | Yes |
+
+Today all 130 approved products have the same price for every configuration, but
+nothing in the model assumes that.
+
+Known, accepted gap (no action until the client asks): products sold by lot / kg /
+set, or priced in currencies other than USD/CNY, are stored as "unavailable" and
+show "Request a quote".
+
+### 2.5 Visibility and review are split across separate steps
+
+- **Publish** (`products.published`) controls the list.
+- **Product-page approval** writes the approved version.
+- **Mark reviewed** clears the "New" badge.
+
+They are independent, so a product can be listed without an approved page. The 7
+listed products without one are all **manual** products (no Alibaba link); their
+product page falls back to a legacy layout built from the product row.
+
+### 2.6 Admins are not told when an existing product changes
+
+The admin's "New" badge is the boolean `products.alibabaReviewPending`. It is set
+only when the sync creates a brand-new draft (`linking.ts`, `alibaba-product-identity.ts`)
+and cleared by "Mark reviewed". The admin product list already sorts flagged
+products first by default (database-side, index-backed, so pagination is correct)
+and shows a per-category "• New" count. When the sync changes an existing product
+(price, photos, text, removal), nothing is flagged.
+
+## 3. Problem statements
+
+1. **P1 — Two sources of truth.** The list reads a price written by the sync
+   without approval; the product page and quote read the approved version. They
+   drift whenever the sync or a repair changes data.
+2. **P2 — Wrong price shown on 21 product pages** (and recorded in any quote
+   requested for them), because their approved versions predate the price repair.
+3. **P3 — Headline mapped as fixed.** Alibaba's wholesale headline (cheapest tier)
+   is stored and displayed as a fixed price.
+4. **P4 — Silent changes.** Sync changes to existing products reach the list
+   immediately and never reach the admin's review queue.
+5. **P5 — Fragmented gate.** Publish, product-page approval and Mark reviewed are
+   separate; "approved" and "visible" can disagree.
+
+## 4. Principles agreed with the owner
+
+1. **One source of truth per product.** The product list, the product page and the
+   quote request show the same data. Different endpoints may return different parts
+   of it (a list returns many products in summary, the page returns one in full),
+   but they read the same stored version.
+2. **Approval is the only gate for Alibaba data.** Synced data (new or changed)
+   waits for admin approval; once approved it is public everywhere at once.
+3. **Data accuracy first.** No price is shown that the source data does not support.
+4. **Respect the source structure.** Each SKU keeps its own price; summaries are
+   derived from SKUs, never invented.
+5. **No speculative features.** Lot/kg/set units and other currencies stay
+   "Request a quote" until the client asks.
+
+## 5. Decisions
+
+Status: **Decided** = follows directly from §4 and the evidence; **Owner** = needs
+the owner's confirmation before the dependent MIUs run (see README).
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-1 | **One shared rule decides which version of a product is public**: the newest approved version, for **every** product that has one — synced or manual (when the product-page feature is on). A product with no approved version yet is served from its row only as a temporary fallback, which the consistency audit counts until it reaches 0. List, item/slug, product page and quote all call this rule. | Decided |
+| DEC-2 | The list card's price comes from a **price summary stored with the approved version at approval time** (`catalogDetailPublication.priceSummary`, top level — not inside the strict `header`). Rule: website price if set; else the cheapest priced SKU (USD before CNY, same order as today's card); else the product-level price; else "Request a quote". Existing approved versions get the summary by a one-time backfill that does not change their revision. | Decided |
+| DEC-3 | For products served from the approved version, the card also shows the approved **name, photos, description and MOQ**, not row fields. | Decided |
+| DEC-4 | **Manual products are first-class approved versions.** They go through the same Publish → approval pipeline and get the same approved version (header, configuration rows, price summary), the same list/detail/quote API shape, the same Alibaba-style product page and the same quote form. Differences are only in where the data comes from: the admin's fields instead of an Alibaba draft. Details in §5.2. | Decided (owner 2026-10-07) |
+| DEC-5 | **Headline price**: for a wholesale product that has SKUs, Alibaba's headline price is not stored as a price. Prices come only from SKUs. If no SKU has a usable price, the product shows "Request a quote". Sourcing (FOB) products are unchanged (no evidence of a defect). | Decided |
+| DEC-6 | **"Changed" means** a change to what a buyer would see from Alibaba: any SKU's price / tiers / MOQ, SKUs added or removed, SKU options, photos, specification facts, description text. Not stock counts, timestamps or the Alibaba title (the product name is admin-owned). | Decided |
+| DEC-7 | **One review flag with a reason.** Reuse `alibabaReviewPending` (index, sort, counts and badge already exist) and add `alibabaReviewReason: 'new' \| 'changed' \| 'removed'` (plus `'edited'` if OWN-1 is accepted). Approval clears both. A later sync sets them again only if DEC-6 content differs from the approved version. | Decided |
+| DEC-8 | Flag scope: "changed" / "removed" apply to products that have an approved version (published or not) and supplier data; manual products (no supplier data) and archived products never get them; never-approved drafts keep "new". "edited" (only if OWN-1 is accepted) can apply to any published product. | Decided |
+| DEC-9 | While a product is flagged "changed", list, page and quote keep showing the **approved** version (follows from DEC-1). | Decided |
+| DEC-10 | **Admin list**: keep the existing flagged-first default sort (server-side, index-backed, pagination-safe) and per-category counts; show the reason on the badge. No new tab. | Decided |
+| DEC-11 | **Publishing a change** clears the review flag. A change is published by Publish (row toggle, batch Publish, ticking "Published" on a draft, classification "Review classification and publish"), by **Save on an already-published product** (DEC-12), or by **"Approve changes"** in the preview (approve without editing). The flag means "supplier data changed since the last approval and nobody has published it yet", so it also clears when the product is archived (it leaves the catalog) — but **not when it is unpublished**: hiding a product publishes nothing, and the change still needs attention before the product goes public again. "Mark reviewed" stays for "new" only. | Decided (owner 2026-10-07) |
+| DEC-12 | **Save on a published product takes effect on the live site immediately; it is the admin's approval.** Nothing is unpublished and there is no extra step. Because Save publishes the product's *latest* data — including Alibaba changes synced since the last approval — the admin must be able to see those changes before saving: when the product is flagged "Changed", the edit form shows a notice above Save ("Alibaba data changed since the last approval. Saving publishes these changes too — see them in Preview."), and the batch "Assign category" bar lists flagged products and asks for confirmation (Continue / Skip those). Saving clears the flag (DEC-11). | **Decided (owner 2026-10-08)** (replaces the earlier \"Save holds supplier changes back\" rule) |
+| DEC-13 | **The 21 products**: implement the fix and validate it locally first; then unpublish the 21; deploy; let the audit flag them "changed"; admin re-approves. No direct write into approved versions. | Decided (owner 2026-10-07) |
+| DEC-14 | **Synced and manual products are indistinguishable in public responses.** For any product served from its approved version, the public list/item/slug payload omits the Alibaba markers (`alibabaPrimarySourceKey`, `alibabaSourceStatus`, `alibabaSourceLastSyncedAt`) and the row `variants`. Both kinds then draw from the same set of possible keys; optional fields such as series or model appear only when the product has them, for either kind. | Decided |
+| DEC-15 | **Publishing always needs an approved version**, for every product: the publish gate stops checking "is it linked to Alibaba?", and creating a product with Published already ticked goes through the same gate (today it bypasses it). The gate checks at the moment of publishing only, not on every price edit: once public surfaces read only approved versions, a price typed into a published product's record is invisible until it is approved, so admins no longer need to unpublish to change a price. | Decided |
+| DEC-16 | **A minimum order with no price is still shown**: "Request a quote" plus "MOQ N pieces", for synced and manual products alike (today the MOQ disappears when there is no price). | Decided |
+| DEC-17 | **Open the product on the configuration the card's price comes from.** Today's card (and the new one) shows the cheapest configuration: "From $4.30 · MOQ 1000" for a headset whose White option starts at 1,000 pieces. The page opens on the first configuration, Black: "$6.61, 2–99 pieces". Both are right, but the first screen does not match the card. Proposal: when the card's price comes from a configuration, the card opens the page with that configuration selected, so the buyer first sees "$4.30, ≥1,000 pieces" and can switch to Black. Alternative: keep opening on the first configuration (today's behaviour). Not chosen: showing the smallest MOQ of any configuration on the card, which would pair "$4.30" with a quantity that cannot get that price. | **Closed (2026-10-08): not needed now.** In the live catalog all 92 products with several options price every option the same (0 differ in price or MOQ), so the card always matches the option the page opens on. Revisit if a supplier prices options differently. |
+| DEC-18 | **"Changed" should count only what approval publishes from the source.** A product's description text and main gallery are the admin's: they are imported once, and approval publishes the row's text and photos, not the supplier's. DEC-6 counts supplier description and photo changes as "changed", so such a flag can only be cleared by an approval that changes nothing, and the supplier's change is then never shown again (batch 4 review P2-3). Proposal: the source fingerprint and the one-time audit count configurations, their options, prices and photos, the product-level price, and facts; not the product description text or the main gallery. Alternative: keep DEC-6 and make approval adopt the supplier's description and photos (a change to who owns them). Batch 4 is built to DEC-6 today; either choice is a small change before it ships. | **Decided (owner 2026-10-08): one flag on the product; approving it applies everything, including the supplier's new description and photos.** Rule as built: approval takes the supplier's new description and photos unless an admin edited them (then the admin's version stays). Needs new work before batch 4 ships (MIU-39). **Revised by the owner 2026-10-08 (evening): keep admin edits, and never take the supplier's new text or photos silently — even unedited ones. A supplier change still flags the product; the admin sees incoming vs current side by side and chooses per field (design open, see README). Until then approval publishes the product's own text and photos (as before MIU-39); MIU-39 steps 1–2 (baseline, plan) stay as groundwork, step 3 (automatic taking) was removed.** |
+| DEC-19 | **Side-by-side review of supplier changes.** When a product is flagged "Changed" or "Removed", Edit shows a Supplier changes panel: description, gallery and description photos side by side (website vs Alibaba's new value, with where the website value came from), each with Keep website version or Use Alibaba's. A decision is stored with a digest of the exact incoming value (`supplierDecisions`), so a newer value asks again. Prices, configurations and specifications always take Alibaba's latest on approval; the panel lists them old → new. Batch Publish skips flagged products. Contributors can view but not save or publish a flagged product. The flag stays until every changed text or photo part has a decision. | **Decided (owner 2026-10-09, recommendations approved)** |
+| DEC-20 | **Photos for each configuration.** Some listings give a colour no photo of its own. In Edit the admin picks gallery photos per configuration (`configurationPhotos`, up to 9 each, gallery photos only); approval publishes them as the configuration's photos, so tapping the photo selects the configuration. Fingerprints include the choice only once one is made, so existing approvals stay valid. | **Decided (owner 2026-10-09)** |
+| DEC-21 | **Approval reads shared photos; it never writes them unless their live-use count changes.** Why photos are shared (checked 2026-10-12): all 1,109 Alibaba products come from the client's one store; its description template (company, R&D, exhibition pages) is in every listing (one photo in 689 products), and the seller re-uploads the same gallery photo to similar listings — Alibaba serves the identical file under a new address each time (22 of 22 sampled pairs byte-identical to each other and to our copy). We keep one copy per identical file (SHA-256); that is right. The defect: approval wrote every photo in its transaction (a never-read `catalogDetailApprovalFence`, so a concurrent delete would collide), which made any two approvals sharing a photo collide; the client's batch failed. Rules: (1) the staged approval (production) checks its photos (active, not locked, valid count) and writes one only when its live-use count changes; the unused one-request path (`commitCatalogApproval`, no job) keeps the fence write. (2) A photo delete locks the photo, then refuses while an unfinished approval job lists it, then refuses while a product lists it — jobs first, because a finish records its product and closes its job in one transaction. (3) An approval job finishes within one hour of starting or never; deletes ignore jobs older than one hour plus 10 minutes, so a failed attempt cannot pin its photos. (4) Collisions that need no fix answer BUSY (409): a transaction conflict after the SDK's retries, a photo locked by another save or delete (save: lock busy; approval: `MEDIA_BUSY`). Through the node SDK a coded database answer already throws with its code, so the database retries conflicts; the approval wrappers also guard against the bare SDK's returned answers (`sdkAnswer`). A conflict inside photo-lock acquisition is still a server error (follow-up). An approval job past its hour answers "took over an hour, publish again"; a stale or corrupt photo lock stays a definite "not ready" (only a fresh lock is "busy"). (5) Admin page: BUSY is resent up to 3 times after a short random pause; one unclear result no longer stops a batch (a refused sign-in or two unclear in a row do); unclear products are read back, and a read-back counts as proof only when no approval is left unproven (a live product still waiting for review, or a live product's new category, is reported "couldn't confirm" and offered again); results list each product's reason in plain words; "Try again" resends products that need no fix — when publishing it reads each product and sends the revision it read, so a product flagged "Changed" in between is refused (the guarded publish), and a change made between that read and the write is refused. | **Decided (owner 2026-10-12: real fix, not a retry hotfix; reviewed by four independent reviewers, findings applied)** |
+| OWN-1 | **Contributors** cannot approve. A contributor's save on a published product stays a draft (row only; the public version is unchanged) and flags the product "edited" so an admin sees it and publishes it. Built 2026-10-09 (batch 5b): a Save that changes nothing does not flag; contributors cannot change the family, category, URL slug or SKU of a live product, because the public site reads those from the row. | Decided (owner 2026-10-07) |
+| OWN-2 | **Hermes / WeCom importer** will create drafts; an admin publishes them in the admin UI (the new gate refuses Hermes's raw publish call). The client reports the Hermes import currently fails; per the owner this is **not investigated now** — Hermes is adjusted to the draft flow when its import is fixed. | Decided (owner 2026-10-07) |
+
+### 5.1 Why these choices
+
+- **DEC-1 instead of "list reads approved data" alone.** The research found three
+  ways list and page could still disagree after a list-only switch: the
+  product-page feature flag (`CATALOG_DETAIL_APPROVAL_ENABLED`), products whose
+  owner changes (linked to or unlinked from Alibaba after approval), and products
+  published before approval existed. One rule used by every endpoint removes all
+  three. A product that is linked or unlinked keeps serving its approved version
+  until it is approved again under its new owner (Alibaba or manual).
+- **DEC-2 — what the "price summary" is, and why it is stored.** It is not a
+  second source. The approved version is one record with parts: a header (name,
+  photos, description, product-level prices) and one row per SKU with that SKU's
+  prices. The summary is the single number a card needs ("From $1.20"), worked
+  out from those same SKU rows. Working it out on every list request would mean
+  reading every SKU of up to 48 products per page, and the database helper returns
+  at most 100 rows per call. So it is worked out once, when the admin approves,
+  and saved in the same approved record at the same moment. The approval step
+  already holds all SKUs in memory, so this costs no extra database work.
+  - It sits next to the header, not inside it, for one technical reason: the
+    product page checks the header strictly and rejects any field it does not
+    know (a safety rule against malformed data). Adding a field inside the header
+    would make every product page fail that check. Same record, different part.
+- **DEC-5 drop rather than relabel.** Relabelling as "from" needs a new price shape
+  across shared schema, server and site. Dropping it loses a price only for products
+  whose SKUs are all unpriced, where showing "Request a quote" is the accurate
+  answer.
+- **DEC-7 one flag.** One flag means one sort, one count, one clearing rule; the
+  reason tells the admin what kind of review it is. Two flags could disagree.
+- **Flag vs fingerprint (two different things).** The *flag* is what the admin
+  sees ("Changed"); it reuses the existing review flag. The *fingerprint* is
+  never shown: it is a short code that summarises the supplier data at the moment
+  of approval, so the next sync can tell whether anything changed. A fingerprint
+  already exists, but it includes timestamps and stock counts that change on every
+  sync, so with it every product would look "changed" every time. Approval
+  therefore saves a new fingerprint that ignores timestamps and stock (DEC-6
+  content only).
+- **"Removed" — decided: behaviour stays (owner 2026-10-07).** Nothing on our site
+  changes by itself when something changes on Alibaba: any change, including a
+  deletion, reaches us only through a sync, and the existing behaviour for
+  deletions stays as it is (no new detection, timer stays off). For the record,
+  why deletions are rarely noticed: when a supplier deletes or delists a product on
+  Alibaba, our sync only notices during a *full run* (it checks every product).
+  The admin's "Run now" is a *quick run*: it fetches only products that changed
+  recently, and a deleted product simply stops appearing rather than showing up as
+  changed. Full runs are started only by the timer, and the timer is switched off
+  (`DESIRED_TIMER_TRIGGERS = {}`). Impact today and after this work: a product
+  removed on Alibaba stays on our site with its approved data, can still receive
+  quote requests, and the admin is not told. If a full run does mark a source as
+  gone, the product is flagged "removed" for the admin (MIU-19).
+
+### 5.2 Manual products (DEC-4)
+
+**Why this is a small change.** The approval pipeline is already mostly
+provider-neutral. Only the first step, "prepare", copies Alibaba data into a draft
+and refuses anything without an Alibaba link
+(`apps/functions/admin/src/catalog-detail-source.ts:27-29`,
+`packages/db/src/catalog-source-staging.ts:63-76`). Everything after it — review,
+staged approval, the product-page endpoint, the quote request — never checks the
+link. Evidence:
+
+- The approval planner already takes name, photos, description and website price
+  from the product row, not from the draft (`detail-approval.ts:119-138`).
+- A local rehearsal approves a non-Alibaba (Dianxiaomi) product through the same
+  planner (`apps/local-server/src/catalog-detail-workspace.ts:74-291`).
+- A test approves a product with zero configurations end to end
+  (`apps/local-server/src/catalog-manual-price-publication.test.ts:39`).
+
+**What a manual product's approved version contains**
+
+| Part | Synced product | Manual product |
+|---|---|---|
+| Name, photos (≤9), description, description images | Product row (admin-reviewed) | Product row — same |
+| Website price | Admin's manual pricing, if set | Admin's manual pricing (tiers or single price + MOQ) — same block |
+| Specification facts | Alibaba attributes | SKU code, Series, Model, Type from the row (empty ones dropped) |
+| Configurations | One row per Alibaba SKU, own prices | None for products made in the admin form (it has no configuration editor); the page shows the product-level price and the "customization" quote, exactly as a synced product without SKUs does. See "Configurations from the Excel import" below |
+| Price summary for cards | Website price, else cheapest SKU | Website price |
+| Draft owner | `alibaba:<source>` | `manual:<productId>` (the owner field is free text; no schema change) |
+
+**Flow.** Admin edits the manual product and publishes it (the "Published" box +
+Save on a draft, or plain Save on an already published one — both run approval).
+A price change on a published product is saved and approved in the same Save. A short manual "prepare" builds the draft from the row; the
+existing review → stage → finish → publish runs unchanged and writes the same
+approved version. From then on list, page and quote read it exactly as they read a
+synced product.
+
+**List, search, sort, pagination.** Already identical: manual and synced products
+live in the same `products` collection and are served by one query
+(`listCatalog`: published, not archived, family/subcategory filter, `_id` sort,
+one index `product_family_public_page`), so paging cannot differ. What changes is
+only the projection per item (DEC-1, DEC-14): both kinds get name, photos,
+description, price summary and MOQ from their approved version, with the same keys.
+Search still matches row fields (name, series, model); because Save refreshes the
+approved version with the admin's edits, the row name and the approved name stay
+the same in normal use.
+
+**What manual pages lose and gain (accepted for parity).** They move from the
+legacy page to the shared product page. They gain the Alibaba-style price block and
+the quote form (today manual pages only link to the OEM inquiry form). They lose
+what synced pages also do not have: related-products row, the OEM call-to-action
+and Product JSON-LD (JSON-LD is deferred for all products, §9).
+
+**Configurations from the Excel import.** The admin's "Catalog import" page is a
+read-only preview of import jobs. The import itself runs from a command-line tool
+(`apps/local-server/src/dianxiaomi-import-cli.ts`) that does create configuration
+rows (`writeVariant`, without public prices — CNY source prices are withheld). Its
+docs state it has **not run in production**
+(`docs/dianxiaomi-excel-import/REMAINING-PRODUCTION-STEPS.md`), so no live manual
+product has configurations today. Decision: the manual approval supports zero
+configurations, and **refuses** a manual product that has configuration rows with
+a clear message instead of silently dropping them (MIU-28). Approving manual
+configurations is a follow-up that must be built before the Excel import goes to
+production (§9).
+
+**Data that may not pass approval yet.** Approval accepts at most 9 photos, only
+images in cloud or local storage (not legacy embedded images), and prices with at
+most 2 decimals. Some manual rows may break these rules (one Hermes-imported product
+had 18 photos). In runbook R9 the admin checks these three rules in Edit for each
+of the 7 live manual products, then publishes it through approval. Until approved
+they stay on the row fallback, so nothing disappears. The publish gate for manual
+products (MIU-31, MIU-37) ships only after R9, so a product that needs a fix can
+still be saved meanwhile.
+
+## 6. Target design
+
+```
+Alibaba ──sync (manual "Run now" or timer)──► source data
+                                              (raw payloads, per-SKU offers,
+                                               observations)
+                                                   │
+                         compare with approved ────┤ differs (DEC-6)?
+                         version's source digest   │   yes → flag: changed
+                                                   │   new product → flag: new
+                                                   ▼
+                                   Admin review queue (flagged first, counts)
+                                                   │ Approve / Approve changes
+                                                   ▼
+                         Approved version  = header + SKU rows + price summary
+                         (one per product; new revision on each approval;
+                          flag cleared)
+                                                   │
+                    ┌──── shared rule: which version is public (DEC-1) ────┐
+                    ▼                       ▼                              ▼
+              List / item / slug      Product page                   Quote request
+              (summary: name, photo,  (all SKUs, each with its       (selected SKU)
+               price summary, MOQ)     own price)
+```
+
+What changes, in plain terms:
+
+1. **Sync** keeps writing source data as today but no longer changes anything a
+   buyer sees for a product that has an approved version (on 2026-10-06 that was
+   every Alibaba-linked product in the public list; runbook R5 re-counts it). It
+   raises the review flag when the source differs from the approved version. To compare cheaply, approval stores a **source digest** — a hash of the
+   DEC-6 content of the data it approved. Existing digests cannot be used: they
+   include timestamps and change on every sync.
+2. **Approval** stores the price summary and the source digest with the version it
+   publishes, and clears the flag.
+3. **Public reads** all go through the shared rule. The list projects the approved
+   name, photos, description, price summary and MOQ.
+4. **Headline price** stops being stored as a price for wholesale products with
+   SKUs; stored offers are rebuilt from saved Alibaba payloads (no new Alibaba call).
+5. **Manual products** enter the same flow at the review step: instead of an
+   Alibaba draft, the admin's own fields form the draft (§5.2). From approval on,
+   nothing downstream can tell the two kinds apart.
+
+The site's card price display is unchanged in style; it reads the summary. The
+product page already shows the selected configuration's own price.
+
+## 7. Restoring the 21 products (rollout)
+
+1. Implement the fix and validate it locally (tests and local e2e of batches
+   1–3; owner 2026-10-08: deploy those first). Then unpublish the 21 (DEC-13) so
+   their wrong price leaves the site before the deploys start.
+2. Deploy the headline fix and rebuild stored offers from saved payloads
+   (dry run → apply).
+3. Deploy the price summary in two steps: first the code that can *read* it,
+   then the code that *writes* it, and backfill existing approved versions. Then
+   deploy the public-version rule and the "changed" flag.
+4. Right after the flag deploy, before admins use Save on published products, run
+   the one-time "changed since approval" audit (dry run → apply). Products whose
+   current source differs from their approved version are flagged "changed"; the
+   rest get their source digest recorded. Until it runs no product has a baseline,
+   so nothing is flagged and Save could still publish unreviewed changes.
+5. Admin opens each flagged product, checks the preview, and approves. Re-approval
+   rebuilds the version from the repaired data (verified in code: preparing a
+   review reads the current observation, which the replay rebuilt). Owner
+   2026-10-08: the 21 are re-approved (Publish) right after stage B and R2,
+   before batch 4, so they are not expected in the flagged set.
+6. Manual products: the admin checks the 7 live manual products against the three
+   approval rules, fixes what fails, then publishes each one through approval
+   (runbook R9). Only then does the publish gate for manual products ship.
+7. Verify on the live site: list vs product page for every product (name, main
+   photo, price) — target 0 mismatches and 0 products on the row fallback — plus
+   browser checks at phone and desktop width.
+
+## 8. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Changing the approval plan changes every pending review digest; admins with a review screen open get one CONFLICT | Deploy when no review is in progress; the screen reloads |
+| Normalizer change alters the source content hash for many products and can trip the sync's surge guard (≥20 changed and >30% of linked) | Replay stores the new hash with the rebuilt offers, so later syncs compare like with like |
+| Replay currently refuses a dropped product-level offer (`offer-set-mismatch`) | MIU-2 teaches replay to deactivate it |
+| Products whose SKUs are all unpriced lose the headline "From $X" | Accepted (DEC-5); listed in the dry-run manifest so the owner sees which |
+| A missing price summary (old version, not yet backfilled) | Rollout order: summaries are computed and backfilled **before** the list switches; the R4 re-plan showing 0 `ready` rows is a hard gate for batch 3. If one is still absent, the card shows "Request a quote" — never a row or sync price, and no fallback to the version's own product-level price, because for approvals from before batch 1 that can be the retired wholesale headline (batch 3 review #1, #7). The consistency audit (MIU-26) reports it as a mismatch |
+| An approval from before batch 1 whose configurations are all unpriced still holds the retired wholesale headline as a product-level offer; summary rule 3 shows it on the card | R4 lists summaries with `source: 'product'` on products with configurations; those are unpublished or re-approved after R2; MIU-38's comparison includes product-level offers so R6 flags the rest |
+| A publication that no longer decodes (e.g. after a rollback past 2a) quietly falls back to the row, including the sync price | Never roll back past 2a once summaries exist; the audit lists such products as fallback, so compare its fallback list with the expected manual products |
+| The quote path reads the approved version even when `CATALOG_DETAIL_APPROVAL_ENABLED` is off (MIU-10 spec) | Both flags are on in every deployed environment (`deploy-test.yml`) |
+| Search matches the row name while an approved card shows the approved name; row edits after approval stop showing until re-approval | Accepted until Save publishes (batch 5a). R5 lists the cards whose name/photo will change before batch 3 |
+| Admin screens (source review, preview) still show row price and MOQ, not what customers see | Admin-only; MIU-32 brings the preview onto the approved version |
+| A stated MOQ below the first tier (e.g. MOQ 50, first tier from 100) shows "MOQ 50" on the card and "≥100" on the page | Rare data shape; left as stored |
+| Sync still bumps `updatedAt` / link revision on every run, which can cause review CONFLICTs | Existing behaviour; deferred (§9) |
+| "Removed" never fires while the timer and full runs are off | Deferred (§9) |
+| A live manual product breaks an approval rule (more than 9 photos, legacy embedded image, price with more than 2 decimals) | Admin checks the three rules in Edit first (R9); the product stays on the row fallback until fixed and approved; the gate ships after R9. Approval errors are generic, so the check comes before publishing |
+| **Rollback after summaries are written.** The approved-version schema is strict: code from before MIU-3 rejects a stored `priceSummary`, so rolling the functions back past MIU-3 after R4 would break every product page and quote | MIU-3 deploys alone first (batch 2a) and writers follow (2b), so rolling back to 2a or later is safe. Never roll back past 2a once summaries exist |
+| Contributors and the Hermes importer publish directly today; DEC-15 refuses that | Decided (OWN-1, OWN-2): contributors' saves become drafts flagged "edited"; Hermes creates drafts once its (currently failing) import is fixed |
+| Adding spec fields to the approval fingerprints causes one CONFLICT for an open review | Deploy with no review open (same as the planner change) |
+
+## 9. Deferred (out of scope, recorded)
+
+- **"Removed" detection.** The sync marks a source as gone only on full runs, which
+  only the timer starts, and the timer is off (`DESIRED_TIMER_TRIGGERS = {}`). The
+  reason value exists; turning detection on is a separate decision.
+- **Operator offer pin** (`alibabaPinnedOfferKey`) is not reflected in the price
+  summary. Rollout step R3 counts pinned products; if any exist, stop and ask.
+- **Product JSON-LD** for approved product pages (today only the legacy page emits it).
+- **Admin "public price" column** next to the live sync price.
+- **Promotion churn** (writes on every sync even when nothing changed).
+- **Lot / kg / set units and other currencies** (§2.4).
+- **Configurations for manual products.** Admin form: needs a new editor (none
+  exists). Excel import: its configuration rows must be carried through manual
+  approval — required before that import runs in production; until then manual
+  approval refuses products with configuration rows (MIU-28).
+- **Related products and the OEM call-to-action** on the shared product page.
+- **Local-only direct-publish paths** (local seed, local Dianxiaomi import CLI) keep
+  writing `published: true` without approval; documented as local-only.
+- **"Needs review only" filter** in the admin list, if the queue grows long.
+
+## 10. Prior decision this reverses
+
+`docs/catalog-price-repair/INVESTIGATION-2026-09-17.md` recorded that lists read the
+canonical product while the product page reads an approved snapshot "so a
+subsequent supplier import cannot silently replace reviewed public content", and
+that approval does not backfill the list price. This design keeps the protection
+and extends it to the list: nothing from the sync reaches any public surface
+without approval. What is reversed is only that the list reads row fields for
+Alibaba-linked products.

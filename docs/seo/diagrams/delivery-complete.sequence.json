@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "完整交付时序：代码、数据、页面、恢复与搜索",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1660, 1040]
+  },
+  "participants": [
+    {
+      "id": "owner",
+      "type": "external",
+      "label": "操作人 / 授权 agent"
+    },
+    {
+      "id": "runner",
+      "type": "backend",
+      "label": "Actions 协调器与日志"
+    },
+    {
+      "id": "artifact",
+      "type": "database",
+      "label": "可信静态 / 函数产物"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "CloudBase 主库 / 独立 PG"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Cloud Functions / API"
+    },
+    {
+      "id": "host",
+      "type": "cloud",
+      "label": "静态托管与发现文件"
+    },
+    {
+      "id": "outside",
+      "type": "external",
+      "label": "访客 / 搜索引擎"
+    }
+  ],
+  "messages": [
+    {
+      "id": "endtoend-0",
+      "from": "owner",
+      "to": "runner",
+      "label": "发布固定 SHA；手动恢复也走同一协调器",
+      "y": 165,
+      "variant": "default"
+    },
+    {
+      "id": "endtoend-1",
+      "from": "runner",
+      "to": "db",
+      "label": "读取内容世代、迁移状态；取得发布协调凭据",
+      "y": 194,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-2",
+      "from": "runner",
+      "to": "api",
+      "label": "读取当前接口版本与恢复兼容证据",
+      "y": 223,
+      "variant": "default"
+    },
+    {
+      "id": "endtoend-3",
+      "from": "runner",
+      "to": "artifact",
+      "label": "核验旧成功产物、备份与新构建产物",
+      "y": 252,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-4",
+      "from": "artifact",
+      "to": "runner",
+      "label": "返回固定来源、hash 和可恢复组件范围",
+      "y": 281,
+      "variant": "return"
+    },
+    {
+      "id": "endtoend-5",
+      "from": "runner",
+      "to": "db",
+      "label": "如需：仅执行已审核的兼容扩展迁移",
+      "y": 310,
+      "variant": "default"
+    },
+    {
+      "id": "endtoend-6",
+      "from": "db",
+      "to": "runner",
+      "label": "记录已完成迁移；业务数据不自动倒退",
+      "y": 339,
+      "variant": "return"
+    },
+    {
+      "id": "endtoend-7",
+      "from": "runner",
+      "to": "api",
+      "label": "记录写入意图后交付接口代码/允许的配置",
+      "y": 368,
+      "variant": "emphasis"
+    },
+    {
+      "id": "endtoend-8",
+      "from": "api",
+      "to": "runner",
+      "label": "读回实际运行版本；未知结果进入失败分类",
+      "y": 397,
+      "variant": "return"
+    },
+    {
+      "id": "endtoend-9",
+      "from": "runner",
+      "to": "host",
+      "label": "先资源，再 HTML，最后一致的发现文件",
+      "y": 426,
+      "variant": "emphasis"
+    },
+    {
+      "id": "endtoend-10",
+      "from": "runner",
+      "to": "host",
+      "label": "普通 URL 与缓存/404/hash 读回",
+      "y": 455,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-11",
+      "from": "runner",
+      "to": "api",
+      "label": "核心接口兼容与业务 happy path 验收",
+      "y": 484,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-12",
+      "from": "runner",
+      "to": "artifact",
+      "label": "验收后先封存候选恢复包，核验固定 artifact 可用",
+      "y": 513,
+      "variant": "emphasis"
+    },
+    {
+      "id": "endtoend-13",
+      "from": "runner",
+      "to": "db",
+      "label": "再条件提交 active 与成功基线；通知失败不回退",
+      "y": 542,
+      "variant": "emphasis"
+    },
+    {
+      "id": "endtoend-14",
+      "from": "runner",
+      "to": "outside",
+      "label": "稳定窗后仅通知仍为当前的实际内容变化",
+      "y": 571,
+      "variant": "default"
+    },
+    {
+      "id": "endtoend-15",
+      "from": "outside",
+      "to": "host",
+      "label": "访客或爬虫 GET 同一公开 URL",
+      "y": 600,
+      "variant": "default"
+    },
+    {
+      "id": "endtoend-16",
+      "from": "host",
+      "to": "outside",
+      "label": "已有 HTML 正文与元数据；不区分爬虫",
+      "y": 629,
+      "variant": "return"
+    },
+    {
+      "id": "endtoend-17",
+      "from": "outside",
+      "to": "api",
+      "label": "React 接管后读取当前 API",
+      "y": 658,
+      "variant": "default"
+    },
+    {
+      "id": "endtoend-18",
+      "from": "api",
+      "to": "outside",
+      "label": "返回当前公开数据；保留既有交互",
+      "y": 687,
+      "variant": "return"
+    },
+    {
+      "id": "endtoend-19",
+      "from": "runner",
+      "to": "artifact",
+      "label": "分支：线上写入后失败，读取相容的恢复基线",
+      "y": 716,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-20",
+      "from": "runner",
+      "to": "db",
+      "label": "分支：检查归属、世代、schema 与数据格式兼容",
+      "y": 745,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-21",
+      "from": "runner",
+      "to": "api",
+      "label": "分支：仅在全部条件满足时恢复允许的函数代码",
+      "y": 774,
+      "variant": "emphasis"
+    },
+    {
+      "id": "endtoend-22",
+      "from": "runner",
+      "to": "host",
+      "label": "分支：恢复静态文件/已审核配置，并验收",
+      "y": 803,
+      "variant": "emphasis"
+    },
+    {
+      "id": "endtoend-23",
+      "from": "runner",
+      "to": "db",
+      "label": "恢复保留扩展 schema 和期间业务写入",
+      "y": 832,
+      "variant": "security"
+    },
+    {
+      "id": "endtoend-24",
+      "from": "runner",
+      "to": "owner",
+      "label": "成功恢复仍报告本次发布失败；不递归恢复",
+      "y": 861,
+      "variant": "return"
+    },
+    {
+      "id": "endtoend-25",
+      "from": "runner",
+      "to": "owner",
+      "label": "条件未知或恢复失败：停报并提供步骤证据",
+      "y": 890,
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "目标设计与条件分支",
+      "items": [
+        "后段恢复只在本次线上写入失败且兼容证据完整时执行；与正常发布共用目标锁。访客可随时抓取。协调日志、函数恢复、数据合同与搜索事件均待实现。"
+      ]
+    }
+  ]
+}

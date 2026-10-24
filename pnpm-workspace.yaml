@@ -1,0 +1,26 @@
+packages:
+  - 'apps/*'
+  - 'apps/functions/*'
+  - 'packages/*'
+
+# Preserve local native tools while preparing the deployed CloudBase Linux ABI.
+supportedArchitectures:
+  os: [current, linux]
+  cpu: [current, x64]
+  libc: [current, glibc]
+
+allowBuilds:
+  '@biomejs/biome': true
+  # Transitive dep of @cloudbase/node-sdk 3.x; its install script only prints
+  # a funding banner, so it stays blocked.
+  core-js-pure: false
+  esbuild: true
+  protobufjs: true
+  sharp: true
+
+# Native packages allowed to run install/build scripts.
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - esbuild
+  - sharp
+  - protobufjs

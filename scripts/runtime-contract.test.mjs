@@ -1,0 +1,353 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
+import { parse } from 'yaml';
+import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
+
+const buildFloor = '22.12.0';
+const functionRequire = createRequire(
+  new URL('../apps/functions/admin/package.json', import.meta.url),
+);
+const { require: tsxRequire } = functionRequire('tsx/cjs/api');
+const rootPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const buildWorkflows = [
+  [
+    'CI',
+    parse(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')),
+    'checks',
+  ],
+  [
+    'Deploy Test',
+    parse(readFileSync(new URL('../.github/workflows/deploy-test.yml', import.meta.url), 'utf8')),
+    'deploy',
+  ],
+];
+const ciJob = buildWorkflows[0][1].jobs?.checks;
+const deployJob = buildWorkflows[1][1].jobs?.deploy;
+const deploySource = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
+const smokeSource = readFileSync(new URL('./smoke-cloudbase-deploy.mjs', import.meta.url), 'utf8');
+const functionBuildConfigs = FUNCTION_NAMES.map((name) => [
+  name,
+  tsxRequire(`../apps/functions/${name}/tsup.config.ts`, import.meta.url).default,
+]);
+
+test('function bundles include every workspace dependency', () => {
+  for (const [name, config] of functionBuildConfigs) {
+    const manifest = JSON.parse(
+      readFileSync(new URL(`../apps/functions/${name}/package.json`, import.meta.url), 'utf8'),
+    );
+    for (const [dependency, version] of Object.entries(manifest.dependencies ?? {})) {
+      if (!version.startsWith('workspace:')) continue;
+      assert.ok(config.noExternal?.includes(dependency), `${name} must bundle ${dependency}`);
+    }
+  }
+});
+
+test('the actual admin cloud entry injects its CloudBase article repository without doing resource setup', async () => {
+  const source = readFileSync(
+    new URL('../apps/functions/admin/src/index.ts', import.meta.url),
+    'utf8',
+  );
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const database = {};
+  const repository = { marker: 'article-repository' };
+  let injected = 0;
+  const sdk = { database: () => database };
+  const preparationAuthority = { marker: 'preparation-authority' };
+  const preparationInvoke = () => {};
+  const modules = {
+    '@vibelingan-channel/db': { setAdapter() {} },
+    '@vibelingan-channel/db/cloudbase': {
+      initCloudBase() {},
+      cloudBaseAdapter: {},
+      cloudStorageSdk: () => sdk,
+    },
+    '@vibelingan-channel/db/article-repository': {
+      createCloudBaseArticleRepository: (value) => {
+        assert.equal(value, database);
+        injected++;
+        return repository;
+      },
+    },
+    '@vibelingan-channel/db/catalog-preparation-authority': {
+      createCatalogPreparationAuthority: (config) => {
+        assert.equal(config.secret, 'test-JWT_SECRET');
+        assert.equal(config.environmentId, 'test-TCB_ENV');
+        return preparationAuthority;
+      },
+    },
+    './catalog-preparation-invoker.ts': {
+      createCatalogPreparationInvoker: (value) => {
+        assert.equal(value, sdk);
+        return preparationInvoke;
+      },
+    },
+    '@vibelingan-channel/media-storage': { setMediaStorage() {} },
+    '@vibelingan-channel/media-storage/cloudbase': { createCloudBaseMediaStorage: () => ({}) },
+    '@vibelingan-channel/shared': {
+      requireEnv: (name) => `test-${name}`,
+      optionalEnv: () => undefined,
+    },
+    './handler.ts': { handleAdminRequest() {} },
+    './http-adapter.ts': { handleAdminFunctionEvent: (_event, config) => config },
+  };
+  const entry = {};
+  runInNewContext(compiled, {
+    exports: entry,
+    require: (name) => {
+      assert.ok(Object.hasOwn(modules, name), `Unexpected runtime import: ${name}`);
+      return modules[name];
+    },
+  });
+  const config = await entry.main({ action: 'health' });
+  assert.equal(config.articleRepository, repository);
+  assert.equal(config.preparationAuthority, preparationAuthority);
+  assert.equal(config.preparationInvoke, preparationInvoke);
+  assert.equal(injected, 1);
+});
+const scriptTrees = [
+  [
+    'deploy',
+    ts.createSourceFile(
+      'deploy-cloudbase-test.mjs',
+      deploySource,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    ),
+  ],
+  [
+    'smoke',
+    ts.createSourceFile(
+      'smoke-cloudbase-deploy.mjs',
+      smokeSource,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    ),
+  ],
+];
+
+function versionTuple(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  assert.ok(match, `expected an exact major.minor.patch version, received ${version}`);
+  return match.slice(1).map(Number);
+}
+
+function compareVersions(left, right) {
+  const leftParts = versionTuple(left);
+  const rightParts = versionTuple(right);
+  for (let index = 0; index < leftParts.length; index += 1) {
+    if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
+  }
+  return 0;
+}
+
+function findUniqueStep(job, predicate, label) {
+  assert.ok(job && Array.isArray(job.steps), `${label} job must define steps`);
+  const matches = job.steps.filter(predicate);
+  assert.equal(matches.length, 1, `${label} must have exactly one matching step`);
+  assert.equal(matches[0].if, undefined, `${label} step must not be conditional`);
+  assert.notEqual(matches[0]['continue-on-error'], true, `${label} step must fail the job`);
+  return matches[0];
+}
+
+function collectNodes(root, predicate) {
+  const matches = [];
+  function visit(node) {
+    if (predicate(node)) matches.push(node);
+    ts.forEachChild(node, visit);
+  }
+  visit(root);
+  return matches;
+}
+
+function assertRuntimeDefault(name, tree) {
+  const declarations = collectNodes(
+    tree,
+    (node) => ts.isVariableDeclaration(node) && node.name.getText(tree) === 'targetRuntime',
+  );
+  assert.equal(declarations.length, 1, `${name} must declare targetRuntime exactly once`);
+
+  const initializer = declarations[0].initializer;
+  assert.ok(ts.isBinaryExpression(initializer), `${name} targetRuntime must have a fallback`);
+  assert.equal(initializer.operatorToken.kind, ts.SyntaxKind.BarBarToken);
+  assert.equal(initializer.left.getText(tree), 'process.env.CLOUDBASE_FUNCTION_RUNTIME');
+  assert.ok(ts.isStringLiteral(initializer.right));
+  assert.equal(initializer.right.text, 'Nodejs20.19');
+
+  const engineReferences = collectNodes(
+    tree,
+    (node) => ts.isPropertyAccessExpression(node) && node.name.text === 'engines',
+  );
+  assert.equal(engineReferences.length, 0, `${name} must not derive runtime from package engines`);
+}
+
+function assertRuntimeComparison(tree, objectName, label) {
+  const matches = collectNodes(tree, (node) => {
+    if (!ts.isBinaryExpression(node)) return false;
+    return (
+      node.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken &&
+      node.left.getText(tree) === `${objectName}.Runtime` &&
+      node.right.getText(tree) === 'targetRuntime'
+    );
+  });
+  assert.equal(matches.length, 1, label);
+}
+
+function assertSiteBuildRuntime(job, name) {
+  findUniqueStep(job, (step) => step.run === 'pnpm build', `${name} site build`);
+  let nodeVersion;
+  for (const step of job.steps) {
+    if (step.uses === 'actions/setup-node@v4') {
+      assert.equal(step.if, undefined, `${name} runtime switches must be unconditional`);
+      assert.notEqual(step['continue-on-error'], true);
+      nodeVersion = step.with?.['node-version'];
+    }
+    if (step.run === 'pnpm build') {
+      assert.ok(nodeVersion, `${name} must pin its site-build Node version`);
+      assert.ok(
+        compareVersions(String(nodeVersion), buildFloor) >= 0,
+        `${name} Node ${nodeVersion} is below the >=${buildFloor} build floor`,
+      );
+    }
+  }
+}
+
+test('site build engine and active workflow Node versions satisfy the Astro build floor', () => {
+  assert.equal(rootPackage.engines?.node, `>=${buildFloor}`);
+
+  for (const [name, workflow, jobName] of buildWorkflows) {
+    const job = workflow.jobs?.[jobName];
+    assert.ok(job, `${name} must define jobs.${jobName}`);
+    assertSiteBuildRuntime(job, name);
+  }
+});
+
+test('the installed source-image HTTP client supports the declared minimum project runtime', () => {
+  const client = functionRequire('undici/package.json');
+  const floor = /^>=(\d+\.\d+\.\d+)$/.exec(client.engines?.node ?? '');
+  assert.ok(floor, 'review the HTTP client runtime range before accepting a new engine contract');
+  assert.ok(
+    compareVersions(buildFloor, floor[1]) >= 0,
+    `undici ${client.version} requires Node ${client.engines.node}, above project floor ${buildFloor}`,
+  );
+});
+
+test('leaving the function smoke runtime active cannot pass the site build gate', () => {
+  for (const [name, workflow, jobName] of buildWorkflows) {
+    const job = structuredClone(workflow.jobs[jobName]);
+    // Keep the setup step in place but corrupt the restore target. An initial
+    // Node 22 setup must not hide the Node 20 still active at the site build.
+    const switches = job.steps.filter((step) => step.uses === 'actions/setup-node@v4');
+    switches.at(-1).with['node-version'] = '20.19.0';
+    assert.throws(() => assertSiteBuildRuntime(job, name), /below the.*build floor/);
+  }
+});
+
+test('code checks have a bounded budget without whole business browser journeys', () => {
+  assert.ok(ciJob['timeout-minutes'] <= 15);
+  assert.equal(
+    ciJob.steps.filter((step) => step.run === 'pnpm test:e2e:catalog-admin-local').length,
+    0,
+  );
+  assert.deepEqual([ciJob.needs].flat(), ['unit']);
+});
+
+test('Deploy Test runs deployment contracts before packaging', () => {
+  assert.deepEqual([ciJob.needs].flat(), ['unit'], 'all unit groups gate the build');
+  assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
+  assert.equal(
+    deployJob.if,
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}",
+    'only the test-branch/full-CI gate may condition deployment',
+  );
+  const contractStep = findUniqueStep(
+    deployJob,
+    (step) => step.run === 'pnpm test:deploy-smoke',
+    'Deploy Test contract gate',
+  );
+  const packageStep = findUniqueStep(
+    deployJob,
+    (step) => step.run === 'pnpm package:functions',
+    'Deploy Test function packaging',
+  );
+
+  assert.ok(
+    deployJob.steps.indexOf(contractStep) < deployJob.steps.indexOf(packageStep),
+    'deployment contract tests must run before packaging',
+  );
+});
+
+test('CloudBase functions retain their independent Nodejs20.19 runtime contract', () => {
+  assert.equal(deployJob.env?.CLOUDBASE_FUNCTION_RUNTIME, 'Nodejs20.19');
+  for (const step of deployJob.steps) {
+    assert.equal(
+      step.env?.CLOUDBASE_FUNCTION_RUNTIME,
+      undefined,
+      `${step.name ?? step.run ?? step.uses} must not override the function runtime`,
+    );
+  }
+
+  for (const [name, tree] of scriptTrees) {
+    assertRuntimeDefault(name, tree);
+  }
+
+  const deployTree = scriptTrees[0][1];
+  const smokeTree = scriptTrees[1][1];
+  const runtimeProperties = collectNodes(
+    deployTree,
+    (node) =>
+      ts.isPropertyAssignment(node) &&
+      node.name.getText(deployTree) === 'runtime' &&
+      node.initializer.getText(deployTree) === 'targetRuntime',
+  );
+  assert.equal(
+    runtimeProperties.length,
+    1,
+    'generated CloudBase config must use the independent function runtime',
+  );
+
+  const runtimeArgumentLists = collectNodes(deployTree, (node) => {
+    if (!ts.isArrayLiteralExpression(node)) return false;
+    return node.elements.some(
+      (element) => ts.isStringLiteral(element) && element.text === '--runtime',
+    );
+  });
+  assert.equal(runtimeArgumentLists.length, 1, 'CloudBase CLI must define one --runtime argument');
+  const runtimeArgumentList = runtimeArgumentLists[0];
+  const runtimeFlagIndex = runtimeArgumentList.elements.findIndex(
+    (element) => ts.isStringLiteral(element) && element.text === '--runtime',
+  );
+  assert.equal(
+    runtimeArgumentList.elements[runtimeFlagIndex + 1]?.getText(deployTree),
+    'targetRuntime',
+    'CloudBase CLI deploy must use the independent function runtime',
+  );
+
+  assertRuntimeComparison(deployTree, 'before', 'deployment must reject existing runtime drift');
+  assertRuntimeComparison(
+    deployTree,
+    'after',
+    'deployment must verify the resulting function runtime',
+  );
+  assertRuntimeComparison(
+    deployTree,
+    'configAfter',
+    'deployment must verify the resulting function config runtime',
+  );
+  assertRuntimeComparison(
+    smokeTree,
+    'detail',
+    'deployment smoke must verify the live function runtime',
+  );
+
+  for (const [name, config] of functionBuildConfigs) {
+    assert.equal(config.target, 'node20', `${name} function bundle must target Node 20`);
+  }
+});

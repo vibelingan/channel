@@ -1,0 +1,523 @@
+---
+import { getCatalogContent } from '../i18n/catalog.ts';
+import type { NavItem, SiteContent } from '../i18n/site.ts';
+import { AccountMenu } from '../islands/auth/AccountMenu.tsx';
+import { orderPrimaryNavItems } from '../lib/site-navigation.ts';
+
+interface Props {
+  brand: SiteContent['brand'];
+  nav: SiteContent['nav'];
+  /** Retained for hidden legacy route compatibility. */
+  showName?: boolean;
+}
+
+const { brand, nav } = Astro.props;
+const catalog = getCatalogContent();
+const catalogPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+// Auth-related nav entries are handled by the AccountMenu island instead.
+const AUTH_HREFS = ['/admin', '/login', '/register'];
+const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
+const orderedMenuItems = orderPrimaryNavItems(menuItems);
+const catalogPosition = orderedMenuItems.findIndex((item) => item.href === '/headphones');
+const beforeCatalog = orderedMenuItems.slice(0, Math.max(0, catalogPosition));
+const afterCatalog = orderedMenuItems
+  .filter((item) => item.href !== '/headphones')
+  .slice(beforeCatalog.length);
+
+// The server-rendered default is the native mobile disclosure, so navigation
+// remains available without JavaScript. The client enables the desktop lane
+// only after measuring the legal brand, all links, hydrated account controls,
+// fonts, and gutters.
+---
+
+<header
+  class="fixed inset-x-0 top-0 z-50 border-b-2 border-brand-700 bg-white/95 backdrop-blur-md shadow-[var(--shadow-header)]"
+  data-site-header
+>
+  <div
+    class="mx-auto flex h-[var(--spacing-header)] max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
+  >
+    <!-- Public brand: approved CHANNEL wordmark with the legal company name. -->
+    <a
+      href="/"
+      class="flex min-w-0 shrink-0 items-center gap-2 xl:max-w-[25rem]"
+      aria-label={`${brand.name} home`}
+      data-brand-link
+    >
+      {
+        brand.logo ? (
+          <img
+            src={brand.logo}
+            alt=""
+            width="226"
+            height="30"
+            class="h-4 w-auto shrink-0 min-[360px]:h-5 sm:h-7 2xl:h-8"
+            aria-hidden="true"
+          />
+        ) : (
+          <span
+            class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-700 font-display text-sm font-bold text-white"
+            aria-hidden="true"
+          >
+            {brand.logoInitials}
+          </span>
+        )
+      }
+      <span
+        class="max-w-24 text-[10px] font-semibold leading-tight text-ink min-[360px]:max-w-28 sm:max-w-none sm:whitespace-nowrap sm:text-xs lg:text-sm xl:text-xs 2xl:text-sm"
+        aria-hidden="true"
+        data-company-name
+      >
+        {brand.name}
+      </span>
+    </a>
+
+    <!-- Primary navigation (hidden below the measured 1360px fit threshold) -->
+    <nav class="header-desktop-nav shrink-0 items-center gap-1" aria-label="Primary" data-primary-nav>
+      {beforeCatalog.map((item) => (
+        <a href={item.href} class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700">
+          {item.label}
+        </a>
+      ))}
+      <details class="relative" data-catalog-disclosure="desktop">
+        <summary
+          class="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+          aria-label={`Browse ${catalog.menu.label}`}
+        >
+          {catalog.menu.label}
+          <svg aria-hidden="true" class="h-4 w-4 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="absolute left-0 top-[calc(100%+0.5rem)] max-h-[calc(100dvh-var(--spacing-header)-1rem)] w-72 overflow-y-auto overscroll-contain border border-slate-200 bg-white p-2 shadow-xl" data-catalog-menu>
+          <a
+            href="/electronics-toys/"
+            aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
+            class:list={[
+              'block min-h-11 rounded-md px-3 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
+              { 'bg-brand-50 ring-1 ring-inset ring-brand-200': catalogPath === '/electronics-toys' },
+            ]}
+          >
+            {catalog.menu.allLabel}
+          </a>
+          <div class="my-1 border-t border-slate-100"></div>
+          {catalog.families.map((family) => (
+            <div data-taxonomy-family={family.key}>
+            <a
+              href={family.href}
+              aria-current={catalogPath === family.href.replace(/\/$/, '') ? 'page' : undefined}
+              class:list={[
+                'block min-h-11 rounded-md px-3 py-2.5 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
+                {
+                  'bg-brand-50 ring-1 ring-inset ring-brand-200':
+                    catalogPath === family.href.replace(/\/$/, ''),
+                },
+              ]}
+            >
+              <span class="block break-words text-sm font-semibold text-ink" data-taxonomy-name>{family.label}</span>
+              <span class="mt-0.5 block text-xs leading-snug text-ink-soft">{family.description}</span>
+            </a>
+            <div class="ml-4 border-l border-slate-200 pl-2" data-taxonomy-children></div>
+            <p hidden role="alert" class="px-3 text-sm text-red-800" data-taxonomy-error>{catalog.list.filterLabel}: {catalog.list.errorLabel}</p>
+            <button hidden type="button" class="min-h-11 px-3 text-sm font-semibold text-brand-700 underline" data-taxonomy-retry>{catalog.list.retryLabel}</button>
+            </div>
+          ))}
+        </div>
+      </details>
+      {
+        afterCatalog.map((item) => (
+          <a
+            href={item.href}
+            class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <!-- Account controls (right) + mobile menu toggle -->
+    <div class="flex shrink-0 items-center gap-2" data-account-controls>
+      <span class="header-desktop-account"><AccountMenu client:only="react" /></span>
+      <details class="header-mobile-disclosure" data-mobile-disclosure>
+        <summary
+          class="header-mobile-toggle inline-flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50"
+          aria-label="Toggle menu"
+          aria-controls="mobile-menu"
+          data-menu-toggle
+        >
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </summary>
+
+        <nav
+          id="mobile-menu"
+          class="header-mobile-menu absolute inset-x-0 top-full border-t border-slate-200 bg-white px-4 pb-4 pt-2"
+          aria-label="Mobile"
+          data-mobile-menu
+        >
+          {beforeCatalog.map((item) => (
+            <a href={item.href} class="block min-h-11 rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700">
+              {item.label}
+            </a>
+          ))}
+          <details class="border-b border-slate-100" data-catalog-disclosure="mobile">
+            <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 py-3 text-base font-semibold text-ink-soft hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-700">
+              {catalog.menu.label}
+              <svg aria-hidden="true" class="h-5 w-5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+              </svg>
+            </summary>
+            <div class="pb-2 pl-3" data-catalog-menu>
+              <a
+                href="/electronics-toys/"
+                aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
+                class:list={[
+                  'block min-h-11 rounded-lg px-3 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
+                  { 'bg-brand-50 ring-1 ring-inset ring-brand-200': catalogPath === '/electronics-toys' },
+                ]}
+              >
+                {catalog.menu.allLabel}
+              </a>
+              {catalog.families.map((family) => (
+                <div data-taxonomy-family={family.key}>
+                <a
+                  href={family.href}
+                  aria-current={catalogPath === family.href.replace(/\/$/, '') ? 'page' : undefined}
+                  class:list={[
+                    'block min-h-11 rounded-lg px-3 py-3 text-sm font-medium text-ink-soft hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-700',
+                    {
+                      'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200':
+                        catalogPath === family.href.replace(/\/$/, ''),
+                    },
+                  ]}
+                >
+                  <span class="break-words" data-taxonomy-name>{family.label}</span>
+                </a>
+                <div class="ml-4 border-l border-slate-200 pl-2" data-taxonomy-children></div>
+                <p hidden role="alert" class="px-3 text-sm text-red-800" data-taxonomy-error>{catalog.list.filterLabel}: {catalog.list.errorLabel}</p>
+                <button hidden type="button" class="min-h-11 px-3 text-sm font-semibold text-brand-700 underline" data-taxonomy-retry>{catalog.list.retryLabel}</button>
+                </div>
+              ))}
+            </div>
+          </details>
+          {
+            afterCatalog.map((item) => (
+              <a
+                href={item.href}
+                class="block rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
+              >
+                {item.label}
+              </a>
+            ))
+          }
+          <div class="mt-2 border-t border-slate-100 pt-3">
+            <AccountMenu layout="navigation" client:only="react" />
+          </div>
+        </nav>
+      </details>
+    </div>
+  </div>
+</header>
+
+<!-- Spacer so fixed header doesn't overlap page content -->
+<div class="h-[var(--spacing-header)]" aria-hidden="true"></div>
+
+<script>
+  import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
+  import { fetchCatalogTaxonomy } from '../islands/shop/catalog-taxonomy.ts';
+
+  const header = document.querySelector<HTMLElement>('[data-site-header]');
+  const layout = header?.firstElementChild as HTMLElement | null;
+  const brand = header?.querySelector<HTMLElement>('[data-brand-link]');
+  const desktopNav = header?.querySelector<HTMLElement>('[data-primary-nav]');
+  const desktopAccount = header?.querySelector<HTMLElement>('.header-desktop-account');
+  const mobileDisclosure = header?.querySelector<HTMLDetailsElement>('[data-mobile-disclosure]');
+  const mobileToggle = header?.querySelector<HTMLElement>('[data-menu-toggle]');
+  const catalogDisclosures = [
+    ...(header?.querySelectorAll<HTMLDetailsElement>('[data-catalog-disclosure]') ?? []),
+  ];
+  const dismissibleDisclosures = [
+    ...(mobileDisclosure ? [mobileDisclosure] : []),
+    ...catalogDisclosures,
+  ];
+  let fitFrame = 0;
+  const taxonomyRequests = new Map<ProductFamily, AbortController>();
+
+  async function loadMenuTaxonomy(family: ProductFamily) {
+    taxonomyRequests.get(family)?.abort();
+    const controller = new AbortController();
+    taxonomyRequests.set(family, controller);
+    const groups = [...(header?.querySelectorAll<HTMLElement>(`[data-taxonomy-family="${family}"]`) ?? [])];
+    for (const group of groups) {
+      const retry = group.querySelector<HTMLButtonElement>('[data-taxonomy-retry]');
+      if (retry) retry.disabled = true;
+    }
+    try {
+      const registry = await fetchCatalogTaxonomy(family, controller.signal);
+      if (controller.signal.aborted) return;
+      for (const group of groups) {
+        const name = group.querySelector<HTMLElement>('[data-taxonomy-name]');
+        const parentLink = group.querySelector<HTMLAnchorElement>('a');
+        const children = group.querySelector<HTMLElement>('[data-taxonomy-children]');
+        if (name) name.textContent = registry.name;
+        if (!parentLink || !children) continue;
+        children.replaceChildren(...registry.children.map((child) => {
+          const link = document.createElement('a');
+          const url = new URL(parentLink.href);
+          url.searchParams.set('category', child.id);
+          url.searchParams.set('page', '1');
+          link.href = `${url.pathname}${url.search}`;
+          link.textContent = child.name;
+          link.className = 'block min-h-11 break-words rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700';
+          return link;
+        }));
+        for (const element of group.querySelectorAll<HTMLElement>('[data-taxonomy-error], [data-taxonomy-retry]')) element.hidden = true;
+      }
+      scheduleHeaderFit();
+    } catch {
+      if (controller.signal.aborted) return;
+      for (const group of groups) {
+        group.querySelector('[data-taxonomy-children]')?.replaceChildren();
+        for (const element of group.querySelectorAll<HTMLElement>('[data-taxonomy-error], [data-taxonomy-retry]')) element.hidden = false;
+        const retry = group.querySelector<HTMLButtonElement>('[data-taxonomy-retry]');
+        if (retry) retry.disabled = false;
+      }
+    }
+  }
+
+  const menuFamilies = new Set([...header?.querySelectorAll<HTMLElement>('[data-taxonomy-family]') ?? []].map((group) => group.dataset.taxonomyFamily));
+  for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  header?.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    const family = event.target.closest('[data-taxonomy-retry]')?.closest<HTMLElement>('[data-taxonomy-family]')?.dataset.taxonomyFamily;
+    if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  });
+  const abortTaxonomies = () => {
+    for (const controller of taxonomyRequests.values()) controller.abort();
+  };
+  window.addEventListener('pagehide', abortTaxonomies);
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  });
+  document.addEventListener('astro:before-swap', abortTaxonomies);
+
+  function focusForDesktop(previousFocus: Element | null) {
+    if (!(previousFocus instanceof HTMLElement) || !mobileDisclosure?.contains(previousFocus)) {
+      return;
+    }
+    const href = previousFocus.closest('a')?.getAttribute('href');
+    const target = href
+      ? (desktopNav?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
+        desktopAccount?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
+        desktopAccount?.querySelector<HTMLElement>('[data-account-trigger], a'))
+      : (desktopAccount?.querySelector<HTMLElement>('[data-account-trigger], a') ?? brand);
+    target?.closest<HTMLDetailsElement>('[data-catalog-disclosure]')?.setAttribute('open', '');
+    target?.focus({ preventScroll: true });
+  }
+
+  function focusForMobile(previousFocus: Element | null) {
+    if (!(previousFocus instanceof HTMLElement)) return;
+    if (!desktopNav?.contains(previousFocus) && !desktopAccount?.contains(previousFocus)) return;
+
+    const href = previousFocus.closest('a')?.getAttribute('href');
+    mobileDisclosure?.setAttribute('open', '');
+    const target = href
+      ? (mobileDisclosure?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
+        mobileDisclosure?.querySelector<HTMLElement>('[data-account-trigger], [data-account-menu] a'))
+      : mobileDisclosure?.querySelector<HTMLElement>('[data-account-trigger], [data-account-menu] a');
+    target?.closest<HTMLDetailsElement>('[data-catalog-disclosure]')?.setAttribute('open', '');
+    (target ?? mobileToggle)?.focus({ preventScroll: true });
+  }
+
+  function desktopFits(): boolean {
+    // Ask the SAME question the stylesheet asks. `window.innerWidth` excludes the
+    // scrollbar, so at the boundary it can disagree with the media query and the
+    // script would force the mobile lane onto a header CSS had already laid out
+    // for desktop.
+    if (
+      !layout ||
+      !brand ||
+      !desktopNav ||
+      !desktopAccount ||
+      !window.matchMedia('(min-width: 1360px)').matches
+    ) {
+      return false;
+    }
+    const style = getComputedStyle(layout);
+    const available =
+      layout.clientWidth -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight);
+    const gap = Number.parseFloat(style.columnGap) || 0;
+    const required =
+      brand.getBoundingClientRect().width +
+      desktopNav.getBoundingClientRect().width +
+      desktopAccount.getBoundingClientRect().width +
+      gap * 2;
+    return required <= available;
+  }
+
+  function syncHeaderMode() {
+    if (!header || !mobileDisclosure) return;
+    const previousFocus = document.activeElement;
+    const nextMode = desktopFits() ? 'desktop' : 'mobile';
+    // Idempotent, not transition-only: the mobile disclosure must never remain open
+    // while the desktop lane is showing. Relying on the mode transition alone left it
+    // open whenever a resize run was coalesced or missed.
+    if (nextMode === 'desktop' && mobileDisclosure.open) mobileDisclosure.open = false;
+    const previousMode = header.dataset.headerMode;
+    if (nextMode === previousMode) return;
+
+    if (nextMode === 'desktop') {
+      header.dataset.headerMode = 'desktop';
+      mobileDisclosure.open = false;
+      // Closing the disclosure blurs whatever was focused inside it, and that blur
+      // lands after this call stack. Restore focus on the next frame, once the lane
+      // has settled, or the browser drops focus to <body> right after we set it.
+      window.requestAnimationFrame(() => focusForDesktop(previousFocus));
+      return;
+    }
+
+    header.dataset.headerMode = 'mobile';
+    focusForMobile(previousFocus);
+  }
+
+  function scheduleHeaderFit() {
+    window.cancelAnimationFrame(fitFrame);
+    fitFrame = window.requestAnimationFrame(syncHeaderMode);
+  }
+
+  // Account links hydrate after this script. Delegate without preventing the
+  // anchor's native navigation, rather than binding only the initial HTML links.
+  mobileDisclosure?.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a[href]')) {
+      mobileDisclosure.open = false;
+    }
+  });
+
+  for (const disclosure of catalogDisclosures) {
+    disclosure.addEventListener('toggle', () => {
+      if (!disclosure.open) return;
+      for (const other of catalogDisclosures) {
+        if (other !== disclosure) other.open = false;
+      }
+    });
+    disclosure.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('a[href]')) disclosure.open = false;
+    });
+  }
+  for (const disclosure of dismissibleDisclosures) {
+    disclosure.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !disclosure.open) return;
+      event.stopPropagation();
+      disclosure.open = false;
+      disclosure.querySelector<HTMLElement>(':scope > summary')?.focus();
+    });
+    disclosure.addEventListener('focusout', () => {
+      window.setTimeout(() => {
+        if (!disclosure.contains(document.activeElement)) disclosure.open = false;
+      }, 0);
+    });
+  }
+  document.addEventListener('pointerdown', (event) => {
+    for (const disclosure of dismissibleDisclosures) {
+      if (!disclosure.contains(event.target as Node)) disclosure.open = false;
+    }
+  });
+
+  const resizeObserver = new ResizeObserver(scheduleHeaderFit);
+  for (const element of [layout, brand, desktopNav, desktopAccount]) {
+    if (element) resizeObserver.observe(element);
+  }
+  if (desktopAccount) {
+    new MutationObserver(scheduleHeaderFit).observe(desktopAccount, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  }
+  window.addEventListener('resize', scheduleHeaderFit, { passive: true });
+  window.addEventListener('channel:auth', scheduleHeaderFit);
+  document.fonts?.ready.then(scheduleHeaderFit);
+  scheduleHeaderFit();
+</script>
+
+<style>
+  .header-desktop-nav {
+    display: flex;
+    position: fixed;
+    inset: 0 auto auto 0;
+    visibility: hidden;
+    width: max-content;
+    pointer-events: none;
+  }
+
+  .header-desktop-account {
+    position: fixed;
+    inset: 0 auto auto 0;
+    visibility: hidden;
+    width: max-content;
+    pointer-events: none;
+    /* Reserve the account control's footprint. AccountMenu is a client-only island,
+       so it contributes 0px until React hydrates. Without this reservation the flex
+       row rebalances when it appears and the centre nav slides ~80px left, landing
+       clicks on the neighbouring link. Reserving >= the rendered width keeps the
+       used width constant before and after hydration. */
+    min-width: 10.5rem;
+  }
+
+  .header-mobile-disclosure summary::-webkit-details-marker {
+    display: none;
+  }
+
+  [data-catalog-disclosure] summary::-webkit-details-marker {
+    display: none;
+  }
+
+  [data-catalog-disclosure][open] > summary svg {
+    transform: rotate(180deg);
+  }
+
+  .header-mobile-menu {
+    max-height: calc(100dvh - var(--spacing-header));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-site-header][data-header-mode='desktop'] .header-desktop-nav {
+    position: static;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  [data-site-header][data-header-mode='desktop'] .header-desktop-account {
+    position: static;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  [data-site-header][data-header-mode='desktop'] .header-mobile-disclosure {
+    display: none;
+  }
+
+  /* First paint must already match the settled layout. The 1360px threshold mirrors
+     the JS fit check, so the common case needs no JS at all and nothing pops in.
+     JS still measures and can force the mobile lane when the desktop lane genuinely
+     does not fit (long brand strings, wide account controls). */
+  @media (min-width: 1360px) {
+    [data-site-header]:not([data-header-mode='mobile']) .header-desktop-nav,
+    [data-site-header]:not([data-header-mode='mobile']) .header-desktop-account {
+      position: static;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    [data-site-header]:not([data-header-mode='mobile']) .header-mobile-disclosure {
+      display: none;
+    }
+  }
+</style>

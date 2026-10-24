@@ -1,0 +1,1384 @@
+import { useQuery } from '@tanstack/react-query';
+import {
+  type CollectionDef,
+  type CollectionDoc,
+  type FieldDef,
+  LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  MAX_PRODUCT_SUBCATEGORIES,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  type ProductFamily,
+  isProductFamily,
+  needsCategoryReview,
+  readProductSubcategories,
+  validateProductSubcategories,
+} from '@vibelingan-channel/shared';
+import {
+  type ConfigurationPhotos,
+  ConfigurationPhotosSchema,
+  type SupplierReview,
+  type SupplierReviewPart,
+  type SupplierReviewPartName,
+} from '@vibelingan-channel/shared/catalog-supplier-review';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { Select } from '../../components/form/Select.tsx';
+import { AlibabaPhotoPicker, type AlibabaPhotoSource } from './AlibabaPhotoPicker.tsx';
+import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
+import { FileDownloadLink } from './FileDownloadLink.tsx';
+import { ImageManager } from './ImageManager.tsx';
+import { ImageViewer, PreviewImageContent } from './ImageViewer.tsx';
+import { ProductPricingEditor } from './ProductPricingEditor.tsx';
+import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
+import { SavedClassificationSummary } from './SavedClassificationSummary.tsx';
+import { SupplierChangesPanel } from './SupplierChangesPanel.tsx';
+import { useAdminDraftExport } from './admin-draft-recovery.ts';
+import {
+  importAlibabaSourceImage,
+  removeAlibabaImportedImage,
+} from './alibaba-catalog-sync/alibaba-api.ts';
+import { importAlibabaGallery } from './alibaba-gallery-import.ts';
+import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+import { AdminApiError, fetchPhotoSources, fetchSupplierReview } from './api.ts';
+import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
+import {
+  PENDING_SUPPLIER_CHANGE_NOTICE,
+  pendingSupplierChange,
+  reviewLabel,
+} from './review-reason.ts';
+import { type SupplierChoices, withSupplierChoices } from './supplier-review-ui.ts';
+import { taxonomyQuery } from './taxonomy-ui-state.ts';
+import { useModalDialog } from './use-modal-dialog.ts';
+
+interface RecordFormProps {
+  collection: CollectionDef;
+  title: string;
+  initial?: CollectionDoc;
+  defaults?: Record<string, unknown>;
+  /** Admin-only: the registry read behind the summary is forbidden for contributors. */
+  showSavedClassification?: boolean;
+  submitting: boolean;
+  error: Error | null;
+  onSubmit: (values: Record<string, unknown>) => void;
+  onCancel: () => void;
+  /** Opens the preview, which shows what changed on Alibaba (DEC-12). */
+  onSeeChanges?: () => void;
+  /** Admins see the supplier review and configuration photos (DEC-19, DEC-20). */
+  canReviewSupplier?: boolean;
+  /** Why this record cannot be saved by the current user; Save is disabled. */
+  readOnlyReason?: string;
+  closeBlockedReason?: string;
+  protectEdits?: boolean;
+  recovery?: (
+    readDraft: () => Readonly<Record<string, string | boolean>>,
+    cleanupCandidates: () => Promise<void>,
+  ) => ReactNode;
+}
+
+type PhotoField = 'imageIds' | 'descriptionImageIds';
+
+type FormState = Record<string, string | boolean>;
+
+interface ProductFormSection {
+  heading: string;
+  fields: FieldDef[];
+}
+
+const PRODUCT_SECTION_FIELDS = [
+  { heading: 'Identity', fields: ['productFamily', 'category', 'skuCode', 'slug'] },
+  { heading: 'Content', fields: ['name', 'series', 'modName', 'modType', 'description'] },
+  { heading: 'Media', fields: ['imageIds', 'descriptionImageIds'] },
+  {
+    heading: 'Pricing & Order',
+    fields: ['catalogPricingMode', 'moq', 'unitPrice', 'wholesalePrice', 'manualCatalogPricing'],
+  },
+  { heading: 'Lifecycle', fields: ['published', 'archived'] },
+] as const;
+
+export function productEditableFields(collection: CollectionDef): FieldDef[] {
+  return collection.fields.filter((field) => !field.readOnly && !field.hideInForm);
+}
+
+export function productFormSections(collection: CollectionDef): ProductFormSection[] {
+  if (collection.name !== 'products') return [];
+  const editable = new Map(productEditableFields(collection).map((field) => [field.name, field]));
+  return PRODUCT_SECTION_FIELDS.map((section) => ({
+    heading: section.heading,
+    fields: section.fields.flatMap((name) => editable.get(name) ?? []),
+  })).filter((section) => section.fields.length > 0);
+}
+
+export function productFamilyTransition(
+  state: FormState,
+  nextFamily: ProductFamily,
+): { patch: FormState; announcement: string } {
+  const category = String(state.category ?? '');
+  const clearCategory =
+    nextFamily !== 'headphones' &&
+    (LEGACY_HEADPHONES_CATEGORY_OPTIONS as readonly string[]).includes(category);
+  return {
+    patch: { productFamily: nextFamily, ...(clearCategory ? { category: '' } : {}) },
+    announcement: clearCategory ? 'Subcategory cleared because it applies only to Headphones.' : '',
+  };
+}
+
+export function productFormErrorTargets(error: Error | null): Record<string, string> {
+  if (!(error instanceof AdminApiError)) return {};
+  if (error.code === 'CONFLICT' && !/slug|sku/i.test(error.message)) return {};
+  const targets: Record<string, string> = {};
+  for (const message of error.message
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)) {
+    const lower = message.toLowerCase();
+    const field = lower.includes('slug')
+      ? 'slug'
+      : lower.includes('sku')
+        ? 'skuCode'
+        : lower.includes('image')
+          ? 'imageIds'
+          : lower.includes('family')
+            ? 'productFamily'
+            : lower.includes('description')
+              ? 'description'
+              : lower.includes('pricing') || lower.includes('tier')
+                ? 'manualCatalogPricing'
+                : lower.includes('archiv')
+                  ? 'archived'
+                  : lower.includes('name')
+                    ? 'name'
+                    : null;
+    if (field) targets[field] = message;
+  }
+  return targets;
+}
+
+function initialState(
+  collection: CollectionDef,
+  initial?: CollectionDoc,
+  defaults: Record<string, unknown> = {},
+): FormState {
+  const state: FormState = {};
+  for (const field of collection.fields) {
+    if (field.readOnly) continue;
+    const raw = initial?.[field.name] ?? defaults[field.name];
+    if (field.type === 'boolean') {
+      state[field.name] = Boolean(raw);
+    } else if (field.type === 'json') {
+      state[field.name] =
+        raw === undefined || (field.name === 'manualCatalogPricing' && raw === '')
+          ? ''
+          : JSON.stringify(raw, null, 2);
+    } else {
+      state[field.name] = raw === undefined || raw === null ? '' : String(raw);
+    }
+  }
+  return state;
+}
+
+export function RecordForm({
+  collection,
+  title,
+  initial,
+  defaults,
+  showSavedClassification = false,
+  submitting,
+  error,
+  onSubmit,
+  onCancel,
+  onSeeChanges,
+  canReviewSupplier = false,
+  readOnlyReason,
+  closeBlockedReason,
+  protectEdits = false,
+  recovery,
+}: RecordFormProps) {
+  const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
+  // Async imports must include selection changes that have not rendered yet.
+  const photoValuesRef = useRef({
+    imageIds: state.imageIds,
+    descriptionImageIds: state.descriptionImageIds,
+  });
+  photoValuesRef.current = {
+    imageIds: state.imageIds,
+    descriptionImageIds: state.descriptionImageIds,
+  };
+  const [localError, setLocalError] = useState('');
+  useEffect(() => {
+    if (error || !closeBlockedReason) setLocalError('');
+  }, [error, closeBlockedReason]);
+  const [fieldAnnouncement, setFieldAnnouncement] = useState('');
+  const [imageBusy, setImageBusy] = useState(false);
+  const [descriptionImageBusy, setDescriptionImageBusy] = useState(false);
+  const [sourceImageBusy, setSourceImageBusy] = useState(false);
+  const [sourceImageNotice, setSourceImageNotice] = useState('');
+  const [newSourceImageIds, setNewSourceImageIds] = useState<string[]>([]);
+  const [pricingInvalid, setPricingInvalid] = useState(false);
+  const [mappingInvalid, setMappingInvalid] = useState(
+    collection.name === 'sourceCategoryMappings',
+  );
+  const [discardRequested, setDiscardRequested] = useState(false);
+  const [sourcePreviewId, setSourcePreviewId] = useState<string>();
+  const dialogRef = useModalDialog();
+  const initialStateRef = useRef(state);
+  const cancelInFlight = useRef(false);
+  const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
+  // Only while Save would keep the product live; unticking Published unpublishes instead.
+  const supplierChange =
+    initial && state.published !== false ? pendingSupplierChange(initial) : null;
+  const supplierChangeId = useId();
+  // Supplier review (DEC-19) and configuration photos (DEC-20), admins only.
+  const linkedProductId =
+    collection.name === 'products' && initial && typeof initial.alibabaPrimarySourceKey === 'string'
+      ? initial._id
+      : undefined;
+  const [supplierReviewAttempt, setSupplierReviewAttempt] = useState(0);
+  const supplierReviewAttemptRef = useRef(supplierReviewAttempt);
+  supplierReviewAttemptRef.current = supplierReviewAttempt;
+  const [supplierReview, setSupplierReview] = useState<{
+    data?: SupplierReview;
+    isError?: boolean;
+    loading?: boolean;
+  }>({});
+  useEffect(() => {
+    if (!canReviewSupplier || linkedProductId === undefined) {
+      setSupplierReview({});
+      return;
+    }
+    let cancelled = false;
+    setSupplierReview({ loading: true });
+    fetchSupplierReview(linkedProductId).then(
+      (data) => {
+        if (!cancelled && supplierReviewAttemptRef.current === supplierReviewAttempt)
+          setSupplierReview({ data });
+      },
+      () => {
+        if (!cancelled && supplierReviewAttemptRef.current === supplierReviewAttempt)
+          setSupplierReview({ isError: true });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canReviewSupplier, linkedProductId, supplierReviewAttempt]);
+  // Every Alibaba photo, for adding ones beyond those filled automatically.
+  const [photoSources, setPhotoSources] = useState<Awaited<
+    ReturnType<typeof fetchPhotoSources>
+  > | null>(null);
+  const [photoSourcesAttempt, setPhotoSourcesAttempt] = useState(0);
+  const photoSourcesAttemptRef = useRef(photoSourcesAttempt);
+  photoSourcesAttemptRef.current = photoSourcesAttempt;
+  const [photoSourcesState, setPhotoSourcesState] = useState<
+    'idle' | 'loading' | 'error' | 'ready'
+  >('idle');
+  const [photoAddBusy, setPhotoAddBusy] = useState<{ field: PhotoField; url: string } | null>(null);
+  useEffect(() => {
+    if (!canReviewSupplier || linkedProductId === undefined) {
+      setPhotoSources(null);
+      setPhotoSourcesState('idle');
+      return;
+    }
+    let cancelled = false;
+    setPhotoSources(null);
+    setPhotoSourcesState('loading');
+    fetchPhotoSources(linkedProductId).then(
+      (data) => {
+        if (!cancelled && photoSourcesAttemptRef.current === photoSourcesAttempt) {
+          setPhotoSources(data);
+          setPhotoSourcesState('ready');
+        }
+      },
+      () => {
+        if (!cancelled && photoSourcesAttemptRef.current === photoSourcesAttempt)
+          setPhotoSourcesState('error');
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canReviewSupplier, linkedProductId, photoSourcesAttempt]);
+  const [supplierChoices, setSupplierChoices] = useState<SupplierChoices>({});
+  const [supplierBusy, setSupplierBusy] = useState<SupplierReviewPartName | null>(null);
+  const [supplierError, setSupplierError] = useState('');
+  const [configurationPhotos, setConfigurationPhotos] = useState<ConfigurationPhotos>();
+  // Importing Alibaba's photos blocks Save and Close like any media import.
+  const busy = submitting || mediaBusy || supplierBusy !== null || photoAddBusy !== null;
+  const flaggedForSupplier =
+    initial !== undefined && ['Changed', 'Removed'].includes(String(reviewLabel(initial)));
+  const dirty =
+    JSON.stringify(state) !== JSON.stringify(initialStateRef.current) ||
+    Object.keys(supplierChoices).length > 0 ||
+    configurationPhotos !== undefined;
+  useEffect(() => {
+    if (!protectEdits || (!dirty && !closeBlockedReason)) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [protectEdits, dirty, closeBlockedReason]);
+
+  function setField(name: string, value: string | boolean) {
+    if (name === 'imageIds' || name === 'descriptionImageIds') photoValuesRef.current[name] = value;
+    if (collection.name === 'sourceCategoryMappings' && name === 'productFamily') {
+      if (value === state.productFamily) return;
+      setFieldAnnouncement(
+        'Draft subcategories cleared for the new main category. Mapping not saved.',
+      );
+      setState((prev) => ({
+        ...prev,
+        productFamily: value,
+        subcategoryIds: '[]',
+        channelCategory: '',
+      }));
+      return;
+    }
+    if (collection.name === 'products' && name === 'productFamily') {
+      const transition = productFamilyTransition(state, value as ProductFamily);
+      setFieldAnnouncement(transition.announcement);
+      setState((prev) => ({ ...prev, ...transition.patch }));
+      return;
+    }
+    setState((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || pricingInvalid || mappingInvalid || discardRequested || readOnlyReason) return;
+    setLocalError('');
+    try {
+      const values = withSupplierChoices(
+        coerceValues(collection, state, initial),
+        initial,
+        supplierChoices,
+        configurationPhotos,
+      );
+      onSubmit(values);
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Invalid input');
+    }
+  }
+
+  const sourcePreviewUrls = alibabaSourcePreviewUrls(initial?.alibabaSourceImageUrls, 9);
+  const sourcePreviewUrl = sourcePreviewUrls[0];
+  const descriptionPreview = alibabaSourcePreviewInfo(
+    initial?.alibabaDescriptionImageUrls,
+    PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  );
+  const descriptionPreviewUrls = descriptionPreview.urls;
+  const descriptionSourceOverflow = descriptionPreview.total > descriptionPreviewUrls.length;
+
+  const photoField = (part: SupplierReviewPartName) =>
+    part === 'gallery' ? 'imageIds' : 'descriptionImageIds';
+  function keepWebsite(part: SupplierReviewPart) {
+    if (busy || discardRequested || readOnlyReason) return;
+    // Undo an earlier "Use Alibaba's" in this form; other edits stay.
+    if (supplierChoices[part.part]?.choice === 'incoming') {
+      if (part.part === 'description') setField('description', part.website.text ?? '');
+      else setField(photoField(part.part), JSON.stringify(part.website.imageIds ?? []));
+    }
+    setSupplierChoices((current) => ({
+      ...current,
+      [part.part]: { choice: 'keep', incomingDigest: part.incomingDigest },
+    }));
+  }
+  async function useIncoming(part: SupplierReviewPart) {
+    if (busy || discardRequested || readOnlyReason) return;
+    setSupplierError('');
+    if (part.part === 'description') {
+      setField('description', part.incoming.text ?? '');
+    } else {
+      setSupplierBusy(part.part);
+      try {
+        const result = await importAlibabaGallery({
+          sourceUrls: part.incoming.urls ?? [],
+          maxItems: part.part === 'gallery' ? 9 : 18,
+          imageIds: [],
+          importImage: importAlibabaSourceImage,
+          onProgress: () => {},
+        });
+        setNewSourceImageIds((ids) => [...new Set([...ids, ...result.createdIds])]);
+        if (result.failures.length || result.remaining || result.imageIds.length === 0) {
+          setSupplierError('Some Alibaba photos could not be imported. Try again.');
+          return;
+        }
+        setField(photoField(part.part), JSON.stringify(result.imageIds));
+      } catch (importError) {
+        setSupplierError(
+          importError instanceof Error ? importError.message : 'Alibaba photo import failed.',
+        );
+        return;
+      } finally {
+        setSupplierBusy(null);
+      }
+    }
+    setSupplierChoices((current) => ({
+      ...current,
+      [part.part]: { choice: 'incoming', incomingDigest: part.incomingDigest },
+    }));
+  }
+  const galleryIds = (() => {
+    try {
+      const parsed: unknown = JSON.parse(String(state.imageIds || '[]'));
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  })();
+  const savedConfigurationPhotos = ConfigurationPhotosSchema.safeParse(
+    initial?.configurationPhotos ?? {},
+  );
+
+  const fieldIds = (field: PhotoField) => {
+    try {
+      const parsed: unknown = JSON.parse(String(photoValuesRef.current[field] || '[]'));
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  /** Adds one Alibaba photo: our copy when we have it, otherwise copied first. */
+  async function addSourcePhoto(field: PhotoField, source: AlibabaPhotoSource) {
+    const limit = field === 'imageIds' ? 9 : 18;
+    if (
+      photoAddBusy ||
+      (field === 'imageIds' ? imageBusy : descriptionImageBusy) ||
+      fieldIds(field).length >= limit
+    )
+      return;
+    setPhotoAddBusy({ field, url: source.url });
+    setSourceImageNotice('');
+    try {
+      let imageId = source.imageId;
+      if (!imageId) {
+        const imported = await importAlibabaSourceImage(source.url);
+        imageId = imported.imageId;
+        if (!imported.deduplicated)
+          setNewSourceImageIds((ids) => [...new Set([...ids, imported.imageId])]);
+        const added = imported.imageId;
+        setPhotoSources(
+          (current) =>
+            current && {
+              ...current,
+              [field === 'imageIds' ? 'gallery' : 'description']: current[
+                field === 'imageIds' ? 'gallery' : 'description'
+              ].map((item) => (item.url === source.url ? { ...item, imageId: added } : item)),
+            },
+        );
+      }
+      const ids = fieldIds(field);
+      if (ids.includes(imageId)) {
+        setSourceImageNotice('Photo is already selected. Save to keep it.');
+      } else if (ids.length >= limit) {
+        setSourceImageNotice(
+          `Photo copied. All ${limit} places are taken. Remove a photo, then add this one again.`,
+        );
+      } else {
+        setField(field, JSON.stringify([...ids, imageId]));
+        setSourceImageNotice('Photo added. Save to keep it.');
+      }
+    } catch (error) {
+      setSourceImageNotice(
+        error instanceof Error ? error.message : 'The Alibaba photo could not be added.',
+      );
+    } finally {
+      setPhotoAddBusy(null);
+    }
+  }
+
+  async function importSourceGallery(description = false) {
+    const sourceUrls = description ? descriptionPreviewUrls : sourcePreviewUrls;
+    const field = description ? 'descriptionImageIds' : 'imageIds';
+    const maxItems = description ? 18 : 9;
+    if (!sourceUrls.length || sourceImageBusy) return;
+    setSourceImageBusy(true);
+    setSourceImageNotice('');
+    try {
+      let currentIds: string[] = [];
+      try {
+        const parsed: unknown = JSON.parse(String(state[field] || '[]'));
+        if (Array.isArray(parsed)) {
+          currentIds = parsed.filter((value): value is string => typeof value === 'string');
+        }
+      } catch {
+        currentIds = [];
+      }
+      const result = await importAlibabaGallery({
+        sourceUrls,
+        maxItems,
+        imageIds: currentIds,
+        importImage: importAlibabaSourceImage,
+        onProgress: (ids) => setField(field, JSON.stringify(ids)),
+      });
+      setNewSourceImageIds((ids) => [...new Set([...ids, ...result.createdIds])]);
+      setSourceImageNotice(
+        [
+          `${result.imageIds.length - currentIds.length} images added. Save to attach them to this product.`,
+          ...result.failures.map(
+            (failure) => `Source image ${failure.position}: ${failure.message}`,
+          ),
+          ...(result.remaining
+            ? [
+                `${result.remaining} source images not imported${result.imageIds.length >= maxItems ? ': the image limit is reached' : ': the import stopped; check the error before retrying'}.`,
+              ]
+            : []),
+        ].join(' '),
+      );
+    } catch (importError) {
+      setSourceImageNotice(
+        importError instanceof Error ? importError.message : 'Alibaba image import failed.',
+      );
+    } finally {
+      setSourceImageBusy(false);
+    }
+  }
+
+  async function cleanupCandidates() {
+    await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
+  }
+
+  async function cancelWithCandidateCleanup() {
+    if (busy || cancelInFlight.current) return;
+    if (closeBlockedReason) {
+      setLocalError(closeBlockedReason);
+      return;
+    }
+    cancelInFlight.current = true;
+    setSourceImageBusy(true);
+    await cleanupCandidates();
+    onCancel();
+  }
+
+  function requestClose() {
+    if (busy) return;
+    if (closeBlockedReason) {
+      setLocalError(closeBlockedReason);
+      return;
+    }
+    if (dirty) setDiscardRequested(true);
+    else void cancelWithCandidateCleanup();
+  }
+
+  const editableFields = productEditableFields(collection);
+  const sections = productFormSections(collection);
+  // Independent stacks avoid a tall Media card stretching Identity and
+  // pushing Content below a large empty row. DOM order also stays the mobile
+  // reading/tab order; no duplicated responsive fields or form state.
+  const sectionColumns = [
+    {
+      key: 'details',
+      sections: sections.filter((s) => ['Identity', 'Content'].includes(s.heading)),
+    },
+    {
+      key: 'media-pricing',
+      sections: sections.filter((s) => ['Media', 'Pricing & Order'].includes(s.heading)),
+    },
+    {
+      key: 'remaining',
+      sections: sections.filter(
+        (s) => !['Identity', 'Content', 'Media', 'Pricing & Order'].includes(s.heading),
+      ),
+    },
+  ];
+  const fieldErrors = collection.name === 'products' ? productFormErrorTargets(error) : {};
+  const currentDraft = useRef<FormState>(state);
+  useAdminDraftExport(title, () => ({ ...currentDraft.current }));
+  currentDraft.current = { ...state };
+  const decisions = withSupplierChoices({}, initial, supplierChoices, configurationPhotos);
+  for (const [field, value] of Object.entries(decisions))
+    if (value !== undefined) currentDraft.current[field] = JSON.stringify(value);
+  const aggregateError =
+    localError || (Object.keys(fieldErrors).length === 0 ? error?.message : '');
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="record-form-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (discardRequested) setDiscardRequested(false);
+        else requestClose();
+      }}
+      className={`m-auto max-h-[92dvh] w-[calc(100%-2rem)] overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-xl backdrop:bg-slate-900/40 ${collection.name === 'products' ? 'max-w-6xl' : 'max-w-lg'}`}
+    >
+      <form method="post" onSubmit={handleSubmit} className="flex max-h-[92dvh] min-w-0 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
+          <h2 id="record-form-title" className="text-lg font-semibold text-slate-900">
+            {title}
+          </h2>
+          <button
+            type="button"
+            aria-label="Close editor"
+            onClick={requestClose}
+            disabled={busy}
+            className="min-h-11 min-w-11 rounded-lg text-xl text-slate-600 hover:bg-slate-100 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-brand-600"
+          >
+            ×
+          </button>
+        </header>
+
+        <div
+          data-record-form-body
+          className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
+        >
+          {recovery?.(() => ({ ...currentDraft.current }), cleanupCandidates)}
+          {readOnlyReason && (
+            <p
+              role="note"
+              data-record-read-only
+              className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              {readOnlyReason}
+            </p>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.data && (
+            <div className="mb-6">
+              <SupplierChangesPanel
+                review={supplierReview.data}
+                choices={supplierChoices}
+                busyPart={supplierBusy}
+                disabled={busy || discardRequested || Boolean(readOnlyReason)}
+                error={supplierError}
+                onKeep={keepWebsite}
+                onUseIncoming={(part) => void useIncoming(part)}
+              />
+            </div>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.loading && (
+            <output className="mb-4 block text-sm text-slate-600">Loading Alibaba changes…</output>
+          )}
+          {canReviewSupplier && flaggedForSupplier && supplierReview.isError && (
+            <div role="alert" className="mb-4 text-sm text-red-700">
+              <p>The Alibaba changes could not be loaded. Your edits are still in this form.</p>
+              <button
+                type="button"
+                className="min-h-11 underline"
+                onClick={() => {
+                  setSupplierReview({ loading: true });
+                  setSupplierReviewAttempt((attempt) => attempt + 1);
+                }}
+              >
+                Retry Alibaba changes
+              </button>
+            </div>
+          )}
+          {canReviewSupplier &&
+            linkedProductId !== undefined &&
+            photoSourcesState === 'loading' && (
+              <output className="mb-4 block text-sm text-slate-600">Loading Alibaba photos…</output>
+            )}
+          {canReviewSupplier && linkedProductId !== undefined && photoSourcesState === 'error' && (
+            <div role="alert" className="mb-4 text-sm text-red-700">
+              <p>Alibaba photos could not be loaded. Your edits are still in this form.</p>
+              <button
+                type="button"
+                className="min-h-11 underline"
+                onClick={() => {
+                  setPhotoSourcesState('loading');
+                  setPhotoSourcesAttempt((attempt) => attempt + 1);
+                }}
+              >
+                Retry Alibaba photos
+              </button>
+            </div>
+          )}
+          {sections.length > 0 ? (
+            <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+              {sectionColumns
+                .filter((column) => column.sections.length > 0)
+                .map((column) => (
+                  <div
+                    key={column.key}
+                    className={`min-w-0 space-y-6 ${column.key === 'remaining' ? 'lg:col-span-2' : ''}`}
+                  >
+                    {column.sections.map((section) => (
+                      <fieldset
+                        key={section.heading}
+                        disabled={
+                          submitting ||
+                          sourceImageBusy ||
+                          supplierBusy !== null ||
+                          discardRequested ||
+                          Boolean(readOnlyReason)
+                        }
+                        className="min-w-0 space-y-4 rounded-xl border border-slate-200 p-4"
+                      >
+                        <legend className="font-semibold text-slate-900">{section.heading}</legend>
+                        {section.heading === 'Identity' && initial && showSavedClassification && (
+                          <SavedClassificationSummary product={initial} />
+                        )}
+                        {section.heading === 'Pricing & Order' && (
+                          <ProductPricingEditor
+                            initial={initial}
+                            state={state}
+                            error={fieldErrors.manualCatalogPricing}
+                            onChange={(patch) => setState((current) => ({ ...current, ...patch }))}
+                            onValidityChange={setPricingInvalid}
+                          />
+                        )}
+                        <div
+                          className={
+                            section.heading === 'Media'
+                              ? 'min-w-0'
+                              : 'grid min-w-0 gap-4 sm:grid-cols-2'
+                          }
+                        >
+                          {section.heading !== 'Pricing & Order' &&
+                            section.fields.map((field) =>
+                              (initial &&
+                                Object.hasOwn(initial, 'subcategoryIds') &&
+                                ['category', 'productFamily'].includes(field.name)) ||
+                              (field.name === 'category' &&
+                                state.productFamily !== 'headphones') ? null : (
+                                <div
+                                  key={field.name}
+                                  className={`min-w-0 ${['name', 'description', 'imageIds'].includes(field.name) ? 'sm:col-span-2' : ''}`}
+                                >
+                                  <Field
+                                    key={field.name}
+                                    field={
+                                      field.name === 'imageIds'
+                                        ? { ...field, label: 'Product images' }
+                                        : field.name === 'category'
+                                          ? { ...field, label: 'Headphone type (optional)' }
+                                          : field
+                                    }
+                                    value={state[field.name]}
+                                    error={fieldErrors[field.name]}
+                                    reservedSlots={photoAddBusy?.field === field.name ? 1 : 0}
+                                    onBusyChange={
+                                      field.name === 'imageIds'
+                                        ? setImageBusy
+                                        : field.name === 'descriptionImageIds'
+                                          ? setDescriptionImageBusy
+                                          : undefined
+                                    }
+                                    onValidityChange={
+                                      field.name === 'manualCatalogPricing'
+                                        ? setPricingInvalid
+                                        : undefined
+                                    }
+                                    onChange={(value) => setField(field.name, value)}
+                                  />
+                                </div>
+                              ),
+                            )}
+                        </div>
+                        {section.heading === 'Media' && sourcePreviewUrl && (
+                          <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                            <div className="flex items-center gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs text-slate-500">
+                                  Alibaba source gallery · {sourcePreviewUrls.length} images
+                                </p>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void importSourceGallery()}
+                                  className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                                >
+                                  {sourceImageBusy ? 'Importing…' : 'Import source gallery'}
+                                </button>
+                              </div>
+                            </div>
+                            <div
+                              className="mt-3 flex flex-wrap gap-2"
+                              aria-label="Alibaba source gallery"
+                            >
+                              {sourcePreviewUrls.map((url, index) => (
+                                <button
+                                  key={url}
+                                  type="button"
+                                  aria-label={`Preview source image ${index + 1}`}
+                                  onClick={() => setSourcePreviewId(url)}
+                                  className="h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:border-brand-600 focus-visible:ring-2 focus-visible:ring-brand-600"
+                                >
+                                  <PreviewImageContent
+                                    src={url}
+                                    alt=""
+                                    className="h-full w-full object-contain"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                            <AlibabaPhotoPicker
+                              title="Alibaba photos"
+                              sources={photoSources?.gallery ?? null}
+                              currentIds={galleryIds}
+                              limit={9}
+                              disabled={imageBusy}
+                              busyUrl={photoAddBusy?.url ?? null}
+                              onAdd={(source) => void addSourcePhoto('imageIds', source)}
+                            />
+                          </div>
+                        )}
+                        {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
+                          <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
+                            <p className="text-xs text-slate-500">
+                              Source description · {descriptionPreview.total} images (separate from
+                              the product gallery)
+                            </p>
+                            {descriptionSourceOverflow && (
+                              <p className="mt-1 text-xs text-slate-600">
+                                Up to {descriptionPreviewUrls.length} description images can be
+                                saved. Import the first {descriptionPreviewUrls.length}, then review
+                                or remove them in Description images. The remaining source images
+                                are not imported.
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void importSourceGallery(true)}
+                              className="mt-2 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
+                            >
+                              {sourceImageBusy
+                                ? 'Importing…'
+                                : descriptionSourceOverflow
+                                  ? `Import first ${descriptionPreviewUrls.length} description images`
+                                  : 'Import description images'}
+                            </button>
+                            <AlibabaPhotoPicker
+                              title="Alibaba description photos"
+                              sources={photoSources?.description ?? null}
+                              currentIds={fieldIds('descriptionImageIds')}
+                              limit={18}
+                              disabled={descriptionImageBusy}
+                              busyUrl={photoAddBusy?.url ?? null}
+                              onAdd={(source) => void addSourcePhoto('descriptionImageIds', source)}
+                            />
+                          </div>
+                        )}
+                        {section.heading === 'Media' && sourceImageNotice && (
+                          <output className="mt-2 block text-xs text-slate-600">
+                            {sourceImageNotice}
+                          </output>
+                        )}
+                        {canReviewSupplier &&
+                          section.heading === 'Media' &&
+                          supplierReview.data && (
+                            <ConfigurationPhotosEditor
+                              configurations={supplierReview.data.configurations}
+                              galleryIds={galleryIds}
+                              value={
+                                configurationPhotos ??
+                                (savedConfigurationPhotos.success
+                                  ? savedConfigurationPhotos.data
+                                  : {})
+                              }
+                              onChange={setConfigurationPhotos}
+                            />
+                          )}
+                      </fieldset>
+                    ))}
+                  </div>
+                ))}
+              {initial && needsCategoryReview(initial) && (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 lg:col-span-2"
+                >
+                  Alibaba changed this product’s source category. Confirm the website Product Family
+                  above and save before publishing. Synchronization has kept your existing
+                  assignment.
+                </p>
+              )}
+            </div>
+          ) : (
+            <fieldset
+              disabled={busy || discardRequested || Boolean(readOnlyReason)}
+              className="mt-4 min-w-0 space-y-4"
+            >
+              {editableFields.map((field) =>
+                collection.name === 'sourceCategoryMappings' && field.name === 'subcategoryIds' ? (
+                  <MappingSubcategories
+                    key={field.name}
+                    state={state}
+                    onChange={(value) => setField(field.name, value)}
+                    onValidityChange={setMappingInvalid}
+                  />
+                ) : collection.name === 'sourceCategoryMappings' &&
+                  field.name === 'channelCategory' &&
+                  String(state.subcategoryIds ?? '').trim() !== '' ? null : (
+                  <Field
+                    key={field.name}
+                    field={field}
+                    value={state[field.name]}
+                    onChange={(value) => setField(field.name, value)}
+                  />
+                ),
+              )}
+            </fieldset>
+          )}
+        </div>
+
+        <output
+          data-product-form-announcement
+          className={
+            collection.name === 'sourceCategoryMappings' ? 'px-5 text-sm text-slate-600' : 'sr-only'
+          }
+          aria-live="polite"
+        >
+          {fieldAnnouncement}
+        </output>
+
+        <footer
+          data-record-form-actions
+          className="shrink-0 border-t border-slate-200 bg-white px-5 py-3"
+        >
+          {aggregateError && (
+            <p data-record-form-error className="mb-3 text-sm text-red-600" role="alert">
+              {aggregateError}
+            </p>
+          )}
+
+          {discardRequested ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-700">Discard your unsaved changes?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDiscardRequested(false)}
+                  className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm focus-visible:ring-2 focus-visible:ring-brand-600"
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void cancelWithCandidateCleanup()}
+                  className="min-h-11 rounded-lg bg-red-700 px-3 text-sm text-white disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-brand-600"
+                >
+                  Discard changes
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {supplierChange && (
+                <div
+                  data-pending-supplier-change
+                  role="note"
+                  className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
+                  <p id={supplierChangeId}>{PENDING_SUPPLIER_CHANGE_NOTICE[supplierChange]}</p>
+                  {onSeeChanges && (
+                    <button
+                      type="button"
+                      onClick={onSeeChanges}
+                      className="min-h-11 rounded-lg border border-amber-400 bg-white px-3 font-medium focus-visible:ring-2 focus-visible:ring-brand-600"
+                    >
+                      See changes
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  disabled={busy}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy || pricingInvalid || mappingInvalid || Boolean(readOnlyReason)}
+                  aria-describedby={supplierChange ? supplierChangeId : undefined}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </>
+          )}
+        </footer>
+      </form>
+      {sourcePreviewId && (
+        <ImageViewer
+          images={sourcePreviewUrls.map((url, index) => ({
+            id: url,
+            src: url,
+            label: `Source image ${index + 1}`,
+          }))}
+          initialId={sourcePreviewId}
+          onClose={() => setSourcePreviewId(undefined)}
+        />
+      )}
+    </dialog>
+  );
+}
+
+function MappingSubcategories({
+  state,
+  onChange,
+  onValidityChange,
+}: {
+  state: FormState;
+  onChange: (value: string) => void;
+  onValidityChange: (invalid: boolean) => void;
+}) {
+  const family = isProductFamily(state.productFamily) ? state.productFamily : null;
+  const query = useQuery({ ...taxonomyQuery(family ?? 'headphones'), enabled: family !== null });
+  const registry = query.data;
+  const raw = String(state.subcategoryIds ?? '').trim();
+  let selected: string[] = [];
+  let valid = raw === '' && family === null;
+  if (family && registry) {
+    try {
+      const classification = readProductSubcategories(
+        raw
+          ? { productFamily: family, subcategoryIds: JSON.parse(raw) }
+          : { productFamily: family, category: state.channelCategory ?? '' },
+        registry,
+      );
+      if (classification.status === 'valid') {
+        selected = classification.subcategoryIds;
+        valid = validateProductSubcategories(family, selected, registry);
+      }
+    } catch {
+      valid = false;
+    }
+  }
+  const invalid = !valid || (family !== null && (query.isFetching || Boolean(query.error)));
+  useEffect(() => onValidityChange(invalid), [invalid, onValidityChange]);
+  const children = (family && registry?.family === family ? registry.children : [])
+    .filter((child) => child.status === 'active')
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+
+  return (
+    <fieldset className="min-w-0 space-y-2" aria-busy={family !== null && query.isFetching}>
+      <legend className="text-sm font-medium text-slate-700">Subcategories</legend>
+      {!family ? (
+        <p className="text-sm text-slate-500">No main category selected.</p>
+      ) : query.error ? (
+        <div role="alert" className="text-sm text-red-600">
+          <p>{query.error.message}</p>
+          <button type="button" className="min-h-11 underline" onClick={() => void query.refetch()}>
+            Retry categories
+          </button>
+        </div>
+      ) : !registry || query.isFetching ? (
+        <output className="block text-sm text-slate-500">Loading categories...</output>
+      ) : (
+        <>
+          {!valid && (
+            <p role="alert" className="text-sm text-red-600">
+              Selected subcategories are unavailable. Clear or replace the selection.
+            </p>
+          )}
+          {children.length === 0 && (
+            <p className="text-sm text-slate-500">No active subcategories.</p>
+          )}
+          {children.map((child) => (
+            <label
+              key={child.id}
+              className="flex min-h-11 items-center gap-2 text-sm text-slate-700"
+            >
+              <input
+                type="checkbox"
+                value={child.id}
+                checked={selected.includes(child.id)}
+                disabled={
+                  !selected.includes(child.id) && selected.length >= MAX_PRODUCT_SUBCATEGORIES
+                }
+                onChange={(event) =>
+                  onChange(
+                    JSON.stringify(
+                      event.target.checked
+                        ? [...selected, child.id]
+                        : selected.filter((id) => id !== child.id),
+                    ),
+                  )
+                }
+                className="h-4 w-4 shrink-0 rounded border-slate-300"
+              />
+              <span className="min-w-0 break-words">{child.name}</span>
+            </label>
+          ))}
+          <button
+            type="button"
+            className="min-h-11 text-sm underline"
+            onClick={() => onChange('[]')}
+          >
+            Clear subcategories
+          </button>
+        </>
+      )}
+    </fieldset>
+  );
+}
+
+function Field({
+  field,
+  value,
+  error,
+  onBusyChange,
+  onValidityChange,
+  reservedSlots = 0,
+  onChange,
+}: {
+  field: FieldDef;
+  value: string | boolean;
+  error?: string;
+  onBusyChange?: (busy: boolean) => void;
+  onValidityChange?: (invalid: boolean) => void;
+  reservedSlots?: number;
+  onChange: (value: string | boolean) => void;
+}) {
+  const label = (
+    <label className="block text-sm font-medium text-slate-700" htmlFor={field.name}>
+      {field.label}
+      {field.required && <span className="text-red-500"> *</span>}
+    </label>
+  );
+  const inputClass =
+    'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900';
+  const describedBy = error ? `${field.name}-error` : undefined;
+  const fieldError = error ? (
+    <p id={`${field.name}-error`} className="mt-1 text-xs text-red-600">
+      {error}
+    </p>
+  ) : null;
+
+  // Images are managed inline with a visual uploader rather than raw JSON.
+  if (field.name === 'imageIds' || field.name === 'descriptionImageIds') {
+    let ids: string[] = [];
+    try {
+      const parsed = JSON.parse(String(value || '[]'));
+      if (Array.isArray(parsed)) ids = parsed.map(String);
+    } catch {
+      ids = [];
+    }
+    return (
+      <div>
+        {label}
+        <div className="mt-1.5">
+          <ImageManager
+            value={ids}
+            purpose={field.name === 'descriptionImageIds' ? 'description' : 'gallery'}
+            inputId={field.name}
+            maxItems={field.maxItems}
+            reservedSlots={reservedSlots}
+            errorId={describedBy}
+            onBusyChange={onBusyChange}
+            onChange={(next) => onChange(JSON.stringify(next))}
+          />
+        </div>
+        {fieldError}
+      </div>
+    );
+  }
+
+  if (field.name === 'manualCatalogPricing') {
+    return (
+      <QuantityTierPricingEditor
+        value={String(value)}
+        error={error}
+        onValidityChange={onValidityChange}
+        onChange={(next) => onChange(next)}
+      />
+    );
+  }
+
+  if (field.type === 'boolean') {
+    return (
+      <div>
+        <div className="flex items-center gap-2">
+          <input
+            id={field.name}
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => onChange(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={describedBy}
+          />
+          <label htmlFor={field.name} className="text-sm font-medium text-slate-700">
+            {field.label}
+          </label>
+        </div>
+        {fieldError}
+      </div>
+    );
+  }
+
+  if (field.type === 'select') {
+    return (
+      <Select
+        id={field.name}
+        label={field.name === 'productFamily' ? 'Website main category' : field.label}
+        options={
+          field.name === 'productFamily'
+            ? Object.entries(ADMIN_PRODUCT_FAMILY_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))
+            : (field.options ?? [])
+        }
+        value={String(value)}
+        placeholder="Select…"
+        required={field.required}
+        error={error}
+        triggerClassName="mt-1"
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (field.type === 'text' || field.type === 'json') {
+    return (
+      <div>
+        {label}
+        <textarea
+          id={field.name}
+          value={String(value)}
+          onChange={(e) => onChange(e.target.value)}
+          rows={field.type === 'json' ? 5 : 3}
+          placeholder={field.placeholder}
+          className={`${inputClass} font-${field.type === 'json' ? 'mono' : 'sans'}`}
+          required={field.required}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={describedBy}
+        />
+        {fieldError}
+      </div>
+    );
+  }
+
+  // File reference: bytes live in the `files` collection (CloudBase Storage).
+  // Production has no public `/api/files/:id`, so download is the authenticated
+  // `getOemFileDownloadUrl` action (short-TTL temp URL), handled by
+  // `FileDownloadLink`. Shown read-only here (re-upload is not supported in the
+  // admin edit form).
+  if (field.type === 'file') {
+    const fileId = String(value || '');
+    return (
+      <div>
+        {label}
+        <div className="mt-1">
+          {fileId ? (
+            <FileDownloadLink id={fileId} />
+          ) : (
+            <span className="text-sm text-slate-400">No file attached</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {label}
+      <input
+        id={field.name}
+        type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
+        value={String(value)}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder}
+        className={inputClass}
+        required={field.required}
+        aria-invalid={Boolean(error) || undefined}
+        aria-describedby={describedBy}
+      />
+      {fieldError}
+    </div>
+  );
+}
+
+/** Convert the string-based form state into typed values for the API. */
+export function coerceValues(
+  collection: CollectionDef,
+  state: FormState,
+  initial?: CollectionDoc,
+): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const field of collection.fields) {
+    if (field.readOnly || field.hideInForm) continue;
+    if (
+      collection.name === 'sourceCategoryMappings' &&
+      field.name === 'channelCategory' &&
+      String(state.subcategoryIds ?? '').trim() !== ''
+    )
+      continue;
+    if (
+      collection.name === 'products' &&
+      initial &&
+      Object.hasOwn(initial, 'subcategoryIds') &&
+      ['category', 'productFamily'].includes(field.name)
+    )
+      continue;
+    const raw = state[field.name];
+
+    if (
+      collection.name === 'products' &&
+      field.name === 'published' &&
+      initial?.published === true &&
+      raw === true &&
+      state.productFamily !== initial.productFamily
+    )
+      continue;
+
+    // Restoring inheritance changes policy only, not the retained manual record.
+    if (
+      collection.name === 'products' &&
+      state.catalogPricingMode === 'source' &&
+      ['manualCatalogPricing', 'unitPrice', 'wholesalePrice', 'moq'].includes(field.name)
+    )
+      continue;
+
+    if (
+      collection.name === 'products' &&
+      field.name === 'category' &&
+      state.productFamily !== 'headphones'
+    ) {
+      if (
+        typeof initial?.category === 'string' &&
+        (LEGACY_HEADPHONES_CATEGORY_OPTIONS as readonly string[]).includes(initial.category)
+      ) {
+        values.category = '';
+      }
+      continue;
+    }
+
+    if (collection.name === 'products' && field.name === 'manualCatalogPricing') {
+      const str = String(raw ?? '').trim();
+      if (str) {
+        values.manualCatalogPricing = JSON.parse(str);
+      } else if (initial && initial.manualCatalogPricing !== undefined) {
+        values.manualCatalogPricing = null;
+      }
+      continue;
+    }
+
+    if (field.type === 'boolean') {
+      values[field.name] = Boolean(raw);
+      continue;
+    }
+
+    const str = String(raw ?? '').trim();
+    if (str === '') {
+      if (field.required) throw new Error(`${field.label} is required`);
+      continue; // omit empty optional fields
+    }
+
+    if (field.type === 'number') {
+      const num = Number(str);
+      if (!Number.isFinite(num)) throw new Error(`${field.label} must be a finite number`);
+      values[field.name] = num;
+    } else if (field.type === 'json') {
+      try {
+        values[field.name] = JSON.parse(str);
+      } catch {
+        throw new Error(`${field.label} must be valid JSON`);
+      }
+    } else {
+      values[field.name] = str;
+    }
+  }
+  return values;
+}

@@ -1,0 +1,19 @@
+# P3e2c：冻结批准版本身份
+
+基线5526871。新增内部保护已实现；精确提交/产物验证在审查侧车补录。原丢发布响应P1未关闭，fullDeliveryReady=false，没有test部署或客户写入。
+
+已观察：另一场正式审批可替换catalogDetailPublication/catalogDetailApprovalReceipt，同时保持产品updatedAt、内容/生命周期代数不变。旧operation-get仍显示current=true，旧草稿保存或saved重试也可被接受。JSON真实begin→finish在首次保存前/后两种顺序均复现；Node20旧精确bundle的实际SDK对照也在正式finish完成、时间戳未变后复现。第一轮123项112通过/11业务红，不把夹具错误当业务反例。
+
+沿现有snapshot新增approvalDigest：只冻结批准状态/revision和回执的内容摘要、operationId/revision/requestDigest/actorId、配置数量/批准时间、sourceDigest/supplierParts。复用原产品事务读，无新增数据库IO、不复制批准正文或原供应商数据。current与写入层同时检查；初始base不可变，saved.snapshot保存自身阶段。另一场审批不能被认作本次操作的进度。
+
+priceSummary是同一批准版本的可回填缓存，不进入新摘要。真实price-summary-backfill成功后，自身saved仍current/revisionCurrent，重试零产品/身份/回执写入。旧记录缺approvalDigest仍能读取并保留历史，但current=false，不能静默把当前批准版本当旧操作的基线；后续UI需引导读取最新记录并开启新的操作，不能自动改原guard重试。
+
+新增20项：12种批准身份变化/删除、缓存正控、旧reserved可读不可继续、JSON/native各两种真实审批串联、真实缓存回填、旧saved历史可读不可重放。JSON/native链路使用实际prepareStagedApproval与begin/finish，不用直接篡改回执替代流程测试。字段级反例除故意损坏state外使用合约形态的替代UUID/hash/数字/时间/布尔值。
+
+六种源码反例全检出39重叠失败断言，finally还原源码并核SHA；不是39个独立缺陷。覆盖恒定摘要、漏批准版本、漏回执、错误把缓存算身份、历史不可读及写入层漏保护。随后测试夹具的delete改Reflect.deleteProperty以满足Biome，并重证历史故障仍红；字段反例改合法替代值后六反例再次检出、完整DB1389及377相关组合/Node20451再次通过。一次价格摘要夹具使用错误moq字段被真实schema拒绝，改用已核对的fixed/USD/amountMinor后实际回填成功；未改schema或削弱applied断言。
+
+最终七包与脚本4638：shared309/DB1389/admin637/local583/public131/sync304/site797+scripts488，0fail/skip/cancel。生产源码在全量之后未变，测试夹具改法后相关组合和完整DB已重跑。19项目types、Astro216零error/warning8既有hint，以及相关三个消费者types最终重跑通过。四完整文件Biome、standing SDK/diff通过，未使用错误precommit --silent输出作证。
+
+Node20实际编译native保存/staging与installedSDK，仅替换HTTP：两种顺序均实际完成另一审批，旧查询current=false/revisionCurrent=true，写入层stale，随后产品/身份/自身回执零写。旧bundle对照有效红。四个禁网Node24/20独立进程保存后丢答案并重开/重试零写，sample回执1386bytes，比原1218bytes增加168bytes，自有fixture清理成功；这不是云端MVCC、P95或完整HTTP发布验收。
+
+简化/措辞：读完本次4代码/测试文件、既有审批finish/价格摘要回填、保存replay及snapshot消费者。一个原snapshot增加一个固定hash，沿原current和事务写保护，无第二套状态机/新集合/SDK/shim。将“已冻结审批”写为“冻结启动时批准身份；自身审批阶段尚未接入”，防止把内部草稿保护当完整发布恢复。仍需分类/供应商上下文、媒体/审批/最终可见性回执及全部UI入口、合法大媒体预算、历史审计/云端并发性能和test真实选品恢复。

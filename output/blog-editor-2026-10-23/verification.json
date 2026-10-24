@@ -1,0 +1,26 @@
+{
+  "reviewBase": "cbe38b9dbeffdf90ec86d12ae09a720818d97cc9",
+  "cloudHead": "832ea96133b88fd4727e7bde385c40ae657194b5",
+  "branch": "feat/seo-foundation",
+  "repositoryTests": {
+    "tests": 3311,
+    "pass": 3308,
+    "fail": 0,
+    "skipped": 3
+  },
+  "headedBrowserTests": {
+    "pass": 7,
+    "fail": 0,
+    "skip": 0
+  },
+  "builtPages": 28,
+  "indexableCanonicalUrls": 20,
+  "realCloudDatabaseVerified": false,
+  "productionWrites": false,
+  "deployed": false,
+  "newBranchOrWorktreeCreated": false,
+  "screenshots": {
+    "editor-desktop.png": "d94c49f1e87722b73ca8de9779722a75d4965d5929d54296d09ef077a083745d",
+    "editor-mobile.png": "468dfde72bc557a58ea172e256db1ec0467837d800f041124022fddfdc25425c"
+  }
+}

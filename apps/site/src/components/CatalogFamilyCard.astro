@@ -1,0 +1,36 @@
+---
+import type { CatalogFamilyContent } from '../i18n/catalog.ts';
+
+interface Props {
+  family: CatalogFamilyContent;
+}
+
+const { family } = Astro.props;
+---
+
+<a
+  href={family.href}
+  class="group grid min-h-48 overflow-hidden border-b border-slate-200 bg-white transition hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700 sm:grid-cols-[minmax(12rem,2fr)_3fr]"
+>
+  <div class="relative min-h-44 overflow-hidden bg-slate-100 sm:min-h-full">
+    <img
+      src={family.image}
+      alt={family.imageAlt}
+      width={family.imageWidth}
+      height={family.imageHeight}
+      loading="lazy"
+      class="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+    />
+    <div class="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent sm:bg-gradient-to-r"></div>
+  </div>
+  <div class="flex min-w-0 items-center justify-between gap-6 px-5 py-6 sm:px-7">
+    <div class="min-w-0">
+      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-brand-600">{family.eyebrow}</p>
+      <h2 class="mt-1 font-display text-2xl font-bold text-ink">{family.heading}</h2>
+      <p class="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">{family.description}</p>
+    </div>
+    <svg aria-hidden="true" class="h-6 w-6 shrink-0 text-brand-700 transition group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
+    </svg>
+  </div>
+</a>

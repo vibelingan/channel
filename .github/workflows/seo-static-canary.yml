@@ -1,0 +1,240 @@
+name: SEO static canary (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
+        type: choice
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute]
+        default: plan
+        required: true
+      action:
+        description: Initialize only a proven unused prefix; restore only an explicitly accepted run
+        type: choice
+        options: [initialize, publish, restore]
+        required: true
+      variant:
+        description: A/B for static canary; an exact function name for function modes
+        type: choice
+        options: [A, B, public-api, admin]
+        default: A
+        required: true
+      artifact_id:
+        description: Static payload ID; function-report uses a test-evidence ID, function-plan/execute use a report payload ID
+        type: string
+      restore_run_id:
+        description: Exact accepted canary ledger run; required to restore
+        type: string
+      expected_activation_id:
+        description: Current canary activation ID; use none only for initialization
+        type: string
+        required: true
+      plan_token:
+        description: Reviewed plan token; maintenance uses backup-v1 plus the base64 preparation record
+        type: string
+      reason:
+        description: Operator reason, retained with the reviewed plan
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cloudbase-deploy-test
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode != 'maintenance' && !startsWith(inputs.mode, 'function-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: test
+    env:
+      CANARY_MODE: ${{ inputs.mode }}
+      CANARY_ACTION: ${{ inputs.action }}
+      CANARY_VARIANT: ${{ inputs.variant }}
+      CANARY_ARTIFACT_ID: ${{ inputs.artifact_id }}
+      CANARY_RESTORE_RUN_ID: ${{ inputs.restore_run_id }}
+      CANARY_EXPECTED_ACTIVATION_ID: ${{ inputs.expected_activation_id }}
+      CANARY_PLAN_TOKEN: ${{ inputs.plan_token }}
+      CANARY_REASON: ${{ inputs.reason }}
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Prepare candidate or resolve exact accepted source
+        id: source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/run-static-canary.mjs prepare
+      - name: Archive candidate before any cloud write
+        if: steps.source.outputs.fresh == 'true'
+        id: payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-canary-payload-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/static-canary/payload/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Revalidate plan and optionally execute within the shared target lock
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          CANARY_FRESH: ${{ steps.source.outputs.fresh }}
+          CANARY_RESOLVED_ARTIFACT_ID: ${{ steps.payload.outputs.artifact-id || steps.source.outputs.artifact_id }}
+        run: node scripts/run-static-canary.mjs run
+      - name: Retain plan and diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-canary-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/static-canary/plan.json
+            output/static-canary/accepted.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  maintenance:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'maintenance' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Preserve the reviewed preparation record before external writes
+        env:
+          REVIEW_RECORD: ${{ inputs.plan_token }}
+        run: |
+          python3 - <<'PYTHON'
+          import base64, json, os, pathlib
+          value = os.environ.get('REVIEW_RECORD', '')
+          if not value.startswith('backup-v1:') or len(value) > 60000:
+              raise SystemExit('Reviewed preparation backup is required')
+          body = base64.b64decode(value[10:], validate=True)
+          record = json.loads(body)
+          expected = {'envId': 'diversity-123-d9grnqfux221323bb', 'siteOrigin': 'https://supplychainsai.com'}
+          if record.get('schemaVersion') != 1 or record.get('target') != expected or not record.get('configurationBefore'):
+              raise SystemExit('Preparation backup target is unproven')
+          root = pathlib.Path('output/f1-maintenance')
+          root.mkdir(parents=True)
+          (root / 'reviewed-preparation.json').write_bytes(body)
+          PYTHON
+      - name: Archive the preparation and recovery inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-maintenance-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/f1-maintenance/reviewed-preparation.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Hold shared target lock for the reviewed F1 prerequisites
+        env:
+          REVIEW_REASON: ${{ inputs.reason }}
+        run: |
+          python3 -u - <<'PYTHON'
+          import os, time
+          reason = os.environ.get('REVIEW_REASON', '')
+          if not reason.strip() or len(reason) > 300:
+              raise SystemExit('A reviewed maintenance reason is required')
+          print('F1_MAINTENANCE_LOCK_READY', flush=True)
+          print('No cloud credentials or cloud effects run in this job.', flush=True)
+          print('The operator must confirm this job remains running before each external write.', flush=True)
+          for tick in range(30):
+              print(f'Lock heartbeat {tick + 1}/30', flush=True)
+              time.sleep(30)
+          PYTHON
+
+  functions:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && startsWith(inputs.mode, 'function-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: test
+    env:
+      FUNCTION_MODE: ${{ fromJSON('{"function-observe":"observe","function-certify":"certify","function-report":"report","function-plan":"plan","function-execute":"execute"}')[inputs.mode] }}
+      FUNCTION_NAMES: ${{ inputs.variant }}
+      FUNCTION_TEST_ARTIFACT_ID: ${{ inputs.artifact_id }}
+      FUNCTION_COMPATIBILITY_ARTIFACT_ID: ${{ inputs.artifact_id }}
+      FUNCTION_RESTORE_RUN_ID: ${{ inputs.restore_run_id }}
+      FUNCTION_EXPECTED_ACTIVATION_ID: ${{ inputs.expected_activation_id }}
+      FUNCTION_PLAN_TOKEN: ${{ inputs.plan_token }}
+      FUNCTION_REASON: ${{ inputs.reason }}
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Observe production versions and prepare compatibility evidence
+        id: source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/run-function-recovery.mjs prepare
+      - name: Archive successful contract test evidence
+        if: always() && inputs.mode == 'function-certify'
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-compatibility-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/function-recovery/tests/test-results.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Archive generated compatibility report before planning
+        if: steps.source.outputs.fresh == 'true'
+        id: payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-release-payload-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/function-recovery/payload/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Recheck plan and optionally restore only selected function code
+        if: inputs.mode != 'function-observe' && inputs.mode != 'function-certify'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          FUNCTION_RESOLVED_ARTIFACT_ID: ${{ steps.payload.outputs.artifact-id || inputs.artifact_id }}
+        run: node scripts/run-function-recovery.mjs run
+      - name: Retain function observation, plan and acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-recovery-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/function-recovery/observation.json
+            output/function-recovery/plan.json
+            output/function-recovery/accepted.json
+          if-no-files-found: warn
+          retention-days: 90

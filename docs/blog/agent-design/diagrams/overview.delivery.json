@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/blog/agent-design/diagrams/agent-to-blog-overview.architecture.json",
+  "output": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/blog/agent-design/diagrams/agent-to-blog-overview.html",
+  "specification": {
+    "sha256": "c981fb9c627d86ca8c02ed4fd02663184bd05421f20b328e38d83079de87c9e1",
+    "bytes": 5314
+  },
+  "artifact": {
+    "sha256": "56bc069cb2269163673b9ebf1757ac6fecbd407b41b34eed0a6c60f525d7f9c4",
+    "bytes": 817770
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "standard",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 1
+  }
+}

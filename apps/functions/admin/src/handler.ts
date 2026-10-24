@@ -1,0 +1,3705 @@
+/**
+ * Adapter-agnostic portal API handler.
+ *
+ * Both the production cloud function (src/index.ts) and the local-server import
+ * `handleAdminRequest`. The only difference between environments is which
+ * `DbAdapter` was wired via `@vibelingan-channel/db`'s `setAdapter`.
+ *
+ * Protocol — a single POST endpoint receiving { action, data, token } and
+ * returning an `ApiResult<T>`.
+ *
+ * Authorization is role-based. The session JWT carries the role, but every
+ * authenticated action re-anchors to the CURRENT users row via
+ * `revalidateSession` (V3): a suspended/deleted user is rejected and a
+ * demoted/promoted user's role takes effect on the NEXT request, not only at
+ * token expiry. Cost is one row read per authenticated request.
+ */
+import { Buffer } from 'node:buffer';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import {
+  type ArticleRepository,
+  isArticleDraftError,
+} from '@vibelingan-channel/articles/draft-repository';
+import { executeArticleDraftRequest } from '@vibelingan-channel/articles/draft-service';
+import { executeArticleReleaseRequest } from '@vibelingan-channel/articles/release-service';
+import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
+import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import {
+  CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
+  SOURCE_MEDIA_IMPORT_OWNER,
+  UnknownCollectionError,
+  acquireImageMutation,
+  alibabaLinkRevision,
+  backfillPublishedRefCounts,
+  batchRemove,
+  batchUpdate,
+  create,
+  createDoc,
+  executeImageDeletion,
+  findByField,
+  flagForReview,
+  get,
+  getCatalogTaxonomy,
+  incrementField,
+  list,
+  manageCatalogDetailApproval,
+  manageCatalogInquiry,
+  manageImageDeletion,
+  persistCatalogDetailApproval,
+  preparationUsingImage,
+  readCatalogImageReference,
+  releaseImageMutation,
+  remove,
+  saveCatalogProductWithIdentities,
+  unfinishedApprovalUsingImage,
+  update,
+  updateDoc,
+} from '@vibelingan-channel/db';
+import type { CatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-jobs';
+import {
+  type PriceSummaryBackfillReader,
+  planPriceSummaryBackfill,
+  planProductPriceSummary,
+} from '@vibelingan-channel/db/catalog-price-summary-backfill';
+import { sendOemConfirmationEmail, sendPasswordResetEmail } from '@vibelingan-channel/email';
+import {
+  type StoredMediaObject,
+  catalogStoragePath,
+  mediaStorage,
+  objectStoragePath,
+} from '@vibelingan-channel/media-storage';
+import {
+  type ApiResult,
+  CATALOG_IMAGE_MAX_BYTES,
+  COLLECTIONS,
+  type CollectionDoc,
+  type ErrorCode,
+  FILTER_OPERATORS,
+  type FilterClause,
+  LOGIN_RATE_MAX_GLOBAL,
+  LOGIN_RATE_MAX_PER_SOURCE,
+  MAX_PRODUCT_SUBCATEGORIES,
+  type MediaSignature,
+  type MediaStatus,
+  OEM_DOWNLOAD_URL_TTL_SECONDS,
+  OEM_FILE_MAX_BYTES,
+  OEM_LEGACY_DRAWING_MAX_BASE64_CHARS,
+  OEM_MAX_PENDING_INTENTS_GLOBAL,
+  OEM_MAX_PENDING_INTENTS_PER_SOURCE,
+  OEM_UPLOAD_INTENT_TTL_MS,
+  OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+  OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
+  OEM_UPLOAD_RATE_WINDOW_MS,
+  PASSWORD_RESET_SWEEP_LIMIT,
+  PASSWORD_RESET_TTL_MS,
+  PRODUCT_FAMILY_OPTIONS,
+  PUBLIC_CATALOG_COLLECTIONS,
+  PUBLIC_RATE_WINDOW_MS,
+  type ProductFamily,
+  type ProductSubcategoryScope,
+  RATE_LIMIT_HITS_SWEEP_LIMIT,
+  RECOVER_RATE_MAX_GLOBAL,
+  RECOVER_RATE_MAX_PER_SOURCE,
+  RESET_PASSWORD_RATE_MAX_GLOBAL,
+  RESET_PASSWORD_RATE_MAX_PER_SOURCE,
+  type Role,
+  SIGNATURE_MIME,
+  SUBMIT_PROJECT_RATE_MAX_GLOBAL,
+  SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
+  SYSTEM_FIELDS,
+  adminVisibleCollections,
+  buildWriteSchema,
+  canEditCollection,
+  canEditRegisteredCollection,
+  canReadCollection,
+  canReadRegisteredCollection,
+  catalogImageUploadSchema,
+  catalogReferencedImageIds,
+  err,
+  evaluateFixedWindowRateLimit,
+  fileExtension,
+  getCollection,
+  isKnownCollection,
+  isProductSubcategoryIds,
+  normalizeCatalogImageIds,
+  normalizeProductSlug,
+  normalizeSkuCode,
+  oemFileUploadSchema,
+  ok,
+  productFamilyForDoc,
+  rateLimited,
+  sanitizeDownloadFilename,
+  selectExpiredPendingForSweep,
+  signatureMatchesMime,
+  sniffMagicBytes,
+  storedCatalogTaxonomy,
+  toRole,
+  withinPendingCap,
+} from '@vibelingan-channel/shared';
+import { CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-product-operation';
+import { manageAdminCatalogProductOperation } from './catalog-product-operation.ts';
+
+import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
+import { CatalogPriceSummarySchema } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  type InquiryEnvelope,
+  inquiryErrorMessages,
+} from '@vibelingan-channel/shared/catalog-inquiry';
+import { catalogFailureIssue } from '@vibelingan-channel/shared/catalog-issues';
+import { CatalogReadinessSchema } from '@vibelingan-channel/shared/catalog-preparation';
+import { releaseInfo } from '@vibelingan-channel/shared/release';
+import { z } from 'zod';
+import { executeArticleMediaRequest } from './article-media.ts';
+import { approveInOneRequest } from './catalog-approve-once.ts';
+import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
+import {
+  type ChangeAuditReader,
+  applyChangeAudit,
+  planChangeAudit,
+} from './catalog-change-audit.ts';
+import { readCatalogDetailPreview } from './catalog-detail-preview.ts';
+import { prepareCatalogSource } from './catalog-detail-source.ts';
+import { finalizeCatalogImageUpload } from './catalog-image-upload.ts';
+import { manageHumanCatalogPreparation } from './catalog-preparation-api.ts';
+import type { CatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
+import {
+  type CatalogCreationBinding,
+  manageCatalogProductCreate,
+} from './catalog-product-create.ts';
+import {
+  CatalogProductWriteError,
+  createCatalogProductRecord,
+  updateCatalogProductRecord,
+} from './catalog-product-identities.ts';
+import {
+  pendingSupplierParts,
+  readPhotoSources,
+  readSupplierReview,
+  storedObservation,
+  supplierParts,
+  withAdminEditsKept,
+} from './catalog-supplier-review.ts';
+import { CatalogValidationSchema, catalogValidationMessage } from './catalog-validation.ts';
+import { cleanupOrphanUploadImage } from './orphan-upload-cleanup.ts';
+import { cleanupSourceMediaImage } from './source-media-cleanup.ts';
+
+import type { OwnedFinalContinuationStep } from './catalog-operation-final-continue.ts';
+export interface AdminConfig {
+  jwtSecret: string;
+  articleRepository?: ArticleRepository;
+  enableArticleReleases?: boolean;
+  enableInquiries?: boolean;
+  /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
+  enableDetailApproval?: boolean;
+  /** Server-only control authority; never returned in capabilities or product data. */
+  preparationAuthority?: CatalogPreparationAuthority;
+  preparationInvoke?: CatalogPreparationInvoker;
+  /** Server workflow dependency; omitted runtimes use the native final transaction. */
+  productOperationPublisher?: OwnedFinalContinuationStep;
+  /** Absolute URL of the login page, used in emails. */
+  loginUrl?: string;
+  /** Absolute URL of the password-reset page; the reset token is appended as `?token=`. */
+  resetPasswordUrl?: string;
+  bootstrap?: {
+    enabled: boolean;
+    adminToken?: string;
+    adminEmail?: string;
+    adminPasswordHash?: string;
+  };
+}
+
+export interface AdminRequest {
+  action: string;
+  data?: unknown;
+  token?: string;
+}
+export type AdminResult = ApiResult<unknown> | InquiryEnvelope;
+
+/**
+ * Per-request context the transport (HTTP adapter) derives from the raw event
+ * and the pure handler cannot see from `{action,data,token}` alone. Optional so
+ * direct/local callers and existing tests keep working unchanged.
+ */
+export interface RequestContext {
+  /** Best-effort client IP (first `x-forwarded-for` hop / gateway sourceIp). */
+  sourceIp?: string;
+}
+
+// --- Validation schemas ----------------------------------------------------
+const registerSchema = z.object({
+  username: z.string().min(2).max(40),
+  email: z.string().email(),
+  password: z.string().min(6).max(200),
+});
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+const bootstrapAdminSchema = z.object({ token: z.string().min(1).max(4096) });
+const recoverSchema = z.object({ email: z.string().email() });
+const resetPasswordSchema = z.object({
+  token: z.string().min(1).max(400),
+  newPassword: z.string().min(6).max(200),
+});
+const submitProjectSchema = z.object({
+  company: z.string().min(1).max(200),
+  contact: z.string().min(1).max(200),
+  email: z.string().email(),
+  whatsapp: z.string().max(60).optional(),
+  category: z.string().max(100).optional(),
+  quantity: z.union([z.string(), z.number()]).optional(),
+  drawingName: z.string().max(300).optional(),
+  drawingType: z.string().max(200).optional(),
+  // Storage-upload finalization (MIU-08 §20.10): the browser POSTs bytes to COS
+  // with a `createOemFileUploadIntent` credential, then references the pending
+  // `files` row here. All three are required TOGETHER (a partial triad is rejected).
+  drawingFileId: z.string().min(1).max(200).optional(),
+  uploadIntentId: z.string().min(1).max(200).optional(),
+  uploadSecret: z.string().min(1).max(400).optional(),
+  // Legacy base64 fallback (inline `data`); superseded by the storage path above.
+  // Capped at the base64-char equivalent of OEM_FILE_MAX_BYTES so this path
+  // cannot admit a larger body than the storage triad (the handler additionally
+  // checks the DECODED byteLength for an exact cap).
+  drawingData: z.string().max(OEM_LEGACY_DRAWING_MAX_BASE64_CHARS).optional(),
+});
+const updateProfileSchema = z.object({ username: z.string().min(2).max(40) });
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(6).max(200),
+});
+const filterClauseSchema = z.object({
+  field: z.string().min(1),
+  op: z.enum(FILTER_OPERATORS),
+  value: z.unknown().optional(),
+});
+const filterModelSchema = z.object({
+  combinator: z.enum(['and', 'or']).default('and'),
+  clauses: z.array(filterClauseSchema).default([]),
+});
+const sortClauseSchema = z.object({
+  field: z.string().min(1),
+  dir: z.enum(['asc', 'desc']),
+});
+const listSchema = z.object({
+  collection: z.string(),
+  productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
+  needsClassification: z.boolean().optional(),
+  catalogReadiness: CatalogReadinessSchema.optional(),
+  catalogListView: z.literal(ADMIN_PRODUCT_LIST_VIEW).optional(),
+  subcategoryIds: z.array(z.string()).min(1).max(MAX_PRODUCT_SUBCATEGORIES).optional(),
+  page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(100).default(20),
+  search: z.string().max(200).default(''),
+  filter: filterModelSchema.optional(),
+  sort: z.array(sortClauseSchema).optional(),
+});
+const idSchema = z.object({ collection: z.string(), id: z.string().min(1) });
+const createSchema = z.object({ collection: z.string(), values: z.record(z.unknown()) });
+const updateSchema = z.object({
+  collection: z.string(),
+  id: z.string().min(1),
+  values: z.record(z.unknown()),
+  expectedUpdatedAt: z.string().datetime().nullable().optional(),
+  intent: z.literal('refresh-live').optional(),
+});
+const batchUpdateSchema = z.object({
+  collection: z.string(),
+  ids: z.array(z.string().min(1)).min(1).max(500),
+  values: z.record(z.unknown()),
+});
+const batchRemoveSchema = z.object({
+  collection: z.string(),
+  ids: z.array(z.string().min(1)).min(1).max(500),
+});
+const markProductReviewedSchema = z.object({ productId: z.string().min(1).max(200) });
+
+const completeUploadSchema = z.object({
+  imageId: z.string().min(1),
+});
+
+const abandonUploadSchema = z.object({
+  imageId: z.string().min(1),
+});
+
+const imagePreviewSchema = z.object({ id: z.string().min(1) });
+
+const oemFileDownloadSchema = z.object({ fileId: z.string().min(1) });
+
+const SESSION_TTL = 60 * 60 * 12;
+
+// --- Public-endpoint abuse control -----------------------------------------
+
+/**
+ * SHA-256 of the client IP, or `undefined` when no source signal is available.
+ * The raw IP is never stored; an absent source falls through to the global
+ * ceiling only (mirrors the OEM `uploadSourceHash`).
+ */
+function hashSource(sourceIp: string | undefined): string | undefined {
+  const trimmed = sourceIp?.trim();
+  return trimmed ? createHash('sha256').update(trimmed).digest('hex') : undefined;
+}
+
+/** Total `rateLimitHits` rows matching `clauses` (count-only query). */
+async function countRateLimitHits(clauses: FilterClause[]): Promise<number> {
+  const res = await list({
+    collection: 'rateLimitHits',
+    page: 1,
+    pageSize: 1,
+    filter: { combinator: 'and', clauses },
+  });
+  return res.total;
+}
+
+/**
+ * Opportunistic, bounded GC: reap the oldest `rateLimitHits` rows whose window
+ * has already elapsed (`createdAt < windowStartIso` — they can never be counted
+ * again). Best-effort; a sweep failure never blocks the request that triggered
+ * it. Keeps the ledger from growing without a scheduler, the same way the OEM
+ * intent path self-heals expired pending rows.
+ */
+async function sweepExpiredRateLimitHits(windowStartIso: string): Promise<void> {
+  const stale = await list({
+    collection: 'rateLimitHits',
+    page: 1,
+    pageSize: RATE_LIMIT_HITS_SWEEP_LIMIT,
+    filter: {
+      combinator: 'and',
+      clauses: [{ field: 'createdAt', op: 'lt', value: windowStartIso }],
+    },
+    sort: [{ field: 'createdAt', dir: 'asc' }],
+  });
+  for (const row of stale.items) {
+    await remove('rateLimitHits', String(row._id)).catch((e) =>
+      console.error('[ratelimit] stale-hit reap failed', e),
+    );
+  }
+}
+
+/**
+ * Reserve-first per-source + global fixed-window rate limit for an
+ * UNAUTHENTICATED endpoint, over the dedicated `rateLimitHits` ledger. Returns a
+ * `RATE_LIMITED` `ApiResult` (with `Retry-After`) when over a ceiling, else
+ * `null` (the caller may proceed).
+ *
+ * Substrate choice: `login`/`recover`/`submitProject` write no natural
+ * reservation row, and the CloudBase adapter has no upsert/set-with-id primitive
+ * for an atomic per-bucket counter — so this reuses the SAME reserve-first
+ * pattern already proven for OEM intents: WRITE the hit, then COUNT it in, and
+ * ROLL BACK the reservation if any ceiling is exceeded. Because every admitted
+ * hit persists and is visible to concurrent counters, no ceiling can admit more
+ * than its limit even under a burst (fails SAFE — may over-reject under
+ * contention, never over-admit); rejected hits are rolled back so a flood does
+ * not accumulate rows.
+ *
+ * Per-source is the primary throttle (an attacker only limits their own IP); the
+ * global ceiling is a high self-healing backstop for the case where the platform
+ * exposes no trusted IP (source-less bucket) — it never locks an account.
+ */
+async function enforceRateLimit(opts: {
+  scope: string;
+  sourceHash: string | undefined;
+  maxPerSource: number;
+  maxGlobal: number;
+  nowMs: number;
+}): Promise<ApiResult<unknown> | null> {
+  const { scope, sourceHash, maxPerSource, maxGlobal, nowMs } = opts;
+  const windowStartIso = new Date(
+    Math.floor(nowMs / PUBLIC_RATE_WINDOW_MS) * PUBLIC_RATE_WINDOW_MS,
+  ).toISOString();
+  const nowIso = new Date(nowMs).toISOString();
+
+  await sweepExpiredRateLimitHits(windowStartIso).catch((e) =>
+    console.error(`[ratelimit] ${scope}: stale-hit sweep failed`, e),
+  );
+
+  // Reserve the hit BEFORE counting so concurrent requests all observe it.
+  const reserved = await createDoc('rateLimitHits', {
+    scope,
+    sourceHash: sourceHash ?? '',
+    // Stamp createdAt explicitly so the window query counts this hit identically
+    // on every adapter (the in-memory test fake does not auto-stamp createdAt).
+    createdAt: nowIso,
+  });
+  // Best-effort rollback of a DENIED reservation. If the remove() fails (transient
+  // DB error), the rejected row lingers until the next window's sweep reaps it —
+  // which only makes the limiter STRICTER for the rest of the window (the lingering
+  // row inflates the count), never more permissive. So a failed rollback fails
+  // SAFE (over-reject, never over-admit); logging is enough, and returning a 500
+  // here would turn a self-healing transient into a hard error.
+  const rollback = (): Promise<void> =>
+    remove('rateLimitHits', reserved._id)
+      .then(() => undefined)
+      .catch((e) => console.error(`[ratelimit] ${scope}: reservation rollback failed`, e));
+
+  const inWindow: FilterClause[] = [
+    { field: 'scope', op: 'eq', value: scope },
+    { field: 'createdAt', op: 'gte', value: windowStartIso },
+  ];
+
+  const globalRate = evaluateFixedWindowRateLimit({
+    countInWindow: await countRateLimitHits(inWindow),
+    maxPerWindow: maxGlobal,
+    windowMs: PUBLIC_RATE_WINDOW_MS,
+    nowMs,
+  });
+  if (!globalRate.allowed) {
+    await rollback();
+    return rateLimited(
+      `Too many requests. Please retry in ${globalRate.retryAfterSeconds}s.`,
+      globalRate.retryAfterSeconds,
+    );
+  }
+
+  if (sourceHash) {
+    const sourceRate = evaluateFixedWindowRateLimit({
+      countInWindow: await countRateLimitHits([
+        ...inWindow,
+        { field: 'sourceHash', op: 'eq', value: sourceHash },
+      ]),
+      maxPerWindow: maxPerSource,
+      windowMs: PUBLIC_RATE_WINDOW_MS,
+      nowMs,
+    });
+    if (!sourceRate.allowed) {
+      await rollback();
+      return rateLimited(
+        `Too many requests. Please retry in ${sourceRate.retryAfterSeconds}s.`,
+        sourceRate.retryAfterSeconds,
+      );
+    }
+  }
+
+  return null;
+}
+
+// --- Helpers ---------------------------------------------------------------
+
+/** Minimal, safe representation of a user returned to clients. */
+function publicUser(doc: CollectionDoc) {
+  return {
+    id: doc._id,
+    email: doc.email ?? '',
+    username: doc.username ?? '',
+    role: toRole(doc.role),
+    status: doc.status ?? 'active',
+  };
+}
+
+/** Redact sensitive/server-only fields from documents returned to the admin UI. */
+function redact(collection: string, doc: CollectionDoc): CollectionDoc {
+  if (collection === 'users') {
+    const { passwordHash: _omit, ...rest } = doc as Record<string, unknown> & {
+      passwordHash?: string;
+    };
+    return rest as CollectionDoc;
+  }
+  if (collection === 'images') {
+    const {
+      uploadedByUserId: _uploadedByUserId,
+      imageMutationOwner: _imageMutationOwner,
+      imageMutationStartedAt: _imageMutationStartedAt,
+      catalogStorageProtection: _catalogStorageProtection,
+      catalogProtectionIntentId: _catalogProtectionIntentId,
+      ...rest
+    } = doc;
+    return rest as CollectionDoc;
+  }
+  if (collection === 'products') {
+    const { alibabaReviewedByUserId: _reviewer, catalogCreateReceipt: _creation, ...rest } = doc;
+    return rest as CollectionDoc;
+  }
+  return doc;
+}
+
+function authenticate(req: AdminRequest, config: AdminConfig): Promise<SessionClaims | null> {
+  if (!req.token) return Promise.resolve(null);
+  return verifySession(config.jwtSecret, req.token);
+}
+
+/**
+ * Re-anchor a verified token to the CURRENT users row (V3: revocation). The
+ * JWT proves identity for its 12h TTL, but authorization must reflect the row
+ * as it exists NOW: a deleted or suspended user loses access on their next
+ * request, and a demoted (or promoted) user drops/gains their current role
+ * immediately. Suspension mirrors `login` (only an explicit
+ * `status: 'suspended'` revokes — legacy rows without a status stay valid);
+ * a missing row means the account was removed, so the session dies with it.
+ * One `get` per authenticated request buys revocation without a
+ * token-generation scheme; every action below authorizes against the
+ * RETURNED claims' role, so this single choke point covers them all.
+ */
+async function revalidateSession(claims: SessionClaims): Promise<SessionClaims | null> {
+  const user = await get('users', claims.sub);
+  if (!user) return null;
+  if (user.status === 'suspended') return null;
+  return { ...claims, role: toRole(user.role) };
+}
+
+function issueToken(config: AdminConfig, doc: CollectionDoc): Promise<string> {
+  return signSession(
+    config.jwtSecret,
+    {
+      sub: doc._id,
+      email: String(doc.email ?? ''),
+      name: String(doc.username ?? ''),
+      role: toRole(doc.role),
+    },
+    SESSION_TTL,
+  );
+}
+
+function timingSafeStringEqual(input: string, expected: string): boolean {
+  const left = Buffer.from(input);
+  const right = Buffer.from(expected);
+  if (right.length === 0) return false;
+
+  if (left.length !== right.length) {
+    const length = Math.max(left.length, right.length, 1);
+    const paddedLeft = Buffer.alloc(length);
+    const paddedRight = Buffer.alloc(length);
+    left.copy(paddedLeft);
+    right.copy(paddedRight);
+    timingSafeEqual(paddedLeft, paddedRight);
+    return false;
+  }
+
+  return timingSafeEqual(left, right);
+}
+
+interface ReadyBootstrapConfig {
+  adminToken: string;
+  adminEmail: string;
+  adminPasswordHash: string;
+}
+
+function readyBootstrapConfig(config: AdminConfig): ReadyBootstrapConfig | null {
+  const bootstrap = config.bootstrap;
+  if (!bootstrap?.enabled) return null;
+
+  const adminToken = bootstrap.adminToken?.trim() ?? '';
+  const adminEmail = bootstrap.adminEmail?.trim().toLowerCase() ?? '';
+  const adminPasswordHash = bootstrap.adminPasswordHash?.trim() ?? '';
+  if (!adminToken || !adminEmail || !adminPasswordHash) return null;
+  if (!z.string().email().safeParse(adminEmail).success) return null;
+  return { adminToken, adminEmail, adminPasswordHash };
+}
+
+function bootstrapUsername(email: string): string {
+  const [localPart = ''] = email.split('@');
+  const normalized = localPart.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 40);
+  return normalized.length >= 2 ? normalized : 'admin';
+}
+
+async function activeAdminExists(): Promise<boolean> {
+  const admins = await list({
+    collection: 'users',
+    page: 1,
+    pageSize: 1,
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'role', op: 'eq', value: 'admin' },
+        { field: 'status', op: 'eq', value: 'active' },
+      ],
+    },
+  });
+  return admins.total > 0;
+}
+
+// --- Handler ---------------------------------------------------------------
+
+export async function handleAdminRequest(
+  req: AdminRequest,
+  config: AdminConfig,
+  context?: RequestContext,
+): Promise<AdminResult> {
+  try {
+    // ---- Public auth actions ------------------------------------------
+    switch (req.action) {
+      case 'register':
+        return await register(req, config);
+      case 'login':
+        return await login(req, config, context);
+      case 'bootstrapAdmin':
+        return await bootstrapAdmin(req, config);
+      case 'recover':
+        return await recover(req, config, context);
+      case 'resetPassword':
+        return await resetPassword(req, context);
+      case 'health':
+        return ok(releaseInfo('admin'));
+      case 'submitProject':
+        return await submitProject(req, context);
+      case 'createOemFileUploadIntent':
+        return await createOemFileUploadIntentAction(req, context);
+    }
+
+    // ---- Everything below requires a valid session --------------------
+    const tokenClaims = await authenticate(req, config);
+    if (!tokenClaims) return err('UNAUTHORIZED', 'Authentication required');
+    // V3: the token proves identity; the LIVE users row decides authorization.
+    const claims = await revalidateSession(tokenClaims);
+    if (!claims) return err('UNAUTHORIZED', 'This session is no longer valid.');
+
+    switch (req.action) {
+      case 'articleMedia': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (!config.articleRepository)
+          return err('INTERNAL_ERROR', 'Article storage is not configured.');
+        return ok(await executeArticleMediaRequest(config.articleRepository, claims.sub, req.data));
+      }
+      case 'articleReleases': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (
+          req.data &&
+          typeof req.data === 'object' &&
+          Reflect.get(req.data, 'operation') === 'capabilities'
+        )
+          return ok({ enabled: config.enableArticleReleases === true });
+        if (config.enableArticleReleases !== true)
+          return err('FORBIDDEN', 'Article publishing is not enabled.');
+        if (!config.articleRepository?.releases)
+          return err('INTERNAL_ERROR', 'Article release storage is not configured.');
+        return ok(
+          await executeArticleReleaseRequest(
+            config.articleRepository.releases,
+            claims.sub,
+            req.data,
+          ),
+        );
+      }
+      case 'articleDrafts':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (!config.articleRepository)
+          return err('INTERNAL_ERROR', 'Article draft storage is not configured.');
+        return ok(await executeArticleDraftRequest(config.articleRepository, claims.sub, req.data));
+      case 'me':
+        return await me(claims);
+      case 'inquiryCapabilities':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        return ok({ enabled: config.enableInquiries === true, notification: 'disabled' });
+      case 'catalogPreparation': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (config.enableDetailApproval !== true || !config.preparationAuthority)
+          return err('FORBIDDEN', 'Product preparation is not enabled.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
+          return err('VALIDATION_ERROR', 'Preparation request is too large.');
+        if (
+          req.data &&
+          typeof req.data === 'object' &&
+          Reflect.get(req.data, 'action') === 'continue' &&
+          !config.preparationInvoke
+        )
+          return err('FORBIDDEN', 'Product preparation execution is not enabled.');
+        const result = await manageHumanCatalogPreparation(
+          config.preparationAuthority,
+          claims.sub,
+          req.data,
+          config.preparationInvoke,
+        );
+        if (result.ok) return ok(result);
+        const messages = {
+          FORBIDDEN: 'Admin permission is required. Sign in again to continue.',
+          VALIDATION_ERROR: 'Check the preparation request and refresh its current state.',
+          NOT_FOUND: 'This product or preparation was not found. Refresh the product list.',
+          CORRUPT: 'Preparation data needs repair. Refresh its state before trying again.',
+          CONFLICT: 'Preparation changed. Refresh its state to choose the next action.',
+          BUSY: 'Preparation is already running. Check its progress before continuing.',
+          STALE: 'Product data changed. Start preparation for the current product.',
+        };
+        return err(
+          result.code === 'CORRUPT' || result.code === 'STALE' ? 'CONFLICT' : result.code,
+          messages[result.code],
+        );
+      }
+      case 'catalogDetailCapabilities':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        return ok({ enabled: config.enableDetailApproval === true });
+      case 'catalogCategories':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 16384)
+          return err('VALIDATION_ERROR', 'Category request is too large.');
+        return ok(await manageCatalogCategories(claims.sub, req.data));
+      case 'catalogDetailApproval': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (config.enableDetailApproval !== true)
+          return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
+        const action =
+          req.data && typeof req.data === 'object' ? Reflect.get(req.data, 'action') : undefined;
+        const requestLimit =
+          action === 'product-operation-start' ? CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES : 4096;
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > requestLimit)
+          return err('VALIDATION_ERROR', 'Approval request is too large.');
+        const result =
+          action === 'preview'
+            ? await readCatalogDetailPreview(claims.sub, req.data)
+            : action === 'prepare'
+              ? await prepareCatalogSource(claims.sub, req.data)
+              : action === 'supplier-review'
+                ? await readSupplierReview(claims.sub, req.data, changeAuditReader)
+                : action === 'photo-sources'
+                  ? await readPhotoSources(claims.sub, req.data)
+                  : action === 'approve'
+                    ? await approveInOneRequest(claims.sub, req.data)
+                    : typeof action === 'string' && action.startsWith('product-operation-')
+                      ? await manageAdminCatalogProductOperation(claims.sub, req.data, {
+                          save: saveOwnedDraftWithImageLocks,
+                          ...(config.preparationAuthority
+                            ? { authority: config.preparationAuthority }
+                            : {}),
+                          ...(config.preparationInvoke ? { invoke: config.preparationInvoke } : {}),
+                          ...(config.productOperationPublisher
+                            ? { publish: config.productOperationPublisher }
+                            : {}),
+                        })
+                      : await manageCatalogDetailApproval(claims.sub, req.data);
+        if (result.ok) return ok(result);
+        const validation =
+          'validation' in result ? CatalogValidationSchema.safeParse(result.validation) : undefined;
+        const issues = validation?.success
+          ? validation.data.issues
+          : [catalogFailureIssue(result.code)];
+        const rejectApproval = (code: ErrorCode, message: string) => err(code, message, issues);
+        if (result.code === 'MANUAL_CONFIGURATIONS')
+          return rejectApproval(
+            'CONFLICT',
+            'This product has configurations; approving manual configurations is not supported yet.',
+          );
+        if (result.code === 'SOURCE_NOT_READY')
+          return rejectApproval(
+            'CONFLICT',
+            'The complete product data is not ready for review. Refresh after synchronization finishes.',
+          );
+        if (result.code === 'APPROVAL_EXPIRED')
+          return rejectApproval(
+            'CONFLICT',
+            'This approval took over an hour and was stopped. Publish the product again.',
+          );
+        if (result.code === 'MEDIA_BUSY')
+          return rejectApproval(
+            'BUSY',
+            'A photo of this product was being changed at the same moment. Nothing was published; try again.',
+          );
+        if (result.code === 'MEDIA_NOT_READY')
+          return rejectApproval(
+            'CONFLICT',
+            'The product images are missing or busy. Confirm the gallery before approval.',
+          );
+        if (result.code === 'APPROVAL_TOO_LARGE')
+          return rejectApproval(
+            'VALIDATION_ERROR',
+            'Too many images changed at once. Save and approve gallery changes separately from description-image changes. The current website version has not changed.',
+          );
+        if (result.code === 'VALIDATION_ERROR' && 'validation' in result) {
+          const message = catalogValidationMessage(result.validation);
+          if (message) return rejectApproval('VALIDATION_ERROR', message);
+        }
+        return rejectApproval(
+          result.code,
+          result.code === 'CONFLICT'
+            ? 'The reviewed product changed. Refresh and review it again.'
+            : 'The catalog approval could not be completed.',
+        );
+      }
+      case 'inquiry': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (config.enableInquiries !== true)
+          return err('FORBIDDEN', 'Product inquiries are not enabled.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 16384)
+          return err('VALIDATION_ERROR', 'Inquiry request is too large.');
+        const result = await manageCatalogInquiry(claims.sub, req.data);
+        return result.ok
+          ? result
+          : {
+              ok: false,
+              error: {
+                code: result.code,
+                message: inquiryErrorMessages[result.code] ?? 'Request could not be completed.',
+              },
+            };
+      }
+      case 'updateProfile':
+        return await updateProfile(req, claims, config);
+      case 'changePassword':
+        return await changePassword(req, claims);
+      case 'collections':
+        // R1: adminAccess:'none' defs (token/lease/state internals) are never
+        // shipped to the browser, for any role.
+        return ok({ collections: adminVisibleCollections() });
+      case 'list':
+        return await listAction(req, claims);
+      case 'get':
+        return await getAction(req, claims);
+      case 'getImageReferenceCount': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        const input = z
+          .object({
+            imageId: z
+              .string()
+              .min(1)
+              .max(200)
+              .regex(/^[A-Za-z0-9_-]+$/),
+          })
+          .strict()
+          .safeParse(req.data);
+        if (!input.success) return err('BAD_REQUEST', 'A valid image identity is required.');
+        // The base field excludes committed, unsettled publication proofs.
+        // Always read the effective count through the existing native snapshot; never settle on GET.
+        const snapshot = await readCatalogImageReference({ action: 'read', ...input.data });
+        if (snapshot.state === 'missing') return err('NOT_FOUND', 'Image not found');
+        return ok({
+          imageId: input.data.imageId,
+          state: snapshot.state,
+          count: snapshot.state === 'counted' ? snapshot.effectiveCount : null,
+        });
+      }
+      case 'create':
+        return await createAction(req, claims, config);
+      case 'catalogProductCreate':
+        if (!canEditRegisteredCollection(claims.role, 'products'))
+          return err('FORBIDDEN', 'You do not have permission to create products.');
+        return await manageCatalogProductCreate(
+          claims.sub,
+          req.data,
+          (values, binding) =>
+            createAction(
+              { ...req, data: { collection: 'products', values } },
+              claims,
+              config,
+              binding,
+            ),
+          (doc) => redact('products', doc),
+        );
+      case 'update':
+        return await updateAction(req, claims, config);
+      case 'remove':
+        return await removeAction(req, claims);
+      case 'batchUpdate':
+        return await batchUpdateAction(req, claims);
+      case 'batchRemove':
+        return await batchRemoveAction(req, claims);
+      case 'productReviewSummary':
+        return await productReviewSummaryAction(claims);
+      case 'markProductReviewed':
+        return await markProductReviewedAction(req, claims);
+      case 'backfillImageRefCounts':
+        return await backfillImageRefCountsAction(req, claims);
+      case 'backfillPublicationPriceSummary':
+        return await backfillPublicationPriceSummaryAction(req, claims, config);
+      case 'auditChangesSinceApproval':
+        return await auditChangesSinceApprovalAction(req, claims, config);
+      case 'cleanupOrphanImages':
+        return await cleanupOrphanImagesAction(req, claims);
+      case 'migrateLegacyImages':
+        return await migrateLegacyImagesAction(req, claims);
+      case 'createUploadIntent':
+        return await createUploadIntentAction(req, claims);
+      case 'completeUpload':
+        return await completeUploadAction(req, claims);
+      case 'abandonUpload':
+        return await abandonUploadAction(req, claims);
+      case 'getImagePreview':
+        return await getImagePreviewAction(req, claims);
+      case 'getOemFileDownloadUrl':
+        return await getOemFileDownloadUrlAction(req, claims);
+      default:
+        return err('BAD_REQUEST', `Unknown action: ${req.action}`);
+    }
+  } catch (e) {
+    if (isArticleDraftError(e))
+      return {
+        ok: false,
+        error: {
+          code: e.code,
+          message: e.message,
+          ...(e.currentRevision === undefined ? {} : { currentRevision: e.currentRevision }),
+        },
+      };
+    if (e instanceof UnknownCollectionError) return err('UNKNOWN_COLLECTION', e.message);
+    if (e instanceof CatalogProductWriteError) {
+      if (
+        e.code === 'IDENTITY_CONFLICT' ||
+        e.code === 'PRODUCT_EXISTS' ||
+        e.code === 'PRODUCT_STALE'
+      ) {
+        return err('CONFLICT', e.message);
+      }
+      if (e.code === 'PRODUCT_NOT_FOUND') return err('NOT_FOUND', e.message);
+      return err('VALIDATION_ERROR', e.message);
+    }
+    if (e instanceof z.ZodError) {
+      return err('VALIDATION_ERROR', e.issues.map((i) => i.message).join('; '));
+    }
+    // CloudBase retries a colliding transaction 3 times, then throws it; the
+    // transaction rolled back, so the same request may simply be sent again.
+    if (isTransactionConflict(e)) {
+      console.warn('[fn-admin] transaction conflict after SDK retries');
+      return err(
+        'BUSY',
+        'Another change happened at the same moment. Nothing was saved; try again.',
+      );
+    }
+    console.error('[fn-admin] unexpected error:', e);
+    return err('INTERNAL_ERROR', 'Unexpected server error');
+  }
+}
+
+/** The SDK's error after its own retries of a write-write transaction conflict. */
+export function isTransactionConflict(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    Reflect.get(error, 'code') === 'DATABASE_TRANSACTION_CONFLICT'
+  );
+}
+
+// --- Auth actions ----------------------------------------------------------
+
+async function register(req: AdminRequest, config: AdminConfig): Promise<ApiResult<unknown>> {
+  const parsed = registerSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+  const email = parsed.data.email.toLowerCase();
+  if (await findByField('users', 'email', email)) {
+    return err('CONFLICT', 'An account with this email already exists.');
+  }
+  if (await findByField('users', 'username', parsed.data.username)) {
+    return err('CONFLICT', 'This username is taken.');
+  }
+  const passwordHash = await hashPassword(parsed.data.password);
+  // New users get the blank base role; admins assign roles later.
+  const doc = await createDoc('users', {
+    username: parsed.data.username,
+    email,
+    role: '',
+    status: 'active',
+    passwordHash,
+    loginCount: 0,
+  });
+  const token = await issueToken(config, doc);
+  return ok({ token, user: publicUser(doc) });
+}
+
+async function bootstrapAdmin(req: AdminRequest, config: AdminConfig): Promise<ApiResult<unknown>> {
+  const settings = readyBootstrapConfig(config);
+  if (!settings) return err('FORBIDDEN', 'Bootstrap is not available.');
+
+  const parsed = bootstrapAdminSchema.safeParse(req.data);
+  const suppliedToken = parsed.success ? parsed.data.token : '';
+  if (!timingSafeStringEqual(suppliedToken, settings.adminToken)) {
+    return err('UNAUTHORIZED', 'Invalid bootstrap request.');
+  }
+
+  if (await activeAdminExists()) {
+    return err('CONFLICT', 'An active admin account already exists.');
+  }
+
+  if (await findByField('users', 'email', settings.adminEmail)) {
+    return err('CONFLICT', 'Bootstrap admin email already exists.');
+  }
+
+  const username = bootstrapUsername(settings.adminEmail);
+  if (await findByField('users', 'username', username)) {
+    return err('CONFLICT', 'Bootstrap admin username already exists.');
+  }
+
+  const doc = await createDoc('users', {
+    email: settings.adminEmail,
+    username,
+    role: 'admin',
+    status: 'active',
+    passwordHash: settings.adminPasswordHash,
+    loginCount: 0,
+  });
+
+  return ok({
+    user: publicUser(doc),
+    bootstrap: { disableRequired: true },
+  });
+}
+
+async function login(
+  req: AdminRequest,
+  config: AdminConfig,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = loginSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'Email and password are required.');
+  // Throttle brute force BEFORE the DB lookup + argon2 verify, so a flood cannot
+  // burn CPU on password hashing. Per-source is the real brake; the global
+  // ceiling is a high self-healing backstop that never locks an account.
+  const limited = await enforceRateLimit({
+    scope: 'login',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: LOGIN_RATE_MAX_PER_SOURCE,
+    maxGlobal: LOGIN_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
+  const email = parsed.data.email.toLowerCase();
+  const user = await findByField('users', 'email', email);
+  const hash = typeof user?.passwordHash === 'string' ? user.passwordHash : '';
+  const valid = hash ? await verifyPassword(hash, parsed.data.password) : false;
+  if (!user || !valid) return err('UNAUTHORIZED', 'Invalid email or password.');
+  if (user.status === 'suspended') return err('FORBIDDEN', 'This account is suspended.');
+
+  // Record login (fire-and-forget; never blocks the response). loginCount goes
+  // through the atomic, integer-guarded incrementField rather than a
+  // read-modify-write — the latter loses counts under concurrent logins and
+  // would persist NaN forever if the stored value were ever a corrupt string.
+  updateDoc('users', user._id, { lastLoginAt: new Date().toISOString() }).catch((e) =>
+    console.error('[login] recordLogin failed:', e),
+  );
+  incrementField('users', user._id, 'loginCount', 1).catch((e) =>
+    console.error('[login] loginCount increment failed:', e),
+  );
+
+  const token = await issueToken(config, user);
+  return ok({ token, user: publicUser(user) });
+}
+
+/** Bounded opportunistic GC of EXPIRED reset tokens (they can never be consumed). */
+async function sweepExpiredPasswordResets(nowIso: string): Promise<void> {
+  const stale = await list({
+    collection: 'passwordResets',
+    page: 1,
+    pageSize: PASSWORD_RESET_SWEEP_LIMIT,
+    filter: { combinator: 'and', clauses: [{ field: 'expiresAt', op: 'lt', value: nowIso }] },
+    sort: [{ field: 'expiresAt', dir: 'asc' }],
+  });
+  for (const row of stale.items) {
+    await remove('passwordResets', String(row._id)).catch((e) =>
+      console.error('[recover] expired-token reap failed', e),
+    );
+  }
+}
+
+/**
+ * Issue a time-limited, single-use password-reset TOKEN. Unlike the old flow this
+ * NEVER mutates the account, so it is non-destructive on an unauthenticated call.
+ *
+ * Anti-enumeration by EQUAL WORK: the response and its observable side effects are
+ * identical whether or not the email is registered. Both branches run the same
+ * rate-limit, the same user lookup, and write exactly ONE `passwordResets` row
+ * (known → bound to the user; unknown → an inert row with an empty `userId` that
+ * `resetPassword` can never consume). The only branch-specific step — sending the
+ * email — is FIRE-AND-FORGET, so it never contributes to response timing; a lost
+ * send is a harmless retry, not a lockout. This closes the previous timing oracle
+ * (a known email used to `await` a ~200ms SMTP send while an unknown returned fast).
+ */
+async function recover(
+  req: AdminRequest,
+  config: AdminConfig,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = recoverSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'A valid email is required.');
+  const limited = await enforceRateLimit({
+    scope: 'recover',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: RECOVER_RATE_MAX_PER_SOURCE,
+    maxGlobal: RECOVER_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
+
+  const now = Date.now();
+  await sweepExpiredPasswordResets(new Date(now).toISOString()).catch((e) =>
+    console.error('[recover] expired-token sweep failed', e),
+  );
+
+  const email = parsed.data.email.toLowerCase();
+  const user = await findByField('users', 'email', email);
+
+  // Mint a token + hash it in BOTH branches (equal work). Only the hash is stored.
+  const rawToken = `${randomUUID()}${randomUUID()}`.replace(/-/g, '');
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  // Write exactly one row in BOTH branches. Unknown-email rows carry an empty
+  // userId so they are inert (resetPassword requires a real userId), matching the
+  // write cost of the known branch for timing parity.
+  await createDoc('passwordResets', {
+    userId: user ? user._id : '',
+    tokenHash,
+    expiresAt: new Date(now + PASSWORD_RESET_TTL_MS).toISOString(),
+    consumeClaim: 0,
+  });
+
+  if (user) {
+    // Fire-and-forget: delivery never blocks (or times) the response, and because
+    // nothing was mutated, a failed/unconfigured send just means the user retries.
+    const resetBase = config.resetPasswordUrl ?? 'http://localhost:4321/reset';
+    const resetUrl = `${resetBase}?token=${encodeURIComponent(rawToken)}`;
+    sendPasswordResetEmail({ to: email, username: String(user.username ?? ''), resetUrl }).catch(
+      (e) => console.error('[recover] reset email send failed:', e),
+    );
+  }
+
+  // Uniform response — the endpoint can never reveal which emails are registered.
+  return ok({ message: 'If that email is registered, a reset link has been sent.' });
+}
+
+/**
+ * Consume a single-use password-reset token and set a new password. Public but
+ * token-gated (the raw token is a secret only the email recipient holds). The
+ * consume-once gate is an ATOMIC `incrementField` CAS on `consumeClaim` (mirrors
+ * the OEM single-winner claim), so a replay / concurrent double-submit cannot set
+ * the password twice. Failures return a UNIFORM error (never revealing whether the
+ * token was unknown, expired, already used, or bound to no user).
+ */
+async function resetPassword(
+  req: AdminRequest,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = resetPasswordSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', 'A reset token and a new password (min 6 chars) are required.');
+  }
+  const limited = await enforceRateLimit({
+    scope: 'resetPassword',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: RESET_PASSWORD_RATE_MAX_PER_SOURCE,
+    maxGlobal: RESET_PASSWORD_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
+
+  const invalid = err('BAD_REQUEST', 'This reset link is invalid or has expired.');
+  const tokenHash = createHash('sha256').update(parsed.data.token).digest('hex');
+  const row = await findByField('passwordResets', 'tokenHash', tokenHash);
+  if (!row) return invalid;
+
+  const expiresMs = typeof row.expiresAt === 'string' ? Date.parse(row.expiresAt) : Number.NaN;
+  const userId = typeof row.userId === 'string' ? row.userId : '';
+  if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) return invalid;
+  if (userId.length === 0) return invalid; // inert (unknown-email) token
+  // Advisory fast-path only (a corrupt/already-used row rejects cheaply). It does
+  // NOT provide the single-use guarantee — the atomic CAS below is the sole gate.
+  if (typeof row.consumeClaim === 'number' && row.consumeClaim > 0) return invalid;
+
+  // Consume-once ATOMIC single-winner claim — the ONLY enforcement of single use.
+  // Only the request that flips consumeClaim 0→1 proceeds to set the password; a
+  // concurrent replay increments to >1 and loses. A row deleted between the lookup
+  // and here returns null → reject. The password write happens ONLY after this.
+  const claim = await incrementField('passwordResets', row._id, 'consumeClaim', 1);
+  if (claim === null) return invalid;
+  if (claim !== 1) return invalid;
+
+  const user = await get('users', userId);
+  if (!user) return invalid; // the account was removed after the token was issued
+  await updateDoc('users', userId, { passwordHash: await hashPassword(parsed.data.newPassword) });
+  return ok({ message: 'Your password has been reset. You can now sign in.' });
+}
+
+/**
+ * True iff SERVER-fetched `bytes` are consistent with the file's declared type.
+ * Types with a reliable magic number (pdf/zip/rar/png/jpg/webp) must match their
+ * bytes; CAD formats (step/stp/igs/iges/dwg/dxf) have no universal signature and
+ * are extension-gated — but a CAD-extension file whose bytes sniff as some OTHER
+ * known type is rejected (blocks disguising a real payload behind a CAD name).
+ */
+function oemBytesMatchType(fileName: string, bytes: Buffer): boolean {
+  const sig = sniffMagicBytes(bytes);
+  const requireSignature: Record<string, MediaSignature> = {
+    pdf: 'pdf',
+    zip: 'zip',
+    rar: 'rar',
+    png: 'png',
+    jpg: 'jpeg',
+    jpeg: 'jpeg',
+    webp: 'webp',
+  };
+  const expected = requireSignature[fileExtension(fileName)];
+  if (expected) return sig === expected;
+  // No reliable signature for this extension (CAD): allow ONLY if the bytes do
+  // not sniff as some other recognized type.
+  return sig === 'unknown';
+}
+
+/** Result of a successful upload verification + single-winner claim. */
+interface OemUploadClaim {
+  fileId: string;
+  storageFileId: string;
+  byteSize: number;
+  checksumSha256: string;
+}
+
+/**
+ * Verify a browser-direct OEM upload against its pending `files` row and CLAIM it
+ * exactly once (MIU-08 §20.10 step 2). Ownership is proven ONLY by the one-time
+ * `uploadSecret` (constant-time compared to the stored hash), so:
+ *  - Structural / not-found / expired / WRONG-SECRET failures reject WITHOUT
+ *    mutating anything — an unauthenticated caller who merely guesses a `fileId`
+ *    must not be able to delete or fail a legitimate uploader's object.
+ *  - Only AFTER the secret verifies do byte-level failures (size/checksum/sniff)
+ *    mark the row `failed` and best-effort delete the object (the caller owns it).
+ * The consume-once gate is an ATOMIC `incrementField` claim (storage-layer, not a
+ * JS read-then-write): only the request that flips `finalizeClaim` 0→1 proceeds;
+ * a concurrent double-submit / replay gets >1 and loses without side effects.
+ */
+async function verifyAndClaimOemUpload(input: {
+  drawingFileId: string;
+  uploadIntentId: string;
+  uploadSecret: string;
+}): Promise<{ ok: true; claim: OemUploadClaim } | { ok: false; error: ApiResult<unknown> }> {
+  const fail = (error: ApiResult<unknown>) => ({ ok: false as const, error });
+  const notFound = fail(err('NOT_FOUND', 'Upload not found.'));
+
+  const doc = await get('files', input.drawingFileId);
+  if (!doc) return notFound;
+  if (doc.status !== 'pending') return fail(err('CONFLICT', 'This upload was already used.'));
+  if (doc.purpose !== 'oem-drawing') return notFound;
+  if (doc.uploadIntentId !== input.uploadIntentId) return notFound;
+  const expiresAt =
+    typeof doc.uploadExpiresAt === 'string' ? Date.parse(doc.uploadExpiresAt) : Number.NaN;
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    return fail(err('CONFLICT', 'This upload has expired. Please re-upload.'));
+  }
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+  if (provider !== 'cloudbase-storage' && provider !== 'local-disk') return notFound;
+  if (typeof doc.storageFileId !== 'string' || doc.storageFileId.length === 0) return notFound;
+  if (typeof doc.storagePath !== 'string' || !doc.storagePath.startsWith('oem/')) return notFound;
+  if (typeof doc.uploadSecretHash !== 'string' || doc.uploadSecretHash.length === 0)
+    return notFound;
+
+  // Constant-time secret verification (the ONLY browser credential; §20.10). Guard
+  // equal length first so timingSafeEqual never throws on a length mismatch.
+  const presentedHash = createHash('sha256').update(input.uploadSecret).digest('hex');
+  const storedHash = doc.uploadSecretHash;
+  const secretOk =
+    presentedHash.length === storedHash.length &&
+    timingSafeEqual(Buffer.from(presentedHash), Buffer.from(storedHash));
+  if (!secretOk) return fail(err('FORBIDDEN', 'Upload verification failed.'));
+
+  // --- Ownership PROVEN by the secret. ---
+  const storageFileId = doc.storageFileId;
+  const fileName = typeof doc.name === 'string' ? doc.name : '';
+
+  // Consume-once ATOMIC single-winner claim — placed BEFORE any object download or
+  // destructive mutation (Codex `871adff` P1). A concurrent duplicate/replay
+  // (same secret) loses HERE and returns CONFLICT without ever reading storage or
+  // touching the row, so a valid secret cannot be used to amplify repeated ~10 MiB
+  // downloads or race the destructive byte-failure path. It is AFTER secret
+  // verification so a caller without the secret cannot burn it.
+  const claim = await incrementField('files', input.drawingFileId, 'finalizeClaim', 1);
+  if (claim === null) return notFound;
+  if (claim !== 1) return fail(err('CONFLICT', 'This upload was already submitted.'));
+
+  // --- WINNER-ONLY below. Byte-level failures may fail the row + delete the object.
+  const rejectOwned = async (message: string) => {
+    await updateDoc('files', input.drawingFileId, { status: 'failed' }).catch((e) =>
+      console.error('[submitProject] mark-failed after rejection failed', e),
+    );
+    await mediaStorage()
+      .deleteObject(storageFileId)
+      .catch((e) => console.error('[submitProject] delete rejected object failed', e));
+    return fail(err('VALIDATION_ERROR', message));
+  };
+
+  // Download AFTER the claim. Chosen retry behavior (Codex P1): releasing the claim
+  // on a miss would be racy, and COS is read-after-write consistent, so a
+  // not-yet-readable object is terminal for this (now consumed) intent — the row is
+  // failed + the object best-effort deleted and the client uploads again. This
+  // never leaves a half-finalized pending row and never runs a loser's download.
+  let object: { body: string; byteSize?: number };
+  try {
+    object = await mediaStorage().getObjectAsBase64(storageFileId);
+  } catch (e) {
+    console.error('[submitProject] uploaded object not retrievable', e);
+    return rejectOwned('Uploaded file could not be read. Please upload it again.');
+  }
+
+  const bytes = Buffer.from(object.body, 'base64');
+  // The SERVER-recomputed length is authoritative — never trust the client size.
+  const byteSize = bytes.byteLength;
+  if (byteSize === 0) return rejectOwned('Uploaded file is empty.');
+  if (byteSize > OEM_FILE_MAX_BYTES) return rejectOwned('Uploaded file exceeds the maximum size.');
+  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+  if (typeof doc.checksumSha256 === 'string' && doc.checksumSha256 !== checksumSha256) {
+    return rejectOwned('Uploaded bytes do not match the declared checksum.');
+  }
+  if (!oemBytesMatchType(fileName, bytes)) {
+    return rejectOwned('File content does not match its type.');
+  }
+
+  return {
+    ok: true,
+    claim: { fileId: input.drawingFileId, storageFileId, byteSize, checksumSha256 },
+  };
+}
+
+/**
+ * Public OEM project enquiry. Anyone may submit; the request is persisted to the
+ * `oemProjects` collection (visible to admins/contributors in the dashboard) and
+ * the submitter receives a confirmation email with the new reference id. A drawing
+ * may be attached three ways: the MIU-08 storage-upload triad (verified + claimed
+ * here), a legacy inline base64 `drawingData`, or none.
+ */
+async function submitProject(
+  req: AdminRequest,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = submitProjectSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+  // Unauthenticated + sends a confirmation email to a caller-CHOSEN address, so
+  // throttle per source (and a global backstop) BEFORE any DB write or send —
+  // this is what bounds the email/reputation bomb the review flagged.
+  const limited = await enforceRateLimit({
+    scope: 'submitProject',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
+    maxGlobal: SUBMIT_PROJECT_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
+  const {
+    company,
+    contact,
+    email,
+    whatsapp,
+    category,
+    quantity,
+    drawingName,
+    drawingData,
+    drawingFileId,
+    uploadIntentId,
+    uploadSecret,
+  } = parsed.data;
+  const numericQuantity = quantity === undefined || quantity === '' ? undefined : Number(quantity);
+
+  // The storage triad and legacy base64 are mutually exclusive; the triad must be
+  // complete (all three) or it is rejected rather than silently dropping a drawing.
+  const hasAnyStorageRef = Boolean(drawingFileId || uploadIntentId || uploadSecret);
+  const hasFullStorageRef = Boolean(drawingFileId && uploadIntentId && uploadSecret);
+  if (hasAnyStorageRef && !hasFullStorageRef) {
+    return err('VALIDATION_ERROR', 'Incomplete upload reference.');
+  }
+
+  let drawingId = '';
+  let claim: OemUploadClaim | undefined;
+  if (drawingFileId && uploadIntentId && uploadSecret) {
+    const finalized = await verifyAndClaimOemUpload({
+      drawingFileId,
+      uploadIntentId,
+      uploadSecret,
+    });
+    if (!finalized.ok) return finalized.error;
+    claim = finalized.claim;
+    drawingId = claim.fileId; // still `pending`; activated AFTER the project exists
+  } else if (drawingData) {
+    // Exact size cap on the DECODED bytes — the storage triad enforces
+    // OEM_FILE_MAX_BYTES, so the legacy inline path must too (the schema's
+    // base64-length guard is the coarse first line; this is the precise one).
+    const bytes = Buffer.from(drawingData, 'base64');
+    if (bytes.byteLength > OEM_FILE_MAX_BYTES) {
+      return err('VALIDATION_ERROR', 'Attached drawing exceeds the maximum size.');
+    }
+    // submitProject is UNAUTHENTICATED and files.mimeType is reflected by the
+    // OEM download path, so the client-declared `drawingType` is NOT trusted:
+    // derive the stored type from a byte sniff (a recognised signature → its
+    // canonical MIME; anything else, incl. CAD, → octet-stream). This prevents
+    // an anonymous caller persisting e.g. mimeType 'text/html' with HTML bytes.
+    const sig = sniffMagicBytes(bytes);
+    const fileDoc = await createDoc('files', {
+      name: drawingName ?? 'drawing',
+      mimeType: sig === 'unknown' ? 'application/octet-stream' : SIGNATURE_MIME[sig],
+      data: drawingData,
+    });
+    drawingId = fileDoc._id;
+  }
+
+  const projectData = {
+    company,
+    contact,
+    email: email.toLowerCase(),
+    whatsapp: whatsapp ?? '',
+    category: category ?? '',
+    ...(numericQuantity !== undefined && !Number.isNaN(numericQuantity)
+      ? { quantity: numericQuantity }
+      : {}),
+    drawingName: drawingName ?? '',
+    drawing: drawingId,
+    status: 'new',
+  };
+
+  // A storage upload is already CLAIMED here, so failing to create the project must
+  // not leave a zombie pending row — mark it failed and surface the error.
+  let project: CollectionDoc;
+  try {
+    project = await createDoc('oemProjects', projectData);
+  } catch (e) {
+    console.error('[submitProject] project create failed', e);
+    if (claim) {
+      await updateDoc('files', claim.fileId, { status: 'failed' }).catch((err2) =>
+        console.error('[submitProject] mark-failed after project-create failure failed', err2),
+      );
+    }
+    return err('INTERNAL_ERROR', 'Could not submit your project. Please try again.');
+  }
+
+  if (claim) {
+    // Activate the drawing AFTER the project exists and bind it. Compensation: if
+    // activation fails, the project must not keep a dangling pending drawing —
+    // remove it, mark the upload failed, and surface the error (never success).
+    const activated = await updateDoc('files', claim.fileId, {
+      status: 'active',
+      ownerProjectId: project._id,
+      byteSize: claim.byteSize,
+      checksumSha256: claim.checksumSha256,
+      uploadSecretHash: '',
+    }).catch((e) => {
+      console.error('[submitProject] activation failed after project create', e);
+      return null;
+    });
+    if (!activated) {
+      await remove('oemProjects', project._id).catch((e) =>
+        console.error('[submitProject] project rollback failed', e),
+      );
+      await updateDoc('files', claim.fileId, { status: 'failed' }).catch((e) =>
+        console.error('[submitProject] mark-failed after activation failure failed', e),
+      );
+      return err('INTERNAL_ERROR', 'Could not finalize the upload. Please try again.');
+    }
+  }
+
+  // Best-effort acknowledgement; never block the submission on email delivery.
+  await sendOemConfirmationEmail({
+    to: email.toLowerCase(),
+    contact,
+    company,
+    category: category ?? '',
+    projectId: project._id,
+  }).catch((e) => console.error('[submitProject] confirmation email failed:', e));
+
+  return ok({ id: project._id });
+}
+
+// --- Authenticated profile actions ----------------------------------------
+
+async function me(claims: SessionClaims): Promise<ApiResult<unknown>> {
+  const user = await get('users', claims.sub);
+  if (!user) return err('NOT_FOUND', 'Account not found.');
+  return ok({ user: publicUser(user) });
+}
+
+async function updateProfile(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
+  const parsed = updateProfileSchema.safeParse(req.data);
+  if (!parsed.success) return err('VALIDATION_ERROR', 'A valid username is required.');
+  const existing = await findByField('users', 'username', parsed.data.username);
+  if (existing && existing._id !== claims.sub) return err('CONFLICT', 'This username is taken.');
+  const updated = await updateDoc('users', claims.sub, { username: parsed.data.username });
+  if (!updated) return err('NOT_FOUND', 'Account not found.');
+  // Re-issue the token so the new username is reflected in the session.
+  const token = await issueToken(config, updated);
+  return ok({ token, user: publicUser(updated) });
+}
+
+async function changePassword(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  const parsed = changePasswordSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', 'Current and new password (min 6 chars) are required.');
+  }
+  const user = await get('users', claims.sub);
+  if (!user) return err('NOT_FOUND', 'Account not found.');
+  const hash = typeof user.passwordHash === 'string' ? user.passwordHash : '';
+  if (!hash || !(await verifyPassword(hash, parsed.data.currentPassword))) {
+    return err('UNAUTHORIZED', 'Current password is incorrect.');
+  }
+  await updateDoc('users', claims.sub, {
+    passwordHash: await hashPassword(parsed.data.newPassword),
+  });
+  return ok({ message: 'Password updated.' });
+}
+
+// --- Collection CRUD (role-gated) ------------------------------------------
+
+function ensureKnown(collection: string): ApiResult<never> | null {
+  if (!isKnownCollection(collection)) {
+    return err('UNKNOWN_COLLECTION', `Unknown collection: ${collection}`);
+  }
+  return null;
+}
+
+/**
+ * Fields that must never appear in a filter/sort clause even though they exist
+ * in the registry: a `startsWith`/`contains`/`sort` probe over a redacted or
+ * secret value turns list results into a byte-by-byte extraction oracle. The
+ * projection allowlist (`redact`) hides these in responses; this closes the
+ * matching read-side gate (the mimeType-readOnly lesson applied to querying).
+ */
+const NON_QUERYABLE_FIELDS = new Set([
+  'passwordHash',
+  'uploadSecretHash',
+  'uploadSourceHash',
+  // Same reasoning as `uploadSourceHash`: the abuse-control source hash must not
+  // be probeable via a startsWith/contains oracle (admin-only already, but keep
+  // the read-side gate consistent).
+  'sourceHash',
+  // Reset-token hash — never probeable (admin-only already; keep it airtight).
+  'tokenHash',
+  'checksumSha256',
+  'finalizeClaim',
+  'data',
+  // Alibaba sync internals (R1): hashes/fingerprints/envelopes on the
+  // readOnly-visible collections must not be probeable via filter/sort
+  // oracles, and the token envelope stays dark even in depth-defense.
+  'requestFingerprint',
+  'responseSha256',
+  'candidateHash',
+  'tokenEnvelope',
+]);
+const MAX_FILTER_VALUE_LEN = 500;
+
+/**
+ * Validate that every filter/sort field names a real, non-sensitive column of
+ * the collection. Rejecting unknown names also removes the arbitrary-field
+ * surface (e.g. probing server-managed fields not in the UI). Returns an error
+ * result to short-circuit, or null when the clauses are safe.
+ */
+function validateQueryClauses(
+  collection: string,
+  filter: { clauses: { field: string; value?: unknown }[] } | undefined,
+  sort: { field: string }[] | undefined,
+): ApiResult<never> | null {
+  const def = getCollection(collection);
+  const queryable = new Set<string>([
+    ...SYSTEM_FIELDS.map((f) => f.name),
+    ...(def?.fields ?? []).map((f) => f.name),
+  ]);
+  const check = (field: string): ApiResult<never> | null => {
+    if (NON_QUERYABLE_FIELDS.has(field) || !queryable.has(field)) {
+      return err('BAD_REQUEST', `Cannot query on field "${field}".`);
+    }
+    return null;
+  };
+  for (const clause of filter?.clauses ?? []) {
+    const bad = check(clause.field);
+    if (bad) return bad;
+    if (typeof clause.value === 'string' && clause.value.length > MAX_FILTER_VALUE_LEN) {
+      return err('BAD_REQUEST', 'Filter value is too long.');
+    }
+  }
+  for (const s of sort ?? []) {
+    const bad = check(s.field);
+    if (bad) return bad;
+  }
+  return null;
+}
+
+async function listAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
+  const parsed = listSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'Invalid list query');
+  const unknown = ensureKnown(parsed.data.collection);
+  if (unknown) return unknown;
+  if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have access to this collection.');
+  }
+  if (
+    (parsed.data.productFamily || parsed.data.needsClassification) &&
+    parsed.data.collection !== 'products'
+  ) {
+    return err('BAD_REQUEST', 'Product family filtering is only available for products.');
+  }
+  if (parsed.data.catalogListView !== undefined && parsed.data.collection !== 'products') {
+    return err('BAD_REQUEST', 'The product list view is only available for products.');
+  }
+  if (parsed.data.catalogReadiness && parsed.data.collection !== 'products') {
+    return err('BAD_REQUEST', 'Readiness filtering is only available for products.');
+  }
+  if (parsed.data.productFamily && parsed.data.needsClassification) {
+    return err('BAD_REQUEST', 'Choose a product family or the unclassified queue, not both.');
+  }
+  const {
+    filter,
+    productFamily,
+    needsClassification,
+    subcategoryIds,
+    catalogReadiness,
+    catalogListView,
+    sort,
+    ...rest
+  } = parsed.data;
+  let productSubcategories: ProductSubcategoryScope | undefined;
+  if (subcategoryIds) {
+    const scope = await productSubcategoryScope(
+      claims,
+      parsed.data.collection,
+      productFamily,
+      subcategoryIds,
+    );
+    if (!scope.ok) return scope;
+    productSubcategories = scope.data;
+  }
+  const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
+  if (badClause) return badClause;
+  // Entering Products is an operational review queue: unless the operator
+  // explicitly chose another column sort, first-seen Alibaba drafts lead the
+  // result set. A compound CloudBase index backs both All and family views.
+  const effectiveSort =
+    parsed.data.collection === 'products' && (!sort || sort.length === 0)
+      ? [
+          { field: 'alibabaReviewPending', dir: 'desc' as const },
+          { field: 'createdAt', dir: 'desc' as const },
+          ...(needsClassification ? [{ field: '_id', dir: 'asc' as const }] : []),
+        ]
+      : sort;
+  const result = await list({
+    ...rest,
+    // Explicit recovery scopes also show drafts whose photo preparation has not finished.
+    ...(parsed.data.collection === 'products' && !catalogReadiness ? { hidePreparing: true } : {}),
+    ...(catalogReadiness ? { catalogReadiness } : {}),
+    ...(catalogListView !== undefined ? { catalogListView } : {}),
+    ...(productFamily ? { productFamily } : {}),
+    ...(needsClassification ? { needsClassification: true } : {}),
+    ...(productSubcategories ? { productSubcategories } : {}),
+    ...(filter ? { filter } : {}),
+    ...(effectiveSort ? { sort: effectiveSort } : {}),
+  });
+  return ok({ ...result, items: result.items.map((d) => redact(parsed.data.collection, d)) });
+}
+
+/** Resolve requested ids against the saved registry so the filter can never widen or leak scope. */
+async function productSubcategoryScope(
+  claims: SessionClaims,
+  collection: string,
+  family: ProductFamily | undefined,
+  ids: string[],
+): Promise<ApiResult<ProductSubcategoryScope>> {
+  if (collection !== 'products' || !family) {
+    return err('BAD_REQUEST', 'Choose a website main category before filtering by subcategory.');
+  }
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can filter products by website subcategory.');
+  }
+  if (!isProductSubcategoryIds(ids)) return err('BAD_REQUEST', 'Invalid subcategory selection.');
+  let registry: ReturnType<typeof storedCatalogTaxonomy>;
+  try {
+    registry = storedCatalogTaxonomy(family, await getCatalogTaxonomy(family));
+  } catch {
+    registry = null;
+  }
+  if (!registry) return err('INTERNAL_ERROR', 'Website categories are unavailable. Retry.');
+  const knownIds = registry.children.map((child) => child.id);
+  if (!ids.every((id) => knownIds.includes(id))) {
+    return err('BAD_REQUEST', 'That subcategory does not belong to this website main category.');
+  }
+  return ok({ family, ids, knownIds });
+}
+
+async function pendingProductCount(productFamily?: (typeof PRODUCT_FAMILY_OPTIONS)[number]) {
+  const result = await list({
+    collection: 'products',
+    hidePreparing: true,
+    page: 1,
+    pageSize: 1,
+    search: '',
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'alibabaReviewPending', op: 'eq', value: true },
+        ...(productFamily
+          ? [{ field: 'productFamily', op: 'eq' as const, value: productFamily }]
+          : []),
+      ],
+    },
+    sort: [
+      { field: 'alibabaReviewPending', dir: 'desc' },
+      { field: 'createdAt', dir: 'desc' },
+    ],
+  });
+  return result.total;
+}
+
+async function productReviewSummaryAction(claims: SessionClaims): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can view the Alibaba review queue summary.');
+  }
+  const [total, ...familyCounts] = await Promise.all([
+    pendingProductCount(),
+    ...PRODUCT_FAMILY_OPTIONS.map((family) => pendingProductCount(family)),
+  ]);
+  return ok({
+    pendingTotal: total,
+    byFamily: Object.fromEntries(
+      PRODUCT_FAMILY_OPTIONS.map((family, index) => [family, familyCounts[index] ?? 0]),
+    ),
+  });
+}
+
+/** A flagged linked product with a supplier text or photo change still undecided. */
+async function hasUndecidedSupplierChange(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+): Promise<boolean> {
+  if (values.published !== true || values.archived === true) return false;
+  if (!['changed', 'removed'].includes(String(product.alibabaReviewReason))) return false;
+  const sourceKey = product.alibabaPrimarySourceKey;
+  if (typeof sourceKey !== 'string' || sourceKey === '') return false;
+  const observation = await storedObservation(sourceKey);
+  if (!observation) return false;
+  return (
+    pendingSupplierParts(await supplierParts({ ...product, ...values }, observation)).length > 0
+  );
+}
+
+async function acknowledgeAlibabaProductReview(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+  reviewerId: string,
+  requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
+  undecidedSupplierChange = false,
+  // Classification "Save and publish": the revision its save returned.
+  expectedUpdatedAt?: string | null,
+  refreshLiveReview = false,
+) {
+  const data = { ...values };
+  for (const field of ['slug', 'skuCode'] as const) {
+    const value = data[field];
+    if (value === undefined || value === null) continue;
+    const normalized =
+      typeof value === 'string' && value.trim() === ''
+        ? ''
+        : field === 'slug'
+          ? normalizeProductSlug(value)
+          : normalizeSkuCode(value);
+    if (normalized === null) {
+      throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${field} is invalid.`);
+    }
+    data[field] = normalized;
+  }
+  // A sync that saw newer supplier data than this approval was built from keeps
+  // the flag: clearing it would hide a change nobody approved (batch 4 review).
+  const receipt = product.catalogDetailApprovalReceipt;
+  const approvedDigest =
+    receipt && typeof receipt === 'object' ? Reflect.get(receipt, 'sourceDigest') : undefined;
+  const staleApproval =
+    (data.published === true || refreshLiveReview) &&
+    data.archived !== true &&
+    typeof approvedDigest === 'string' &&
+    typeof product.alibabaSourcePublicDigest === 'string' &&
+    approvedDigest !== product.alibabaSourcePublicDigest;
+  const result = await saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: product._id,
+    data:
+      staleApproval || undecidedSupplierChange
+        ? data
+        : {
+            ...data,
+            alibabaReviewPending: false,
+            alibabaReviewReason: null,
+            alibabaReviewedAt: new Date().toISOString(),
+            alibabaReviewedByUserId: reviewerId,
+          },
+    expectedAlibabaIdentity: {
+      revision: alibabaLinkRevision(product),
+      primarySourceKey:
+        typeof product.alibabaPrimarySourceKey === 'string'
+          ? product.alibabaPrimarySourceKey
+          : null,
+    },
+    requireDetailApproval,
+    ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
+  });
+  if (result.result === 'saved') return result;
+  if (result.result === 'stale') {
+    throw new CatalogProductWriteError(
+      'PRODUCT_STALE',
+      'Product changed since classification. Refresh before publishing.',
+    );
+  }
+  if (result.result === 'alibaba-identity-conflict') {
+    throw new CatalogProductWriteError(
+      'IDENTITY_CONFLICT',
+      'The Alibaba product source changed. Refresh and review the current source.',
+    );
+  }
+  if (result.result === 'conflict') {
+    throw new CatalogProductWriteError(
+      'IDENTITY_CONFLICT',
+      `Product ${result.kind} is already in use: ${result.normalizedValue}`,
+    );
+  }
+  if (result.result === 'invalid') {
+    throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${result.kind} is invalid.`);
+  }
+  if (result.result === 'invalid-product') {
+    throw new CatalogProductWriteError(
+      'INVALID_PRODUCT',
+      result.issues.map((issue) => issue.message).join('; '),
+    );
+  }
+  throw new CatalogProductWriteError('PRODUCT_NOT_FOUND', 'Product was not found.');
+}
+
+async function markProductReviewedAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
+  }
+  const parsed = markProductReviewedSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'productId is required');
+  const product = await get('products', parsed.data.productId);
+  if (!product) return err('NOT_FOUND', 'Product not found');
+  if (typeof product.alibabaPrimarySourceKey !== 'string' || !product.alibabaPrimarySourceKey) {
+    return err('CONFLICT', 'Only Alibaba-linked products belong to this review queue.');
+  }
+  // "Mark reviewed" is for first sight only (DEC-11): a changed, removed or
+  // edited product must be published (approved) or archived instead.
+  // Allow-list: only a "new" (or legacy reason-less) flag can be marked reviewed.
+  const reason = product.alibabaReviewReason;
+  if (product.alibabaReviewPending === true && reason != null && reason !== 'new') {
+    return err('CONFLICT', 'Review and publish the supplier changes, or archive the product.');
+  }
+  const result = await acknowledgeAlibabaProductReview(product, {}, claims.sub);
+  return ok({
+    ...redact('products', result.doc),
+    ...(result.previous?.alibabaReviewPending === false ? { alreadyReviewed: true } : {}),
+  });
+}
+
+async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
+  const parsed = idSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection and id are required');
+  if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have access to this collection.');
+  }
+  const doc = await get(parsed.data.collection, parsed.data.id);
+  if (!doc) return err('NOT_FOUND', 'Document not found');
+  return ok(redact(parsed.data.collection, doc));
+}
+
+/**
+ * Public catalog collections (products, overstock) reference images by id and
+ * carry a `published` flag; only this explicit shared boundary affects public
+ * image visibility. Non-public imageIds collections skip the extra read.
+ */
+function tracksImageVisibility(collection: string): boolean {
+  return (PUBLIC_CATALOG_COLLECTIONS as readonly string[]).includes(collection);
+}
+
+/**
+ * The image ids a catalog document makes PUBLIC: only when it is `published`
+ * with an `imageIds` array. An unpublished (or non-catalog) document
+ * contributes nothing. Duplicate ids within one document collapse to a single
+ * reference.
+ */
+function publishedImageIdSet(doc: CollectionDoc | null): Set<string> {
+  if (!doc || doc.published !== true) return new Set();
+  return new Set(catalogReferencedImageIds(doc));
+}
+
+/**
+ * Maintain `images.publishedRefCount` for the before → after transition of one
+ * catalog document: +1 for each image newly made public, −1 for each no longer
+ * public. `publishedRefCount` is the canonical public-visibility gate (MIU-04,
+ * design §20.6). `incrementField` is a no-op (returns null) for a dangling
+ * image id, so a reference to a since-deleted image is harmless.
+ *
+ * This runs AFTER the catalog write has committed and is not transactional with
+ * it. Two consequences, both reconciled by the Phase-D backfill (design §20.6
+ * step 5), not prevented here:
+ *  - Per-image failures are isolated: a single image's counter error (e.g. a
+ *    corrupted non-numeric counter) is logged and skipped so it cannot strand
+ *    its siblings or mask an already-committed write as a 500. The disjoint
+ *    new/old loops never touch the same id within one call.
+ *  - Concurrent mutations of the same document can still race (the before-read
+ *    and the increment are separate steps); atomic increments keep each write
+ *    consistent but cannot un-stale a delta computed from an older snapshot.
+ */
+async function applyImageVisibilityDelta(
+  before: CollectionDoc | null,
+  after: CollectionDoc | null,
+): Promise<void> {
+  const oldIds = publishedImageIdSet(before);
+  const newIds = publishedImageIdSet(after);
+  const adjust = async (imageId: string, delta: number): Promise<void> => {
+    try {
+      await incrementField('images', imageId, 'publishedRefCount', delta);
+    } catch (e) {
+      console.error(
+        `[fn-admin] publishedRefCount ${delta > 0 ? '+' : ''}${delta} failed for image ${imageId} (backfill will reconcile):`,
+        e,
+      );
+    }
+  };
+  for (const id of newIds) {
+    if (!oldIds.has(id)) await adjust(id, 1);
+  }
+  for (const id of oldIds) {
+    if (!newIds.has(id)) await adjust(id, -1);
+  }
+}
+
+const IMAGE_REFERENCE_PAGE_SIZE = 100;
+const IMAGE_REFERENCE_SORT = [{ field: '_id', dir: 'asc' as const }];
+
+function collectionUsesImageIds(collection: string): boolean {
+  return getCollection(collection)?.fields.some((field) => field.name === 'imageIds') ?? false;
+}
+
+function imageIdsFromValue(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value.flatMap((candidate) => {
+        if (typeof candidate !== 'string') return [];
+        const imageId = candidate.trim();
+        return imageId ? [imageId] : [];
+      }),
+    ),
+  ];
+}
+
+async function releaseImageReferenceLocks(
+  imageIds: readonly string[],
+  owner: string,
+): Promise<void> {
+  for (const imageId of [...imageIds].reverse()) {
+    try {
+      const result = await releaseImageMutation(imageId, owner);
+      if (result !== 'released') {
+        console.error(
+          `[fn-admin] image reference lock release returned ${result} for ${imageId}; admin recovery is required`,
+        );
+      }
+    } catch (error) {
+      // Never mask an already-committed catalog write with a false 500. An
+      // unreleased lock fails closed until an admin performs stale-lock recovery.
+      console.error(`[fn-admin] image reference lock release failed for ${imageId}`, {
+        kind: isTransactionConflict(error) ? 'transaction-conflict' : 'unconfirmed',
+      });
+    }
+  }
+}
+
+async function acquireImageReferenceLocks(
+  requestedImageIds: readonly string[],
+): Promise<{ imageIds: string[]; owner: string; error?: ApiResult<never> }> {
+  const imageIds = [...new Set(requestedImageIds)].sort();
+  const owner = randomUUID();
+  const acquired: string[] = [];
+  try {
+    for (const imageId of imageIds) {
+      const image = await get('images', imageId);
+      // Preserve the historical contract: catalog documents may retain dangling
+      // or legacy image IDs. Only images created by the managed upload flow are
+      // eligible for abandonment and therefore require mutual exclusion. Absent
+      // lock fields on those images read as free, so pre-existing rows need no
+      // backfill before their first lock.
+      if (!image || typeof image.uploadedByUserId !== 'string') continue;
+      if (image.status !== 'active') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('CONFLICT', `Image ${imageId} is not ready for use.`),
+        };
+      }
+      const result = await acquireImageMutation(imageId, owner, new Date().toISOString());
+      if (result === 'missing') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('CONFLICT', `Image ${imageId} no longer exists.`),
+        };
+      }
+      if (result === 'busy') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err(
+            'BUSY',
+            `Image ${imageId} was being changed at the same moment. Nothing was saved; try again.`,
+          ),
+        };
+      }
+      if (result === 'corrupt') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('INTERNAL_ERROR', `Image ${imageId} has an invalid reference lock.`),
+        };
+      }
+      acquired.push(imageId);
+    }
+  } catch (error) {
+    // Any throw in the loop — a transport failure on the pre-read or the
+    // acquire itself — must not leak locks taken in earlier iterations: the
+    // owner UUID would be lost and the images stuck busy until the stale-lock
+    // takeover window elapses.
+    const conflict = isTransactionConflict(error);
+    console.error('[fn-admin] image reference lock acquisition failed', {
+      kind: conflict ? 'transaction-conflict' : 'unconfirmed',
+    });
+    await releaseImageReferenceLocks(acquired, owner);
+    return {
+      imageIds: [],
+      owner,
+      error: conflict
+        ? err('BUSY', 'Image references changed at the same moment. Nothing was saved; try again.')
+        : err(
+            'INTERNAL_ERROR',
+            'Image reference integrity check could not be confirmed. Check the result before continuing.',
+          ),
+    };
+  }
+  return { imageIds: acquired, owner };
+}
+
+/** Reserve draft photo ownership in the same Root that Save and Stop must write. */
+async function saveOwnedDraftWithImageLocks(
+  input: CatalogProductSaveInput,
+): Promise<CatalogProductSaveResult> {
+  if (
+    !['imageIds', 'descriptionImageIds', 'configurationPhotos'].some((field) =>
+      Object.hasOwn(input.data, field),
+    )
+  )
+    return saveCatalogProductWithIdentities(input);
+  const binding = input.expectedOperation;
+  if (!binding) return { result: 'stale' };
+  const claimed = await persistCatalogDetailApproval(binding.actorId, {
+    action: 'operation-photo-claim',
+    productId: input.productId,
+    operationId: binding.operationId,
+    inputDigest: binding.inputDigest,
+  });
+  if (!claimed.ok) {
+    if (claimed.code === 'MEDIA_BUSY') return { result: 'media-busy' };
+    if ('validation' in claimed && claimed.validation)
+      return {
+        result: 'invalid-product',
+        issues: claimed.validation.issues.map((issue) => ({
+          field:
+            issue.path === 'configurationPhotos'
+              ? 'configurationPhotos'
+              : issue.path === 'descriptionImageIds'
+                ? 'descriptionImageIds'
+                : 'imageIds',
+          message: 'Check the selected product photos.',
+        })),
+      };
+    return { result: 'stale' };
+  }
+  if (!('record' in claimed))
+    throw new Error('Photo claim did not confirm the original operation.');
+  return saveCatalogProductWithIdentities({
+    ...input,
+    ...((claimed.record.operation.photoClaimVersion ?? 0) > 0
+      ? { expectedImageMutationOwner: claimed.record._id }
+      : {}),
+  });
+}
+
+async function findImageReference(
+  imageId: string,
+): Promise<{ collection: string; documentId: string } | null> {
+  const collections = COLLECTIONS.filter((definition) =>
+    definition.fields.some((field) => field.name === 'imageIds'),
+  );
+  for (const definition of collections) {
+    // Cursor pagination by `_id`: documents can be removed concurrently
+    // (removeAction/batchRemoveAction take no image locks by design), and an
+    // offset/limit scan can shift a still-referencing document across an
+    // already-visited page boundary. A strict `_id > cursor` walk can never
+    // skip a surviving row.
+    let cursor = '';
+    for (;;) {
+      const result = await list({
+        collection: definition.name,
+        page: 1,
+        pageSize: IMAGE_REFERENCE_PAGE_SIZE,
+        search: '',
+        sort: IMAGE_REFERENCE_SORT,
+        ...(cursor
+          ? {
+              filter: {
+                combinator: 'and' as const,
+                clauses: [{ field: '_id', op: 'gt' as const, value: cursor }],
+              },
+            }
+          : {}),
+      });
+      for (const document of result.items) {
+        if (catalogReferencedImageIds(document).includes(imageId)) {
+          return { collection: definition.name, documentId: String(document._id) };
+        }
+      }
+      const last = result.items.at(-1);
+      if (result.items.length < IMAGE_REFERENCE_PAGE_SIZE || last === undefined) break;
+      cursor = String(last._id);
+    }
+  }
+  return null;
+}
+
+async function abandonUploadAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canEditCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to remove uploaded images.');
+  }
+  const parsed = abandonUploadSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'imageId is required');
+  const imageId = parsed.data.imageId;
+  const image = await get('images', imageId);
+  if (!image) return ok({ deleted: true });
+  if (image.uploadedByUserId !== claims.sub) {
+    return err('FORBIDDEN', 'Only the uploader may abandon this image.');
+  }
+  if (image.status !== 'active' && image.status !== 'deleted') {
+    return err('CONFLICT', 'Only a completed upload may be abandoned.');
+  }
+
+  const locks =
+    image.status === 'deleted'
+      ? { imageIds: [], owner: randomUUID(), error: undefined }
+      : await acquireImageReferenceLocks([imageId]);
+  if (locks.error) return locks.error;
+  let deleted = false;
+  try {
+    const current = await get('images', imageId);
+    if (!current) return ok({ deleted: true });
+    if (current.uploadedByUserId !== claims.sub) {
+      return err('FORBIDDEN', 'Only the uploader may abandon this image.');
+    }
+    if (current.status !== 'active' && current.status !== 'deleted') {
+      return err('CONFLICT', 'Only a completed upload may be abandoned.');
+    }
+
+    if (current.status === 'active') {
+      // Approval reads shared photos without writing them (DEC-21), so the
+      // unfinished jobs are checked FIRST: an approval that finishes after this
+      // check has recorded the product (same transaction as its job) before the
+      // reference scan below runs, and one that finishes later refuses the lock.
+      const preparing = await preparationUsingImage(imageId);
+      if (preparing)
+        return err(
+          'CONFLICT',
+          `Image is in use by product preparation/${preparing}. Cancel that preparation before removing it.`,
+        );
+      const approving = await unfinishedApprovalUsingImage(imageId);
+      if (approving) {
+        return err(
+          'CONFLICT',
+          `Image is being approved with products/${approving}. Try again once that approval finishes (at most an hour).`,
+        );
+      }
+      const reference = await findImageReference(imageId);
+      if (reference) {
+        return err(
+          'CONFLICT',
+          `Image is still referenced by ${reference.collection}/${reference.documentId}.`,
+        );
+      }
+
+      if (
+        !Object.hasOwn(current, CATALOG_IMAGE_REFERENCE_LEDGER_FIELD) &&
+        (typeof current.publishedRefCount !== 'number' ||
+          !Number.isFinite(current.publishedRefCount) ||
+          current.publishedRefCount !== 0)
+      ) {
+        return err('CONFLICT', 'Image reference count must be reconciled before abandonment.');
+      }
+    }
+    const result = await executeImageDeletion(
+      {
+        manage: manageImageDeletion,
+        get: (id) => get('images', id),
+      },
+      {
+        action: 'begin',
+        imageId,
+        uploadedByUserId: claims.sub,
+        owner: locks.owner,
+        startedAt: new Date().toISOString(),
+      },
+      (fileId) => mediaStorage().deleteObject(fileId),
+    );
+    deleted = result === 'deleted' || result === 'missing';
+    if (!deleted) {
+      if (result === 'forbidden')
+        return err('FORBIDDEN', 'Only the uploader may abandon this image.');
+      if (result === 'conflict')
+        return err(
+          'CONFLICT',
+          'Image has active or unfinished references. Finish or cancel the related product operation, then try again.',
+        );
+      if (result === 'corrupt')
+        return err(
+          'CONFLICT',
+          'Image data needs to be repaired before removal. The image has been kept.',
+        );
+      return err('INTERNAL_ERROR', 'Image deletion is incomplete; retry abandonment.');
+    }
+    return ok({ deleted: true });
+  } finally {
+    if (!deleted) await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+  }
+}
+
+/** Equal for a form save: empty, null and absent mean the same. */
+function sameFieldValue(left: unknown, right: unknown): boolean {
+  const blank = (value: unknown) => value === undefined || value === null || value === '';
+  return (blank(left) && blank(right)) || isDeepStrictEqual(left, right);
+}
+
+/** Fields the public site reads from the row even for an approved product. */
+const LIVE_ROW_FIELDS = ['productFamily', 'category', 'slug', 'skuCode'] as const;
+
+/**
+ * Whether a save changes one of those fields. The family is compared as the
+ * site reads it (an old row's family comes from its Headphones category), and
+ * clearing an old Headphones category from another family is the cleanup
+ * every save applies anyway.
+ */
+function changesLiveRowField(
+  before: CollectionDoc,
+  values: Record<string, unknown>,
+  field: (typeof LIVE_ROW_FIELDS)[number],
+): boolean {
+  if (!Object.hasOwn(values, field)) return false;
+  if (field === 'productFamily') return values.productFamily !== productFamilyForDoc(before);
+  if (field === 'category') {
+    const family = Object.hasOwn(values, 'productFamily')
+      ? values.productFamily
+      : productFamilyForDoc(before);
+    if (family !== 'headphones' && sameFieldValue(values.category, '')) return false;
+  }
+  return !sameFieldValue(values[field], before[field]);
+}
+
+/**
+ * A contributor's edit on a live product, saved without changing publication
+ * and flagged "Edited" for an admin when something actually changed (OWN-1).
+ */
+function contributorDraftEdit(
+  before: CollectionDoc,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const { published: _published, ...draft } = values;
+  const changed = Object.keys(draft).some((key) => !sameFieldValue(draft[key], before[key]));
+  return changed ? { ...draft, ...flagForReview(before, 'edited') } : draft;
+}
+
+async function createAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+  creation?: CatalogCreationBinding,
+): Promise<ApiResult<unknown>> {
+  const parsed = createSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection and values are required');
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  const locks = await acquireImageReferenceLocks(
+    collectionUsesImageIds(parsed.data.collection)
+      ? imageIdsFromValue(parsed.data.values.imageIds)
+      : [],
+  );
+  if (locks.error) return locks.error;
+  try {
+    let doc: CollectionDoc;
+    let authoritativeBefore: CollectionDoc | null = null;
+    if (parsed.data.collection === 'products') {
+      const definition = getCollection('products');
+      if (!definition) return err('UNKNOWN_COLLECTION', 'Unknown collection: products');
+      if (Object.hasOwn(parsed.data.values, 'vipPrice')) {
+        return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
+      }
+      const values = buildWriteSchema(definition).parse(parsed.data.values);
+      if (
+        claims.role !== 'admin' &&
+        (Object.hasOwn(values, 'supplierDecisions') || Object.hasOwn(values, 'configurationPhotos'))
+      )
+        return err(
+          'FORBIDDEN',
+          'Only admins can decide on supplier changes and configuration photos.',
+        );
+      // A new product has no approved version yet, so it starts as a draft (MIU-37).
+      const transition = await createCatalogProductRecord(
+        creation ? { ...values, catalogCreateReceipt: creation.receipt } : values,
+        creation?.productId,
+        config.enableDetailApproval === true ? 'publication-or-pricing' : false,
+      );
+      doc = transition.doc;
+      authoritativeBefore = transition.previous;
+    } else if (parsed.data.collection === 'sourceCategoryMappings') {
+      const mapping = await saveCategoryMapping(parsed.data.values, undefined, claims.sub);
+      if (!mapping) return err('CONFLICT', 'Category mapping was not saved. Refresh and retry.');
+      doc = mapping;
+    } else {
+      doc = await create(parsed.data.collection, parsed.data.values);
+    }
+    if (tracksImageVisibility(parsed.data.collection)) {
+      await applyImageVisibilityDelta(authoritativeBefore, doc);
+    }
+    return ok(redact(parsed.data.collection, doc));
+  } finally {
+    await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+  }
+}
+
+async function updateAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
+  const parsed = updateSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection, id and values are required');
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
+  if (parsed.data.collection === 'products' && !before) {
+    return err('NOT_FOUND', 'Document not found');
+  }
+  if (parsed.data.expectedUpdatedAt !== undefined && parsed.data.collection !== 'products')
+    return err('BAD_REQUEST', 'Product revision is only valid for products.');
+  const refreshLiveReview = parsed.data.intent === 'refresh-live';
+  if (refreshLiveReview) {
+    if (claims.role !== 'admin')
+      return err('FORBIDDEN', 'Only admins can confirm an approved edit.');
+    if (
+      parsed.data.collection !== 'products' ||
+      parsed.data.expectedUpdatedAt === undefined ||
+      Object.keys(parsed.data.values).length !== 0
+    )
+      return err(
+        'BAD_REQUEST',
+        'An approved edit confirmation requires its product revision and an empty patch.',
+      );
+    if (config.enableDetailApproval !== true)
+      return err('CONFLICT', 'Detail approval is unavailable. Keep your edit and retry later.');
+    if (
+      before?.published !== true ||
+      before.archived === true ||
+      (before.updatedAt ?? null) !== parsed.data.expectedUpdatedAt
+    )
+      return err(
+        'CONFLICT',
+        'Product changed or was withdrawn. Your edit cannot publish it again.',
+      );
+  }
+
+  const changesImageIds =
+    collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
+  const locks = await acquireImageReferenceLocks(
+    changesImageIds ? imageIdsFromValue(parsed.data.values.imageIds) : [],
+  );
+  if (locks.error) return locks.error;
+  try {
+    let doc: CollectionDoc | null;
+    let authoritativeBefore = before;
+    if (parsed.data.collection === 'products') {
+      const definition = getCollection('products');
+      if (!definition) return err('UNKNOWN_COLLECTION', 'Unknown collection: products');
+      if (Object.hasOwn(parsed.data.values, 'vipPrice')) {
+        return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
+      }
+      const clearsManualPricing = parsed.data.values.manualCatalogPricing === null;
+      const { manualCatalogPricing: _clearCommand, ...productValuesWithoutPricing } =
+        parsed.data.values;
+      const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
+      const parsedValues = buildWriteSchema(definition).partial().parse(productValues);
+      if (clearsManualPricing) parsedValues.manualCatalogPricing = '';
+      // Supplier decisions and configuration photos change what approval
+      // publishes; a product with supplier changes waits for an admin (DEC-19).
+      if (
+        claims.role !== 'admin' &&
+        (Object.hasOwn(parsedValues, 'supplierDecisions') ||
+          Object.hasOwn(parsedValues, 'configurationPhotos'))
+      )
+        return err(
+          'FORBIDDEN',
+          'Only admins can decide on supplier changes and configuration photos.',
+        );
+      if (
+        claims.role !== 'admin' &&
+        before?.alibabaReviewPending === true &&
+        ['changed', 'removed'].includes(String(before.alibabaReviewReason))
+      )
+        return err(
+          'FORBIDDEN',
+          'This product has Alibaba changes waiting for an admin’s review. Ask an admin to review it.',
+        );
+      // A contributor's edit on a live product waits for an admin (OWN-1): the
+      // row keeps the edit, buyers keep the approved version, and the product is
+      // flagged Edited until an admin approves and publishes it.
+      const contributorEditsLiveProduct =
+        config.enableDetailApproval === true &&
+        claims.role !== 'admin' &&
+        before?.published === true &&
+        parsedValues.published !== false &&
+        parsedValues.archived !== true;
+      if (
+        contributorEditsLiveProduct &&
+        before &&
+        LIVE_ROW_FIELDS.some((field) => changesLiveRowField(before, parsedValues, field))
+      )
+        return err(
+          'FORBIDDEN',
+          'Only an admin can change the category, URL or SKU of a live product.',
+        );
+      const editValues =
+        contributorEditsLiveProduct && before
+          ? contributorDraftEdit(before, parsedValues)
+          : parsedValues;
+      const values =
+        claims.role === 'admin' &&
+        before?.alibabaReviewPending === true &&
+        ['changed', 'removed'].includes(String(before.alibabaReviewReason))
+          ? await withAdminEditsKept(before, editValues)
+          : editValues;
+      const acknowledgesReview =
+        before?.alibabaReviewPending === true &&
+        (values.published === true || values.archived === true || refreshLiveReview);
+      if (acknowledgesReview && claims.role !== 'admin')
+        return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
+      const contributorSupplierStatusChange =
+        claims.role !== 'admin' &&
+        typeof before?.alibabaPrimarySourceKey === 'string' &&
+        (values.published === true || values.archived === true);
+      if (contributorSupplierStatusChange && typeof before?.updatedAt !== 'string')
+        return err('CONFLICT', 'Refresh the supplier product before changing its status.');
+      if (
+        contributorSupplierStatusChange &&
+        parsed.data.expectedUpdatedAt !== undefined &&
+        parsed.data.expectedUpdatedAt !== (before?.updatedAt ?? null)
+      )
+        return err('CONFLICT', 'Product changed since classification. Refresh before publishing.');
+      // Compare price changes in the atomic save, while allowing non-price
+      // form edits to reach the subsequent detail review and approval.
+      const requiresApproval = refreshLiveReview
+        ? true
+        : config.enableDetailApproval === true
+          ? 'publication-or-pricing'
+          : false;
+      // Publishing keeps "Changed" while a supplier text or photo change has no
+      // decision for its exact incoming value (DEC-19); archiving always clears.
+      const undecidedSupplierChange =
+        acknowledgesReview && before
+          ? await hasUndecidedSupplierChange(
+              before,
+              refreshLiveReview ? { ...values, published: true } : values,
+            )
+          : false;
+      const transition =
+        acknowledgesReview && before
+          ? await acknowledgeAlibabaProductReview(
+              before,
+              values,
+              claims.sub,
+              requiresApproval,
+              undecidedSupplierChange,
+              parsed.data.expectedUpdatedAt,
+              refreshLiveReview,
+            )
+          : await updateCatalogProductRecord(
+              parsed.data.id,
+              values,
+              requiresApproval,
+              contributorSupplierStatusChange ? before?.updatedAt : parsed.data.expectedUpdatedAt,
+              values.published === true || values.archived === true,
+              typeof before?.alibabaPrimarySourceKey === 'string'
+                ? before.alibabaPrimarySourceKey
+                : null,
+            );
+      doc = transition.doc;
+      authoritativeBefore = transition.previous;
+    } else if (parsed.data.collection === 'sourceCategoryMappings') {
+      doc = await saveCategoryMapping(parsed.data.values, parsed.data.id, claims.sub);
+    } else {
+      doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
+    }
+    if (!doc) return err('NOT_FOUND', 'Document not found');
+    if (tracks) await applyImageVisibilityDelta(authoritativeBefore, doc);
+    return ok(redact(parsed.data.collection, doc));
+  } finally {
+    await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+  }
+}
+
+async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
+  const parsed = idSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection and id are required');
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  if (parsed.data.collection === 'images') {
+    return err('BAD_REQUEST', 'Images must be removed through abandonUpload.');
+  }
+  if (parsed.data.collection === 'products') {
+    return err('BAD_REQUEST', 'Products must be archived instead of deleted.');
+  }
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
+  const deleted = await remove(parsed.data.collection, parsed.data.id);
+  if (!deleted) return err('NOT_FOUND', 'Document not found');
+  if (tracks) await applyImageVisibilityDelta(before, null);
+  return ok({ deleted: true });
+}
+
+async function batchUpdateAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  const parsed = batchUpdateSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection, ids and values are required');
+  const unknown = ensureKnown(parsed.data.collection);
+  if (unknown) return unknown;
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  if (parsed.data.collection === 'products') {
+    return err('BAD_REQUEST', 'Products must be updated individually.');
+  }
+  if (parsed.data.collection === 'sourceCategoryMappings')
+    return err(
+      'BAD_REQUEST',
+      'Category rules must be edited individually to validate their source identity.',
+    );
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  // Capture before-states once per unique id (a duplicate id must not double
+  // count the visibility delta).
+  const befores = tracks
+    ? new Map(
+        await Promise.all(
+          [...new Set(parsed.data.ids)].map(
+            async (id) => [id, await get(parsed.data.collection, id)] as const,
+          ),
+        ),
+      )
+    : null;
+  const changesImageIds =
+    collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
+  const locks = await acquireImageReferenceLocks(
+    changesImageIds ? imageIdsFromValue(parsed.data.values.imageIds) : [],
+  );
+  if (locks.error) return locks.error;
+  try {
+    const docs = await batchUpdate(parsed.data.collection, parsed.data.ids, parsed.data.values);
+    if (befores) {
+      const applied = new Set<string>();
+      for (const after of docs) {
+        const id = String(after._id);
+        if (applied.has(id)) continue;
+        applied.add(id);
+        await applyImageVisibilityDelta(befores.get(id) ?? null, after);
+      }
+    }
+    return ok({ updated: docs.length, items: docs.map((d) => redact(parsed.data.collection, d)) });
+  } finally {
+    await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+  }
+}
+
+async function batchRemoveAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  const parsed = batchRemoveSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection and ids are required');
+  const unknown = ensureKnown(parsed.data.collection);
+  if (unknown) return unknown;
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  if (parsed.data.collection === 'images') {
+    return err('BAD_REQUEST', 'Images cannot be removed through batchRemove.');
+  }
+  if (parsed.data.collection === 'products') {
+    return err('BAD_REQUEST', 'Products must be archived instead of deleted.');
+  }
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  // Capture before-states per unique id, then decrement only for ids this call
+  // actually removed (batchRemove returns the removed ids, each at most once) —
+  // mirroring batchUpdate's iterate-over-results invariant so a concurrent
+  // delete of the same doc cannot trigger a double-decrement here.
+  const befores = tracks
+    ? new Map(
+        await Promise.all(
+          [...new Set(parsed.data.ids)].map(
+            async (id) => [id, await get(parsed.data.collection, id)] as const,
+          ),
+        ),
+      )
+    : null;
+  const removedIds = await batchRemove(parsed.data.collection, parsed.data.ids);
+  if (befores) {
+    for (const id of removedIds) {
+      await applyImageVisibilityDelta(befores.get(id) ?? null, null);
+    }
+  }
+  return ok({ removed: removedIds.length });
+}
+
+async function backfillImageRefCountsAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  // Privileged one-shot reconciliation over every image counter — admins only
+  // (contributors can edit catalog rows but not rewrite the visibility index).
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may backfill image reference counts.');
+  }
+  const dryRun =
+    !!req.data &&
+    typeof req.data === 'object' &&
+    (req.data as { dryRun?: unknown }).dryRun === true;
+  const report = await backfillPublishedRefCounts({ dryRun });
+  return ok(report);
+}
+
+const PRICE_SUMMARY_BACKFILL_PAGE = 20;
+const priceSummaryBackfillRequest = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('plan'), afterId: z.string().min(1).max(200).optional() }).strict(),
+  z
+    .object({
+      mode: z.literal('apply'),
+      rows: z
+        .array(
+          z
+            .object({
+              productId: z.string().min(1).max(200),
+              revision: z.string().min(1).max(200),
+              priceSummary: CatalogPriceSummarySchema,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(PRICE_SUMMARY_BACKFILL_PAGE),
+    })
+    .strict(),
+]);
+
+/** Approved SKU rows are read exactly like the public detail endpoint reads them. */
+const priceSummaryBackfillReader: PriceSummaryBackfillReader = {
+  async listProducts(afterId, pageSize) {
+    const page = await list({
+      collection: 'products',
+      page: 1,
+      pageSize,
+      sort: [{ field: '_id', dir: 'asc' }],
+      ...(afterId
+        ? { filter: { combinator: 'and', clauses: [{ field: '_id', op: 'gt', value: afterId }] } }
+        : {}),
+    });
+    return page.items;
+  },
+  async listApprovedVariants(productId, revision, storage) {
+    const rows: CollectionDoc[] = [];
+    for (let page = 1; ; page++) {
+      const result = await list({
+        collection: storage === 'immutable-v1' ? 'catalogDetailVariants' : 'productVariants',
+        page,
+        pageSize: 100,
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'productId', op: 'eq', value: productId },
+            { field: 'catalogDetailRevision', op: 'eq', value: revision },
+            { field: 'archived', op: 'ne', value: true },
+          ],
+        },
+        sort: [
+          { field: 'catalogDetailPosition', dir: 'asc' },
+          { field: '_id', dir: 'asc' },
+        ],
+      });
+      rows.push(...result.items);
+      if (result.items.length === 0 || rows.length >= result.total) return rows;
+    }
+  },
+};
+
+/**
+ * One-time backfill of approved price summaries (MIU-7). `plan` is read-only;
+ * `apply` sends reviewed rows to the revision-checked staging command.
+ */
+async function backfillPublicationPriceSummaryAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may backfill price summaries.');
+  }
+  if (config.enableDetailApproval !== true) {
+    return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
+  }
+  if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 65536) {
+    return err('VALIDATION_ERROR', 'Price summary backfill request is too large.');
+  }
+  const parsed = priceSummaryBackfillRequest.safeParse(req.data);
+  if (!parsed.success) return err('VALIDATION_ERROR', 'Invalid price summary backfill request.');
+  if (parsed.data.mode === 'plan') {
+    return ok(
+      await planPriceSummaryBackfill(priceSummaryBackfillReader, {
+        ...(parsed.data.afterId ? { afterId: parsed.data.afterId } : {}),
+        pageSize: PRICE_SUMMARY_BACKFILL_PAGE,
+      }),
+    );
+  }
+  // The server, not the caller, decides the summary: re-plan each product and
+  // write the server's summary only when it still matches the reviewed row.
+  const skipped = (reason: string) => ({ ok: true, backfill: 'skipped', reason });
+  const results: Array<{ productId: string; result: unknown }> = [];
+  for (const row of parsed.data.rows) {
+    const product = await get('products', row.productId);
+    const planned = product
+      ? await planProductPriceSummary(priceSummaryBackfillReader, product)
+      : undefined;
+    if (planned?.outcome !== 'ready') {
+      results.push({
+        productId: row.productId,
+        result: skipped(
+          planned?.outcome === 'already-present' ? 'already-present' : 'plan-changed',
+        ),
+      });
+      continue;
+    }
+    if (
+      planned.revision !== row.revision ||
+      !isDeepStrictEqual(planned.priceSummary, row.priceSummary)
+    ) {
+      results.push({ productId: row.productId, result: skipped('summary-changed') });
+      continue;
+    }
+    results.push({
+      productId: row.productId,
+      result: await persistCatalogDetailApproval(claims.sub, {
+        action: 'price-summary-backfill',
+        productId: row.productId,
+        revision: planned.revision,
+        priceSummary: planned.priceSummary,
+      }),
+    });
+  }
+  return ok({ results });
+}
+
+const changeAuditRequest = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('plan'), afterId: z.string().min(1).max(200).optional() }).strict(),
+  z
+    .object({
+      mode: z.literal('apply'),
+      rows: z
+        .array(
+          z
+            .object({
+              productId: z.string().min(1).max(200),
+              revision: z.string().min(1).max(200),
+              outcome: z.enum(['unchanged', 'changed']),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(PRICE_SUMMARY_BACKFILL_PAGE),
+    })
+    .strict(),
+]);
+
+/** Reads exactly what an approval and the public detail reader read. */
+const changeAuditReader: ChangeAuditReader = {
+  listProducts: priceSummaryBackfillReader.listProducts,
+  listApprovedVariants: priceSummaryBackfillReader.listApprovedVariants,
+  getProduct: (id) => get('products', id),
+  async getObservation(sourceKey) {
+    const row = await get(
+      'catalogSourceObservations',
+      sourceObservationDocumentId('alibaba', sourceKey),
+    );
+    return row?.observation ?? null;
+  },
+};
+
+/**
+ * One-time "changed since approval" audit (MIU-38, runbook R6). `plan` is
+ * read-only; `apply` re-plans each reviewed row on the server and writes the
+ * baseline digest ("unchanged") or the review flag ("changed").
+ */
+async function auditChangesSinceApprovalAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') return err('FORBIDDEN', 'Only an admin may audit changes.');
+  if (config.enableDetailApproval !== true) {
+    return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
+  }
+  if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 65536) {
+    return err('VALIDATION_ERROR', 'Change audit request is too large.');
+  }
+  const parsed = changeAuditRequest.safeParse(req.data);
+  if (!parsed.success) return err('VALIDATION_ERROR', 'Invalid change audit request.');
+  if (parsed.data.mode === 'plan') {
+    return ok(
+      await planChangeAudit(changeAuditReader, {
+        ...(parsed.data.afterId ? { afterId: parsed.data.afterId } : {}),
+        pageSize: PRICE_SUMMARY_BACKFILL_PAGE,
+      }),
+    );
+  }
+  return ok({
+    results: await applyChangeAudit(
+      changeAuditReader,
+      (command) =>
+        persistCatalogDetailApproval(
+          claims.sub,
+          command as Parameters<typeof persistCatalogDetailApproval>[1],
+        ),
+      parsed.data.rows,
+    ),
+  });
+}
+
+/** Default orphan TTL: a `pending`/`failed` image older than this is treated as
+ *  abandoned (the browser direct PUT or completeUpload never finished). */
+const ORPHAN_CLEANUP_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const ORPHAN_CLEANUP_MAX_LIMIT = 500;
+const ORPHAN_CLEANUP_DB_PAGE_SIZE = 100;
+const ORPHAN_CLEANUP_SORT = [{ field: '_id', dir: 'asc' as const }];
+
+const cleanupOrphanImagesSchema = z.object({
+  olderThanMs: z.number().int().positive().optional(),
+  dryRun: z.boolean().optional(),
+  limit: z.number().int().positive().max(ORPHAN_CLEANUP_MAX_LIMIT).optional(),
+});
+
+async function listOrphanCleanupCandidates(input: {
+  cutoff: string;
+  limit: number;
+}): Promise<{ items: CollectionDoc[]; total: number }> {
+  const collect = async (retired: boolean) => {
+    const items: CollectionDoc[] = [];
+    let total = 0;
+    let page = 1;
+    const pageSize = Math.min(ORPHAN_CLEANUP_DB_PAGE_SIZE, input.limit);
+    while (items.length < input.limit) {
+      const res = await list({
+        collection: 'images',
+        page,
+        pageSize,
+        sort: ORPHAN_CLEANUP_SORT,
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'status', op: 'in', value: retired ? ['deleted'] : ['pending', 'failed'] },
+            { field: 'createdAt', op: 'lt', value: input.cutoff },
+          ],
+        },
+      });
+      if (page === 1) total = res.total;
+      items.push(...res.items);
+      if (res.items.length < pageSize) break;
+      page++;
+    }
+    return { items: items.slice(0, input.limit), total };
+  };
+  // Retired service copies need a retry lane after a partial byte deletion.
+  // Merge both bounded sorted prefixes under the same overall limit.
+  const [pending, retired] = await Promise.all([collect(false), collect(true)]);
+  const unique = new Map([...pending.items, ...retired.items].map((row) => [row._id, row]));
+  const duplicateCount = pending.items.length + retired.items.length - unique.size;
+  return {
+    items: [...unique.values()].sort((a, b) => a._id.localeCompare(b._id)).slice(0, input.limit),
+    total: pending.total + retired.total - duplicateCount,
+  };
+}
+
+/**
+ * Admin-only expiry cleanup and service-copy deletion recovery. Storage deletion
+ * must succeed before row removal. Service copies first persist a terminal intent
+ * through their image mutex and state machine; partial failures resume that intent.
+ * Other pending/failed uploads retain the existing orphan-cleanup path. Temporary
+ * signed URLs are never logged or persisted here.
+ */
+async function cleanupOrphanImagesAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may clean up orphaned uploads.');
+  }
+  const parsed = cleanupOrphanImagesSchema.safeParse(req.data ?? {});
+  if (!parsed.success) return err('BAD_REQUEST', 'Invalid orphan-cleanup parameters');
+
+  const ttlMs = parsed.data.olderThanMs ?? ORPHAN_CLEANUP_DEFAULT_TTL_MS;
+  const dryRun = parsed.data.dryRun === true;
+  const limit = parsed.data.limit ?? ORPHAN_CLEANUP_DB_PAGE_SIZE;
+  // ISO timestamps sort chronologically as strings, so a `createdAt < cutoff`
+  // filter selects rows older than the TTL on both adapters.
+  const cutoff = new Date(Date.now() - ttlMs).toISOString();
+
+  const candidates = await listOrphanCleanupCandidates({ cutoff, limit });
+
+  const removed: string[] = [];
+  const storageDeleted: string[] = [];
+  const storageFailed: Array<{ id: string; error: string }> = [];
+  const skipped: Array<{ id: string; reason: 'busy' | 'state-changed' | 'already-gone' }> = [];
+
+  for (const doc of candidates.items) {
+    const id = String(doc._id);
+    if (dryRun) {
+      removed.push(id);
+      continue;
+    }
+    if (
+      Object.hasOwn(doc, 'sourceMediaImport') ||
+      (doc.status === 'deleted' && doc.uploadedByUserId === SOURCE_MEDIA_IMPORT_OWNER)
+    ) {
+      const result = await cleanupSourceMediaImage(id);
+      storageDeleted.push(...result.storageDeleted);
+      if (result.status === 'deleted') removed.push(id);
+      else if (result.status === 'missing') skipped.push({ id, reason: 'already-gone' });
+      else if (result.status === 'busy' || result.status === 'changed') {
+        skipped.push({ id, reason: result.status === 'busy' ? 'busy' : 'state-changed' });
+      } else
+        storageFailed.push({
+          id,
+          error: 'Image cleanup is incomplete; retry cleanup or inspect its recorded state.',
+        });
+      continue;
+    }
+    const result = await cleanupOrphanUploadImage(id, cutoff);
+    storageDeleted.push(...result.storageDeleted);
+    if (result.status === 'deleted') removed.push(id);
+    else if (result.status === 'missing') skipped.push({ id, reason: 'already-gone' });
+    else if (result.status === 'busy' || result.status === 'changed')
+      skipped.push({ id, reason: result.status === 'busy' ? 'busy' : 'state-changed' });
+    else
+      storageFailed.push({
+        id,
+        error: 'Image cleanup is incomplete; retry cleanup or inspect its recorded state.',
+      });
+  }
+
+  return ok({
+    dryRun,
+    cutoff,
+    scanned: candidates.items.length,
+    total: candidates.total,
+    docsRemoved: dryRun ? 0 : removed.length,
+    removed,
+    storageDeleted,
+    storageFailed,
+    skipped,
+  });
+}
+
+const migrateLegacyImagesSchema = z.object({
+  dryRun: z.boolean().optional(),
+  limit: z.number().int().positive().max(500).optional(),
+});
+
+const LEGACY_MIGRATION_DB_PAGE_SIZE = 100;
+const LEGACY_MIGRATION_SORT = [{ field: '_id', dir: 'asc' as const }];
+// A legacy `data` field must be well-formed base64 to migrate; anything else is
+// recorded as skipped (never aborts the batch). Buffer.from(..,'base64') is lenient
+// (drops invalid chars silently), so screen the string before trusting a decode.
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Page legacy migration candidates: inline `data` present and not yet staged
+ * (`migrationStorageFileId` absent). Stable `_id` sort so skip/limit paging cannot
+ * miss or duplicate rows; `data isNotEmpty`/`migrationStorageFileId isEmpty` select
+ * un-migrated legacy rows on both adapters (CloudBase `$in:[null]` matches a missing
+ * field; the local matcher treats undefined as empty).
+ */
+async function listLegacyImageCandidates(
+  limit: number,
+): Promise<{ items: CollectionDoc[]; total: number }> {
+  const items: CollectionDoc[] = [];
+  let total = 0;
+  let page = 1;
+  const pageSize = Math.min(LEGACY_MIGRATION_DB_PAGE_SIZE, limit);
+  while (items.length < limit) {
+    const res = await list({
+      collection: 'images',
+      page,
+      pageSize,
+      sort: LEGACY_MIGRATION_SORT,
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'data', op: 'isNotEmpty' },
+          { field: 'migrationStorageFileId', op: 'isEmpty' },
+        ],
+      },
+    });
+    if (page === 1) total = res.total;
+    items.push(...res.items);
+    if (res.items.length < pageSize) break;
+    page += 1;
+  }
+  return { items: items.slice(0, limit), total };
+}
+
+/**
+ * MIU-06 Phase 2 — legacy `images.data` → storage migration (rollback-safe, staged).
+ * For each un-migrated legacy inline-base64 image: validate + decode the bytes,
+ * upload them to catalog storage, and record STAGED fields
+ * (`migrationStorageFileId`/`migrationStoragePath`/`migrationChecksumSha256`/
+ * `migrationByteSize`/`migratedAt`) WITHOUT touching `data`, `storageProvider`,
+ * `storageFileId`, or `status`. Delivery therefore keeps serving the legacy bytes,
+ * a later cutover can flip the provider once storage-backed delivery is proven, and
+ * rollback is free (ignore the staged fields). Admin-only; `dryRun` reports
+ * candidates without writing; idempotent (already-staged rows are filtered out); a
+ * malformed/oversize/upload-failed row is recorded in `skipped` and never aborts the
+ * batch (§20.8).
+ */
+async function migrateLegacyImagesAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may migrate legacy images.');
+  }
+  const parsed = migrateLegacyImagesSchema.safeParse(req.data ?? {});
+  if (!parsed.success) return err('BAD_REQUEST', 'Invalid migration parameters');
+  const dryRun = parsed.data.dryRun === true;
+  const limit = parsed.data.limit ?? LEGACY_MIGRATION_DB_PAGE_SIZE;
+
+  const candidates = await listLegacyImageCandidates(limit);
+  const migrated: string[] = [];
+  const skipped: Array<{ id: string; reason: string }> = [];
+
+  // Best-effort delete of an object whose metadata staging failed AFTER a
+  // successful upload, so a post-upload failure never leaks private bytes with no
+  // doc pointer (which cleanupOrphanImages cannot see and a re-run would duplicate
+  // — STO-004). If the compensating delete ALSO fails, the object is genuinely
+  // leaked: report it explicitly so an operator can clean it up.
+  const rollbackUpload = async (imageId: string, fileId: string, reason: string): Promise<void> => {
+    try {
+      await mediaStorage().deleteObject(fileId);
+      skipped.push({ id: imageId, reason: `${reason}; uploaded object rolled back` });
+    } catch (delErr) {
+      const dm = delErr instanceof Error ? delErr.message : 'delete failed';
+      console.error(
+        `[fn-admin] migrateLegacyImages: LEAKED storage object ${fileId} for ${imageId} (rollback delete failed)`,
+        delErr,
+      );
+      skipped.push({
+        id: imageId,
+        reason: `${reason}; ROLLBACK FAILED — leaked storage object ${fileId} (${dm})`,
+      });
+    }
+  };
+
+  for (const doc of candidates.items) {
+    const id = String(doc._id);
+    if (doc.status === 'deleted') {
+      skipped.push({ id, reason: 'Image deletion is in progress.' });
+      continue;
+    }
+    const data = typeof doc.data === 'string' ? doc.data : '';
+    if (!data || data.length % 4 !== 0 || !BASE64_RE.test(data)) {
+      skipped.push({ id, reason: 'missing or malformed base64 data' });
+      continue;
+    }
+    const bytes = Buffer.from(data, 'base64');
+    if (bytes.byteLength === 0) {
+      skipped.push({ id, reason: 'empty decoded bytes' });
+      continue;
+    }
+    if (bytes.byteLength > CATALOG_IMAGE_MAX_BYTES) {
+      skipped.push({ id, reason: 'decoded bytes exceed the catalog image size cap' });
+      continue;
+    }
+    if (dryRun) {
+      migrated.push(id);
+      continue;
+    }
+    const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+    const name = typeof doc.name === 'string' && doc.name.length > 0 ? doc.name : `${id}.bin`;
+
+    const locks = await acquireImageReferenceLocks([id]);
+    if (locks.error) {
+      skipped.push({ id, reason: 'Image is unavailable or busy; retry migration.' });
+      continue;
+    }
+    try {
+      const current = await get('images', id);
+      if (
+        !current ||
+        current.status === 'deleted' ||
+        current.data !== doc.data ||
+        (typeof current.migrationStorageFileId === 'string' &&
+          current.migrationStorageFileId.trim())
+      ) {
+        skipped.push({ id, reason: 'Image changed before migration; reload and retry.' });
+        continue;
+      }
+      // 1) Upload first. A pure upload failure leaves NO object → just skip + retry.
+      let stored: StoredMediaObject;
+      try {
+        stored = await mediaStorage().putObject({
+          namespace: 'catalog',
+          logicalId: id,
+          fileName: `migrated-${name}`,
+          mimeType,
+          content: bytes,
+        });
+      } catch (e) {
+        console.error(`[fn-admin] migrateLegacyImages: upload failed for ${id}`, e);
+        skipped.push({ id, reason: e instanceof Error ? e.message : 'storage upload failed' });
+        continue;
+      }
+
+      // 2) Stage the pointer. From here an object EXISTS, so any staging failure must
+      // be compensated (delete it) — never leave orphaned bytes. Staged fields ONLY:
+      // data/provider/storageFileId/status stay untouched so delivery is unchanged.
+      let staged: CollectionDoc | null = null;
+      let stageError: unknown;
+      try {
+        staged = await updateDoc('images', id, {
+          migrationStorageFileId: stored.storageFileId,
+          migrationStoragePath: stored.storagePath,
+          migrationChecksumSha256: createHash('sha256').update(bytes).digest('hex'),
+          migrationByteSize: bytes.byteLength,
+          migratedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        stageError = e;
+      }
+      if (staged) {
+        migrated.push(id);
+        continue;
+      }
+      // `null` return = the row vanished (concurrent remove) between query and stage.
+      await rollbackUpload(
+        id,
+        stored.storageFileId,
+        stageError instanceof Error
+          ? `staging failed after upload: ${stageError.message}`
+          : 'image row no longer exists at stage time',
+      );
+    } finally {
+      await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+    }
+  }
+
+  return ok({
+    dryRun,
+    scanned: candidates.items.length,
+    total: candidates.total,
+    migratedCount: dryRun ? 0 : migrated.length,
+    migrated,
+    skipped,
+  });
+}
+
+/**
+ * Step 1 of the admin-brokered direct upload (MIU-Upload). Validates the file
+ * metadata, mints a single-object pre-signed credential, and writes a `pending`
+ * image doc. The browser then PUTs raw bytes straight to COS and calls
+ * `completeUpload`. The credential is minted FIRST so a mint failure never leaves
+ * an orphan doc; the bytes don't exist until the browser direct PUT, so a
+ * half-finished intent is just a pending (never-public) doc for orphan cleanup.
+ */
+async function createUploadIntentAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canEditCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to upload images.');
+  }
+  const parsed = catalogImageUploadSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+
+  // The path segment uses the intent id (a fresh UUID), so the credential can be
+  // minted before any DB write.
+  const uploadIntentId = randomUUID();
+  const cloudPath = catalogStoragePath({
+    imageId: uploadIntentId,
+    role: 'original',
+    fileName: parsed.data.fileName,
+  });
+  const credential = await mediaStorage().getUploadCredential(cloudPath);
+
+  const pending = await createDoc('images', {
+    name: parsed.data.fileName,
+    mimeType: parsed.data.mimeType,
+    purpose: parsed.data.purpose,
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storagePath: cloudPath,
+    storageFileId: credential.storageFileId,
+    status: 'pending',
+    publishedRefCount: 0,
+    uploadedByUserId: claims.sub,
+    uploadIntentId,
+    byteSize: parsed.data.byteSize,
+    ...(parsed.data.checksumSha256 ? { checksumSha256: parsed.data.checksumSha256 } : {}),
+  });
+
+  return ok({
+    imageId: pending._id,
+    uploadIntentId,
+    storageFileId: credential.storageFileId,
+    upload: {
+      method: credential.method,
+      url: credential.uploadUrl,
+      // Browser sends these as request headers with the raw bytes as the body.
+      headers: credential.headers,
+    },
+  });
+}
+
+/** Verify direct-upload bytes under the existing image mutex, then atomically
+ * activate with an idempotent completion receipt. Failed verification retains
+ * its target for expiry cleanup; an unavailable object remains retryable.
+ */
+async function completeUploadAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canEditCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to upload images.');
+  }
+  const parsed = completeUploadSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'imageId is required');
+
+  const result = await finalizeCatalogImageUpload(parsed.data.imageId, claims.sub);
+  if (!result.ok) return result;
+  return ok({ ...result.data, image: redact('images', result.data.image) });
+}
+
+/**
+ * Admin-authenticated image preview. Returns the bytes (base64) for ANY image the
+ * caller may read, REGARDLESS of publication — so the dashboard can preview a
+ * freshly-uploaded (active, `publishedRefCount: 0`) or unpublished image. The
+ * PUBLIC `/api/images/:id` route stays `publishedRefCount`-gated (storefront
+ * visibility); this is the admin's preview channel. Legacy rows return their
+ * inline `data`; storage-backed rows are proxied through the media adapter.
+ */
+async function getImagePreviewAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canReadCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to view images.');
+  }
+  const parsed = imagePreviewSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'id is required');
+
+  const doc = await get('images', parsed.data.id);
+  if (!doc || doc.status === 'deleted') return err('NOT_FOUND', 'Image not found');
+  const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+
+  if (typeof doc.data === 'string') {
+    return ok({ id: parsed.data.id, mimeType, dataBase64: doc.data });
+  }
+  // Storage-backed: serve ONLY recognized-provider + `active` rows. Active rows
+  // have passed completeUpload's size/checksum verification, so this can't be used
+  // to download an unverified/oversized pending object, a rejected `failed` row,
+  // a `deleted` row, or an unknown/corrupt provider. Pre-activation (pending)
+  // previews are the client's job (URL.createObjectURL on the just-uploaded File).
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+  const isStorageProvider = provider === 'cloudbase-storage' || provider === 'local-disk';
+  if (isStorageProvider && doc.status === 'active' && typeof doc.storageFileId === 'string') {
+    try {
+      const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
+      return ok({ id: parsed.data.id, mimeType, dataBase64: object.body });
+    } catch (e) {
+      console.error('[fn-admin] getImagePreview: storage fetch failed', e);
+      return err('NOT_FOUND', 'Image bytes are unavailable');
+    }
+  }
+  return err('NOT_FOUND', 'Image not available for preview');
+}
+
+/**
+ * Admin-authenticated OEM-file delivery (MIU-08, §20.10 step 3). Returns a
+ * SHORT-lived temp URL for a private OEM attachment plus a sanitized filename and
+ * a forced `attachment` disposition — never the bytes through JSON/base64 (10 MiB
+ * OEM files must not be proxied through the function body cap).
+ *
+ * Only a fully-finalized attachment is deliverable: `purpose: 'oem-drawing'`,
+ * `status: 'active'` (so it passed submitProject verification), a recognized
+ * storage provider, and an `ownerProjectId` (so an un-finalized pending intent
+ * can never be fetched). The TTL is deliberately tiny and re-minted per request
+ * because CDN edges can outlive object deletion (MIU-00); the URL is never
+ * persisted. The filename is sanitized to strip CR/LF/quotes/path separators/
+ * control + bidi characters, defeating header-injection and RTL-spoof downloads.
+ */
+async function getOemFileDownloadUrlAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canReadCollection(claims.role, 'files')) {
+    return err('FORBIDDEN', 'You do not have permission to download OEM files.');
+  }
+  const parsed = oemFileDownloadSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'fileId is required');
+
+  const doc = await get('files', parsed.data.fileId);
+  if (!doc) return err('NOT_FOUND', 'File not found');
+  // Deliver ONLY a finalized, storage-backed OEM attachment. Every guard below
+  // fails closed to NOT_FOUND so a pending/failed/legacy/foreign row cannot be
+  // turned into a download link by id enumeration.
+  if (doc.purpose !== 'oem-drawing') return err('NOT_FOUND', 'File is not an OEM drawing');
+  if (doc.status !== 'active') return err('NOT_FOUND', 'File is not available for download');
+  if (typeof doc.ownerProjectId !== 'string' || doc.ownerProjectId.length === 0) {
+    return err('NOT_FOUND', 'File is not linked to a project');
+  }
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+  const isStorageProvider = provider === 'cloudbase-storage' || provider === 'local-disk';
+  if (!isStorageProvider || typeof doc.storageFileId !== 'string') {
+    return err('NOT_FOUND', 'File bytes are unavailable');
+  }
+
+  let temp: { url: string; expiresAt?: string };
+  try {
+    temp = await mediaStorage().getTempUrl(doc.storageFileId, OEM_DOWNLOAD_URL_TTL_SECONDS);
+  } catch (e) {
+    console.error('[fn-admin] getOemFileDownloadUrl: temp URL mint failed', e);
+    return err('NOT_FOUND', 'File bytes are unavailable');
+  }
+
+  const rawName = typeof doc.name === 'string' ? doc.name : '';
+  const fileName = sanitizeDownloadFilename(rawName, 'oem-drawing');
+  const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+  return ok({
+    fileId: parsed.data.fileId,
+    url: temp.url,
+    ...(temp.expiresAt ? { expiresAt: temp.expiresAt } : {}),
+    fileName,
+    mimeType,
+    // Any proxy/header path MUST force a download (never inline-render an OEM
+    // attachment) with the sanitized name.
+    contentDisposition: `attachment; filename="${fileName}"`,
+  });
+}
+
+/** Count `files` matching an AND-filter, using `list().total` (no doc fetch). */
+async function countOemFiles(clauses: FilterClause[]): Promise<number> {
+  const res = await list({
+    collection: 'files',
+    page: 1,
+    pageSize: 1,
+    filter: { combinator: 'and', clauses },
+  });
+  return res.total;
+}
+
+/**
+ * MIU-08 §20.10 step 1 — PUBLIC OEM upload-intent creation (no admin JWT). Mints a
+ * single-object browser->COS upload credential so a ≤10 MiB OEM attachment never
+ * transits the function body cap, and records a `pending` `files` row bound to a
+ * one-time upload secret (only its hash is stored) with a short expiry.
+ *
+ * Because it is unauthenticated it is an abuse surface, so it enforces (fail-safe)
+ * a fixed-window rate limit and a concurrent pending-intent cap, each per-source
+ * (hashed client IP) AND against a global emergency ceiling (CloudBase may not
+ * expose a trusted IP; an absent source collapses into the global bucket). To make
+ * the caps hold under concurrency it uses a RESERVE-FIRST order — write the pending
+ * row, then count it in — so admitted reservations are always ≤ the ceiling and a
+ * denied one is rolled back (see the inline note); the raw IP is never persisted.
+ */
+/** How many expired pending OEM uploads a single intent call may opportunistically reap. */
+const OEM_PENDING_SWEEP_LIMIT = 3;
+
+/**
+ * Reap a bounded, oldest-first batch of EXPIRED `pending` OEM upload rows: delete
+ * the private `oem/` object FIRST, then retire the paired row only when that delete
+ * succeeds (or there was never an object). A storage-delete failure leaves the row
+ * for the next sweep — never orphan bytes, never over-delete. Piggybacked
+ * best-effort on `createOemFileUploadIntent` so the UNAUTHENTICATED OEM surface
+ * self-heals without a scheduler (uses the shared `selectExpiredPendingForSweep`
+ * selection primitive, §20.13/§27.2).
+ */
+async function sweepExpiredOemPendingUploads(limit: number): Promise<{
+  swept: string[];
+  storageDeleted: string[];
+  storageFailed: Array<{ id: string; error: string }>;
+}> {
+  const swept: string[] = [];
+  const storageDeleted: string[] = [];
+  const storageFailed: Array<{ id: string; error: string }> = [];
+  if (!Number.isInteger(limit) || limit <= 0) return { swept, storageDeleted, storageFailed };
+
+  const now = new Date();
+  const page = await list({
+    collection: 'files',
+    page: 1,
+    pageSize: limit,
+    sort: [{ field: 'uploadExpiresAt', dir: 'asc' }],
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'purpose', op: 'eq', value: 'oem-drawing' },
+        { field: 'status', op: 'eq', value: 'pending' },
+        { field: 'uploadExpiresAt', op: 'lt', value: now.toISOString() },
+      ],
+    },
+  });
+  const selection = selectExpiredPendingForSweep(
+    page.items.map((d) => ({
+      _id: String(d._id),
+      status: (typeof d.status === 'string' ? d.status : 'pending') as MediaStatus,
+      ...(typeof d.uploadExpiresAt === 'string' ? { uploadExpiresAt: d.uploadExpiresAt } : {}),
+      ...(typeof d.storageFileId === 'string' ? { storageFileId: d.storageFileId } : {}),
+    })),
+    now,
+    limit,
+  );
+  for (const item of selection.items) {
+    // Delete the object FIRST; retire the row only if that succeeds (or there is no
+    // object). A delete failure leaves the row for the next sweep.
+    if (typeof item.storageFileId === 'string' && item.storageFileId.length > 0) {
+      try {
+        await mediaStorage().deleteObject(item.storageFileId);
+        storageDeleted.push(item.storageFileId);
+      } catch (e) {
+        console.error(`[fn-admin] OEM sweep: object delete failed for ${item.docId}`, e);
+        storageFailed.push({
+          id: item.docId,
+          error: e instanceof Error ? e.message : 'storage delete failed',
+        });
+        continue;
+      }
+    }
+    if (await remove('files', item.docId)) swept.push(item.docId);
+  }
+  return { swept, storageDeleted, storageFailed };
+}
+
+async function createOemFileUploadIntentAction(
+  req: AdminRequest,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = oemFileUploadSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+
+  // Self-heal the unauthenticated OEM surface: opportunistically reap a small,
+  // bounded batch of EXPIRED pending uploads (delete orphaned `oem/` objects +
+  // retire rows) so abandoned anonymous intents cannot accumulate bucket pollution.
+  // Best-effort — a sweep failure never blocks a legitimate new upload.
+  await sweepExpiredOemPendingUploads(OEM_PENDING_SWEEP_LIMIT).catch((e) =>
+    console.error('[fn-admin] createOemFileUploadIntent: expired-pending sweep failed', e),
+  );
+
+  const now = Date.now();
+  // Epoch-aligned window start, matching evaluateFixedWindowRateLimit's Retry-After.
+  const windowStartIso = new Date(
+    Math.floor(now / OEM_UPLOAD_RATE_WINDOW_MS) * OEM_UPLOAD_RATE_WINDOW_MS,
+  ).toISOString();
+  const nowIso = new Date(now).toISOString();
+
+  // Source key = SHA-256 of the client IP when available; the raw IP is never
+  // stored. Absent/spoofed source falls through to the global ceilings only.
+  const sourceIp = context?.sourceIp?.trim();
+  const uploadSourceHash = sourceIp
+    ? createHash('sha256').update(sourceIp).digest('hex')
+    : undefined;
+
+  const oemDrawing: FilterClause = { field: 'purpose', op: 'eq', value: 'oem-drawing' };
+  const tooMany = (retryAfterSeconds: number): ApiResult<unknown> =>
+    rateLimited(
+      `Too many upload requests. Please retry in ${retryAfterSeconds}s.`,
+      retryAfterSeconds,
+    );
+  const tooManyPending = (retryAfterSeconds: number): ApiResult<unknown> =>
+    rateLimited(
+      'Too many pending uploads. Finish or wait for the existing ones to expire.',
+      retryAfterSeconds,
+    );
+
+  // Reserve-first abuse control: WRITE the pending row before counting, then
+  // count (this reservation included) and roll it back if any ceiling is
+  // exceeded. Because every ADMITTED reservation persists and is visible to
+  // concurrent counters, no cap can admit more than its ceiling even under a
+  // burst — closing the read-then-write race where a check-then-create ordering
+  // let callers overshoot the cap before any 429 (Codex `724d70c` P1). It fails
+  // SAFE: under contention it may over-REJECT (extra 429s) but never over-admit.
+  // (A literal atomic `incrementField` counter — design §27.2-2 — is an
+  // alternative mechanism; reserve-first reuses the `files` rows we already write,
+  // so it needs no per-window counter docs, no counter GC, and no new storage
+  // primitive/CloudBase SDK surface.)
+  const uploadIntentId = randomUUID();
+  const cloudPath = objectStoragePath({
+    namespace: 'oem',
+    logicalId: uploadIntentId,
+    fileName: parsed.data.fileName,
+  });
+  // One-time secret: only the client that created this intent can finalize it
+  // (§20.10 anti-enumeration). Store ONLY the hash; hand the plaintext back once.
+  const uploadSecret = `${randomUUID()}${randomUUID()}`.replace(/-/g, '');
+  const uploadSecretHash = createHash('sha256').update(uploadSecret).digest('hex');
+
+  const reserved = await createDoc('files', {
+    name: parsed.data.fileName,
+    mimeType: parsed.data.mimeType,
+    purpose: 'oem-drawing',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storagePath: cloudPath,
+    status: 'pending',
+    // Initialise the single-winner claim counter so finalization increments a
+    // concrete field. NOTE: the live OEM failure was NOT absent-field semantics —
+    // wx-server-sdk's `db.command.inc` does not apply in the Tencent CloudBase
+    // runtime; the real fix routes `incrementField`'s atomic inc through
+    // @cloudbase/node-sdk (see packages/db/src/cloudbase-adapter.ts). Keeping the
+    // explicit `0` mirrors `images.publishedRefCount` and keeps the field concrete.
+    finalizeClaim: 0,
+    uploadIntentId,
+    uploadSecretHash,
+    uploadExpiresAt: new Date(now + OEM_UPLOAD_INTENT_TTL_MS).toISOString(),
+    byteSize: parsed.data.byteSize,
+    // Stamp createdAt explicitly so the fixed-window rate query counts this
+    // reservation identically on every adapter (the in-memory test fake does not
+    // auto-stamp createdAt; the real adapters overwrite it with an equivalent now).
+    createdAt: nowIso,
+    ...(parsed.data.checksumSha256 ? { checksumSha256: parsed.data.checksumSha256 } : {}),
+    ...(uploadSourceHash ? { uploadSourceHash } : {}),
+  });
+  const rollback = async (): Promise<void> => {
+    await remove('files', reserved._id).catch((e) =>
+      console.error('[fn-admin] createOemFileUploadIntent: reservation rollback failed', e),
+    );
+  };
+
+  // --- Fixed-window rate limit (reservation included): global then per-source -
+  const inWindow: FilterClause[] = [
+    oemDrawing,
+    { field: 'createdAt', op: 'gte', value: windowStartIso },
+  ];
+  const globalRate = evaluateFixedWindowRateLimit({
+    // The reservation is already persisted, so the count IS the post-increment
+    // window total — allowed iff it stays within the ceiling (no speculative +1).
+    countInWindow: await countOemFiles(inWindow),
+    maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
+    windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
+    nowMs: now,
+  });
+  if (!globalRate.allowed) {
+    await rollback();
+    return tooMany(globalRate.retryAfterSeconds);
+  }
+  if (uploadSourceHash) {
+    const sourceRate = evaluateFixedWindowRateLimit({
+      countInWindow: await countOemFiles([
+        ...inWindow,
+        { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
+      ]),
+      maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+      windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
+      nowMs: now,
+    });
+    if (!sourceRate.allowed) {
+      await rollback();
+      return tooMany(sourceRate.retryAfterSeconds);
+    }
+  }
+
+  // --- Concurrent pending-intent cap (reservation included) ------------------
+  const pendingLive: FilterClause[] = [
+    oemDrawing,
+    { field: 'status', op: 'eq', value: 'pending' },
+    { field: 'uploadExpiresAt', op: 'gt', value: nowIso },
+  ];
+  // The reservation is one of the live pending rows, so subtract it to recover
+  // the count that PRECEDES this request (withinPendingCap allows `< cap`).
+  const globalPending = await countOemFiles(pendingLive);
+  if (!withinPendingCap(globalPending - 1, OEM_MAX_PENDING_INTENTS_GLOBAL)) {
+    await rollback();
+    return tooManyPending(await soonestPendingRetryAfterSeconds(pendingLive, now));
+  }
+  if (uploadSourceHash) {
+    const sourceClauses: FilterClause[] = [
+      ...pendingLive,
+      { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
+    ];
+    const sourcePending = await countOemFiles(sourceClauses);
+    if (!withinPendingCap(sourcePending - 1, OEM_MAX_PENDING_INTENTS_PER_SOURCE)) {
+      await rollback();
+      return tooManyPending(await soonestPendingRetryAfterSeconds(sourceClauses, now));
+    }
+  }
+
+  // --- All caps cleared → mint the credential and attach it to the reservation
+  let credential: Awaited<ReturnType<ReturnType<typeof mediaStorage>['getUploadCredential']>>;
+  try {
+    credential = await mediaStorage().getUploadCredential(cloudPath);
+  } catch (e) {
+    console.error('[fn-admin] createOemFileUploadIntent: credential mint failed', e);
+    await rollback();
+    return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+  }
+
+  try {
+    const attached = await updateDoc('files', reserved._id, {
+      storageFileId: credential.storageFileId,
+    });
+    if (!attached) {
+      console.error(
+        '[fn-admin] createOemFileUploadIntent: reservation vanished before storageFileId attach',
+      );
+      await rollback();
+      return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+    }
+  } catch (e) {
+    console.error('[fn-admin] createOemFileUploadIntent: storageFileId attach failed', e);
+    await rollback();
+    return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+  }
+
+  return ok({
+    fileId: reserved._id,
+    uploadIntentId,
+    // Returned exactly once; the server keeps only the hash.
+    uploadSecret,
+    upload: {
+      method: credential.method,
+      url: credential.uploadUrl,
+      headers: credential.headers,
+    },
+  });
+}
+
+async function soonestPendingRetryAfterSeconds(
+  clauses: FilterClause[],
+  nowMs: number,
+): Promise<number> {
+  const res = await list({
+    collection: 'files',
+    page: 1,
+    pageSize: 1,
+    filter: { combinator: 'and', clauses },
+    sort: [{ field: 'uploadExpiresAt', dir: 'asc' }],
+  });
+  const expiresAt = res.items[0]?.uploadExpiresAt;
+  const expiresAtMs = typeof expiresAt === 'string' ? new Date(expiresAt).getTime() : Number.NaN;
+  if (!Number.isFinite(expiresAtMs)) {
+    return Math.ceil(OEM_UPLOAD_INTENT_TTL_MS / 1000);
+  }
+  return Math.max(1, Math.ceil((expiresAtMs - nowMs) / 1000));
+}

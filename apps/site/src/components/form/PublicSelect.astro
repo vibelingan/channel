@@ -1,0 +1,50 @@
+---
+import { Select } from './Select.tsx';
+
+interface Props {
+  name: string;
+  label: string;
+  options: readonly string[];
+  required?: boolean;
+  disabled?: boolean;
+  form?: string;
+  hint?: string;
+  wrapperClass?: string;
+  placeholder?: string;
+}
+
+const {
+  name,
+  label,
+  options,
+  required = false,
+  disabled = false,
+  form,
+  hint,
+  wrapperClass = '',
+  placeholder = 'Select a product category…',
+} = Astro.props;
+
+const hintId = hint ? `${name}-hint` : undefined;
+---
+
+<div class:list={[wrapperClass]} data-public-select>
+  <Select
+    client:load
+    name={name}
+    label={label}
+    options={options}
+    required={required}
+    disabled={disabled}
+    form={form}
+    placeholder={placeholder}
+    describedBy={hintId}
+    className="mt-0"
+    triggerClassName="mt-1.5 min-h-12 px-3.5 py-2.5 shadow-sm"
+  />
+  {hint && (
+    <p id={hintId} class="mt-1.5 text-xs leading-relaxed text-ink-muted">
+      {hint}
+    </p>
+  )}
+</div>

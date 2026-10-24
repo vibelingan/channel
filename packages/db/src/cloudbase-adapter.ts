@@ -1,0 +1,1519 @@
+import { assertOrdinaryImageReferenceWrite, assertOrdinaryImageReferenceRemoval, ImageReferenceWriteError } from './catalog-image-reference-write.ts';
+import {
+  APPROVAL_IMAGE_HOLD_PROJECTION,
+  approvalImageHoldWhere,
+  approvalImageHoldAnswer,
+  isApprovalImageId,
+} from './catalog-approval-image-hold.ts';
+import { ADMIN_PRODUCT_LIST_PROJECTION, projectProductListResult, usesProductListView } from './catalog-product-list-view.ts';
+import { catalogReadinessSort, catalogReadinessWhere } from './catalog-readiness-query.ts';
+import {
+  type CatalogPreparationAuthority,
+  type CatalogPreparationJobCommand,
+  runCatalogPreparationJob,
+} from './catalog-preparation-jobs.ts';
+import {
+  CatalogImageReferenceReadSchema,
+  CatalogImageReferenceIncrementSchema,
+  type CatalogImageReferenceIncrementCommand,
+  runCatalogImageReferenceIncrement,
+  type CatalogImageReferenceReadCommand,
+  runCatalogImageReferenceRead,
+} from './catalog-image-reference-store.ts';
+import { runImageUpload, type ImageUploadCommand, ImageUploadCommandSchema } from './image-upload.ts';
+import { runSourceMediaImport, SourceMediaImportCommandSchema, type SourceMediaImportCommand } from './source-media-import.ts';
+import { runImageDeletion, ImageDeletionCommandSchema, type ImageDeletionCommand, type ImageDeletionStore } from './image-deletion.ts';
+import { randomUUID } from 'node:crypto';
+import { withAlibabaLeaseCommit } from './alibaba-lease-commit-queue.ts';
+import { isDeepStrictEqual } from 'node:util';
+import { planSourceInvalidation } from './catalog-source-invalidation.ts';
+import {
+  type CatalogRowMutation,
+  type CatalogRowMutationResult,
+  type CatalogRowStore,
+  isCatalogRowCollection,
+  runCatalogRowMutation,
+} from './catalog-row-mutation.ts';
+import { sdkAnswer, assertDocumentWrite } from './cloudbase-sdk-answer.ts';
+import { createCatalogTransactionReads, serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
+import { captureProductOperationSave, prepareProductOperationSave, productOperationSaveReceipt } from './catalog-product-operation.ts';
+import * as cloudbase from '@cloudbase/node-sdk';
+import type { CloudBase } from '@cloudbase/node-sdk';
+import {
+  categorySyncBaseline,
+  LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  PRODUCT_FAMILY_OPTIONS,
+  type CollectionDoc,
+  type FilterClause,
+  type ListResult,
+  getCollection,
+  isProductFamily,
+} from '@vibelingan-channel/shared';
+/**
+ * CloudBase (wx-server-sdk) implementation of `DbAdapter`.
+ *
+ * Used in production cloud functions. Call `initCloudBase(envId)` once at module
+ * load before the adapter is used.
+ */
+import cloud from 'wx-server-sdk';
+import { InquiryCommandSchema } from '@vibelingan-channel/shared/catalog-inquiry';
+import { INQUIRY_COLLECTION, manageInquiryInCloud, saveQuoteInCloud } from './catalog-inquiry-cloud.ts';
+import { processCatalogInquiry } from './catalog-inquiry.ts';
+import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import { runCategoryCommand } from './category-transaction.ts';
+import { productSubcategoryWhere } from './product-subcategory-query.ts';
+import {
+  catalogSuggestionChanged,
+  parseCatalogExpectedSuggestion,
+  planCatalogSuggestionSave,
+} from './catalog-suggestion-save.ts';
+import {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  runAlibabaProductMutation,
+} from './alibaba-product-identity.ts';
+import type {
+  AdapterListQuery,
+  AlibabaLeaseGrant,
+  AlibabaLeaseGuard,
+  AlibabaSyncRunClaimResult,
+  CatalogProductSaveInput,
+  CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
+  DbAdapter,
+  ImageMutationAcquireResult,
+  ImageMutationReleaseResult,
+} from './adapter.ts';
+import {
+  ALIBABA_SYNC_LEASE_COLLECTION,
+  holdsAlibabaLease,
+  listSearchFields,
+  planCatalogProductSave,
+  planProductSubcategorySave,
+  transitionAlibabaLeaseAcquire,
+  transitionAlibabaLeaseRelease,
+  transitionAlibabaLeaseRenew,
+  transitionImageMutationAcquire,
+  transitionImageMutationRelease,
+} from './adapter.ts';
+
+/*
+ * wx-server-sdk@4 ships official types, but every terminal database call is
+ * typed for the dual callback/promise API (`Promise<T> | void | string`) and
+ * its IDatabaseConfig omits the runtime-honored `throwOnNotFound` flag. The
+ * adapter uses the promise style exclusively, so the exact surface it consumes
+ * is typed structurally here and asserted against the installed SDK at runtime
+ * by scripts/verify-cloudbase-sdk-contract.mjs.
+ */
+interface WxDocumentReference {
+  get(): Promise<{ data: Record<string, unknown> | Record<string, unknown>[] | null }>;
+  update(options: { data: Record<string, unknown> }): Promise<{ updated: number }>;
+  /**
+   * wx-server-sdk wraps the count: `{ stats: { removed } }` (its index.js
+   * `remove` maps @cloudbase/database's `deleted` into it). Reading `deleted`
+   * here made every delete report "nothing removed" (2026-10-10).
+   */
+  remove(): Promise<WxRemoveResult>;
+}
+
+interface WxRemoveResult {
+  stats?: { removed?: number };
+}
+
+/** How many documents a wx-server-sdk `remove()` removed. */
+export function wxRemovedCount(result: WxRemoveResult | undefined): number {
+  const removed = result?.stats?.removed;
+  return typeof removed === 'number' && Number.isFinite(removed) ? removed : 0;
+}
+
+interface WxQuery {
+  where(condition: Record<string, unknown>): WxQuery;
+  orderBy(field: string, order: 'asc' | 'desc'): WxQuery;
+  skip(offset: number): WxQuery;
+  limit(count: number): WxQuery;
+  field(projection: Readonly<Record<string, boolean>>): WxQuery;
+  get(): Promise<{ data: Record<string, unknown>[] }>;
+  count(): Promise<{ total: number }>;
+}
+
+interface WxCollectionReference extends WxQuery {
+  doc(id: string): WxDocumentReference;
+  add(options: { data: Record<string, unknown> }): Promise<{ _id: string }>;
+}
+
+interface WxCommand {
+  or(conditions: Record<string, unknown>[]): Record<string, unknown>;
+  and(conditions: Record<string, unknown>[]): Record<string, unknown>;
+  eq(value: unknown): unknown;
+  neq(value: unknown): unknown;
+  gt(value: unknown): unknown;
+  gte(value: unknown): unknown;
+  lt(value: unknown): unknown;
+  lte(value: unknown): unknown;
+  in(values: unknown[]): unknown;
+  nin(values: unknown[]): unknown;
+  exists(value: boolean): unknown;
+  expr(expression: Record<string, unknown>): Record<string, unknown>;
+  /**
+   * Update command: replace a field WHOLESALE instead of the default
+   * dot-path merge. Present on the installed wx-server-sdk 4.0.2 command
+   * (probed in scripts/verify-cloudbase-sdk-contract.mjs); the local
+   * interface simply had not declared it.
+   */
+  set(value: unknown): unknown;
+}
+
+interface WxDatabase {
+  collection(name: string): WxCollectionReference;
+  command: WxCommand;
+  RegExp(options: { regexp: string; options?: string }): unknown;
+}
+
+/**
+ * The @cloudbase/node-sdk transaction surface the lock methods use. node-sdk
+ * 3.x types the runTransaction callback parameter loosely, so the shape is
+ * pinned structurally here (and probed by the SDK contract script).
+ */
+interface NodeSdkTransaction {
+  collection(name: string): {
+    doc(id: string): {
+      get(): Promise<{ data: unknown }>;
+      update(patch: Record<string, unknown>): Promise<unknown>;
+      /**
+       * Full-replace upsert: `database.modifyDocument` with
+       * `{merge:false, upsert:true, transactionId, query:{_id}}`. The data
+       * object must NOT contain `_id` (the SDK rejects it). Verified against
+       * the installed @cloudbase/database 1.4.3 source and probed by
+       * scripts/verify-cloudbase-sdk-contract.mjs.
+       */
+      set(data: Record<string, unknown>): Promise<{ updated?: number; upserted?: Array<{_id?:string}> }>;
+      remove(): Promise<{ deleted?: number }>;
+    };
+  };
+}
+
+export interface NodeSdkDatabase {
+  command: { set(value: unknown): unknown };
+  runTransaction<T>(operation: (transaction: NodeSdkTransaction) => Promise<T>): Promise<T>;
+}
+
+export async function saveCatalogProductInCloudBase(
+  db: NodeSdkDatabase,
+  request: CatalogProductSaveInput,
+  now = new Date().toISOString(),
+): Promise<CatalogProductSaveResult> {
+  const input = captureProductOperationSave(request);
+  if (!input) return { result: 'stale' };
+  return db.runTransaction(async (transaction) => {
+    const setAcknowledged = async (collection: string, doc: CollectionDoc) => {
+      const { _id: id, ...data } = doc;
+      assertDocumentWrite(await transaction.collection(collection).doc(id).set(data), id, 'set');
+    };
+    const operationTx = {
+      get: serializeCloudBaseTransactionReads(async (collection: string, id: string) =>
+        normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data)),
+      set: setAcknowledged,
+    };
+    const expectedSuggestion =
+      input.expectedSuggestion === undefined
+        ? undefined
+        : parseCatalogExpectedSuggestion(input.expectedSuggestion);
+    if (expectedSuggestion === null || (expectedSuggestion && input.mode !== 'update'))
+      return catalogSuggestionChanged();
+    const productRef = transaction.collection('products').doc(input.productId);
+    const existing = normalizeSingle(sdkAnswer(await productRef.get()).data);
+    if (expectedSuggestion && !existing) return catalogSuggestionChanged();
+    const operation = await prepareProductOperationSave(operationTx, existing, input);
+    if (operation.result === 'stale' || operation.result === 'invalid-product' || operation.result === 'media-busy') return operation;
+    if (operation.result === 'replay' && existing)
+      return { result: 'saved', doc: existing, previous: existing };
+    const plan = planCatalogProductSave(existing, input, now, {
+      cancelPendingPublication:
+        operation.result === 'ready' && operation.record.operation.intent !== 'refresh-live',
+      clearManualPricing: operation.result === 'ready',
+    });
+    if (plan.result !== 'ready') return plan;
+
+    const actorId = input.expectedClassification?.actorId;
+    const actorRef =
+      typeof actorId === 'string' && actorId.trim().length > 0
+        ? transaction.collection('users').doc(actorId)
+        : null;
+    const actor = actorRef ? normalizeSingle((await actorRef.get()).data) : null;
+    const family = expectedSuggestion
+      ? expectedSuggestion.family
+      : Object.hasOwn(input.data, 'productFamily')
+        ? input.data.productFamily
+        : existing?.productFamily;
+    const registry =
+      (expectedSuggestion || Object.hasOwn(input.data, 'subcategoryIds')) && isProductFamily(family)
+        ? normalizeSingle(
+            (await transaction.collection('catalogTaxonomies').doc(family).get()).data,
+          )
+        : null;
+    const source = expectedSuggestion
+      ? normalizeSingle(
+          (
+            await transaction
+              .collection('alibabaSourceProducts')
+              .doc(expectedSuggestion.source.primarySourceKey)
+              .get()
+          ).data,
+        )
+      : null;
+    const link = expectedSuggestion
+      ? normalizeSingle(
+          (
+            await transaction
+              .collection('alibabaProductLinks')
+              .doc(expectedSuggestion.source.primarySourceKey)
+              .get()
+          ).data,
+        )
+      : null;
+    const mapping = expectedSuggestion
+      ? normalizeSingle(
+          (
+            await transaction
+              .collection('sourceCategoryMappings')
+              .doc(expectedSuggestion.mapping.id)
+              .get()
+          ).data,
+        )
+      : null;
+    const suggestion = planCatalogSuggestionSave(
+      existing,
+      input,
+      { source, link, mapping, registry },
+      randomUUID(),
+    );
+    if (suggestion.result !== 'ready') return suggestion;
+    const classification = planProductSubcategorySave(existing, input, registry, actor);
+    if (classification.result !== 'ready') return classification;
+
+    const identityById = new Map<string, CollectionDoc | null>();
+    for (const identity of [...plan.identities, ...plan.staleIdentities]) {
+      if (!identityById.has(identity.id)) {
+        const ref = transaction.collection('catalogProductIdentities').doc(identity.id);
+        identityById.set(identity.id, normalizeSingle((await ref.get()).data));
+      }
+    }
+    for (const identity of plan.identities) {
+      const existingIdentity = identityById.get(identity.id);
+      if (
+        existingIdentity &&
+        (existingIdentity.productId !== input.productId ||
+          existingIdentity.kind !== identity.kind ||
+          existingIdentity.normalizedValue !== identity.normalizedValue)
+      ) {
+        return {
+          result: 'conflict',
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+        };
+      }
+    }
+
+    if (actorRef) {
+      const acknowledgement = await actorRef.update({ classificationAuthFence: randomUUID() });
+      if (
+        !acknowledgement ||
+        typeof acknowledgement !== 'object' ||
+        typeof Reflect.get(acknowledgement, 'updated') !== 'number' ||
+        !Number.isSafeInteger(Reflect.get(acknowledgement, 'updated')) ||
+        Reflect.get(acknowledgement, 'updated') <= 0
+      ) {
+        throw new Error('Classification authorization write was not acknowledged');
+      }
+    }
+    for (const identity of plan.identities) {
+      if (!identityById.get(identity.id)) {
+        await setAcknowledged('catalogProductIdentities', {
+          _id: identity.id,
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+          productId: input.productId,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    if (classification.registryFence) {
+      await setAcknowledged('catalogTaxonomies', classification.registryFence);
+    }
+    for (const { collection, doc } of suggestion.fences) await setAcknowledged(collection, doc);
+    const { _id, ...productData } = plan.doc;
+    if (input.mode === 'create') {
+      assertDocumentWrite(await productRef.set(productData), input.productId, 'set');
+    } else if (plan.doc !== existing) {
+      if (existing?.createdAt !== undefined && existing.createdAt !== null) {
+        delete productData.createdAt;
+      }
+      assertDocumentWrite(
+        await productRef.update(replaceNestedObjects(productData, db.command)),
+        input.productId,
+        'update',
+      );
+    }
+    for (const identity of plan.staleIdentities) {
+      if (identityById.get(identity.id)?.productId === input.productId) {
+        assertDocumentWrite(
+          await transaction.collection('catalogProductIdentities').doc(identity.id).remove(),
+          identity.id,
+          'remove',
+        );
+      }
+    }
+    if (operation.result === 'ready')
+      await setAcknowledged(
+        'catalogDetailApprovals',
+        productOperationSaveReceipt(operation.record, plan.doc),
+      );
+    if (operation.result === 'ready' && operation.referenceProof)
+      await setAcknowledged('catalogDetailApprovals', operation.referenceProof);
+    return { result: 'saved', doc: plan.doc, previous: existing };
+  });
+}
+
+let initialized = false;
+let storageApp: CloudBase | null = null;
+
+export function initCloudBase(envId: string): void {
+  if (initialized) return;
+  cloud.init({ env: envId });
+  storageApp = cloudbase.init({ env: envId });
+  initialized = true;
+}
+
+/**
+ * The initialised CloudBase node-sdk instance, exposed for media-storage
+ * injection. `wx-server-sdk` wraps only part of the storage API and does not
+ * expose `getUploadMetadata`; upload-intent minting must use @cloudbase/node-sdk
+ * directly while the DB adapter still uses wx-server-sdk.
+ */
+export function cloudStorageSdk(): CloudBase {
+  if (!storageApp) {
+    throw new Error(
+      '@vibelingan-channel/db: initCloudBase(envId) must be called before using storage',
+    );
+  }
+  return storageApp;
+}
+
+function database(): WxDatabase {
+  if (!initialized) {
+    throw new Error(
+      '@vibelingan-channel/db: initCloudBase(envId) must be called before using the database',
+    );
+  }
+  // throwOnNotFound DEFAULTS TO TRUE in wx-server-sdk: without this config a
+  // missing `doc(id).get()` rejects with "document with _id ... does not
+  // exist" instead of resolving `{ data: null }`. Every `get() -> null`
+  // missing-document contract in the handlers depends on this being false.
+  // (IDatabaseConfig omits the flag, hence the parameter cast.)
+  const config = { throwOnNotFound: false } as Parameters<typeof cloud.database>[0];
+  return cloud.database(config) as unknown as WxDatabase;
+}
+
+function normalize(raw: Record<string, unknown>): CollectionDoc {
+  return raw as CollectionDoc;
+}
+
+function normalizeSingle(raw: unknown): CollectionDoc | null {
+  const doc = Array.isArray(raw) ? raw[0] : raw;
+  return doc && typeof doc === 'object' && !Array.isArray(doc)
+    ? normalize(doc as Record<string, unknown>)
+    : null;
+}
+
+async function sourceInvalidation(
+  transaction: NodeSdkTransaction,
+  before: CollectionDoc | null,
+  next: CollectionDoc,
+  now: string,
+) {
+  return planSourceInvalidation(
+    {
+      get: async (collection, id) =>
+        normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+    },
+    before,
+    next,
+    now,
+  );
+}
+
+function confirmDocumentWrite(answer: unknown, id: string): void {
+  const result = sdkAnswer(answer);
+  if (result && typeof result === 'object') {
+    const upserted = Reflect.get(result, 'upserted');
+    if (
+      Reflect.get(result, 'updated') === 1 ||
+      (Array.isArray(upserted) &&
+        upserted.some(
+          (row: unknown) => row && typeof row === 'object' && Reflect.get(row, '_id') === id,
+        ))
+    )
+      return;
+  }
+  throw new Error('Database document write was not confirmed');
+}
+
+function catalogRowStore(
+  transaction: NodeSdkTransaction,
+  beforeWrite?: () => Promise<void>,
+): CatalogRowStore & ImageDeletionStore {
+  const reads = createCatalogTransactionReads(async (collection, id) =>
+    normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data));
+  return {
+    get: reads.get,
+    set: async (collection, row) => {
+      reads.beforeWrite();
+      await beforeWrite?.();
+      const { _id, ...data } = row;
+      confirmDocumentWrite(await transaction.collection(collection).doc(_id).set(data), _id);
+    },
+    remove: async (collection, id) => {
+      reads.beforeWrite();
+      await beforeWrite?.();
+      const result = sdkAnswer(await transaction.collection(collection).doc(id).remove());
+      if (result.deleted !== 1) throw new Error('Database document removal was not confirmed');
+    },
+  };
+}
+
+export async function acquireImageMutationInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, imageId: string, owner: string, startedAt: string): Promise<ImageMutationAcquireResult> {
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection('images').doc(imageId);
+      const got = await ref.get();
+      const doc = normalizeSingle(got.data);
+      if (!doc) return 'missing';
+      const transition = transitionImageMutationAcquire(doc, owner, startedAt);
+      if (transition.result !== 'acquired') return transition.result;
+      confirmDocumentWrite(await ref.update({
+        ...transition.patch,
+        updatedAt: new Date().toISOString(),
+      }), imageId);
+      return 'acquired';
+    });
+}
+
+export async function releaseImageMutationInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, imageId: string, owner: string): Promise<ImageMutationReleaseResult> {
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection('images').doc(imageId);
+      const got = await ref.get();
+      const doc = normalizeSingle(got.data);
+      if (!doc) return 'missing';
+      const transition = transitionImageMutationRelease(doc, owner);
+      if (transition.result !== 'released') return transition.result;
+      confirmDocumentWrite(await ref.update({
+        ...transition.patch,
+        updatedAt: new Date().toISOString(),
+      }), imageId);
+      return 'released';
+    });
+}
+
+export async function manageSourceMediaImportInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: SourceMediaImportCommand) {
+  const input = SourceMediaImportCommandSchema.parse(command);
+  return db.runTransaction(transaction => runSourceMediaImport(catalogRowStore(transaction), input));
+}
+
+export async function manageImageUploadInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageUploadCommand) {
+  const input = ImageUploadCommandSchema.parse(command);
+  return db.runTransaction(transaction => runImageUpload(catalogRowStore(transaction), input));
+}
+
+export async function manageImageDeletionInCloudBase(db: Pick<NodeSdkDatabase, 'runTransaction'>, command: ImageDeletionCommand) {
+  const input = ImageDeletionCommandSchema.parse(command);
+  return db.runTransaction((transaction) => runImageDeletion(catalogRowStore(transaction), input));
+}
+
+/** Generic catalog input writes share one bounded child/parent transaction. */
+export async function mutateCatalogRowInCloudBase(
+  db: NodeSdkDatabase,
+  command: CatalogRowMutation,
+  now = new Date().toISOString(),
+): Promise<CatalogRowMutationResult> {
+  return db.runTransaction(async (transaction) =>
+    runCatalogRowMutation(catalogRowStore(transaction), command, now),
+  );
+}
+
+function catalogWrittenRow(result: CatalogRowMutationResult): CollectionDoc {
+  if (result.status !== 'written') throw new Error('Catalog row write was not confirmed');
+  return result.doc;
+}
+
+async function writeInvalidatedProduct(
+  transaction: NodeSdkTransaction,
+  product: CollectionDoc | null,
+) {
+  if (!product) return;
+  const { _id, ...data } = product;
+  confirmDocumentWrite(await transaction.collection('products').doc(_id).set(data), _id);
+}
+
+/** Snapshot reads alone do not fence takeover; verified with the deployed SDK. */
+function alibabaLeaseWriteFence(
+  transaction: NodeSdkTransaction,
+  connectionId: string,
+  lease: CollectionDoc | null,
+) {
+  let written = false;
+  return async () => {
+    if (written) return;
+    if (!lease || lease._id !== connectionId) throw new Error('Lease identity was not confirmed');
+    const { _id, ...data } = lease;
+    confirmDocumentWrite(
+      await transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId).set(data),
+      connectionId,
+    );
+    written = true;
+  };
+}
+
+/** Exported for a production-path takeover test; the live adapter calls this exact function. */
+export async function upsertDocWithAlibabaLeaseInCloudBase(
+  db: NodeSdkDatabase,
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  const input = collection === 'images' ? structuredClone(patch) : patch;
+  const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
+  return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
+    const lease = normalizeSingle(sdkAnswer(await leaseRef.get()).data);
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const beforeWrite = alibabaLeaseWriteFence(transaction, guard.connectionId, lease);
+    if (isCatalogRowCollection(collection)) {
+      const result = await runCatalogRowMutation(
+        catalogRowStore(transaction, beforeWrite),
+        { action: 'upsert', collection, id, data: input, createOnly: initial },
+        guard.now,
+      );
+      return result.status === 'written';
+    }
+    const targetRef = transaction.collection(collection).doc(id);
+    const existing = normalizeSingle(sdkAnswer(await targetRef.get()).data);
+    if (collection === 'images' && existing && existing._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    const { _id: _patchId, ...safePatch } = input as Record<string, unknown> & { _id?: unknown };
+    const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
+      _id?: unknown;
+    };
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, existing ? safePatch : { ...safeCreateOnly, ...safePatch });
+    const next: CollectionDoc = existing
+      ? { ...existing, ...safePatch, updatedAt: guard.now }
+      : { ...safeCreateOnly, ...safePatch, _id: id, createdAt: guard.now, updatedAt: guard.now };
+    const invalidated =
+      collection === 'catalogSourceObservations'
+        ? await sourceInvalidation(transaction, existing, next, guard.now)
+        : null;
+    if (!isDeepStrictEqual(existing, next)) {
+      await beforeWrite();
+      const answer = existing
+        ? await targetRef.update(
+            replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
+          )
+        : await targetRef.set(
+            Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')),
+          );
+      confirmDocumentWrite(answer, id);
+    }
+    await writeInvalidatedProduct(transaction, invalidated);
+    return true;
+  }));
+}
+
+/** The tombstone writer follows the same protected source/product commit. */
+export async function updateDocWithAlibabaLeaseInCloudBase(
+  db: NodeSdkDatabase,
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  const input = collection === 'images' ? structuredClone(patch) : patch;
+  if (collection === 'images') Reflect.deleteProperty(input, '_id');
+  return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction) => {
+    const lease = normalizeSingle(
+      sdkAnswer(
+        await transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId).get(),
+      ).data,
+    );
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const beforeWrite = alibabaLeaseWriteFence(transaction, guard.connectionId, lease);
+    if (isCatalogRowCollection(collection)) {
+      const result = await runCatalogRowMutation(
+        catalogRowStore(transaction, beforeWrite),
+        { action: 'update', collection, id, data: input },
+        guard.now,
+      );
+      return result.status === 'written';
+    }
+    const target = transaction.collection(collection).doc(id);
+    const before = normalizeSingle(sdkAnswer(await target.get()).data);
+    if (!before) return false;
+    if (collection === 'images' && before._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(before, input);
+    const baseline = collection === 'products' ? categorySyncBaseline(before, input) : {};
+    const values = { ...input, ...baseline, updatedAt: guard.now };
+    const next = { ...before, ...values };
+    const invalidated =
+      collection === 'catalogSourceObservations'
+        ? await sourceInvalidation(transaction, before, next, guard.now)
+        : null;
+    if (!isDeepStrictEqual(before, next)) {
+      await beforeWrite();
+      const answer = await target.update(replaceNestedObjects(values, db.command));
+      confirmDocumentWrite(answer, id);
+    }
+    await writeInvalidatedProduct(transaction, invalidated);
+    return true;
+  }));
+}
+
+/**
+ * Start a sync run without exposing the run/checkpoint split as two writes.
+ * Every read happens before either write because CloudBase transactions do not
+ * allow a read after the transaction has entered its write phase.
+ */
+export async function claimAlibabaSyncRunInCloudBase(
+  db: NodeSdkDatabase,
+  runId: string,
+  run: Record<string, unknown>,
+  checkpointPatch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<AlibabaSyncRunClaimResult> {
+  return withAlibabaLeaseCommit(guard, () => db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
+    const checkpointRef = transaction
+      .collection('alibabaSyncCheckpoints')
+      .doc(guard.connectionId);
+    const runRef = transaction.collection('alibabaSyncRuns').doc(runId);
+
+    const lease = normalizeSingle((await leaseRef.get()).data);
+    const checkpoint = normalizeSingle((await checkpointRef.get()).data);
+    const existingRun = normalizeSingle((await runRef.get()).data);
+
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return 'lease-lost';
+    if (!checkpoint) return 'checkpoint-missing';
+    if (checkpoint.activeRunId !== undefined && checkpoint.activeRunId !== '') {
+      return 'checkpoint-busy';
+    }
+    if (existingRun) return 'run-exists';
+
+    const { _id: _runId, ...safeRun } = run as Record<string, unknown> & { _id?: unknown };
+    const { _id: _checkpointId, ...safeCheckpointPatch } = checkpointPatch as Record<
+      string,
+      unknown
+    > & { _id?: unknown };
+    await alibabaLeaseWriteFence(transaction, guard.connectionId, lease)();
+    const created = await runRef.set({
+      ...safeRun,
+      createdAt: guard.now,
+      updatedAt: guard.now,
+    });
+    confirmDocumentWrite(created, runId);
+    confirmDocumentWrite(
+      await checkpointRef.update(
+        replaceNestedObjects({ ...safeCheckpointPatch, updatedAt: guard.now }, db.command),
+      ),
+      guard.connectionId,
+    );
+    return 'claimed';
+  }));
+}
+
+/** Exported so recency behavior is tested against the exact production transaction. */
+export async function upsertCatalogSourceObservationInCloudBase(
+  db: NodeSdkDatabase,
+  id: string,
+  data: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  now: string,
+): Promise<CatalogSourceObservationUpsertResult> {
+  return db.runTransaction(async (transaction) => {
+    const ref = transaction.collection('catalogSourceObservations').doc(id);
+    const existing = normalizeSingle(sdkAnswer(await ref.get()).data);
+    const { _id: _patchId, catalogBindingGeneration: _incomingFence, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+    if (
+      existing &&
+      Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt ?? ''))
+    )
+      return { result: 'stale', doc: existing };
+    const { _id: _createId, catalogBindingGeneration: _createdFence, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      _id?: unknown;
+    };
+    const next: CollectionDoc = existing
+      ? { ...existing, ...patch, updatedAt: now }
+      : { ...safeCreateOnly, ...patch, _id: id, createdAt: now, updatedAt: now };
+    const invalidated = await sourceInvalidation(transaction, existing, next, now);
+    if (!isDeepStrictEqual(existing, next)) {
+      const answer = existing
+        ? await ref.update(replaceNestedObjects({ ...patch, updatedAt: now }, db.command))
+        : await ref.set(Object.fromEntries(Object.entries(next).filter(([key]) => key !== '_id')));
+      confirmDocumentWrite(answer, id);
+    }
+    await writeInvalidatedProduct(transaction, invalidated);
+    return { result: 'applied', doc: next };
+  });
+}
+
+export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'runTransaction'>, actorId:string, input:unknown, now=new Date().toISOString()) {
+  return db.runTransaction(async transaction => runCategoryCommand({
+    get: async (collection,id) => normalizeSingle((await transaction.collection(collection).doc(id).get()).data),
+    set: async (collection,row) => {
+      const {_id,...data}=row;
+      const result=await transaction.collection(collection).doc(_id).set(data);
+      // A new document is acknowledged by upserted, not necessarily updated=1.
+      if(result.updated!==1&&!result.upserted?.some(row=>row._id===_id))throw new Error('Classification write was not acknowledged');
+    },
+  },actorId,input,now));
+}
+
+export interface AlibabaProductCloudDatabase {
+  collection(name: string): {
+    where(filter: { productId: string }): {
+      limit(count: number): { get(): Promise<{ data: unknown }> };
+    };
+  };
+  runTransaction<Result>(operation: (transaction: {
+    collection(name: string): {
+      doc(id: string): {
+        get(): Promise<{ data: unknown }>;
+        set(data: Record<string, unknown>): Promise<{ updated?: number; upserted?: Array<{ _id?: string }> }>;
+        remove(): Promise<{ deleted?: number }>;
+      };
+    };
+  }) => Promise<Result>): Promise<Result>;
+}
+
+export async function mutateAlibabaProductInCloud(
+  db: AlibabaProductCloudDatabase,
+  input: AlibabaProductMutationInput,
+): Promise<AlibabaProductMutationResult> {
+  const result = sdkAnswer(await db.collection('alibabaProductLinks')
+    .where({ productId: input.productId }).limit(ALIBABA_PRODUCT_LINK_LIMIT + 1).get());
+  if (!Array.isArray(result.data) || result.data.some((row) => !row || typeof row !== 'object' || typeof row._id !== 'string')) {
+    throw new Error('Alibaba link query was not acknowledged');
+  }
+  const links = result.data as CollectionDoc[];
+  const commit = () => db.runTransaction((transaction) => runAlibabaProductMutation({
+    get: async (collection, id) => normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
+    set: async (collection, row) => {
+      const { _id, ...data } = row;
+      const acknowledgement = sdkAnswer(await transaction.collection(collection).doc(_id).set(data));
+      if (acknowledgement.updated !== 1 && !acknowledgement.upserted?.some((entry) => entry._id === _id)) {
+        throw new Error('Alibaba product write was not acknowledged');
+      }
+    },
+    remove: async (collection, id) => {
+      const acknowledgement = sdkAnswer(await transaction.collection(collection).doc(id).remove());
+      if (acknowledgement.deleted !== 1) throw new Error('Alibaba link removal was not acknowledged');
+    },
+  }, links, input));
+  return 'guard' in input ? withAlibabaLeaseCommit(input.guard, commit) : commit();
+}
+
+export function updateImageInCloudBase(
+  db: NodeSdkDatabase,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<CollectionDoc | null> {
+  const { _id: _ignored, ...input } = structuredClone(data);
+  return db.runTransaction(async (transaction) => {
+    const store = catalogRowStore(transaction);
+    const image = await store.get('images', id);
+    if (!image) return null;
+    if (image._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    assertOrdinaryImageReferenceWrite(image, input);
+    const next = { ...image, ...input, _id: id, updatedAt: new Date().toISOString() };
+    confirmDocumentWrite(await transaction.collection('images').doc(id).update(
+      replaceNestedObjects({ ...input, updatedAt: next.updatedAt }, db.command),
+    ), id);
+    return next;
+  });
+}
+
+export function removeImageInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  id: string,
+  expected?: { field: string; value: unknown },
+): Promise<boolean> {
+  const condition = expected === undefined ? undefined : structuredClone(expected);
+  return db.runTransaction(async (transaction) => {
+    const store = catalogRowStore(transaction);
+    const image = await store.get('images', id);
+    if (!image) return false;
+    if (image._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+    if (condition && image[condition.field] !== condition.value) return false;
+    assertOrdinaryImageReferenceRemoval(image);
+    await store.remove('images', id);
+    return true;
+  });
+}
+
+export function readCatalogImageReferenceInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  input: CatalogImageReferenceReadCommand,
+) {
+  const command = CatalogImageReferenceReadSchema.parse(input);
+  return db.runTransaction((transaction) =>
+    runCatalogImageReferenceRead(catalogRowStore(transaction), command),
+  );
+}
+
+export function incrementCatalogImageReferenceInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  input: CatalogImageReferenceIncrementCommand,
+) {
+  const command = CatalogImageReferenceIncrementSchema.parse(input);
+  return db.runTransaction((transaction) =>
+    runCatalogImageReferenceIncrement(catalogRowStore(transaction), command),
+  );
+}
+
+export function manageCatalogPreparationJobInCloudBase(
+  db: Pick<NodeSdkDatabase, 'runTransaction'>,
+  authority: CatalogPreparationAuthority,
+  command: CatalogPreparationJobCommand,
+  now?: number,
+) {
+  return db.runTransaction((transaction) =>
+    runCatalogPreparationJob(catalogRowStore(transaction), authority, command, now),
+  );
+}
+
+/** Query only the unfinished approval protecting this image. */
+export async function findUnfinishedApprovalImageInCloudBase(
+  db: Pick<WxDatabase, 'collection' | 'command'>,
+  imageId: string,
+  startedAfter: string,
+): Promise<string | null> {
+  if (!isApprovalImageId(imageId)) return null;
+  const where = approvalImageHoldWhere(db.command, imageId, startedAfter);
+  const response = sdkAnswer(
+    await db
+      .collection('catalogDetailApprovals')
+      .where(where)
+      .orderBy('_id', 'asc')
+      .limit(1)
+      .field(APPROVAL_IMAGE_HOLD_PROJECTION)
+      .get(),
+  );
+  return approvalImageHoldAnswer(response.data);
+}
+
+/** Native list implementation shared by the production adapter and contract tests. */
+export async function listDocumentsInCloudBase(
+  db: WxDatabase,
+  query: AdapterListQuery,
+): Promise<ListResult<CollectionDoc>> {
+  const summary = usesProductListView(query);
+  const def = getCollection(query.collection);
+  const collection = db.collection(query.collection);
+  const _ = db.command;
+
+  const ands: Record<string, unknown>[] = [];
+
+  if (query.needsClassification) ands.push(unclassifiedProductWhere(_));
+  if (query.hidePreparing) ands.push(preparingProductHiddenWhere(_));
+  if (query.catalogReadiness) {
+    if (query.collection !== 'products')
+      throw Error('Readiness scope is only available for products');
+    ands.push(catalogReadinessWhere(_, query.catalogReadiness));
+  }
+
+  if (query.productFamily) {
+    ands.push(
+      clauseToWhere(db, _, {
+        field: 'productFamily',
+        op: 'matchesProductFamily',
+        value: query.productFamily,
+      }) ?? { _id: _.exists(false) },
+    );
+  }
+
+  if (query.productSubcategories) {
+    ands.push(productSubcategoryWhere(_, query.productSubcategories));
+  }
+
+  // Free-text search across the collection's searchable fields (or the
+  // narrower set the caller asked for, e.g. the public storefront's).
+  const searchFields = listSearchFields(query, def);
+  if (query.search && def && searchFields.length > 0) {
+    const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });
+    ands.push(_.or(searchFields.map((field) => ({ [field]: term }))));
+  }
+
+  // Structured filter (field/operator/value clauses combined with AND/OR).
+  if (query.filter && query.filter.clauses.length > 0) {
+    const clauseWheres = query.filter.clauses
+      .map((c) => clauseToWhere(db, _, c))
+      .filter((w): w is Record<string, unknown> => w !== null);
+    if (clauseWheres.length > 0) {
+      ands.push(query.filter.combinator === 'or' ? _.or(clauseWheres) : _.and(clauseWheres));
+    }
+  }
+
+  const where = ands.length === 0 ? undefined : ands.length === 1 ? ands[0] : _.and(ands);
+
+  const base = where ? collection.where(where) : collection;
+  const countRes = sdkAnswer(await base.count());
+  if (!countRes || !Number.isSafeInteger(countRes.total) || countRes.total < 0)
+    throw Error('Catalog list count was not confirmed');
+  const total = countRes.total;
+
+  // Apply sort (default: newest first), then page.
+  let q = base;
+  const sort = query.catalogReadiness
+    ? catalogReadinessSort(query.sort)
+    : query.sort && query.sort.length > 0
+      ? query.sort
+      : [{ field: 'createdAt', dir: 'desc' as const }];
+  for (const s of sort) {
+    q = q.orderBy(s.field, s.dir);
+  }
+
+  const skip = (query.page - 1) * query.pageSize;
+  const paged = q.skip(skip).limit(query.pageSize);
+  const res = sdkAnswer(await (summary ? paged.field(ADMIN_PRODUCT_LIST_PROJECTION) : paged).get());
+  if (
+    !res ||
+    !Array.isArray(res.data) ||
+    res.data.some(
+      (row) =>
+        !row ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        typeof row._id !== 'string' ||
+        row._id.length === 0,
+    )
+  )
+    throw Error('Catalog list rows were not confirmed');
+
+  const result = {
+    items: (res.data as Record<string, unknown>[]).map(normalize),
+    total,
+    page: query.page,
+    pageSize: query.pageSize,
+  };
+  return summary ? projectProductListResult(result) : result;
+}
+
+export const cloudBaseAdapter: DbAdapter = {
+  async findUnfinishedApprovalUsingImage(imageId, startedAfter) {
+    return findUnfinishedApprovalImageInCloudBase(database(), imageId, startedAfter);
+  },
+  async readCatalogImageReference(command) {
+    return readCatalogImageReferenceInCloudBase(cloudStorageSdk().database(), command);
+  },
+  async manageCatalogPreparationJob(authority, command, now) {
+    return manageCatalogPreparationJobInCloudBase(
+      cloudStorageSdk().database(),
+      authority,
+      command,
+      now,
+    );
+  },
+  async mutateAlibabaProduct(input) {
+    return mutateAlibabaProductInCloud(cloudStorageSdk().database(), input);
+  },
+  async persistCatalogDetailApproval(actorId, input) {
+    return persistStagedApprovalInCloud(cloudStorageSdk().database(), actorId, input);
+  },
+  async approveCatalogDetail(actorId, input) {
+    return approveCatalogDetailInCloud(cloudStorageSdk().database(), actorId, input);
+  },
+  async manageCatalogCategory(actorId, input) {
+    return manageCatalogCategoryInCloud(cloudStorageSdk().database(),actorId,input);
+  },
+  async submitCatalogQuote(input) {
+    return saveQuoteInCloud(cloudStorageSdk().database(), input);
+  },
+  async manageCatalogInquiry(actorId, input) {
+    const parsed = InquiryCommandSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
+    if (parsed.data.action !== 'list') {
+      return manageInquiryInCloud(cloudStorageSdk().database(), actorId, parsed.data);
+    }
+    const actor = await this.get('users', actorId);
+    if (!actor || actor.role !== 'admin' || actor.status === 'suspended') {
+      return { ok: false, code: 'FORBIDDEN' };
+    }
+    const command = parsed.data;
+    const filter = command.status
+      ? { combinator: 'and' as const, clauses: [{ field: 'status', op: 'eq' as const, value: command.status }] }
+      : undefined;
+    const rows = await this.list({
+      collection: INQUIRY_COLLECTION,
+      page: command.page,
+      pageSize: command.pageSize,
+      search: '',
+      ...(filter ? { filter } : {}),
+      sort: [
+        ...(!command.status ? [{ field: 'attentionRank', dir: 'asc' as const }] : []),
+        { field: 'createdAt', dir: 'desc' },
+        { field: '_id', dir: 'asc' },
+      ],
+    });
+    const pending = await database().collection(INQUIRY_COLLECTION).where({ status: 'new' }).count();
+    const latestActor = await this.get('users', actorId);
+    const result = processCatalogInquiry(
+      { users: latestActor ? [latestActor] : [], catalogQuoteRequests: rows.items },
+      actorId,
+      { ...command, page: 1 },
+    );
+    if (!result.result.ok || result.result.data.kind !== 'list') return result.result;
+    const newCount = pending.total;
+    if (
+      !Number.isSafeInteger(newCount) || typeof newCount !== 'number' || newCount < 0 ||
+      !Number.isSafeInteger(rows.total) || rows.total < 0
+    ) {
+      return { ok: false, code: 'INVALID_RECORD' };
+    }
+    return {
+      ok: true,
+      data: { ...result.result.data, total: rows.total, newCount, page: command.page },
+    };
+  },
+  async list(query): Promise<ListResult<CollectionDoc>> {
+    return listDocumentsInCloudBase(database(), query);
+  },
+
+  async get(collection, id): Promise<CollectionDoc | null> {
+    const db = database();
+    // With `throwOnNotFound: false` (set in database()), a missing document
+    // resolves `{ data: null }`. Do not catch transport/database failures as
+    // if they meant "missing"; destructive callers must fail closed on an
+    // uncertain read.
+    const res = await db.collection(collection).doc(id).get();
+    return normalizeSingle(res.data);
+  },
+
+  async findByField(collection, field, value): Promise<CollectionDoc | null> {
+    const db = database();
+    const res = await db
+      .collection(collection)
+      .where({ [field]: value })
+      .limit(1)
+      .get();
+    const raw = (res.data as Record<string, unknown>[])[0];
+    return raw ? normalize(raw) : null;
+  },
+
+  async create(collection, data): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, input);
+    if (isCatalogRowCollection(collection)) {
+      const id = input._id === undefined ? randomUUID() : input._id;
+      if (typeof id !== 'string') throw new Error('Catalog row identity must be a string');
+      return catalogWrittenRow(
+        await mutateCatalogRowInCloudBase(
+          cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+          { action: 'create', collection, id, data: input },
+        ),
+      );
+    }
+    const db = database();
+    const now = new Date().toISOString();
+    const doc = { ...input, createdAt: now, updatedAt: now };
+    const res = await db.collection(collection).add({ data: doc });
+    return normalize({ _id: res._id as string, ...doc });
+  },
+
+  async update(collection, id, data): Promise<CollectionDoc | null> {
+    if (collection === 'images') return updateImageInCloudBase(cloudStorageSdk().database(), id, data);
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'update', collection, id, data },
+      );
+      return result.status === 'missing' ? null : catalogWrittenRow(result);
+    }
+    const db = database();
+    const patch = { ...data, updatedAt: new Date().toISOString() };
+    await db
+      .collection(collection)
+      .doc(id)
+      .update({ data: replaceNestedObjects(patch, db.command) });
+    return this.get(collection, id);
+  },
+
+  async remove(collection, id): Promise<boolean> {
+    if (collection === 'images') return removeImageInCloudBase(cloudStorageSdk().database(), id);
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'remove', collection, id },
+      );
+      return result.status === 'removed';
+    }
+    const db = database();
+    const res = await db.collection(collection).doc(id).remove();
+    return wxRemovedCount(res) > 0;
+  },
+
+  async incrementField(collection, id, field, delta): Promise<number | null> {
+    if (collection === 'images' && field === 'publishedRefCount')
+      return incrementCatalogImageReferenceInCloudBase(cloudStorageSdk().database(), { imageId: id, delta });
+    if (collection === 'images') assertOrdinaryImageReferenceWrite(null, { [field]: delta });
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'increment', collection, id, field, delta },
+      );
+      if (result.status === 'missing') return null;
+      const value = catalogWrittenRow(result)[field];
+      if (typeof value !== 'number' || !Number.isFinite(value))
+        throw new Error('Catalog counter write was not confirmed');
+      return value;
+    }
+    // The atomic increment MUST go through @cloudbase/node-sdk, NOT wx-server-sdk.
+    // In the Tencent CloudBase runtime, wx-server-sdk's command-based update
+    // (`.doc(id).update({ data: { f: db.command.inc(n) } })`) returns `updated: 0`
+    // and does not apply — while PLAIN wx updates work. That silently broke every
+    // `incrementField` caller: the OEM `finalizeClaim` single-winner claim (hard
+    // `NOT_FOUND` → all OEM submissions failed) and `images.publishedRefCount`
+    // (masked by the delivery legacy-scan fallback). Diagnosed live 2026-07-01.
+    // node-sdk is the native SDK for this runtime and its `command.inc` applies;
+    // its `.update(data)` takes the patch directly (no `data:` wrapper) and
+    // `.get()` returns `{ data: [doc] }`. Re-read via the SAME sdk so the returned
+    // counter value reflects this write (read-after-write).
+    const db = cloudStorageSdk().database();
+    const ref = db.collection(collection).doc(id);
+    const res = await ref.update({
+      [field]: db.command.inc(delta),
+      updatedAt: new Date().toISOString(),
+    });
+    if ((res.updated ?? 0) === 0) return null;
+    const got = await ref.get();
+    const doc = (got.data as Record<string, unknown>[] | undefined)?.[0];
+    const value = doc ? Number(doc[field]) : Number.NaN;
+    return Number.isFinite(value) ? value : null;
+  },
+
+  async manageSourceMediaImport(command) {
+    return manageSourceMediaImportInCloudBase(cloudStorageSdk().database(), command);
+  },
+  async manageImageUpload(command) {
+    return manageImageUploadInCloudBase(cloudStorageSdk().database(), command);
+  },
+  async manageImageDeletion(command) {
+    return manageImageDeletionInCloudBase(cloudStorageSdk().database(), command);
+  },
+
+  async acquireImageMutation(imageId, owner, startedAt): Promise<ImageMutationAcquireResult> {
+    return acquireImageMutationInCloudBase(cloudStorageSdk().database(), imageId, owner, startedAt);
+  },
+
+  async releaseImageMutation(imageId, owner): Promise<ImageMutationReleaseResult> {
+    return releaseImageMutationInCloudBase(cloudStorageSdk().database(), imageId, owner);
+  },
+
+  // -------------------------------------------------------------------------
+  // Deterministic-id writes + Alibaba sync lease (ARCHITECTURE §9).
+  // Every method is ONE runTransaction whose callback is a pure
+  // read-check-write: runTransaction re-executes the callback on
+  // DATABASE_TRANSACTION_CONFLICT, so callbacks must have no side effects
+  // outside the transaction.
+  // -------------------------------------------------------------------------
+
+  async createDocWithId(collection, id, data): Promise<'created' | 'exists'> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'create-if-missing', collection, id, data: input },
+      );
+      if (result.status === 'exists') return 'exists';
+      catalogWrittenRow(result);
+      return 'created';
+    }
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      if (normalizeSingle(got.data)) return 'exists';
+      // set() is a full-replace upsert keyed by the doc id; _id must not
+      // appear in the payload (SDK contract, probed in CI).
+      const { _id, ...payload } = input as Record<string, unknown> & { _id?: unknown };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(null, payload);
+      const answer = await ref.set(payload);
+      if (collection === 'images') confirmDocumentWrite(answer, id);
+      return 'created';
+    });
+  },
+
+  async removeDocIfFieldEquals(collection, id, field, expectedValue): Promise<boolean> {
+    if (collection === 'images') return removeImageInCloudBase(cloudStorageSdk().database(), id, { field, value: expectedValue });
+    if (isCatalogRowCollection(collection)) {
+      const result = await mutateCatalogRowInCloudBase(
+        cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+        { action: 'remove', collection, id, expectedField: { field, value: expectedValue } },
+      );
+      return result.status === 'removed';
+    }
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      const existing = normalizeSingle(got.data);
+      if (!existing || existing[field] !== expectedValue) return false;
+      const removed = await ref.remove();
+      return (removed.deleted ?? 0) > 0;
+    });
+  },
+
+  async saveCatalogProductWithIdentities(input): Promise<CatalogProductSaveResult> {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return saveCatalogProductInCloudBase(db, input);
+  },
+
+  async upsertDocWithId(collection, id, data, createOnly = {}): Promise<CollectionDoc> {
+    const input = collection === 'images' ? structuredClone(data) : data;
+    const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
+    if (isCatalogRowCollection(collection)) {
+      return catalogWrittenRow(
+        await mutateCatalogRowInCloudBase(
+          cloudStorageSdk().database() as unknown as NodeSdkDatabase,
+          { action: 'upsert', collection, id, data: input, createOnly: initial },
+        ),
+      );
+    }
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      const existing = normalizeSingle(got.data);
+      if (collection === 'images' && existing && existing._id !== id) throw new ImageReferenceWriteError('INVALID_IMAGE_REFERENCE_WRITE');
+      const now = new Date().toISOString();
+      const { _id, ...patch } = input as Record<string, unknown> & { _id?: unknown };
+      if (existing) {
+        if (collection === 'images') assertOrdinaryImageReferenceWrite(existing, patch);
+        const merged = { ...patch, updatedAt: now };
+        const answer = await ref.update(replaceNestedObjects(merged, db.command));
+        if (collection === 'images') confirmDocumentWrite(answer, id);
+        return normalize({ ...existing, ...merged, _id: id });
+      }
+      const { _id: _createId, ...safeCreateOnly } = initial as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
+      if (collection === 'images') assertOrdinaryImageReferenceWrite(null, { ...safeCreateOnly, ...patch });
+      const answer = await ref.set(created);
+      if (collection === 'images') confirmDocumentWrite(answer, id);
+      return normalize({ _id: id, ...created });
+    });
+  },
+
+  async upsertCatalogSourceObservation(
+    id,
+    data,
+    createOnly,
+  ): Promise<CatalogSourceObservationUpsertResult> {
+    const db = cloudStorageSdk().database();
+    return upsertCatalogSourceObservationInCloudBase(
+      db,
+      id,
+      data,
+      createOnly,
+      new Date().toISOString(),
+    );
+  },
+
+  async acquireAlibabaSyncLease(connectionId, holder, now, ttlMs): Promise<AlibabaLeaseGrant> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseAcquire(
+        normalizeSingle(got.data),
+        holder,
+        now,
+        ttlMs,
+      );
+      if (transition.result !== 'granted') return { result: transition.result };
+      await ref.set({ ...transition.doc, updatedAt: now });
+      return { result: 'granted', fence: transition.fence };
+    });
+  },
+
+  async renewAlibabaSyncLease(connectionId, holder, fence, now, ttlMs): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseRenew(
+        normalizeSingle(got.data),
+        holder,
+        fence,
+        now,
+        ttlMs,
+      );
+      if (transition.result !== 'applied') return false;
+      await ref.update({ ...transition.patch, updatedAt: now });
+      return true;
+    });
+  },
+
+  async releaseAlibabaSyncLease(connectionId, holder, fence, now): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseRelease(
+        normalizeSingle(got.data),
+        holder,
+        fence,
+        now,
+      );
+      if (transition.result !== 'applied') return false;
+      if (Object.keys(transition.patch).length > 0) {
+        await ref.update({ ...transition.patch, updatedAt: now });
+      }
+      return true;
+    });
+  },
+
+  async updateDocWithAlibabaLease(collection, id, patch, guard): Promise<boolean> {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return updateDocWithAlibabaLeaseInCloudBase(db, collection, id, patch, guard);
+  },
+
+  async upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard): Promise<boolean> {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return upsertDocWithAlibabaLeaseInCloudBase(db, collection, id, patch, createOnly, guard);
+  },
+
+  async claimAlibabaSyncRun(runId, run, checkpointPatch, guard) {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return claimAlibabaSyncRunInCloudBase(db, runId, run, checkpointPatch, guard);
+  },
+};
+
+/**
+ * CloudBase's `update` FLATTENS a nested plain object into dot-paths
+ * (`UpdateSerializer.encodeUpdateObject` -> `flattenQueryObject`), which is a
+ * MERGE, not a replace. Two consequences the local JSON adapter never shows,
+ * because it shallow-spreads:
+ *   1. Writing `{a:{x:1}}` over a field currently holding `null` targets
+ *      `a.x` on a non-object and does not land.
+ *   2. A patch that omits a sub-key leaves the PREVIOUS value's sub-key in
+ *      place — `{mode:'tiered',tiers}` followed by `{mode:'fixed',amountMinor}`
+ *      yields a document carrying both, so a consumer reading by `mode` sees
+ *      fields that contradict it.
+ * Wrapping object values in the `set` update command replaces the field
+ * wholesale, which is the semantics every caller in this repo assumes.
+ *
+ * Arrays are left alone (CloudBase already replaces them wholesale), and so is
+ * anything that is not a PLAIN object — an update command such as
+ * `command.inc(n)` is a class instance and must reach the driver untouched.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function replaceNestedObjects(
+  patch: Record<string, unknown>,
+  command: { set(value: unknown): unknown },
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    out[key] = isPlainObject(value) ? command.set(value) : value;
+  }
+  return out;
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Translate one filter clause into a wx-server-sdk `where` fragment. */
+function clauseToWhere(
+  db: WxDatabase,
+  _: WxCommand,
+  clause: FilterClause,
+): Record<string, unknown> | null {
+  const { field, op, value } = clause;
+  switch (op) {
+    case 'eq':
+      return { [field]: _.eq(value) };
+    case 'ne':
+      return { [field]: _.neq(value) };
+    case 'contains':
+      return { [field]: db.RegExp({ regexp: escapeRegExp(String(value ?? '')), options: 'i' }) };
+    case 'startsWith':
+      return {
+        [field]: db.RegExp({ regexp: `^${escapeRegExp(String(value ?? ''))}`, options: 'i' }),
+      };
+    case 'gt':
+      return { [field]: _.gt(value) };
+    case 'gte':
+      return { [field]: _.gte(value) };
+    case 'lt':
+      return { [field]: _.lt(value) };
+    case 'lte':
+      return { [field]: _.lte(value) };
+    case 'in':
+      return { [field]: _.in(Array.isArray(value) ? value : [value]) };
+    case 'isEmpty':
+      return { [field]: _.in(['', null]) };
+    case 'isNotEmpty':
+      return { [field]: _.nin(['', null]) };
+    case 'isLiteralTrue':
+      return { [field]: _.eq(true) };
+    case 'isFalseOrMissing':
+      return _.or([{ [field]: _.exists(false) }, { [field]: _.eq(false) }]);
+    case 'matchesProductFamily':
+      if (!isProductFamily(value)) return { _id: _.exists(false) };
+      if (value === 'headphones') {
+        return _.or([
+          { [field]: _.eq('headphones') },
+          _.and([
+            { [field]: _.exists(false) },
+            { category: _.in([...LEGACY_HEADPHONES_CATEGORY_OPTIONS]) },
+          ]),
+        ]);
+      }
+      return { [field]: _.eq(value) };
+    case 'matchesProductSubcategories':
+      return productSubcategoryWhere(_, value);
+    case 'hasNoProductFamily':
+      return unclassifiedProductWhere(_);
+    default:
+      return null;
+  }
+}
+
+/** Same legacy fallback boundary as productFamilyForDoc; applied before count/page. */
+/**
+ * Leaves out new drafts waiting for their Alibaba photos (PT-G). Written as
+ * "absent or not true" so it never depends on how a missing field compares.
+ */
+export function preparingProductHiddenWhere(
+  _: Pick<WxCommand, 'or' | 'exists' | 'neq'>,
+): Record<string, unknown> {
+  return _.or([
+    { alibabaPhotosPending: _.exists(false) },
+    { alibabaPhotosPending: _.neq(true) },
+  ]);
+}
+
+export function unclassifiedProductWhere(_: Pick<WxCommand, 'and' | 'or' | 'exists' | 'nin'>): Record<string, unknown> {
+  return _.and([
+    { productFamily: _.nin([...PRODUCT_FAMILY_OPTIONS]) },
+    _.or([
+      { productFamily: _.exists(true) },
+      { category: _.nin([...LEGACY_HEADPHONES_CATEGORY_OPTIONS]) },
+    ]),
+  ]);
+}

@@ -1,0 +1,60 @@
+/*
+ * Design tokens — the single place to customize the look of the whole site.
+ *
+ * These are defined with Tailwind v4's `@theme`, which does two things at once:
+ *   1. Generates utility classes (e.g. `bg-brand-600`, `text-ink`, `font-display`).
+ *   2. Emits CSS custom properties on `:root` (e.g. `var(--color-brand-600)`),
+ *      so plain CSS and runtime theming can read/override them.
+ *
+ * To re-skin the site, change values here only — no HTML/JS edits required.
+ * To support a dynamically loaded theme, ship an alternate file that overrides
+ * the same custom properties on `:root`.
+ */
+@theme {
+  /* Brand — deep professional navy/indigo */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #5b6ee1;
+  --color-brand-600: #3f51c4;
+  --color-brand-700: #2f3da3;
+  --color-brand-800: #1f2a73;
+  --color-brand-900: #131a4a;
+  --color-brand-950: #0b1030;
+
+  /* Accent — warm gold/amber for highlights & calls to action */
+  --color-accent-50: #fff8eb;
+  --color-accent-100: #ffefc6;
+  --color-accent-200: #ffdd88;
+  --color-accent-300: #ffc94d;
+  --color-accent-400: #ffb820;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  --color-accent-700: #b45309;
+
+  /* Ink & surfaces — neutral foreground/background scale */
+  --color-ink: #0f172a;
+  --color-ink-soft: #334155;
+  --color-ink-muted: #64748b;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f6f8fc;
+  --color-surface-dark: #0b1030;
+
+  /* Typography */
+  --font-display: "Poppins", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+
+  /* Layout */
+  --spacing-header: 4.5rem;
+  --width-container: 80rem;
+
+  /* Radii & shadows */
+  --radius-card: 1rem;
+  --shadow-card: 0 10px 30px -12px rgb(15 23 42 / 0.25);
+  --shadow-header: 0 1px 0 0 rgb(15 23 42 / 0.06), 0 8px 24px -16px rgb(15 23 42 / 0.3);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}

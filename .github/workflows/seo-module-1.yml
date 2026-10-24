@@ -1,0 +1,53 @@
+name: SEO release modules (offline)
+
+on:
+  push:
+    branches: [feat/seo-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seo-module-1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Source, domain tests and runtime artifacts
+    uses: ./.github/workflows/ci.yml
+  catalog:
+    name: Existing buyer and admin journeys
+    uses: ./.github/workflows/browser-regression.yml
+  blog:
+    name: Blog editor and public pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Exercise actual editor and local persistent backend
+        run: node scripts/run-catalog-admin-local-e2e.mjs --articles-only
+      - name: Exercise published, updated and withdrawn Blog output
+        run: node scripts/run-blog-public-local-e2e.mjs
+      - name: Retain failed browser evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blog-browser-${{ github.sha }}
+          path: output/playwright/
+          if-no-files-found: ignore
+          retention-days: 7

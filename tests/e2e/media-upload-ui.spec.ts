@@ -1,0 +1,133 @@
+import { Buffer } from 'node:buffer';
+import { type Page, expect, test } from '@playwright/test';
+import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { e2e, hasAdminCredentials } from './helpers/env';
+
+/**
+ * MIU-09 admin-UI upload e2e (real ImageManager, deployed env).
+ *
+ * Complements the API-level `media-upload.spec.ts` (which drives the upload
+ * contract via `page.evaluate`) by exercising the ACTUAL admin experience in a real
+ * Chromium page: a browser-origin login through the AuthForm, opening a catalog
+ * record form, picking a file through the hidden `ImageManager` file input, and
+ * asserting the upload completes and the image previews. Bytes still go
+ * browser → COS directly (signed PUT); this proves the React `ImageManager` +
+ * `api.ts` wiring works end-to-end against the deployed site, not just the contract.
+ */
+test.describe.configure({ mode: 'serial' });
+
+// 1x1 transparent PNG (same fixture as the API-level smoke).
+const onePixelPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64',
+);
+
+/** Sign in through the real AuthForm and land on the admin dashboard. */
+async function uiLogin(page: Page): Promise<void> {
+  await page.goto('/login?returnTo=/admin', { waitUntil: 'domcontentloaded' });
+  await page.locator('astro-island[component-export="AuthForm"]:not([ssr])').waitFor();
+  await page.getByLabel('Email').fill(e2e.adminEmail);
+  await page.getByLabel('Password').fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/admin(?:$|\?)/);
+}
+
+test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
+  // Skip ONLY when the smoke is not enabled. When it IS enabled, missing creds must
+  // FAIL (below), never silently skip — same fail-fast rule as media-upload.spec.ts.
+  // @skip-when the opt-in deployed media smoke lane is disabled; unit/API upload suites cover local/PR behavior.
+  test.skip(
+    !e2e.mediaUploadSmoke,
+    'Set E2E_MEDIA_UPLOAD_SMOKE=1 to run the deployed UI upload test.',
+  );
+
+  test('an admin uploads an image through the ImageManager UI and it previews', async ({
+    page,
+    request,
+  }) => {
+    if (!hasAdminCredentials()) {
+      throw new Error(
+        'E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD are required when E2E_MEDIA_UPLOAD_SMOKE=1.',
+      );
+    }
+    const fileName = `${e2e.runId}-ui.png`;
+
+    try {
+      await uiLogin(page);
+
+      // Open the Products collection and a new record form,
+      // which renders the RecordForm + ImageManager for the `imageIds` field.
+      await page.getByRole('button', { name: 'Products', exact: true }).click();
+      await page.getByRole('button', { name: /^New / }).click();
+
+      // The product form has one uploader per photo list (product photos,
+      // description photos); use the product photos one. Its file input is
+      // hidden behind a styled label, so set files on it directly. This drives
+      // the real intent → COS PUT → completeUpload. Assertions stay inside this
+      // uploader: the table behind the form also renders `img[alt=""]`.
+      const imageManager = page.locator('[data-image-manager="gallery"]');
+      const fileInput = imageManager.locator('input[type="file"]');
+      await fileInput.waitFor({ state: 'attached' });
+      await fileInput.setInputFiles({ name: fileName, mimeType: 'image/png', buffer: onePixelPng });
+
+      // The transient "Uploading…" tile clears and the uploaded image previews via an
+      // object URL <img> inside the ImageManager. A generous timeout covers the round-trip.
+      await expect(imageManager.getByText('Uploading…')).toHaveCount(0, { timeout: 30_000 });
+      await expect(imageManager.locator('img[alt=""]').first()).toBeVisible({ timeout: 30_000 });
+      // No per-file "Failed — retry" tile should appear.
+      await expect(imageManager.getByText('Failed — retry')).toHaveCount(0);
+
+      // Positively prove the upload persisted a real image doc (the UI preview alone
+      // could come from the local object URL). Query the images list for this run's
+      // file BEFORE the cleanup below deletes it, and assert at least one match.
+      const session = await loginAdmin(request);
+      const created = await adminAction<ListResult<CollectionDoc>>(
+        request,
+        'list',
+        {
+          collection: 'images',
+          page: 1,
+          pageSize: 10,
+          filter: { combinator: 'and', clauses: [{ field: 'name', op: 'eq', value: fileName }] },
+        },
+        session.token,
+      );
+      expect(
+        created.items.length,
+        `expected an images doc named ${fileName} after the UI upload`,
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      // The completeUpload step created an active, unreferenced image doc (the
+      // form is never saved); abandon it by its file name — images are removed
+      // only through abandonUpload, which also deletes the stored object.
+      try {
+        const session = await loginAdmin(request);
+        const matches = await adminAction<ListResult<CollectionDoc>>(
+          request,
+          'list',
+          {
+            collection: 'images',
+            page: 1,
+            pageSize: 10,
+            filter: { combinator: 'and', clauses: [{ field: 'name', op: 'eq', value: fileName }] },
+          },
+          session.token,
+        );
+        for (const img of matches.items) {
+          await adminAction<{ deleted: boolean }>(
+            request,
+            'abandonUpload',
+            { imageId: img._id },
+            session.token,
+          ).catch((error: unknown) => {
+            // Never fail the test on teardown, but say so: a silent failure
+            // here hid a server bug (missing collections, 2026-10-09).
+            console.warn(`MIU-09 UI cleanup: abandon ${img._id} failed: ${String(error)}`);
+          });
+        }
+      } catch (error) {
+        console.warn(`MIU-09 UI cleanup failed: ${String(error)}`);
+      }
+    }
+  });
+});

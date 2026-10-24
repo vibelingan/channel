@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Tote bag">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d6b98c"/><stop offset="1" stop-color="#92703f"/></linearGradient></defs>
+  <rect width="1000" height="1000" fill="url(#bg)"/>
+  <g transform="translate(500 480)" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <path d="M-150 -100 h300 l30 320 h-360 z"/>
+    <path d="M-80 -100 v-40 a80 80 0 0 1 160 0 v40"/>
+  </g>
+  <text x="500" y="860" text-anchor="middle" fill="#fff" fill-opacity="0.9" font-family="Poppins, system-ui, sans-serif" font-size="40" font-weight="600">Canvas Tote</text>
+</svg>

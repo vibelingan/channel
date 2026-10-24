@@ -1,0 +1,24 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id":"ready","type":"rectangle","x":45,"y":130,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#b2f2bb","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Ready\nNo write","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"confirm","type":"rectangle","x":405,"y":130,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Confirm\nNamed intent","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"assign","type":"rectangle","x":765,"y":130,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#ffd43b","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Assigning\nSingle request","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"publish","type":"rectangle","x":1125,"y":130,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#ffd43b","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Publishing\nSequential updates","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"refresh","type":"rectangle","x":1125,"y":430,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Refreshing\nRead status","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"result","type":"rectangle","x":765,"y":430,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#b2f2bb","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Result\nConfirmed receipts","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"unknown","type":"rectangle","x":405,"y":430,"width":190,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#ffc9c9","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Needs review\nUnknown / partial","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"a1","type":"arrow","x":235,"y":172,"width":170,"height":0,"points":[[0,0],[170,0]],"startBinding":{"elementId":"ready","gap":5,"focus":0},"endBinding":{"elementId":"confirm","gap":5,"focus":0},"label":{"text":"Select outcome","fontSize":14,"fontFamily":5}},
+    {"id":"a2","type":"arrow","x":595,"y":172,"width":170,"height":0,"points":[[0,0],[170,0]],"startBinding":{"elementId":"confirm","gap":5,"focus":0},"endBinding":{"elementId":"assign","gap":5,"focus":0},"label":{"text":"Confirm write","fontSize":14,"fontFamily":5}},
+    {"id":"a3","type":"arrow","x":955,"y":172,"width":170,"height":0,"points":[[0,0],[170,0]],"startBinding":{"elementId":"assign","gap":5,"focus":0},"endBinding":{"elementId":"publish","gap":5,"focus":0},"label":{"text":"All saved + publish intent","fontSize":14,"fontFamily":5}},
+    {"id":"a4","type":"arrow","x":1220,"y":215,"width":0,"height":215,"points":[[0,0],[0,215]],"startBinding":{"elementId":"publish","gap":5,"focus":0},"endBinding":{"elementId":"refresh","gap":5,"focus":0},"label":{"text":"Write receipts","fontSize":14,"fontFamily":5}},
+    {"id":"a5","type":"arrow","x":1125,"y":472,"width":-170,"height":0,"points":[[0,0],[-170,0]],"startBinding":{"elementId":"refresh","gap":5,"focus":0},"endBinding":{"elementId":"result","gap":5,"focus":0},"label":{"text":"Read confirmed","fontSize":14,"fontFamily":5}},
+    {"id":"a6","type":"arrow","x":815,"y":215,"width":-220,"height":215,"points":[[0,0],[-220,215]],"startBinding":{"elementId":"assign","gap":5,"focus":0},"endBinding":{"elementId":"unknown","gap":5,"focus":0},"label":{"text":"Assignment unknown","fontSize":14,"fontFamily":5}},
+    {"id":"a7","type":"arrow","x":1220,"y":515,"width":-625,"height":0,"points":[[0,0],[0,135],[-625,135],[-625,0]],"startBinding":{"elementId":"refresh","gap":5,"focus":0},"endBinding":{"elementId":"unknown","gap":5,"focus":0},"label":{"text":"Readback failed / partial","fontSize":14,"fontFamily":5}},
+    {"id":"a8","type":"arrow","x":955,"y":215,"width":170,"height":215,"points":[[0,0],[170,215]],"startBinding":{"elementId":"assign","gap":5,"focus":0},"endBinding":{"elementId":"refresh","gap":5,"focus":0},"label":{"text":"Save only; skip publish","fontSize":14,"fontFamily":5}}
+  ],
+  "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
+  "files": {}
+}

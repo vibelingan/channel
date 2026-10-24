@@ -1,0 +1,5 @@
+# Home Form and Headphones UI Fix
+
+- **Symptom:** Product Category lacks an intentional team-standard control, and the restored Headphones page contains published products in the DOM that remain visually hidden; some product media also returns 404.
+- **Repro:** Open the shared homepage/OEM project form and `/headphones`; inspect the Product Category control, computed opacity of asynchronously mounted product groups, anonymous versus privileged catalog responses, and affected public image URLs.
+- **Done when:** Both form consumers use the approved reusable control contract, all published Headphones products are visibly usable for every role with VIP pricing still gated, protected media data is repaired without weakening authorization, stale route/UI tests are replaced, and focused plus full validation is green.

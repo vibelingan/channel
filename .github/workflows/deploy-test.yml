@@ -1,0 +1,330 @@
+name: Deploy Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      catalog_acceptance_only:
+        description: Verify the already deployed SHA and run the approved catalog remediation/browser acceptance without deploying
+        required: true
+        type: boolean
+        default: false
+      catalog_acceptance_scope:
+        description: Approved live acceptance scope (variant-media repairs only four audited already-public products)
+        required: true
+        type: choice
+        options:
+          - full
+          - variant-media
+        default: full
+      run_public_e2e:
+        description: Explicitly run the complete public browser regression after deploy
+        required: true
+        type: boolean
+        default: false
+      run_media_upload_smoke:
+        description: Run browser-origin media upload smoke after deploy
+        required: true
+        type: boolean
+        default: false
+      run_oem_upload_smoke:
+        description: Run browser-origin OEM ZIP upload smoke after deploy
+        required: true
+        type: boolean
+        default: false
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: read
+
+concurrency:
+  # Static key: env-scoped vars (TCB_ENV_ID) are unavailable at workflow-level
+  # concurrency, so every writer to the shared test CloudBase env must serialize.
+  group: cloudbase-deploy-test
+  cancel-in-progress: false
+
+jobs:
+  # Relative reusable workflow uses this invocation's SHA. Neither push nor
+  # workflow_dispatch can reach deployment without the code checks.
+  ci:
+    if: ${{ github.ref == 'refs/heads/test' }}
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    name: Build, deploy, and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: test
+
+    env:
+      CI: 'true'
+      APP_ENV: ${{ vars.APP_ENV || 'test' }}
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      CLOUDBASE_FUNCTION_RUNTIME: Nodejs20.19
+      CLOUDBASE_WEBAPP_SERVICE: channel-test
+      PUBLIC_CB_PROXY: '0'
+      PUBLIC_CATALOG_READY_DEFAULT: ${{ vars.PUBLIC_CATALOG_READY_DEFAULT || '0' }}
+      PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+      # The AI assistant API that the website's chat widget calls from the browser.
+      PUBLIC_AI_API_BASE_URL: ${{ vars.PUBLIC_AI_API_BASE_URL }}
+      SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('https://channel-test-{0}.webapps.tcloudbase.com,http://localhost:4321', vars.TCB_ENV_ID) }}
+      LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}
+      ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+      BOOTSTRAP_ENABLED: '0'
+      CATALOG_RFQ_ENABLED: '1'
+      CATALOG_DETAIL_APPROVAL_ENABLED: '1'
+      E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+      E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test deployment contracts
+        run: pnpm test:deploy-smoke
+
+      - name: Package CloudBase functions
+        run: pnpm package:functions
+
+      - name: Set up deployed function runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+
+      - name: Smoke function artifacts on deployed runtime
+        env:
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/smoke-function-artifacts.mjs
+
+      - name: Restore site build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
+      - name: Capture public product snapshot
+        env:
+          SEO_CATALOG_API_ORIGIN: ${{ vars.SEO_CATALOG_API_ORIGIN || vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+        run: |
+          mkdir -p output/seo-release
+          pnpm --filter @vibelingan-channel/site seo:snapshot "$GITHUB_WORKSPACE/output/seo-release/product-snapshot.json"
+
+      - name: Build site
+        env:
+          SEO_CATALOG_SNAPSHOT: ${{ github.workspace }}/output/seo-release/product-snapshot.json
+        run: pnpm build
+
+      - name: Scan built site for server secret names
+        run: |
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
+            echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      # The chat widget is built into public pages. Without the assistant's
+      # address it renders a button that can only say "unavailable", so a build
+      # missing that address must never reach the live site.
+      - name: Check the built site can reach the AI assistant
+        run: |
+          case "$PUBLIC_AI_API_BASE_URL" in
+            https://*) ;;
+            *)
+              echo "Set PUBLIC_AI_API_BASE_URL (GitHub variable, test environment) to the assistant API's https address." >&2
+              exit 1
+              ;;
+          esac
+          if ! grep -R -q -F "$PUBLIC_AI_API_BASE_URL" apps/site/dist; then
+            echo "The built site does not contain the assistant API address." >&2
+            exit 1
+          fi
+
+      - name: Preserve accepted site recovery inputs before deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-recovery-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            apps/site/dist/
+            output/seo-release/product-snapshot.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Verify CloudBase deploy credentials
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: |
+          if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then
+            echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
+            exit 1
+          fi
+
+      - name: Capture the current hosted site before cloud mutation
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before
+
+      - name: Preserve the verified pre-deployment hosting backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/hosting-backup-before/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
+      - name: Deploy to CloudBase test
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_SECURE: ${{ secrets.EMAIL_SECURE }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
+          ALI_APP_SECRET: ${{ secrets.ALI_APP_SECRET }}
+          ALI_OAUTH_CALLBACK_URL: ${{ secrets.ALI_OAUTH_CALLBACK_URL }}
+          ALI_TOKEN_ENCRYPTION_KEY_V1: ${{ secrets.ALI_TOKEN_ENCRYPTION_KEY_V1 }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        run: pnpm deploy:cloudbase:test
+
+      - name: Verify ordinary hosting URLs and error document
+        run: node scripts/verify-hosting-contract.mjs --site "$SITE_URL" --dist apps/site/dist --report output/seo-release/hosting-contract.json
+
+      - name: Preserve hosting contract result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosting-contract-${{ github.sha }}-${{ github.run_id }}
+          path: output/seo-release/hosting-contract.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Smoke deployed CloudBase test
+        timeout-minutes: 12
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: pnpm smoke:cloudbase
+
+      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
+      - name: Use the Ubuntu archive for browser dependencies
+        if: ${{ github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
+      - name: Install Playwright Chromium and WebKit
+        if: ${{ github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Run public browser E2E
+        if: ${{ github.event.inputs.run_public_e2e == 'true' }}
+        run: pnpm test:e2e:public && pnpm test:e2e:catalog
+
+      - name: Run media upload smoke
+        if: ${{ github.event.inputs.run_media_upload_smoke == 'true' }}
+        env:
+          E2E_MEDIA_UPLOAD_SMOKE: '1'
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$E2E_ADMIN_PASSWORD" ]; then
+            echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
+            exit 1
+          fi
+          pnpm test:e2e:media-upload
+
+      - name: Run OEM upload smoke
+        if: ${{ github.event.inputs.run_oem_upload_smoke == 'true' }}
+        env:
+          E2E_OEM_UPLOAD_SMOKE: '1'
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$E2E_ADMIN_PASSWORD" ]; then
+            echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
+            exit 1
+          fi
+          pnpm test:e2e:oem-upload
+
+  catalog-acceptance:
+    needs: ci
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    # This is an authenticated application test, not an alternate deployment path.
+    # No CloudBase IAM, JWT signing key, SMTP or storage credentials enter this job.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Avoid the Azure Ubuntu mirror's intermittent package-download slowdown.
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed release and exercise approved catalog scope
+        env:
+          CI: 'true'
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+          E2E_SITE_URL: ${{ vars.SITE_URL }}
+          E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_CATALOG_LIVE_ACCEPTANCE: '1'
+          E2E_CATALOG_ACCEPTANCE_SCOPE: ${{ github.event.inputs.catalog_acceptance_scope || 'full' }}
+          E2E_ALLOW_MUTATION: '1'
+          E2E_RECORD_ARTIFACTS: '0'
+        run: pnpm exec playwright test tests/e2e/catalog-live-acceptance.spec.ts
+      - name: Preserve public sample screenshots only
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-public-acceptance-${{ github.sha }}
+          path: output/catalog-live/public-*.png
+          retention-days: 7
+          if-no-files-found: ignore

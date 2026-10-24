@@ -1,0 +1,298 @@
+import { strict as assert } from 'node:assert';
+import { Buffer } from 'node:buffer';
+import { createReadStream } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+import {
+  type CloudBaseStorageSdk,
+  createCloudBaseMediaStorage,
+  deleteCloudBaseObjects,
+} from './cloudbase.ts';
+
+/**
+ * Records calls and returns canned responses. Because the adapter is
+ * dependency-injected, this fake exercises 100% of cloudbase.ts without a real
+ * CloudBase env.
+ */
+class FakeSdk implements CloudBaseStorageSdk {
+  uploads: { cloudPath: string; fileContent: unknown }[] = [];
+  tempFileLists: (string | { fileID: string; maxAge?: number })[][] = [];
+  deleteFileLists: string[][] = [];
+  uploadMetaPaths: string[] = [];
+
+  constructor(
+    private readonly opts: {
+      tempFileURL?: string;
+      downloadContent?: Buffer;
+      failIds?: Set<string>; // these fileIDs come back with a non-zero status
+      dropIds?: Set<string>; // these fileIDs are omitted from the result (missing)
+      deleteShape?: 'wx' | 'node';
+      mapDeleteFileId?: (id: string) => string;
+      // Mint metadata with one required field blanked (failure case).
+      missingUploadField?: 'data' | 'url' | 'authorization' | 'token' | 'cosFileId' | 'fileId';
+    } = {},
+  ) {}
+
+  async getUploadMetadata(o: { cloudPath: string }) {
+    this.uploadMetaPaths.push(o.cloudPath);
+    const data = {
+      url: 'https://cos.example/post',
+      authorization: 'q-sign-algorithm=...',
+      token: 'sts-token',
+      cosFileId: 'cos-meta',
+      fileId: `cloud://env.bucket/${o.cloudPath}`,
+    };
+    if (this.opts.missingUploadField === 'data') return {};
+    if (this.opts.missingUploadField) data[this.opts.missingUploadField] = '';
+    return { data };
+  }
+
+  async uploadFile(o: {
+    cloudPath: string;
+    fileContent: Buffer | Uint8Array | NodeJS.ReadableStream;
+  }) {
+    this.uploads.push({ cloudPath: o.cloudPath, fileContent: o.fileContent });
+    return { fileID: `cloud://env.bucket/${o.cloudPath}` };
+  }
+  async getTempFileURL(o: { fileList: (string | { fileID: string; maxAge?: number })[] }) {
+    this.tempFileLists.push(o.fileList);
+    return {
+      fileList: [{ fileID: 'f', tempFileURL: this.opts.tempFileURL ?? 'https://temp/signed' }],
+    };
+  }
+  async downloadFile(_o: { fileID: string }) {
+    return { fileContent: this.opts.downloadContent ?? Buffer.from('hello') };
+  }
+  async deleteFile(o: { fileList: string[] }) {
+    this.deleteFileLists.push(o.fileList);
+    // Mirror the wx-server-sdk per-file shape: { fileID, status: 0, errMsg: 'ok' }
+    // on success, non-zero status on failure; dropped ids produce no entry. Tests
+    // can also ask for the raw @cloudbase/node-sdk shape: { fileID, code }.
+    const fileList = o.fileList
+      .filter((id) => !this.opts.dropIds?.has(id))
+      .map((id) => {
+        const fileID = this.opts.mapDeleteFileId?.(id) ?? id;
+        const failed = this.opts.failIds?.has(id);
+        if (this.opts.deleteShape === 'node') {
+          return failed
+            ? { fileID, code: 'DELETE_FAILED', message: 'mock delete failure' }
+            : { fileID, code: 'SUCCESS' };
+        }
+        return failed
+          ? { fileID, status: 1, errMsg: 'mock delete failure' }
+          : { fileID, status: 0, errMsg: 'ok' };
+      });
+    return { fileList };
+  }
+}
+
+test('cloudbase putObject (Buffer): server path, fileID, provider/mode, byteSize', async () => {
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  const bytes = Buffer.from('abc');
+  const stored = await store.putObject({
+    namespace: 'catalog',
+    logicalId: 'img1',
+    fileName: 'original-p.jpg',
+    mimeType: 'image/jpeg',
+    content: bytes,
+  });
+  // Path is server-generated (date-partitioned) — match shape, not a re-derived literal.
+  assert.match(stored.storagePath, /^catalog\/\d{4}\/\d{2}\/img1\/original-p\.jpg$/);
+  assert.equal(sdk.uploads[0]?.cloudPath, stored.storagePath);
+  assert.equal(stored.storageFileId, `cloud://env.bucket/${stored.storagePath}`);
+  assert.equal(stored.storageProvider, 'cloudbase-storage');
+  assert.equal(stored.storageMode, 'classic-nosql-storage');
+  assert.equal(stored.byteSize, 3);
+});
+
+test('cloudbase putObject (fs.ReadStream): byteSize is omitted', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'channel-sdk-stream-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, 'file');
+  await writeFile(path, 'streamed');
+  const stream = createReadStream(path);
+  t.after(() => stream.destroy());
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  const stored = await store.putObject({
+    namespace: 'catalog',
+    logicalId: 'img2',
+    fileName: 'original-s.jpg',
+    mimeType: 'image/jpeg',
+    content: stream,
+  });
+  assert.equal(stored.byteSize, undefined);
+  assert.ok(!Object.hasOwn(stored, 'byteSize') || stored.byteSize === undefined);
+});
+
+test('cloudbase getTempUrl: union call shape + maxAge + expiresAt; default 3600', async () => {
+  const sdk = new FakeSdk({ tempFileURL: 'https://temp/abc' });
+  const store = createCloudBaseMediaStorage(sdk);
+
+  const r = await store.getTempUrl('cloud://x', 120);
+  assert.deepEqual(sdk.tempFileLists[0], [{ fileID: 'cloud://x', maxAge: 120 }]);
+  assert.equal(r.url, 'https://temp/abc');
+  assert.ok(r.expiresAt && !Number.isNaN(Date.parse(r.expiresAt)));
+
+  await store.getTempUrl('cloud://y'); // default maxAge
+  assert.deepEqual(sdk.tempFileLists[1], [{ fileID: 'cloud://y', maxAge: 3600 }]);
+});
+
+test('cloudbase getTempUrl: empty tempFileURL throws a clear error', async () => {
+  const sdk = new FakeSdk({ tempFileURL: '' });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(() => store.getTempUrl('cloud://x'), /no temp URL/);
+});
+
+test('cloudbase getObjectAsBase64: returns base64 + byteSize', async () => {
+  const sdk = new FakeSdk({ downloadContent: Buffer.from('hello world') });
+  const store = createCloudBaseMediaStorage(sdk);
+  const r = await store.getObjectAsBase64('cloud://x');
+  assert.equal(r.body, Buffer.from('hello world').toString('base64'));
+  assert.equal(r.byteSize, 'hello world'.length);
+});
+
+test('cloudbase getUploadCredential maps the SDK upload metadata to the clean shape', async () => {
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  const cred = await store.getUploadCredential('catalog/2026/06/img1/original-p.jpg');
+  assert.deepEqual(sdk.uploadMetaPaths.at(-1), 'catalog/2026/06/img1/original-p.jpg');
+  assert.equal(cred.uploadUrl, 'https://cos.example/post');
+  // PUT, not multipart POST: node-sdk 3.x signs the metadata for `put`, so the
+  // credential must travel as request HEADERS on a raw-body PUT.
+  assert.equal(cred.method, 'PUT');
+  assert.equal(cred.headers.Signature, 'q-sign-algorithm=...');
+  assert.equal(cred.headers['x-cos-security-token'], 'sts-token');
+  assert.equal(cred.headers['x-cos-meta-fileid'], 'cos-meta');
+  // The SDK duplicates the signature into a lowercase `authorization` header
+  // and URI-encodes the key; mirror it exactly.
+  assert.equal(cred.headers.authorization, 'q-sign-algorithm=...');
+  assert.equal(cred.headers.key, encodeURIComponent('catalog/2026/06/img1/original-p.jpg'));
+  assert.equal(cred.storageFileId, 'cloud://env.bucket/catalog/2026/06/img1/original-p.jpg');
+});
+
+test('cloudbase getUploadCredential throws when ANY required metadata field is missing/empty', async () => {
+  // Each required field is a browser form field or the durable id — an SDK
+  // contract mismatch must fail the mint cleanly, not return undefined.
+  for (const field of ['data', 'url', 'authorization', 'token', 'cosFileId', 'fileId'] as const) {
+    const sdk = new FakeSdk({ missingUploadField: field });
+    const store = createCloudBaseMediaStorage(sdk);
+    await assert.rejects(
+      () => store.getUploadCredential('catalog/x'),
+      new RegExp(`missing ${field}`),
+    );
+  }
+});
+
+test('cloudbase deleteObject: deletes the single fileId', async () => {
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  await store.deleteObject('cloud://x');
+  assert.deepEqual(sdk.deleteFileLists.at(-1), ['cloud://x']);
+});
+
+test('deleteCloudBaseObjects chunks under the 50-file server cap', async () => {
+  const sdk0 = new FakeSdk();
+  await deleteCloudBaseObjects(sdk0, []);
+  assert.equal(sdk0.deleteFileLists.length, 0); // nothing to delete → no calls
+
+  const sdk50 = new FakeSdk();
+  await deleteCloudBaseObjects(
+    sdk50,
+    Array.from({ length: 50 }, (_, i) => `f${i}`),
+  );
+  assert.equal(sdk50.deleteFileLists.length, 1);
+  assert.equal(sdk50.deleteFileLists[0]?.length, 50);
+
+  const sdk51 = new FakeSdk();
+  await deleteCloudBaseObjects(
+    sdk51,
+    Array.from({ length: 51 }, (_, i) => `f${i}`),
+  );
+  assert.equal(sdk51.deleteFileLists.length, 2);
+  assert.equal(sdk51.deleteFileLists[0]?.length, 50);
+  assert.equal(sdk51.deleteFileLists[1]?.length, 1);
+});
+
+test('cloudbase deleteObject throws when CloudBase rejects the object', async () => {
+  const sdk = new FakeSdk({ failIds: new Set(['cloud://x']) });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(() => store.deleteObject('cloud://x'), /delete failed for cloud:\/\/x/);
+});
+
+test('cloudbase deleteObject throws when no result entry is returned (missing)', async () => {
+  const sdk = new FakeSdk({ dropIds: new Set(['cloud://x']) });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(() => store.deleteObject('cloud://x'), /no delete result returned/);
+});
+
+test('cloudbase deleteObject accepts raw node-sdk SUCCESS delete entries', async () => {
+  const sdk = new FakeSdk({ deleteShape: 'node' });
+  const store = createCloudBaseMediaStorage(sdk);
+  await store.deleteObject('cloud://node-success');
+  assert.deepEqual(sdk.deleteFileLists.at(-1), ['cloud://node-success']);
+});
+
+test('cloudbase deleteObject throws when success entry is for a different fileID', async () => {
+  const sdk = new FakeSdk({ mapDeleteFileId: (id) => `${id}-other` });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(
+    () => store.deleteObject('cloud://x'),
+    /delete result mismatch for cloud:\/\/x: returned cloud:\/\/x-other/,
+  );
+});
+
+test('deleteCloudBaseObjects aggregates per-file failures across chunks', async () => {
+  // 51 ids → 2 chunks; one rejected (chunk 1) and one dropped/missing (chunk 2).
+  const ids = Array.from({ length: 51 }, (_, i) => `f${i}`);
+  const sdk = new FakeSdk({ failIds: new Set(['f3']), dropIds: new Set(['f50']) });
+  await assert.rejects(
+    () => deleteCloudBaseObjects(sdk, ids),
+    (err: Error) =>
+      /delete failed for:/.test(err.message) &&
+      err.message.includes('f3') &&
+      err.message.includes('f50 (no delete result)'),
+  );
+});
+
+test('deleteCloudBaseObjects resolves when every object is confirmed deleted', async () => {
+  const sdk = new FakeSdk();
+  await deleteCloudBaseObjects(
+    sdk,
+    Array.from({ length: 51 }, (_, i) => `f${i}`),
+  ); // must not throw — all entries report status 0
+  assert.equal(sdk.deleteFileLists.flat().length, 51);
+});
+
+test('cloudbase Uint8Array is converted to the installed SDK Buffer contract', async () => {
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  const stored = await store.putObject({
+    namespace: 'catalog',
+    logicalId: 'uint',
+    fileName: 'uint.png',
+    mimeType: 'image/png',
+    content: new Uint8Array([1, 2, 3]),
+  });
+  assert.ok(Buffer.isBuffer(sdk.uploads[0]?.fileContent));
+  assert.deepEqual(sdk.uploads[0]?.fileContent, Buffer.from([1, 2, 3]));
+  assert.equal(stored.byteSize, 3);
+});
+
+for (const path of [
+  'catalog/sealed/a.png',
+  '/catalog/sealed/a.png',
+  'catalog//sealed/a.png',
+  'catalog/x/../sealed/a.png',
+  'catalog/%73ealed/a.png',
+  'catalog\\sealed\\a.png',
+])
+  test(`browser upload broker refuses reserved path before mint: ${path}`, async () => {
+    const sdk = new FakeSdk();
+    const storage = createCloudBaseMediaStorage(sdk);
+    await assert.rejects(storage.getUploadCredential(path), /protected|reserved/i);
+    assert.deepEqual(sdk.uploadMetaPaths, []);
+  });

@@ -1,0 +1,329 @@
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { localSiteUrl } from './local-site-readiness.mjs';
+
+const temporaryDirectory = await mkdtemp(join(tmpdir(), 'channel-catalog-e2e-'));
+const databaseFile = join(temporaryDirectory, 'db.json');
+// Astro moves intermediate output with rename(), which cannot cross filesystems.
+let buildDirectory;
+let siteDirectory;
+const readyFile = join(temporaryDirectory, 'api-ready.json');
+const readyToken = randomUUID();
+const formal = process.env.E2E_CATALOG_FORMAL === '1';
+const adminOnly = process.argv.includes('--admin-only');
+const articlesOnly = process.argv.includes('--articles-only');
+const reservation = createServer();
+await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve));
+const address = reservation.address();
+if (!address || typeof address === 'string') throw new Error('No local site port');
+const sitePort = address.port;
+await new Promise((resolve, reject) =>
+  reservation.close((error) => (error ? reject(error) : resolve())),
+);
+const bin = (packageDirectory, name) =>
+  join(process.cwd(), packageDirectory, 'node_modules', '.bin', name);
+const processes = [];
+const failStage = process.env.E2E_CATALOG_RUNNER_FAIL_STAGE ?? '';
+let cleanupPromise;
+
+function start(command, args, env, cwd = process.cwd(), pipeOutput = false) {
+  const child = spawn(command, args, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdio: pipeOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    detached: true,
+  });
+  child.spawnError = null;
+  child.once('error', (error) => {
+    child.spawnError = error;
+  });
+  if (pipeOutput) {
+    child.stdout.pipe(process.stdout);
+    child.stderr.pipe(process.stderr);
+  }
+  processes.push(child);
+  return child;
+}
+
+async function waitForOwnedApi(child) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (child.spawnError) throw child.spawnError;
+    if (child.exitCode !== null) {
+      throw new Error(`Local API exited before readiness (${child.exitCode ?? child.signalCode}).`);
+    }
+    try {
+      const ready = JSON.parse(await readFile(readyFile, 'utf8'));
+      if (
+        ready.token !== readyToken ||
+        ready.db !== databaseFile ||
+        !Number.isSafeInteger(ready.port)
+      ) {
+        throw new Error('Local API readiness identity does not match the owned process and DB.');
+      }
+      const apiUrl = `http://127.0.0.1:${ready.port}`;
+      const response = await fetch(`${apiUrl}/api/health`);
+      const body = await response.json();
+      if (response.ok && body?.data?.mode === 'local' && body?.data?.db === databaseFile) {
+        return apiUrl;
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('identity does not match')) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('Timed out waiting for the owned local API.');
+}
+
+async function waitForSite(child) {
+  const deadline = Date.now() + 30_000;
+  let output = '';
+  const append = (chunk) => {
+    output += chunk.toString();
+  };
+  child.stdout.on('data', append);
+  child.stderr.on('data', append);
+  while (Date.now() < deadline) {
+    if (child.spawnError) throw child.spawnError;
+    if (child.exitCode !== null) throw new Error('Astro site exited before readiness.');
+    const url = localSiteUrl(output);
+    if (url) {
+      const response = await fetch(url);
+      if (response.ok) return url;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('Timed out waiting for the owned Astro site.');
+}
+
+async function run(command, args, env, cwd = process.cwd()) {
+  return new Promise((resolve, reject) => {
+    const child = start(command, args, env, cwd);
+    child.once('error', reject);
+    child.once('exit', (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited with ${code ?? signal}`));
+    });
+  });
+}
+
+function waitForExit(child, timeoutMs) {
+  if (child.exitCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
+}
+
+function signalGroup(child, signal) {
+  if (child.exitCode !== null || !Number.isSafeInteger(child.pid)) return;
+  try {
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error;
+  }
+}
+
+async function cleanup() {
+  if (cleanupPromise) return cleanupPromise;
+  cleanupPromise = (async () => {
+    for (const child of processes.reverse()) signalGroup(child, 'SIGTERM');
+    const exited = await Promise.all(processes.map((child) => waitForExit(child, 3_000)));
+    for (const [index, child] of processes.entries()) {
+      if (!exited[index]) signalGroup(child, 'SIGKILL');
+    }
+    await Promise.all(processes.map((child) => waitForExit(child, 3_000)));
+    const directories = [temporaryDirectory, buildDirectory].filter(Boolean);
+    const removed = await Promise.allSettled(
+      directories.map(async (directory) => {
+        await rm(directory, { recursive: true, force: true });
+        try {
+          await access(directory);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          console.log(`[catalog-admin-local] removed ${directory}`);
+          return;
+        }
+        throw new Error(`Temporary catalog E2E directory still exists: ${directory}`);
+      }),
+    );
+    const failures = removed.filter((result) => result.status === 'rejected');
+    if (failures.length)
+      throw new AggregateError(
+        failures.map((result) => result.reason),
+        'Catalog E2E cleanup failed.',
+      );
+  })();
+  return cleanupPromise;
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    cleanup()
+      .then(() => process.exit(128 + (signal === 'SIGINT' ? 2 : 15)))
+      .catch((error) => {
+        console.error(error);
+        process.exit(1);
+      });
+  });
+}
+
+try {
+  buildDirectory = await mkdtemp(join(process.cwd(), 'apps/site', '.catalog-e2e-build-'));
+  siteDirectory = join(buildDirectory, 'site');
+  console.log(`[catalog-admin-local] build ${buildDirectory}`);
+  await run(
+    bin('apps/local-server', 'tsx'),
+    ['tests/fixtures/prepare-catalog-pricing.ts', databaseFile],
+    {
+      ADMIN_EMAIL: 'admin@channel.local',
+      ADMIN_PASSWORD: 'admin',
+      TCB_ENV: '',
+    },
+  );
+  const api = start(
+    failStage === 'api' ? join(temporaryDirectory, 'missing-api') : bin('apps/local-server', 'tsx'),
+    ['src/main.ts'],
+    {
+      PORT: '0',
+      LOCAL_DB_FILE: databaseFile,
+      LOCAL_MEDIA_DIR: join(temporaryDirectory, 'media'),
+      LOCAL_READY_FILE: readyFile,
+      LOCAL_READY_TOKEN: readyToken,
+      LOCAL_ARTICLE_MEDIA_TEST_UPLOADS: articlesOnly ? '1' : '',
+      ADMIN_EMAIL: 'admin@channel.local',
+      ADMIN_PASSWORD: 'admin',
+      TCB_ENV: '',
+      ALI_APP_KEY: '',
+      ALI_APP_SECRET: '',
+      CATALOG_DETAIL_APPROVAL_ENABLED: formal ? '1' : '0',
+      CATALOG_RFQ_ENABLED: formal ? '1' : '0',
+      LOCAL_SITE_ORIGINS: `http://127.0.0.1:${sitePort}`,
+      WECOM_WEBHOOK_URL: '',
+    },
+    join(process.cwd(), 'apps/local-server'),
+  );
+  const apiUrl = await waitForOwnedApi(api);
+
+  // Do not let a DEV-only island pass a deployment acceptance lane. Use a
+  // disposable build directory so a developer's running preview is untouched.
+  const siteEnvironment = {
+    PUBLIC_API_BASE_URL: apiUrl,
+    PUBLIC_CB_HOST: new URL(apiUrl).host,
+    SITE_URL: `http://127.0.0.1:${sitePort}`,
+    SEO_CATALOG_SNAPSHOT: '',
+    SEO_CATALOG_API_ORIGIN: apiUrl,
+  };
+  await run(
+    failStage === 'build' ? join(temporaryDirectory, 'missing-build') : bin('apps/site', 'astro'),
+    ['build', '--outDir', siteDirectory],
+    siteEnvironment,
+    join(process.cwd(), 'apps/site'),
+  );
+  const site = start(
+    failStage === 'site' ? join(temporaryDirectory, 'missing-site') : bin('apps/site', 'astro'),
+    ['preview', '--outDir', siteDirectory, '--host', '127.0.0.1', '--port', String(sitePort)],
+    siteEnvironment,
+    join(process.cwd(), 'apps/site'),
+    true,
+  );
+  const siteUrl = await waitForSite(site);
+  if (siteUrl !== `http://127.0.0.1:${sitePort}`)
+    throw new Error('Site port changed; inquiry origin gate remains closed.');
+
+  const e2eEnvironment = {
+    E2E_SITE_URL: siteUrl,
+    E2E_API_URL: apiUrl,
+    E2E_ADMIN_EMAIL: 'admin@channel.local',
+    E2E_ADMIN_PASSWORD: 'admin',
+    E2E_ALLOW_MUTATION: '1',
+    E2E_CATALOG_LOCAL_SEED: '1',
+    E2E_CATALOG_LOCAL_DB: databaseFile,
+  };
+  if (articlesOnly) {
+    await run(
+      bin('.', 'playwright'),
+      [
+        'test',
+        'tests/e2e/admin-articles-local.spec.ts',
+        '--project=chromium',
+        ...(process.argv.includes('--headed') ? ['--headed'] : []),
+      ],
+      e2eEnvironment,
+    );
+  } else if (adminOnly) {
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],
+      e2eEnvironment,
+    );
+  } else {
+    // Legacy and shared routes ship together. The same public browser gate must
+    // run against disposable local production artifacts BEFORE deployment.
+    await run(bin('.', 'playwright'), ['test', 'tests/e2e/public.spec.ts'], e2eEnvironment);
+    await run(
+      bin('.', 'playwright'),
+      [
+        'test',
+        'tests/e2e/header-navigation.spec.ts',
+        'tests/e2e/catalog-hub.spec.ts',
+        'tests/e2e/catalog-family-routes.spec.ts',
+        'tests/e2e/catalog-category.spec.ts',
+        'tests/e2e/sku-detail.spec.ts',
+      ],
+      e2eEnvironment,
+    );
+    if (formal) {
+      await run(
+        bin('.', 'playwright'),
+        ['test', 'tests/e2e/catalog-formal-journey.spec.ts'],
+        e2eEnvironment,
+      );
+    } else {
+      await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
+      await run(
+        bin('.', 'playwright'),
+        ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
+        e2eEnvironment,
+      );
+      await run(
+        bin('.', 'playwright'),
+        ['test', 'tests/e2e/catalog-admin.spec.ts'],
+        e2eEnvironment,
+      );
+      await run(
+        bin('.', 'playwright'),
+        [
+          'test',
+          'tests/e2e/admin-product-form.spec.ts',
+          'tests/e2e/admin-product-family-tabs.spec.ts',
+        ],
+        e2eEnvironment,
+      );
+    }
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],
+      e2eEnvironment,
+    );
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/admin-readiness-default.spec.ts'],
+      e2eEnvironment,
+    );
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/catalog-taxonomy.spec.ts'],
+      e2eEnvironment,
+    );
+  }
+} finally {
+  await cleanup();
+}

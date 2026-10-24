@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "客户编辑、预览与人工发布：时序设计",
+    "locale": "zh-CN",
+    "quality_profile": "standard",
+    "column_fit": "spread",
+    "viewBox": [1400, 660]
+  },
+  "participants": [
+    {
+      "id": "customer",
+      "type": "external",
+      "label": "客户",
+      "sublabel": "打开需登录的编辑链接"
+    },
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "现有编辑器",
+      "sublabel": "拟补文章直达与 returnTo"
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "网站后台接口",
+      "sublabel": "真实账号及当前权限"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "CloudBase",
+      "sublabel": "草稿修订与不可变候选"
+    },
+    {
+      "id": "publisher",
+      "type": "cloud",
+      "label": "现有发布链",
+      "sublabel": "正式发布与恢复待验收"
+    }
+  ],
+  "messages": [
+    {
+      "id": "h1",
+      "from": "customer",
+      "to": "editor",
+      "y": 164,
+      "label": "打开编辑链接；未登录先登录",
+      "variant": "default"
+    },
+    {
+      "id": "h2",
+      "from": "editor",
+      "to": "api",
+      "y": 198,
+      "label": "会话通过后请求指定草稿",
+      "variant": "default"
+    },
+    {
+      "id": "h3",
+      "from": "api",
+      "to": "db",
+      "y": 232,
+      "label": "核对当前用户并读草稿",
+      "variant": "default"
+    },
+    {
+      "id": "h4",
+      "from": "db",
+      "to": "api",
+      "y": 266,
+      "label": "返回当前修订与正文",
+      "variant": "return"
+    },
+    {
+      "id": "h5",
+      "from": "api",
+      "to": "editor",
+      "y": 300,
+      "label": "显示同一篇文章",
+      "variant": "return"
+    },
+    {
+      "id": "h6",
+      "from": "editor",
+      "to": "api",
+      "y": 334,
+      "label": "保存：expectedRevision=1",
+      "variant": "default"
+    },
+    {
+      "id": "h7",
+      "from": "api",
+      "to": "db",
+      "y": 368,
+      "label": "条件保存为 revision 2",
+      "variant": "default"
+    },
+    {
+      "id": "h8",
+      "from": "db",
+      "to": "api",
+      "y": 402,
+      "label": "确认保存；冲突则 409",
+      "variant": "return"
+    },
+    {
+      "id": "h9",
+      "from": "api",
+      "to": "editor",
+      "y": 436,
+      "label": "显示新修订；冲突保留输入",
+      "variant": "return"
+    },
+    {
+      "id": "h10",
+      "from": "editor",
+      "to": "api",
+      "y": 470,
+      "label": "管理员请求发布指定修订",
+      "variant": "default"
+    },
+    {
+      "id": "h11",
+      "from": "api",
+      "to": "publisher",
+      "y": 504,
+      "label": "冻结候选，沿用现有发布",
+      "variant": "default"
+    },
+    {
+      "id": "h12",
+      "from": "publisher",
+      "to": "api",
+      "y": 538,
+      "label": "实际 URL 验收后登记结果",
+      "variant": "return"
+    },
+    {
+      "id": "h13",
+      "from": "api",
+      "to": "editor",
+      "y": 572,
+      "label": "状态查询返回真实发布结果",
+      "variant": "return"
+    }
+  ],
+  "segments": [
+    {
+      "from": 146,
+      "to": 316,
+      "label": "登录、直接打开与现有私有预览"
+    },
+    {
+      "from": 326,
+      "to": 452,
+      "label": "版本条件保存，不覆盖他人修改"
+    },
+    {
+      "from": 462,
+      "to": 585,
+      "label": "发布独立：Agent 的凭证不能调用"
+    }
+  ]
+}

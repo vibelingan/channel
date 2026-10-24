@@ -1,0 +1,55 @@
+export * from './api.ts';
+export * from './errors.ts';
+export * from './env.ts';
+export * from './collections.ts';
+export * from './catalog-product.ts';
+export * from './catalog-taxonomy.ts';
+export * from './manual-catalog-pricing.ts';
+export * from './media.ts';
+export * from './alibaba-photo-sources.ts';
+export * from './alibaba-photo-failure.ts';
+export * from './media-content.ts';
+export * from './media-lifecycle.ts';
+export * from './media-ratelimit.ts';
+export * from './abuse-limits.ts';
+export * from './category-api.ts';
+export * from './auth.ts';
+export * from './query.ts';
+
+import type { FilterModel, ProductSubcategoryScope, SortClause } from './query.ts';
+
+/** Shared types for the generic admin CRUD protocol. */
+export interface ListQuery {
+  collection: string;
+  productFamily?: import('./catalog-product.ts').ProductFamily;
+  /** Admin classification queue, not a persisted product family. */
+  needsClassification?: boolean;
+  /** Leave out new drafts still waiting for their Alibaba photos (PT-G). */
+  hidePreparing?: boolean;
+  /** Opt-in server summary scope; default admission requires the historical-data audit. */
+  catalogReadiness?: import('./catalog/preparation.ts').CatalogReadiness;
+  /** Explicit admin summary DTO; complete reads must still use get(). */
+  catalogListView?: import('./catalog/admin-product-list.ts').AdminProductListView;
+  /** Built by the server from the saved registry; never accepted from a client. */
+  productSubcategories?: ProductSubcategoryScope;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  /**
+   * Fields `search` matches instead of the collection's `searchableFields`.
+   * Set by the server (public storefront search); never accepted from a client.
+   */
+  searchFields?: readonly string[];
+  filter?: FilterModel;
+  sort?: SortClause[];
+}
+
+export interface ListResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  catalogListView?: import('./catalog/admin-product-list.ts').AdminProductListView;
+}
+
+export * from './alibaba-sync-workflow.ts';

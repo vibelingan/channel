@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品访问：初始 HTML 与实时 API",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 620]
+  },
+  "participants": [
+    {
+      "id": "visitor",
+      "type": "frontend",
+      "label": "访客浏览器",
+      "sublabel": "普通访问与刷新"
+    },
+    {
+      "id": "host",
+      "type": "cloud",
+      "label": "静态托管",
+      "sublabel": "构建好的文件"
+    },
+    {
+      "id": "island",
+      "type": "frontend",
+      "label": "React island",
+      "sublabel": "SSG 正文接管"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "商品 API",
+      "sublabel": "实时公开版本"
+    },
+    {
+      "id": "search",
+      "type": "external",
+      "label": "搜索引擎",
+      "sublabel": "同一公开 URL"
+    }
+  ],
+  "messages": [
+    {
+      "id": "access-0",
+      "from": "visitor",
+      "to": "host",
+      "label": "GET /products/p-…/",
+      "y": 175,
+      "variant": "default"
+    },
+    {
+      "id": "access-1",
+      "from": "host",
+      "to": "visitor",
+      "label": "HTML：正文、title、canonical、schema",
+      "y": 205,
+      "variant": "return"
+    },
+    {
+      "id": "access-2",
+      "from": "search",
+      "to": "host",
+      "label": "抓取相同商品 URL",
+      "y": 235,
+      "variant": "default"
+    },
+    {
+      "id": "access-3",
+      "from": "host",
+      "to": "search",
+      "label": "相同初始 HTML；不按爬虫分流",
+      "y": 265,
+      "variant": "return"
+    },
+    {
+      "id": "access-4",
+      "from": "visitor",
+      "to": "island",
+      "label": "client:load 接管已有正文",
+      "y": 295,
+      "variant": "default"
+    },
+    {
+      "id": "access-5",
+      "from": "island",
+      "to": "api",
+      "label": "挂载后 GET detail；cache: no-store",
+      "y": 325,
+      "variant": "default"
+    },
+    {
+      "id": "access-6",
+      "from": "api",
+      "to": "island",
+      "label": "成功：当前公开数据与 revision",
+      "y": 355,
+      "variant": "return"
+    },
+    {
+      "id": "access-7",
+      "from": "island",
+      "to": "visitor",
+      "label": "更新可见内容；保留现有图库与选择流程",
+      "y": 385,
+      "variant": "return"
+    },
+    {
+      "id": "access-8",
+      "from": "visitor",
+      "to": "island",
+      "label": "选择变体或翻页",
+      "y": 415,
+      "variant": "default"
+    },
+    {
+      "id": "access-9",
+      "from": "island",
+      "to": "api",
+      "label": "分页携带同一 revision",
+      "y": 445,
+      "variant": "default"
+    },
+    {
+      "id": "access-10",
+      "from": "api",
+      "to": "island",
+      "label": "同版本页面或 409；失败由状态机处理",
+      "y": 475,
+      "variant": "return"
+    },
+    {
+      "id": "access-11",
+      "from": "island",
+      "to": "visitor",
+      "label": "更新交互；沿用原询盘提交入口",
+      "y": 505,
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "构建与访问",
+      "items": ["SSG 在构建时运行；菜单访问、刷新和爬虫均下载已有 HTML。"]
+    },
+    {
+      "dot": "amber",
+      "title": "新鲜度",
+      "items": ["当前是 fetch + 状态机；React Query、聚焦刷新与有限超时仍待接入。"]
+    },
+    {
+      "dot": "rose",
+      "title": "撤回与网络失败",
+      "items": ["API 404 不能改变已返回 HTML 的状态码；旧正文需重新交付或路由处理。"]
+    }
+  ]
+}

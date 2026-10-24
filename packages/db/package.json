@@ -1,0 +1,59 @@
+{
+  "name": "@vibelingan-channel/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./catalog-source-staging": "./src/catalog-source-staging.ts",
+    "./catalog-classification": "./src/catalog-classification.ts",
+    "./category-transaction": "./src/category-transaction.ts",
+    ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
+    "./catalog-inquiry": "./src/catalog-inquiry.ts",
+    "./catalog-detail-commit": "./src/catalog-detail-commit.ts",
+    "./catalog-detail-staging": "./src/catalog-detail-staging.ts",
+    "./catalog-detail-storage": "./src/catalog-detail-storage.ts",
+    "./catalog-quote": "./src/catalog-quote.ts",
+    "./article-repository": "./src/article-repository.ts",
+    "./article-dummy": "./src/article-dummy.ts",
+    "./cloudbase": "./src/cloudbase-adapter.ts",
+    "./article-release-source": "./src/article-release-source.ts",
+    "./article-build-assets": "./src/article-build-assets.ts",
+    "./catalog-image-reference-store": "./src/catalog-image-reference-store.ts",
+    "./catalog-image-reference-write": "./src/catalog-image-reference-write.ts",
+    "./catalog-preparation-media-seal": "./src/catalog-preparation-media-seal.ts",
+    "./catalog-preparation-store": "./src/catalog-preparation-store.ts",
+    "./catalog-price-summary-backfill": "./src/catalog-price-summary-backfill.ts",
+    "./catalog-publication-fingerprint": "./src/catalog-publication-fingerprint.ts",
+    "./catalog-source-invalidation": "./src/catalog-source-invalidation.ts",
+    "./catalog-product-state": "./src/catalog-product-state.ts",
+    "./catalog-row-mutation": "./src/catalog-row-mutation.ts",
+    "./catalog-source-binding": "./src/catalog-source-binding.ts",
+    "./catalog-preparation-authority": "./src/catalog-preparation-authority.ts",
+    "./catalog-preparation-jobs": "./src/catalog-preparation-jobs.ts",
+    "./catalog-image-input": "./src/catalog-image-input.ts",
+    "./catalog-image-observation": "./src/catalog-image-observation.ts",
+    "./catalog-image-protection": "./src/catalog-image-protection.ts",
+    "./catalog-image-protection-contract": "./src/catalog-image-protection-contract.ts",
+    "./catalog-readiness-query": "./src/catalog-readiness-query.ts",
+    "./catalog-product-list-view": "./src/catalog-product-list-view.ts",
+    "./catalog-approval-image-hold": "./src/catalog-approval-image-hold.ts",
+    "./catalog-supplier-review": "./src/catalog-supplier-review.ts"
+  },
+  "scripts": {
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudbase/node-sdk": "3.17.2",
+    "@vibelingan-channel/articles": "workspace:*",
+    "@vibelingan-channel/shared": "workspace:*",
+    "wx-server-sdk": "4.0.2",
+    "zod": "^3.24.1",
+    "@vibelingan-channel/catalog-import": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4"
+  }
+}

@@ -1,0 +1,48 @@
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  packageCatalogImageDecoder,
+  usesCatalogImageDecoder,
+} from './catalog-image-decoder-artifact.mjs';
+import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
+
+const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
+const artifactRoot = join(root, '.cloudbase-artifacts', 'functions');
+const functions = FUNCTION_NAMES;
+
+rmSync(artifactRoot, { force: true, recursive: true });
+mkdirSync(artifactRoot, { recursive: true });
+
+for (const name of functions) {
+  const source = join(root, 'apps', 'functions', name, 'dist');
+  const target = join(artifactRoot, name);
+  const indexFile = join(source, 'index.js');
+  if (!existsSync(indexFile)) {
+    throw new Error(`Missing built function entry: ${indexFile}. Run pnpm build:functions first.`);
+  }
+
+  mkdirSync(target, { recursive: true });
+  cpSync(indexFile, join(target, 'index.js'));
+
+  // CloudBase MCP code upload is size-sensitive; deploy only runtime files.
+
+  writeFileSync(
+    join(target, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: `channel-${name}`,
+        version: '0.1.0',
+        private: true,
+        main: 'index.js',
+        dependencies: {},
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  if (usesCatalogImageDecoder(readFileSync(indexFile, 'utf8'))) packageCatalogImageDecoder(target);
+}
+
+console.log(`Packaged ${functions.length} functions into ${artifactRoot}`);

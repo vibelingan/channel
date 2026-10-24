@@ -1,0 +1,399 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { after, before, test } from 'node:test';
+import {
+  knowledgeEvidence,
+  knowledgeEvidenceRefusals,
+  probeAnythingLlm,
+  sanitizedProbeReport,
+} from './probe-anythingllm.mjs';
+
+const testCredential = ['fixture', 'value', 'must', 'not', 'leak'].join('-');
+const workspaceSlug = 'workspace-1';
+let baseUrl;
+let server;
+
+before(async () => {
+  server = createServer(async (request, response) => {
+    assert.equal(request.headers.authorization, `Bearer ${testCredential}`);
+    const url = new URL(request.url, 'http://localhost');
+
+    if (request.method === 'GET' && url.pathname === '/api/v1/auth') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify({ authenticated: true }));
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === `/api/v1/workspace/${workspaceSlug}`) {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({
+          workspace: [
+            {
+              id: 41,
+              name: 'Public KB',
+              slug: workspaceSlug,
+              similarityThreshold: 0.25,
+              topN: 4,
+            },
+          ],
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      url.pathname === `/api/v1/workspace/${workspaceSlug}/vector-search`
+    ) {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({
+          results: [
+            {
+              score: 0.81,
+              metadata: { title: 'public-faq.md', chunkSource: 'public-faq.md' },
+            },
+          ],
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      url.pathname === `/api/v1/workspace/${workspaceSlug}/thread/new`
+    ) {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify({ thread: { slug: 'thread-1', name: 'probe' } }));
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      url.pathname === `/api/v1/workspace/${workspaceSlug}/thread/thread-1/chat`
+    ) {
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      if (payload.message === 'successful-generation') {
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            id: 'sync-1',
+            type: 'textResponse',
+            close: true,
+            textResponse: 'Grounded answer',
+            sources: [{ title: 'public-faq.md' }],
+          }),
+        );
+        return;
+      }
+      response.writeHead(500, { 'Content-Type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          error: '403 upstream model denied access',
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      url.pathname === `/api/v1/workspace/${workspaceSlug}/thread/thread-1/stream-chat`
+    ) {
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      if (payload.message === 'exercise-sse-abort') {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        response.end(
+          `data: ${JSON.stringify({
+            id: 'event-1',
+            type: 'abort',
+            close: true,
+            error: '403 upstream model denied access',
+          })}\n\n`,
+        );
+        return;
+      }
+      if (payload.message === 'successful-generation') {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        response.end(
+          `data: ${JSON.stringify({
+            id: 'stream-1',
+            type: 'finalizeResponseStream',
+            close: true,
+            textResponse: 'Grounded answer',
+            sources: [{ title: 'public-faq.md' }],
+          })}\n\n`,
+        );
+        return;
+      }
+      response.writeHead(500, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: '403 upstream model denied access' }));
+      return;
+    }
+
+    response.writeHead(404).end();
+  });
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  baseUrl = `http://127.0.0.1:${address.port}`;
+});
+
+after(async () => {
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+});
+
+test('probe separates working retrieval from failed generation without leaking the key', async () => {
+  const report = await probeAnythingLlm({
+    baseUrl,
+    apiKey: testCredential,
+    workspaceSlug,
+    retrievalQuery: 'What does the company do?',
+    chatQuery: 'What does the company do?',
+  });
+
+  assert.equal(report.auth.ok, true);
+  assert.equal(report.retrieval.ok, true);
+  assert.equal(report.retrieval.results[0].title, 'public-faq.md');
+  assert.equal(report.syncChat.ok, false);
+  assert.match(report.syncChat.error, /403/);
+  assert.equal(report.streamChat.ok, false);
+  assert.doesNotMatch(JSON.stringify(report), new RegExp(testCredential));
+});
+
+test('probe rejects a non-local HTTP base URL unless explicitly allowed', async () => {
+  await assert.rejects(
+    probeAnythingLlm({
+      baseUrl: 'http://203.0.113.10:3001',
+      apiKey: testCredential,
+      workspaceSlug,
+      retrievalQuery: 'test',
+      chatQuery: 'test',
+    }),
+    /Refusing to send a bearer token over remote HTTP/,
+  );
+});
+
+test('probe classifies an SSE abort as a generation failure', async () => {
+  const report = await probeAnythingLlm({
+    baseUrl,
+    apiKey: testCredential,
+    workspaceSlug,
+    retrievalQuery: 'test',
+    chatQuery: 'exercise-sse-abort',
+  });
+
+  assert.equal(report.retrieval.ok, true);
+  assert.equal(report.streamChat.ok, false);
+  assert.equal(report.streamChat.type, 'abort');
+  assert.match(report.streamChat.error, /403/);
+  assert.doesNotMatch(JSON.stringify(report), new RegExp(testCredential));
+});
+
+test('the CLI-safe report exposes counts and status only', () => {
+  const safe = sanitizedProbeReport({
+    transport: { baseUrl: 'http://internal-kb.example:3001', https: false },
+    auth: { ok: true },
+    workspace: { name: 'INTERNAL WORKSPACE', slug: 'internal-workspace' },
+    retrieval: {
+      ok: true,
+      resultCount: 1,
+      results: [{ title: 'hermes-skills-private.md', chunkSource: '/opt/private/source.md' }],
+    },
+    thread: { slug: 'INTERNAL THREAD', name: 'probe' },
+    syncChat: {
+      ok: true,
+      textResponse: 'INTERNAL GENERATED ANSWER',
+      sources: [{ title: 'hermes-skills-private.md', text: 'INTERNAL SOURCE CHUNK' }],
+    },
+    streamChat: {
+      ok: true,
+      textResponse: 'STREAMED INTERNAL ANSWER',
+      sources: [],
+    },
+  });
+  const serialized = JSON.stringify(safe);
+  assert.doesNotMatch(serialized, /INTERNAL|STREAMED|hermes|private|source\.md|internal-kb/);
+  assert.equal(safe.retrieval.resultCount, 1);
+  assert.equal(safe.syncChat.sourceCount, 1);
+});
+
+/**
+ * The evidence artifact is what startup will trust, so it must be secret-free
+ * and it must be able to say "no".
+ */
+const goodReport = {
+  transport: { https: true, insecureOverride: false },
+  auth: { ok: true, credentialId: 'abc123', rotationCounter: 2 },
+  workspace: { slug: 'supplychainsai-public-prod', id: 'ws-1' },
+  retrieval: { ok: true, resultCount: 4, approvedSourceCount: 4 },
+  syncChat: { ok: true, sourceCount: 2 },
+  streamChat: { ok: true, sourceCount: 2 },
+  toolSurface: { inspected: true, enabledCount: 0 },
+};
+
+test('evidence carries the identity and the positive control, and no secret', () => {
+  const evidence = knowledgeEvidence(goodReport, { corpusGeneration: 'g1000' });
+  assert.equal(evidence.schema, 'channel.ai.kb-evidence/2');
+  assert.equal(evidence.credentialId, 'abc123');
+  assert.equal(evidence.workspaceSlug, 'supplychainsai-public-prod');
+  assert.equal(evidence.rotationCounter, 2);
+  assert.equal(evidence.corpusGeneration, 'g1000');
+  assert.equal(evidence.positiveControl.retrieved, true);
+  assert.deepEqual(evidence.generationControl, {
+    sync: { ok: true, citationCount: 2 },
+    stream: { ok: true, citationCount: 2 },
+  });
+  assert.equal(evidence.toolSurface.verdict, 'none');
+  assert.ok(Date.parse(evidence.recordedAt) > 0);
+
+  // Nothing in the artifact may carry the key, a document title, or answer text.
+  const serialized = JSON.stringify(evidence);
+  for (const forbidden of [testCredential, 'Bearer', 'apiKey', 'textResponse']) {
+    assert.doesNotMatch(serialized, new RegExp(forbidden, 'i'), `evidence leaked ${forbidden}`);
+  }
+});
+
+test('the REAL probe result fills every startup field (local plaintext is the only refusal)', async () => {
+  const report = await probeAnythingLlm({
+    baseUrl,
+    apiKey: testCredential,
+    workspaceSlug,
+    retrievalQuery: 'What does the company do?',
+    chatQuery: 'successful-generation',
+    approvedSourcePrefix: 'public-',
+    credentialRotationCounter: 2,
+  });
+  const evidence = knowledgeEvidence(report, { corpusGeneration: 'g1000' });
+
+  assert.equal(evidence.workspaceId, '41');
+  assert.equal(evidence.rotationCounter, 2);
+  assert.match(evidence.credentialId, /^[0-9a-f]{16}$/);
+  assert.equal(evidence.positiveControl.approvedSourceCount, 1);
+  assert.equal(evidence.toolSurface.inspected, true);
+  assert.deepEqual(
+    knowledgeEvidenceRefusals(evidence, {
+      credentialId: evidence.credentialId,
+      workspaceSlug,
+      workspaceId: '41',
+      rotationCounter: 2,
+      corpusGeneration: 'g1000',
+      maxAgeMs: 60_000,
+    }),
+    ['evidence was gathered over plaintext'],
+  );
+});
+
+test('evidence from an EMPTY workspace is refused', () => {
+  const evidence = knowledgeEvidence({
+    ...goodReport,
+    retrieval: { ok: true, resultCount: 0, approvedSourceCount: 0 },
+  });
+  const reasons = knowledgeEvidenceRefusals(evidence, {});
+  assert.ok(
+    reasons.some((r) => /no positive-control retrieval/.test(r)),
+    `an empty corpus was accepted: ${reasons.join('; ')}`,
+  );
+});
+
+test('evidence is refused unless synchronous and streaming generation both complete with citations', () => {
+  for (const report of [
+    { ...goodReport, syncChat: { ok: false, sourceCount: 0 } },
+    { ...goodReport, streamChat: { ok: false, sourceCount: 0 } },
+    { ...goodReport, syncChat: { ok: true, sourceCount: 0 } },
+    { ...goodReport, streamChat: { ok: true, sourceCount: 0 } },
+  ]) {
+    const reasons = knowledgeEvidenceRefusals(
+      knowledgeEvidence(report, { corpusGeneration: 'g1000' }),
+      {},
+    );
+    assert.ok(
+      reasons.some((reason) => /generation|citation/.test(reason)),
+      `partial generation was accepted: ${reasons.join('; ')}`,
+    );
+  }
+});
+
+test('evidence with an enabled tool surface is refused', () => {
+  const evidence = knowledgeEvidence({
+    ...goodReport,
+    toolSurface: { inspected: true, enabledCount: 3 },
+  });
+  assert.ok(knowledgeEvidenceRefusals(evidence, {}).some((r) => /tool surface enabled/.test(r)));
+});
+
+test('evidence gathered over plaintext is refused', () => {
+  const evidence = knowledgeEvidence(
+    {
+      ...goodReport,
+      transport: { https: false, insecureOverride: true },
+    },
+    { corpusGeneration: 'g1000' },
+  );
+  assert.ok(knowledgeEvidenceRefusals(evidence, {}).some((r) => /plaintext/.test(r)));
+});
+
+test('a bounded local plaintext probe is accepted only with the explicit override', () => {
+  const evidence = knowledgeEvidence(
+    {
+      ...goodReport,
+      transport: { https: false, insecureOverride: true },
+    },
+    { corpusGeneration: 'g1000' },
+  );
+  assert.deepEqual(knowledgeEvidenceRefusals(evidence, { allowInsecureTransport: true }), []);
+});
+
+test('good evidence against matching expectations is accepted', () => {
+  const evidence = knowledgeEvidence(goodReport, { corpusGeneration: 'g1000' });
+  assert.deepEqual(
+    knowledgeEvidenceRefusals(evidence, {
+      credentialId: 'abc123',
+      workspaceSlug: 'supplychainsai-public-prod',
+      rotationCounter: 2,
+      maxAgeMs: 60_000,
+    }),
+    [],
+  );
+});
+
+test('a credential-shaped vendor error is never echoed by the CLI failure path', async () => {
+  // The KB has been observed echoing the submitted request in its error body,
+  // which for an authenticated call contains the bearer. This asserts the
+  // failure message carries the status and nothing from the body.
+  const leaky = createServer((request, response) => {
+    response.writeHead(403, { 'content-type': 'application/json' });
+    response.end(
+      JSON.stringify({ error: `invalid token: Bearer ${testCredential} for ${request.url}` }),
+    );
+  });
+  await new Promise((resolve) => leaky.listen(0, '127.0.0.1', resolve));
+  const leakyUrl = `http://127.0.0.1:${leaky.address().port}`;
+  try {
+    await assert.rejects(
+      probeAnythingLlm({
+        baseUrl: leakyUrl,
+        apiKey: testCredential,
+        workspaceSlug,
+        retrievalQuery: 'q',
+        chatQuery: 'q',
+        allowInsecure: true,
+      }),
+      (error) => {
+        assert.doesNotMatch(error.message, new RegExp(testCredential), 'the key was echoed');
+        assert.doesNotMatch(error.message, /Bearer/, 'an Authorization header was echoed');
+        assert.match(error.message, /HTTP 403/, 'the status is what an operator needs');
+        return true;
+      },
+    );
+  } finally {
+    await new Promise((resolve) => leaky.close(resolve));
+  }
+});

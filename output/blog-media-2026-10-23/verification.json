@@ -1,0 +1,48 @@
+{
+  "baseCommit": "c7ee6138d513dc30d2788c386f4c50247502de61",
+  "branch": "feat/seo-foundation",
+  "repositoryTests": {
+    "tests": 3325,
+    "pass": 3322,
+    "fail": 0,
+    "skipped": 3
+  },
+  "headedBrowserTests": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 0
+  },
+  "sdkOfflineTests": {
+    "drafts": 16,
+    "media": 4
+  },
+  "builtPages": 28,
+  "indexableCanonicalUrls": 20,
+  "productionWrites": false,
+  "deployed": false,
+  "realCloudBaseVerified": false,
+  "newBranchOrWorktreeCreated": false,
+  "privateObjectUrlCleanupVerified": true,
+  "removedImagesDeleted": false,
+  "mutationChecks": [
+    {
+      "case": "ownership",
+      "detected": true,
+      "sourceRestored": true
+    },
+    {
+      "case": "pending-save",
+      "detected": true,
+      "sourceRestored": true
+    },
+    {
+      "case": "temporary-overwrite",
+      "detected": true,
+      "sourceRestored": true
+    }
+  ],
+  "screenshots": {
+    "media-desktop.png": "56d865fe2844973c8ea0546d508c0056347e4e9c2a4795b6c6dcee22b8fa812f",
+    "media-mobile.png": "0098e6624c7d2ab477424c7e663c471720e5f9b6018a0d1059e7a776e4ba24b6"
+  }
+}

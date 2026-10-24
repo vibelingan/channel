@@ -1,0 +1,195 @@
+/**
+ * A whole approval in one request: prepare → review → begin → pages → finish,
+ * the same server steps and checks the browser otherwise calls one by one.
+ *
+ * Why: every request to CloudBase from outside mainland China spends about a
+ * second (0.6–3 s measured) in the gateway, while the function itself runs in
+ * tens of milliseconds. The step-by-step protocol makes eight or nine requests
+ * per product; this makes one.
+ *
+ * It stops early, with nothing lost, when the browser must act: configuration
+ * photos must be imported first (the image importer is another function), or
+ * the time budget is spent on a very large product. The browser then runs the
+ * step-by-step protocol with the same operation id, which resumes the same job.
+ */
+import { manageCatalogDetailApproval } from '@vibelingan-channel/db';
+import { CATALOG_DETAIL_VARIANT_MAX_COUNT } from '@vibelingan-channel/shared/catalog-detail-approval';
+import { z } from 'zod';
+import { createCatalogSourcePreparer } from './catalog-detail-source.ts';
+import { type CatalogValidation, CatalogValidationSchema } from './catalog-validation.ts';
+
+const RequestSchema = z
+  .object({
+    action: z.literal('approve'),
+    productId: z.string().trim().min(1).max(200),
+    operationId: z.string().uuid(),
+  })
+  .strict();
+
+const Progress = z.object({
+  ok: z.literal(true),
+  jobId: z.string(),
+  revision: z.string(),
+  nextPage: z.number().int().min(0),
+  pages: z.number().int().min(0),
+  complete: z.boolean(),
+});
+const Review = z.object({
+  ok: z.literal(true),
+  kind: z.literal('review'),
+  productId: z.string().trim().min(1).max(200),
+  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedRevision: z.string().trim().min(1).max(200).nullable(),
+  detail: z.object({
+    variants: z.object({
+      total: z.number().int().min(0).max(CATALOG_DETAIL_VARIANT_MAX_COUNT),
+      pageSize: z.number().int().min(1).max(50),
+    }),
+  }),
+  previewMedia: z.object({ allVariantsBound: z.boolean() }),
+});
+
+/** The codes the individual steps answer with; the handler maps each. */
+const FAILURE_CODES = [
+  'VALIDATION_ERROR',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'CONFLICT',
+  'MEDIA_NOT_READY',
+  'MEDIA_BUSY',
+  'APPROVAL_EXPIRED',
+  'APPROVAL_TOO_LARGE',
+  'SOURCE_NOT_READY',
+  'MANUAL_CONFIGURATIONS',
+] as const;
+type Failure = { ok: false; code: (typeof FAILURE_CODES)[number]; validation?: CatalogValidation };
+const asFailure = (value: object): Failure => {
+  const code = Reflect.get(value, 'code');
+  const validation = CatalogValidationSchema.safeParse(Reflect.get(value, 'validation'));
+  return {
+    ok: false,
+    code: FAILURE_CODES.find((known) => known === code) ?? 'VALIDATION_ERROR',
+    ...(code === 'VALIDATION_ERROR' && validation.success ? { validation: validation.data } : {}),
+  };
+};
+export type ApproveOnceResult =
+  | { ok: true; status: 'approved'; jobId: string; revision: string }
+  | { ok: true; status: 'needs-browser'; reason: 'media-import' | 'time-budget' }
+  | Failure;
+
+export interface ApproveOnceDeps {
+  prepare: (actorId: string, input: unknown) => Promise<unknown>;
+  workflow: (actorId: string, input: unknown) => Promise<unknown>;
+  now: () => number;
+}
+
+/** Stay well inside the function's 20 s timeout. */
+export const APPROVE_ONCE_BUDGET_MS = 12_000;
+
+export async function approveInOneRequest(
+  actorId: string,
+  input: unknown,
+  deps: ApproveOnceDeps = {
+    prepare: createCatalogSourcePreparer(),
+    workflow: manageCatalogDetailApproval,
+    now: Date.now,
+  },
+  budgetMs = APPROVE_ONCE_BUDGET_MS,
+): Promise<ApproveOnceResult> {
+  const parsed = RequestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
+  const { productId, operationId } = parsed.data;
+  const deadline = deps.now() + budgetMs;
+  const outOfTime = () => deps.now() > deadline;
+  const handOver = (reason: 'media-import' | 'time-budget'): ApproveOnceResult => ({
+    ok: true,
+    status: 'needs-browser',
+    reason,
+  });
+  /** A step's own failure passes through unchanged; anything else is invalid. */
+  const step = async <T>(
+    schema: z.ZodType<T>,
+    result: Promise<unknown>,
+  ): Promise<{ ok: true; value: T } | { ok: false; failure: Failure }> => {
+    const value = await result;
+    if (value && typeof value === 'object' && Reflect.get(value, 'ok') === false)
+      return { ok: false, failure: asFailure(value) };
+    const checked = schema.safeParse(value);
+    return checked.success
+      ? { ok: true, value: checked.data }
+      : { ok: false, failure: asFailure({ code: 'VALIDATION_ERROR' }) };
+  };
+
+  // 1. Prepare every source page (resumable: completed pages short-circuit).
+  for (let page = 0, attempts = 0; ; attempts++) {
+    if (attempts >= 500) return { ok: false, code: 'SOURCE_NOT_READY' };
+    const prepared = await step(
+      Progress,
+      deps.prepare(actorId, { action: 'prepare', productId, page }),
+    );
+    if (!prepared.ok) return prepared.failure;
+    if (prepared.value.complete) break;
+    if (prepared.value.nextPage <= page || prepared.value.nextPage >= prepared.value.pages)
+      return { ok: false, code: 'SOURCE_NOT_READY' };
+    page = prepared.value.nextPage;
+    if (outOfTime()) return handOver('time-budget');
+  }
+
+  if (outOfTime()) return handOver('time-budget');
+
+  // The workflow already reads every configuration; its summary avoids repeated full reads per displayed page.
+  const first = await step(
+    Review,
+    deps.workflow(actorId, {
+      action: 'review',
+      productId,
+      page: 1,
+      includePreviewMedia: true,
+      includeMediaSummary: true,
+    }),
+  );
+  if (!first.ok) return first.failure;
+  const review = first.value;
+  if (review.productId !== productId) return { ok: false, code: 'CONFLICT' };
+  if (!review.previewMedia.allVariantsBound) return handOver('media-import');
+  if (outOfTime()) return handOver('time-budget');
+
+  // 3. Begin (same operation id → the same job), stage pages, finish.
+  const begun = await step(
+    Progress,
+    deps.workflow(actorId, {
+      action: 'begin',
+      command: {
+        productId,
+        expectedDigest: review.expectedDigest,
+        expectedRevision: review.expectedRevision,
+        operationId,
+      },
+    }),
+  );
+  if (!begun.ok) return begun.failure;
+  let progress = begun.value;
+  for (let attempts = 0; !progress.complete && progress.nextPage < progress.pages; attempts++) {
+    if (attempts >= 500) return { ok: false, code: 'CONFLICT' };
+    if (outOfTime()) return handOver('time-budget');
+    const staged = await step(
+      Progress,
+      deps.workflow(actorId, { action: 'page', jobId: progress.jobId, page: progress.nextPage }),
+    );
+    if (!staged.ok) return staged.failure;
+    if (staged.value.jobId !== progress.jobId || staged.value.nextPage <= progress.nextPage)
+      return { ok: false, code: 'CONFLICT' };
+    progress = staged.value;
+  }
+  if (!progress.complete) {
+    if (outOfTime()) return handOver('time-budget');
+    const finished = await step(
+      Progress,
+      deps.workflow(actorId, { action: 'finish', jobId: progress.jobId }),
+    );
+    if (!finished.ok) return finished.failure;
+    progress = finished.value;
+  }
+  if (!progress.complete) return { ok: false, code: 'CONFLICT' };
+  return { ok: true, status: 'approved', jobId: progress.jobId, revision: progress.revision };
+}

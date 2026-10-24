@@ -1,0 +1,36 @@
+{
+  "sha": "2deca4c61d05c508404d8733c03510fa44a7aa8a",
+  "ts": "2026-07-08T10:07:04Z",
+  "knowledgeReferences": [
+    {
+      "id": "mined-catalog/upload-lifecycle-concurrency",
+      "category": "concurrency-cas",
+      "usedIn": "round-5 reviewer-prompt prior (in-repo docs/ENGINEERING_CRAFT.md)"
+    },
+    {
+      "id": "mined-catalog/counters-data-integrity",
+      "category": "concurrency-cas",
+      "usedIn": "round-5 reviewer-prompt prior"
+    },
+    {
+      "id": "mined-catalog/deploy-cicd",
+      "category": "config-drift",
+      "usedIn": "round-5 reviewer-prompt prior"
+    },
+    {
+      "id": "mined-catalog/e2e-testing",
+      "category": "e2e-test-resilience",
+      "usedIn": "round-5 reviewer-prompt prior"
+    },
+    {
+      "id": "mined-catalog/frontend-islands",
+      "category": "frontend-async-state",
+      "usedIn": "round-5 reviewer-prompt prior"
+    },
+    {
+      "id": "mined-catalog/auth-session-security",
+      "category": "auth-identity",
+      "usedIn": "round-5 reviewer-prompt prior"
+    }
+  ]
+}

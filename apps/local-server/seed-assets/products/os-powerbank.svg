@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Power bank">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3f46"/><stop offset="1" stop-color="#15181d"/></linearGradient></defs>
+  <rect width="1000" height="1000" fill="url(#bg)"/>
+  <g transform="translate(500 470)" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <rect x="-120" y="-190" width="240" height="380" rx="34"/>
+    <line x1="-60" y1="-110" x2="60" y2="-110"/>
+    <line x1="-60" y1="-60" x2="60" y2="-60"/>
+    <line x1="-60" y1="-10" x2="20" y2="-10"/>
+  </g>
+  <text x="500" y="840" text-anchor="middle" fill="#fff" fill-opacity="0.9" font-family="Poppins, system-ui, sans-serif" font-size="40" font-weight="600">Power Bank</text>
+</svg>

@@ -1,0 +1,111 @@
+---
+import CTASection from '../components/CTASection.astro';
+import CardGrid from '../components/CardGrid.astro';
+import CertificationsSection from '../components/CertificationsSection.astro';
+import FactorySection from '../components/FactorySection.astro';
+import OemProcessSection from '../components/OemProcessSection.astro';
+import OurTeamSection from '../components/OurTeamSection.astro';
+import PageHero from '../components/PageHero.astro';
+import ProcessTimeline from '../components/ProcessTimeline.astro';
+import QualityTestingSection from '../components/QualityTestingSection.astro';
+import ReasonList from '../components/ReasonList.astro';
+import Section from '../components/Section.astro';
+import ServiceGridSection from '../components/ServiceGridSection.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
+import { getOemContent } from '../i18n/oem.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import { AssistantWidget } from '../islands/ai/AssistantWidget.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const oem = getOemContent(DEFAULT_LOCALE);
+const {
+  brand,
+  nav,
+  services,
+  footer,
+  oemProcess,
+  factory,
+  ourPeople,
+  whyChooseUs,
+  quality,
+  certifications,
+  ctaSection,
+} = site;
+const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
+---
+
+<BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <PageHero
+      eyebrow={hero.eyebrow}
+      heading={hero.heading}
+      subheading={hero.subheading}
+      primaryCta={hero.primaryCta}
+      secondaryCta={hero.secondaryCta}
+    />
+
+    <ServiceGridSection services={services} sectionId="what-we-do" />
+
+    <Section
+      id={capabilities.id}
+      eyebrow={capabilities.eyebrow}
+      heading={capabilities.heading}
+      intro={capabilities.intro}
+      tone="alt"
+    >
+      <CardGrid items={capabilities.items} columns={3} />
+      <p class="reveal mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-ink-soft">
+        {capabilities.note}
+      </p>
+    </Section>
+
+    <Section
+      id={process.id}
+      eyebrow={process.eyebrow}
+      heading={process.heading}
+      intro={process.intro}
+      tone="surface"
+    >
+      <ProcessTimeline steps={process.steps} />
+    </Section>
+
+    {/* Detailed ten-step execution flow — the full factory-floor version of
+        the six decision stages above (homepage trust-section integration). */}
+    <OemProcessSection process={oemProcess} sectionId="detailed-process" />
+
+    {/* Factory video + photo strip; stats stay in the icon band below, so
+        the plain stat grid is suppressed here to avoid repeating the same
+        four numbers twice on one page. The OEM page's own factory video
+        pair is used instead of the homepage defaults. */}
+    <FactorySection factory={factory} media={factoryVideo} showStats={false} />
+
+    <OurTeamSection people={ourPeople} />
+
+    <Section
+      id={whyUs.id}
+      eyebrow={whyUs.eyebrow}
+      heading={whyUs.heading}
+      intro={whyUs.intro}
+      tone="alt"
+    >
+      <ReasonList reasons={whyUs.reasons} />
+    </Section>
+
+    <WhyChooseUsSection why={whyChooseUs} />
+
+    <QualityTestingSection quality={quality} />
+
+    <CertificationsSection certs={certifications} />
+
+    {/* CTA + inquiry form; sectionId="submit" preserves the /oem#submit deep link. */}
+    <CTASection cta={ctaSection} submit={submit} sectionId="submit" />
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+  <AssistantWidget client:load />
+</BaseLayout>

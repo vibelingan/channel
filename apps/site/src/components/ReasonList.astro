@@ -1,0 +1,53 @@
+---
+/**
+ * ReasonList — "why choose us" trust block.
+ *
+ * Splits reasons into headline stats (those with a `stat` value) shown as bold
+ * highlight cards, and the remaining differentiators shown as an icon checklist.
+ */
+import type { Reason } from '../i18n/oem.ts';
+import Icon from './Icon.astro';
+
+interface Props {
+  reasons: Reason[];
+}
+
+const { reasons } = Astro.props;
+const stats = reasons.filter((r) => r.stat);
+const features = reasons.filter((r) => !r.stat);
+---
+
+<div class="grid gap-8 lg:grid-cols-5 lg:gap-12">
+  <!-- Headline stats -->
+  {
+    stats.length > 0 && (
+      <div class="grid gap-5 sm:grid-cols-2 lg:col-span-2 lg:content-start">
+        {stats.map((reason) => (
+          <div class="reveal rounded-[var(--radius-card)] bg-gradient-to-br from-brand-700 to-brand-900 p-6 text-white shadow-[var(--shadow-card)]">
+            <Icon name={reason.icon} class="h-7 w-7 text-accent-300" />
+            <p class="mt-4 font-display text-4xl font-bold">{reason.stat}</p>
+            <p class="mt-1 font-display text-base font-semibold">{reason.label}</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/75">{reason.desc}</p>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  <!-- Differentiators checklist -->
+  <ul class="grid gap-4 lg:col-span-3 lg:content-start">
+    {
+      features.map((reason) => (
+        <li class="reveal flex items-start gap-4 rounded-[var(--radius-card)] border border-slate-200 bg-surface p-5 shadow-sm">
+          <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-100 text-accent-700">
+            <Icon name={reason.icon} class="h-6 w-6" />
+          </span>
+          <div>
+            <p class="font-display text-base font-semibold text-ink">{reason.label}</p>
+            <p class="mt-1 text-sm leading-relaxed text-ink-soft">{reason.desc}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ul>
+</div>

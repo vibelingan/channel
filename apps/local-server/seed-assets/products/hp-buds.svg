@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="True wireless earbuds">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc" />
+      <stop offset="1" stop-color="#e8edf5" />
+    </linearGradient>
+    <linearGradient id="case" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="1" stop-color="#dfe5ee" />
+    </linearGradient>
+    <linearGradient id="bud" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a3f46" />
+      <stop offset="1" stop-color="#15181d" />
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="1000" fill="url(#bg)" />
+  <ellipse cx="500" cy="800" rx="280" ry="40" fill="#000" opacity="0.08" />
+  <!-- charging case -->
+  <rect x="540" y="470" width="260" height="200" rx="44" fill="url(#case)" stroke="#cbd5e1" stroke-width="4" />
+  <rect x="560" y="455" width="220" height="40" rx="20" fill="#eef2f7" stroke="#cbd5e1" stroke-width="3" />
+  <circle cx="670" cy="640" r="7" fill="#9aa6b8" />
+  <!-- earbud left -->
+  <g transform="rotate(-18 320 560)">
+    <ellipse cx="320" cy="540" rx="70" ry="78" fill="url(#bud)" />
+    <rect x="300" y="600" width="40" height="150" rx="20" fill="url(#bud)" />
+    <ellipse cx="290" cy="525" rx="26" ry="30" fill="#0b0d10" />
+    <circle cx="320" cy="700" r="8" fill="#5b6ee1" opacity="0.7" />
+  </g>
+  <!-- earbud right -->
+  <g transform="rotate(14 470 560)">
+    <ellipse cx="470" cy="540" rx="70" ry="78" fill="url(#bud)" />
+    <rect x="450" y="600" width="40" height="150" rx="20" fill="url(#bud)" />
+    <ellipse cx="500" cy="525" rx="26" ry="30" fill="#0b0d10" />
+    <circle cx="470" cy="700" r="8" fill="#5b6ee1" opacity="0.7" />
+  </g>
+</svg>

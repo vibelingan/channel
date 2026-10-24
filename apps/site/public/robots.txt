@@ -1,0 +1,13 @@
+# Diversity Technology Limited — supplychainsai.com
+# Auth, admin, and form-result pages are private: keep them out of the index.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /account
+Disallow: /reset
+Disallow: /oem_submit_result
+Disallow: /api/
+
+Sitemap: https://supplychainsai.com/sitemap-index.xml

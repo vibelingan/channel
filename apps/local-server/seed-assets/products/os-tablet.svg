@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Tablet">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b6ee1"/><stop offset="1" stop-color="#2f3da3"/></linearGradient></defs>
+  <rect width="1000" height="1000" fill="url(#bg)"/>
+  <g transform="translate(500 470)" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <rect x="-150" y="-200" width="300" height="400" rx="26"/>
+    <line x1="0" y1="150" x2="0" y2="150"/>
+    <circle cx="0" cy="150" r="10" fill="#fff"/>
+  </g>
+  <text x="500" y="840" text-anchor="middle" fill="#fff" fill-opacity="0.9" font-family="Poppins, system-ui, sans-serif" font-size="40" font-weight="600">Tablet</text>
+</svg>

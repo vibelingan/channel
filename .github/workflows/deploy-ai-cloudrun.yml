@@ -1,0 +1,178 @@
+name: Deploy AI CloudRun
+
+# Deploys the AI assistant's two CloudRun services, ai-bff and ai-worker, from
+# one commit, then asks them a real question (scripts/deploy-ai-cloudrun.mjs).
+# CloudRun builds both images from the commit itself.
+#
+# To deploy a commit, push a tag named ai-cloudrun-deploy-<anything> on it:
+#   git tag ai-cloudrun-deploy-20260915-1 <commit>
+#   git push origin ai-cloudrun-deploy-20260915-1
+# The "test" environment hands its secrets only to the branches and tags it
+# allows, so it needs a deployment rule for the tag pattern ai-cloudrun-deploy-*.
+# Once this file is on main it can also be started from the Actions tab, on any
+# branch or tag that environment allows.
+
+on:
+  push:
+    tags:
+      - 'ai-cloudrun-deploy-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # The same key as Deploy Test: both change the one CloudBase environment.
+  group: cloudbase-deploy-test
+  cancel-in-progress: false
+
+jobs:
+  # CI runs these checks as well, but separately: a tag push neither waits for CI
+  # nor stops when CI fails. Running them here, in a job the deploy needs, is
+  # what makes a failing commit impossible to deploy.
+  verify:
+    name: Test the commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # The same throwaway database CI's AI job uses. The AI tests need a real
+    # PostgreSQL, and this one exists only for the length of the job.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+          POSTGRES_DB: ai_assistant
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai -d ai_assistant"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests, including the deployment contracts
+        run: pnpm test
+
+      # Engine, adapter, policy, store, BFF and worker. Root `pnpm test` leaves
+      # out the ones that need a database; they run here, where one exists.
+      - name: AI package tests
+        env:
+          DATABASE_URL: postgres://ai:ai@localhost:5432/ai_assistant
+        run: pnpm test:ai
+
+  deploy:
+    name: Deploy and verify ai-bff and ai-worker
+    needs: verify
+    runs-on: ubuntu-latest
+    # Room for the deploy script's own limits: 40 minutes of builds, 5 for
+    # readiness and three round trips, on top of install and the probe.
+    timeout-minutes: 75
+    environment: test
+
+    # Settings only. Secrets are handed to the individual steps that use them.
+    env:
+      CI: 'true'
+      APP_ENV: ${{ vars.APP_ENV || 'test' }}
+      # Read-only diagnostics use the same authorized tag rule and credentials.
+      AI_CLOUDRUN_INSPECT_ONLY: ${{ startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-') && '1' || '0' }}
+      AI_CLOUDRUN_NETWORK_ONLY: ${{ startsWith(github.ref_name, 'ai-cloudrun-deploy-network-') && '1' || '0' }}
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      TCB_REGION: ${{ vars.TCB_REGION || 'ap-shanghai' }}
+      AI_VPC_ID: ${{ vars.AI_VPC_ID }}
+      AI_CLOUDRUN_SUBNET_ID: ${{ vars.AI_CLOUDRUN_SUBNET_ID }}
+      AI_POSTGRES_SECURITY_GROUP_ID: ${{ vars.AI_POSTGRES_SECURITY_GROUP_ID }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
+      AI_SITE_ORIGIN: ${{ vars.AI_SITE_ORIGIN }}
+      AI_TRUST_PROXY: ${{ vars.AI_TRUST_PROXY }}
+      AI_ENGINE_ID: ${{ vars.AI_ENGINE_ID }}
+      AI_ENGINE_VERSION: ${{ vars.AI_ENGINE_VERSION }}
+      AI_ENGINE_PROVENANCE_KIND: ${{ vars.AI_ENGINE_PROVENANCE_KIND }}
+      AI_ENGINE_GIT_COMMIT: ${{ vars.AI_ENGINE_GIT_COMMIT }}
+      AI_ENGINE_GIT_REPOSITORY: ${{ vars.AI_ENGINE_GIT_REPOSITORY }}
+      AI_ENGINE_CONFIG_DIGEST: ${{ vars.AI_ENGINE_CONFIG_DIGEST }}
+      AI_ENGINE_IMAGE_DIGEST: ${{ vars.AI_ENGINE_IMAGE_DIGEST }}
+      AI_PROFILE_ID: ${{ vars.AI_PROFILE_ID }}
+      AI_WORKER_LEASE_SECONDS: ${{ vars.AI_WORKER_LEASE_SECONDS }}
+      AI_MAX_STREAM_DURATION_MS: ${{ vars.AI_MAX_STREAM_DURATION_MS }}
+      AI_MAX_OUTPUT_TOKENS: ${{ vars.AI_MAX_OUTPUT_TOKENS }}
+      AI_MAX_TOOL_CALLS: ${{ vars.AI_MAX_TOOL_CALLS }}
+      AI_APPROVED_SOURCE_PREFIX: ${{ vars.AI_APPROVED_SOURCE_PREFIX }}
+      AI_CORPUS_GENERATION: ${{ vars.AI_CORPUS_GENERATION }}
+      AI_KNOWLEDGE_CREDENTIAL_ID: ${{ vars.AI_KNOWLEDGE_CREDENTIAL_ID }}
+      KB_BASE_URL: ${{ vars.KB_BASE_URL }}
+      KB_WORKSPACE_SLUG: ${{ vars.KB_WORKSPACE_SLUG }}
+      KB_WORKSPACE_ID: ${{ vars.KB_WORKSPACE_ID }}
+      KB_CITATIONS_VERIFIED: ${{ vars.KB_CITATIONS_VERIFIED }}
+      KB_CREDENTIAL_ROTATION: ${{ vars.KB_CREDENTIAL_ROTATION }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The worker refuses to start without a proof, recorded against the live
+      # knowledge base, that matches its settings. It accepts one for 30 days,
+      # so every deploy records a fresh one.
+      - name: Prove the knowledge base answers from the approved workspace
+        if: env.AI_CLOUDRUN_INSPECT_ONLY != '1'
+        env:
+          KB_API_KEY: ${{ secrets.KB_API_KEY }}
+          AI_KB_EVIDENCE_FILE: ${{ runner.temp }}/kb-evidence.json
+        run: node scripts/probe-anythingllm.mjs
+
+      - name: Deploy ai-bff and ai-worker, then ask them a question
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          KB_API_KEY: ${{ secrets.KB_API_KEY }}
+          AI_IP_HASH_SECRET: ${{ secrets.AI_IP_HASH_SECRET }}
+          AI_KB_EVIDENCE_FILE: ${{ runner.temp }}/kb-evidence.json
+        run: pnpm deploy:ai:cloudrun

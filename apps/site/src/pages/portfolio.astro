@@ -1,0 +1,90 @@
+---
+import CaseShowcase from '../components/CaseShowcase.astro';
+import CertificateGallery from '../components/CertificateGallery.astro';
+import LogoWall from '../components/LogoWall.astro';
+import PageHero from '../components/PageHero.astro';
+import Section from '../components/Section.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getPortfolioContent } from '../i18n/portfolio.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const portfolio = getPortfolioContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = site;
+const { meta, hero, stats, customers, cases, certificates } = portfolio;
+---
+
+<BaseLayout
+  title={`${meta.title} — ${brand.name}`}
+  description={meta.description}
+  lang="en"
+  canonicalPath="/portfolio/"
+>
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <PageHero
+      eyebrow={hero.eyebrow}
+      heading={hero.heading}
+      subheading={hero.subheading}
+      primaryCta={hero.primaryCta}
+      secondaryCta={hero.secondaryCta}
+    />
+
+    <section data-portfolio-stats class="border-b border-slate-200 bg-surface-alt">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+        <dl class="grid grid-cols-3 gap-4 sm:gap-8">
+          {stats.items.map((stat) => (
+            <div class="reveal flex min-w-0 flex-col text-center">
+              <dt class="order-2 mt-2 break-words text-xs font-semibold uppercase tracking-wider text-ink-soft sm:text-sm">
+                {stat.label}
+              </dt>
+              <dd class="order-1 font-display text-3xl font-bold text-brand-600 sm:text-4xl">
+                {stat.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p class="reveal mx-auto mt-6 max-w-2xl text-center text-xs leading-relaxed text-ink-muted sm:text-sm">
+          {stats.note}
+        </p>
+      </div>
+    </section>
+
+    <!-- Case studies (STAR) -->
+    <Section id={cases.id} eyebrow={cases.eyebrow} heading={cases.heading} intro={cases.intro} tone="surface">
+      <CaseShowcase items={cases.items} />
+    </Section>
+
+    <!-- Customer logo wall -->
+    <Section
+      id={customers.id}
+      eyebrow={customers.eyebrow}
+      heading={customers.heading}
+      intro={customers.intro}
+      tone="alt"
+    >
+      <LogoWall logos={customers.logos} />
+    </Section>
+
+    <!-- Certifications & test reports -->
+    <Section
+      id={certificates.id}
+      eyebrow={certificates.eyebrow}
+      heading={certificates.heading}
+      intro={certificates.intro}
+      tone="surface"
+    >
+      <CertificateGallery
+        certs={certificates.items}
+        complianceLabel={certificates.complianceLabel}
+        designPatentLabel={certificates.designPatentLabel}
+        patentRecordLabel={certificates.patentRecordLabel}
+      />
+    </Section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

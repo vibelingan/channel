@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Channel Admin - Classification design preview</title>
+    <style>
+      :root { color-scheme: light; --navy:#0f172a; --ink:#0f172a; --muted:#64748b; --border:#e2e8f0; --surface:#f6f8fc; --brand:#2f3da3; --brand-light:#eef2ff; --amber:#9a5316; --amber-bg:#fff6e9; --red:#dc2626; --shadow:0 22px 70px #16213b30; font-family:Inter,"Helvetica Neue",sans-serif; letter-spacing:0; }
+      * { box-sizing:border-box; }
+      [hidden] { display:none!important; }
+      body { margin:0; min-width:0; color:var(--ink); background:var(--surface); font-size:14px; }
+      button,select,input { font:inherit; }
+      button { cursor:pointer; }
+      button:disabled { cursor:not-allowed; opacity:.5; }
+      button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible { outline:3px solid #818cf8; outline-offset:2px; }
+      .prototype-bar { position:relative; z-index:20; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:8px 22px; background:#eef2ff; border-bottom:1px solid #c7d2fe; font-size:12px; color:#39467f; }
+      .prototype-bar strong { color:#1f2a73; }
+      .preview-controls { display:flex; flex-wrap:wrap; gap:5px; }
+      .preview-controls button { border:1px solid #c7d2fe; border-radius:5px; padding:6px 9px; background:transparent; color:#2f3da3; font-size:12px; }
+      .preview-controls button[aria-pressed=true] { background:var(--navy); color:#fff; border-color:var(--navy); }
+      .shell { display:flex; width:100%; min-height:calc(100dvh - 39px); overflow:hidden; }
+      .rail { flex:0 0 226px; display:flex; flex-direction:column; background:#fff; border-right:1px solid var(--border); }
+      .brand { display:flex; align-items:center; gap:10px; min-height:76px; padding:18px; border-bottom:1px solid var(--border); }
+      .mark { display:grid; place-items:center; width:31px; height:31px; flex:none; background:var(--navy); color:white; font-weight:700; font-size:13px; border-radius:5px; }
+      .brand-name { font-weight:700; font-size:15px; line-height:1.15; color:var(--navy); }
+      .brand-sub { color:var(--muted); font-size:11px; margin-top:3px; }
+      .rail-label { margin:24px 18px 8px; text-transform:uppercase; font-size:10px; font-weight:700; color:#8895a8; letter-spacing:.08em; }
+      .rail nav { display:grid; gap:3px; padding:0 10px; }
+      .nav-item { width:100%; display:flex; align-items:center; gap:11px; min-height:40px; padding:0 11px; border:0; border-radius:5px; text-align:left; background:transparent; color:#53627a; white-space:nowrap; }
+      .nav-item.active { background:var(--navy); color:#fff; font-weight:700; }
+      .nav-item:not(.active):hover { background:#f3f6f8; }
+      .nav-item i { width:16px; height:16px; flex:none; }
+      .rail-bottom { margin-top:auto; padding:12px 10px 18px; border-top:1px solid var(--border); }
+      .nav-item.subtle { font-size:13px; }
+      .workspace { flex:1; min-width:0; width:0; }
+      .topline { min-height:76px; display:flex; align-items:center; justify-content:space-between; padding:18px 30px; border-bottom:1px solid var(--border); background:#fff; }
+      .crumb { font-size:12px; color:#8491a3; } .crumb strong { color:#35465f; font-weight:600; }
+      .user { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); }
+      .avatar { width:28px; height:28px; display:grid; place-items:center; background:#e0e7ff; color:#2f3da3; border-radius:50%; font-size:11px; font-weight:700; }
+      .content { max-width:1560px; padding:29px 30px 56px; margin:auto; }
+      .heading { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; }
+      h1 { margin:0; font-size:26px; line-height:1.2; font-weight:700; color:var(--navy); letter-spacing:0; }
+      .heading p { margin:7px 0 0; color:var(--muted); }
+      .button { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:38px; padding:8px 13px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; color:#314057; font-weight:600; white-space:nowrap; }
+      .button:hover:not(:disabled) { background:#f0f4f7; }
+      .button i { width:15px; height:15px; }
+      .button.dark { background:var(--navy); border-color:var(--navy); color:white; }
+      .button.dark:hover:not(:disabled) { background:#283b5f; }
+      .button.assign { border-color:#a5b4fc; color:var(--brand); background:#fff; }
+      .button.assign:hover:not(:disabled) { background:var(--brand-light); }
+      .button.publish { background:#16a34a; border-color:#16a34a; color:#fff; }
+      .button.publish:hover:not(:disabled) { background:#15803d; }
+      .button.disable { background:#475569; border-color:#475569; color:#fff; }
+      .button.disable:hover:not(:disabled) { background:#334155; }
+      .button.delete { background:var(--red); border-color:var(--red); color:#fff; }
+      .button.delete:hover:not(:disabled) { background:#b91c1c; }
+      .button.plain { border-color:transparent; background:transparent; color:var(--muted); }
+      .families { display:flex; flex-wrap:wrap; gap:6px; margin:24px 0 17px; }
+      .family { border:1px solid var(--border); border-radius:5px; min-height:35px; padding:7px 12px; background:#fff; color:#576780; font-size:12px; white-space:nowrap; }
+      .family.current { background:var(--navy); border-color:var(--navy); color:#fff; }
+      .family .count { margin-left:5px; color:#a0aaba; }
+      .family.current .count { color:#abc0cf; }
+      .filter-line { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-bottom:16px; }
+      .search { display:flex; align-items:center; gap:9px; height:39px; width:min(340px,100%); padding:0 12px; border:1px solid var(--border); border-radius:6px; background:#fff; color:#8190a4; }
+      .search i { width:16px; height:16px; }
+      .search input { min-width:0; width:100%; border:0; outline:0; color:var(--ink); background:transparent; }
+      .search input::placeholder { color:#8492a4; }
+      .result-count { margin-left:auto; color:var(--muted); font-size:12px; }
+      .bulk { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin-bottom:12px; padding:11px 12px; background:#eef2ff; border:1px solid #c7d2fe; border-radius:6px; }
+      .bulk strong { margin-right:8px; font-size:13px; color:#131a4a; }
+      .bulk .button { min-height:34px; font-size:12px; padding:6px 10px; }
+      .bulk .last { margin-left:auto; color:var(--brand); font-size:12px; }
+      .mobile-actions,.responsive-selects { display:none; }
+      .table-shell { overflow-x:auto; max-width:100%; background:#fff; border:1px solid var(--border); border-radius:6px; }
+      table { border-collapse:collapse; width:100%; min-width:955px; text-align:left; }
+      th { padding:12px 13px; background:#f7f9fa; border-bottom:1px solid var(--border); color:#75849a; font-size:10px; font-weight:700; text-transform:uppercase; white-space:nowrap; }
+      td { padding:13px; border-bottom:1px solid #edf0f3; vertical-align:middle; }
+      tr:last-child td { border-bottom:0; }
+      tbody tr.selected { background:#f5f7ff; }
+      .checkbox { width:16px; height:16px; accent-color:var(--brand); cursor:pointer; }
+      .product { display:flex; align-items:center; gap:10px; min-width:280px; max-width:390px; }
+      .thumb { width:44px; height:44px; flex:none; display:grid; place-items:center; object-fit:contain; border:1px solid #e7ecf0; border-radius:4px; background:#f5f7f8; color:#9ca9b7; }
+      .name { font-size:12px; font-weight:650; line-height:1.35; max-width:280px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#30405a; }
+      .sku { font-size:11px; color:#97a2b2; margin-top:3px; }
+      .muted { color:#8290a3; } .small { font-size:11px; }
+      .state { font-size:11px; font-weight:650; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+      .state::before { content:''; width:6px; height:6px; background:currentColor; border-radius:50%; }
+      .state.published { color:#27866d; } .state.draft { color:#8794a5; }
+      .table-action { padding:6px; background:none; border:0; color:var(--brand); font-size:12px; font-weight:650; }
+      .pagination { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#8190a3; margin-top:14px; font-size:12px; }
+      .pagination .button { min-height:30px; font-size:11px; }
+      .scrim { position:fixed; inset:0; display:grid; place-items:center; padding:16px; background:#0e1d34a1; z-index:10; }
+      .scrim[hidden] { display:none; }
+      .dialog { width:min(100%,650px); max-height:min(790px,calc(100dvh - 30px)); display:flex; flex-direction:column; background:#fff; border-radius:8px; box-shadow:var(--shadow); overflow:hidden; }
+      .dialog-head { padding:21px 24px 15px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; border-bottom:1px solid var(--border); }
+      .eyebrow { margin:0 0 6px; color:var(--brand); text-transform:uppercase; font-weight:700; font-size:10px; letter-spacing:.08em; }
+      h2 { margin:0; font-size:20px; line-height:1.25; color:var(--navy); }
+      .dialog-head p:last-child { margin:6px 0 0; font-size:12px; color:var(--muted); }
+      .icon-button { width:34px; height:34px; flex:none; border:1px solid transparent; background:transparent; border-radius:5px; display:grid; place-items:center; color:#7a889b; }
+      .icon-button:hover { background:#f2f5f6; }
+      .icon-button i { width:18px; height:18px; }
+      .dialog-body { overflow:auto; padding:18px 24px 19px; overscroll-behavior:contain; }
+      .summary { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#f6f7ff; border:1px solid #e0e7ff; border-radius:5px; padding:11px 12px; font-size:12px; color:#475681; }
+      .summary strong { font-size:13px; color:#1f2a73; }
+      .dot-sep { width:3px; height:3px; border-radius:50%; background:#a5b4fc; }
+      .fields { display:grid; grid-template-columns:1fr 1fr; gap:13px; margin:19px 0; }
+      .field { display:flex; flex-direction:column; gap:6px; font-size:11px; font-weight:650; color:#58677c; }
+      .field select { appearance:auto; height:39px; min-width:0; border:1px solid #cfd8e1; border-radius:5px; padding:0 9px; background:#fff; color:#2d3b53; }
+      .field.full { grid-column:1 / -1; }
+      .check-options { display:flex; gap:7px; flex-wrap:wrap; }
+      .choice { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 10px; border:1px solid #d9e2e9; border-radius:5px; color:#52627b; font-size:11px; font-weight:600; cursor:pointer; }
+      .choice:has(input:checked) { border-color:#a5b4fc; color:var(--brand); background:#eef2ff; }
+      .choice input { accent-color:var(--brand); }
+      .selection { display:flex; align-items:center; justify-content:space-between; gap:9px; padding:12px 0 4px; border-top:1px solid var(--border); }
+      .selection strong { font-size:12px; } .selection .small { color:var(--muted); }
+      .text-button { padding:6px 2px; background:none; border:0; color:var(--brand); font-weight:650; font-size:11px; white-space:nowrap; }
+      .names { margin:7px 0 0; padding:0; list-style:none; }
+      .names li { padding:6px 0; font-size:11px; display:flex; justify-content:space-between; gap:12px; min-width:0; }
+      .names li span:first-child { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+      .names .state { font-size:10px; }
+      .warning { display:flex; align-items:flex-start; gap:9px; margin-top:17px; padding:10px 11px; border-radius:5px; background:var(--amber-bg); color:#75461e; font-size:11px; line-height:1.5; }
+      .warning i { width:15px; height:15px; flex:none; margin-top:1px; }
+      .dialog-footer { padding:14px 24px 18px; border-top:1px solid var(--border); background:#fff; }
+      .footer-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+      .footer-actions .button { min-height:42px; font-size:12px; }
+      .footer-actions .button.dark { box-shadow:0 2px 0 #0f172a22; }
+      .footer-hint { color:#8a5a25; font-size:11px; margin:8px 0 0; text-align:right; }
+      .stage { display:grid; gap:12px; padding:3px 0 11px; }
+      .stage-line { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; font-weight:650; }
+      .step-list { display:grid; gap:11px; margin:9px 0 3px; padding:0; list-style:none; }
+      .step-list li { display:flex; align-items:center; gap:10px; font-size:12px; color:#78869a; }
+      .step-list li.done { color:#25715e; } .step-list li.current { color:var(--ink); font-weight:650; }
+      .step-indicator { width:20px; height:20px; flex:none; display:grid; place-items:center; border:1px solid #cad5dd; border-radius:50%; font-size:10px; }
+      .step-list li.done .step-indicator { border-color:#8dc3b1; background:#e5f4ee; }
+      .step-list li.current .step-indicator { border-color:#5b6ee1; }
+      .outcome { display:flex; align-items:center; gap:11px; padding:13px; background:#eff8f3; border:1px solid #d2e8d8; border-radius:5px; color:#1f604f; font-size:13px; font-weight:700; }
+      .outcome.needs-review { background:var(--amber-bg); border-color:#ebd9b7; color:#75461e; }
+      .outcome i { width:20px; height:20px; }
+      .small-note { font-size:11px; color:var(--muted); line-height:1.5; }
+      .only-confirm,.only-working,.only-result { display:none; }
+      body[data-stage=confirm] .only-confirm,body[data-stage=working] .only-working,body[data-stage=result] .only-result { display:block; }
+      body[data-stage=confirm] .only-edit,body[data-stage=working] .only-edit,body[data-stage=result] .only-edit { display:none; }
+      .foot-confirm,.foot-working,.foot-result { display:none; }
+      body[data-stage=confirm] .foot-confirm { display:flex; }
+      body[data-stage=working] .foot-working { display:flex; }
+      body[data-stage=result] .foot-result { display:flex; }
+      body[data-stage=edit] .foot-edit { display:flex; }
+      body:not([data-stage=edit]) .foot-edit { display:none; }
+      .section-mobile { display:none; }
+      @media (max-width:1279px) {
+        .shell { display:block; }
+        .rail { display:none; }
+        .workspace { width:100%; }
+        .topline { min-height:61px; padding:12px 20px; }
+        .content { padding:23px 20px 44px; }
+        .families { display:none; }
+        .responsive-selects { display:flex; gap:12px; margin:20px 0 15px; }
+        .responsive-selects .field { flex:1; max-width:240px; }
+        .mobile-actions { display:inline-flex; }
+        .bulk .desktop-extra { display:none; }
+        .section-mobile { display:block; }
+      }
+      @media (max-width:639px) {
+        .prototype-bar { padding:8px 12px; }
+        .prototype-bar strong { font-size:11px; }
+        .preview-controls { width:100%; }
+        .preview-controls button { white-space:nowrap; }
+        .topline { padding:12px 15px; }
+        .user span { display:none; }
+        .content { padding:22px 15px 38px; }
+        h1 { font-size:22px; }
+        .heading .button { font-size:11px; padding:8px; }
+        .responsive-selects { flex-direction:column; gap:10px; }
+        .responsive-selects .field { max-width:none; }
+        .filter-line { gap:8px; }
+        .search { width:100%; }
+        .result-count { display:none; }
+        .bulk { padding:10px; }
+        .bulk strong { flex:1 0 100%; }
+        .bulk .last { margin-left:auto; }
+        .scrim { padding:8px; align-items:center; }
+        .dialog { width:100%; max-height:calc(100dvh - 16px); }
+        .dialog-head { padding:17px 16px 14px; }
+        h2 { font-size:18px; }
+        .dialog-body { padding:15px 16px; }
+        .fields { grid-template-columns:1fr; gap:13px; margin:15px 0; }
+        .field.full { grid-column:1; }
+        .selection { align-items:flex-start; }
+        .dialog-footer { padding:12px 16px 15px; }
+        .footer-actions { flex-wrap:wrap; }
+        .footer-actions .button { flex:1 0 100%; min-height:44px; }
+        .footer-hint { text-align:left; }
+      }
+      @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
+    </style>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js" defer></script>
+  </head>
+  <body data-stage="edit">
+    <div class="prototype-bar"><strong>DESIGN PREVIEW &nbsp; / &nbsp; No data is saved</strong><div class="preview-controls" aria-label="Preview states"><button data-view="list" aria-pressed="false">List</button><button data-view="edit" aria-pressed="true">Edit dialog</button><button data-view="confirm" aria-pressed="false">Confirmation</button><button data-view="working" aria-pressed="false">Publishing</button><button data-view="result" aria-pressed="false">Success</button><button data-view="partial" aria-pressed="false">Partial</button><button data-view="unknown" aria-pressed="false">Unconfirmed</button></div></div>
+    <div class="shell">
+      <aside class="rail">
+        <div class="brand"><div class="mark">CH</div><div><div class="brand-name">Channel Admin</div><div class="brand-sub">Operations workspace</div></div></div>
+        <div class="rail-label">Workspace</div>
+        <nav aria-label="Admin sections"><button class="nav-item"><i data-lucide="users"></i>Users</button><button class="nav-item active"><i data-lucide="package"></i>Products</button><button class="nav-item"><i data-lucide="layers"></i>Overstock</button><button class="nav-item"><i data-lucide="clipboard-list"></i>OEM Requests</button><button class="nav-item"><i data-lucide="refresh-cw"></i>Alibaba Sync</button><button class="nav-item"><i data-lucide="folder-tree"></i>Alibaba Categories</button><button class="nav-item"><i data-lucide="upload"></i>Catalog Import</button><button class="nav-item"><i data-lucide="tag"></i>Import Categories</button><button class="nav-item"><i data-lucide="mail"></i>Product Inquiries</button></nav>
+        <div class="rail-bottom"><button class="nav-item subtle"><i data-lucide="external-link"></i>Back to site</button><button class="nav-item subtle"><i data-lucide="log-out"></i>Sign out</button></div>
+      </aside>
+      <main class="workspace">
+        <div class="topline"><div class="crumb">Admin &nbsp;/&nbsp; <strong>Products</strong></div><div class="user"><span>Admin account</span><div class="avatar">SA</div></div></div>
+        <div class="content">
+          <div class="heading"><div><h1>Products</h1><p>Catalog products across all website categories</p></div><button class="button dark"><i data-lucide="plus"></i>New product</button></div>
+          <div class="responsive-selects"><label class="field section-mobile">Section<select aria-label="Section"><option>Products</option><option>Users</option><option>Overstock</option><option>OEM Requests</option><option>Alibaba Sync</option><option>Catalog Import</option></select></label><label class="field">Product family<select aria-label="Product family"><option>All products</option><option>Needs classification</option><option>Headphones</option><option>AI Gadgets</option><option>Toys</option><option>Misc</option></select></label></div>
+          <div class="families" role="group" aria-label="Product family"><button class="family current">All products</button><button class="family">Needs classification <span class="count">56</span></button><button class="family">Headphones</button><button class="family">AI Gadgets</button><button class="family">Toys</button><button class="family">Misc</button></div>
+          <div class="filter-line"><label class="search"><i data-lucide="search"></i><input placeholder="Search products..." aria-label="Search products" /></label><button class="button"><i data-lucide="list-filter"></i>Filters</button><span class="result-count">1,116 products</span></div>
+          <div class="bulk"><strong id="bulk-count">2 selected</strong><button class="button assign" id="open-editor"><i data-lucide="tag"></i>Assign category</button><button class="button publish desktop-extra">Publish</button><button class="button disable desktop-extra">Disable</button><button class="button delete desktop-extra">Delete</button><button class="button mobile-actions" id="other-actions" aria-expanded="false"><i data-lucide="ellipsis"></i>Actions</button><button class="button plain last" id="clear-selection">Clear selection</button></div>
+          <div class="warning" id="pending-followup" role="status" hidden>Publication status was not confirmed. Check the selected products before trying again.</div>
+          <div class="table-shell" aria-label="Products table, scroll horizontally for more columns"><table><thead><tr><th><input class="checkbox" type="checkbox" aria-label="Select all rows" checked /></th><th>Product</th><th>Website main category</th><th>Website subcategories</th><th>SKU / source ID</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+            <tr class="selected"><td><input class="checkbox row-checkbox" type="checkbox" aria-label="Select USB Call Center Headset" checked /></td><td><div class="product"><div class="thumb" role="img" aria-label="Headset image unavailable">HP</div><div><div class="name" title="USB Call Center Headset - Noise Cancelling Wired Headphones for Office">USB Call Center Headset - Noise Cancelling Wired Headphones for Office</div><div class="sku">AAHxBBhgAOVTpOKZBnRA</div></div></div></td><td>Headphones</td><td>Wired Headphones</td><td class="muted small">AAHxBBhgAOVTpOKZBnRA</td><td><span class="state draft">Draft</span></td><td><button class="table-action row-classify">Classify</button></td></tr>
+            <tr class="selected"><td><input class="checkbox row-checkbox" type="checkbox" aria-label="Select Polka Dot Wired Earphones" checked /></td><td><div class="product"><div class="thumb" role="img" aria-label="Earphones image unavailable">HP</div><div><div class="name" title="New Fashion Polka Dot Type C Wired Earphones for Everyday Listening">New Fashion Polka Dot Type C Wired Earphones for Everyday Listening</div><div class="sku">AAG-BBhgAOVTpOKZ</div></div></div></td><td>Headphones</td><td>Wired Headphones</td><td class="muted small">AAG-BBhgAOVTpOKZ</td><td><span class="state draft">Draft</span></td><td><button class="table-action row-classify">Classify</button></td></tr>
+            <tr><td><input class="checkbox row-checkbox" type="checkbox" aria-label="Select Sleep Clock" /></td><td><div class="product"><img class="thumb" src="../../apps/site/public/media/portfolio/cases/sleep-clock.webp" width="44" height="44" alt="Sleep clock product" /><div><div class="name">Compact Sleep Clock with Soft Light and Alarm</div><div class="sku">AI-2026-014</div></div></div></td><td>AI Gadgets</td><td>None</td><td class="muted small">AI-2026-014</td><td><span class="state published">Published</span></td><td><button class="table-action row-classify">Classify</button></td></tr>
+          </tbody></table></div>
+          <div class="pagination"><span>Showing 1-20 of 1,116</span><div><button class="button" disabled>Previous</button> &nbsp; 1 / 56 &nbsp; <button class="button">Next</button></div></div>
+        </div>
+      </main>
+    </div>
+    <div class="scrim" id="scrim" role="presentation">
+      <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-description">
+        <div class="dialog-head"><div><p class="eyebrow">PRODUCTS / CLASSIFICATION</p><h2 id="dialog-title">Edit website classification</h2><p id="dialog-description">Choose the result before anything is saved.</p></div><button class="icon-button" id="close-dialog" aria-label="Close dialog" title="Close dialog"><i data-lucide="x"></i></button></div>
+        <div class="dialog-body">
+          <div class="summary"><strong id="summary-count">2 selected</strong><span class="dot-sep"></span><span id="summary-status">2 drafts</span><span class="dot-sep"></span><span>Headphones</span></div>
+          <div class="only-edit"><div class="fields"><label class="field">Website main category<select aria-label="Website main category"><option>Headphones</option><option>AI Gadgets</option><option>Toys</option><option>Misc</option></select></label><label class="field">Assignment mode<select aria-label="Assignment mode"><option>Replace subcategories</option><option>Append subcategories</option><option>Clear subcategories</option></select></label><div class="field full"><span>Website subcategories</span><div class="check-options"><label class="choice"><input type="checkbox" /> Wired</label><label class="choice"><input type="checkbox" checked /> Office</label><label class="choice"><input type="checkbox" /> Bluetooth</label></div></div></div><div class="selection"><div><strong>Affected products</strong><div class="small">Headphones / Office Headphones</div></div><button class="text-button" id="toggle-names" aria-expanded="false">Show all 2</button></div><ul class="names" id="names"><li><span>USB Call Center Headset - Noise Cancelling Wired Headphones for Office</span><span class="state draft">Draft</span></li><li><span>New Fashion Polka Dot Type C Wired Earphones for Everyday Listening</span><span class="state draft">Draft</span></li><li id="published-name" hidden><span>Compact Sleep Clock with Soft Light and Alarm</span><span class="state published">Published</span></li></ul><div class="warning" id="mixed-warning" hidden><i data-lucide="triangle-alert"></i><span>This published AI Gadgets product cannot move to Headphones until withdrawn. Select the drafts separately to continue.</span></div></div>
+          <div class="only-confirm"><div class="warning" id="confirm-note"><i data-lucide="info"></i><span id="confirm-copy">Classification will be saved for 2 products. Publication is a separate, confirmed step.</span></div><div class="selection"><div><strong>Assignment preview</strong><div class="small">2 products / Headphones / Office Headphones</div></div></div><ul class="names"><li><span>USB Call Center Headset - Noise Cancelling Wired Headphones for Office</span><span class="state draft">Draft</span></li><li><span>New Fashion Polka Dot Type C Wired Earphones for Everyday Listening</span><span class="state draft">Draft</span></li></ul></div>
+          <div class="only-working"><div class="stage" aria-live="polite" role="status"><div class="stage-line"><span id="stage-title">Publishing selected products...</span></div><span class="small-note">This window stays open until results are confirmed.</span></div><ul class="step-list"><li class="done"><span class="step-indicator">1</span>Classification saved</li><li class="current" id="publish-step"><span class="step-indicator">2</span>Publishing products</li><li id="refresh-step"><span class="step-indicator">3</span>Checking product statuses</li></ul></div>
+          <div class="only-result"><div class="outcome" id="result-outcome" role="status"><i data-lucide="circle-check"></i><span id="result-title">2 classified / 2 published</span></div><p class="small-note" id="result-copy">All selected products have confirmed publication results. The product list is refreshed.</p><div class="selection"><div><strong>Product results</strong><div class="small">Confirmed outcomes</div></div><button class="text-button" id="toggle-results">Show details</button></div><ul class="names" id="result-names" hidden><li><span>USB Call Center Headset</span><span class="state published" id="first-result">Published</span></li><li><span>New Fashion Polka Dot Earphones</span><span class="state published" id="second-result">Published</span></li></ul></div>
+        </div>
+        <div class="dialog-footer"><div class="footer-actions foot-edit"><button class="button" id="save-only">Save classification</button><button class="button dark" id="save-publish">Save and publish</button></div><p class="footer-hint" id="publish-hint" hidden>Withdraw the published AI Gadgets product before changing its main category.</p><div class="footer-actions foot-confirm"><button class="button" id="back-edit">Back</button><button class="button dark" id="confirm-action">Confirm save and publish</button></div><div class="footer-actions foot-working"><span class="small-note">Updating. Please keep this window open.</span></div><div class="footer-actions foot-result"><button class="button" id="verify-result" hidden>Refresh statuses</button><button class="button" id="check-later" hidden>Check later</button><button class="button dark" id="done">Done</button></div></div>
+      </section>
+    </div>
+    <script>
+      const body = document.body;
+      const scrim = document.getElementById('scrim');
+      const previewButtons = [...document.querySelectorAll('[data-view]')];
+      const rowChecks = [...document.querySelectorAll('.row-checkbox')];
+      let mixed = false;
+      let intent = 'publish';
+      let workTimer = null;
+      let outcomePending = false;
+      function icons() { if (window.lucide) window.lucide.createIcons(); }
+      window.addEventListener('load', icons);
+      function show(view) {
+        clearTimeout(workTimer);
+        body.dataset.stage = view === 'list' ? 'edit' : view === 'partial' || view === 'unknown' ? 'result' : view;
+        scrim.hidden = view === 'list';
+        if (view === 'result' || view === 'partial') outcomePending = false;
+        if (view === 'unknown') outcomePending = true;
+        document.getElementById('pending-followup').hidden = !outcomePending || view !== 'list';
+        previewButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === view)));
+        if (view === 'working') {
+          document.getElementById('stage-title').textContent = 'Publishing selected products...';
+          document.getElementById('publish-step').className = 'current';
+          document.getElementById('refresh-step').className = '';
+        }
+        if (view === 'result' || view === 'partial' || view === 'unknown') {
+          const unknown = view === 'unknown';
+          const outcome = document.getElementById('result-outcome');
+          outcome.classList.toggle('needs-review', view !== 'result');
+          const icon = document.createElement('i');
+          icon.dataset.lucide = view === 'result' ? 'circle-check' : 'triangle-alert';
+          outcome.querySelector('svg, i').replaceWith(icon);
+          document.getElementById('result-title').textContent = view === 'result' ? '2 classified / 2 confirmed published' : unknown ? '2 classified / 1 confirmed / 1 unconfirmed' : '2 classified / 1 confirmed published / 1 needs review';
+          document.getElementById('result-copy').textContent = view === 'result' ? 'The selected products have confirmed publication results.' : unknown ? 'Check the remaining product status before retrying. Earlier publications are not rolled back.' : 'One product was rejected. Inspect and edit it before publishing again; the confirmed publication remains public.';
+          document.getElementById('first-result').textContent = 'Published';
+          document.getElementById('first-result').className = 'state published';
+          document.getElementById('second-result').textContent = unknown ? 'Unconfirmed' : view === 'partial' ? 'Needs review' : 'Published';
+          document.getElementById('second-result').className = view === 'result' ? 'state published' : 'state draft';
+          document.getElementById('result-names').hidden = view === 'result';
+          document.getElementById('toggle-results').textContent = view === 'result' ? 'Show details' : 'Hide details';
+          document.getElementById('verify-result').hidden = !unknown;
+          document.getElementById('check-later').hidden = !unknown;
+          document.getElementById('done').hidden = unknown;
+        }
+        icons();
+      }
+      function refreshSelection() {
+        const count = rowChecks.filter(box => box.checked).length;
+        mixed = rowChecks[2].checked;
+        const drafts = rowChecks.slice(0,2).filter(box => box.checked).length;
+        document.getElementById('bulk-count').textContent = `${count} selected`;
+        document.getElementById('summary-count').textContent = `${count} selected`;
+        document.getElementById('summary-status').textContent = mixed ? `1 public / ${drafts} drafts` : `${drafts} drafts`;
+        document.getElementById('mixed-warning').hidden = !mixed;
+        document.getElementById('save-only').disabled = mixed || count === 0;
+        document.getElementById('save-publish').disabled = mixed || count === 0;
+        document.getElementById('publish-hint').hidden = !mixed;
+        document.getElementById('published-name').hidden = !mixed;
+        if (document.getElementById('toggle-names').getAttribute('aria-expanded') !== 'true')
+          document.getElementById('toggle-names').textContent = `Show all ${count}`;
+        document.querySelectorAll('tbody tr').forEach((row,index) => row.classList.toggle('selected',rowChecks[index].checked));
+      }
+      previewButtons.forEach(button => button.addEventListener('click', () => show(button.dataset.view)));
+      rowChecks.forEach(box => box.addEventListener('change', refreshSelection));
+      document.getElementById('clear-selection').addEventListener('click', () => { rowChecks.forEach(box => box.checked = false); refreshSelection(); show('list'); });
+      document.getElementById('open-editor').addEventListener('click', () => show('edit'));
+      document.querySelectorAll('.row-classify').forEach((button,index) => button.addEventListener('click', () => { rowChecks.forEach((box,rowIndex) => box.checked = rowIndex === index); refreshSelection(); show('edit'); }));
+      document.getElementById('close-dialog').addEventListener('click', () => { if (body.dataset.stage !== 'working') show('list'); });
+      document.getElementById('toggle-names').addEventListener('click', (event) => { const button=event.currentTarget; const expanded=button.getAttribute('aria-expanded')==='true'; button.setAttribute('aria-expanded',String(!expanded)); document.getElementById('names').hidden=expanded; button.textContent=expanded?`Show all ${rowChecks.filter(box => box.checked).length}`:'Hide names'; });
+      document.getElementById('toggle-results').addEventListener('click', (event) => { const list=document.getElementById('result-names'); list.hidden=!list.hidden; event.currentTarget.textContent=list.hidden?'Show details':'Hide details'; });
+      document.getElementById('other-actions').addEventListener('click', (event) => {const button=event.currentTarget; const open=button.getAttribute('aria-expanded')==='true'; button.setAttribute('aria-expanded',String(!open)); button.textContent=open?'Actions':'Publish / Disable / Delete'; });
+      function review(next) { intent=next; document.getElementById('confirm-action').textContent=next==='publish'?'Confirm save and publish':'Confirm save'; document.getElementById('confirm-copy').textContent=next==='publish'?'Classify selected drafts first. Publish only when all assignments are confirmed.':'Save classification for the selected products. Drafts stay private; edits to already public products may appear immediately.'; show('confirm'); }
+      document.getElementById('save-only').addEventListener('click', () => review('save'));
+      document.getElementById('save-publish').addEventListener('click', () => { if (!mixed) review('publish'); });
+      document.getElementById('back-edit').addEventListener('click', () => show('edit'));
+      document.getElementById('confirm-action').addEventListener('click', () => {
+        show('working');
+        document.getElementById('stage-title').textContent = 'Saving classification...';
+        workTimer = setTimeout(() => {
+          if(intent==='save') { show('result'); document.getElementById('result-title').textContent = '2 classified / drafts remain private'; document.getElementById('result-copy').textContent = 'Classification saved. No publication was requested.'; document.getElementById('first-result').textContent = 'Draft'; document.getElementById('first-result').className = 'state draft'; document.getElementById('second-result').textContent = 'Draft'; document.getElementById('second-result').className = 'state draft'; return; }
+          workTimer = setTimeout(() => {
+            document.getElementById('stage-title').textContent = 'Publishing selected products...';
+            workTimer = setTimeout(() => {
+              document.getElementById('stage-title').textContent = 'Checking product statuses...';
+              document.getElementById('publish-step').className = 'done';
+              document.getElementById('refresh-step').className = 'current';
+              workTimer = setTimeout(() => { document.getElementById('result-title').textContent='2 classified / 2 published'; document.getElementById('result-copy').textContent='All selected products have confirmed publication results. The product list is refreshed.'; show('result'); }, 600);
+            }, 1700);
+          }, 250);
+        }, 750);
+      });
+      document.getElementById('verify-result').addEventListener('click', () => {
+        show('working');
+        document.getElementById('stage-title').textContent = 'Checking product statuses...';
+        workTimer = setTimeout(() => { show('unknown'); document.getElementById('result-copy').textContent = 'Status is unavailable in this preview. Verify the product before retrying.'; }, 600);
+      });
+      document.getElementById('check-later').addEventListener('click', () => show('list'));
+      document.getElementById('done').addEventListener('click', () => show('list'));
+      document.addEventListener('keydown', event => { if (event.key==='Escape' && body.dataset.stage!=='working') show('list'); });
+      document.getElementById('names').hidden = true;
+      refreshSelection();
+    </script>
+  </body>
+</html>

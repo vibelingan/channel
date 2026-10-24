@@ -1,0 +1,350 @@
+import { execFileSync } from 'node:child_process';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { FUNCTION_NAMES, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
+import { decodeUtf8, fetchFully } from './smoke-http.mjs';
+
+const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
+const envId = requireEnv('TCB_ENV_ID');
+const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
+const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
+const expectedReleaseId = process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local';
+const siteUrl = trimSlash(
+  process.env.SITE_URL || `https://${webAppServiceName}-${envId}.webapps.tcloudbase.com`,
+);
+const apiUrl = trimSlash(
+  process.env.PUBLIC_API_BASE_URL || `https://${envId}.service.tcloudbase.com`,
+);
+const adminEmail = requireEnv('E2E_ADMIN_EMAIL');
+const adminPassword = requireEnv('E2E_ADMIN_PASSWORD');
+
+function trimSlash(value) {
+  return value.trim().replace(/\/+$/, '');
+}
+
+function requireEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
+}
+
+function parseJsonWithNoise(output) {
+  const start = output.indexOf('{');
+  if (start < 0) throw new Error('No JSON object returned by mcporter.');
+  return JSON.parse(output.slice(start));
+}
+
+function callTool(selector, args, options = {}) {
+  const output = execFileSync(
+    'npx',
+    ['mcporter', 'call', selector, '--args', JSON.stringify(args), '--output', 'json'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: options.timeoutMs ?? 90_000,
+    },
+  );
+  return parseJsonWithNoise(output);
+}
+
+async function expectHttp(method, url, expectedStatus, body) {
+  const response = await fetchFully(method, url, {
+    headers: body ? { 'content-type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (response.status !== expectedStatus) {
+    const text = decodeUtf8(response.body);
+    throw new Error(
+      `${method} ${url} expected ${expectedStatus}, got ${response.status}: ${text.slice(0, 300)}`,
+    );
+  }
+  console.log(`${method} ${url} -> ${response.status}`);
+  return response;
+}
+
+async function expectJson(method, url, expectedStatus, body) {
+  const response = await expectHttp(method, url, expectedStatus, body);
+  return JSON.parse(decodeUtf8(response.body));
+}
+
+async function expectImage(url) {
+  const response = await expectHttp('GET', url, 200);
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().startsWith('image/')) {
+    throw new Error(`GET ${url} expected an image response, got ${contentType || '<missing>'}`);
+  }
+}
+
+function assertRelease(service, body) {
+  if (body?.ok !== true) {
+    throw new Error(
+      `${service}: health response was not ok: ${JSON.stringify(body).slice(0, 300)}`,
+    );
+  }
+  const data = body.data ?? {};
+  if (data.status !== 'ok' || data.service !== service) {
+    throw new Error(`${service}: unexpected health payload: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+  if (data.releaseId !== expectedReleaseId) {
+    throw new Error(
+      `${service}: expected release ${expectedReleaseId}, got ${data.releaseId ?? '<missing>'}`,
+    );
+  }
+  if (typeof data.buildTime !== 'string' || data.buildTime.length === 0) {
+    throw new Error(`${service}: missing buildTime in health payload`);
+  }
+  console.log(`${service}: release ${data.releaseId} (${data.buildTime})`);
+}
+
+function assertApiError(label, body, expectedCode) {
+  if (body?.ok !== false || body?.error?.code !== expectedCode) {
+    throw new Error(`${label}: unexpected response: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+}
+
+function assertCatalogProduct(product, family) {
+  if (!product || typeof product !== 'object' || Array.isArray(product)) {
+    throw new Error(`${family}: catalog item is not an object`);
+  }
+  if (product.productFamily !== family) {
+    throw new Error(`${family}: product ${product._id ?? '<missing>'} has wrong family`);
+  }
+  if (!Array.isArray(product.images) || product.images.length > 9) {
+    throw new Error(`${family}: product ${product._id ?? '<missing>'} violates image bounds`);
+  }
+  for (const forbidden of [
+    'imageIds',
+    'vipPrice',
+    'archived',
+    'createdAt',
+    'updatedAt',
+    'video',
+    'videoUrl',
+  ]) {
+    if (Object.hasOwn(product, forbidden)) {
+      throw new Error(`${family}: product ${product._id ?? '<missing>'} exposed ${forbidden}`);
+    }
+  }
+}
+
+function verifyFunctionRuntime(functionName) {
+  const result = callTool('cloudbase.queryFunctions', {
+    action: 'getFunctionDetail',
+    functionName,
+  });
+  const detail = result.data?.functionDetail;
+  if (!detail) throw new Error(`${functionName}: missing function detail`);
+  if (detail.Runtime !== targetRuntime) {
+    throw new Error(`${functionName}: expected runtime ${targetRuntime}, got ${detail.Runtime}`);
+  }
+  if (detail.Status !== 'Active' && detail.AvailableStatus !== 'Available') {
+    throw new Error(`${functionName}: function is not active`);
+  }
+  console.log(`${functionName}: runtime ${detail.Runtime}, status ${detail.Status}`);
+}
+
+callTool('cloudbase.auth', { action: 'set_env', envId });
+for (const functionName of FUNCTION_NAMES) {
+  verifyFunctionRuntime(functionName);
+}
+// ARCHITECTURE §14.1: triggers must match the manifest's DESIRED state — not
+// "none". Asserting absence here would make enabling the timer deploy cleanly
+// and then fail its own smoke, which is how a correct change gets reverted for
+// the wrong reason.
+{
+  const detail = callTool('cloudbase.queryFunctions', {
+    action: 'getFunctionDetail',
+    functionName: 'alibaba-catalog-sync',
+  }).data?.functionDetail;
+  const found = (detail?.Triggers ?? [])
+    .filter(Boolean)
+    .map((trigger) => trigger.TriggerName ?? trigger.name)
+    .sort();
+  const want = desiredTriggersFor('alibaba-catalog-sync')
+    .map((trigger) => trigger.name)
+    .sort();
+  if (JSON.stringify(found) !== JSON.stringify(want)) {
+    throw new Error(
+      `alibaba-catalog-sync: triggers [${found.join(', ')}] do not match desired [${want.join(', ')}]`,
+    );
+  }
+  console.log(
+    want.length === 0
+      ? 'alibaba-catalog-sync: no triggers, as declared (sync is manual-only)'
+      : `alibaba-catalog-sync: triggers match desired [${want.join(', ')}]`,
+  );
+}
+
+for (const path of [
+  '/',
+  '/admin',
+  '/login',
+  '/oem',
+  '/portfolio',
+  '/electronics-toys/',
+  '/headphones/',
+  '/ai-gadgets/',
+  '/toys/',
+  '/misc/',
+  '/products/item/',
+]) {
+  await expectHttp('GET', `${siteUrl}${path}`, 200);
+}
+
+// The overstock storefront was retired in the OEM refresh. Static hosting upload
+// is additive, so deployWebApp() prunes it; assert it stays gone. A 200 here
+// means a stale page resurfaced and the prune regressed. Teardown Lab and Blue
+// Ocean joined the prune list when they were temporarily hidden (2026-08).
+for (const path of ['/overstock', '/teardown-lab', '/blue-ocean']) {
+  await expectHttp('GET', `${siteUrl}${path}`, 404);
+}
+
+// Completed audit tools must not remain available after their targeted cleanup.
+for (const path of [
+  '/_admin-audit-durable-99aeb8f5-426a9e7b/index.html',
+  '/_admin-audit-99aeb8f5-a94c8c3ab8/index.html',
+]) {
+  await expectHttp(
+    'GET',
+    `${siteUrl}${path}?deployment-smoke=${encodeURIComponent(expectedReleaseId)}`,
+    404,
+  );
+}
+
+// Headphones page should now be live.
+await expectHttp('GET', `${siteUrl}/headphones`, 200);
+
+// The canonical portfolio must publish both current case images and retire the
+// superseded TWS object. Query strings bypass stale CDN cache entries so this
+// checks the just-deployed hosting state rather than a previous release.
+for (const path of [
+  '/media/portfolio/cases/sleep-clock.webp',
+  '/media/portfolio/cases/disc-repair.jpg',
+]) {
+  await expectImage(`${siteUrl}${path}?deployment-smoke=${encodeURIComponent(expectedReleaseId)}`);
+}
+await expectHttp(
+  'GET',
+  `${siteUrl}/media/portfolio/cases/tws-speaker-1.webp?deployment-smoke=${encodeURIComponent(expectedReleaseId)}`,
+  404,
+);
+
+assertRelease('public-api', await expectJson('GET', `${apiUrl}/api/health`, 200));
+assertRelease(
+  'alibaba-catalog-sync',
+  await expectJson('GET', `${apiUrl}/api/alibaba-catalog-sync/health`, 200),
+);
+assertRelease('admin', await expectJson('POST', `${apiUrl}/api/admin`, 200, { action: 'health' }));
+const submitProbe = await expectJson('POST', `${apiUrl}/api/admin`, 400, {
+  action: 'submitProject',
+  data: {
+    company: 'Deployment smoke (no project created)',
+    contact: 'Deployment smoke',
+    email: 'deployment-smoke@example.test',
+    drawingFileId: '__deployment_smoke_partial_upload__',
+  },
+});
+assertApiError('admin: submitProject limiter probe', submitProbe, 'VALIDATION_ERROR');
+const passwordResetProbe = await expectJson('POST', `${apiUrl}/api/admin`, 400, {
+  action: 'resetPassword',
+  data: {
+    token: '__deployment_smoke_invalid_reset_token__',
+    newPassword: '__deployment_smoke_not_applied__',
+  },
+});
+assertApiError('admin: passwordResets query probe', passwordResetProbe, 'BAD_REQUEST');
+await expectHttp('GET', `${apiUrl}/api/products?pageSize=1`, 200);
+await expectHttp('GET', `${apiUrl}/api/overstock?pageSize=1`, 200);
+await expectHttp('GET', `${apiUrl}/api/files/__missing__`, 404);
+await expectHttp('POST', `${apiUrl}/api/admin`, 401, {
+  action: 'list',
+  data: { collection: 'users' },
+});
+
+// Every family must serve a well-formed, correctly projected payload. Only families that
+// are actually stocked must be NON-EMPTY: ai-gadgets/toys/misc ship as empty storefronts
+// until the catalog team publishes into them, so requiring content there would block every
+// deploy on data that does not exist yet. Add a family here once it has published products.
+const requiredNonEmptyFamilies = new Set(
+  (process.env.SMOKE_REQUIRED_FAMILIES ?? 'headphones')
+    .split(',')
+    .map((family) => family.trim())
+    .filter(Boolean),
+);
+
+let detailProduct;
+for (const family of ['headphones', 'ai-gadgets', 'toys', 'misc']) {
+  const payload = await expectJson(
+    'GET',
+    `${apiUrl}/api/products?productFamily=${encodeURIComponent(family)}&pageSize=48`,
+    200,
+  );
+  if (payload?.ok !== true || !Array.isArray(payload.data?.items)) {
+    throw new Error(`${family}: malformed catalog response`);
+  }
+  if (payload.data.items.length === 0 && requiredNonEmptyFamilies.has(family)) {
+    throw new Error(`${family}: deployed catalog requires at least one published product`);
+  }
+  for (const product of payload.data.items) {
+    assertCatalogProduct(product, family);
+    if (!detailProduct && typeof product.slug === 'string' && product.slug) detailProduct = product;
+  }
+}
+// Legacy catalog rows predate slugs, so the deployed environment can legitimately serve
+// products without one. Verify the slug detail contract whenever a slug is published, and
+// say so plainly when there is nothing to verify rather than failing the deploy.
+if (!detailProduct) {
+  console.log('catalog: no published product exposes a slug; skipping slug detail probe');
+} else {
+  const detail = await expectJson(
+    'GET',
+    `${apiUrl}/api/products/slug/${encodeURIComponent(detailProduct.slug)}`,
+    200,
+  );
+  if (detail?.ok !== true || !detail.data || typeof detail.data.productFamily !== 'string') {
+    throw new Error('Catalog slug detail response is malformed.');
+  }
+  assertCatalogProduct(detail.data, detail.data.productFamily);
+  if (detail.data._id !== detailProduct._id || detail.data.slug !== detailProduct.slug) {
+    throw new Error('Catalog slug detail did not match the selected list product identity.');
+  }
+}
+
+const login = await expectJson('POST', `${apiUrl}/api/admin`, 200, {
+  action: 'login',
+  data: { email: adminEmail, password: adminPassword },
+});
+if (
+  login?.ok !== true ||
+  typeof login.data?.token !== 'string' ||
+  login.data.token.length === 0 ||
+  typeof login.data?.user?.id !== 'string' ||
+  login.data.user.role !== 'admin'
+) {
+  throw new Error('Admin login smoke did not return a valid session.');
+}
+const protectedList = await expectJson('POST', `${apiUrl}/api/admin`, 200, {
+  action: 'list',
+  token: login.data.token,
+  data: { collection: 'products', page: 1, pageSize: 1 },
+});
+if (protectedList?.ok !== true || !Array.isArray(protectedList.data?.items)) {
+  throw new Error('Admin token did not authorize a protected catalog read.');
+}
+
+// These menus are live even with the Excel worker disabled. An empty collection
+// is valid; an absent collection or failed protected query must block acceptance.
+for (const collection of ['catalogImportJobs', 'catalogImportItems']) {
+  const read = await expectJson('POST', `${apiUrl}/api/admin`, 200, {
+    action: 'list',
+    token: login.data.token,
+    data: { collection, page: 1, pageSize: 1 },
+  });
+  if (read?.ok !== true || !Array.isArray(read.data?.items)) {
+    throw new Error(`Read-only import collection ${collection} failed its readiness check.`);
+  }
+}
+
+console.log(`CloudBase smoke passed for ${siteUrl}`);

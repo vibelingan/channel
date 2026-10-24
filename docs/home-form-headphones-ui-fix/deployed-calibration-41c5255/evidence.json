@@ -1,0 +1,49 @@
+{
+  "release": "41c5255fcc2ce243c1fe9a253563e2b12fc3a87c",
+  "desktop": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "mode": "desktop",
+    "brand": {
+      "left": 32,
+      "right": 419.40625,
+      "top": 22,
+      "bottom": 50
+    },
+    "nav": {
+      "left": 483.34375,
+      "right": 1182.734375,
+      "top": 16,
+      "bottom": 56
+    },
+    "account": {
+      "left": 1246.65625,
+      "right": 1408,
+      "top": 18,
+      "bottom": 54
+    },
+    "cards": 4,
+    "price": {
+      "weight": "600",
+      "family": "Inter, \"Segoe UI\", system-ui, sans-serif"
+    },
+    "action": {
+      "weight": "500",
+      "family": "Inter, \"Segoe UI\", system-ui, sans-serif"
+    },
+    "overflow": 0
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": null,
+    "company": "Diversity Technology Limited",
+    "menuOpen": true,
+    "menuOverflowY": "auto",
+    "overflow": 0
+  }
+}

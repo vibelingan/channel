@@ -1,0 +1,374 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "端到端交付：失败分类、兼容恢复与搜索时机",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "prepare",
+      "label": "准备：尚未改变线上"
+    },
+    {
+      "id": "delivery",
+      "label": "写入：记录每一步结果"
+    },
+    {
+      "id": "verify",
+      "label": "确认：验收后提交发布身份"
+    },
+    {
+      "id": "runtime",
+      "label": "业务与搜索：依赖已经验收的当前公开版本"
+    },
+    {
+      "id": "recover",
+      "label": "自动恢复：仅允许明确且兼容的本次改动",
+      "variant": "exception"
+    },
+    {
+      "id": "hold",
+      "label": "停止或人工处理：不猜测、不反复恢复",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "quality",
+    "snapshot",
+    "build",
+    "artifact",
+    "baseline",
+    "backend",
+    "static",
+    "accept"
+  ],
+  "nodes": [
+    {
+      "id": "quality",
+      "lane": "prepare",
+      "col": 0,
+      "type": "security",
+      "label": "代码与 CI：失败停发",
+      "width": 160
+    },
+    {
+      "id": "snapshot",
+      "lane": "prepare",
+      "col": 1,
+      "type": "backend",
+      "label": "采集公开商品快照",
+      "width": 160
+    },
+    {
+      "id": "build",
+      "lane": "prepare",
+      "col": 2,
+      "type": "frontend",
+      "label": "构建 HTML / SEO",
+      "width": 160
+    },
+    {
+      "id": "artifact",
+      "lane": "prepare",
+      "col": 3,
+      "type": "database",
+      "label": "封存产物与数据合同",
+      "width": 160
+    },
+    {
+      "id": "baseline",
+      "lane": "prepare",
+      "col": 4,
+      "type": "cloud",
+      "label": "核验备份与成功版本",
+      "width": 160
+    },
+    {
+      "id": "expand",
+      "lane": "delivery",
+      "col": 3,
+      "type": "database",
+      "label": "兼容扩展，不自动 down",
+      "width": 160
+    },
+    {
+      "id": "backend",
+      "lane": "delivery",
+      "col": 4,
+      "type": "backend",
+      "label": "接口配置：意图与读回",
+      "width": 160
+    },
+    {
+      "id": "static",
+      "lane": "delivery",
+      "col": 5,
+      "type": "frontend",
+      "label": "资源 → HTML → 发现文件",
+      "width": 160
+    },
+    {
+      "id": "accept",
+      "lane": "verify",
+      "col": 5,
+      "type": "security",
+      "label": "URL / hash / 业务验收",
+      "width": 160
+    },
+    {
+      "id": "active",
+      "lane": "verify",
+      "col": 3,
+      "type": "database",
+      "label": "登记 active 与内容差异",
+      "width": 160
+    },
+    {
+      "id": "classify",
+      "lane": "recover",
+      "col": 5,
+      "type": "security",
+      "label": "是否改变线上状态",
+      "width": 160
+    },
+    {
+      "id": "eligible",
+      "lane": "recover",
+      "col": 4,
+      "type": "security",
+      "label": "归属 / 世代 / DB 兼容",
+      "width": 160
+    },
+    {
+      "id": "restore",
+      "lane": "recover",
+      "col": 3,
+      "type": "cloud",
+      "label": "一次自动恢复允许组件",
+      "width": 160
+    },
+    {
+      "id": "proof",
+      "lane": "recover",
+      "col": 2,
+      "type": "security",
+      "label": "恢复后验收，失败停报",
+      "width": 160
+    },
+    {
+      "id": "recovered",
+      "lane": "recover",
+      "col": 1,
+      "type": "database",
+      "label": "记录恢复，发布仍失败",
+      "width": 160
+    },
+    {
+      "id": "stop",
+      "lane": "delivery",
+      "col": 0,
+      "type": "external",
+      "label": "未写入：停止并修复",
+      "width": 160
+    },
+    {
+      "id": "manual",
+      "lane": "hold",
+      "col": 4,
+      "type": "security",
+      "label": "人工同门禁，未知则停",
+      "width": 160
+    },
+    {
+      "id": "dbrepair",
+      "lane": "hold",
+      "col": 2,
+      "type": "database",
+      "label": "按记录修复，不倒退全库",
+      "width": 160
+    },
+    {
+      "id": "quiet",
+      "lane": "runtime",
+      "col": 3,
+      "type": "messagebus",
+      "label": "稳定窗合并并复核 active",
+      "width": 160
+    },
+    {
+      "id": "notify",
+      "lane": "runtime",
+      "col": 4,
+      "type": "external",
+      "label": "实际内容变化才通知",
+      "width": 160
+    },
+    {
+      "id": "visitor",
+      "lane": "runtime",
+      "col": 0,
+      "type": "frontend",
+      "label": "访客与爬虫：相同 HTML",
+      "width": 160
+    },
+    {
+      "id": "api",
+      "lane": "runtime",
+      "col": 1,
+      "type": "backend",
+      "label": "React 请求当前 API",
+      "width": 160
+    }
+  ],
+  "edges": [
+    {
+      "from": "quality",
+      "to": "snapshot"
+    },
+    {
+      "from": "snapshot",
+      "to": "build"
+    },
+    {
+      "from": "build",
+      "to": "artifact"
+    },
+    {
+      "from": "artifact",
+      "to": "baseline"
+    },
+    {
+      "from": "baseline",
+      "to": "backend"
+    },
+    {
+      "from": "backend",
+      "to": "static"
+    },
+    {
+      "from": "static",
+      "to": "accept"
+    },
+    {
+      "from": "baseline",
+      "to": "expand",
+      "label": "需要迁移时"
+    },
+    {
+      "from": "expand",
+      "to": "backend",
+      "label": "兼容才交付"
+    },
+    {
+      "from": "accept",
+      "to": "active",
+      "label": "通过",
+      "role": "branch"
+    },
+    {
+      "from": "accept",
+      "to": "classify",
+      "label": "写入阶段失败",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "from": "quality",
+      "to": "stop",
+      "label": "准备失败",
+      "role": "error"
+    },
+    {
+      "from": "classify",
+      "to": "eligible",
+      "label": "已改变线上"
+    },
+    {
+      "from": "eligible",
+      "to": "restore",
+      "label": "全通过"
+    },
+    {
+      "from": "eligible",
+      "to": "manual",
+      "label": "不满足或未知",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "from": "restore",
+      "to": "proof",
+      "label": "执行完成"
+    },
+    {
+      "from": "proof",
+      "to": "recovered",
+      "label": "通过"
+    },
+    {
+      "from": "proof",
+      "to": "manual",
+      "label": "失败停报",
+      "role": "error"
+    },
+    {
+      "from": "manual",
+      "to": "dbrepair",
+      "label": "数据需修复"
+    },
+    {
+      "from": "active",
+      "to": "quiet",
+      "label": "内容差异"
+    },
+    {
+      "from": "recovered",
+      "to": "quiet",
+      "label": "实际恢复差异",
+      "role": "branch"
+    },
+    {
+      "from": "quiet",
+      "to": "notify",
+      "label": "当前有差异"
+    },
+    {
+      "from": "visitor",
+      "to": "api",
+      "label": "接管后查实时数据"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "目标设计，尚未实现",
+      "items": [
+        "数据库保留当前业务写入；兼容失败、状态未知或已有新发布时停止，恢复最多一次。先验收再登记成功；搜索通知不等于阻止自主抓取。"
+      ]
+    }
+  ],
+  "semanticChecks": {
+    "requiredEdges": [
+      {
+        "from": "baseline",
+        "to": "expand"
+      },
+      {
+        "from": "expand",
+        "to": "backend"
+      }
+    ],
+    "requiredPaths": [
+      {
+        "from": "baseline",
+        "to": "static"
+      },
+      {
+        "from": "quality",
+        "to": "baseline"
+      }
+    ]
+  }
+}

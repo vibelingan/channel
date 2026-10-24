@@ -1,0 +1,250 @@
+name: CI
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ai-store:
+    name: AI store contract (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # A separate job, not a service bolted onto `checks`: the database is only
+    # needed by the AI assistant's store work, and a failure here should read as
+    # "the store contract broke", not "the build is red".
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+          POSTGRES_DB: ai_assistant
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai -d ai_assistant"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      CI: 'true'
+      DATABASE_URL: postgres://ai:ai@localhost:5432/ai_assistant
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # LLD-001's entire takeover design rests on behaviours this probe checks —
+      # chiefly that a conditional UPDATE which waited on a row lock returns zero
+      # rows rather than raising or succeeding on stale data. Running it in CI
+      # means a PostgreSQL image or configuration change that breaks the
+      # assumption is caught here rather than in production.
+      - name: Store contract probe
+        run: pnpm test:ai:store
+
+      # Root `pnpm test` deliberately EXCLUDES the AI packages that need a
+      # database, because the `checks` job has no PostgreSQL service. They run
+      # here instead, where one exists. Without that split the ordinary build
+      # fails on ECONNREFUSED and everyone learns to ignore a red check.
+      - name: AI runtime integration tests
+        run: pnpm test:ai:runtime
+
+      - name: AI package tests (engine, adapter, policy)
+        run: pnpm test:ai
+
+      # The smoke scripts are the artifact this work is actually judged on: the
+      # same file must pass locally, here, and against the deployed CloudRun
+      # origin. Running them in CI against a real server — not a mock — is what
+      # makes the third run meaningful. The services run from `dist`, so the
+      # build is a precondition rather than a separate nicety.
+      - name: Build AI containers' entry artifacts
+        run: pnpm build:ai
+
+      - name: Start BFF and worker
+        run: |
+          PORT=58080 CORS_ALLOWED_ORIGINS=https://ci.invalid \
+            nohup pnpm --filter @vibelingan-channel/ai-bff start > /tmp/ai-bff.log 2>&1 &
+          PORT=58081 \
+            nohup pnpm --filter @vibelingan-channel/ai-worker start > /tmp/ai-worker.log 2>&1 &
+          for _ in $(seq 1 40); do
+            if curl -sf http://localhost:58080/api/ai/healthz >/dev/null \
+              && curl -sf http://localhost:58081/healthz >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          # Without the logs a startup failure here reads as an unexplained
+          # timeout, which is the least actionable way for CI to fail.
+          echo "services did not become reachable within 40s" >&2
+          echo "--- ai-bff ---" >&2; cat /tmp/ai-bff.log >&2 || true
+          echo "--- ai-worker ---" >&2; cat /tmp/ai-worker.log >&2 || true
+          exit 1
+
+      - name: Smoke the running services
+        run: pnpm smoke:ai
+
+  unit:
+    name: Unit tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: scripts
+            command: pnpm test:deploy-smoke
+          - suite: packages
+            command: pnpm -r --filter './packages/**' --filter '!@vibelingan-channel/ai-store' test
+          - suite: services
+            command: pnpm -r --filter './apps/**' --filter '!@vibelingan-channel/site' --filter '!@vibelingan-channel/ai-bff' --filter '!@vibelingan-channel/ai-worker' test
+          - suite: site
+            command: pnpm --filter @vibelingan-channel/site test
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Use the Ubuntu archive for browser dependencies
+        if: ${{ matrix.suite == 'site' }}
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+      - name: Install browsers for component unit tests
+        if: ${{ matrix.suite == 'site' }}
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Run unit group
+        run: ${{ matrix.command }}
+
+  # Listed after ai-store on purpose. Other branches add steps to the end of this
+  # job, and a job appended after it here collided with them at the end of the
+  # file on every merge. Job order does not affect how the jobs run.
+  checks:
+    name: Build and smoke
+    runs-on: ubuntu-latest
+    needs: unit
+    timeout-minutes: 15
+
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify CloudBase SDK contract
+        run: pnpm verify:cloudbase-sdk
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Package CloudBase functions
+        run: pnpm package:functions
+
+      - name: Set up deployed function runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+
+      - name: Smoke function artifacts on deployed runtime
+        env:
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/smoke-function-artifacts.mjs
+
+      - name: Restore site build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
+      - name: Prepare local-only product SEO fixture
+        run: pnpm --filter @vibelingan-channel/site seo:fixture /tmp/channel-product-seo-fixture.json
+
+      - name: Build site
+        env:
+          SEO_CATALOG_SNAPSHOT: /tmp/channel-product-seo-fixture.json
+        run: pnpm build
+
+      - name: Scan built site for server secret names
+        run: |
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
+            echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      - name: Discover Playwright specs
+        run: pnpm test:e2e --list
+
+      - name: Install Playwright Chromium and WebKit
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Exercise initial product HTML and existing buyer interactions
+        run: node scripts/verify-product-seo.mjs apps/site/dist /tmp/channel-product-seo-fixture.json output/playwright/product-seo
+
+      - name: Preserve failed local browser evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-local-browser-${{ github.sha }}
+          path: output/playwright/
+          retention-days: 7
+          if-no-files-found: ignore

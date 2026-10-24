@@ -1,0 +1,262 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+import { signSession } from '@vibelingan-channel/auth/jwt';
+import { setAdapter } from '@vibelingan-channel/db';
+import { z } from 'zod';
+import { prepareCatalogSource } from '../../functions/admin/src/catalog-detail-source.ts';
+import { handleAdminRequest } from '../../functions/admin/src/handler.ts';
+import { sourceObservationFixture } from '../../functions/alibaba-catalog-sync/src/testing/source-observation-fixture.ts';
+import { getProductDetail } from '../../functions/public-api/src/catalog-detail.ts';
+import { publicItem } from '../../functions/public-api/src/handler.ts';
+import { JsonFileAdapter } from './json-adapter.ts';
+
+test('manual price patches cannot leave published list and approved detail on different prices', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'channel-manual-price-publication-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'db.json');
+  const product = {
+    _id: 'headset',
+    name: 'Headset',
+    description: 'Description is independent of price.',
+    productFamily: 'headphones',
+    category: 'wired',
+    imageIds: ['image'],
+    published: false,
+    archived: false,
+    unitPrice: 3,
+    catalogPricingMode: 'manual',
+    alibabaPrimarySourceKey: 'source',
+    detailSourceReady: true,
+    detailSourceOwner: 'source',
+    detailSourceRevision: 'source-r1',
+    detailSourceManifest: { revision: 'source-r1', variantIds: [] },
+    detailSourceCandidate: {
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'headset',
+      name: 'Source headset',
+      images: ['/api/images/image'],
+      facts: [],
+      offers: [
+        {
+          kind: 'supplier',
+          basis: 'source-quote',
+          pricing: { mode: 'fixed', currency: 'USD', amountMinor: 290 },
+        },
+      ],
+    },
+  };
+  const source = {
+    _id: 'source',
+    sourceProductId: 'external-source',
+    connectionId: 'test',
+    sourceTitle: 'Source headset',
+    active: true,
+  };
+  const observation = sourceObservationFixture(source, [
+    {
+      _id: 'offer',
+      sourceKey: 'source',
+      active: true,
+      pricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 290,
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    },
+  ]);
+  writeFileSync(
+    file,
+    JSON.stringify({
+      products: [product],
+      alibabaSourceProducts: [source],
+      alibabaProductLinks: [
+        {
+          _id: source._id,
+          sourceKey: source._id,
+          connectionId: source.connectionId,
+          sourceProductId: source.sourceProductId,
+          productId: 'headset',
+          linkedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      catalogSourceObservations: [observation],
+      users: [{ _id: 'admin', role: 'admin', status: 'active' }],
+      images: [
+        {
+          _id: 'image',
+          status: 'active',
+          storageProvider: 'local-disk',
+          refCount: 1,
+          publishedRefCount: 0,
+        },
+      ],
+    }),
+  );
+  let adapter = new JsonFileAdapter(file);
+  setAdapter(adapter);
+  const config = { jwtSecret: 'manual-price-local-test-only', enableDetailApproval: true };
+  const token = await signSession(config.jwtSecret, {
+    sub: 'admin',
+    role: 'admin',
+    name: 'Test Admin',
+    email: 'admin@example.test',
+  });
+  const save = (values: Record<string, unknown>) =>
+    handleAdminRequest(
+      {
+        action: 'update',
+        token,
+        data: { collection: 'products', id: 'headset', values },
+      },
+      config,
+    );
+  const approve = async () => {
+    const prepared = await prepareCatalogSource('admin', {
+      action: 'prepare',
+      productId: 'headset',
+    });
+    assert.ok(prepared.ok, JSON.stringify(prepared));
+    const call = (data: unknown) =>
+      handleAdminRequest({ action: 'catalogDetailApproval', token, data }, config);
+    const review = await call({ action: 'review', productId: 'headset' });
+    assert.ok(review.ok, JSON.stringify(review));
+    const reviewed = z
+      .object({ expectedDigest: z.string(), expectedRevision: z.string().nullable() })
+      .parse(review.data);
+    const begin = await call({
+      action: 'begin',
+      command: { productId: 'headset', operationId: randomUUID(), ...reviewed },
+    });
+    assert.ok(begin.ok, JSON.stringify(begin));
+    const job = z.object({ jobId: z.string(), pages: z.number() }).parse(begin.data);
+    for (let page = 0; page < job.pages; page++) {
+      const result = await call({ action: 'page', jobId: job.jobId, page });
+      assert.ok(result.ok, JSON.stringify(result));
+    }
+    const finish = await call({ action: 'finish', jobId: job.jobId });
+    assert.ok(finish.ok, JSON.stringify(finish));
+  };
+  const assertPublicPrice = async (amount: number) => {
+    // Reload durable state; no editor cache or in-memory draft is the evidence.
+    adapter = new JsonFileAdapter(file);
+    setAdapter(adapter);
+    const saved = await adapter.get('products', 'headset');
+    assert.ok(saved);
+    // The list item buyers get is the approved version: its price summary,
+    // never the row's prices (DEC-1, DEC-14).
+    const item = publicItem('products', saved, { enableCatalogDetail: true });
+    assert.equal(item.kind, 'approved');
+    for (const field of [
+      'unitPrice',
+      'wholesalePrice',
+      'manualCatalogPricing',
+      'catalogPricingMode',
+    ])
+      assert.equal(field in item.doc, false, `row ${field} reached the list`);
+    assert.deepEqual(item.doc.priceSummary, {
+      source: 'website',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: amount * 100 },
+    });
+    const detail = await getProductDetail('headset');
+    assert.ok(detail.ok, JSON.stringify(detail));
+    assert.deepEqual(detail.data.websitePricing, {
+      basis: 'website-manual',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: amount * 100 },
+    });
+    assert.equal(detail.data.descriptionText, product.description);
+  };
+
+  await approve();
+  assert.ok((await save({ published: true })).ok);
+  await assertPublicPrice(3);
+  await t.test(
+    'non-price form saves preserve publication and approved detail until review',
+    async () => {
+      const approved = await adapter.get('products', 'headset');
+      const result = await save({
+        productFamily: 'misc',
+        category: '',
+        unitPrice: 3,
+        catalogPricingMode: 'manual',
+      });
+      assert.ok(result.ok, JSON.stringify(result));
+      const saved = await adapter.get('products', 'headset');
+      assert.equal(saved?.published, true);
+      assert.equal(saved?.productFamily, 'misc');
+      assert.deepEqual(saved?.catalogDetailPublication, approved?.catalogDetailPublication);
+      assert.deepEqual(saved?.catalogDetailApprovalReceipt, approved?.catalogDetailApprovalReceipt);
+      assert.equal((await save({ published: true })).ok, false);
+      assert.deepEqual(await adapter.get('products', 'headset'), saved);
+      await assertPublicPrice(3);
+      await approve();
+      assert.ok((await save({ productFamily: 'headphones', category: 'wired' })).ok);
+      await approve();
+    },
+  );
+  // A price edit on a live product is saved to the row and waits for the next
+  // approval: buyers keep the approved price, and publishing the edit needs
+  // approval (MIU-31).
+  const before = await adapter.get('products', 'headset');
+  assert.ok(before);
+  // Each case starts from the approved product: put this disposable DB back.
+  const snapshot = readFileSync(file, 'utf8');
+  const restore = () => {
+    writeFileSync(file, snapshot);
+    adapter = new JsonFileAdapter(file);
+    setAdapter(adapter);
+  };
+  for (const values of [
+    { unitPrice: 8.5 },
+    { wholesalePrice: 8.5 },
+    { catalogPricingMode: 'source' },
+    { moq: 10 },
+    { manualCatalogPricing: null },
+    { productFamily: 'misc', category: '', unitPrice: 8.5 },
+    {
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [{ minQuantity: 5, unitAmountMinor: 850 }],
+      },
+    },
+  ]) {
+    const result = await save(values);
+    assert.ok(result.ok, `price edit on a live product refused: ${JSON.stringify(values)}`);
+    const saved = await adapter.get('products', 'headset');
+    assert.equal(saved?.published, true);
+    assert.deepEqual(saved?.catalogDetailPublication, before.catalogDetailPublication);
+    assert.deepEqual(saved?.catalogDetailApprovalReceipt, before.catalogDetailApprovalReceipt);
+    await assertPublicPrice(3);
+    const republish = await save({ published: true });
+    assert.equal(republish.ok, false, `unapproved edit published: ${JSON.stringify(values)}`);
+    restore();
+    await assertPublicPrice(3);
+  }
+  // Publishing together with an unapproved price change is refused outright.
+  const both = await save({ unitPrice: 8.5, published: true });
+  assert.equal(both.ok, false);
+  if (!both.ok) assert.equal(both.error.code, 'VALIDATION_ERROR');
+  await assertPublicPrice(3);
+  assert.ok((await save({ unitPrice: 3 })).ok, 'unchanged pricing remains editable');
+
+  assert.ok((await save({ published: false, unitPrice: 8.5 })).ok);
+  const draft = await adapter.get('products', 'headset');
+  assert.equal(draft?.unitPrice, 8.5, 'manual save persists independently of source sync');
+  assert.deepEqual(draft?.catalogDetailPublication, before?.catalogDetailPublication);
+  assert.equal((await getProductDetail('headset')).ok, false);
+  assert.equal(
+    (await save({ published: true })).ok,
+    false,
+    'old approval cannot publish changed pricing',
+  );
+  await approve();
+  assert.ok((await save({ published: true })).ok);
+  await assertPublicPrice(8.5);
+});

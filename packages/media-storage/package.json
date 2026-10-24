@@ -1,0 +1,27 @@
+{
+  "name": "@vibelingan-channel/media-storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./local-disk": "./src/local-disk.ts",
+    "./cloudbase": "./src/cloudbase.ts",
+    "./pixels": "./src/pixels.ts"
+  },
+  "scripts": {
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4"
+  },
+  "dependencies": {
+    "@vibelingan-channel/shared": "workspace:*",
+    "sharp": "0.35.5"
+  },
+  "imports": {
+    "#catalog-image-decoder": "sharp"
+  }
+}
