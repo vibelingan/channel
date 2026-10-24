@@ -81,7 +81,7 @@ async function setup(t) {
   };
   const coordinator = createReleaseCoordinator({ store: memoryStore(), policy });
   const sources = new Map();
-  function source(label, { article = false, products = [] } = {}) {
+  function source(label, { article = false, products = [], image = false } = {}) {
     const id = String(++seq);
     const data = new Map(
       Object.entries({
@@ -91,6 +91,11 @@ async function setup(t) {
       }).map(([p, b]) => [p, Buffer.from(b)]),
     );
     if (article) data.set('blog/one/index.html', Buffer.from(`<main>${label} article</main>`));
+    if (image)
+      data.set(
+        `media/articles/owned-image/${'c'.repeat(64)}.png`,
+        Buffer.from('published image bytes'),
+      );
     const directory = join(root, `payload-${id}`);
     createSitePayload({
       directory,
@@ -227,4 +232,24 @@ test('a newly withdrawn product can be removed from accepted A; stale recovery c
     'accepted',
   );
   assert(!f.files.has('products/p-withdrawn/index.html'));
+});
+
+test('failed or withdrawn publication removes only unreferenced public article image copies', async (t) => {
+  const f = await setup(t);
+  const path = `media/articles/owned-image/${'c'.repeat(64)}.png`;
+  const b = f.source('Article B', { article: true, image: true });
+  const failed = await f.deliver(b.input, 'publish', {
+    postCheck: async ({ action }) => {
+      if (action === 'publish') throw Error('controlled verification failure');
+    },
+  });
+  assert.equal(failed.status, 'restored');
+  assert(!f.files.has(path));
+  const c = f.source('Article C', { article: true, image: true });
+  assert.equal((await f.deliver(c.input)).status, 'accepted');
+  assert(f.files.has(path));
+  const d = f.source('Withdraw D');
+  assert.equal((await f.deliver(d.input)).status, 'accepted');
+  assert(!f.files.has(path));
+  assert(f.files.has('foreign.html'));
 });

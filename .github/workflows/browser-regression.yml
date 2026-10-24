@@ -12,6 +12,7 @@ on:
       - 'tests/**'
       - 'playwright.config.ts'
       - 'scripts/run-catalog-admin-local-e2e.mjs'
+      - 'scripts/catalog-e2e-suites.mjs'
       - 'scripts/local-site-readiness.mjs'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -26,6 +27,7 @@ on:
       - 'tests/**'
       - 'playwright.config.ts'
       - 'scripts/run-catalog-admin-local-e2e.mjs'
+      - 'scripts/catalog-e2e-suites.mjs'
       - 'scripts/local-site-readiness.mjs'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -40,18 +42,20 @@ concurrency:
 
 jobs:
   browser:
-    name: Catalog regression (formal=${{ matrix.formal }})
+    name: Catalog checks (formal=${{ matrix.formal }}, group=${{ matrix.group }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         formal: ['0', '1']
+        group: [storefront, admin, taxonomy]
     env:
       CI: 'true'
       PUBLIC_CB_PROXY: '0'
       E2E_RECORD_ARTIFACTS: '1'
       E2E_CATALOG_FORMAL: ${{ matrix.formal }}
+      E2E_CATALOG_GROUP: ${{ matrix.group }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,7 +82,21 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: catalog-local-browser-${{ matrix.formal }}-${{ github.sha }}
+          name: catalog-local-browser-${{ matrix.formal }}-${{ matrix.group }}-${{ github.sha }}
           path: output/playwright/
           retention-days: 7
           if-no-files-found: ignore
+
+  catalog_gate:
+    name: Catalog regression (formal=${{ matrix.formal }})
+    needs: browser
+    if: always()
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        formal: ['0', '1']
+    steps:
+      - name: Require every original browser group
+        env:
+          RESULT: ${{ needs.browser.result }}
+        run: test "$RESULT" = success

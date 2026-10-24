@@ -9,10 +9,10 @@ import { checkFunctionArchive } from '../release/function-archive.mjs';
 import { createCloudbaseFunctionProvider } from '../release/function-provider.mjs';
 import { createGithubReadClient } from '../release/github-read.mjs';
 import { identity, sha256 } from '../release/input.mjs';
-import { fetchFully } from '../smoke-http.mjs';
 import { replaceAdminCode } from './bootstrap-delivery.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
 import { ensureFormalArticleResources } from './resources.mjs';
+import { readAdminRuntimeVersion } from './runtime-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './site-baseline.mjs';
 const env = process.env;
 const policy = assertBlogBootstrapInvocation(env);
@@ -37,25 +37,7 @@ const provider = createCloudbaseFunctionProvider({
   names: ['admin'],
   configurationKey,
 });
-const apiOrigin = `https://${policy.envId}.service.tcloudbase.com`;
-async function readHealth() {
-  const response = await fetchFully('POST', `${apiOrigin}/api/admin`, {
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ action: 'health' }),
-    redirect: 'error',
-  });
-  const health = JSON.parse(response.body.toString());
-  if (
-    response.status !== 200 ||
-    health.ok !== true ||
-    health.data?.service !== 'admin' ||
-    health.data.status !== 'ok' ||
-    typeof health.data.releaseId !== 'string' ||
-    !/^[a-f0-9]{40}$/.test(health.data.releaseId)
-  )
-    throw new Error('Admin runtime health was not confirmed');
-  return health.data.releaseId;
-}
+const readHealth = () => readAdminRuntimeVersion(policy.envId);
 const originalVersion = await readHealth();
 const output = resolve('output/blog-bootstrap');
 await mkdir(output, { recursive: true });

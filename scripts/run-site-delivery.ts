@@ -12,6 +12,7 @@ import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
 import { blogWorkerSdk } from './blog/worker-source.ts';
+import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
 import {
@@ -141,6 +142,43 @@ async function command(
   });
   check();
 }
+async function verifyPublicDelivery({ action }: { action: string }) {
+  if (action === 'publish' || action === 'initialize') {
+    const publicEnv = {
+      PATH: env.PATH,
+      HOME: env.HOME,
+      CI: 'true',
+      GITHUB_ACTIONS: 'true',
+      E2E_SITE_URL: policy.siteOrigin,
+      E2E_API_URL: `https://${policy.envId}.service.tcloudbase.com`,
+      E2E_SEO_PUBLIC_LIVE: '1',
+      E2E_RECORD_ARTIFACTS: '0',
+      ...(claim
+        ? {
+            E2E_EXPECT_ARTICLE_PATH: `/blog/${claim.task.slug}/`,
+            E2E_EXPECT_ARTICLE_STATUS: claim.task.operation === 'withdraw' ? '404' : '200',
+            E2E_EXPECT_ARTICLE_TITLE: claim.candidate?.content.title ?? '',
+          }
+        : {}),
+    };
+    await new Promise<void>((done, reject) => {
+      const child = spawn(
+        resolve('node_modules/.bin/playwright'),
+        ['test', 'tests/e2e/seo-public-live.spec.ts', '--project=chromium', '--retries=0'],
+        { cwd: process.cwd(), env: publicEnv, stdio: 'inherit' },
+      );
+      child.once('error', reject);
+      child.once('exit', (code) =>
+        code === 0 ? done() : reject(Error('Real public browser acceptance failed')),
+      );
+    });
+    if (env.SITE_DELIVERY_FAULT === 'after-upload')
+      throw Error('Authorized acceptance drill after verified candidate delivery');
+  } else {
+    if (!(await auditHostingContract(policy.siteOrigin)).passed)
+      throw Error('Restored website status/cache check failed');
+  }
+}
 const root = process.cwd();
 const acceptedCache = new Map<string, ReturnType<typeof siteArtifact>>();
 async function loadAccepted(run: {
@@ -261,6 +299,7 @@ try {
         mode: 'adopt',
         publicProductPaths,
         readPublicProductPaths,
+        postCheck: verifyPublicDelivery,
         onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
       },
       { policy, scopeKey: 'site' },
@@ -295,6 +334,7 @@ try {
         restoreRunId: sourceRunId,
         publicProductPaths,
         readPublicProductPaths,
+        postCheck: verifyPublicDelivery,
         onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
       },
       { policy, scopeKey: 'site' },
@@ -312,12 +352,28 @@ try {
     if (!Array.isArray(uncertain.data) || uncertain.data.length)
       throw Error('An article publication requires technical readback first');
     if (requestedTaskId) claim = await worker.claim(requestedTaskId, runId);
-    await command(
-      join(root, 'apps/site/node_modules/.bin/tsx'),
-      ['apps/site/scripts/prepare-product-seo.ts', productFile],
-      root,
-      { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
-    );
+    if (env.SITE_PRODUCT_SOURCE === 'accepted') {
+      const pathsFile = join(directory, 'reuse-public-paths.json');
+      await writeFile(pathsFile, JSON.stringify(await readPublicProductPaths()), { flag: 'wx' });
+      await command(
+        join(root, 'apps/site/node_modules/.bin/tsx'),
+        [
+          'apps/site/scripts/reuse-product-seo.ts',
+          join(baseline.directory, 'product-snapshot.json'),
+          pathsFile,
+          productFile,
+        ],
+        root,
+        { SITE_URL: policy.siteOrigin },
+      );
+    } else {
+      await command(
+        join(root, 'apps/site/node_modules/.bin/tsx'),
+        ['apps/site/scripts/prepare-product-seo.ts', productFile],
+        root,
+        { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
+      );
+    }
     const products = JSON.parse(await readFile(productFile, 'utf8'));
     assert(Array.isArray(products.products));
     const snapshotPaths = products.products.map((p: { product: { _id: string } }) =>
@@ -397,6 +453,7 @@ try {
         loadAccepted,
         publicProductPaths,
         readPublicProductPaths,
+        postCheck: verifyPublicDelivery,
         onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
       },
       { policy, scopeKey: 'site' },
@@ -412,7 +469,12 @@ try {
     await writeFile(
       join(directory, 'result.json'),
       JSON.stringify(
-        { ...result, articleTaskId: claim?.task.id ?? null, products: publicProductPaths.length },
+        {
+          ...result,
+          articleTaskId: claim?.task.id ?? null,
+          products: publicProductPaths.length,
+          productSource: env.SITE_PRODUCT_SOURCE ?? 'fresh',
+        },
         null,
         2,
       ),

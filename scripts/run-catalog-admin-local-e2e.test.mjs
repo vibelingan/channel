@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import test from 'node:test';
+import { catalogE2eSuites } from './catalog-e2e-suites.mjs';
 
 test('catalog acceptance uses isolated production artifacts and cannot inherit CloudBase media configuration', async () => {
   const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
@@ -21,16 +22,19 @@ test('catalog acceptance uses isolated production artifacts and cannot inherit C
     'catalog-hub.spec.ts',
     'header-navigation.spec.ts',
   ]) {
-    assert.ok(source.includes(`tests/e2e/${spec}`), `${spec} must run before deployment`);
+    assert.ok(
+      catalogE2eSuites({ formal: false }).flat().includes(`tests/e2e/${spec}`),
+      `${spec} must run before deployment`,
+    );
   }
 });
 
 test('taxonomy mutations run last with owned local database guards and real API calls', async () => {
   const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
-  assert.match(
-    source,
-    /\['test', 'tests\/e2e\/catalog-taxonomy\.spec\.ts'\],\s*e2eEnvironment,?\s*\);\s*\}\s*\} finally/,
-  );
+  for (const formal of [true, false])
+    assert.deepEqual(catalogE2eSuites({ formal }).at(-1), ['tests/e2e/catalog-taxonomy.spec.ts']);
+  assert.match(source, /for \(const specs of browserSuites\)/);
+  assert.match(source, /\['test', \.\.\.specs\], e2eEnvironment/);
   assert.match(source, /E2E_CATALOG_LOCAL_SEED: '1'/);
   assert.match(source, /E2E_CATALOG_LOCAL_DB: databaseFile/);
   assert.match(source, /E2E_ADMIN_EMAIL: 'admin@channel\.local'/);
@@ -53,11 +57,19 @@ test('taxonomy mutations run last with owned local database guards and real API 
 });
 
 test('admin subcategory journey runs in every lane before taxonomy with owned local guards', async () => {
-  const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
-  const journey = source.lastIndexOf("'tests/e2e/admin-subcategory-visibility.spec.ts'");
-  assert.ok(journey > source.indexOf('tests/e2e/catalog-formal-journey.spec.ts'));
-  assert.ok(journey > source.indexOf('tests/e2e/admin-product-family-tabs.spec.ts'));
-  assert.ok(journey < source.indexOf("'tests/e2e/catalog-taxonomy.spec.ts'"));
+  for (const formal of [true, false]) {
+    const suites = catalogE2eSuites({ formal }).flat();
+    const journey = suites.indexOf('tests/e2e/admin-subcategory-visibility.spec.ts');
+    assert.ok(
+      journey >
+        suites.indexOf(
+          formal
+            ? 'tests/e2e/catalog-formal-journey.spec.ts'
+            : 'tests/e2e/admin-product-family-tabs.spec.ts',
+        ),
+    );
+    assert.ok(journey < suites.indexOf('tests/e2e/catalog-taxonomy.spec.ts'));
+  }
   const spec = await readFile('tests/e2e/admin-subcategory-visibility.spec.ts', 'utf8');
   assert.match(spec, /const enabled = e2e\.catalogLocalSeed/);
   assert.match(spec, /test\.skip\(!enabled,/);

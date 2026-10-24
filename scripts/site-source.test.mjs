@@ -140,6 +140,25 @@ test('formal publication reuses the existing queue and leaves normal deploy trig
     SITE_DELIVERY_CONFIRM: 'FORMAL_SITE_ONLY',
   };
   assert.equal(assertSiteDeliveryInvocation(valid), policy);
+  assert.equal(assertSiteDeliveryInvocation({ ...valid, SITE_PRODUCT_SOURCE: 'accepted' }), policy);
+  assert.throws(() => assertSiteDeliveryInvocation({ ...valid, SITE_PRODUCT_SOURCE: 'skip' }));
+  assert.throws(() =>
+    assertSiteDeliveryInvocation({ ...valid, SITE_DELIVERY_FAULT: 'after-upload' }),
+  );
+  assert.throws(() =>
+    assertSiteDeliveryInvocation({
+      ...valid,
+      SITE_DELIVERY_FAULT: 'after-upload',
+      SITE_ARTICLE_TASK_ID: 'auto',
+    }),
+  );
+  const drill = {
+    ...valid,
+    SITE_DELIVERY_FAULT: 'after-upload',
+    SITE_ARTICLE_TASK_ID: `release-${'b'.repeat(64)}`,
+  };
+  assert.equal(assertSiteDeliveryInvocation(drill), policy);
+  assert.throws(() => assertSiteDeliveryInvocation({ ...drill, SITE_DELIVERY_MODE: 'restore' }));
   for (const field of Object.keys(valid))
     assert.throws(() => assertSiteDeliveryInvocation({ ...valid, [field]: 'bad' }));
 });

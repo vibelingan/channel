@@ -136,3 +136,7 @@ export function freeze(value) {
   }
   return value;
 }
+
+// Only the public delivery copy; CloudBase private article originals use a different storage API.
+export const articleMediaFile =
+  /^media\/articles\/[A-Za-z0-9][A-Za-z0-9:_-]{0,127}\/[a-f0-9]{64}\.(?:jpg|png|webp)$/;

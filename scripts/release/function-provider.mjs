@@ -108,22 +108,8 @@ export function createCloudbaseFunctionProvider({
       managedKeys: [],
       desired: {},
     });
-    const {
-      RequestId,
-      Status,
-      AvailableStatus,
-      StatusDesc,
-      StatusReasons,
-      CodeInfo,
-      CodeResult,
-      CodeError,
-      ErrNo,
-      CodeSize,
-      CodeSha256,
-      ModTime,
-      InstallDependency,
-      ...configuration
-    } = detail;
+    const { Status, AvailableStatus, ModTime, CodeSize, InstallDependency, RequestId } = detail;
+    const configuration = functionConfiguration(detail);
     const configurationToken = createHmac('sha256', key)
       .update(identity(configuration))
       .digest('hex');
@@ -252,4 +238,25 @@ export function createCloudbaseFunctionProvider({
       }, name);
     },
   });
+}
+
+/** Secret-bearing configuration stays inside the trusted process. Never log or archive it. */
+export function functionConfiguration(detail) {
+  const {
+    RequestId,
+    Status,
+    AvailableStatus,
+    StatusDesc,
+    StatusReasons,
+    CodeInfo,
+    CodeResult,
+    CodeError,
+    ErrNo,
+    CodeSize,
+    CodeSha256,
+    ModTime,
+    InstallDependency,
+    ...configuration
+  } = detail;
+  return configuration;
 }

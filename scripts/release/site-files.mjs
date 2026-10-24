@@ -1,6 +1,12 @@
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { assertHostingPath, limits, readHostingObject, sha256 } from './input.mjs';
+import {
+  articleMediaFile,
+  assertHostingPath,
+  limits,
+  readHostingObject,
+  sha256,
+} from './input.mjs';
 const protectedPath =
   /^(?:_(?!astro\/)|cloud-admin\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/;
 const staticFile =
@@ -60,6 +66,7 @@ export function retainSiteAssets(files, baseline) {
   for (const entry of baseline?.staticManifest.entries ?? []) {
     if (
       entry.path.endsWith('.html') ||
+      articleMediaFile.test(entry.path) ||
       /\.xml$|^(?:robots\.txt|seo-manifest\.json|products\/manifest\.json)$/.test(entry.path)
     )
       continue;

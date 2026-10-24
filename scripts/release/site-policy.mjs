@@ -19,6 +19,11 @@ export function assertSiteDeliveryInvocation(env) {
     env.SITE_URL !== p.siteOrigin ||
     env.CLOUDBASE_REGION !== p.region ||
     !['publish', 'restore'].includes(env.SITE_DELIVERY_MODE) ||
+    !['fresh', 'accepted'].includes(env.SITE_PRODUCT_SOURCE ?? 'fresh') ||
+    !['none', 'after-upload'].includes(env.SITE_DELIVERY_FAULT ?? 'none') ||
+    (env.SITE_DELIVERY_FAULT === 'after-upload' &&
+      (env.SITE_DELIVERY_MODE !== 'publish' ||
+        !/^release-[a-f0-9]{64}$/.test(env.SITE_ARTICLE_TASK_ID ?? ''))) ||
     !/^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? '') ||
     !/^\d+$/.test(env.GITHUB_RUN_ID ?? '') ||
     !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? '') ||

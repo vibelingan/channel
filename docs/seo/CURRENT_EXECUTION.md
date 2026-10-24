@@ -1,5 +1,7 @@
 # 当前 SEO / GEO 执行顺序
 
+2026-10-24 当前入口：[整合后的共同进度](../blog/NEXT-STEPS.zh-CN.md)与[本轮现场记录](../blog/06-integrated-release-worklog-2026-10-24.zh-CN.md)。pricing 已合入 main，原 SEO 分支已整合。当前在完成真实 CloudBase、商品 SSG 与非 Agent Blog 的正式交付；下文旧时点与旧分支仅供查证，不代表本轮状态。
+
 2026-10-22 最新安排：本轮不动线上，等 pricing 合并 main、SEO 更新并通过回归后，再按[真实云端演练与清理计划](execution/LIVE-RESUME-AND-CLEANUP.zh-CN.md)执行。该计划区分了尚需接线和代码已有待现场验证的工作。期间继续 [Blog 分模块开发](../blog/README.zh-CN.md)：本轮实现文章核心，后台编辑器、公开页面和 Hermes 接线仍属于后续模块。
 
 最新推进：[假业务恢复演练](execution/module-06-dummy-rehearsal.zh-CN.md)。本地已实现可运行的 A/B 假函数、真实执行旧包的业务兼容测试和指定旧包恢复联测；线上只查询预留名称，没有创建资源或执行恢复。下一段先接独立假资源入口，再做云端演练；业务函数的恢复继续关闭。

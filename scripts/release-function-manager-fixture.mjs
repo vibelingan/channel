@@ -86,6 +86,21 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
           Url: 'https://code.cos.ap-shanghai.myqcloud.com/function.zip?signed=fixture-private-signature',
           RequestId: 'download-url',
         };
+      if (action === 'UpdateFunctionConfiguration') {
+        state.configUpdates = (state.configUpdates ?? 0) + 1;
+        if (
+          Object.keys(payload).some(
+            (k) =>
+              !['EnvId', 'FunctionName', 'Environment', 'ClsLogsetId', 'ClsTopicId'].includes(k),
+          )
+        )
+          throw Error('Unexpected config field');
+        state.detail.Environment = structuredClone(payload.Environment);
+        state.detail.ModTime = 'config-version';
+        if (state.fail === 'config-drift') state.detail.MemorySize = 512;
+        if (state.fail === 'config-lost-ack') throw Error('lost configuration reply');
+        return { RequestId: 'config-update' };
+      }
       if (action === 'UpdateFunctionCode') {
         state.onUpdate?.();
         if (state.holdUpdate) await state.holdUpdate;

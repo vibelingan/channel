@@ -41,7 +41,9 @@ test('all manual modes select exactly one job and retain the existing shared tar
             ? 'blog_bootstrap'
             : mode === 'site-delivery'
               ? 'site_delivery'
-              : 'canary',
+              : mode === 'blog-enable'
+                ? 'blog_enable'
+                : 'canary',
     ]);
   }
   assert.deepEqual(workflow.concurrency, {
@@ -49,7 +51,7 @@ test('all manual modes select exactly one job and retain the existing shared tar
     'cancel-in-progress': false,
   });
   assert.equal(workflow.jobs.functions.environment, 'test');
-  assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 8);
+  assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 10);
 });
 test('function workflow runs credentials only in the two function commands and archives before executing', () => {
   const job = workflow.jobs.functions;

@@ -296,3 +296,26 @@ export function readProductSnapshot(site: string): Promise<ProductSnapshot> {
   })();
   return loaded;
 }
+
+/** Explicit emergency reuse keeps detail UI; new product IDs require a complete fresh snapshot. */
+export function reuseAcceptedProductSnapshot(
+  input: unknown,
+  publicPaths: string[],
+  site: string,
+): ProductSnapshot {
+  const snapshot = decodeProductSnapshot(input, site);
+  if (
+    snapshot.purpose !== 'public' ||
+    !Array.isArray(publicPaths) ||
+    publicPaths.length > 50000 ||
+    new Set(publicPaths).size !== publicPaths.length ||
+    publicPaths.some((path) => !/^\/products\/p-[A-Za-z0-9_-]{1,200}\/$/.test(path))
+  )
+    throw Error('Verified accepted snapshot and complete current public URL inventory required');
+  const known = new Set(snapshot.products.map((entry) => productPath(entry.product._id)));
+  if (publicPaths.some((path) => !known.has(path)))
+    throw Error('New public products are absent from the accepted snapshot; use full acquisition');
+  const current = new Set(publicPaths);
+  const products = snapshot.products.filter((entry) => current.has(productPath(entry.product._id)));
+  return decodeProductSnapshot({ ...snapshot, total: products.length, products }, site);
+}

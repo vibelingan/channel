@@ -5,6 +5,7 @@ import {
   collectProductSnapshot,
   collectPublicProductPaths,
   decodeProductSnapshot,
+  reuseAcceptedProductSnapshot,
 } from './product-snapshot.ts';
 
 const origin = 'https://example.com';
@@ -94,5 +95,31 @@ test('fresh recovery allowlists use only anonymous inventory requests and share 
         Response.json({ ok: true, data: { items: [], total: 1, page: 1, pageSize: 48 } }),
       ),
     /incomplete/,
+  );
+});
+
+test('emergency reuse preserves accepted detail and interactions, filters withdrawals and refuses to drop new public IDs', async () => {
+  const accepted = await collectProductSnapshot(origin, origin, transport());
+  const reused = reuseAcceptedProductSnapshot(accepted, ['/products/p-canonical-product/'], origin);
+  assert.deepEqual(reused.products, accepted.products);
+  assert(reused.products[0]?.detail);
+  assert.equal(reuseAcceptedProductSnapshot(accepted, [], origin).products.length, 0);
+  assert.throws(
+    () => reuseAcceptedProductSnapshot(accepted, ['/products/p-new/'], origin),
+    /New public products/,
+  );
+  assert.throws(() =>
+    reuseAcceptedProductSnapshot(
+      { ...accepted, purpose: 'fixture' },
+      ['/products/p-canonical-product/'],
+      origin,
+    ),
+  );
+  assert.throws(() =>
+    reuseAcceptedProductSnapshot(
+      accepted,
+      ['/products/p-canonical-product/', '/products/p-canonical-product/'],
+      origin,
+    ),
   );
 });

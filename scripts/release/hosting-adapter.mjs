@@ -12,6 +12,7 @@ import {
 } from './hosting-configuration.mjs';
 import { verifyHostingObject } from './hosting-readback.mjs';
 import {
+  articleMediaFile,
   assertHostingPath,
   checkEntries,
   freeze,
@@ -494,6 +495,7 @@ function validatePlan(plan, configurationPlan) {
       ['index.html', '404.html', errorDocumentPath].includes(path) ||
       !(
         path.endsWith('.html') ||
+        articleMediaFile.test(path) ||
         isSitemap(path) ||
         ['robots.txt', 'seo-manifest.json', 'products/manifest.json'].includes(path)
       )

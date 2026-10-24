@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { verifyReleaseArtifact } from './release/artifact.mjs';
 import {
+  articleMediaFile,
   assertHostingPath,
   assertOrigin,
   backupObjectPath,
@@ -257,10 +258,13 @@ function makePlan({
   }
   const phase = (entry) =>
     isDiscovery(entry.path) || publicOutput.discoveryPaths?.includes(entry.path)
-      ? 2
-      : entry.path.endsWith('.html')
+      ? 3
+      : /^(?:products\/p-[A-Za-z0-9_-]+|blog\/[a-z0-9-]+)\/index\.html$/.test(entry.path) &&
+          entry.path !== 'blog/index.html'
         ? 1
-        : 0;
+        : entry.path.endsWith('.html')
+          ? 2
+          : 0;
   const plan = {
     schemaVersion: 2,
     target,
@@ -272,7 +276,7 @@ function makePlan({
       (path) =>
         !protectedPath.test(path) &&
         !restoredPaths.has(path) &&
-        (path.endsWith('.html') || isDiscovery(path)),
+        (path.endsWith('.html') || isDiscovery(path) || articleMediaFile.test(path)),
     ),
     preservedPlatformFiles: entries.filter((entry) => protectedPath.test(entry.path)).length,
   };

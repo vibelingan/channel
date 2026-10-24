@@ -6,9 +6,21 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, site-delivery]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, site-delivery, blog-enable]
         default: plan
         required: true
+      product_source:
+        description: Full acquisition by default; accepted reuses the last verified details, excludes withdrawals and refuses new product IDs
+        type: choice
+        options: [fresh, accepted]
+        default: fresh
+        required: false
+      fault:
+        description: Controlled article-only acceptance drill; after-upload requires an exact owned article task ID and intentionally fails before acceptance
+        type: choice
+        options: [none, after-upload]
+        default: none
+        required: false
       action:
         description: Initialize only a proven unused prefix; restore only an explicitly accepted run
         type: choice
@@ -252,8 +264,20 @@ jobs:
     uses: ./.github/workflows/seo-site-delivery.yml
     with:
       action: ${{ inputs.action }}
+      product_source: ${{ inputs.product_source }}
+      fault: ${{ inputs.fault }}
       article_task_id: ${{ inputs.artifact_id }}
       restore_run_id: ${{ inputs.restore_run_id }}
     secrets:
       TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+
+  blog_enable:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-enable' }}
+    uses: ./.github/workflows/seo-blog-bootstrap.yml
+    with:
+      enable_publishing: true
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}

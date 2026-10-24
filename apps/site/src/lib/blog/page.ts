@@ -79,7 +79,10 @@ export function articlePage(
         description: articleSummary(article),
         url,
         mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-        author: { '@type': 'Person', name: content.authorName },
+        author: {
+          '@type': content.authorName === brand ? 'Organization' : 'Person',
+          name: content.authorName,
+        },
         datePublished: article.publishedAt,
         dateModified: article.modifiedAt,
         ...(images.length ? { image: images } : {}),

@@ -4,8 +4,14 @@ import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { catalogE2eSuites } from './catalog-e2e-suites.mjs';
 import { localSiteUrl } from './local-site-readiness.mjs';
 
+const browserGroup = process.env.E2E_CATALOG_GROUP ?? 'all';
+const browserSuites = catalogE2eSuites({
+  formal: process.env.E2E_CATALOG_FORMAL === '1',
+  group: browserGroup,
+});
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'channel-catalog-e2e-'));
 const databaseFile = join(temporaryDirectory, 'db.json');
 // Astro moves intermediate output with rename(), which cannot cross filesystems.
@@ -265,64 +271,8 @@ try {
       e2eEnvironment,
     );
   } else {
-    // Legacy and shared routes ship together. The same public browser gate must
-    // run against disposable local production artifacts BEFORE deployment.
-    await run(bin('.', 'playwright'), ['test', 'tests/e2e/public.spec.ts'], e2eEnvironment);
-    await run(
-      bin('.', 'playwright'),
-      [
-        'test',
-        'tests/e2e/header-navigation.spec.ts',
-        'tests/e2e/catalog-hub.spec.ts',
-        'tests/e2e/catalog-family-routes.spec.ts',
-        'tests/e2e/catalog-category.spec.ts',
-        'tests/e2e/sku-detail.spec.ts',
-      ],
-      e2eEnvironment,
-    );
-    if (formal) {
-      await run(
-        bin('.', 'playwright'),
-        ['test', 'tests/e2e/catalog-formal-journey.spec.ts'],
-        e2eEnvironment,
-      );
-    } else {
-      await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
-      await run(
-        bin('.', 'playwright'),
-        ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
-        e2eEnvironment,
-      );
-      await run(
-        bin('.', 'playwright'),
-        ['test', 'tests/e2e/catalog-admin.spec.ts'],
-        e2eEnvironment,
-      );
-      await run(
-        bin('.', 'playwright'),
-        [
-          'test',
-          'tests/e2e/admin-product-form.spec.ts',
-          'tests/e2e/admin-product-family-tabs.spec.ts',
-        ],
-        e2eEnvironment,
-      );
-    }
-    await run(
-      bin('.', 'playwright'),
-      ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],
-      e2eEnvironment,
-    );
-    await run(
-      bin('.', 'playwright'),
-      ['test', 'tests/e2e/admin-readiness-default.spec.ts'],
-      e2eEnvironment,
-    );
-    await run(
-      bin('.', 'playwright'),
-      ['test', 'tests/e2e/catalog-taxonomy.spec.ts'],
-      e2eEnvironment,
-    );
+    for (const specs of browserSuites)
+      await run(bin('.', 'playwright'), ['test', ...specs], e2eEnvironment);
   }
 } finally {
   await cleanup();

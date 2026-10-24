@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { hostingConfigurationIdentity, inventoryIdentity } from '../hosting-recovery.mjs';
 import { errorDocumentPath, validateConfigurationChange } from './hosting-configuration.mjs';
-import { assertHostingPath, assertOrigin, freeze, isSitemap, limits } from './input.mjs';
+import {
+  articleMediaFile,
+  assertHostingPath,
+  assertOrigin,
+  freeze,
+  isSitemap,
+  limits,
+} from './input.mjs';
 
 /** Capture one Manager environment, independent of MCP's globally selected environment. */
 export function createCloudbaseHostingProvider({ manager, target }) {
@@ -150,6 +157,7 @@ export function createCloudbaseHostingProvider({ manager, target }) {
         /^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/.test(path) ||
         !(
           path.endsWith('.html') ||
+          articleMediaFile.test(path) ||
           isSitemap(path) ||
           ['robots.txt', 'seo-manifest.json', 'products/manifest.json'].includes(path)
         )

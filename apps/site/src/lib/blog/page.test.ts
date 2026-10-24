@@ -44,3 +44,17 @@ test('collection revision and last modified derive from public content, never th
   );
   assert.equal(blogPage([], 'https://example.com', 'Brand').robots, 'noindex,follow');
 });
+
+test('a site-brand byline is an organization, while named authors remain people', () => {
+  const article = publishedArticleFixture();
+  article.content.authorName = 'Example brand';
+  const schema = articlePage(article, 'https://example.com', 'Example brand').schemaNodes.find(
+    (node) => node['@type'] === 'Article',
+  );
+  assert.deepEqual(schema?.author, { '@type': 'Organization', name: 'Example brand' });
+  article.content.authorName = 'Named editor';
+  const person = articlePage(article, 'https://example.com', 'Example brand').schemaNodes.find(
+    (node) => node['@type'] === 'Article',
+  );
+  assert.deepEqual(person?.author, { '@type': 'Person', name: 'Named editor' });
+});

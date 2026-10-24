@@ -23,7 +23,7 @@ const env = {
   PUBLIC_CB_PROXY: '0',
   PUBLIC_BLOG_WORKSPACE: '1',
   SEO_CATALOG_SNAPSHOT: join(directory, 'catalog.json'),
-  SEO_CATALOG_API_ORIGIN: '',
+  SEO_CATALOG_API_ORIGIN: policy.siteOrigin,
   SEO_BLOG_SNAPSHOT: '',
   SEO_BLOG_RELEASE_INPUT: '',
   E2E_SITE_URL: origin,
@@ -47,7 +47,7 @@ function run(command, args, cwd) {
 }
 try {
   await run(join(root, 'apps/site/node_modules/.bin/tsx'), [
-    'apps/site/scripts/product-seo-fixture.ts',
+    'apps/site/scripts/prepare-product-seo.ts',
     env.SEO_CATALOG_SNAPSHOT,
   ]);
   await run(
