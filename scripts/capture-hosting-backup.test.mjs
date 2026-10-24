@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -56,12 +56,33 @@ test('capture uses bounded HTTP reads and seals only after a second complete inv
   const f = setup(t);
   const manifest = await captureHostingBackup(f);
   assert.equal(manifest.entries.length, 1);
+  const transfer = JSON.parse(readFileSync(join(f.output, 'transfer-summary.json'), 'utf8'));
+  assert.equal(transfer.files, 1);
+  assert.equal(transfer.verifiedBytes, 4);
+  assert.equal(transfer.retries, 0);
   assert.equal(f.calls.filter((c) => c.selector === 'cloudbase.manageHosting').length, 0);
   assert.equal(f.calls.filter((c) => c.args.action === 'listFiles').length, 2);
   assert.equal(
     f.calls.some((c) =>
       ['upload', 'delete', 'setWebsiteDocument', 'set_env'].includes(c.args.action),
     ),
+    false,
+  );
+});
+
+test('exhausted downloads cannot produce a recovery manifest or allow cloud writes', async (t) => {
+  const f = setup(t);
+  let attempts = 0;
+  f.request = async () => {
+    attempts++;
+    throw Object.assign(new Error('offline network reset'), { code: 'ECONNRESET' });
+  };
+  await assert.rejects(captureHostingBackup(f), /offline network reset/);
+  assert.equal(attempts, 3);
+  assert.equal(existsSync(join(f.output, 'recovery-manifest.json')), false);
+  assert.equal(existsSync(join(f.output, 'transfer-summary.json')), false);
+  assert.equal(
+    f.calls.some((c) => c.selector.startsWith('cloudbase.manage')),
     false,
   );
 });
@@ -129,4 +150,45 @@ test('capture seals conflicting object keys and recovery preserves their origina
   const corrupt = structuredClone(manifest);
   corrupt.entries[0].sourcePath = corrupt.entries[1].sourcePath;
   assert.throws(() => verifyRecoveryInput(corrupt, directory, f.target), /mapping/);
+});
+
+test('both Manager and normal CLI captures use one reader and never recursively copy platform backup archives', async (t) => {
+  const { captureManagerHostingBackup } = await import('./release/hosting-backup-reader.mjs');
+  const f = setup(t);
+  let reads = 0;
+  const entries = [
+    {
+      path: 'index.html',
+      bytes: 4,
+      etag: `"${createHash('md5').update('home').digest('hex')}"`,
+      lastModified: '2026-10-24T00:00:00Z',
+    },
+    {
+      path: '.cloudbase-backup/history/index.html',
+      bytes: 3,
+      etag: 'old',
+      lastModified: '2026-10-24T00:00:00Z',
+    },
+  ];
+  const provider = {
+    target: f.target,
+    readInventory: async () => entries,
+    readConfiguration: async () => ({
+      website: (await f.callTool('website', { action: 'websiteConfig' })).data.websiteConfig,
+      gateway: (await f.callTool('gateway', { action: 'listRoutes' })).data.raw,
+    }),
+    readBackupObject: async (method, url, options) => {
+      reads++;
+      assert(!url.includes('.cloudbase-backup'));
+      return f.request(method, url, options);
+    },
+  };
+  const manifest = await captureManagerHostingBackup({
+    provider,
+    target: f.target,
+    output: f.output,
+  });
+  assert.equal(manifest.entries.length, 1);
+  assert.equal(reads, 1);
+  assert.equal(entries.length, 2, 'the original inventory and historical objects are preserved');
 });

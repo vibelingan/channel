@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { hostingConfigurationIdentity, inventoryIdentity } from '../hosting-recovery.mjs';
 import { errorDocumentPath, validateConfigurationChange } from './hosting-configuration.mjs';
+import { createHostingObjectReader } from './hosting-object-reader.mjs';
 import {
   articleMediaFile,
   assertHostingPath,
@@ -70,8 +71,13 @@ export function createCloudbaseHostingProvider({ manager, target }) {
         }),
       );
     });
+  let backupReader;
   return Object.freeze({
     target: fixed,
+    async readBackupObject(method, address, options) {
+      backupReader ??= createHostingObjectReader({ manager, target: fixed });
+      return (await backupReader)(method, address, options);
+    },
     readConfiguration,
     async readInventory() {
       return safe(async () => {

@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-25",
+  "scope": "read-only full hosting backup investigation; no deployment or business mutation",
+  "originalShutdownCause": "Not provable from the preserved MCP connection-closed log; existing prefix conflict reproduces SDK process termination",
+  "sdk": {
+    "installed": "@cloudbase/manager-node@5.9.1",
+    "inspectedUpgrade": "5.9.2",
+    "upgradeApplied": false,
+    "offlineDiagnosticCases": 5
+  },
+  "implementationFiles": {
+    "scripts/capture-hosting-backup.mjs": "d02f83e7b914fae95504556f2290a6d3dd603e7b67034342d31ea21d5a57aaf8",
+    "scripts/hosting-backup-download.mjs": "7cece790072a8a3a790d68fcd9975fc691bd505831ad15ce11d569c01b062d9e",
+    "scripts/smoke-http.mjs": "94d3e3448d223efe1b6fbb5a4de7fd05af31784fc2b32a2c4fcd57620010906b",
+    "scripts/release/hosting-backup-reader.mjs": "6789bf24bc894b3cc434648e821026b46dedde71e5e860d97232b17c8715a29b",
+    "scripts/release/hosting-provider.mjs": "169408a451f1cfc611f582487704d71f6cf5a71e37c3e1262f8b46411e85120b",
+    "scripts/release/hosting-object-reader.mjs": "859d6b24290b69885fe0a7e55fafa6af0cfc24531bb575422a542ce3faed7cfd"
+  },
+  "contentComparison": [
+    {
+      "capture": "live-1",
+      "files": 1239,
+      "bytes": 88982956,
+      "contentInventorySha256": "3962631e8a039dee7a9613f3adcb9807d58a92a64c757afe97a39900ab8f58a5",
+      "configurationSha256": "91dd0a25bf3afe09309b891f16b34cbe5fcf0b79e29a9e7caed775a0cf0ac6bf"
+    },
+    {
+      "capture": "origin-full-r2",
+      "files": 1239,
+      "bytes": 88982956,
+      "contentInventorySha256": "3962631e8a039dee7a9613f3adcb9807d58a92a64c757afe97a39900ab8f58a5",
+      "configurationSha256": "91dd0a25bf3afe09309b891f16b34cbe5fcf0b79e29a9e7caed775a0cf0ac6bf"
+    },
+    {
+      "capture": "origin-full-r3",
+      "files": 1239,
+      "bytes": 88982956,
+      "contentInventorySha256": "3962631e8a039dee7a9613f3adcb9807d58a92a64c757afe97a39900ab8f58a5",
+      "configurationSha256": "91dd0a25bf3afe09309b891f16b34cbe5fcf0b79e29a9e7caed775a0cf0ac6bf"
+    },
+    {
+      "capture": "cli-final-full",
+      "files": 1239,
+      "bytes": 88982956,
+      "contentInventorySha256": "3962631e8a039dee7a9613f3adcb9807d58a92a64c757afe97a39900ab8f58a5",
+      "configurationSha256": "91dd0a25bf3afe09309b891f16b34cbe5fcf0b79e29a9e7caed775a0cf0ac6bf"
+    }
+  ],
+  "captures": [
+    {
+      "evidence": "live-1-metrics.json",
+      "round": 1,
+      "files": 1239,
+      "bytes": 88982956,
+      "elapsedMs": 1105035.259959,
+      "verifyMs": 87.72641700017266,
+      "requests": 1239,
+      "retries": 0,
+      "peakConcurrent": 3,
+      "transferred": 88982956,
+      "requestP50Ms": 978.6024579999503,
+      "requestP95Ms": 4962.043416999979,
+      "errors": [],
+      "capturedAt": "2026-10-24T16:50:04.973Z"
+    },
+    {
+      "evidence": "origin-full-r2-metrics.json",
+      "source": "authenticated-cos-origin",
+      "files": 1239,
+      "bytes": 88982956,
+      "elapsedMs": 346025.39999999997,
+      "capturedAt": "2026-10-24T17:05:32.715Z"
+    },
+    {
+      "evidence": "origin-full-r3-metrics.json",
+      "source": "authenticated-cos-origin",
+      "files": 1239,
+      "bytes": 88982956,
+      "elapsedMs": 258936.59683300002,
+      "capturedAt": "2026-10-24T17:14:55.473Z"
+    },
+    {
+      "evidence": "cli-final-full-metrics.json",
+      "source": "normal-backup-CLI-with-temporary-credentials",
+      "files": 1239,
+      "bytes": 88982956,
+      "elapsedMs": 276095.88845800003,
+      "transfer": {
+        "files": 1239,
+        "attempts": 1239,
+        "retries": 0,
+        "verifiedBytes": 88982956,
+        "elapsedMs": 259029
+      },
+      "capturedAt": "2026-10-24T17:27:29.382Z"
+    }
+  ],
+  "tests": {
+    "rootScriptTestsPassed": 1142,
+    "sdkContract": "passed",
+    "types": "passed",
+    "lint": "passed"
+  },
+  "cloudWrites": 0,
+  "ticketSubmitted": false,
+  "failedExperiments": [
+    {
+      "case": "old MCP shutdown",
+      "reason": "connection closed; original stderr unavailable",
+      "recoveryManifest": false
+    },
+    {
+      "case": "old path layout",
+      "reason": "EEXIST; independent installed SDK reproduction also terminates with EISDIR",
+      "recoveryManifest": false
+    },
+    {
+      "case": "second website HTTP capture",
+      "reason": "UND_ERR_CONNECT_TIMEOUT exhausted bounded retries",
+      "recoveryManifest": false
+    },
+    {
+      "case": "first COS host guard",
+      "reason": "local check rejected the SDK tencentcos.cn endpoint; corrected against installed source before actual read",
+      "recoveryManifest": false
+    },
+    {
+      "case": "first CLI wrapper",
+      "reason": "exit 1 without preserved underlying stderr; no platform root cause claimed",
+      "recoveryManifest": false
+    },
+    {
+      "case": "unfiltered direct CLI inventory",
+      "reason": "controlled stop after identifying platform historical backups; partial local files preserved; unified reader fixes scope",
+      "recoveryManifest": false
+    }
+  ]
+}

@@ -148,3 +148,30 @@ test('fetchFully retains redirect following for existing callers', async () => {
     },
   );
 });
+
+test('the total deadline still rejects and cancels the body when transport ignores its abort signal', async (t) => {
+  let cancelled = false;
+  let completion;
+  t.after(() => clearTimeout(completion));
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array([1]));
+      completion = setTimeout(() => controller.close(), 400);
+    },
+    cancel() {
+      cancelled = true;
+      clearTimeout(completion);
+    },
+  });
+  t.mock.method(globalThis, 'fetch', async () => new Response(stream));
+  const started = performance.now();
+  await assert.rejects(
+    fetchFully('GET', 'https://fixture.invalid', {
+      timeoutMs: 40,
+      signal: new AbortController().signal,
+    }),
+    /timed out after 40ms/,
+  );
+  assert(performance.now() - started < 300);
+  assert.equal(cancelled, true);
+});

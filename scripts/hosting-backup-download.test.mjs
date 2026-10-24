@@ -146,3 +146,96 @@ test('flat backup preserves object-store keys that are both files and directory 
     assert.equal(readFileSync(join(f.directory, '.recovery-objects', `${key}.bin`), 'utf8'), body);
   }
 });
+
+test('a reset after headers and partial bytes retries the whole file and records transfer counts', async (t) => {
+  let calls = 0;
+  const f = await fixture(t, (_req, res) => {
+    calls++;
+    res.writeHead(200, { 'content-length': 8 });
+    if (calls === 1) {
+      res.write('part');
+      setTimeout(() => res.destroy(), 10);
+    } else res.end('complete');
+  });
+  const result = await downloadHostingBackupFiles({
+    ...f,
+    entries: [entry('index.html', 'complete')],
+  });
+  assert.equal(calls, 2);
+  assert.equal(readFileSync(join(f.directory, 'index.html'), 'utf8'), 'complete');
+  assert.equal(result.transfer.files, 1);
+  assert.equal(result.transfer.attempts, 2);
+  assert.equal(result.transfer.retries, 1);
+  assert.equal(result.transfer.verifiedBytes, 8);
+  assert(
+    result.transfer.elapsedMs >= 250,
+    'retry must give the interrupted connection time to recover',
+  );
+});
+
+test('temporary server failures wait between bounded attempts and never save an error body', async (t) => {
+  const times = [];
+  const f = await fixture(t, (_req, res) => {
+    times.push(performance.now());
+    res.writeHead(times.length < 3 ? 503 : 200);
+    res.end(times.length < 3 ? 'unavailable' : 'complete');
+  });
+  const result = await downloadHostingBackupFiles({
+    ...f,
+    entries: [entry('index.html', 'complete')],
+  });
+  assert.equal(result.transfer.attempts, 3);
+  assert.equal(result.transfer.retries, 2);
+  assert(times[1] - times[0] >= 200);
+  assert(times[2] - times[1] >= 450);
+  assert.equal(readFileSync(join(f.directory, 'index.html'), 'utf8'), 'complete');
+});
+
+test('an unauthorized response is not retried or written', async (t) => {
+  let calls = 0;
+  const f = await fixture(t, (_req, res) => {
+    calls++;
+    res.writeHead(403);
+    res.end('denied');
+  });
+  await assert.rejects(
+    downloadHostingBackupFiles({ ...f, entries: [entry('index.html', 'complete')] }),
+    /403/,
+  );
+  assert.equal(calls, 1);
+  assert.equal(existsSync(join(f.directory, 'index.html')), false);
+});
+
+test('wrong bytes of the correct length fail without a retry or a saved file', async (t) => {
+  let calls = 0;
+  const f = await fixture(t, (_req, res) => {
+    calls++;
+    res.end('corrupte');
+  });
+  await assert.rejects(
+    downloadHostingBackupFiles({ ...f, entries: [entry('index.html', 'complete')] }),
+    /digest/,
+  );
+  assert.equal(calls, 1);
+  assert.equal(existsSync(join(f.directory, 'index.html')), false);
+});
+
+test('a stalled response is timed out, retried at most three times, and leaves no partial file', async (t) => {
+  const { fetchFully } = await import('./smoke-http.mjs');
+  let calls = 0;
+  const f = await fixture(t, (_req, res) => {
+    calls++;
+    res.writeHead(200);
+    res.write('part');
+  });
+  await assert.rejects(
+    downloadHostingBackupFiles({
+      ...f,
+      entries: [entry('index.html', 'complete')],
+      request: (method, url, options) => fetchFully(method, url, { ...options, timeoutMs: 40 }),
+    }),
+    /timed out/,
+  );
+  assert.equal(calls, 3);
+  assert.equal(existsSync(join(f.directory, 'index.html')), false);
+});

@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { setTimeout as delay } from 'node:timers/promises';
 import { inventoryIdentity } from './hosting-recovery.mjs';
 import { backupObjectPath } from './release/input.mjs';
 import { fetchFully } from './smoke-http.mjs';
@@ -26,6 +28,9 @@ export async function downloadHostingBackupFiles({
   const files = inventoryIdentity(entries);
   const controller = new AbortController();
   const contentProofs = [];
+  const started = performance.now();
+  let attempts = 0;
+  let verifiedBytes = 0;
   let cursor = 0;
   let failure;
   async function download([path, bytes, etag]) {
@@ -33,6 +38,7 @@ export async function downloadHostingBackupFiles({
     let response;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
+        attempts++;
         response = await request('GET', address, {
           maxBytes: bytes + 1,
           timeoutMs: 60_000,
@@ -44,6 +50,7 @@ export async function downloadHostingBackupFiles({
         break;
       } catch (error) {
         if (attempt === 2 || controller.signal.aborted) throw error;
+        await delay(250 * 2 ** attempt, undefined, { signal: controller.signal });
       }
     }
     if (![200, 404].includes(response.status))
@@ -69,6 +76,7 @@ export async function downloadHostingBackupFiles({
     if (existsSync(localPath)) throw new Error(`Backup file already exists: ${path}`);
     mkdirSync(dirname(localPath), { recursive: true });
     writeFileSync(localPath, response.body, { flag: 'wx' });
+    verifiedBytes += response.body.length;
   }
   await Promise.all(
     Array.from({ length: Math.min(3, files.length) }, async () => {
@@ -86,5 +94,15 @@ export async function downloadHostingBackupFiles({
     }),
   );
   if (failure) throw failure;
-  return { files: files.length, contentProofs };
+  return {
+    files: files.length,
+    contentProofs,
+    transfer: {
+      files: files.length,
+      attempts,
+      retries: attempts - files.length,
+      verifiedBytes,
+      elapsedMs: Math.round(performance.now() - started),
+    },
+  };
 }

@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { assertToolSucceeded } from './cloudbase-deploy-resources.mjs';
 import { downloadHostingBackupFiles } from './hosting-backup-download.mjs';
 import { sealHostingBackup } from './hosting-recovery.mjs';
+import { identity } from './release/input.mjs';
 import { fetchFully } from './smoke-http.mjs';
 
 async function inventory(callTool, target) {
@@ -108,7 +109,7 @@ export async function captureBoundHostingBackup({ target, output, request = fetc
     (typeof cdnDomain !== 'string' || !/^[a-z0-9.-]+$/i.test(cdnDomain))
   )
     throw new Error('Invalid hosting CDN domain.');
-  const { contentProofs } = await downloadHostingBackupFiles({
+  const { contentProofs, transfer } = await downloadHostingBackupFiles({
     origin: cdnDomain ? `https://${cdnDomain}` : target.site,
     directory,
     entries: before.entries,
@@ -130,7 +131,28 @@ export async function captureBoundHostingBackup({ target, output, request = fetc
     storageLayout: 'sha256-path-v1',
   });
   save('recovery-manifest.json', manifest);
+  save('transfer-summary.json', transfer);
   return manifest;
+}
+
+/** Website backups exclude the platform's separate historical backup namespace. */
+export function captureProviderHostingBackup({ provider, target, output, request }) {
+  if (identity(provider.target) !== identity(target)) throw Error('Backup manager target differs.');
+  return captureBoundHostingBackup({
+    target,
+    output,
+    request: request ?? provider.readBackupObject ?? fetchFully,
+    reader: {
+      inventory: async () => ({
+        ...target,
+        observedAt: new Date().toISOString(),
+        entries: (await provider.readInventory()).filter(
+          (entry) => !entry.path.startsWith('.cloudbase-backup/'),
+        ),
+      }),
+      configuration: provider.readConfiguration,
+    },
+  });
 }
 
 // Match the existing deployment's mcporter transport. No secret is passed in
@@ -160,15 +182,28 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const { values } = parseArgs({ options: { output: { type: 'string' } } });
   if (!values.output || !process.env.TCB_ENV_ID || !process.env.SITE_URL)
     throw new Error('Use --output with explicit TCB_ENV_ID and SITE_URL.');
-  // This selects the local MCP context, not a remote domain/function mutation.
-  assertToolSucceeded(
-    callTool('cloudbase.auth', { action: 'set_env', envId: process.env.TCB_ENV_ID }),
-    'Select backup context',
-  );
-  const manifest = await captureHostingBackup({
-    callTool,
-    output: resolve(values.output),
-    target: { envId: process.env.TCB_ENV_ID, site: process.env.SITE_URL.replace(/\/$/, '') },
-  });
-  console.log(`Sealed ${manifest.entries.length} hosted files before deployment.`);
+  const target = { envId: process.env.TCB_ENV_ID, site: process.env.SITE_URL.replace(/\/$/, '') };
+  const output = resolve(values.output);
+  let manifest;
+  if (process.env.TENCENTCLOUD_SECRETID && process.env.TENCENTCLOUD_SECRETKEY) {
+    const { default: CloudBase } = await import('@cloudbase/manager-node');
+    const { createCloudbaseHostingProvider } = await import('./release/hosting-provider.mjs');
+    const manager = new CloudBase({
+      envId: target.envId,
+      region: process.env.CLOUDBASE_REGION || 'ap-shanghai',
+      secretId: process.env.TENCENTCLOUD_SECRETID,
+      secretKey: process.env.TENCENTCLOUD_SECRETKEY,
+      token: process.env.TENCENTCLOUD_SESSIONTOKEN,
+    });
+    const provider = createCloudbaseHostingProvider({ manager, target });
+    manifest = await captureProviderHostingBackup({ provider, target, output });
+  } else {
+    // Local MCP selection is used only when explicit deployment credentials are absent.
+    assertToolSucceeded(
+      callTool('cloudbase.auth', { action: 'set_env', envId: target.envId }),
+      'Select backup context',
+    );
+    manifest = await captureHostingBackup({ callTool, target, output });
+  }
+  console.log(`Verified ${manifest.entries.length} hosted files before deployment.`);
 }
