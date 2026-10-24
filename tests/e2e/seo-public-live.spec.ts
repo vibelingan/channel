@@ -107,7 +107,13 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
     'href',
     'https://supplychainsai.com/blog/',
   );
+  await page.screenshot({
+    path: 'output/site-delivery/public-browser/blog-index-desktop.png',
+    fullPage: true,
+  });
   const articlePath = process.env.E2E_EXPECT_ARTICLE_PATH;
+  if (articlePath && process.env.E2E_EXPECT_ARTICLE_STATUS !== '404')
+    await expect(page.locator(`main a[href="${articlePath}"]`)).toBeVisible();
   if (articlePath) {
     expect(articlePath).toMatch(/^\/blog\/[a-z0-9-]+\/$/);
     const article = await page.request.get(articlePath);

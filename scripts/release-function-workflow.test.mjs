@@ -43,7 +43,15 @@ test('all manual modes select exactly one job and retain the existing shared tar
               ? 'site_delivery'
               : mode === 'blog-enable'
                 ? 'blog_enable'
-                : 'canary',
+                : [
+                      'blog-create',
+                      'blog-retry',
+                      'blog-update',
+                      'blog-withdraw',
+                      'blog-check',
+                    ].includes(mode)
+                  ? 'blog_acceptance'
+                  : 'canary',
     ]);
   }
   assert.deepEqual(workflow.concurrency, {

@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, site-delivery, blog-enable]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, site-delivery, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check]
         default: plan
         required: true
       product_source:
@@ -277,6 +277,17 @@ jobs:
     uses: ./.github/workflows/seo-blog-bootstrap.yml
     with:
       enable_publishing: true
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
+  blog_acceptance:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'blog-create' || inputs.mode == 'blog-retry' || inputs.mode == 'blog-update' || inputs.mode == 'blog-withdraw' || inputs.mode == 'blog-check') }}
+    uses: ./.github/workflows/seo-blog-acceptance.yml
+    with:
+      operation: ${{ inputs.mode == 'blog-create' && 'create' || inputs.mode == 'blog-retry' && 'retry' || inputs.mode == 'blog-update' && 'update' || inputs.mode == 'blog-withdraw' && 'withdraw' || 'check' }}
+      article_id: ${{ inputs.artifact_id }}
     secrets:
       TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}

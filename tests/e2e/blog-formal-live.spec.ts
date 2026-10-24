@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { parseArticleDraft } from '../../packages/articles/src/draft-repository.ts';
+import { signInAdminThroughUi } from './helpers/ui-admin-login.ts';
 
 test.describe.configure({ mode: 'serial' });
 test.use({
@@ -57,21 +58,11 @@ test('real administrator saves, uploads, previews, reopens and resolves a concur
   const title = `Private Blog acceptance ${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`;
   const body = 'Private acceptance text saved by the real article editor.';
   const finalBody = 'Updated private article after a real concurrent-edit check.';
-  await page.goto('/login?returnTo=/admin');
-  await page.getByLabel('Email', { exact: true }).fill(process.env.E2E_ADMIN_EMAIL ?? '');
-  await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_ADMIN_PASSWORD ?? '');
-  const authReply = page.waitForResponse(
-    (r) => r.url().endsWith('/api/admin') && r.request().postDataJSON()?.action === 'login',
+  await signInAdminThroughUi(
+    page,
+    process.env.E2E_ADMIN_EMAIL ?? '',
+    process.env.E2E_ADMIN_PASSWORD ?? '',
   );
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  const loginResponse = await authReply;
-  const login = await loginResponse.json();
-  if (loginResponse.status() !== 200 || login.ok !== true)
-    throw Error(
-      `Real administrator login failed (${loginResponse.status()}:${login.error?.code ?? 'unknown'})`,
-    );
-  expect(login.data?.user?.role).toBe('admin');
-  await page.waitForURL((url) => url.pathname === '/admin');
   if (process.env.PUBLIC_BLOG_WORKSPACE !== '1')
     await page.getByRole('button', { name: 'Articles', exact: true }).click();
   await expect(page.getByRole('button', { name: 'New article', exact: true })).toBeVisible();

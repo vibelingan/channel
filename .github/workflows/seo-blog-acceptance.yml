@@ -1,0 +1,61 @@
+name: Real Blog admin acceptance
+on:
+  workflow_call:
+    inputs:
+      operation: {type: string, required: true}
+      article_id: {type: string, required: false, default: ''}
+    secrets:
+      TENCENTCLOUD_SECRETID: {required: true}
+      TENCENTCLOUD_SECRETKEY: {required: true}
+      E2E_ADMIN_PASSWORD: {required: true}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      CI: 'true'
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      E2E_SITE_URL: ${{ vars.SITE_URL }}
+      E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+      E2E_BLOG_PUBLICATION_OPERATION: ${{ inputs.operation }}
+      E2E_BLOG_ARTICLE_ID: ${{ inputs.article_id }}
+      E2E_RECORD_ARTIFACTS: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Verify exact source and explicit acceptance scope before browser writes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/blog/acceptance-preflight.mjs
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Operate the real public admin using normal DNS and TLS
+        env:
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: pnpm exec playwright test tests/e2e/blog-publication-live.spec.ts --project=chromium --retries=0
+      - name: Independently read the exact owned draft, task and original image bytes
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/verify-publication-ui.ts
+      - name: Keep owned request identifiers and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blog-publication-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/blog-publication/
+          if-no-files-found: ignore
+          retention-days: 90

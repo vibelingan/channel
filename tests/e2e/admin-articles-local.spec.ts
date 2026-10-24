@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { type Page, expect, test } from '@playwright/test';
+import { signInAdminThroughUi } from './helpers/ui-admin-login.ts';
 
 test.describe.configure({ mode: 'serial' });
 const database = process.env.E2E_CATALOG_LOCAL_DB;
@@ -15,11 +16,7 @@ test.beforeAll(() => {
     throw new Error('Local-only article acceptance requires an owned localhost site.');
 });
 async function login(page: Page) {
-  await page.goto('/login?returnTo=/admin');
-  await page.getByLabel('Email', { exact: true }).fill('admin@channel.local');
-  await page.getByLabel('Password', { exact: true }).fill('admin');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.waitForURL('**/admin');
+  await signInAdminThroughUi(page, 'admin@channel.local', 'admin');
   await page.getByRole('button', { name: 'Articles', exact: true }).click();
 }
 async function create(page: Page, title: string) {
