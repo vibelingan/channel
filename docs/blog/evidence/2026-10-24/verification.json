@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-24",
+  "scope": "basic Blog development entry and Agent design only",
+  "liveCloudWrites": false,
+  "agentRuntimeDelivered": false,
+  "checks": {
+    "rootTests": {
+      "tests": 3385,
+      "passed": 3382,
+      "failed": 0,
+      "skipped": 3
+    },
+    "typecheck": "passed",
+    "cloudbaseSdk": "passed",
+    "biome": "passed",
+    "normalAdminBrowser": {
+      "passed": 9,
+      "failed": 0
+    },
+    "blogWorkspaceBrowser": {
+      "passed": 9,
+      "failed": 0
+    },
+    "blogWorkspaceScreenshotsRun": {
+      "passed": 9,
+      "failed": 0
+    }
+  },
+  "limits": [
+    "CloudBase SDK HTTP test uses offline SDK transport, not cloud acceptance.",
+    "Normal Blog publication, restore, retry and withdrawal remain pending live acceptance.",
+    "Hermes runtime tool and customer isolation have not been verified."
+  ],
+  "screenshots": [
+    {
+      "file": "local-workspace-desktop.png",
+      "sha256": "32721ff4f989cae7234e3f054b75c4cf321d6c23dd0632ad4dda681637f797d5",
+      "data": "offline fixture",
+      "workspace": "PUBLIC_BLOG_WORKSPACE=1"
+    },
+    {
+      "file": "local-workspace-image-desktop.png",
+      "sha256": "4b345dfad40850bbb3765341930e42119d8228104e0ea72bee5d1f6260450200",
+      "data": "offline fixture",
+      "workspace": "PUBLIC_BLOG_WORKSPACE=1"
+    },
+    {
+      "file": "local-workspace-image-mobile.png",
+      "sha256": "72caff6776ea7bdf8f8d7e040a72a760800a721503afe862950683f1af70d27e",
+      "data": "offline fixture",
+      "workspace": "PUBLIC_BLOG_WORKSPACE=1"
+    },
+    {
+      "file": "local-workspace-mobile.png",
+      "sha256": "592f856974f64c133fcf545636323b44499e395facada674ce437e6fb1c7b4d5",
+      "data": "offline fixture",
+      "workspace": "PUBLIC_BLOG_WORKSPACE=1"
+    }
+  ]
+}

@@ -9,7 +9,8 @@
     "start": "tsx src/main.ts",
     "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "import:dianxiaomi": "tsx src/dianxiaomi-import-cli.ts"
+    "import:dianxiaomi": "tsx src/dianxiaomi-import-cli.ts",
+    "dev:blog-cloudbase": "tsx src/blog-cloudbase.ts"
   },
   "dependencies": {
     "@vibelingan-channel/articles": "workspace:*",

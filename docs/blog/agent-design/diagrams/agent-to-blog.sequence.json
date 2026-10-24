@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "导入草稿、重复投递与失败：时序设计",
+    "locale": "zh-CN",
+    "quality_profile": "standard",
+    "column_fit": "spread",
+    "viewBox": [1400, 660]
+  },
+  "participants": [
+    {
+      "id": "customer",
+      "type": "external",
+      "label": "客户 / 企业微信",
+      "sublabel": "提出需求；接收草稿链接"
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "Hermes 工具",
+      "sublabel": "拟接入；凭证不进 prompt"
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "Channel 接口",
+      "sublabel": "仅导入与结果查询"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "CloudBase",
+      "sublabel": "私有草稿与导入记录"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "customer",
+      "to": "agent",
+      "y": 164,
+      "label": "提出写作需求",
+      "variant": "default"
+    },
+    {
+      "id": "m2",
+      "from": "agent",
+      "to": "api",
+      "y": 198,
+      "label": "POST 草稿 + 稳定请求号",
+      "variant": "default"
+    },
+    {
+      "id": "m3",
+      "from": "api",
+      "to": "db",
+      "y": 232,
+      "label": "验证当前凭证与所属站点",
+      "variant": "default"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "db",
+      "y": 266,
+      "label": "事务保存操作、草稿与额度",
+      "variant": "default"
+    },
+    {
+      "id": "m5",
+      "from": "db",
+      "to": "api",
+      "y": 300,
+      "label": "全部提交成功",
+      "variant": "return"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "agent",
+      "y": 334,
+      "label": "201：文章号与编辑链接",
+      "variant": "return"
+    },
+    {
+      "id": "m7",
+      "from": "agent",
+      "to": "customer",
+      "y": 368,
+      "label": "确认后向原群回复链接",
+      "variant": "return"
+    },
+    {
+      "id": "m8",
+      "from": "agent",
+      "to": "api",
+      "y": 402,
+      "label": "重复投递原请求号和正文",
+      "variant": "default"
+    },
+    {
+      "id": "m9",
+      "from": "api",
+      "to": "db",
+      "y": 436,
+      "label": "只读原操作，比对请求摘要",
+      "variant": "default"
+    },
+    {
+      "id": "m10",
+      "from": "db",
+      "to": "api",
+      "y": 470,
+      "label": "返回原文章身份；不改人工修订",
+      "variant": "return"
+    },
+    {
+      "id": "m11",
+      "from": "api",
+      "to": "agent",
+      "y": 504,
+      "label": "200：原草稿；异文则 409",
+      "variant": "return"
+    },
+    {
+      "id": "m12",
+      "from": "api",
+      "to": "agent",
+      "y": 538,
+      "label": "另一请求凭证失效：401，零写入",
+      "variant": "return"
+    },
+    {
+      "id": "m13",
+      "from": "agent",
+      "to": "customer",
+      "y": 572,
+      "label": "如实说明失败，不回复假链接",
+      "variant": "return"
+    }
+  ],
+  "segments": [
+    {
+      "from": 146,
+      "to": 382,
+      "label": "首次导入：保存确认后才返回链接"
+    },
+    {
+      "from": 392,
+      "to": 520,
+      "label": "重复投递：绝不覆盖人工修改"
+    },
+    {
+      "from": 530,
+      "to": 585,
+      "label": "失败示例：拒绝并如实说明"
+    }
+  ]
+}

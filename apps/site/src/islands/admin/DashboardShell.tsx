@@ -13,6 +13,8 @@ import {
 } from './inquiries/inquiry-api.ts';
 import { DASHBOARD_SECTIONS, type DashboardSection } from './sections.ts';
 
+const blogWorkspace = import.meta.env.PUBLIC_BLOG_WORKSPACE === '1';
+
 const ArticlesPage = lazy(() =>
   import('./articles/ArticlesPage.tsx').then((module) => ({ default: module.ArticlesPage })),
 );
@@ -44,7 +46,7 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
   const capabilities = useQuery({
     queryKey: ['inquiry-capabilities', getUser()?.id],
     queryFn: ({ signal }) => fetchInquiryCapabilities(signal),
-    enabled: role === 'admin' && !localInquiries,
+    enabled: role === 'admin' && !localInquiries && !blogWorkspace,
     retry: false,
     gcTime: 0,
   });
@@ -53,34 +55,36 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
   // Show only sections the role may use, and that map to a real collection.
   const sections = useMemo<DashboardSection[]>(
     () =>
-      localInquiries
-        ? role === 'admin'
-          ? [
-              {
-                label: 'Product Inquiries',
-                collection: 'catalogQuoteRequests',
-                adminOnly: true,
-                custom: 'product-inquiries',
-              },
-            ]
-          : []
-        : [
-            ...DASHBOARD_SECTIONS.filter(
-              (s) =>
-                (s.custom === 'articles' || getCollection(s.collection)) &&
-                (!s.adminOnly || canManageUsers(role)),
-            ),
-            ...(cloudInquiries
-              ? [
-                  {
-                    label: 'Product Inquiries',
-                    collection: 'catalogQuoteRequests',
-                    adminOnly: true,
-                    custom: 'product-inquiries' as const,
-                  },
-                ]
-              : []),
-          ],
+      blogWorkspace
+        ? DASHBOARD_SECTIONS.filter((s) => s.custom === 'articles' && role === 'admin')
+        : localInquiries
+          ? role === 'admin'
+            ? [
+                {
+                  label: 'Product Inquiries',
+                  collection: 'catalogQuoteRequests',
+                  adminOnly: true,
+                  custom: 'product-inquiries',
+                },
+              ]
+            : []
+          : [
+              ...DASHBOARD_SECTIONS.filter(
+                (s) =>
+                  (s.custom === 'articles' || getCollection(s.collection)) &&
+                  (!s.adminOnly || canManageUsers(role)),
+              ),
+              ...(cloudInquiries
+                ? [
+                    {
+                      label: 'Product Inquiries',
+                      collection: 'catalogQuoteRequests',
+                      adminOnly: true,
+                      custom: 'product-inquiries' as const,
+                    },
+                  ]
+                : []),
+            ],
     [role, localInquiries, cloudInquiries],
   );
 

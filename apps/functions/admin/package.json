@@ -11,7 +11,8 @@
     "./catalog-import-service": "./src/catalog-import-service.ts",
     "./catalog-import-store": "./src/catalog-import-store.ts",
     "./catalog-import-publish": "./src/catalog-import-publish.ts",
-    "./catalog-import-media": "./src/catalog-import-media.ts"
+    "./catalog-import-media": "./src/catalog-import-media.ts",
+    "./article-media": "./src/article-media.ts"
   },
   "scripts": {
     "build": "tsup",

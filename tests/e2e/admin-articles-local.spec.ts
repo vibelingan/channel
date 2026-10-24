@@ -120,14 +120,19 @@ test('failed connection preserves the draft and retries the same creation withou
   ).toHaveLength(1);
 });
 
-test('discard protection covers sidebar changes and narrow screens have no overflow', async ({
+test('discard protection covers available navigation and narrow screens have no overflow', async ({
   page,
 }) => {
   await login(page);
   await page.getByRole('button', { name: 'New article', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Do not discard');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  if (process.env.PUBLIC_BLOG_WORKSPACE === '1') {
+    await expect(page.getByRole('button', { name: 'Products', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: '← Articles', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+  }
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Do not discard');
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
