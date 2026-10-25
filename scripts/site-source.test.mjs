@@ -159,6 +159,17 @@ test('formal publication reuses the existing queue and leaves normal deploy trig
     SITE_DELIVERY_CONFIRM: 'FORMAL_SITE_ONLY',
   };
   assert.equal(assertSiteDeliveryInvocation(valid), policy);
+  const checkpoint = { ...valid, SITE_DELIVERY_MODE: 'initialize' };
+  assert.equal(assertSiteDeliveryInvocation(checkpoint), policy);
+  assert.throws(() =>
+    assertSiteDeliveryInvocation({ ...checkpoint, SITE_ARTICLE_TASK_ID: 'auto' }),
+  );
+  assert.throws(() =>
+    assertSiteDeliveryInvocation({ ...checkpoint, SITE_RESTORE_RUN_ID: 'old-run' }),
+  );
+  assert.throws(() =>
+    assertSiteDeliveryInvocation({ ...checkpoint, GITHUB_REF: 'refs/heads/test' }),
+  );
   assert.equal(assertSiteDeliveryInvocation({ ...valid, SITE_PRODUCT_SOURCE: 'accepted' }), policy);
   assert.throws(() => assertSiteDeliveryInvocation({ ...valid, SITE_PRODUCT_SOURCE: 'skip' }));
   assert.throws(() =>

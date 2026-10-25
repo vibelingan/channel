@@ -427,3 +427,15 @@ test('final full-site acceptance has a bounded whole-site budget and still reads
   assert(reads.filter((path) => path === '/').length >= 3);
   assert(reads.filter((path) => path === '/blog/one/').length >= 3);
 });
+
+test('a recovery checkpoint accepts unchanged files but refuses any upload or removal before cloud writes', async (t) => {
+  const f = await setup(t);
+  const b = f.source('a changed website');
+  const refused = await f.deliver(b.input, 'publish', { requireUnchangedFiles: true });
+  assert.equal(refused.status, 'not-written');
+  assert.equal(f.writes.length, 0);
+  const same = f.source('A');
+  const accepted = await f.deliver(same.input, 'publish', { requireUnchangedFiles: true });
+  assert.equal(accepted.status, 'accepted');
+  assert.equal(f.writes.length, 0);
+});

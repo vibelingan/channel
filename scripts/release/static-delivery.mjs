@@ -30,6 +30,7 @@ export async function deliverStaticContent(
     request = fetchFully,
     postCheck = async (_context) => {},
     adapterOptions = {},
+    requireUnchangedFiles = false,
     publicProductPaths = /** @type {string[]} */ ([]),
     readPublicProductPaths = async () => publicProductPaths,
     onStop = (_phase, _error) => {},
@@ -107,7 +108,10 @@ export async function deliverStaticContent(
         contentProofs: baselineProofs,
       });
       plan = withSiteUploadBatches(plan);
-      if (action === 'adopt' && (plan.uploads.length || plan.deletes.length))
+      if (
+        (action === 'adopt' || requireUnchangedFiles) &&
+        (plan.uploads.length || plan.deletes.length)
+      )
         throw new Error('Baseline differs from the live site');
     }
     const errorPath = configurationPlan.before.website.WebsiteConfiguration.ErrorDocument?.Key;

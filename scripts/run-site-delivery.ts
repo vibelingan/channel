@@ -11,11 +11,14 @@ import type { ClaimedArticleRelease } from '../packages/articles/src/release-sto
 import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.ts';
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
+import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
 import { assertServerBlogReady } from './blog/server-route-health.mjs';
+import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
+import { readObject } from './release/input.mjs';
 import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
 import { readBuiltSite } from './release/site-build-record.mjs';
@@ -260,6 +263,8 @@ try {
   let baseline = status.scope.baseline
     ? await loadAccepted(await coordinator.runStatus(status.scope.baseline.sourceRunId))
     : null;
+  if (env.SITE_DELIVERY_MODE === 'initialize' && (!blogServer || !baseline))
+    throw Error('A server Blog and an existing accepted website are required before checkpointing');
   if (automatic && baseline?.envelope.codeSha !== codeSha)
     throw Error('The content executor must match the currently accepted website code');
   const productFile = join(directory, 'product-snapshot.json');
@@ -351,7 +356,76 @@ try {
     const accepted = await coordinator.status({ scopeKey: 'site' });
     baseline = await loadAccepted(await coordinator.runStatus(accepted.scope.baseline.sourceRunId));
   }
-  if (env.SITE_DELIVERY_MODE === 'restore') {
+  if (env.SITE_DELIVERY_MODE === 'initialize') {
+    if (!blogServer || !baseline)
+      throw Error('An existing accepted site and ready server Blog are required');
+    const observed = await readBlogSiteBaseline();
+    const configuration = await provider.readConfiguration();
+    assertBlogConfigurationCheckpoint(
+      baseline.staticManifest.configuration,
+      configuration,
+      policy.siteOrigin,
+    );
+    const payload = join(directory, 'checkpoint');
+    createSitePayload({
+      directory: payload,
+      policy,
+      configuration,
+      codeSha,
+      releaseId: `${runId}-checkpoint`,
+      files: new Map(
+        baseline.staticManifest.entries.map((entry: SiteObjectEntry) => [
+          entry.path,
+          readObject(baseline.directory, entry.path),
+        ]),
+      ),
+      snapshot: JSON.parse(
+        readObject(baseline.directory, baseline.envelope.snapshotPath).toString(),
+      ),
+      objectProofs: baseline.staticManifest.entries.flatMap((entry: SiteObjectEntry) =>
+        entry.objectVersion ? [{ ...entry, ...entry.objectVersion }] : [],
+      ),
+    });
+    const checkpoint = await archivePayload(payload, 'site-baseline');
+    checkpoint.ownedPaths = ownedSitePaths(checkpoint, baseline);
+    const result = await deliverStaticContent(
+      {
+        coordinator,
+        provider,
+        guard,
+        runId,
+        input: checkpoint,
+        loadAccepted,
+        requireUnchangedFiles: true,
+        publicProductPaths,
+        readPublicProductPaths,
+        postCheck: async () => {
+          await checkBlogSiteBaseline(observed);
+          await assertServerBlogReady(policy.siteOrigin);
+          if (!(await auditHostingContract(policy.siteOrigin)).passed)
+            throw Error('Unchanged site status/cache check failed');
+        },
+        onStop: (phase: string, error: Error) =>
+          console.error(`Checkpoint ${phase}: ${error.message}`),
+      },
+      { policy, scopeKey: 'site' },
+    );
+    await writeFile(
+      join(directory, 'result.json'),
+      JSON.stringify(
+        {
+          ...result,
+          operation: 'unchanged-site-checkpoint',
+          copiedFrom: baseline.envelope.releaseId,
+          websiteWrites: 0,
+        },
+        null,
+        2,
+      ),
+      { flag: 'wx' },
+    );
+    if (result.status !== 'accepted') throw Error(`Site checkpoint: ${result.status}`);
+  } else if (env.SITE_DELIVERY_MODE === 'restore') {
     const sourceRunId = env.SITE_RESTORE_RUN_ID ?? '';
     if (!/^[A-Za-z0-9:_-]{1,200}$/.test(sourceRunId))
       throw Error('Exact accepted site run required');

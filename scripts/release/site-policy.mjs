@@ -59,7 +59,9 @@ export function assertSiteDeliveryInvocation(env) {
     env.TCB_ENV_ID !== p.envId ||
     env.SITE_URL !== p.siteOrigin ||
     env.CLOUDBASE_REGION !== p.region ||
-    !['publish', 'restore'].includes(env.SITE_DELIVERY_MODE) ||
+    !['initialize', 'publish', 'restore'].includes(env.SITE_DELIVERY_MODE) ||
+    (env.SITE_DELIVERY_MODE === 'initialize' &&
+      (env.GITHUB_REF !== p.trustedRef || env.SITE_ARTICLE_TASK_ID || env.SITE_RESTORE_RUN_ID)) ||
     (normal &&
       (env.SITE_DELIVERY_MODE !== 'publish' ||
         env.SITE_ARTICLE_TASK_ID ||
