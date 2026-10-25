@@ -1,6 +1,6 @@
 import { fetchFully } from '../smoke-http.mjs';
 /** The fixed environment endpoint reports the program actually running, independently of SDK update receipts. */
-export async function readFunctionRuntimeVersion(envId, name, request = fetchFully) {
+export async function readFunctionRuntimeState(envId, name, request = fetchFully) {
   if (!['admin', 'public-api'].includes(name)) throw Error('Unplanned Blog function');
   if (!/^[A-Za-z0-9-]+$/.test(envId)) throw Error('Explicit admin environment required');
   const response = await request(
@@ -22,8 +22,23 @@ export async function readFunctionRuntimeVersion(envId, name, request = fetchFul
     !/^[a-f0-9]{40}$/.test(health.data.releaseId)
   )
     throw Error('Blog function runtime health was not confirmed');
-  return health.data.releaseId;
+  return {
+    releaseId: health.data.releaseId,
+    articleDeliveryMode: ['static', 'server'].includes(health.data.articleDeliveryMode)
+      ? health.data.articleDeliveryMode
+      : undefined,
+    articlePublishingEnabled:
+      typeof health.data.articlePublishingEnabled === 'boolean'
+        ? health.data.articlePublishingEnabled
+        : undefined,
+    articlePublicReadEnabled:
+      typeof health.data.articlePublicReadEnabled === 'boolean'
+        ? health.data.articlePublicReadEnabled
+        : undefined,
+  };
 }
 
+export const readFunctionRuntimeVersion = async (envId, name, request) =>
+  (await readFunctionRuntimeState(envId, name, request)).releaseId;
 export const readAdminRuntimeVersion = (envId, request) =>
   readFunctionRuntimeVersion(envId, 'admin', request);

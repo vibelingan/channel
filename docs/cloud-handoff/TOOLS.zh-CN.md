@@ -109,3 +109,10 @@ gh run list --repo vibelingan/channel --branch feat/seo-foundation \
 ```
 
 找到本次提交对应 run，再用 `gh run view <run-id> --repo vibelingan/channel --json headSha,status,conclusion,jobs,url`。不要执行 `workflow run` 来验证有线上写入的入口。旧验证日志已随仓库保留，不能用于证明新提交通过。
+
+
+## 独立工具目录的安装检查（2026-10-26）
+
+这里使用自己的 `package-lock.json`，按原 setup 脚本执行 `npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund`，随后运行 `node tools/cloud-handoff/check-runtime.mjs`。不要改用根仓库的 pnpm 安装来代替；pnpm 11.5.0 在这个目录内仍会识别上级 workspace，而该工具目录不属于 workspace，可能显示安装成功却没有安装工具。真实 GitHub 运行40221810269已暴露此问题，失败发生于调用云端之前。
+
+MCP 客户端由工具包直接声明 `@modelcontextprotocol/sdk@1.32.1`，与当前锁文件一致；CloudBase MCP仍固定2.36.1。自检只加载客户端和传输类、核对版本，不启动MCP进程，不登录也不访问云资源。已在项目外、没有根仓库依赖的全新目录执行锁定安装与自检通过。工具启动通过后，仍需另行核对CloudBase登录、目标环境和操作范围。

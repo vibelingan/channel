@@ -130,6 +130,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   }
   const get = (path: string) => fetch(`${origin}${path}`, { redirect: 'error' });
   const draft = await repo.create({ actorId: 'admin', requestId: 'create', content });
+  let currentRevision = draft.revision;
   assert.equal((await get('/blog/manufacturing-guide/')).status, 404);
   assert(!(await (await get('/blog/')).text()).includes('A clear manufacturing brief'));
   await repo.releases.request('admin', {
@@ -149,6 +150,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.equal(Reflect.get(health, 'siteOrigin'), siteOrigin);
   assert.equal(Reflect.get(health, 'previewOnly'), previewOnly);
   assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
+  assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
   const html = await response.text();
   assert.match(html, /A clear manufacturing brief helps suppliers/);
   assert.match(html, /<h1[^>]*>Manufacturing guide<\/h1>/);
@@ -158,11 +160,17 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.match(html, /index,follow/);
   if (process.env.BLOG_SSR_BROWSER === '1') {
     const { chromium } = await import('@playwright/test');
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({
+      headless: true,
+      ignoreDefaultArgs: ['--disable-back-forward-cache'],
+    });
     try {
-      const evidence = new URL('../../output/blog-server-2026-10-26/', import.meta.url);
+      const evidence = new URL('../../output/blog-server-http/', import.meta.url);
       await mkdir(evidence, { recursive: true });
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+      await page.addInitScript(
+        "addEventListener('pageshow',event=>{const key='blog-bfcache-observation';const entries=JSON.parse(sessionStorage.getItem(key)||'[]');entries.push({persisted:event.persisted,path:location.pathname});sessionStorage.setItem(key,JSON.stringify(entries));})",
+      );
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await page.goto(`${origin}/blog/`);
@@ -200,6 +208,57 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
           return view !== null && html.scrollWidth <= view.innerWidth;
         }),
       );
+      // Update through the actual repository while the reader is on the list,
+      // then use browser history. HTTP cache headers alone do not govern BFCache.
+      const revised = await repo.save({
+        actorId: 'admin',
+        articleId: draft.id,
+        expectedRevision: currentRevision,
+        content: { ...content, title: 'Revised manufacturing guide' },
+      });
+      assert(revised);
+      currentRevision = revised.revision;
+      await repo.releases.request('admin', {
+        operation: 'publish',
+        articleId: draft.id,
+        expectedRevision: currentRevision,
+        requestId: 'history-update',
+      });
+      await page.goBack();
+      await page
+        .getByRole('heading', { name: 'Revised manufacturing guide', exact: true })
+        .waitFor({ timeout: 4000 });
+      const history: unknown = await page.evaluate(
+        "JSON.parse(sessionStorage.getItem('blog-bfcache-observation')||'[]')",
+      );
+      t.diagnostic(
+        await page.evaluate(
+          "JSON.stringify(performance.getEntriesByType('navigation')[0]?.notRestoredReasons)",
+        ),
+      );
+      assert(Array.isArray(history));
+      const cacheObserved = history.some((event) => event.persisted === true);
+      t.diagnostic(`Real history cache observed: ${cacheObserved}`);
+      const restored = await repo.save({
+        actorId: 'admin',
+        articleId: draft.id,
+        expectedRevision: currentRevision,
+        content: { ...content, title: 'History refreshed guidance' },
+      });
+      assert(restored);
+      currentRevision = restored.revision;
+      await repo.releases.request('admin', {
+        operation: 'publish',
+        articleId: draft.id,
+        expectedRevision: currentRevision,
+        requestId: 'restored-page-update',
+      });
+      // If this browser does not choose BFCache, exercise the same native event
+      // explicitly. Only the event is simulated; the reload/API/HTML are real.
+      await page.evaluate("dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))");
+      await page
+        .getByRole('heading', { name: 'History refreshed guidance', exact: true })
+        .waitFor({ timeout: 4000 });
       assert.deepEqual(errors, []);
       await writeFile(
         new URL('browser.json', evidence),
@@ -207,6 +266,8 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
           width: 1440,
           mobileWidth: 390,
           navigation: 'list to article to list',
+          historyCacheObserved: cacheObserved,
+          simulatedRestorationReload: true,
           pageErrors: errors,
         }),
       );
@@ -227,7 +288,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   const updated = await repo.save({
     actorId: 'admin',
     articleId: draft.id,
-    expectedRevision: 1,
+    expectedRevision: currentRevision,
     content: { ...content, title: 'Updated guidance' },
   });
   assert(updated);

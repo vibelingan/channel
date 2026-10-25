@@ -1,0 +1,40 @@
+name: Configure Blog publication switches
+on:
+  workflow_call:
+    inputs:
+      action: {type: string, required: true}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  switch:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      BLOG_SERVER_SWITCH_ACTION: ${{ inputs.action }}
+      TCB_ENV_ID: diversity-123-d9grnqfux221323bb
+      CLOUDBASE_REGION: ap-shanghai
+      SITE_URL: https://supplychainsai.com
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Change one reviewed switch at a time and verify the running program
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/configure-server.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-server-switch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/blog-server-switch
+          retention-days: 90
+          if-no-files-found: ignore

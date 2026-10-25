@@ -17,6 +17,7 @@ import {
   dummyBlogLocation,
   publicBlogLocation,
 } from '../lib/blog/page.ts';
+import BlogRuntimeFreshness from './BlogRuntimeFreshness.astro';
 
 interface Props {
   articles: (ArticlePageData | ArticleSummary)[];
@@ -96,4 +97,5 @@ const page = cursor
     )}
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
+  {server && <BlogRuntimeFreshness />}
 </BaseLayout>

@@ -195,6 +195,7 @@ export interface AdminConfig {
   articleQueueStatusKeyHash?: string;
   articleQueueStatus?: () => Promise<{ hasQueued: boolean; hasUnknown: boolean }>;
   enableArticleReleases?: boolean;
+  articleDeliveryMode?: 'static' | 'server';
   enableInquiries?: boolean;
   /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
   enableDetailApproval?: boolean;
@@ -634,7 +635,11 @@ export async function handleAdminRequest(
       case 'resetPassword':
         return await resetPassword(req, context);
       case 'health':
-        return ok(releaseInfo('admin'));
+        return ok({
+          ...releaseInfo('admin'),
+          articleDeliveryMode: config.articleDeliveryMode ?? 'static',
+          articlePublishingEnabled: config.enableArticleReleases === true,
+        });
       case 'articleQueueStatus':
         return await readArticleQueueStatusRequest(req, config);
       case 'submitProject':

@@ -21,6 +21,7 @@ jobs:
     environment: test
     env:
       CI: 'true'
+      BLOG_SERVER_ENABLED: ${{ vars.BLOG_SERVER_ENABLED || '0' }}
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
       CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
       SITE_URL: ${{ vars.SITE_URL }}

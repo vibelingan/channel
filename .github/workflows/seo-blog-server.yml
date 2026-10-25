@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 12
     env:
       SITE_URL: https://supplychainsai.com
+      BLOG_SSR_BROWSER: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,6 +28,8 @@ jobs:
           node-version: '22.13.0'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
+      - run: node tools/cloud-handoff/check-runtime.mjs
       - run: pnpm --filter @vibelingan-channel/articles test
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test src/article-public-reader.test.ts
       - run: pnpm --filter @vibelingan-channel/site build:blog-server
@@ -36,4 +39,11 @@ jobs:
           name: blog-server-${{ github.sha }}
           path: output/blog-server-package
           if-no-files-found: error
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../scripts/blog/server-http.integration.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-server-browser-${{ github.sha }}
+          path: output/blog-server-http
+          if-no-files-found: ignore

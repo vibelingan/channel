@@ -215,3 +215,19 @@ test('the restricted queue key hash reaches only admin and never another functio
     [hash, undefined, undefined],
   );
 });
+
+test('server article settings reach only their owning APIs and remain opt-in', () => {
+  const values = { ARTICLE_DELIVERY_MODE: 'server', ARTICLE_PUBLIC_READ_ENABLED: '1' };
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) => values[name] ?? optionalEnvFixture(name),
+  });
+  assert.deepEqual(
+    defs.map((d) => d.envVariables.ARTICLE_DELIVERY_MODE),
+    ['server', undefined, undefined],
+  );
+  assert.deepEqual(
+    defs.map((d) => d.envVariables.ARTICLE_PUBLIC_READ_ENABLED),
+    [undefined, '1', undefined],
+  );
+});

@@ -17,7 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22.13.0', cache: pnpm}
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --dir tools/cloud-handoff install --frozen-lockfile --ignore-scripts
+      - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
+      - run: node tools/cloud-handoff/check-runtime.mjs
       - name: Select the successful Blog HTTP build for this exact source
         uses: actions/github-script@v7
         id: source

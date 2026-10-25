@@ -10,6 +10,7 @@ command -v python3 >/dev/null
 python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
 command -v git >/dev/null
 npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
+node tools/cloud-handoff/check-runtime.mjs
 export PATH="$root/tools/cloud-handoff/node_modules/.bin:$PATH"
 pnpm install --frozen-lockfile --ignore-scripts
 python3 scripts/cloud-handoff/install-skills.py

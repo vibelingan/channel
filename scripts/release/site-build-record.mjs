@@ -2,18 +2,22 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { identity, sha256 } from './input.mjs';
+import { serverBlogBuild } from './public-build-env.mjs';
 import { filesFromSiteBuild } from './site-files.mjs';
-function state({ codeSha, dist, productFile, blogFile }) {
+function state({ codeSha, dist, productFile, blogFile, blogDelivery = 'static' }) {
+  if (!['static', 'server'].includes(blogDelivery)) throw Error('Unknown Blog delivery ownership');
   if (!/^[a-f0-9]{40}$/.test(codeSha ?? '')) throw Error('Exact build SHA required');
   const files = filesFromSiteBuild(dist);
   return {
     files,
     record: {
-      schemaVersion: 1,
+      schemaVersion: blogDelivery === 'server' ? 2 : 1,
       purpose: 'same-run-site-build',
       codeSha,
       productsSha256: sha256(readFileSync(productFile)),
-      blogSha256: sha256(readFileSync(blogFile)),
+      ...(blogDelivery === 'server'
+        ? { blog: { delivery: 'server', apiContract: 'articles-v1' } }
+        : { blogSha256: sha256(readFileSync(blogFile)) }),
       filesSha256: identity(
         [...files]
           .map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: sha256(bytes) }))
@@ -41,7 +45,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     dist: 'apps/site/dist',
     productFile: 'output/seo-release/product-snapshot.json',
     blogFile: 'output/seo-release/blog/snapshot.json',
+    blogDelivery: serverBlogBuild(process.env) ? 'server' : 'static',
     recordFile: 'output/seo-release/build-record.json',
   });
-  console.log('Complete built files and both frozen public inputs recorded for same-run delivery.');
+  console.log(
+    'Complete static files and their declared content inputs recorded for same-run delivery.',
+  );
 }

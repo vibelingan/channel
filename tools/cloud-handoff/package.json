@@ -10,6 +10,7 @@
     "@cloudbase/cloudbase-mcp": "2.36.1",
     "@playwright/mcp": "0.0.83",
     "mcporter": "0.7.3",
-    "pnpm": "11.5.0"
+    "pnpm": "11.5.0",
+    "@modelcontextprotocol/sdk": "1.32.1"
   }
 }

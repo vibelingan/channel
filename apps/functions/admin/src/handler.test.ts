@@ -6302,3 +6302,16 @@ test('ordinary image updates cannot forge or remove protection fields and name e
   assert.equal(Object.hasOwn(edited, 'catalogStorageProtection'), false);
   assert.equal(Object.hasOwn(edited, 'catalogProtectionIntentId'), false);
 });
+
+test('health reports applied Blog settings without returning a repository or credentials', async () => {
+  setup();
+  const result = await handleAdminRequest(
+    { action: 'health' },
+    { ...config, articleDeliveryMode: 'server', enableArticleReleases: true },
+  );
+  const data = okData<{ articleDeliveryMode: string; articlePublishingEnabled: boolean }>(result);
+  assert.equal(data.articleDeliveryMode, 'server');
+  assert.equal(data.articlePublishingEnabled, true);
+  assert(!JSON.stringify(data).includes(config.jwtSecret));
+  assert(!JSON.stringify(data).includes('articleRepository'));
+});

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { publicBuildEnvironment } from './release/public-build-env.mjs';
+import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
 test('frontend and anonymous collection processes keep all declared public settings while excluding deployment and login credentials', () => {
   const source = {
     PATH: '/bin',
@@ -23,4 +23,15 @@ test('frontend and anonymous collection processes keep all declared public setti
   assert(Object.isFrozen(result));
   assert.equal(source.PUBLIC_BLOG_WORKSPACE, undefined);
   assert.throws(() => publicBuildEnvironment(source, { JWT_SECRET: 'leak' }));
+});
+
+test('the explicit server Blog flag survives public build filtering and rejects ambiguous values', () => {
+  assert.equal(serverBlogBuild({}), false);
+  assert.equal(serverBlogBuild({ BLOG_SERVER_ENABLED: '0' }), false);
+  assert.equal(serverBlogBuild({ BLOG_SERVER_ENABLED: '1' }), true);
+  assert.throws(() => serverBlogBuild({ BLOG_SERVER_ENABLED: 'true' }));
+  assert.equal(
+    publicBuildEnvironment({ BLOG_SERVER_ENABLED: '1', JWT_SECRET: 'private' }).BLOG_SERVER_ENABLED,
+    '1',
+  );
 });

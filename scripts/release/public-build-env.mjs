@@ -12,6 +12,7 @@ const buildKeys = new Set([
   'LANG',
   'LC_ALL',
   'SITE_URL',
+  'BLOG_SERVER_ENABLED',
   'SEO_CATALOG_SNAPSHOT',
   'SEO_CATALOG_API_ORIGIN',
   'SEO_BLOG_SNAPSHOT',
@@ -30,4 +31,11 @@ export function publicBuildEnvironment(source, extra = {}) {
       ),
     ),
   );
+}
+
+/** The code build owns static articles only until the verified server cutover. */
+export function serverBlogBuild(env) {
+  const value = env.BLOG_SERVER_ENABLED ?? '0';
+  if (!['0', '1'].includes(value)) throw Error('BLOG_SERVER_ENABLED must be 0 or 1');
+  return value === '1';
 }

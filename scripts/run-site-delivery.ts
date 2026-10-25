@@ -11,11 +11,12 @@ import type { ClaimedArticleRelease } from '../packages/articles/src/release-sto
 import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.ts';
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
+import { assertServerBlogReady } from './blog/server-route-health.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
-import { publicBuildEnvironment } from './release/public-build-env.mjs';
+import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
 import { readBuiltSite } from './release/site-build-record.mjs';
 import {
@@ -40,6 +41,9 @@ interface SiteObjectEntry {
 }
 const env = process.env;
 const policy = assertSiteDeliveryInvocation(env);
+const blogServer = serverBlogBuild(env);
+if (blogServer && env.SITE_ARTICLE_TASK_ID)
+  throw Error('Server Blog does not use a static article build task');
 const codeSha = env.GITHUB_SHA ?? '';
 if (!env.TENCENTCLOUD_SECRETID || !env.TENCENTCLOUD_SECRETKEY || !env.GITHUB_TOKEN)
   throw Error('Existing deployment credentials required');
@@ -252,6 +256,7 @@ try {
     (status.target.dirtyRunId && env.SITE_DELIVERY_MODE !== 'restore')
   )
     throw Error('An earlier delivery requires readback before another publication');
+  if (blogServer) await assertServerBlogReady(policy.siteOrigin);
   let baseline = status.scope.baseline
     ? await loadAccepted(await coordinator.runStatus(status.scope.baseline.sourceRunId))
     : null;
@@ -265,6 +270,7 @@ try {
           dist: 'apps/site/dist',
           productFile: 'output/seo-release/product-snapshot.json',
           blogFile: 'output/seo-release/blog/snapshot.json',
+          blogDelivery: blogServer ? 'server' : 'static',
           recordFile: 'output/seo-release/build-record.json',
         })
       : null;
@@ -350,7 +356,7 @@ try {
     if (!/^[A-Za-z0-9:_-]{1,200}$/.test(sourceRunId))
       throw Error('Exact accepted site run required');
     const target = await loadAccepted(await coordinator.runStatus(sourceRunId));
-    assertSameAcceptedBlog(target, baseline);
+    if (!blogServer) assertSameAcceptedBlog(target, baseline);
     const failedCandidates = [];
     let failedRunId = status.target.dirtyRunId;
     const seenFailures = new Set();
@@ -458,48 +464,55 @@ try {
     const snapshotPaths = products.products.map((p: { product: { _id: string } }) =>
       productPath(p.product._id),
     );
-    const accepted = await readAcceptedArticles(db);
+    const accepted = blogServer ? [] : await readAcceptedArticles(db);
     let files: Map<string, Buffer>;
     if (built) {
-      const exported = JSON.parse(await readFile('output/seo-release/blog/snapshot.json', 'utf8'));
-      const articles = accepted;
-      assert.deepEqual(
-        exported,
-        {
-          schemaVersion: 1,
-          purpose: 'public',
-          siteOrigin: policy.siteOrigin,
-          total: articles.length,
-          articles,
-        },
-        'Accepted articles changed after the normal site build',
-      );
-      files = built;
-    } else {
-      const blogDir = join(directory, 'blog');
-      await mkdir(blogDir);
-      const input = claim ? articleReleaseBuildInput(claim, accepted, policy.siteOrigin) : null;
-      const articles =
-        claim && input ? prepareArticleBuild(input.release, claim.task.id) : accepted;
-      const assertFileId = (id: string) => {
-        if (!id.startsWith(`cloud://${policy.envId}.`) || !id.includes('/articles/'))
-          throw Error('Foreign Blog media');
-      };
-      await writeBlogArticleAssets({ db, sdk, articles, directory: blogDir, assertFileId });
-      const blogFile = join(blogDir, claim ? 'release.json' : 'snapshot.json');
-      await writeFile(
-        blogFile,
-        JSON.stringify(
-          input ?? {
+      if (!blogServer) {
+        const exported = JSON.parse(
+          await readFile('output/seo-release/blog/snapshot.json', 'utf8'),
+        );
+        const articles = accepted;
+        assert.deepEqual(
+          exported,
+          {
             schemaVersion: 1,
             purpose: 'public',
             siteOrigin: policy.siteOrigin,
             total: articles.length,
             articles,
           },
-        ),
-        { flag: 'wx' },
-      );
+          'Accepted articles changed after the normal site build',
+        );
+      }
+      files = built;
+    } else {
+      let blogFile = '';
+      if (!blogServer) {
+        const blogDir = join(directory, 'blog');
+        await mkdir(blogDir);
+        const input = claim ? articleReleaseBuildInput(claim, accepted, policy.siteOrigin) : null;
+        const articles =
+          claim && input ? prepareArticleBuild(input.release, claim.task.id) : accepted;
+        const assertFileId = (id: string) => {
+          if (!id.startsWith(`cloud://${policy.envId}.`) || !id.includes('/articles/'))
+            throw Error('Foreign Blog media');
+        };
+        await writeBlogArticleAssets({ db, sdk, articles, directory: blogDir, assertFileId });
+        blogFile = join(blogDir, claim ? 'release.json' : 'snapshot.json');
+        await writeFile(
+          blogFile,
+          JSON.stringify(
+            input ?? {
+              schemaVersion: 1,
+              purpose: 'public',
+              siteOrigin: policy.siteOrigin,
+              total: articles.length,
+              articles,
+            },
+          ),
+          { flag: 'wx' },
+        );
+      }
       const dist = join(root, 'apps/site/.astro/formal-site-delivery/site');
       await command(
         join(root, 'apps/site/node_modules/.bin/astro'),
@@ -510,7 +523,8 @@ try {
           SEO_BLOG_SNAPSHOT: claim ? '' : blogFile,
           SEO_BLOG_RELEASE_INPUT: claim ? blogFile : '',
           SEO_BLOG_TASK_ID: claim?.task.id ?? '',
-          PUBLIC_BLOG_WORKSPACE: '0',
+          BLOG_SERVER_ENABLED: blogServer ? '1' : '0',
+          PUBLIC_BLOG_WORKSPACE: blogServer ? '1' : '0',
         },
       );
       files = filesFromSiteBuild(dist);

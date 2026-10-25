@@ -89,6 +89,10 @@ jobs:
       BOOTSTRAP_ENABLED: '0'
       CATALOG_RFQ_ENABLED: '1'
       CATALOG_DETAIL_APPROVAL_ENABLED: '1'
+      BLOG_SERVER_ENABLED: ${{ vars.BLOG_SERVER_ENABLED || '0' }}
+      PUBLIC_BLOG_WORKSPACE: ${{ vars.BLOG_SERVER_ENABLED == '1' && '1' || '0' }}
+      ARTICLE_DELIVERY_MODE: ${{ vars.ARTICLE_DELIVERY_MODE || 'static' }}
+      ARTICLE_PUBLIC_READ_ENABLED: ${{ vars.ARTICLE_PUBLIC_READ_ENABLED || '0' }}
       ARTICLE_PUBLISHING_ENABLED: ${{ vars.ARTICLE_PUBLISHING_ENABLED || '0' }}
       BLOG_QUEUE_STATUS_KEY_HASH: ${{ vars.BLOG_QUEUE_STATUS_KEY_HASH }}
       E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
@@ -149,6 +153,7 @@ jobs:
         run: ./apps/site/node_modules/.bin/tsx scripts/blog/prepare-products.ts
 
       - name: Export accepted articles and verified images from formal CloudBase
+        if: ${{ vars.BLOG_SERVER_ENABLED != '1' }}
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
@@ -157,7 +162,7 @@ jobs:
       - name: Build site
         env:
           SEO_CATALOG_SNAPSHOT: ${{ github.workspace }}/output/seo-release/product-snapshot.json
-          SEO_BLOG_SNAPSHOT: ${{ github.workspace }}/output/seo-release/blog/snapshot.json
+          SEO_BLOG_SNAPSHOT: ${{ vars.BLOG_SERVER_ENABLED != '1' && format('{0}/output/seo-release/blog/snapshot.json', github.workspace) || '' }}
         run: pnpm build
 
       - name: Scan built site for server secret names

@@ -377,9 +377,23 @@ test('normal static publication reuses the frozen build and common recovery whil
       backend < delivery,
   );
   assert(browser >= 0 && browser < backend);
-  assert(steps[build].env.SEO_BLOG_SNAPSHOT.endsWith('/blog/snapshot.json'));
+  const expression = steps[build].env.SEO_BLOG_SNAPSHOT;
+  const resolveSnapshot = (flag) =>
+    Function(
+      'vars',
+      'github',
+      'format',
+      `return ${expression.slice(3, -2)}`,
+    )({ BLOG_SERVER_ENABLED: flag }, { workspace: '/checked-source' }, (template, workspace) => {
+      assert.equal(template, '{0}/output/seo-release/blog/snapshot.json');
+      return `${workspace}/output/seo-release/blog/snapshot.json`;
+    });
+  assert.equal(resolveSnapshot(undefined), '/checked-source/output/seo-release/blog/snapshot.json');
+  assert.equal(resolveSnapshot('0'), '/checked-source/output/seo-release/blog/snapshot.json');
+  assert.equal(resolveSnapshot('1'), '');
+  assert.equal(steps[exportBlog].if, "${{ vars.BLOG_SERVER_ENABLED != '1' }}");
   assert.equal(release.jobs.deploy.env.CHANNEL_COORDINATED_SITE_DELIVERY, '1');
-  for (const index of [exportBlog, seal, functionBackup, preserve, delivery]) {
+  for (const index of [seal, functionBackup, preserve, delivery]) {
     assert.equal(steps[index].if, undefined);
     assert.equal(steps[index]['continue-on-error'], undefined);
   }

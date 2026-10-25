@@ -371,7 +371,11 @@ async function routeGet(
   }
 
   if (segments.length === 1 && segments[0] === 'health') {
-    return jsonResponse(event, config, ok(releaseInfo('public-api')));
+    return jsonResponse(
+      event,
+      config,
+      ok({ ...releaseInfo('public-api'), articlePublicReadEnabled: config.articles !== undefined }),
+    );
   }
 
   if (segments.length === 1 && segments[0] === 'catalog-taxonomy') {

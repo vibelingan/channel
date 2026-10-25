@@ -35,3 +35,13 @@ test('missing and unavailable content keep distinct HTTP status and never disclo
   assert(!failure.body.includes('connection string'));
   assert.equal(failure.headers['Cache-Control'], 'no-store');
 });
+
+test('health confirms the applied public article flag rather than only the uploaded package', async () => {
+  const enabled = await handlePublicApiEvent(
+    { path: '/api/health', httpMethod: 'GET' },
+    { articles },
+  );
+  assert.equal(JSON.parse(enabled.body).data.articlePublicReadEnabled, true);
+  const disabled = await handlePublicApiEvent({ path: '/api/health', httpMethod: 'GET' }, {});
+  assert.equal(JSON.parse(disabled.body).data.articlePublicReadEnabled, false);
+});
