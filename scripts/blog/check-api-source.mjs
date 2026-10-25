@@ -5,12 +5,28 @@ import { fetchFully } from '../smoke-http.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
 const endpoint = 'https://blog-pages-298020-11-1443560658.sh.run.tcloudbase.com/blog/health.json';
 /** The preparation installs the same application version as the staged Blog, independently of the tool's commit. */
-export async function readBlogRuntimeSource(request = fetchFully) {
-  const response = await request('GET', endpoint, {
-    redirect: 'error',
-    timeoutMs: 30000,
-    maxBytes: 32768,
-  });
+export async function readBlogRuntimeSource(
+  request = fetchFully,
+  { pause = (ms) => new Promise((done) => setTimeout(done, ms)) } = {},
+) {
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await request('GET', endpoint, {
+        redirect: 'error',
+        timeoutMs: 30000,
+        maxBytes: 32768,
+      });
+      if (![502, 503, 504].includes(response.status) || attempt === 2) break;
+    } catch (error) {
+      const transient =
+        (error instanceof TypeError && error.message === 'fetch failed') ||
+        error.message === `GET ${endpoint} timed out after 30000ms`;
+      if (!transient || attempt === 2) throw error;
+    }
+    await pause(1000);
+  }
+  if (!response) throw Error('The staged Blog connection was not confirmed');
   const health = JSON.parse(response.body.toString());
   if (
     response.status !== 200 ||

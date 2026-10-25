@@ -1,5 +1,7 @@
 const domain = 'supplychainsai.com';
-const paths = ['/blog', '/blog/*'];
+// CloudBase uses prefix matching: /blog owns the article pages and their assets.
+const paths = ['/blog'];
+const isBlogPath = (path) => path === '/blog' || path.startsWith('/blog/');
 const own = (route) =>
   paths.includes(route.Path) &&
   route.UpstreamResourceType === 'CBR' &&
@@ -26,7 +28,7 @@ function fixed(routes) {
     ),
   );
 }
-/** Only the two Blog paths are writable. Unknown routes and unrelated configuration stop the change. */
+/** Only the Blog prefix route is writable. Unknown routes and unrelated configuration stop the change. */
 export async function setBlogRoutes({ client, action, save, verify }) {
   if (!['initialize', 'restore'].includes(action))
     throw Error('Explicit Blog route action required');
@@ -46,7 +48,7 @@ export async function setBlogRoutes({ client, action, save, verify }) {
     return { routes: site.Routes, rest: JSON.stringify(stable({ ...site, Routes: undefined })) };
   }
   const before = await read();
-  for (const route of before.routes.filter((route) => paths.includes(route.Path)))
+  for (const route of before.routes.filter((route) => isBlogPath(route.Path)))
     if (!own(route)) throw Error('A Blog path belongs to another upstream; no route changed');
   if (
     !before.routes.some(

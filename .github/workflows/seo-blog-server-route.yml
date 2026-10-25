@@ -28,7 +28,7 @@ jobs:
       - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
       - run: node tools/cloud-handoff/check-runtime.mjs
       - run: node --test tools/cloud-handoff/transport.integration.mjs
-      - name: Archive the actual domain before connecting only the two Blog paths
+      - name: Archive the actual domain before connecting only the Blog prefix
         uses: actions/github-script@v7
         env:
           GITHUB_TOKEN: ${{ github.token }}

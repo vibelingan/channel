@@ -1,0 +1,186 @@
+{
+  "codeSha": "514e543ad34505f9939ed85f9b07b7fae1a939b0",
+  "executorSha": "2b59d3f2a5c6c59c95ac3c14138fa3cafb1cb136",
+  "backupArtifactId": "12612988635",
+  "configurationUnchanged": true,
+  "websiteUnchanged": true,
+  "resources": [
+    {
+      "name": "articleDrafts",
+      "permission": "ADMINONLY",
+      "indexes": []
+    },
+    {
+      "name": "articlePublications",
+      "permission": "ADMINONLY",
+      "indexes": []
+    },
+    {
+      "name": "articleSlugs",
+      "permission": "ADMINONLY",
+      "indexes": []
+    },
+    {
+      "name": "articleMedia",
+      "permission": "ADMINONLY",
+      "indexes": []
+    },
+    {
+      "name": "articleReleaseTasks",
+      "permission": "ADMINONLY",
+      "indexes": [
+        "article_release_queue"
+      ]
+    },
+    {
+      "name": "articleReleaseHeads",
+      "permission": "ADMINONLY",
+      "indexes": []
+    },
+    {
+      "name": "articleAccepted",
+      "permission": "ADMINONLY",
+      "indexes": [
+        "article_public_index"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "name": "admin",
+      "result": {
+        "status": "accepted",
+        "snapshot": {
+          "name": "admin",
+          "functionId": "lam-g2fob77x",
+          "runtime": "Nodejs20.19",
+          "handler": "index.main",
+          "role": "TCB_QcsRole",
+          "layers": [],
+          "status": "Active",
+          "availableStatus": "Available",
+          "configurationToken": "f7f67ea709fcd1026dce0619f02faf7f6ebc2a85f6902934a60cdee9b83e4b36",
+          "configurationReferences": [
+            {
+              "name": "ADMIN_EMAIL",
+              "version": "9681be83954625101adc01a5deb8b81b7a6ac8c4b2297912b8f44d4241d79cb7"
+            },
+            {
+              "name": "ADMIN_PASSWORD_HASH",
+              "version": "0f91ce73a4a95af14d2752e9c665d857b459ab0dc9fc7299d82d199e30185443"
+            },
+            {
+              "name": "APP_ENV",
+              "version": "212b6210eb5a45cb182496d5324f2e6e01ad89206682ce573b942ff67523a876"
+            },
+            {
+              "name": "BOOTSTRAP_ADMIN_TOKEN",
+              "version": "570a9ea9b628984619cdba4e8db441d7f27822ff9167576133c033a73714a00d"
+            },
+            {
+              "name": "BOOTSTRAP_ENABLED",
+              "version": "d9dce82050aaf675bec558b80784a58594de33f41c66768c77b863bb0bebf106"
+            },
+            {
+              "name": "CATALOG_DETAIL_APPROVAL_ENABLED",
+              "version": "bfafb8ec77a6f47a9f6f09da27886af7c68dbb3cb3d9750a9988e482d46a8298"
+            },
+            {
+              "name": "CATALOG_RFQ_ENABLED",
+              "version": "a28c5ce77c28acbe07255114318b26cdfb179fc0c81b1dfb06cb04c49ef75692"
+            },
+            {
+              "name": "CORS_ALLOWED_ORIGINS",
+              "version": "5c91a56c90a28b7f5d3313adfd44f02d21f9a4e34ed19b082ea3fae0d85e33e0"
+            },
+            {
+              "name": "JWT_SECRET",
+              "version": "c7a0fef484893a3bd761ae986c00b047314a2f4b9935ba1bc8cdb7c96f88498a"
+            },
+            {
+              "name": "LOGIN_URL",
+              "version": "d43915c6832586757eaa8e5fcb8c4f859bef968d20dae1c51f0688e75a44258a"
+            },
+            {
+              "name": "RESET_PASSWORD_URL",
+              "version": "cb484827ce5a289fca45185ecc106d91983c67be6cd027a8663912839bfab55c"
+            },
+            {
+              "name": "TCB_ENV",
+              "version": "7880e4c7b592e828c2f432d310df1c93b8bfdc2a651da904466cad34054d1014"
+            }
+          ],
+          "versionToken": "f20aa466df4e0280db3b196cea255150106828cc7ddbd9fa148745593a454984",
+          "installDependency": "FALSE",
+          "requestId": "757211ec-0f6d-409d-8931-8ec4136f5285",
+          "codeBytes": 585692,
+          "triggerCount": 0,
+          "recoveryEligibility": {
+            "status": "within-scope",
+            "reasons": []
+          },
+          "packageSha256": "b2dfb3fcba29f2e5549fb337e9c8dc629965ad4cd3fbc9dd035dbaeb8cc9c72f",
+          "packageBytes": 585692
+        }
+      }
+    },
+    {
+      "name": "public-api",
+      "result": {
+        "status": "accepted",
+        "snapshot": {
+          "name": "public-api",
+          "functionId": "lam-35swhqmb",
+          "runtime": "Nodejs20.19",
+          "handler": "index.main",
+          "role": "TCB_QcsRole",
+          "layers": [],
+          "status": "Active",
+          "availableStatus": "Available",
+          "configurationToken": "e3e95842becab3d3a9eac5be4e3fc7dae5ffe8c0375c459480707f31bd9cba25",
+          "configurationReferences": [
+            {
+              "name": "APP_ENV",
+              "version": "f83a95dcfa1addf89d9c481486d85bb4ac77842bb73e477e1645b1fb29026c50"
+            },
+            {
+              "name": "CATALOG_DETAIL_APPROVAL_ENABLED",
+              "version": "4d5e5b76db1801c264b64c5fd28b10d19403274181d6b744c9db6a1dc56d1341"
+            },
+            {
+              "name": "CATALOG_RFQ_ENABLED",
+              "version": "381b4c814d56f3e34057b87624c42875ea98cec3d1758aa04bda4544f4672f77"
+            },
+            {
+              "name": "CORS_ALLOWED_ORIGINS",
+              "version": "ea6d3e38725bf9cb6c68e0eaa5ca6089b44e6b3f3da7a3ee089fb97c12fe4af2"
+            },
+            {
+              "name": "JWT_SECRET",
+              "version": "22cc2709497f1a6267dd1fca929781d8d48435f2a9a0642614a45dbe3c10e5e1"
+            },
+            {
+              "name": "PUBLIC_API_BASE_URL",
+              "version": "15c56e4d059a8de3da80dc7000db043b0b22a1f8bbc176c47d67b1bf3c3d9b2b"
+            },
+            {
+              "name": "TCB_ENV",
+              "version": "644f2a4e12003aeb6b731a42e6672a31e71ad7a8d81814b55630d0359feeab50"
+            }
+          ],
+          "versionToken": "3f3cf82e99c1e85ff4eddfb2c927e716a7cfb5916eb6f07b568264ee15f805b2",
+          "installDependency": "FALSE",
+          "requestId": "1848d14a-3912-4f31-a4d5-c624651134bb",
+          "codeBytes": 411357,
+          "triggerCount": 0,
+          "recoveryEligibility": {
+            "status": "within-scope",
+            "reasons": []
+          },
+          "packageSha256": "070b1f620b16734114336371c09db53f7b59d85cfb003b31c821580887de6711",
+          "packageBytes": 411357
+        }
+      }
+    }
+  ]
+}

@@ -31,6 +31,8 @@ test('the real public admin requests publication only for its owned acceptance a
     process.env.E2E_ADMIN_EMAIL ?? '',
     process.env.E2E_ADMIN_PASSWORD ?? '',
   );
+  await expect(page.getByRole('button', { name: 'Products', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Alibaba Sync', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Articles', exact: true }).click();
   let articleId = process.env.E2E_BLOG_ARTICLE_ID ?? '';
   if (operation === 'create') {

@@ -524,7 +524,8 @@ try {
           SEO_BLOG_RELEASE_INPUT: claim ? blogFile : '',
           SEO_BLOG_TASK_ID: claim?.task.id ?? '',
           BLOG_SERVER_ENABLED: blogServer ? '1' : '0',
-          PUBLIC_BLOG_WORKSPACE: blogServer ? '1' : '0',
+          // The articles-only workspace is for local development, never the deployed admin.
+          PUBLIC_BLOG_WORKSPACE: '0',
         },
       );
       files = filesFromSiteBuild(dist);

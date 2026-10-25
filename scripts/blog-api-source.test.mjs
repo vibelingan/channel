@@ -103,3 +103,57 @@ test('the API entry checks the selected runtime on Node 20 without invoking pnpm
     ),
   );
 });
+
+test('staged identity tolerates bounded connection failures without retrying a wrong identity', async () => {
+  const response = {
+    status: 200,
+    body: Buffer.from(
+      JSON.stringify({
+        service: 'blog-pages',
+        status: 'ok',
+        siteOrigin: p.siteOrigin,
+        releaseId: 'b'.repeat(40),
+      }),
+    ),
+    headers: new Headers({ 'x-channel-blog-version': 'b'.repeat(40) }),
+  };
+  let calls = 0;
+  const pause = async () => {};
+  const request = async () => {
+    calls++;
+    if (calls === 1) throw new TypeError('fetch failed');
+    if (calls === 2) return { ...response, status: 503 };
+    return response;
+  };
+  assert.equal(await readBlogRuntimeSource(request, { pause }), 'b'.repeat(40));
+  assert.equal(calls, 3);
+  calls = 0;
+  await assert.rejects(
+    readBlogRuntimeSource(
+      async () => {
+        calls++;
+        throw new TypeError('fetch failed');
+      },
+      { pause },
+    ),
+  );
+  assert.equal(calls, 3);
+  for (const status of [200, 401, 403]) {
+    calls = 0;
+    await assert.rejects(
+      readBlogRuntimeSource(
+        async () => {
+          calls++;
+          return {
+            ...response,
+            status,
+            headers: new Headers({ 'x-channel-blog-version': 'a'.repeat(40) }),
+          };
+        },
+        { pause },
+      ),
+      /actual staged Blog/,
+    );
+    assert.equal(calls, 1);
+  }
+});

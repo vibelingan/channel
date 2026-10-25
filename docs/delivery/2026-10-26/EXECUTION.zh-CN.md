@@ -46,7 +46,7 @@ public-api 增加只读的 `/api/articles`、`/api/articles/slug/{slug}` 和 `/a
 
 文章服务只持有固定 `BLOG_API_ORIGIN`，不带数据库或管理员密钥。接口地址由部署配置决定，文章输入不能改主机。请求限制超时、响应类型和正文大小，拒绝重定向。故障不返回空列表或旧正文。
 
-服务接管 `/blog`、`/blog/*`，自身 JS/CSS 也在此路径下。公开文章图片使用 `/blog/media/articles/...`；品牌图标等根目录资源仍由原静态托管交付，不打包整站媒体。`/blog/health.json` 报告运行代码版本；`/blog/sitemap.xml` 按当前公开记录生成，包含新发布文章，排除撤回文章。
+服务通过一条 `/blog` 前缀路由接管文章页面和其下资源，自身 JS/CSS 也在此路径下。公开文章图片使用 `/blog/media/articles/...`；品牌图标等根目录资源仍由原静态托管交付，不打包整站媒体。`/blog/health.json` 报告运行代码版本；`/blog/sitemap.xml` 按当前公开记录生成，包含新发布文章，排除撤回文章。
 
 只有实际切换时才启用静态构建的 `BLOG_SERVER_ENABLED=1`：不再生成静态 Blog HTML，sitemap-index 明确增加同域 `/blog/sitemap.xml`。静态检查继续逐页检查其余 HTML，且拒绝遗留静态 Blog 页面；文章服务另用实际 HTTP 检查正文、状态、canonical、结构化数据、链接、资源和 sitemap。不能通过关掉 SEO 检查来上线。
 
@@ -92,7 +92,7 @@ public-api 增加只读的 `/api/articles`、`/api/articles/slug/{slug}` 和 `/a
 
 总图已按当前实现更新：[代码交付、文章发布、访问与恢复](diagrams/complete-delivery.html)。文章发布的完整请求顺序仍见上文时序图。
 
-`blog-server-route`是单独的路径接线入口，initialize只添加`/blog`和`/blog/*`并透传完整路径到blog-pages；restore只停用这两个已确认属于该服务的路径，保留记录，不删除域名或其他路由。操作前要暂停文章发布、确认实际API和文章服务同一已通过CI的版本，并把原域名配置归档。最后实际访问列表、sitemap和缺失文章，不能只相信SDK回执。
+`blog-server-route`是单独的路径接线入口，initialize只使用`/blog`前缀路由并透传完整路径到blog-pages；restore只停用这一条已确认属于该服务的路径，保留记录，不删除域名或其他路由。操作前要暂停文章发布、确认实际API和文章服务同一已通过CI的版本，并把原域名配置归档。最后实际访问列表、sitemap和缺失文章，不能只相信SDK回执。
 
 执行工具的版本与正在运行的网站版本分别记录。新增测试或操作说明不要求无意义地重发网站程序；开关和路径工具仍须确认两个API与文章服务属于同一已通过原SEO分支CI的部署版本，然后才操作该版本。业务程序升级仍通过独立部署入口，不会因工具检查自动覆盖。
 

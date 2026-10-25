@@ -35,7 +35,7 @@ function fixture() {
       if (name === 'queryGateway') return { data: { raw: { Domains: [structuredClone(site)] } } };
       assert.equal(name, 'manageGateway');
       assert.equal(input.domain, 'supplychainsai.com');
-      assert(['/blog', '/blog/*'].includes(input.path));
+      assert.equal(input.path, '/blog');
       writes.push(input);
       if (rejectWrite) throw Error('not submitted');
       const existing = site.Routes.find((route) => route.Path === input.path);
@@ -89,14 +89,14 @@ test('A → Blog routes B → A disables only its own routes; original site and 
   const f = fixture();
   const original = structuredClone(f.site);
   await f.run('initialize');
-  assert.equal(f.writes.length, 2);
+  assert.equal(f.writes.length, 1);
   assert.equal(f.verified(), 1);
   assert.deepEqual(f.site.Routes.slice(0, 2), original.Routes);
   assert.deepEqual(f.site.Extension, original.Extension);
   await f.run('initialize');
-  assert.equal(f.writes.length, 2);
+  assert.equal(f.writes.length, 1);
   await f.run('restore');
-  assert.equal(f.writes.length, 4);
+  assert.equal(f.writes.length, 2);
   assert(f.site.Routes.slice(2).every((route) => route.Enable === false));
   assert.deepEqual(f.site.Routes.slice(0, 2), original.Routes);
   assert(
@@ -109,10 +109,10 @@ test('lost acknowledgement is resolved from the route; each write is submitted o
   const f = fixture();
   f.loseAck();
   await f.run('initialize');
-  assert.equal(f.writes.length, 2);
+  assert.equal(f.writes.length, 1);
   assert.equal(f.records.at(-1).phase, 'accepted');
 });
-test('rejected first write stops without creating the second path or claiming acceptance', async () => {
+test('rejected write stops without claiming acceptance', async () => {
   const f = fixture();
   f.rejectWrite();
   await assert.rejects(f.run('initialize'), /not confirmed/);
