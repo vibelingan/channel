@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-25/diagrams/04-release-recovery-sequence.archify.json",
+  "output": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-25/diagrams/04-release-recovery-sequence.html",
+  "specification": {
+    "sha256": "6ef01f1499b4b06ee45b52ec24222744ca9c8adb86f46b1df3790013b6510104",
+    "bytes": 3717
+  },
+  "artifact": {
+    "sha256": "d6d2c296b174f8a146374b4b215dbe48a7603accd4be3ba0664e41d86fb0ae33",
+    "bytes": 807394
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

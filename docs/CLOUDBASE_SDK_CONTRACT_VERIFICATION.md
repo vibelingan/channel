@@ -120,3 +120,7 @@ The reviewer must look for these failure modes:
 
 If any of those appear, stop the implementation path and ask for contract
 evidence before continuing.
+
+## Hosting / recovery 的补充验证
+
+2026-10-25：静态托管备份、COS 源站读取和恢复还需读取 [CloudBase Hosting & Recovery](ENGINEERING_CRAFT.md#cloudbase-hosting--recovery) 与 [版本化故障记录](delivery/2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。升级 Manager / Node 时重跑 `scripts/hosting-backup-sdk.test.mjs` 的实际 SDK 诊断，并审核已知缺陷断言；保护自己备份完整性的用例仍必须通过。不要将 MCP 连接关闭一概归因为网络，或把 SDK 命令完成当成备份验收。

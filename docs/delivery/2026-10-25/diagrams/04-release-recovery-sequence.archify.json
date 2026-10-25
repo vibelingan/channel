@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "代码 A→B→A：何时可以写线上，何时应该恢复",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 520]
+  },
+  "participants": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "人工 / Agent",
+      "sublabel": "GitHub 发起"
+    },
+    {
+      "id": "ci",
+      "type": "security",
+      "label": "检查与构建",
+      "sublabel": "失败不碰线上"
+    },
+    {
+      "id": "archive",
+      "type": "cloud",
+      "label": "固定版本档案",
+      "sublabel": "A、B 与校验值"
+    },
+    {
+      "id": "coordinator",
+      "type": "backend",
+      "label": "发布执行器",
+      "sublabel": "持锁与操作记录"
+    },
+    {
+      "id": "target",
+      "type": "cloud",
+      "label": "目标网站与函数",
+      "sublabel": "真实 URL 验收"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 270,
+      "label": "检查与保存 A / B"
+    },
+    {
+      "from": 275,
+      "to": 355,
+      "label": "交付 B 后验收"
+    },
+    {
+      "from": 365,
+      "to": 460,
+      "label": "必要时恢复 A"
+    }
+  ],
+  "messages": [
+    {
+      "id": "r0",
+      "from": "operator",
+      "to": "ci",
+      "y": 165.0,
+      "label": "提交代码 B；检查失败就结束",
+      "variant": "default"
+    },
+    {
+      "id": "r1",
+      "from": "ci",
+      "to": "archive",
+      "y": 195.0,
+      "label": "只构建一次，保存固定 B 与全部检查结果",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r2",
+      "from": "archive",
+      "to": "coordinator",
+      "y": 225.0,
+      "label": "读取已验收 A 和候选 B；缺文件则停止",
+      "variant": "default"
+    },
+    {
+      "id": "r3",
+      "from": "coordinator",
+      "to": "target",
+      "y": 255.0,
+      "label": "持锁重查现场版本、配置和恢复兼容性",
+      "variant": "security"
+    },
+    {
+      "id": "r4",
+      "from": "coordinator",
+      "to": "target",
+      "y": 285.0,
+      "label": "上传变化资源，再交付页面 / 函数 B",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r5",
+      "from": "target",
+      "to": "coordinator",
+      "y": 315.0,
+      "label": "核对完整正文、状态码、接口和版本",
+      "variant": "return"
+    },
+    {
+      "id": "r6",
+      "from": "coordinator",
+      "to": "archive",
+      "y": 345.0,
+      "label": "成功才登记 B；失败保留操作记录",
+      "variant": "default"
+    },
+    {
+      "id": "r7",
+      "from": "operator",
+      "to": "coordinator",
+      "y": 375.0,
+      "label": "人工恢复，或写入后的验收失败触发恢复",
+      "variant": "security"
+    },
+    {
+      "id": "r8",
+      "from": "coordinator",
+      "to": "target",
+      "y": 405.0,
+      "label": "确认没有别人接手；按清单恢复本轮的 A",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r9",
+      "from": "target",
+      "to": "operator",
+      "y": 435.0,
+      "label": "验收 A 并记录结果；无法确认则停止继续写入",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "实际状态",
+      "items": [
+        "底层工具和一次现场 A 恢复已有证据。",
+        "新的免整站备份流程与完整 B→A 仍待 test 实测。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "数据和文章另行管理",
+      "items": [
+        "不把整库倒回 A；兼容失败时禁止恢复旧函数。",
+        "文章撤回保持有效；技术恢复不额外催搜索引擎更新。"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+{
+  "source": "cli-final-full verified backup 2026-10-24T17:27:29Z",
+  "total": {
+    "files": 1239,
+    "bytes": 88982956
+  },
+  "groups": {
+    "media": {
+      "files": 81,
+      "bytes": 44655194
+    },
+    "_astro": {
+      "files": 1115,
+      "bytes": 42811867
+    },
+    "__blog-dummy": {
+      "files": 8,
+      "bytes": 547951
+    }
+  },
+  "largest": [
+    {
+      "path": "media/videoanimation.mp4",
+      "bytes": 14930439,
+      "sha256": "e35fda129f18ca2f4ed7a1866299b0b8dfdef9357aa8e1baf80dbbb0d5d38e94"
+    },
+    {
+      "path": "media/oem/factory-video.mp4",
+      "bytes": 10523748,
+      "sha256": "b1256981dda8833e51e93bbf582a5a5e035a139a90b6e25956f9bea2d92037d5"
+    },
+    {
+      "path": "media/oem-factory.mp4",
+      "bytes": 7201197,
+      "sha256": "3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d"
+    },
+    {
+      "path": "media/section-partnership.png",
+      "bytes": 2218445,
+      "sha256": "1484fcb069af190ff9f6f57aa9af00767dfaf3f3f60c650470293a1dfea5e805"
+    },
+    {
+      "path": "media/section-capabilities.png",
+      "bytes": 2051047,
+      "sha256": "4be5f5a2a2f4f21247d2eee80987d1252c5671627a390bd2893c039585f280d1"
+    },
+    {
+      "path": "media/social/oem-manufacturing-og.png",
+      "bytes": 1039416,
+      "sha256": "06ed099bed2cfb640d115dd8c4b5f10432bee6214e01a16efad8d5c06e5b37c2"
+    },
+    {
+      "path": "media/videoanimation.webp",
+      "bytes": 742966,
+      "sha256": "eb600dc3338cbe68642674c4cdd448986aace3be8b66e509ec5077f26344b11d"
+    },
+    {
+      "path": "_astro/ArticlesPage.RoZGWSTS.js",
+      "bytes": 508085,
+      "sha256": "9f9b64aba38a06e6b5c90ab0f695b66f5305c6054ee27975eb5964709c5da068"
+    },
+    {
+      "path": "_astro/AdminApp.DNH_92dt.js",
+      "bytes": 443097,
+      "sha256": "4f524d55135c080e2e4d62307263bad2557d6712f3c8b2c8d2ae7353bf6319a4"
+    },
+    {
+      "path": "_astro/AdminApp.CnEadORi.js",
+      "bytes": 440669,
+      "sha256": "71a9ef511544d6be38ab7c51c3c19e962dea8bb9f011895731c166c181df48d0"
+    },
+    {
+      "path": "_astro/AdminApp.DOjaoeEj.js",
+      "bytes": 439631,
+      "sha256": "29b0fb6136401f39cb99b2deb09ca4722900a77e799052ebcbbb5f61284e853a"
+    },
+    {
+      "path": "_astro/AdminApp.h727sdXg.js",
+      "bytes": 439561,
+      "sha256": "8f4d387164d8c6220a47475f17f5ce154560cde5b957587ebb6d8296a9f1218c"
+    }
+  ],
+  "multi_version_examples": [
+    {
+      "name": "_astro/AdminApp.<hash>.js",
+      "files": 127,
+      "bytes": 19861852
+    },
+    {
+      "name": "_astro/SkuDetailPage.<hash>.js",
+      "files": 67,
+      "bytes": 576195
+    },
+    {
+      "name": "_astro/BaseLayout.<hash>.css",
+      "files": 57,
+      "bytes": 4611160
+    },
+    {
+      "name": "_astro/ProductInquiriesPage.<hash>.js",
+      "files": 47,
+      "bytes": 691982
+    },
+    {
+      "name": "_astro/AccountMenu.<hash>.js",
+      "files": 43,
+      "bytes": 131896
+    },
+    {
+      "name": "_astro/catalog-detail-approval-api.<hash>.js",
+      "files": 42,
+      "bytes": 150297
+    },
+    {
+      "name": "_astro/AdminDetailPreview.<hash>.js",
+      "files": 41,
+      "bytes": 2893687
+    },
+    {
+      "name": "_astro/AuthForm.<hash>.js",
+      "files": 41,
+      "bytes": 145789
+    },
+    {
+      "name": "_astro/CatalogFamilyPage.<hash>.js",
+      "files": 40,
+      "bytes": 349520
+    },
+    {
+      "name": "_astro/ProductMedia.<hash>.js",
+      "files": 40,
+      "bytes": 59127
+    },
+    {
+      "name": "_astro/ProfilePanel.<hash>.js",
+      "files": 40,
+      "bytes": 145690
+    },
+    {
+      "name": "_astro/session.<hash>.js",
+      "files": 40,
+      "bytes": 162250
+    },
+    {
+      "name": "_astro/useSession.<hash>.js",
+      "files": 40,
+      "bytes": 14903
+    },
+    {
+      "name": "_astro/ProjectForm.astro_astro_type_script_index_0_lang.<hash>.js",
+      "files": 38,
+      "bytes": 80547
+    },
+    {
+      "name": "_astro/api.<hash>.js",
+      "files": 36,
+      "bytes": 261732
+    }
+  ],
+  "public_html_literal_graph": {
+    "roots": [
+      "account/index.html",
+      "admin/index.html",
+      "ai-gadgets/index.html",
+      "cloud-admin/index.html",
+      "electronics-toys/index.html",
+      "errors/not-found.html",
+      "googlefc43809ad650355b.html",
+      "headphones/index.html",
+      "index.html",
+      "login/index.html",
+      "misc/index.html",
+      "oem_submit_result/index.html",
+      "oem/index.html",
+      "portfolio/index.html",
+      "products/item/index.html",
+      "register/index.html",
+      "reset/index.html",
+      "success-stories/index.html",
+      "toys/index.html"
+    ],
+    "reachable_astro": {
+      "files": 44,
+      "bytes": 1704405
+    },
+    "not_in_graph_astro": {
+      "files": 1071,
+      "bytes": 41107462
+    },
+    "caution": "Not a deletion list. Computed references, saved old tabs, private pages and rollback versions are not proven absent."
+  }
+}

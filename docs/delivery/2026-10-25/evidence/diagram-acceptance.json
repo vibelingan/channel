@@ -1,0 +1,106 @@
+[
+  {
+    "diagram": "01-current",
+    "type": "architecture",
+    "specification": {
+      "sha256": "59ce68aa33d9a465f2e66fe5aec0f6475685171cdd50eef81fc4fe046afda67d",
+      "bytes": 3881
+    },
+    "artifact": {
+      "sha256": "edb942f457a8c2b905e684cd203d01da7400f3af37c03860c337279fc2c860ec",
+      "bytes": 813325
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "reviewer": "image-capable Codex, rendered screenshot inspection",
+    "scope": "light 1440x900 and dark 2048x1320 screenshots",
+    "correction_rounds": 1,
+    "notes": "No clipped content or route/node overlaps observed; detailed sequencing is on separate linked sheets."
+  },
+  {
+    "diagram": "02-complete-target",
+    "type": "architecture",
+    "specification": {
+      "sha256": "ad60d79acf31f7488e9b5d41a385b424d6c7653c10c802537fd90e15f8782de4",
+      "bytes": 5594
+    },
+    "artifact": {
+      "sha256": "f19b92923925ec80cf13d9fb4b6dc56f94dd878fe46b827535bee37e8ddc8c12",
+      "bytes": 816109
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "reviewer": "image-capable Codex, rendered screenshot inspection",
+    "scope": "light 1440x900 and dark 2048x1320 screenshots",
+    "correction_rounds": 1,
+    "notes": "No clipped content or route/node overlaps observed; detailed sequencing is on separate linked sheets."
+  },
+  {
+    "diagram": "03-article-sequence",
+    "type": "sequence",
+    "specification": {
+      "sha256": "34445b4d062186c417100999e0103d7616f99ee79b57085acea5a5acdc09976d",
+      "bytes": 3205
+    },
+    "artifact": {
+      "sha256": "3ac99a847414d150f60d1dabb272a0323ad0dbe62e9e9578f4b52285b7ad68a9",
+      "bytes": 805915
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "reviewer": "image-capable Codex, rendered screenshot inspection",
+    "scope": "light 1440x900 and dark 2048x1320 screenshots",
+    "correction_rounds": 1,
+    "notes": "No clipped content or route/node overlaps observed; detailed sequencing is on separate linked sheets."
+  },
+  {
+    "diagram": "04-release-recovery-sequence",
+    "type": "sequence",
+    "specification": {
+      "sha256": "6ef01f1499b4b06ee45b52ec24222744ca9c8adb86f46b1df3790013b6510104",
+      "bytes": 3717
+    },
+    "artifact": {
+      "sha256": "d6d2c296b174f8a146374b4b215dbe48a7603accd4be3ba0664e41d86fb0ae33",
+      "bytes": 807394
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "reviewer": "image-capable Codex, rendered screenshot inspection",
+    "scope": "light 1440x900 and dark 2048x1320 screenshots",
+    "correction_rounds": 1,
+    "notes": "No clipped content or route/node overlaps observed; detailed sequencing is on separate linked sheets."
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-25",
+  "skill": "deepen-task",
+  "source": "user-attached codex-personal-skills.zip",
+  "zipSha256": "095fbe7a54722cf21a514fc0766798dd1987bec3bc9387b811bcc31244129663",
+  "installedPath": "~/.agents/skills/deepen-task",
+  "filesCompared": 9,
+  "exactByteMatch": true,
+  "installerExecuted": false,
+  "existingFilesOverwritten": false
+}

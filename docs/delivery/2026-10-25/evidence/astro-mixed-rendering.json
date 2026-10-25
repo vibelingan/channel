@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-25",
+  "astro": "6.4.6",
+  "adapter": "@astrojs/node@10.1.4",
+  "node": "22.13.0",
+  "checks": [
+    "static product HTML still served",
+    "article A in initial HTTP HTML",
+    "article B visible without build or restart",
+    "article list updated",
+    "withdrawal is HTTP 404",
+    "withdrawn body absent",
+    "withdrawn list link absent",
+    "static product bytes unchanged",
+    "HTML no-store"
+  ],
+  "passed": true,
+  "fixturePublishToFetchMs": 1.9370000000000118,
+  "cloudbaseTested": false,
+  "database": "local JSON fixture only",
+  "warning": "Framework feasibility only, not production performance or CloudBase acceptance"
+}

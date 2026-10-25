@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "建议时序：文章发布后立即可读，更新和撤回同一路径",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 520]
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "后台页面",
+      "sublabel": "人工编辑"
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "文章接口",
+      "sublabel": "权限与版本检查"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "已发布内容",
+      "sublabel": "版本与媒体引用"
+    },
+    {
+      "id": "server",
+      "type": "backend",
+      "label": "文章页面服务",
+      "sublabel": "Astro SSR"
+    },
+    {
+      "id": "visitor",
+      "type": "external",
+      "label": "访客 / 爬虫",
+      "sublabel": "同一个公开网址"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 300,
+      "label": "点击发布：不等待 GitHub"
+    },
+    {
+      "from": 310,
+      "to": 460,
+      "label": "首次 HTML 即有正文"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "editor",
+      "to": "api",
+      "y": 165.0,
+      "label": "提交已保存版本和发布请求",
+      "variant": "security"
+    },
+    {
+      "id": "m1",
+      "from": "api",
+      "to": "db",
+      "y": 203.57142857142856,
+      "label": "校验后提交公开版本、媒体引用和待办事件",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "db",
+      "to": "api",
+      "y": 242.14285714285714,
+      "label": "提交成功；失败则不改变公开版本",
+      "variant": "return"
+    },
+    {
+      "id": "m3",
+      "from": "api",
+      "to": "editor",
+      "y": 280.7142857142857,
+      "label": "返回文章网址和公开版本号",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "visitor",
+      "to": "server",
+      "y": 319.2857142857143,
+      "label": "GET /blog/文章地址",
+      "variant": "default"
+    },
+    {
+      "id": "m5",
+      "from": "server",
+      "to": "db",
+      "y": 357.85714285714283,
+      "label": "读取当前公开版本；撤回则返回 404",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m6",
+      "from": "db",
+      "to": "server",
+      "y": 396.42857142857144,
+      "label": "正文 JSON、SEO 信息和媒体引用",
+      "variant": "return"
+    },
+    {
+      "id": "m7",
+      "from": "server",
+      "to": "visitor",
+      "y": 435.0,
+      "label": "返回完整 HTML；图片另行加载",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "尚未实施的新方案",
+      "items": [
+        "每次读取公开版本后才能命中该版本的正文缓存。",
+        "一期 HTML 不用长缓存；不能依靠等五分钟刷新。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "故障与恢复",
+      "items": [
+        "发布重试按请求编号去重；更新要带预期版本。",
+        "代码恢复不改变文章版本；撤回后的文章保持不可见。"
+      ]
+    }
+  ]
+}

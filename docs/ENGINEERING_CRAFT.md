@@ -42,6 +42,7 @@ consolidation into the cross-project engineering-craft skill.
 | upload intents, `submitProject`/finalize, storage objects, rate caps | Upload Lifecycle & Concurrency | 6 |
 | `incrementField`, `publishedRefCount`, backfills, batch deletes | Counters & Data Integrity | 6 |
 | `tsup.config.ts`, function `package.json`, `deploy-cloudbase-test.mjs`, workflows, secrets | Deploy & CI/CD | 17 |
+| CloudBase hosting download / backup, COS origin reads, release inventories and recovery | CloudBase Hosting & Recovery | 7 |
 | `ImageManager`, previews, blob URLs, async list state | Frontend Islands | 3 |
 | `tests/e2e/*`, env flags, CI smoke steps, screenshot evidence | E2E Testing | 7 |
 | review rounds, deferrals, doc status markers, hidden pages, audit coverage | Review Process & Knowledge | 9 |
@@ -136,6 +137,18 @@ consolidation into the cross-project engineering-craft skill.
 - **Additive hosting upload needs targeted prune plus 404 smoke** (`ca56f33`, `ff23345`): Static-hosting upload is additive: it overwrites files but never deletes remote files absent from the new build, so retired pages linger live on the CDN. Fix: an explicit commented legacy-paths prune list in the deploy script (targeted, NOT blanket delete — no dry-run safety net in CI), plus a deploy smoke asserting retired routes return 404 (a 200 means the prune regressed). Smoke expectations must track content retirement — the earlier smoke asserted 200 on those routes and 'passed' only because stale files hadn't been pruned yet.
 - **Scan built site for server secret names before upload** (`a760e8b`): Between build and hosting upload, grep the client dist for the NAMES of server-only secrets — static-site builders will happily inline any env var a template references, and scanning for names catches the leak even when the secret isn't set in the build job (the reference itself is the bug). Cheap; maintain the name list alongside the deploy env block in the same file.
 - **Serverless router must tolerate gateway prefix stripping** (`5734988`): CloudBase's HTTP gateway may strip the access-path prefix (/api) before invoking the function, so a router hard-matching the full public path works locally and 404s behind the gateway. Normalize: split into segments and drop a leading 'api' segment if present, then route on the remainder — accept both shapes and unit-test both. Generic for any FaaS behind an API gateway: never encode the gateway's mount point into the function's route table.
+
+### CloudBase Hosting & Recovery
+
+> 2026-10-25，基于 main `079cc653` 的规则补充。来自修复提交 `4b6fbc0e`、`6e66cc07`；准确版本、现场只读备份和升级复核说明见 [CloudBase 调查](delivery/2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。这是带证据的补充，不是永久禁用官方 SDK。
+
+- **对象键不能直接假设成本地目录**（`4b6fbc0e`）：COS 可以同时保存 `X` 与 `X/a.html`；导出采用独立编号加原路径清单，恢复仍用原路径。不能删除、漏掉冲突对象来让备份通过。真实 SDK 重现见 `scripts/hosting-backup-sdk.test.mjs`。
+- **完整读完并校验才算成功**（`4b6fbc0e`）：同时检查 HTTP 状态、总时限、完整正文长度和摘要，处理读写流异常。503 错误页、半截响应和底层不响应取消均不能生成完整恢复清单；`close` 或 `fetch()` 返回头不等于内容完整。
+- **源站读取仍受原有权限约束**（`4b6fbc0e`、`6e66cc07`）：用公开的托管信息与 COS 签名接口，限定已认证环境、桶、地域及共享前缀。只读 GET，签名不进入日志或产物；不公开桶，不依赖 SDK 私有方法，不把托管桶和普通存储桶混用。`hosting-object-reader.test.mjs` 验证边界。
+- **备份必须有完整范围和一致性证据**（`4b6fbc0e`）：前后目录与网站配置一致，全部文件可按清单复算后才允许写云端。平台历史备份目录单独识别，不能递归备份已有备份。业务对象不能用宽泛前缀排除。旧格式读取保留兼容。
+- **错误重试按读写性质区分**（`4b6fbc0e`）：只读下载可对明确的临时网络 / 5xx 做有上限重试；权限或内容不一致立即停止。线上写入结果不明先读回，不能直接套用下载重试规则。
+- **保存历史与复制历史分开**（`4b6fbc0e`）：旧哈希资源用于旧标签页和恢复，应保留；性能统计分别报告当前版本、历史保留、下载、上传和归档量。已有差异上传不能掩盖每轮整站备份的成本；目录上传不是全站原子切换。
+- **缺陷有版本，升级有复核**（`4b6fbc0e`、`6e66cc07`）：记录 Node / SDK / MCP 的实际版本，区别真实运行与源码比较。升级后重跑正常、reset、流错误、503、路径冲突；已修复就更新缺陷记录，不能让测试永久要求上游重现旧 bug。连接关闭日志缺少首个异常时，不补写一个确定根因。
 
 ### Frontend Islands
 

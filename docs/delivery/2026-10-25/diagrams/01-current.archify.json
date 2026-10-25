@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "当前实现：代码部署、文章发布与访客读取",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1280, 530]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [35, 90],
+    "cols": 4,
+    "cellW": 220,
+    "cellH": 60,
+    "gapX": 100,
+    "gapY": 95
+  },
+  "components": [
+    {
+      "id": "git",
+      "type": "external",
+      "label": "开发者推送代码",
+      "sublabel": "代码变更",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "build",
+      "type": "backend",
+      "label": "构建网站",
+      "sublabel": "整站构建",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "archive",
+      "type": "cloud",
+      "label": "保存版本包",
+      "sublabel": "A / B 完整包",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "id": "deliver",
+      "type": "backend",
+      "label": "备份与交付",
+      "sublabel": "逐文件交付",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "后台点击发布",
+      "sublabel": "点击发布",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "admin",
+      "type": "backend",
+      "label": "现有后台接口",
+      "sublabel": "权限和内容检查",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "文章发布队列",
+      "sublabel": "等待交付",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "clock",
+      "type": "external",
+      "label": "五分钟定时检查",
+      "sublabel": "尚未启用",
+      "row": 1,
+      "col": 3
+    },
+    {
+      "id": "visitor",
+      "type": "frontend",
+      "label": "访客打开网址",
+      "sublabel": "打开网址",
+      "row": 2,
+      "col": 0
+    },
+    {
+      "id": "static",
+      "type": "cloud",
+      "label": "静态托管",
+      "sublabel": "已部署的 HTML",
+      "row": 2,
+      "col": 1
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "商品公开 API",
+      "sublabel": "浏览器读最新数据",
+      "row": 2,
+      "col": 2
+    },
+    {
+      "id": "data",
+      "type": "database",
+      "label": "商品与文章数据",
+      "sublabel": "当前业务数据",
+      "row": 2,
+      "col": 3
+    }
+  ],
+  "connections": [
+    {
+      "id": "edge0",
+      "from": "git",
+      "to": "build",
+      "label": "代码检查通过"
+    },
+    {
+      "id": "edge1",
+      "from": "build",
+      "to": "archive",
+      "label": "存入候选版本"
+    },
+    {
+      "id": "edge2",
+      "from": "archive",
+      "to": "deliver",
+      "label": "校验后交付"
+    },
+    {
+      "id": "edge3",
+      "from": "editor",
+      "to": "admin",
+      "label": "提交发布请求"
+    },
+    {
+      "id": "edge4",
+      "from": "admin",
+      "to": "queue",
+      "label": "登记待办"
+    },
+    {
+      "id": "edge5",
+      "from": "clock",
+      "to": "queue",
+      "label": "查看是否有待办"
+    },
+    {
+      "id": "edge6",
+      "from": "clock",
+      "to": "deliver",
+      "label": "启动文章静态构建"
+    },
+    {
+      "id": "edge7",
+      "from": "visitor",
+      "to": "static",
+      "label": "先收到 HTML"
+    },
+    {
+      "id": "edge8",
+      "from": "static",
+      "to": "api",
+      "label": "浏览器继续请求"
+    },
+    {
+      "id": "edge9",
+      "from": "api",
+      "to": "data",
+      "label": "读取当前商品"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "目前的耦合点",
+      "items": ["文章发布还要等待静态构建；定时入口尚未开启。"]
+    },
+    {
+      "dot": "cyan",
+      "title": "本轮调查边界",
+      "items": ["先核对并重设计，不改线上配置，不把目标当成已经完成。"]
+    }
+  ]
+}

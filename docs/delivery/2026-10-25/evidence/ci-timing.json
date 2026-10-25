@@ -1,0 +1,98 @@
+[
+  {
+    "completed_at": "2026-10-24T17:37:15Z",
+    "conclusion": "success",
+    "name": "Blog editor and public pages",
+    "started_at": "2026-10-24T17:34:11Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:42:59Z",
+    "conclusion": "success",
+    "name": "Source, domain tests and runtime artifacts / Unit tests (site)",
+    "started_at": "2026-10-24T17:34:11Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:36:09Z",
+    "conclusion": "success",
+    "name": "Source, domain tests and runtime artifacts / AI store contract (PostgreSQL)",
+    "started_at": "2026-10-24T17:34:11Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:36:43Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog checks (formal=0, group=taxonomy)",
+    "started_at": "2026-10-24T17:34:11Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:40:07Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog checks (formal=0, group=storefront)",
+    "started_at": "2026-10-24T17:34:11Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:38:26Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog checks (formal=1, group=taxonomy)",
+    "started_at": "2026-10-24T17:34:11Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:41:27Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog checks (formal=1, group=storefront)",
+    "started_at": "2026-10-24T17:34:10Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:44:28Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog checks (formal=1, group=admin)",
+    "started_at": "2026-10-24T17:34:10Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:35:16Z",
+    "conclusion": "success",
+    "name": "Source, domain tests and runtime artifacts / Unit tests (packages)",
+    "started_at": "2026-10-24T17:34:10Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:35:42Z",
+    "conclusion": "success",
+    "name": "Source, domain tests and runtime artifacts / Unit tests (scripts)",
+    "started_at": "2026-10-24T17:34:10Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:36:17Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog checks (formal=0, group=admin)",
+    "started_at": "2026-10-24T17:34:10Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:36:47Z",
+    "conclusion": "success",
+    "name": "Source, domain tests and runtime artifacts / Unit tests (services)",
+    "started_at": "2026-10-24T17:34:10Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:46:17Z",
+    "conclusion": "success",
+    "name": "Source, domain tests and runtime artifacts / Build and smoke",
+    "started_at": "2026-10-24T17:43:01Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:44:33Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog regression (formal=1)",
+    "started_at": "2026-10-24T17:44:30Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:44:33Z",
+    "conclusion": "success",
+    "name": "Existing buyer and admin journeys / Catalog regression (formal=0)",
+    "started_at": "2026-10-24T17:44:30Z"
+  },
+  {
+    "completed_at": "2026-10-24T17:46:21Z",
+    "conclusion": "success",
+    "name": "Required release checks",
+    "started_at": "2026-10-24T17:46:19Z"
+  }
+]

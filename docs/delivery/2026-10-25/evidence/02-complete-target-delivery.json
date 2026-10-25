@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-25/diagrams/02-complete-target.archify.json",
+  "output": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-25/diagrams/02-complete-target.html",
+  "specification": {
+    "sha256": "ad60d79acf31f7488e9b5d41a385b424d6c7653c10c802537fd90e15f8782de4",
+    "bytes": 5594
+  },
+  "artifact": {
+    "sha256": "f19b92923925ec80cf13d9fb4b6dc56f94dd878fe46b827535bee37e8ddc8c12",
+    "bytes": 816109
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-25/diagrams/03-article-sequence.archify.json",
+  "output": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-25/diagrams/03-article-sequence.html",
+  "specification": {
+    "sha256": "34445b4d062186c417100999e0103d7616f99ee79b57085acea5a5acdc09976d",
+    "bytes": 3205
+  },
+  "artifact": {
+    "sha256": "3ac99a847414d150f60d1dabb272a0323ad0dbe62e9e9578f4b52285b7ad68a9",
+    "bytes": 805915
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
