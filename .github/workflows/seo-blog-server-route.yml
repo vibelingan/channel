@@ -1,0 +1,45 @@
+name: Connect only the Blog website routes
+on:
+  workflow_call:
+    inputs:
+      action: {type: string, required: true}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  route:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      BLOG_SERVER_ROUTE_ACTION: ${{ inputs.action }}
+      TCB_ENV_ID: diversity-123-d9grnqfux221323bb
+      CLOUDBASE_REGION: ap-shanghai
+      SITE_URL: https://supplychainsai.com
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
+      - run: node tools/cloud-handoff/check-runtime.mjs
+      - run: node --test tools/cloud-handoff/transport.integration.mjs
+      - name: Archive the actual domain before connecting only the two Blog paths
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          TENCENTCLOUD_REGION: ap-shanghai
+          CLOUDBASE_ENV_ID: diversity-123-d9grnqfux221323bb
+        run: node scripts/blog/route-server.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-server-route-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/blog-server-route
+          retention-days: 90
+          if-no-files-found: ignore

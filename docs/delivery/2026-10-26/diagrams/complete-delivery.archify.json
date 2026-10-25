@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "完整交付方案：代码恢复、文章发布与访客访问",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1280, 530],
+    "views": [
+      {
+        "id": "release",
+        "label": "代码发布与恢复",
+        "focus": ["code", "checks", "archive", "deploy", "recovery", "static", "render"],
+        "note": "lint 或测试失败时不碰线上；写入后验收失败才恢复同一轮保存的 A。"
+      },
+      {
+        "id": "content",
+        "label": "文章立即发布",
+        "focus": ["editor", "content", "published", "render", "edge", "reader"],
+        "note": "管理员确认保存版本后立即公开；文章内容不触发GitHub构建，列表、图片和sitemap读同一公开记录。"
+      },
+      {
+        "id": "read",
+        "label": "访客读取",
+        "focus": ["reader", "edge", "static", "render", "published"],
+        "note": "商品先收到 SSG 正文，React 再读实时 API；API 刷新不会改写服务器上的静态文件。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [35, 90],
+    "cols": 4,
+    "cellW": 220,
+    "cellH": 60,
+    "gapX": 100,
+    "gapY": 95
+  },
+  "components": [
+    {
+      "id": "code",
+      "type": "external",
+      "label": "提交代码",
+      "sublabel": "GitHub",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "checks",
+      "type": "security",
+      "label": "检查并构建程序",
+      "sublabel": "保留全部必需检查",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "archive",
+      "type": "cloud",
+      "label": "保存版本 A 和 B",
+      "sublabel": "文件、函数和镜像",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "id": "deploy",
+      "type": "backend",
+      "label": "受控发布或恢复",
+      "sublabel": "同一把锁 · 验收再记账",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "后台编辑与发布",
+      "sublabel": "草稿 · 图片 · 预览",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "content",
+      "type": "backend",
+      "label": "管理API确认公开版本",
+      "sublabel": "事务提交 · 无须构建",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "published",
+      "type": "database",
+      "label": "当前已发布内容",
+      "sublabel": "公开记录 · 图片引用",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "render",
+      "type": "backend",
+      "label": "Astro文章页面服务",
+      "sublabel": "调用只读API · 返回HTML",
+      "row": 1,
+      "col": 3
+    },
+    {
+      "id": "recovery",
+      "type": "security",
+      "label": "GitHub 选择恢复 A",
+      "sublabel": "先检查旧程序兼容性",
+      "row": 2,
+      "col": 0
+    },
+    {
+      "id": "static",
+      "type": "cloud",
+      "label": "静态页面与资源",
+      "sublabel": "商品 SSG · 图片 · JS",
+      "row": 2,
+      "col": 1
+    },
+    {
+      "id": "edge",
+      "type": "cloud",
+      "label": "同域名分发",
+      "sublabel": "静态路径 / 文章路径",
+      "row": 2,
+      "col": 2
+    },
+    {
+      "id": "reader",
+      "type": "external",
+      "label": "访客和搜索引擎",
+      "sublabel": "正文 · SEO · 正常交互",
+      "row": 2,
+      "col": 3
+    }
+  ],
+  "connections": [
+    {
+      "id": "e0",
+      "from": "code",
+      "to": "checks",
+      "label": "检查"
+    },
+    {
+      "id": "e1",
+      "from": "checks",
+      "to": "archive",
+      "label": "固化产物"
+    },
+    {
+      "id": "e2",
+      "from": "archive",
+      "to": "deploy",
+      "label": "取固定版本"
+    },
+    {
+      "id": "e3",
+      "from": "editor",
+      "to": "content",
+      "label": "发布 / 更新 / 撤回"
+    },
+    {
+      "id": "e4",
+      "from": "content",
+      "to": "published",
+      "label": "原子更新"
+    },
+    {
+      "id": "e5",
+      "from": "published",
+      "to": "render",
+      "label": "经公开API读取"
+    },
+    {
+      "id": "e6",
+      "from": "reader",
+      "to": "edge",
+      "label": "打开网址"
+    },
+    {
+      "id": "e7",
+      "from": "edge",
+      "to": "static",
+      "label": "静态页"
+    },
+    {
+      "id": "e8",
+      "from": "edge",
+      "to": "render",
+      "label": "文章 HTML",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [[735, 350], [1055, 350]]
+    },
+    {
+      "id": "e9",
+      "from": "deploy",
+      "to": "render",
+      "label": "部署程序",
+      "labelAt": [1055, 205]
+    },
+    {
+      "id": "e10",
+      "from": "deploy",
+      "to": "static",
+      "label": "按差异交付 / 恢复",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [[1240, 120], [1240, 500], [415, 500]]
+    },
+    {
+      "id": "e11",
+      "from": "recovery",
+      "to": "deploy",
+      "label": "申请持锁执行",
+      "fromSide": "left",
+      "toSide": "top",
+      "via": [[10, 430], [10, 35], [1055, 35]],
+      "labelAt": [200, 35]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "实现和现场验收分开",
+      "items": [
+        "共享SEO、SSG、编辑器及文章SSR已实现并做本地检查。",
+        "真实服务接线、页面发布及A→B→A仍按步骤现场验收。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "恢复边界",
+      "items": [
+        "代码 A→B→A；文章内容按自己的版本管理。",
+        "不整库倒退、不自动删除历史资源；撤回不能被恢复复活。"
+      ]
+    }
+  ]
+}

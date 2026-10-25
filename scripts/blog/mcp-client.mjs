@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
+import { blogMcpEnvironment } from './mcp-environment.mjs';
 const requireTools = createRequire(
   new URL('../../tools/cloud-handoff/package.json', import.meta.url),
 );
@@ -30,8 +31,15 @@ export async function connectBlogMcp() {
     command: process.execPath,
     args: [resolve(packagePath, bin)],
     stderr: 'pipe',
+    env: blogMcpEnvironment(process.env),
   });
-  await client.connect(transport, { timeout: 60000 });
+  transport.stderr?.resume();
+  try {
+    await client.connect(transport, { timeout: 60000 });
+  } catch (error) {
+    await client.close().catch(() => {});
+    throw error;
+  }
   async function call(name, args) {
     const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 120000 });
     const block = result.content?.find((item) => item.type === 'text');
@@ -47,14 +55,22 @@ export async function connectBlogMcp() {
       );
     return value;
   }
-  const status = await call('auth', { action: 'status' });
+  let status;
+  try {
+    status = await call('auth', { action: 'status' });
+  } catch (error) {
+    await client.close().catch(() => {});
+    throw error;
+  }
   if (
     status.auth_status !== 'READY' ||
     status.current_env_id !== 'diversity-123-d9grnqfux221323bb' ||
     status.current_region !== 'ap-shanghai'
   ) {
     await client.close();
-    throw new Error('CloudBase login and exact isolated test environment must be checked first');
+    throw new Error(
+      `CloudBase target not confirmed: ${JSON.stringify({ auth: status.auth_status, envId: status.current_env_id, region: status.current_region })}`,
+    );
   }
   return {
     call,

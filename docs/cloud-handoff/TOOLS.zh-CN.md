@@ -116,3 +116,7 @@ gh run list --repo vibelingan/channel --branch feat/seo-foundation \
 这里使用自己的 `package-lock.json`，按原 setup 脚本执行 `npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund`，随后运行 `node tools/cloud-handoff/check-runtime.mjs`。不要改用根仓库的 pnpm 安装来代替；pnpm 11.5.0 在这个目录内仍会识别上级 workspace，而该工具目录不属于 workspace，可能显示安装成功却没有安装工具。真实 GitHub 运行40221810269已暴露此问题，失败发生于调用云端之前。
 
 MCP 客户端由工具包直接声明 `@modelcontextprotocol/sdk@1.32.1`，与当前锁文件一致；CloudBase MCP仍固定2.36.1。自检只加载客户端和传输类、核对版本，不启动MCP进程，不登录也不访问云资源。已在项目外、没有根仓库依赖的全新目录执行锁定安装与自检通过。工具启动通过后，仍需另行核对CloudBase登录、目标环境和操作范围。
+
+### MCP子进程的凭据传递
+
+`@modelcontextprotocol/sdk@1.32.1`的StdioClientTransport默认仅传系统环境。GitHub步骤有腾讯凭据，不代表MCP子进程也能看到。`scripts/blog/mcp-environment.mjs`只向子进程提供CloudBase的SecretId/SecretKey/可选SessionToken，以及固定环境号、TCB_REGION=ap-shanghai、TCB_SITE=domestic。不要传整个process.env，不把GitHub token或后台密码带过去。真实传输测试为`node --test tools/cloud-handoff/transport.integration.mjs`，不调用腾讯、不使用真实密钥。它在文章服务CI和线上操作前运行。

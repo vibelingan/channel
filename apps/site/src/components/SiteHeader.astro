@@ -9,9 +9,10 @@ interface Props {
   nav: SiteContent['nav'];
   /** Retained for hidden legacy route compatibility. */
   showName?: boolean;
+  includeBlog?: boolean;
 }
 
-const { brand, nav } = Astro.props;
+const { brand, nav, includeBlog = false } = Astro.props;
 const catalog = getCatalogContent();
 const catalogPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 
@@ -19,7 +20,10 @@ const catalogPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const AUTH_HREFS = ['/admin', '/login', '/register'];
 const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
 if (
-  (process.env.SEO_BLOG_SNAPSHOT || process.env.SEO_BLOG_RELEASE_INPUT) &&
+  (includeBlog ||
+    process.env.BLOG_SERVER_ENABLED === '1' ||
+    process.env.SEO_BLOG_SNAPSHOT ||
+    process.env.SEO_BLOG_RELEASE_INPUT) &&
   !menuItems.some((item) => item.href === '/blog/')
 ) {
   menuItems.push({ label: 'Insights', href: '/blog/' });

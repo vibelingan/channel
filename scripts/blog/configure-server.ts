@@ -22,7 +22,10 @@ if (
 )
   throw Error('Explicit reviewed Blog switch action required');
 const codeSha = env.GITHUB_SHA ?? '';
-await createGithubReadClient({ policy, token: env.GITHUB_TOKEN }).requireCI(codeSha);
+const github = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
+await github.requireCI(codeSha);
+const deployedSha = await readFunctionRuntimeVersion(policy.envId, 'admin');
+await github.requireCI(deployedSha);
 const manager = new CloudBase({
   envId: policy.envId,
   region: policy.region,
@@ -39,11 +42,11 @@ const queue = await readArticleQueueStatus(sdk.database());
 if (queue.hasQueued || queue.hasUnknown)
   throw Error('Existing article work must be resolved before changing switches');
 for (const name of ['admin', 'public-api'])
-  if ((await readFunctionRuntimeVersion(policy.envId, name)) !== codeSha)
-    throw Error('Both actual APIs must run this reviewed source before changing switches');
+  if ((await readFunctionRuntimeVersion(policy.envId, name)) !== deployedSha)
+    throw Error('Both actual APIs must run the same CI-verified source before changing switches');
 if (action === 'publish') {
   const health = await assertServerBlogReady(policy.siteOrigin);
-  if (health.releaseId !== codeSha)
+  if (health.releaseId !== deployedSha)
     throw Error('The actual Blog domain must run this reviewed source before opening publishing');
   const current = await readFunctionRuntimeState(policy.envId, 'admin');
   if (current.articleDeliveryMode !== 'server')
@@ -86,7 +89,7 @@ for (const command of commands) {
   const result = await setBlogFunctionSwitch({
     manager,
     envId: policy.envId,
-    expectedVersion: codeSha,
+    expectedVersion: deployedSha,
     name,
     key,
     value,
@@ -101,7 +104,7 @@ for (const command of commands) {
       await writeFile(
         `output/blog-server-switch/${name}-${key}.json`,
         JSON.stringify(
-          { action, name, key, prior: prior ?? null, desired: value, codeSha },
+          { action, name, key, prior: prior ?? null, desired: value, codeSha, deployedSha },
           null,
           2,
         ),
@@ -112,7 +115,7 @@ for (const command of commands) {
   results.push({ name, key, value, result });
   await writeFile(
     'output/blog-server-switch/result.json',
-    JSON.stringify({ action, codeSha, results }, null, 2),
+    JSON.stringify({ action, codeSha, deployedSha, results }, null, 2),
   );
   if (result.status !== 'accepted')
     throw Error('Blog switch was not accepted; no further change will run');

@@ -19,6 +19,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
       - run: node tools/cloud-handoff/check-runtime.mjs
+      - run: node --test tools/cloud-handoff/transport.integration.mjs
       - name: Select the successful Blog HTTP build for this exact source
         uses: actions/github-script@v7
         id: source

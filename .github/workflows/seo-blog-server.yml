@@ -30,6 +30,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
       - run: node tools/cloud-handoff/check-runtime.mjs
+      - run: node --test tools/cloud-handoff/transport.integration.mjs
       - run: pnpm --filter @vibelingan-channel/articles test
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test src/article-public-reader.test.ts
       - run: pnpm --filter @vibelingan-channel/site build:blog-server

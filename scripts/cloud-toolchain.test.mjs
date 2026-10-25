@@ -9,7 +9,7 @@ test('cloud tool callers declare the MCP client directly and use their own froze
   assert.equal(pkg.dependencies['@modelcontextprotocol/sdk'], '1.32.1');
   assert.equal(lock.packages[''].dependencies['@modelcontextprotocol/sdk'], '1.32.1');
   assert.equal(lock.packages['node_modules/@modelcontextprotocol/sdk'].version, '1.32.1');
-  for (const name of ['seo-blog-server', 'seo-blog-server-stage']) {
+  for (const name of ['seo-blog-server', 'seo-blog-server-stage', 'seo-blog-server-route']) {
     const workflow = parse(readFileSync(new URL(`.github/workflows/${name}.yml`, root), 'utf8'));
     const job = Object.values(workflow.jobs)[0];
     const install = job.steps.findIndex(
@@ -20,7 +20,9 @@ test('cloud tool callers declare the MCP client directly and use their own froze
     );
     assert(install >= 0 && check > install);
     assert(!job.steps.some((s) => s.run?.includes('pnpm --dir tools/cloud-handoff install')));
-    const cloud = job.steps.findIndex((s) => s.run === 'node scripts/blog/stage-server.mjs');
+    const cloud = job.steps.findIndex((s) =>
+      ['node scripts/blog/stage-server.mjs', 'node scripts/blog/route-server.mjs'].includes(s.run),
+    );
     if (cloud >= 0) assert(cloud > check);
   }
 });

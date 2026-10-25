@@ -6,6 +6,7 @@ import { ArticleReleaseViewSchema } from '../../packages/articles/src/release.ts
 import { signInAdminThroughUi } from './helpers/ui-admin-login.ts';
 
 const operation = process.env.E2E_BLOG_PUBLICATION_OPERATION;
+const serverDelivery = process.env.E2E_BLOG_DELIVERY_MODE === 'server';
 const title = 'Preparing an OEM headphone project brief';
 const body =
   'Before requesting a quotation, describe the intended use, target quantity, preferred connection type, packaging requirements and delivery destination. Include any reference samples and the certifications required by your market. Confirm which details are essential and which can change after a sample review.';
@@ -133,12 +134,55 @@ test('the real public admin requests publication only for its owned acceptance a
     expect(result.ok).toBe(true);
     task = ArticleReleaseViewSchema.parse(result.data.task);
     expect(task.articleId).toBe(articleId);
-    expect(task.state).toBe('QUEUED');
+    expect(task.state).toBe(serverDelivery ? 'SUCCEEDED' : 'QUEUED');
     await expect(page.getByRole('region', { name: 'Publication', exact: true })).toContainText(
-      'Waiting to publish',
+      serverDelivery
+        ? operation === 'withdraw'
+          ? 'Article withdrawn'
+          : `Published · revision ${task.revision}`
+        : 'Waiting to publish',
     );
   }
   await mkdir('output/blog-publication', { recursive: true });
+  if (serverDelivery) {
+    const publicPage = await page.context().newPage();
+    try {
+      const reply = await publicPage.goto(`/blog/${slug}/`);
+      expect(reply?.status()).toBe(operation === 'withdraw' ? 404 : 200);
+      if (operation !== 'withdraw') {
+        await expect(publicPage.getByRole('heading', { name: title, exact: true })).toBeVisible();
+        const image = publicPage.getByRole('img', { name: 'Factory exterior', exact: true });
+        await expect(image).toBeVisible();
+        expect(
+          await image.evaluate(
+            (element: HTMLImageElement) => element.complete && element.naturalWidth > 0,
+          ),
+        ).toBe(true);
+        if (operation === 'update')
+          await expect(publicPage.locator('main')).toContainText(
+            'Keep the final approved specification',
+          );
+      }
+      await publicPage.screenshot({
+        path: 'output/blog-publication/public-desktop.png',
+        fullPage: true,
+      });
+      await publicPage.setViewportSize({ width: 390, height: 844 });
+      expect(
+        await publicPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      ).toBe(true);
+      await publicPage.screenshot({
+        path: 'output/blog-publication/public-mobile.png',
+        fullPage: true,
+      });
+      await publicPage.goto('/blog/');
+      const link = publicPage.locator(`main a[href="/blog/${slug}/"]`);
+      if (operation === 'withdraw') await expect(link).toHaveCount(0);
+      else await expect(link.first()).toBeVisible();
+    } finally {
+      await publicPage.close();
+    }
+  }
   await page.screenshot({ path: 'output/blog-publication/admin-desktop.png', fullPage: true });
   await writeFile(
     'output/blog-publication/request.json',

@@ -1,3 +1,5 @@
+2026-10-26：当前顺序和进度统一在[SEO / Blog当前入口](../delivery/README.zh-CN.md)。文章服务器发布代码已实现，本地HTTP与浏览器通过；真实接线和本轮恢复尚未完成。先完成人工文章闭环与A→B→A，再接本地内容助手，速度和海外后置。以下为历史记录。
+
 # 当前 SEO / GEO 执行顺序
 
 2026-10-24 当前入口：[整合后的共同进度](../blog/NEXT-STEPS.zh-CN.md)与[本轮现场记录](../blog/06-integrated-release-worklog-2026-10-24.zh-CN.md)。pricing 已合入 main，原 SEO 分支已整合。当前在完成真实 CloudBase、商品 SSG 与非 Agent Blog 的正式交付；下文旧时点与旧分支仅供查证，不代表本轮状态。

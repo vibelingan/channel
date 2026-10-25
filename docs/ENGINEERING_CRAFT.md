@@ -138,6 +138,8 @@ consolidation into the cross-project engineering-craft skill.
 - **Scan built site for server secret names before upload** (`a760e8b`): Between build and hosting upload, grep the client dist for the NAMES of server-only secrets — static-site builders will happily inline any env var a template references, and scanning for names catches the leak even when the secret isn't set in the build job (the reference itself is the bug). Cheap; maintain the name list alongside the deploy env block in the same file.
 - **Serverless router must tolerate gateway prefix stripping** (`5734988`): CloudBase's HTTP gateway may strip the access-path prefix (/api) before invoking the function, so a router hard-matching the full public path works locally and 404s behind the gateway. Normalize: split into segments and drop a leading 'api' segment if present, then route on the remainder — accept both shapes and unit-test both. Generic for any FaaS behind an API gateway: never encode the gateway's mount point into the function's route table.
 
+- **MCP凭据必须传到真正执行操作的子进程**（2026-10-26）：`@modelcontextprotocol/sdk@1.32.1`的StdioClientTransport默认只继承少量系统变量。CI主进程有云密钥不代表MCP也有；显式提供最小CloudBase环境白名单、固定目标和地域，不传整个process.env。用实际SDK和stdio子进程验证正向传递与负向隔离（GitHub token、后台密码不进入子进程），见`tools/cloud-handoff/transport.integration.mjs`。这是调用方接线要求，不是腾讯权限或网络故障；错误诊断只输出认证状态/环境号/地域，不输出凭据。
+
 ### CloudBase Hosting & Recovery
 
 > 2026-10-25，基于 main `079cc653` 的规则补充。来自修复提交 `4b6fbc0e`、`6e66cc07` 及本轮公开配置入口审查（`manager-config.test.mjs`）；准确版本、现场只读备份和升级复核说明见 [CloudBase 调查](delivery/2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。这是带证据的补充，不是永久禁用官方 SDK。

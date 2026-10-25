@@ -26,6 +26,7 @@ jobs:
       SITE_URL: ${{ vars.SITE_URL }}
       E2E_SITE_URL: ${{ vars.SITE_URL }}
       E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+      E2E_BLOG_DELIVERY_MODE: ${{ vars.ARTICLE_DELIVERY_MODE || 'static' }}
       E2E_BLOG_PUBLICATION_OPERATION: ${{ inputs.operation }}
       E2E_BLOG_ARTICLE_ID: ${{ inputs.article_id }}
       E2E_RECORD_ARTIFACTS: '0'

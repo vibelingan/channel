@@ -152,6 +152,8 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
   assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
   const html = await response.text();
+  const header = /<header\b[^>]*data-site-header[\s\S]*?<\/header>/.exec(html)?.[0];
+  assert(header?.includes('href="/blog/"'), 'SSR header must expose the public Blog navigation');
   assert.match(html, /A clear manufacturing brief helps suppliers/);
   assert.match(html, /<h1[^>]*>Manufacturing guide<\/h1>/);
   assert(html.includes(`rel="canonical" href="${siteOrigin}/blog/manufacturing-guide/"`));
