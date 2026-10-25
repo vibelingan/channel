@@ -136,3 +136,22 @@ test('SDK lost commit acknowledgement is resolved by durable read-back without a
   assert.equal(replay.activation.activationId, actual.scope.active.activationId);
   assert.equal((await restarted.status()).scope.version, 1);
 });
+
+test('the isolated live drill uses separate fixed collections through the same real transaction adapter', async (t) => {
+  const f = cloudbaseFixture(t);
+  const drill = createCloudbaseReleaseStore({ db: f.db, envId: 'fixture-env', profile: 'drill' });
+  await drill.transact(async (tx) => {
+    await tx.get('targets', key);
+    tx.put('targets', key, { version: 1 });
+  });
+  assert(
+    f.calls
+      .filter((c) => c.params.collectionName)
+      .every((c) => c.params.collectionName === 'seoReleaseDrillTargets'),
+  );
+  assert.equal(await f.store.transact((tx) => tx.get('targets', key)), null);
+  assert.throws(
+    () => createCloudbaseReleaseStore({ db: f.db, envId: 'fixture-env', profile: 'products' }),
+    /STORE_PROFILE/,
+  );
+});

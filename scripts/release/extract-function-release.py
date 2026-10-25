@@ -26,6 +26,8 @@ with zipfile.ZipFile(archive) as source:
         manifest = json.loads(source.read('payload-manifest.json'))
         if manifest.get('schemaVersion') == 1 and manifest.get('purpose') == 'function-compatibility-payload':
             expected = {'payload-manifest.json', 'compatibility.json'}
+        elif manifest.get('schemaVersion') == 1 and manifest.get('purpose') == 'function-release-payload':
+            expected = {'payload-manifest.json'} | {x['path'] for x in manifest['entries']}
         elif manifest.get('schemaVersion') == 2 and manifest.get('purpose') == 'release-payload':
             expected = {'payload-manifest.json'} | {x['path'] for x in manifest['entries']}
         else:

@@ -3,8 +3,8 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import CloudBase from '@cloudbase/manager-node';
-import { verifyReleaseArtifact } from './release/artifact.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
+import { verifyFunctionBaseline } from './release/function-baseline.mjs';
 import { createFunctionGithubSource } from './release/function-github-source.mjs';
 import {
   createFunctionHealthProbe,
@@ -184,7 +184,7 @@ export async function runFunctionRecovery(command, env = process.env) {
       ...(await download(part.artifact.artifactId)),
       acceptedSeal: run.accepted.seals[keys[0]],
     };
-    verifyReleaseArtifact({ ...input, policy: input.policy, now: Date.now() });
+    verifyFunctionBaseline({ ...input, policy: input.policy, now: Date.now() });
     return input;
   };
   if (command === 'prepare') {

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setupFunctionExecution } from './release-function-execution-fixture.mjs';
-import { policy as base, runner } from './release-state-fixtures.mjs';
+import { policy as base, receipt, runner } from './release-state-fixtures.mjs';
 import {
   executeManualFunctionRecovery,
   planManualFunctionRecovery,
 } from './release/function-orchestrator.mjs';
+import { sha256 } from './release/input.mjs';
 async function setup(t, options = {}) {
   const f = await setupFunctionExecution(t, { ...options, start: false });
   const state = await f.client.status({ scopeKey: 'site' });
@@ -48,6 +49,51 @@ test('D1 plans read-only, executes exact reviewed function restore and retains s
   assert.notEqual(accepted.accepted.activationId, before.accepted.activationId);
   assert.equal(result.searchNotifications, 0);
   assert.equal(result.databaseRestore, 'not-run');
+});
+
+test('a confirmed function-only failed delivery can recover A under the same lease, without clearing an unrelated failure', async (t) => {
+  const f = await setup(t);
+  const guard = await f.client.acquire(f.args.owner);
+  const current = await f.client.runStatus('baseline-B');
+  const hash = sha256(f.b);
+  await f.client.startRun({
+    guard,
+    runId: 'failed-B',
+    scopeKey: 'site',
+    kind: 'publish',
+    composition: { 'function:public-api': current.composition['function:public-api'] },
+    deliveredComponents: ['function:public-api'],
+    plan: { planSha256: hash, acceptanceHash: hash, stepCount: 2 },
+  });
+  const step = await f.client.beginStep({
+    guard,
+    runId: 'failed-B',
+    stepId: 'write',
+    component: 'function:public-api',
+    kind: 'write',
+    beforeHash: sha256(f.a),
+    afterHash: hash,
+    subject: 'code:public-api',
+    verifySubject: 'ready:public-api',
+    executionId: 'failed-B-write',
+  });
+  await f.client.confirmStep({ guard, runId: 'failed-B', stepId: 'write', receipt: receipt(step) });
+  await f.client.failRun({ guard, runId: 'failed-B', reason: 'Controlled post-write failure' });
+  const args = { ...f.args, guard, request: { ...f.args.request, failedRunId: 'failed-B' } };
+  await assert.rejects(planManualFunctionRecovery({ ...args, request: { ...f.args.request } }));
+  await assert.rejects(
+    planManualFunctionRecovery({
+      ...args,
+      request: { ...args.request, failedRunId: 'baseline-B' },
+    }),
+  );
+  const prepared = await planManualFunctionRecovery(args);
+  assert.equal(
+    (await executeManualFunctionRecovery({ ...args, token: prepared.review.token })).status,
+    'accepted',
+  );
+  assert.equal((await f.client.runStatus('failed-B')).state, 'FAILED_RECOVERED');
+  assert.equal((await f.client.status()).target.dirtyRunId, null);
 });
 for (const [label, change] of [
   [

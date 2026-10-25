@@ -9,7 +9,17 @@ export function createCloudbaseReleaseDatabase(config) {
 }
 
 /** Inject app.database() from @cloudbase/node-sdk with an explicit, fixed environment. */
-export function createCloudbaseReleaseStore({ db, envId }) {
+export function createCloudbaseReleaseStore({ db, envId, profile = 'site' }) {
+  if (!['site', 'drill'].includes(profile)) fail('STORE_PROFILE');
+  const selectedTables =
+    profile === 'site'
+      ? tables
+      : {
+          targets: 'seoReleaseDrillTargets',
+          scopes: 'seoReleaseDrillScopes',
+          runs: 'seoReleaseDrillRuns',
+          steps: 'seoReleaseDrillSteps',
+        };
   id(envId);
   if (db?.config?.env !== envId || typeof db.runTransaction !== 'function')
     fail('STORE_ENV_MISMATCH');
@@ -24,7 +34,7 @@ export function createCloudbaseReleaseStore({ db, envId }) {
         const ref = (table, key) => {
           if (!Object.hasOwn(tables, table) || !/^[a-f0-9]{64}(?:-(?:site|canary))?$/.test(key))
             fail('INVALID_LEDGER_REF');
-          return transaction.collection(tables[table]).doc(key);
+          return transaction.collection(selectedTables[table]).doc(key);
         };
         const count = () => {
           if (++operations > 24) fail('TRANSACTION_LIMIT');

@@ -1,5 +1,6 @@
 import { verifyReleaseArtifact } from './artifact.mjs';
 import { functionBuildPolicy } from './function-archive.mjs';
+import { verifyFunctionBaseline } from './function-baseline.mjs';
 import { evaluateCompatibility, functionRecoveryContext } from './function-compatibility.mjs';
 import { verifyFunctionReportArtifact } from './function-report-artifact.mjs';
 import { freeze, identity, readObject, sha256 } from './input.mjs';
@@ -25,7 +26,7 @@ export function planFunctionRecovery({
     names.some((name) => typeof name !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(name))
   )
     throw new Error('Invalid requested function scope');
-  const baseline = verifyReleaseArtifact({ ...baselineInput, policy, mode: 'recovery', now });
+  const baseline = verifyFunctionBaseline({ ...baselineInput, policy, mode: 'recovery', now });
   const proof =
     compatibilityInput.envelope?.purpose === 'function-compatibility-payload'
       ? verifyFunctionReportArtifact(compatibilityInput, policy, now)

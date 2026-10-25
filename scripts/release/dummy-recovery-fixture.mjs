@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dummyMain } from '../release-drill/record.mjs';
 import { checkFunctionArchive } from './function-archive.mjs';
 import { sha256 } from './input.mjs';
 
@@ -14,45 +15,6 @@ export const dummyRecoveryScope = Object.freeze({
   collectionName: 'seoReleaseDrillFixtures',
   purpose: 'channel-recovery-dummy-v1',
 });
-
-// This handler transforms only supplied dummy records. It has no database, network or SDK dependency.
-async function dummyMain(event, { purpose, version, codeSha }) {
-  const { action, id, record, patch } = event ?? {};
-  if (action === 'health') return { purpose, version, codeSha };
-  if (typeof id !== 'string' || !/^seo-drill-[a-z0-9-]{1,64}$/.test(id))
-    throw new Error('Only reserved dummy IDs are accepted');
-  if (record && (record._id !== id || record.purpose !== purpose))
-    throw new Error('Foreign dummy record');
-  if (action === 'create') {
-    if (record || typeof event.label !== 'string' || !event.label || event.label.length > 200)
-      throw new Error('Invalid dummy create');
-    return {
-      record: {
-        _id: id,
-        purpose,
-        label: event.label,
-        revision: 1,
-        deleted: false,
-        ...(version === 'B' && typeof event.note === 'string' ? { note: event.note } : {}),
-      },
-    };
-  }
-  if (!record) throw new Error('Dummy record not found');
-  if (action === 'read') return { record: { ...record } };
-  if (action === 'delete')
-    return { record: { ...record, deleted: true, revision: record.revision + 1 } };
-  if (action !== 'update' || record.deleted || !patch || Array.isArray(patch))
-    throw new Error('Invalid dummy update');
-  const allowed = version === 'B' ? ['label', 'note'] : ['label'];
-  if (
-    !Object.keys(patch).length ||
-    Object.keys(patch).some(
-      (key) => !allowed.includes(key) || typeof patch[key] !== 'string' || patch[key].length > 200,
-    )
-  )
-    throw new Error('Invalid dummy patch');
-  return { record: { ...record, ...patch, revision: record.revision + 1 } };
-}
 
 export function buildDummyFunction({ version, codeSha }) {
   if (!['A', 'B'].includes(version) || !/^[a-f0-9]{40}$/.test(codeSha))
@@ -104,7 +66,7 @@ export function loadDummyFunction(bytes) {
     );
     const loaded = createRequire(join(directory, 'loader.cjs'))('./index.js');
     if (typeof loaded.main !== 'function') throw new Error('Dummy function handler missing');
-    return { main: loaded.main, close };
+    return { main: loaded.applyRecord ?? loaded.main, close };
   } catch (error) {
     close();
     throw error;

@@ -109,6 +109,23 @@ test('the real public admin requests publication only for its owned acceptance a
         `${body} Keep the final approved specification with your quotation so later revisions can be compared clearly.`,
       );
   let task = null;
+  if (operation === 'create' || operation === 'update') {
+    await page.getByRole('button', { name: 'Preview', exact: true }).click();
+    const preview = page.getByRole('region', { name: 'Draft preview', exact: true });
+    await expect(preview).toContainText(title);
+    await expect(preview).toContainText('Before requesting a quotation');
+    const privateImage = preview.getByRole('img', { name: 'Factory exterior', exact: true });
+    await expect(privateImage).toHaveAttribute('src', /^blob:/);
+    await expect
+      .poll(() =>
+        privateImage.evaluate(
+          (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+    await page.screenshot({ path: 'output/blog-publication/admin-preview.png', fullPage: true });
+    await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+  }
   if (operation !== 'check') {
     const command =
       operation === 'withdraw' ? 'withdraw' : operation === 'retry' ? 'retry' : 'publish';

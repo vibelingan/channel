@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, blog-server-stage, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, blog-bootstrap, blog-server-stage, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check]
         default: plan
         required: true
       product_source:
@@ -60,6 +60,16 @@ concurrency:
   queue: max
 
 jobs:
+  dummy_recovery:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'dummy-recovery' }}
+    uses: ./.github/workflows/seo-dummy-recovery.yml
+    with:
+      operation: ${{ inputs.action }}
+      expected_activation_id: ${{ inputs.expected_activation_id }}
+      restore_run_id: ${{ inputs.restore_run_id }}
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
   canary:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'plan' || inputs.mode == 'execute') }}
     runs-on: ubuntu-latest

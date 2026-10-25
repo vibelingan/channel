@@ -211,6 +211,9 @@ jobs:
           CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
         run: node scripts/smoke-function-artifacts.mjs
 
+      - name: Verify standalone recovery drill bundle on deployed runtime
+        run: node --test scripts/release-drill/build.integration.test.mjs
+
       - name: Restore site build runtime
         uses: actions/setup-node@v4
         with:

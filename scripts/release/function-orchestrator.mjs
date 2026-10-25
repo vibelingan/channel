@@ -24,6 +24,7 @@ export async function planManualFunctionRecovery({
     request.names.some((x) => !policy.functions.includes(x)) ||
     !/^[A-Za-z0-9:_-]{1,200}$/.test(request.restoreRunId) ||
     !/^[A-Za-z0-9:_-]{1,200}$/.test(request.expectedActivationId) ||
+    (request.failedRunId !== undefined && !/^[A-Za-z0-9:_-]{1,200}$/.test(request.failedRunId)) ||
     !/^[1-9][0-9]*$/.test(request.compatibilityArtifactId) ||
     typeof request.reason !== 'string' ||
     !request.reason.trim() ||
@@ -31,10 +32,21 @@ export async function planManualFunctionRecovery({
   )
     throw new Error('Explicit function restore source, scope, activation and reason required');
   const status = await coordinator.status({ scopeKey: 'site' });
+  const failed = request.failedRunId ? await coordinator.runStatus(request.failedRunId) : null;
+  if (
+    request.failedRunId &&
+    (status.target?.dirtyRunId !== request.failedRunId ||
+      failed?.state !== 'FAILED' ||
+      failed.scopeKey !== 'site' ||
+      failed.targetId !== status.targetId ||
+      identity([...failed.deliveredComponents].sort()) !==
+        identity(request.names.map((name) => `function:${name}`).sort()))
+  )
+    throw new Error('Only the exact confirmed failed function delivery may be recovered');
   if (
     status.pendingStep ||
     status.target?.currentRunId ||
-    status.target?.dirtyRunId ||
+    (status.target?.dirtyRunId && status.target.dirtyRunId !== request.failedRunId) ||
     (guard
       ? status.state !== 'leased' ||
         status.target?.lease?.fence !== guard.fence ||
@@ -107,6 +119,7 @@ export async function executeManualFunctionRecovery(options) {
       scopeKey: 'site',
       kind: 'restore',
       restoreFromRunId: args.request.restoreRunId,
+      ...(args.request.failedRunId ? { failedRunId: args.request.failedRunId } : {}),
       deliveredComponents: prepared.plan.functions.map((x) => `function:${x.baseline.name}`),
       plan: prepared.descriptor,
     });
