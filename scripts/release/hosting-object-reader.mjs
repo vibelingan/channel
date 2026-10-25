@@ -1,18 +1,16 @@
-import { createRequire } from 'node:module';
+import COS from 'cos-nodejs-sdk-v5';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertHostingPath } from './input.mjs';
 
-const require = createRequire(import.meta.url);
-const sdkRequire = createRequire(require.resolve('@cloudbase/manager-node'));
-const COS = sdkRequire('cos-nodejs-sdk-v5');
-
 /** Read the authenticated hosting bucket; signed URLs never leave this adapter. */
 export async function createHostingObjectReader({ manager, target, request = fetchFully }) {
+  const config = Object.freeze({ ...manager.getManagerConfig() });
+  if (!config.secretId || !config.secretKey) throw Error('Explicit backup credentials required');
   const environment = manager.currentEnvironment();
   const bound = () => {
     if (
       !target.envId ||
-      manager.cloudBaseConfig.envId !== target.envId ||
+      manager.getManagerConfig().envId !== target.envId ||
       environment.getEnvId() !== target.envId
     )
       throw Error('Backup origin environment differs');
@@ -35,8 +33,6 @@ export async function createHostingObjectReader({ manager, target, request = fet
   const origins = new Set(
     ['myqcloud.com', 'tencentcos.cn'].map((domain) => `https://${bucket}.cos.${region}.${domain}`),
   );
-  const config = manager.cloudBaseConfig;
-  if (!config.secretId || !config.secretKey) throw Error('Explicit backup credentials required');
   const cos = new COS({
     SecretId: config.secretId,
     SecretKey: config.secretKey,

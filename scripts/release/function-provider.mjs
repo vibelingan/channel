@@ -35,9 +35,9 @@ export function createCloudbaseFunctionProvider({
     if (
       !fixed.envId ||
       environment.getEnvId() !== fixed.envId ||
-      manager.cloudBaseConfig.envId !== fixed.envId ||
+      manager.getManagerConfig().envId !== fixed.envId ||
       !region ||
-      manager.cloudBaseConfig.region !== region
+      manager.getManagerConfig().region !== region
     )
       throw new Error('Function provider target mismatch');
     await environment.lazyInit();

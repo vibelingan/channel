@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHostingObjectReader } from './release/hosting-object-reader.mjs';
 function fixture() {
+  const config = {
+    envId: 'fixture-env',
+    secretId: 'fixture-id',
+    secretKey: 'fixture-key',
+    token: 'fixture-token',
+  };
   const environment = {
     getEnvId: () => 'fixture-env',
     lazyInit: async () => {},
@@ -19,12 +25,7 @@ function fixture() {
   return {
     target: { envId: 'fixture-env' },
     manager: {
-      cloudBaseConfig: {
-        envId: 'fixture-env',
-        secretId: 'fixture-id',
-        secretKey: 'fixture-key',
-        token: 'fixture-token',
-      },
+      getManagerConfig: () => config,
       currentEnvironment: () => environment,
     },
     environment,
@@ -78,7 +79,7 @@ test('foreign environment and a changed environment are rejected before reading 
   const f = fixture();
   await assert.rejects(createHostingObjectReader({ ...f, target: { envId: 'other' } }), /differs/);
   const reader = await createHostingObjectReader(f);
-  f.manager.cloudBaseConfig.envId = 'other';
+  f.manager.getManagerConfig().envId = 'other';
   await assert.rejects(reader('GET', 'https://fixture.invalid/index.html', {}), /differs/);
 });
 test('untrusted bucket or region metadata is rejected before network access', async () => {
@@ -94,8 +95,8 @@ test('the installed Manager resolves the hosting bucket separately from ordinary
   const { target } = await import('./release-hosting-fixtures.mjs');
   const f = managerFixture();
   f.state.store.Bucket = 'fixture-123';
-  f.manager.cloudBaseConfig.secretId = 'fixture-id';
-  f.manager.cloudBaseConfig.secretKey = 'fixture-key';
+  f.manager.getManagerConfig().secretId = 'fixture-id';
+  f.manager.getManagerConfig().secretKey = 'fixture-key';
   let calls = 0;
   const reader = await createHostingObjectReader({
     manager: f.manager,
@@ -151,4 +152,34 @@ test('shared hosting bucket fields fall back only when external storage is enabl
     ],
   });
   await assert.rejects(createHostingObjectReader(f), /metadata/);
+});
+
+test('backup reader uses public Manager config and snapshots signing credentials', async () => {
+  const f = fixture();
+  Object.defineProperty(f.manager, 'cloudBaseConfig', {
+    get() {
+      throw Error('Private SDK configuration was accessed');
+    },
+  });
+  const reader = await createHostingObjectReader({
+    ...f,
+    request: async (_method, address) => {
+      assert.equal(new URL(address).searchParams.get('q-ak'), 'fixture-id');
+      return { status: 200, body: Buffer.from('complete'), headers: new Headers() };
+    },
+  });
+  f.manager.getManagerConfig().secretId = 'changed-by-caller';
+  await reader('GET', 'https://fixture.invalid/index.html', {});
+});
+
+test('missing signing credentials fail before metadata or HTTP requests', async () => {
+  const f = fixture();
+  f.manager.getManagerConfig().secretKey = '';
+  let reads = 0;
+  f.environment.getHostingService = () => {
+    reads++;
+    throw Error('Unexpected metadata read');
+  };
+  await assert.rejects(createHostingObjectReader(f), /Explicit backup credentials/);
+  assert.equal(reads, 0);
 });

@@ -18,7 +18,7 @@ export async function setArticlePublishing({
   const environment = manager.currentEnvironment();
   await environment.lazyInit();
   if (
-    manager.cloudBaseConfig.envId !== envId ||
+    manager.getManagerConfig().envId !== envId ||
     environment.getEnvId() !== envId ||
     environment.lazyEnvironmentConfig?.EnvId !== envId
   )

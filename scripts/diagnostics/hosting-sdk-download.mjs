@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 // Offline diagnostic: only the network origin and cloud metadata are local fixtures.
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
@@ -19,11 +19,26 @@ if (
   );
 if (existsSync(process.argv[3]))
   throw Error('Preserve the existing file and use a new output path.');
-const server = createServer((_req, res) => {
+async function confirmPartialWrite() {
+  const until = Date.now() + 500;
+  for (;;) {
+    if (existsSync(process.argv[3]) && readFileSync(process.argv[3], 'utf8') === 'part') {
+      console.log('SDK_PARTIAL_BYTES_CONFIRMED');
+      return;
+    }
+    if (Date.now() >= until) {
+      console.log('SDK_PARTIAL_NOT_OBSERVED');
+      process.exit(4);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+const server = createServer(async (_req, res) => {
   if (scenario === 'reset') {
     res.writeHead(200, { 'content-length': 8 });
     res.write('part');
-    setTimeout(() => res.destroy(), 20);
+    await confirmPartialWrite();
+    res.destroy();
   } else {
     res.writeHead(scenario === 'error-page' ? 503 : 200);
     res.end(scenario === 'error-page' ? 'unavailable' : 'complete');
@@ -34,10 +49,11 @@ http.fetchStream = (url, config) => {
   if (new URL(url).hostname !== 'offline-fixture.invalid') throw Error('Unexpected network origin');
   if (scenario === 'stream-error') {
     const body = new PassThrough();
-    setTimeout(() => {
+    setImmediate(async () => {
       body.write('part');
+      await confirmPartialWrite();
       body.destroy(Object.assign(new Error('injected stream failure'), { code: 'ECONNRESET' }));
-    }, 20);
+    });
     return Promise.resolve({ body, status: 200 });
   }
   return send(`http://127.0.0.1:${server.address().port}/file.txt`, config);

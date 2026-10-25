@@ -36,6 +36,7 @@ test('installed Manager 5.9.1 neither resolves nor rejects after a real mid-body
   const result = probe(t, 'reset');
   assert.equal(result.status, 3, result.stderr);
   assert.match(result.stdout, /SDK_STALLED/);
+  assert.match(result.stdout, /SDK_PARTIAL_BYTES_CONFIRMED/);
   assert.doesNotMatch(result.stdout, /SDK_COMPLETED|SDK_REJECTED/);
   assert.equal(readFileSync(result.file, 'utf8'), 'part');
 });
@@ -44,6 +45,8 @@ test('an injected stream error escapes the installed Manager promise and termina
   const result = probe(t, 'stream-error');
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /Unhandled 'error' event/);
+  assert.match(result.stderr, /injected stream failure/);
+  assert.match(result.stdout, /SDK_PARTIAL_BYTES_CONFIRMED/);
   assert.doesNotMatch(result.stdout, /SDK_COMPLETED|SDK_REJECTED/);
   assert.equal(readFileSync(result.file, 'utf8'), 'part');
 });

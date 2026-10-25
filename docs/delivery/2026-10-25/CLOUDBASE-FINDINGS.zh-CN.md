@@ -9,7 +9,7 @@
 | Node.js | 22.13.0 | 当前诊断运行环境 |
 | `@cloudbase/manager-node` | **5.9.1**，仓库实际安装 | 运行其实际下载器，五个本机 HTTP / 流用例 |
 | Manager 候选升级 | **5.9.2**，2026-10-25 npm 查询仍为 latest | 解包后比较 `hosting/index.js`；没有升级仓库，也没有声称跑过 5.9.2 的全套现场测试 |
-| `cos-nodejs-sdk-v5` | **2.15.4**，Manager 的实际依赖 | 正式适配调用公开 `getObjectUrl`；签名与受限目标检查有测试 |
+| `cos-nodejs-sdk-v5` | **2.15.4**，Manager 的实际依赖 | 正式适配调用公开 `getObjectUrl`；现明确列为根目录直接开发依赖，避免从 Manager 内部依赖路径加载；签名与受限目标检查有测试 |
 | 项目 CloudBase MCP | **2.36.1** | 项目固定工具和本轮知识库输出；不是凭 CLI 版本猜 MCP |
 | 本机 CloudBase 相关 skill | `cloudrun-development` 标识 **2.23.3**；静态托管参考无独立版本号 | 内容 / 文件哈希单独记录，不拿 skill 版本等同 SDK |
 | 官方 Toolkit | main **4f68e9060c94327c1a39aa282ad17a03a4d7dfe5**，读取时结果 | `CONTRIBUTING.md` 与 `config/source/skills/cloudbase-cli/references/hosting.md` |
@@ -87,3 +87,16 @@ node --test scripts/hosting-backup-download.test.mjs scripts/hosting-object-read
 89 MB 主要包括44.66 MB媒体和42.81 MB构建资源；127份AdminApp不同哈希资源说明历史版本占用明显。正常上传已有差异判断；下一步减少的是每次整站备份和完整包反复携带历史资源，不以删历史资源、降低一致性检查或增加不受控并发来凑时间。
 
 数据与脚本来自已校验备份，不对云端再次写入。脚本成功不代表整条部署已达到八分钟，真实 test 的 A→B→A 和端到端计时仍待实施。
+
+
+## 二次审查补充：修正我们自己的 SDK 用法
+
+检查安装包 `types/index.d.ts` 发现 `cloudBaseConfig` 标为 private，而备份 / 交付及部分 Blog 工具仍直接读取它。此前“只调用公开接口”的概括没有覆盖这个配置字段，需要纠正。这是我们适配器的用法问题，不应报成腾讯平台故障。
+
+SDK 已提供公开的 `getManagerConfig()`，类型声明和实际运行都已核对，方法返回初始化配置。现在统一使用这个现成方法，签名器保存配置副本；不新增凭据传递框架，不暴露配置，不改权限。`Environment.lazyEnvironmentConfig` 在当前导出的类型中为公开字段，现有环境 / 函数命名空间检查保留。
+
+同时将COS SDK 2.15.4明确列为脚本的直接开发依赖，直接导入，不再依赖Manager的内部依赖目录。没有升级Manager或COS的版本，没有改应用包、价格字段或数据库结构。
+
+先加入一个禁止读取私有字段的测试，观察到旧代码失败；改用公开方法后通过。新增测试还确认缺凭据时不读网络、签名配置不受外部修改影响，以及真实SDK getter和所有release / Blog工具不使用旧字段。定向43项、最终完整脚本1146项、SDK检查与独立Blog类型检查结果单独记录。本轮没有再次全量下载网站；前面的4:36等现场时间属于此前版本，不冒充这次代码的重新现场计时。
+
+诊断本身也补了时序控制：只有确认半截字节已经落盘才制造断流 / 流异常；不再靠固定20毫秒假定落盘完成。一次全量回归暴露的空文件竞态已保留，修复后全部1146项通过。这个变化不替上游修好SDK，而是保证每次重现的前提一致。

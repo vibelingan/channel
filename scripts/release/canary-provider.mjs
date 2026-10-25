@@ -10,7 +10,7 @@ export function createCanaryProvider({ manager, policy }) {
   const bound = async () => {
     await environment.lazyInit();
     if (
-      manager.cloudBaseConfig.envId !== target.envId ||
+      manager.getManagerConfig().envId !== target.envId ||
       environment.getEnvId() !== target.envId ||
       environment.lazyEnvironmentConfig?.EnvId !== target.envId
     )

@@ -124,3 +124,5 @@ evidence before continuing.
 ## Hosting / recovery 的补充验证
 
 2026-10-25：静态托管备份、COS 源站读取和恢复还需读取 [CloudBase Hosting & Recovery](ENGINEERING_CRAFT.md#cloudbase-hosting--recovery) 与 [版本化故障记录](delivery/2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。升级 Manager / Node 时重跑 `scripts/hosting-backup-sdk.test.mjs` 的实际 SDK 诊断，并审核已知缺陷断言；保护自己备份完整性的用例仍必须通过。不要将 MCP 连接关闭一概归因为网络，或把 SDK 命令完成当成备份验收。
+
+同轮二次审查修复：Manager 5.9.1的配置字段`cloudBaseConfig`为private，公开入口为`getManagerConfig()`。脚本使用公开入口，签名器保存副本；COS2.15.4直接声明依赖。`scripts/manager-config.test.mjs`运行真实getter并检查release / Blog目录，`hosting-object-reader.test.mjs`证明禁用私有字段后仍可签名、缺凭据拒绝、配置修改不改变已创建签名器。测试曾在旧实现失败，不把源码里能读到字段当成公共SDK契约。

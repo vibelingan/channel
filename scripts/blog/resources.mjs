@@ -19,7 +19,7 @@ export async function ensureFormalArticleResources({
   const environment = manager.currentEnvironment();
   await environment.lazyInit();
   if (
-    envId !== manager.cloudBaseConfig.envId ||
+    envId !== manager.getManagerConfig().envId ||
     environment.getEnvId() !== envId ||
     environment.lazyEnvironmentConfig?.EnvId !== envId
   )

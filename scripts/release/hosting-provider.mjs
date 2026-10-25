@@ -20,14 +20,14 @@ export function createCloudbaseHostingProvider({ manager, target }) {
   const environment = manager.currentEnvironment();
   if (
     !fixed.envId ||
-    manager.cloudBaseConfig.envId !== fixed.envId ||
+    manager.getManagerConfig().envId !== fixed.envId ||
     environment.getEnvId() !== fixed.envId
   )
     throw new Error('Hosting manager environment mismatch');
   const hosting = environment.getHostingService();
   const env = environment.getEnvService();
   const bound = () => {
-    if (environment.getEnvId() !== fixed.envId || manager.cloudBaseConfig.envId !== fixed.envId)
+    if (environment.getEnvId() !== fixed.envId || manager.getManagerConfig().envId !== fixed.envId)
       throw new Error('Hosting manager environment changed');
   };
   const safe = async (callback) => {
