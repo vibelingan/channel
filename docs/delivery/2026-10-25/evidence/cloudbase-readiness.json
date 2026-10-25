@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-25",
+  "scope": "read-only environment, services and existing public gateway; no deployment or configuration changes",
+  "environment": {
+    "confirmedTarget": true,
+    "region": "ap-shanghai",
+    "status": "normal",
+    "cloudRunExists": true,
+    "reportedPackageType": "Trial"
+  },
+  "services": [
+    {
+      "name": "ai-worker",
+      "type": "container",
+      "status": "normal"
+    },
+    {
+      "name": "ai-bff",
+      "type": "container",
+      "status": "normal"
+    },
+    {
+      "name": "ai-probe",
+      "type": "function",
+      "status": "normal"
+    }
+  ],
+  "publicDomain": {
+    "domain": "supplychainsai.com",
+    "accessType": "DIRECT",
+    "status": "SUCCESS",
+    "routes": [
+      {
+        "path": "/",
+        "type": "STATIC_STORE",
+        "target": "staticstore",
+        "enabled": true
+      },
+      {
+        "path": "/*",
+        "type": "STATIC_STORE",
+        "target": "staticstore",
+        "enabled": true
+      }
+    ],
+    "responseHeadersToAdd": [
+      {
+        "Key": "Cache-Control",
+        "Value": "no-cache",
+        "Action": "OVERWRITE_IF_EXISTS_OR_ADD"
+      }
+    ]
+  },
+  "findings": [
+    "CloudRun already provisioned; no Blog service in returned list",
+    "Existing public domain uses staticstore root/wildcard routes; adding Blog must preserve existing API rules",
+    "Domain currently overwrites Cache-Control with no-cache; application no-store is not enough without effective-header verification",
+    "Reported Trial label does not establish additional service cost or capacity; check before service creation"
+  ]
+}

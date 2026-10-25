@@ -58,6 +58,8 @@ Payload 是内容管理系统；它提供 API，不代表任何接它的网站�
 
 部署方式建议使用官方 `@astrojs/node` 独立服务，CloudBase 云托管承载；同一个公开域名将 `/blog` 及其子路径转给它，其余路径继续现有静态网站或 API。**不能把 Node 服务文件上传静态托管就算支持 SSR。** [官方 Node adapter](https://v6.docs.astro.build/en/guides/integrations-guide/node/)支持这一运行方式；CloudBase 的[官方 Node 服务部署示例](https://docs.cloudbase.net/recipes/deploy-nextjs-to-cloudbase-run)说明容器需要一致的监听地址和端口。Astro 与 CloudBase 的组合、精确同域路由、成本和海外延迟仍需在现有 test 目标确认；官方支持 Node 不等于本项目现场已通过。
 
+本轮又做了真实环境的只读核对：云托管状态为 normal，已存在 ai-worker、ai-bff 和 ai-probe，但没有 Blog 页面服务；主域名和 www 已绑定网关，根路径 / 通配路径指向静态托管。主域名为 **DIRECT** 接入，且域名级规则会将 `Cache-Control` 统一覆盖为 `no-cache`。因此应用设置 `no-store` 并不保证浏览器最终收到 `no-store`，切换前必须检查有效响应头并明确规则作用范围；也不能把该域名的问题一概当成 CloudBase CDN 缓存来清理。不会为了 Blog 改动 AI 服务、全局 API 规则或全站响应头。工具返回的云托管套餐标识为 Trial，不能据此推断新服务免费，新增资源前仍要确认额度和费用。脱敏读回见 `evidence/cloudbase-readiness.json`。
+
 实际依赖为 Astro **6.4.6**。核对 npm 后，`@astrojs/node@10.1.4` 的 peer 为 `astro ^6.3.0`；11.0.0 要求 `^7.0.0-alpha.2`，不能照最新文档直接装 11。没有修改本仓库 lockfile。本轮隔离的本地实验已验证九项：静态商品仍正常、文章初始HTML有正文、不重建更新文章与列表、撤回真实404、撤回正文和列表链接消失、商品静态字节未变、HTML no-store。实验使用本机JSON文件模拟内容存储，没有连接CloudBase；源码未接入产品。结果见 `evidence/astro-mixed-rendering.json`，不能把本机实验时间当成CloudBase发布速度。
 
 ## 商品继续 SSG，API 只更新屏幕，不改服务器文件
@@ -116,7 +118,7 @@ GitHub 发布程序有专门的发布账号，就使用这个账号读取**明�
 事实：
 
 - 已有 509 商品本地构建日志：526 个路由，SEO 检查扫描 527 份 HTML，含 SEO gate 共 **47.55 秒**。不是 GitHub 或线上用时。
-- 完整 CI `40116681076` 的首个 job 启动至最终结果为 **12 分 11 秒**。site 单测一组 8 分 48 秒；正式后台浏览器组 10 分 18 秒。构建还在单测之后串行约 3 分 16 秒。详见 `evidence/ci-timing.json`。
+- 完整 CI `40116681076` 的首个 job 启动至最终结果为 **12 分 11 秒**。site 单测一组 8 分 48 秒；正式后台浏览器组 10 分 18 秒。进一步读取step：site测试命令442秒，正式后台浏览器执行533秒，浏览器安装分别53/61秒；不是单纯下载依赖慢。构建还在单测之后串行约 3 分 16 秒。详见 `evidence/ci-timing.json`。
 - 完整源站备份有 5:46、4:19 和实际 CLI 4:36 的样本；五分钟硬指标还没有稳定达成。
 
 下一步优先拆分 site 单测和耗时后台浏览器组；构建与测试并行，最后统一等全部必需项；同一提交构建一次、交付复用；静态交付只传变化文件；已验收恢复材料只保存一次。不能删除测试、跳过价格 / 图片 / SEO 功能来换速度。
