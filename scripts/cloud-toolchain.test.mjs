@@ -21,8 +21,11 @@ test('cloud tool callers declare the MCP client directly and use their own froze
     assert(install >= 0 && check > install);
     assert(!job.steps.some((s) => s.run?.includes('pnpm --dir tools/cloud-handoff install')));
     const cloud = job.steps.findIndex((s) =>
-      ['node scripts/blog/stage-server.mjs', 'node scripts/blog/route-server.mjs'].includes(s.run),
+      ['scripts/blog/stage-server.mjs', 'scripts/blog/route-server.mjs'].some(
+        (path) => s.run?.includes(path) || s.with?.script?.includes(path),
+      ),
     );
+    if (name !== 'seo-blog-server') assert(cloud >= 0);
     if (cloud >= 0) assert(cloud > check);
   }
 });

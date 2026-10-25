@@ -13,6 +13,7 @@ import { createGithubReadClient } from '../release/github-read.mjs';
 import { identity } from '../release/input.mjs';
 import { replaceBlogFunctionCode } from './bootstrap-delivery.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
+import { readBlogRuntimeSource } from './check-api-source.mjs';
 import { ensureFormalArticleResources } from './resources.mjs';
 import { readFunctionRuntimeVersion } from './runtime-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './site-baseline.mjs';
@@ -27,8 +28,13 @@ if (
   !env.GITHUB_TOKEN
 )
   throw Error('Reviewed code-only API preparation required');
-const codeSha = env.GITHUB_SHA ?? '';
-await createGithubReadClient({ policy, token: env.GITHUB_TOKEN }).requireCI(codeSha);
+const executorSha = env.GITHUB_SHA ?? '';
+const codeSha = env.BLOG_SERVER_API_SOURCE_SHA ?? '';
+if ((await readBlogRuntimeSource()) !== codeSha)
+  throw Error('Staged Blog changed before API preparation');
+const github = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
+await github.requireCI(executorSha);
+await github.requireCI(codeSha);
 const config = {
   envId: policy.envId,
   region: policy.region,
@@ -92,7 +98,7 @@ with zipfile.ZipFile(sys.argv[2],'x',compression=zipfile.ZIP_DEFLATED) as z:
   if p.is_symlink(): raise RuntimeError('Unexpected function symlink')
   if p.is_file(): z.write(p,p.relative_to(root))
 `,
-      resolve('.cloudbase-artifacts/functions', name),
+      resolve('blog-runtime-source/.cloudbase-artifacts/functions', name),
       zip,
     ],
     { stdio: 'pipe', timeout: 30000 },
@@ -117,6 +123,8 @@ const archive = await new DefaultArtifactClient().uploadArtifact(
 if (!archive.id || !archive.digest)
   throw Error('API recovery packages were not archived; no cloud write started');
 await checkBlogSiteBaseline(baseline);
+if ((await readBlogRuntimeSource()) !== codeSha)
+  throw Error('Staged Blog changed after archiving; no cloud write started');
 const resources = await ensureFormalArticleResources({ manager, envId: policy.envId });
 await writeFile(join(output, 'resources.json'), JSON.stringify(resources, null, 2), { flag: 'wx' });
 const results = [];
@@ -145,6 +153,7 @@ await writeFile(
   JSON.stringify(
     {
       codeSha,
+      executorSha,
       backupArtifactId: String(archive.id),
       configurationUnchanged: true,
       websiteUnchanged: true,

@@ -1,0 +1,32 @@
+{
+  "environment": "diversity-123-d9grnqfux221323bb",
+  "region": "ap-shanghai",
+  "service": "blog-pages",
+  "codeSha": "514e543ad34505f9939ed85f9b07b7fae1a939b0",
+  "ciRun": 40227460832,
+  "stageRun": 40228557275,
+  "buildId": 2609439110,
+  "runId": "multi_tenant_1xL4NNQJC2hNY3",
+  "imageUrl": "ccr.ccs.tencentyun.com/tcb-100049822712-zswf/ca-lhdcoaiq_blog-pages:blog-pages-001-20261026035940",
+  "imageDigest": "e82251725a4a55f628e72615dc905890019fb96089f8eaeceb295ae7ac35aa27",
+  "deploymentStatus": "normal",
+  "flowRatio": 100,
+  "websiteRoutesChanged": false,
+  "apiChanged": false,
+  "businessDataChanged": false,
+  "previewOnly": true,
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "service": "blog-pages",
+      "releaseId": "514e543ad34505f9939ed85f9b07b7fae1a939b0",
+      "buildTime": "2026-10-25T19:45:10.591Z",
+      "siteOrigin": "https://supplychainsai.com",
+      "previewOnly": true
+    },
+    "contentType": "application/json",
+    "robots": "noindex,nofollow",
+    "version": "514e543ad34505f9939ed85f9b07b7fae1a939b0"
+  }
+}
