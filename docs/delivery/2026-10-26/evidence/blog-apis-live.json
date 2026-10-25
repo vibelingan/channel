@@ -28,9 +28,7 @@
     {
       "name": "articleReleaseTasks",
       "permission": "ADMINONLY",
-      "indexes": [
-        "article_release_queue"
-      ]
+      "indexes": ["article_release_queue"]
     },
     {
       "name": "articleReleaseHeads",
@@ -40,9 +38,7 @@
     {
       "name": "articleAccepted",
       "permission": "ADMINONLY",
-      "indexes": [
-        "article_public_index"
-      ]
+      "indexes": ["article_public_index"]
     }
   ],
   "results": [
