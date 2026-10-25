@@ -29,7 +29,20 @@ export const ARTICLE_NOSQL_RESOURCES = Object.freeze(
                 },
               },
             ]
-          : [],
+          : collectionName === 'articleAccepted'
+            ? [
+                {
+                  IndexName: 'article_public_index',
+                  MgoKeySchema: {
+                    MgoIsUnique: false,
+                    MgoIndexKeys: [
+                      { Name: 'publication.status', Direction: '1' },
+                      { Name: '_id', Direction: '1' },
+                    ],
+                  },
+                },
+              ]
+            : [],
       ),
     }),
   ),

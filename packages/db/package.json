@@ -38,7 +38,8 @@
     "./catalog-readiness-query": "./src/catalog-readiness-query.ts",
     "./catalog-product-list-view": "./src/catalog-product-list-view.ts",
     "./catalog-approval-image-hold": "./src/catalog-approval-image-hold.ts",
-    "./catalog-supplier-review": "./src/catalog-supplier-review.ts"
+    "./catalog-supplier-review": "./src/catalog-supplier-review.ts",
+    "./article-public-reader": "./src/article-public-reader.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

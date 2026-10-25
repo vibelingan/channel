@@ -57,7 +57,8 @@ test('article resources are explicit function-only collections outside the defau
     ARTICLE_NOSQL_RESOURCES.every(
       (item) =>
         item.permission === 'ADMINONLY' &&
-        item.indexes.length === (item.collectionName === 'articleReleaseTasks' ? 1 : 0),
+        item.indexes.length ===
+          (['articleReleaseTasks', 'articleAccepted'].includes(item.collectionName) ? 1 : 0),
     ),
   );
   assert.equal(

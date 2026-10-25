@@ -1,0 +1,19 @@
+---
+import BlogView from '../../../components/BlogView.astro';
+import { publicArticleList } from '../../../lib/blog/server-client.ts';
+import NotFound from '../../../pages/404.astro';
+const cursor = Astro.params.cursor ?? '';
+let result = null;
+Astro.response.headers.set('Cache-Control', 'no-store');
+if (/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(cursor)) {
+  try {
+    result = await publicArticleList(cursor);
+  } catch {
+    Astro.response.status = 503;
+    Astro.response.headers.set('Retry-After', '30');
+  }
+}
+if (!result && Astro.response.status !== 503) Astro.response.status = 404;
+if (result && !result.articles.length) Astro.response.status = 404;
+---
+{Astro.response.status === 503 ? <html lang="en"><head><title>Insights temporarily unavailable</title><meta name="robots" content="noindex" /></head><body><h1>Insights temporarily unavailable</h1><p>Please try again shortly.</p></body></html> : !result?.articles.length ? <NotFound /> : <BlogView articles={result.articles} article={null} next={result.next} cursor={cursor} server />}

@@ -1,0 +1,37 @@
+name: Blog server HTTP acceptance
+on:
+  push:
+    branches: [feat/seo-foundation]
+  pull_request:
+    paths:
+      - 'apps/site/**'
+      - 'packages/articles/**'
+      - 'packages/db/**'
+      - 'apps/functions/public-api/**'
+      - 'scripts/blog/server-http.integration.ts'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/seo-blog-server.yml'
+permissions:
+  contents: read
+jobs:
+  server-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @vibelingan-channel/articles test
+      - run: pnpm --filter @vibelingan-channel/db exec tsx --test src/article-public-reader.test.ts
+      - run: pnpm --filter @vibelingan-channel/site build:blog-server
+      - run: node scripts/blog/package-server.mjs output/blog-server-package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blog-server-${{ github.sha }}
+          path: output/blog-server-package
+          if-no-files-found: error
+      - run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../scripts/blog/server-http.integration.ts

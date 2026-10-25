@@ -1,5 +1,6 @@
 ---
 import type { ArticlePageData } from '@vibelingan-channel/articles/build';
+import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
 import PageHero from '../components/PageHero.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
@@ -18,17 +19,31 @@ import {
 } from '../lib/blog/page.ts';
 
 interface Props {
-  articles: ArticlePageData[];
+  articles: (ArticlePageData | ArticleSummary)[];
   article: ArticlePageData | null;
   dummy?: boolean;
+  server?: boolean;
+  next?: string | null;
+  cursor?: string;
 }
-const { articles, article, dummy = false } = Astro.props;
-const location = dummy ? dummyBlogLocation : publicBlogLocation;
+const { articles, article, dummy = false, server = false, next = null, cursor } = Astro.props;
+const location = dummy
+  ? dummyBlogLocation
+  : server
+    ? { ...publicBlogLocation, mediaPrefix: '/blog' }
+    : publicBlogLocation;
 const site = getSiteContent(DEFAULT_LOCALE);
 const origin = (Astro.site ?? Astro.url.origin).toString();
-const page = article
+const basePage = article
   ? articlePage(article, origin, site.brand.name, location)
   : blogPage(articles, origin, site.brand.name, location);
+const page = cursor
+  ? {
+      ...basePage,
+      path: `/blog/page/${encodeURIComponent(cursor)}/`,
+      canonicalPath: `/blog/page/${encodeURIComponent(cursor)}/`,
+    }
+  : basePage;
 ---
 <BaseLayout page={page} lang="en">
   <SiteHeader brand={site.brand} nav={site.nav} />
@@ -72,6 +87,10 @@ const page = article
               </article>
             ))}
           </div>
+          {(next || cursor) && <nav aria-label="Article pages" class="mt-8 flex gap-6">
+            {cursor && <a href="/blog/" class="font-semibold text-brand-700 underline">Latest insights</a>}
+            {next && <a href={`/blog/page/${encodeURIComponent(next)}/`} class="font-semibold text-brand-700 underline">More insights</a>}
+          </nav>}
         </section>
       </>
     )}

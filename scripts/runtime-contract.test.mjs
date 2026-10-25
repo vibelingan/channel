@@ -57,11 +57,17 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   const database = {};
   const repository = { marker: 'article-repository' };
   let injected = 0;
+  let articleMode;
+  const injectedModes = [];
   let queueReads = 0;
   const sdk = { database: () => database };
   const preparationAuthority = { marker: 'preparation-authority' };
   const preparationInvoke = () => {};
   const modules = {
+    '@vibelingan-channel/articles/release-store': tsxRequire(
+      '../packages/articles/src/release-store.ts',
+      import.meta.url,
+    ),
     '@vibelingan-channel/db': { setAdapter() {} },
     '@vibelingan-channel/db/cloudbase': {
       initCloudBase() {},
@@ -76,8 +82,9 @@ test('the actual admin cloud entry injects its CloudBase article repository with
       },
     },
     '@vibelingan-channel/db/article-repository': {
-      createCloudBaseArticleRepository: (value) => {
+      createCloudBaseArticleRepository: (value, options) => {
         assert.equal(value, database);
+        injectedModes.push(options.mode);
         injected++;
         return repository;
       },
@@ -99,7 +106,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
     '@vibelingan-channel/media-storage/cloudbase': { createCloudBaseMediaStorage: () => ({}) },
     '@vibelingan-channel/shared': {
       requireEnv: (name) => `test-${name}`,
-      optionalEnv: () => undefined,
+      optionalEnv: (name) => (name === 'ARTICLE_DELIVERY_MODE' ? articleMode : undefined),
     },
     './handler.ts': { handleAdminRequest() {} },
     './http-adapter.ts': { handleAdminFunctionEvent: (_event, config) => config },
@@ -120,6 +127,18 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   assert.equal(queueReads, 0);
   assert.deepEqual(await config.articleQueueStatus(), { hasQueued: false, hasUnknown: false });
   assert.equal(queueReads, 1);
+  articleMode = 'server';
+  runInNewContext(compiled, {
+    exports: {},
+    require: (name) => {
+      assert(Object.hasOwn(modules, name));
+      return modules[name];
+    },
+  });
+  assert.deepEqual(injectedModes, ['static', 'server']);
+  articleMode = 'typo';
+  assert.throws(() => runInNewContext(compiled, { exports: {}, require: (name) => modules[name] }));
+  assert.deepEqual(injectedModes, ['static', 'server']);
 });
 const scriptTrees = [
   [

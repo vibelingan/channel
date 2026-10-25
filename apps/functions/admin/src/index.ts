@@ -4,6 +4,7 @@
  * Wires the wx-server-sdk adapter, then delegates every request to the shared,
  * adapter-agnostic `handleAdminRequest`.
  */
+import { ArticlePublicationModeSchema } from '@vibelingan-channel/articles/release-store';
 import { setAdapter } from '@vibelingan-channel/db';
 import { readArticleQueueStatus } from '@vibelingan-channel/db/article-release-source';
 import { createCloudBaseArticleRepository } from '@vibelingan-channel/db/article-repository';
@@ -29,7 +30,9 @@ const config: AdminHttpConfig = {
   enableArticleReleases: optionalEnv('ARTICLE_PUBLISHING_ENABLED') === '1',
   articleQueueStatusKeyHash: optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),
   articleQueueStatus: () => readArticleQueueStatus(cloudStorageSdk().database()),
-  articleRepository: createCloudBaseArticleRepository(cloudStorageSdk().database()),
+  articleRepository: createCloudBaseArticleRepository(cloudStorageSdk().database(), {
+    mode: ArticlePublicationModeSchema.parse(optionalEnv('ARTICLE_DELIVERY_MODE') || undefined),
+  }),
   preparationAuthority: createCatalogPreparationAuthority({
     secret: requireEnv('JWT_SECRET'),
     environmentId: requireEnv('TCB_ENV'),

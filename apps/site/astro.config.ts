@@ -26,7 +26,8 @@ const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
 // local instead of silently stamping production canonicals.
 const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
-const blog = await readBlogBuild(site);
+const blogServer = env.BLOG_SERVER_ENABLED === '1';
+const blog = blogServer ? { snapshot: null } : await readBlogBuild(site);
 
 const catalogSource = readFileSync(
   new URL('./src/i18n/content/catalog/en-US.md', import.meta.url),
@@ -63,9 +64,11 @@ export default defineConfig({
   integrations: [
     react(),
     sitemap({
-      filter: includeInSitemap,
+      filter: (page) =>
+        blogServer && new URL(page).pathname.startsWith('/blog') ? false : includeInSitemap(page),
+      ...(blogServer ? { customSitemaps: [`${site}/blog/sitemap.xml`] } : {}),
     }),
-    seoGate(site),
+    seoGate(site, { blogServer }),
   ],
   vite: {
     plugins: [tailwindcss()],

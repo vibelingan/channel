@@ -18,7 +18,8 @@
     "./release-service": "./src/release-service.ts",
     "./transaction-store": "./src/transaction-store.ts",
     "./build": "./src/build.ts",
-    "./release-build": "./src/release-build.ts"
+    "./release-build": "./src/release-build.ts",
+    "./public-read": "./src/public-read.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",

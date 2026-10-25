@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { articleText, renderArticle } from '@vibelingan-channel/articles';
 import type { ArticlePageData } from '@vibelingan-channel/articles/build';
+import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
 import { articleMediaPath } from '@vibelingan-channel/articles/publication';
 import { canonicalUrl, createPageDescriptor } from '../seo/page.ts';
 
@@ -14,12 +15,17 @@ export const dummyBlogLocation = {
   mediaPrefix: '/__blog-dummy',
   dummy: true,
 };
-export const articlePath = (article: ArticlePageData, location = publicBlogLocation) =>
-  `${location.root}${article.content.slug}/`;
+export const articlePath = (
+  article: ArticlePageData | ArticleSummary,
+  location = publicBlogLocation,
+) => `${location.root}${article.content.slug}/`;
 export const blogMediaPath = (id: string, media: unknown, location = publicBlogLocation) =>
   `${location.mediaPrefix}${articleMediaPath(id, media)}`;
-export const articleSummary = (article: ArticlePageData) =>
-  article.content.excerpt || articleText(article.content.body).replace(/\s+/g, ' ').slice(0, 240);
+export const articleSummary = (article: ArticlePageData | ArticleSummary) =>
+  article.content.excerpt ||
+  ('body' in article.content
+    ? articleText(article.content.body).replace(/\s+/g, ' ').slice(0, 240)
+    : article.content.title);
 export const articleDate = (time: string) =>
   new Intl.DateTimeFormat('en', {
     year: 'numeric',
@@ -100,7 +106,7 @@ export function articlePage(
 }
 
 export function blogPage(
-  articles: ArticlePageData[],
+  articles: (ArticlePageData | ArticleSummary)[],
   origin: string,
   brand: string,
   location = publicBlogLocation,

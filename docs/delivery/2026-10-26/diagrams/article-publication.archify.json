@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "文章直接发布：后台、接口、HTML 与访客",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 660]
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "后台页面",
+      "sublabel": "人工编辑"
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "文章接口",
+      "sublabel": "权限与版本检查"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "已发布内容",
+      "sublabel": "版本与媒体引用"
+    },
+    {
+      "id": "server",
+      "type": "backend",
+      "label": "文章页面服务",
+      "sublabel": "Astro SSR"
+    },
+    {
+      "id": "visitor",
+      "type": "external",
+      "label": "访客 / 爬虫",
+      "sublabel": "同一个公开网址"
+    }
+  ],
+  "messages": [
+    {
+      "id": "article-0",
+      "from": "editor",
+      "to": "api",
+      "y": 165,
+      "label": "保存版本后请求发布",
+      "variant": "security"
+    },
+    {
+      "id": "article-1",
+      "from": "api",
+      "to": "db",
+      "y": 208,
+      "label": "事务保存公开版本",
+      "variant": "emphasis"
+    },
+    {
+      "id": "article-2",
+      "from": "db",
+      "to": "api",
+      "y": 251,
+      "label": "成功或全部不变",
+      "variant": "return"
+    },
+    {
+      "id": "article-3",
+      "from": "api",
+      "to": "editor",
+      "y": 294,
+      "label": "后台显示发布结果",
+      "variant": "return"
+    },
+    {
+      "id": "article-4",
+      "from": "visitor",
+      "to": "server",
+      "y": 337,
+      "label": "GET /blog/文章地址",
+      "variant": "default"
+    },
+    {
+      "id": "article-5",
+      "from": "server",
+      "to": "api",
+      "y": 380,
+      "label": "只读接口查询当前公开文章",
+      "variant": "emphasis"
+    },
+    {
+      "id": "article-6",
+      "from": "api",
+      "to": "db",
+      "y": 423,
+      "label": "按网址读公开记录",
+      "variant": "default"
+    },
+    {
+      "id": "article-7",
+      "from": "db",
+      "to": "api",
+      "y": 466,
+      "label": "公开版本或空值",
+      "variant": "return"
+    },
+    {
+      "id": "article-8",
+      "from": "api",
+      "to": "server",
+      "y": 509,
+      "label": "正文 JSON 与公开图片引用",
+      "variant": "return"
+    },
+    {
+      "id": "article-9",
+      "from": "server",
+      "to": "visitor",
+      "y": 552,
+      "label": "正文 HTML；撤回 404；故障 503",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "本地已验证；真实接线待验收",
+      "items": [
+        "人工发布直接保存公开版本，无须 GitHub 构建；保存草稿不改正文。",
+        "列表、图片、sitemap 随当前公开版本读取。"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "代码恢复与数据分开",
+      "items": [
+        "A、B 都须支持同一文章数据格式；恢复程序不回灌数据库。",
+        "先打通人工发布，再演练恢复，最后接本地内容助手。"
+      ]
+    }
+  ]
+}

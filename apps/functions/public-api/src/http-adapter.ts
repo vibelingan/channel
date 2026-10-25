@@ -1,3 +1,4 @@
+import type { PublicArticles } from '@vibelingan-channel/articles/public-read';
 import {
   type ApiResult,
   err,
@@ -22,6 +23,7 @@ import {
 } from './handler.ts';
 
 export interface PublicHttpConfig extends PublicApiConfig {
+  articles?: PublicArticles;
   corsAllowedOrigins?: readonly string[];
   // `enableCatalogDetail` lives on PublicApiConfig: the catalog projection uses it too.
   /** Explicit cloud rollout gate; no email, checkout or OEM side effects. */
@@ -314,6 +316,59 @@ async function routeGet(
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const params = queryParams(event, url);
   const segments = apiSegments(path);
+
+  if (segments[0] === 'articles') {
+    const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+    if (!config.articles)
+      return jsonResponse(event, config, err('NOT_FOUND', 'Route not found'), 404, headers);
+    try {
+      if (segments.length === 1) {
+        const after = params.get('after') ?? undefined;
+        if (
+          params.getAll('after').length > 1 ||
+          (after !== undefined && !/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(after))
+        )
+          return jsonResponse(
+            event,
+            config,
+            err('VALIDATION_ERROR', 'Invalid article cursor'),
+            400,
+            headers,
+          );
+        return jsonResponse(event, config, ok(await config.articles.list(after)), 200, headers);
+      }
+      if (segments.length === 3 && segments[1] === 'slug') {
+        const article = await config.articles.get(decodeSegment(segments[2] ?? ''));
+        return jsonResponse(
+          event,
+          config,
+          article ? ok(article) : err('NOT_FOUND', 'Article not found'),
+          article ? 200 : 404,
+          headers,
+        );
+      }
+      if (segments.length === 4 && segments[1] === 'media') {
+        const media = await config.articles.media(segments[2] ?? '', segments[3] ?? '');
+        return media
+          ? binaryResponse(event, config, {
+              ok: true,
+              isBase64Encoded: true,
+              body: media.body,
+              headers: { ...headers, 'Content-Type': media.mimeType },
+            })
+          : jsonResponse(event, config, err('NOT_FOUND', 'Image not found'), 404, headers);
+      }
+      return jsonResponse(event, config, err('NOT_FOUND', 'Route not found'), 404, headers);
+    } catch {
+      return jsonResponse(
+        event,
+        config,
+        err('INTERNAL_ERROR', 'Article service is unavailable'),
+        503,
+        { ...headers, 'Retry-After': '30' },
+      );
+    }
+  }
 
   if (segments.length === 1 && segments[0] === 'health') {
     return jsonResponse(event, config, ok(releaseInfo('public-api')));

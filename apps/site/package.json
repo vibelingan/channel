@@ -12,7 +12,8 @@
     "astro": "astro",
     "typecheck": "astro check",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test --test-concurrency=2 \"src/**/*.test.ts\""
+    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test --test-concurrency=2 \"src/**/*.test.ts\"",
+    "build:blog-server": "astro build --config astro.blog.config.ts"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",
@@ -38,7 +39,8 @@
     "react-dom": "^19.2.6",
     "react-hook-form": "7.87.0",
     "tailwindcss": "^4.3.0",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@astrojs/node": "10.1.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",

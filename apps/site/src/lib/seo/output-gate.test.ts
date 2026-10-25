@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { inspectPage, validateManifest } from './output-gate.ts';
+import { inspectPage, validateManifest, validateSitemapIndex } from './output-gate.ts';
 import { createPageDescriptor, serializePageDescriptor } from './page.ts';
 
 const origin = 'https://example.test';
@@ -68,4 +68,26 @@ test('sitemap cannot leak private pages or silently omit/add public pages', asyn
   assert.throws(() => validateManifest([page], [page.canonicalUrl, `${origin}/admin/`]));
   assert.throws(() => validateManifest([page], [page.canonicalUrl, page.canonicalUrl]));
   assert.throws(() => validateManifest([page, { ...page, path: '/other/' }], [page.canonicalUrl]));
+});
+
+test('server Blog adds exactly its own dynamic sitemap without loosening static sitemap checks', () => {
+  const staticMap = `${origin}/sitemap-0.xml`;
+  const dynamicMap = `${origin}/blog/sitemap.xml`;
+  assert.doesNotThrow(() => validateSitemapIndex([staticMap], ['sitemap-0.xml'], origin));
+  assert.doesNotThrow(() =>
+    validateSitemapIndex([staticMap, dynamicMap], ['sitemap-0.xml'], origin, true),
+  );
+  assert.throws(() => validateSitemapIndex([staticMap], ['sitemap-0.xml'], origin, true));
+  assert.throws(() => validateSitemapIndex([staticMap, dynamicMap], ['sitemap-0.xml'], origin));
+  assert.throws(() =>
+    validateSitemapIndex(
+      [staticMap, 'https://other.example/blog/sitemap.xml'],
+      ['sitemap-0.xml'],
+      origin,
+      true,
+    ),
+  );
+  assert.throws(() =>
+    validateSitemapIndex([staticMap, staticMap, dynamicMap], ['sitemap-0.xml'], origin, true),
+  );
 });

@@ -1,10 +1,11 @@
+import { setAdapter } from '@vibelingan-channel/db';
 /**
  * CloudBase cloud function entrypoint for the public storefront API.
  *
  * This is an Event-style function returning an HTTP response envelope. HTTP
  * Access / gateway routing is configured later in P0.9.
  */
-import { setAdapter } from '@vibelingan-channel/db';
+import { createCloudBasePublicArticles } from '@vibelingan-channel/db/article-public-reader';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -20,6 +21,14 @@ setAdapter(cloudBaseAdapter);
 setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: PublicHttpConfig = {
+  ...(optionalEnv('ARTICLE_PUBLIC_READ_ENABLED') === '1'
+    ? {
+        articles: createCloudBasePublicArticles(
+          cloudStorageSdk().database(),
+          createCloudBaseMediaStorage(cloudStorageSdk()),
+        ),
+      }
+    : {}),
   enableCatalogDetail: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   ...(optionalEnv('PUBLIC_API_BASE_URL') ? { apiBaseUrl: optionalEnv('PUBLIC_API_BASE_URL') } : {}),

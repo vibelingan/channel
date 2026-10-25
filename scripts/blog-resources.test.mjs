@@ -70,12 +70,18 @@ function setup() {
   });
   return { state, manager, envId: 'fixture-env' };
 }
-test('actual installed manager creates only seven private article collections and the exact queue index, then becomes read-only', async () => {
+test('actual installed manager creates only seven private article collections and the exact queue and public list indexes, then becomes read-only', async () => {
   const f = setup();
   const report = await ensureFormalArticleResources(f);
   assert.equal(report.length, 7);
   assert.equal(f.state.calls.filter((c) => c.action === 'CreateTable').length, 7);
-  assert.equal(f.state.calls.filter((c) => c.action === 'UpdateTable').length, 1);
+  assert.equal(f.state.calls.filter((c) => c.action === 'UpdateTable').length, 2);
+  const publicIndex = f.state.tables.get('articleAccepted');
+  assert.equal(publicIndex.length, 1);
+  assert.deepEqual(publicIndex[0].Keys, [
+    { Name: 'publication.status', Direction: '1' },
+    { Name: '_id', Direction: '1' },
+  ]);
   const before = f.state.calls.length;
   await ensureFormalArticleResources(f);
   assert(

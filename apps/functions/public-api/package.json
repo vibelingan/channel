@@ -18,7 +18,8 @@
     "@vibelingan-channel/auth": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
-    "@vibelingan-channel/shared": "workspace:*"
+    "@vibelingan-channel/shared": "workspace:*",
+    "@vibelingan-channel/articles": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-26/diagrams/article-publication.archify.json",
+  "output": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/delivery/2026-10-26/diagrams/article-publication.html",
+  "specification": {
+    "sha256": "45f68ff628dbf32241c518e41b6e04801954e43687215507626641cef154753f",
+    "bytes": 3228
+  },
+  "artifact": {
+    "sha256": "50989f6ced53b7375b60e08a871123f1fbeed249e4463c7bb351d27227fcdf90",
+    "bytes": 805697
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

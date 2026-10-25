@@ -73,3 +73,6 @@ scripts/pipeline-e2e.sh
 # Generated session references and SDK probe evidence (keep tracked references)
 .claude/knowledge-refs-*.json
 .claude/sdk-probes/
+
+# Independent Blog SSR output; never uploaded as static hosting files.
+apps/site/dist-blog/

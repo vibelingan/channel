@@ -14,7 +14,10 @@ import {
   saveArticleDraft,
 } from '@vibelingan-channel/articles/drafts';
 import { runArticleMediaCommand } from '@vibelingan-channel/articles/media-store';
-import { createArticleReleaseStore } from '@vibelingan-channel/articles/release-store';
+import {
+  type ArticlePublicationOptions,
+  createArticleReleaseStore,
+} from '@vibelingan-channel/articles/release-store';
 import type { ArticleStoreTransaction } from '@vibelingan-channel/articles/transaction-store';
 import { z } from 'zod';
 
@@ -188,7 +191,7 @@ async function write(
 }
 
 /** Fixed SDK calls shared by media and release commands, with checked write acknowledgements. */
-function articleTransaction(db: ArticleDatabase): ArticleStoreTransaction {
+export function articleTransaction(db: ArticleDatabase): ArticleStoreTransaction {
   return (operation) =>
     safe(() =>
       db.runTransaction(async (transaction) =>
@@ -212,13 +215,19 @@ function articleTransaction(db: ArticleDatabase): ArticleStoreTransaction {
 }
 
 /** Server-only worker capability. Never exposed by the browser request dispatcher. */
-export function createCloudBaseArticleReleaseWorker(db: ArticleDatabase) {
-  return createArticleReleaseStore(articleTransaction(db));
+export function createCloudBaseArticleReleaseWorker(
+  db: ArticleDatabase,
+  options: ArticlePublicationOptions = {},
+) {
+  return createArticleReleaseStore(articleTransaction(db), Date.now, options);
 }
 
-export function createCloudBaseArticleRepository(db: ArticleDatabase): ArticleRepository {
+export function createCloudBaseArticleRepository(
+  db: ArticleDatabase,
+  options: ArticlePublicationOptions = {},
+): ArticleRepository & { releases: ReturnType<typeof createCloudBaseArticleReleaseWorker> } {
   return {
-    releases: createCloudBaseArticleReleaseWorker(db),
+    releases: createCloudBaseArticleReleaseWorker(db, options),
     media: {
       execute: (actorId, articleId, command) =>
         articleTransaction(db)((store) =>

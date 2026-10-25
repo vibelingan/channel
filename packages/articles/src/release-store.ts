@@ -137,11 +137,63 @@ function digest(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+export const ArticlePublicationModeSchema = z.enum(['static', 'server']).default('static');
+export interface ArticlePublicationOptions {
+  /** Trusted server configuration; never selected by browser input. */
+  mode?: 'static' | 'server';
+}
+
+function publishedProjection(
+  task: ArticleReleaseTask,
+  frozen: ArticleCandidate | null,
+  deliveryId: string,
+  acceptedAt: string,
+) {
+  return frozen
+    ? parsePublishedArticle({
+        status: 'accepted',
+        deliveryId,
+        articleId: task.articleId,
+        revision: task.revision,
+        contentHash: frozen.contentHash,
+        content: frozen.content,
+        publishedAt: task.publishedAt,
+        modifiedAt: task.modifiedAt,
+        acceptedAt,
+        media: Object.fromEntries(
+          task.media.map((m) => [
+            m.id,
+            {
+              mimeType: m.mimeType,
+              sha256: m.checksumSha256,
+              byteSize: m.byteSize,
+              width: m.width,
+              height: m.height,
+            },
+          ]),
+        ),
+      })
+    : null;
+}
+function publicationReference(publication: ReturnType<typeof publishedProjection>) {
+  return publication
+    ? reference.parse({
+        revision: publication.revision,
+        slug: publication.content.slug,
+        contentHash: publication.contentHash,
+        publishedAt: publication.publishedAt,
+        modifiedAt: publication.modifiedAt,
+      })
+    : null;
+}
+
 /** Worker methods are server capabilities. The admin API exposes request/latest only. */
 export function createArticleReleaseStore(
   transaction: ArticleStoreTransaction,
   clock = Date.now,
+  options: ArticlePublicationOptions = {},
 ): ArticleReleaseWorker {
+  const mode = ArticlePublicationModeSchema.parse(options.mode);
   const leaseMs = 180_000;
   const now = () => {
     const value = clock();
@@ -257,40 +309,8 @@ export function createArticleReleaseStore(
       const frozen = await candidate(store, task);
       // Read the accepted row before writes to keep the CloudBase transaction contract.
       await row(store, 'articleAccepted', task.articleId);
-      const publication = frozen
-        ? parsePublishedArticle({
-            status: 'accepted',
-            deliveryId: receipt.deliveryId,
-            articleId: task.articleId,
-            revision: task.revision,
-            contentHash: frozen.contentHash,
-            content: frozen.content,
-            publishedAt: task.publishedAt,
-            modifiedAt: task.modifiedAt,
-            acceptedAt: receipt.acceptedAt,
-            media: Object.fromEntries(
-              task.media.map((m) => [
-                m.id,
-                {
-                  mimeType: m.mimeType,
-                  sha256: m.checksumSha256,
-                  byteSize: m.byteSize,
-                  width: m.width,
-                  height: m.height,
-                },
-              ]),
-            ),
-          })
-        : null;
-      const published = publication
-        ? reference.parse({
-            revision: publication.revision,
-            slug: task.slug,
-            contentHash: publication.contentHash,
-            publishedAt: publication.publishedAt,
-            modifiedAt: publication.modifiedAt,
-          })
-        : null;
+      const publication = publishedProjection(task, frozen, receipt.deliveryId, receipt.acceptedAt);
+      const published = publicationReference(publication);
       const next = taskSchema.parse({
         ...task,
         state: 'SUCCEEDED',
@@ -414,7 +434,7 @@ export function createArticleReleaseStore(
           articleId: draft.id,
           operation: request.operation,
           revision: draft.revision,
-          state: 'QUEUED',
+          state: mode === 'server' ? 'SUCCEEDED' : 'QUEUED',
           requestedAt: time,
           updatedAt: time,
           error: null,
@@ -431,6 +451,15 @@ export function createArticleReleaseStore(
           leaseUntil: 0,
           receipt: null,
         });
+        // CloudBase requires all reads before the first write, including updates of
+        // the accepted row. A failed commit exposes neither content nor success.
+        if (mode === 'server') await row(store, 'articleAccepted', draft.id);
+        const publication =
+          mode === 'server'
+            ? publishedProjection(task, frozen, `publication-${digest([id, sequence])}`, time)
+            : null;
+        const published =
+          mode === 'server' ? publicationReference(publication) : (head?.published ?? null);
         if (frozen && !previousCandidate)
           await write(store, 'articlePublications', `${draft.id}:${draft.revision}`, {
             candidate: frozen,
@@ -446,10 +475,17 @@ export function createArticleReleaseStore(
             sequence,
             taskId: id,
             stableSlug: slug,
-            firstPublishedAt: head?.firstPublishedAt ?? null,
-            published: head?.published ?? null,
+            firstPublishedAt: head?.firstPublishedAt ?? publication?.publishedAt ?? null,
+            published,
           }),
         );
+        if (mode === 'server') {
+          await write(store, 'articleDrafts', draft.id, {
+            ...storedDraft,
+            draft: parseArticleDraft({ ...draft, published }),
+          });
+          await write(store, 'articleAccepted', draft.id, { publication, taskId: id });
+        }
         return view(task);
       }),
     control: (actorId, input) =>
@@ -486,6 +522,8 @@ export function createArticleReleaseStore(
           await write(store, 'articleReleaseTasks', task.id, next);
           return view(next);
         }
+        if (mode === 'server')
+          conflict('Publish the saved draft again to retry with immediate publication.');
         if (task.state !== 'FAILED') conflict('Only a confirmed failed task can be retried.');
         await candidate(store, task);
         const next = taskSchema.parse({

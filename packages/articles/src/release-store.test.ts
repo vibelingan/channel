@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseArticleDraft } from './draft-repository.ts';
 import { createArticleDraft, saveArticleDraft } from './drafts.ts';
+import { parsePublishedArticle } from './publication.ts';
 import { createArticleReleaseStore } from './release-store.ts';
 import type { ArticleStoreTransaction } from './transaction-store.ts';
 
@@ -18,7 +19,7 @@ const content = {
     },
   },
 };
-function fixture() {
+function fixture(mode: 'static' | 'server' = 'static') {
   let now = start;
   let rows = new Map<string, Record<string, unknown>>();
   rows.set('users/admin', { _id: 'admin', role: 'admin', status: 'active' });
@@ -56,7 +57,7 @@ function fixture() {
     tail = run.catch(() => {});
     return run;
   };
-  const service = createArticleReleaseStore(transaction, () => now);
+  const service = createArticleReleaseStore(transaction, () => now, { mode });
   const request = {
     operation: 'publish',
     articleId: draft.id,
@@ -513,4 +514,118 @@ test('manual confirmation rejects a revoked requester and pre-request receipt', 
   );
   f.rows().set('users/admin', { _id: 'admin', role: 'member', status: 'active' });
   await assert.rejects(f.service.confirmAccepted(claim.guard, receipt), /Admin/);
+});
+
+test('server publication commits public content immediately without a build or delivery receipt', async () => {
+  const f = fixture('server');
+  const results = await Promise.all([
+    f.service.request('admin', f.request),
+    f.service.request('admin', f.request),
+  ]);
+  assert.deepEqual(results[0], results[1]);
+  assert.equal(results[0]?.state, 'SUCCEEDED');
+  const accepted = f.rows().get('articleAccepted/article-a');
+  assert(accepted?.publication);
+  const publication = parsePublishedArticle(accepted.publication);
+  assert.equal(publication.content.title, content.title);
+  assert.equal(publication.revision, 1);
+  const task = f.rows().get(`articleReleaseTasks/${results[0]?.id}`);
+  assert.equal(task?.receipt, null);
+  assert.equal(task?.workerId, null);
+  assert.equal(savedDraft(f.rows().get('articleDrafts/article-a')?.draft).published?.revision, 1);
+  const completed = results[0];
+  assert(completed);
+  await assert.rejects(f.service.claim(completed.id, 'legacy-worker'), /claim|state|complete/i);
+});
+
+test('server mode isolates draft edits, updates published content and withdraws atomically', async () => {
+  const f = fixture('server');
+  await f.service.request('admin', f.request);
+  f.tick();
+  const row = f.rows().get('articleDrafts/article-a');
+  assert(row);
+  row.draft = saveArticleDraft(savedDraft(row.draft), {
+    expectedRevision: 1,
+    editorId: 'admin',
+    now: new Date(start + 1000).toISOString(),
+    content: { ...content, title: 'Updated public title' },
+  });
+  assert.equal(
+    parsePublishedArticle(f.rows().get('articleAccepted/article-a')?.publication).content.title,
+    content.title,
+  );
+  await f.service.request('admin', { ...f.request, expectedRevision: 2, requestId: 'publish-b' });
+  const updated = parsePublishedArticle(f.rows().get('articleAccepted/article-a')?.publication);
+  assert.equal(updated.content.title, 'Updated public title');
+  assert.equal(updated.publishedAt, new Date(start).toISOString());
+  assert.equal(updated.modifiedAt, new Date(start + 1000).toISOString());
+  f.tick();
+  await f.service.request('admin', {
+    ...f.request,
+    operation: 'withdraw',
+    expectedRevision: 2,
+    requestId: 'withdraw-b',
+  });
+  assert.equal(f.rows().get('articleAccepted/article-a')?.publication, null);
+  assert.equal(savedDraft(f.rows().get('articleDrafts/article-a')?.draft).published, null);
+  assert(f.rows().has('articlePublications/article-a:1'));
+  assert(f.rows().has('articleSlugs/dummy-article'));
+});
+
+test('switching modes cannot bypass an in-flight static publication', async () => {
+  const f = fixture();
+  await f.service.request('admin', f.request);
+  const server = createArticleReleaseStore(f.transaction, () => start, { mode: 'server' });
+  const before = structuredClone(f.rows());
+  await assert.rejects(
+    server.request('admin', { ...f.request, requestId: 'server-attempt' }),
+    /progress|check/i,
+  );
+  assert.deepEqual(f.rows(), before);
+});
+
+test('server publication storage failure leaves neither a public version nor a success record', async () => {
+  const f = fixture();
+  const server = createArticleReleaseStore(
+    (operation) =>
+      f.transaction((store) =>
+        operation({
+          read: store.read,
+          write: async (collection, id, value) => {
+            await store.write(collection, id, value);
+            if (collection === 'articleAccepted') throw Error('storage unavailable');
+          },
+        }),
+      ),
+    () => start,
+    { mode: 'server' },
+  );
+  const before = structuredClone(f.rows());
+  await assert.rejects(server.request('admin', f.request), /storage unavailable/);
+  assert.deepEqual(f.rows(), before);
+});
+
+test('server mode cannot requeue a legacy build retry', async () => {
+  const f = fixture();
+  const task = await f.service.request('admin', f.request);
+  await f.service.control('admin', {
+    operation: 'cancel',
+    articleId: f.draft.id,
+    taskId: task.id,
+    requestId: 'cancel',
+  });
+  const server = createArticleReleaseStore(f.transaction, () => start, { mode: 'server' });
+  await assert.rejects(
+    server.control('admin', {
+      operation: 'retry',
+      articleId: f.draft.id,
+      taskId: task.id,
+      requestId: 'retry',
+    }),
+    /saved draft/,
+  );
+  assert.equal(
+    (await server.request('admin', { ...f.request, requestId: 'publish-server' })).state,
+    'SUCCEEDED',
+  );
 });

@@ -1,0 +1,249 @@
+/** Real built Astro server + existing API handler + installed CloudBase SDK with offline transport.
+ * This checks HTTP integration; it is deliberately NOT labelled live CloudBase acceptance. */
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+import { handlePublicApiEvent } from '../../apps/functions/public-api/src/http-adapter.ts';
+import { parseArticleContent } from '../../packages/articles/src/article.ts';
+import { createCloudBasePublicArticles } from '../../packages/db/src/article-public-reader.ts';
+import { createCloudBaseArticleRepository } from '../../packages/db/src/article-repository.ts';
+import { articleSdkFixture } from '../../packages/db/src/article-sdk-fixture.test-helper.ts';
+
+const content = parseArticleContent({
+  title: 'Manufacturing guide',
+  slug: 'manufacturing-guide',
+  authorName: 'Sean',
+  excerpt: 'Practical manufacturing guidance.',
+  body: {
+    schemaVersion: 1,
+    document: {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'A clear manufacturing brief helps suppliers confirm materials, dimensions and quality checks before production.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+});
+test('built SSR server publishes, updates and withdraws without a rebuild; real status and SEO HTML', async (t) => {
+  const f = articleSdkFixture(t);
+  const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
+  const articles = createCloudBasePublicArticles(f.db, {
+    getObjectAsBase64: async () => {
+      throw Error('Unexpected media read');
+    },
+  });
+  let offline = false;
+  let serverOrigin = '';
+  const api = createServer(async (req, res) => {
+    // Mirror the production gateway: Blog goes to Node; existing root assets
+    // remain on static hosting. Never duplicate the full media tree in the service.
+    if (req.url?.startsWith('/blog')) {
+      try {
+        const response = await fetch(`${serverOrigin}${req.url}`, { redirect: 'manual' });
+        res.writeHead(response.status, Object.fromEntries(response.headers));
+        res.end(Buffer.from(await response.arrayBuffer()));
+      } catch {
+        res.writeHead(502).end();
+      }
+      return;
+    }
+    if (
+      req.url === '/media/logo-channel.svg' ||
+      req.url === '/media/logo-diversity.svg' ||
+      req.url === '/favicon.svg'
+    ) {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+      res.end(await readFile(new URL(`../../apps/site/public${req.url}`, import.meta.url)));
+      return;
+    }
+    if (offline) {
+      res.writeHead(503).end();
+      return;
+    }
+    const result = await handlePublicApiEvent(
+      { httpMethod: req.method, path: req.url, headers: {} },
+      { articles },
+    );
+    res.writeHead(result.statusCode, result.headers);
+    res.end(result.isBase64Encoded ? Buffer.from(result.body, 'base64') : result.body);
+  });
+  api.listen(0, '127.0.0.1');
+  await once(api, 'listening');
+  const apiAddress = api.address();
+  assert(apiAddress && typeof apiAddress === 'object');
+  const placeholder = createServer();
+  placeholder.listen(0, '127.0.0.1');
+  await once(placeholder, 'listening');
+  const address = placeholder.address();
+  assert(address && typeof address === 'object');
+  await new Promise<void>((r) => placeholder.close(() => r()));
+  serverOrigin = `http://127.0.0.1:${address.port}`;
+  const origin = `http://127.0.0.1:${apiAddress.port}`;
+  const standalone = await mkdtemp(join(tmpdir(), 'channel-blog-standalone-'));
+  await cp(new URL('../../apps/site/dist-blog/', import.meta.url), standalone, { recursive: true });
+  const server = spawn(process.execPath, ['server/entry.mjs'], {
+    cwd: standalone,
+    env: {
+      ...process.env,
+      HOST: '127.0.0.1',
+      PORT: String(address.port),
+      BLOG_API_ORIGIN: `http://127.0.0.1:${apiAddress.port}`,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  server.stdout.on('data', (b) => {
+    output += b;
+  });
+  server.stderr.on('data', (b) => {
+    output += b;
+  });
+  t.after(async () => {
+    t.diagnostic(output);
+    server.kill('SIGTERM');
+    await once(server, 'exit');
+    await rm(standalone, { recursive: true, force: true });
+    await new Promise<void>((r) => api.close(() => r()));
+  });
+  for (let attempt = 0; attempt < 80; attempt++) {
+    try {
+      const ready = await fetch(`${serverOrigin}/blog/health.json`);
+      if (!ready.ok) throw Error('not ready');
+      break;
+    } catch {
+      if (server.exitCode !== null || attempt === 79) throw Error(output);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  const get = (path: string) => fetch(`${origin}${path}`);
+  const draft = await repo.create({ actorId: 'admin', requestId: 'create', content });
+  assert.equal((await get('/blog/manufacturing-guide/')).status, 404);
+  assert(!(await (await get('/blog/')).text()).includes('A clear manufacturing brief'));
+  await repo.releases.request('admin', {
+    operation: 'publish',
+    articleId: draft.id,
+    expectedRevision: 1,
+    requestId: 'publish',
+  });
+  const response = await get('/blog/manufacturing-guide/');
+  assert.equal(response.status, 200, output);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const html = await response.text();
+  assert.match(html, /A clear manufacturing brief helps suppliers/);
+  assert.match(html, /<h1[^>]*>Manufacturing guide<\/h1>/);
+  assert.match(html, /rel="canonical" href="http:\/\/localhost:4321\/blog\/manufacturing-guide\/"/);
+  assert.match(html, /"@type":"Article"/);
+  assert.match(html, /datePublished/);
+  assert.match(html, /index,follow/);
+  if (process.env.BLOG_SSR_BROWSER === '1') {
+    const { chromium } = await import('@playwright/test');
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const evidence = new URL('../../output/blog-server-2026-10-26/', import.meta.url);
+      await mkdir(evidence, { recursive: true });
+      const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto(`${origin}/blog/`);
+      await page.getByRole('link', { name: 'Manufacturing guide', exact: true }).click();
+      await page.getByRole('heading', { name: 'Manufacturing guide', exact: true }).waitFor();
+      assert.match(
+        await page.locator('[data-blog-article]').innerText(),
+        /A clear manufacturing brief/,
+      );
+      await page.waitForLoadState('networkidle');
+      assert(
+        await page
+          .locator('img')
+          .evaluateAll((images) =>
+            images.every((image) => image.complete && image.naturalWidth > 0),
+          ),
+      );
+      await page.screenshot({
+        path: new URL('article-desktop.png', evidence).pathname,
+        fullPage: true,
+      });
+      await page.getByRole('link', { name: 'All insights', exact: true }).click();
+      await page.screenshot({
+        path: new URL('list-desktop.png', evidence).pathname,
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({
+        path: new URL('list-mobile.png', evidence).pathname,
+        fullPage: true,
+      });
+      assert(
+        await page.locator('html').evaluate((html) => {
+          const view = html.ownerDocument.defaultView;
+          return view !== null && html.scrollWidth <= view.innerWidth;
+        }),
+      );
+      assert.deepEqual(errors, []);
+      await writeFile(
+        new URL('browser.json', evidence),
+        JSON.stringify({
+          width: 1440,
+          mobileWidth: 390,
+          navigation: 'list to article to list',
+          pageErrors: errors,
+        }),
+      );
+    } finally {
+      await browser.close();
+    }
+  }
+  assert(!html.includes('storageFileId'));
+  const stylesheet = /href="([^"]+\.css)"/.exec(html)?.[1];
+  assert(stylesheet);
+  assert.equal((await get(stylesheet)).status, 200, `Stylesheet ${stylesheet}`);
+  assert.match(await (await get('/blog/')).text(), /href="\/blog\/manufacturing-guide\/"/);
+  assert.match(
+    await (await get('/blog/sitemap.xml')).text(),
+    /<loc>http:\/\/localhost:4321\/blog\/manufacturing-guide\//,
+  );
+  const updated = await repo.save({
+    actorId: 'admin',
+    articleId: draft.id,
+    expectedRevision: 1,
+    content: { ...content, title: 'Updated guidance' },
+  });
+  assert(updated);
+  assert(!(await (await get('/blog/manufacturing-guide/')).text()).includes('Updated guidance'));
+  await repo.releases.request('admin', {
+    operation: 'publish',
+    articleId: draft.id,
+    expectedRevision: updated.revision,
+    requestId: 'update',
+  });
+  assert.match(await (await get('/blog/manufacturing-guide/')).text(), /Updated guidance/);
+  await repo.releases.request('admin', {
+    operation: 'withdraw',
+    articleId: draft.id,
+    expectedRevision: updated.revision,
+    requestId: 'withdraw',
+  });
+  const missing = await get('/blog/manufacturing-guide/');
+  assert.equal(missing.status, 404);
+  assert.match(await missing.text(), /data-not-found-page/);
+  assert(!(await (await get('/blog/sitemap.xml')).text()).includes('manufacturing-guide'));
+  offline = true;
+  const failed = await get('/blog/manufacturing-guide/');
+  assert.equal(failed.status, 503);
+  assert.equal(failed.headers.get('retry-after'), '30');
+  assert.match(await failed.text(), /temporarily unavailable/);
+  assert.equal((await get('/blog/sitemap.xml')).status, 503);
+});

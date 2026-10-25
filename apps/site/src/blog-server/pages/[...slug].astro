@@ -1,0 +1,24 @@
+---
+import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
+import BlogView from '../../components/BlogView.astro';
+import { publicArticle, publicArticleList } from '../../lib/blog/server-client.ts';
+import NotFound from '../../pages/404.astro';
+const slug = Astro.params.slug;
+let article = null;
+let articles: ArticleSummary[] = [];
+let next = null;
+let unavailable = false;
+Astro.response.headers.set('Cache-Control', 'no-store');
+try {
+  if (slug) article = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? await publicArticle(slug) : null;
+  else ({ articles, next } = await publicArticleList());
+} catch {
+  unavailable = true;
+}
+if (unavailable) {
+  Astro.response.status = 503;
+  Astro.response.headers.set('Retry-After', '30');
+  Astro.response.headers.set('X-Robots-Tag', 'noindex');
+} else if (slug && !article) Astro.response.status = 404;
+---
+{unavailable ? <html lang="en"><head><title>Insights temporarily unavailable</title><meta name="robots" content="noindex" /></head><body><h1>Insights temporarily unavailable</h1><p>Please try again shortly.</p></body></html> : slug && !article ? <NotFound /> : <BlogView articles={articles} article={article} next={next} server />}

@@ -17,6 +17,7 @@ export default defineConfig({
   },
   external: ['#catalog-image-decoder'],
   noExternal: [
+    '@vibelingan-channel/articles',
     '@vibelingan-channel/shared',
     '@vibelingan-channel/auth',
     '@vibelingan-channel/db',

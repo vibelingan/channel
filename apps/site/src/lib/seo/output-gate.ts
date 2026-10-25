@@ -274,6 +274,7 @@ const verificationFiles: Record<string, string> = {
 export async function validateSiteOutput(
   directory: string,
   originInput: string,
+  options: { blogServer?: boolean } = {},
 ): Promise<ManifestEntry[]> {
   const origin = siteOrigin(originInput);
   const outputFiles = await files(directory);
@@ -325,11 +326,11 @@ export async function validateSiteOutput(
   }
   const { ast: index } = await parse(await readFile(join(directory, 'sitemap-index.xml'), 'utf8'));
   const indexUrls = elements(index, 'loc').map((node) => decode(textContent(node)).trim());
-  const expectedIndex = sitemapFiles.map((file) => `${origin}/${relative(directory, file)}`);
-  requireValue(
-    indexUrls.length === expectedIndex.length &&
-      expectedIndex.every((url) => indexUrls.includes(url)),
-    'sitemap index origin/files disagree with build',
+  validateSitemapIndex(
+    indexUrls,
+    sitemapFiles.map((file) => relative(directory, file)),
+    origin,
+    options.blogServer,
   );
   validateManifest(entries, sitemapUrls);
   await writeFile(
@@ -337,4 +338,21 @@ export async function validateSiteOutput(
     `${JSON.stringify({ schemaVersion: 1, siteOrigin: origin, entries }, null, 2)}\n`,
   );
   return entries;
+}
+
+export function validateSitemapIndex(
+  actual: string[],
+  staticFiles: string[],
+  originInput: string,
+  blogServer = false,
+) {
+  const origin = siteOrigin(originInput);
+  const expected = staticFiles.map((file) => `${origin}/${file}`);
+  if (blogServer) expected.push(`${origin}/blog/sitemap.xml`);
+  requireValue(
+    new Set(actual).size === actual.length &&
+      actual.length === expected.length &&
+      expected.every((url) => actual.includes(url)),
+    'sitemap index origin/files disagree with build',
+  );
 }
