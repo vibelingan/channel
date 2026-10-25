@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detailFixture } from '../testing/detail-fixture.ts';
-import { initialProductDetailState, reduceProductDetail } from './catalog-product-detail-state.ts';
+import {
+  initialProductDetailState,
+  productDetailFreshness,
+  reduceProductDetail,
+} from './catalog-product-detail-state.ts';
 
 test('bootstrap is ready on the initial render and rejects invalid or private detail data', () => {
   const state = initialProductDetailState(detailFixture());
@@ -59,4 +63,36 @@ test('pagination after a failed refresh keeps the pinned page protocol instead o
   });
   assert.equal(accepted.status, 'ready');
   if (accepted.status === 'ready') assert.equal(accepted.pages.currentPage.variants.page, 2);
+});
+
+test('only a fully decoded and applied browser result is fresh; snapshot, in-flight and failed reads are distinct', () => {
+  const initial = initialProductDetailState(detailFixture());
+  assert.equal(productDetailFreshness(initial), 'snapshot');
+  const pending = reduceProductDetail(initial, { type: 'refresh', generation: 1 });
+  assert.equal(productDetailFreshness(pending), 'loading');
+  const failed = reduceProductDetail(pending, {
+    type: 'result',
+    productId: 'canonical-product',
+    generation: 1,
+    result: { status: 'network-error' },
+  });
+  assert.equal(productDetailFreshness(failed), 'error');
+  const ready = reduceProductDetail(pending, {
+    type: 'result',
+    productId: 'canonical-product',
+    generation: 1,
+    result: { status: 'ready', detail: { ...detailFixture(), revision: 'new-r2' }, bytes: 1000 },
+  });
+  assert.equal(productDetailFreshness(ready), 'fresh');
+  assert.equal(
+    productDetailFreshness(
+      reduceProductDetail(pending, {
+        type: 'result',
+        productId: 'canonical-product',
+        generation: 1,
+        result: { status: 'invalid-response' },
+      }),
+    ),
+    'error',
+  );
 });

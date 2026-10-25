@@ -209,3 +209,11 @@ export function reduceProductDetail(
     }
   }
 }
+
+/** A ready snapshot is not proof that a browser request was decoded and applied. */
+export function productDetailFreshness(state: ProductDetailState): string {
+  if (state.status !== 'ready') return state.status;
+  if (state.pageError) return 'error';
+  if (state.request || state.refreshing) return 'loading';
+  return state.generation === 0 ? 'snapshot' : 'fresh';
+}

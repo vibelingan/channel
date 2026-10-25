@@ -1,0 +1,72 @@
+{
+  "version": "1.61.1",
+  "browser": "149.0.7827.55",
+  "results": [
+    {
+      "cache": "no-store",
+      "reader": "stream",
+      "pageBodyOk": true,
+      "host": "response.json: Protocol error (Network.getResponseBody): No data found for resource with given identifier"
+    },
+    {
+      "cache": "no-store",
+      "reader": "stream",
+      "pageBodyOk": true,
+      "host": "response.json: Protocol error (Network.getResponseBody): No data found for resource with given identifier"
+    },
+    {
+      "cache": "no-store",
+      "reader": "stream",
+      "pageBodyOk": true,
+      "host": "response.json: Protocol error (Network.getResponseBody): No data found for resource with given identifier"
+    },
+    {
+      "cache": "no-store",
+      "reader": "json",
+      "pageBodyOk": true,
+      "host": {
+        "ok": true
+      }
+    },
+    {
+      "cache": "no-store",
+      "reader": "json",
+      "pageBodyOk": true,
+      "host": {
+        "ok": true
+      }
+    },
+    {
+      "cache": "no-store",
+      "reader": "json",
+      "pageBodyOk": true,
+      "host": {
+        "ok": true
+      }
+    },
+    {
+      "cache": "no-cache",
+      "reader": "stream",
+      "pageBodyOk": true,
+      "host": {
+        "ok": true
+      }
+    },
+    {
+      "cache": "no-cache",
+      "reader": "stream",
+      "pageBodyOk": true,
+      "host": {
+        "ok": true
+      }
+    },
+    {
+      "cache": "no-cache",
+      "reader": "stream",
+      "pageBodyOk": true,
+      "host": {
+        "ok": true
+      }
+    }
+  ]
+}

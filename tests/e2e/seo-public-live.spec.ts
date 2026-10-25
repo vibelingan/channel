@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
+import { type Page, expect, test } from '@playwright/test';
 import { expectPageAllowsIndexing } from './helpers/seo-indexability.ts';
+const liveNetwork = new WeakMap<
+  Page,
+  { method: string; path: string; status?: number; failure?: string }[]
+>();
 
 test.skip(process.env.E2E_SEO_PUBLIC_LIVE !== '1', 'Explicit real-site read-only acceptance only.');
 test.use({ viewport: { width: 1440, height: 1100 } });
@@ -13,6 +17,26 @@ test.beforeAll(() => {
   )
     throw Error('Unapproved live public target');
 });
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  await mkdir('output/site-delivery/public-browser', { recursive: true });
+  await page
+    .screenshot({ path: 'output/site-delivery/public-browser/failure.png', fullPage: true })
+    .catch(() => undefined);
+  await writeFile(
+    'output/site-delivery/public-browser/failure.json',
+    JSON.stringify(
+      {
+        url: page.url(),
+        errors: info.errors.map((e) => e.message),
+        status: info.status,
+        network: liveNetwork.get(page) ?? [],
+      },
+      null,
+      2,
+    ),
+  );
+});
 test('real SSG HTML, latest browser API, gallery, category refresh, quote opening and Blog remain usable', async ({
   page,
   browser,
@@ -21,6 +45,25 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
   const writes: string[] = [];
+  const network: { method: string; path: string; status?: number; failure?: string }[] = [];
+  page.on('response', (r) => {
+    if (new URL(r.url()).pathname.startsWith('/api/'))
+      network.push({
+        method: r.request().method(),
+        path: new URL(r.url()).pathname,
+        status: r.status(),
+      });
+  });
+  page.on('requestfailed', (r) => {
+    if (new URL(r.url()).pathname.startsWith('/api/'))
+      network.push({
+        method: r.method(),
+        path: new URL(r.url()).pathname,
+        failure: r.failure()?.errorText ?? 'unknown',
+      });
+  });
+  liveNetwork.set(page, network);
+
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('request', (r) => {
     if (
@@ -59,11 +102,22 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
   } finally {
     await plain.close();
   }
+  // CDP may discard no-store streaming bodies even after the page read them fully.
+  // Compare the real API with the controller's post-validation state instead.
+  const latestResponse = await page.request.get(
+    `${process.env.E2E_API_URL}/api/products/${id}/detail?page=1&pageSize=50&view=sections-media&pagination=byte-budget-v1`,
+  );
+  expect(latestResponse.status()).toBe(200);
+  const latest = await latestResponse.json();
   const refreshed = page.waitForResponse(
     (r) => new URL(r.url()).pathname === `/api/products/${id}/detail` && r.status() === 200,
   );
   await page.goto(path, { waitUntil: 'domcontentloaded' });
-  const latest = await (await refreshed).json();
+  await refreshed;
+  const applied = page.locator('[data-product-detail-freshness]');
+  await expect(applied).toHaveAttribute('data-product-detail-freshness', 'fresh');
+  await expect(applied).toHaveAttribute('data-product-detail-id', id);
+  await expect(applied).toHaveAttribute('data-product-detail-revision', latest.data.revision);
   expect(latest.ok).toBe(true);
   expect(latest.data._id).toBe(id);
   await expect(page.locator('[data-shared-detail-heading]')).toHaveText(latest.data.name);
@@ -100,6 +154,10 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
   );
   await page.reload();
   await reloaded;
+  await expect(page.locator('[data-product-detail-freshness]')).toHaveAttribute(
+    'data-product-detail-freshness',
+    'fresh',
+  );
   await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible();
   await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
   await expect(

@@ -7,6 +7,7 @@ import {
   type ProductDetailEvent,
   type ProductDetailState,
   initialProductDetailState,
+  productDetailFreshness,
   reduceProductDetail,
 } from './catalog-product-detail-state.ts';
 
@@ -147,7 +148,12 @@ export function CatalogDetailController({
     void perform(apply({ type: 'page', generation: ++generation.current, page: number }));
   const { page: number, pageSize, total } = detail.variants;
   return (
-    <div ref={root}>
+    <div
+      ref={root}
+      data-product-detail-freshness={productDetailFreshness(state)}
+      data-product-detail-id={detail._id}
+      data-product-detail-revision={detail.revision}
+    >
       <CatalogDetail
         pages={pages}
         selection={selection}

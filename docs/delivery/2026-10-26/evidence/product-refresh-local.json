@@ -1,0 +1,31 @@
+{
+  "scope": "local exact candidate with real read-only public API; not a hosted acceptance",
+  "runs": [
+    {
+      "n": 0,
+      "type": "verified",
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+      "quoteDialog": true
+    },
+    {
+      "n": 1,
+      "type": "failed",
+      "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail?page=1&pageSize=50&view=sections-media&pagination=byte-budget-v1",
+      "failure": {
+        "errorText": "net::ERR_ABORTED"
+      }
+    },
+    {
+      "n": 1,
+      "type": "verified",
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+      "quoteDialog": true
+    },
+    {
+      "n": 2,
+      "type": "verified",
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+      "quoteDialog": true
+    }
+  ]
+}
