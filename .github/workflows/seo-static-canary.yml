@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, site-delivery, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, blog-bootstrap, blog-server-stage, blog-server-apis, site-delivery, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check]
         default: plan
         required: true
       product_source:
@@ -295,3 +295,13 @@ jobs:
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
+
+  blog_server_stage:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-server-stage' }}
+    uses: ./.github/workflows/seo-blog-server-stage.yml
+    secrets: inherit
+
+  blog_server_apis:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-server-apis' }}
+    uses: ./.github/workflows/seo-blog-server-apis.yml
+    secrets: inherit

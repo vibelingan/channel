@@ -1,0 +1,54 @@
+name: Stage Blog page service
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  stage:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir tools/cloud-handoff install --frozen-lockfile --ignore-scripts
+      - name: Select the successful Blog HTTP build for this exact source
+        uses: actions/github-script@v7
+        id: source
+        with:
+          script: |
+            const result = await github.rest.actions.listWorkflowRuns({
+              ...context.repo, workflow_id: 'seo-blog-server.yml', head_sha: context.sha,
+              branch: 'feat/seo-foundation', event: 'push', status: 'completed', per_page: 20,
+            });
+            const run = result.data.workflow_runs.find(r => r.conclusion === 'success' && r.head_sha === context.sha && r.head_repository?.full_name === 'vibelingan/channel');
+            if (!run) throw new Error('The exact Blog HTTP build has not passed. No cloud write started.');
+            core.setOutput('run_id', String(run.id));
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run_id }}
+          name: blog-server-${{ github.sha }}
+          path: output/blog-server-package
+      - name: Stage only the isolated Blog page service
+        env:
+          BLOG_SERVER_STAGE_CONFIRM: ISOLATED_BLOG_PAGES_ONLY
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          TENCENTCLOUD_REGION: ap-shanghai
+          CLOUDBASE_ENV_ID: diversity-123-d9grnqfux221323bb
+        run: node scripts/blog/stage-server.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-server-stage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/blog-server-stage
+          retention-days: 90
+          if-no-files-found: ignore

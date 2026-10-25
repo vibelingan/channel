@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 /** Package only the already built public Blog service. No repository, credentials,
  * videos, product snapshots or user uploads enter the deployment context. */
-export async function packageBlogServer({ source, destination, codeSha }) {
+export async function packageBlogServer({ source, destination, codeSha, siteOrigin }) {
   if (!/^[a-f0-9]{40}$/.test(codeSha)) throw Error('An exact source commit is required');
+  const site = new URL(siteOrigin);
+  if (site.protocol !== 'https:' || site.origin !== siteOrigin || site.username || site.password)
+    throw Error('The deployment package must name its exact HTTPS site origin');
   await mkdir(destination); // Refuse reuse of a stale or partial package.
   const files = [];
   async function copy(directory, prefix = '') {
@@ -58,6 +61,7 @@ CMD ["node", "server/entry.mjs"]
     schemaVersion: 1,
     service: 'blog-pages',
     codeSha,
+    siteOrigin,
     files,
     totalBytes: files.reduce((n, f) => n + f.bytes, 0),
     dockerfileSha256: createHash('sha256').update(docker).digest('hex'),
@@ -74,6 +78,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     source: fileURLToPath(new URL('../../apps/site/dist-blog/', import.meta.url)),
     destination: resolve(destination),
     codeSha: process.env.CHANNEL_BUILD_SHA ?? process.env.GITHUB_SHA ?? '',
+    siteOrigin: process.env.SITE_URL ?? '',
   });
   console.log(
     JSON.stringify({

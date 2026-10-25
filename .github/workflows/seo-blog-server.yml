@@ -17,6 +17,8 @@ jobs:
   server-http:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    env:
+      SITE_URL: https://supplychainsai.com
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

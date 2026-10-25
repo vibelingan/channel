@@ -37,21 +37,25 @@ test('all manual modes select exactly one job and retain the existing shared tar
         ? 'functions'
         : mode === 'maintenance'
           ? 'maintenance'
-          : mode === 'blog-bootstrap'
-            ? 'blog_bootstrap'
-            : mode === 'site-delivery'
-              ? 'site_delivery'
-              : mode === 'blog-enable'
-                ? 'blog_enable'
-                : [
-                      'blog-create',
-                      'blog-retry',
-                      'blog-update',
-                      'blog-withdraw',
-                      'blog-check',
-                    ].includes(mode)
-                  ? 'blog_acceptance'
-                  : 'canary',
+          : mode === 'blog-server-apis'
+            ? 'blog_server_apis'
+            : mode === 'blog-server-stage'
+              ? 'blog_server_stage'
+              : mode === 'blog-bootstrap'
+                ? 'blog_bootstrap'
+                : mode === 'site-delivery'
+                  ? 'site_delivery'
+                  : mode === 'blog-enable'
+                    ? 'blog_enable'
+                    : [
+                          'blog-create',
+                          'blog-retry',
+                          'blog-update',
+                          'blog-withdraw',
+                          'blog-check',
+                        ].includes(mode)
+                      ? 'blog_acceptance'
+                      : 'canary',
     ]);
   }
   assert.deepEqual(workflow.concurrency, {

@@ -1,0 +1,50 @@
+name: Prepare Blog API code
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: test
+    env:
+      CI: 'true'
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      BLOG_SERVER_API_CONFIRM: CODE_ONLY_NO_FLAGS
+      TCB_ENV_ID: diversity-123-d9grnqfux221323bb
+      CLOUDBASE_REGION: ap-shanghai
+      SITE_URL: https://supplychainsai.com
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Fix build timestamp to the source commit
+        run: echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
+      - run: pnpm package:functions
+      - uses: actions/setup-node@v4
+        with: {node-version: '20.19.0'}
+      - run: pnpm smoke:functions
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0'}
+      - name: Archive both actual APIs before any code write
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/bootstrap-apis.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-server-apis-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/blog-server-apis/result.json
+            output/blog-server-apis/updates.json
+            output/blog-server-apis/resources.json
+          retention-days: 90
+          if-no-files-found: ignore

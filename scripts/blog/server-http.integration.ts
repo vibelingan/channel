@@ -128,7 +128,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       await new Promise((r) => setTimeout(r, 100));
     }
   }
-  const get = (path: string) => fetch(`${origin}${path}`);
+  const get = (path: string) => fetch(`${origin}${path}`, { redirect: 'error' });
   const draft = await repo.create({ actorId: 'admin', requestId: 'create', content });
   assert.equal((await get('/blog/manufacturing-guide/')).status, 404);
   assert(!(await (await get('/blog/')).text()).includes('A clear manufacturing brief'));
@@ -141,10 +141,18 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   const response = await get('/blog/manufacturing-guide/');
   assert.equal(response.status, 200, output);
   assert.equal(response.headers.get('cache-control'), 'no-store');
+  const previewOnly = process.env.BLOG_PREVIEW_ONLY === '1';
+  assert.equal(response.headers.get('x-robots-tag'), previewOnly ? 'noindex,nofollow' : null);
+  const health = await (await get('/blog/health.json')).json();
+  const siteOrigin = process.env.SITE_URL || 'http://localhost:4321';
+  assert(health !== null && typeof health === 'object');
+  assert.equal(Reflect.get(health, 'siteOrigin'), siteOrigin);
+  assert.equal(Reflect.get(health, 'previewOnly'), previewOnly);
+  assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
   const html = await response.text();
   assert.match(html, /A clear manufacturing brief helps suppliers/);
   assert.match(html, /<h1[^>]*>Manufacturing guide<\/h1>/);
-  assert.match(html, /rel="canonical" href="http:\/\/localhost:4321\/blog\/manufacturing-guide\/"/);
+  assert(html.includes(`rel="canonical" href="${siteOrigin}/blog/manufacturing-guide/"`));
   assert.match(html, /"@type":"Article"/);
   assert.match(html, /datePublished/);
   assert.match(html, /index,follow/);
@@ -211,9 +219,10 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert(stylesheet);
   assert.equal((await get(stylesheet)).status, 200, `Stylesheet ${stylesheet}`);
   assert.match(await (await get('/blog/')).text(), /href="\/blog\/manufacturing-guide\/"/);
-  assert.match(
-    await (await get('/blog/sitemap.xml')).text(),
-    /<loc>http:\/\/localhost:4321\/blog\/manufacturing-guide\//,
+  assert(
+    (await (await get('/blog/sitemap.xml')).text()).includes(
+      `<loc>${siteOrigin}/blog/manufacturing-guide/</loc>`,
+    ),
   );
   const updated = await repo.save({
     actorId: 'admin',

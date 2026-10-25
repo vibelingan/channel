@@ -2,7 +2,8 @@ import { checkFunctionArchive } from '../release/function-archive.mjs';
 import { identity, sha256 } from '../release/input.mjs';
 
 /** One code-only expansion; failed health may recover known B once, never an unknown package or changed config. */
-export async function replaceAdminCode({
+export async function replaceBlogFunctionCode({
+  name = 'admin',
   provider,
   before,
   original,
@@ -15,7 +16,8 @@ export async function replaceAdminCode({
   pause = () => new Promise((done) => setTimeout(done, 2000)),
 }) {
   if (
-    before.name !== 'admin' ||
+    !['admin', 'public-api'].includes(name) ||
+    before.name !== name ||
     sha256(original) !== before.packageSha256 ||
     !beforeVersion ||
     !expectedVersion
@@ -26,7 +28,7 @@ export async function replaceAdminCode({
   if (beforeVersion === expectedVersion) {
     if (identity(originalFiles.contentSha256) !== identity(candidateFiles.contentSha256))
       throw new Error('Same runtime version has different program bytes');
-    const current = await provider.inspect('admin');
+    const current = await provider.inspect(name);
     if (
       current.packageSha256 !== before.packageSha256 ||
       current.configurationToken !== before.configurationToken ||
@@ -43,7 +45,7 @@ export async function replaceAdminCode({
   const expectedHash = sha256(candidate);
   const submit = (bytes, expectedSnapshot) =>
     provider.updateCode({
-      name: 'admin',
+      name,
       runtime: before.runtime,
       handler: before.handler,
       bytes,
@@ -55,7 +57,7 @@ export async function replaceAdminCode({
     let latest;
     let stable = 0;
     for (;;) {
-      latest = await provider.inspect('admin');
+      latest = await provider.inspect(name);
       if (latest.configurationToken !== before.configurationToken)
         return { status: 'unknown', snapshot: latest };
       if (latest.status === 'Active' && latest.availableStatus === 'Available') {

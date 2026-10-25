@@ -9,7 +9,7 @@ import { checkFunctionArchive } from '../release/function-archive.mjs';
 import { createCloudbaseFunctionProvider } from '../release/function-provider.mjs';
 import { createGithubReadClient } from '../release/github-read.mjs';
 import { identity, sha256 } from '../release/input.mjs';
-import { replaceAdminCode } from './bootstrap-delivery.mjs';
+import { replaceBlogFunctionCode } from './bootstrap-delivery.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
 import { ensureFormalArticleResources } from './resources.mjs';
 import { readAdminRuntimeVersion } from './runtime-health.mjs';
@@ -104,7 +104,7 @@ if (!archive.id || !archive.digest)
 await checkBlogSiteBaseline(baseline);
 const resources = await ensureFormalArticleResources({ manager, envId: policy.envId });
 await writeFile(join(output, 'resources.json'), JSON.stringify(resources, null, 2), { flag: 'wx' });
-const result = await replaceAdminCode({
+const result = await replaceBlogFunctionCode({
   provider,
   before,
   original: await readFile(join(output, 'before/admin.zip')),
