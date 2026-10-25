@@ -131,6 +131,17 @@ export function verifyReleaseArtifact({
     staticManifest.configurationSha256 !== sha256(JSON.stringify(staticManifest.configuration))
   )
     throw new Error('Invalid static manifest/configuration identity.');
+  if (
+    staticManifest.blog !== undefined &&
+    (e.scope.kind !== 'site' ||
+      identity(staticManifest.blog) !==
+        identity({
+          delivery: 'server',
+          apiContract: 'articles-v1',
+          sitemapPath: '/blog/sitemap.xml',
+        }))
+  )
+    throw new Error('Invalid independent Blog delivery declaration.');
   checkEntries(staticManifest.entries);
   for (const entry of staticManifest.entries) {
     requireFile(entry.path, entry.sha256);

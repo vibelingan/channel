@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import { assertServerBlogReady } from './blog/server-route-health.mjs';
+import { assertBlogDeliveryOwnership, assertServerBlogReady } from './blog/server-route-health.mjs';
 import { fetchFully } from './smoke-http.mjs';
 const origin = 'https://reviewed.example';
 const sha = 'a'.repeat(40);
@@ -79,4 +79,13 @@ test('the route guard consumes real HTTP Headers from the existing fetchFully tr
   const transport = (method, url, options) =>
     fetchFully(method, url.replace(origin, `http://127.0.0.1:${address.port}`), options);
   assert.equal((await assertServerBlogReady(origin, transport)).releaseId, sha);
+});
+
+test('static publication cannot silently replace server-owned articles after cutover', () => {
+  assert.doesNotThrow(() => assertBlogDeliveryOwnership(false, undefined));
+  assert.doesNotThrow(() => assertBlogDeliveryOwnership(false, 'static'));
+  assert.doesNotThrow(() => assertBlogDeliveryOwnership(true, 'server'));
+  assert.throws(() => assertBlogDeliveryOwnership(false, 'server'));
+  assert.throws(() => assertBlogDeliveryOwnership(true, 'static'));
+  assert.throws(() => assertBlogDeliveryOwnership(true, undefined));
 });

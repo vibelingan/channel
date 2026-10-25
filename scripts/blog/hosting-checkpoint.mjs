@@ -1,4 +1,5 @@
 import { configurationStateHash } from '../release/hosting-configuration.mjs';
+import { isReviewedBlogRoute } from './server-routes.mjs';
 /** Authorize only the already reviewed Blog prefix addition, never unrelated hosting changes. */
 export function assertBlogConfigurationCheckpoint(saved, current, siteOrigin) {
   if (siteOrigin !== 'https://supplychainsai.com')
@@ -17,33 +18,8 @@ export function assertBlogConfigurationCheckpoint(saved, current, siteOrigin) {
     const blog = routes.filter((r) => r.Path === '/blog');
     if (blog.length > 1 || (requireBlog && blog.length !== 1))
       throw Error('One actual Blog route required');
-    const allowed = new Set([
-      'Path',
-      'PathRewrite',
-      'UpstreamResourceType',
-      'UpstreamResourceName',
-      'EnableSafeDomain',
-      'EnableAuth',
-      'EnablePathTransmission',
-      'QPSPolicy',
-      'Enable',
-      'CreateTime',
-      'UpdateTime',
-    ]);
-    for (const r of blog) {
-      if (
-        r.UpstreamResourceType !== 'CBR' ||
-        r.UpstreamResourceName !== 'blog-pages' ||
-        r.Enable !== true ||
-        r.EnableAuth !== false ||
-        r.EnablePathTransmission !== true ||
-        r.EnableSafeDomain !== false ||
-        Object.keys(r).some((k) => !allowed.has(k)) ||
-        Object.keys(r.PathRewrite ?? {}).length ||
-        Object.keys(r.QPSPolicy ?? {}).length
-      )
-        throw Error('Blog route differs from its approved target and settings');
-    }
+    if (blog.some((route) => !isReviewedBlogRoute(route) || route.Enable !== true))
+      throw Error('Blog route differs from its approved target and settings');
     domains[0].Routes = routes.filter((r) => r.Path !== '/blog');
     return config;
   };

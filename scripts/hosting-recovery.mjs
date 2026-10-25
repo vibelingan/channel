@@ -180,6 +180,7 @@ export function planReleaseRecovery({ artifactInput, currentOwnedPaths, publicPr
   return makePlan({
     entries: staticManifest.entries,
     configurationSha256: staticManifest.configurationSha256,
+    externalSitemaps: staticManifest.blog ? ['/blog/sitemap.xml'] : [],
     directory: artifactInput.directory,
     target: { envId: envelope.target.envId, site: envelope.target.siteOrigin },
     scope: envelope.scope,
@@ -198,6 +199,7 @@ export function planSiteReleaseCandidate({ artifactInput, currentOwnedPaths, pub
   return makePlan({
     entries: staticManifest.entries,
     configurationSha256: staticManifest.configurationSha256,
+    externalSitemaps: staticManifest.blog ? ['/blog/sitemap.xml'] : [],
     directory: artifactInput.directory,
     target: { envId: envelope.target.envId, site: envelope.target.siteOrigin },
     scope: envelope.scope,
@@ -216,6 +218,7 @@ export function planReleaseCandidate({ artifactInput, currentOwnedPaths }) {
   return makePlan({
     entries: staticManifest.entries,
     configurationSha256: staticManifest.configurationSha256,
+    externalSitemaps: staticManifest.blog ? ['/blog/sitemap.xml'] : [],
     directory: artifactInput.directory,
     target: { envId: envelope.target.envId, site: envelope.target.siteOrigin },
     scope: envelope.scope,
@@ -232,6 +235,7 @@ function makePlan({
   scope,
   currentOwnedPaths,
   publicProductPaths,
+  externalSitemaps = [],
 }) {
   if (!Array.isArray(currentOwnedPaths) || !Array.isArray(publicProductPaths))
     throw new Error('Current ownership and a fresh public product allowlist are required.');
@@ -248,7 +252,7 @@ function makePlan({
   const publicOutput =
     scope.kind === 'canary'
       ? { products: [], legacy: false }
-      : readPublicOutput(directory, entries, target.site, publicProductPaths);
+      : readPublicOutput(directory, entries, target.site, publicProductPaths, externalSitemaps);
   const owned = [...new Set(currentOwnedPaths.map(assertHostingPath))];
   if (scope.kind === 'canary' && owned.some((path) => !path.startsWith(scope.prefix)))
     throw new Error('Owned paths escape canary scope.');

@@ -12,7 +12,8 @@ import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
 import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
-import { assertServerBlogReady } from './blog/server-route-health.mjs';
+import { readFunctionRuntimeState } from './blog/runtime-health.mjs';
+import { assertBlogDeliveryOwnership, assertServerBlogReady } from './blog/server-route-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
@@ -25,6 +26,7 @@ import { readBuiltSite } from './release/site-build-record.mjs';
 import {
   assertPublicSiteDeliveryFiles,
   assertSameAcceptedBlog,
+  assertServerBlogRecoverySource,
   filesFromHostingBackup,
   filesFromSiteBuild,
   ownedSitePaths,
@@ -57,6 +59,10 @@ await github.requireCI(codeSha, {
   runId: env.GITHUB_RUN_ID,
   workflowRef: env.GITHUB_WORKFLOW_REF,
 });
+assertBlogDeliveryOwnership(
+  blogServer,
+  (await readFunctionRuntimeState(policy.envId, 'admin')).articleDeliveryMode,
+);
 const manager = new CloudBase({
   envId: policy.envId,
   region: policy.region,
@@ -222,6 +228,7 @@ async function loadAccepted(run: {
     run: source,
     acceptedSeal: run.accepted.seals.static,
   });
+  if (blogServer) assertServerBlogRecoverySource(input);
   acceptedCache.set(artifact.artifactId, input);
   return input;
 }
@@ -369,6 +376,7 @@ try {
     const payload = join(directory, 'checkpoint');
     createSitePayload({
       directory: payload,
+      blogDelivery: baseline.staticManifest.blog?.delivery ?? 'static',
       policy,
       configuration,
       codeSha,
@@ -609,6 +617,7 @@ try {
     const payload = join(directory, 'candidate');
     createSitePayload({
       directory: payload,
+      blogDelivery: blogServer ? 'server' : 'static',
       policy,
       configuration: await provider.readConfiguration(),
       codeSha,

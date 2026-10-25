@@ -87,3 +87,25 @@ for (const [name, change] of [
       assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com'),
     );
   });
+
+test('read-only hosting validation retains the approved Blog route, while global cache mutation stays forbidden', async () => {
+  const { domainConfiguration } = await import('./release-hosting-fixtures.mjs');
+  const { prepareHostingConfiguration } = await import('./release/hosting-configuration.mjs');
+  const { planHostingCacheChange } = await import('./hosting-cache-plan.mjs');
+  const config = domainConfiguration();
+  config.gateway.Domains[0].Routes.push(setup().current.gateway.Domains[0].Routes.at(-1));
+  const fixed = { envId: 'fixture-env', site: 'https://fixture.example' };
+  assert.equal(prepareHostingConfiguration({ target: fixed, before: config }).changes.length, 0);
+  assert.throws(
+    () =>
+      planHostingCacheChange({
+        configuration: config,
+        envId: fixed.envId,
+        site: fixed.site,
+        previousCacheControl: 'no-store',
+      }),
+    /two owned static/,
+  );
+  config.gateway.Domains[0].Routes.at(-1).UpstreamResourceName = 'unreviewed';
+  assert.throws(() => prepareHostingConfiguration({ target: fixed, before: config }), /Unreviewed/);
+});

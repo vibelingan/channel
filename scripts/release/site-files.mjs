@@ -118,3 +118,15 @@ export function assertPublicSiteDeliveryFiles(files, aiOrigin) {
   }
   if (!assistant) throw Error('Public site is missing its existing AI assistant integration');
 }
+
+/** An old static copy could expose withdrawn article media outside the live publication gate. */
+export function assertServerBlogRecoverySource(source) {
+  if (
+    source.staticManifest.entries.some(
+      (entry) =>
+        (entry.path.startsWith('blog/') && entry.path.endsWith('.html')) ||
+        articleMediaFile.test(entry.path),
+    )
+  )
+    throw Error('Static Blog copies require a separate migration before server-mode recovery');
+}

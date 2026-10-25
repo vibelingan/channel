@@ -10,7 +10,13 @@ import {
 } from './input.mjs';
 
 /** Read only the sealed local files. No remote sitemap or entity resolution. */
-export function readPublicOutput(directory, entries, siteOrigin, publicPaths) {
+export function readPublicOutput(
+  directory,
+  entries,
+  siteOrigin,
+  publicPaths,
+  externalSitemaps = [],
+) {
   assertOrigin(siteOrigin);
   const paths = new Set(entries.map((entry) => entry.path));
   const byPath = new Map(entries.map((entry) => [entry.path, entry]));
@@ -24,7 +30,23 @@ export function readPublicOutput(directory, entries, siteOrigin, publicPaths) {
   const html = entries
     .filter((entry) => productFile.test(entry.path))
     .map((entry) => `/${entry.path.slice(0, -10)}`);
-  const { pages, files: discoveryPaths } = readSitemaps(read, paths, siteOrigin);
+  if (
+    !Array.isArray(externalSitemaps) ||
+    externalSitemaps.length > 1 ||
+    externalSitemaps.some((path) => path !== '/blog/sitemap.xml')
+  )
+    throw Error('Unsupported dynamic discovery declaration');
+  if (
+    externalSitemaps.length &&
+    [...paths].some(
+      (path) =>
+        path === 'blog/sitemap.xml' ||
+        (path.startsWith('blog/') && path.endsWith('.html')) ||
+        path.startsWith('media/articles/'),
+    )
+  )
+    throw Error('Static Blog output conflicts with the independent page service');
+  const { pages, files: discoveryPaths } = readSitemaps(read, paths, siteOrigin, externalSitemaps);
   const sitemapProducts = pages.filter((path) => productPath.test(path));
   const hasProducts = paths.has('products/manifest.json');
   const hasSeo = paths.has('seo-manifest.json');
@@ -97,10 +119,12 @@ export function readPublicOutput(directory, entries, siteOrigin, publicPaths) {
   };
 }
 
-function readSitemaps(read, paths, origin) {
+function readSitemaps(read, paths, origin, externalSitemaps) {
+  const external = new Set(externalSitemaps.map((path) => path.slice(1)));
   const files = [...paths].filter(isSitemap);
   const queue = (path) => {
     const file = assertHostingPath(path.slice(1));
+    if (external.has(file)) return file;
     if (!file.endsWith('.xml') || !paths.has(file))
       throw new Error(`Missing local sitemap fragment: ${file}`);
     if (!files.includes(file)) files.push(file);
@@ -132,9 +156,13 @@ function readSitemaps(read, paths, origin) {
     maps.set(file, parsed);
     if (pages.length > limits.urls) throw new Error('Sitemap URL limit exceeded.');
   }
+  for (const file of external)
+    if (!referenced.has(file))
+      throw Error('A declared dynamic sitemap is not referenced by the site index');
   const complete = new Set();
   const visiting = new Set();
   const visit = (file) => {
+    if (external.has(file)) return;
     if (visiting.has(file)) throw new Error('Sitemap index cycle.');
     if (complete.has(file)) return;
     visiting.add(file);

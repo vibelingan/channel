@@ -2,12 +2,37 @@ const domain = 'supplychainsai.com';
 // CloudBase uses prefix matching: /blog owns the article pages and their assets.
 const paths = ['/blog'];
 const isBlogPath = (path) => path === '/blog' || path.startsWith('/blog/');
-const own = (route) =>
-  paths.includes(route.Path) &&
-  route.UpstreamResourceType === 'CBR' &&
-  route.UpstreamResourceName === 'blog-pages' &&
-  route.EnablePathTransmission === true &&
-  route.EnableAuth === false;
+/** One reviewed prefix, including inactive retained records. No rewrite, cache or authentication surprises. */
+export function isReviewedBlogRoute(route) {
+  if (!route || typeof route !== 'object' || Array.isArray(route)) return false;
+  const fields = new Set([
+    'Path',
+    'PathRewrite',
+    'UpstreamResourceType',
+    'UpstreamResourceName',
+    'EnableSafeDomain',
+    'EnableAuth',
+    'EnablePathTransmission',
+    'QPSPolicy',
+    'Enable',
+    'CreateTime',
+    'UpdateTime',
+  ]);
+  return (
+    route.Path === '/blog' &&
+    route.UpstreamResourceType === 'CBR' &&
+    route.UpstreamResourceName === 'blog-pages' &&
+    route.EnablePathTransmission === true &&
+    route.EnableAuth === false &&
+    route.EnableSafeDomain === false &&
+    typeof route.Enable === 'boolean' &&
+    Object.keys(route).every((key) => fields.has(key)) &&
+    Object.keys(route.PathRewrite ?? {}).length === 0 &&
+    Object.keys(route.QPSPolicy ?? {}).length === 0
+  );
+}
+const own = isReviewedBlogRoute;
+
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === 'object')

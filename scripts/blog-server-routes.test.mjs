@@ -49,6 +49,7 @@ function fixture() {
           UpstreamResourceName: input.targetName,
           Enable: true,
           EnableAuth: false,
+          EnableSafeDomain: false,
           EnablePathTransmission: true,
         });
       } else existing.Enable = input.action === 'enableRoute';

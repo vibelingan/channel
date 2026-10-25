@@ -1,3 +1,4 @@
+import { isReviewedBlogRoute } from '../blog/server-routes.mjs';
 import { assertStaticDomainCacheScope, planHostingCacheChange } from '../hosting-cache-plan.mjs';
 import { assertMutableCachePolicy } from '../hosting-contract.mjs';
 import { hostingConfigurationIdentity } from '../hosting-recovery.mjs';
@@ -206,7 +207,15 @@ export function assertSafeConfiguration(config, target) {
     (domainHeaders?.ResponseHeadersToRemove ?? []).some(
       (key) => key.toLowerCase() === 'cache-control',
     );
-  if (hasDomainCache) assertStaticDomainCacheScope(domain);
+  if (hasDomainCache) {
+    const additional = domain.Routes.filter(
+      (route) => route.UpstreamResourceType !== 'STATIC_STORE',
+    );
+    if (additional.length > 1 || additional.some((route) => !isReviewedBlogRoute(route)))
+      throw Error('Unreviewed route shares the domain cache policy');
+    // This validates retained settings only. Cache mutation still checks the complete domain.
+    assertStaticDomainCacheScope({ ...domain, Routes: staticRoutes });
+  }
   for (const headers of hasDomainCache
     ? [domainHeaders]
     : staticRoutes.map((route) => route.Extension?.HeadersHandler)) {

@@ -18,10 +18,12 @@ export function createSitePayload({
   releaseId,
   files,
   snapshot,
+  blogDelivery = 'static',
   objectProofs = /** @type {{path:string,bytes:number,sha256:string,etag:string,lastModified:string}[]} */ ([]),
   now = Date.now(),
 }) {
   if (
+    !['static', 'server'].includes(blogDelivery) ||
     !(files instanceof Map) ||
     !files.size ||
     files.size > limits.files ||
@@ -64,6 +66,15 @@ export function createSitePayload({
     configuration,
     configurationSha256: configurationHash(configuration),
     entries,
+    ...(blogDelivery === 'server'
+      ? {
+          blog: {
+            delivery: 'server',
+            apiContract: 'articles-v1',
+            sitemapPath: '/blog/sitemap.xml',
+          },
+        }
+      : {}),
   };
   data.set('static-manifest.json', Buffer.from(JSON.stringify(manifest)));
   data.set('product-snapshot.json', Buffer.from(JSON.stringify(snapshot)));

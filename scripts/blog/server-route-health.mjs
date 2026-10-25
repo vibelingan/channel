@@ -35,3 +35,9 @@ export async function assertServerBlogReady(siteOrigin, request = fetchFully) {
   }
   return { releaseId: health.releaseId, previewOnly: health.previewOnly };
 }
+
+/** The current backend owns the delivery mode; an old build flag must not restore static article copies. */
+export function assertBlogDeliveryOwnership(serverEnabled, actualMode) {
+  if (serverEnabled ? actualMode !== 'server' : ![undefined, 'static'].includes(actualMode))
+    throw Error('The static build and actual article delivery mode differ');
+}
