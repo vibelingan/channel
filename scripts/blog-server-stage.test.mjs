@@ -16,6 +16,7 @@ function fixture({ exists = false, lostReply = false, incomplete = false } = {})
     saves,
     record,
     directory: '/tmp/reviewed-blog-package',
+    archiveBefore: async () => ({ artifactId: '123', sha256: 'a'.repeat(64) }),
     save: async () => saves.push(structuredClone(record)),
     client: {
       call: async (name, input) => {
@@ -142,6 +143,29 @@ test('in-flight or unexpected service settings stop an update before writes', as
       }
       return original(name, input);
     };
+    await assert.rejects(submitBlogServer({ ...f, operation: 'update' }));
+    assert(f.calls.every((x) => x.name === 'queryCloudRun'));
+  }
+});
+
+test('failed recovery archive or changed old image prevents an existing service update', async () => {
+  for (const fault of ['archive', 'changed-image']) {
+    const f = fixture({ exists: true });
+    let reads = 0;
+    const original = f.client.call;
+    f.client.call = async (name, input) => {
+      if (name === 'queryCloudRun' && input.action === 'detail') {
+        const data = online();
+        reads++;
+        if (fault === 'changed-image' && reads > 1) data.latestDeploy.RunId = 'another-run';
+        return { data };
+      }
+      return original(name, input);
+    };
+    if (fault === 'archive')
+      f.archiveBefore = async () => {
+        throw Error('Archive unavailable');
+      };
     await assert.rejects(submitBlogServer({ ...f, operation: 'update' }));
     assert(f.calls.every((x) => x.name === 'queryCloudRun'));
   }

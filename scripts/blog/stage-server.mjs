@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { DefaultArtifactClient } from '@actions/artifact';
 import { createGithubReadClient } from '../release/github-read.mjs';
 import { connectBlogMcp } from './mcp-client.mjs';
 import { checkBlogServerPackage } from './server-package-check.mjs';
@@ -45,7 +46,23 @@ const save = () =>
 await save();
 const client = await connectBlogMcp();
 try {
-  await submitBlogServer({ client, directory, record, save, operation });
+  await submitBlogServer({
+    client,
+    directory,
+    record,
+    save,
+    operation,
+    archiveBefore: async () => {
+      const result = await new DefaultArtifactClient().uploadArtifact(
+        `blog-server-before-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`,
+        [resolve('output/blog-server-stage/result.json')],
+        resolve('output/blog-server-stage'),
+        { retentionDays: 90 },
+      );
+      if (!result.id || !result.digest) throw Error('Old Blog image archive not confirmed');
+      return { artifactId: String(result.id), sha256: result.digest };
+    },
+  });
 } finally {
   await client.close();
 }

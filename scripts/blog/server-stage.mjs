@@ -1,7 +1,14 @@
 import { isAbsolute } from 'node:path';
 
 /** Submit one reviewed Blog program; save the running image before an explicitly requested update. */
-export async function submitBlogServer({ client, directory, record, save, operation = 'create' }) {
+export async function submitBlogServer({
+  client,
+  directory,
+  record,
+  save,
+  operation = 'create',
+  archiveBefore,
+}) {
   const serverName = 'blog-pages';
   const siteOrigin = 'https://supplychainsai.com';
   if (
@@ -32,6 +39,17 @@ export async function submitBlogServer({ client, directory, record, save, operat
       record.operation = operation;
       record.status = 'recovery-input-saved';
       await save();
+      if (typeof archiveBefore !== 'function') throw Error('Durable old-image archive required');
+      record.backupArchive = await archiveBefore();
+      if (
+        !/^[1-9][0-9]*$/.test(record.backupArchive?.artifactId ?? '') ||
+        !/^[a-f0-9]{64}$/.test(record.backupArchive?.sha256 ?? '')
+      )
+        throw Error('Old image was not durably archived');
+      await save();
+      const current = await client.call('queryCloudRun', { action: 'detail', serverName });
+      if (JSON.stringify(blogServerRecoveryInput(current.data)) !== JSON.stringify(record.before))
+        throw Error('Blog changed after saving the recovery image');
     }
     // One submission. A timeout does not authorize repeating a possibly started deployment.
     record.status = 'submitting';

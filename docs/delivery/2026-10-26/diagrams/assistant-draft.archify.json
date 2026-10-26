@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "助手生成私有草稿，人工登录、编辑和预览",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1080,
+      570
+    ]
+  },
+  "participants": [
+    {
+      "id": "hermes",
+      "type": "backend",
+      "label": "本地Hermes",
+      "sublabel": "MCP草稿工具"
+    },
+    {
+      "id": "import",
+      "type": "security",
+      "label": "受限草稿API",
+      "sublabel": "独立函数"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "文章数据库",
+      "sublabel": "私有草稿 / 公开版本"
+    },
+    {
+      "id": "human",
+      "type": "frontend",
+      "label": "人工后台",
+      "sublabel": "登录、编辑、预览"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "站点文章API",
+      "sublabel": "管理 / 公开只读"
+    }
+  ],
+  "messages": [
+    {
+      "id": "agent-0",
+      "from": "hermes",
+      "to": "import",
+      "y": 165,
+      "label": "固定任务号，提交生成的正文",
+      "variant": "security"
+    },
+    {
+      "id": "agent-1",
+      "from": "import",
+      "to": "db",
+      "y": 208,
+      "label": "事务创建私有草稿和去重记录",
+      "variant": "emphasis"
+    },
+    {
+      "id": "agent-2",
+      "from": "db",
+      "to": "import",
+      "y": 251,
+      "label": "确认草稿ID和保存版本",
+      "variant": "return"
+    },
+    {
+      "id": "agent-3",
+      "from": "import",
+      "to": "hermes",
+      "y": 294,
+      "label": "返回可登录的编辑链接",
+      "variant": "return"
+    },
+    {
+      "id": "agent-4",
+      "from": "hermes",
+      "to": "human",
+      "y": 337,
+      "label": "把草稿链接交给人",
+      "variant": "default"
+    },
+    {
+      "id": "agent-5",
+      "from": "human",
+      "to": "api",
+      "y": 380,
+      "label": "登录后打开、修改和预览草稿",
+      "variant": "security"
+    },
+    {
+      "id": "agent-6",
+      "from": "api",
+      "to": "db",
+      "y": 423,
+      "label": "校验权限与版本，保存人工修改",
+      "variant": "default"
+    },
+    {
+      "id": "agent-preview",
+      "from": "api",
+      "to": "human",
+      "y": 466,
+      "label": "私有预览；由人决定是否点击发布",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "本轮范围",
+      "items": [
+        "本轮隔离在本地，不改生产群配置。",
+        "接口与工具本地已测；真实模型联测待完成。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "发布与恢复分开",
+      "items": [
+        "助手没有发布工具；发文章无须GitHub构建。",
+        "完整人工发布和访客读取见文章时序图。"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { cloudbaseFixture } from './release-cloudbase-fixture.mjs';
 import {
   clock,
   composition,
@@ -11,8 +12,7 @@ import {
   stepInput,
 } from './release-state-fixtures.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
-async function setup(pendingKind = 'accept') {
-  const store = memoryStore();
+async function setup(pendingKind = 'accept', store = memoryStore()) {
   const time = clock();
   const client = createReleaseCoordinator({ store, policy, clock: time.now });
   let guard = await client.acquire(runner('owner-A'));
@@ -116,4 +116,27 @@ test('a readback worker that ends before confirmation can be replaced without ac
   assert.equal(second.fence, first.fence + 1);
   assert.equal((await f.client.runStatus('B')).state, 'RUNNING');
   assert.equal((await f.client.runStatus('B')).verifiedSteps, 1);
+});
+
+test('final read-only takeover uses the installed SDK transaction and persists its fencing history', async (t) => {
+  const sdk = cloudbaseFixture(t);
+  const f = await setup('accept', sdk.store);
+  const guard = await f.client.resumeReadOnlyAcceptance(f.request);
+  const row = await f.client.runStatus('B');
+  assert.equal(row.ownerRunId, guard.ownerRunId);
+  assert.equal(row.writeFence, f.guard.fence);
+  assert.equal(row.acceptanceResumptions.length, 1);
+  assert.equal(row.verifiedSteps, 1);
+  const next = await f.client.beginStep({ guard, runId: 'B', ...stepInput('accept') });
+  await f.client.confirmStep({ guard, runId: 'B', stepId: next.stepId, receipt: receipt(next) });
+  await f.client.commitRun({ guard, runId: 'B', changeSetRef: 'actual-sdk-readback' });
+  assert.equal((await f.client.status()).scope.baseline.sourceRunId, 'B');
+});
+test('an owner whose lease is still active cannot be replaced even if its job ended', async () => {
+  const f = await setup();
+  f.time.advance(-10000);
+  f.request.proof.checkedAt = f.time.now();
+  await assert.rejects(f.client.resumeReadOnlyAcceptance(f.request), {
+    code: 'READ_ONLY_ACCEPTANCE_REQUIRED',
+  });
 });
