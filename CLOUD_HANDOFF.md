@@ -1,44 +1,30 @@
 # 云端接手入口
 
-本次只迁移继续开发所需的上下文和工具，不迁移本机凭证、浏览器账号或其他项目的记忆。
+2026-10-26更新。当前事实和下一步统一记在 [交付进度](docs/delivery/README.zh-CN.md)，先读该页，再读 [会话交接](docs/cloud-handoff/SESSION.zh-CN.md)。早期dummy阶段的限制和待办是历史记录，不能覆盖用户后来的授权，也不能当成当前状态。
 
-- 仓库：`vibelingan/channel`；继续使用 `feat/seo-foundation`。
-- 环境配置和安装命令：[环境指南](docs/cloud-handoff/ENVIRONMENT.zh-CN.md)。
-- 当前完成情况、下一步和不能做的操作：[会话交接](docs/cloud-handoff/SESSION.zh-CN.md)。
-- CloudBase、MCP 和权限：[工具指南](docs/cloud-handoff/TOOLS.zh-CN.md)。
-- 技能来源、版本与本地差异：[技能说明](docs/cloud-handoff/SKILLS.zh-CN.md)。
-- 原交接包验证：[交接验收记录](output/cloud-handoff-2026-10-22/README.zh-CN.md)。
-- 云端草稿服务验证：[本轮结果](docs/blog/02-admin-drafts-worklog-2026-10-22.zh-CN.md)。
-- CloudBase 草稿存储与跨端接手：[SDK 核对](docs/blog/02-cloudbase-sdk-probe.zh-CN.md)、[实施计划](docs/blog/02-cloudbase-drafts-plan.zh-CN.md)、[后续顺序](docs/blog/NEXT-STEPS.zh-CN.md)。
-- 本轮完整结果：[CloudBase 草稿存储交付记录](docs/blog/02-cloudbase-worklog-2026-10-22.zh-CN.md)。
-- 最新发布任务后端与 dummy 计划：[P2 第一段交付](docs/blog/04-publication-tasks-worklog-2026-10-23.zh-CN.md)。
-- 公开文章页面、截图和检查：[P1 交付记录](docs/blog/04-public-pages-worklog-2026-10-23.zh-CN.md)。当前任务始终以共同进度表为准。
+- 仓库：vibelingan/channel。原工作分支feat/seo-foundation，不新开分支或worktree，不改其他工作流。
+- 本轮SEO/Blog已整合进main；c91a16b2包含工具修正及交付材料。test实际网站来源91443842，正常Deploy Test 40317622122成功。后续工具和文档没有改变网站业务代码，不能把Git最新SHA当成所有服务都已部署的SHA。
+- [WeCom图文入口](docs/delivery/2026-10-26/wecom/START-HERE.html)、[服务器配置与退出步骤](docs/delivery/2026-10-26/wecom/GUIDE.zh-CN.md)、[群测任务](docs/delivery/2026-10-26/wecom/TEST-PROMPT.zh-CN.md)。网站侧已登记14天群测凭证，生产HermesInfra尚未安装；生产机器和客户/群绑定需先确认，不发群消息、不复制本机私有凭证进cloud。
+- [环境指南](docs/cloud-handoff/ENVIRONMENT.zh-CN.md)、[CloudBase/MCP权限](docs/cloud-handoff/TOOLS.zh-CN.md)、[技能来源与固定版本](docs/cloud-handoff/SKILLS.zh-CN.md)。仅迁移代码和公开工具来源，不迁移本机登录、密钥或其他项目记忆。
 
-下面整段可作为云端新任务的开场消息：
+可作为云端新任务的开场消息：
 
 ```text
-请接手 Channel 的 SEO / Blog 开发。先读 AGENTS.md、CLOUD_HANDOFF.md、
-docs/cloud-handoff/SESSION.zh-CN.md 和 docs/cloud-handoff/ENVIRONMENT.zh-CN.md。
-核对当前代码包含交接所列提交；沿用 feat/seo-foundation，不另建分支或 worktree，
-不改 pricing，不自动合并 main，不改现有部署流程，不部署正式网站。
-继续开发、测试和推送原 SEO 分支，核对准确提交的 CI。用户已授权隔离 Blog dummy 的真实部署验收；先读本轮发布任务计划，核对现场资源、说明范围/恢复/停止条件后再写云端。
-先运行 bash scripts/cloud-handoff/check.sh；工具未装好则按环境指南补齐。
-本地草稿服务及 CloudBase 适配器源码已完成，先读 docs/blog/02-cloudbase-sdk-probe.zh-CN.md、
-02-cloudbase-drafts-plan.zh-CN.md 和 NEXT-STEPS.zh-CN.md。26 项实际 SDK 离线传输测试（16 项草稿、4 项媒体、6 项发布/隔离）已接入
-SDK 总检查；文章集合准备函数单独导出，未加入自动部署，真实资源/权限/并发尚未验收。
-模块 03 的 E1 编辑页及 E2 图片上传/鉴权预览已接入并完成本地验收。先读
-docs/blog/NEXT-STEPS.zh-CN.md、03-media-worklog-2026-10-23.zh-CN.md 和
-04-public-pages-worklog-2026-10-23.zh-CN.md。模块 04 的 P1 公开列表/详情、静态图片和 SEO
-也已完成本地验收。P2 任务后端第一段已实现；下一步及实际验证以 NEXT-STEPS 和 04-publication-tasks-plan.zh-CN.md 为准。
-不要把候选标成 accepted 来通过现有校验，不部署现有 test 目标。
-以它们记录的状态和下一步为准，不重写已完成模块。文章媒体使用内部 articleMedia 集合；
-不是商品 images 集合。隔离 dummy 需核对当前授权及范围；不能把离线 SDK 传输当真实云端结果。
-保留权限、重复请求和版本保护，不把 dummy 授权扩大到业务数据或正式站点。
-发现设计和当前代码不一致时，修正当前模块并说明，不顺便改造公共请求层或 pricing。
-中文直接按汉语习惯解释，先说做了什么、有什么结果、还差什么，不用内部编号代替解释。
-每次主动给简短中文 brief：完成内容、实际测试、还差什么、下一步和准确提交/CI；
-完成后推送原分支，方便跨端继续，不再等用户重复提醒。
-若缺云端权限，继续不依赖权限的开发，不把工具已安装说成线上已验证。
+请继续Channel原SEO/Blog工作。先读AGENTS.md、CLOUD_HANDOFF.md、
+docs/delivery/README.zh-CN.md和docs/cloud-handoff/SESSION.zh-CN.md，
+再核对远端最新源码与实际运行版本。沿用feat/seo-foundation，不开新分支或worktree，
+不改pricing或其他工作流。本轮已经合入main并正常发布test；不要重复做首次dummy部署，
+不要用旧程序覆盖现站。
+下一步是按现有图文说明配置生产发布助手并由用户在WeCom群测试；
+生产机器未确定时只准备安装材料，不猜服务器、不发群消息。
+网站草稿接口已接通；助手只能存私有草稿、查自己的结果，人审核后才公开。
+当前接口不自动导入Agent图片，人可在后台上传。
+CloudBase test实际是客户网站。新云端写入前说明范围、可恢复版本和停止条件，
+沿用共享锁，不回灌数据库、不碰别的服务。通用业务函数自动恢复仍关闭。
+按环境指南安装锁定工具；工具安装、离线测试、真实云端、生产助手和群测分别记录。
+八分钟部署目标、商品变化自动触发/应急跳过、正式文章收录和海外方案仍有后续工作。
+中文直接说明谁做了什么、结果和缺口。完成后更新同一进度入口，推送原分支，
+核对准确提交的CI；不把先前日志里的中间失败当作最终状态。
 ```
 
-本交接包已在本次 Linux 云端实例完成安装和本地检查。新任务仍要核对源码、启动进程和现有权限；本轮结果不代表网站已经发布。
+历史与原交接来源见 [10月22至24日历史](docs/cloud-handoff/HISTORY-2026-10-22-24.zh-CN.md)。
