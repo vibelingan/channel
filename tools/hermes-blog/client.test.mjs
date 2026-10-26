@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { createBlogToolClient, readBlogToolConfig } from './client.mjs';
 const config = {
-  apiOrigin: 'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com',
+  apiOrigin: 'https://diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com',
   siteOrigin: 'https://supplychainsai.com',
   credential: `key.${'f'.repeat(64)}`,
   integrationId: 'hermes-local',

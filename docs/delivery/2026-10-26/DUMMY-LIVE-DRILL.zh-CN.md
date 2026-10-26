@@ -58,3 +58,8 @@ A 和 B 的函数包都通过已安装 SDK 真正打包。在任何云端写入�
 - `.github/workflows/seo-dummy-recovery.yml`：人工执行；源码仍是原 SEO 分支，不改变默认部署入口。
 
 SDK 核对依据：已安装的 Manager 5.9.1、Node SDK 3.17.2 源码及类型，并核对腾讯官方的[函数管理](https://docs.cloudbase.net/api-reference/manager/node/function)、[数据库管理](https://docs.cloudbase.net/api-reference/manager/node/database)和[权限管理](https://docs.cloudbase.net/api-reference/manager/node/permission)。SDK Invoke 的成功回执与应用返回内容分别检查；只有平台请求号不能算业务成功。
+
+
+## 上传完成但确认记录失败时
+
+40270321336 已出现一次这样的实际情况。先用 `dummy-readback`，`restore_run_id` 明确填中断的静态操作号，`expected_activation_id` 填当前函数生效号。入口不上传网页，只核对原 A 的实际字节、配置、原任务结束状态及过期锁。原任务仍保留失败记录，核对通过后才允许另行执行 A→A。这个入口只处理前后摘要相同的 A→A，不代替 B 发布或任意失败操作的恢复。返回 readback-confirmed 只说明中断结果已查清，不等于完整演练通过。

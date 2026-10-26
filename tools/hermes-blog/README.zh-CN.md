@@ -6,7 +6,7 @@
 
 隔离运行配置需要以下环境变量；实际凭证只放在本机权限受限的文件或部署密钥管理中，不提交仓库，不发聊天：
 
-- CHANNEL_BLOG_API_ORIGIN：固定为当前CloudBase服务域名。
+- CHANNEL_BLOG_API_ORIGIN：固定为 `https://diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com`，这是新草稿接口使用的标准服务域名；已有商品接口地址不改。
 - CHANNEL_BLOG_SITE_ORIGIN：固定为https://supplychainsai.com。
 - CHANNEL_BLOG_CREDENTIAL：keyId.secret形式的受限凭证，只有草稿权限。
 - CHANNEL_BLOG_INTEGRATION_ID：与服务端凭证记录相同的集成编号。

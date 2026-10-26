@@ -27,65 +27,76 @@ export function createCloudbaseReleaseStore({ db, envId, profile = 'site' }) {
     envId,
     async transact(callback) {
       if (typeof callback !== 'function') fail('INVALID_TRANSACTION');
-      return db.runTransaction(async (transaction) => {
-        const reads = new Set();
-        const writes = new Map();
-        let operations = 0;
-        const ref = (table, key) => {
-          if (!Object.hasOwn(tables, table) || !/^[a-f0-9]{64}(?:-(?:site|canary))?$/.test(key))
-            fail('INVALID_LEDGER_REF');
-          return transaction.collection(selectedTables[table]).doc(key);
-        };
-        const count = () => {
-          if (++operations > 24) fail('TRANSACTION_LIMIT');
-        };
-        const value = await callback(
-          Object.freeze({
-            async get(table, key) {
-              if (writes.size) fail('READ_AFTER_WRITE');
-              count();
-              const result = await ref(table, key).get();
-              if (result?.code) fail('STORE_READ_FAILED', String(result.code));
-              if (
-                !result ||
-                !Object.hasOwn(result, 'data') ||
-                (result.data !== null &&
-                  (typeof result.data !== 'object' || Array.isArray(result.data)))
-              )
-                fail('STORE_READ_FAILED');
-              reads.add(`${table}/${key}`);
-              if (result.data === null) return null;
-              const { _id, ...body } = result.data;
-              if (_id !== undefined && _id !== key) fail('STORE_READ_FAILED');
-              return jsonCopy(body);
-            },
-            put(table, key, body) {
-              ref(table, key);
-              if (!reads.has(`${table}/${key}`)) fail('BLIND_WRITE');
-              if (
-                !body ||
-                typeof body !== 'object' ||
-                Array.isArray(body) ||
-                Object.hasOwn(body, '_id')
-              )
-                fail('INVALID_LEDGER_DOCUMENT');
-              writes.set(`${table}/${key}`, { table, key, body: jsonCopy(body) });
-            },
-          }),
-        );
-        for (const { table, key, body } of writes.values()) {
-          count();
-          const result = await ref(table, key).set(body);
-          if (
-            result?.code ||
-            typeof result?.requestId !== 'string' ||
-            !result.requestId ||
-            !(result.updated === 1 || result.upserted?.some((item) => item._id === key))
-          )
-            fail('STORE_WRITE_FAILED', String(result?.code ?? 'Unconfirmed document write'));
-        }
-        return value;
-      });
+      let stage = 'awaiting-sdk-transaction';
+      return db
+        .runTransaction(async (transaction) => {
+          stage = 'callback-entered';
+          const reads = new Set();
+          const writes = new Map();
+          let operations = 0;
+          const ref = (table, key) => {
+            if (!Object.hasOwn(tables, table) || !/^[a-f0-9]{64}(?:-(?:site|canary))?$/.test(key))
+              fail('INVALID_LEDGER_REF');
+            return transaction.collection(selectedTables[table]).doc(key);
+          };
+          const count = () => {
+            if (++operations > 24) fail('TRANSACTION_LIMIT');
+          };
+          const value = await callback(
+            Object.freeze({
+              async get(table, key) {
+                if (writes.size) fail('READ_AFTER_WRITE');
+                count();
+                stage = `read:${table}`;
+                const result = await ref(table, key).get();
+                if (result?.code) fail('STORE_READ_FAILED', String(result.code));
+                if (
+                  !result ||
+                  !Object.hasOwn(result, 'data') ||
+                  (result.data !== null &&
+                    (typeof result.data !== 'object' || Array.isArray(result.data)))
+                )
+                  fail('STORE_READ_FAILED');
+                reads.add(`${table}/${key}`);
+                if (result.data === null) return null;
+                const { _id, ...body } = result.data;
+                if (_id !== undefined && _id !== key) fail('STORE_READ_FAILED');
+                return jsonCopy(body);
+              },
+              put(table, key, body) {
+                ref(table, key);
+                if (!reads.has(`${table}/${key}`)) fail('BLIND_WRITE');
+                if (
+                  !body ||
+                  typeof body !== 'object' ||
+                  Array.isArray(body) ||
+                  Object.hasOwn(body, '_id')
+                )
+                  fail('INVALID_LEDGER_DOCUMENT');
+                writes.set(`${table}/${key}`, { table, key, body: jsonCopy(body) });
+              },
+            }),
+          );
+          for (const { table, key, body } of writes.values()) {
+            count();
+            stage = `write:${table}`;
+            const result = await ref(table, key).set(body);
+            if (
+              result?.code ||
+              typeof result?.requestId !== 'string' ||
+              !result.requestId ||
+              !(result.updated === 1 || result.upserted?.some((item) => item._id === key))
+            )
+              fail('STORE_WRITE_FAILED', String(result?.code ?? 'Unconfirmed document write'));
+          }
+          stage = 'callback-completed';
+          return value;
+        })
+        .catch((error) => {
+          if (error && typeof error === 'object' && Object.isExtensible(error))
+            error.ledgerStage = stage;
+          throw error;
+        });
     },
   });
 }

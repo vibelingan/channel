@@ -155,3 +155,18 @@ test('the isolated live drill uses separate fixed collections through the same r
     /STORE_PROFILE/,
   );
 });
+
+test('a lost SDK commit acknowledgement retains the last callback stage without retrying the committed write', async (t) => {
+  const f = cloudbaseFixture(t);
+  f.fault.commit('lost-ack');
+  await assert.rejects(
+    f.store.transact(async (tx) => {
+      await tx.get('targets', key);
+      tx.put('targets', key, { version: 1 });
+    }),
+    (error) =>
+      error.message === 'Commit response lost' && error.ledgerStage === 'callback-completed',
+  );
+  assert.equal(f.rows.size, 1);
+  assert.equal(f.calls.filter((x) => x.action === 'database.startTransaction').length, 1);
+});

@@ -29,6 +29,8 @@ jobs:
       E2E_BLOG_DELIVERY_MODE: ${{ vars.ARTICLE_DELIVERY_MODE || 'static' }}
       E2E_BLOG_PUBLICATION_OPERATION: ${{ inputs.operation }}
       E2E_BLOG_ARTICLE_ID: ${{ inputs.article_id }}
+      E2E_IMPORT_ID: ${{ startsWith(inputs.operation, 'import-') && inputs.article_id || '' }}
+      E2E_IMPORT_OPERATION: ${{ inputs.operation == 'import-review' && 'review' || inputs.operation == 'import-publish' && 'publish' || inputs.operation == 'import-withdraw' && 'withdraw' || '' }}
       E2E_RECORD_ARTIFACTS: '0'
     steps:
       - uses: actions/checkout@v4
@@ -39,26 +41,50 @@ jobs:
         with: {node-version: 22.13.0, cache: pnpm}
       - run: pnpm install --frozen-lockfile
       - name: Verify exact source and explicit acceptance scope before browser writes
+        if: ${{ !startsWith(inputs.operation, 'import-') }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/blog/acceptance-preflight.mjs
+      - name: Verify the exact owned Hermes receipt and saved draft before browser writes
+        if: ${{ startsWith(inputs.operation, 'import-') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/import-review-live.ts prepare
       - run: pnpm exec playwright install --with-deps chromium
       - name: Operate the real public admin using normal DNS and TLS
+        if: ${{ !startsWith(inputs.operation, 'import-') }}
         env:
           E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm exec playwright test tests/e2e/blog-publication-live.spec.ts --project=chromium --retries=0
       - name: Independently read the exact owned draft, task and original image bytes
+        if: ${{ !startsWith(inputs.operation, 'import-') }}
         env:
           BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
         run: ./apps/site/node_modules/.bin/tsx scripts/blog/verify-publication-ui.ts
+      - name: Edit and preview the imported draft, or perform the separately requested human publish action
+        if: ${{ startsWith(inputs.operation, 'import-') }}
+        env:
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: pnpm exec playwright test tests/e2e/blog-import-live.spec.ts --project=chromium --retries=0
+      - name: Independently confirm the imported draft and public HTML without a build
+        if: ${{ startsWith(inputs.operation, 'import-') }}
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/blog/import-review-live.ts verify
       - name: Keep owned request identifiers and screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: blog-publication-request-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/blog-publication/
+          path: |
+            output/blog-publication/
+            output/blog-import/
           if-no-files-found: ignore
           retention-days: 90

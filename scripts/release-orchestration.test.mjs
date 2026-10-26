@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { readbackDummyStatic } from './release-drill/readback.mjs';
 import {
   configuration,
   errorHtml,
@@ -229,4 +230,94 @@ test('a changed activation while acquiring the lease invalidates the reviewed pl
   );
   assert.equal(f.sdk.state.uploads, 2);
   assert.equal((await f.coordinator.status()).state, 'idle');
+});
+
+test('an interrupted A-to-A upload is resolved by terminal-job and actual-byte readback without another upload', async (t) => {
+  const f = await setup(t);
+  const initial = 'dummy-101-static-A';
+  const interrupted = 'dummy-202-static-restore';
+  const A = await f.execute('A', f.request('initialize'), initial);
+  const request = { ...f.request('restore', A.activation.activationId), restoreRunId: initial };
+  const input = await f.dependencies.loadAccepted(await f.coordinator.runStatus(initial));
+  const plan = await planManualCanary({ ...f.dependencies, input, request });
+  await assert.rejects(
+    executeManualCanary({
+      ...f.dependencies,
+      coordinator: {
+        ...f.coordinator,
+        recordSubmitted: async () => {
+          throw Object.assign(new Error('fixture transaction failure'), {
+            code: 'DATABASE_TRANSACTION_FAIL',
+          });
+        },
+      },
+      input,
+      request,
+      token: plan.review.token,
+      runId: interrupted,
+      owner: {
+        ownerRunId: 'dummy-202-1',
+        runnerRef: `github:${policy.repository}:202:attempt-1:drill`,
+      },
+    }),
+    { code: 'DATABASE_TRANSACTION_FAIL' },
+  );
+  assert.equal((await f.coordinator.status({ scopeKey: 'canary' })).pendingStep.state, 'unknown');
+  assert.equal(f.sdk.state.uploads, 2);
+  const job = {
+    id: 202,
+    run_attempt: 1,
+    status: 'completed',
+    conclusion: 'failure',
+    event: 'workflow_dispatch',
+    path: policy.workflowPath,
+    head_branch: policy.trustedRef.slice(11),
+    head_sha: 'b'.repeat(40),
+    repository: { full_name: policy.repository },
+    head_repository: { full_name: policy.repository },
+  };
+  const args = {
+    ...f.dependencies,
+    runId: interrupted,
+    github: { api: async () => job, requireCI: async () => {} },
+  };
+  await assert.rejects(readbackDummyStatic(args), /expired/);
+  f.timer.advance(180001);
+  for (const mutation of [
+    { status: 'in_progress' },
+    { event: 'pull_request' },
+    { head_branch: 'main' },
+    { path: '.github/workflows/other.yml' },
+  ])
+    await assert.rejects(
+      readbackDummyStatic({
+        ...args,
+        github: { ...args.github, api: async () => ({ ...job, ...mutation }) },
+      }),
+      /terminal job proof/,
+    );
+  await assert.rejects(
+    readbackDummyStatic({
+      ...args,
+      provider: {
+        ...args.provider,
+        inventory: async () => ['__release-canary/index.html', '__release-canary/other.html'],
+      },
+    }),
+    /inventory/,
+  );
+  const original = f.sdk.state.files.get('__release-canary/index.html');
+  f.sdk.state.files.set('__release-canary/index.html', Buffer.from('changed'));
+  await assert.rejects(readbackDummyStatic(args), /mismatch/);
+  f.sdk.state.files.set('__release-canary/index.html', original);
+  const result = await readbackDummyStatic(args);
+  assert.equal(result.websiteWrites, 0);
+  assert.equal(f.sdk.state.uploads, 2);
+  const state = await f.coordinator.status({ scopeKey: 'canary' });
+  assert.equal(state.state, 'idle');
+  assert.equal(state.pendingStep, null);
+  assert.equal(state.target.dirtyRunId, null);
+  assert.equal(state.scope.active.activationId, A.activation.activationId);
+  assert.equal((await f.coordinator.runStatus(interrupted)).state, 'FAILED');
+  assert.equal(f.sdk.state.deleted, 0);
 });

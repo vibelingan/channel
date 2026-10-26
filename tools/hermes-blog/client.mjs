@@ -3,7 +3,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { fetchFully } from '../../scripts/smoke-http.mjs';
 const siteOrigin = 'https://supplychainsai.com';
-const apiOrigin = 'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com';
+const apiOrigin =
+  'https://diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com';
 const root = '/api/integrations/v1/article-drafts';
 const receiptSchema = z
   .object({

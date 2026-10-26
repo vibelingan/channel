@@ -21,25 +21,7 @@ export async function exerciseDummyStatic({
 }) {
   const source = createGithubSource({ policy, token });
   const status = await coordinator.status({ scopeKey: 'canary' });
-  const downloaded = new Map();
-  const loadAccepted = async (run) => {
-    if (run.state !== 'SUCCEEDED' || run.scopeKey !== 'canary' || !run.accepted)
-      throw Error('An accepted private static A is required');
-    const artifactId = run.composition.static.artifact.artifactId;
-    const directory = join(output, `static-source-${artifactId}`);
-    await source.requireCI(run.composition.static.codeSha);
-    const acceptedOptions = { acceptedSeal: run.accepted.seals.static };
-    const metadata = downloaded.has(artifactId)
-      ? (await source.metadata(artifactId, acceptedOptions)).metadata
-      : await source.download(artifactId, directory, acceptedOptions);
-    downloaded.set(artifactId, true);
-    return canaryArtifact({
-      directory,
-      policy,
-      run: metadata,
-      acceptedSeal: run.accepted.seals.static,
-    });
-  };
+  const loadAccepted = createDummyStaticLoader({ source, policy, output });
   let input;
   let restoreRunId = null;
   if (operation === 'restore') {
@@ -96,5 +78,27 @@ export async function exerciseDummyStatic({
     path: `/${policy.canaryPrefix}`,
     variant: operation === 'publish' ? 'B' : 'A',
     fileWrites: 1,
+  };
+}
+
+export function createDummyStaticLoader({ source, policy, output }) {
+  const downloaded = new Map();
+  return async (run) => {
+    if (run.state !== 'SUCCEEDED' || run.scopeKey !== 'canary' || !run.accepted)
+      throw Error('An accepted private static A is required');
+    const artifactId = run.composition.static.artifact.artifactId;
+    const directory = join(output, `static-source-${artifactId}`);
+    await source.requireCI(run.composition.static.codeSha);
+    const acceptedOptions = { acceptedSeal: run.accepted.seals.static };
+    const metadata = downloaded.has(artifactId)
+      ? (await source.metadata(artifactId, acceptedOptions)).metadata
+      : await source.download(artifactId, directory, acceptedOptions);
+    downloaded.set(artifactId, true);
+    return canaryArtifact({
+      directory,
+      policy,
+      run: metadata,
+      acceptedSeal: run.accepted.seals.static,
+    });
   };
 }

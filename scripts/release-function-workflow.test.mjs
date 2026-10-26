@@ -39,7 +39,7 @@ test('all manual modes select exactly one job and retain the existing shared tar
           ? 'blog_server_update'
           : mode.startsWith('function-')
             ? 'functions'
-            : mode === 'dummy-recovery'
+            : ['dummy-recovery', 'dummy-readback'].includes(mode)
               ? 'dummy_recovery'
               : mode === 'maintenance'
                 ? 'maintenance'
@@ -63,6 +63,9 @@ test('all manual modes select exactly one job and retain the existing shared tar
                                     'blog-update',
                                     'blog-withdraw',
                                     'blog-check',
+                                    'blog-import-review',
+                                    'blog-import-publish',
+                                    'blog-import-withdraw',
                                   ].includes(mode)
                                 ? 'blog_acceptance'
                                 : 'canary',

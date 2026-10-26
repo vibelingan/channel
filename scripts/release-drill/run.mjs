@@ -19,6 +19,8 @@ import { createCloudbaseFunctionProvider } from '../release/function-provider.mj
 import { writeFunctionReportArtifact } from '../release/function-report-artifact.mjs';
 import { produceFunctionCompatibilityReport } from '../release/function-report.mjs';
 import { runFunctionCompatibilityTests } from '../release/function-test-runner.mjs';
+import { createGithubReadClient } from '../release/github-read.mjs';
+import { createGithubSource } from '../release/github-source.mjs';
 import { identity, sha256 } from '../release/input.mjs';
 import { SITE_DELIVERY_POLICY } from '../release/site-policy.mjs';
 import { createReleaseCoordinator } from '../release/state.mjs';
@@ -29,15 +31,16 @@ import {
 import { buildLiveDummyFunction } from './build-function.mjs';
 import { journalDummyDelivery } from './journal.mjs';
 import { readDummyFixtures } from './read-fixtures.mjs';
+import { readbackDummyStatic } from './readback.mjs';
 import { prepareDummyInitialization } from './resources.mjs';
 import { createDummyInvoker, dummyFunctionConfiguration, readDummyInvocation } from './runtime.mjs';
-import { exerciseDummyStatic } from './static.mjs';
+import { createDummyStaticLoader, exerciseDummyStatic } from './static.mjs';
 
 const env = process.env;
 const { codeSha, runId: githubRun } = readDummyInvocation(env);
 const operation = env.DUMMY_OPERATION;
 if (
-  !['initialize', 'publish', 'restore'].includes(operation) ||
+  !['initialize', 'publish', 'restore', 'readback'].includes(operation) ||
   !env.GITHUB_TOKEN ||
   !env.TENCENTCLOUD_SECRETID ||
   !env.TENCENTCLOUD_SECRETKEY
@@ -235,7 +238,24 @@ async function loadAccepted(run) {
 }
 await save();
 try {
-  if (operation === 'initialize') {
+  if (operation === 'readback') {
+    const functionStatus = await coordinator.status({ scopeKey: 'site' });
+    assert.equal(functionStatus.scope.active.activationId, env.DUMMY_EXPECTED_ACTIVATION);
+    record.stage = 'readback-interrupted-static-A';
+    await save();
+    record.readback = await readbackDummyStatic({
+      coordinator,
+      provider: createCanaryProvider({ manager, policy }),
+      policy,
+      github: createGithubReadClient({ policy, token: env.GITHUB_TOKEN }),
+      loadAccepted: createDummyStaticLoader({
+        source: createGithubSource({ policy, token: env.GITHUB_TOKEN }),
+        policy,
+        output,
+      }),
+      runId: env.DUMMY_RESTORE_RUN_ID,
+    });
+  } else if (operation === 'initialize') {
     record.stage = 'prepare-fixed-test-resources';
     record.collections = await prepareDummyInitialization(manager, coordinator);
     await save();
@@ -616,25 +636,27 @@ try {
       );
     }
   }
-  record.stage = 'exercise-private-static-file';
-  await save();
-  record.websiteWrites = null;
-  await save();
-  record.static = await exerciseDummyStatic({
-    provider: createCanaryProvider({ manager, policy }),
-    coordinator,
-    policy,
-    artifactClient,
-    owner,
-    codeSha,
-    githubRun,
-    attempt: env.GITHUB_RUN_ATTEMPT,
-    seedRun,
-    operation,
-    output,
-    token: env.GITHUB_TOKEN,
-  });
-  record.websiteWrites = record.static.fileWrites;
+  if (operation !== 'readback') {
+    record.stage = 'exercise-private-static-file';
+    await save();
+    record.websiteWrites = null;
+    await save();
+    record.static = await exerciseDummyStatic({
+      provider: createCanaryProvider({ manager, policy }),
+      coordinator,
+      policy,
+      artifactClient,
+      owner,
+      codeSha,
+      githubRun,
+      attempt: env.GITHUB_RUN_ATTEMPT,
+      seedRun,
+      operation,
+      output,
+      token: env.GITHUB_TOKEN,
+    });
+    record.websiteWrites = record.static.fileWrites;
+  }
   record.rootPageWrites = 0;
   await checkBlogSiteBaseline(siteBefore);
   const productionAfter = await production.status({ scopeKey: 'site' });
@@ -660,6 +682,9 @@ try {
 } catch (error) {
   record.status = 'stopped';
   record.error = error?.code ?? 'DUMMY_UNCONFIRMED';
+  if (error?.ledgerStage) record.ledgerStage = error.ledgerStage;
+  if (/^[A-Za-z0-9_-]{1,128}$/.test(error?.requestId ?? ''))
+    record.databaseRequestId = error.requestId;
   await save();
   throw Error(
     'Isolated recovery stopped; inspect its retained result and the named test resources before another write',
