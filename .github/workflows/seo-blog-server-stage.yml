@@ -1,6 +1,8 @@
 name: Stage Blog page service
 on:
   workflow_call:
+    inputs:
+      operation: {type: string, required: false, default: create}
 permissions:
   contents: read
   actions: read
@@ -40,6 +42,7 @@ jobs:
           path: output/blog-server-package
       - name: Stage only the isolated Blog page service
         env:
+          BLOG_SERVER_STAGE_OPERATION: ${{ inputs.operation }}
           BLOG_SERVER_STAGE_CONFIRM: ISOLATED_BLOG_PAGES_ONLY
           GITHUB_TOKEN: ${{ github.token }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}

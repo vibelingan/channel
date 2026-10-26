@@ -67,8 +67,9 @@ test('real editor saves formatted content to disk, previews, reopens and survive
     ' strong text',
   );
   await page.reload();
-  await page.getByRole('button', { name: 'Articles', exact: true }).click();
-  await open(page, 'Blog local persistence');
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+    ownedLabel('Blog local persistence'),
+  );
   await expect(page.getByRole('textbox', { name: 'Article body' })).toContainText('strong text');
 });
 
@@ -581,4 +582,70 @@ test('image response loss retries the same upload and replacement/removal releas
   expect(
     store.articleMedia.filter((row: { articleId: string }) => row.articleId === draft._id),
   ).toHaveLength(2);
+});
+
+test('a private draft link survives sign-in and opens the same editor after refresh', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120000);
+  await login(page);
+  await create(page, 'Assistant draft link');
+  await page.getByRole('button', { name: '← Articles', exact: true }).click();
+  const row = page.getByRole('row').filter({
+    has: page.getByRole('cell', { name: ownedLabel('Assistant draft link'), exact: true }),
+  });
+  const id = await row.getAttribute('data-article-id');
+  if (!id || !site) throw Error('Owned draft was not found');
+  const path = `/admin/?${new URLSearchParams({ section: 'articles', article: id })}`;
+  const fresh = await browser.newContext({ baseURL: site });
+  try {
+    const editor = await fresh.newPage();
+    await editor.goto(path);
+    await expect(editor).toHaveURL(/\/login\?returnTo=/);
+    await editor.getByLabel('Email', { exact: true }).fill('admin@channel.local');
+    await editor.getByLabel('Password', { exact: true }).fill('admin');
+    const loginReply = editor.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/admin') &&
+        response.request().postDataJSON()?.action === 'login',
+    );
+    await editor.getByRole('button', { name: 'Sign in', exact: true }).click();
+    const firstLogin = await loginReply;
+    const firstBody = await firstLogin.json();
+    if (firstLogin.status() === 429 || firstBody.error?.code === 'RATE_LIMITED') {
+      const seconds = Number(
+        firstLogin.headers()['retry-after'] ?? firstBody.error.retryAfterSeconds,
+      );
+      expect(Number.isSafeInteger(seconds) && seconds > 0 && seconds <= 60).toBe(true);
+      // Respect the actual server cooldown; this suite deliberately performs eleven sign-ins.
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000 + 100));
+      await editor.getByRole('button', { name: 'Sign in', exact: true }).click();
+    }
+
+    await expect(editor).toHaveURL(new URL(path, site).href);
+    await expect(editor.getByLabel('Title', { exact: true })).toHaveValue(
+      ownedLabel('Assistant draft link'),
+    );
+    await editor.reload();
+    await expect(editor.getByLabel('Title', { exact: true })).toHaveValue(
+      ownedLabel('Assistant draft link'),
+    );
+    await editor.getByRole('button', { name: 'Preview', exact: true }).click();
+    await expect(editor.getByRole('region', { name: 'Draft preview' })).toContainText(
+      'Acceptance body',
+    );
+    if (process.env.E2E_BLOG_EDITOR_SCREENSHOTS === '1') {
+      const { mkdir } = await import('node:fs/promises');
+      await mkdir('output/blog-agent', { recursive: true });
+      await editor.screenshot({ path: 'output/blog-agent/draft-link-desktop.png', fullPage: true });
+      await editor.setViewportSize({ width: 390, height: 844 });
+      expect(await editor.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await editor.screenshot({ path: 'output/blog-agent/draft-link-mobile.png', fullPage: true });
+    }
+  } finally {
+    await fresh.close();
+  }
 });

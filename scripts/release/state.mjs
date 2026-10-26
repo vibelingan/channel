@@ -437,6 +437,109 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
         return freeze({ status: 'committed', activation, isCurrent: true });
       });
     },
+    /** Transfer a stopped final read, never an unconfirmed cloud write. The candidate stays unaccepted. */
+    async resumeReadOnlyAcceptance(input) {
+      const request = freeze(jsonCopy(input));
+      id(request.runId);
+      id(request.ownerRunId);
+      text(request.runnerRef);
+      return store.transact(async (tx) => {
+        const target = await loadTarget(tx);
+        const run = await loadRun(tx, request.runId);
+        const scope = await loadScope(tx, run.scopeKey);
+        const operation = target.unresolvedOperation;
+        const origin = run.readOnlyAcceptanceOrigin;
+        const key = operation?.stepId ?? origin?.stepId;
+        const step = key ? await tx.get('steps', stepId(run.runId, key)) : null;
+        const proof = request.proof;
+        if (
+          !target.lease ||
+          now() < target.lease.expiresAt ||
+          target.version !== request.expectedVersion ||
+          target.lease.fence !== request.expectedFence ||
+          run.fence !== target.lease.fence ||
+          run.ownerRunId !== target.lease.ownerRunId ||
+          run.acquiredVersion !== target.lease.acquiredVersion ||
+          target.currentRunId !== run.runId ||
+          target.dirtyRunId !== run.runId ||
+          run.state !== 'RUNNING' ||
+          !['publish', 'restore'].includes(run.kind) ||
+          run.scopeKey !== 'site' ||
+          run.deliveredComponents.length !== 1 ||
+          run.deliveredComponents[0] !== 'static' ||
+          run.verifiedWrites < 1 ||
+          run.verifiedWrites !== run.verifiedSteps ||
+          run.composition.static.contentSha256 !== run.plan.acceptanceHash ||
+          run.verifiedSteps !== run.plan.stepCount - 1 ||
+          scope.version !== run.baseScopeVersion ||
+          proof?.runnerRef !== target.lease.runnerRef ||
+          proof.job?.status !== 'completed' ||
+          typeof proof.job.evidenceRef !== 'string' ||
+          !proof.job.evidenceRef.trim() ||
+          proof.cloud?.status !== 'quiescent' ||
+          proof.cloud.kind !== 'hosting-final-read-only' ||
+          !Number.isSafeInteger(proof.checkedAt) ||
+          proof.checkedAt < target.lease.expiresAt ||
+          proof.checkedAt > now() ||
+          now() - proof.checkedAt > 60000 ||
+          request.ownerRunId === target.lease.ownerRunId ||
+          !step ||
+          step.runId !== run.runId ||
+          step.kind !== 'accept' ||
+          step.component !== 'scope' ||
+          step.subject !== 'accept' ||
+          step.verifySubject !== 'accept' ||
+          step.sequence !== run.verifiedSteps ||
+          step.beforeHash !== step.afterHash ||
+          step.afterHash !== run.plan.acceptanceHash ||
+          step.planSha256 !== run.plan.planSha256 ||
+          step.intentHash !== stepIdentity(step) ||
+          (operation
+            ? operation.runId !== run.runId ||
+              operation.operationId !== step.operationId ||
+              step.fence !== run.fence ||
+              !['intent', 'unknown'].includes(step.state)
+            : !origin || step.state !== 'reconciled') ||
+          (run.acceptanceResumptions?.length ?? 0) >= 16
+        )
+          fail('READ_ONLY_ACCEPTANCE_REQUIRED');
+        const fence = bump(target.nextFence);
+        const acquiredVersion = bump(target.version);
+        const lease = {
+          ownerRunId: request.ownerRunId,
+          runnerRef: request.runnerRef,
+          fence,
+          acquiredVersion,
+          expiresAt: integer(now() + leaseMs),
+        };
+        if (operation)
+          saveStep(tx, {
+            ...step,
+            state: 'reconciled',
+            resolution: { purpose: 'read-only-acceptance-handoff', proof },
+            completedAt: now(),
+          });
+        saveRun(tx, {
+          ...run,
+          ownerRunId: lease.ownerRunId,
+          fence,
+          acquiredVersion,
+          writeFence: run.writeFence ?? run.fence,
+          readOnlyAcceptanceOrigin: origin ?? { stepId: step.stepId },
+          acceptanceResumptions: [
+            ...(run.acceptanceResumptions ?? []),
+            {
+              previousOwner: target.lease.ownerRunId,
+              previousFence: target.lease.fence,
+              proof,
+              resumedAt: now(),
+            },
+          ],
+        });
+        writeTarget(tx, { ...target, nextFence: fence, lease, unresolvedOperation: null });
+        return { targetId, ownerRunId: lease.ownerRunId, fence, acquiredVersion };
+      });
+    },
     async reconcile({ expectedVersion, expectedFence, proof }) {
       const evidence = jsonCopy(proof);
       return store.transact(async (tx) => {

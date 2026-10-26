@@ -1,4 +1,5 @@
 import { assertErrorDocument, assertMutableCachePolicy } from '../hosting-contract.mjs';
+import { readHttpWithRetry } from '../read-http-retry.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertHostingPath, assertOrigin, isHash, limits, sha256 } from './input.mjs';
 
@@ -41,17 +42,22 @@ export async function verifyHostingObject({
   let etag;
   for (const mode of ['ordinary', 'revalidate', 'conditional']) {
     signal?.throwIfAborted();
-    const response = await request('GET', url, {
-      timeoutMs,
-      maxBytes: Math.max(1, entry.bytes + 1),
-      signal,
-      redirect: 'error',
-      headers: {
-        'accept-encoding': 'identity',
-        ...(mode === 'ordinary' ? {} : { 'cache-control': 'no-cache' }),
-        ...(mode === 'conditional' ? { 'if-none-match': etag } : {}),
+    const response = await readHttpWithRetry(
+      'GET',
+      url,
+      {
+        timeoutMs,
+        maxBytes: Math.max(1, entry.bytes + 1),
+        signal,
+        redirect: 'error',
+        headers: {
+          'accept-encoding': 'identity',
+          ...(mode === 'ordinary' ? {} : { 'cache-control': 'no-cache' }),
+          ...(mode === 'conditional' ? { 'if-none-match': etag } : {}),
+        },
       },
-    });
+      request,
+    );
     const observedEtag = response.headers.get('etag');
     const cacheControl = response.headers.get('cache-control') ?? '';
     if (mutable) assertMutableCachePolicy(cacheControl);

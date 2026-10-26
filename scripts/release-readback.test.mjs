@@ -124,3 +124,27 @@ test('a 404 artifact served as a normal file must also contain the dedicated err
     verifyHostingObject({ target, entry: entry('404.html', 'homepage'), request: http.request }),
   );
 });
+test('a transient GET timeout retries the whole read without losing normal URL and cache checks', async () => {
+  let calls = 0;
+  const expected = entry('page.html', 'body');
+  const result = await verifyHostingObject({
+    target,
+    entry: expected,
+    request: async (_method, url, options) => {
+      calls++;
+      assert.equal(url, `${target.site}/page.html`);
+      if (calls === 1) throw Object.assign(new Error('read timeout'), { name: 'TimeoutError' });
+      return {
+        status: options.headers['if-none-match'] ? 304 : 200,
+        headers: new Headers({
+          etag: '"v1"',
+          'cache-control': 'no-store',
+          'content-type': 'text/html',
+        }),
+        body: options.headers['if-none-match'] ? Buffer.alloc(0) : Buffer.from('body'),
+      };
+    },
+  });
+  assert.equal(result.checks.length, 3);
+  assert.equal(calls, 4);
+});

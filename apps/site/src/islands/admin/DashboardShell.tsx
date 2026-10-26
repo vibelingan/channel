@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { getCollection } from '@vibelingan-channel/shared';
-import { Suspense, lazy, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { type SessionUser, canManageUsers, getUser } from '../../lib/session.ts';
 import { CollectionView, type ProductClassificationReview } from './CollectionView.tsx';
 import { AlibabaCatalogSyncPage } from './alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';
+import { articleLocationPath, readArticleLocation } from './articles/draft-location.ts';
 import { CatalogImportPage } from './catalog-import/CatalogImportPage.tsx';
 import {
   fetchInquiryCapabilities,
@@ -92,13 +93,36 @@ export function DashboardShell({
   );
 
   const [active, setActive] = useState(sections[0]?.collection ?? '');
+  const [initialArticleId, setInitialArticleId] = useState<string | null>(null);
+  useEffect(() => {
+    const articleId = readArticleLocation(window.location.search);
+    const articles = sections.find((section) => section.custom === 'articles');
+    if (articleId && articles) {
+      setInitialArticleId(articleId);
+      setActive(articles.collection);
+    }
+  }, [sections]);
   const leaveGuard = useRef<(() => boolean) | null>(null);
   const onGuardChange = useCallback((guard: (() => boolean) | null) => {
     leaveGuard.current = guard;
   }, []);
   const canLeave = useCallback(() => leaveGuard.current?.() ?? true, []);
   const selectSection = (next: string) => {
-    if (next === active || canLeave()) setActive(next);
+    if (next === active || !canLeave()) return;
+    const selected = sections.find((section) => section.collection === next);
+    if (!selected) return;
+    setInitialArticleId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('section');
+    url.searchParams.delete('article');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      selected.custom === 'articles'
+        ? articleLocationPath(null)
+        : `${url.pathname}${url.search}${url.hash}`,
+    );
+    setActive(next);
   };
 
   const [productOpenId, setProductOpenId] = useState<string | null>(null);
@@ -172,7 +196,12 @@ export function DashboardShell({
       <main className="min-w-0 flex-1 overflow-auto">
         {section?.custom === 'articles' ? (
           <Suspense fallback={<p className="p-6">Loading articles…</p>}>
-            <ArticlesPage onGuardChange={onGuardChange} canLeave={canLeave} />
+            <ArticlesPage
+              key={initialArticleId ?? 'list'}
+              initialArticleId={initialArticleId}
+              onGuardChange={onGuardChange}
+              canLeave={canLeave}
+            />
           </Suspense>
         ) : section?.custom === 'product-inquiries' ? (
           <div className="p-4 sm:p-6">

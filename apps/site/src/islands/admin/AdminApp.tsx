@@ -16,6 +16,7 @@ import { DashboardShell } from './DashboardShell.tsx';
 import { reconnectAdminForms } from './admin-draft-recovery.ts';
 import { installAdminSessionGuard, isCurrentAdminError } from './admin-session-guard.ts';
 import { AdminApiError, fetchCurrentUser } from './api.ts';
+import { articleLocationPath, readArticleLocation } from './articles/draft-location.ts';
 
 type LogoutDestination = 'login' | 'site';
 type GateState =
@@ -25,7 +26,9 @@ type GateState =
 /** Redirect helper preserving the intended destination. */
 function gotoLogin() {
   if (typeof window !== 'undefined') {
-    window.location.href = '/login?returnTo=/admin';
+    const articleId = readArticleLocation(window.location.search);
+    const returnTo = articleId ? articleLocationPath(articleId) : '/admin';
+    window.location.href = `/login?${new URLSearchParams({ returnTo })}`;
   }
 }
 

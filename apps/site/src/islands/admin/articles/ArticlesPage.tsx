@@ -1,20 +1,33 @@
 import { useState } from 'react';
 import { ArticleForm } from './ArticleForm.tsx';
+import { articleLocationPath } from './draft-location.ts';
 import { useArticleDraft, useArticleList } from './useArticleDrafts.ts';
 
 export function ArticlesPage({
   onGuardChange,
   canLeave,
-}: { onGuardChange: (guard: (() => boolean) | null) => void; canLeave: () => boolean }) {
-  const [selected, setSelected] = useState<string | 'new' | null>(null);
+  initialArticleId = null,
+}: {
+  initialArticleId?: string | null;
+  onGuardChange: (guard: (() => boolean) | null) => void;
+  canLeave: () => boolean;
+}) {
+  const [selected, setSelected] = useState<string | 'new' | null>(initialArticleId);
   const [query, setQuery] = useState('');
   const list = useArticleList(query);
   const detail = useArticleDraft(selected === 'new' ? null : selected);
+  const choose = (id: string | 'new' | null) => {
+    if (!canLeave()) return false;
+    window.history.replaceState(
+      window.history.state,
+      '',
+      articleLocationPath(id === 'new' ? null : id),
+    );
+    setSelected(id);
+    return true;
+  };
   const back = () => {
-    if (canLeave()) {
-      setSelected(null);
-      void list.refetch();
-    }
+    if (choose(null)) void list.refetch();
   };
   if (selected === 'new')
     return <ArticleForm key="new" initial={null} onBack={back} onGuardChange={onGuardChange} />;
@@ -58,7 +71,7 @@ export function ArticlesPage({
         </div>
         <button
           type="button"
-          onClick={() => setSelected('new')}
+          onClick={() => choose('new')}
           className="min-h-11 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white"
         >
           New article
@@ -107,7 +120,7 @@ export function ArticlesPage({
                   <button
                     type="button"
                     className="min-h-10 px-2 font-semibold text-slate-700 underline"
-                    onClick={() => setSelected(row.id)}
+                    onClick={() => choose(row.id)}
                   >
                     Edit
                   </button>

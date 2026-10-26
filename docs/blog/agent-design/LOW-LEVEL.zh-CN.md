@@ -1,12 +1,12 @@
 # 内容助手接入：底层设计
 
-本页定义拟实现的合同，路径、字段和文件均为设计，不代表当前已有入口。沿用 TypeScript、Zod、文章核心和 CloudBase node-sdk 事务；不引入 CMS、AI 付费扩展或第二套数据库。
+本页定义当前实现合同。代码和离线验证已完成部分，云端入口、权限和本地助手联测另行验收；不能把本页当作已上线说明。沿用 TypeScript、Zod、文章核心和 CloudBase node-sdk 事务；不引入 CMS、AI 付费扩展或第二套数据库。
 
 ## 网站入口和路由
 
 业务路径：`POST /api/integrations/v1/article-drafts`；结果查询：`GET /api/integrations/v1/article-drafts/{operationId}`。
 
-建议接在现有管理函数中单独的 integration 路由，和浏览器 `{action,data,token}` 分发器隔离。集成入口验证服务凭证；现有后台继续验证用户会话。浏览器不能借 `action` 参数调用服务导入，服务凭证也不能调用后台 action。没有启用配置时返回明确的未配置结果。
+接在独立的 `article-import` Event 函数中，只开放固定的 HTTP 路径；与浏览器 `{action,data,token}` 管理分发器分开。集成入口验证服务凭证；现有后台继续验证用户会话。浏览器不能借 `action` 参数调用服务导入，服务凭证也不能调用后台 action。没有启用配置时返回明确的未配置结果。
 
 上线前必须核对实际 CloudBase 网关路径映射和 GET/POST 支持，不能只写函数源码就宣布网址可用。正常网站部署入口不在本模块改写。服务器到服务器调用无须开放浏览器跨域。
 
@@ -67,7 +67,7 @@ Content-Type: application/json
 
 ## 凭证与权限
 
-拟新增私有 `articleIntegrations` 记录：`keyId`、固定 `siteId/integrationId`、secret 的 SHA-256 摘要、enabled、expiresAt、configRevision。secret 使用密码学随机的至少 32 字节，只在工具的安全配置和生成时交付；网站不保存明文。
+使用私有 `articleIntegrations` 记录：`keyId`、固定 `siteId/integrationId`、secret 的 SHA-256 摘要、enabled、expiresAt、configRevision。secret 使用密码学随机的至少 32 字节，只在工具的安全配置和生成时交付；网站不保存明文。
 
 入口先按 keyId 读记录并做恒定时间摘要比较；站点必须与运行环境绑定一致。写事务开始后再次检查 enabled、到期与 configRevision，避免在校验后停用凭证仍成功建文。普通浏览器用户不能管理该集合。轮换可以短期保留两个 keyId，绑定同一个 integrationId；停用旧钥匙后立即拒绝新请求，原导入记录仍属于该 integrationId。
 
@@ -128,3 +128,13 @@ MCP 只是工具包装协议。拟交付一个 stdio 适配器，将以上工具
 导入只新建草稿。按2026-10-26确认的方案，管理员人工发布时，后台事务确认指定修订为公开版本；Astro读取该公开版本返回HTML，列表、图片和sitemap同步读取当前状态，无须GitHub内容构建。助手生成的草稿即使SEO字段完整，也不会自行变成公开网址。
 
 本地页面可以通过本地后端直接使用真实 CloudBase。该开发方式不依赖 dummy 函数，也不要求先部署 Agent API；细节见 [本地连接说明](../LOCAL-CLOUDBASE.zh-CN.md)。真正启用导入仍需发布网关路由、私有集合和凭证；这些不是本地测试自动附带的动作。
+
+## 实际代码与验收边界
+
+- packages/articles/src/import.ts、import-markdown.ts：严格正文/元数据、原始请求摘要及锁定的mdast/GFM转换；图片、HTML、未知节点和代码附加参数明确拒绝。v1转换语义冻结；将来改协议须保留旧请求重放规则。
+- import-store.ts：服务身份、撤销再检查、配额和草稿/导入记录的同一事务。复用现有articleTransaction；写入体不含CloudBase保留的_id，读取后校验真实文档身份。
+- apps/functions/article-import：两个业务路径和只读health；无浏览器CORS、无管理员动作；默认未启用。CI独立打包并在Node20检查，默认部署清单不加入新函数。
+- tools/hermes-blog：锁定MCP SDK，只有两个工具；严格响应、固定站点与编辑链接、有限重试。隔离模拟额外绑定任务号，模型不能靠换号重复创建。
+- 后台直达链接：读取实际浏览器查询参数，登录保留已核对的文章地址；返回地址拒绝外站、双斜杠、反斜杠及控制字符。角色校验、React Query和编辑器保持原实现。
+
+健康路径`GET /api/integrations/v1/article-drafts/health`只返回服务名、代码版本与article-drafts-v1，不返回凭证或业务记录。真正启用前，仍须确认固定CloudBase网关前缀、三个私有集合权限、受限钥匙和实存草稿；目前不能宣称这些已通过。

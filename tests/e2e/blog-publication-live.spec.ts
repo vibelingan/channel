@@ -163,6 +163,24 @@ test('the real public admin requests publication only for its owned acceptance a
     );
   }
   await mkdir('output/blog-publication', { recursive: true });
+  await writeFile(
+    'output/blog-publication/request.json',
+    JSON.stringify(
+      {
+        operation,
+        articleId,
+        slug,
+        title,
+        task,
+        imageSha256: createHash('sha256')
+          .update(await readFile('apps/site/public/media/factory-oem.webp'))
+          .digest('hex'),
+      },
+      null,
+      2,
+    ),
+    { flag: 'wx' },
+  );
   if (serverDelivery) {
     const publicPage = await page.context().newPage();
     try {
@@ -172,11 +190,16 @@ test('the real public admin requests publication only for its owned acceptance a
         await expect(publicPage.getByRole('heading', { name: title, exact: true })).toBeVisible();
         const image = publicPage.getByRole('img', { name: 'Factory exterior', exact: true });
         await expect(image).toBeVisible();
-        expect(
-          await image.evaluate(
-            (element: HTMLImageElement) => element.complete && element.naturalWidth > 0,
-          ),
-        ).toBe(true);
+        await image.scrollIntoViewIfNeeded();
+        await expect
+          .poll(
+            () =>
+              image.evaluate(
+                (element: HTMLImageElement) => element.complete && element.naturalWidth > 0,
+              ),
+            { timeout: 30000 },
+          )
+          .toBe(true);
         if (operation === 'update')
           await expect(publicPage.locator('main')).toContainText(
             'Keep the final approved specification',
@@ -203,22 +226,4 @@ test('the real public admin requests publication only for its owned acceptance a
     }
   }
   await page.screenshot({ path: 'output/blog-publication/admin-desktop.png', fullPage: true });
-  await writeFile(
-    'output/blog-publication/request.json',
-    JSON.stringify(
-      {
-        operation,
-        articleId,
-        slug,
-        title,
-        task,
-        imageSha256: createHash('sha256')
-          .update(await readFile('apps/site/public/media/factory-oem.webp'))
-          .digest('hex'),
-      },
-      null,
-      2,
-    ),
-    { flag: 'wx' },
-  );
 });

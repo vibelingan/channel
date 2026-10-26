@@ -154,6 +154,12 @@ jobs:
       - name: Run unit group
         run: ${{ matrix.command }}
 
+      - name: Verify restricted content-assistant tools without cloud access
+        if: ${{ matrix.suite == 'scripts' }}
+        run: |
+          npm ci --prefix tools/hermes-blog --ignore-scripts --no-audit --no-fund
+          npm test --prefix tools/hermes-blog
+
   # Listed after ai-store on purpose. Other branches add steps to the end of this
   # job, and a job appended after it here collided with them at the end of the
   # file on every merge. Job order does not affect how the jobs run.
@@ -213,6 +219,16 @@ jobs:
 
       - name: Verify standalone recovery drill bundle on deployed runtime
         run: node --test scripts/release-drill/build.integration.test.mjs
+
+      - name: Verify restricted draft importer on deployed runtime and retain its independent package
+        run: node scripts/blog/article-import-package.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: article-import-code-${{ github.sha }}
+          path: output/article-import-package/
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Restore site build runtime
         uses: actions/setup-node@v4

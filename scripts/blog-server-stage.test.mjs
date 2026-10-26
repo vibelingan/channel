@@ -78,3 +78,71 @@ test('failure to persist intent prevents the submission', async () => {
   await assert.rejects(submitBlogServer(f), /archive unavailable/);
   assert(f.calls.every((c) => c.name === 'queryCloudRun'));
 });
+function online() {
+  const image =
+    'ccr.ccs.tencentyun.com/tcb-100049822712-zswf/ca-lhdcoaiq_blog-pages:blog-pages-001-20261026035940';
+  return {
+    service: {
+      BaseInfo: { ServerName: 'blog-pages', Status: 'normal', ServerType: 'container' },
+      ServerConfig: {
+        EnvId: 'diversity-123-d9grnqfux221323bb',
+        ServerName: 'blog-pages',
+        Cpu: 0.25,
+        Mem: 0.5,
+        MinNum: 1,
+        MaxNum: 1,
+        Port: 3000,
+        OpenAccessTypes: ['PUBLIC'],
+        EnvParams: 'DO_NOT_WRITE_REDACTED_ENV',
+      },
+      OnlineVersionInfos: [{ VersionName: 'blog-pages-001', ImageUrl: image, FlowRatio: '100' }],
+    },
+    latestDeploy: {
+      Status: 'normal',
+      IsReleasing: false,
+      HasTraffic: true,
+      ImageUrl: image,
+      RunId: 'old-run',
+    },
+  };
+}
+test('explicit update persists the actual old image before one submission, without replacing configuration', async () => {
+  const f = fixture({ exists: true });
+  const original = f.client.call;
+  f.client.call = async (name, input) => {
+    if (name === 'queryCloudRun' && input.action === 'detail') {
+      f.calls.push({ name, input });
+      return { data: online() };
+    }
+    return original(name, input);
+  };
+  await submitBlogServer({ ...f, operation: 'update' });
+  assert.match(f.saves[0].before.imageUrl, /blog-pages-001-/);
+  assert.equal(f.saves[0].status, 'recovery-input-saved');
+  const write = f.calls.find((x) => x.name === 'manageCloudRun');
+  assert.equal(write.input.serverConfig, undefined);
+  assert(!JSON.stringify(f.saves).includes('DO_NOT_WRITE_REDACTED_ENV'));
+});
+test('in-flight or unexpected service settings stop an update before writes', async () => {
+  for (const mutate of [
+    (data) => {
+      data.latestDeploy.IsReleasing = true;
+    },
+    (data) => {
+      data.service.ServerConfig.MinNum = 0;
+    },
+  ]) {
+    const f = fixture({ exists: true });
+    const original = f.client.call;
+    f.client.call = async (name, input) => {
+      if (name === 'queryCloudRun' && input.action === 'detail') {
+        const data = online();
+        mutate(data);
+        return { data };
+      }
+      return original(name, input);
+    };
+    await assert.rejects(submitBlogServer({ ...f, operation: 'update' }));
+    assert(f.calls.every((x) => x.name === 'queryCloudRun'));
+  }
+});

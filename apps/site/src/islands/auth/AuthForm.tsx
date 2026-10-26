@@ -46,10 +46,16 @@ export function AuthForm({ mode, returnTo }: Props) {
           String(fd.get('email')),
           String(fd.get('password')),
         );
-        window.location.href = postLoginPath(user, returnTo);
+        window.location.href = postLoginPath(
+          user,
+          new URLSearchParams(window.location.search).get('returnTo') ?? returnTo,
+        );
       } else {
         const user = await login(String(fd.get('email')), String(fd.get('password')));
-        window.location.href = postLoginPath(user, returnTo);
+        window.location.href = postLoginPath(
+          user,
+          new URLSearchParams(window.location.search).get('returnTo') ?? returnTo,
+        );
       }
     } catch (err) {
       setError(err instanceof SessionApiError ? err.message : 'Something went wrong.');

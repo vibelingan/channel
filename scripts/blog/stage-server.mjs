@@ -17,6 +17,8 @@ if (
 )
   throw Error('The reviewed manual SEO entry and existing credentials are required');
 const codeSha = process.env.GITHUB_SHA;
+const operation = process.env.BLOG_SERVER_STAGE_OPERATION ?? 'create';
+if (!['create', 'update'].includes(operation)) throw Error('Explicit Blog operation required');
 const directory = resolve('output/blog-server-package');
 const manifest = await checkBlogServerPackage(directory, { codeSha, siteOrigin });
 await createGithubReadClient({
@@ -33,7 +35,8 @@ const record = {
   codeSha,
   siteOrigin,
   packageBytes: manifest.totalBytes,
-  scope: 'new Blog service only; no website route, function, database or storage writes',
+  scope: 'Blog program only; no website route, function, database or storage writes',
+  operation,
   startedAt: new Date().toISOString(),
   status: 'not-written',
 };
@@ -42,7 +45,7 @@ const save = () =>
 await save();
 const client = await connectBlogMcp();
 try {
-  await submitBlogServer({ client, directory, record, save });
+  await submitBlogServer({ client, directory, record, save, operation });
 } finally {
   await client.close();
 }

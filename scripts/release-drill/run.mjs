@@ -28,6 +28,7 @@ import {
 } from '../release/store-cloudbase.mjs';
 import { buildLiveDummyFunction } from './build-function.mjs';
 import { journalDummyDelivery } from './journal.mjs';
+import { readDummyFixtures } from './read-fixtures.mjs';
 import { ensureDummyResources } from './resources.mjs';
 import { createDummyInvoker, readDummyInvocation } from './runtime.mjs';
 import { exerciseDummyStatic } from './static.mjs';
@@ -194,19 +195,8 @@ async function ready(version, expectedCode, hash, configurationToken) {
     await pause(1000);
   }
 }
-async function readFixtures() {
-  const rows = [];
-  for (const suffix of ['existing', 'new-b', 'deleted-b']) {
-    const response = await db.collection('seoReleaseDrillFixtures').doc(id(suffix)).get();
-    if (response.code || !Array.isArray(response.data) || response.data.length > 1)
-      throw Error('Actual dummy data read unconfirmed');
-    const row = response.data[0];
-    if (row && (row._id !== id(suffix) || row.purpose !== 'channel-recovery-dummy-v1'))
-      throw Error('Foreign dummy record');
-    if (row) rows.push(row);
-  }
-  return rows;
-}
+const readFixtures = () => readDummyFixtures(db, seedRun);
+
 async function loadAccepted(run) {
   if (
     run?.state !== 'SUCCEEDED' ||

@@ -8,7 +8,7 @@ const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 export default defineConfig({
   site: env.SITE_URL || 'http://localhost:4321',
   base: '/blog',
-  trailingSlash: 'always',
+  trailingSlash: 'ignore',
   srcDir: './src/blog-server',
   publicDir: './blog-public',
   outDir: './dist-blog',

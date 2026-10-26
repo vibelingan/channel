@@ -2,6 +2,7 @@
  * This checks HTTP integration; it is deliberately NOT labelled live CloudBase acceptance. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -40,9 +41,19 @@ const content = parseArticleContent({
 test('built SSR server publishes, updates and withdraws without a rebuild; real status and SEO HTML', async (t) => {
   const f = articleSdkFixture(t);
   const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
+  const imageBytes = await readFile(
+    new URL('../../apps/site/public/media/factory-oem.webp', import.meta.url),
+  );
+  const imageHash = createHash('sha256').update(imageBytes).digest('hex');
+  const imageId = 'real-http-image';
+  const imageTarget = {
+    storageFileId: 'cloud://offline/articles/real-http-image',
+    storagePath: 'articles/real-http-image',
+  };
   const articles = createCloudBasePublicArticles(f.db, {
-    getObjectAsBase64: async () => {
-      throw Error('Unexpected media read');
+    getObjectAsBase64: async (fileId) => {
+      assert.equal(fileId, imageTarget.storageFileId);
+      return { body: imageBytes.toString('base64') };
     },
   });
   let offline = false;
@@ -129,7 +140,44 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     }
   }
   const get = (path: string) => fetch(`${origin}${path}`, { redirect: 'error' });
-  const draft = await repo.create({ actorId: 'admin', requestId: 'create', content });
+  const draft = await repo.create({
+    actorId: 'admin',
+    requestId: 'create',
+    content: parseArticleContent({
+      ...content,
+      body: {
+        schemaVersion: 1,
+        document: {
+          type: 'doc',
+          content: [
+            ...content.body.document.content,
+            {
+              type: 'articleImage',
+              attrs: { mediaId: imageId, alt: 'Factory HTTP image', caption: '' },
+            },
+          ],
+        },
+      },
+    }),
+  });
+  f.put('articleMedia', imageId, {
+    id: imageId,
+    articleId: draft.id,
+    purpose: 'article-image',
+    requestHash: 'a'.repeat(64),
+    createdBy: 'admin',
+    createdAt: draft.createdAt,
+    expiresAt: new Date(Date.now() + 300000).toISOString(),
+    pendingStorage: imageTarget,
+    storage: imageTarget,
+    status: 'active',
+    fileName: 'factory.webp',
+    mimeType: 'image/webp',
+    byteSize: imageBytes.length,
+    checksumSha256: imageHash,
+    width: 1228,
+    height: 718,
+  });
   let currentRevision = draft.revision;
   assert.equal((await get('/blog/manufacturing-guide/')).status, 404);
   assert(!(await (await get('/blog/')).text()).includes('A clear manufacturing brief'));
@@ -151,6 +199,14 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.equal(Reflect.get(health, 'previewOnly'), previewOnly);
   assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
   assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
+  const imageResponse = await get(`/blog/media/articles/${imageId}/${imageHash}.webp`);
+  assert.equal(
+    imageResponse.status,
+    200,
+    'The rendered image URL must work without a trailing slash',
+  );
+  assert.equal(imageResponse.headers.get('content-type'), 'image/webp');
+  assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), imageBytes);
   const html = await response.text();
   const header = /<header\b[^>]*data-site-header[\s\S]*?<\/header>/.exec(html)?.[0];
   assert(header?.includes('href="/blog/"'), 'SSR header must expose the public Blog navigation');

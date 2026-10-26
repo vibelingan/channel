@@ -11,6 +11,7 @@ import type { Role, SessionUser } from '@vibelingan-channel/shared';
 import { canAccessAdmin, canSeeVipPricing } from '@vibelingan-channel/shared';
 import { readApiEnvelope } from './api-envelope.ts';
 import { apiUrl } from './api-url.ts';
+import { safeReturnPath } from './safe-return-path.ts';
 
 export type { Role, SessionUser } from '@vibelingan-channel/shared';
 export { canAccessAdmin, canManageUsers, canSeeVipPricing } from '@vibelingan-channel/shared';
@@ -163,7 +164,8 @@ export async function changePassword(currentPassword: string, newPassword: strin
 
 /** Where a user should land after signing in, based on their role. */
 export function postLoginPath(user: SessionUser, returnTo?: string): string {
-  if (returnTo?.startsWith('/')) return returnTo;
+  const destination = safeReturnPath(returnTo);
+  if (destination) return destination;
   if (canAccessAdmin(user.role)) return '/admin';
   return '/';
 }

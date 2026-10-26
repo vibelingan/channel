@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -21,6 +23,37 @@ test('the actual SDK is bundled in the standalone live function; archived A stil
   });
   assert.notDeepEqual(a.bytes, b.bytes);
   checkFunctionArchive(a.bytes, { smoke: true });
+  const actual = join(root, 'real-handler');
+  mkdirSync(actual);
+  execFileSync(
+    'python3',
+    [new URL('../release/check-function-zip.py', import.meta.url).pathname, actual],
+    { input: a.bytes },
+  );
+  const token = 'f'.repeat(64);
+  const health = execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `const main=require('./index.js').main;main({action:'health',token:'${token}'}).then(x=>process.stdout.write(JSON.stringify(x)));`,
+    ],
+    {
+      cwd: actual,
+      env: {
+        PATH: process.env.PATH,
+        TCB_ENV: 'diversity-123-d9grnqfux221323bb',
+        DUMMY_RUN_ID: '123',
+        DUMMY_TOKEN_DIGEST: createHash('sha256').update(token).digest('hex'),
+      },
+      timeout: 15000,
+    },
+  );
+  assert.deepEqual(JSON.parse(health.toString()), {
+    purpose: 'channel-recovery-dummy-v1',
+    version: 'A',
+    codeSha: 'a'.repeat(40),
+    runId: '123',
+  });
   const loaded = loadDummyFunction(a.bytes);
   t.after(loaded.close);
   assert.equal((await loaded.main({ action: 'health' })).version, 'A');
