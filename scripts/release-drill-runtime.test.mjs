@@ -61,7 +61,7 @@ test('dummy RPC never accepts a platform acknowledgement as business success or 
   }
   response = {
     ...response,
-    ErrMsg: 'Explicit isolated recovery fixture configuration required ' + 'f'.repeat(64),
+    ErrMsg: `Explicit isolated recovery fixture configuration required ${'f'.repeat(64)}`,
   };
   await assert.rejects(
     invoke({ action: 'health' }),

@@ -47,7 +47,10 @@ export function createDummyInvoker({ manager, token, onResponse = () => {} }) {
         (value) => typeof value === 'string' && value.includes('Drill authentication failed'),
       ),
     });
-    if (result?.ErrMsg?.includes('Explicit isolated recovery fixture configuration required'))
+    if (
+      typeof result?.ErrMsg === 'string' &&
+      result.ErrMsg.includes('Explicit isolated recovery fixture configuration required')
+    )
       throw Object.assign(
         Error('Dummy function is missing its explicit environment or run configuration'),
         { code: 'DUMMY_CONFIGURATION_UNCONFIRMED' },
