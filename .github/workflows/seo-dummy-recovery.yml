@@ -58,6 +58,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: recovery-drill-result-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/recovery-drill/result.json
+          path: |
+            output/recovery-drill/result.json
+            output/recovery-drill/cleanup-result.json
           if-no-files-found: ignore
           retention-days: 90

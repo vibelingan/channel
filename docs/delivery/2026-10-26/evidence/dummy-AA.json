@@ -1,0 +1,131 @@
+{
+  "purpose": "channel-live-dummy-recovery-v1",
+  "operation": "restore",
+  "codeSha": "e9458e95d8160d64381c4b7faa11aeaf2737e32c",
+  "githubRun": "40277039741",
+  "target": {
+    "envId": "diversity-123-d9grnqfux221323bb",
+    "siteOrigin": "https://supplychainsai.com"
+  },
+  "websiteWrites": 1,
+  "businessWrites": 0,
+  "databaseRestore": "not-run",
+  "searchNotifications": 0,
+  "status": "passed",
+  "steps": [
+    "C2 restored exact archived A; real records unchanged by recovery; A writes preserve newer fields; retries do not duplicate writes; tombstones cannot be revived"
+  ],
+  "invocations": [
+    {
+      "action": "health",
+      "platformRequestId": "dbe8c82d-d367-48ca-b48f-db41be8eda8e",
+      "functionRequestId": "dbe8c82d-d367-48ca-b48f-db41be8eda8e",
+      "durationMs": 4,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "5b777fa1-2e86-4fd5-865e-c3433c8e4b69",
+      "functionRequestId": "5b777fa1-2e86-4fd5-865e-c3433c8e4b69",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "358a7bb2-15ea-43ba-afc3-c9b6dc387cbf",
+      "functionRequestId": "358a7bb2-15ea-43ba-afc3-c9b6dc387cbf",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "3eb1e5a0-da1e-4120-ad5c-e1fcff36ad63",
+      "functionRequestId": "3eb1e5a0-da1e-4120-ad5c-e1fcff36ad63",
+      "durationMs": 4,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "2563e517-4fd5-4aa6-8fa4-7d46edaaf64d",
+      "functionRequestId": "2563e517-4fd5-4aa6-8fa4-7d46edaaf64d",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "e113829b-cea9-4be8-a417-a39aa9f6debb",
+      "functionRequestId": "e113829b-cea9-4be8-a417-a39aa9f6debb",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "c5158a70-4bc2-48be-abb1-7e6be2f9e305",
+      "functionRequestId": "c5158a70-4bc2-48be-abb1-7e6be2f9e305",
+      "durationMs": 6,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "225f7f2e-bc2f-4177-8377-d95788629321",
+      "functionRequestId": "225f7f2e-bc2f-4177-8377-d95788629321",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "a06f2d1f-895c-47f6-a200-8719b45d9ee4",
+      "functionRequestId": "a06f2d1f-895c-47f6-a200-8719b45d9ee4",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "af74e280-a1ce-4060-8e60-24c435cf9798",
+      "functionRequestId": "af74e280-a1ce-4060-8e60-24c435cf9798",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "read",
+      "platformRequestId": "ad6099c1-49fa-4087-8ec5-c027f26a5b03",
+      "functionRequestId": "ad6099c1-49fa-4087-8ec5-c027f26a5b03",
+      "durationMs": 260,
+      "authenticationRejected": false
+    },
+    {
+      "action": "update",
+      "platformRequestId": "95c81a7f-7a6d-4093-9f7f-f4fdeeaa1531",
+      "functionRequestId": "95c81a7f-7a6d-4093-9f7f-f4fdeeaa1531",
+      "durationMs": 236,
+      "authenticationRejected": false
+    },
+    {
+      "action": "update",
+      "platformRequestId": "a8d27bca-f340-4650-bb7e-308250296d7e",
+      "functionRequestId": "a8d27bca-f340-4650-bb7e-308250296d7e",
+      "durationMs": 144,
+      "authenticationRejected": false
+    }
+  ],
+  "stage": "complete",
+  "acceptedRunId": "dummy-40277039741-restore-A",
+  "sourceArtifact": {
+    "repository": "vibelingan/channel",
+    "workflowPath": ".github/workflows/seo-static-canary.yml",
+    "runId": "40267380016",
+    "artifactId": "12627550417",
+    "expiresAt": "2027-01-24T04:06:56Z",
+    "manifestSha256": "80f25f054deba25aa0189a08bca1e2b31436056c3e8991be3cfd9aa3204dc19a"
+  },
+  "static": {
+    "status": "accepted",
+    "runId": "dummy-40277039741-static-restore",
+    "path": "/__release-canary/",
+    "variant": "A",
+    "fileWrites": 1
+  },
+  "rootPageWrites": 0,
+  "activationId": "1a81b02b-72bf-4194-94f4-cd9b138934d7",
+  "finishedAt": "2026-10-26T06:03:33.903Z"
+}

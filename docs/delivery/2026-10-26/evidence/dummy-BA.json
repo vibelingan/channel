@@ -1,0 +1,138 @@
+{
+  "purpose": "channel-live-dummy-recovery-v1",
+  "operation": "restore",
+  "codeSha": "e9458e95d8160d64381c4b7faa11aeaf2737e32c",
+  "githubRun": "40279093013",
+  "target": {
+    "envId": "diversity-123-d9grnqfux221323bb",
+    "siteOrigin": "https://supplychainsai.com"
+  },
+  "websiteWrites": 1,
+  "businessWrites": 0,
+  "databaseRestore": "not-run",
+  "searchNotifications": 0,
+  "status": "passed",
+  "steps": [
+    "C2 restored exact archived A; real records unchanged by recovery; A writes preserve newer fields; retries do not duplicate writes; tombstones cannot be revived"
+  ],
+  "invocations": [
+    {
+      "action": "health",
+      "platformRequestId": "506561ab-6dd1-47c5-bf6d-4d7da10e16b8",
+      "functionRequestId": "506561ab-6dd1-47c5-bf6d-4d7da10e16b8",
+      "durationMs": 6,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "c7f5c4b2-c5d3-4fa9-898e-ec948202f58d",
+      "functionRequestId": "c7f5c4b2-c5d3-4fa9-898e-ec948202f58d",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "3d8ce206-5cbc-4758-b1b9-7d455f30ef71",
+      "functionRequestId": "3d8ce206-5cbc-4758-b1b9-7d455f30ef71",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "e0e545bd-46e2-44bc-ab3a-afbd014e666f",
+      "functionRequestId": "e0e545bd-46e2-44bc-ab3a-afbd014e666f",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "c322fa2e-5fc2-434c-b4fc-f91ed63d4e4c",
+      "functionRequestId": "c322fa2e-5fc2-434c-b4fc-f91ed63d4e4c",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "15f4c486-5499-488e-a6ac-21ce22c821c4",
+      "functionRequestId": "15f4c486-5499-488e-a6ac-21ce22c821c4",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "61392023-019b-4394-9dfb-c18158a235cf",
+      "functionRequestId": "61392023-019b-4394-9dfb-c18158a235cf",
+      "durationMs": 5,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "a4174720-859c-444c-be56-ff9abd657e0a",
+      "functionRequestId": "a4174720-859c-444c-be56-ff9abd657e0a",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "227c9ef2-50a3-421e-9743-fa3f7847f2c0",
+      "functionRequestId": "227c9ef2-50a3-421e-9743-fa3f7847f2c0",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "2a2275ab-8639-406c-a545-f6ede7742bf2",
+      "functionRequestId": "2a2275ab-8639-406c-a545-f6ede7742bf2",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "read",
+      "platformRequestId": "29e72666-34a2-4b51-99d9-f1ca9eb0a2c2",
+      "functionRequestId": "29e72666-34a2-4b51-99d9-f1ca9eb0a2c2",
+      "durationMs": 232,
+      "authenticationRejected": false
+    },
+    {
+      "action": "update",
+      "platformRequestId": "20a46541-5547-4869-9cad-03ef78a668d9",
+      "functionRequestId": "20a46541-5547-4869-9cad-03ef78a668d9",
+      "durationMs": 205,
+      "authenticationRejected": false
+    },
+    {
+      "action": "update",
+      "platformRequestId": "ff53da22-bc34-47ec-ba54-879d0092c13b",
+      "functionRequestId": "ff53da22-bc34-47ec-ba54-879d0092c13b",
+      "durationMs": 170,
+      "authenticationRejected": false
+    },
+    {
+      "action": "update",
+      "platformRequestId": "0a458b86-a40c-4869-9caa-afc6483092b7",
+      "functionRequestId": "0a458b86-a40c-4869-9caa-afc6483092b7",
+      "durationMs": 148,
+      "authenticationRejected": false
+    }
+  ],
+  "stage": "complete",
+  "acceptedRunId": "dummy-40279093013-restore-A",
+  "sourceArtifact": {
+    "repository": "vibelingan/channel",
+    "workflowPath": ".github/workflows/seo-static-canary.yml",
+    "runId": "40267380016",
+    "artifactId": "12627550417",
+    "expiresAt": "2027-01-24T04:06:56Z",
+    "manifestSha256": "80f25f054deba25aa0189a08bca1e2b31436056c3e8991be3cfd9aa3204dc19a"
+  },
+  "static": {
+    "status": "accepted",
+    "runId": "dummy-40279093013-static-restore",
+    "path": "/__release-canary/",
+    "variant": "A",
+    "fileWrites": 1
+  },
+  "rootPageWrites": 0,
+  "activationId": "8184a8b2-af2e-4bc0-a2f6-854f34ed9072",
+  "finishedAt": "2026-10-26T06:24:16.883Z"
+}

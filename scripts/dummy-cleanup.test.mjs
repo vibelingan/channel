@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { parse } from 'yaml';
 import { assertDummyCleanup } from './release-drill/cleanup.mjs';
 const seedRun = '40267380016';
 const snapshot = {
@@ -34,4 +36,14 @@ test('cleanup permits only the finished owned fixture and cannot choose other fu
     { ...input, rows: rows.map((r) => ({ ...r, deleted: false })) },
   ])
     assert.throws(() => assertDummyCleanup(bad));
+});
+
+test('partial cleanup keeps its exact last stage and deletion counts even when the job fails', async () => {
+  const workflow = parse(await readFile('.github/workflows/seo-dummy-recovery.yml', 'utf8'));
+  const keep = workflow.jobs.drill.steps.find((s) => s.uses === 'actions/upload-artifact@v4');
+  assert.equal(keep.if, 'always()');
+  assert.deepEqual(keep.with.path.trim().split('\n'), [
+    'output/recovery-drill/result.json',
+    'output/recovery-drill/cleanup-result.json',
+  ]);
 });

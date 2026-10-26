@@ -1,0 +1,109 @@
+{
+  "purpose": "channel-live-dummy-recovery-v1",
+  "operation": "publish",
+  "codeSha": "e9458e95d8160d64381c4b7faa11aeaf2737e32c",
+  "githubRun": "40277772715",
+  "target": {
+    "envId": "diversity-123-d9grnqfux221323bb",
+    "siteOrigin": "https://supplychainsai.com"
+  },
+  "websiteWrites": 1,
+  "businessWrites": 0,
+  "databaseRestore": "not-run",
+  "searchNotifications": 0,
+  "status": "passed",
+  "steps": [
+    "B deployed with a real function code update; optional field, new record and tombstone written through the live function"
+  ],
+  "invocations": [
+    {
+      "action": "health",
+      "platformRequestId": "b078b1aa-6466-4bba-a977-0d4565385aba",
+      "functionRequestId": "b078b1aa-6466-4bba-a977-0d4565385aba",
+      "durationMs": 4,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "e0fb1357-9b1d-4026-a679-41e5bf2f73b2",
+      "functionRequestId": "e0fb1357-9b1d-4026-a679-41e5bf2f73b2",
+      "durationMs": 7,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "2bb18d4f-b861-4740-b334-746c7da6528a",
+      "functionRequestId": "2bb18d4f-b861-4740-b334-746c7da6528a",
+      "durationMs": 5,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "b241ee5c-76b8-4392-b94e-52ab89885f6e",
+      "functionRequestId": "b241ee5c-76b8-4392-b94e-52ab89885f6e",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "d26df2d2-7742-45ba-9d73-b7309e3eb12a",
+      "functionRequestId": "d26df2d2-7742-45ba-9d73-b7309e3eb12a",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "health",
+      "platformRequestId": "e00c6a13-8e5f-4076-a4b6-cd27cd28267c",
+      "functionRequestId": "e00c6a13-8e5f-4076-a4b6-cd27cd28267c",
+      "durationMs": 1,
+      "authenticationRejected": false
+    },
+    {
+      "action": "read",
+      "platformRequestId": "2dc3c261-645b-4fa9-b8dd-7adf48b6deea",
+      "functionRequestId": "2dc3c261-645b-4fa9-b8dd-7adf48b6deea",
+      "durationMs": 251,
+      "authenticationRejected": false
+    },
+    {
+      "action": "update",
+      "platformRequestId": "2e8bdd30-dd23-4bdc-9038-80e4edd050e0",
+      "functionRequestId": "2e8bdd30-dd23-4bdc-9038-80e4edd050e0",
+      "durationMs": 182,
+      "authenticationRejected": false
+    },
+    {
+      "action": "create",
+      "platformRequestId": "6ff2d5b9-b754-433c-a13c-221a9328fc69",
+      "functionRequestId": "6ff2d5b9-b754-433c-a13c-221a9328fc69",
+      "durationMs": 200,
+      "authenticationRejected": false
+    },
+    {
+      "action": "create",
+      "platformRequestId": "08a146bc-2028-4c14-89c5-613705330a75",
+      "functionRequestId": "08a146bc-2028-4c14-89c5-613705330a75",
+      "durationMs": 179,
+      "authenticationRejected": false
+    },
+    {
+      "action": "delete",
+      "platformRequestId": "62e54b31-6d19-4a54-844e-477fe6f1b49e",
+      "functionRequestId": "62e54b31-6d19-4a54-844e-477fe6f1b49e",
+      "durationMs": 178,
+      "authenticationRejected": false
+    }
+  ],
+  "stage": "complete",
+  "acceptedRunId": "dummy-40277772715-B",
+  "static": {
+    "status": "accepted",
+    "runId": "dummy-40277772715-static-publish",
+    "path": "/__release-canary/",
+    "variant": "B",
+    "fileWrites": 1
+  },
+  "rootPageWrites": 0,
+  "activationId": "7d74f1b1-00af-4cb2-a566-5785f1c5d1ef",
+  "finishedAt": "2026-10-26T06:08:46.360Z"
+}
