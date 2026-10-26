@@ -1,0 +1,53 @@
+{
+  "purpose": "existing-files-outside-current-publication-ownership",
+  "originalRun": "site-40245662658-1",
+  "failedReadback": "40253109595",
+  "previousCandidateReleaseId": "site-40240318908-1",
+  "previousCandidateCodeSha": "7a965c147666366fbb599c1594ba1df37a2d12d7",
+  "source": "authenticated CloudBase listFiles + original and previous GitHub candidate archives",
+  "websiteWrites": 0,
+  "files": [
+    {
+      "path": "_astro/CatalogFamilyPage.D47oIJuh.js",
+      "bytes": 11990,
+      "sha256": "1f06b32980d07ec8f297399899789a39c5e586fc49f3c19f84de27c476487ae2",
+      "cosEtag": "\"2e02374e834ba937289b28f4a1a8544a\""
+    },
+    {
+      "path": "_astro/ProductLanding.C1DUnqvs.js",
+      "bytes": 972,
+      "sha256": "586ff2a415c0c608d2ab354ac1ec4605d12ef965f0186a5692c52e18728dac00",
+      "cosEtag": "\"a956a02d1c540466049c3691f957217d\""
+    },
+    {
+      "path": "_astro/SharedCatalogPreview.Dyx73dbe.js",
+      "bytes": 4633,
+      "sha256": "2ad64a97758697c2301163bac2696467f63bba5fccfa392d06658e67d113a443",
+      "cosEtag": "\"6e79c2f17a0ca3a5a1c36f3df6b1163c\""
+    },
+    {
+      "path": "_astro/SharedDetailPreview.C_oMx_qP.js",
+      "bytes": 2275,
+      "sha256": "463e506d08126ada550ea179f403d2407747fb50fdae18ae38be990aca02662e",
+      "cosEtag": "\"76ae1642006be0227c233664882bbae2\""
+    },
+    {
+      "path": "_astro/SkuDetailPage.BLQvEEMd.js",
+      "bytes": 17063,
+      "sha256": "ea59d67b0a83b967f5578249ae7fe257e551574beb830b41aed7a4eef09d0d9b",
+      "cosEtag": "\"6d90be565e7e80302e72a98a5711d7f0\""
+    },
+    {
+      "path": "_astro/SkuDetailPage.CC3K_-j-.js",
+      "bytes": 338,
+      "sha256": "490bad2885ab5d7dd8c4693397d60ecc9a0abf7c0d1fa6e3108b31e00d5fb825",
+      "cosEtag": "\"53585201c94ec008ba582d5bfce24851\""
+    },
+    {
+      "path": "_astro/public-quote-transport.CkWpF5eF.js",
+      "bytes": 12283,
+      "sha256": "f26f2aa359bf85af30217a1f5670cb6405fa8b31408708fa6f2fcd7d4f1f2cd8",
+      "cosEtag": "\"ee2f3cf951789b231353bda7aec4541f\""
+    }
+  ]
+}

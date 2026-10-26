@@ -15,7 +15,6 @@ import {
 import { verifyHostingObject } from './hosting-readback.mjs';
 import { identity } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
-import { isManagedSiteFile } from './site-files.mjs';
 /** Reconstruct the already-confirmed writes. This is evidence of ownership, not permission to write again. */
 export function siteReadbackEvidence({ run, input, steps, policy }) {
   if (
@@ -131,8 +130,6 @@ export async function verifySiteReadback({
   assertAcceptedHostingFiles({ source: input, inventory });
   const actual = new Set(inventory.map((e) => e.path));
   const owned = new Set(input.staticManifest.entries.map((e) => e.path));
-  if (inventory.some((e) => isManagedSiteFile(e.path) && !owned.has(e.path)))
-    throw Error('Unexpected managed file outside the candidate');
   if (evidence.removed.some((path) => actual.has(path))) throw Error('A removed file reappeared');
   if (evidence.removed.length && !evidence.errorDocument)
     throw Error('Pinned error document required');
@@ -168,5 +165,7 @@ export async function verifySiteReadback({
     verifiedUrls: evidence.uploads.length + evidence.removed.length,
     retainedObjects: input.staticManifest.entries.length - evidence.uploads.length,
     websiteWrites: 0,
+    // The publisher owns candidate paths and its explicit removals, not every key in the bucket.
+    preservedOutsideCandidate: inventory.filter((e) => !owned.has(e.path)).map((e) => e.path),
   };
 }

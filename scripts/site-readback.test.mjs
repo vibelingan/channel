@@ -12,7 +12,7 @@ import {
   httpFixture,
   objectResponse,
 } from './release-hosting-fixtures.mjs';
-import { hostingBatchHash } from './release/hosting-batches.mjs';
+import { hostingBatchHash, hostingRemovalHash } from './release/hosting-batches.mjs';
 import { configurationHash } from './release/hosting-configuration.mjs';
 import { identity } from './release/input.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
@@ -151,12 +151,11 @@ for (const bad of ['candidate', 'receipt', 'sequence', 'fence', 'write-count'])
     assert.throws(() => siteReadbackEvidence(f));
     assert.equal(f.http.requests.length, 0);
   });
-for (const bad of ['file-bytes', 'config', 'new-owned-file', 'concurrent-change'])
+for (const bad of ['file-bytes', 'config', 'concurrent-change'])
   test(`read-only acceptance rejects ${bad}`, async (t) => {
     const f = await fixture(t);
     if (bad === 'file-bytes') f.inventory[0].etag = 'unknown';
     if (bad === 'config') f.config.gateway.Domains[0].Enable = false;
-    if (bad === 'new-owned-file') f.inventory.push({ ...f.inventory[0], path: 'unexpected.html' });
     await assert.rejects(
       verifySiteReadback({
         ...f,
@@ -166,3 +165,49 @@ for (const bad of ['file-bytes', 'config', 'new-owned-file', 'concurrent-change'
       }),
     );
   });
+
+test('pre-existing files outside the publisher ownership stay unchanged and are not adopted', async (t) => {
+  const f = await fixture(t);
+  f.inventory.push({ ...f.inventory[0], path: '_astro/previous.ABCD1234.js' });
+  const result = await verifySiteReadback(f);
+  assert.deepEqual(result.preservedOutsideCandidate, ['_astro/previous.ABCD1234.js']);
+  assert.equal(result.observedHash, f.run.plan.acceptanceHash);
+  assert.equal(result.websiteWrites, 0);
+  assert.equal(f.http.requests.length, 3);
+});
+
+test('a path explicitly removed by this publication cannot reappear', async (t) => {
+  const f = await fixture(t);
+  const removals = [{ path: 'retired/index.html', beforeHash: 'a'.repeat(64) }];
+  const afterHash = hostingRemovalHash(removals.map((x) => x.path));
+  const step = {
+    ...f.steps[0],
+    sequence: 1,
+    members: undefined,
+    removals,
+    afterHash,
+    subject: `remove-batch:${afterHash}`,
+    verifySubject: `remove-batch:${afterHash}`,
+  };
+  step.receipt = {
+    ...step.receipt,
+    observedHash: afterHash,
+    expectedHash: afterHash,
+    subject: step.verifySubject,
+  };
+  f.steps.push(step);
+  f.run.verifiedWrites = 2;
+  f.run.verifiedSteps = 2;
+  f.run.plan.stepCount = 3;
+  const hash = recoveryStateIdentity({
+    target: { envId: f.policy.envId, site: f.policy.siteOrigin },
+    scope: { kind: 'site' },
+    uploads: f.input.staticManifest.entries,
+    deletes: removals.map((x) => x.path),
+    configurationSha256: f.input.staticManifest.configurationSha256,
+  });
+  f.run.plan.acceptanceHash = hash;
+  f.run.composition.static.contentSha256 = hash;
+  f.inventory.push({ ...f.inventory[0], path: 'retired/index.html' });
+  await assert.rejects(verifySiteReadback(f), /removed file reappeared/);
+});
