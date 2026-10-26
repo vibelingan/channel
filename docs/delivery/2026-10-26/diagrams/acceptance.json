@@ -1,0 +1,95 @@
+[
+  {
+    "file": "complete-delivery.html",
+    "type": "architecture",
+    "specification": {
+      "sha256": "94daf9460a2f366809ce7e9639abe37bfad239c1638ae3d69db0bcdfba646b2c",
+      "bytes": 6007
+    },
+    "artifact": {
+      "sha256": "48221ec67c1aa2285053876c19119b9ba61cde1d8831be953772fc8c375712e9",
+      "bytes": 816419
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browserEvidence": "pass",
+    "desktopViewports": ["1440x900", "1600x1000", "1920x1080", "2048x1320"],
+    "visualReview": {
+      "status": "passed",
+      "reviewer": "image-capable Codex",
+      "imagesInspected": [
+        "complete-delivery.visual-check.2048x1320.light.png",
+        "complete-delivery.visual-check.1440x900.dark.png"
+      ],
+      "correctionRounds": 0
+    }
+  },
+  {
+    "file": "article-publication.html",
+    "type": "sequence",
+    "specification": {
+      "sha256": "5eb58676f6223cd1e0ace7681db5579ba3b3b973e623e30d80cbb9f7dfa299e8",
+      "bytes": 3216
+    },
+    "artifact": {
+      "sha256": "9b276320d948027707a5e914e208e57eefe47bbd461c26cdeb6c731628b5645a",
+      "bytes": 805685
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browserEvidence": "pass",
+    "desktopViewports": ["1440x900", "1600x1000", "1920x1080", "2048x1320"],
+    "visualReview": {
+      "status": "passed",
+      "reviewer": "image-capable Codex",
+      "imagesInspected": [
+        "article-publication.visual-check.2048x1320.light.png",
+        "article-publication.visual-check.1440x900.dark.png"
+      ],
+      "correctionRounds": 0
+    }
+  },
+  {
+    "file": "assistant-draft.html",
+    "type": "sequence",
+    "specification": {
+      "sha256": "10816aa89cd3a3d90c3033ddb6561af7ae690116451474139768c8f405deb3ce",
+      "bytes": 2817
+    },
+    "artifact": {
+      "sha256": "57dd40e740a18b3ae5df2cad82e3ba1f5ee9357dcc46c917b692c48291bd788f",
+      "bytes": 804342
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browserEvidence": "pass",
+    "desktopViewports": ["1440x900", "1600x1000", "1920x1080", "2048x1320"],
+    "visualReview": {
+      "status": "passed",
+      "reviewer": "image-capable Codex",
+      "imagesInspected": [
+        "assistant-draft.visual-check.2048x1320.light.png",
+        "assistant-draft.visual-check.1440x900.dark.png"
+      ],
+      "correctionRounds": 0
+    }
+  }
+]

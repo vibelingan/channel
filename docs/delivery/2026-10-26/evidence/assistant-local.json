@@ -1,0 +1,45 @@
+{
+  "status": "draft-created-review-pending",
+  "runtime": {
+    "name": "Hermes",
+    "version": "0.20",
+    "git": "590d547",
+    "model": "gpt-5.6-terra",
+    "configuration": "isolated local acceptance only"
+  },
+  "model": {
+    "stage": "model-returned",
+    "tools": [
+      "mcp__channelblog__channel_blog_create_draft",
+      "mcp__channelblog__channel_blog_get_import"
+    ],
+    "modelCalls": 3,
+    "toolCalls": [
+      "mcp__channelblog__channel_blog_create_draft",
+      "mcp__channelblog__channel_blog_get_import"
+    ],
+    "seconds": 43.794,
+    "humanPublicationRequired": true
+  },
+  "receipt": {
+    "operationId": "article-import-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+    "articleId": "article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+    "state": "ready",
+    "importedRevision": 1,
+    "createdAt": "2026-10-26T06:40:07.315Z",
+    "editUrl": "https://supplychainsai.com/admin/?section=articles&article=article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+    "operationUrl": "/api/integrations/v1/article-drafts/article-import-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+    "replayed": true
+  },
+  "independentHttp": {
+    "status": "passed",
+    "publicDetail": 404,
+    "publicListAbsent": true,
+    "sitemapAbsent": true,
+    "publishEndpoint": 404,
+    "unauthenticatedCreate": 401
+  },
+  "productionHermesInfraChanged": false,
+  "wecomMessagesSent": 0,
+  "credentialIncluded": false
+}

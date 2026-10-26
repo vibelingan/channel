@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { type Page, expect, test } from '@playwright/test';
+import { appendArticleParagraph } from './helpers/article-editor-input.ts';
 import { signInAdminThroughUi } from './helpers/ui-admin-login.ts';
 
 const database = process.env.E2E_CATALOG_LOCAL_DB;
@@ -71,6 +72,39 @@ test('real editor saves formatted content to disk, previews, reopens and survive
     ownedLabel('Blog local persistence'),
   );
   await expect(page.getByRole('textbox', { name: 'Article body' })).toContainText('strong text');
+  const editor = page.getByRole('textbox', { name: 'Article body' });
+  await editor.focus();
+  await editor.press('ControlOrMeta+A');
+  await editor.evaluate((element) => {
+    const data = new DataTransfer();
+    data.setData(
+      'text/html',
+      '<h2>Original heading</h2><p>First paragraph.</p><h2>Last section</h2><p>Final paragraph.</p>',
+    );
+    element.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+    );
+  });
+  await expect(editor.locator('h2').first()).toHaveText('Original heading');
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Saved · revision 3', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '← Articles', exact: true }).click();
+  await open(page, 'Blog local persistence');
+  await page.reload();
+  await expect(editor.locator('h2').first()).toHaveText('Original heading');
+  await appendArticleParagraph(editor, 'Reviewed final paragraph.');
+  await expect(editor.locator('h2').first()).toHaveText('Original heading');
+  await expect(editor.locator('p').last()).toHaveText('Reviewed final paragraph.');
+  await expect(editor.locator('p')).toHaveText([
+    'First paragraph.',
+    'Final paragraph.',
+    'Reviewed final paragraph.',
+  ]);
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Saved · revision 4', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(editor.locator('h2').first()).toHaveText('Original heading');
+  await expect(editor.locator('p').last()).toHaveText('Reviewed final paragraph.');
 });
 
 test('two real tabs conflict without overwriting either author input', async ({

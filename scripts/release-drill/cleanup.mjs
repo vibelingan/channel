@@ -33,6 +33,11 @@ export function assertDummyCleanup({ seedRun, snapshot, health, rows, expectedHa
     throw Error('Only the complete owned A-B-A fixture may be removed');
 }
 
+export async function assertNoLegacyDummyRoutes(manager) {
+  const access = await manager.access.getAccessList({ name: 'seo-release-dummy' });
+  assert(Array.isArray(access.APISet) && access.APISet.length === 0 && access.Total === 0);
+}
+
 /** One-off removal of this accepted drill; ordinary site/functions and all audit records stay. */
 export async function cleanupDummyResources({
   manager,
@@ -51,6 +56,22 @@ export async function cleanupDummyResources({
   policy,
   loadStatic,
 }) {
+  const result = {
+    status: 'checking',
+    preparationArtifactId: null,
+    stage: 'read-accepted-history',
+    functionDeletes: 0,
+    rowDeletes: 0,
+    collectionDeletes: 0,
+    fileDeletes: 0,
+  };
+  const save = () =>
+    writeFile(join(output, 'cleanup-result.json'), JSON.stringify(result, null, 2));
+  await save();
+  const phase = async (value) => {
+    result.stage = value;
+    await save();
+  };
   const status = await coordinator.status({ scopeKey: 'site' });
   assert.equal(status.state, 'idle');
   assert.equal(status.target?.dirtyRunId, null);
@@ -58,6 +79,7 @@ export async function cleanupDummyResources({
   const active = await coordinator.runStatus(status.scope.active.sourceRunId);
   assert.equal(active.state, 'SUCCEEDED');
   assert.equal(active.kind, 'restore');
+  await phase('read-owned-function');
   const snapshot = await provider.read('seo-release-dummy');
   const collection = 'seoReleaseDrillFixtures';
   const readAll = async () => {
@@ -65,6 +87,7 @@ export async function cleanupDummyResources({
     assert(!r.code && Array.isArray(r.data) && r.requestId);
     return r.data.sort((a, b) => a._id.localeCompare(b._id));
   };
+  await phase('read-owned-records');
   const rows = await readAll();
   assertDummyCleanup({
     seedRun,
@@ -73,6 +96,7 @@ export async function cleanupDummyResources({
     rows,
     expectedHash: baseline.envelope.functions[0].sha256,
   });
+  await phase('list-functions');
   const before = await manager.functions.getFunctionList(100, 0);
   assert(
     before.RequestId &&
@@ -83,12 +107,9 @@ export async function cleanupDummyResources({
     list
       .filter((f) => f.FunctionName !== 'seo-release-dummy')
       .sort((a, b) => a.FunctionName.localeCompare(b.FunctionName));
-  const accesses = await manager.access.getAccessList({
-    name: 'seo-release-dummy',
-    limit: 100,
-    offset: 0,
-  });
-  assert(Array.isArray(accesses.APISet) && accesses.APISet.length === 0 && accesses.Total === 0);
+  await phase('read-legacy-routes');
+  await assertNoLegacyDummyRoutes(manager);
+  await phase('read-standard-routes');
   const routes = await manager.env.describeHttpServiceRoute({ EnvId: policy.envId });
   assert(
     routes.RequestId &&
@@ -100,6 +121,7 @@ export async function cleanupDummyResources({
       (d.Routes ?? []).some((r) => r.UpstreamResourceName === 'seo-release-dummy'),
     ),
   );
+  await phase('read-owned-static-page');
   const staticStatus = await coordinator.status({ scopeKey: 'canary' });
   const staticRun = await coordinator.runStatus(staticStatus.scope.active.sourceRunId);
   const input = await loadStatic(staticRun);
@@ -112,6 +134,7 @@ export async function cleanupDummyResources({
   );
   assert.deepEqual(await canaryProvider.inventory(policy.canaryPrefix), [entry.path]);
   await verifyHostingObject({ target: canaryProvider.target, entry });
+  await phase('archive-cleanup-scope');
   const preparation = {
     schemaVersion: 1,
     purpose: 'remove-owned-finished-dummy-only',
@@ -138,17 +161,9 @@ export async function cleanupDummyResources({
     { retentionDays: 90 },
   );
   assert(archived.id && archived.digest);
-  const result = {
-    status: 'removing',
-    preparationArtifactId: String(archived.id),
-    stage: 'delete-owned-function',
-    functionDeletes: 0,
-    rowDeletes: 0,
-    collectionDeletes: 0,
-    fileDeletes: 0,
-  };
-  const save = () =>
-    writeFile(join(output, 'cleanup-result.json'), JSON.stringify(result, null, 2));
+  result.status = 'removing';
+  result.preparationArtifactId = String(archived.id);
+  result.stage = 'delete-owned-function';
   await save();
   const again = await provider.read('seo-release-dummy');
   assert.equal(again.packageSha256, snapshot.packageSha256);

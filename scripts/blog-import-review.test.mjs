@@ -6,7 +6,11 @@ const hash = identity;
 function fixture() {
   const p = IMPORT_ACCEPTANCE;
   const operationId = `article-import-${hash(['supplychainsai.com', p.integrationId, p.draftKey])}`;
-  const source = { externalTaskId: p.taskId, idempotencyKey: p.draftKey, body: 'test source' };
+  const source = {
+    externalTaskId: p.taskId,
+    idempotencyKey: p.draftKey,
+    body: '## Original heading\n\nSource paragraph.',
+  };
   const row = {
     _id: operationId,
     siteId: 'supplychainsai.com',
@@ -26,7 +30,16 @@ function fixture() {
       title: 'Owned acceptance',
       slug: 'oem-brief-hermes-acceptance-20261026',
       authorName: 'Diversity Technology Limited',
-      body: {},
+      body: {
+        schemaVersion: 1,
+        document: {
+          type: 'doc',
+          content: [
+            { type: 'heading', content: [{ type: 'text', text: 'Original heading' }] },
+            { type: 'paragraph', content: [{ type: 'text', text: 'Source paragraph.' }] },
+          ],
+        },
+      },
     },
   };
   return { operationId, operation: 'review', row, draft };
@@ -52,8 +65,26 @@ test('publication requires the human review saved revision, not the model output
   assert.throws(() => ownedImportFixture(f));
   f.draft.revision = 2;
   assert.throws(() => ownedImportFixture(f));
-  f.draft.content.body = { text: IMPORT_ACCEPTANCE.marker };
+  f.draft.content.body.document.content.push({
+    type: 'paragraph',
+    content: [{ type: 'text', text: IMPORT_ACCEPTANCE.marker }],
+  });
   assert.equal(ownedImportFixture(f).revision, 2);
+});
+
+test('a misplaced marker is repairable in this owned draft but cannot be published', () => {
+  const f = fixture();
+  f.draft.revision = 2;
+  f.draft.content.body.document.content[0].content[0].text = `${IMPORT_ACCEPTANCE.marker}Original heading`;
+  assert.equal(ownedImportFixture(f).repairHeading, 'Original heading');
+  assert.throws(() => ownedImportFixture({ ...f, operation: 'publish' }));
+  f.draft.content.body.document.content[0].content[0].text = 'Original heading';
+  f.draft.content.body.document.content.push({
+    type: 'paragraph',
+    content: [{ type: 'text', text: IMPORT_ACCEPTANCE.marker }],
+  });
+  f.draft.revision = 3;
+  assert.equal(ownedImportFixture({ ...f, operation: 'publish' }).revision, 3);
 });
 
 test('the manual imported-draft path keeps credentials in the needed steps and does not replace ordinary acceptance', async () => {

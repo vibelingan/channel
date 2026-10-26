@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { appendArticleParagraph } from './helpers/article-editor-input.ts';
 import { signInAdminThroughUi } from './helpers/ui-admin-login.ts';
 const operation = process.env.E2E_IMPORT_OPERATION;
 test.skip(!operation, 'Explicit owned Hermes draft acceptance only.');
@@ -19,6 +20,9 @@ test('the exact imported draft supports human editing, preview and manual public
     editUrl: string;
     marker: string;
     operation: string;
+    originalHeading: string;
+    repairHeading: string | null;
+    resetHtml: string | null;
   };
   expect(fixture.operation).toBe(operation);
   expect(fixture.articleId).toMatch(/^article-[a-f0-9]{64}$/);
@@ -35,10 +39,23 @@ test('the exact imported draft supports human editing, preview and manual public
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue(fixture.title);
   if (operation === 'review') {
     const editor = page.getByRole('textbox', { name: 'Article body' });
-    await editor.locator('p').last().click();
-    await page.keyboard.press('ControlOrMeta+End');
-    await page.keyboard.press('Enter');
-    await page.keyboard.insertText(fixture.marker);
+    if (fixture.resetHtml) {
+      await editor.press('ControlOrMeta+A');
+      await editor.evaluate((element, html) => {
+        const clipboard = new DataTransfer();
+        clipboard.setData('text/html', html);
+        element.dispatchEvent(
+          new ClipboardEvent('paste', {
+            clipboardData: clipboard,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }, fixture.resetHtml);
+    }
+    await expect(editor.locator('h2').first()).toHaveText(fixture.originalHeading);
+    await appendArticleParagraph(editor, fixture.marker);
+    await expect(editor.locator('h2').first()).toHaveText(fixture.originalHeading);
     const saved = page.waitForResponse(
       (r) =>
         r.url().endsWith('/api/admin') &&
@@ -55,7 +72,8 @@ test('the exact imported draft supports human editing, preview and manual public
   await page.getByRole('button', { name: 'Preview', exact: true }).click();
   const preview = page.getByRole('region', { name: 'Draft preview', exact: true });
   await expect(preview).toContainText(fixture.title);
-  await expect(preview).toContainText(fixture.marker);
+  await expect(preview.locator('p').last()).toHaveText(fixture.marker);
+  await expect(preview.locator('h2').first()).toHaveText(fixture.originalHeading);
   await mkdir('output/blog-import', { recursive: true });
   await page.screenshot({ path: 'output/blog-import/admin-preview.png', fullPage: true });
   await page.getByRole('button', { name: 'Close preview', exact: true }).click();

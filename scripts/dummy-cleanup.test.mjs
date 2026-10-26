@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import CloudBase from '@cloudbase/manager-node';
 import { parse } from 'yaml';
-import { assertDummyCleanup } from './release-drill/cleanup.mjs';
+import { assertDummyCleanup, assertNoLegacyDummyRoutes } from './release-drill/cleanup.mjs';
 const seedRun = '40267380016';
 const snapshot = {
   name: 'seo-release-dummy',
@@ -46,4 +47,22 @@ test('partial cleanup keeps its exact last stage and deletion counts even when t
     'output/recovery-drill/result.json',
     'output/recovery-drill/cleanup-result.json',
   ]);
+});
+
+test('the installed Manager serializes the exact scoped legacy read without an unknown pagination parameter', async () => {
+  const manager = new CloudBase({ envId: 'fixture', secretId: 'fixture', secretKey: 'fixture' });
+  manager.access.environment.inited = true;
+  manager.access.getEnvInfo = () => ({ envId: 'fixture' });
+  let calls = 0;
+  manager.access.tcbService.request = async (action, data) => {
+    calls++;
+    assert.equal(action, 'DescribeCloudBaseGWAPI');
+    assert.deepEqual(JSON.parse(JSON.stringify(data)), {
+      ServiceId: 'fixture',
+      Name: 'seo-release-dummy',
+    });
+    return { APISet: [], Total: 0, RequestId: 'fixture' };
+  };
+  await assertNoLegacyDummyRoutes(manager);
+  assert.equal(calls, 1);
 });

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { parseArticleDraft } from '../../packages/articles/src/draft-repository.ts';
-import { importHash } from '../../packages/articles/src/import.ts';
+import { importHash, prepareArticleImport } from '../../packages/articles/src/import.ts';
 import { parsePublishedArticle } from '../../packages/articles/src/publication.ts';
+import { renderArticle } from '../../packages/articles/src/render.ts';
 import { createSiteGithubSource } from '../release/site-github-source.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
@@ -47,7 +48,33 @@ if (process.argv[2] === 'prepare') {
   const health = await assertServerBlogReady(policy.siteOrigin);
   await createSiteGithubSource({ token: env.GITHUB_TOKEN }).requireCI(health.releaseId);
   const fixture = ownedImportFixture({ operationId, operation, row: imported, draft });
-  await writeFile(`${directory}/fixture.json`, JSON.stringify(fixture, null, 2), { flag: 'wx' });
+  let resetHtml: string | null = null;
+  if (fixture.repairHeading) {
+    const original = prepareArticleImport(imported.source).content;
+    const repaired = structuredClone(draft.content.body);
+    const blocks = repaired.document.content;
+    while (
+      blocks[0] &&
+      ['heading', 'paragraph'].includes(blocks[0].type) &&
+      'content' in blocks[0] &&
+      blocks[0].content.length === 0
+    )
+      blocks.shift();
+    const heading = blocks.find((node) => node.type === 'heading');
+    assert(heading && 'content' in heading && heading.content[0]?.type === 'text');
+    assert(heading.content[0].text.startsWith(IMPORT_ACCEPTANCE.marker));
+    heading.content[0].text = heading.content[0].text.slice(IMPORT_ACCEPTANCE.marker.length);
+    assert.equal(
+      importHash(repaired),
+      importHash(original.body),
+      'Only the observed failed test input may be reset',
+    );
+    resetHtml = renderArticle(original.body, { mode: 'preview', media: {} }).html;
+  }
+
+  await writeFile(`${directory}/fixture.json`, JSON.stringify({ ...fixture, resetHtml }, null, 2), {
+    flag: 'wx',
+  });
 } else if (process.argv[2] === 'verify') {
   const fixture = record(JSON.parse(await readFile(`${directory}/fixture.json`, 'utf8')));
   assert.equal(fixture.articleId, draft.id);

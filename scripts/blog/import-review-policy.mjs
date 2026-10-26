@@ -9,8 +9,22 @@ export function ownedImportFixture({ operationId, operation, row, draft }) {
   const p = IMPORT_ACCEPTANCE;
   const hash = identity;
   const expected = `article-import-${hash(['supplychainsai.com', p.integrationId, p.draftKey])}`;
+  const originalHeading = /^## (.+)$/m.exec(row?.source?.body ?? '')?.[1];
+  const blocks = draft?.content?.body?.document?.content ?? [];
+  const text = (node) => (node?.content ?? []).map((n) => n.text ?? '').join('');
+  const first = blocks.find((n) => n.type === 'heading');
+  const repairHeading =
+    draft?.revision === 2 &&
+    blocks.some((node) => node.type === 'heading' && text(node) === p.marker + originalHeading);
+  const reviewed =
+    first &&
+    text(first) === originalHeading &&
+    blocks.at(-1)?.type === 'paragraph' &&
+    text(blocks.at(-1)) === p.marker;
+
   if (
     !['review', 'publish', 'withdraw'].includes(operation) ||
+    !originalHeading ||
     operationId !== expected ||
     row?._id !== expected ||
     row?.integrationId !== p.integrationId ||
@@ -26,9 +40,8 @@ export function ownedImportFixture({ operationId, operation, row, draft }) {
     draft?.content?.slug !== 'oem-brief-hermes-acceptance-20261026' ||
     draft?.content?.authorName !== 'Diversity Technology Limited' ||
     !Number.isSafeInteger(draft?.revision) ||
-    (operation === 'review' && draft.revision !== 1) ||
-    (operation === 'publish' &&
-      (draft.revision !== 2 || !JSON.stringify(draft.content.body).includes(p.marker))) ||
+    (operation === 'review' && draft.revision !== 1 && !repairHeading) ||
+    (operation === 'publish' && (![2, 3].includes(draft.revision) || !reviewed)) ||
     (operation !== 'withdraw' && draft.published !== null) ||
     (operation === 'withdraw' && (!draft.published || draft.revision < 2))
   )
@@ -42,5 +55,7 @@ export function ownedImportFixture({ operationId, operation, row, draft }) {
     slug: draft.content.slug,
     editUrl: `https://supplychainsai.com/admin/?section=articles&article=${draft.id}`,
     marker: p.marker,
+    originalHeading,
+    repairHeading: repairHeading ? originalHeading : null,
   };
 }
