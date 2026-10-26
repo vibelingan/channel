@@ -1,5 +1,6 @@
 # 详细执行方案
 
+2026-10-26 复核：以[权限与真实工具设计 D1](SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
 2026-10-23 · 共23个实施单元。当前状态见plan.json及IMPLEMENTATION-TRACE.md。模块说明规定设计；本文件与`plan.json`规定单元依赖，二者由检查脚本核对。
 
 ## 实施顺序
@@ -31,7 +32,7 @@ flowchart LR
 | [SG0.1 共同schema与假服务](modules/SG0-boundary.md) | 无 | packages/sales-contracts/；Hermes只消费固定版本 | 结构校验、未知版本拒绝、跨语言同fixture，fake不调用网络 |
 | [SG0.2 客户连接与动作授权](modules/SG0-boundary.md) | SG0.1 | 客户绑定/工具scope/连接撤销tests，不改公开客服权限 | A/B工具、连接、业务和操作者负向测试；无默认客户 |
 | [SG1.0 选定代码基线和三入口接线证据](modules/SG1-channel.md) | 无 | 只读路由/开关/持久化盘点与证据 | 记录OEM/单品/客服入口、旧dummy、有效提交条件和选定SHA |
-| [SG1.1 询盘产品附件只读接口](modules/SG1-channel.md) | SG0.2, SG1.0 | sales-integration路由＋资料adapter，复用批准快照 | 越权/未提交/附件跨归属拒绝，固定版本事实可追溯 |
+| [SG1.1 询盘产品附件只读接口](modules/SG1-channel.md) | SG0.2, SG1.0 | sales-integration路由＋资料adapter，复用批准产品读取及提交事实 | 越权/未提交/附件跨归属拒绝；实时查询并保留审核依据 |
 | [SG2.1 客户Sales执行边界](modules/SG2-hermes-runtime.md) | SG0.2 | Sales专属runtime/工具代理/记忆和目录适配 | A/B同时运行不读错知识/文件/连接；遗漏scope拒绝 |
 | [SG2.2 事件接收根任务与可靠派发](modules/SG2-hermes-runtime.md) | SG0.1, SG0.2, SG2.1 | sales_flow事件接入＋复用assignment/outbox | 重复事件一个根task，崩溃恢复不丢已确认接收事件 |
 | [SG1.2 询盘通知与补偿扫描](modules/SG1-channel.md) | SG1.1, SG2.2 | OEM/单品保存后最小hook及source reconciler | 保存成功后通知丢失可补扫；附件回滚和历史记录不误发 |
@@ -62,7 +63,7 @@ flowchart LR
 
 ## 代码与协作规则
 
-- 当前worktree只是设计分支。实施SG1前确定合适的Channel代码基线；较新Phase2/catalog已有功能先复用，不能直接在03be缺失处重新实现。涉及别人分支的整合先核对提交/写范围，不整批merge未审查改动。
+- 当前销售集成分支已有SG0／SG1的基础代码，基线及验证见README和交接；本轮开发暂停。后续按D1补齐顺序先修权限缺口，再恢复原DAG；不整批merge未审查分支。
 - Channel负责询盘事实/API/提交后交接；Hermes负责私有任务/运行/控制；Sales流程包负责业务规则；发布工具负责Resend/Apollo adapter。通用Hub不硬编码Channel产品/报价。
 - 不默认每模块建分支或PR；当前这条工作流使用此设计worktree，后续每仓库实施分支策略由实施范围决定。同一checkout同一时刻一个写入者，共同schema由SG0维护。
 - Hermes源码不在此仓库；开始其实施单元时另建/指定Hermes工作区，遵守该仓库AGENTS，不直接改正在运行或有他人改动的checkout。

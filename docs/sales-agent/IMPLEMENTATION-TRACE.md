@@ -104,3 +104,8 @@ SG0.2原提交bf8e429b已推送，[远端检查39891019917](https://github.com/v
 2026-10-24，Hermes独立worktree从main 52d0365开展，先推送说明，再依次完成客户运行边界和可靠接收。逐项代码、回滚/并发/身份反例和CI证据见[验证记录](evidence/SG2.1-SG2.2-VALIDATION.md)。最终Hermes代码2fbc50c、CI40065259862通过，旧共享调度和文章入口未改。Channel只更新销售文档和计划，不改pricing/SEO代码。
 
 本轮实际阅读并复核Hermes registry、assignments、dispatcher、001_schema、全部sales_flow源码/测试及Channel合同、模块和交接；补出共用root、布尔值冒充整数和TLS反例后修正。明确写成“worker持久接收，等待SG3准备”，避免把受理回执描述为Agent已完成销售内容；修正旧交接中“SG0.2尚未完成”“main尚未整合”的过期说明。已说明OCR未配置模型导致独立审查未执行，未把自审冒充第三方review。
+
+
+## 2026-10-26：设计修订，开发暂停
+
+用户仅授权整理权限协议、Channel独立门禁、任务授权、真实工具接线及实时产品／留档设计。主文档为[SECURITY-AND-TOOLS-DESIGN.md](SECURITY-AND-TOOLS-DESIGN.md)，图和PDF随附。复用原连接认证、资料reader、Boundary与Dispatcher，缺口另列；本轮不实施、不改schema、不更新既有单元为完成。后续先由用户确认D1，再调整实施单元及依赖。文档验证与视觉记录见[VERIFICATION](evidence/VERIFICATION.md)。

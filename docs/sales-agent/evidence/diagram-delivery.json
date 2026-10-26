@@ -6,12 +6,12 @@
   "input": "${SALES_WORKTREE}/docs/sales-agent/diagrams/modules.json",
   "output": "${SALES_WORKTREE}/docs/sales-agent/diagrams/modules.html",
   "specification": {
-    "sha256": "1ed1982a4638a0f89214e266d617c7d28563a3d2306f2abfa6c211eb9fed0938",
-    "bytes": 4490
+    "sha256": "9277493be58071ed2bf7853040fe583f11c2f82b8bd720ca6c2b66b968892b56",
+    "bytes": 4471
   },
   "artifact": {
-    "sha256": "e274446042c7c40e6010e7cfec8a0d635105d6031280572c891f45529978e3b1",
-    "bytes": 809165
+    "sha256": "81b08cc0aebe995bfd1458cbc0e1dd4102d446d4c167d9b935f4ff6780c8cfac",
+    "bytes": 809163
   },
   "validation": {
     "checksPassed": 9,

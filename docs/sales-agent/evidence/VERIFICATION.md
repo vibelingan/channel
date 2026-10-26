@@ -53,3 +53,19 @@ SG0.1的实现及具体测试见[SG0.1-VALIDATION](SG0.1-VALIDATION.md)，提交
 SG0.2原提交bf8e429b已推送并通过远端检查，随后才开始SG1.1。当前实际进度以plan.json为准：4项完成各自离线/源码范围，19项未实现；均未启用live。SG1.1私有HTTP、归属、bytes、流式上限、打包及相关回归见[验证记录](SG1.1-VALIDATION.md)。业务流程与模块职责未改变，未修改原模块图。后续按[真实测试计划](LIVE-TEST-PLAN.md)核对线上Infra，不能把当前结果当作部署/投递证据。
 
 2026-10-24：当前6个单元完成各自范围，其余17个单元未实现。SG2.1/SG2.2的[独立运行和接收证据](SG2.1-SG2.2-VALIDATION.md)包含71个不同用例的本地/隔离CI分层结果及33项原dispatcher自检；线上Hermes和邮件验收仍未执行。上文历史数量保留为当轮快照。
+
+
+## 2026-10-26 权限设计复核 D1
+
+本轮只修改销售设计资料、计划的暂停标记及图文，未修改运行代码、共同schema、测试、CI或部署配置。既有六个单元的完成状态及历史证据保留；新增安全验收尚未执行。
+
+- [完整修订](../SECURITY-AND-TOOLS-DESIGN.md)明确Hermes通用门禁、Channel业务门禁、任务授权、可信来源核验和真实工具接线；产品实时查询，提交事实和审核依据留档。
+- 读取Channel access.ts、sales-integration handler/sources/index、run-context/approval/control-command schema，及Hermes Boundary/Intake/service、相关tests；发现客户级scope没有任务资源限制、旧行缺字段放行、客户HOME挂载及真实工具循环未接入等缺口。
+- 状态文档已区分客户control_epoch与任务task_revision。新协议和Approval的必填字段升级仍待确认后实施，没有修改schema来假装完成。
+- 用humanizer核对正文和PDF摘要，把“已完成客户隔离”收紧为“已有客户边界的隔离测试；任务授权和真实接线待补”。事实分别对照两个检出的固定提交与实际调用位置。
+- 两张architecture图均通过9/9 showcase、0错误、0警告。真实浏览器1440×900、1600×1000、1920×1080、2048×1320测量通过，并查看浅／深色截图；另有图像作者视觉复核，未冒充独立评审。
+- PDF为六页设计摘要，已提取文字并逐页查看渲染；完整规范以主文档为准。图源、HTML、PNG、PDF的身份见[本轮回执](SECURITY-DESIGN-REVIEW.json)。
+- 文档检查通过23个单元无循环、历史副本和四份受保护原稿hash一致；schema样例1个接受、2个拒绝，仍不是授权测试。最新数量见design-check.json。
+- Hermes检出保持2fbc50c且干净；原讨论reference、公开客服、pricing和SEO代码未改。本轮不运行产品测试，不连接客户账号或发信。
+
+模块图本轮回执见diagram-delivery.json；新增权限图回执见security-diagram-delivery.json。自动浏览器JSON里的visualReview继续保留pending，作者视觉结论另记在本轮回执，二者含义分开。以上检查只验证设计资料，不能证明尚未实现的安全规则已经生效。

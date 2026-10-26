@@ -1,5 +1,7 @@
 # 状态、优先级与发送边界
 
+2026-10-26：本次[权限设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)待确认，开发暂停。客户级撤权用绑定control_epoch，单任务安全变更用task_revision；共同schema尚未升级，不能把旧Approval 1.0当新门禁。
+
 2026-10-23。所有状态为目标设计；不是把现有文章发布状态机直接改名。
 
 ## 1. 分开记录工作、控制和发送
@@ -18,17 +20,19 @@
 
 | 事件 | 必须执行的写入 | 后续行为 |
 |---|---|---|
-| 正式询盘首次接收 | 稳定根task＋3个独立分支操作：确认、准备、联系人同步 | 重放不得新增根task或确认 |
+| 正式询盘首次接收 | 稳定根task＋来源待核验；通过后才启用确认、准备、联系人同步 | 重放不得新增根task或确认 |
 | Sales生成新固定版本 | version递增；旧version superseded；批准失效 | 新版通知人工 |
-| 改稿/来源有效修订 | control/context epoch递增；撤销未消费批准 | 新run生成新版本，保留旧成果 |
-| 观察到相关新来信 | context_epoch递增；未提交发送的旧批准失效 | 通知负责人；第一期不默认自动回复 |
-| pause | 原子改paused、control_epoch递增并撤销批准 | 不再开始外部动作；后台run结果可留档但不覆盖新版 |
-| takeover | 立即改takeover_requested、撤销批准、取消待提交发送 | 先对账dispatching/send_unknown；结果明确再human_owned并允许人发送。等待时只读查看、明确暂勿手动发送 |
-| resume | 指定负责人授权后agent_active，epoch递增 | 不复活旧批准；需要重新准备或明确批准当前有效版 |
+| 改稿/来源有效修订 | task_revision／context_epoch递增；撤销未消费批准 | 新run生成新版本，保留旧成果 |
+| 观察到相关新来信 | context_epoch递增；task_revision同步推进；未提交发送的旧批准失效 | 通知负责人；第一期不默认自动回复 |
+| pause | 原子改paused、task_revision递增并撤销批准 | 不再开始外部动作；后台run结果可留档但不覆盖新版 |
+| takeover | 立即改takeover_requested、task_revision递增、撤销批准、取消待提交发送 | 先对账dispatching/send_unknown；结果明确再human_owned并允许人发送。等待时只读查看、明确暂勿手动发送 |
+| resume | 指定负责人授权后agent_active，task_revision递增 | 不复活旧批准；需要重新准备或明确批准当前有效版 |
 | source业务被后台操作人关闭 | 把该source后续销售准备置暂停/需人工确认 | 保留询盘事实；不因此自动给买家发结束邮件 |
 | provider人工发出对应邮件 | 关联外部发送事实；停止该待发送操作 | 不补发；归属不明则人工匹配 |
 
 有权人的pause/takeover针对同一任务最新状态生效，不因旧页面revision冲突而失效；批准/恢复/改稿仍严格校验版本。
+
+任务控制版本与客户绑定版本分别比较；批准必须绑定当前两者和context_epoch。旧schema升级和实际事务门禁尚未实施。
 
 “人优先”落实在同一后端的事务顺序和epoch检查，不靠比较群消息先后。暂停先于发送提交点持久化时，网关拒发；若provider请求已经提交，不能保证撤回。尚未被回调/补扫观察到的外部新来信，也不能声称会瞬时阻止发送。
 

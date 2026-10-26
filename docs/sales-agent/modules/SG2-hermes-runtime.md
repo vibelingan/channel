@@ -1,5 +1,7 @@
 # SG2 Hermes 调度、客户执行与成果
 
+2026-10-26 复核：以[权限与真实工具设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
+
 实施单元：SG2.1、SG2.2、SG2.3。
 
 2026-10-24：SG2.1、SG2.2已在Hermes独立分支feat/sales-agent-runtime完成代码、代码复核和隔离Docker/MySQL CI，见[验证记录](../evidence/SG2.1-SG2.2-VALIDATION.md)。实现采用单客户专属Sales服务/数据库和固定绑定，复用原dispatcher；没有改全局路由或现有文章流。SG2.3仍待实施。以下保留整体设计，不能据此认定已接通线上定海或邮件发送。

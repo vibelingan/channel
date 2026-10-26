@@ -2,8 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "询盘与获客：模块协作",
-    "subtitle": "设计目标 · 客户独立环境 · 官网询盘先落地",
+    "title": "询盘与获客：模块协作与权限",
     "locale": "zh-CN",
     "quality_profile": "showcase",
     "viewBox": [
@@ -16,7 +15,7 @@
       "id": "channel",
       "type": "frontend",
       "label": "SG1 · Channel",
-      "sublabel": "三种入口／询盘与产品事实",
+      "sublabel": "正式询盘／业务门禁／实时产品",
       "pos": [
         50,
         115
@@ -30,7 +29,7 @@
       "id": "runtime",
       "type": "backend",
       "label": "SG2 · 定海与任务",
-      "sublabel": "客户专属执行／成果留档",
+      "sublabel": "任务授权／客户执行／成果留档",
       "pos": [
         585,
         115
@@ -44,7 +43,7 @@
       "id": "sales",
       "type": "backend",
       "label": "SG3 · Sales 能力",
-      "sublabel": "理解需求／查产品／正文附件",
+      "sublabel": "受控工具查产品／正文附件",
       "pos": [
         1100,
         115
@@ -114,7 +113,7 @@
       "id": "boundary",
       "type": "security",
       "label": "SG0 · 身份与接口",
-      "sublabel": "客户绑定／凭据／数据规范",
+      "sublabel": "通用协议／任务与资源授权",
       "pos": [
         585,
         635
@@ -213,16 +212,16 @@
       "dot": "cyan",
       "title": "先实施官网闭环",
       "items": [
-        "SG0 → SG1／SG2 → SG3／SG4 → SG5 → SG8 验收",
-        "固定确认信预先批准；实质邮件由人批准后发送"
+        "官网保存成功后自动处理；产品实时查询并保留审核依据",
+        "人工批准固定版本；受控发布助手执行发送"
       ]
     },
     {
       "dot": "amber",
       "title": "共用程序，业务分开",
       "items": [
-        "SG6／SG7 后续接入；不把官网询盘丢入冷开发",
-        "SG0、SG8 贯穿所有模块；图中为设计，尚未实施"
+        "2026-10-26 设计待确认；开发暂停；已有基础尚未线上接通",
+        "Hermes 核对任务；Channel 独立核对资料归属与任务授权"
       ]
     }
   ]

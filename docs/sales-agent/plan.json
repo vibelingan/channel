@@ -394,5 +394,19 @@
       "SG7.1",
       "SG7.2"
     ]
+  },
+  "design_review": {
+    "date": "2026-10-26",
+    "status": "awaiting_user_confirmation",
+    "development_paused": true,
+    "design_ref": "SECURITY-AND-TOOLS-DESIGN.md",
+    "existing_unit_statuses": "Historical verified scope only; not launch authorization",
+    "blocking_gaps": [
+      "task_resource_authorization",
+      "verified_installation_ownership",
+      "trusted_source_verification_before_execution",
+      "task_private_context_and_real_tool_wiring"
+    ],
+    "next_action": "Confirm D1 design before changing code or implementation DAG"
   }
 }

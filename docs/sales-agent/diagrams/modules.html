@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.17.0-dev.1">
-  <title>询盘与获客：模块协作</title>
+  <title>询盘与获客：模块协作与权限</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5081,9 +5081,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="蓝图 / 修订 01"
            data-preset-badge-editorial="编辑风格 / 现场笔记">
         <div class="pulse-dot"></div>
-        <h1>询盘与获客：模块协作</h1>
+        <h1>询盘与获客：模块协作与权限</h1>
       </div>
-      <p class="subtitle">设计目标 · 客户独立环境 · 官网询盘先落地</p>
     </div>
 
     <script id="archify-guided-views-data" type="application/json">[]</script>
@@ -5132,8 +5131,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 图版 04">
       <svg viewBox="0 0 1380 800" role="img" lang="zh-CN" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
-        <title id="archify-diagram-title">询盘与获客：模块协作</title>
-        <desc id="archify-diagram-description">设计目标 · 客户独立环境 · 官网询盘先落地</desc>
+        <title id="archify-diagram-title">询盘与获客：模块协作与权限</title>
+        <desc id="archify-diagram-description">由 Archify 生成的架构图。</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -5169,8 +5168,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <path data-edge-from="sources" data-edge-to="runtime" data-edge-label="按渠道配置同步与准备" data-edge-key="6" data-edge-id="other" data-composition-points="300,675;500,675;500,235;710,235;710,195" d="M 300 675 L 492 675 Q 500 675 500 667 L 500 243 Q 500 235 508 235 L 702 235 Q 710 235 710 227 L 710 195" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Components -->
-        <g id="node-channel" data-node-id="channel" data-node-label="SG1 · Channel" tabindex="0" role="button" aria-label="聚焦SG1 · Channel，三种入口／询盘与产品事实, 架构组件" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="三种入口／询盘与产品事实" data-node-context="架构组件">
-          <title>SG1 · Channel · 三种入口／询盘与产品事实 · 架构组件</title>
+        <g id="node-channel" data-node-id="channel" data-node-label="SG1 · Channel" tabindex="0" role="button" aria-label="聚焦SG1 · Channel，正式询盘／业务门禁／实时产品, 架构组件" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="正式询盘／业务门禁／实时产品" data-node-context="架构组件">
+          <title>SG1 · Channel · 正式询盘／业务门禁／实时产品 · 架构组件</title>
           <rect x="50" y="115" width="250" height="80" rx="6" class="c-mask"/>
           <rect x="50" y="115" width="250" height="80" rx="6" class="c-frontend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(56 121) scale(0.6875)">
@@ -5180,29 +5179,29 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="175" y="153" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">SG1 · Channel</text>
-        <text data-detail="context" x="175" y="169" class="t-muted" font-size="9" text-anchor="middle">三种入口／询盘与产品事实</text>
+        <text data-detail="context" x="175" y="169" class="t-muted" font-size="9" text-anchor="middle">正式询盘／业务门禁／实时产品</text>
         </g>
 
-        <g id="node-runtime" data-node-id="runtime" data-node-label="SG2 · 定海与任务" tabindex="0" role="button" aria-label="聚焦SG2 · 定海与任务，客户专属执行／成果留档, 架构组件" aria-pressed="false" data-node-kind="backend" data-node-sublabel="客户专属执行／成果留档" data-node-context="架构组件">
-          <title>SG2 · 定海与任务 · 客户专属执行／成果留档 · 架构组件</title>
+        <g id="node-runtime" data-node-id="runtime" data-node-label="SG2 · 定海与任务" tabindex="0" role="button" aria-label="聚焦SG2 · 定海与任务，任务授权／客户执行／成果留档, 架构组件" aria-pressed="false" data-node-kind="backend" data-node-sublabel="任务授权／客户执行／成果留档" data-node-context="架构组件">
+          <title>SG2 · 定海与任务 · 任务授权／客户执行／成果留档 · 架构组件</title>
           <rect x="585" y="115" width="250" height="80" rx="6" class="c-mask"/>
           <rect x="585" y="115" width="250" height="80" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(591 121) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="710" y="153" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">SG2 · 定海与任务</text>
-        <text data-detail="context" x="710" y="169" class="t-muted" font-size="9" text-anchor="middle">客户专属执行／成果留档</text>
+        <text data-detail="context" x="710" y="169" class="t-muted" font-size="9" text-anchor="middle">任务授权／客户执行／成果留档</text>
         </g>
 
-        <g id="node-sales" data-node-id="sales" data-node-label="SG3 · Sales 能力" tabindex="0" role="button" aria-label="聚焦SG3 · Sales 能力，理解需求／查产品／正文附件, 架构组件" aria-pressed="false" data-node-kind="backend" data-node-sublabel="理解需求／查产品／正文附件" data-node-context="架构组件">
-          <title>SG3 · Sales 能力 · 理解需求／查产品／正文附件 · 架构组件</title>
+        <g id="node-sales" data-node-id="sales" data-node-label="SG3 · Sales 能力" tabindex="0" role="button" aria-label="聚焦SG3 · Sales 能力，受控工具查产品／正文附件, 架构组件" aria-pressed="false" data-node-kind="backend" data-node-sublabel="受控工具查产品／正文附件" data-node-context="架构组件">
+          <title>SG3 · Sales 能力 · 受控工具查产品／正文附件 · 架构组件</title>
           <rect x="1100" y="115" width="250" height="80" rx="6" class="c-mask"/>
           <rect x="1100" y="115" width="250" height="80" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1106 121) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="1225" y="153" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">SG3 · Sales 能力</text>
-        <text data-detail="context" x="1225" y="169" class="t-muted" font-size="9" text-anchor="middle">理解需求／查产品／正文附件</text>
+        <text data-detail="context" x="1225" y="169" class="t-muted" font-size="9" text-anchor="middle">受控工具查产品／正文附件</text>
         </g>
 
         <g id="node-resend" data-node-id="resend" data-node-label="SG4 · Resend" tabindex="0" role="button" aria-label="聚焦SG4 · Resend，联系人／草稿／收发邮件, 架构组件" aria-pressed="false" data-node-kind="external" data-node-sublabel="联系人／草稿／收发邮件" data-node-context="架构组件">
@@ -5253,8 +5252,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="175" y="689" class="t-muted" font-size="9" text-anchor="middle">分开配置业务与联系资格</text>
         </g>
 
-        <g id="node-boundary" data-node-id="boundary" data-node-label="SG0 · 身份与接口" tabindex="0" role="button" aria-label="聚焦SG0 · 身份与接口，客户绑定／凭据／数据规范, 架构组件" aria-pressed="false" data-node-kind="security" data-node-sublabel="客户绑定／凭据／数据规范" data-node-context="架构组件">
-          <title>SG0 · 身份与接口 · 客户绑定／凭据／数据规范 · 架构组件</title>
+        <g id="node-boundary" data-node-id="boundary" data-node-label="SG0 · 身份与接口" tabindex="0" role="button" aria-label="聚焦SG0 · 身份与接口，通用协议／任务与资源授权, 架构组件" aria-pressed="false" data-node-kind="security" data-node-sublabel="通用协议／任务与资源授权" data-node-context="架构组件">
+          <title>SG0 · 身份与接口 · 通用协议／任务与资源授权 · 架构组件</title>
           <rect x="585" y="635" width="250" height="80" rx="6" class="c-mask"/>
           <rect x="585" y="635" width="250" height="80" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(591 641) scale(0.6875)">
@@ -5262,7 +5261,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="710" y="673" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">SG0 · 身份与接口</text>
-        <text data-detail="context" x="710" y="689" class="t-muted" font-size="9" text-anchor="middle">客户绑定／凭据／数据规范</text>
+        <text data-detail="context" x="710" y="689" class="t-muted" font-size="9" text-anchor="middle">通用协议／任务与资源授权</text>
         </g>
 
         <g id="node-ops" data-node-id="ops" data-node-label="SG8 · 运行与审计" tabindex="0" role="button" aria-label="聚焦SG8 · 运行与审计，失败重试／告警／留存／成本, 架构组件" aria-pressed="false" data-node-kind="database" data-node-sublabel="失败重试／告警／留存／成本" data-node-context="架构组件">
@@ -5526,8 +5525,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>先实施官网闭环</h3>
         </div>
         <ul>
-          <li>&bull; SG0 → SG1／SG2 → SG3／SG4 → SG5 → SG8 验收</li>
-          <li>&bull; 固定确认信预先批准；实质邮件由人批准后发送</li>
+          <li>&bull; 官网保存成功后自动处理；产品实时查询并保留审核依据</li>
+          <li>&bull; 人工批准固定版本；受控发布助手执行发送</li>
         </ul>
       </div>
 
@@ -5537,8 +5536,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>共用程序，业务分开</h3>
         </div>
         <ul>
-          <li>&bull; SG6／SG7 后续接入；不把官网询盘丢入冷开发</li>
-          <li>&bull; SG0、SG8 贯穿所有模块；图中为设计，尚未实施</li>
+          <li>&bull; 2026-10-26 设计待确认；开发暂停；已有基础尚未线上接通</li>
+          <li>&bull; Hermes 核对任务；Channel 独立核对资料归属与任务授权</li>
         </ul>
       </div>
     </div>
