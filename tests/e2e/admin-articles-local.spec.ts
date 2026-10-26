@@ -612,8 +612,19 @@ test('a private draft link survives sign-in and opens the same editor after refr
     );
     await editor.getByRole('button', { name: 'Sign in', exact: true }).click();
     const firstLogin = await loginReply;
-    const firstBody = await firstLogin.json();
-    if (firstLogin.status() === 429 || firstBody.error?.code === 'RATE_LIMITED') {
+    // A successful login immediately replaces the document and its response body.
+    await expect
+      .poll(async () =>
+        new URL(editor.url()).pathname.replace(/\/$/, '') === '/admin'
+          ? 'opened'
+          : (await editor.locator('form p.text-red-700').isVisible())
+            ? 'rejected'
+            : 'waiting',
+      )
+      .not.toBe('waiting');
+    if (new URL(editor.url()).pathname === '/login') {
+      const firstBody = await firstLogin.json();
+      expect(firstLogin.status() === 429 || firstBody.error?.code === 'RATE_LIMITED').toBe(true);
       const seconds = Number(
         firstLogin.headers()['retry-after'] ?? firstBody.error.retryAfterSeconds,
       );
