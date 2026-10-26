@@ -2,6 +2,9 @@ const allowed = new Set([
   'EnvId',
   'PackageId',
   'PackageName',
+  'PackageTitle',
+  'UnitPrice',
+  'ResourceLimit',
   'PayMode',
   'IsAutoRenew',
   'ExpireTime',
@@ -14,6 +17,14 @@ const allowed = new Set([
   'AccountStartTime',
   'AccountEndTime',
   'ResourcePoint',
+  'Module',
+  'CreditsValue',
+  'DeductValue',
+  'PackageDeductValue',
+  'ReportValue',
+  'ResourceType',
+  'MetricName',
+  'Unit',
   'TotalCredits',
   'UsedCredits',
   'RemainCredits',
@@ -40,6 +51,12 @@ export function safeFields(value, path = '') {
   if (!value || typeof value !== 'object') return [];
   return Object.entries(value).flatMap(([key, item]) => {
     const name = path ? `${path}.${key}` : key;
+    if (
+      key === 'Value' &&
+      /(?:^|\.)Usages\.\d+\.MetricUsageDetail\.\d+\.Value$/.test(name) &&
+      typeof item === 'number'
+    )
+      return [{ field: name, value: item }];
     if (allowed.has(key) && ['string', 'number', 'boolean'].includes(typeof item))
       return [{ field: name, value: item }];
     if (item && typeof item === 'object') return safeFields(item, name);

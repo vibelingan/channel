@@ -40,6 +40,11 @@ on:
   push:
     branches:
       - test
+    paths-ignore:
+      - 'docs/**'
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'CLOUD_HANDOFF.md'
 
 permissions:
   contents: read

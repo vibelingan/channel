@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { matchesGlob } from 'node:path';
 import test from 'node:test';
 import { parse } from 'yaml';
 
@@ -440,4 +441,24 @@ test('browser setup follows actual consumers without dropping mobile or componen
         s.run === 'pnpm exec playwright install --with-deps chromium webkit',
     ),
   );
+});
+
+test('documentation-only pushes avoid live deployment while code, workflows and Markdown pages still deploy', () => {
+  const ignored = workflow('deploy-test').on.push['paths-ignore'];
+  assert.deepEqual(ignored, ['docs/**', 'AGENTS.md', 'README.md', 'CLOUD_HANDOFF.md']);
+  const deploys = (files) =>
+    files.some((file) => !ignored.some((pattern) => matchesGlob(file, pattern)));
+  assert.equal(deploys(['docs/delivery/current.md', 'AGENTS.md']), false);
+  for (const file of [
+    'apps/site/src/pages/guide.md',
+    'apps/site/astro.config.mjs',
+    'apps/functions/admin/src/index.ts',
+    'packages/articles/src/document.ts',
+    'scripts/deploy-cloudbase-test.mjs',
+    '.github/workflows/deploy-test.yml',
+    'pnpm-lock.yaml',
+    'package.json',
+  ])
+    assert.equal(deploys(['docs/note.md', file]), true, file);
+  assert(workflow('deploy-test').on.workflow_dispatch);
 });

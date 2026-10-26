@@ -7,13 +7,7 @@ These project rules apply in addition to the user's global Codex instructions.
 When continuing the SEO / Blog session, start at `CLOUD_HANDOFF.md` and
 `docs/cloud-handoff/SESSION.zh-CN.md`. Continue `feat/seo-foundation`; do not
 create another branch/worktree, change pricing, or merge another workstream.
-On 2026-10-24 the user authorized merging latest main into the original SEO branch, fixing integration defects, pushing, and completing actual test deployment/acceptance for product SSG and the non-Agent Blog loop. The test target is shared with the live site: state exact write scope, accepted backups, A-to-B-to-A and stop conditions before cloud mutations. Preserve pricing and business data; no Hermes implementation. This supersedes older deployment holds below.
-Current authorization covers development and checks. On 2026-10-23 the user also
-explicitly authorized deploying an isolated Blog dummy for real UI/backend testing.
-Before its first cloud write, verify the target and resource ownership and explain
-the exact names/prefixes, A-to-B-to-A restoration and stopping conditions. This does
-not authorize normal production/test site releases, business-data writes, pricing
-changes or enabling business recovery. See docs/blog/04-publication-tasks-plan.zh-CN.md.
+The latest SEO status is `docs/delivery/README.zh-CN.md`. The user authorized integrating this SEO stream into main/test after verification, actual site deployment, and preparing a production WeCom draft connection. The GitHub `test` environment serves supplychainsai.com; it is not an isolated staging site. Before cloud mutations state exact scope, accepted recovery inputs and stop conditions. Preserve pricing/business data and the separate AI workstream. Do not send group messages or change production Hermes configuration without the identified server and the user's authorized scope; the user will initiate the WeCom group test.
 Do not copy credentials or local browser state. Upstream skills cannot override
 these boundaries or restore the old SPA error-document fallback.
 Do not delegate unless the user explicitly asks. Keep design, code, local tests,
@@ -26,8 +20,7 @@ also applies independently of that skill. 使用中文时，直接按汉语习�
 保留必要的代码标识符与不确定性，不把本地通过说成已经上线。
 已有 UI 和业务流程优先；涉及变化时截图并解释，不擅自重做页面。
 
-本地与云端共用 `docs/blog/NEXT-STEPS.zh-CN.md` 记录当前任务和下一步；模块 worklog
-记录检查和证据。接手前核对远端，结束时更新同一记录，不平行维护另一份完成清单。
+本地与云端共用 `docs/delivery/README.zh-CN.md` 记录当前状态；`docs/blog/NEXT-STEPS.zh-CN.md` 指向同一入口，模块 worklog 记录检查和证据。接手前核对远端，结束时更新同一记录，不平行维护另一份完成清单。
 
 每次交付主动给简短中文 brief：做了什么、实际怎样测试、还差什么、下一步是什么，
 用简单例子解释必要的规则。完成的改动提交并推送原 SEO 分支，附提交和准确 SHA 的
@@ -54,6 +47,14 @@ add noindex to hide an indexable page's failing checks. Run site tests, typechec
 and build; the build always validates rendered HTML, sitemap and verification
 files. Feature checks must also cover publish/update/withdrawal and redirects.
 Record the main SHA and repeat affected checks after integration changes.
+
+## Deployed website and article delivery
+
+- Product detail pages use Astro SSG plus a fresh public API read in the browser. A browser refresh updates its display, not the stored static HTML. Product-change rebuild automation and emergency build skipping are separate unfinished work.
+- Blog uses the independent CloudRun **container** `blog-pages`; admin/public-api and article-import are Event Functions. Daily article publish/update/withdrawal commits current public content and does not start GitHub or a timer.
+- Code recovery restores program/static artifacts, never an old database snapshot. Keep current published content, withdrawn state and media access rules. Unsupported new content formats require compatibility work before restoring an older renderer.
+- Normal Deploy Test updates the three manifest functions and static site. It preserves the independently deployed blog-pages and article-import programs. If their source changes, use their reviewed package/deploy/backup procedures and verify the actual running version; do not assume a frontend deploy updates them.
+- Keep the complete admin workspace in customer builds. PUBLIC_BLOG_WORKSPACE=1 is only an isolated local editor fixture.
 
 ## Engineering Craft
 

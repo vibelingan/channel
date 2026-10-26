@@ -30,3 +30,25 @@ test('billing readback keeps approved numbers and flags while excluding user, cr
   assert.equal(parent.jobs.cloud_readiness.uses, './.github/workflows/seo-cloud-readiness.yml');
   assert.equal(parent.concurrency.group, 'cloudbase-deploy-test');
 });
+
+test('resource-point usage preserves documented metrics without exposing generic config values', () => {
+  assert.deepEqual(
+    safeFields({
+      Usages: [
+        {
+          Module: 'EKS',
+          CreditsValue: 10,
+          MetricUsageDetail: [{ MetricName: 'Cpu', Value: 42, Unit: 'hour' }],
+        },
+      ],
+      Settings: { Value: 'private' },
+    }),
+    [
+      { field: 'Usages.0.Module', value: 'EKS' },
+      { field: 'Usages.0.CreditsValue', value: 10 },
+      { field: 'Usages.0.MetricUsageDetail.0.MetricName', value: 'Cpu' },
+      { field: 'Usages.0.MetricUsageDetail.0.Value', value: 42 },
+      { field: 'Usages.0.MetricUsageDetail.0.Unit', value: 'hour' },
+    ],
+  );
+});

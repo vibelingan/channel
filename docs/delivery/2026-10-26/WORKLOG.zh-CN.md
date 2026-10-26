@@ -247,3 +247,7 @@ HermesInfra仓库deploy/agent/Dockerfile为Node20；新增Node20独立草稿工�
 当前1258项完整脚本通过；随后取消旧五分钟schedule的新增检查与相关31项通过，工具5项通过；脚本类型、SDK合同、全仓lint通过。图的初稿纵向溢出，缩短画布、压紧消息间距，并将API/Astro/CloudBase明确合并为后端角色，避免画成浏览器直连数据库；最终确定性9项检查、四种桌面视口及浅深截图通过，视觉复核另记。未把失败初稿当成最终图。
 
 实际阅读并核对：humanizer与plain-technical-writing、CloudBase/CloudRun/SDK合同、Engineering Craft部署组、现有workflow、import-setup与HermesInfra的Compose/助手定义。将“已上线所以已合入test”纠正为“人工入口已部署，分支尚待收敛”；将“发布助手发文章”明确成“保存私有草稿，人审核配图后公开”。新增只读套餐/余额入口，尚待读回实际账单，不修改套餐/支付设置。本轮代码审查确认固定站点、无发布工具、明文不进日志/仓库，图片自动导入和多客户正式隔离仍未交付。
+
+8064b5fa的完整远端CI40315281298、文章HTTP40315281238已通过；旧离线dummy任务仍在安装浏览器，未计为通过。只读40315351864读回标准版预付、到期原值2027-07-31 23:59:59、自动续费false、超限按量false，以及正常blog-pages-004最少/最多实例均1。资金明细只留私有产物，不写仓库。发现投影遗漏了资源点用量，按官方EnvPkgCreditsUsage和实际安装Manager类型补字段；没有把未保存的数值当作0。
+
+接手指引中的旧dummy-only限制与NEXT-STEPS入口已更新，明确当前授权与生产群测试边界，并记录正常网站部署不自动更新独立Blog容器/草稿函数。dev-pipeline适配器可读，但它引用的上游CLAUDE/commands与engineering-craft INDEX在当前镜像缺失，未声称运行这些上游脚本；审查使用本仓库ENGINEERING_CRAFT、SDK合同及实际检查。

@@ -21,6 +21,21 @@ try {
     ['environment', 'queryEnv', { action: 'info', envId }],
     ['usage', 'queryEnv', { action: 'usage', envId }],
     [
+      'package-metadata',
+      'callCloudApi',
+      {
+        service: 'tcb',
+        action: 'DescribeBaasPackageList',
+        params: {
+          EnvId: envId,
+          PackageName: 'baas_pf_standard',
+          Source: 'qcloud',
+          EnvChannel: 'qc_console',
+          TargetAction: 'renew',
+        },
+      },
+    ],
+    [
       'blog-service',
       'queryCloudRun',
       { action: 'detail', serverName: 'blog-pages', revealEnvParams: false },

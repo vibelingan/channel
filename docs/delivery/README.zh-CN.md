@@ -41,6 +41,7 @@
 
 ## 从这里查看
 
+- [Blog 实例计费与续费核对](2026-10-26/BLOG-COST.zh-CN.md)、[正常部署分支收敛](2026-10-26/PROMOTION.zh-CN.md)。
 - [WeCom 群测配置与图文示例](2026-10-26/wecom/GUIDE.zh-CN.md)、[可直接发送的测试任务](2026-10-26/wecom/TEST-PROMPT.zh-CN.md)。
 - [完整总图](2026-10-26/diagrams/complete-delivery.html)、[文章发布时序](2026-10-26/diagrams/article-publication.html)、[助手草稿时序](2026-10-26/diagrams/assistant-draft.html)。
 - [按模块实施](2026-10-26/EXECUTION.zh-CN.md)、[当前工作记录](2026-10-26/WORKLOG.zh-CN.md)、[无害恢复演练范围](2026-10-26/DUMMY-LIVE-DRILL.zh-CN.md)。
