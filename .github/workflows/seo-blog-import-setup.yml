@@ -31,6 +31,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22.13.0, cache: pnpm}
       - run: pnpm install --frozen-lockfile
+      - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
       - name: Archive the exact scope, connect only the standard draft route, and register or revoke the owned pilot digest
         uses: actions/github-script@v7
         env:

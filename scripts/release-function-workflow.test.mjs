@@ -41,7 +41,7 @@ test('all manual modes select exactly one job and retain the existing shared tar
             ? 'blog_server_update'
             : mode.startsWith('function-')
               ? 'functions'
-              : ['dummy-recovery', 'dummy-readback'].includes(mode)
+              : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
                 ? 'dummy_recovery'
                 : mode === 'maintenance'
                   ? 'maintenance'

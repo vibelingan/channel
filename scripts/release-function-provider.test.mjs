@@ -246,3 +246,48 @@ test('capture returns the exact online ZIP with a secret-free stable snapshot', 
   assert.equal(read.configurationToken, captured.snapshot.configurationToken);
   assert.equal(read.packageSha256, captured.snapshot.packageSha256);
 });
+
+test('package GET retries a transient read but never retries code submission or leaks signed targets', async () => {
+  const f = functionManagerFixture();
+  let calls = 0;
+  const provider = createCloudbaseFunctionProvider({
+    ...f,
+    target,
+    region: 'ap-shanghai',
+    names: ['public-api'],
+    request: async (...args) => {
+      if (++calls === 1)
+        throw Object.assign(new Error('fixture request failed'), { code: 'ETIMEDOUT' });
+      return f.request(...args);
+    },
+  });
+  const actual = await provider.read('public-api');
+  assert.equal(calls, 2);
+  assert.equal(actual.packageSha256, sha256(f.state.bytes));
+  assert.equal(f.state.updates, 0);
+});
+test('permanent package errors keep a safe stage and do not retry or expose a signature', async () => {
+  const f = functionManagerFixture();
+  let calls = 0;
+  const provider = createCloudbaseFunctionProvider({
+    ...f,
+    target,
+    region: 'ap-shanghai',
+    names: ['public-api'],
+    request: async () => {
+      calls++;
+      throw Object.assign(new Error('do not expose https://private.example/?signature=secret'), {
+        code: 'EACCES',
+      });
+    },
+  });
+  await assert.rejects(
+    provider.read('public-api'),
+    (e) =>
+      e.stage === 'download-package' &&
+      e.causeCode === 'EACCES' &&
+      !e.message.includes('signature'),
+  );
+  assert.equal(calls, 1);
+  assert.equal(f.state.updates, 0);
+});

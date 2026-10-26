@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup]
         default: plan
         required: true
       product_source:
@@ -61,10 +61,10 @@ concurrency:
 
 jobs:
   dummy_recovery:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'dummy-recovery' || inputs.mode == 'dummy-readback') }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'dummy-recovery' || inputs.mode == 'dummy-readback' || inputs.mode == 'dummy-cleanup') }}
     uses: ./.github/workflows/seo-dummy-recovery.yml
     with:
-      operation: ${{ inputs.mode == 'dummy-readback' && 'readback' || inputs.action }}
+      operation: ${{ inputs.mode == 'dummy-readback' && 'readback' || inputs.mode == 'dummy-cleanup' && 'cleanup' || inputs.action }}
       expected_activation_id: ${{ inputs.expected_activation_id }}
       restore_run_id: ${{ inputs.restore_run_id }}
     secrets:

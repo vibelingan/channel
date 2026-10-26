@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import { readHttpWithRetry } from '../read-http-retry.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { checkFunctionArchive } from './function-archive.mjs';
 import { mergeFunctionEnvironment } from './function-config.mjs';
@@ -60,10 +61,25 @@ export function createCloudbaseFunctionProvider({
       return await callback((value) => {
         stage = value;
       });
-    } catch {
+    } catch (error) {
+      const causeCode = error?.code ?? error?.cause?.code;
       throw Object.assign(
         new Error(`Function provider ${stage} unconfirmed; inspect the release journal`),
-        { code: 'FUNCTION_PROVIDER_UNCONFIRMED', stage, functionName },
+        {
+          code: 'FUNCTION_PROVIDER_UNCONFIRMED',
+          stage,
+          functionName,
+          ...(/^[A-Z][A-Z0-9_]{0,80}$/.test(causeCode ?? '') ? { causeCode } : {}),
+          ...(/^[A-Za-z0-9_-]{1,128}$/.test(error?.requestId ?? '')
+            ? { requestId: error.requestId }
+            : {}),
+          errorClass:
+            error?.name === 'TimeoutError'
+              ? 'TimeoutError'
+              : error?.name === 'AbortError'
+                ? 'AbortError'
+                : 'Error',
+        },
       );
     }
   };
@@ -165,12 +181,17 @@ export function createCloudbaseFunctionProvider({
       )
         throw new Error('Invalid function download source');
       stage('download-package');
-      const response = await request('GET', url.href, {
-        signal,
-        timeoutMs: 15_000,
-        maxBytes: 16 * 1024 * 1024,
-        redirect: 'error',
-      });
+      const response = await readHttpWithRetry(
+        'GET',
+        url.href,
+        {
+          signal,
+          timeoutMs: 15_000,
+          maxBytes: 16 * 1024 * 1024,
+          redirect: 'error',
+        },
+        request,
+      );
       signal?.throwIfAborted();
       if (response.status !== 200) throw new Error('Function download failed');
       stage('configuration-readback');

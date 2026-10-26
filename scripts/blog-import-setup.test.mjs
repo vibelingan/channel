@@ -70,4 +70,8 @@ test('integration setup uses the shared manual queue, existing environment secre
   assert(action.env.TENCENTCLOUD_SECRETID && action.env.TENCENTCLOUD_SECRETKEY);
   assert(!Object.hasOwn(workflow.jobs.setup.env, 'TENCENTCLOUD_SECRETKEY'));
   assert(action.with.script.includes('import-setup-live.ts'));
+  const helperInstall = workflow.jobs.setup.steps.findIndex(
+    (s) => s.run === 'npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund',
+  );
+  assert(helperInstall >= 0 && helperInstall < workflow.jobs.setup.steps.indexOf(action));
 });

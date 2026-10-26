@@ -29,6 +29,7 @@ import {
   createCloudbaseReleaseStore,
 } from '../release/store-cloudbase.mjs';
 import { buildLiveDummyFunction } from './build-function.mjs';
+import { cleanupDummyResources } from './cleanup.mjs';
 import { journalDummyDelivery } from './journal.mjs';
 import { readDummyFixtures } from './read-fixtures.mjs';
 import { readbackDummyStatic } from './readback.mjs';
@@ -40,7 +41,7 @@ const env = process.env;
 const { codeSha, runId: githubRun } = readDummyInvocation(env);
 const operation = env.DUMMY_OPERATION;
 if (
-  !['initialize', 'publish', 'restore', 'readback'].includes(operation) ||
+  !['initialize', 'publish', 'restore', 'readback', 'cleanup'].includes(operation) ||
   !env.GITHUB_TOKEN ||
   !env.TENCENTCLOUD_SECRETID ||
   !env.TENCENTCLOUD_SECRETKEY
@@ -238,7 +239,35 @@ async function loadAccepted(run) {
 }
 await save();
 try {
-  if (operation === 'readback') {
+  if (operation === 'cleanup') {
+    const sourceA = await coordinator.runStatus(env.DUMMY_RESTORE_RUN_ID);
+    const baseline = await loadAccepted(sourceA);
+    bind(/^dummy-([1-9][0-9]*)-A$/.exec(sourceA.runId)?.[1]);
+    record.stage = 'remove-finished-dummy-only';
+    await save();
+    record.cleanup = await cleanupDummyResources({
+      manager,
+      db,
+      coordinator,
+      provider,
+      canaryProvider: createCanaryProvider({ manager, policy }),
+      health,
+      baseline,
+      seedRun,
+      expectedActivationId: env.DUMMY_EXPECTED_ACTIVATION,
+      output,
+      artifactClient,
+      githubRun,
+      attempt: env.GITHUB_RUN_ATTEMPT,
+      policy,
+      loadStatic: createDummyStaticLoader({
+        source: createGithubSource({ policy, token: env.GITHUB_TOKEN }),
+        policy,
+        output,
+      }),
+    });
+    record.websiteWrites = record.cleanup.fileDeletes;
+  } else if (operation === 'readback') {
     const functionStatus = await coordinator.status({ scopeKey: 'site' });
     assert.equal(functionStatus.scope.active.activationId, env.DUMMY_EXPECTED_ACTIVATION);
     record.stage = 'readback-interrupted-static-A';
@@ -636,7 +665,7 @@ try {
       );
     }
   }
-  if (operation !== 'readback') {
+  if (!['readback', 'cleanup'].includes(operation)) {
     record.stage = 'exercise-private-static-file';
     await save();
     record.websiteWrites = null;
@@ -663,7 +692,7 @@ try {
   assert.equal(identity(productionAfter), identity(productionBefore));
   const final = await coordinator.status({ scopeKey: 'site' });
   assert.equal(final.state, 'idle');
-  record.activationId = final.scope.active.activationId;
+  record.activationId = operation === 'cleanup' ? null : final.scope.active.activationId;
   record.status = 'passed';
   record.stage = 'complete';
   record.finishedAt = new Date().toISOString();
@@ -682,6 +711,11 @@ try {
 } catch (error) {
   record.status = 'stopped';
   record.error = error?.code ?? 'DUMMY_UNCONFIRMED';
+  if (/^[a-z-]{1,80}$/.test(error?.stage ?? '')) record.providerStage = error.stage;
+  if (/^[A-Z][A-Z0-9_]{0,80}$/.test(error?.causeCode ?? ''))
+    record.providerCauseCode = error.causeCode;
+  if (['TimeoutError', 'AbortError'].includes(error?.errorClass))
+    record.providerErrorClass = error.errorClass;
   if (error?.ledgerStage) record.ledgerStage = error.ledgerStage;
   if (/^[A-Za-z0-9_-]{1,128}$/.test(error?.requestId ?? ''))
     record.databaseRequestId = error.requestId;
