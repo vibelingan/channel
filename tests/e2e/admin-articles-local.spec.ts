@@ -105,6 +105,12 @@ test('real editor saves formatted content to disk, previews, reopens and survive
   await page.reload();
   await expect(editor.locator('h2').first()).toHaveText('Original heading');
   await expect(editor.locator('p').last()).toHaveText('Reviewed final paragraph.');
+  await page.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('region', { name: 'Draft preview' });
+  await expect(
+    preview.getByRole('heading', { level: 2, name: 'Original heading', exact: true }),
+  ).toBeVisible();
+  await expect(preview.locator('p').last()).toHaveText('Reviewed final paragraph.');
 });
 
 test('two real tabs conflict without overwriting either author input', async ({

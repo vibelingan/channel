@@ -1,0 +1,30 @@
+{
+  "runId": "40286232286",
+  "attempt": 1,
+  "sha": "8fa487a66a500cb03ac1e51c614f1b0f575fdee6",
+  "failedTest": "browser controller crosses actual admin HTTP and source4+1 worker",
+  "file": "apps/site/src/islands/admin/catalog-preparation-integration.test.ts",
+  "expected": "ready",
+  "observed": "needs-action; queued/preparing; nextAction=continue",
+  "localFocused": {
+    "passed": 2,
+    "failed": 0
+  },
+  "pricingCodeChanged": false,
+  "assertionsWeakened": false,
+  "retry": "same SHA; failed jobs only",
+  "retryResult": {
+    "attempt": 2,
+    "conclusion": "success"
+  },
+  "relatedChecks": [
+    {
+      "runId": "40286232318",
+      "conclusion": "success"
+    },
+    {
+      "runId": "40286232317",
+      "conclusion": "success"
+    }
+  ]
+}

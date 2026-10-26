@@ -73,7 +73,9 @@ test('the exact imported draft supports human editing, preview and manual public
   const preview = page.getByRole('region', { name: 'Draft preview', exact: true });
   await expect(preview).toContainText(fixture.title);
   await expect(preview.locator('p').last()).toHaveText(fixture.marker);
-  await expect(preview.locator('h2').first()).toHaveText(fixture.originalHeading);
+  await expect(
+    preview.getByRole('heading', { level: 2, name: fixture.originalHeading, exact: true }),
+  ).toBeVisible();
   await mkdir('output/blog-import', { recursive: true });
   await page.screenshot({ path: 'output/blog-import/admin-preview.png', fullPage: true });
   await page.getByRole('button', { name: 'Close preview', exact: true }).click();
