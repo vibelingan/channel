@@ -1,12 +1,12 @@
-当前生产群测说明见 [WeCom 配置与图文示例](../../docs/delivery/2026-10-26/wecom/GUIDE.zh-CN.md)。已新增可在 Node20.19 运行的单文件包与私有凭证文件启动器；下面保留原始开发和本地验收说明。
+当前生产群测说明见 [WeCom 配置与图文示例](../../docs/delivery/2026-10-26/wecom/GUIDE.zh-CN.md)。已新增可在 Node20.19 运行的单文件包与私有凭证文件启动器；下面说明当前源码和本地验收方式。
 
 # 本地内容助手的草稿工具
 
 本工具只有“保存草稿”和“查询自己的导入结果”两个能力。不能发布、撤回、删文、列出他人的草稿或读商品价格。它调用网站的独立article-import接口；不修改HermesInfra代码或生产配置。
 
-在仓库中运行`npm ci --prefix tools/hermes-blog`安装锁定的MIT开源MCP SDK，再用Node22启动`tools/hermes-blog/server.mjs`。HTTP读取复用仓库已测试的限时、限量读取器，因此需要保留完整仓库，不是单独复制server.mjs。
+开发时在仓库中运行`npm ci --prefix tools/hermes-blog`安装锁定依赖，设置`CHANNEL_BLOG_CREDENTIAL_FILE`为绝对私有文件路径，再执行`npm start --prefix tools/hermes-blog`。Node要求20.19或以上。`server.mjs`只定义工具，统一由`launch.mjs`读取私有文件后启动；生产使用CI打包的单文件，不复制源码。
 
-隔离运行配置需要以下环境变量；实际凭证只放在本机权限受限的文件或部署密钥管理中，不提交仓库，不发聊天：
+私有JSON文件使用以下配置键；进程环境只需文件路径。文件需为运行用户所有，权限0600，不提交仓库、不发聊天：
 
 - CHANNEL_BLOG_API_ORIGIN：固定为 `https://diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com`，这是新草稿接口使用的标准服务域名；已有商品接口地址不改。
 - CHANNEL_BLOG_SITE_ORIGIN：固定为https://supplychainsai.com。

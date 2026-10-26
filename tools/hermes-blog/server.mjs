@@ -1,9 +1,6 @@
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { BlogToolError, createBlogToolClient, readBlogToolConfig } from './client.mjs';
+import { BlogToolError } from './client.mjs';
 const input = z
   .object({
     idempotencyKey: z
@@ -79,13 +76,4 @@ export function createBlogMcpServer(client) {
     (args) => invoke(() => client.getImport(args.operationId)),
   );
   return server;
-}
-if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? '')) {
-  try {
-    const server = createBlogMcpServer(createBlogToolClient(readBlogToolConfig(process.env)));
-    await server.connect(new StdioServerTransport());
-  } catch {
-    console.error('网站草稿工具尚未启动：请核对本地隔离配置。');
-    process.exitCode = 1;
-  }
 }
