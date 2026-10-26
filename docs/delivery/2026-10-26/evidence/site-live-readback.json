@@ -1,0 +1,44 @@
+{
+  "githubRunId": "40255404911",
+  "executorSha": "51b33151eb245592e8d52235b3b26a2a45041f8e",
+  "websiteRunId": "site-40245662658-1",
+  "status": "accepted",
+  "websiteWrites": 0,
+  "verifiedUrls": 537,
+  "retainedObjects": 1191,
+  "preservedOutsideCandidateCount": 1107,
+  "observationHash": "f432770aa9a5bdbbf2d907ba0dc069832cfd31b67fb965a750c9fdb8280c3245",
+  "activation": {
+    "schemaVersion": 1,
+    "activationId": "2eaf53cb-a397-411c-98f6-ca811f672c85",
+    "sourceRunId": "site-40245662658-1",
+    "compositionHash": "11690b23146940edbd00184adf826ec27ae28b8dbe73d4a9af59ba0342cb218c",
+    "changeSetRef": "github:40255404911:read-only-acceptance",
+    "seals": {
+      "static": {
+        "schemaVersion": 1,
+        "activationId": "2eaf53cb-a397-411c-98f6-ca811f672c85",
+        "releaseId": "site-40245662658-1",
+        "codeSha": "0f54e28d4be33ab7b2741bcd46c920c46d51c0e3",
+        "artifact": {
+          "repository": "vibelingan/channel",
+          "workflowPath": ".github/workflows/seo-static-canary.yml",
+          "runId": "40245662658",
+          "artifactId": "12618383780",
+          "expiresAt": "2027-01-23T23:38:18Z",
+          "manifestSha256": "19e52614c24396f1966d76552224787672d94232794d2f9bb41b11d716e54cd6"
+        },
+        "target": {
+          "envId": "diversity-123-d9grnqfux221323bb",
+          "siteOrigin": "https://supplychainsai.com"
+        },
+        "scope": {
+          "kind": "site"
+        }
+      }
+    },
+    "acceptedAt": 1792979593864
+  },
+  "isCurrent": true,
+  "fullEvidence": "https://github.com/vibelingan/channel/actions/runs/40255404911"
+}

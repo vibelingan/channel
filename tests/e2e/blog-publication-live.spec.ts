@@ -143,7 +143,7 @@ test('the real public admin requests publication only for its owned acceptance a
     else
       await page
         .getByRole('button', {
-          name: operation === 'update' ? 'Save and publish update' : 'Save and publish',
+          name: /^Save and publish(?: update)?$/,
           exact: true,
         })
         .click();
