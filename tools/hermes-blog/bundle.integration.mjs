@@ -91,7 +91,12 @@ test('the bundle starts one server, ignores legacy credential environment, and e
   );
   const child = spawn(process.execPath, [join(dir, 'server.mjs')], {
     cwd: dir,
-    env: { PATH: process.env.PATH, ...config, CHANNEL_BLOG_CREDENTIAL_FILE: file },
+    env: {
+      PATH: process.env.PATH,
+      ...config,
+      CHANNEL_BLOG_CREDENTIAL: 'legacy.invalid',
+      CHANNEL_BLOG_CREDENTIAL_FILE: file,
+    },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   t.after(() => {

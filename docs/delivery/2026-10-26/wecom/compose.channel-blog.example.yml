@@ -1,0 +1,7 @@
+# Only for the identified Compose deployment containing agent-publisher.
+# Keep the original compose files and persistent Hermes volume.
+services:
+  agent-publisher:
+    volumes:
+      - ${CHANNEL_BLOG_TOOL_FILE:?absolute verified release file}:/opt/channel-blog/channel-blog-mcp.mjs:ro
+      - ${CHANNEL_BLOG_SECRET_FILE:?absolute private credential file}:/run/secrets/channel-blog.json:ro

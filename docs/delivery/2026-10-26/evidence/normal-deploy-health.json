@@ -1,0 +1,49 @@
+{
+  "checkedAt": "2026-10-26T12:46:40.194Z",
+  "checks": [
+    {
+      "path": "/api/health",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "data": {
+          "status": "ok",
+          "service": "public-api",
+          "releaseId": "914438425aa5b12193707d34c146f90372aff94e",
+          "buildTime": "2026-10-26T12:00:03.261Z",
+          "articlePublicReadEnabled": true
+        }
+      }
+    },
+    {
+      "path": "/api/alibaba-catalog-sync/health",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "data": {
+          "status": "ok",
+          "service": "alibaba-catalog-sync",
+          "releaseId": "914438425aa5b12193707d34c146f90372aff94e",
+          "buildTime": "2026-10-26T12:00:04.317Z"
+        }
+      }
+    },
+    {
+      "path": "/api/admin",
+      "method": "POST",
+      "action": "health",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "data": {
+          "status": "ok",
+          "service": "admin",
+          "releaseId": "914438425aa5b12193707d34c146f90372aff94e",
+          "buildTime": "2026-10-26T12:00:03.168Z",
+          "articleDeliveryMode": "server",
+          "articlePublishingEnabled": true
+        }
+      }
+    }
+  ]
+}

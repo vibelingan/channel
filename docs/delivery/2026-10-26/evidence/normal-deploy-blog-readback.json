@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-10-26T12:54:20.286Z",
+  "businessWrites": 0,
+  "checks": [
+    {
+      "url": "https://supplychainsai.com/blog/",
+      "status": 200,
+      "noindex": "noindex,nofollow",
+      "bytes": 29485,
+      "articleHtml": true
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "status": 200,
+      "noindex": "noindex,nofollow",
+      "bytes": 32003,
+      "articleHtml": true
+    },
+    {
+      "url": "https://supplychainsai.com/blog/sitemap.xml",
+      "status": 200,
+      "noindex": "noindex,nofollow",
+      "bytes": 299,
+      "articleHtml": false
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-brief-hermes-acceptance-20261026/",
+      "status": 404,
+      "noindex": "noindex,nofollow",
+      "bytes": 23984,
+      "articleHtml": false
+    }
+  ]
+}
