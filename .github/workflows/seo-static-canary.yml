@@ -6,7 +6,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw]
+        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup]
         default: plan
         required: true
       product_source:
@@ -43,7 +43,7 @@ on:
         type: string
         required: true
       plan_token:
-        description: Reviewed plan token; maintenance uses backup-v1 plus the base64 preparation record
+        description: Reviewed plan token; maintenance uses backup-v1; blog-import-setup uses only the local pilot secret SHA-256
         type: string
       reason:
         description: Operator reason, retained with the reviewed plan
@@ -305,6 +305,14 @@ jobs:
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
+
+  blog_import_setup:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-import-setup' }}
+    uses: ./.github/workflows/seo-blog-import-setup.yml
+    with:
+      operation: ${{ inputs.action == 'initialize' && 'initialize' || inputs.action == 'restore' && 'revoke' || 'invalid' }}
+      key_digest: ${{ inputs.plan_token }}
+    secrets: inherit
 
   blog_server_stage:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-server-stage' }}

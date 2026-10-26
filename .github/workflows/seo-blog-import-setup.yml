@@ -1,0 +1,55 @@
+name: Prepare the isolated Blog draft integration
+on:
+  workflow_call:
+    inputs:
+      operation: {type: string, required: true}
+      key_digest: {type: string, required: true}
+    secrets:
+      TENCENTCLOUD_SECRETID: {required: true}
+      TENCENTCLOUD_SECRETKEY: {required: true}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  setup:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      IMPORT_SETUP_OPERATION: ${{ inputs.operation }}
+      IMPORT_SETUP_KEY_DIGEST: ${{ inputs.key_digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Archive the exact scope, connect only the standard draft route, and register or revoke the owned pilot digest
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        with:
+          script: |
+            const {spawn} = require('node:child_process');
+            await new Promise((resolve,reject) => {
+              const child=spawn('./apps/site/node_modules/.bin/tsx',['scripts/blog/import-setup-live.ts'],{stdio:'inherit',env:process.env});
+              child.once('error',reject);
+              child.once('exit',code=>code===0?resolve():reject(new Error('Draft integration setup stopped; inspect its saved stage')));
+            });
+      - name: Keep actual setup evidence without plaintext credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: article-import-setup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/article-import-setup/
+          if-no-files-found: ignore
+          retention-days: 90
