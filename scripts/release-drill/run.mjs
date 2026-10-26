@@ -29,7 +29,7 @@ import {
 import { buildLiveDummyFunction } from './build-function.mjs';
 import { journalDummyDelivery } from './journal.mjs';
 import { readDummyFixtures } from './read-fixtures.mjs';
-import { ensureDummyResources } from './resources.mjs';
+import { prepareDummyInitialization } from './resources.mjs';
 import { createDummyInvoker, readDummyInvocation } from './runtime.mjs';
 import { exerciseDummyStatic } from './static.mjs';
 
@@ -234,16 +234,7 @@ await save();
 try {
   if (operation === 'initialize') {
     record.stage = 'prepare-fixed-test-resources';
-    if ((await coordinator.status()).state !== 'uninitialized')
-      throw Error('An earlier drill exists; inspect it before initializing');
-    const functions = await manager.functions.listFunctions(100, 0);
-    if (
-      !Array.isArray(functions) ||
-      functions.length >= 100 ||
-      functions.some((f) => f.FunctionName === name)
-    )
-      throw Error('The temporary function name is occupied');
-    record.collections = await ensureDummyResources(manager);
+    record.collections = await prepareDummyInitialization(manager, coordinator);
     await save();
     bind(githubRun);
     const built = await buildLiveDummyFunction({

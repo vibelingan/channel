@@ -37,7 +37,7 @@
 | 对象 | 只允许的范围 | 恢复方式 |
 | --- | --- | --- |
 | 假函数 | `seo-release-dummy`；Event / Nodejs20.19 / `index.main`；无触发器，不增加公开网关 | 保存并核验 A 的原 ZIP，恢复时原样上传，只改这一个函数的代码 |
-| 假页面 | `__release-canary/dummy/` 下本次清单中的 HTML 和资源；明确 noindex、不加导航、不进 sitemap | 恢复本次清单对应的 A 文件，不上传整站 dist，不改全站缓存或 404 配置 |
+| 假页面 | `__release-canary/index.html` 这一份测试 HTML；明确 noindex、不加导航、不进 sitemap | 恢复本次清单对应的 A 文件，不上传整站 dist，不改全站缓存或 404 配置 |
 | 测试记录 | `seoReleaseDrillFixtures`，仅本次 `seo-drill-<runId>-…` 记录 | 代码恢复时保留 B 的数据；单独验证补偿时才按预期 revision 修改精确记录；停用标记保留 |
 | 演练发布记录 | 独立的 `seoReleaseDrillTargets`、`seoReleaseDrillScopes`、`seoReleaseDrillRuns`、`seoReleaseDrillSteps` | 留下 A/B/恢复记录，不写现有整站的当前版本记录；新集合创建前逐个查重并核对 ADMINONLY 权限 |
 

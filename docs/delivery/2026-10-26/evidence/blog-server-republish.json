@@ -1,0 +1,32 @@
+{
+  "runId": "40259020025",
+  "status": "passed",
+  "sourceSha": "51b33151eb245592e8d52235b3b26a2a45041f8e",
+  "executorSha": "20f476fa91947a5ee902e37ac9625a2128491370",
+  "server": {
+    "articleId": "article-08c9c17b1eed3ddff3c0d8d1f1e893a84dc6da8d263b2e23dda2c884e154935b",
+    "taskId": "release-0190bfbf1c9f9f7cd2d746c2b6f8f3f0c9c5759ad1af950bba52766b664a5eed",
+    "revision": 3,
+    "htmlStatus": 200,
+    "apiStatus": 200,
+    "sitemapStatus": 200,
+    "withdrawn": false,
+    "noBuildReceipt": true
+  },
+  "database": {
+    "articleId": "article-08c9c17b1eed3ddff3c0d8d1f1e893a84dc6da8d263b2e23dda2c884e154935b",
+    "revision": 3,
+    "taskId": "release-0190bfbf1c9f9f7cd2d746c2b6f8f3f0c9c5759ad1af950bba52766b664a5eed",
+    "state": "SUCCEEDED",
+    "error": null,
+    "published": {
+      "revision": 3,
+      "slug": "oem-project-brief-acceptance-40249243887",
+      "contentHash": "81db466452951f525e873bca6dcf954d3ebbbc3886ab9dd4d4f63a39721bd4d3",
+      "publishedAt": "2026-10-26T00:26:21.072Z",
+      "modifiedAt": "2026-10-26T02:26:50.573Z"
+    },
+    "originalImageRetained": true,
+    "imageBytes": 96776
+  }
+}
