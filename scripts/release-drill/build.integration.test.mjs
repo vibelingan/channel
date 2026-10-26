@@ -8,6 +8,7 @@ import test from 'node:test';
 import { loadDummyFunction } from '../release/dummy-recovery-fixture.mjs';
 import { checkFunctionArchive } from '../release/function-archive.mjs';
 import { buildLiveDummyFunction } from './build-function.mjs';
+import { dummyFunctionConfiguration } from './runtime.mjs';
 test('the actual SDK is bundled in the standalone live function; archived A still preserves B data', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'live-dummy-bundle-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -41,9 +42,8 @@ test('the actual SDK is bundled in the standalone live function; archived A stil
       cwd: actual,
       env: {
         PATH: process.env.PATH,
-        TCB_ENV: 'diversity-123-d9grnqfux221323bb',
-        DUMMY_RUN_ID: '123',
-        DUMMY_TOKEN_DIGEST: createHash('sha256').update(token).digest('hex'),
+        ...dummyFunctionConfiguration('123', createHash('sha256').update(token).digest('hex'))
+          .envVariables,
       },
       timeout: 15000,
     },

@@ -47,6 +47,11 @@ export function createDummyInvoker({ manager, token, onResponse = () => {} }) {
         (value) => typeof value === 'string' && value.includes('Drill authentication failed'),
       ),
     });
+    if (result?.ErrMsg?.includes('Explicit isolated recovery fixture configuration required'))
+      throw Object.assign(
+        Error('Dummy function is missing its explicit environment or run configuration'),
+        { code: 'DUMMY_CONFIGURATION_UNCONFIRMED' },
+      );
     if (
       !result?.RequestId ||
       typeof result.RetMsg !== 'string' ||
@@ -80,5 +85,27 @@ export function createDummyInvoker({ manager, token, onResponse = () => {} }) {
     } catch {
       throw Error('Dummy execution returned invalid data');
     }
+  };
+}
+
+/** Creation and the native bundle check must use the same explicit environment. */
+export function dummyFunctionConfiguration(runId, tokenDigest) {
+  if (!/^[1-9][0-9]{0,19}$/.test(runId ?? '') || !/^[a-f0-9]{64}$/.test(tokenDigest ?? ''))
+    throw Error('Explicit dummy run and credential digest required');
+  return {
+    name: 'seo-release-dummy',
+    type: 'Event',
+    runtime: 'Nodejs20.19',
+    handler: 'index.main',
+    timeout: 15,
+    memorySize: 256,
+    role: 'TCB_QcsRole',
+    installDependency: false,
+    triggers: [],
+    envVariables: {
+      TCB_ENV: 'diversity-123-d9grnqfux221323bb',
+      DUMMY_RUN_ID: runId,
+      DUMMY_TOKEN_DIGEST: tokenDigest,
+    },
   };
 }

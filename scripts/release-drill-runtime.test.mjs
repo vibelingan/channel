@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createDummyInvoker, readDummyInvocation } from './release-drill/runtime.mjs';
+import {
+  createDummyInvoker,
+  dummyFunctionConfiguration,
+  readDummyInvocation,
+} from './release-drill/runtime.mjs';
 
 const env = {
   GITHUB_ACTIONS: 'true',
@@ -55,5 +59,25 @@ test('dummy RPC never accepts a platform acknowledgement as business success or 
     response = bad;
     await assert.rejects(invoke({ action: 'health' }));
   }
+  response = {
+    ...response,
+    ErrMsg: 'Explicit isolated recovery fixture configuration required ' + 'f'.repeat(64),
+  };
+  await assert.rejects(
+    invoke({ action: 'health' }),
+    (error) =>
+      error.code === 'DUMMY_CONFIGURATION_UNCONFIRMED' && !error.message.includes('f'.repeat(64)),
+  );
   await assert.rejects(invoke({ action: 'health', token: 'override' }));
+});
+
+test('deployed dummy configuration explicitly binds its environment and never accepts another target', () => {
+  const config = dummyFunctionConfiguration('123', 'a'.repeat(64));
+  assert.equal(config.envVariables.TCB_ENV, 'diversity-123-d9grnqfux221323bb');
+  assert.equal(config.envVariables.DUMMY_RUN_ID, '123');
+  assert.equal(config.name, 'seo-release-dummy');
+  assert.deepEqual(config.triggers, []);
+  assert.equal(config.installDependency, false);
+  assert.throws(() => dummyFunctionConfiguration('', 'a'.repeat(64)));
+  assert.throws(() => dummyFunctionConfiguration('123', 'raw-credential'));
 });

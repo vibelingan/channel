@@ -30,7 +30,7 @@ import { buildLiveDummyFunction } from './build-function.mjs';
 import { journalDummyDelivery } from './journal.mjs';
 import { readDummyFixtures } from './read-fixtures.mjs';
 import { prepareDummyInitialization } from './resources.mjs';
-import { createDummyInvoker, readDummyInvocation } from './runtime.mjs';
+import { createDummyInvoker, dummyFunctionConfiguration, readDummyInvocation } from './runtime.mjs';
 import { exerciseDummyStatic } from './static.mjs';
 
 const env = process.env;
@@ -243,24 +243,16 @@ try {
       codeSha,
     });
     checkFunctionArchive(built.bytes, { smoke: true });
+    record.stage = 'create-private-dummy-A';
     record.status = 'creating-dummy';
     await save();
     await manager.functions.createFunction({
-      func: {
-        name,
-        type: 'Event',
-        runtime: 'Nodejs20.19',
-        handler: 'index.main',
-        timeout: 15,
-        memorySize: 256,
-        role: 'TCB_QcsRole',
-        installDependency: false,
-        triggers: [],
-        envVariables: { DUMMY_RUN_ID: seedRun, DUMMY_TOKEN_DIGEST: sha256(token) },
-      },
+      func: dummyFunctionConfiguration(seedRun, sha256(token)),
       base64Code: built.bytes.toString('base64'),
       deployMode: 'zip',
     });
+    record.stage = 'verify-private-dummy-A';
+    await save();
     await ready('A', codeSha);
     let denied;
     await assert.rejects(
