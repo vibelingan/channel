@@ -6,9 +6,15 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup]
+        options: [cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup]
         default: plan
         required: true
+      integration_profile:
+        description: Fixed draft credential owner; local is the completed pilot, wecom is the publishing helper
+        type: choice
+        options: [local, wecom]
+        default: local
+        required: false
       product_source:
         description: Full acquisition by default; accepted reuses the last verified details, excludes withdrawals and refuses new product IDs
         type: choice
@@ -60,6 +66,10 @@ concurrency:
   queue: max
 
 jobs:
+  cloud_readiness:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'cloud-readiness' }}
+    uses: ./.github/workflows/seo-cloud-readiness.yml
+    secrets: inherit
   dummy_recovery:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && (inputs.mode == 'dummy-recovery' || inputs.mode == 'dummy-readback' || inputs.mode == 'dummy-cleanup') }}
     uses: ./.github/workflows/seo-dummy-recovery.yml
@@ -312,6 +322,7 @@ jobs:
     with:
       operation: ${{ inputs.action == 'initialize' && 'initialize' || inputs.action == 'restore' && 'revoke' || 'invalid' }}
       key_digest: ${{ inputs.plan_token }}
+      profile: ${{ inputs.integration_profile || 'local' }}
     secrets: inherit
 
   blog_server_stage:

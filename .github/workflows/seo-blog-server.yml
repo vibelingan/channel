@@ -28,9 +28,22 @@ jobs:
           node-version: '22.13.0'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: npm ci --prefix tools/hermes-blog --ignore-scripts --no-audit --no-fund
       - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
       - run: node tools/cloud-handoff/check-runtime.mjs
       - run: node --test tools/cloud-handoff/transport.integration.mjs
+      - run: npm test --prefix tools/hermes-blog
+      - run: ./apps/functions/article-import/node_modules/.bin/tsup --config tools/hermes-blog/tsup.config.mjs
+      - uses: actions/setup-node@v4
+        with: {node-version: 20.19.0}
+      - run: node --test tools/hermes-blog/bundle.integration.mjs
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-blog-tool-${{ github.sha }}
+          path: output/hermes-blog-bundle/channel-blog-mcp.mjs
+          if-no-files-found: error
       - run: pnpm --filter @vibelingan-channel/articles test
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test src/article-public-reader.test.ts
       - run: pnpm --filter @vibelingan-channel/site build:blog-server

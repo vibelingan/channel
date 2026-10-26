@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "微信群创作 → 私有草稿 → 人工配图和发布",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 550]
+  },
+  "participants": [
+    {
+      "id": "wecom",
+      "type": "frontend",
+      "label": "企业微信群",
+      "sublabel": "你提出想法"
+    },
+    {
+      "id": "hermes",
+      "type": "backend",
+      "label": "内容 / 发布助手",
+      "sublabel": "保留现有分工"
+    },
+    {
+      "id": "import",
+      "type": "security",
+      "label": "网站草稿工具",
+      "sublabel": "仅存草稿与查结果"
+    },
+    {
+      "id": "db",
+      "type": "backend",
+      "label": "网站文章后端",
+      "sublabel": "API / Astro / CloudBase"
+    },
+    {
+      "id": "human",
+      "type": "frontend",
+      "label": "原网站后台",
+      "sublabel": "人审核、补图、预览"
+    },
+    {
+      "id": "reader",
+      "type": "external",
+      "label": "访客 / 搜索引擎",
+      "sublabel": "Astro 返回正文 HTML"
+    }
+  ],
+  "messages": [
+    {
+      "id": "wecom-0",
+      "from": "wecom",
+      "to": "hermes",
+      "label": "给出主题、写作要求、图片想法",
+      "variant": "default",
+      "y": 160
+    },
+    {
+      "id": "wecom-1",
+      "from": "hermes",
+      "to": "import",
+      "label": "发布助手调用保存草稿；不公开",
+      "variant": "security",
+      "y": 192
+    },
+    {
+      "id": "wecom-2",
+      "from": "import",
+      "to": "db",
+      "label": "校验独立凭证，事务去重写入",
+      "variant": "security",
+      "y": 224
+    },
+    {
+      "id": "wecom-3",
+      "from": "db",
+      "to": "import",
+      "label": "确认保存成功及文章编号",
+      "variant": "return",
+      "y": 256
+    },
+    {
+      "id": "wecom-4",
+      "from": "import",
+      "to": "hermes",
+      "label": "返回后台编辑链接",
+      "variant": "return",
+      "y": 288
+    },
+    {
+      "id": "wecom-5",
+      "from": "hermes",
+      "to": "wecom",
+      "label": "把草稿链接与图片建议交给你",
+      "variant": "return",
+      "y": 320
+    },
+    {
+      "id": "wecom-6",
+      "from": "wecom",
+      "to": "human",
+      "label": "打开链接，登录并补充图片",
+      "variant": "default",
+      "y": 352
+    },
+    {
+      "id": "wecom-7",
+      "from": "human",
+      "to": "db",
+      "label": "人工点击发布，确认公开版本",
+      "variant": "emphasis",
+      "y": 384
+    },
+    {
+      "id": "wecom-8",
+      "from": "reader",
+      "to": "db",
+      "label": "文章服务读取当前公开版本",
+      "variant": "default",
+      "y": 416
+    },
+    {
+      "id": "wecom-9",
+      "from": "db",
+      "to": "reader",
+      "label": "返回正文、图片、列表与 sitemap",
+      "variant": "return",
+      "y": 448
+    }
+  ]
+}

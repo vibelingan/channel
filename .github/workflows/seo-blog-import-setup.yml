@@ -4,6 +4,7 @@ on:
     inputs:
       operation: {type: string, required: true}
       key_digest: {type: string, required: true}
+      profile: {type: string, required: false, default: local}
     secrets:
       TENCENTCLOUD_SECRETID: {required: true}
       TENCENTCLOUD_SECRETKEY: {required: true}
@@ -23,6 +24,7 @@ jobs:
       SITE_URL: ${{ vars.SITE_URL }}
       IMPORT_SETUP_OPERATION: ${{ inputs.operation }}
       IMPORT_SETUP_KEY_DIGEST: ${{ inputs.key_digest }}
+      IMPORT_SETUP_PROFILE: ${{ inputs.profile }}
     steps:
       - uses: actions/checkout@v4
         with: {ref: '${{ github.sha }}', persist-credentials: false}

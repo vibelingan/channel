@@ -10,13 +10,20 @@ export const IMPORT_SETUP = Object.freeze({
   integrationId: 'hermes-local-20261026',
   keyId: 'hermes-local-20261026-key',
 });
+export const WECOM_SETUP = Object.freeze({
+  ...IMPORT_SETUP,
+  integrationId: 'hermes-wecom-supplychainsai',
+  keyId: 'hermes-wecom-supplychainsai-01',
+});
 export function assertImportSetupInput(env) {
   if (
     !['initialize', 'revoke'].includes(env.IMPORT_SETUP_OPERATION) ||
     !/^[a-f0-9]{64}$/.test(env.IMPORT_SETUP_KEY_DIGEST ?? '')
   )
     throw Error('An explicit setup operation and local pilot credential digest are required');
-  return IMPORT_SETUP;
+  if (!['local', 'wecom'].includes(env.IMPORT_SETUP_PROFILE ?? 'local'))
+    throw Error('Unknown draft integration profile');
+  return env.IMPORT_SETUP_PROFILE === 'wecom' ? WECOM_SETUP : IMPORT_SETUP;
 }
 export function assertImportRoute(route) {
   const p = IMPORT_SETUP;
@@ -36,9 +43,13 @@ export function assertImportRoute(route) {
   )
     throw Error('The standard-domain draft route differs from its fixed scope');
 }
-export function pilotIntegration(before, digest, operation, now = Date.now()) {
-  assertImportSetupInput({ IMPORT_SETUP_OPERATION: operation, IMPORT_SETUP_KEY_DIGEST: digest });
-  const p = IMPORT_SETUP;
+export function pilotIntegration(before, digest, operation, now = Date.now(), profile = 'local') {
+  const p = assertImportSetupInput({
+    IMPORT_SETUP_OPERATION: operation,
+    IMPORT_SETUP_KEY_DIGEST: digest,
+    IMPORT_SETUP_PROFILE: profile,
+  });
+  const lifetime = (profile === 'wecom' ? 14 * 24 : 2) * 60 * 60 * 1000;
   if (!Number.isSafeInteger(now) || now < 0) throw Error('Explicit valid credential time required');
   if (before === null) {
     if (operation === 'revoke') throw Error('No owned pilot credential to revoke');
@@ -48,7 +59,7 @@ export function pilotIntegration(before, digest, operation, now = Date.now()) {
       integrationId: p.integrationId,
       secretDigest: digest,
       enabled: true,
-      expiresAt: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(now + lifetime).toISOString(),
       configRevision: 1,
     };
   }
@@ -66,7 +77,7 @@ export function pilotIntegration(before, digest, operation, now = Date.now()) {
       !before.enabled ||
       before.configRevision !== 1 ||
       !(Date.parse(before.expiresAt) > now) ||
-      Date.parse(before.expiresAt) > now + 2 * 60 * 60 * 1000
+      Date.parse(before.expiresAt) > now + lifetime
     )
       throw Error('Existing pilot cannot be reenabled or extended');
     return before;

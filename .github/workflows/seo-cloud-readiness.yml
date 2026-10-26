@@ -1,0 +1,33 @@
+name: Read current CloudBase billing and Blog settings
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  read:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ap-shanghai
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
+      - name: Read fixed environment, current usage, existing Blog settings and account balance
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/blog/cloud-readiness.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloud-readiness-${{ github.run_id }}
+          path: output/cloud-readiness/result.json
+          if-no-files-found: error
+          retention-days: 7

@@ -4,6 +4,7 @@ import test from 'node:test';
 import { parse } from 'yaml';
 import {
   IMPORT_SETUP,
+  WECOM_SETUP,
   assertImportRoute,
   assertImportSetupInput,
   pilotIntegration,
@@ -74,4 +75,17 @@ test('integration setup uses the shared manual queue, existing environment secre
     (s) => s.run === 'npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund',
   );
   assert(helperInstall >= 0 && helperInstall < workflow.jobs.setup.steps.indexOf(action));
+});
+
+test('the WeCom helper has its own fourteen-day draft credential and cannot reuse or revive the local pilot', () => {
+  const row = pilotIntegration(null, digest, 'initialize', now, 'wecom');
+  assert.equal(row._id, WECOM_SETUP.keyId);
+  assert.equal(row.integrationId, WECOM_SETUP.integrationId);
+  assert.equal(Date.parse(row.expiresAt) - now, 14 * 24 * 3600000);
+  assert.notEqual(row._id, IMPORT_SETUP.keyId);
+  assert.throws(() => pilotIntegration(row, digest, 'initialize', now, 'local'));
+  const revoked = pilotIntegration(row, digest, 'revoke', now, 'wecom');
+  assert.equal(revoked.enabled, false);
+  assert.throws(() => pilotIntegration(revoked, digest, 'initialize', now, 'wecom'));
+  assert.throws(() => pilotIntegration(row, digest, 'initialize', now, 'unknown'));
 });

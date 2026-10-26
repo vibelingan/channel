@@ -33,44 +33,46 @@ test('all manual modes select exactly one job and retain the existing shared tar
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
     assert.deepEqual(selected, [
-      mode === 'blog-import-setup'
-        ? 'blog_import_setup'
-        : mode === 'site-readback'
-          ? 'site_readback'
-          : mode === 'blog-server-update'
-            ? 'blog_server_update'
-            : mode.startsWith('function-')
-              ? 'functions'
-              : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
-                ? 'dummy_recovery'
-                : mode === 'maintenance'
-                  ? 'maintenance'
-                  : mode === 'blog-server-route'
-                    ? 'blog_server_route'
-                    : mode === 'blog-server-switch'
-                      ? 'blog_server_switch'
-                      : mode === 'blog-server-apis'
-                        ? 'blog_server_apis'
-                        : mode === 'blog-server-stage'
-                          ? 'blog_server_stage'
-                          : mode === 'blog-bootstrap'
-                            ? 'blog_bootstrap'
-                            : mode === 'site-delivery'
-                              ? 'site_delivery'
-                              : mode === 'blog-enable'
-                                ? 'blog_enable'
-                                : [
-                                      'blog-create',
-                                      'blog-retry',
-                                      'blog-update',
-                                      'blog-withdraw',
-                                      'blog-check',
-                                      'blog-import-review',
-                                      'blog-import-publish',
-                                      'blog-import-withdraw',
-                                    ].includes(mode)
-                                  ? 'blog_acceptance'
-                                  : 'canary',
+      mode === 'cloud-readiness'
+        ? 'cloud_readiness'
+        : mode === 'blog-import-setup'
+          ? 'blog_import_setup'
+          : mode === 'site-readback'
+            ? 'site_readback'
+            : mode === 'blog-server-update'
+              ? 'blog_server_update'
+              : mode.startsWith('function-')
+                ? 'functions'
+                : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
+                  ? 'dummy_recovery'
+                  : mode === 'maintenance'
+                    ? 'maintenance'
+                    : mode === 'blog-server-route'
+                      ? 'blog_server_route'
+                      : mode === 'blog-server-switch'
+                        ? 'blog_server_switch'
+                        : mode === 'blog-server-apis'
+                          ? 'blog_server_apis'
+                          : mode === 'blog-server-stage'
+                            ? 'blog_server_stage'
+                            : mode === 'blog-bootstrap'
+                              ? 'blog_bootstrap'
+                              : mode === 'site-delivery'
+                                ? 'site_delivery'
+                                : mode === 'blog-enable'
+                                  ? 'blog_enable'
+                                  : [
+                                        'blog-create',
+                                        'blog-retry',
+                                        'blog-update',
+                                        'blog-withdraw',
+                                        'blog-check',
+                                        'blog-import-review',
+                                        'blog-import-publish',
+                                        'blog-import-withdraw',
+                                      ].includes(mode)
+                                    ? 'blog_acceptance'
+                                    : 'canary',
     ]);
   }
   assert.deepEqual(workflow.concurrency, {
@@ -79,7 +81,7 @@ test('all manual modes select exactly one job and retain the existing shared tar
     queue: 'max',
   });
   assert.equal(workflow.jobs.functions.environment, 'test');
-  assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 10);
+  assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 11);
 });
 test('function workflow runs credentials only in the two function commands and archives before executing', () => {
   const job = workflow.jobs.functions;

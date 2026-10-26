@@ -393,6 +393,11 @@ test('normal static publication reuses the frozen build and common recovery whil
   assert.equal(resolveSnapshot('1'), '');
   assert.equal(steps[exportBlog].if, "${{ vars.BLOG_SERVER_ENABLED != '1' }}");
   assert.equal(release.jobs.deploy.env.CHANNEL_COORDINATED_SITE_DELIVERY, '1');
+  assert.equal(
+    release.jobs.deploy.env.PUBLIC_BLOG_WORKSPACE,
+    '0',
+    'formal deployment must retain all existing admin sections',
+  );
   for (const index of [seal, functionBackup, preserve, delivery]) {
     assert.equal(steps[index].if, undefined);
     assert.equal(steps[index]['continue-on-error'], undefined);

@@ -105,3 +105,7 @@ test('unresolved tasks, missing keys, malformed, oversized and failed responses 
   ])
     await assert.rejects(execute([], false, undefined, { fetch: async () => response }));
 });
+
+test('server-rendered articles do not schedule the retired static publication clock', () => {
+  assert.equal(workflow.on.schedule, undefined);
+});

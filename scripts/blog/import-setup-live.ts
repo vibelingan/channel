@@ -91,6 +91,8 @@ try {
     current,
     env.IMPORT_SETUP_KEY_DIGEST,
     env.IMPORT_SETUP_OPERATION,
+    Date.now(),
+    env.IMPORT_SETUP_PROFILE ?? 'local',
   );
   const plan = {
     schemaVersion: 1,
