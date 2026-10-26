@@ -27,9 +27,11 @@ export async function exerciseDummyStatic({
       throw Error('An accepted private static A is required');
     const artifactId = run.composition.static.artifact.artifactId;
     const directory = join(output, `static-source-${artifactId}`);
+    await source.requireCI(run.composition.static.codeSha);
+    const acceptedOptions = { acceptedSeal: run.accepted.seals.static };
     const metadata = downloaded.has(artifactId)
-      ? (await source.metadata(artifactId)).metadata
-      : await source.download(artifactId, directory);
+      ? (await source.metadata(artifactId, acceptedOptions)).metadata
+      : await source.download(artifactId, directory, acceptedOptions);
     downloaded.set(artifactId, true);
     return canaryArtifact({
       directory,

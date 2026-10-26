@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertCanaryPolicy } from './canary.mjs';
 import { createGithubReadClient } from './github-read.mjs';
-import { freeze, sha256 } from './input.mjs';
+import { freeze, isHash, sha256 } from './input.mjs';
 
 const positiveId = (id) =>
   (typeof id !== 'number' || Number.isSafeInteger(id)) && /^[1-9][0-9]{0,19}$/.test(String(id));
@@ -38,6 +38,7 @@ export function validateArtifactSource({
   policy,
   now = Date.now(),
   allowCurrentRunId,
+  acceptedSeal,
   artifactPrefix = 'static-canary-payload',
   maxBytes = 1_048_576,
 }) {
@@ -51,6 +52,30 @@ export function validateArtifactSource({
   )
     throw new Error('Invalid artifact profile');
   const ref = policy.trustedRef.slice('refs/heads/'.length);
+  // A completed component remains recoverable if a later step made the producer fail.
+  // Callers obtain this seal from the authenticated release journal; candidates have no seal.
+  const refSeal = acceptedSeal?.artifact;
+  const acceptedFailure =
+    run.status === 'completed' &&
+    run.conclusion === 'failure' &&
+    acceptedSeal?.schemaVersion === 1 &&
+    typeof acceptedSeal.activationId === 'string' &&
+    acceptedSeal.activationId.trim().length > 0 &&
+    typeof acceptedSeal.releaseId === 'string' &&
+    acceptedSeal.releaseId.trim().length > 0 &&
+    acceptedSeal.codeSha === run.head_sha &&
+    acceptedSeal.target?.envId === policy.envId &&
+    acceptedSeal.target?.siteOrigin === policy.siteOrigin &&
+    ((artifactPrefix === 'function-release-payload' && acceptedSeal.scope?.kind === 'site') ||
+      (artifactPrefix === 'static-canary-payload' &&
+        acceptedSeal.scope?.kind === 'canary' &&
+        acceptedSeal.scope.prefix === policy.canaryPrefix)) &&
+    refSeal?.repository === policy.repository &&
+    refSeal.workflowPath === policy.workflowPath &&
+    refSeal.runId === String(run.id) &&
+    refSeal.artifactId === String(artifact.id) &&
+    refSeal.expiresAt === artifact.expires_at &&
+    isHash(refSeal.manifestSha256);
   if (
     !positiveId(artifact.id) ||
     !positiveId(run.id) ||
@@ -77,6 +102,7 @@ export function validateArtifactSource({
     artifact.workflow_run.head_branch !== ref ||
     !(
       (run.status === 'completed' && run.conclusion === 'success') ||
+      acceptedFailure ||
       (String(run.id) === allowCurrentRunId &&
         run.status === 'in_progress' &&
         run.conclusion === null)

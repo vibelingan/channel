@@ -1,0 +1,137 @@
+{
+  "purpose": "controlled-blog-image-restoration",
+  "maintenanceRunId": "40266660684",
+  "stageBRunId": "40264981321",
+  "backupArtifactId": "12626176315",
+  "target": {
+    "envId": "diversity-123-d9grnqfux221323bb",
+    "siteOrigin": "https://supplychainsai.com"
+  },
+  "expectedImageA": "ccr.ccs.tencentyun.com/tcb-100049822712-zswf/ca-lhdcoaiq_blog-pages:blog-pages-002-20261026095643",
+  "expectedSourceA": "51b33151eb245592e8d52235b3b26a2a45041f8e",
+  "submission": {
+    "taskId": 2458469,
+    "reportedRunId": "multi_tenant_1xLBXVRI8QBI1n",
+    "actualNewRunId": "multi_tenant_1xLBw92AKb3Bbg",
+    "status": "submitted"
+  },
+  "failedDummyCleanup": {
+    "functionId": "lam-s22sxwll",
+    "createdAt": "2026-10-26 11:23:39",
+    "name": "seo-release-dummy",
+    "runtime": "Nodejs20.19",
+    "type": "Event",
+    "handler": "index.main",
+    "role": "TCB_QcsRole",
+    "seedRun": "40261620684",
+    "digestShape": true,
+    "explicitEnvironmentPresent": false,
+    "sourceMarkerMatches": true,
+    "privateEvent": true,
+    "package": {
+      "bytes": 251891,
+      "sha256": "8c3b97654dcacd6ee9795ca582c0cde208cfc2a44eedf40e9812cac3975f5d12"
+    },
+    "emptyCollections": [
+      {
+        "name": "seoReleaseDrillFixtures",
+        "success": true,
+        "total": 0
+      },
+      {
+        "name": "seoReleaseDrillTargets",
+        "success": true,
+        "total": 0
+      },
+      {
+        "name": "seoReleaseDrillScopes",
+        "success": true,
+        "total": 0
+      },
+      {
+        "name": "seoReleaseDrillRuns",
+        "success": true,
+        "total": 0
+      },
+      {
+        "name": "seoReleaseDrillSteps",
+        "success": true,
+        "total": 0
+      }
+    ],
+    "deleted": true,
+    "requestId": "f3189d71-c233-4de0-9a53-9a02f6cb9ac9"
+  },
+  "status": "passed",
+  "workingA": {
+    "phase": "A-restored",
+    "releaseId": "51b33151eb245592e8d52235b3b26a2a45041f8e",
+    "siteOrigin": "https://supplychainsai.com",
+    "previewOnly": true,
+    "articleStatus": 200,
+    "imageStatus": 200,
+    "imageBytes": 96776,
+    "imageSha256": "831595e0851dce0bb727df1297e11c0f700bc575c5b5ee3a18ba7c098008fa67",
+    "listAndSitemap": "passed",
+    "missingArticleStatus": 404,
+    "website": [
+      {
+        "path": "/",
+        "sha256": "9835addcfcdc08f3dbab4066527f66f33227866646af96724ca4610fde004ac2",
+        "bytes": 101896
+      },
+      {
+        "path": "/headphones/",
+        "sha256": "1b69c103d3cfc30df180338ab0e631305635dc3adbb38dbbc8e181cb49432b14",
+        "bytes": 55919
+      },
+      {
+        "path": "/sitemap-index.xml",
+        "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+        "bytes": 262
+      },
+      {
+        "path": "/sitemap-0.xml",
+        "sha256": "fc1aab14f5c277de77a474f51776a633e8618e2bd6d950ed22b765ba63e71454",
+        "bytes": 50146
+      }
+    ],
+    "checkedAt": "2026-10-26T04:06:49.679Z"
+  },
+  "verifiedB": {
+    "phase": "B",
+    "releaseId": "2f5a059543325a08c373028dc2aab549f7d69896",
+    "siteOrigin": "https://supplychainsai.com",
+    "previewOnly": true,
+    "articleStatus": 200,
+    "imageStatus": 200,
+    "imageBytes": 96776,
+    "imageSha256": "831595e0851dce0bb727df1297e11c0f700bc575c5b5ee3a18ba7c098008fa67",
+    "listAndSitemap": "passed",
+    "missingArticleStatus": 404,
+    "website": [
+      {
+        "path": "/",
+        "sha256": "9835addcfcdc08f3dbab4066527f66f33227866646af96724ca4610fde004ac2",
+        "bytes": 101896
+      },
+      {
+        "path": "/headphones/",
+        "sha256": "1b69c103d3cfc30df180338ab0e631305635dc3adbb38dbbc8e181cb49432b14",
+        "bytes": 55919
+      },
+      {
+        "path": "/sitemap-index.xml",
+        "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+        "bytes": 262
+      },
+      {
+        "path": "/sitemap-0.xml",
+        "sha256": "fc1aab14f5c277de77a474f51776a633e8618e2bd6d950ed22b765ba63e71454",
+        "bytes": 50146
+      }
+    ],
+    "checkedAt": "2026-10-26T03:55:19.091Z"
+  },
+  "restoredSettings": "CPU/memory/replicas/port/environment/access/network preserved"
+}

@@ -7,6 +7,8 @@ import test from 'node:test';
 import { createFunctionGithubSource } from './release/function-github-source.mjs';
 import { sha256 } from './release/input.mjs';
 const policy = {
+  envId: 'fixture-env',
+  siteOrigin: 'https://fixture.example',
   repository: 'fixture/channel',
   workflowPath: '.github/workflows/seo-static-canary.yml',
   trustedRef: 'refs/heads/feat/seo-foundation',
@@ -171,4 +173,48 @@ test('a digest mismatch rejects before any extraction', async (t) => {
   f.artifact.digest = `sha256:${'0'.repeat(64)}`;
   await assert.rejects(f.source.download('22', join(root, 'payload')), /digest/);
   assert(!existsSync(join(root, 'payload')));
+});
+
+test('an accepted function survives a later producer failure only with its exact saved manifest', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'function-source-sealed-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const f = setup();
+  f.run.conclusion = 'failure';
+  const seal = {
+    schemaVersion: 1,
+    activationId: 'accepted-function',
+    releaseId: 'dummy-A',
+    codeSha: f.run.head_sha,
+    target: { envId: policy.envId, siteOrigin: policy.siteOrigin },
+    scope: { kind: 'site' },
+    artifact: {
+      repository: policy.repository,
+      workflowPath: policy.workflowPath,
+      runId: '11',
+      artifactId: '22',
+      expiresAt: f.artifact.expires_at,
+      manifestSha256: sha256(
+        JSON.stringify({ schemaVersion: 1, purpose: 'function-compatibility-payload' }),
+      ),
+    },
+  };
+  await assert.rejects(f.source.download('22', join(root, 'unsealed')));
+  const accepted = await f.source.download('22', join(root, 'accepted'), 'payload', {
+    acceptedSeal: seal,
+  });
+  assert.equal(accepted.manifestSha256, seal.artifact.manifestSha256);
+  await assert.rejects(
+    f.source.download('22', join(root, 'mismatch'), 'payload', {
+      acceptedSeal: { ...seal, artifact: { ...seal.artifact, manifestSha256: '0'.repeat(64) } },
+    }),
+    /differs from its journal seal/,
+  );
+  for (const mutation of [
+    { ...seal, target: { ...seal.target, envId: 'foreign' } },
+    { ...seal, scope: { kind: 'canary' } },
+    { ...seal, artifact: { ...seal.artifact, artifactId: '23' } },
+  ])
+    await assert.rejects(f.source.metadata('22', 'payload', { acceptedSeal: mutation }));
+  f.artifact.name = 'function-compatibility-tests-11-1';
+  await assert.rejects(f.source.metadata('22', 'tests', { acceptedSeal: seal }));
 });

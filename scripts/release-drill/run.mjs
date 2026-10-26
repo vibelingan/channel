@@ -207,7 +207,10 @@ async function loadAccepted(run) {
     throw Error('An accepted dummy A is required');
   const part = run.composition[functionKey];
   const directory = join(output, `source-${run.runId}`);
-  const item = await source.download(part.artifact.artifactId, directory);
+  await source.requireCI(part.codeSha);
+  const item = await source.download(part.artifact.artifactId, directory, 'payload', {
+    acceptedSeal: run.accepted.seals[functionKey],
+  });
   const input = {
     ...item,
     envelope: { ...item.body, artifact: part.artifact },
@@ -614,6 +617,8 @@ try {
     }
   }
   record.stage = 'exercise-private-static-file';
+  await save();
+  record.websiteWrites = null;
   await save();
   record.static = await exerciseDummyStatic({
     provider: createCanaryProvider({ manager, policy }),

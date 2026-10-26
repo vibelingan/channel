@@ -80,6 +80,8 @@ export function createFunctionGithubSource({ policy, token, request }) {
       const path = kind === 'payload' ? 'payload-manifest.json' : 'test-results.json';
       const body = readJson(directory, path);
       const manifestSha256 = sha256(readObject(directory, path));
+      if (options.acceptedSeal && options.acceptedSeal.artifact?.manifestSha256 !== manifestSha256)
+        throw Error('Accepted recovery manifest differs from its journal seal');
       return {
         directory,
         run: after.source,

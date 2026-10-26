@@ -181,7 +181,7 @@ export async function runFunctionRecovery(command, env = process.env) {
         'Selected functions require one accepted archive and matching component seals',
       );
     const input = {
-      ...(await download(part.artifact.artifactId)),
+      ...(await download(part.artifact.artifactId, { acceptedSeal: run.accepted.seals[keys[0]] })),
       acceptedSeal: run.accepted.seals[keys[0]],
     };
     verifyFunctionBaseline({ ...input, policy: input.policy, now: Date.now() });

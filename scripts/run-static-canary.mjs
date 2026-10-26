@@ -63,6 +63,7 @@ export async function runStaticCanary(command, env = process.env) {
   };
   if (command === 'prepare') {
     let artifactId = env.CANARY_ARTIFACT_ID;
+    let acceptedSeal;
     if (env.CANARY_ACTION === 'restore') {
       if (!env.CANARY_RESTORE_RUN_ID) throw new Error('Explicit accepted restore run required');
       const run = await coordinator.runStatus(env.CANARY_RESTORE_RUN_ID);
@@ -71,6 +72,7 @@ export async function runStaticCanary(command, env = process.env) {
       if (artifactId && artifactId !== run.composition.static.artifact.artifactId)
         throw new Error('Restore artifact differs from accepted source');
       artifactId = run.composition.static.artifact.artifactId;
+      acceptedSeal = run.accepted.seals.static;
     }
     const fresh = env.CANARY_MODE === 'plan' && env.CANARY_ACTION !== 'restore' && !artifactId;
     if (fresh)
@@ -81,7 +83,7 @@ export async function runStaticCanary(command, env = process.env) {
         variant: env.CANARY_VARIANT,
         codeSha: invocation.codeSha,
       });
-    else await github.metadata(artifactId);
+    else await github.metadata(artifactId, { acceptedSeal });
     result('fresh', String(fresh));
     result('artifact_id', artifactId || '');
     return;
@@ -96,10 +98,14 @@ export async function runStaticCanary(command, env = process.env) {
     let source = downloaded.get(id);
     if (!source) {
       const directory = join(output, `artifact-${id}`);
-      const run = await github.download(id, directory, options);
+      const run = await github.download(id, directory, { ...options, acceptedSeal });
       source = { directory, run };
       downloaded.set(id, source);
-    } else source = { ...source, run: (await github.metadata(id, options)).metadata };
+    } else
+      source = {
+        ...source,
+        run: (await github.metadata(id, { ...options, acceptedSeal })).metadata,
+      };
     return canaryArtifact({ ...source, policy, acceptedSeal });
   };
   const loadAccepted = (run) =>

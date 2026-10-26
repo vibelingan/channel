@@ -133,6 +133,9 @@ test('manual canary A to B to accepted A restores bytes with a new activation, n
     { ...f.request('restore', B.activation.activationId), restoreRunId: 'init' },
     'restore',
   );
+  assert.equal(A.status, 'accepted');
+  assert.equal(B.status, 'accepted');
+  assert.equal(restored.status, 'accepted');
   assert.notEqual(restored.activation.activationId, A.activation.activationId);
   assert.match(f.sdk.state.files.get('__release-canary/index.html').toString(), /canary A/);
   assert.equal((await f.coordinator.status()).scope.active, null);

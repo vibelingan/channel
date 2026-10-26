@@ -200,8 +200,8 @@ export async function executeManualCanary(options) {
       changeSetRef: `canary:${prepared.review.sha256}`,
     });
     return {
-      status: 'accepted',
       ...committed,
+      status: 'accepted',
       evidence,
       review: prepared.review,
       functions: 'not-run',

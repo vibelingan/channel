@@ -192,3 +192,64 @@ test('source metadata pins the original attempt so rerunning a workflow does not
   assert.equal((await client.metadata('11', { now })).metadata.runId, '101');
   assert.ok(calls.some((url) => url.endsWith('/runs/101/attempts/1')));
 });
+
+test('a later failed step cannot hide an artifact already accepted by the authenticated journal', () => {
+  const failed = { ...run, conclusion: 'failure' };
+  const seal = {
+    schemaVersion: 1,
+    activationId: 'accepted-component',
+    releaseId: 'canary-A',
+    codeSha: run.head_sha,
+    target: { envId: policy.envId, siteOrigin: policy.siteOrigin },
+    scope: { kind: 'canary', prefix: policy.canaryPrefix },
+    artifact: {
+      repository: policy.repository,
+      workflowPath: policy.workflowPath,
+      runId: '101',
+      artifactId: '11',
+      expiresAt: artifact.expires_at,
+      manifestSha256: 'd'.repeat(64),
+    },
+  };
+  assert.throws(() => validateArtifactSource({ artifact, run: failed, policy, now }));
+  assert.equal(
+    validateArtifactSource({ artifact, run: failed, policy, now, acceptedSeal: seal }).runId,
+    '101',
+  );
+  for (const mutation of [
+    { ...seal, codeSha: 'e'.repeat(40) },
+    { ...seal, target: { ...seal.target, envId: 'foreign' } },
+    { ...seal, scope: { kind: 'site' } },
+    { ...seal, artifact: { ...seal.artifact, artifactId: '12' } },
+    { ...seal, artifact: { ...seal.artifact, runId: '102' } },
+    { ...seal, artifact: { ...seal.artifact, manifestSha256: '' } },
+    { ...seal, artifact: { ...seal.artifact, expiresAt: '2027-02-01T00:00:00Z' } },
+  ])
+    assert.throws(() =>
+      validateArtifactSource({ artifact, run: failed, policy, now, acceptedSeal: mutation }),
+    );
+  for (const mutation of [
+    { event: 'pull_request' },
+    { head_branch: 'main' },
+    { conclusion: 'cancelled' },
+    { status: 'in_progress' },
+  ])
+    assert.throws(() =>
+      validateArtifactSource({
+        artifact,
+        run: { ...failed, ...mutation },
+        policy,
+        now,
+        acceptedSeal: seal,
+      }),
+    );
+  assert.throws(() =>
+    validateArtifactSource({
+      artifact: { ...artifact, expired: true },
+      run: failed,
+      policy,
+      now,
+      acceptedSeal: seal,
+    }),
+  );
+});

@@ -1,0 +1,11 @@
+{
+  "status": "accepted",
+  "receipt": {
+    "deliveryId": "site-40260150138-1",
+    "artifactHash": "6a30c8af14b75f9652d0de6e7bb4a833164bb5bd7eb878c8394f9e02dfb38fc1",
+    "acceptedAt": "2026-10-26T03:22:38.672Z"
+  },
+  "articleTaskId": null,
+  "products": 509,
+  "productSource": "fresh"
+}
