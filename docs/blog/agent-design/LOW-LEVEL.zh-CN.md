@@ -1,6 +1,6 @@
 # 内容助手接入：底层设计
 
-本页定义当前实现合同。代码和离线验证已完成部分，云端入口、权限和本地助手联测另行验收；不能把本页当作已上线说明。沿用 TypeScript、Zod、文章核心和 CloudBase node-sdk 事务；不引入 CMS、AI 付费扩展或第二套数据库。
+本页定义接口和数据规则。网站入口、私有权限、本地原生 Hermes、管理员页面及发布撤回已通过真实联测，见[实际结果](../../delivery/2026-10-26/evidence/assistant-acceptance.json)。正式 HermesInfra / 企业微信接入尚未执行。沿用 TypeScript、Zod、文章核心和 CloudBase node-sdk 事务，不引入第二套 CMS 或数据库。
 
 ## 网站入口和路由
 

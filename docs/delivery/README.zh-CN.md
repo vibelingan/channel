@@ -10,8 +10,8 @@
 | 文章后台与直接发布 | 真实后台的编辑、图片、私有预览、发布、更新、撤回及重新发布已通过；正文、图片、列表和 sitemap 已接通 | 验收期间保留 noindex；正式开放收录前处理验收内容并核对开关 |
 | 静态网站交付 | 最新前端已接受；新增 Insights 入口和指定草稿直达，商品/分类/询盘实际检查通过；此前写入失败后的自动恢复也有现场记录 | 速度仍明显超过八分钟目标，下一阶段按实际耗时调优 |
 | 文章服务器恢复 | 已完成真实 A→B→A；从已归档镜像恢复 A 后，正文、图片、404 和配置检查通过，普通网站正文保持一致 | 这是文章服务器的受控人工恢复；不代表全部业务后端已开放自动恢复 |
-| 测试函数与数据恢复 | 真实 A→A、发布 B、B→A 均已通过；新字段、新记录、删除标记保留，旧程序修改与重复请求通过 | 临时资源按独立入口清理；不代表任意生产旧函数已获准恢复 |
-| 内容助手 | 受限草稿协议、独立函数包、两个 MCP 工具和后台定位已实现；本机 Hermes 已实际初始化并核对只有两个草稿工具 | 真实模型、私有草稿、人工编辑预览发布联测继续执行 |
+| 测试函数与数据恢复 | 真实 A→A、发布 B、B→A 均已通过；新字段、新记录、删除标记保留，旧程序修改与重复请求通过 | 本轮临时函数、三条记录、空测试集合及测试页已清理；不代表任意生产旧函数已获准恢复 |
+| 内容助手 | 本地原生 Hermes 实际生成并保存草稿；后台编辑、刷新、预览、发布、撤回、重复投递与凭证停用均通过真实联测 | 正式 HermesInfra / 企业微信安装配置、多客户身份隔离仍单独交付；本轮未改生产助手 |
 | 海外部署与整体提速 | 目标、问题与实测记录保留 | 按用户顺序后置，不为提速删功能或检查 |
 
 网站使用已验收的 `20f476fa`，文章服务器和两个 API 使用 `51b33151`；后续发布工具修正没有修改这些业务代码。每个程序的实际来源分别记录，不要求为更新说明或测试脚本把全部网站重发一次。尚未把本分支合入 main；后续发布该目标需带上已验收的 SEO / Blog 功能，不能用旧程序覆盖。
@@ -31,12 +31,21 @@
 
 恢复程序不回灌数据库，不删除新字段、客户文章或历史资源。业务后端的一般恢复仍须完成实际写入方、数据格式和客户端兼容检查；无害演练不能替任意旧程序作保证。
 
+## 现在可以怎样看效果
+
+用现有管理员账号打开 [本轮助手草稿](https://supplychainsai.com/admin/?section=articles&article=article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683)，可查看第 3 版正文和私有预览。测试文章已发布验收后撤回，故它的公开地址现在返回 404；草稿仍在。公开效果保留了[桌面截图](2026-10-26/evidence/assistant-public-desktop.png)、[手机截图](2026-10-26/evidence/assistant-public-mobile.png)和[后台截图](2026-10-26/evidence/assistant-private-preview.png)。此前的[手工验收文章](https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/)仍可查看。
+
+客户日常流程是保存草稿、Preview、确认后 Save and publish。保存草稿不改变公开文章；更新公开内容仍须点击发布。Withdraw article 撤回后保留草稿，公开页面返回 404，列表与 sitemap 移除。这里的“人工操作验收”由自动化浏览器模拟管理员完成，不表示客户本人已验收。
+
+本轮代码 `71c17172` 的完整 CI、文章 HTTP 和原离线检查均通过；本地 1256 项脚本与 10 项完整页面流程通过。早先 `8fa487a6` 有一次原商品准备状态用例失败，同提交重跑通过，原日志和未确认根因保留。没有改 pricing 或放宽断言。验收后需将已确认的功能合入 main，再走正常发布，避免旧 main 覆盖新能力。
+
 ## 从这里查看
 
 - [完整总图](2026-10-26/diagrams/complete-delivery.html)、[文章发布时序](2026-10-26/diagrams/article-publication.html)、[助手草稿时序](2026-10-26/diagrams/assistant-draft.html)。
 - [按模块实施](2026-10-26/EXECUTION.zh-CN.md)、[当前工作记录](2026-10-26/WORKLOG.zh-CN.md)、[无害恢复演练范围](2026-10-26/DUMMY-LIVE-DRILL.zh-CN.md)。
 - [线上桌面文章](2026-10-26/evidence/live-blog-public-desktop.png)、[线上手机文章](2026-10-26/evidence/live-blog-public-mobile.png)、[实际私有预览](2026-10-26/evidence/live-blog-admin-preview.png)。
 - [商品前端交付结果](2026-10-26/evidence/site-20-accepted.json)、[文章真实发布结果](2026-10-26/evidence/blog-server-republish.json)、[文章服务器 A→B→A](2026-10-26/evidence/blog-server-aba.json)、[测试函数 A→A](2026-10-26/evidence/dummy-AA.json)、[测试函数 B→A](2026-10-26/evidence/dummy-BA.json)。
+- [助手整体验收](2026-10-26/evidence/assistant-acceptance.json)、[本轮测试资源清理](2026-10-26/evidence/dummy-cleanup.json)。
 - [内容助手设计](../blog/agent-design/HIGH-LEVEL.zh-CN.md)、[CloudBase 故障调查](2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。
 
 Google/Bing 此前完成过网站验证和 sitemap 提交。本轮未重新读取收录数据；提交成功、页面可访问与搜索引擎已经收录是不同结果。

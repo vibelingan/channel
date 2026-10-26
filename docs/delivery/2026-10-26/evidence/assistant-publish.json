@@ -1,0 +1,12 @@
+{
+  "operation": "publish",
+  "operationId": "article-import-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+  "articleId": "article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+  "revision": 3,
+  "taskId": "release-e97ffb0640a3385a79f8018cca958c3e64cc5a1bc9983a01a3bb201b3fa41b7e",
+  "htmlStatus": 200,
+  "listStatus": 200,
+  "sitemapStatus": 200,
+  "visible": true,
+  "noContentBuild": true
+}

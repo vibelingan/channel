@@ -1,0 +1,39 @@
+{
+  "purpose": "channel-live-dummy-recovery-v1",
+  "operation": "cleanup",
+  "codeSha": "8fa487a66a500cb03ac1e51c614f1b0f575fdee6",
+  "githubRun": "40289025957",
+  "target": {
+    "envId": "diversity-123-d9grnqfux221323bb",
+    "siteOrigin": "https://supplychainsai.com"
+  },
+  "websiteWrites": 1,
+  "businessWrites": 0,
+  "databaseRestore": "not-run",
+  "searchNotifications": 0,
+  "status": "passed",
+  "steps": [],
+  "stage": "complete",
+  "invocations": [
+    {
+      "action": "health",
+      "platformRequestId": "21ad8e95-3e70-4c5c-b244-2b483dd90782",
+      "functionRequestId": "21ad8e95-3e70-4c5c-b244-2b483dd90782",
+      "durationMs": 5,
+      "authenticationRejected": false
+    }
+  ],
+  "cleanup": {
+    "status": "removed",
+    "preparationArtifactId": "12634779845",
+    "stage": "complete",
+    "functionDeletes": 1,
+    "rowDeletes": 3,
+    "collectionDeletes": 1,
+    "fileDeletes": 1,
+    "pendingRowId": null
+  },
+  "rootPageWrites": 0,
+  "activationId": null,
+  "finishedAt": "2026-10-26T07:59:25.562Z"
+}

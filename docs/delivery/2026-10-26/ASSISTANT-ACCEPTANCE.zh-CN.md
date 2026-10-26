@@ -1,6 +1,6 @@
 # 本地助手怎样把文章送到人手里
 
-本文是本轮联测的操作说明，不代表所有步骤都已通过。实际结果统一更新到[当前进度](../README.zh-CN.md)。网站代码仍在原 SEO 分支，日常发文章不调用下面的 GitHub 测试任务。
+2026-10-26：以下闭环已在真实 CloudBase 和网站通过，本地原生 Hermes 只加载两个草稿工具。页面操作由自动化浏览器模拟管理员；正式 HermesInfra / 企业微信未修改。实际证据见[整体验收](evidence/assistant-acceptance.json)，后续进度统一在[当前入口](../README.zh-CN.md)。网站代码仍在原 SEO 分支，日常发文章不调用下面的 GitHub 测试任务。
 
 ## 三种身份各自做什么
 
@@ -52,3 +52,17 @@ gh workflow run seo-static-canary.yml --repo vibelingan/channel \
 页面测试只允许固定集成、任务号和原始内容摘要一致的这一篇文章。正式发布前还要求管理员保存的版本和审阅文字，不能把模型原始输出直接当作已审稿。
 
 停止测试不会删除客户文章，不回灌数据库，不关闭原后台，不修改商品、价格、同步任务或已有函数。新的路由可保留供后续正式接入；没有有效凭证时，服务拒绝草稿读写。需要关闭时只停用这个标准域名下明确归属 `article-import` 的 `/api/integrations`，保留其他路径。
+
+
+## 本轮实际结果
+
+| 环节 | 实际结果 |
+| --- | --- |
+| 本地创作 | 三次模型请求，实际调用一次保存、一次查询；约 43.8 秒，草稿确实在 CloudBase |
+| 编辑和私有预览 | [40290791115](https://github.com/vibelingan/channel/actions/runs/40290791115) 通过；第 3 版保存、刷新、原标题和独立审阅段均核对 |
+| 重放原请求 | 返回同一导入号；随后发布前实际读回仍为人工保存的第 3 版 |
+| 页面发布 | [40291408805](https://github.com/vibelingan/channel/actions/runs/40291408805) 通过；正文 HTML 200、列表、sitemap、canonical、Article 和手机布局通过，无内容构建 |
+| 撤回 | [40291923562](https://github.com/vibelingan/channel/actions/runs/40291923562) 通过；正文 404，列表和 sitemap 移除，私有草稿保留 |
+| 凭证收尾 | [40291413429](https://github.com/vibelingan/channel/actions/runs/40291413429) 停用成功；自然到期前，原凭证的查询和创建均返回 401/no-store。本机明文及独立配置已删除 |
+
+本机模型认证没有打包进 GitHub，普通 Hermes 配置、生产服务和真实企业微信群未改。后续正式接入需要为实际内容助手单独配置受限身份，不能恢复使用本轮已停用的测试凭证。

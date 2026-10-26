@@ -1,0 +1,12 @@
+{
+  "operation": "withdraw",
+  "operationId": "article-import-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+  "articleId": "article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683",
+  "revision": 3,
+  "taskId": "release-547b2887569fa7050f2650d6cc56cb158a85282be630340c891f105b492e9581",
+  "htmlStatus": 404,
+  "listStatus": 200,
+  "sitemapStatus": 200,
+  "visible": false,
+  "noContentBuild": true
+}

@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "codeSha": "71c17172e20b8d2e123c55a4481ff2006dbc1865",
+  "scope": "Isolated local native Hermes; automated real administrator UI; actual CloudBase; production HermesInfra and WeCom unchanged",
+  "model": {
+    "stage": "model-returned",
+    "tools": [
+      "mcp__channelblog__channel_blog_create_draft",
+      "mcp__channelblog__channel_blog_get_import"
+    ],
+    "modelCalls": 3,
+    "toolCalls": [
+      "mcp__channelblog__channel_blog_create_draft",
+      "mcp__channelblog__channel_blog_get_import"
+    ],
+    "seconds": 43.794,
+    "humanPublicationRequired": true
+  },
+  "runs": {
+    "setup": "40280786237",
+    "review": "40290791115",
+    "publish": "40291408805",
+    "withdraw": "40291923562",
+    "revoke": "40291413429"
+  },
+  "checks": {
+    "sourceReplayPreservedHumanRevision": 3,
+    "publishHtmlStatus": 200,
+    "withdrawHtmlStatus": 404,
+    "mainSitemapIndexIncludesBlog": true,
+    "articleContentBuilds": 0,
+    "agentPublicationTools": 0,
+    "credentialRejectedBeforeExpiry": true,
+    "ownedLocalCredentialAndProfileRemoved": true
+  },
+  "currentState": {
+    "article": "private draft retained; public acceptance article withdrawn",
+    "pilotCredential": "disabled",
+    "normalCustomerArticles": "preserved",
+    "productionHermesInfra": "not modified"
+  },
+  "evidence": [
+    "assistant-review.json",
+    "assistant-publish.json",
+    "assistant-withdraw.json",
+    "assistant-revoke.json",
+    "assistant-private-preview.png",
+    "assistant-public-desktop.png",
+    "assistant-public-mobile.png"
+  ]
+}

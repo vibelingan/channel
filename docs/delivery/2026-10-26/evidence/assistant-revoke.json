@@ -1,0 +1,38 @@
+{
+  "controlPlane": {
+    "stage": "complete",
+    "status": "passed",
+    "operation": "revoke",
+    "source": "71c17172e20b8d2e123c55a4481ff2006dbc1865",
+    "target": {
+      "envId": "diversity-123-d9grnqfux221323bb",
+      "siteOrigin": "https://supplychainsai.com"
+    },
+    "preparationArtifactId": "12635409354",
+    "functionSource": "not-inspected",
+    "route": {
+      "domain": "diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com",
+      "path": "/api/integrations"
+    },
+    "credential": {
+      "keyId": "hermes-local-20261026-key",
+      "enabled": false,
+      "configRevision": 2,
+      "expiresAt": "2026-10-26T08:37:08.332Z"
+    },
+    "websiteWrites": 0,
+    "businessWrites": 0,
+    "unrelatedRoutesChanged": "not-written"
+  },
+  "actualHttpAndCleanup": {
+    "status": "passed",
+    "observedAt": "2026-10-26T08:24:26.403Z",
+    "disabledBeforeExpiry": true,
+    "getStatus": 401,
+    "createStatus": 401,
+    "cacheControl": "no-store",
+    "configRevision": 2,
+    "localCredentialFilesRemoved": true,
+    "ownedHermesProfileRemoved": true
+  }
+}

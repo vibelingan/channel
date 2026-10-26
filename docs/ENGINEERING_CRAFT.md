@@ -152,6 +152,8 @@ consolidation into the cross-project engineering-craft skill.
 - **保存历史与复制历史分开**（`4b6fbc0e`）：旧哈希资源用于旧标签页和恢复，应保留；性能统计分别报告当前版本、历史保留、下载、上传和归档量。已有差异上传不能掩盖每轮整站备份的成本；目录上传不是全站原子切换。
 - **缺陷有版本，升级有复核**（`4b6fbc0e`、`6e66cc07`）：记录 Node / SDK / MCP 的实际版本，区别真实运行与源码比较。升级后重跑正常、reset、流错误、503、路径冲突；已修复就更新缺陷记录，不能让测试永久要求上游重现旧 bug。连接关闭日志缺少首个异常时，不补写一个确定根因。
 
+- **管理 SDK 的可选参数也要看实际传输**（`8fa487a6`）：Manager 5.9.1 旧路由查询把 `limit` 原样写成小写，现场返回 UnknownParameter。只核对固定函数的空绑定时，使用最小的环境与函数名，并要求返回总数为零；一般列表仍须完整分页。实际 SDK 传输测试与真实清理均通过，升级后再核对，不能把省略分页复制到全量备份。详见 [版本记录](delivery/2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。
+
 ### Frontend Islands
 
 - **A state updater is not a getter** (session 2026-08-06): Reading a value out of a `setState` updater callback and using it outside is a silent race — updaters run asynchronously, so the value read was stale. Concretely: each catalog request was tagged with a generation read from inside the updater, the fetch received the OLD generation, and the reducer's own guard then rejected EVERY commit; the catalog rendered zero products. Compute the next state as a pure value first, then pass that same value to both the setter and whatever consumes it.
