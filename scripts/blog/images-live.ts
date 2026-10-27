@@ -169,8 +169,10 @@ try {
     });
     assert.equal(v.Data?.TotalCount, 1);
     assert.equal(v.Data.PermissionList?.length, 1);
-    assert.equal(v.Data.PermissionList[0].Resource, name);
-    return v.Data.PermissionList[0].Permission;
+    const entry = v.Data.PermissionList[0];
+    assert(entry);
+    assert.equal(entry.Resource, name);
+    return entry.Permission;
   };
   if ((await permission()) !== 'ADMINONLY')
     await manager.permission.modifyResourcePermission({
