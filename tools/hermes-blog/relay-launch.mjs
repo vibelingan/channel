@@ -122,10 +122,23 @@ export async function createRelayServer(path) {
       async (args) => {
         const saved = await call('save', { article: args.article });
         if (saved.isError || !args.images?.length) return saved;
-        return call('images', {
+        const attached = await call('images', {
           documentId: saved.structuredContent.documentId,
           images: args.images,
         });
+        if (!attached.isError || attached.structuredContent) return attached;
+        const partial = {
+          ...saved.structuredContent,
+          ok: false,
+          state: 'images-incomplete',
+          message:
+            '文字草稿已保存，图片尚未确认。请使用此 documentId 和原图片调用补图工具重试，不另建文章。',
+        };
+        return {
+          isError: true,
+          structuredContent: partial,
+          content: [{ type: 'text', text: JSON.stringify(partial) }],
+        };
       },
     );
     server.registerTool(
