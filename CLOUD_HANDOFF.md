@@ -4,7 +4,7 @@
 
 - 仓库：vibelingan/channel。原工作分支feat/seo-foundation，不新开分支或worktree，不改其他工作流。
 - 本轮SEO/Blog已整合进main；c91a16b2包含工具修正及交付材料。test实际网站来源91443842，正常Deploy Test 40317622122成功。后续工具和文档没有改变网站业务代码，不能把Git最新SHA当成所有服务都已部署的SHA。
-- [WeCom图文入口](docs/delivery/2026-10-26/wecom/START-HERE.html)、[服务器配置与退出步骤](docs/delivery/2026-10-26/wecom/GUIDE.zh-CN.md)、[群测任务](docs/delivery/2026-10-26/wecom/TEST-PROMPT.zh-CN.md)。网站侧已登记14天群测凭证，生产HermesInfra尚未安装；生产机器和客户/群绑定需先确认，不发群消息、不复制本机私有凭证进cloud。
+- [WeCom图文入口](docs/delivery/2026-10-26/wecom/START-HERE.html)、[服务器配置与退出步骤](docs/delivery/2026-10-26/wecom/GUIDE.zh-CN.md)、[群测任务](docs/delivery/2026-10-26/wecom/TEST-PROMPT.zh-CN.md)。网站侧已登记14天群测凭证，真实发布机xianqu-agent2已完成接线，安装与实际MCP验证见交付进度；不重复安装、不代发群消息、不复制本机私有凭证进cloud。
 - [环境指南](docs/cloud-handoff/ENVIRONMENT.zh-CN.md)、[CloudBase/MCP权限](docs/cloud-handoff/TOOLS.zh-CN.md)、[技能来源与固定版本](docs/cloud-handoff/SKILLS.zh-CN.md)。仅迁移代码和公开工具来源，不迁移本机登录、密钥或其他项目记忆。
 
 可作为云端新任务的开场消息：
@@ -15,8 +15,9 @@ docs/delivery/README.zh-CN.md和docs/cloud-handoff/SESSION.zh-CN.md，
 再核对远端最新源码与实际运行版本。沿用feat/seo-foundation，不开新分支或worktree，
 不改pricing或其他工作流。本轮已经合入main并正常发布test；不要重复做首次dummy部署，
 不要用旧程序覆盖现站。
-下一步是按现有图文说明配置生产发布助手并由用户在WeCom群测试；
-生产机器未确定时只准备安装材料，不猜服务器、不发群消息。
+下一步由用户在WeCom群实际测试创作、转交和保存草稿；
+真实发布机已完成配置，先读docs/delivery/2026-10-27/wecom/INSTALLATION-RESULT.zh-CN.md，
+不重复安装、不猜其他服务器、不代发群消息。
 网站草稿接口已接通；助手只能存私有草稿、查自己的结果，人审核后才公开。
 当前接口不自动导入Agent图片，人可在后台上传。
 CloudBase test实际是客户网站。新云端写入前说明范围、可恢复版本和停止条件，

@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-27",
+  "target": {
+    "host": "43.131.44.211",
+    "sshUser": "ubuntu",
+    "agentId": "xianqu-agent2",
+    "hermesVersion": "0.19.0",
+    "nodeVersion": "v22.23.1"
+  },
+  "changes": {
+    "credentialInstalled": true,
+    "credentialMode": "0600",
+    "ownerMatchesRuntime": true,
+    "capabilitiesBefore": 6,
+    "capabilitiesAfter": 8,
+    "existingBundleAndSkillsReused": true,
+    "siteSpecificSoulRuleAdded": true
+  },
+  "verification": {
+    "nativeSkillsLoaded": true,
+    "nativeMcpTools": [
+      "mcp__channelblog__channel_blog_create_draft",
+      "mcp__channelblog__channel_blog_get_import"
+    ],
+    "nativeHermesActualMcpCall": true,
+    "authenticatedMissingImport": 404,
+    "anonymousSameUrl": 401,
+    "modelCalls": 0,
+    "articleWrites": 0,
+    "wecomMessages": 0,
+    "allGatewayPlatformsConnected": true,
+    "gatewayPid": 3042052,
+    "a2aPidUnchanged": true,
+    "otherConfigValuesUnchanged": true,
+    "allExistingMcpEntriesUnchanged": true,
+    "listeningPortsUnchanged": true
+  },
+  "recovery": {
+    "backupRelativeToHermesHome": "channel-blog/backups/install-20261027-5b81334c",
+    "configHashAfter": "6cdcfedf54c9330e9ad2f61c799d8f8a59dc893d29b907eda7180879d5240df5",
+    "soulHashAfter": "dc80d190d6aa9c4ba574e437dfc80d2615e4536a03eed1179c9b74f906345eee",
+    "restoreOnlyIfCurrentFilesStillMatch": true,
+    "databaseRollback": false
+  },
+  "limits": {
+    "wecomCreationTestExecuted": false,
+    "pilotSingleArticle": true,
+    "agentImageImportSupported": false,
+    "longTermMultiCustomerIsolationComplete": false
+  }
+}
