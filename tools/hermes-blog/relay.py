@@ -55,8 +55,8 @@ class KnowledgeBase:
         req = urllib.request.Request(self.url, data=json.dumps(body).encode(),
                                      headers=self.headers, method="POST")
         with self.opener.open(req, timeout=20) as response:
-            data = response.read(MAX_BYTES + 1)
-            if len(data) > MAX_BYTES:
+            data = response.read(2 * 1024 * 1024 + 1)
+            if len(data) > 2 * 1024 * 1024:
                 raise ValueError("知识库回复过大")
             session = response.headers.get("Mcp-Session-Id")
             if session:
@@ -167,8 +167,12 @@ def save_source(kb, value):
     tag = "channel-blog-source:" + digest
     expected = {"channelBlogSource": 1, "siteId": SITE, "article": article}
     listed = kb.call("list_documents", {"tag": tag, "workspace": str(WORKSPACE), "limit": 2})
-    rows = listed.get("documents", [])
-    if listed.get("total", 0) > 1 or len(rows) > 1:
+    rows = listed.get("documents")
+    total = listed.get("total")
+    if (not isinstance(rows, list) or not isinstance(total, int) or isinstance(total, bool)
+            or total < 0 or total != len(rows)):
+        raise ValueError("知识库来源查询格式未确认，未创建文档")
+    if total > 1 or len(rows) > 1:
         raise ValueError("知识库存在重复来源，请人工核对，未继续创建")
     if rows:
         document = fetch_document(kb, rows[0]["id"])

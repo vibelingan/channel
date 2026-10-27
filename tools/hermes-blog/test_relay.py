@@ -60,6 +60,16 @@ class RelayTests(unittest.TestCase):
         self.assertEqual(relay.save_source(self.kb, ARTICLE), 1)
         self.assertEqual(self.kb.adds, 1)
 
+    def test_unconfirmed_source_listing_never_creates_a_document(self):
+        for value in ({}, {"total": 1, "documents": []}, {"total": True, "documents": []}):
+            class BrokenKB:
+                def call(self, name, args):
+                    if name == "list_documents":
+                        return value
+                    raise AssertionError("must not write after an invalid source listing")
+            with self.assertRaises(ValueError):
+                relay.save_source(BrokenKB(), ARTICLE)
+
     def test_wrong_workspace_and_mismatching_document_identity_never_handoff(self):
         self.kb.documents[201] = {"id": 201, "title": ARTICLE["title"], "workspace_id": 1, "content": "irrelevant"}
         config = {"siteId": relay.SITE, "workspaceId": 2, "role": "content"}

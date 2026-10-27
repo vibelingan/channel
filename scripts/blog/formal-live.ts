@@ -32,6 +32,7 @@ const provider = createCloudbaseFunctionProvider({
   target: { envId: p.envId, siteOrigin: p.siteOrigin },
   region: p.region,
   names: [p.functionName],
+  configurationKey: undefined,
 });
 const before = await provider.capture(p.functionName);
 const manifest = JSON.parse(await readFile('output/article-import-package/manifest.json', 'utf8'));
