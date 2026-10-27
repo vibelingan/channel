@@ -15,7 +15,7 @@ def build(output):
         "skills/channel-blog-writing/SKILL.md": (source.parent / "skills/channel-blog-writing/SKILL.md").read_bytes(),
     }
     manifest = {
-        "version": "2026-10-27-content-2",
+        "version": "2026-10-27-content-3",
         "targetAgentId": "xianqu-agent1",
         "credentialIncluded": False,
         "websiteToolsIncluded": False,

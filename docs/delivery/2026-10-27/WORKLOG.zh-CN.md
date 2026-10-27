@@ -56,3 +56,5 @@ MCP主文件SHA-256仍为4f388524a91a6275234dd8cd99cc2abe9f58c6290a0978253c1d10f
 读取了 tools/hermes-blog 的 client、server、formal-invoke、maintenance、credential-file、locked-invoke，import-credentials、HTTP adapter、import-store、article-repository，部署 provider 与共享手动 workflow；服务器读取 KB 实际源码及 MCP schema、两机配置（仅输出字段名/摘要）和 Node/Python 路径。修正文案：把“工具不支持工作区”改为“旧会话列表与服务器真实 schema 不一致”；把“技能安装完成”与“网站交接接通”分别记录。
 
 实现专用 MCP 与受限 SSH 文档编号交接，不把网站密钥给内容机。补工作区硬校验、来源标签幂等、已入库文档提交与正式凭证查询。新增6项 Python、2项真实 MCP 角色协议、1项注册策略测试；既有14项 Node工具、8项导入范围和3项独立包检查通过。现场安装及网站切换仍待后续验收，不在此宣称完成。
+
+远端增量检查发现两处接线遗漏并已修复：部署 provider 的 configurationKey 参数需显式传 undefined；手动入口新增模式后，原有“每种模式只选一个任务”测试需覆盖新任务及非 initialize 时拒绝执行。均保留原检查语义，没有跳过测试。新增两种独立 MCP 包在实际运行时的发现检查通过。两机只写入本次私有版本目录和专用受限 SSH 公钥；Shell 和无效文档请求均被真实连接拒绝，没有网站文章写入。

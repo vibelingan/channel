@@ -21,60 +21,64 @@ const env = {
   FUNCTION_MODE: 'observe',
 };
 test('all manual modes select exactly one job and retain the existing shared target lock', () => {
-  const run = (expression, mode) =>
+  const run = (expression, mode, action = 'initialize') =>
     Function(
       'github',
       'inputs',
       'startsWith',
       `return ${expression.slice(3, -2)}`,
-    )({ ref: policy.trustedRef }, { mode }, (x, p) => x.startsWith(p));
+    )({ ref: policy.trustedRef }, { mode, action }, (x, p) => x.startsWith(p));
   for (const mode of workflow.on.workflow_dispatch.inputs.mode.options) {
     const selected = Object.entries(workflow.jobs)
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
     assert.deepEqual(selected, [
-      mode === 'cloud-readiness'
-        ? 'cloud_readiness'
-        : mode === 'blog-import-setup'
-          ? 'blog_import_setup'
-          : mode === 'site-readback'
-            ? 'site_readback'
-            : mode === 'blog-server-update'
-              ? 'blog_server_update'
-              : mode.startsWith('function-')
-                ? 'functions'
-                : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
-                  ? 'dummy_recovery'
-                  : mode === 'maintenance'
-                    ? 'maintenance'
-                    : mode === 'blog-server-route'
-                      ? 'blog_server_route'
-                      : mode === 'blog-server-switch'
-                        ? 'blog_server_switch'
-                        : mode === 'blog-server-apis'
-                          ? 'blog_server_apis'
-                          : mode === 'blog-server-stage'
-                            ? 'blog_server_stage'
-                            : mode === 'blog-bootstrap'
-                              ? 'blog_bootstrap'
-                              : mode === 'site-delivery'
-                                ? 'site_delivery'
-                                : mode === 'blog-enable'
-                                  ? 'blog_enable'
-                                  : [
-                                        'blog-create',
-                                        'blog-retry',
-                                        'blog-update',
-                                        'blog-withdraw',
-                                        'blog-check',
-                                        'blog-import-review',
-                                        'blog-import-publish',
-                                        'blog-import-withdraw',
-                                      ].includes(mode)
-                                    ? 'blog_acceptance'
-                                    : 'canary',
+      mode === 'blog-formal-prepare'
+        ? 'blog_formal_prepare'
+        : mode === 'cloud-readiness'
+          ? 'cloud_readiness'
+          : mode === 'blog-import-setup'
+            ? 'blog_import_setup'
+            : mode === 'site-readback'
+              ? 'site_readback'
+              : mode === 'blog-server-update'
+                ? 'blog_server_update'
+                : mode.startsWith('function-')
+                  ? 'functions'
+                  : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
+                    ? 'dummy_recovery'
+                    : mode === 'maintenance'
+                      ? 'maintenance'
+                      : mode === 'blog-server-route'
+                        ? 'blog_server_route'
+                        : mode === 'blog-server-switch'
+                          ? 'blog_server_switch'
+                          : mode === 'blog-server-apis'
+                            ? 'blog_server_apis'
+                            : mode === 'blog-server-stage'
+                              ? 'blog_server_stage'
+                              : mode === 'blog-bootstrap'
+                                ? 'blog_bootstrap'
+                                : mode === 'site-delivery'
+                                  ? 'site_delivery'
+                                  : mode === 'blog-enable'
+                                    ? 'blog_enable'
+                                    : [
+                                          'blog-create',
+                                          'blog-retry',
+                                          'blog-update',
+                                          'blog-withdraw',
+                                          'blog-check',
+                                          'blog-import-review',
+                                          'blog-import-publish',
+                                          'blog-import-withdraw',
+                                        ].includes(mode)
+                                      ? 'blog_acceptance'
+                                      : 'canary',
     ]);
   }
+  assert.equal(run(workflow.jobs.blog_formal_prepare.if, 'blog-formal-prepare', 'restore'), false);
+  assert.equal(run(workflow.jobs.blog_formal_prepare.if, 'blog-formal-prepare', 'publish'), false);
   assert.deepEqual(workflow.concurrency, {
     group: 'cloudbase-deploy-test',
     'cancel-in-progress': false,
