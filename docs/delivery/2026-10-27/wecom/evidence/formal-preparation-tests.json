@@ -9,7 +9,8 @@
     "standaloneBundles": 2,
     "contentInstaller": 2,
     "actualZipInstallCount": 2,
-    "sdkContract": "passed-after-correcting-validation-export-git-root"
+    "sdkContract": "passed-after-correcting-validation-export-git-root",
+    "wrongAgentInstallation": "rejected-before-writing"
   },
   "production": {
     "publisherRoleCleanup": "complete",
@@ -20,9 +21,10 @@
   },
   "archive": {
     "file": "channel-blog-content-kit-2026-10-27.zip",
-    "sha256": "5d8883d8175d9d6805e7d8d4cec53925f4d19737ff09ae0421088b3c64ff83fe",
+    "sha256": "6e1fc15341e270fc759aedcb38dfdcfd86b91b011ba21b427f8efe80e036b126",
     "fileCount": 4,
-    "credentialIncluded": false
+    "credentialIncluded": false,
+    "targetAgentId": "xianqu-agent1"
   },
   "diagram": {
     "artifactChecks": 9,

@@ -15,7 +15,8 @@ def build(output):
         "skills/channel-blog-writing/SKILL.md": (source.parent / "skills/channel-blog-writing/SKILL.md").read_bytes(),
     }
     manifest = {
-        "version": "2026-10-27-content-1",
+        "version": "2026-10-27-content-2",
+        "targetAgentId": "xianqu-agent1",
         "credentialIncluded": False,
         "websiteToolsIncluded": False,
         "files": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()},

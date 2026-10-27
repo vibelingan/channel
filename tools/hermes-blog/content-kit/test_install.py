@@ -23,14 +23,17 @@ class InstallerTests(unittest.TestCase):
             skill.parent.mkdir(parents=True)
             skill.write_text("Content-only skill")
             digest = hashlib.sha256(skill.read_bytes()).hexdigest()
-            (package / "MANIFEST.json").write_text(json.dumps({"version": "1", "credentialIncluded": False, "files": {"skills/channel-blog-writing/SKILL.md": digest}}))
+            (package / "MANIFEST.json").write_text(json.dumps({"version": "1", "targetAgentId": "xianqu-agent1", "credentialIncluded": False, "files": {"skills/channel-blog-writing/SKILL.md": digest}}))
             before = config.read_bytes()
-            self.assertTrue(module.install(package, home)["ok"])
-            self.assertTrue(module.install(package, home)["alreadyInstalled"])
+            with self.assertRaises(ValueError):
+                module.install(package, home, lambda: "xianqu-agent2")
+            self.assertFalse((home / "skills/channel-blog-writing").exists())
+            self.assertTrue(module.install(package, home, lambda: "xianqu-agent1")["ok"])
+            self.assertTrue(module.install(package, home, lambda: "xianqu-agent1")["alreadyInstalled"])
             self.assertEqual(config.read_bytes(), before)
             (home / "skills/channel-blog-writing/SKILL.md").write_text("Human edits")
             with self.assertRaises(ValueError):
-                module.install(package, home)
+                module.install(package, home, lambda: "xianqu-agent1")
             self.assertEqual((home / "skills/channel-blog-writing/SKILL.md").read_text(), "Human edits")
 
     def test_a_package_mismatch_or_unknown_assistant_home_does_not_install(self):
