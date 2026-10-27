@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.17.0-dev.1">
-  <title>图文草稿：拟实施的图片闭环</title>
+  <title>图文草稿：文件交接到后台审核</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5081,7 +5081,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="蓝图 / 修订 01"
            data-preset-badge-editorial="编辑风格 / 现场笔记">
         <div class="pulse-dot"></div>
-        <h1>图文草稿：拟实施的图片闭环</h1>
+        <h1>图文草稿：文件交接到后台审核</h1>
       </div>
     </div>
 
@@ -5131,7 +5131,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 图版 04">
       <svg viewBox="0 0 1169 534" role="img" lang="zh-CN" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
-        <title id="archify-diagram-title">图文草稿：拟实施的图片闭环</title>
+        <title id="archify-diagram-title">图文草稿：文件交接到后台审核</title>
         <desc id="archify-diagram-description">由 Archify 生成的工作流图。</desc>
         <!-- Definitions -->
         <defs>
@@ -5174,7 +5174,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Edge paths -->
         <path data-edge-from="review" data-edge-to="public" data-edge-label="人点上线" data-edge-key="0" data-edge-id="approve" data-composition-points="1106.4,246;1150.801,246;1150.801,372;1106.4,372" d="M 1106.4 246 L 1150.801 246 L 1150.801 372 L 1106.4 372" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="kb" data-edge-to="handoff" data-edge-key="1" data-edge-id="ask-draft" data-composition-points="539,120;567,120" d="M 539 120 L 567 120" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="keys" data-edge-to="verify" data-edge-label="受限凭证" data-edge-key="2" data-edge-id="credential" data-composition-points="644.5,338;644.5,272" d="M 644.5 338 L 644.5 272" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="keys" data-edge-to="verify" data-edge-label="SDK签名" data-edge-key="2" data-edge-id="credential" data-composition-points="644.5,338;644.5,272" d="M 644.5 338 L 644.5 272" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="handoff" data-edge-to="verify" data-edge-label="文档与图片" data-edge-key="3" data-edge-id="get-document" data-composition-points="722,120;738,120;738,300;644.5,300;644.5,272" d="M 722 120 L 738 120 L 738 300 L 644.5 300 L 644.5 272" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="draft" data-edge-to="ordinary" data-edge-label="图片未全部完成" data-edge-key="4" data-edge-id="incomplete-image" data-composition-points="827.5,272;827.5,426;293.5,426;293.5,398" d="M 827.5 272 L 827.5 426 L 293.5 426 L 293.5 398" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
         <path data-edge-from="draft" data-edge-to="review" data-edge-label="编辑链接" data-edge-key="5" data-edge-id="link" data-composition-points="905,246;961.4000000000001,246" d="M 905 246 L 961.4000000000001 246" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
@@ -5218,8 +5218,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="466.5" y="132" class="t-muted" font-size="8" text-anchor="middle">来源、大小、摘要</text>
         </g>
 
-        <g id="node-handoff" data-node-id="handoff" data-node-label="受限SSH传文件" tabindex="0" role="button" aria-label="聚焦受限SSH传文件，只接收本站任务图片, 客户与内容机：已有稿件和真实图片" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="只接收本站任务图片" data-node-tag="待实现" data-node-context="客户与内容机：已有稿件和真实图片">
-          <title>受限SSH传文件 · 只接收本站任务图片 · 客户与内容机：已有稿件和真实图片 · 待实现</title>
+        <g id="node-handoff" data-node-id="handoff" data-node-label="受限SSH传文件" tabindex="0" role="button" aria-label="聚焦受限SSH传文件，只接收本站任务图片, 客户与内容机：已有稿件和真实图片" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="只接收本站任务图片" data-node-tag="已验收" data-node-context="客户与内容机：已有稿件和真实图片">
+          <title>受限SSH传文件 · 只接收本站任务图片 · 客户与内容机：已有稿件和真实图片 · 已验收</title>
           <rect x="567" y="86" width="155" height="68" rx="6" class="c-mask"/>
           <rect x="567" y="86" width="155" height="68" rx="6" class="c-messagebus" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(573 92) scale(0.6875)">
@@ -5230,7 +5230,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </g>
           <text data-node-label="" data-detail-anchor="" x="644.5" y="107" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">受限SSH传文件</text>
           <text data-detail="context" x="644.5" y="124" class="t-muted" font-size="8" text-anchor="middle">只接收本站任务图片</text>
-        <text data-detail="fine" x="644.5" y="142" class="t-messagebus" font-size="7" text-anchor="middle">待实现</text>
+        <text data-detail="fine" x="644.5" y="142" class="t-messagebus" font-size="7" text-anchor="middle">已验收</text>
         </g>
 
         <g id="node-verify" data-node-id="verify" data-node-label="网站授上传权限" tabindex="0" role="button" aria-label="聚焦网站授上传权限，单文件、短期、限本篇, 发布机与网站：受限上传和图文草稿" aria-pressed="false" data-node-kind="security" data-node-sublabel="单文件、短期、限本篇" data-node-context="发布机与网站：受限上传和图文草稿">
@@ -5294,15 +5294,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="fine" x="644.5" y="394" class="t-security" font-size="7" text-anchor="middle">复用既有SDK</text>
         </g>
 
-        <g id="node-public" data-node-id="public" data-node-label="人确认后上线" tabindex="0" role="button" aria-label="聚焦人确认后上线，沿用文章与图片路由, 失败回执与人工公开" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="沿用文章与图片路由" data-node-context="失败回执与人工公开">
-          <title>人确认后上线 · 沿用文章与图片路由 · 失败回执与人工公开</title>
+        <g id="node-public" data-node-id="public" data-node-label="人确认后上线" tabindex="0" role="button" aria-label="聚焦人确认后上线，本轮未执行，需人确认, 失败回执与人工公开" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="本轮未执行，需人确认" data-node-context="失败回执与人工公开">
+          <title>人确认后上线 · 本轮未执行，需人确认 · 失败回执与人工公开</title>
           <rect x="961.4000000000001" y="346" width="145" height="52" rx="6" class="c-mask"/>
           <rect x="961.4000000000001" y="346" width="145" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(967.4000000000001 352) scale(0.6875)">
             <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="1033.9" y="367" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">人确认后上线</text>
-          <text data-detail="context" x="1033.9" y="384" class="t-muted" font-size="8" text-anchor="middle">沿用文章与图片路由</text>
+          <text data-detail="context" x="1033.9" y="384" class="t-muted" font-size="8" text-anchor="middle">本轮未执行，需人确认</text>
         </g>
 
         <!-- Edge labels -->
@@ -5311,9 +5311,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text x="1128.6005" y="236" class="t-backend" font-size="8" text-anchor="middle">人点上线</text>
         </g>
 
-        <g data-detail="context" data-edge-from="keys" data-edge-to="verify" data-edge-label="受限凭证" data-edge-key="2" data-edge-id="credential">
-          <rect x="620.3" y="318" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="644.5" y="328" class="t-security" font-size="8" text-anchor="middle">受限凭证</text>
+        <g data-detail="context" data-edge-from="keys" data-edge-to="verify" data-edge-label="SDK签名" data-edge-key="2" data-edge-id="credential">
+          <rect x="622.7" y="318" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="644.5" y="328" class="t-security" font-size="8" text-anchor="middle">SDK签名</text>
         </g>
         <g data-detail="context" data-edge-from="handoff" data-edge-to="verify" data-edge-label="文档与图片" data-edge-key="3" data-edge-id="get-document">
           <rect x="662.25" y="280" width="58" height="14" rx="3" class="c-mask"/>
@@ -5552,22 +5552,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>本次实际目标</h3>
+          <h3>私有草稿已验收</h3>
         </div>
         <ul>
-          <li>&bull; 文档203及两张现有图片，不重写、不另建文</li>
-          <li>&bull; 后台直接显示图片，客户只需审核</li>
+          <li>&bull; 203原稿、两张原图、版本2，文字保留</li>
+          <li>&bull; 刷新和预览正常，重投不增图，旧版本拒绝</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot amber"></div>
-          <h3>待实施，未上线</h3>
+          <h3>接下来由客户群测</h3>
         </div>
         <ul>
-          <li>&bull; 文件交接、图片接口和插图确认仍需实现</li>
-          <li>&bull; 不公开存储桶，不把网站钥匙当云密钥</li>
+          <li>&bull; 内容机实际工具到网站通过，群内任务待验收</li>
+          <li>&bull; 网站钥匙只留发布机，图片公开需人审核</li>
         </ul>
       </div>
     </div>
