@@ -6,6 +6,14 @@
 
 [看完整时序图](../diagrams/wecom-draft.html) · [复制群测任务](TEST-PROMPT.zh-CN.md)
 
+## 10月27日补充：当前接线方式
+
+旧包只包含MCP工具，没有网站专用写作技能；新版另含两个Hermes技能，客户只需说业务需求。先按[安装阻塞处理](../../2026-10-27/wecom/OPERATOR-UNBLOCK.zh-CN.md)确认实际发布助手，按[一次性安全传送](../../2026-10-27/wecom/CREDENTIAL-TRANSFER.zh-CN.md)由用户/管理员放置凭证，无需把SSH信息交给Codex。
+
+仓库迁移记录将发布助手标为xianqu-agent2/43.131.44.211:9876，111.230.142.195为废弃旧机器；现网仍须通过已有Hub登记和发布机本机检查确认。下面Docker步骤仅是容器部署参考，不能拿Compose模板定位当前裸机服务。不要在内容机新建发布实例。
+
+内容助手安装channel-blog-writing；发布助手安装它及channel-blog-drafts。在各自实际HERMES_HOME/skills下保留整个目录，并用skills_list、skill_view确认可读。技能安装和真实群测分别验收。新版[客户示例](TEST-PROMPT.zh-CN.md)不再要求SEO、alt或请求编号。
+
 ## 你最后会看到什么
 
 ![真实后台编辑和私有预览](../evidence/assistant-private-preview.png)

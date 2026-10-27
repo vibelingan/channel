@@ -1,6 +1,8 @@
 # SEO / Blog：当前进度与执行入口
 
-2026-10-26。本页是当前进度入口，后续会话先读这里，再看工作记录。沿用原 `feat/seo-foundation`，pricing 已合入 main 的内容已整合，未创建新分支或 worktree。
+2026-10-27。本页是当前进度入口，后续会话先读这里，再看工作记录。沿用原 `feat/seo-foundation`，pricing 已合入 main 的内容已整合，未创建新分支或 worktree。
+
+本轮WeCom接线由用户安排操作人，不要求用户把SSH账号交给Codex。新增[客户业务提示词与安装阻塞处理](2026-10-27/wecom/OPERATOR-UNBLOCK.zh-CN.md)、[安全传送凭证](2026-10-27/wecom/CREDENTIAL-TRANSFER.zh-CN.md)。原包未包含专用助手技能，本轮补齐写作/草稿两个Hermes技能；MCP主文件和网站接口未变。生产安装及群测仍未完成，旧部署模板不能当作现网机器清单。
 
 ## 目前有什么结果
 
