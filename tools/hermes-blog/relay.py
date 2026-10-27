@@ -13,6 +13,8 @@ from pathlib import Path
 
 SITE = "supplychainsai.com"
 WORKSPACE = 2
+# MCP Python SDK eagerly parses JSON for Optional[str]; keep the text record explicit.
+SOURCE_PREFIX = "channel-blog-source-v1\n"
 MAX_BYTES = 256000
 FIELDS = {"title", "slug", "excerpt", "authorName", "seoTitle", "seoDescription", "format", "body"}
 
@@ -113,7 +115,7 @@ def parse_document(document):
         raise ValueError("文章不在 diversity 工作区，未提交网站")
     content = document.get("content", "")
     try:
-        envelope = json.loads(content)
+        envelope = json.loads(content.removeprefix(SOURCE_PREFIX))
     except ValueError:
         envelope = None
     if isinstance(envelope, dict):
@@ -176,15 +178,15 @@ def save_source(kb, value):
         raise ValueError("知识库存在重复来源，请人工核对，未继续创建")
     if rows:
         document = fetch_document(kb, rows[0]["id"])
-        if json.loads(document["content"]) != expected:
+        if json.loads(document["content"].removeprefix(SOURCE_PREFIX)) != expected:
             raise ValueError("同一文章已有不同内容，请编辑原稿，不另建文")
         return document["id"]
-    created = kb.call("add_document", {"title": article["title"], "content": json.dumps(expected, ensure_ascii=False),
+    created = kb.call("add_document", {"title": article["title"], "content": SOURCE_PREFIX + json.dumps(expected, ensure_ascii=False),
                                        "tags": [tag, "channel-blog-private-draft"], "workspace": str(WORKSPACE)})
     if created.get("workspace_id") != WORKSPACE:
         raise ValueError("知识库没有按工作区保存，未提交网站")
     document = fetch_document(kb, created.get("id"))
-    if json.loads(document["content"]) != expected:
+    if json.loads(document["content"].removeprefix(SOURCE_PREFIX)) != expected:
         raise ValueError("知识库保存内容未确认，未提交网站")
     return document["id"]
 

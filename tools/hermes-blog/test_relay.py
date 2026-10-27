@@ -53,6 +53,23 @@ class RelayTests(unittest.TestCase):
         second = relay.save_source(self.kb, {**ARTICLE, "slug": "another-article", "title": "Another article"})
         self.assertNotEqual(first, second)
 
+    def test_string_body_survives_mcp_eager_json_argument_parsing(self):
+        class JsonParsingKB(KB):
+            def call(self, name, args):
+                if name == "add_document":
+                    try:
+                        decoded = json.loads(args["content"])
+                    except ValueError:
+                        decoded = args["content"]
+                    if not isinstance(decoded, str):
+                        raise ValueError("MCP converted JSON text into an object")
+                return super().call(name, args)
+        kb = JsonParsingKB()
+        ident = relay.save_source(kb, ARTICLE)
+        self.assertEqual(relay.parse_document(kb.documents[ident]), ARTICLE)
+        self.assertEqual(relay.save_source(kb, ARTICLE), ident)
+        self.assertEqual(kb.adds, 1)
+
     def test_a_lost_kb_commit_reply_is_recovered_by_stable_source_tag(self):
         self.kb.lose_next_reply = True
         with self.assertRaises(TimeoutError):
