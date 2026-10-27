@@ -8,8 +8,11 @@ try {
   if (
     args[0] !== '--credential' ||
     !args[1] ||
-    args.length > 3 ||
-    (args[2] && args[2] !== '--maintain')
+    args.length > 4 ||
+    (args[2] && !['--maintain', '--get-import'].includes(args[2])) ||
+    (args[2] === '--get-import'
+      ? !/^article-import-[a-f0-9]{64}$/.test(args[3] ?? '')
+      : args.length > 3)
   )
     throw Error('Fixed private invocation required');
   const state = await maintainCredentialFile(args[1]);
@@ -17,6 +20,8 @@ try {
     console.log(
       JSON.stringify({ ok: true, expiresAt: state.expiresAt, rotateAfter: state.rotateAfter }),
     );
+  } else if (args[2] === '--get-import') {
+    console.log(JSON.stringify(await createBlogToolClient(state.config).getImport(args[3])));
   } else {
     const chunks = [];
     let size = 0;

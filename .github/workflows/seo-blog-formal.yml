@@ -1,0 +1,44 @@
+name: Prepare formal private Blog integration
+on:
+  workflow_call:
+    inputs:
+      registration: {type: string, required: true}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      TCB_ENV_ID: diversity-123-d9grnqfux221323bb
+      CLOUDBASE_REGION: ap-shanghai
+      SITE_URL: https://supplychainsai.com
+      FORMAL_BLOG_REGISTRATION: ${{ inputs.registration }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Build only the isolated importer
+        run: pnpm --filter @vibelingan-channel/fn-article-import build
+        env: {CHANNEL_BUILD_SHA: '${{ github.sha }}'}
+      - run: node scripts/blog/article-import-package.mjs
+      - name: Preserve the exact old program, update importer code only, and register digests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: pnpm --filter @vibelingan-channel/db exec tsx ../../scripts/blog/formal-live.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-formal-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/blog-formal-preparation/result.json
+          if-no-files-found: ignore
+          retention-days: 90

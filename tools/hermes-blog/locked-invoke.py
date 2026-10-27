@@ -3,6 +3,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -39,12 +40,18 @@ def run(args):
                 if time.monotonic() >= deadline:
                     raise TimeoutError("Connector is busy")
                 time.sleep(0.1)
-        payload = b"" if args.maintain else sys.stdin.buffer.read(256001)
+        if args.get_import and not re.fullmatch(r"article-import-[a-f0-9]{64}", args.get_import):
+            raise ValueError("Invalid import identity")
+        if args.maintain and args.get_import:
+            raise ValueError("One operation required")
+        payload = b"" if args.maintain or args.get_import else sys.stdin.buffer.read(256001)
         if len(payload) > 256000:
             raise ValueError("Source exceeds size limit")
         command = [args.node, args.bundle, "--credential", str(credential)]
         if args.maintain:
             command.append("--maintain")
+        elif args.get_import:
+            command.extend(["--get-import", args.get_import])
         result = subprocess.run(command, input=payload, capture_output=True, timeout=150,
                                 env={k: v for k, v in os.environ.items() if k not in ("NODE_OPTIONS", "NODE_PATH")})
         if result.returncode or len(result.stdout) > 32768:
@@ -62,6 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--bundle", required=True)
     parser.add_argument("--node", required=True)
     parser.add_argument("--maintain", action="store_true")
+    parser.add_argument("--get-import")
     try:
         sys.exit(run(parser.parse_args()))
     except (ValueError, OSError, TimeoutError, subprocess.TimeoutExpired):

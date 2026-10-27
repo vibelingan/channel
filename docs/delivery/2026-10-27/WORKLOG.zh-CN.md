@@ -47,3 +47,12 @@ MCP主文件SHA-256仍为4f388524a91a6275234dd8cd99cc2abe9f58c6290a0978253c1d10f
 验证补充：完整源码验证副本的首次 SDK 调用方文件清单检查因 Git 的相对目录仍指向原 checkout 而失败；保留失败日志，在同一临时导出目录只读指定正确 GIT_WORK_TREE 后重新运行全部 SDK 合同检查通过，没有修改 SDK 规则或跳过调用方清单校验。文章 72、HTTP 4、实际 SDK 离线组合 10、工具 12、独立包 2、安装器 2 项通过；实际 ZIP 安装两次且原配置字节不变。流程图 9 项检查及 4 种桌面尺寸测量及 4 张明暗主题截图通过，已查看大屏截图。
 
 交付前发现包若误交发布机可能把写作技能装回去，补上本机 /health 的实际助手身份检查。最终内容包只允许 xianqu-agent1；装到发布机的测试在任何写入前停止。最终 ZIP 已重新解压，校验摘要、拒绝错误身份并重复安装两次；既有配置字节一致。
+
+
+## 正式交接接线开始
+
+用户授权修复所有缺失配置并用已有文章验证。实际 MCP 握手确认 add_document/update_document 支持 workspace；doc201 最初读到工作区1，现场人员已改为2，随后读回正文不变。不得将其描述成由本轮脚本迁移。
+
+读取了 tools/hermes-blog 的 client、server、formal-invoke、maintenance、credential-file、locked-invoke，import-credentials、HTTP adapter、import-store、article-repository，部署 provider 与共享手动 workflow；服务器读取 KB 实际源码及 MCP schema、两机配置（仅输出字段名/摘要）和 Node/Python 路径。修正文案：把“工具不支持工作区”改为“旧会话列表与服务器真实 schema 不一致”；把“技能安装完成”与“网站交接接通”分别记录。
+
+实现专用 MCP 与受限 SSH 文档编号交接，不把网站密钥给内容机。补工作区硬校验、来源标签幂等、已入库文档提交与正式凭证查询。新增6项 Python、2项真实 MCP 角色协议、1项注册策略测试；既有14项 Node工具、8项导入范围和3项独立包检查通过。现场安装及网站切换仍待后续验收，不在此宣称完成。

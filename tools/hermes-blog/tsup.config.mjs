@@ -2,6 +2,7 @@ export default {
   entry: {
     'channel-blog-mcp': 'tools/hermes-blog/launch.mjs',
     'channel-blog-invoke': 'tools/hermes-blog/formal-invoke.mjs',
+    'channel-blog-relay': 'tools/hermes-blog/relay-launch.mjs',
   },
   outDir: 'output/hermes-blog-bundle',
   outExtension: () => ({ js: '.mjs' }),
