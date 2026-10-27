@@ -1,5 +1,8 @@
 # 继续原 SEO / Blog 工作
 
+<!-- formal-blog-latest -->
+最新状态：发布机写作职责已清理，VibeKB/网站草稿工具保留；正式凭证维护和 KB 去重代码已补，尚未云端启用。等内容助手自查后再接真实交接并联测，不按旧单篇包重复安装。详见 docs/delivery/2026-10-27/wecom/FORMAL-USE-STATUS.zh-CN.md。
+
 2026-10-27。先读 [当前进度](../delivery/README.zh-CN.md)、[本轮实施](../delivery/2026-10-26/EXECUTION.zh-CN.md) 和 [实际工作记录](../delivery/2026-10-26/WORKLOG.zh-CN.md)。本页后面的旧状态用于查证，不能作为当前待办或权限判断。
 
 - 继续原 `feat/seo-foundation`，不要新开分支、worktree 或 PR。先读回远端最新 SHA，保留其他工作流的修改。

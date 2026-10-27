@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-27",
+  "backupRelativeToHermesHome": "channel-blog/backups/role-cleanup-20261027-6b704b29",
+  "beforeHashes": {
+    "config": "6cdcfedf54c9330e9ad2f61c799d8f8a59dc893d29b907eda7180879d5240df5",
+    "soul": "dc80d190d6aa9c4ba574e437dfc80d2615e4536a03eed1179c9b74f906345eee",
+    "writer": "54125d76bcce0415301b4d1a67b939af3258da0673f5662fb49d6bd9c28d09ec",
+    "draft": "0f7f33309a211c50875ab34cb9f8a4f7f42b8f85bfdefac0e83187a44b29d38d"
+  },
+  "removedOnlyWritingCapability": true,
+  "websiteCredentialTransferred": false,
+  "otherMcpEntriesUnchanged": true,
+  "contentMachineModified": false,
+  "gatewayRestarted": true,
+  "afterHashes": {
+    "config": "9b9ea6b185a715f0e15f785a9bc5f0eb1937f3dba6986cfac156e0d8c4b5c420",
+    "soul": "6171eba6c6d69dff440b979de7d601399e6527103e7dbd65758eb69ad67921a8",
+    "draft": "078f1a978fefe828968fddfbc07894cb80cc51e51219eeabb0a4caa787dc1214"
+  },
+  "capabilitiesBefore": 8,
+  "capabilitiesAfter": 7,
+  "writingSkillActive": false,
+  "draftSkillActive": true,
+  "allOtherConfigValuesUnchanged": true,
+  "mcpNamesPreserved": ["cloudbase", "vibekb", "socialclaw", "channelblog"],
+  "gatewayPidBefore": 3042052,
+  "gatewayPidAfter": 3065590,
+  "gatewayPlatformsAfter": {
+    "wecom": "connected",
+    "webhook": "connected",
+    "hub": "connected",
+    "lightclawbot": "connected"
+  },
+  "a2aPidUnchanged": true,
+  "a2aPid": 21324,
+  "plannedBroadcastMarkerCreated": false,
+  "nativeReadback": {
+    "nativeWritingSkillAbsent": true,
+    "nativeDraftSkillReadable": true,
+    "draftMcpToolNames": [
+      "mcp__channelblog__channel_blog_create_draft",
+      "mcp__channelblog__channel_blog_get_import"
+    ],
+    "credentialStayedOnPublisher": true,
+    "credentialMode": "0600",
+    "modelCalls": 0,
+    "businessWrites": 0,
+    "messagesSent": 0
+  }
+}

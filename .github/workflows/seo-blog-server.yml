@@ -33,16 +33,34 @@ jobs:
       - run: node tools/cloud-handoff/check-runtime.mjs
       - run: node --test tools/cloud-handoff/transport.integration.mjs
       - run: npm test --prefix tools/hermes-blog
+      - name: Check the content-only installer without changing assistant configuration
+        run: python3 -m unittest discover -s tools/hermes-blog/content-kit -p 'test_*.py'
+      - name: Package only the content assistant skill and installation guide
+        run: python3 tools/hermes-blog/content-kit/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-blog-content-kit-${{ github.sha }}
+          path: output/channel-blog-content-kit-2026-10-27.zip
+          if-no-files-found: error
+      - name: Check KB replay and key rotation through the actual SDK offline transport
+        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../tools/hermes-blog/kb-store.integration.mjs
       - run: ./apps/functions/article-import/node_modules/.bin/tsup --config tools/hermes-blog/tsup.config.mjs
       - uses: actions/setup-node@v4
         with: {node-version: 20.19.0}
-      - run: node --test tools/hermes-blog/bundle.integration.mjs
+      - run: node --test tools/hermes-blog/bundle.integration.mjs tools/hermes-blog/formal-bundle.integration.mjs
       - uses: actions/setup-node@v4
         with: {node-version: 22.13.0}
       - uses: actions/upload-artifact@v4
         with:
           name: hermes-blog-tool-${{ github.sha }}
           path: output/hermes-blog-bundle/channel-blog-mcp.mjs
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-blog-maintenance-${{ github.sha }}
+          path: |
+            output/hermes-blog-bundle/channel-blog-invoke.mjs
+            tools/hermes-blog/locked-invoke.py
           if-no-files-found: error
       - run: pnpm --filter @vibelingan-channel/articles test
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test src/article-public-reader.test.ts

@@ -1,5 +1,8 @@
 # SEO / Blog：当前进度与执行入口
 
+<!-- formal-blog-latest -->
+最新状态：发布机写作职责已清理，VibeKB/网站草稿工具保留；正式凭证维护和 KB 去重代码已补，尚未云端启用。等内容助手自查后再接真实交接并联测，不按旧单篇包重复安装。详见 docs/delivery/2026-10-27/wecom/FORMAL-USE-STATUS.zh-CN.md。
+
 2026-10-27。本页是当前进度入口，后续会话先读这里，再看工作记录。沿用原 `feat/seo-foundation`，pricing 已合入 main 的内容已整合，未创建新分支或 worktree。
 
 本轮用户后续授权Mac专用SSH直连，已在真实xianqu-agent2发布机完成凭证、技能接线并验证原生MCP到网站的只读调用；[实际安装结果](2026-10-27/wecom/INSTALLATION-RESULT.zh-CN.md)为当前事实。没有代发群消息或创建文章，用户的真实WeCom创作/转交/保存仍待验收。旧管理员步骤只作复核参考，不重放安装。

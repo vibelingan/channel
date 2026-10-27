@@ -1,0 +1,187 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "内容入库、网站草稿与人工上线",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "content",
+      "label": "客户、内容助手与知识库"
+    },
+    {
+      "id": "publisher",
+      "label": "发布助手与网站后台"
+    },
+    {
+      "id": "operations",
+      "label": "其他任务与运行维护"
+    }
+  ],
+  "mainPath": ["customer", "writer", "kb", "handoff", "verify", "draft", "review", "public"],
+  "nodes": [
+    {
+      "id": "customer",
+      "lane": "content",
+      "col": 0,
+      "type": "external",
+      "label": "客户下任务",
+      "sublabel": "只说业务需求",
+      "width": 145
+    },
+    {
+      "id": "writer",
+      "lane": "content",
+      "col": 1,
+      "type": "backend",
+      "label": "内容助手创作",
+      "sublabel": "正文、摘要、配图",
+      "width": 145
+    },
+    {
+      "id": "kb",
+      "lane": "content",
+      "col": 2,
+      "type": "database",
+      "label": "VibeKB 入库",
+      "sublabel": "取得真实文档 ID",
+      "width": 145
+    },
+    {
+      "id": "handoff",
+      "lane": "content",
+      "col": 3,
+      "type": "messagebus",
+      "label": "网站草稿交接",
+      "sublabel": "明确要求才触发",
+      "tag": "入口待自查确认",
+      "width": 155
+    },
+    {
+      "id": "verify",
+      "lane": "publisher",
+      "col": 3,
+      "type": "security",
+      "label": "发布助手取稿",
+      "sublabel": "核对文档与工作区",
+      "width": 155
+    },
+    {
+      "id": "draft",
+      "lane": "publisher",
+      "col": 4,
+      "type": "backend",
+      "label": "保存私有草稿",
+      "sublabel": "同文档沿用请求号",
+      "width": 155
+    },
+    {
+      "id": "review",
+      "lane": "publisher",
+      "col": 5,
+      "type": "frontend",
+      "label": "人工审核",
+      "sublabel": "编辑、补图、预览",
+      "width": 145
+    },
+    {
+      "id": "ordinary",
+      "lane": "operations",
+      "col": 1,
+      "type": "backend",
+      "label": "其他内容任务",
+      "sublabel": "保留原工作流程",
+      "width": 145
+    },
+    {
+      "id": "keys",
+      "lane": "operations",
+      "col": 3,
+      "type": "security",
+      "label": "凭证自动维护",
+      "sublabel": "仅发布机持有",
+      "tag": "代码已测，待启用",
+      "width": 155
+    },
+    {
+      "id": "public",
+      "lane": "operations",
+      "col": 5,
+      "type": "cloud",
+      "label": "客户确认上线",
+      "sublabel": "网站返回文章 HTML",
+      "width": 145
+    }
+  ],
+  "edges": [
+    {
+      "id": "request",
+      "from": "customer",
+      "to": "writer"
+    },
+    {
+      "id": "store",
+      "from": "writer",
+      "to": "kb"
+    },
+    {
+      "id": "ask-draft",
+      "from": "kb",
+      "to": "handoff"
+    },
+    {
+      "id": "get-document",
+      "from": "handoff",
+      "to": "verify",
+      "label": "指定文档",
+      "variant": "emphasis"
+    },
+    {
+      "id": "save",
+      "from": "verify",
+      "to": "draft"
+    },
+    {
+      "id": "link",
+      "from": "draft",
+      "to": "review",
+      "label": "编辑链接"
+    },
+    {
+      "id": "approve",
+      "from": "review",
+      "to": "public",
+      "label": "人点上线",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ordinary-work",
+      "from": "writer",
+      "to": "ordinary",
+      "label": "未要求存网站",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "credential",
+      "from": "keys",
+      "to": "verify",
+      "label": "受限凭证",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "已在发布机完成",
+      "items": ["写作职责已移除；取稿和草稿工具保留", "其他 MCP 与 A2A 服务保持原样"]
+    },
+    {
+      "dot": "rose",
+      "title": "代码验证与待接事项",
+      "items": ["同文档去重与凭证维护已做离线测试", "工作区和任务入口等自查后接线联测"]
+    }
+  ]
+}

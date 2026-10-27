@@ -1,5 +1,8 @@
 # 云端接手入口
 
+<!-- formal-blog-latest -->
+当前已清理发布机上本轮新增的写作职责；网站凭证与草稿工具保留。正式凭证维护及按 KB 文档去重的代码已准备，尚未云端激活。先读 docs/delivery/2026-10-27/wecom/FORMAL-USE-STATUS.zh-CN.md，不转发旧单篇包给内容助手，不重复首轮安装或提前群测。
+
 2026-10-26更新。当前事实和下一步统一记在 [交付进度](docs/delivery/README.zh-CN.md)，先读该页，再读 [会话交接](docs/cloud-handoff/SESSION.zh-CN.md)。早期dummy阶段的限制和待办是历史记录，不能覆盖用户后来的授权，也不能当成当前状态。
 
 - 仓库：vibelingan/channel。原工作分支feat/seo-foundation，不新开分支或worktree，不改其他工作流。
@@ -15,7 +18,7 @@ docs/delivery/README.zh-CN.md和docs/cloud-handoff/SESSION.zh-CN.md，
 再核对远端最新源码与实际运行版本。沿用feat/seo-foundation，不开新分支或worktree，
 不改pricing或其他工作流。本轮已经合入main并正常发布test；不要重复做首次dummy部署，
 不要用旧程序覆盖现站。
-下一步由用户在WeCom群实际测试创作、转交和保存草稿；
+下一步等待内容助手自查正确工作区和任务接口，再完成 VibeKB 取稿交接并联测；
 真实发布机已完成配置，先读docs/delivery/2026-10-27/wecom/INSTALLATION-RESULT.zh-CN.md，
 不重复安装、不猜其他服务器、不代发群消息。
 网站草稿接口已接通；助手只能存私有草稿、查自己的结果，人审核后才公开。

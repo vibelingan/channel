@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-27",
+  "scope": "formal-blog-preparation",
+  "tests": {
+    "articleDomain": 72,
+    "articleHttp": 4,
+    "sdkReplayAndRotation": 10,
+    "nodeTools": 12,
+    "standaloneBundles": 2,
+    "contentInstaller": 2,
+    "actualZipInstallCount": 2,
+    "sdkContract": "passed-after-correcting-validation-export-git-root"
+  },
+  "production": {
+    "publisherRoleCleanup": "complete",
+    "websiteFunctionDeployment": false,
+    "managedCredentialActivated": false,
+    "contentMachineConfigurationChanged": false,
+    "wecomJointTestExecuted": false
+  },
+  "archive": {
+    "file": "channel-blog-content-kit-2026-10-27.zip",
+    "sha256": "5d8883d8175d9d6805e7d8d4cec53925f4d19737ff09ae0421088b3c64ff83fe",
+    "fileCount": 4,
+    "credentialIncluded": false
+  },
+  "diagram": {
+    "artifactChecks": 9,
+    "compositionErrors": 0,
+    "compositionWarnings": 0,
+    "htmlSha256": "ff9dadca6fda012c8788fc2e0177456a8f58d946604977184330f27fca055a36",
+    "viewportMeasurements": 4,
+    "screenshots": 4
+  }
+}
