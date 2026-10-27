@@ -20,13 +20,13 @@ description: 当客户要求写网站文章或将现有文章存到 supplychains
 
 正文使用 H2/H3、小段落和必要清单，通过当前 Markdown 导入格式保存；不用 H1、HTML、图片链接或表格。表格需要时先改成清单。
 
-配图给出英文生成提示词、建议位置和依据实际画面写的图片说明。已有合法生图能力时可生成并另交文件；没有就说明只完成配图方案。当前网站工具不能自动上传图片，人可在后台补图。不要捏造已经生成或上传。
+配图给出英文生成提示词、建议位置和依据实际画面写的图片说明。已有合法生图能力时可生成图片。已有图片优先复用，不因为补图任务重新生成。把本任务图片保存在本机 content_output 目录，按实际画面和文章语言写 alt，给出明确位置。没有图片文件时，说明只完成了配图方案。不要捏造已经生成或上传。
 
 ## 入库与交给发布助手
 
-本网站明确绑定 diversity 工作区（ID=2），不新建工作区、不落默认工作区。客户明确要求网站草稿时，调用本机 channelblog MCP 的 channel_blog_save_draft：提交 article，包含标题、稳定 slug、简介、作者 Diversity Technology Limited、SEO 标题/摘要、format=markdown 和正文 body。工具程序负责先入库工作区2，再把真实文档编号交给发布机。不要再同时调用通用 add_document，以免重复入库。
+本网站明确绑定 diversity 工作区（ID=2），不新建工作区、不落默认工作区。客户明确要求网站草稿时，调用本机 channelblog MCP 的 channel_blog_save_draft：提交 article，包含标题、稳定 slug、简介、作者 Diversity Technology Limited、SEO 标题/摘要、format=markdown 和正文 body。如果已有配图，在同一次调用中提供 images：每张图包含本机绝对 filePath、准确 alt、可选 caption 和 placement；位置为 start、end 或 before-heading（提供唯一完整标题 heading）。工具程序负责先入库工作区2，再把文档和文件分别交给发布机，确认图片插入后返回编辑链接。不要再同时调用通用 add_document，以免重复入库。
 
-如果文章已经入库（例如文档201），只调用 channel_blog_submit_document，传原 documentId，不重新生成或另存一篇。失败重试保持原编号；若工具返回 stored-awaiting-handoff，告诉客户文章已入库但网站尚未确认，沿用返回的文档编号重试。相同 slug 不同正文发生冲突时，编辑原稿，不换 slug 绕过。配图方案和文件另交用户在后台补充，当前工具不自动上传图片。
+如果文章已经入库（例如文档201），只调用 channel_blog_submit_document，传原 documentId，不重新生成或另存一篇。失败重试保持原编号；若工具返回 stored-awaiting-handoff，告诉客户文章已入库但网站尚未确认，沿用返回的文档编号重试。相同 slug 不同正文发生冲突时，编辑原稿，不换 slug 绕过。给已保存的草稿补已有图片时，调用 channel_blog_attach_images，传原 documentId 和 images；不再次调用保存正文，不另建文档。两张图必须都确认插入才说图文草稿完整。images-incomplete 表示图片结果未全部确认，沿原文件、位置和文档编号重试；人工改稿冲突须保留人的修改并如实报告，不换号、不用原文覆盖。已经移除的图片不因重试恢复。
 
 发布机程序会重新读取指定知识库文档、核对真实工作区、保存并查询网站回执；不需要再让客户同时 @发布助手。网站凭证留在发布机，不放内容机、不索取管理员账号。只有工具返回 state=ready 和真实 editUrl，才说网站私有草稿已保存。缺少 channelblog 专用工具时明确报告，不把通用 VibeKB 或 pipeline 工具当成网站交接入口。客户最后登录后台审核上线。
 

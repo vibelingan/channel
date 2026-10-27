@@ -41,3 +41,24 @@ export function kbDraftRequest(binding, source) {
     idempotencyKey: `kb-draft:${digest}`,
   });
 }
+
+export function kbImportOperation(binding, documentId, workspaceId) {
+  const trusted = bindingSchema.parse(binding);
+  const id = z.number().int().positive().safe().parse(documentId);
+  if (identity.parse(workspaceId) !== trusted.workspaceId)
+    throw Error('The KB document belongs to another workspace');
+  const digest = createHash('sha256')
+    .update(
+      JSON.stringify([
+        'channel-blog-kb-v1',
+        trusted.siteId,
+        trusted.integrationId,
+        trusted.workspaceId,
+        id,
+      ]),
+    )
+    .digest('hex');
+  return `article-import-${createHash('sha256')
+    .update(JSON.stringify([trusted.siteId, trusted.integrationId, `kb-draft:${digest}`]))
+    .digest('hex')}`;
+}

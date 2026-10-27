@@ -34,7 +34,7 @@ jobs:
       - run: node --test tools/cloud-handoff/transport.integration.mjs
       - run: npm test --prefix tools/hermes-blog
       - name: Verify source workspace, replay recovery, and private draft relay
-        run: python3 -m unittest discover -s tools/hermes-blog -p 'test_relay.py'
+        run: python3 -m unittest discover -s tools/hermes-blog -p 'test_*.py'
       - name: Check the content-only installer without changing assistant configuration
         run: python3 -m unittest discover -s tools/hermes-blog/content-kit -p 'test_*.py'
       - name: Package only the content assistant skill and installation guide
@@ -45,7 +45,7 @@ jobs:
           path: output/channel-blog-content-kit-2026-10-27.zip
           if-no-files-found: error
       - name: Check KB replay and key rotation through the actual SDK offline transport
-        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../tools/hermes-blog/kb-store.integration.mjs
+        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../tools/hermes-blog/kb-store.integration.mjs ../../tools/hermes-blog/image-store.integration.ts
       - run: ./apps/functions/article-import/node_modules/.bin/tsup --config tools/hermes-blog/tsup.config.mjs
       - uses: actions/setup-node@v4
         with: {node-version: 20.19.0}
@@ -71,8 +71,12 @@ jobs:
             output/hermes-blog-bundle/channel-blog-relay.mjs
             output/hermes-blog-bundle/channel-blog-invoke.mjs
             tools/hermes-blog/relay.py
+            tools/hermes-blog/image_relay.py
+            tools/hermes-blog/dispatch_relay.py
             tools/hermes-blog/locked-invoke.py
           if-no-files-found: error
+      - run: pnpm --filter @vibelingan-channel/fn-article-import typecheck
+      - run: pnpm --filter @vibelingan-channel/fn-article-import test
       - run: pnpm --filter @vibelingan-channel/articles test
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test src/article-public-reader.test.ts
       - run: pnpm --filter @vibelingan-channel/site build:blog-server

@@ -195,6 +195,15 @@ importers:
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      '@vibelingan-channel/media-storage':
+        specifier: workspace:*
+        version: link:../../../packages/media-storage
+      '@vibelingan-channel/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      image-size:
+        specifier: 2.0.4
+        version: 2.0.4
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

@@ -21,7 +21,8 @@
     "./release-build": "./src/release-build.ts",
     "./public-read": "./src/public-read.ts",
     "./import": "./src/import.ts",
-    "./import-store": "./src/import-store.ts"
+    "./import-store": "./src/import-store.ts",
+    "./import-media": "./src/import-media.ts"
   },
   "scripts": {
     "test": "tsc --noEmit && tsx --test \"src/**/*.test.ts\"",

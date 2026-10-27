@@ -21,7 +21,9 @@ export async function createRelayServer(path) {
       const result = await new Promise((resolve, reject) => {
         const child = spawn(
           '/usr/bin/python3',
-          [join(dirname(path), 'relay.py'), '--config', path, '--operation', operation],
+          operation === 'images'
+            ? [join(dirname(path), 'image_relay.py'), '--config', path]
+            : [join(dirname(path), 'relay.py'), '--config', path, '--operation', operation],
           {
             stdio: ['pipe', 'pipe', 'pipe'],
             env: Object.fromEntries(
@@ -29,7 +31,7 @@ export async function createRelayServer(path) {
                 .filter((key) => process.env[key])
                 .map((key) => [key, process.env[key]]),
             ),
-            timeout: 150000,
+            timeout: operation === 'images' ? 270000 : 150000,
             killSignal: 'SIGTERM',
           },
         );
@@ -69,7 +71,36 @@ export async function createRelayServer(path) {
     }
   }
   const document = z.object({ documentId: z.number().int().positive().safe() }).strict();
+  const images = z
+    .array(
+      z
+        .object({
+          filePath: z.string().refine(isAbsolute),
+          alt: z.string().trim().min(1).max(300),
+          caption: z.string().max(500).optional(),
+          placement: z.discriminatedUnion('type', [
+            z.object({ type: z.literal('start') }).strict(),
+            z.object({ type: z.literal('end') }).strict(),
+            z
+              .object({ type: z.literal('before-heading'), heading: z.string().min(1).max(200) })
+              .strict(),
+          ]),
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(20);
   if (config.role === 'content') {
+    server.registerTool(
+      'channel_blog_attach_images',
+      {
+        description:
+          '把本机已生成的图片交给发布机，插入指定网站私有草稿。提供真实 documentId、现有文件路径、准确 alt 和位置。保持原文件和位置重试；不生成图片、不另建文章、不覆盖人工修改、不公开。',
+        inputSchema: document.extend({ images }).strict(),
+        annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      (args) => call('images', args),
+    );
     server.registerTool(
       'channel_blog_save_draft',
       {
@@ -83,11 +114,19 @@ export async function createRelayServer(path) {
               body: z.string().max(131072),
               authorName: z.literal('Diversity Technology Limited'),
             }),
+            images: images.optional(),
           })
           .strict(),
         annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
       },
-      (args) => call('save', args),
+      async (args) => {
+        const saved = await call('save', { article: args.article });
+        if (saved.isError || !args.images?.length) return saved;
+        return call('images', {
+          documentId: saved.structuredContent.documentId,
+          images: args.images,
+        });
+      },
     );
     server.registerTool(
       'channel_blog_submit_document',

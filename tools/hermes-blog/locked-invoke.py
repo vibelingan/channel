@@ -42,9 +42,11 @@ def run(args):
                 time.sleep(0.1)
         if args.get_import and not re.fullmatch(r"article-import-[a-f0-9]{64}", args.get_import):
             raise ValueError("Invalid import identity")
-        if args.maintain and args.get_import:
+        if sum(bool(x) for x in (args.maintain, args.get_import, args.image_job)) > 1:
             raise ValueError("One operation required")
-        payload = b"" if args.maintain or args.get_import else sys.stdin.buffer.read(256001)
+        if args.image_job and not Path(args.image_job).is_absolute():
+            raise ValueError("Absolute image job required")
+        payload = b"" if args.maintain or args.get_import or args.image_job else sys.stdin.buffer.read(256001)
         if len(payload) > 256000:
             raise ValueError("Source exceeds size limit")
         command = [args.node, args.bundle, "--credential", str(credential)]
@@ -52,7 +54,9 @@ def run(args):
             command.append("--maintain")
         elif args.get_import:
             command.extend(["--get-import", args.get_import])
-        result = subprocess.run(command, input=payload, capture_output=True, timeout=150,
+        elif args.image_job:
+            command.extend(["--image-job", args.image_job])
+        result = subprocess.run(command, input=payload, capture_output=True, timeout=240 if args.image_job else 150,
                                 env={k: v for k, v in os.environ.items() if k not in ("NODE_OPTIONS", "NODE_PATH")})
         if result.returncode or len(result.stdout) > 32768:
             raise ValueError("Connector result unconfirmed")
@@ -70,6 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--node", required=True)
     parser.add_argument("--maintain", action="store_true")
     parser.add_argument("--get-import")
+    parser.add_argument("--image-job")
     try:
         sys.exit(run(parser.parse_args()))
     except (ValueError, OSError, TimeoutError, subprocess.TimeoutExpired):

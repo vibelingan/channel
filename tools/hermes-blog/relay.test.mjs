@@ -30,7 +30,7 @@ for (const role of ['content', 'publisher']) {
     assert.deepEqual(
       tools.tools.map((x) => x.name).sort(),
       role === 'content'
-        ? ['channel_blog_save_draft', 'channel_blog_submit_document']
+        ? ['channel_blog_attach_images', 'channel_blog_save_draft', 'channel_blog_submit_document']
         : ['channel_blog_create_draft', 'channel_blog_get_import'],
     );
     const name = role === 'content' ? 'channel_blog_submit_document' : 'channel_blog_create_draft';

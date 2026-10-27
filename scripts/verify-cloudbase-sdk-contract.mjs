@@ -937,13 +937,13 @@ for (const clientPath of [
 
 const uploadConsumers = execFileSync(
   'git',
-  ['ls-files', '-z', '-co', '--exclude-standard', '--', 'apps', 'packages'],
+  ['ls-files', '-z', '-co', '--exclude-standard', '--', 'apps', 'packages', 'tools/hermes-blog'],
   { cwd: root, encoding: 'utf8' },
 )
   .split('\0')
   .filter(
     (file) =>
-      /\.(?:ts|tsx|astro)$/.test(file) &&
+      /\.(?:ts|tsx|astro|mjs)$/.test(file) &&
       !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
       existsSync(join(root, file)),
   )
@@ -953,9 +953,18 @@ const uploadConsumers = execFileSync(
     ),
   );
 requireCheck(
-  uploadConsumers.length === 3,
-  'SDK credential sender population is exactly three clients; new senders require contract verification',
+  uploadConsumers.length === 4,
+  'SDK credential sender population is exactly four clients; new senders require contract verification',
   uploadConsumers.join(', '),
+);
+
+const imageSender = readFileSync(join(root, 'tools/hermes-blog/image-client.mjs'), 'utf8');
+requireCheck(
+  /request\('PUT',\s*intent\.upload\.url/.test(imageSender) &&
+    /headers:\s*intent\.upload\.headers/.test(imageSender) &&
+    /body:\s*bytes/.test(imageSender) &&
+    !/new FormData/.test(imageSender),
+  'Agent image sender uses the verified single-object raw PUT contract',
 );
 
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
