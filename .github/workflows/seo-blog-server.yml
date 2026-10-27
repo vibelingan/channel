@@ -72,6 +72,7 @@ jobs:
             output/hermes-blog-bundle/channel-blog-invoke.mjs
             tools/hermes-blog/relay.py
             tools/hermes-blog/image_relay.py
+            tools/hermes-blog/image_put.py
             tools/hermes-blog/dispatch_relay.py
             tools/hermes-blog/locked-invoke.py
           if-no-files-found: error

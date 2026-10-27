@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { fetchFully } from '../../scripts/smoke-http.mjs';
 import { readBlogToolConfig } from './client.mjs';
 import { readPrivateJson, writePrivateJson } from './credential-file.mjs';
+import { putImage } from './image-put.mjs';
 import { kbImportOperation } from './kb-draft.mjs';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -150,7 +151,14 @@ async function imageBytes(path, image) {
   }
 }
 /** Runs under the publisher's credential lock. Upload grants never leave this program. */
-export async function completeImageJob(jobPath, config, { request = fetchFully } = {}) {
+export async function completeImageJob(
+  jobPath,
+  config,
+  {
+    request = (method, url, options) =>
+      method === 'PUT' ? putImage(url, options) : fetchFully(method, url, options),
+  } = {},
+) {
   const trusted = readBlogToolConfig({
     CHANNEL_BLOG_API_ORIGIN: config.apiOrigin,
     CHANNEL_BLOG_SITE_ORIGIN: config.siteOrigin,

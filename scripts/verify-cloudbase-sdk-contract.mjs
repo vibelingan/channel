@@ -967,6 +967,19 @@ requireCheck(
   'Agent image sender uses the verified single-object raw PUT contract',
 );
 
+const pythonImageSender = readFileSync(join(root, 'tools/hermes-blog/image_put.py'), 'utf8');
+requireCheck(
+  /connection\.request\('PUT'/.test(pythonImageSender) &&
+    /body=body, headers=headers/.test(pythonImageSender) &&
+    /response\.status != 200 or received/.test(pythonImageSender) &&
+    /headers\['Signature'\] != headers\['authorization'\]/.test(pythonImageSender),
+  'Native publisher uploader preserves the verified raw PUT headers and empty HTTP 200 acknowledgement',
+);
+requireCheck(
+  !/sysctl|modprobe|modules-load/.test(pythonImageSender),
+  'Image transfer code cannot change global kernel or application settings',
+);
+
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
 requireCheck(
   nodeCloudbase.includes('getUploadMetadata({ cloudPath }'),
