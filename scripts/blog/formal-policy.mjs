@@ -7,6 +7,7 @@ export const FORMAL_BLOG = Object.freeze({
   integrationId: 'hermes-wecom-supplychainsai',
   keyId: 'hermes-wecom-supplychainsai-02',
   previousPackage: '5176aefc73bbaa754609897d6098d837fb07eba4f380fd482fefbf68212106e0',
+  repairBaselinePackage: 'b465c0ff072398c6ad589b601951a2d24b49445de778523002efbd46f8ba0311',
 });
 
 export function formalRegistration(value, now) {

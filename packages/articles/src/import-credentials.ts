@@ -17,7 +17,7 @@ export const articleIntegrationSchema = z
   })
   .strict();
 export type ArticleIntegration = z.infer<typeof articleIntegrationSchema>;
-const policySchema = z
+export const managedArticlePolicySchema = z
   .object({
     _id: z.string(),
     siteId: z.literal('supplychainsai.com'),
@@ -49,7 +49,7 @@ export function parseIntegrationCredential(credential: string) {
 }
 async function policyFor(store: ArticleStore, key: ArticleIntegration) {
   const id = managedPolicyId(key._id);
-  const parsed = policySchema.safeParse(await store.read('articleIntegrations', id));
+  const parsed = managedArticlePolicySchema.safeParse(await store.read('articleIntegrations', id));
   return parsed.success &&
     parsed.data._id === id &&
     parsed.data.keyId === key._id &&
@@ -95,7 +95,7 @@ export async function rotateArticleCredential(
     .safeParse(input);
   if (!parsed.success)
     throw new ArticleImportError('INVALID_REQUEST', 'Invalid credential rotation request.');
-  return transaction(async (store) => {
+  const work = async (store: ArticleStore) => {
     const now = clock();
     const current = await authorizedIntegration(store, auth, now);
     if (!current) throw unauthorized();
@@ -150,7 +150,7 @@ export async function rotateArticleCredential(
       },
     };
     const { _id, ...body } = articleIntegrationSchema.parse(next);
-    const { _id: policyId, ...policyBody } = policySchema.parse(nextPolicy);
+    const { _id: policyId, ...policyBody } = managedArticlePolicySchema.parse(nextPolicy);
     await store.write('articleIntegrations', _id, body);
     await store.write('articleIntegrations', policyId, policyBody);
     return {
@@ -159,5 +159,17 @@ export async function rotateArticleCredential(
       rotateAfter: nextPolicy.rotateAfter,
       configRevision: next.configRevision,
     };
+  };
+  // Expected denials leave the transaction as values, just like draft creation.
+  // The DB adapter maps thrown unknown errors to storage failures.
+  const outcome = await transaction(async (store) => {
+    try {
+      return { value: await work(store) };
+    } catch (error) {
+      if (error instanceof ArticleImportError) return { failure: error };
+      throw error;
+    }
   });
+  if ('failure' in outcome) throw outcome.failure;
+  return outcome.value;
 }

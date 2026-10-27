@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { handleArticleImportEvent } from '../../apps/functions/article-import/src/http-adapter.ts';
 import { createArticleImportService } from '../../packages/articles/src/import-store.ts';
 import {
   articleTransaction,
@@ -8,6 +12,91 @@ import {
 } from '../../packages/db/src/article-repository.ts';
 import { articleSdkFixture } from '../../packages/db/src/article-sdk-fixture.test-helper.ts';
 import { kbDraftRequest } from './kb-draft.mjs';
+import { maintainCredentialFile } from './maintenance.mjs';
+
+test('real SDK, HTTP adapter and maintenance recover the candidate-key 401 without masking it as a storage failure', async (t) => {
+  const f = articleSdkFixture(t);
+  const now = Date.parse('2026-10-27T00:00:00Z');
+  const secret = 'f'.repeat(64);
+  const key = 'formal-key';
+  f.put('articleIntegrations', key, {
+    _id: key,
+    siteId: 'supplychainsai.com',
+    integrationId: 'formal-connection',
+    enabled: true,
+    secretDigest: createHash('sha256').update(secret).digest('hex'),
+    expiresAt: new Date(now + 90 * 86400000).toISOString(),
+    configRevision: 1,
+  });
+  f.put('articleIntegrations', `managed-${key}`, {
+    _id: `managed-${key}`,
+    siteId: 'supplychainsai.com',
+    keyId: key,
+    integrationId: 'formal-connection',
+    rotateAfter: new Date(now).toISOString(),
+  });
+  const service = createArticleImportService(articleTransaction(f.db), () => now);
+  const root = await mkdtemp(join(tmpdir(), 'real-sdk-maintenance-'));
+  t.after(() => rm(root, { recursive: true }));
+  const path = join(root, 'credential.json');
+  const origin =
+    'https://diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com';
+  await writeFile(
+    path,
+    JSON.stringify({
+      CHANNEL_BLOG_API_ORIGIN: origin,
+      CHANNEL_BLOG_SITE_ORIGIN: 'https://supplychainsai.com',
+      CHANNEL_BLOG_INTEGRATION_ID: 'formal-connection',
+      CHANNEL_BLOG_CREDENTIAL: `${key}.${secret}`,
+      CHANNEL_BLOG_MAINTENANCE: {
+        expiresAt: new Date(now + 90 * 86400000).toISOString(),
+        rotateAfter: new Date(now).toISOString(),
+        configRevision: 1,
+      },
+    }),
+    { mode: 0o600 },
+  );
+  const statuses = [];
+  const result = await maintainCredentialFile(path, {
+    clock: () => now,
+    request: async (method, url, options) => {
+      assert.equal(url, `${origin}/api/integrations/v1/article-drafts/credential-rotation`);
+      const response = await handleArticleImportEvent(
+        {
+          httpMethod: method,
+          path: new URL(url).pathname,
+          headers: options.headers,
+          body: options.body.toString('utf8'),
+        },
+        service,
+        'a'.repeat(40),
+      );
+      statuses.push(response.statusCode);
+      return {
+        status: response.statusCode,
+        body: Buffer.from(response.body),
+        headers: new Headers(response.headers),
+      };
+    },
+  });
+  assert.deepEqual(statuses, [401, 200]);
+  assert.equal(result.configRevision, 2);
+  assert.notEqual(result.config.credential, `${key}.${secret}`);
+  const early = await handleArticleImportEvent(
+    {
+      httpMethod: 'POST',
+      path: '/api/integrations/v1/article-drafts/credential-rotation',
+      headers: {
+        authorization: `Bearer ${result.config.credential}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ rotationId: 'e'.repeat(32) }),
+    },
+    service,
+    'a'.repeat(40),
+  );
+  assert.equal(early.statusCode, 429);
+});
 
 test('KB identity, actual SDK transactions, human edits and rotated credentials keep one draft per document', async (t) => {
   const f = articleSdkFixture(t);

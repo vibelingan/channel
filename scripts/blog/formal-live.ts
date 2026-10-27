@@ -3,6 +3,10 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { DefaultArtifactClient } from '@actions/artifact';
 import CloudBase from '@cloudbase/manager-node';
+import {
+  articleIntegrationSchema,
+  managedArticlePolicySchema,
+} from '../../packages/articles/src/import-credentials.ts';
 import { articleTransaction } from '../../packages/db/src/article-repository.ts';
 import { createCloudbaseFunctionProvider } from '../release/function-provider.mjs';
 import { createSiteGithubSource } from '../release/site-github-source.mjs';
@@ -17,7 +21,11 @@ assert(env.GITHUB_TOKEN && env.TENCENTCLOUD_SECRETID && env.TENCENTCLOUD_SECRETK
 const registration = JSON.parse(
   Buffer.from(env.FORMAL_BLOG_REGISTRATION ?? '', 'base64').toString(),
 );
-const prepared = formalRegistration(registration, Date.now());
+const initialRegistration = formalRegistration(registration, Date.now());
+let prepared = {
+  key: articleIntegrationSchema.parse(initialRegistration.key),
+  policy: managedArticlePolicySchema.parse(initialRegistration.policy),
+};
 await createSiteGithubSource({ token: env.GITHUB_TOKEN }).requireCI(env.GITHUB_SHA);
 const root = 'output/blog-formal-preparation';
 await mkdir(root, { recursive: true });
@@ -46,7 +54,9 @@ assert.equal(before.snapshot.handler, 'index.main');
 assert.equal(before.snapshot.triggerCount, 0);
 assert.equal(before.snapshot.installDependency, 'FALSE');
 assert(
-  [p.previousPackage, manifest.sha256].includes(before.snapshot.packageSha256),
+  [p.previousPackage, p.repairBaselinePackage, manifest.sha256].includes(
+    before.snapshot.packageSha256,
+  ),
   'Importer is not the observed baseline or this candidate',
 );
 const transaction = articleTransaction(
@@ -61,13 +71,19 @@ const existing = await transaction(async (store) => ({
   key: await store.read('articleIntegrations', p.keyId),
   policy: await store.read('articleIntegrations', prepared.policy._id),
 }));
-if (existing.key || existing.policy) {
-  assert.deepEqual(
-    existing.key,
-    prepared.key,
-    'Do not overwrite, extend, or reenable an existing formal key',
-  );
-  assert.deepEqual(existing.policy, prepared.policy);
+const needsRegistration = existing.key === null && existing.policy === null;
+if (!needsRegistration) {
+  const key = articleIntegrationSchema.parse(existing.key);
+  const policy = managedArticlePolicySchema.parse(existing.policy);
+  assert.equal(key._id, p.keyId);
+  assert.equal(key.integrationId, p.integrationId);
+  assert.equal(key.secretDigest, registration.keyDigest);
+  assert.equal(key.enabled, true);
+  assert(Date.parse(key.expiresAt) > Date.now(), 'Do not reenable an expired credential');
+  assert.equal(policy._id, prepared.policy._id);
+  assert.equal(policy.keyId, p.keyId);
+  assert.equal(policy.integrationId, p.integrationId);
+  prepared = { key, policy };
 }
 const healthUrl = `${p.apiOrigin}/api/integrations/v1/article-drafts/health`;
 async function health() {
@@ -165,14 +181,15 @@ try {
   assert.equal(denied.status, 401);
   result.stage = 'register-formal-digests';
   await save();
-  await transaction(async (store) => {
-    assert.equal(await store.read('articleIntegrations', p.keyId), null);
-    assert.equal(await store.read('articleIntegrations', prepared.policy._id), null);
-    const { _id, ...key } = prepared.key;
-    const { _id: policyId, ...policy } = prepared.policy;
-    await store.write('articleIntegrations', _id, key);
-    await store.write('articleIntegrations', policyId, policy);
-  });
+  if (needsRegistration)
+    await transaction(async (store) => {
+      assert.equal(await store.read('articleIntegrations', p.keyId), null);
+      assert.equal(await store.read('articleIntegrations', prepared.policy._id), null);
+      const { _id, ...key } = prepared.key;
+      const { _id: policyId, ...policy } = prepared.policy;
+      await store.write('articleIntegrations', _id, key);
+      await store.write('articleIntegrations', policyId, policy);
+    });
   const registered = await transaction(async (store) => ({
     key: await store.read('articleIntegrations', p.keyId),
     policy: await store.read('articleIntegrations', prepared.policy._id),
