@@ -25,7 +25,13 @@ test('formal deployment keeps repository-root artifact paths and uses only one f
   );
   const job = flow.jobs.prepare;
   const step = job.steps.find((item) => item.env?.TENCENTCLOUD_SECRETKEY);
-  assert.equal(step.run, './packages/db/node_modules/.bin/tsx scripts/blog/formal-live.ts');
+  assert.equal(step.uses, 'actions/github-script@v7');
+  assert(
+    step.with.script.includes(
+      "spawn('./packages/db/node_modules/.bin/tsx',['scripts/blog/formal-live.ts']",
+    ),
+  );
+  assert(step.with.script.includes('env:process.env'));
   assert.equal(step['working-directory'], undefined);
   assert.equal(job.env.TENCENTCLOUD_SECRETKEY, undefined);
   assert.equal(job.environment, 'test');
