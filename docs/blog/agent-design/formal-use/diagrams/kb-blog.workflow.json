@@ -20,16 +20,7 @@
       "label": "其他任务与运行维护"
     }
   ],
-  "mainPath": [
-    "customer",
-    "writer",
-    "kb",
-    "handoff",
-    "verify",
-    "draft",
-    "review",
-    "public"
-  ],
+  "mainPath": ["customer", "writer", "kb", "handoff", "verify", "draft", "review", "public"],
   "nodes": [
     {
       "id": "customer",
@@ -185,18 +176,12 @@
     {
       "dot": "cyan",
       "title": "真实服务器已通过",
-      "items": [
-        "文档201、202已存网站私有草稿；重投仍为原文",
-        "原生助手已发现工具；其他配置保持"
-      ]
+      "items": ["文档201、202已存网站私有草稿；重投仍为原文", "原生助手已发现工具；其他配置保持"]
     },
     {
       "dot": "amber",
       "title": "交付边界",
-      "items": [
-        "网站钥匙只留发布机；人最后审核上线",
-        "群任务仍待用户验收；图片由后台补充"
-      ]
+      "items": ["网站钥匙只留发布机；人最后审核上线", "群任务仍待用户验收；图片由后台补充"]
     }
   ]
 }

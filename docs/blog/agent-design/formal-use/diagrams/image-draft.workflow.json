@@ -20,16 +20,7 @@
       "label": "失败回执与人工公开"
     }
   ],
-  "mainPath": [
-    "customer",
-    "writer",
-    "kb",
-    "handoff",
-    "verify",
-    "draft",
-    "review",
-    "public"
-  ],
+  "mainPath": ["customer", "writer", "kb", "handoff", "verify", "draft", "review", "public"],
   "nodes": [
     {
       "id": "customer",
@@ -185,18 +176,12 @@
     {
       "dot": "cyan",
       "title": "本次实际目标",
-      "items": [
-        "文档203及两张现有图片，不重写、不另建文",
-        "后台直接显示图片，客户只需审核"
-      ]
+      "items": ["文档203及两张现有图片，不重写、不另建文", "后台直接显示图片，客户只需审核"]
     },
     {
       "dot": "amber",
       "title": "待实施，未上线",
-      "items": [
-        "文件交接、图片接口和插图确认仍需实现",
-        "不公开存储桶，不把网站钥匙当云密钥"
-      ]
+      "items": ["文件交接、图片接口和插图确认仍需实现", "不公开存储桶，不把网站钥匙当云密钥"]
     }
   ]
 }
