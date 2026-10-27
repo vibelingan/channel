@@ -20,7 +20,16 @@
       "label": "其他任务与运行维护"
     }
   ],
-  "mainPath": ["customer", "writer", "kb", "handoff", "verify", "draft", "review", "public"],
+  "mainPath": [
+    "customer",
+    "writer",
+    "kb",
+    "handoff",
+    "verify",
+    "draft",
+    "review",
+    "public"
+  ],
   "nodes": [
     {
       "id": "customer",
@@ -46,7 +55,7 @@
       "col": 2,
       "type": "database",
       "label": "VibeKB 入库",
-      "sublabel": "取得真实文档 ID",
+      "sublabel": "固定 diversity 工作区2",
       "width": 145
     },
     {
@@ -54,9 +63,9 @@
       "lane": "content",
       "col": 3,
       "type": "messagebus",
-      "label": "网站草稿交接",
-      "sublabel": "明确要求才触发",
-      "tag": "入口待自查确认",
+      "label": "专用工具交接",
+      "sublabel": "SSH 只传文档编号",
+      "tag": "已接通",
       "width": 155
     },
     {
@@ -64,7 +73,7 @@
       "lane": "publisher",
       "col": 3,
       "type": "security",
-      "label": "发布助手取稿",
+      "label": "发布机程序取稿",
       "sublabel": "核对文档与工作区",
       "width": 155
     },
@@ -101,8 +110,8 @@
       "col": 3,
       "type": "security",
       "label": "凭证自动维护",
-      "sublabel": "仅发布机持有",
-      "tag": "代码已测，待启用",
+      "sublabel": "每小时检查，仅发布机",
+      "tag": "已实际轮换",
       "width": 155
     },
     {
@@ -175,13 +184,19 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "已在发布机完成",
-      "items": ["写作职责已移除；取稿和草稿工具保留", "其他 MCP 与 A2A 服务保持原样"]
+      "title": "真实服务器已通过",
+      "items": [
+        "文档201、202已存网站私有草稿；重投仍为原文",
+        "原生助手已发现工具；其他配置保持"
+      ]
     },
     {
-      "dot": "rose",
-      "title": "代码验证与待接事项",
-      "items": ["同文档去重与凭证维护已做离线测试", "工作区和任务入口等自查后接线联测"]
+      "dot": "amber",
+      "title": "交付边界",
+      "items": [
+        "网站钥匙只留发布机；人最后审核上线",
+        "群任务仍待用户验收；图片由后台补充"
+      ]
     }
   ]
 }
