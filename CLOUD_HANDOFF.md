@@ -1,7 +1,7 @@
 # 云端接手入口
 
 <!-- formal-blog-latest -->
-内容机到发布机再到网站的正式私有草稿链路已启用，文档201、202实际保存和重投通过；自动凭证维护已实际轮换并启用。群内模型任务待用户验收。先读 docs/delivery/2026-10-27/wecom/FORMAL-USE-STATUS.zh-CN.md，不重复旧单篇安装，不复制私钥或网站凭证。网站article-import运行dc3dc0d4，专用连接器为9ce09bda；后续文档提交不是运行版本。
+内容机到发布机再到网站的正式私有草稿链路已启用，文档201、202实际保存和重投通过；自动凭证维护已实际轮换并启用。用户已回传群内新文章203和两张实际生成图；文字流程已通，图片交接/上传/排版未完成。图片下一步先读docs/blog/agent-design/formal-use/IMAGE-DRAFT-PLAN.zh-CN.md。先读 docs/delivery/2026-10-27/wecom/FORMAL-USE-STATUS.zh-CN.md，不重复旧单篇安装，不复制私钥或网站凭证。网站article-import运行dc3dc0d4，专用连接器为9ce09bda；后续文档提交不是运行版本。
 
 2026-10-26更新。当前事实和下一步统一记在 [交付进度](docs/delivery/README.zh-CN.md)，先读该页，再读 [会话交接](docs/cloud-handoff/SESSION.zh-CN.md)。早期dummy阶段的限制和待办是历史记录，不能覆盖用户后来的授权，也不能当成当前状态。
 

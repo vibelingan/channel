@@ -1,0 +1,202 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "图文草稿：拟实施的图片闭环",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "content",
+      "label": "客户与内容机：已有稿件和真实图片"
+    },
+    {
+      "id": "publisher",
+      "label": "发布机与网站：受限上传和图文草稿"
+    },
+    {
+      "id": "operations",
+      "label": "失败回执与人工公开"
+    }
+  ],
+  "mainPath": [
+    "customer",
+    "writer",
+    "kb",
+    "handoff",
+    "verify",
+    "draft",
+    "review",
+    "public"
+  ],
+  "nodes": [
+    {
+      "id": "customer",
+      "lane": "content",
+      "col": 0,
+      "type": "external",
+      "label": "客户下任务",
+      "sublabel": "只说业务需求",
+      "width": 145
+    },
+    {
+      "id": "writer",
+      "lane": "content",
+      "col": 1,
+      "type": "backend",
+      "label": "已有文章与两图",
+      "sublabel": "保留原稿，不重新生成",
+      "width": 145
+    },
+    {
+      "id": "kb",
+      "lane": "content",
+      "col": 2,
+      "type": "database",
+      "label": "登记图片文件",
+      "sublabel": "来源、大小、摘要",
+      "width": 145
+    },
+    {
+      "id": "handoff",
+      "lane": "content",
+      "col": 3,
+      "type": "messagebus",
+      "label": "受限SSH传文件",
+      "sublabel": "只接收本站任务图片",
+      "tag": "待实现",
+      "width": 155
+    },
+    {
+      "id": "verify",
+      "lane": "publisher",
+      "col": 3,
+      "type": "security",
+      "label": "网站授上传权限",
+      "sublabel": "单文件、短期、限本篇",
+      "width": 155
+    },
+    {
+      "id": "draft",
+      "lane": "publisher",
+      "col": 4,
+      "type": "backend",
+      "label": "上传、校验、插图",
+      "sublabel": "图片编号、说明、位置",
+      "width": 155
+    },
+    {
+      "id": "review",
+      "lane": "publisher",
+      "col": 5,
+      "type": "frontend",
+      "label": "人工审核",
+      "sublabel": "检查正文、图片、预览",
+      "width": 145
+    },
+    {
+      "id": "ordinary",
+      "lane": "operations",
+      "col": 1,
+      "type": "backend",
+      "label": "缺图明确返回",
+      "sublabel": "保留已完成步骤",
+      "width": 145
+    },
+    {
+      "id": "keys",
+      "lane": "operations",
+      "col": 3,
+      "type": "security",
+      "label": "网站存储身份",
+      "sublabel": "不交给两台助手",
+      "tag": "复用既有SDK",
+      "width": 155
+    },
+    {
+      "id": "public",
+      "lane": "operations",
+      "col": 5,
+      "type": "cloud",
+      "label": "人确认后上线",
+      "sublabel": "沿用文章与图片路由",
+      "width": 145
+    }
+  ],
+  "edges": [
+    {
+      "id": "request",
+      "from": "customer",
+      "to": "writer"
+    },
+    {
+      "id": "store",
+      "from": "writer",
+      "to": "kb"
+    },
+    {
+      "id": "ask-draft",
+      "from": "kb",
+      "to": "handoff"
+    },
+    {
+      "id": "get-document",
+      "from": "handoff",
+      "to": "verify",
+      "label": "文档与图片",
+      "variant": "emphasis"
+    },
+    {
+      "id": "save",
+      "from": "verify",
+      "to": "draft"
+    },
+    {
+      "id": "link",
+      "from": "draft",
+      "to": "review",
+      "label": "编辑链接"
+    },
+    {
+      "id": "approve",
+      "from": "review",
+      "to": "public",
+      "label": "人点上线",
+      "variant": "emphasis"
+    },
+    {
+      "id": "credential",
+      "from": "keys",
+      "to": "verify",
+      "label": "受限凭证",
+      "variant": "security"
+    },
+    {
+      "id": "incomplete-image",
+      "from": "draft",
+      "to": "ordinary",
+      "label": "图片未全部完成",
+      "variant": "dashed",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "本次实际目标",
+      "items": [
+        "文档203及两张现有图片，不重写、不另建文",
+        "后台直接显示图片，客户只需审核"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "待实施，未上线",
+      "items": [
+        "文件交接、图片接口和插图确认仍需实现",
+        "不公开存储桶，不把网站钥匙当云密钥"
+      ]
+    }
+  ]
+}
