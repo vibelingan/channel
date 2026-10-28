@@ -54,6 +54,7 @@ test('real editor saves formatted content to disk, previews, reopens and survive
   await expect(page.getByRole('region', { name: 'Draft preview' }).locator('strong')).toHaveText(
     ' strong text',
   );
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
   const store = JSON.parse(await readFile(database ?? '', 'utf8'));
   expect(JSON.stringify(store.articleDrafts)).toContain('strong text');
   expect(
@@ -700,3 +701,77 @@ test('a private draft link survives sign-in and opens the same editor after refr
     await fresh.close();
   }
 });
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`long article preview opens in the viewport and returns to editing at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await login(page);
+    await create(page, `Long preview ${viewport.width}`);
+    await page.setViewportSize(viewport);
+    const body = page.getByRole('textbox', { name: 'Article body' });
+    await body.fill(
+      Array.from(
+        { length: 70 },
+        (_, index) =>
+          `Sample check ${index + 1}: Review the headphone sample carefully and record the findings for the factory.`,
+      ).join('\n\n'),
+    );
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await expect(page.getByText('Saved · revision 2', { exact: true })).toBeVisible();
+    const trigger = page.getByRole('button', { name: 'Preview', exact: true });
+    await trigger.click();
+    const preview = page.getByRole('region', { name: 'Draft preview', exact: true });
+    await expect(
+      preview.getByRole('heading', { name: 'Draft preview · revision 2', exact: true }),
+    ).toBeInViewport();
+    const dialog = page.getByRole('dialog', { name: 'Draft preview · revision 2', exact: true });
+    await expect(dialog).toBeVisible();
+    const close = dialog.getByRole('button', { name: 'Close preview', exact: true });
+    await expect(close).toBeFocused();
+    await dialog.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(close).toBeInViewport();
+    for (let index = 0; index < 3; index += 1) {
+      await page.keyboard.press('Tab');
+      expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(
+        true,
+      );
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(body).toContainText('Sample check 70');
+    await trigger.click();
+    await expect(
+      preview.getByRole('heading', { name: 'Draft preview · revision 2', exact: true }),
+    ).toBeInViewport();
+    if (process.env.E2E_BLOG_PREVIEW_SCREENSHOTS === '1') {
+      const { mkdir } = await import('node:fs/promises');
+      await mkdir('output/blog-preview-fix', { recursive: true });
+      await page.screenshot({ path: `output/blog-preview-fix/preview-${viewport.width}.png` });
+    }
+    await close.click();
+    await expect(trigger).toBeFocused();
+    await page.getByRole('button', { name: '← Articles', exact: true }).click();
+    await open(page, `Long preview ${viewport.width}`);
+    await page.reload();
+    await expect(page.getByText('Saved · revision 2', { exact: true })).toBeVisible();
+    await trigger.click();
+    await expect(
+      preview.getByRole('heading', { name: 'Draft preview · revision 2', exact: true }),
+    ).toBeInViewport();
+    await close.click();
+    const store = JSON.parse(await readFile(database ?? '', 'utf8'));
+    expect(
+      store.articleDrafts.find(
+        (row: { draft: { content: { title: string } } }) =>
+          row.draft.content.title === ownedLabel(`Long preview ${viewport.width}`),
+      ).draft.revision,
+    ).toBe(2);
+  });
+}

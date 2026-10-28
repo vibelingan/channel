@@ -55,6 +55,7 @@ export function ArticleForm({
       uploadController.current?.abort();
     };
   }, []);
+  const previewButton = useRef<HTMLButtonElement>(null);
   const previewRequest = useArticlePreview();
   const previewing = previewRequest.isPending;
   const [valid, setValid] = useState(true);
@@ -220,6 +221,7 @@ export function ArticleForm({
           <button
             type="button"
             disabled={locked || conflict || !valid}
+            ref={previewButton}
             onClick={() => void showPreview()}
             className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold disabled:opacity-40"
           >
@@ -348,6 +350,7 @@ export function ArticleForm({
         <ArticlePreview
           key={`${preview.articleId}:${preview.revision}`}
           preview={preview}
+          returnFocus={previewButton.current}
           onClose={() => setPreview(null)}
         />
       )}

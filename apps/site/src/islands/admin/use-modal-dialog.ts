@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 
 /** Native top-layer modality supplies focus containment and background inertness. */
-export function useModalDialog() {
+export function useModalDialog(returnFocus?: HTMLElement | null) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    const origin = document.activeElement;
+    const origin = returnFocus ?? document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     dialog.showModal();
@@ -45,6 +45,6 @@ export function useModalDialog() {
       if (origin instanceof HTMLElement && origin.isConnected)
         origin.focus({ preventScroll: true });
     };
-  }, []);
+  }, [returnFocus]);
   return ref;
 }
