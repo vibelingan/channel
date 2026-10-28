@@ -1,5 +1,7 @@
 # Sales Agent 分模块设计与执行入口
 
+2026-10-28：用户已授权继续D1实现。先按[权限补齐计划](evidence/D1-IMPLEMENTATION-PLAN.md)逐项实施；下文2026-10-26暂停状态保留为历史，不能视作当前暂停。其他Agent、真实账号及外发保持原边界。
+
 2026-10-26 · **设计复核中，开发暂停。** 当前以[权限与真实工具接入修订 D1](SECURITY-AND-TOOLS-DESIGN.md)为准；待确认后才调整实施单元和继续代码。
 
 既有验证：2026-10-24 · SG0.1、SG0.2、SG1.0、SG1.1已完成共同合同、授权、源码核对和读取接口；SG2.1、SG2.2已在独立Hermes工作区完成客户执行边界及可靠接收，隔离Docker/MySQL CI通过，见[验证记录](evidence/SG2.1-SG2.2-VALIDATION.md)。其余17个单元未实现。没有部署、连接客户账号或发送邮件。[上两步白话解释](evidence/SG0.2-SG1.1-EXPLAINED.md)与[线上验收计划](evidence/LIVE-TEST-PLAN.md)分别说明用途和后续验证。

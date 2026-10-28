@@ -397,8 +397,8 @@
   },
   "design_review": {
     "date": "2026-10-26",
-    "status": "awaiting_user_confirmation",
-    "development_paused": true,
+    "status": "approved_for_staged_implementation",
+    "development_paused": false,
     "design_ref": "SECURITY-AND-TOOLS-DESIGN.md",
     "existing_unit_statuses": "Historical verified scope only; not launch authorization",
     "blocking_gaps": [
@@ -407,6 +407,27 @@
       "trusted_source_verification_before_execution",
       "task_private_context_and_real_tool_wiring"
     ],
-    "next_action": "Confirm D1 design before changing code or implementation DAG"
-  }
+    "next_action": "Execute D1 SG0.3 and SG1.3 with per-unit validation; no live enablement",
+    "approved_at": "2026-10-28"
+  },
+  "supplements": [
+    {
+      "id": "SG0.3",
+      "title": "共同任务读取授权协议",
+      "status": "in_progress",
+      "design": "evidence/D1-IMPLEMENTATION-PLAN.md",
+      "live_enabled": false
+    },
+    {
+      "id": "SG1.3",
+      "title": "Channel强制任务读取门禁",
+      "status": "planned_not_implemented",
+      "depends_on": [
+        "SG0.3",
+        "SG1.1"
+      ],
+      "design": "evidence/D1-IMPLEMENTATION-PLAN.md",
+      "live_enabled": false
+    }
+  ]
 }

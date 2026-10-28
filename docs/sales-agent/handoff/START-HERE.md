@@ -1,5 +1,7 @@
 # 下一轮从这里开始
 
+2026-10-28：用户已授权继续D1实现。先按[权限补齐计划](../evidence/D1-IMPLEMENTATION-PLAN.md)逐项实施；下文2026-10-26暂停状态保留为历史，不能视作当前暂停。其他Agent、真实账号及外发保持原边界。
+
 2026-10-26：**开发暂停，等待设计确认。** 先读[权限与真实接线修订 D1](../SECURITY-AND-TOOLS-DESIGN.md)。用户本轮仅授权文档和图；不能按下文候选任务自动开工。既有验证保留，但任务授权、安装归属、来源核验及真实接线尚未完成。
 
 SG0.1、SG0.2、SG1.0、SG1.1及SG2.1、SG2.2已完成各自代码/核对和隔离验证，见[SG2交付](../evidence/SG2.1-SG2.2-VALIDATION.md)。Channel分支feat/sales-agent-integration继续放销售文档与读取API；Hermes分支feat/sales-agent-runtime存客户运行及接收服务。两者均独立检出，原工作区保留。其余17个单元未实现；没有PR、部署、客户账号联调或真实发信。
