@@ -1,8 +1,8 @@
 {
   "status": "passed",
-  "unit_count": 25,
+  "unit_count": 26,
   "core_unit_count": 23,
-  "supplement_count": 2,
+  "supplement_count": 3,
   "dag": "acyclic",
   "topological_order": [
     "SG0.1",
@@ -13,6 +13,7 @@
     "SG2.2",
     "SG0.3",
     "SG1.3",
+    "SG2.4",
     "SG1.2",
     "SG2.3",
     "SG3.1",
