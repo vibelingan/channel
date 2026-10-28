@@ -123,7 +123,20 @@
       "acceptance": "并发run/符号链接/伪造hash拒绝；旧run不覆盖当前版本",
       "primary_test": "late_run_cannot_replace_current_version",
       "status": "planned_not_implemented",
-      "live_enabled": false
+      "live_enabled": false,
+      "implementation_slice": {
+        "status": "implemented_verified_offline",
+        "scope": "immutable artifact archive only; full module remains unaccepted",
+        "repository": "vibelingan/hermesinfra",
+        "branch": "feat/sales-agent-runtime",
+        "commit": "6a4d319685a16263a9ff4031812f80cae9e9cced",
+        "evidence_ref": "evidence/SG2.3-ARCHIVE-HANDOFF.md",
+        "remaining": [
+          "production new-run creation",
+          "retry scheduling"
+        ],
+        "live_enabled": false
+      }
     },
     {
       "id": "SG3.1",

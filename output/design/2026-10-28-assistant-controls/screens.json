@@ -1,0 +1,681 @@
+{
+  "title": "Channel 官网智能助手全状态设计",
+  "date": "2026-10-28",
+  "scope": "仅设计与本地演示，样例数据，无真实模型、提交或邮件调用",
+  "source_ref": "origin/main b3d63ac14f0bd1fac700e9b7c403e61076cf1ba4",
+  "screen_count": 29,
+  "status_meanings": {
+    "existing_partial": "现有部分代码或外观可复用，不等于端到端验收通过",
+    "missing": "当前体验缺口，本次提供目标设计",
+    "planned": "已有规划能力，本次提供 screen 设计，尚未实现"
+  },
+  "screens": [
+    {
+      "id": "closed",
+      "number": 1,
+      "title": "入口收起",
+      "group": "接待与提问",
+      "current_status": "existing_partial",
+      "entry": "访客关闭面板或首次进站",
+      "exit": [
+        "welcome"
+      ],
+      "allowed_actions": [
+        "打开助手"
+      ],
+      "interaction_note": "关闭只是收起界面；不暗示取消后台任务。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "welcome",
+      "number": 2,
+      "title": "欢迎与能力边界",
+      "group": "接待与提问",
+      "current_status": "existing_partial",
+      "entry": "点击 Ask our AI",
+      "exit": [
+        "composing",
+        "queued"
+      ],
+      "allowed_actions": [
+        "选择建议问题",
+        "输入问题",
+        "关闭面板"
+      ],
+      "interaction_note": "说明可以做什么，使用简短建议问题，不以拒绝话术作为开场。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "composing",
+      "number": 3,
+      "title": "正在输入",
+      "group": "接待与提问",
+      "current_status": "existing_partial",
+      "entry": "用户在输入框编辑",
+      "exit": [
+        "queued"
+      ],
+      "allowed_actions": [
+        "发送",
+        "换行",
+        "清空"
+      ],
+      "interaction_note": "Enter 发送，Shift+Enter 换行；中文输入法组合输入期间不提交。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "queued",
+      "number": 4,
+      "title": "已收到，等待处理",
+      "group": "回答与工具",
+      "current_status": "missing",
+      "entry": "消息已提交且收到受理回执",
+      "exit": [
+        "retrieving",
+        "stop_requested",
+        "network_failure"
+      ],
+      "allowed_actions": [
+        "停止当前回答"
+      ],
+      "interaction_note": "显示已收到；排队序号只有服务端确实提供时才显示。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "retrieving",
+      "number": 5,
+      "title": "查询获准资料",
+      "group": "回答与工具",
+      "current_status": "missing",
+      "entry": "开始检索知识资料",
+      "exit": [
+        "streaming",
+        "tool_progress",
+        "no_match",
+        "stop_requested"
+      ],
+      "allowed_actions": [
+        "停止当前回答"
+      ],
+      "interaction_note": "不显示虚构百分比；等待提示、取消和用户问题始终可见。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "streaming",
+      "number": 6,
+      "title": "回答逐步出现",
+      "group": "回答与工具",
+      "current_status": "existing_partial",
+      "entry": "收到属于本次问题的文本事件",
+      "exit": [
+        "product_results",
+        "stop_requested"
+      ],
+      "allowed_actions": [
+        "停止当前回答",
+        "滚动阅读"
+      ],
+      "interaction_note": "现有组件有拼接逻辑；实际 worker 尚未交付真实即时流式。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "tool_progress",
+      "number": 7,
+      "title": "多步产品查询",
+      "group": "回答与工具",
+      "current_status": "planned",
+      "entry": "服务器允许产品查询工具",
+      "exit": [
+        "product_results",
+        "no_match",
+        "network_failure",
+        "stop_requested"
+      ],
+      "allowed_actions": [
+        "停止当前回答",
+        "查看当前步骤"
+      ],
+      "interaction_note": "只展示可信工具步骤；不展示模型推理或内部工作日志。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "product_results",
+      "number": 8,
+      "title": "产品卡片与后续选择",
+      "group": "回答与工具",
+      "current_status": "planned",
+      "entry": "获准产品接口返回有效产品",
+      "exit": [
+        "comparison",
+        "inquiry_review",
+        "clarification"
+      ],
+      "allowed_actions": [
+        "比较示例产品",
+        "准备询盘",
+        "追问"
+      ],
+      "interaction_note": "示例卡片不代表库存或商业承诺；真实卡片必须查实时获准产品。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "comparison",
+      "number": 9,
+      "title": "产品比较",
+      "group": "回答与工具",
+      "current_status": "planned",
+      "entry": "选择两款产品后确认比较",
+      "exit": [
+        "inquiry_review",
+        "source_changed"
+      ],
+      "allowed_actions": [
+        "准备询盘",
+        "返回产品"
+      ],
+      "interaction_note": "窄屏用纵向卡片比较；不能用压缩小字或横向大表格承载核心信息。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "clarification",
+      "number": 10,
+      "title": "信息不足，继续澄清",
+      "group": "回答与工具",
+      "current_status": "missing",
+      "entry": "有采购意图但用途或要求模糊",
+      "exit": [
+        "queued",
+        "inquiry_review"
+      ],
+      "allowed_actions": [
+        "回答补充问题",
+        "先准备未选型号询盘"
+      ],
+      "interaction_note": "未选 SKU 也能提交需求；普通咨询不创建 Sales 任务。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "no_match",
+      "number": 11,
+      "title": "没有合适的产品或依据",
+      "group": "恢复与边界",
+      "current_status": "missing",
+      "entry": "检索没有匹配项",
+      "exit": [
+        "clarification",
+        "inquiry_review"
+      ],
+      "allowed_actions": [
+        "调整条件",
+        "交给团队"
+      ],
+      "interaction_note": "解释查不到什么，保留输入，助手继续可用。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "out_of_scope",
+      "number": 12,
+      "title": "问题超出可回答范围",
+      "group": "恢复与边界",
+      "current_status": "existing_partial",
+      "entry": "请求无法由允许知识和工具处理",
+      "exit": [
+        "welcome",
+        "queued"
+      ],
+      "allowed_actions": [
+        "询问产品",
+        "联系团队"
+      ],
+      "interaction_note": "普通越界用可恢复答复；不能把整台助手锁定为不可用。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "network_failure",
+      "number": 13,
+      "title": "网络或服务暂时失败",
+      "group": "恢复与边界",
+      "current_status": "existing_partial",
+      "entry": "受理或读取超时、服务报错",
+      "exit": [
+        "queued",
+        "handoff"
+      ],
+      "allowed_actions": [
+        "重试本条",
+        "联系团队"
+      ],
+      "interaction_note": "保留问题和已有内容；重试同一提交用同一幂等键。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "reconnecting",
+      "number": 14,
+      "title": "连接中断，恢复当前回答",
+      "group": "恢复与边界",
+      "current_status": "missing",
+      "entry": "事件流断开且任务可能仍运行",
+      "exit": [
+        "streaming",
+        "network_failure",
+        "stop_requested"
+      ],
+      "allowed_actions": [
+        "恢复连接",
+        "停止当前回答"
+      ],
+      "interaction_note": "从服务端序号恢复原 run，不重开任务，不重复加同一段回答。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "rate_limit",
+      "number": 15,
+      "title": "请求过于频繁",
+      "group": "恢复与边界",
+      "current_status": "missing",
+      "entry": "服务端返回限流或明确重试时间",
+      "exit": [
+        "queued",
+        "handoff"
+      ],
+      "allowed_actions": [
+        "稍后重试",
+        "联系团队"
+      ],
+      "interaction_note": "只显示服务端 Retry-After；不编造倒计时。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "stop_requested",
+      "number": 16,
+      "title": "已请求停止",
+      "group": "停止与恢复",
+      "current_status": "missing",
+      "entry": "用户点击 Stop generation",
+      "exit": [
+        "stopped",
+        "stop_unconfirmed"
+      ],
+      "allowed_actions": [
+        "等待确认"
+      ],
+      "interaction_note": "按钮点击后立即反馈；收到服务器确认前不能写成已停止。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "stop_unconfirmed",
+      "number": 17,
+      "title": "停止结果尚未确认",
+      "group": "停止与恢复",
+      "current_status": "missing",
+      "entry": "停止请求超时，原回答状态不明",
+      "exit": [
+        "stopped",
+        "streaming"
+      ],
+      "allowed_actions": [
+        "检查当前状态"
+      ],
+      "interaction_note": "不自动重开同一任务；让用户明确知道请求可能仍在结束中。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "stopped",
+      "number": 18,
+      "title": "本次回答已停止",
+      "group": "停止与恢复",
+      "current_status": "existing_partial",
+      "entry": "服务端确认当前 run 已取消或已终止",
+      "exit": [
+        "retry_after_stop",
+        "queued"
+      ],
+      "allowed_actions": [
+        "重新回答",
+        "改写问题"
+      ],
+      "interaction_note": "保留用户问题与已生成内容；停止不撤销已保存询盘。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "retry_after_stop",
+      "number": 19,
+      "title": "重新回答前确认",
+      "group": "停止与恢复",
+      "current_status": "missing",
+      "entry": "用户在已停止回答下点击重新回答",
+      "exit": [
+        "queued",
+        "stopped"
+      ],
+      "allowed_actions": [
+        "重新回答",
+        "返回"
+      ],
+      "interaction_note": "从保留的问题新建一次回答，旧回答保留并标记已停止。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "history_restoring",
+      "number": 20,
+      "title": "正在恢复对话",
+      "group": "历史与连续性",
+      "current_status": "missing",
+      "entry": "重新打开面板且存在有效会话",
+      "exit": [
+        "history_restored",
+        "history_expired"
+      ],
+      "allowed_actions": [
+        "等待恢复",
+        "关闭面板"
+      ],
+      "interaction_note": "先确认会话归属和有效期；不能凭浏览器本地 ID 拉取其他人的历史。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "history_restored",
+      "number": 21,
+      "title": "已恢复，阅读长对话",
+      "group": "历史与连续性",
+      "current_status": "missing",
+      "entry": "服务端返回有权读取的历史",
+      "exit": [
+        "queued",
+        "source_changed"
+      ],
+      "allowed_actions": [
+        "继续提问",
+        "跳到最新消息"
+      ],
+      "interaction_note": "用户上滚时不强制拉到底部；有新内容时显示跳到最新消息。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "history_expired",
+      "number": 22,
+      "title": "会话过期，开始新对话",
+      "group": "历史与连续性",
+      "current_status": "missing",
+      "entry": "会话已过期、撤销或无法验证",
+      "exit": [
+        "welcome"
+      ],
+      "allowed_actions": [
+        "开始新对话"
+      ],
+      "interaction_note": "不回显无权读取的旧消息；不悄悄带入旧联系人或旧需求。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "inquiry_review",
+      "number": 23,
+      "title": "客户核对正式询盘",
+      "group": "询盘与交接",
+      "current_status": "planned",
+      "entry": "客户明确要求提交采购需求",
+      "exit": [
+        "inquiry_validation",
+        "inquiry_submitting"
+      ],
+      "allowed_actions": [
+        "编辑需求和联系方式",
+        "确认提交",
+        "返回聊天"
+      ],
+      "interaction_note": "表单对接现有 OEM 或正式单品流程；成功保存前不产生跟进任务。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "inquiry_validation",
+      "number": 24,
+      "title": "表单需要修正",
+      "group": "询盘与交接",
+      "current_status": "planned",
+      "entry": "提交前字段验证失败",
+      "exit": [
+        "inquiry_review",
+        "inquiry_submitting"
+      ],
+      "allowed_actions": [
+        "修正字段",
+        "重新提交"
+      ],
+      "interaction_note": "字段旁显示错误，焦点到第一处错误，不丢失其他已填内容。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "inquiry_submitting",
+      "number": 25,
+      "title": "正在保存询盘",
+      "group": "询盘与交接",
+      "current_status": "planned",
+      "entry": "确认提交后持久化请求在途",
+      "exit": [
+        "inquiry_saved",
+        "inquiry_unknown"
+      ],
+      "allowed_actions": [
+        "等待保存结果"
+      ],
+      "interaction_note": "防重复提交；关闭界面不代表能撤销已经发出的保存请求。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "inquiry_unknown",
+      "number": 26,
+      "title": "保存结果待核对",
+      "group": "询盘与交接",
+      "current_status": "planned",
+      "entry": "保存请求超时且没有明确结果",
+      "exit": [
+        "inquiry_saved",
+        "inquiry_review"
+      ],
+      "allowed_actions": [
+        "查询提交结果"
+      ],
+      "interaction_note": "先用原提交身份查询或幂等重试；不能当失败后创建新询盘。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "inquiry_saved",
+      "number": 27,
+      "title": "询盘已记录",
+      "group": "询盘与交接",
+      "current_status": "planned",
+      "entry": "服务器返回真实保存回执",
+      "exit": [
+        "queued",
+        "handoff"
+      ],
+      "allowed_actions": [
+        "继续咨询",
+        "查看已提交摘要"
+      ],
+      "interaction_note": "保存成功自动触发后续 Sales 准备；不承诺邮件已发出或销售已在线。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "handoff",
+      "number": 28,
+      "title": "交给团队跟进",
+      "group": "询盘与交接",
+      "current_status": "existing_partial",
+      "entry": "客户要求人工或服务暂不可用",
+      "exit": [
+        "inquiry_review",
+        "welcome"
+      ],
+      "allowed_actions": [
+        "准备询盘",
+        "继续浏览"
+      ],
+      "interaction_note": "一期是留资和异步跟进；没有在线客服系统时不能显示真人已接入。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    },
+    {
+      "id": "source_changed",
+      "number": 29,
+      "title": "产品资料已更新",
+      "group": "询盘与交接",
+      "current_status": "planned",
+      "entry": "比较或提交前复查到产品修订",
+      "exit": [
+        "product_results",
+        "inquiry_review"
+      ],
+      "allowed_actions": [
+        "查看最新资料",
+        "重新核对询盘"
+      ],
+      "interaction_note": "用户需求保留；过时价格或下架型号不能沿用为承诺。",
+      "a11y": [
+        "有可见标签和键盘焦点",
+        "状态通过 aria-live=polite 简洁播报",
+        "操作目标至少44px",
+        "长内容在面板内滚动，页面不横向溢出"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pdfs": [
+    {
+      "path": "output/pdf/2026-10-29-interaction-design/Agent-Interaction-Design-and-Delivery.pdf",
+      "pages": 6,
+      "all_pages_have_text": true,
+      "text_out_of_bounds": [],
+      "sha256": "2c009a33775397e5c7d6948ca3f4b5f74935533471f950ec5c7946fb70293ad5"
+    },
+    {
+      "path": "output/design/2026-10-28-assistant-controls/WeCom-Interaction-Screens.pdf",
+      "pages": 18,
+      "all_pages_have_text": true,
+      "text_out_of_bounds": [],
+      "sha256": "91ae00df3b80d9090c5772661e763d3f8a157b41c47be2e621dadc35376baf8b"
+    },
+    {
+      "path": "output/design/2026-10-28-assistant-controls/assistant-ui-screens.pdf",
+      "pages": 29,
+      "all_pages_have_text": true,
+      "text_out_of_bounds": [],
+      "sha256": "3496066c2d4405247acef146402de33a27bd075bc2840fc1f21de2fb3e8c56e7"
+    }
+  ],
+  "visual_review": "summary all6; wecom all18 contact sheets and final critical page; website29 by UI design reviewer plus root mobile/stop screens"
+}

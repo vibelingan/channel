@@ -1,12 +1,14 @@
 # SG5 人工审核、接管和受控发送
 
+2026-10-29 交互补充：官网29状态、企微18场景已形成设计原型及图册，尚未接入产品。企微采用关键待办/异常、精确任务卡片或引用、简短回执和按需私聊的建议，见[交互设计](../evidence/2026-10-28-INTERACTION-DESIGN.md)。本轮没有实现SG5控制入口，也没有改变现有机器人。
+
 实施单元：SG5.1、SG5.2、SG5.3。共享 [状态规则](../contracts/STATE-AND-CONCURRENCY.md) 是本模块的准则。
 
 ## 最小使用体验
 
-企微收到“询盘 X 已准备 v2”的短通知，显示业务、收件人、关键缺项和预览链接。人可提改稿意见，或明确批准X/v2；对象不清楚时选择任务，不猜“最新一条”。网页展示完整HTML、附件、来源依据并可批准；两个入口共用后端命令及同一批准状态。
+企微收到合并待办或需要人处理的任务卡片，显示业务、需求摘要、版本、关键缺项及尚未发送等事实。普通排队、读取和生成不逐条播报。人点按钮或引用带服务器短引用的通知来暂停、改稿或接管，每次操作有简短回执；对象不清楚时选择任务，不猜“最新一条”。日常控制不强制跳网页；完整HTML、附件和来源依据按需打开已鉴权预览。企微和网页批准共用后端命令及同一批准状态，仍须具体个人身份。
 
-建议审核页属于Hermes销售流程，不在Channel新增一套任务中心。复用现有`web/app/layouts/portal-layout.tsx`的客户门户壳、`RequireAccess`、`page-state.tsx`、portal tokens样式变量以及既有API错误/状态处理；不重做运营台或新造视觉系统。拟新增 `/portal/sales/tasks/:taskId/versions/:version`，是新路由而非已实现页面。实施前按web/AGENTS复核当前壳/会话及截图，并读frontend architecture/data-model；本轮未做产品UI稿或上线。
+建议审核页属于Hermes销售流程，不在Channel新增一套任务中心。当前销售检出可读的门户是`vibelingan-ui-design/pages/portal.html`和Python `hub_server.py`，有对话与产物展示；nginx另有指向独立前端构建的`/app/`配置，但本检出没有完整`web/`源码。此前列出的React门户组件不能当作本分支已经具备。实施前先核对客户实际使用的门户、组件、会话与截图，再复用对应壳和视觉。拟议的`/portal/sales/tasks/:taskId/versions/:version`仍是设计路由，不是现有页面。
 
 ## 身份和预览
 
