@@ -1,0 +1,75 @@
+{
+  "day": "2026-10-29",
+  "branch": "feat/seo-foundation",
+  "localChecks": {
+    "readinessAndOutputGate": {
+      "passed": 13,
+      "failed": 0
+    },
+    "siteTypecheck": {
+      "errors": 0,
+      "warnings": 0,
+      "hints": 11,
+      "files": 284
+    }
+  },
+  "liveReadOnly": {
+    "discoveredPages": 539,
+    "fullyFetchedPages": 539,
+    "productPages": 528,
+    "inventoryProductPages": 528,
+    "missingProducts": 0,
+    "retiredProducts": 0,
+    "knownBlocks": [
+      "Blog index noindex header",
+      "two published articles noindex header",
+      "product image robots exclusion"
+    ]
+  },
+  "onlineWrites": false,
+  "decisionsPending": [
+    "Which of the two current public Blog articles to retain before opening indexing"
+  ],
+  "diagrams": {
+    "workflow": {
+      "specification": {
+        "sha256": "3a87a85771d5e85fbfa65a50a421ac75d938ab957dcaac72b8f5950ed03b4c7a",
+        "bytes": 3960
+      },
+      "artifact": {
+        "sha256": "991950404188ed15983aad854b3d8648c8aff7a80d1a5c42a0b6e82f6e6dc838",
+        "bytes": 811946
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browserEvidence": "pass",
+      "visualReview": "passed after inspecting 1440 and 2048 light screenshots; dark screenshots captured by tool"
+    },
+    "sequence": {
+      "specification": {
+        "sha256": "030e9b197a91b3c29c0ab81ea0a077ee0fd255fe713e6367243f3881a9d6a58e",
+        "bytes": 2748
+      },
+      "artifact": {
+        "sha256": "c3033fabffddbb74d987b11ed74adf713674e18e2f633b0dc5ec3134c4994c3e",
+        "bytes": 804830
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browserEvidence": "pass",
+      "visualReview": "passed after inspecting 1440 and 2048 light screenshots; dark screenshots captured by tool"
+    }
+  }
+}

@@ -255,6 +255,44 @@ export function validateManifest(
   );
 }
 
+/** Read the site's XML discovery documents with the same parser used by the build gate. */
+export async function inspectSitemap(xml: string, originInput: string) {
+  const origin = siteOrigin(originInput);
+  requireValue(!/<!DOCTYPE|<!ENTITY/i.test(xml), 'sitemap declarations are unsupported');
+  const { ast } = await parse(xml);
+  const indexes = elements(ast, 'sitemapindex');
+  const sets = elements(ast, 'urlset');
+  requireValue(indexes.length + sets.length === 1, 'expected one sitemap root');
+  const kind = indexes.length ? 'index' : 'urls';
+  requireValue(
+    xml.includes(kind === 'index' ? '</sitemapindex>' : '</urlset>'),
+    'unclosed sitemap root',
+  );
+  const root = indexes[0] ?? sets[0];
+  const rows = elements(root, kind === 'index' ? 'sitemap' : 'url');
+  requireValue(kind !== 'index' || rows.length > 0, 'empty sitemap index');
+  requireValue(rows.length <= 50000, 'sitemap exceeds the URL limit');
+  const urls = rows.map((row) => {
+    const loc = elements(row, 'loc');
+    requireValue(loc.length === 1, 'sitemap entry needs one location');
+    const value = decode(textContent(loc[0])).trim();
+    const url = new URL(value);
+    requireValue(
+      url.origin === origin &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        url.href === canonicalUrl(url.pathname, origin),
+      'sitemap contains a foreign or noncanonical URL',
+    );
+    return url.href;
+  });
+  requireValue(new Set(urls).size === urls.length, 'duplicate sitemap URL');
+  requireValue(elements(root, 'loc').length === urls.length, 'unexpected sitemap locations');
+  return { kind, urls };
+}
+
 async function files(root: string): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true });
   const groups = await Promise.all(

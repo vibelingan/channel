@@ -1,0 +1,179 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "商品更新与网站收录：本轮补齐流程",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none"
+  },
+  "lanes": [
+    {
+      "id": "business",
+      "label": "后台商品变更"
+    },
+    {
+      "id": "delivery",
+      "label": "静态内容交付"
+    },
+    {
+      "id": "search",
+      "label": "文章访问与搜索发现"
+    }
+  ],
+  "mainPath": ["edit", "record", "wake", "build", "accept", "discover", "crawl"],
+  "nodes": [
+    {
+      "id": "edit",
+      "lane": "business",
+      "col": 0,
+      "type": "frontend",
+      "label": "商品公开变更",
+      "sublabel": "新增、修改、撤回",
+      "tag": "现有入口"
+    },
+    {
+      "id": "record",
+      "lane": "business",
+      "col": 1,
+      "type": "database",
+      "label": "记录最新公开版本",
+      "sublabel": "与商品写入同一事务",
+      "tag": "待接入",
+      "width": 150
+    },
+    {
+      "id": "wake",
+      "lane": "delivery",
+      "col": 1,
+      "type": "messagebus",
+      "label": "唤醒并合并更新",
+      "sublabel": "失败重试，定时补漏",
+      "tag": "待接入"
+    },
+    {
+      "id": "build",
+      "lane": "delivery",
+      "col": 2,
+      "type": "backend",
+      "label": "刷新商品静态正文",
+      "sublabel": "复用已验收程序与快照",
+      "tag": "部分已有",
+      "width": 150
+    },
+    {
+      "id": "accept",
+      "lane": "delivery",
+      "col": 3,
+      "type": "security",
+      "label": "受控交付并验收",
+      "sublabel": "共享锁、版本核对、恢复",
+      "tag": "已有基础"
+    },
+    {
+      "id": "discover",
+      "lane": "search",
+      "col": 3,
+      "type": "backend",
+      "label": "页面与发现入口一致",
+      "sublabel": "HTML、canonical、sitemap",
+      "tag": "补齐验收",
+      "width": 150
+    },
+    {
+      "id": "crawl",
+      "lane": "search",
+      "col": 4,
+      "type": "external",
+      "label": "Google / Bing抓取",
+      "sublabel": "实际收录以平台结果为准",
+      "tag": "持续观察",
+      "width": 150
+    },
+    {
+      "id": "article",
+      "lane": "search",
+      "col": 0,
+      "type": "frontend",
+      "label": "人工发布Blog",
+      "sublabel": "保存公开文章版本",
+      "tag": "已接通"
+    },
+    {
+      "id": "html",
+      "lane": "search",
+      "col": 1,
+      "type": "cloud",
+      "label": "Astro返回当前文章",
+      "sublabel": "正式域名才允许收录",
+      "tag": "待开放",
+      "width": 150
+    },
+    {
+      "id": "stop",
+      "lane": "delivery",
+      "col": 4,
+      "type": "security",
+      "label": "停止与保留待办",
+      "sublabel": "未写不恢复，已写读回",
+      "tag": "沿用恢复规则"
+    }
+  ],
+  "edges": [
+    {
+      "from": "edit",
+      "to": "record"
+    },
+    {
+      "from": "record",
+      "to": "wake"
+    },
+    {
+      "from": "wake",
+      "to": "build"
+    },
+    {
+      "from": "build",
+      "to": "accept"
+    },
+    {
+      "from": "accept",
+      "to": "discover"
+    },
+    {
+      "from": "discover",
+      "to": "crawl"
+    },
+    {
+      "from": "article",
+      "to": "html",
+      "label": "实时公开版本"
+    },
+    {
+      "from": "html",
+      "to": "discover"
+    },
+    {
+      "from": "accept",
+      "to": "stop",
+      "role": "error",
+      "variant": "security",
+      "label": "验收失败"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "内容边界",
+      "items": [
+        "公开商品都参与更新，草稿和内部字段不进入页面",
+        "Blog仍由人审核公开，助手只存私有草稿"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "实施顺序",
+      "items": ["先补收录核对，再接商品版本记录与更新执行", "已有发布恢复共用，不另起一套部署系统"]
+    }
+  ]
+}

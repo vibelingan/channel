@@ -1,0 +1,175 @@
+{
+  "checkedAt": "2026-10-28T17:15:42.281Z",
+  "siteOrigin": "https://supplychainsai.com",
+  "ready": false,
+  "meaning": "technical-readiness-only; search-engine-indexing-is-not-proven",
+  "allPagesChecked": false,
+  "discoveredPages": 539,
+  "productPages": 528,
+  "publicProductPages": 528,
+  "missingProducts": [],
+  "retiredProducts": [],
+  "checkedProductPages": 12,
+  "imageCrawlAllowed": false,
+  "sitemaps": [
+    {
+      "url": "https://supplychainsai.com/sitemap-index.xml",
+      "urls": 2
+    },
+    {
+      "url": "https://supplychainsai.com/blog/sitemap.xml",
+      "urls": 3
+    },
+    {
+      "url": "https://supplychainsai.com/sitemap-0.xml",
+      "urls": 536
+    }
+  ],
+  "checked": [
+    {
+      "url": "https://supplychainsai.com/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/ai-gadgets/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/",
+      "ready": false,
+      "message": "Indexing is blocked by the HTTP robots header"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "ready": false,
+      "message": "Indexing is blocked by the HTTP robots header"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "ready": false,
+      "message": "Indexing is blocked by the HTTP robots header"
+    },
+    {
+      "url": "https://supplychainsai.com/electronics-toys/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/headphones/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/misc/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/oem/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/portfolio/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-19df11b6-903e-4314-a0f1-7bf6bfc29601/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8cc794ae-c4a4-45ff-a5ba-d91a6af07183"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2e1c70cf-4c1b-44e1-a463-392e1f37c576/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e561126b-4593-4e65-922e-a047dce2ca3d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-43df53f9-3b32-4c81-ad4f-5371a2525f1a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "efb37b57-68e8-4e75-822a-c5b12a6baa88"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5ae71519-914c-464d-ad5f-ff4782acddb3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "26a87b7d-ca07-438d-b29d-c1346b269259"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-732d8261-b249-4bd1-af86-fa13373151c7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "529fd7d9-d4fb-429f-8eef-5a37a40059b9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8945a6c7-ed97-42a7-aeac-4bc98a886cc6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ce633300-93dd-4ade-94c0-0bf51eded731"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9ebdad5c-46e1-4362-a0a5-aa83e894c495/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e4d1c7e9-0f53-4bd8-b7b3-76dc64308e35"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b9e7e0cb-faaa-4723-a00f-88a0de13658f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f75e117f-e6b0-4dff-ad5f-152e77fa18b4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d1b0c8a9-ebc4-4fa0-a78d-a7b3159c3dde/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cf91f4ff-9233-4ab5-b619-3cc3e04bf4da"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e3c0b5aa-6ed6-4054-ab61-6f04bf5f24a0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "94cb2945-b6bb-42ef-8033-bfa8605c91bf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "653938e3-5962-4868-bc84-37dbf01a44ca"
+    },
+    {
+      "url": "https://supplychainsai.com/toys/",
+      "ready": true,
+      "kind": "marketing"
+    }
+  ],
+  "problems": [
+    {
+      "url": "https://supplychainsai.com/blog/",
+      "message": "Indexing is blocked by the HTTP robots header"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "message": "Indexing is blocked by the HTTP robots header"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "message": "Indexing is blocked by the HTTP robots header"
+    },
+    {
+      "url": "https://supplychainsai.com/robots.txt",
+      "message": "Public product images are disallowed"
+    }
+  ]
+}

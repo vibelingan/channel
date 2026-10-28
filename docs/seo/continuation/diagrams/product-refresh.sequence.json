@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品变更到静态页面更新：目标时序",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [840, 540],
+    "animation": "none"
+  },
+  "participants": [
+    {
+      "id": "admin",
+      "type": "frontend",
+      "label": "后台",
+      "sublabel": "管理员操作"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "商品事务",
+      "sublabel": "现有业务入口"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "公开版本与待办",
+      "sublabel": "拟新增服务端记录"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "内容更新任务",
+      "sublabel": "已验收程序包"
+    },
+    {
+      "id": "host",
+      "type": "cloud",
+      "label": "网站与地图",
+      "sublabel": "既有受控交付"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m0",
+      "from": "admin",
+      "to": "api",
+      "y": 160,
+      "label": "保存公开变更",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m1",
+      "from": "api",
+      "to": "store",
+      "y": 192,
+      "label": "同事务提交商品、版本和待办",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m3",
+      "from": "api",
+      "to": "worker",
+      "y": 224,
+      "label": "提交后尽快唤醒，失败由待办补漏",
+      "variant": "dashed"
+    },
+    {
+      "id": "m4",
+      "from": "worker",
+      "to": "store",
+      "y": 256,
+      "label": "认领最新版本，合并连续修改",
+      "variant": "default"
+    },
+    {
+      "id": "m5",
+      "from": "worker",
+      "to": "api",
+      "y": 288,
+      "label": "读取变化商品的公开详情",
+      "variant": "default"
+    },
+    {
+      "id": "m6",
+      "from": "worker",
+      "to": "store",
+      "y": 320,
+      "label": "短暂占用受影响商品并核对版本",
+      "variant": "security"
+    },
+    {
+      "id": "m7",
+      "from": "worker",
+      "to": "host",
+      "y": 352,
+      "label": "共享部署锁下交付差异与撤回",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m8",
+      "from": "host",
+      "to": "worker",
+      "y": 384,
+      "label": "HTTP、正文、地图和404实测结果",
+      "variant": "return"
+    },
+    {
+      "id": "m9",
+      "from": "worker",
+      "to": "store",
+      "y": 416,
+      "label": "接受当前版本，再解除占用",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "失败与恢复",
+      "items": ["未知调用先读回，保留占用和待办", "代码恢复沿用最新内容，不回灌数据库"]
+    }
+  ]
+}
