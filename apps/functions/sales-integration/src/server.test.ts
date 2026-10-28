@@ -7,7 +7,7 @@ import { createSalesServer } from './server.ts';
 import { setup } from './test-fixtures.ts';
 
 test('loopback HTTP exercises authentication, source projection and binary download', async () => {
-  const s = setup();
+  const s = await setup();
   const server = createSalesServer(s.handler);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -22,7 +22,11 @@ test('loopback HTTP exercises authentication, source projection and binary downl
     const response = await fetch(`${origin}${request.url}`, { headers });
     assert.equal(response.status, 200);
     const view = z
-      .object({ data: z.object({ assets: z.array(z.object({ ref: z.string() })).nonempty() }) })
+      .object({
+        data: z.object({
+          assets: z.array(z.object({ ref: z.string() })).nonempty(),
+        }),
+      })
       .parse(await response.json());
     const attachment = await fetch(
       `${origin}/integrations/sales/assets/${view.data.assets[0].ref}`,
@@ -37,8 +41,15 @@ test('loopback HTTP exercises authentication, source projection and binary downl
       byteSize: large.byteLength,
       checksumSha256: createHash('sha256').update(large).digest('hex'),
     });
+    await s.enroll();
+    for (const [name, value] of Object.entries(s.request().headers))
+      if (typeof value === 'string') headers[name] = value;
     const largeView = z
-      .object({ data: z.object({ assets: z.array(z.object({ ref: z.string() })).nonempty() }) })
+      .object({
+        data: z.object({
+          assets: z.array(z.object({ ref: z.string() })).nonempty(),
+        }),
+      })
       .parse(await (await fetch(`${origin}${request.url}`, { headers })).json());
     const largeResponse = await fetch(`${origin}/assets/${largeView.data.assets[0].ref}`, {
       headers,
@@ -52,8 +63,15 @@ test('loopback HTTP exercises authentication, source projection and binary downl
       byteSize: maximum.byteLength,
       checksumSha256: createHash('sha256').update(maximum).digest('hex'),
     });
+    await s.enroll();
+    for (const [name, value] of Object.entries(s.request().headers))
+      if (typeof value === 'string') headers[name] = value;
     const maximumView = z
-      .object({ data: z.object({ assets: z.array(z.object({ ref: z.string() })).nonempty() }) })
+      .object({
+        data: z.object({
+          assets: z.array(z.object({ ref: z.string() })).nonempty(),
+        }),
+      })
       .parse(await (await fetch(`${origin}${request.url}`, { headers })).json());
     const assetUrl = `${origin}/assets/${maximumView.data.assets[0].ref}`;
     const unbounded = await fetch(assetUrl, { headers });

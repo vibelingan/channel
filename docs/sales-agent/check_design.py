@@ -13,8 +13,17 @@ args_parser.add_argument('--channel-source', type=Path, help='Original protected
 args = args_parser.parse_args()
 plan = json.loads((ROOT / 'plan.json').read_text())
 units = plan['units']
-by_id = {item['id']: item for item in units}
-assert len(by_id) == len(units) == 23
+core_ids = {item['id'] for item in units}
+assert len(core_ids) == len(units) == 23
+supplements = plan.get('supplements', [])
+by_id = {item['id']: item for item in [*units, *supplements]}
+assert len(by_id) == len(units) + len(supplements)
+for item in supplements:
+    assert item['status'] in {'planned_not_implemented', 'in_progress', 'implemented_verified_offline'}
+    assert item.get('live_enabled') is False
+    assert (ROOT / item['design']).is_file()
+    if item['status'] == 'implemented_verified_offline':
+        assert (ROOT / item['evidence_ref']).is_file()
 allowed_statuses = {'planned_not_implemented', 'implemented_verified_offline', 'verified_code_snapshot'}
 assert all(item['status'] in allowed_statuses and not item['live_enabled'] for item in units)
 for item in units:
@@ -71,4 +80,4 @@ if args.schema:
     for name in ('inquiry.invalid-missing-record.json', 'inquiry.invalid-chat-link.json'):
         assert list(validator.iter_errors(json.loads((ROOT / 'contracts' / name).read_text()))), name
     schema_result = '1 valid accepted, 2 invalid rejected; not an authorization test'
-print(json.dumps({'status':'passed','unit_count':len(units),'dag':'acyclic','topological_order':order,'local_links_checked':links,'historical_copies':'hashes_match','protected_source_docs':'hashes_match','schema':schema_result,'scope':'design package checks only; no implementation or live validation'},ensure_ascii=False,indent=2))
+print(json.dumps({'status':'passed','unit_count':len(by_id),'core_unit_count':len(units),'supplement_count':len(supplements),'dag':'acyclic','topological_order':order,'local_links_checked':links,'historical_copies':'hashes_match','protected_source_docs':'hashes_match','schema':schema_result,'scope':'design package checks only; no implementation or live validation'},ensure_ascii=False,indent=2))

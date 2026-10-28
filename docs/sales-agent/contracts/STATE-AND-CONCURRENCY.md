@@ -1,5 +1,7 @@
 # 状态、优先级与发送边界
 
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。来源签发、Hermes持久控制和真实Agent接线尚未完成，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+
 2026-10-26：本次[权限设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)待确认，开发暂停。客户级撤权用绑定control_epoch，单任务安全变更用task_revision；共同schema尚未升级，不能把旧Approval 1.0当新门禁。
 
 2026-10-23。所有状态为目标设计；不是把现有文章发布状态机直接改名。

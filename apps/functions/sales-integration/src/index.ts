@@ -1,3 +1,4 @@
+import { createPermitClient } from './permit-client.ts';
 import { get, setAdapter } from '@vibelingan-channel/db';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -24,6 +25,11 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
   if (storageHosts.some((host) => !/^[a-z0-9.-]+$/.test(host)))
     throw new Error('Invalid SALES_STORAGE_HOSTS');
   if (!['test', 'production'].includes(environment)) throw new Error('Invalid SALES_ENVIRONMENT');
+  const permitClient = createPermitClient(
+    required('SALES_HERMES_AUTH_URL'),
+    required('SALES_HERMES_AUTH_TOKEN'),
+    environment === 'test' ? 'test' : 'production',
+  );
   initCloudBase(envId);
   setAdapter(cloudBaseAdapter);
   const storage = createCloudBaseMediaStorage(cloudStorageSdk());
@@ -33,6 +39,13 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
     installation_id: installationId,
     environment: environment === 'test' ? 'test' : 'production',
     cloud_env_id: envId,
+    taskAccess: {
+      now: () => Math.floor(Date.now() / 1000),
+      loadLease: (hash) => loadSalesRecord('channelSalesTaskLeases', hash),
+      loadHandoff: (hash) => loadSalesRecord('channelSalesSourceHandoffs', hash),
+      loadInstallation: () => loadSalesRecord('channelSalesInstallations', installationId),
+      fetchPermit: permitClient,
+    },
     loadRegistry: async () => {
       const result = await cloudStorageSdk()
         .database()
@@ -53,9 +66,21 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
         ? getProductDetail(id, page, size, revision, true, true, true)
         : Promise.resolve({
             ok: false,
-            error: { code: 'NOT_FOUND', message: 'Approved catalog unavailable' },
+            error: {
+              code: 'NOT_FOUND',
+              message: 'Approved catalog unavailable',
+            },
           }),
   });
+}
+
+async function loadSalesRecord(
+  collection: 'channelSalesTaskLeases' | 'channelSalesSourceHandoffs' | 'channelSalesInstallations',
+  id: string,
+): Promise<unknown> {
+  const result = await cloudStorageSdk().database().collection(collection).doc(id).get();
+  const row: unknown = Array.isArray(result.data) ? result.data[0] : result.data;
+  return row && typeof row === 'object' && 'record' in row ? row.record : undefined;
 }
 
 function required(name: string): string {

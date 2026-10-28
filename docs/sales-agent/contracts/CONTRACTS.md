@@ -1,9 +1,11 @@
 # 接口与数据规则 v0.1
 
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。来源签发、Hermes持久控制和真实Agent接线尚未完成，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+
 2026-10-26 复核：以[权限与真实工具设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
 2026-10-23 · SG0.1数据校验、SG0.2服务器授权库和SG1.1私有读取HTTP接口已实现并本地验证，尚未部署。下表其余路由仍待各模块接入。官方服务的实际接口见 [能力依据](../evidence/PROVIDER-CAPABILITIES.md)。运行机制依 [状态规则](STATE-AND-CONCURRENCY.md)。
 
-本次修订所述认证信封、SourceHandoff、TaskPermit、TaskReadLease和任务版本检查均待设计确认后才加入共同schema，当前没有这些运行接口。D1区分客户绑定control_epoch与任务task_revision，并要求升级Approval合同；下文1.0示意不可当作新协议已满足。Hermes当前事件入口为`POST /sales/events`、worker入口为`POST /sales/runs/accept`；下方目标API不是全部已实现的路由。
+D1的SourceHandoff、TaskReadLease、TaskReadRequest、TaskAuthority和TaskPermit现已加入sales-auth/1共同合同，并有TS/Python程序判断；真实签发／持久控制接口仍未接入。Approval 1.0尚未加入任务版本，仍不可当作D1完整外发门禁。Hermes现有事件入口为POST /sales/events、worker入口为POST /sales/runs/accept；下表目标API不代表全部已实现。
 
 ## 1. 身份与范围
 

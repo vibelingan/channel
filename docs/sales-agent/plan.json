@@ -99,7 +99,8 @@
       "title": "询盘通知与补偿扫描",
       "depends_on": [
         "SG1.1",
-        "SG2.2"
+        "SG2.2",
+        "SG1.3"
       ],
       "design": "modules/SG1-channel.md",
       "owner_role": "Channel",
@@ -407,28 +408,34 @@
       "trusted_source_verification_before_execution",
       "task_private_context_and_real_tool_wiring"
     ],
-    "next_action": "Execute D1 SG0.3 and SG1.3 with per-unit validation; no live enablement",
+    "next_action": "D1 next: trusted source/lease issuance and persistent Hermes task authorization endpoint; no live enablement",
     "approved_at": "2026-10-28"
   },
   "supplements": [
     {
       "id": "SG0.3",
       "title": "共同任务读取授权协议",
-      "status": "implemented_locally_pending_remote",
+      "status": "implemented_verified_offline",
       "design": "evidence/D1-IMPLEMENTATION-PLAN.md",
       "live_enabled": false,
-      "evidence_ref": "evidence/SG0.3-VALIDATION.md"
+      "evidence_ref": "evidence/SG0.3-VALIDATION.md",
+      "depends_on": [
+        "SG0.2"
+      ],
+      "channel_commit": "8b25f22833e26bb2561ca3defd5f82bbdc1e8b89",
+      "hermes_commit": "40fbac55463e8de0edd403e080b2e5eb3fdb55a1"
     },
     {
       "id": "SG1.3",
       "title": "Channel强制任务读取门禁",
-      "status": "planned_not_implemented",
+      "status": "implemented_verified_offline",
       "depends_on": [
         "SG0.3",
         "SG1.1"
       ],
       "design": "evidence/D1-IMPLEMENTATION-PLAN.md",
-      "live_enabled": false
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG1.3-VALIDATION.md"
     }
   ]
 }

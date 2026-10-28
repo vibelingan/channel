@@ -109,3 +109,10 @@ SG0.2原提交bf8e429b已推送，[远端检查39891019917](https://github.com/v
 ## 2026-10-26：设计修订，开发暂停
 
 用户仅授权整理权限协议、Channel独立门禁、任务授权、真实工具接线及实时产品／留档设计。主文档为[SECURITY-AND-TOOLS-DESIGN.md](SECURITY-AND-TOOLS-DESIGN.md)，图和PDF随附。复用原连接认证、资料reader、Boundary与Dispatcher，缺口另列；本轮不实施、不改schema、不更新既有单元为完成。后续先由用户确认D1，再调整实施单元及依赖。文档验证与视觉记录见[VERIFICATION](evidence/VERIFICATION.md)。
+
+
+## 2026-10-28 D1第一批补齐
+
+SG0.3增加Sales专用授权合同与TS/Python确定性判断；Channel 8b25f228 CI40627274084、Hermes固定消费40fbac5 CI40627523609均成功。旧六种业务schema与其他Agent保持原样。随后SG1.3在Sales私有HTTP路径强制任务授权，验证见[SG1.3记录](evidence/SG1.3-VALIDATION.md)。本轮不改变客户线上配置、原询盘写入或邮件发送。
+
+按humanizer复核README、函数说明与本轮证据，将“权限隔离已实现”明确为“Sales读取门禁已实现；来源签发、Hermes持久控制和真实运行接线未完成”。核对文件为共同task-access/schema/test、handler/task-gate/permit-client/index/sources及原Inquiry终态函数；状态和测试数字以实际日志／对应SHA为准。

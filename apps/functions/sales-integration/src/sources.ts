@@ -71,7 +71,13 @@ export interface InquiryView {
   contact: { email: string; name: string; company: string };
   requirements: Record<string, unknown>;
   product_snapshot?: unknown;
-  assets: Array<{ ref: string; filename: string; mime: string; size: number; sha256: string }>;
+  assets: Array<{
+    ref: string;
+    filename: string;
+    mime: string;
+    size: number;
+    sha256: string;
+  }>;
 }
 type Source = { view: InquiryView; file?: z.infer<typeof fileSchema> };
 
@@ -253,9 +259,8 @@ export async function readAsset(deps: SalesDependencies, ref: string) {
 
 function belongsToInstallation(row: Record<string, unknown>, deps: SalesDependencies): boolean {
   return (
-    (!Object.hasOwn(row, 'client_id') || row.client_id === deps.client_id) &&
-    (!Object.hasOwn(row, 'business_line') || row.business_line === deps.business_line) &&
-    (!Object.hasOwn(row, 'source_installation_id') ||
-      row.source_installation_id === deps.installation_id)
+    row.client_id === deps.client_id &&
+    row.business_line === deps.business_line &&
+    row.source_installation_id === deps.installation_id
   );
 }

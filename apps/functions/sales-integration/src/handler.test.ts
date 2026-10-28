@@ -3,7 +3,7 @@ import test from 'node:test';
 import { setup } from './test-fixtures.ts';
 
 test('oem inquiry returns an allowlisted view and authenticated attachment reference', async () => {
-  const s = setup();
+  const s = await setup();
   const response = await s.handler(s.request());
   assert.equal(response.status, 200);
   const view = JSON.parse(response.body.toString()).data;
@@ -18,11 +18,14 @@ test('oem inquiry returns an allowlisted view and authenticated attachment refer
   ])
     assert.ok(!response.body.toString().includes(secret));
   assert.equal(response.headers['Cache-Control'], 'private, no-store');
-  assert.equal(response.headers.Vary, 'Authorization, X-Sales-Connection-Id, X-Sales-Context');
+  assert.equal(
+    response.headers.Vary,
+    'Authorization, X-Sales-Connection-Id, X-Sales-Context, X-Sales-Task, X-Sales-Lease',
+  );
 });
 
 test('saved quote snapshot survives a current product change and admin update', async () => {
-  const s = setup();
+  const s = await setup();
   const request = s.request(`/inquiries/product/${s.quoteId}`);
   const first = await s.handler(request);
   assert.equal(first.status, 200);
@@ -48,7 +51,7 @@ test('saved quote snapshot survives a current product change and admin update', 
 });
 
 test('wrong client context and another installation credential cannot read the database', async () => {
-  const s = setup();
+  const s = await setup();
   const request = s.request();
   request.headers['x-sales-context'] = Buffer.from(
     JSON.stringify({
@@ -76,7 +79,7 @@ test('unfinished, rolled-back, legacy or foreign-owner attachments are unavailab
     { storageFileId: 'https://outside.invalid/file' },
     { purpose: 'catalog-image' },
   ]) {
-    const s = setup();
+    const s = await setup();
     s.rows.set('files/drawing_a', { ...s.file, ...patch });
     assert.equal((await s.handler(s.request())).status, 404);
     assert.ok(!s.calls.some((call) => call.startsWith('cloud://')));
@@ -84,7 +87,7 @@ test('unfinished, rolled-back, legacy or foreign-owner attachments are unavailab
 });
 
 test('asset route returns verified bytes and rejects tampering or stale references', async () => {
-  const s = setup();
+  const s = await setup();
   const view = JSON.parse((await s.handler(s.request())).body.toString()).data;
   const request = s.request(`/assets/${view.assets[0].ref}`);
   const result = await s.handler(request);
@@ -100,7 +103,7 @@ test('asset route returns verified bytes and rejects tampering or stale referenc
 });
 
 test('asset ranges return only the requested verified bytes and reject ambiguous ranges', async () => {
-  const s = setup();
+  const s = await setup();
   const view = JSON.parse((await s.handler(s.request())).body.toString()).data;
   const request = s.request(`/assets/${view.assets[0].ref}`);
   request.headers.range = 'bytes=0-7';
@@ -113,31 +116,36 @@ test('asset ranges return only the requested verified bytes and reject ambiguous
   const tail = await s.handler(request);
   assert.equal(tail.status, 206);
   assert.deepEqual(tail.body, s.pdf.subarray(8));
-  for (const range of [
-    'bytes=9999-10000',
-    'bytes=8-7',
-    'bytes=0-1,4-7',
-    'bytes=-8',
-    'bytes=0-',
-    'bytes=0-9007199254740992',
-    'items=0-7',
-  ]) {
+  for (const [range, status] of [
+    ['bytes=9999-10000', 416],
+    ['bytes=8-7', 416],
+    ['bytes=0-1,4-7', 403],
+    ['bytes=-8', 403],
+    ['bytes=0-', 403],
+    ['bytes=0-9007199254740992', 416],
+    ['items=0-7', 403],
+  ] as const) {
     request.headers.range = range;
     const invalid = await s.handler(request);
-    assert.equal(invalid.status, 416, range);
-    assert.equal(invalid.headers['Content-Range'], `bytes */${s.pdf.byteLength}`);
+    assert.equal(invalid.status, status, range);
+    if (status === 416)
+      assert.equal(invalid.headers['Content-Range'], `bytes */${s.pdf.byteLength}`);
   }
   s.registry.enabled = false;
   assert.equal((await s.handler(request)).status, 403);
 });
 
 test('product query uses the approved reader without accepting raw database queries', async () => {
-  const s = setup();
+  const s = await setup();
   const request = {
     ...s.request('/products/query'),
     method: 'POST',
     body: Buffer.from(
-      JSON.stringify({ ids: [{ id: 'product_a', revision: 'r2' }], page: 1, page_size: 20 }),
+      JSON.stringify({
+        ids: [{ id: 'product_a', revision: 'r2' }],
+        page: 1,
+        page_size: 20,
+      }),
     ),
   };
   request.headers['content-type'] = 'application/json';
@@ -149,7 +157,7 @@ test('product query uses the approved reader without accepting raw database quer
 });
 
 test('missing auth, duplicate header identity, oversized body and arbitrary URL never read data', async () => {
-  const s = setup();
+  const s = await setup();
   const request = s.request();
   request.headers.authorization = undefined;
   assert.equal((await s.handler(request)).status, 401);
@@ -171,7 +179,7 @@ test('missing auth, duplicate header identity, oversized body and arbitrary URL 
 });
 
 test('revocation takes effect between calls', async () => {
-  const s = setup();
+  const s = await setup();
   assert.equal((await s.handler(s.request())).status, 200);
   const before = s.calls.length;
   s.registry.enabled = false;
@@ -180,7 +188,7 @@ test('revocation takes effect between calls', async () => {
 });
 
 test('source records declaring another client are denied and provider errors do not leak', async () => {
-  const s = setup();
+  const s = await setup();
   for (const patch of [
     { client_id: 'client_b' },
     { source_installation_id: 'site_b' },
@@ -197,7 +205,7 @@ test('source records declaring another client are denied and provider errors do 
 });
 
 test('a different authorized business line cannot reuse the website inquiry endpoint', async () => {
-  const s = setup();
+  const s = await setup();
   s.registry.bindings[0].business_lines.push('cold_outreach');
   const request = s.request();
   request.headers['x-sales-context'] = Buffer.from(

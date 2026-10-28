@@ -46,7 +46,7 @@ Interfaces：
 - [x] 失败测试：合法请求可读；同客户错task、跨客户、错run、错连接、源版本变化、权限撤销、过期、参数hash变化、附件越界、非批准产品资料集等均拒绝。
 - [x] 实现五种合同、生成类型和双语言判断；保留通用拒绝，不返回秘密。
 - [x] 同一JSON授权向量在TS/Python结果一致；原58项canonical/schema样例及旧测试继续通过。
-- [ ] 复核并提交推送Channel；远端通过后，Hermes仅消费固定提交的新增合同／Python检查，不注册到全局Agent。
+- [x] 复核并提交推送Channel；远端通过后，Hermes仅消费固定提交的新增合同／Python检查，不注册到全局Agent。
 
 ## SG1.3：Channel强制任务门禁
 
@@ -54,9 +54,9 @@ Files：apps/functions/sales-integration/src/{handler,sources,index}.ts及新增
 
 Interfaces：SalesTaskGate在已有AccessGrant后取得可信lease/handoff记录，构造TaskReadRequest，向固定Hermes控制接口请求TaskPermit；操作前及返回前均fresh读取并验证。X-Sales-Task提供协议、task/run/revision/request_id；X-Sales-Lease提供随机短时句柄。凭据和句柄不进模型。
 
-- [ ] 失败测试：原来仅客户级密钥读取也应拒绝；同客户双询盘不能串读；错误lease/permit、在线超时、读取中撤权／修改版本、安装归属不明拒绝。
-- [ ] 接入所有私有读取路由，没有可选绕过模式；复用产品reader与附件Range/完整性检查。
-- [ ] 安装归属要求明确行归属，或fresh读取可核验的固定安装归属登记；未提供证明就拒绝legacy行。
+- [x] 失败测试：原来仅客户级密钥读取也应拒绝；同客户双询盘不能串读；错误lease/permit、在线超时、读取中撤权／修改版本、安装归属不明拒绝。
+- [x] 接入所有私有读取路由，没有可选绕过模式；复用产品reader与附件Range/完整性检查。
+- [x] 安装归属要求明确行归属，或fresh读取可核验的固定安装归属登记；未提供证明就拒绝legacy行。
 - [ ] loopback真实HTTP、打包冷启动、原受影响函数回归、CloudBase SDK contract gate和远端CI通过；记录未联调真实Hermes与客户账号。
 
 ## 后续依赖

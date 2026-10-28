@@ -7,6 +7,8 @@ import {
 } from '@vibelingan-channel/sales-contracts/access';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
+import { SalesTaskGate, type TaskGateDependencies } from './task-gate.ts';
+import { TaskAccessDenied } from '@vibelingan-channel/sales-contracts/task-access';
 import { SalesSourceError, readAsset, readInquiry, recordId } from './sources.ts';
 
 export interface SalesRequest {
@@ -26,6 +28,7 @@ export interface SalesDependencies extends AccessDependencies {
   installation_id: string;
   environment: 'test' | 'production';
   cloud_env_id: string;
+  taskAccess: TaskGateDependencies;
   readDoc(
     collection: 'oemProjects' | 'catalogQuoteRequests' | 'files',
     id: string,
@@ -63,7 +66,7 @@ const productQuery = z
 const HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
   'Cache-Control': 'private, no-store',
-  Vary: 'Authorization, X-Sales-Connection-Id, X-Sales-Context',
+  Vary: 'Authorization, X-Sales-Connection-Id, X-Sales-Context, X-Sales-Task, X-Sales-Lease',
   'X-Content-Type-Options': 'nosniff',
   'Content-Security-Policy': "default-src 'none'; sandbox",
   'Referrer-Policy': 'no-referrer',
@@ -126,6 +129,7 @@ function assetResponse(
 
 export function createSalesHandler(dependencies: SalesDependencies) {
   const access = new SalesAccessController(dependencies);
+  const tasks = new SalesTaskGate(dependencies);
   return async (request: SalesRequest): Promise<SalesResponse> => {
     try {
       if ((request.body?.byteLength ?? 0) > 16384) return response(413, { code: 'BODY_TOO_LARGE' });
@@ -171,25 +175,51 @@ export function createSalesHandler(dependencies: SalesDependencies) {
           const inquiryId = inquiry?.[2];
           const assetRef = asset?.[1];
           if (inquiry && inquiryId) {
-            const source = await readInquiry(
-              dependencies,
-              inquiry[1] === 'oem' ? 'oem' : 'product',
-              inquiryId,
-            );
-            return response(200, {
-              data: {
-                ...source.view,
-                owner_scope: {
-                  client_id: grant.client_id,
-                  business_line: grant.business_line,
-                  source_installation_id: grant.source_installation_id,
+            return tasks.execute(
+              grant,
+              headers,
+              {
+                action,
+                resource: {
+                  kind: inquiry[1] === 'oem' ? 'oem' : 'product',
+                  id: inquiryId,
                 },
               },
-            });
+              async () => {
+                const source = await readInquiry(
+                  dependencies,
+                  inquiry[1] === 'oem' ? 'oem' : 'product',
+                  inquiryId,
+                );
+                return response(200, {
+                  data: {
+                    ...source.view,
+                    owner_scope: {
+                      client_id: grant.client_id,
+                      business_line: grant.business_line,
+                      source_installation_id: grant.source_installation_id,
+                    },
+                  },
+                });
+              },
+            );
           }
           if (asset && assetRef) {
-            const result = await readAsset(dependencies, assetRef);
-            return assetResponse(result, headers.range);
+            return tasks.execute(
+              grant,
+              headers,
+              {
+                action,
+                resource: {
+                  ref: assetRef,
+                  ...(headers.range === undefined ? {} : { range: headers.range }),
+                },
+              },
+              async () => {
+                const result = await readAsset(dependencies, assetRef);
+                return assetResponse(result, headers.range);
+              },
+            );
           }
           if (headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
             return response(415, { code: 'CONTENT_TYPE' });
@@ -203,24 +233,27 @@ export function createSalesHandler(dependencies: SalesDependencies) {
           } catch {
             return response(400, { code: 'INVALID_REQUEST' });
           }
-          const items = [];
-          for (const target of query.ids)
-            items.push(
-              await dependencies.readApprovedProduct(
-                target.id,
-                query.page,
-                query.page_size,
-                target.revision,
-              ),
-            );
-          const reply = response(200, { data: items });
-          return reply.body.byteLength <= 1024 * 1024
-            ? reply
-            : response(413, { code: 'RESPONSE_TOO_LARGE' });
+          return tasks.execute(grant, headers, { action, resource: query }, async () => {
+            const items = [];
+            for (const target of query.ids)
+              items.push(
+                await dependencies.readApprovedProduct(
+                  target.id,
+                  query.page,
+                  query.page_size,
+                  target.revision,
+                ),
+              );
+            const reply = response(200, { data: items });
+            return reply.body.byteLength <= 1024 * 1024
+              ? reply
+              : response(413, { code: 'RESPONSE_TOO_LARGE' });
+          });
         },
       );
     } catch (error) {
-      if (error instanceof SalesAccessDenied) return response(403, { code: 'FORBIDDEN' });
+      if (error instanceof SalesAccessDenied || error instanceof TaskAccessDenied)
+        return response(403, { code: 'FORBIDDEN' });
       if (error instanceof SalesSourceError) return response(error.status, { code: error.code });
       return response(503, { code: 'SERVICE_UNAVAILABLE' });
     }

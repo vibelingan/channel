@@ -29,4 +29,4 @@
 
 authorizeTaskRead只做数据和策略判断。不能把LLM提供的lease/authority/permit直接送进去当身份验证。SG1.3必须加载真实Channel记录、验证固定Hermes连接，并对读取前后重新查状态。当前仍未增加来源producer、可靠来源核验、真实模型循环或邮件发送能力。
 
-远端结果待本单元推送后核对对应SHA，不能引用之前提交的成功工作流。
+远端：Channel 8b25f228的[Sales contracts 40627274084](https://github.com/vibelingan/channel/actions/runs/40627274084)成功；随后Hermes固定消费同版本，40fbac5的[Sales runtime 40627523609](https://github.com/vibelingan/hermesinfra/actions/runs/40627523609)成功，含既有MySQL与Docker隔离回归。Hermes本地73个方法，62通过、11因本地没有MySQL/Docker执行条件跳过；远端专用job实际执行。没有修改全局Agent或旧文章代码。
