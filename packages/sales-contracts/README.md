@@ -13,3 +13,13 @@ Revocation blocks new executions and discards reads whose authorization changed 
 The configuration validates declared customer ownership of runtimes, knowledge scopes and provider identities. It cannot verify that external credentials actually belong to the configured provider account, or isolate Hermes memory, files or processes. Those require onboarding and live integration tests.
 
 Run this package's `test`, `test:python`, `test:conformance`, `typecheck`, and `check:generated` scripts. Fixtures use synthetic identities and contain no usable credentials.
+
+## Sales task-read authorization (SG0.3)
+
+The additive `sales-auth-*` contracts use `protocol: sales-auth/1`. The six original business schemas are unchanged. TypeScript uses `./task-access`; Python uses `task_access.py`. `authorizeTaskRead` / `authorize_task_read` check a lease, source handoff, per-request permit and exact read request. `issueTaskPermit` / `issue_task_permit` reject an unverified source, paused task, stale run/revision or unavailable action.
+
+All records and permits must come from authenticated server storage/transport. These functions do not authenticate callers, issue lease tokens, query current task storage or send email. Passing model-generated records into them is not an authorization boundary. The Channel reader must load the real records and authenticate its fixed Hermes control connection before calling them.
+
+Time is integer Unix seconds: lease TTL <= 300, request permit TTL <= 10. Task/run identifiers cannot contain path syntax. Client revocation (`control_epoch`) and task controls (`task_revision`) are distinct. Product reads allow only the customer's approved catalog projection; private inquiries and attachments stay within the task's source.
+
+Run `test:task-conformance` with the Python requirements installed to compare the same authorization vectors across both languages. Existing `test:conformance` still validates the original 58 schema/strict-JSON/hash vectors. Neither command proves deployed service identity or account isolation.

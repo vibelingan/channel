@@ -1,0 +1,354 @@
+[
+  {
+    "id": "valid_inquiry",
+    "accepted": true
+  },
+  {
+    "id": "approved_product_recommendation",
+    "request_patch": {
+      "action": "product.read",
+      "resource": {
+        "ids": [
+          {
+            "id": "different_product"
+          }
+        ],
+        "page": 1,
+        "page_size": 20
+      }
+    },
+    "accepted": true
+  },
+  {
+    "id": "own_asset_range",
+    "request_patch": {
+      "action": "asset.read",
+      "resource": {
+        "ref": "asset_a",
+        "range": "bytes=0-7"
+      }
+    },
+    "accepted": true
+  },
+  {
+    "id": "request_mismatch_client_id",
+    "request_patch": {
+      "client_id": "client_b"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_business_line",
+    "request_patch": {
+      "business_line": "other"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_source_installation_id",
+    "request_patch": {
+      "source_installation_id": "site_b"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_runtime_id",
+    "request_patch": {
+      "runtime_id": "runtime_b"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_environment",
+    "request_patch": {
+      "environment": "production"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_control_epoch",
+    "request_patch": {
+      "control_epoch": 2
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_task_id",
+    "request_patch": {
+      "task_id": "task_b"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_run_id",
+    "request_patch": {
+      "run_id": "run_b"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_task_revision",
+    "request_patch": {
+      "task_revision": 2
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_connection_id",
+    "request_patch": {
+      "connection_id": "agent_b"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_lease_sha256",
+    "request_patch": {
+      "lease_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_handoff_sha256",
+    "request_patch": {
+      "handoff_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "accepted": false
+  },
+  {
+    "id": "request_mismatch_protocol",
+    "request_patch": {
+      "protocol": "sales-auth/9"
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_revoked",
+    "lease_patch": {
+      "revoked": true
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_expires_at",
+    "lease_patch": {
+      "expires_at": 1700000000
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_issued_at",
+    "lease_patch": {
+      "issued_at": 1700000001
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_audience",
+    "lease_patch": {
+      "audience": "other"
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_product_scope",
+    "lease_patch": {
+      "product_scope": "raw_database"
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_task_revision",
+    "lease_patch": {
+      "task_revision": true
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_invalid_allowed_actions",
+    "lease_patch": {
+      "allowed_actions": [
+        "mail.send"
+      ]
+    },
+    "accepted": false
+  },
+  {
+    "id": "lease_ttl",
+    "accepted": false,
+    "lease_patch": {
+      "expires_at": 1700000300
+    }
+  },
+  {
+    "id": "handoff_revoked",
+    "accepted": false,
+    "handoff_patch": {
+      "state": "revoked"
+    }
+  },
+  {
+    "id": "handoff_wrong_client",
+    "accepted": false,
+    "handoff_patch": {
+      "client_id": "client_b"
+    }
+  },
+  {
+    "id": "handoff_changed_source",
+    "accepted": false,
+    "handoff_patch": {
+      "source": {
+        "kind": "oem",
+        "id": "oem_a",
+        "revision": "r2"
+      }
+    }
+  },
+  {
+    "id": "same_client_other_inquiry",
+    "accepted": false,
+    "request_patch": {
+      "resource": {
+        "kind": "oem",
+        "id": "oem_b"
+      }
+    }
+  },
+  {
+    "id": "other_asset",
+    "accepted": false,
+    "request_patch": {
+      "action": "asset.read",
+      "resource": {
+        "ref": "asset_b"
+      }
+    }
+  },
+  {
+    "id": "forged_admin",
+    "accepted": false,
+    "request_patch": {
+      "admin": true
+    }
+  },
+  {
+    "id": "permit_other_parameters",
+    "accepted": false,
+    "permit_patch": {
+      "request_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  {
+    "id": "permit_expired",
+    "accepted": false,
+    "permit_patch": {
+      "expires_at": 1700000000
+    }
+  },
+  {
+    "id": "permit_future",
+    "accepted": false,
+    "permit_patch": {
+      "issued_at": 1700000001
+    }
+  },
+  {
+    "id": "permit_ttl",
+    "accepted": false,
+    "permit_patch": {
+      "expires_at": 1700000011
+    }
+  },
+  {
+    "id": "permit_denied",
+    "accepted": false,
+    "permit_patch": {
+      "allowed": false
+    }
+  },
+  {
+    "id": "numeric_task",
+    "accepted": false,
+    "request_patch": {
+      "task_id": 1
+    }
+  },
+  {
+    "id": "clock_boolean",
+    "accepted": false,
+    "now": true
+  },
+  {
+    "id": "clock_fraction",
+    "accepted": false,
+    "now": 1700000000.5
+  },
+  {
+    "id": "asset_url",
+    "accepted": false,
+    "request_patch": {
+      "action": "asset.read",
+      "resource": {
+        "ref": "https://outside.invalid/a"
+      }
+    }
+  },
+  {
+    "id": "sql",
+    "accepted": false,
+    "request_patch": {
+      "action": "product.read",
+      "resource": {
+        "ids": [
+          {
+            "id": "p"
+          }
+        ],
+        "page": 1,
+        "page_size": 20,
+        "sql": "SELECT * FROM users"
+      }
+    }
+  },
+  {
+    "id": "too_many_ids",
+    "accepted": false,
+    "request_patch": {
+      "action": "product.read",
+      "resource": {
+        "ids": [
+          {
+            "id": "0"
+          },
+          {
+            "id": "1"
+          },
+          {
+            "id": "2"
+          },
+          {
+            "id": "3"
+          },
+          {
+            "id": "4"
+          },
+          {
+            "id": "5"
+          }
+        ],
+        "page": 1,
+        "page_size": 20
+      }
+    }
+  },
+  {
+    "id": "path_task_even_with_matching_lease",
+    "request_patch": {
+      "task_id": "task/../other"
+    },
+    "lease_patch": {
+      "task_id": "task/../other"
+    },
+    "accepted": false
+  }
+]

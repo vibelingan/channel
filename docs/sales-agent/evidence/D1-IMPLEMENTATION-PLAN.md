@@ -43,9 +43,9 @@ Interfaces：
 - authorizeTaskRead(lease,handoff,permit,request,now)／authorize_task_read：纯程序检查，不调用模型。
 - issueTaskPermit(request,authority,now)／issue_task_permit：当前任务必须已核验且处于可准备状态才给许可；调用方另做服务认证及fresh binding。
 
-- [ ] 失败测试：合法请求可读；同客户错task、跨客户、错run、错连接、源版本变化、权限撤销、过期、参数hash变化、附件越界、非批准产品资料集等均拒绝。
-- [ ] 实现五种合同、生成类型和双语言判断；保留通用拒绝，不返回秘密。
-- [ ] 同一JSON授权向量在TS/Python结果一致；原58项canonical/schema样例及旧测试继续通过。
+- [x] 失败测试：合法请求可读；同客户错task、跨客户、错run、错连接、源版本变化、权限撤销、过期、参数hash变化、附件越界、非批准产品资料集等均拒绝。
+- [x] 实现五种合同、生成类型和双语言判断；保留通用拒绝，不返回秘密。
+- [x] 同一JSON授权向量在TS/Python结果一致；原58项canonical/schema样例及旧测试继续通过。
 - [ ] 复核并提交推送Channel；远端通过后，Hermes仅消费固定提交的新增合同／Python检查，不注册到全局Agent。
 
 ## SG1.3：Channel强制任务门禁

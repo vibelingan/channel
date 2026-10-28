@@ -313,3 +313,169 @@ export interface ClientBindings {
     ];
   }[];
 }
+
+export interface SourceHandoff {
+  protocol: "sales-auth/1";
+  client_id: string;
+  business_line: string;
+  source_installation_id: string;
+  environment: "test" | "production";
+  handoff_sha256: string;
+  source: {
+    kind: "oem" | "product";
+    id: string;
+    revision: string;
+  };
+  state: "ready" | "revoked";
+  created_at: number;
+}
+
+export interface TaskReadLease {
+  protocol: "sales-auth/1";
+  client_id: string;
+  business_line: string;
+  source_installation_id: string;
+  environment: "test" | "production";
+  runtime_id: string;
+  control_epoch: number;
+  task_id: string;
+  run_id: string;
+  task_revision: number;
+  connection_id: string;
+  lease_sha256: string;
+  handoff_sha256: string;
+  source: {
+    kind: "oem" | "product";
+    id: string;
+    revision: string;
+  };
+  /**
+   * @maxItems 20
+   */
+  asset_refs: string[];
+  product_scope: "approved_catalog";
+  /**
+   * @minItems 1
+   * @maxItems 3
+   */
+  allowed_actions: [
+    "inquiry.read" | "product.read" | "asset.read",
+    ...("inquiry.read" | "product.read" | "asset.read")[]
+  ];
+  audience: "channel.sales.read";
+  issued_at: number;
+  expires_at: number;
+  revoked: boolean;
+}
+
+export type TaskReadRequest =
+  | {
+      protocol: "sales-auth/1";
+      client_id: string;
+      business_line: string;
+      source_installation_id: string;
+      environment: "test" | "production";
+      runtime_id: string;
+      control_epoch: number;
+      task_id: string;
+      run_id: string;
+      task_revision: number;
+      connection_id: string;
+      lease_sha256: string;
+      handoff_sha256: string;
+      request_id: string;
+      action: "inquiry.read";
+      resource: {
+        kind: "oem" | "product";
+        id: string;
+      };
+    }
+  | {
+      protocol: "sales-auth/1";
+      client_id: string;
+      business_line: string;
+      source_installation_id: string;
+      environment: "test" | "production";
+      runtime_id: string;
+      control_epoch: number;
+      task_id: string;
+      run_id: string;
+      task_revision: number;
+      connection_id: string;
+      lease_sha256: string;
+      handoff_sha256: string;
+      request_id: string;
+      action: "product.read";
+      resource: {
+        /**
+         * @minItems 1
+         * @maxItems 5
+         */
+        ids: [
+          {
+            id: string;
+            revision?: string;
+          },
+          ...{
+            id: string;
+            revision?: string;
+          }[]
+        ];
+        page: number;
+        page_size: number;
+      };
+    }
+  | {
+      protocol: "sales-auth/1";
+      client_id: string;
+      business_line: string;
+      source_installation_id: string;
+      environment: "test" | "production";
+      runtime_id: string;
+      control_epoch: number;
+      task_id: string;
+      run_id: string;
+      task_revision: number;
+      connection_id: string;
+      lease_sha256: string;
+      handoff_sha256: string;
+      request_id: string;
+      action: "asset.read";
+      resource: {
+        ref: string;
+        range?: string;
+      };
+    };
+
+export interface TaskAuthority {
+  protocol: "sales-auth/1";
+  client_id: string;
+  business_line: string;
+  source_installation_id: string;
+  environment: "test" | "production";
+  runtime_id: string;
+  control_epoch: number;
+  task_id: string;
+  run_id: string;
+  task_revision: number;
+  handoff_sha256: string;
+  source_verified: boolean;
+  mode: "agent_active" | "paused" | "human_owned" | "disabled" | "cancelled";
+  work_state: "preparing" | "waiting" | "review_ready" | "finished" | "failed";
+  /**
+   * @minItems 1
+   * @maxItems 3
+   */
+  allowed_actions: [
+    "inquiry.read" | "product.read" | "asset.read",
+    ...("inquiry.read" | "product.read" | "asset.read")[]
+  ];
+}
+
+export interface TaskPermit {
+  protocol: "sales-auth/1";
+  request_sha256: string;
+  allowed: true;
+  issued_at: number;
+  expires_at: number;
+}

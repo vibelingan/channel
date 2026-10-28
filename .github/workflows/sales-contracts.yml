@@ -49,6 +49,7 @@ jobs:
       - run: pnpm --filter @vibelingan-channel/sales-contracts test
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:python
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:conformance
+      - run: pnpm --filter @vibelingan-channel/sales-contracts test:task-conformance
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration typecheck
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration test
       - run: pnpm verify:cloudbase-sdk

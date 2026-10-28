@@ -414,9 +414,10 @@
     {
       "id": "SG0.3",
       "title": "共同任务读取授权协议",
-      "status": "in_progress",
+      "status": "implemented_locally_pending_remote",
       "design": "evidence/D1-IMPLEMENTATION-PLAN.md",
-      "live_enabled": false
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG0.3-VALIDATION.md"
     },
     {
       "id": "SG1.3",

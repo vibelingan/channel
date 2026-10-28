@@ -6,6 +6,11 @@ import { CONTRACT_SCHEMAS } from './schemas.generated.ts';
 import type {
   Approval,
   ClientBindings,
+  SourceHandoff,
+  TaskReadLease,
+  TaskReadRequest,
+  TaskAuthority,
+  TaskPermit,
   ControlCommand,
   InquirySubmitted,
   MailSnapshot,
@@ -19,6 +24,11 @@ export type {
   Approval,
   SalesRunContext,
   ClientBindings,
+  SourceHandoff,
+  TaskReadLease,
+  TaskReadRequest,
+  TaskAuthority,
+  TaskPermit,
 } from './types.generated.ts';
 export { canonicalizeJson, hashCanonicalJson, parseStrictJson } from './canonical.ts';
 export { ContractValidationError } from './errors.ts';
@@ -30,6 +40,11 @@ export interface ContractMap {
   approval: Approval;
   'run-context': SalesRunContext;
   'client-bindings': ClientBindings;
+  'sales-auth-handoff': SourceHandoff;
+  'sales-auth-lease': TaskReadLease;
+  'sales-auth-request': TaskReadRequest;
+  'sales-auth-authority': TaskAuthority;
+  'sales-auth-permit': TaskPermit;
 }
 export type ContractKind = keyof ContractMap;
 export const CONTRACT_KINDS: readonly ContractKind[] = [
@@ -39,6 +54,11 @@ export const CONTRACT_KINDS: readonly ContractKind[] = [
   'approval',
   'run-context',
   'client-bindings',
+  'sales-auth-handoff',
+  'sales-auth-lease',
+  'sales-auth-request',
+  'sales-auth-authority',
+  'sales-auth-permit',
 ];
 const ajv = new Ajv2020({
   strict: true,

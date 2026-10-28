@@ -1242,5 +1242,826 @@ export const CONTRACT_SCHEMAS = {
         "maxLength": 200
       }
     }
+  },
+  "sales-auth-handoff": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:channel:sales:auth:handoff:1",
+    "title": "SourceHandoff",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "protocol",
+      "client_id",
+      "business_line",
+      "source_installation_id",
+      "environment",
+      "handoff_sha256",
+      "source",
+      "state",
+      "created_at"
+    ],
+    "properties": {
+      "protocol": {
+        "const": "sales-auth/1"
+      },
+      "client_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "business_line": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "source_installation_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "environment": {
+        "enum": [
+          "test",
+          "production"
+        ]
+      },
+      "handoff_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "source": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "id",
+          "revision"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "oem",
+              "product"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          }
+        }
+      },
+      "state": {
+        "enum": [
+          "ready",
+          "revoked"
+        ]
+      },
+      "created_at": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "sales-auth-lease": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:channel:sales:auth:lease:1",
+    "title": "TaskReadLease",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "protocol",
+      "client_id",
+      "business_line",
+      "source_installation_id",
+      "environment",
+      "runtime_id",
+      "control_epoch",
+      "task_id",
+      "run_id",
+      "task_revision",
+      "connection_id",
+      "lease_sha256",
+      "handoff_sha256",
+      "source",
+      "asset_refs",
+      "product_scope",
+      "allowed_actions",
+      "audience",
+      "issued_at",
+      "expires_at",
+      "revoked"
+    ],
+    "properties": {
+      "protocol": {
+        "const": "sales-auth/1"
+      },
+      "client_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "business_line": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "source_installation_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "environment": {
+        "enum": [
+          "test",
+          "production"
+        ]
+      },
+      "runtime_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "control_epoch": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "task_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "run_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "task_revision": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "connection_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "lease_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "handoff_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "source": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "id",
+          "revision"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "oem",
+              "product"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          }
+        }
+      },
+      "asset_refs": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1800,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "product_scope": {
+        "const": "approved_catalog"
+      },
+      "allowed_actions": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "uniqueItems": true,
+        "items": {
+          "enum": [
+            "inquiry.read",
+            "product.read",
+            "asset.read"
+          ]
+        }
+      },
+      "audience": {
+        "const": "channel.sales.read"
+      },
+      "issued_at": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "expires_at": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "revoked": {
+        "type": "boolean"
+      }
+    }
+  },
+  "sales-auth-request": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:channel:sales:auth:request:1",
+    "title": "TaskReadRequest",
+    "oneOf": [
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocol",
+          "client_id",
+          "business_line",
+          "source_installation_id",
+          "environment",
+          "runtime_id",
+          "control_epoch",
+          "task_id",
+          "run_id",
+          "task_revision",
+          "connection_id",
+          "lease_sha256",
+          "handoff_sha256",
+          "request_id",
+          "action",
+          "resource"
+        ],
+        "properties": {
+          "protocol": {
+            "const": "sales-auth/1"
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "business_line": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "source_installation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "environment": {
+            "enum": [
+              "test",
+              "production"
+            ]
+          },
+          "runtime_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "control_epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "task_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "connection_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "lease_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "handoff_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "action": {
+            "const": "inquiry.read"
+          },
+          "resource": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "id"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "oem",
+                  "product"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocol",
+          "client_id",
+          "business_line",
+          "source_installation_id",
+          "environment",
+          "runtime_id",
+          "control_epoch",
+          "task_id",
+          "run_id",
+          "task_revision",
+          "connection_id",
+          "lease_sha256",
+          "handoff_sha256",
+          "request_id",
+          "action",
+          "resource"
+        ],
+        "properties": {
+          "protocol": {
+            "const": "sales-auth/1"
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "business_line": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "source_installation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "environment": {
+            "enum": [
+              "test",
+              "production"
+            ]
+          },
+          "runtime_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "control_epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "task_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "connection_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "lease_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "handoff_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "action": {
+            "const": "product.read"
+          },
+          "resource": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ids",
+              "page",
+              "page_size"
+            ],
+            "properties": {
+              "ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+                    }
+                  }
+                }
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocol",
+          "client_id",
+          "business_line",
+          "source_installation_id",
+          "environment",
+          "runtime_id",
+          "control_epoch",
+          "task_id",
+          "run_id",
+          "task_revision",
+          "connection_id",
+          "lease_sha256",
+          "handoff_sha256",
+          "request_id",
+          "action",
+          "resource"
+        ],
+        "properties": {
+          "protocol": {
+            "const": "sales-auth/1"
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "business_line": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "source_installation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "environment": {
+            "enum": [
+              "test",
+              "production"
+            ]
+          },
+          "runtime_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "control_epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "task_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "connection_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+          },
+          "lease_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "handoff_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "action": {
+            "const": "asset.read"
+          },
+          "resource": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref"
+            ],
+            "properties": {
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1800,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^bytes=(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "sales-auth-authority": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:channel:sales:auth:authority:1",
+    "title": "TaskAuthority",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "protocol",
+      "client_id",
+      "business_line",
+      "source_installation_id",
+      "environment",
+      "runtime_id",
+      "control_epoch",
+      "task_id",
+      "run_id",
+      "task_revision",
+      "handoff_sha256",
+      "source_verified",
+      "mode",
+      "work_state",
+      "allowed_actions"
+    ],
+    "properties": {
+      "protocol": {
+        "const": "sales-auth/1"
+      },
+      "client_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "business_line": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "source_installation_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "environment": {
+        "enum": [
+          "test",
+          "production"
+        ]
+      },
+      "runtime_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+      },
+      "control_epoch": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "task_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "run_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "task_revision": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "handoff_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "source_verified": {
+        "type": "boolean"
+      },
+      "mode": {
+        "enum": [
+          "agent_active",
+          "paused",
+          "human_owned",
+          "disabled",
+          "cancelled"
+        ]
+      },
+      "work_state": {
+        "enum": [
+          "preparing",
+          "waiting",
+          "review_ready",
+          "finished",
+          "failed"
+        ]
+      },
+      "allowed_actions": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "uniqueItems": true,
+        "items": {
+          "enum": [
+            "inquiry.read",
+            "product.read",
+            "asset.read"
+          ]
+        }
+      }
+    }
+  },
+  "sales-auth-permit": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:channel:sales:auth:permit:1",
+    "title": "TaskPermit",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "protocol",
+      "request_sha256",
+      "allowed",
+      "issued_at",
+      "expires_at"
+    ],
+    "properties": {
+      "protocol": {
+        "const": "sales-auth/1"
+      },
+      "request_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "allowed": {
+        "const": true
+      },
+      "issued_at": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "expires_at": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
   }
 };
