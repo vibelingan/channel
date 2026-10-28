@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-28",
+  "timezone": "Asia/Tokyo",
+  "scope": "read-only status investigation and self-email delivery; no product code changes",
+  "sources": {
+    "main": "b3d63ac14f0bd1fac700e9b7c403e61076cf1ba4",
+    "phase2": "a7e16aa2c89792cbb3fe49f9330848aea0b05405",
+    "phase2_pr": {
+      "number": 59,
+      "state": "OPEN",
+      "url": "https://github.com/vibelingan/channel/pull/59"
+    },
+    "sales_design": "9cb5c32ca51a7ed82b3099d5959dcaa7522c118c",
+    "hermes_sales": "f3937ea09358ab3caeeff9e0790e2836784f1df0"
+  },
+  "live_cases": [
+    {
+      "origin": "https://supplychainsai.com/",
+      "question": "What is your OEM development process?",
+      "observations": [
+        {
+          "utc": "2026-10-28T08:13:49.914Z",
+          "state": "question only, input disabled, no explicit progress"
+        },
+        {
+          "utc": "2026-10-28T08:14:52.502Z",
+          "state": "unavailable with inquiry form link"
+        }
+      ]
+    },
+    {
+      "origin": "https://www.supplychainsai.com/",
+      "question": "Do you offer OEM services?",
+      "submitted_utc": "2026-10-28T08:20:38.211Z",
+      "observations": [
+        {
+          "utc": "2026-10-28T08:21:29.442Z",
+          "state": "still question only; about 51 seconds after submission"
+        },
+        {
+          "utc": "2026-10-28T08:23:57.952Z",
+          "state": "unavailable; exact transition time not sampled"
+        }
+      ]
+    }
+  ],
+  "after_reload": "welcome shown; previous visible messages not restored",
+  "public_health": [
+    {
+      "path": "/api/ai/healthz",
+      "status": 200,
+      "body": "{\"status\":\"live\",\"service\":\"channel-ai-bff\"}",
+      "seconds": 2.36
+    },
+    {
+      "path": "/api/ai/readyz",
+      "error": "TimeoutError",
+      "seconds": 10.9
+    }
+  ],
+  "live_asset": {
+    "asset": "https://supplychainsai.com/_astro/AssistantWidget.PvdNAv7f.js",
+    "sha256": "eddbc79368fa33d73fbae4d9232a31ff1b63405d57d60286cf57e88e5ee7dd0c",
+    "bytes": 9616,
+    "ai_service_urls": [
+      "https://ai-bff-298020-11-1443560658.sh.run.tcloudbase.com"
+    ],
+    "strings": {
+      "I could not ground an answer": true,
+      "assistant is unavailable": true,
+      "channel.ai.conversation.v1": true
+    },
+    "has_PR_waiting_copy_exact": false,
+    "has_replyTo_binding": false
+  },
+  "not_claimed": [
+    "production backend root cause",
+    "current KB document inventory",
+    "latest main equals deployed backend SHA",
+    "phase2 action loop or product UI implemented",
+    "successful live answer or product comparison"
+  ],
+  "artifacts": [
+    "Channel-Assistant-Status-2026-10-28.pdf",
+    "Channel-Agent-Flows-2026-10-28.pdf"
+  ]
+}

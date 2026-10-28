@@ -1,0 +1,24 @@
+[
+  {
+    "file": "Channel-Assistant-Status-2026-10-28.pdf",
+    "pages": 7,
+    "bytes": 423062,
+    "sha256": "93a80ee91c8a6fae5624377f9c2aa1f15ef29fb6df0056482e6988a6f1a14053",
+    "text_chars": 5321,
+    "page_bounds": "passed",
+    "visual_review": "passed_author_review_all_pages",
+    "rendered_pages_reviewed": 7,
+    "layout_findings": "No clipping, overlap, missing CJK glyphs or illegible diagram labels observed."
+  },
+  {
+    "file": "Channel-Agent-Flows-2026-10-28.pdf",
+    "pages": 6,
+    "bytes": 299941,
+    "sha256": "deac88f30db6396b5519f305356e588a187f20fc6dba42f110ce30b30e3cdf88",
+    "text_chars": 3515,
+    "page_bounds": "passed",
+    "visual_review": "passed_author_review_all_pages",
+    "rendered_pages_reviewed": 6,
+    "layout_findings": "No clipping, overlap, missing CJK glyphs or illegible diagram labels observed."
+  }
+]

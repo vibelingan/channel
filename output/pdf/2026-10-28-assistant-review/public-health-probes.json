@@ -1,0 +1,13 @@
+[
+  {
+    "path": "/api/ai/healthz",
+    "status": 200,
+    "body": "{\"status\":\"live\",\"service\":\"channel-ai-bff\"}",
+    "seconds": 2.36
+  },
+  {
+    "path": "/api/ai/readyz",
+    "error": "TimeoutError",
+    "seconds": 10.9
+  }
+]
