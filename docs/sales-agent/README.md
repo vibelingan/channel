@@ -1,6 +1,6 @@
 # Sales Agent 分模块设计与执行入口
 
-2026-10-28：D1已完成SG0.3共同协议，及SG1.3强制任务门禁的本地验证，见[协议记录](evidence/SG0.3-VALIDATION.md)与[门禁记录](evidence/SG1.3-VALIDATION.md)。仅Sales新流程采用，其他Agent不变；线上仍未启用。
+2026-10-28：D1首批SG0.3共同协议与SG1.3强制任务门禁已完成本地和对应代码提交的远端验证，见[协议记录](evidence/SG0.3-VALIDATION.md)与[门禁记录](evidence/SG1.3-VALIDATION.md)。仅Sales新流程采用，其他Agent不变；线上仍未启用。
 
 2026-10-28：用户已授权继续D1实现。先按[权限补齐计划](evidence/D1-IMPLEMENTATION-PLAN.md)逐项实施；下文2026-10-26暂停状态保留为历史，不能视作当前暂停。其他Agent、真实账号及外发保持原边界。
 

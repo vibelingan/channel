@@ -69,3 +69,16 @@ SG0.2原提交bf8e429b已推送并通过远端检查，随后才开始SG1.1。�
 - Hermes检出保持2fbc50c且干净；原讨论reference、公开客服、pricing和SEO代码未改。本轮不运行产品测试，不连接客户账号或发信。
 
 模块图本轮回执见diagram-delivery.json；新增权限图回执见security-diagram-delivery.json。自动浏览器JSON里的visualReview继续保留pending，作者视觉结论另记在本轮回执，二者含义分开。以上检查只验证设计资料，不能证明尚未实现的安全规则已经生效。
+
+
+## 2026-10-28 D1首批实现与验证
+
+本次先推送实施计划d14e989e，再依次完成SG0.3及SG1.3。共享协议仅用于Sales新路径，其他Agent、原官网业务接口和旧六种合同不改。Channel来源记录缺明确归属时，新的Sales读取接口拒绝访问；不批量回填或改变原后台。
+
+- SG0.3：Channel 8b25f22833e26bb2561ca3defd5f82bbdc1e8b89的[Sales contracts 40627274084](https://github.com/vibelingan/channel/actions/runs/40627274084)成功后，Hermes固定消费相同合同。Hermes 40fbac55463e8de0edd403e080b2e5eb3fdb55a1的[Sales runtime 40627523609](https://github.com/vibelingan/hermesinfra/actions/runs/40627523609)成功，含真实MySQL与A/B容器回归。
+- SG1.3：Channel ad3ab62142abe35277afadda77ed54c357a55f7d的[Sales contracts 40630655316](https://github.com/vibelingan/channel/actions/runs/40630655316)成功；没有继续下一实施单元来跳过本单元远端验证。
+- 本地完整pnpm test在Node22.13下2,863项，2,860通过、0失败、3项既有跳过。函数32项、合同66项均通过；Python8个方法及原58／新42项parity通过；SDK gate、类型检查、打包与冷启动通过。首次缺依赖及Node25不兼容失败按原日志保留，没有修改网站代码消除失败。
+- 代码复核针对路径化task ID、来源终态和两个撤权时序补了实际先失败后通过的测试。此处是作者复核，未声称独立安全认证。详细范围和限制见[SG0.3记录](SG0.3-VALIDATION.md)、[SG1.3记录](SG1.3-VALIDATION.md)及[结构化汇总](D1-BATCH-1-VALIDATION.json)。
+- 实际文案核对：README、handoff、实施计划、SG0.3/SG1.3记录与plan.json；把笼统的“权限隔离已完成”收紧为“Sales读取门禁已实现；来源签发、持久控制服务和真实工具循环未接通”。测试和提交SHA分别核对源代码、日志和远端运行。
+
+真实来源producer、lease签发、Hermes持久任务授权端点、task私有运行上下文／模型循环及审批外发仍未完成；live_enabled继续为false。测试HTTP使用本地合成控制服务，没有联调线上定海、客户账号或发送邮件。受保护原稿hash匹配，pricing/SEO分支未改；全仓库回归仅验证当前Sales检出的原业务代码，未宣称已经合并其他工作流的最新提交。10月26日图/PDF仍是设计快照，本轮未改变其设计职责或视觉回执。

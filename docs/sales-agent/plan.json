@@ -435,7 +435,10 @@
       ],
       "design": "evidence/D1-IMPLEMENTATION-PLAN.md",
       "live_enabled": false,
-      "evidence_ref": "evidence/SG1.3-VALIDATION.md"
+      "evidence_ref": "evidence/SG1.3-VALIDATION.md",
+      "channel_commit": "ad3ab62142abe35277afadda77ed54c357a55f7d",
+      "ci_run_url": "https://github.com/vibelingan/channel/actions/runs/40630655316",
+      "ci_conclusion": "success"
     }
   ]
 }

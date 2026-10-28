@@ -35,7 +35,7 @@
 
 首次全仓库运行因本检出缺AI包依赖而停止；按锁文件在本独立检出补齐，pnpm-lock.yaml未改。使用本机Node25再跑时，既有网站测试因localStorage行为不匹配失败；改用Sales CI同版本Node22.13验证，没有修改网站代码规避。Node22.13下完整pnpm test成功；具体pass／skip统计见下方最终汇总。
 
-最终补充：函数typecheck、SDK gate、构建／独立打包／不依赖工作区和schema侧文件的冷启动均通过；原58项与新增42项双语言parity、Python8个方法通过。两个销售检出和四份受保护原稿的边界核对完成，pnpm-lock.yaml、原官网/产品业务代码及Hermes全局Agent未改。远端状态在推送对应代码SHA后另核对。
+最终补充：函数typecheck、SDK gate、构建／独立打包／不依赖工作区和schema侧文件的冷启动均通过；原58项与新增42项双语言parity、Python8个方法通过。两个销售检出和四份受保护原稿的边界核对完成，pnpm-lock.yaml、原官网/产品业务代码及Hermes全局Agent未改。已推送代码`ad3ab62142abe35277afadda77ed54c357a55f7d`；对应[Sales contracts 40630655316](https://github.com/vibelingan/channel/actions/runs/40630655316)成功。远端执行合同生成／类型／测试、两组双语言parity、32项Sales接口测试、SDK gate及独立打包冷启动。后续证据文档提交不改变此代码验证身份。
 
 ## 尚未实施／上线的部分
 
@@ -49,3 +49,6 @@
 Node22.13运行完整pnpm test：2,863项，2,860通过、0失败、3项原有跳过（ai-engine两项、site一项）。其中Sales接口32项全部通过，共同合同66项全部通过。部署脚本测试、共享数据、导入、产品／后台／网站及本地服务测试均完成；这些是本地回归，不是执行真实部署。
 
 Python8个测试方法、原58项与新42项parity、函数typecheck、SDK gate、Node22打包冷启动均通过。git diff --check通过；原pnpm锁文件未变。受保护原稿hash匹配；规划检查覆盖原23项加2个补齐项，无循环。
+
+
+补充目标版本检查：以Node20.19.0直接运行check-artifact.mjs通过，独立包在无工作区／node_modules／schema侧文件时能加载，关闭的开关返回404。首次借pnpm11启动时，工具自身因Node20没有node:sqlite而失败；随后直接用同一个Node20执行原检查脚本，无需pnpm、没有修改产品或依赖。此检查只覆盖本地包加载和关闭状态，仍不等于CloudBase线上HTTP、授权存储或真实Hermes联调。

@@ -57,7 +57,7 @@ Interfaces：SalesTaskGate在已有AccessGrant后取得可信lease/handoff记录
 - [x] 失败测试：原来仅客户级密钥读取也应拒绝；同客户双询盘不能串读；错误lease/permit、在线超时、读取中撤权／修改版本、安装归属不明拒绝。
 - [x] 接入所有私有读取路由，没有可选绕过模式；复用产品reader与附件Range/完整性检查。
 - [x] 安装归属要求明确行归属，或fresh读取可核验的固定安装归属登记；未提供证明就拒绝legacy行。
-- [ ] loopback真实HTTP、打包冷启动、原受影响函数回归、CloudBase SDK contract gate和远端CI通过；记录未联调真实Hermes与客户账号。
+- [x] loopback真实HTTP、打包冷启动、原受影响函数回归、CloudBase SDK contract gate和远端CI通过；记录未联调真实Hermes与客户账号。SG1.3代码ad3ab621，对应Sales contracts 40630655316成功。
 
 ## 后续依赖
 
