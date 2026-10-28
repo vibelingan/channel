@@ -10,16 +10,16 @@
 
 10月29日只读核对：首页和headphones公开页可访问、canonical指向自己；Blog及其sitemap返回noindex,nofollow；站点索引引用静态sitemap与Blog动态sitemap。商品图片走`/api/images/`，现行robots却禁止整个`/api/`，这是本轮先修的明确缺口。`/catalog/`不是本项目现有公开入口，返回404不按页面故障处理。
 
-当前核对的main=b3d63ac1、test=91443842、SEO HEAD=e82f1fdc。10月28日尝试收尾提交时，本机磁盘空间耗尽，提交和推送未成功；工作文件仍在。那轮全量本地测试也出现浏览器超时，不能标成通过。本轮不复用它作验收结果，不修改pricing测试来掩盖失败。
+本轮开始核对时main=b3d63ac1、test=91443842、SEO HEAD=e82f1fdc。10月28日尝试收尾提交时，本机磁盘空间耗尽，提交和推送未成功；工作文件仍在。那轮全量本地测试也出现浏览器超时，不能标成通过。本轮不复用它作验收结果，不修改pricing测试来掩盖失败。
 
 ## 按模块交付
 
 | 模块 | 独立交付结果 | 本轮状态 |
 | --- | --- | --- |
-| [01 页面收录规则与Blog开放](01-indexing.zh-CN.md) | 查清所有发现入口；公开图片可抓取；Blog正式域名开放前后均有真实核对 | 收录检查与图片规则已开始实现；现有文章保留范围待用户决定 |
+| [01 页面收录规则与Blog开放](01-indexing.zh-CN.md) | 查清所有发现入口；公开图片可抓取；Blog正式域名开放前后均有真实核对 | IDX-01已实现，本地与三组远端检查通过；Blog内容范围待用户决定 |
 | [02 商品公开变更记录](02-product-changes.zh-CN.md) | 商品公开版本和更新待办同事务提交，所有写入方有清单与测试 | 完成设计；尚未修改商品事务或创建云资源 |
 | [03 商品SSG自动交付](03-product-delivery.zh-CN.md) | 合并变更、更新快照与页面、处理撤回，复用已有备份和恢复 | 完成设计；依赖02及内容专用交付包 |
-| [04 搜索平台核对与变化记录](04-search-observation.zh-CN.md) | GSC/Bing真实结果、sitemap与页面一致；通知去重，失败不回退网站 | 完成设计；先补只读检查，外部通知按模块启用 |
+| [04 搜索平台核对与变化记录](04-search-observation.zh-CN.md) | GSC/Bing真实结果、sitemap与页面一致；通知去重，失败不回退网站 | 设计与首轮平台只读核对完成；外部通知尚未实现 |
 
 [完整工作流程](diagrams/search-continuity.html)。流程图中“待接入”是目标流程，不冒充已上线；[详细时序](diagrams/product-refresh.html)说明同一事务记录、异步更新及失败处理。
 
@@ -43,7 +43,7 @@
 - [GitHub事件条件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#repository_dispatch)：外部事件入口在默认分支，执行源码仍须显式固定；不能随事件输入运行任意分支。
 - [IndexNow官方FAQ](https://www.indexnow.org/faq)：可以通知新增、修改和删除，是否收录由搜索引擎决定。
 
-本轮没有改线上配置或客户内容，没有提交搜索请求。Google/Bing曾验站成功是历史记录，本轮重新登录读数前不当成当前收录结果。
+本轮没有改线上配置或客户内容，没有重提地图或请求编入索引。后来复用已有登录读取了Google/Bing报告，并执行一次Google实时URL测试，结果见04的平台记录；这与已收录状态分开。
 
 ## 本轮实际交付记录
 
@@ -52,3 +52,9 @@ IDX-01已实现：共享HTTP/HTML收录检查、当前商品网址与地图核�
 代码中的图片规则还没有部署，本轮没有线上写入。Blog保留内容的决定仍在等待用户回答。商品事务、云端调度、自动SSG、正式收录开关和搜索通知尚未启用。图已通过9项结构检查、四种桌面尺寸的浏览器检查，并查看1440及2048截图；图表达目标流程，不当作完成凭据。[脱敏验收记录](evidence/verification.json)、[全量HTTP/HTML检查](evidence/live-all-pages.json)、[当前商品清单核对](evidence/live-inventory-and-sample.json)。
 
 表达核对：阅读humanizer及plain-technical-writing，审阅旧B2/E1、现有Blog middleware、独立服务发布入口、商品快照采集/复用和公开图片权限。把“商品自动更新已有MIU”改成“有旧设计，尚未接通全部写入方和自动交付”；把“539页检查通过”改成“539页已读取，列明四处阻塞”，保留实际范围与未完成项。
+
+补充平台现场结果：Google旧覆盖报告显示3已收录（更新10月23日），地图发现10；Bing地图发现517。抽查商品Google实时抓取成功、允许收录，索引查询仍为URL unknown；另发现商品增强展示缺真实Offer等必填内容，已增加IDX-03设计。不是网站539页“已经收录”，也不是全部SEO问题只剩先前四处技术阻塞。[平台实际结果](04-search-observation.zh-CN.md#10月29日已读取的实际平台结果)。
+
+代码提交9bf5e7cb已推送原分支，三组远端检查均成功：[发布模块与原有流程回归](https://github.com/vibelingan/channel/actions/runs/40735366612)、[文章服务器HTTP验收](https://github.com/vibelingan/channel/actions/runs/40735366650)、[Blog隔离检查](https://github.com/vibelingan/channel/actions/runs/40735366530)。本轮这些push检查不部署网站；线上图片规则仍需后续受控发布。
+
+实施顺序：IDX-01已完成；商品线接着做CAT-01、CAT-02、SSG-01、SSG-02。Blog线在保留范围确定后做IDX-02，并接SEARCH-01的代表网址验收；SEARCH-02仅消费已经交付成功的变化。IDX-03单独处理真实报价与商品增强展示，不能为了消除搜索提示改变报价含义。各模块的代码、云端验收和正式启用分开记录，不因另一条线等待而停下清楚的工作。

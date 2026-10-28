@@ -1,0 +1,68 @@
+{
+  "checkedOnLocalDay": "2026-10-29",
+  "site": "https://supplychainsai.com",
+  "google": {
+    "sitemapIndex": {
+      "status": "success",
+      "discoveredPages": 10,
+      "lastRead": "2026-10-27",
+      "children": [
+        {
+          "path": "/blog/sitemap.xml",
+          "discovered": 2,
+          "lastRead": "2026-10-27"
+        },
+        {
+          "path": "/sitemap-0.xml",
+          "discovered": 8,
+          "lastRead": "2026-10-22"
+        }
+      ]
+    },
+    "coverageReport": {
+      "lastUpdated": "2026-10-23",
+      "indexed": 3,
+      "notIndexed": 7,
+      "reasons": [
+        {
+          "reason": "Page with redirect",
+          "pages": 1
+        },
+        {
+          "reason": "Alternate page with proper canonical tag",
+          "pages": 1
+        },
+        {
+          "reason": "Discovered - currently not indexed",
+          "pages": 5
+        }
+      ],
+      "notIndexedExamples": ["/ai-gadgets/", "/electronics-toys/", "/misc/", "/oem/", "/toys/"]
+    },
+    "inspectedProduct": {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "googleIndex": "URL is unknown to Google",
+      "liveTestTimeAsDisplayed": "Oct 29, 2026, 2:30 AM",
+      "liveIndexingAllowed": true,
+      "liveCrawlSuccessful": true,
+      "breadcrumb": "one valid item",
+      "productSnippets": "one invalid item",
+      "issue": "Either offers, review, or aggregateRating should be specified"
+    }
+  },
+  "bing": {
+    "sitemapStatus": "success",
+    "discoveredUrls": 517,
+    "lastCrawl": "2026-10-26",
+    "indexedUrls": null,
+    "indexedMeaning": "not read; discovered URLs are not indexed URLs"
+  },
+  "mutations": {
+    "sitemapSubmitted": false,
+    "indexingRequested": false,
+    "removalRequested": false,
+    "liveURLTests": 1
+  },
+  "privateScreenshotsCommitted": false,
+  "rawAccountDataCommitted": false
+}

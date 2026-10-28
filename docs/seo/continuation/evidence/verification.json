@@ -71,5 +71,28 @@
       "browserEvidence": "pass",
       "visualReview": "passed after inspecting 1440 and 2048 light screenshots; dark screenshots captured by tool"
     }
-  }
+  },
+  "verifiedCodeCommit": "9bf5e7cb5dc99a0b3b6c51e2c1699742e5572360",
+  "remoteChecks": [
+    {
+      "runId": 40735366612,
+      "workflow": "SEO release modules (offline)",
+      "conclusion": "success",
+      "url": "https://github.com/vibelingan/channel/actions/runs/40735366612"
+    },
+    {
+      "runId": 40735366650,
+      "workflow": "Blog server HTTP acceptance",
+      "conclusion": "success",
+      "url": "https://github.com/vibelingan/channel/actions/runs/40735366650"
+    },
+    {
+      "runId": 40735366530,
+      "workflow": "SEO Blog isolated dummy",
+      "conclusion": "success",
+      "url": "https://github.com/vibelingan/channel/actions/runs/40735366530"
+    }
+  ],
+  "remoteChecksDeployWebsite": false,
+  "platformEvidence": "platform-observation.json"
 }

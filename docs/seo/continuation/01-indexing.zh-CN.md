@@ -4,7 +4,7 @@
 
 公开营销页、分类页、商品页与人工发布的Blog都能被正确发现；私有页面、草稿、临时服务地址、缺失与错误页面不混入地图。不能把“HTTP200”或“地图提交成功”写成“Google已收录”。
 
-Blog当前两篇公开内容分别是演练文章Preparing an OEM headphone project brief，以及群测文章How to Inspect Your First OEM Headphone Sample。已向用户确认保留范围；在回答前不撤回任何一篇，不全站关闭noindex。
+Blog当前两篇公开内容分别是演练文章Preparing an OEM headphone project brief，以及群测文章How to Inspect Your First OEM Headphone Sample。已向用户询问保留范围，仍待回答；在回答前不撤回任何一篇，不全站关闭noindex。
 
 ## MIU IDX-01：把HTTP、HTML和发现入口一起检查
 
@@ -41,3 +41,15 @@ Blog当前两篇公开内容分别是演练文章Preparing an OEM headphone proj
 本地先测正式/临时Host、开关、404/503、公开与私有图；线上先只读核对，再说明实际变更和恢复输入，执行一次开关变更并全量检查。只有这些通过后，04再请求搜索平台重新读取，不能先通知再补页面。
 
 开放前也核对文章实际语言与页面lang。目前保留候选两篇均为英文；如果客户后续发布其他语言，须把语言字段与页面lang作为独立小项补齐，不凭空生成不存在的翻译页面或hreflang。
+
+## MIU IDX-03：真实价格与商品增强展示
+
+Google对本轮抽查商品的实时测试已确认基础页面可收录，但Product snippets提示缺offers、review或aggregateRating。当前product-page.ts故意没有从第一页变体推导整商品Offer；这条限制应保留，不能为了消除提示编造金额或评分。
+
+新主线已有`CatalogPriceSummarySchema`与批准时生成的priceSummary（packages/shared/src/catalog/price-summary.ts），但摘要可能来自website、一个指定sku或product，也可能只有MOQ而没有金额。它不自动等于整个商品适用的固定报价。
+
+拟新增纯函数`productSearchOffer(approvedSummary, visibleOffer)`，输入只取同一公开版本、页面确实可见的报价及其适用范围。第一段只处理有真实金额与币种、适用范围明确的固定网站报价；MOQ与单位沿用原业务数据，不改报价行为。sku来源不得冒充全商品价，阶梯与范围价必须在真实报价模型和Google支持形式之间明确映射后再接入。缺少真实报价的商品继续保留事实性商品信息与Breadcrumb，并明确不具备商品增强展示资格；不增加虚假评论，不承诺全部商品都有富结果。
+
+拟在`product-page.test.ts`补真实固定报价、无金额、SKU来源、MOQ、区间/阶梯、货币与单位边界，命令使用现有site工作区tsx。页面可收录、基础JSON-LD自洽与Google富结果资格分开报告。代码上线后用Google实时测试复核代表商品；当前只完成问题确认和设计，没有改schema或价格逻辑。
+
+官方依据：[Google Product snippet必填要求](https://developers.google.com/search/docs/appearance/structured-data/product-snippet)。普通商品收录不以富结果资格为必要条件。
