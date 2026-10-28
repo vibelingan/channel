@@ -31,3 +31,6 @@
 SG0.3/SG1.3不自动开放线上读取。接入前必须按实际Infra配置服务专属连接和独立控制凭据、三个服务端授权集合的访问权限及安装归属；后续来源模块负责可靠写入和签发，不手工把LLM内容当授权记录。OEM须由最终成功的保存／附件流程写完成标记和对应source_revision；旧记录先证明归属，再决定受控映射，不默认放行。
 
 真实Hermes须实现认证的/sales/authorize-read并从持久任务库加载当前TaskAuthority，不接受调用方上传authority。完成后用合成A/B客户和同客户双任务跑：保存→来源核验→签发→真实HTTP读取→暂停／撤权→拒绝旧调用。验证task私有HOME、资料工具代理和实际模型循环后，才进入原计划的Resend草稿／审批／测试投递步骤。本轮没有修改线上环境或执行这些验收。
+
+
+2026-10-28 SG2.4补齐：`/sales/authorize-read` 已有真实任务库实现与合成MySQL／跨检出客户端验证。真实联调必须调用部署后的该接口，配置独立SALES_CONTROL_TOKEN，并验证客户专属DB的GRANT、TLS和binding；不能用内存authority或手工SQL激活代替自动Channel来源核验。当前仍无来源核验器/lease签发和任务独立模型循环，不启用live。

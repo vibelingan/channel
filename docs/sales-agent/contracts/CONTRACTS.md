@@ -1,6 +1,6 @@
 # 接口与数据规则 v0.1
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。来源签发、Hermes持久控制和真实Agent接线尚未完成，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](../evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 复核：以[权限与真实工具设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
 2026-10-23 · SG0.1数据校验、SG0.2服务器授权库和SG1.1私有读取HTTP接口已实现并本地验证，尚未部署。下表其余路由仍待各模块接入。官方服务的实际接口见 [能力依据](../evidence/PROVIDER-CAPABILITIES.md)。运行机制依 [状态规则](STATE-AND-CONCURRENCY.md)。

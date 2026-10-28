@@ -1,10 +1,10 @@
 # SG2 Hermes 调度、客户执行与成果
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。来源签发、Hermes持久控制和真实Agent接线尚未完成，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](../evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 复核：以[权限与真实工具设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
 
-实施单元：SG2.1、SG2.2、SG2.3。
+实施单元：SG2.1、SG2.2、SG2.3，另有D1补齐单元SG2.4（当前任务读取授权）。
 
 2026-10-24：SG2.1、SG2.2已在Hermes独立分支feat/sales-agent-runtime完成代码、代码复核和隔离Docker/MySQL CI，见[验证记录](../evidence/SG2.1-SG2.2-VALIDATION.md)。实现采用单客户专属Sales服务/数据库和固定绑定，复用原dispatcher；没有改全局路由或现有文章流。SG2.3仍待实施。以下保留整体设计，不能据此认定已接通线上定海或邮件发送。
 

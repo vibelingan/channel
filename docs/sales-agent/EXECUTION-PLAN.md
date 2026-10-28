@@ -1,9 +1,9 @@
 # 详细执行方案
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](evidence/SG1.3-VALIDATION.md)已有代码与验证。来源签发、Hermes持久控制和真实Agent接线尚未完成，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 复核：以[权限与真实工具设计 D1](SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
-2026-10-28 · 23个原始实施单元，加SG0.3／SG1.3两个D1补齐单元，共25项。当前状态见plan.json及IMPLEMENTATION-TRACE.md。模块说明规定设计；本文件与`plan.json`规定单元依赖，二者由检查脚本核对。
+2026-10-28 · 23个原始实施单元，加SG0.3／SG1.3／SG2.4三个D1补齐单元，共26项。当前状态见plan.json及IMPLEMENTATION-TRACE.md。模块说明规定设计；本文件与`plan.json`规定单元依赖，二者由检查脚本核对。
 
 ## 实施顺序
 
@@ -37,7 +37,7 @@ flowchart LR
 | [SG1.1 询盘产品附件只读接口](modules/SG1-channel.md) | SG0.2, SG1.0 | sales-integration路由＋资料adapter，复用批准产品读取及提交事实 | 越权/未提交/附件跨归属拒绝；实时查询并保留审核依据 |
 | [SG2.1 客户Sales执行边界](modules/SG2-hermes-runtime.md) | SG0.2 | Sales专属runtime/工具代理/记忆和目录适配 | A/B同时运行不读错知识/文件/连接；遗漏scope拒绝 |
 | [SG2.2 事件接收根任务与可靠派发](modules/SG2-hermes-runtime.md) | SG0.1, SG0.2, SG2.1 | sales_flow事件接入＋复用assignment/outbox | 重复事件一个根task，崩溃恢复不丢已确认接收事件 |
-| [SG1.2 询盘通知与补偿扫描](modules/SG1-channel.md) | SG1.1, SG2.2, SG1.3 | OEM/单品保存后最小hook及source reconciler | 保存成功后通知丢失可补扫；附件回滚和历史记录不误发 |
+| [SG1.2 询盘通知与补偿扫描](modules/SG1-channel.md) | SG1.1, SG2.2, SG1.3, SG2.4 | OEM/单品保存后最小hook及source reconciler | 保存成功后通知丢失可补扫；附件回滚和历史记录不误发 |
 | [SG2.3 运行成果manifest与固定版本](modules/SG2-hermes-runtime.md) | SG2.2 | 运行目录/manifest/归档与旧run限制 | 并发run/符号链接/伪造hash拒绝；旧run不覆盖当前版本 |
 | [SG3.1 业务规则Sales skill与样例](modules/SG3-sales.md) | SG0.1, SG1.0 | 新规则/skill/schema/evaluation，不改Phase2客服循环 | 模糊采购、缺价、恶意输入和跨业务样例有预期 |
 | [SG3.2 资料到正文附件完整准备](modules/SG3-sales.md) | SG1.1, SG2.3, SG3.1 | 准备流水线/事实校验/成果提交 | 自动形成带来源、缺项、HTML/text及附件的审核版本 |
@@ -62,7 +62,9 @@ flowchart LR
 | SG0.3共同任务读取协议 | SG0.2 | 五种新合同、TS/Python策略及同组授权反例；旧合同不变 |
 | SG1.3 Channel强制读取门禁 | SG0.3、SG1.1 | 服务凭据后再核对task/run/lease、真实来源和在线permit；所有私有路径覆盖 |
 
-原SG1.2现增加SG1.3依赖。细节和每步证据见[本批计划](evidence/D1-IMPLEMENTATION-PLAN.md)，不能跳过后续来源／签发／控制存储接线去启用线上。
+| SG2.4 Hermes持久任务读取授权 | SG0.3、SG1.3、SG2.2 | 从真实客户任务库读取当前状态；独立控制凭据、请求摘要持久绑定、暂停/终态拒绝 |
+
+原SG1.2现依赖SG1.3和SG2.4。细节和每步证据见[本批计划](evidence/D1-IMPLEMENTATION-PLAN.md)，不能跳过后续自动来源核验／签发及真实运行接线去启用线上。
 
 ## 每个单元的工作方法
 
@@ -74,7 +76,7 @@ flowchart LR
 
 ## 代码与协作规则
 
-- 当前销售集成分支已有SG0／SG1的基础代码，基线及验证见README和交接；本轮开发暂停。后续按D1补齐顺序先修权限缺口，再恢复原DAG；不整批merge未审查分支。
+- 当前销售集成分支已有SG0／SG1的基础代码，基线及验证见README和交接；本轮按已获批准的D1逐项补齐，再恢复原DAG；不整批merge未审查分支。
 - Channel负责询盘事实/API/提交后交接；Hermes负责私有任务/运行/控制；Sales流程包负责业务规则；发布工具负责Resend/Apollo adapter。通用Hub不硬编码Channel产品/报价。
 - 不默认每模块建分支或PR；当前这条工作流使用此设计worktree，后续每仓库实施分支策略由实施范围决定。同一checkout同一时刻一个写入者，共同schema由SG0维护。
 - Hermes源码不在此仓库；开始其实施单元时另建/指定Hermes工作区，遵守该仓库AGENTS，不直接改正在运行或有他人改动的checkout。

@@ -116,3 +116,10 @@ SG0.2原提交bf8e429b已推送，[远端检查39891019917](https://github.com/v
 SG0.3增加Sales专用授权合同与TS/Python确定性判断；Channel 8b25f228 CI40627274084、Hermes固定消费40fbac5 CI40627523609均成功。旧六种业务schema与其他Agent保持原样。随后SG1.3在Sales私有HTTP路径强制任务授权，验证见[SG1.3记录](evidence/SG1.3-VALIDATION.md)。本轮不改变客户线上配置、原询盘写入或邮件发送。
 
 按humanizer复核README、函数说明与本轮证据，将“权限隔离已实现”明确为“Sales读取门禁已实现；来源签发、Hermes持久控制和真实运行接线未完成”。核对文件为共同task-access/schema/test、handler/task-gate/permit-client/index/sources及原Inquiry终态函数；状态和测试数字以实际日志／对应SHA为准。
+
+
+## 2026-10-28 SG2.4：持久任务读取许可
+
+Hermes 6b36a9d完成客户任务库授权接口、新任务默认等待状态、独立控制凭据、请求ID与摘要绑定。观察到路由404和三种assignment终态错误放行后修复；MySQL13项、实际Channel客户端联调1项通过。对应CI 40643073628成功，含原MySQL10项、Docker1项和dispatcher33项。Channel没有改运行代码；临时合成MySQL已移除。
+
+actual review：Hermes authorization/intake/http/service/schema.sql、固定task_access policy、三个新test文件、旧intake/http/dispatcher tests，以及Channel permit-client。文案从“Sales已接通”收紧为“控制查询读取真实任务库；来源签发与实际模型工具仍待接入”。详细实现、风险、逐层验证及下一步见SG2.4-REPORT.md；它没有声称交付企微暂停按钮或完成线上隔离验收。

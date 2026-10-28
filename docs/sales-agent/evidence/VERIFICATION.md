@@ -82,3 +82,10 @@ SG0.2原提交bf8e429b已推送并通过远端检查，随后才开始SG1.1。�
 - 实际文案核对：README、handoff、实施计划、SG0.3/SG1.3记录与plan.json；把笼统的“权限隔离已完成”收紧为“Sales读取门禁已实现；来源签发、持久控制服务和真实工具循环未接通”。测试和提交SHA分别核对源代码、日志和远端运行。
 
 真实来源producer、lease签发、Hermes持久任务授权端点、task私有运行上下文／模型循环及审批外发仍未完成；live_enabled继续为false。测试HTTP使用本地合成控制服务，没有联调线上定海、客户账号或发送邮件。受保护原稿hash匹配，pricing/SEO分支未改；全仓库回归仅验证当前Sales检出的原业务代码，未宣称已经合并其他工作流的最新提交。10月26日图/PDF仍是设计快照，本轮未改变其设计职责或视觉回执。
+
+
+## 2026-10-28 SG2.4 后续实现
+
+Hermes代码6b36a9d的[Sales runtime 40643073628](https://github.com/vibelingan/hermesinfra/actions/runs/40643073628)成功。新增MySQL13项、原MySQL10项、真实A/B容器1项在远端明确执行；Hub90项中65通过/25依赖跳过，dispatcher33项通过。依赖跳过项按独立执行记录核对；本地实际Channel客户端联调另有1项通过。见[详细报告](SG2.4-REPORT.md)和[结构化回执](SG2.4-VALIDATION.json)。
+
+本轮复核和humanizer记录见IMPLEMENTATION-TRACE及报告：修复调度终态与准备标记不一致的三项放行反例，保留两项测试数据格式错误和启动器路径错误的实际经过，未改原合同掩盖。Channel仅文档/计划变化，原共享Hub、pricing/SEO及其他Agent未改。受保护文档hash继续由设计检查核对；无真实部署或客户外发。

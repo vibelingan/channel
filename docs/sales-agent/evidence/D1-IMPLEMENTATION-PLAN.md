@@ -59,6 +59,10 @@ Interfaces：SalesTaskGate在已有AccessGrant后取得可信lease/handoff记录
 - [x] 安装归属要求明确行归属，或fresh读取可核验的固定安装归属登记；未提供证明就拒绝legacy行。
 - [x] loopback真实HTTP、打包冷启动、原受影响函数回归、CloudBase SDK contract gate和远端CI通过；记录未联调真实Hermes与客户账号。SG1.3代码ad3ab621，对应Sales contracts 40630655316成功。
 
+## 后续完成记录
+
+SG2.4现已补齐Hermes持久任务读取授权、当前状态及请求摘要绑定，见[本轮报告](SG2.4-REPORT.md)。以下依赖段落是首批结束时的记录；自动来源核验／签发、任务私有上下文及真实模型工具循环仍未完成。
+
 ## 后续依赖
 
 Hermes任务库中的当前状态、Channel来源producer与lease签发、来源核验、task私有HOME以及完整模型工具循环仍分别归D1后续补齐和SG1.2/SG2/SG3。不得用本轮纯授权判断或合成HTTP测试冒充完整线上接线。批准／邮件外发模块保持原来未实现状态。

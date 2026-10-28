@@ -409,7 +409,7 @@
       "trusted_source_verification_before_execution",
       "task_private_context_and_real_tool_wiring"
     ],
-    "next_action": "Implement SG2.4 persistent Hermes task read authorization; source verification and lease issuance follow; no live enablement",
+    "next_action": "Automatic trusted Channel source verification and handoff/lease issuance, then task-private context and real tool/model execution; no live enablement",
     "approved_at": "2026-10-28"
   },
   "supplements": [
@@ -444,14 +444,18 @@
     {
       "id": "SG2.4",
       "title": "Hermes持久任务读取授权",
-      "status": "in_progress",
+      "status": "implemented_verified_offline",
       "depends_on": [
         "SG0.3",
         "SG1.3",
         "SG2.2"
       ],
       "design": "evidence/SG2.4-PLAN.md",
-      "live_enabled": false
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG2.4-REPORT.md",
+      "hermes_commit": "6b36a9dc6a3fb1d4f9ea34b351c457ab966d5abc",
+      "ci_run_url": "https://github.com/vibelingan/hermesinfra/actions/runs/40643073628",
+      "ci_conclusion": "success"
     }
   ]
 }

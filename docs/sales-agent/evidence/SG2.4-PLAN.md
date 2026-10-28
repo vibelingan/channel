@@ -40,12 +40,14 @@ MySQL 负责跨进程持久化、唯一约束及事务串行化；现有 owner �
 
 ## 实施与验收
 
-- [ ] 先写真实 HTTP 路由测试，观察尚无接口时 404 而期望 200 的失败。
-- [ ] 新增持久状态与请求摘要表；新受理任务保存等待记录，失败与任务/outbox整体回滚。
-- [ ] 接入独立连接、实际数据库 authority、当前 run/状态/版本和幂等请求检查。
-- [ ] 真实 MySQL 验证：等待拒绝、重启保留、同 ID 换参数拒绝、同客户不同任务、错客户/run/连接、暂停/接管/版本变化、配置/数据库异常拒绝、并发重复一致。
-- [ ] 复核后补反例；Hub 回归、33 项 dispatcher 自检、MySQL 与 A/B Docker CI 均通过，再记录提交号并推送交接资料。
+- [x] 先写真实 HTTP 路由测试，观察尚无接口时 404 而期望 200 的失败。
+- [x] 新增持久状态与请求摘要表；新受理任务保存等待记录，失败与任务/outbox整体回滚。
+- [x] 接入独立连接、实际数据库 authority、当前 run/状态/版本和幂等请求检查。
+- [x] 真实 MySQL 验证：等待拒绝、重启保留、同 ID 换参数拒绝、同客户不同任务、错客户/run/连接、暂停/接管/版本变化、配置/数据库异常拒绝、并发重复一致。
+- [x] 复核后补反例；Hub 回归、33 项 dispatcher 自检、MySQL 与 A/B Docker CI 均通过，再记录提交号并推送交接资料。
 
 重点兼容边界：不改 Channel 原询盘保存、产品/pricing/SEO 或其他 Agent。HTTP 禁用仍不初始化数据库。接口只返回许可摘要与有效期，不返回询盘正文、凭据或数据库错误。
 
 文案按 humanizer 及 plain-technical-writing 规则复核；本计划实际核对了 D1、SG1.3 permit-client、Hermes intake/http/service/boundary、SQL 和既有测试。将“已接入 Sales Agent”明确写成“读取许可接到任务库；来源签发和模型执行仍未接通”。
+
+最终结果：Hermes代码6b36a9d的[Sales runtime 40643073628](https://github.com/vibelingan/hermesinfra/actions/runs/40643073628)成功；本地MySQL13项和实际Channel客户端联调通过。详见[实施报告](SG2.4-REPORT.md)与[结构化回执](SG2.4-VALIDATION.json)。
