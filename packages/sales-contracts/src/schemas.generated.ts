@@ -133,7 +133,7 @@ export const CONTRACT_SCHEMAS = {
         "items": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 1800
         }
       }
     }

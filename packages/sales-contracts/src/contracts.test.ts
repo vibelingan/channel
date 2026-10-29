@@ -28,6 +28,14 @@ test('existing confirmed inquiry validates without coercion or chat linkage', ()
   );
 });
 
+test('inquiry attachment references fit the existing reader and lease limit', () => {
+  const realistic = JSON.parse(readFileSync(new URL('../fixtures/inquiry.long-attachment.json', import.meta.url), 'utf8'));
+  assert.equal(realistic.attachment_refs[0].length, 236);
+  assert.deepEqual(validateContract('inquiry', realistic), realistic);
+  validateContract('inquiry', { ...inquiry, attachment_refs: ['a'.repeat(1800)] });
+  assert.throws(() => validateContract('inquiry', { ...inquiry, attachment_refs: ['a'.repeat(1801)] }));
+});
+
 test('strict parsing rejects duplicate decoded keys and lossy numbers', () => {
   for (const raw of [
     '{"id":1,"\\u0069d":2}',
