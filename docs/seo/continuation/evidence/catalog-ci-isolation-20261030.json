@@ -3,10 +3,7 @@
   "date": "2026-10-30",
   "scope": "CI test ownership only; no product code, publication assertions, timeouts or production deployment changed",
   "failedRunId": "40924526371",
-  "failedAttempts": [
-    1,
-    2
-  ],
+  "failedAttempts": [1, 2],
   "failedCase": "20 mixed-category selections publish through Assign category while preserving every original classification",
   "observedFirstAttempt": {
     "completeOriginalOperations": 20,
@@ -17,10 +14,7 @@
   "localFreshStoreExperiment": {
     "cases": 2,
     "passed": 2,
-    "caseSeconds": [
-      42.9,
-      48.5
-    ],
+    "caseSeconds": [42.9, 48.5],
     "sameProductCount": 20,
     "sameAssertionsAndTimeout": true,
     "host": "macOS; not a direct Linux runner benchmark"
@@ -28,10 +22,7 @@
   "change": {
     "originalDefaultAllOrderPreserved": true,
     "formalAdmin": "admin-subcategory-visibility only, fresh local store",
-    "formalAdminWorkflows": [
-      "catalog-formal-journey",
-      "admin-readiness-default"
-    ],
+    "formalAdminWorkflows": ["catalog-formal-journey", "admin-readiness-default"],
     "allOriginalSuitesStillRequired": true,
     "newRequiredMatrixEntry": {
       "formal": "1",
