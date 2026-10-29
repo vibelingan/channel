@@ -50,6 +50,9 @@ jobs:
       matrix:
         formal: ['0', '1']
         group: [storefront, admin, taxonomy]
+        include:
+          - formal: '1'
+            group: admin-workflows
     env:
       CI: 'true'
       PUBLIC_CB_PROXY: '0'

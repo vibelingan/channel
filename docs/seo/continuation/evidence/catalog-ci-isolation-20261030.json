@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "scope": "CI test ownership only; no product code, publication assertions, timeouts or production deployment changed",
+  "failedRunId": "40924526371",
+  "failedAttempts": [
+    1,
+    2
+  ],
+  "failedCase": "20 mixed-category selections publish through Assign category while preserving every original classification",
+  "observedFirstAttempt": {
+    "completeOriginalOperations": 20,
+    "assertionWaitMs": 90000,
+    "remainingBudgetWhenFinal20ReadsStartedMs": 598.061,
+    "meaning": "All operations returned complete, but the final classification readback began at the assertion deadline. An indefinite UI hang was not established."
+  },
+  "localFreshStoreExperiment": {
+    "cases": 2,
+    "passed": 2,
+    "caseSeconds": [
+      42.9,
+      48.5
+    ],
+    "sameProductCount": 20,
+    "sameAssertionsAndTimeout": true,
+    "host": "macOS; not a direct Linux runner benchmark"
+  },
+  "change": {
+    "originalDefaultAllOrderPreserved": true,
+    "formalAdmin": "admin-subcategory-visibility only, fresh local store",
+    "formalAdminWorkflows": [
+      "catalog-formal-journey",
+      "admin-readiness-default"
+    ],
+    "allOriginalSuitesStillRequired": true,
+    "newRequiredMatrixEntry": {
+      "formal": "1",
+      "group": "admin-workflows"
+    },
+    "testsAddedOrSkipped": 0,
+    "runtimeBusinessCodeChanged": false
+  },
+  "registryAndRunnerTests": {
+    "passed": 10,
+    "failed": 0
+  },
+  "fullLocalClassificationFile": {
+    "passed": 12,
+    "failed": 0,
+    "durationMinutes": 2.6,
+    "mixed20CaseSeconds": 44.1,
+    "tableRecoveryCaseSeconds": 53.0,
+    "ownedTemporaryResourcesCleaned": true
+  },
+  "remoteChecks": "Required Actions for the exact commit; local checks are not substituted for remote results.",
+  "unchangedE2eSources": [
+    {
+      "path": "tests/e2e/admin-subcategory-visibility.spec.ts",
+      "sha256": "959d1d31edeb46ca1204910e36196ab7de6e540c72db8060777dd0cc4a56884f"
+    },
+    {
+      "path": "tests/e2e/helpers/catalog-publication.ts",
+      "sha256": "cbb8bb377fe70d880b1116293b373411500655bd851bca4e89c3ce629f116710"
+    }
+  ]
+}
