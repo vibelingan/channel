@@ -1,5 +1,7 @@
 # SG5 人工审核、接管和受控发送
 
+2026-10-29 第一期开通范围已缩减：保留查询/摘要预览、同群引用改稿、完整内容查看、精确批准与发送；暂停、恢复、人工接管及主动终止先只保留设计，不作为第一期实现门槛。既有撤权和状态拒绝规则保留。详见[本期范围](../evidence/2026-10-29-MVP-INTERACTION-SCOPE.md)。下文完整控制流程属于后续设计，不能当作本期已实现或必做。
+
 2026-10-29 交互补充：官网29状态、企微18场景已形成设计原型及图册，尚未接入产品。企微采用关键待办/异常、精确任务卡片或引用、简短回执和按需私聊的建议，见[交互设计](../evidence/2026-10-28-INTERACTION-DESIGN.md)。本轮没有实现SG5控制入口，也没有改变现有机器人。
 
 实施单元：SG5.1、SG5.2、SG5.3。共享 [状态规则](../contracts/STATE-AND-CONCURRENCY.md) 是本模块的准则。
@@ -41,8 +43,8 @@ with transaction():
 
 ## 实施与验收
 
-- SG5.1：操作者/角色绑定、控制命令、模糊指令选择、版本和epoch、audit/outbox。先fake测试，不发信。
-- SG5.2：在现有门户壳内增加固定预览和附件，按个人身份开放网页批准；未补齐个人身份时只读。企微通知/卡片消费相同任务版本。
-- SG5.3：唯一发送操作、执行前复核、固定payload、结果不明对账、暂停/接管竞争。打开真实发送依赖SG8演练及客户授权。
+- SG5.1第一期：操作者/角色绑定、任务定位、改稿/批准命令、版本和epoch、audit/outbox。暂停/恢复/接管命令后置。先fake测试，不发信。
+- SG5.2第一期：原生消息的摘要预览、附件清单及完整查看入口；按需要在现有门户壳内补固定预览，网页批准仍须具体个人身份。企微通知/卡片消费同一任务版本；不承诺任意HTML或自定义按钮CSS可直接进入群消息。
+- SG5.3第一期：唯一发送操作、执行前复核、固定payload、结果不明对账、重复/旧版本及撤权拒绝。暂停/接管的UI与完整命令竞争在后续功能启用前验收。打开真实发送仍依赖SG8演练及客户授权。
 
 目标用例 `wecom_text_without_identity_cannot_approve`、`ambiguous_send_requests_selection`、`company_token_is_not_individual_approval`、`web_and_wecom_duplicate_approval_one_send`、`v2_approval_cannot_send_v3`、`pause_wins_before_dispatch`、`stale_preview_can_pause_latest_task`、`takeover_waits_for_unknown_send`、`new_version_does_not_duplicate_sent_message`、`pause_after_dispatch_shows_reconciling`、`preview_link_does_not_grant_access`、`html_script_cannot_run`、`private_attachment_url_not_exposed`。浏览器验收包括手机企微内打开、登录返回原任务、失效版本提示和附件实际可读；不得只用mock证明生产身份。

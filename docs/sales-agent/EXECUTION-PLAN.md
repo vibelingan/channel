@@ -1,5 +1,7 @@
 # 详细执行方案
 
+2026-10-29 第一期开通范围：先完成自动准备、邮件摘要/完整查看、同群引用改稿与精确审批发送；暂停/恢复/接管及主动任务终止后置，设计保留。见[本期交互范围](evidence/2026-10-29-MVP-INTERACTION-SCOPE.md)。运行时间/次数/费用限额、撤权门禁、发送幂等与结果未知对账仍不能省略。本轮继续SG3.1离线销售准备校验，不等待交互功能实施。
+
 2026-10-29 补充：SG2.3 成果归档切片已有实现及本地验证，完整模块仍部分完成，生产新 run 与重试调度未接入。见[本轮归档交接](evidence/SG2.3-ARCHIVE-HANDOFF.md)。官网与企微控制只交付设计样稿，未改交互运行逻辑。
 
 2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
@@ -45,10 +47,10 @@ flowchart LR
 | [SG3.2 资料到正文附件完整准备](modules/SG3-sales.md) | SG1.1, SG2.3, SG3.1 | 准备流水线/事实校验/成果提交 | 自动形成带来源、缺项、HTML/text及附件的审核版本 |
 | [SG4.1 Resend邮件适配器](modules/SG4-resend.md) | SG0.2 | 草稿/显式发送/reply/fake合同及错误映射 | HTML附件roundtrip、实际reply收件人、幂等和超时证据 |
 | [SG4.2 Resend回调联系人与回信通知](modules/SG4-resend.md) | SG4.1, SG2.2 | 回调接收/去重/联系资格/线程映射 | 伪造回调/错inbox/重复乱序不产生新任务或复活许可 |
-| [SG5.1 操作者控制与批准合同](modules/SG5-human-control.md) | SG0.2, SG2.2, SG2.3 | 企微身份/command/epoch/批准记录，保护旧文章流 | 对象不明不发；旧版本/无权限/暂停后批准均拒绝 |
-| [SG5.2 固定预览与网页共用批准](modules/SG5-human-control.md) | SG5.1, SG3.2 | 现有portal壳内sales预览route、附件及会话adapter | 个人身份/权限检查、HTML sandbox、私有附件、失效版本 |
+| [SG5.1 操作者身份与精确批准](modules/SG5-human-control.md) | SG0.2, SG2.2, SG2.3 | 企微身份/任务定位/改稿与批准记录；控制动作后置 | 对象不明不发；旧版本/无权限/撤权均拒绝 |
+| [SG5.2 摘要预览与完整内容查看](modules/SG5-human-control.md) | SG5.1, SG3.2 | 原生消息摘要、附件清单、完整查看；必要portal预览 | 个人身份/权限检查、HTML sandbox、私有附件、失效版本 |
 | [SG8.1 持久审计结果回执和告警](modules/SG8-operations.md) | SG2.3, SG4.2, SG5.1 | 审计投影/告警/成本；ChannelReceipt可选 | 批准人/版本/发送ID可追溯，回执失败不重发邮件 |
-| [SG5.3 受控发送与竞争恢复](modules/SG5-human-control.md) | SG3.2, SG4.1, SG4.2, SG5.1, SG5.2, SG8.1 | 固定payload/唯一send_operation/outbox及对账 | 两入口批准、暂停竞争、超时已成功、24h窗外不盲重发 |
+| [SG5.3 受控发送与竞争恢复](modules/SG5-human-control.md) | SG3.2, SG4.1, SG4.2, SG5.1, SG5.2, SG8.1 | 固定payload/唯一send_operation/outbox及对账 | 两入口批准、旧版本/撤权、超时已成功、24h窗外不盲重发 |
 | [SG4.3 确认模板一次发送与切换](modules/SG4-resend.md) | SG1.2, SG5.3 | 只停旧询盘确认hook，新确认共用发送账 | 两条确认路径互斥、历史不补发、密码重置不变 |
 | [SG8.2 官网MVP演练与小范围启用](modules/SG8-operations.md) | SG1.2, SG3.2, SG4.2, SG4.3, SG5.3, SG8.1 | 端到端tests/runbook/客户接入与采样表 | dry-run→测试收件人→获批真实询盘；退出与回滚可操作 |
 | [SG6.0 Apollo客户授权和回复正文证据](modules/SG6-apollo.md) | SG0.2 | workspace/连接/sequence规则/授权收件来源证据 | Partner与Agent授权分开；证明真实回复正文获得路径 |
@@ -104,8 +106,8 @@ flowchart LR
 - 保存成功但通知丢失可恢复；历史询盘默认不补发；附件失败回滚不触发。
 - 内容与附件完整生成，资料缺失能请人补充；真实价格/交期有来源。
 - 所看/所批准/所发送绑定同客户、任务、发件人、收件人、正文附件版本。Web/企微有具体操作人权限；网页个人身份不足时只读并标记审批partial。
-- 改稿/新来信/暂停/接管阻止尚未提交旧稿；已提交结果正确显示，不宣称能撤回。
-- 重复命令/回调不重发；超时未知对账不盲发；人工Resend接管没有后台竞争。
+- 第一期改稿/新来信/来源或连接撤权阻止尚未提交旧稿；已提交结果正确显示，不宣称能撤回。暂停/接管入口后置。
+- 重复命令/回调不重发；超时未知对账不盲发；同一封默认一个发送通路。完整人工接管竞争在后续启用该功能前验收。
 - 固定确认只发一次，切换时旧路径停用，密码重置不受影响。
 - 全过程有持久成果、批准和执行记录；可选Channel回写失败不影响发送幂等。
 - A/B客户运行、知识、文件、连接及查询负向测试通过；本地通过不替代部署身份验收。

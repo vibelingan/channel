@@ -200,7 +200,7 @@
     },
     {
       "id": "SG5.1",
-      "title": "操作者控制与批准合同",
+      "title": "操作者身份与精确批准",
       "depends_on": [
         "SG0.2",
         "SG2.2",
@@ -208,22 +208,29 @@
       ],
       "design": "modules/SG5-human-control.md",
       "owner_role": "Hermes控制后端",
-      "write_scope": "企微身份/command/epoch/批准记录，保护旧文章流",
-      "acceptance": "对象不明不发；旧版本/无权限/暂停后批准均拒绝",
+      "write_scope": "企微身份/任务定位/改稿与批准记录；暂停恢复接管后置",
+      "acceptance": "对象不明不发；旧版本/无权限/撤权均拒绝",
       "primary_test": "wecom_text_without_identity_cannot_approve",
       "status": "planned_not_implemented",
-      "live_enabled": false
+      "live_enabled": false,
+      "deferred_actions": [
+        "pause",
+        "resume",
+        "takeover",
+        "handback",
+        "operator_cancel"
+      ]
     },
     {
       "id": "SG5.2",
-      "title": "固定预览与网页共用批准",
+      "title": "摘要预览与完整内容查看",
       "depends_on": [
         "SG5.1",
         "SG3.2"
       ],
       "design": "modules/SG5-human-control.md",
       "owner_role": "Hermes客户门户",
-      "write_scope": "现有portal壳内sales预览route、附件及会话adapter",
+      "write_scope": "原生消息摘要、附件清单、完整查看入口；按需portal预览",
       "acceptance": "个人身份/权限检查、HTML sandbox、私有附件、失效版本",
       "primary_test": "preview_link_does_not_grant_access",
       "status": "planned_not_implemented",
@@ -259,7 +266,7 @@
       "design": "modules/SG5-human-control.md",
       "owner_role": "发送网关维护方",
       "write_scope": "固定payload/唯一send_operation/outbox及对账",
-      "acceptance": "两入口批准、暂停竞争、超时已成功、24h窗外不盲重发",
+      "acceptance": "两入口批准、旧版本/撤权、超时已成功、24h窗外不盲重发",
       "primary_test": "web_and_wecom_duplicate_approval_one_send",
       "status": "planned_not_implemented",
       "live_enabled": false
@@ -470,5 +477,6 @@
       "ci_run_url": "https://github.com/vibelingan/hermesinfra/actions/runs/40643073628",
       "ci_conclusion": "success"
     }
-  ]
+  ],
+  "mvp_scope_revision": "2026-10-29 controls deferred; fixed-version review and sending remain required"
 }
