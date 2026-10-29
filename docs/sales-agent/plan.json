@@ -148,10 +148,13 @@
       "design": "modules/SG3-sales.md",
       "owner_role": "销售流程包",
       "write_scope": "新规则/skill/schema/evaluation，不改Phase2客服循环",
-      "acceptance": "模糊采购、缺价、恶意输入和跨业务样例有预期",
+      "acceptance": "规则/内部结果schema/8类离线样例可执行；缺依据字段、跨任务/业务、外部目标和非法数值拒绝；不代表模型质量验收",
       "primary_test": "missing_price_never_invented",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG3.1-PREPARATION-HANDOFF.md",
+      "implementation_commit": "5b7645275e97808f53b1ab8138a683d853e7468b",
+      "reuse_dependency": "SG2.3 immutable artifact manifest validator at 6a4d319; no dependency on unimplemented new-run scheduling"
     },
     {
       "id": "SG3.2",
