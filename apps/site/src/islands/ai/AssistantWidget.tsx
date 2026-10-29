@@ -4,6 +4,8 @@ import type {
   PublicSseEvent,
 } from '@vibelingan-channel/ai-contracts';
 import { useEffect, useRef, useState } from 'react';
+import { ChatPanel } from '../../components/chat/ChatPanel';
+import { safePublicChatLink } from '../../components/chat/public-link';
 
 interface StoredConversation {
   conversationId: string;
@@ -222,164 +224,123 @@ export function AssistantWidget() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
-      {open && (
-        <dialog
-          open
-          aria-modal="false"
-          aria-label="Diversity Technology AI assistant"
-          className="relative mb-3 ml-0 flex h-[min(38rem,calc(100svh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white p-0 shadow-2xl"
-        >
-          <header className="flex items-center justify-between bg-brand-950 px-4 py-3 text-white">
-            <div>
-              <h2 className="font-display text-sm font-semibold">Product assistant</h2>
-              <p className="text-xs text-slate-300">AI answers from approved public sources</p>
-            </div>
-            <button
-              type="button"
-              onClick={closeAssistant}
-              className="rounded-lg p-2 text-slate-200 hover:bg-white/10"
-              aria-label="Close assistant"
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </header>
-
-          <div
-            ref={transcriptRef}
-            className="flex-1 space-y-3 overflow-y-auto bg-surface-alt p-4"
-            aria-live="polite"
-          >
-            {messages.length === 0 && (
-              <div className="rounded-xl bg-white p-4 text-sm leading-relaxed text-ink-soft shadow-sm">
-                Ask about our OEM process, products, MOQ, quality controls, or certifications. I
-                will refuse rather than guess when no approved source supports an answer.
-              </div>
-            )}
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={
-                  message.role === 'visitor'
-                    ? 'ml-8 rounded-xl bg-brand-700 px-4 py-3 text-sm text-white'
-                    : message.role === 'status'
-                      ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
-                      : 'mr-6 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-ink shadow-sm'
-                }
-              >
-                <p className="whitespace-pre-wrap">{message.text || '…'}</p>
-                {message.citations && message.citations.length > 0 && (
-                  <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
-                    {message.citations.map((citation, index) => (
-                      <li key={`${citation.title}-${index}`}>
-                        {citation.url ? (
-                          <a
-                            href={citation.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-brand-700 underline"
-                          >
-                            {citation.title} ↗
-                          </a>
-                        ) : (
-                          citation.title
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="border-t border-slate-200 bg-white p-3">
-            {status === 'unavailable' ? (
-              <a
-                href="/#oem-inquiry"
-                className="flex w-full items-center justify-center rounded-lg bg-accent-500 px-4 py-3 text-sm font-semibold text-brand-950 hover:bg-accent-400"
-              >
-                Send your project to our team
-              </a>
-            ) : (
-              <form
-                // The panel only renders once hydrated, so this form never
-                // reaches a browser with no JavaScript. `method="post"` is
-                // declared anyway: a <form> with no method natively submits
-                // GET, which would put whatever the visitor typed into the URL,
-                // their history and the Referer header. Making that safe by
-                // construction beats relying on a render-order argument that a
-                // later refactor can silently invalidate.
-                method="post"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submit();
-                }}
-                className="flex items-end gap-2"
-              >
-                <label htmlFor="ai-assistant-message" className="sr-only">
-                  Your question
-                </label>
-                <textarea
-                  ref={inputRef}
-                  id="ai-assistant-message"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  rows={2}
-                  maxLength={8000}
-                  disabled={busy}
-                  placeholder="Ask a product question…"
-                  className="min-h-11 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20"
-                />
-                {status === 'streaming' ? (
-                  <button
-                    type="button"
-                    onClick={() => void stop()}
-                    className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-semibold text-ink"
-                  >
-                    Stop
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={busy || !draft.trim()}
-                    className="rounded-lg bg-brand-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
-                  >
-                    Send
-                  </button>
-                )}
-              </form>
-            )}
-            <p className="mt-2 text-center text-[11px] text-ink-muted">
-              AI can make mistakes. Verify commercial terms with our team.
-            </p>
-          </div>
-        </dialog>
-      )}
-
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        className="ml-auto flex items-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+    <ChatPanel
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setOpen(true);
+        else closeAssistant();
+      }}
+      triggerRef={triggerRef}
+    >
+      <div
+        ref={transcriptRef}
+        className="flex-1 space-y-3 overflow-y-auto bg-surface-alt p-4"
+        aria-live="polite"
       >
-        <span
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-brand-950"
-          aria-hidden="true"
-        >
-          ✦
-        </span>
-        Ask our AI
-      </button>
-      <noscript>
-        <a
-          href="/#oem-inquiry"
-          className="mt-2 block text-sm font-semibold text-brand-700 underline"
-        >
-          Contact our team
-        </a>
-      </noscript>
-    </div>
+        {messages.length === 0 && (
+          <div className="rounded-xl bg-white p-4 text-sm leading-relaxed text-ink-soft shadow-sm">
+            Ask about our OEM process, products, MOQ, quality controls, or certifications. I will
+            refuse rather than guess when no approved source supports an answer.
+          </div>
+        )}
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={
+              message.role === 'visitor'
+                ? 'ml-8 rounded-xl bg-brand-700 px-4 py-3 text-sm text-white'
+                : message.role === 'status'
+                  ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
+                  : 'mr-6 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-ink shadow-sm'
+            }
+          >
+            <p className="whitespace-pre-wrap">{message.text || '…'}</p>
+            {message.citations && message.citations.length > 0 && (
+              <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
+                {message.citations.map((citation, index) => (
+                  <li key={`${citation.title}-${index}`}>
+                    {citation.url ? (
+                      <a
+                        href={citation.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand-700 underline"
+                      >
+                        {citation.title} ↗
+                      </a>
+                    ) : (
+                      citation.title
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-slate-200 bg-white p-3">
+        {status === 'unavailable' ? (
+          <a
+            href="/#oem-inquiry"
+            className="flex w-full items-center justify-center rounded-lg bg-accent-500 px-4 py-3 text-sm font-semibold text-brand-950 hover:bg-accent-400"
+          >
+            Send your project to our team
+          </a>
+        ) : (
+          <form
+            // The panel only renders once hydrated, so this form never
+            // reaches a browser with no JavaScript. `method="post"` is
+            // declared anyway: a <form> with no method natively submits
+            // GET, which would put whatever the visitor typed into the URL,
+            // their history and the Referer header. Making that safe by
+            // construction beats relying on a render-order argument that a
+            // later refactor can silently invalidate.
+            method="post"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+            className="flex items-end gap-2"
+          >
+            <label htmlFor="ai-assistant-message" className="sr-only">
+              Your question
+            </label>
+            <textarea
+              ref={inputRef}
+              id="ai-assistant-message"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={2}
+              maxLength={8000}
+              disabled={busy}
+              placeholder="Ask a product question…"
+              className="min-h-11 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20"
+            />
+            {status === 'streaming' ? (
+              <button
+                type="button"
+                onClick={() => void stop()}
+                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-semibold text-ink"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={busy || !draft.trim()}
+                className="rounded-lg bg-brand-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
+              >
+                Send
+              </button>
+            )}
+          </form>
+        )}
+        <p className="mt-2 text-center text-[11px] text-ink-muted">
+          AI can make mistakes. Verify commercial terms with our team.
+        </p>
+      </div>
+    </ChatPanel>
   );
 }
 
@@ -513,13 +474,7 @@ function isPublicEvent(value: unknown): value is PublicSseEvent {
 }
 
 function safeCitationUrl(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value, window.location.origin);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
+  return safePublicChatLink(value, window.location.origin);
 }
 
 function isAbortError(value: unknown): boolean {

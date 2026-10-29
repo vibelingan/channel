@@ -13,7 +13,8 @@
     "typecheck": "astro check",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test": "tsc -p tsconfig.test.json --noEmit && tsx --test --test-concurrency=2 \"src/**/*.test.ts\"",
-    "build:blog-server": "astro build --config astro.blog.config.ts"
+    "build:blog-server": "astro build --config astro.blog.config.ts",
+    "dev:assistant-preview": "vite --config assistant-preview.vite.ts"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",

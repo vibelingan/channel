@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "lib": ["ES2023", "DOM"],
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["playwright.assistant.config.ts", "tests/assistant-ui/**/*.ts"]
+}

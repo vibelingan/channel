@@ -1,0 +1,73 @@
+name: Assistant UI foundation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feat/website-assistant-ui-foundation]
+    paths:
+      - 'apps/site/**'
+      - 'docs/ai-platform/assistant-ui/**'
+      - 'tests/assistant-ui/**'
+      - 'playwright.assistant.config.ts'
+      - 'tsconfig.assistant-e2e.json'
+      - 'scripts/verify-assistant-*.mjs'
+      - '.github/workflows/assistant-ui.yml'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'apps/site/**'
+      - 'docs/ai-platform/assistant-ui/**'
+      - 'tests/assistant-ui/**'
+      - 'playwright.assistant.config.ts'
+      - 'tsconfig.assistant-e2e.json'
+      - 'scripts/verify-assistant-*.mjs'
+      - '.github/workflows/assistant-ui.yml'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assistant-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Check component types and existing site behavior
+        run: |
+          pnpm --filter @vibelingan-channel/site typecheck
+          pnpm --filter @vibelingan-channel/site test
+          pnpm exec tsc -p tsconfig.assistant-e2e.json
+      - name: Exercise actual components and test the state tests
+        run: |
+          node scripts/verify-assistant-state-guards.mjs
+          pnpm exec playwright test --config playwright.assistant.config.ts
+      - name: Build the public site and exclude development content
+        run: |
+          pnpm --filter @vibelingan-channel/site seo:fixture /tmp/assistant-seo.json
+          SEO_CATALOG_SNAPSHOT=/tmp/assistant-seo.json pnpm --filter @vibelingan-channel/site build
+          node scripts/verify-assistant-ui-build.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assistant-ui-${{ github.sha }}
+          path: output/assistant-ui/
+          if-no-files-found: error
+          retention-days: 7
