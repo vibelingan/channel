@@ -1,0 +1,116 @@
+{
+  "scope": "read-only three-way source compatibility; no other worktree or branch modified",
+  "comparisons": [
+    {
+      "reference": "origin/feat/catalog-alibaba-price-tiers",
+      "revision": "30b84b183d7351ad8ce102fff3fbf027a1df41d4",
+      "merge_base": "404d1a257722175dcd70916e3f92ec6763fa0243",
+      "files": [
+        {
+          "path": "apps/functions/admin/src/handler.ts",
+          "state": "text_conflict",
+          "conflict_count": 2
+        },
+        {
+          "path": "apps/functions/admin/src/index.ts",
+          "state": "text_conflict",
+          "conflict_count": 1
+        },
+        {
+          "path": "apps/functions/public-api/src/http-adapter.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "apps/local-server/src/json-adapter.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "packages/db/package.json",
+          "state": "text_conflict",
+          "conflict_count": 1
+        },
+        {
+          "path": "packages/db/src/adapter.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "packages/db/src/cloudbase-adapter.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "packages/db/src/index.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "state": "text_conflict",
+          "conflict_count": 1
+        }
+      ]
+    },
+    {
+      "reference": "origin/feat/seo-foundation",
+      "revision": "01438e528b5dd09a074e1cda0e66c3b016711c93",
+      "merge_base": "404d1a257722175dcd70916e3f92ec6763fa0243",
+      "files": [
+        {
+          "path": "apps/functions/admin/src/handler.ts",
+          "state": "text_conflict",
+          "conflict_count": 2
+        },
+        {
+          "path": "apps/functions/admin/src/index.ts",
+          "state": "text_conflict",
+          "conflict_count": 3
+        },
+        {
+          "path": "apps/functions/public-api/src/http-adapter.ts",
+          "state": "text_conflict",
+          "conflict_count": 1
+        },
+        {
+          "path": "apps/functions/public-api/src/index.ts",
+          "state": "text_conflict",
+          "conflict_count": 1
+        },
+        {
+          "path": "apps/local-server/src/json-adapter.ts",
+          "state": "text_conflict",
+          "conflict_count": 1
+        },
+        {
+          "path": "packages/db/package.json",
+          "state": "text_conflict",
+          "conflict_count": 2
+        },
+        {
+          "path": "packages/db/src/adapter.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "packages/db/src/cloudbase-adapter.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "packages/db/src/index.ts",
+          "state": "clean_text_merge",
+          "conflict_count": null
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "state": "text_conflict",
+          "conflict_count": 1
+        }
+      ]
+    }
+  ],
+  "review_conclusion": "Source conflicts reviewed: additive imports, independent configuration fields and package exports; lockfile must preserve both branches and be regenerated at integration. No irreconcilable business conflict found. Combined branches were not integration-tested.",
+  "other_worktrees_modified": false
+}

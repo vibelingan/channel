@@ -6,12 +6,20 @@ on:
     paths:
       - 'packages/sales-contracts/**'
       - 'apps/functions/sales-integration/**'
+      - 'packages/db/**'
+      - 'apps/functions/admin/**'
+      - 'apps/functions/public-api/**'
+      - 'apps/local-server/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/sales-contracts.yml'
   pull_request:
     paths:
       - 'packages/sales-contracts/**'
       - 'apps/functions/sales-integration/**'
+      - 'packages/db/**'
+      - 'apps/functions/admin/**'
+      - 'apps/functions/public-api/**'
+      - 'apps/local-server/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/sales-contracts.yml'
 
@@ -52,7 +60,32 @@ jobs:
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:task-conformance
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration typecheck
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration test
+      - name: Prove source and delivery tests detect broken guards
+        run: |
+          pnpm --filter @vibelingan-channel/fn-sales-integration test:source-grant-defects
+          node apps/functions/sales-integration/scripts/check-website-delivery-defects.mjs --output docs/sales-agent/evidence/SG1.2-delivery-defects-ci
+      - name: Preserve website submission and persistence behavior
+        run: |
+          pnpm --filter @vibelingan-channel/db typecheck
+          pnpm --filter @vibelingan-channel/db test
+          pnpm --filter @vibelingan-channel/fn-admin typecheck
+          pnpm --filter @vibelingan-channel/fn-admin test
+          pnpm --filter @vibelingan-channel/fn-public-api typecheck
+          pnpm --filter @vibelingan-channel/fn-public-api test
+          pnpm --filter @vibelingan-channel/local-server typecheck
+          pnpm --filter @vibelingan-channel/local-server test
+      - name: Build website function callers
+        run: |
+          pnpm --filter @vibelingan-channel/fn-admin build
+          pnpm --filter @vibelingan-channel/fn-public-api build
       - run: pnpm verify:cloudbase-sdk
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration build
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration package:artifact
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration check:artifact
+      - name: Preserve website delivery defect evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-delivery-defects
+          path: docs/sales-agent/evidence/SG1.2-delivery-defects-ci/
+          if-no-files-found: warn

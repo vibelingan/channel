@@ -21,6 +21,7 @@ import cloud from 'wx-server-sdk';
 import { InquiryCommandSchema } from '@vibelingan-channel/shared/catalog-inquiry';
 import { INQUIRY_COLLECTION, manageInquiryInCloud, saveQuoteInCloud } from './catalog-inquiry-cloud.ts';
 import { processCatalogInquiry } from './catalog-inquiry.ts';
+import { saveFinalizedOemInCloud } from './sales-inquiry-submission.ts';
 import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
 import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
 import { runCategoryCommand } from './category-transaction.ts';
@@ -526,8 +527,11 @@ export const cloudBaseAdapter: DbAdapter = {
   async manageCatalogCategory(actorId, input) {
     return manageCatalogCategoryInCloud(cloudStorageSdk().database(),actorId,input);
   },
-  async submitCatalogQuote(input) {
-    return saveQuoteInCloud(cloudStorageSdk().database(), input);
+  async submitCatalogQuote(input,capture) {
+    return saveQuoteInCloud(cloudStorageSdk().database(), input,capture);
+  },
+  async saveFinalizedSalesOemSubmission(input,scope) {
+    return saveFinalizedOemInCloud(cloudStorageSdk().database(),input,scope);
   },
   async manageCatalogInquiry(actorId, input) {
     const parsed = InquiryCommandSchema.safeParse(input);

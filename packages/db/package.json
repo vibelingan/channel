@@ -14,7 +14,10 @@
     "./catalog-detail-staging": "./src/catalog-detail-staging.ts",
     "./catalog-detail-storage": "./src/catalog-detail-storage.ts",
     "./catalog-quote": "./src/catalog-quote.ts",
-    "./cloudbase": "./src/cloudbase-adapter.ts"
+    "./cloudbase": "./src/cloudbase-adapter.ts",
+    "./sales-inquiry-source": "./src/sales-inquiry-source.ts",
+    "./sales-inquiry-read": "./src/sales-inquiry-read.ts",
+    "./sales-inquiry-submission": "./src/sales-inquiry-submission.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",
@@ -24,7 +27,8 @@
     "@cloudbase/node-sdk": "3.17.2",
     "@vibelingan-channel/shared": "workspace:*",
     "wx-server-sdk": "4.0.2",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@vibelingan-channel/sales-contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

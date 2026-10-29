@@ -6,6 +6,7 @@
   "scripts": {
     "test": "tsx --test src/*.test.ts",
     "test:source-grant-defects": "node scripts/check-source-grant-defects.mjs",
+    "reconcile:once": "tsx src/reconcile-website.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsup",
     "check:artifact": "node scripts/check-artifact.mjs",
@@ -20,6 +21,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@vibelingan-channel/auth": "workspace:*",
     "@types/node": "^22.19.21",
     "tsx": "^4.22.4",
     "tsup": "^8.3.5"

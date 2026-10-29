@@ -22,6 +22,7 @@ import {
 } from './handler.ts';
 
 export interface PublicHttpConfig extends PublicApiConfig {
+  salesCapture?:import('@vibelingan-channel/db/sales-inquiry-submission').SalesCaptureScope;
   corsAllowedOrigins?: readonly string[];
   /** UI-02 opt-in. Not wired from cloud env; local review server enables this. */
   enableCatalogDetail?: boolean;

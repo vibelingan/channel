@@ -57,7 +57,7 @@ export async function handleQuoteEvent(
     return fail(400, 'invalid-json');
   }
   try {
-    const result = await save(input);
+    const result = await save(input, config.salesCapture);
     if (result.ok) return reply(200, result);
     if (result.code === 'rate-limit') headers['Retry-After'] = '60';
     return reply(

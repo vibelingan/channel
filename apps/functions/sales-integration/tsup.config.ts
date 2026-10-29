@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts' },
+  entry: { index: 'src/index.ts', reconcile: 'src/reconcile-website.ts' },
   format: ['cjs'],
   target: 'node20',
   platform: 'node',

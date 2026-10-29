@@ -9,6 +9,7 @@ import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-ch
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { handleAdminRequest } from './handler.ts';
 import {
   type AdminHttpConfig,
@@ -20,7 +21,9 @@ initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
 setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
+const salesCapture = salesCaptureFromEnv(process.env);
 const config: AdminHttpConfig = {
+  ...(salesCapture ? { salesCapture } : {}),
   jwtSecret: requireEnv('JWT_SECRET'),
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   enableDetailApproval: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',

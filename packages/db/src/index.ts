@@ -126,10 +126,15 @@ export async function approveCatalogDetail(actorId: string, input: unknown) {
   if (!adapter.approveCatalogDetail) throw new Error('Catalog approval persistence unavailable');
   return adapter.approveCatalogDetail(actorId, input);
 }
-export async function submitCatalogQuote(input: unknown) {
+export async function submitCatalogQuote(input: unknown, capture?:import('./sales-inquiry-submission.ts').SalesCaptureScope) {
   const adapter = db();
   if (!adapter.submitCatalogQuote) throw new Error('Catalog inquiry persistence unavailable');
-  return adapter.submitCatalogQuote(input);
+  return adapter.submitCatalogQuote(input,capture);
+}
+export function saveFinalizedSalesOemSubmission(input:import('./sales-inquiry-submission.ts').FinalizedSalesOemInput,scope:import('./sales-inquiry-submission.ts').SalesCaptureScope){
+  const adapter=db();
+  if(!adapter.saveFinalizedSalesOemSubmission)throw new Error('Sales OEM persistence unavailable');
+  return adapter.saveFinalizedSalesOemSubmission(input,scope);
 }
 export async function manageCatalogInquiry(actorId: string, input: unknown) {
   const adapter = db();

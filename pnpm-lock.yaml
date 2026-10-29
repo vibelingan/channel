@@ -450,6 +450,9 @@ importers:
       '@cloudbase/node-sdk':
         specifier: 3.17.2
         version: 3.17.2
+      '@vibelingan-channel/sales-contracts':
+        specifier: workspace:*
+        version: link:../sales-contracts
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../shared
@@ -551,6 +554,9 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
+      '@vibelingan-channel/auth':
+        specifier: workspace:*
+        version: link:../../../packages/auth
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21

@@ -1,5 +1,5 @@
 import { createPermitClient } from './permit-client.ts';
-import { get, setAdapter } from '@vibelingan-channel/db';
+import { setAdapter } from '@vibelingan-channel/db';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { getProductDetail } from '../../public-api/src/catalog-detail.ts';
@@ -7,6 +7,8 @@ import { type SalesRequest, type SalesResponse, createSalesHandler } from './han
 import { readPrivateFile } from './private-file.ts';
 import { createSalesServer } from './server.ts';
 import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
+import { readSalesSourceRecord } from '@vibelingan-channel/db/sales-inquiry-read';
+import { resolveSalesCredential } from '@vibelingan-channel/db/sales-inquiry-submission';
 
 export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesResponse> {
   if (process.env.SALES_INTEGRATION_ENABLED !== '1')
@@ -68,10 +70,10 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
       return row && typeof row === 'object' && 'registry' in row ? row.registry : undefined;
     },
     loadCredential: async (ref) => {
-      const name = /^env:([A-Z][A-Z0-9_]{0,127})$/.exec(ref)?.[1];
-      return name ? process.env[name] : undefined;
+      return resolveSalesCredential(ref, process.env);
     },
-    readDoc: (collection, id) => get(collection, id),
+    readDoc: (collection, id) =>
+      readSalesSourceRecord(cloudStorageSdk().database(), collection, id),
     readFile: (id) => readPrivateFile(storage, id, storageHosts),
     readApprovedProduct: (id, page, size, revision) =>
       process.env.CATALOG_DETAIL_APPROVAL_ENABLED === '1'

@@ -1,0 +1,74 @@
+{
+  "module": "SG1.2",
+  "date": "2026-10-29",
+  "node_packages": {
+    "db": {
+      "tests": 233,
+      "pass": 233,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 9002.886458
+    },
+    "admin": {
+      "tests": 245,
+      "pass": 245,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 5711.49525
+    },
+    "public": {
+      "tests": 115,
+      "pass": 115,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 2744.220583
+    },
+    "local": {
+      "tests": 153,
+      "pass": 153,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 75231.064542
+    },
+    "sales": {
+      "tests": 108,
+      "pass": 108,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 4314.431958
+    }
+  },
+  "node_total_passed": 854,
+  "hermes_hub": {
+    "run": 293,
+    "passed": 208,
+    "skipped": 85,
+    "failures": 0,
+    "errors": 0
+  },
+  "website_e2e": {
+    "passed": 8,
+    "skipped": 0,
+    "seconds": 40.443
+  },
+  "source_grants_e2e_regression": {
+    "passed": 14,
+    "skipped": 0,
+    "seconds": 25.532
+  },
+  "targeted_mutants": {
+    "source_grants": 5,
+    "website_delivery": 9,
+    "source_receipts": 3
+  },
+  "channel_tested_head": "6f897760645372847ea854845cf3e2efa2936f15",
+  "production_enabled": false,
+  "email_sent": false,
+  "model_used": false,
+  "source_database": "synthetic adapter; actual CloudBase acceptance deferred",
+  "review_findings_closed": [
+    "local future-cutover save",
+    "modern attachment with unused legacy field"
+  ],
+  "compatibility": "text conflicts reviewed, no other worktree modified; combined branch integration tests not run"
+}

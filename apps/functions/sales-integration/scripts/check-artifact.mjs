@@ -35,6 +35,48 @@ try {
     },
   );
   assert.equal(result.status, 0, result.stderr);
+  const reconcile = spawnSync(process.execPath, ['reconcile.js'], {
+    cwd: directory,
+    encoding: 'utf8',
+    timeout: 15000,
+    env: { ...process.env, SALES_SOURCE_DELIVERY_ENABLED: '0' },
+  });
+  assert.equal(reconcile.status, 0, reconcile.stderr);
+  assert.deepEqual(JSON.parse(reconcile.stdout), {
+    state: 'disabled',
+    wrapped: false,
+    results: [],
+  });
+
+  const enabled = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      `
+    const assert = require('node:assert/strict');
+    for (const name of ['node:http', 'node:https']) require(name).request = () => { throw new Error('Network forbidden in artifact constructor probe'); };
+    globalThis.fetch = () => { throw new Error('Network forbidden in artifact constructor probe'); };
+    const {configuredWebsiteDelivery} = require('./reconcile.js');
+    const worker = configuredWebsiteDelivery({
+      SALES_SOURCE_DELIVERY_ENABLED:'1', SALES_CLIENT_ID:'client_a', SALES_BUSINESS_LINE:'website_sales',
+      SALES_INSTALLATION_ID:'site_a', SALES_ENVIRONMENT:'test', TCB_ENV:'offline-artifact-env',
+      SALES_SOURCE_CUTOVER_AT:'0', SALES_CONTROL_EPOCH:'1', SALES_RUNTIME_ID:'runtime_a',
+      SALES_CHANNEL_CONNECTION_ID:'agent_a', SALES_HERMES_EVENTS_URL:'http://127.0.0.1:1/sales/events',
+      SALES_HERMES_SOURCE_TOKEN:'s'.repeat(48), AGENT_a:'r'.repeat(48),
+    });
+    assert.equal(typeof worker.tick, 'function');
+  `,
+    ],
+    {
+      cwd: directory,
+      encoding: 'utf8',
+      timeout: 15000,
+      // The installed SDK otherwise probes cloud metadata asynchronously at init.
+      env: { ...process.env, TENCENTCLOUD_RUNENV: 'SCF' },
+    },
+  );
+  assert.equal(enabled.status, 0, enabled.stderr);
+
   console.log(
     'Built artifact loads without workspace, node_modules or schema sidecars; disabled runtime stays closed.',
   );

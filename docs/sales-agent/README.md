@@ -1,5 +1,8 @@
 # Sales Agent 分模块设计与执行入口
 
+2026-10-29 最新交付：SG1.2 现有 OEM／单品表单的正式保存、原子登记、可靠通知及补偿已完成本地验收；新官网纵向 8 项和原来源授权 14 项通过。accepted 代表持久接收，生产自动模型与邮件仍未接入。见[完整交付](evidence/SG1.2-DELIVERY-REPORT.md)、[双重校验与耗时解释](evidence/SG1.2-EXPLAINED.md)、[上线准备](evidence/SG1.2-DELIVERY-RUNBOOK.md)。下方较早记录保留其当时状态。
+
+
 2026-10-29 当前：来源核验与短期授权已实现并推送，Channel `fe44c5df`、Hermes `f57c5eb` 的远端检查均通过。SG1.2 整体仍在继续官网真实保存、持久登记和可靠通知；不再增加对外子阶段编号。见[用途、双重校验与耗时说明](evidence/SG1.2-EXPLAINED.md)和[本轮实施计划](evidence/SG1.2-IMPLEMENTATION-PLAN.md)。下方带日期的“未提交／待来源签发”等文字保留为当时记录，不能当作当前状态。未部署或发邮件。
 
 
@@ -28,7 +31,7 @@
 6. [实施交接说明](handoff/START-HERE.md)：下一步从哪个模块开始、哪些文件可写、怎样交付。
 7. [可查看的模块图](diagrams/modules.html) · [核对依据](evidence/BASELINE.md) · [文档检查记录](evidence/VERIFICATION.md)。
 
-结构检查可运行`python3 docs/sales-agent/check_design.py`。完整schema验证先在临时venv安装本目录`requirements-design.txt`，再加`--schema`；它只核对设计样例，不能证明服务端授权。
+结构检查可运行`python3 docs/sales-agent/check_design.py`；独立 clone 校验原项目保护文件时，使用 `--channel-source "$CHANNEL_SOURCE_CHECKOUT"` 指向只读原项目，不能把另一份历史快照误当成原件。完整schema验证先在临时venv安装本目录`requirements-design.txt`，再加`--schema`；它只核对设计样例，不能证明服务端授权。
 
 SG1.0源码核对可运行`python3 docs/sales-agent/check_source_snapshot.py`，检查固定提交的44份文件、80处标记及分支关系，不执行产品代码。完整路径和哈希见[源码清单](evidence/SG1.0-source-inventory.json)。
 

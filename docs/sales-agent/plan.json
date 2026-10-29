@@ -108,16 +108,25 @@
       "write_scope": "OEM/单品保存后最小hook及source reconciler",
       "acceptance": "保存成功后通知丢失可补扫；附件回滚和历史记录不误发",
       "primary_test": "save_succeeds_notification_fails_reconciler_recovers",
-      "status": "in_progress",
+      "status": "implemented_verified_offline",
       "live_enabled": false,
-      "evidence_ref": "evidence/SG1.2-IMPLEMENTATION-PLAN.md",
+      "evidence_ref": "evidence/SG1.2-DELIVERY-REPORT.md",
       "completed_components": [
-        "trusted source verification and short-lived read grants"
+        "trusted source grants",
+        "actual website atomic registration and pending seed",
+        "durable notification and active-queue reconciliation",
+        "real producer-to-Hermes HTTP/MySQL acceptance"
       ],
-      "remaining_components": [
-        "website atomic registration",
-        "reliable notification and reconciliation",
-        "real producer-to-Hermes acceptance"
+      "remaining_components": [],
+      "remaining_live_acceptance": [
+        "CloudBase source database and deployed credentials",
+        "private collections and indexes",
+        "scheduled reconciliation invocation"
+      ],
+      "implementation_scope": "MVP existing OEM and single-product submission paths; reliable intake, not production automatic model execution",
+      "deferred_sources": [
+        "website assistant confirmed submission: no real confirmation endpoint yet; ordinary chat and fabricated assistant events remain denied",
+        "legacy inline attachment API: preserve save compatibility, no automatic Sales registration"
       ]
     },
     {
@@ -181,10 +190,9 @@
       "status": "implemented_verified_offline",
       "live_enabled": false,
       "evidence_ref": "evidence/SG3.2-PREPARATION-HANDOFF.md",
-      "implementation_commit": null,
+      "implementation_commit": "6527059a308c62dd9718ce37564e84de38d4a3c4",
       "implementation_scope": "Callable preparation pipeline with actual authorized Channel HTTP, immutable snapshot/evidence/archive and single-execution worker; synthetic content and fake SG4 acceptance",
       "remaining_runtime_integration": [
-        "trusted Channel source verification and lease issuance",
         "authoritative task loader and automatic trigger",
         "private real model/content adapter",
         "production Resend draft export outbox and approval/send modules"

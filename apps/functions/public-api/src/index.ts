@@ -9,6 +9,7 @@ import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-ch
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import {
   type PublicHttpConfig,
   handlePublicApiEvent,
@@ -19,7 +20,9 @@ initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
 setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
+const salesCapture = salesCaptureFromEnv(process.env);
 const config: PublicHttpConfig = {
+  ...(salesCapture ? { salesCapture } : {}),
   enableCatalogDetail: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   ...(optionalEnv('PUBLIC_API_BASE_URL') ? { apiBaseUrl: optionalEnv('PUBLIC_API_BASE_URL') } : {}),

@@ -1,0 +1,145 @@
+{
+  "scope": "targeted website delivery guards in disposable source copies; no account, provider or real mail",
+  "status": "passed",
+  "baseline": [
+    {
+      "id": "wrong_source_receipt",
+      "returncode": 0
+    },
+    {
+      "id": "absolute_deadline_removed",
+      "returncode": 0
+    },
+    {
+      "id": "stream_limit_removed",
+      "returncode": 0
+    },
+    {
+      "id": "terminal_source_allowed",
+      "returncode": 0
+    },
+    {
+      "id": "changed_registered_recipient_allowed",
+      "returncode": 0
+    },
+    {
+      "id": "stale_success_overwrites_new_owner",
+      "returncode": 0
+    },
+    {
+      "id": "stale_failure_overwrites_new_owner",
+      "returncode": 0
+    },
+    {
+      "id": "accepted_history_fills_scan_page",
+      "returncode": 0
+    },
+    {
+      "id": "cursor_never_wraps",
+      "returncode": 0
+    }
+  ],
+  "mutants": [
+    {
+      "id": "wrong_source_receipt",
+      "source": "inquiry-sender.ts",
+      "test": "body receipt, wrong digest, duplicate header, MIME and status errors are rejected",
+      "expected_assertion": "Missing expected rejection",
+      "before_sha256": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+      "changed_sha256": "669769f34edc9b2eb57781043d4ec6cc8dc563c7e39aae6a6b99997f5991944f",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "absolute_deadline_removed",
+      "source": "inquiry-sender.ts",
+      "test": "absolute deadline rejects an otherwise valid continuously trickled body",
+      "expected_assertion": "Missing expected rejection",
+      "before_sha256": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+      "changed_sha256": "1db5df0ef71b8f68c965ae6439412fb311714370b3df3deb498086fabb569164",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "stream_limit_removed",
+      "source": "inquiry-sender.ts",
+      "test": "body receipt, wrong digest, duplicate header, MIME and status errors are rejected",
+      "expected_assertion": "Missing expected rejection",
+      "before_sha256": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+      "changed_sha256": "41e8c8658f47d2447d9b82d7ee618d7ee2eec8a67cab7896a00a4d679cc4e9ab",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "terminal_source_allowed",
+      "source": "website-delivery.ts",
+      "test": "invalid owner, incomplete source, changed facts, terminal state and disabled binding never send",
+      "expected_assertion": "actual: 'accepted'",
+      "before_sha256": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+      "changed_sha256": "e32f578b96aa9790a10ed66beb4662b61dd864f5f7d66e18704382ef73f34ed2",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "changed_registered_recipient_allowed",
+      "source": "website-delivery.ts",
+      "test": "changed registration recipient cannot replace the actual saved contact",
+      "expected_assertion": "actual: 'accepted'",
+      "before_sha256": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+      "changed_sha256": "658dd8acde0c91a4f8cf2f7e5685e60761eca4abe92c5c0eccc3de0f820b7283",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "stale_success_overwrites_new_owner",
+      "source": "website-delivery.ts",
+      "test": "a replacement still in flight cannot be completed by the stale owner",
+      "expected_assertion": "actual: 'accepted'",
+      "before_sha256": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+      "changed_sha256": "b85e872236e9b1f7f974cc91d43825a575a2afc22102cf19565435c7c227b981",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "stale_failure_overwrites_new_owner",
+      "source": "website-delivery.ts",
+      "test": "a stale failure cannot schedule retry over the replacement in flight",
+      "expected_assertion": "actual: 'retry'",
+      "before_sha256": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+      "changed_sha256": "3e75fb4671c48a74d1ac030dcaa8250f25c9d53ae59c96c08cb35aa99310663a",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "accepted_history_fills_scan_page",
+      "source": "delivery-store.ts",
+      "test": "accepted audit history never occupies the first active delivery page",
+      "expected_assertion": "Expected values to be strictly equal",
+      "before_sha256": "fbc094eecce7da0e567bdef7824bf62d94423629b0b3bd5c11ab3651de826098",
+      "changed_sha256": "fb2ae470b716bba31c35d73c8a994d03c56948421fd849cf4f8d8f8bb25217bc",
+      "result": "killed",
+      "returncode": 1
+    },
+    {
+      "id": "cursor_never_wraps",
+      "source": "website-delivery.ts",
+      "test": "multiple active pages and a late lower key are eventually visited; bad registration does not starve others",
+      "expected_assertion": "4 !== 5",
+      "before_sha256": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+      "changed_sha256": "38af29f8dc7fbbffe82d7955097c583b3f32a0532768d848e30d584270e7a3a9",
+      "result": "killed",
+      "returncode": 1
+    }
+  ],
+  "source_hashes_before": {
+    "inquiry-sender.ts": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+    "website-delivery.ts": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+    "delivery-store.ts": "fbc094eecce7da0e567bdef7824bf62d94423629b0b3bd5c11ab3651de826098"
+  },
+  "source_hashes_after": {
+    "inquiry-sender.ts": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+    "website-delivery.ts": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+    "delivery-store.ts": "fbc094eecce7da0e567bdef7824bf62d94423629b0b3bd5c11ab3651de826098"
+  },
+  "source_unchanged": true
+}
