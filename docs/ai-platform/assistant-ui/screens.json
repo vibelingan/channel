@@ -1,0 +1,329 @@
+{
+  "source": "2026-10-29 approved-direction UI prototype; baseline main b3d63ac1",
+  "scope": "Frontend states and backend design; not a deployed capability list",
+  "screens": [
+    {
+      "number": 1,
+      "id": "closed",
+      "title": "入口收起",
+      "entry": "访客关闭面板或首次进站",
+      "exit": [
+        "welcome"
+      ],
+      "interaction_note": "关闭只是收起界面；不暗示取消后台任务。"
+    },
+    {
+      "number": 2,
+      "id": "welcome",
+      "title": "欢迎与能力边界",
+      "entry": "点击 Ask our AI",
+      "exit": [
+        "composing",
+        "queued"
+      ],
+      "interaction_note": "说明可以做什么，使用简短建议问题，不以拒绝话术作为开场。"
+    },
+    {
+      "number": 3,
+      "id": "composing",
+      "title": "正在输入",
+      "entry": "用户在输入框编辑",
+      "exit": [
+        "queued"
+      ],
+      "interaction_note": "Enter 发送，Shift+Enter 换行；中文输入法组合输入期间不提交。"
+    },
+    {
+      "number": 4,
+      "id": "queued",
+      "title": "已收到，等待处理",
+      "entry": "消息已提交且收到受理回执",
+      "exit": [
+        "retrieving",
+        "stop_requested",
+        "network_failure"
+      ],
+      "interaction_note": "显示已收到；排队序号只有服务端确实提供时才显示。"
+    },
+    {
+      "number": 5,
+      "id": "retrieving",
+      "title": "查询获准资料",
+      "entry": "开始检索知识资料",
+      "exit": [
+        "streaming",
+        "tool_progress",
+        "no_match",
+        "stop_requested"
+      ],
+      "interaction_note": "不显示虚构百分比；等待提示、取消和用户问题始终可见。"
+    },
+    {
+      "number": 6,
+      "id": "streaming",
+      "title": "回答逐步出现",
+      "entry": "收到属于本次问题的文本事件",
+      "exit": [
+        "product_results",
+        "stop_requested"
+      ],
+      "interaction_note": "现有组件有拼接逻辑；实际 worker 尚未交付真实即时流式。"
+    },
+    {
+      "number": 7,
+      "id": "tool_progress",
+      "title": "多步产品查询",
+      "entry": "服务器允许产品查询工具",
+      "exit": [
+        "product_results",
+        "no_match",
+        "network_failure",
+        "stop_requested"
+      ],
+      "interaction_note": "只展示可信工具步骤；不展示模型推理或内部工作日志。"
+    },
+    {
+      "number": 8,
+      "id": "product_results",
+      "title": "产品卡片与后续选择",
+      "entry": "获准产品接口返回有效产品",
+      "exit": [
+        "comparison",
+        "inquiry_review",
+        "clarification"
+      ],
+      "interaction_note": "示例卡片不代表库存或商业承诺；真实卡片必须查实时获准产品。"
+    },
+    {
+      "number": 9,
+      "id": "comparison",
+      "title": "产品比较",
+      "entry": "选择两款产品后确认比较",
+      "exit": [
+        "inquiry_review",
+        "source_changed"
+      ],
+      "interaction_note": "窄屏用纵向卡片比较；不能用压缩小字或横向大表格承载核心信息。"
+    },
+    {
+      "number": 10,
+      "id": "clarification",
+      "title": "信息不足，继续澄清",
+      "entry": "有采购意图但用途或要求模糊",
+      "exit": [
+        "queued",
+        "inquiry_review"
+      ],
+      "interaction_note": "未选 SKU 也能提交需求；普通咨询不创建 Sales 任务。"
+    },
+    {
+      "number": 11,
+      "id": "no_match",
+      "title": "没有合适的产品或依据",
+      "entry": "检索没有匹配项",
+      "exit": [
+        "clarification",
+        "inquiry_review"
+      ],
+      "interaction_note": "解释查不到什么，保留输入，助手继续可用。"
+    },
+    {
+      "number": 12,
+      "id": "out_of_scope",
+      "title": "问题超出可回答范围",
+      "entry": "请求无法由允许知识和工具处理",
+      "exit": [
+        "welcome",
+        "queued"
+      ],
+      "interaction_note": "普通越界用可恢复答复；不能把整台助手锁定为不可用。"
+    },
+    {
+      "number": 13,
+      "id": "network_failure",
+      "title": "网络或服务暂时失败",
+      "entry": "受理或读取超时、服务报错",
+      "exit": [
+        "queued",
+        "handoff"
+      ],
+      "interaction_note": "保留问题和已有内容；重试同一提交用同一幂等键。"
+    },
+    {
+      "number": 14,
+      "id": "reconnecting",
+      "title": "连接中断，恢复当前回答",
+      "entry": "事件流断开且任务可能仍运行",
+      "exit": [
+        "streaming",
+        "network_failure",
+        "stop_requested"
+      ],
+      "interaction_note": "从服务端序号恢复原 run，不重开任务，不重复加同一段回答。"
+    },
+    {
+      "number": 15,
+      "id": "rate_limit",
+      "title": "请求过于频繁",
+      "entry": "服务端返回限流或明确重试时间",
+      "exit": [
+        "queued",
+        "handoff"
+      ],
+      "interaction_note": "只显示服务端 Retry-After；不编造倒计时。"
+    },
+    {
+      "number": 16,
+      "id": "stop_requested",
+      "title": "已请求停止",
+      "entry": "用户点击 Stop generation",
+      "exit": [
+        "stopped",
+        "stop_unconfirmed"
+      ],
+      "interaction_note": "按钮点击后立即反馈；收到服务器确认前不能写成已停止。"
+    },
+    {
+      "number": 17,
+      "id": "stop_unconfirmed",
+      "title": "停止结果尚未确认",
+      "entry": "停止请求超时，原回答状态不明",
+      "exit": [
+        "stopped",
+        "streaming"
+      ],
+      "interaction_note": "不自动重开同一任务；让用户明确知道请求可能仍在结束中。"
+    },
+    {
+      "number": 18,
+      "id": "stopped",
+      "title": "本次回答已停止",
+      "entry": "服务端确认当前 run 已取消或已终止",
+      "exit": [
+        "retry_after_stop",
+        "queued"
+      ],
+      "interaction_note": "保留用户问题与已生成内容；停止不撤销已保存询盘。"
+    },
+    {
+      "number": 19,
+      "id": "retry_after_stop",
+      "title": "重新回答前确认",
+      "entry": "用户在已停止回答下点击重新回答",
+      "exit": [
+        "queued",
+        "stopped"
+      ],
+      "interaction_note": "从保留的问题新建一次回答，旧回答保留并标记已停止。"
+    },
+    {
+      "number": 20,
+      "id": "history_restoring",
+      "title": "正在恢复对话",
+      "entry": "重新打开面板且存在有效会话",
+      "exit": [
+        "history_restored",
+        "history_expired"
+      ],
+      "interaction_note": "先确认会话归属和有效期；不能凭浏览器本地 ID 拉取其他人的历史。"
+    },
+    {
+      "number": 21,
+      "id": "history_restored",
+      "title": "已恢复，阅读长对话",
+      "entry": "服务端返回有权读取的历史",
+      "exit": [
+        "queued",
+        "source_changed"
+      ],
+      "interaction_note": "用户上滚时不强制拉到底部；有新内容时显示跳到最新消息。"
+    },
+    {
+      "number": 22,
+      "id": "history_expired",
+      "title": "会话过期，开始新对话",
+      "entry": "会话已过期、撤销或无法验证",
+      "exit": [
+        "welcome"
+      ],
+      "interaction_note": "不回显无权读取的旧消息；不悄悄带入旧联系人或旧需求。"
+    },
+    {
+      "number": 23,
+      "id": "inquiry_review",
+      "title": "客户核对正式询盘",
+      "entry": "客户明确要求提交采购需求",
+      "exit": [
+        "inquiry_validation",
+        "inquiry_submitting"
+      ],
+      "interaction_note": "表单对接现有 OEM 或正式单品流程；成功保存前不产生跟进任务。"
+    },
+    {
+      "number": 24,
+      "id": "inquiry_validation",
+      "title": "表单需要修正",
+      "entry": "提交前字段验证失败",
+      "exit": [
+        "inquiry_review",
+        "inquiry_submitting"
+      ],
+      "interaction_note": "字段旁显示错误，焦点到第一处错误，不丢失其他已填内容。"
+    },
+    {
+      "number": 25,
+      "id": "inquiry_submitting",
+      "title": "正在保存询盘",
+      "entry": "确认提交后持久化请求在途",
+      "exit": [
+        "inquiry_saved",
+        "inquiry_unknown"
+      ],
+      "interaction_note": "防重复提交；关闭界面不代表能撤销已经发出的保存请求。"
+    },
+    {
+      "number": 26,
+      "id": "inquiry_unknown",
+      "title": "保存结果待核对",
+      "entry": "保存请求超时且没有明确结果",
+      "exit": [
+        "inquiry_saved",
+        "inquiry_review"
+      ],
+      "interaction_note": "先用原提交身份查询或幂等重试；不能当失败后创建新询盘。"
+    },
+    {
+      "number": 27,
+      "id": "inquiry_saved",
+      "title": "询盘已记录",
+      "entry": "服务器返回真实保存回执",
+      "exit": [
+        "queued",
+        "handoff"
+      ],
+      "interaction_note": "保存成功自动触发后续 Sales 准备；不承诺邮件已发出或销售已在线。"
+    },
+    {
+      "number": 28,
+      "id": "handoff",
+      "title": "交给团队跟进",
+      "entry": "客户要求人工或服务暂不可用",
+      "exit": [
+        "inquiry_review",
+        "welcome"
+      ],
+      "interaction_note": "一期是留资和异步跟进；没有在线客服系统时不能显示真人已接入。"
+    },
+    {
+      "number": 29,
+      "id": "source_changed",
+      "title": "产品资料已更新",
+      "entry": "比较或提交前复查到产品修订",
+      "exit": [
+        "product_results",
+        "inquiry_review"
+      ],
+      "interaction_note": "用户需求保留；过时价格或下架型号不能沿用为承诺。"
+    }
+  ]
+}
