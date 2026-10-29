@@ -1,0 +1,45 @@
+{
+  "scope": "Frontend foundation only; actual browser with simulated adapter; public built widget without live services",
+  "code_commit": "322b2cec",
+  "browser": {
+    "startTime": "2026-10-29T17:40:13.332Z",
+    "duration": 51703.359,
+    "expected": 90,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0,
+    "projects": ["desktop Chromium", "Chromium mobile emulation"],
+    "retry": 0
+  },
+  "focused_node_tests": {
+    "passed": 19,
+    "failed": 0
+  },
+  "earlier_full_site_tests": {
+    "passed": 1492,
+    "skipped": 1,
+    "failed": 0,
+    "scope_note": "Before one added history failure regression; final affected code separately verified."
+  },
+  "mutation_report": "STATE-GUARDS.json",
+  "typecheck": {
+    "errors": 0,
+    "warnings": 0,
+    "existing_hints": 11
+  },
+  "public_build": {
+    "pages": 18,
+    "text_files_scanned": 68,
+    "preview_absent": true,
+    "built_widget_routes": ["/", "/headphones/", "/oem/"],
+    "negative_route": "/login/",
+    "service_requests_blocked": true
+  },
+  "source_sha256": {
+    "apps/site/src/islands/ai/assistant/AssistantExperience.tsx": "333eaa87d80148c86903c560fbc30217e98bbe90f3ef4e1d0221a1ed7782a08d",
+    "apps/site/src/islands/ai/assistant/useAssistantSession.ts": "b2c26277ad3f3f2c881f88342515b1b250d7ed9d0ad676580d664dc5f622e5ad",
+    "apps/site/src/islands/ai/assistant/state.ts": "c2c4918d8fea5a609650bb19620b627775e12e948f4530dec6f0a5e730a08532",
+    "tests/assistant-ui/journeys.spec.ts": "a3df0234a92bfabb49aeb29f67ed7cc7ac8b4a3b402202b90f49cec54aa5b9ca",
+    "scripts/verify-assistant-ui-build.mjs": "ec163ff58fd8fd9f9f0704b280e6f247605841bc5cdecdd4a66c0991f28bd036"
+  }
+}

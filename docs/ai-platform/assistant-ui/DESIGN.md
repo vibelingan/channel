@@ -31,7 +31,7 @@
 | `AssistantExperience/AssistantMessages/InquiryReview` | 官网特有文案、产品／比较／来源、明确同意的表单 |
 | `islands/ai/preview/*` | 仅开发的场景与模拟 IO；29 个状态和连续旅程都用同一产品组件 |
 
-对话 key、turn key、消息 key 只用于前端关联，不是权限。adapter 保存真实访问凭据，view state 和展示组件不接收密钥。消息用 React 文本节点渲染，不接受原始 HTML；链接限制 HTTP／HTTPS。产品示例不用远端图片或对象存储。浏览器不保存联系人、本次内容或授权事实到 localStorage。
+对话 key、turn key、消息 key 只用于前端关联，不是权限。未来真实 adapter 负责会话凭据；view state 和展示组件不接收服务密钥。adapter 与 Experience 的配置／会话边界固定，边界变化时由调用方重新挂载，不把旧消息带到新的配置里。消息用 React 文本节点渲染，不接受原始 HTML；链接限制 HTTP／HTTPS。产品示例不用远端图片或对象存储。浏览器不保存联系人、本次内容或授权事实到 localStorage。
 
 核心形状：
 
@@ -52,7 +52,7 @@ interface AssistantAdapter {
 }
 ```
 
-null 代表结果未确认／会话不可恢复，不伪造成功。adapter 的 stop 只有在观察到相应 run 的权威终止后才返回 stopped。重复保存只用同一冻结 draft 和 submissionKey；普通提问不会调用 submitInquiry。
+null 代表结果未确认／服务器明确会话不可恢复；临时恢复失败通过错误返回，前端保留当前聊天并允许重试，不伪称过期。adapter 的 stop 只有在观察到相应 run 的权威终止后才返回 stopped。重复保存只用同一冻结 draft 和 submissionKey；普通提问不会调用 submitInquiry。
 
 ## 29 屏对应到少量状态
 
@@ -95,10 +95,12 @@ flowchart LR
 2. 完成、确认停止后不再拼接晚到 token。请求停止不等于已停止；final 先到时按完成展示，不伪称取消了已完成内容。
 3. 收起不调用 adapter.stop；卸载只断开本地读取，不声称撤销后台操作。
 4. 重试用同一请求身份与已有 cursor，不清空局部文本或追加第二份问题；确认重新回答才新建一次操作。
-5. 询盘同意默认不勾选。校验失败保留其他字段；saving／unknown 锁定冻结内容和 key。只有回执才显示保存成功。
+5. 核对询盘时显示独立表单区域，聊天记录保留在状态中，返回聊天后恢复展示。表单不跟随新消息滚到底部；未完成核对或保存结果未知时不切换历史，避免丢失资料。询盘同意默认不勾选。校验失败保留其他字段；saving／unknown 锁定冻结内容和 key。只有回执才显示保存成功。
 6. 队列序号、百分比、倒计时只在真实服务器提供时展示，本轮不造数。
 
 ## 明天的后端实施设计
+
+逐项文件范围、依赖和验收详见 [BACKEND-MIUS.md](BACKEND-MIUS.md)。
 
 这些是待实现的提案，不修改 packages/ai-contracts 或现有 handler 来假装已支持。
 

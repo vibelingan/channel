@@ -1,0 +1,37 @@
+# 官网助手前端与后端交接
+
+2026-10-30。前端组件和本地连续交互已实现，后端新增能力已设计，尚未接入真实模型／询盘保存或部署。沿用 2026-10-29 的 29 屏方向和官网现有视觉，没有修改原设计工作树里的文件。
+
+- [交付与复核记录](DELIVERY.md)：完成什么、检查证据、发现和修正、明确未完成项。
+- [设计](DESIGN.md)：现有代码缺口、组件分工、状态与系统边界。
+- [前端 MIU](MIU-PLAN.md)：原 MIU 编号、文件、完成记录和下一次待办。
+- [后端 MIU](BACKEND-MIUS.md)：按顺序接协议、恢复、停止、产品查询和正式询盘。
+- [29 个状态](screens.json)：沿用原编号。
+- [定向缺陷注入结果](STATE-GUARDS.json)：4 处 guard 移除后均被测试抓到，不代表完整安全或生产 E2E。
+
+## 打开实际组件
+
+在本分支根目录执行：
+
+```sh
+pnpm --filter @vibelingan-channel/site dev:assistant-preview --port 62058
+```
+
+打开 `http://127.0.0.1:62058/assistant-preview.html`。状态选择器用于查看各屏；选择后点 Start this journey，再从欢迎页输入问题，能连续体验停止结果未知、同一次回答恢复、询盘核对与原提交核对等流程。手机尺寸下先收起助手再切换预览状态。
+
+这是实际产品组件与模拟 IO 的组合，不是已经上线的聊天服务。正式网站目前只复用新的外壳和安全链接，仍保留原来的 API 传输行为。预览入口不会进入 Astro 构建。
+
+## 重跑检查
+
+```sh
+pnpm --filter @vibelingan-channel/site typecheck
+pnpm --filter @vibelingan-channel/site test
+pnpm exec tsc -p tsconfig.assistant-e2e.json
+node scripts/verify-assistant-state-guards.mjs
+pnpm exec playwright test --config playwright.assistant.config.ts
+pnpm --filter @vibelingan-channel/site seo:fixture /tmp/assistant-seo.json
+SEO_CATALOG_SNAPSHOT=/tmp/assistant-seo.json pnpm --filter @vibelingan-channel/site build
+node scripts/verify-assistant-ui-build.mjs
+```
+
+独立 CI 在本分支代码、场景或测试变化时自动执行。浏览器覆盖桌面和 Chromium 手机模拟尺寸；实际 iPhone 键盘、屏幕阅读器和线上代理行为还需要后续实机／部署验收。截图和机器结果保存在本地 `output/assistant-ui/`，远端检查的同名 artifact 包含该次运行的证据。
