@@ -2,7 +2,7 @@
 
 2026-10-30。本轮已完成开发、分轮独立 review、本地测试和真实模型合成验收，并已把 Hermes 代码推到远端。没有部署线上，没有发送真实邮件。
 
-Hermes 代码提交：[`05b17224`](https://github.com/vibelingan/hermesinfra/commit/05b17224fa26ca5e2853a7cb22c630a409a3d414)，分支 `feat/sales-agent-runtime`。对应远端检查见[这次代码的 CI](https://github.com/vibelingan/hermesinfra/actions/runs/40904163640)。Channel 本轮只更新这份交付记录及现有计划，官网代码不变。
+Hermes 代码提交：[`05b17224`](https://github.com/vibelingan/hermesinfra/commit/05b17224fa26ca5e2853a7cb22c630a409a3d414)，分支 `feat/sales-agent-runtime`。同一提交的 boundary／intake 两项远端 CI 均已通过，见[这次代码的 CI](https://github.com/vibelingan/hermesinfra/actions/runs/40904163640)。Channel 本轮只更新这份交付记录及现有计划，官网代码不变。
 
 ## 现在能做的事
 
@@ -57,3 +57,5 @@ Channel 存储使用事务测试适配器，HTTP、Hermes MySQL 和模型 SDK �
 下一步仍按原编号进入 SG4.1：先把固定审核版本接到 Resend 草稿与附件，先用 draft_only；人工审批和真正发送留给 SG5。线上启用时再准备客户专用配置并做合成询盘验收，现在不需要用户在聊天提供密钥。
 
 本轮没有修改定价、SEO 或其他工作树，也没有修改待批准的 UI 原稿。共用工作方法中补了恢复竞争、完整时限和真实数据库类型检查，已经在 Agentic Loop 分支提交推送；没有复制客户数据或凭据。
+
+远端结果已核对同一 SHA 并留档于 [CI 记录](SG3.2-REMOTE-CI.json)。

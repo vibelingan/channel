@@ -1,0 +1,17 @@
+{
+  "implementation_commit": "05b17224fa26ca5e2853a7cb22c630a409a3d414",
+  "branch": "feat/sales-agent-runtime",
+  "repository": "vibelingan/hermesinfra",
+  "workflow": "Sales runtime",
+  "run_id": 40904163640,
+  "url": "https://github.com/vibelingan/hermesinfra/actions/runs/40904163640",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": {
+    "boundary": "success",
+    "intake": "success"
+  },
+  "scope": "CI checked the exact Hermes code/test commit; Channel changes in this delivery are documentation only",
+  "prior_failed_run": 40902994341,
+  "prior_failure_fixed": "test-only cold-start speed assertion replaced by blocked-body behavior proof; runtime unchanged"
+}
