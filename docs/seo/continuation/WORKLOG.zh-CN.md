@@ -27,6 +27,12 @@
 
 项目指定的dev-pipeline与engineering-craft本地安装目录本轮不可用；已读项目AGENTS、ENGINEERING_CRAFT的相关规则及全局agentic-delivery-loop、humanizer、CloudBase、simplify进行当前工作，没有声称重新安装或运行缺失技能。
 
+## 写入前补充发现
+
+正式域名与临时域名的不带尾斜杠地址均实际返回308到http://，确认是旧middleware用内部HTTP构造绝对跳转。改为相对路径并保留查询参数；在旧构建上先验证新断言失败，再在新构建通过正式/临时HTTP及浏览器联测，避免HTTPS访客被降级跳转。
+
+图片情况补充精确范围：此商品HTML图片实际使用CloudBase API域名，该图200、image/jpeg、无noindex；JSON-LD使用主站/api/images/别名，同样200且无noindex，但主站robots禁止这一别名。修复是放开这个已受发布引用权限保护的主站图片路径，不是所有商品图都无法显示或无法抓取。
+
 ## 尚待本轮收尾
 
 远端精确提交CI、只更新blog-pages程序、主机现场核对、收录开关变更和线上HTTP验收。商品自动更新的02/03模块尚未实现；不把本轮Blog开放代码当作商品自动更新已启用。

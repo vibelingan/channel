@@ -9,7 +9,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (!path.endsWith('/') && !path.split('/').at(-1)?.includes('.')) {
     const canonical = new URL(context.url);
     canonical.pathname += '/';
-    response = context.redirect(canonical.href, 308);
+    // A relative target preserves HTTPS when the gateway talks plain HTTP to Node.
+    response = context.redirect(`${canonical.pathname}${canonical.search}`, 308);
   } else response = await next();
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('X-Channel-Blog-Version', releaseInfo('blog-pages').releaseId);

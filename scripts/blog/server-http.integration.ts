@@ -166,6 +166,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     redirect: 'manual',
   });
   assert.equal(temporaryRedirect.status, 308);
+  assert.equal(temporaryRedirect.headers.get('location'), '/blog/without-slash/');
   assert.equal(temporaryRedirect.headers.get('x-robots-tag'), 'noindex,nofollow');
   await temporaryRedirect.arrayBuffer();
   const draft = await repo.create({
@@ -216,6 +217,15 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     requestId: 'publish',
   });
   const response = await get('/blog/manufacturing-guide/');
+  const formalRedirect = await fetch(`${origin}/blog/manufacturing-guide?utm_source=review`, {
+    redirect: 'manual',
+  });
+  assert.equal(formalRedirect.status, 308);
+  assert.equal(
+    formalRedirect.headers.get('location'),
+    '/blog/manufacturing-guide/?utm_source=review',
+  );
+  await formalRedirect.arrayBuffer();
   assert.equal(response.status, 200, output);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   const previewOnly = process.env.BLOG_PREVIEW_ONLY !== '0';
