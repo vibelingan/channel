@@ -41,5 +41,12 @@
     "apps/site/src/islands/ai/assistant/state.ts": "c2c4918d8fea5a609650bb19620b627775e12e948f4530dec6f0a5e730a08532",
     "tests/assistant-ui/journeys.spec.ts": "a3df0234a92bfabb49aeb29f67ed7cc7ac8b4a3b402202b90f49cec54aa5b9ca",
     "scripts/verify-assistant-ui-build.mjs": "ec163ff58fd8fd9f9f0704b280e6f247605841bc5cdecdd4a66c0991f28bd036"
+  },
+  "remote_ci": {
+    "run_id": 40924018460,
+    "url": "https://github.com/vibelingan/channel/actions/runs/40924018460",
+    "head_sha": "322b2cec822cf4a47a08ce50c0f8de8a3c7df7cf",
+    "status": "completed",
+    "conclusion": "success"
   }
 }
