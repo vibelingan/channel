@@ -1,0 +1,95 @@
+{
+  "scope": "CAT-01 first slice: transaction recording component only",
+  "baseCommit": "cd1acf76892e59f8db1e40eb461f1f3014978893",
+  "sources": {
+    "packages/db/src/catalog-public-changes.ts": "585855d9b673be03c913c40e72733eefdb45dbb02b5ba308012376ef43449f1b",
+    "packages/db/src/catalog-public-changes.test.ts": "8fe223e01a50d1eda188a432bafcadde26c4d064e0fc7d7c943440b64ef96ddc",
+    "packages/db/src/catalog-public-changes.sdk.test.ts": "d041298b485f4d9e41fc3bfc79d0361121780e6c0bc638b1216641d05dd3ce95"
+  },
+  "verification": {
+    "focused": {
+      "tests": 51,
+      "passed": 51,
+      "failed": 0,
+      "nativeSdkOfflineTests": 6,
+      "command": "pnpm --filter @vibelingan-channel/db exec tsx --test src/catalog-public-changes.test.ts src/catalog-public-changes.sdk.test.ts"
+    },
+    "dbPackage": {
+      "tests": 2526,
+      "passed": 2526,
+      "failed": 0,
+      "command": "pnpm --filter @vibelingan-channel/db test"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "pnpm --filter @vibelingan-channel/db exec tsc --noEmit"
+    },
+    "sdkContract": {
+      "passed": true,
+      "command": "pnpm verify:cloudbase-sdk",
+      "executionDirectory": "complete existing validation checkout; GIT_WORK_TREE scoped to this checkout"
+    },
+    "sdkVersions": {
+      "@cloudbase/node-sdk": "3.17.2",
+      "@cloudbase/database": "1.4.3",
+      "wx-server-sdk": "4.0.2"
+    },
+    "mutations": [
+      {
+        "mutation": "drop-refresh-task",
+        "caught": true,
+        "failedTestCount": 25,
+        "representativeFailures": [
+          "publishing a product commits its public version and one pending refresh with the product",
+          "a failed refresh-record write rolls back the product and public version",
+          "a retry using the current public content neither increments its version nor wakes work"
+        ]
+      },
+      {
+        "mutation": "discard-running-owner",
+        "caught": true,
+        "failedTestCount": 3,
+        "representativeFailures": [
+          "new content preserves an existing leased owner even after its lease time",
+          "new content preserves an existing writing owner even after its lease time",
+          "new content preserves an existing needs-readback owner even after its lease time"
+        ]
+      },
+      {
+        "mutation": "reset-public-version",
+        "caught": true,
+        "failedTestCount": 8,
+        "representativeFailures": [
+          "three content changes coalesce into one latest pending task",
+          "changing content back to an earlier value is a new version rather than a duplicate",
+          "withdrawal retains a tombstone and republication continues the same version history"
+        ]
+      },
+      {
+        "mutation": "allow-blind-plan-retry",
+        "caught": true,
+        "failedTestCount": 1,
+        "representativeFailures": ["a write attempt is not blindly repeated when its result failed"]
+      },
+      {
+        "mutation": "inherit-old-retry-budget",
+        "caught": true,
+        "failedTestCount": 2,
+        "representativeFailures": [
+          "an accepted version stays acknowledged when a newer change becomes pending",
+          "new public content gets a fresh retry budget after an older pending version failed"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "businessEntrypointsConnected": false,
+    "publicProjectionDigestImplemented": false,
+    "cloudWrites": 0,
+    "cloudAcceptance": false,
+    "automaticDispatchEnabled": false,
+    "automaticHtmlRefreshEnabled": false,
+    "uiChanged": false
+  },
+  "next": "Implement complete public-content digest, then connect the inventoried product writers in the existing transactions and validate their operation budgets."
+}
