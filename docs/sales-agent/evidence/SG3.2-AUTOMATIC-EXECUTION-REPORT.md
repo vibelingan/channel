@@ -2,7 +2,7 @@
 
 2026-10-30。本轮已完成开发、分轮独立 review、本地测试和真实模型合成验收，并已把 Hermes 代码推到远端。没有部署线上，没有发送真实邮件。
 
-Hermes 代码提交：[`3d53adab`](https://github.com/vibelingan/hermesinfra/commit/3d53adab805813d9a70e3c025c4847d49bb5c5f7)，分支 `feat/sales-agent-runtime`。对应远端检查见[这次代码的 CI](https://github.com/vibelingan/hermesinfra/actions/runs/40902994341)。Channel 本轮只更新这份交付记录及现有计划，官网代码不变。
+Hermes 代码提交：[`05b17224`](https://github.com/vibelingan/hermesinfra/commit/05b17224fa26ca5e2853a7cb22c630a409a3d414)，分支 `feat/sales-agent-runtime`。对应远端检查见[这次代码的 CI](https://github.com/vibelingan/hermesinfra/actions/runs/40904163640)。Channel 本轮只更新这份交付记录及现有计划，官网代码不变。
 
 ## 现在能做的事
 
@@ -41,18 +41,18 @@ flowchart LR
 | 原来源授权、准备／归档回归 | 14/14＋14/14，通过，无跳过 |
 | 真实模型完整询盘 | 1/1，通过；`gpt-6.1-sol` 两轮模型计划、两次真实产品读取、归档 version 1 |
 | 模型适配器 | 21/21，通过；覆盖真实 SDK＋本地 HTTP、凭据、非法输出、断流、跳转和超时 |
-| 新定向缺陷注入 | 8/8 被指定测试的预期断言抓到，无存活／无效／外层超时项 |
+| 新定向缺陷注入 | 9/9 被指定测试的预期断言抓到，无存活／无效／外层超时项 |
 | 原 Dispatcher 自检 | 33 passed，0 failed |
 
 跨仓库及真实模型共 62 条不同用例通过。真实模型准备阶段实测 17.694 秒；两个文件的实际字节 hash 与长度通过核对，认证文件的字节摘要和元数据前后不变。这个样本证明接线可运行，不代表所有询盘的耗时或文案质量。
 
 Channel 存储使用事务测试适配器，HTTP、Hermes MySQL 和模型 SDK 是实际调用；因此不把这次结果当成线上 CloudBase、生产 Infra 或邮件送达验收。
 
-独立 review 及实测修复了四类问题：授权等待期间旧任务完成却被误记失败；认证文件误配为 FIFO 时阻塞；真实 MySQL 返回 Decimal 导致重试记录失败；真实 Codex 省略 Content-Type 被提前拒绝。修复后仍保留严格任务、工具、正文流及完成状态检查。首次失败、诊断和后续成功分别留档。
+独立 review 及实测修复了四类问题：授权等待期间旧任务完成却被误记失败；认证文件误配为 FIFO 时阻塞；真实 MySQL 返回 Decimal 导致重试记录失败；真实 Codex 省略 Content-Type 被提前拒绝。修复后仍保留严格任务、工具、正文流及完成状态检查。首次失败、诊断和后续成功分别留档。首轮远端 CI 另发现一条冷启动时间断言不稳定；已改为正文仍被事件屏障阻塞时必须完成错误分类，增加第九项缺陷注入，运行时代码未变。修复后 15 项模型规划器测试和 9 项缺陷注入已通过，最新整套 CI 见上方同提交链接。
 
 ## 文档和下一步
 
-完整实现、恢复规则、逐项验证、review 修复和证据索引见[Hermes 详细交付报告](https://github.com/vibelingan/hermesinfra/blob/3d53adab805813d9a70e3c025c4847d49bb5c5f7/docs/sales-agent/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)，配置和命令见[运行说明](https://github.com/vibelingan/hermesinfra/blob/3d53adab805813d9a70e3c025c4847d49bb5c5f7/docs/sales-agent/evidence/SG3.2-AUTOMATIC-RUNBOOK.md)。本轮计划先以 `296b6c74` 推送，再实施代码。
+完整实现、恢复规则、逐项验证、review 修复和证据索引见[Hermes 详细交付报告](https://github.com/vibelingan/hermesinfra/blob/05b17224fa26ca5e2853a7cb22c630a409a3d414/docs/sales-agent/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)，配置和命令见[运行说明](https://github.com/vibelingan/hermesinfra/blob/05b17224fa26ca5e2853a7cb22c630a409a3d414/docs/sales-agent/evidence/SG3.2-AUTOMATIC-RUNBOOK.md)。本轮计划先以 `296b6c74` 推送，再实施代码。
 
 下一步仍按原编号进入 SG4.1：先把固定审核版本接到 Resend 草稿与附件，先用 draft_only；人工审批和真正发送留给 SG5。线上启用时再准备客户专用配置并做合成询盘验收，现在不需要用户在聊天提供密钥。
 

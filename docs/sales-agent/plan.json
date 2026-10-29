@@ -190,7 +190,7 @@
       "status": "implemented_verified_offline",
       "live_enabled": false,
       "evidence_ref": "evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md",
-      "implementation_commit": "3d53adab805813d9a70e3c025c4847d49bb5c5f7",
+      "implementation_commit": "05b17224fa26ca5e2853a7cb22c630a409a3d414",
       "implementation_scope": "Automatic current accepted task consumer, durable queue acknowledgments, source bootstrap, current authorized reads, real typed model planner and immutable preparation archive; verified with synthetic HTTP/MySQL and real provider; no production or email",
       "remaining_runtime_integration": [
         "customer-scoped production provisioning and live synthetic acceptance",
