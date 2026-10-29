@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-29",
+  "status": "local-verified",
+  "scope": "public-content-preparation-and-shared-projection",
+  "baseCommit": "20035e39bc6a19545250644531978ae5c7c9fb30",
+  "sourceSha256": {
+    "packages/shared/package.json": "c5cd36f30fc107ce17d88d705750f3ee3d9d3d5fcf15d9fbc391934cb1e9f2c7",
+    "packages/shared/src/catalog/public-projection.ts": "e81806c4a9e9639ad3c2dd1eda7639163b5e86785b6008ff7dc060fa581d7705",
+    "packages/shared/src/catalog/public-projection.test.ts": "d9a853a8c65dad0b78c3749db6dfd4f6f1da884488a9fdc631ea8ae7113a829a",
+    "packages/db/package.json": "1ccdcd73e510f6c3b84f967748a578e410c349604f41657bce69cf46e21b20ae",
+    "packages/db/src/catalog-public-content.ts": "0823e09f631cc8080c08d56a46f6777118fbc270c6e6934b2344c5c4b958559d",
+    "packages/db/src/catalog-public-content.test.ts": "6d21c9e01f500cd525eed2fa4b15f383303b7a3dbe08ece91508ab79f4ba4e63",
+    "apps/functions/public-api/src/handler.ts": "00a1606e5ff02142965efb3b01679d4c6e07320c2335ba4472b99ae3a4152c24",
+    "apps/functions/public-api/src/catalog-detail.test.ts": "f0c8bcabe30be7f98115855785d70afccb5978b25a00df2ddff250be10beed19"
+  },
+  "checks": {
+    "database": {
+      "tests": 2571,
+      "pass": 2571,
+      "fail": 0,
+      "skipped": 0
+    },
+    "shared": {
+      "tests": 361,
+      "pass": 361,
+      "fail": 0,
+      "skipped": 0
+    },
+    "publicApi": {
+      "tests": 187,
+      "pass": 187,
+      "fail": 0,
+      "skipped": 0
+    },
+    "newTests": {
+      "contentAndComposition": 45,
+      "sharedProjection": 4,
+      "actualApiLocal": 2
+    },
+    "types": {
+      "database": "passed",
+      "shared": "passed",
+      "publicApi": "passed"
+    },
+    "sdkContract": "passed",
+    "projectionEquivalence": {
+      "status": "passed",
+      "cases": 8000,
+      "baseline": "20035e39",
+      "purpose": "projection-output-equivalence"
+    },
+    "mutations": [
+      {
+        "name": "ignore-approved-variants",
+        "caught": true,
+        "failedTests": 3
+      },
+      {
+        "name": "include-approval-revision",
+        "caught": true,
+        "failedTests": 3
+      },
+      {
+        "name": "include-private-row",
+        "caught": true,
+        "failedTests": 8
+      },
+      {
+        "name": "ignore-approved-body",
+        "caught": true,
+        "failedTests": 6
+      },
+      {
+        "name": "accept-incomplete-legacy-query",
+        "caught": true,
+        "failedTests": 1
+      },
+      {
+        "name": "ignore-public-classification",
+        "caught": true,
+        "failedTests": 2
+      },
+      {
+        "name": "drop-public-sort-tiebreaker",
+        "caught": true,
+        "failedTests": 1
+      }
+    ],
+    "publicApiArtifact": {
+      "build": "passed",
+      "healthAndLegacyProductVariantReads": "passed-offline-transport",
+      "target": "node20",
+      "host": "node22.13.0",
+      "nativeNode20Execution": false,
+      "bytes": 1737849,
+      "sha256": "f9a0c3e93a742305f7aa0402ac7e8ffd04256cde6dc57e8f3cc029ac5e8c576b"
+    }
+  },
+  "previousCommitCI": {
+    "head": "20035e39bc6a19545250644531978ae5c7c9fb30",
+    "full": {
+      "url": "https://github.com/vibelingan/channel/actions/runs/40848564252",
+      "attempt": 2,
+      "conclusion": "success",
+      "firstAttempt": "formal admin 20-product classification test timed out; code and assertion unchanged for rerun"
+    },
+    "blogHttp": {
+      "url": "https://github.com/vibelingan/channel/actions/runs/40848564207",
+      "conclusion": "success"
+    },
+    "blogOffline": {
+      "url": "https://github.com/vibelingan/channel/actions/runs/40848564208",
+      "conclusion": "success"
+    }
+  },
+  "limits": {
+    "businessEntrypointsConnected": false,
+    "publicDigestPrepared": true,
+    "publicDigestPersisted": false,
+    "consistentDatabaseSnapshotProvenByThisPureFunction": false,
+    "maximumVariantMemoryAndPreparationTimeMeasured": false,
+    "categoryFanoutImplemented": false,
+    "crossProductDuplicateTitleDependenciesImplemented": false,
+    "cloudWrites": 0,
+    "cloudAcceptance": false,
+    "automaticDispatchEnabled": false,
+    "automaticHtmlRefreshEnabled": false,
+    "uiStyleChanged": false,
+    "businessFlowChanged": false,
+    "existingEqualPositionVariantOrder": "now fixed by _id after position"
+  },
+  "next": "Bind prepared variant/public digest to approval generation, connect each real writer in its existing transaction, verify private collection permissions and isolated real-cloud behavior."
+}
