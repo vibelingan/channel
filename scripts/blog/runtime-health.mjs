@@ -24,6 +24,7 @@ export async function readFunctionRuntimeState(envId, name, request = fetchFully
     throw Error('Blog function runtime health was not confirmed');
   return {
     releaseId: health.data.releaseId,
+    catalogSeoRecording: health.data.catalogSeoRecording === true,
     articleDeliveryMode: ['static', 'server'].includes(health.data.articleDeliveryMode)
       ? health.data.articleDeliveryMode
       : undefined,

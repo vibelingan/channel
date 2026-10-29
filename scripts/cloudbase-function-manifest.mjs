@@ -69,6 +69,8 @@ export function buildFunctionDefs(ctx) {
         APP_ENV: ctx.appEnv,
         ARTICLE_PUBLIC_READ_ENABLED: ctx.optionalEnv('ARTICLE_PUBLIC_READ_ENABLED'),
         PUBLIC_API_BASE_URL: ctx.apiUrl,
+        CATALOG_SEO_PAGE_READINESS: ctx.optionalEnv('CATALOG_SEO_PAGE_READINESS'),
+        CATALOG_SEO_SITE_ORIGIN: ctx.optionalEnv('CATALOG_SEO_SITE_ORIGIN'),
         CATALOG_DETAIL_APPROVAL_ENABLED: ctx.optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED'),
         CATALOG_RFQ_ENABLED: ctx.optionalEnv('CATALOG_RFQ_ENABLED'),
         CORS_ALLOWED_ORIGINS: ctx.corsAllowedOrigins,

@@ -7,7 +7,8 @@
     "quality_profile": "showcase",
     "column_fit": "spread",
     "viewBox": [840, 540],
-    "animation": "none"
+    "animation": "none",
+    "subtitle": "代码接通，云端隔离验收与正式开启分开记录"
   },
   "participants": [
     {
@@ -26,13 +27,13 @@
       "id": "store",
       "type": "database",
       "label": "检查待办与版本",
-      "sublabel": "写入已接通，云端未开启"
+      "sublabel": "私有集合已准备，记录未开"
     },
     {
       "id": "worker",
       "type": "backend",
       "label": "内容更新任务",
-      "sublabel": "自动交付尚待实现"
+      "sublabel": "消费与增量构建已接线"
     },
     {
       "id": "host",
@@ -63,7 +64,7 @@
       "from": "api",
       "to": "worker",
       "y": 224,
-      "label": "提交后尽快唤醒，失败由待办补漏",
+      "label": "可靠唤醒仍待接通，人工入口可验收",
       "variant": "dashed"
     },
     {
@@ -95,7 +96,7 @@
       "from": "worker",
       "to": "host",
       "y": 352,
-      "label": "共享部署锁下交付差异与撤回",
+      "label": "每批短暂占用，旧数据变化即停止",
       "variant": "emphasis"
     },
     {
@@ -111,7 +112,7 @@
       "from": "worker",
       "to": "store",
       "y": 416,
-      "label": "接受当前版本，再解除占用",
+      "label": "验证当前版本，记录页面就绪状态",
       "variant": "emphasis"
     }
   ],
@@ -119,7 +120,10 @@
     {
       "dot": "orange",
       "title": "失败与恢复",
-      "items": ["保存接线已验证；后续自动交付待实现", "未知结果先读回，保留待办；恢复不回灌内容"]
+      "items": [
+        "上传器与事务保护已测试，真实验收继续执行",
+        "未知结果保留占用；失败后用当前内容重新交付"
+      ]
     }
   ]
 }

@@ -24,6 +24,7 @@ import {
   CatalogLocalPreviewContext,
   CatalogQuoteTransportContext,
 } from '../application/catalog-quote-transport.ts';
+import { localDay, useLocalDay } from './use-local-day.ts';
 
 const requirements: (keyof CatalogQuoteFields)[] = [
   'intent',
@@ -32,10 +33,6 @@ const requirements: (keyof CatalogQuoteFields)[] = [
   'customizationTypes',
   'brief',
 ];
-const localDay = () => {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
 export function CatalogQuoteSheet({
   open,
   onClose,
@@ -59,6 +56,7 @@ export function CatalogQuoteSheet({
   onIntentChange?: (value: CatalogQuoteFields['intent']) => void;
   copy: SharedDetailContent;
 }) {
+  const today = useLocalDay();
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const id = useId();
@@ -223,7 +221,7 @@ export function CatalogQuoteSheet({
           id={`${id}-${name}`}
           type={options?.type ?? 'text'}
           inputMode={name === 'quantity' ? 'numeric' : undefined}
-          min={name === 'deliveryDate' ? localDay() : undefined}
+          min={name === 'deliveryDate' ? today : undefined}
           maxLength={options?.maxLength}
           autoComplete={options?.autoComplete}
           {...register(

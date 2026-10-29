@@ -5083,6 +5083,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <div class="pulse-dot"></div>
         <h1>商品变更到静态页面更新：目标时序</h1>
       </div>
+      <p class="subtitle">代码接通，云端隔离验收与正式开启分开记录</p>
     </div>
 
     <script id="archify-guided-views-data" type="application/json">[]</script>
@@ -5132,7 +5133,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
          data-preset-badge-editorial-plate="ARCHIFY / 图版 04">
       <svg viewBox="0 0 840 540" role="img" lang="zh-CN" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
         <title id="archify-diagram-title">商品变更到静态页面更新：目标时序</title>
-        <desc id="archify-diagram-description">由 Archify 生成的时序图。</desc>
+        <desc id="archify-diagram-description">代码接通，云端隔离验收与正式开启分开记录</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -5185,11 +5186,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
         </g>
 
-        <g data-edge-from="api" data-edge-to="worker" data-edge-label="提交后尽快唤醒，失败由待办补漏" data-edge-key="2" data-edge-id="m3">
+        <g data-edge-from="api" data-edge-to="worker" data-edge-label="可靠唤醒仍待接通，人工入口可验收" data-edge-key="2" data-edge-id="m3">
           <path data-composition-edge-from="api" data-composition-edge-to="worker" data-composition-edge-id="m3" data-composition-points="283.25,224;578.75,224" d="M 283.25 224 L 578.75 224" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
         <g data-detail="context">
-          <rect x="347" y="204" width="168" height="16" rx="3" class="c-mask"/>
-          <text x="431" y="214" class="t-messagebus" font-size="9" text-anchor="middle">提交后尽快唤醒，失败由待办补漏</text>
+          <rect x="341.8" y="204" width="178.4" height="16" rx="3" class="c-mask"/>
+          <text x="431" y="214" class="t-messagebus" font-size="9" text-anchor="middle">可靠唤醒仍待接通，人工入口可验收</text>
         </g>
         </g>
 
@@ -5217,11 +5218,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
         </g>
 
-        <g data-edge-from="worker" data-edge-to="host" data-edge-label="共享部署锁下交付差异与撤回" data-edge-key="6" data-edge-id="m7">
+        <g data-edge-from="worker" data-edge-to="host" data-edge-label="每批短暂占用，旧数据变化即停止" data-edge-key="6" data-edge-id="m7">
           <path data-composition-edge-from="worker" data-composition-edge-to="host" data-composition-edge-id="m7" data-composition-points="592.75,352;733.5,352" d="M 592.75 352 L 733.5 352" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <g data-detail="context">
-          <rect x="589.525" y="332" width="147.20000000000002" height="16" rx="3" class="c-mask"/>
-          <text x="663.125" y="342" class="t-backend" font-size="9" text-anchor="middle">共享部署锁下交付差异与撤回</text>
+          <rect x="579.125" y="332" width="168" height="16" rx="3" class="c-mask"/>
+          <text x="663.125" y="342" class="t-backend" font-size="9" text-anchor="middle">每批短暂占用，旧数据变化即停止</text>
         </g>
         </g>
 
@@ -5233,11 +5234,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
         </g>
 
-        <g data-edge-from="worker" data-edge-to="store" data-edge-label="接受当前版本，再解除占用" data-edge-key="8" data-edge-id="m9">
+        <g data-edge-from="worker" data-edge-to="store" data-edge-label="验证当前版本，记录页面就绪状态" data-edge-key="8" data-edge-id="m9">
           <path data-composition-edge-from="worker" data-composition-edge-to="store" data-composition-edge-id="m9" data-composition-points="578.75,416;438,416" d="M 578.75 416 L 438 416" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <g data-detail="context">
-          <rect x="439.975" y="396" width="136.8" height="16" rx="3" class="c-mask"/>
-          <text x="508.375" y="406" class="t-backend" font-size="9" text-anchor="middle">接受当前版本，再解除占用</text>
+          <rect x="424.375" y="396" width="168" height="16" rx="3" class="c-mask"/>
+          <text x="508.375" y="406" class="t-backend" font-size="9" text-anchor="middle">验证当前版本，记录页面就绪状态</text>
         </g>
         </g>
 
@@ -5270,8 +5271,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="276.25" y="111" class="t-muted" font-size="7" text-anchor="middle">现有业务入口</text>
         </g>
 
-        <g id="node-store" data-node-id="store" data-node-label="检查待办与版本" tabindex="0" role="button" aria-label="聚焦检查待办与版本，写入已接通，云端未开启, 时序参与者" aria-pressed="false" data-node-kind="database" data-node-sublabel="写入已接通，云端未开启" data-node-context="时序参与者">
-          <title>检查待办与版本 · 写入已接通，云端未开启 · 时序参与者</title>
+        <g id="node-store" data-node-id="store" data-node-label="检查待办与版本" tabindex="0" role="button" aria-label="聚焦检查待办与版本，私有集合已准备，记录未开, 时序参与者" aria-pressed="false" data-node-kind="database" data-node-sublabel="私有集合已准备，记录未开" data-node-context="时序参与者">
+          <title>检查待办与版本 · 私有集合已准备，记录未开 · 时序参与者</title>
           <rect x="371.5" y="72" width="119" height="54" rx="6" class="c-mask"/>
           <rect x="371.5" y="72" width="119" height="54" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(377.5 78) scale(0.6875)">
@@ -5279,18 +5280,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="431" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">检查待办与版本</text>
-          <text data-detail="context" x="431" y="111" class="t-muted" font-size="7" text-anchor="middle">写入已接通，云端未开启</text>
+          <text data-detail="context" x="431" y="111" class="t-muted" font-size="7" text-anchor="middle">私有集合已准备，记录未开</text>
         </g>
 
-        <g id="node-worker" data-node-id="worker" data-node-label="内容更新任务" tabindex="0" role="button" aria-label="聚焦内容更新任务，自动交付尚待实现, 时序参与者" aria-pressed="false" data-node-kind="backend" data-node-sublabel="自动交付尚待实现" data-node-context="时序参与者">
-          <title>内容更新任务 · 自动交付尚待实现 · 时序参与者</title>
+        <g id="node-worker" data-node-id="worker" data-node-label="内容更新任务" tabindex="0" role="button" aria-label="聚焦内容更新任务，消费与增量构建已接线, 时序参与者" aria-pressed="false" data-node-kind="backend" data-node-sublabel="消费与增量构建已接线" data-node-context="时序参与者">
+          <title>内容更新任务 · 消费与增量构建已接线 · 时序参与者</title>
           <rect x="526.25" y="72" width="119" height="54" rx="6" class="c-mask"/>
           <rect x="526.25" y="72" width="119" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(532.25 78) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="585.75" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">内容更新任务</text>
-          <text data-detail="context" x="585.75" y="111" class="t-muted" font-size="7" text-anchor="middle">自动交付尚待实现</text>
+          <text data-detail="context" x="585.75" y="111" class="t-muted" font-size="7" text-anchor="middle">消费与增量构建已接线</text>
         </g>
 
         <g id="node-host" data-node-id="host" data-node-label="网站与地图" tabindex="0" role="button" aria-label="聚焦网站与地图，既有受控交付, 时序参与者" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="既有受控交付" data-node-context="时序参与者">
@@ -5520,8 +5521,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>失败与恢复</h3>
         </div>
         <ul>
-          <li>&bull; 保存接线已验证；后续自动交付待实现</li>
-          <li>&bull; 未知结果先读回，保留待办；恢复不回灌内容</li>
+          <li>&bull; 上传器与事务保护已测试，真实验收继续执行</li>
+          <li>&bull; 未知结果保留占用；失败后用当前内容重新交付</li>
         </ul>
       </div>
     </div>

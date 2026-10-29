@@ -1,4 +1,5 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { planCatalogSeoWrite, writeCatalogSeoPermit } from './catalog-seo-control.ts';
 import {
   type CatalogSeoChange,
   type CatalogSeoRecordingConfig,
@@ -130,8 +131,17 @@ export async function recordCatalogSeoWrites<T>(
         ? (after.get(key('products', id)) ?? null)
         : (before.get(key('products', id)) ?? null),
   });
-  if (reads + writes.length + requests.length > 100)
+  const permit = await planCatalogSeoWrite(
+    { get: load, set: base.set.bind(base) },
+    config,
+    changes,
+    requests,
+    settings.now ?? new Date().toISOString(),
+  );
+  const extraWrites = permit ? 1 + permit.pages.length : 0;
+  if (reads + writes.length + requests.length + extraWrites > 100)
     throw new Error('Catalog SEO transaction exceeds its operation budget');
+  await writeCatalogSeoPermit(base, permit);
   for (const write of writes) await write();
   for (const request of requests) await base.set('catalogSeoRequests', request);
   return result;

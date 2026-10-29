@@ -1,0 +1,234 @@
+{
+  "date": "2026-10-30",
+  "environment": "diversity-123-d9grnqfux221323bb",
+  "region": "ap-shanghai",
+  "scope": [
+    "catalogSeoRequests",
+    "catalogSeoTasks",
+    "catalogPublicHeads",
+    "catalogSeoPages",
+    "catalogSeoControl",
+    "catalogSeoBuilders"
+  ],
+  "operations": [
+    {
+      "collection": "catalogSeoRequests",
+      "action": "createCollection",
+      "requestId": "381e514a-1c25-4448-b5af-bb752bb6f1a9"
+    },
+    {
+      "collection": "catalogSeoRequests",
+      "action": "restrictAndReadback",
+      "permission": "ADMINONLY",
+      "requestId": null
+    },
+    {
+      "collection": "catalogSeoRequests",
+      "action": "createAndReadIndexes",
+      "expected": ["catalog_seo_request_queue"],
+      "readback": {
+        "success": true,
+        "requestId": "bb0972cd-18db-4248-ae4a-eb29a457988b",
+        "indexNum": 3,
+        "indexes": [
+          {
+            "Name": "catalog_seo_request_queue",
+            "Accesses": {
+              "Ops": 0,
+              "Since": "2026-10-29T23:09:25.653+08:00"
+            },
+            "Keys": [
+              {
+                "Name": "siteOrigin",
+                "Direction": "1"
+              },
+              {
+                "Name": "state",
+                "Direction": "1"
+              },
+              {
+                "Name": "_id",
+                "Direction": "1"
+              }
+            ],
+            "Size": 8192,
+            "Unique": false,
+            "Sparse": false,
+            "PartialFilterExpression": ""
+          },
+          {
+            "Name": "_openid_1",
+            "Accesses": {
+              "Ops": 0,
+              "Since": "2026-10-29T23:09:24.085+08:00"
+            },
+            "Keys": [
+              {
+                "Name": "_openid",
+                "Direction": "1"
+              }
+            ],
+            "Size": 8192,
+            "Unique": false,
+            "Sparse": false,
+            "PartialFilterExpression": ""
+          },
+          {
+            "Name": "_id_",
+            "Accesses": {
+              "Ops": 0,
+              "Since": "2026-10-29T23:09:24.08+08:00"
+            },
+            "Keys": [
+              {
+                "Name": "_id",
+                "Direction": "1"
+              }
+            ],
+            "Size": 4096,
+            "Unique": false,
+            "Sparse": false,
+            "PartialFilterExpression": ""
+          }
+        ],
+        "message": "获取索引列表成功",
+        "collection": "catalogSeoRequests",
+        "collectionName": "catalogSeoRequests"
+      }
+    },
+    {
+      "collection": "catalogSeoTasks",
+      "action": "createCollection",
+      "requestId": "d6e25a79-3f49-486f-b4f7-8ec60e6ea790"
+    },
+    {
+      "collection": "catalogSeoTasks",
+      "action": "restrictAndReadback",
+      "permission": "ADMINONLY",
+      "requestId": null
+    },
+    {
+      "collection": "catalogSeoTasks",
+      "action": "createAndReadIndexes",
+      "expected": ["catalog_seo_task_queue"],
+      "readback": {
+        "success": true,
+        "requestId": "9477f6e1-de7a-413d-a948-17b16b756b04",
+        "indexNum": 3,
+        "indexes": [
+          {
+            "Name": "_id_",
+            "Accesses": {
+              "Ops": 0,
+              "Since": "2026-10-29T23:09:26.389+08:00"
+            },
+            "Keys": [
+              {
+                "Name": "_id",
+                "Direction": "1"
+              }
+            ],
+            "Size": 4096,
+            "Unique": false,
+            "Sparse": false,
+            "PartialFilterExpression": ""
+          },
+          {
+            "Name": "_openid_1",
+            "Accesses": {
+              "Ops": 0,
+              "Since": "2026-10-29T23:09:26.396+08:00"
+            },
+            "Keys": [
+              {
+                "Name": "_openid",
+                "Direction": "1"
+              }
+            ],
+            "Size": 8192,
+            "Unique": false,
+            "Sparse": false,
+            "PartialFilterExpression": ""
+          },
+          {
+            "Name": "catalog_seo_task_queue",
+            "Accesses": {
+              "Ops": 0,
+              "Since": "2026-10-29T23:09:27.913+08:00"
+            },
+            "Keys": [
+              {
+                "Name": "siteOrigin",
+                "Direction": "1"
+              },
+              {
+                "Name": "state",
+                "Direction": "1"
+              },
+              {
+                "Name": "_id",
+                "Direction": "1"
+              }
+            ],
+            "Size": 8192,
+            "Unique": false,
+            "Sparse": false,
+            "PartialFilterExpression": ""
+          }
+        ],
+        "message": "获取索引列表成功",
+        "collection": "catalogSeoTasks",
+        "collectionName": "catalogSeoTasks"
+      }
+    },
+    {
+      "collection": "catalogPublicHeads",
+      "action": "createCollection",
+      "requestId": "0b853b00-c83b-4ca1-b0ff-be81119dfe05"
+    },
+    {
+      "collection": "catalogPublicHeads",
+      "action": "restrictAndReadback",
+      "permission": "ADMINONLY",
+      "requestId": null
+    },
+    {
+      "collection": "catalogSeoPages",
+      "action": "createCollection",
+      "requestId": "d0957dbc-1e2a-4e9e-af16-ac2c62788e89"
+    },
+    {
+      "collection": "catalogSeoPages",
+      "action": "restrictAndReadback",
+      "permission": "ADMINONLY",
+      "requestId": null
+    },
+    {
+      "collection": "catalogSeoControl",
+      "action": "createCollection",
+      "requestId": "c8c13845-215a-4e79-a093-0808c5fb1248"
+    },
+    {
+      "collection": "catalogSeoControl",
+      "action": "restrictAndReadback",
+      "permission": "ADMINONLY",
+      "requestId": null
+    },
+    {
+      "collection": "catalogSeoBuilders",
+      "action": "createCollection",
+      "requestId": "41236a7b-29bb-40d6-a288-c8c9330ef17d"
+    },
+    {
+      "collection": "catalogSeoBuilders",
+      "action": "restrictAndReadback",
+      "permission": "ADMINONLY",
+      "requestId": null
+    }
+  ],
+  "status": "prepared",
+  "businessDataWrites": 0,
+  "functionDeployments": 0,
+  "websiteWrites": 0,
+  "recordingEnabled": false
+}

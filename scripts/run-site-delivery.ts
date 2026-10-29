@@ -11,14 +11,18 @@ import type { ClaimedArticleRelease } from '../packages/articles/src/release-sto
 import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.ts';
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
+import { createCatalogSeoStore } from '../packages/db/src/catalog-seo-cloud.ts';
+import { readCatalogSeoRecordingConfig } from '../packages/db/src/catalog-seo-requests.ts';
 import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
 import { readFunctionRuntimeState } from './blog/runtime-health.mjs';
 import { assertBlogDeliveryOwnership, assertServerBlogReady } from './blog/server-route-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
+import { guardCatalogHostingAdapters, prepareCatalogRefresh } from './catalog-refresh.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
+import { sha256 } from './release/input.mjs';
 import { readObject } from './release/input.mjs';
 import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
@@ -78,6 +82,16 @@ const sdk = blogWorkerSdk({
   secretKey: env.TENCENTCLOUD_SECRETKEY,
 });
 const db = sdk.database();
+const catalogConfig = readCatalogSeoRecordingConfig(env);
+if (env.SITE_PRODUCT_SOURCE === 'refresh' && !catalogConfig)
+  throw Error('Enable all product writers before automatic refresh');
+if (catalogConfig && !(await readFunctionRuntimeState(policy.envId, 'admin')).catalogSeoRecording)
+  throw Error('The actual admin runtime has not enabled catalog change recording');
+if (catalogConfig && env.SITE_DELIVERY_MODE === 'restore')
+  throw Error(
+    'Historical content restoration is disabled while product recording is enabled; rebuild the approved program with current public data',
+  );
+let catalog: Awaited<ReturnType<typeof prepareCatalogRefresh>> | undefined;
 const worker = createCloudBaseArticleReleaseWorker(db);
 const coordinator = createReleaseCoordinator({
   store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
@@ -263,7 +277,7 @@ try {
   if (
     status.pendingStep ||
     status.target.currentRunId ||
-    (status.target.dirtyRunId && env.SITE_DELIVERY_MODE !== 'restore')
+    (status.target.dirtyRunId && env.SITE_DELIVERY_MODE !== 'restore' && !catalogConfig)
   )
     throw Error('An earlier delivery requires readback before another publication');
   if (blogServer) await assertServerBlogReady(policy.siteOrigin);
@@ -515,7 +529,37 @@ try {
       assertOwnedArticleDrill({ taskId: requestedTaskId, task, draft: drafts.data[0].draft });
     }
     if (requestedTaskId) claim = await worker.claim(requestedTaskId, runId);
-    if (built) {
+    if (catalogConfig)
+      catalog = await prepareCatalogRefresh(createCatalogSeoStore(db), catalogConfig, runId);
+    if (env.SITE_PRODUCT_SOURCE === 'refresh') {
+      if (!catalog || !baseline)
+        throw Error('A current accepted snapshot and checked requests are required');
+      if (baseline.envelope.codeSha !== codeSha)
+        throw Error('Content refresh must use the exact accepted website program');
+      const heads = catalog.heads.map(
+        ({ productId, visible, detailRevision, sequence, semanticHash, changedAt }) => ({
+          productId,
+          visible,
+          detailRevision,
+          sequence,
+          semanticHash,
+          changedAt,
+        }),
+      );
+      const headsFile = join(directory, 'catalog-heads.json');
+      await writeFile(headsFile, JSON.stringify(heads), { flag: 'wx' });
+      await command(
+        join(root, 'apps/site/node_modules/.bin/tsx'),
+        [
+          'apps/site/scripts/refresh-product-seo.ts',
+          join(baseline.directory, 'product-snapshot.json'),
+          headsFile,
+          productFile,
+        ],
+        root,
+        { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
+      );
+    } else if (built) {
       await writeFile(productFile, await readFile('output/seo-release/product-snapshot.json'), {
         flag: 'wx',
       });
@@ -640,8 +684,41 @@ try {
       await worker.markDeploying(claim.guard);
       deploying = true;
     }
+    const pathIds = new Map<string, string>();
+    for (const item of products.products)
+      pathIds.set(`${productPath(item.product._id).slice(1)}index.html`, item.product._id);
+    for (const head of catalog?.heads ?? [])
+      pathIds.set(`${productPath(head.productId).slice(1)}index.html`, head.productId);
+    const failedCandidates = [];
+    let dirty = (await coordinator.status({ scopeKey: 'site' })).target.dirtyRunId;
+    const seen = new Set<string>();
+    while (dirty) {
+      if (seen.has(dirty) || seen.size >= 16) throw Error('Invalid recovery history');
+      seen.add(dirty);
+      const run = await coordinator.runStatus(dirty);
+      const input = await github.downloadFailed(
+        run,
+        join(directory, `current-data-failed-${seen.size}`),
+        dirty,
+      );
+      failedCandidates.push({ run, input });
+      dirty = run.failedRunId;
+    }
+    if (failedCandidates.length && !catalog)
+      throw Error('Current-data recovery requires catalog version coordination');
+    const checkedCatalog = catalog;
     const result = await deliverStaticContent(
       {
+        ...(failedCandidates.length ? { mode: 'reconcile', failedCandidates } : {}),
+        ...(checkedCatalog
+          ? {
+              wrapAdapters: (api: Record<string, unknown>) =>
+                guardCatalogHostingAdapters(api, checkedCatalog.delivery, pathIds),
+              beforeAcceptance: () => checkedCatalog.delivery.check(),
+              // A historical snapshot would undo public content; retry a current-data candidate instead.
+              allowRecovery: async () => false,
+            }
+          : {}),
         coordinator,
         provider,
         guard,
@@ -655,6 +732,22 @@ try {
       },
       { policy, scopeKey: 'site' },
     );
+    if (catalog && result.status === 'accepted') {
+      // Unchanged HTML can still acknowledge a checked, identical public version.
+      for (let offset = 0; offset < catalog.heads.length; offset += 12) {
+        const batch = catalog.heads.slice(offset, offset + 12);
+        const ticket = await catalog.delivery.begin(batch.map((h) => h.productId));
+        await catalog.delivery.end(ticket, 'verified');
+      }
+      await catalog.delivery.accept(
+        catalog.heads.map((h) => {
+          const path = `${productPath(h.productId).slice(1)}index.html`;
+          const bytes = files.get(path);
+          if (h.visible && !bytes) throw Error('Accepted product HTML is absent');
+          return { productId: h.productId, htmlSha256: h.visible && bytes ? sha256(bytes) : null };
+        }),
+      );
+    }
     if (claim) {
       if (result.status === 'accepted' && result.receipt)
         await worker.complete(claim.guard, result.receipt);

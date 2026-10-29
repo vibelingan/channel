@@ -48,8 +48,9 @@
       "col": 1,
       "type": "messagebus",
       "label": "唤醒并合并更新",
-      "sublabel": "自动消费待实现",
-      "tag": "待接入"
+      "sublabel": "消费已接线，唤醒待接通",
+      "tag": "部分已实现",
+      "width": 150
     },
     {
       "id": "build",
@@ -57,8 +58,8 @@
       "col": 2,
       "type": "backend",
       "label": "刷新商品静态正文",
-      "sublabel": "复用已验收程序与快照",
-      "tag": "部分已有",
+      "sublabel": "复用快照，只读变化详情",
+      "tag": "代码已实现",
       "width": 150
     },
     {
@@ -67,8 +68,9 @@
       "col": 3,
       "type": "security",
       "label": "受控交付并验收",
-      "sublabel": "共享锁、版本核对、恢复",
-      "tag": "已有基础"
+      "sublabel": "每批占用，结果不明先读回",
+      "tag": "代码已接通",
+      "width": 150
     },
     {
       "id": "discover",

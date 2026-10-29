@@ -614,7 +614,7 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
       const request = jsonCopy(input);
       const key = id(request.runId);
       const operationTime = now();
-      if (!['adopt', 'initialize', 'publish', 'restore'].includes(request.kind))
+      if (!['adopt', 'initialize', 'publish', 'restore', 'reconcile'].includes(request.kind))
         fail('INVALID_RUN_KIND');
       scopeId(request.scopeKey);
       if (request.kind === 'initialize' && request.scopeKey !== 'canary')
@@ -650,7 +650,15 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
           return freeze(existing);
         }
         if (target.currentRunId || target.unresolvedOperation) fail('UNRESOLVED_OPERATION');
-        if (target.dirtyRunId && request.kind !== 'restore') fail('RECOVERY_REQUIRED');
+        if (target.dirtyRunId && !['restore', 'reconcile'].includes(request.kind))
+          fail('RECOVERY_REQUIRED');
+        if (
+          request.kind === 'reconcile' &&
+          (!failureId ||
+            request.scopeKey !== 'site' ||
+            request.deliveredComponents?.join(',') !== 'static')
+        )
+          fail('INVALID_RECONCILIATION');
         if (
           ['adopt', 'initialize'].includes(request.kind) &&
           (scope.active !== null || target.dirtyRunId)
@@ -668,7 +676,7 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
           fail('INVALID_RESTORE_SOURCE');
         if (
           failureId &&
-          (request.kind !== 'restore' ||
+          (!['restore', 'reconcile'].includes(request.kind) ||
             failed?.targetId !== targetId ||
             failed.scopeKey !== request.scopeKey ||
             failed.state !== 'FAILED' ||

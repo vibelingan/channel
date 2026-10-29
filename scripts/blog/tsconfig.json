@@ -8,5 +8,10 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["./*.ts", "../run-site-delivery.ts"]
+  "include": [
+    "./*.ts",
+    "../run-site-delivery.ts",
+    "../catalog-refresh.ts",
+    "../run-catalog-seo-probe.ts"
+  ]
 }

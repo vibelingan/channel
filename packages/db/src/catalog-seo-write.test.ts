@@ -74,7 +74,10 @@ test('invalid reserved operation budgets fail before calling the business operat
     let called = false;
     await assert.rejects(
       recordCatalogSeoWrites(
-        { get: async () => before, set: async () => {} },
+        {
+          get: async (collection: string) => (collection === 'products' ? before : null),
+          set: async () => {},
+        },
         config,
         async () => {
           called = true;
@@ -89,7 +92,7 @@ test('invalid reserved operation budgets fail before calling the business operat
 test('a business exception flushes no writes and read-after-write remains rejected', async () => {
   const writes: CollectionDoc[] = [];
   const base = {
-    get: async () => before,
+    get: async (collection: string) => (collection === 'products' ? before : null),
     set: async (_: string, row: CollectionDoc) => {
       writes.push(row);
     },
@@ -116,7 +119,7 @@ test('a transaction ending at its original public content produces no request', 
   const writes: Array<{ collection: string; row: CollectionDoc }> = [];
   await recordCatalogSeoWrites(
     {
-      get: async () => before,
+      get: async (collection: string) => (collection === 'products' ? before : null),
       set: async (collection, row) => {
         writes.push({ collection, row });
       },
@@ -138,7 +141,7 @@ test('buffered data is isolated from later caller mutation and delivery leases r
   const writes: Array<{ collection: string; row: CollectionDoc }> = [];
   await recordCatalogSeoWrites(
     {
-      get: async () => before,
+      get: async (collection: string) => (collection === 'products' ? before : null),
       set: async (collection, row) => {
         writes.push({ collection, row });
       },
@@ -150,19 +153,19 @@ test('buffered data is isolated from later caller mutation and delivery leases r
       changed.name = 'Uncommitted later mutation';
     },
   );
-  assert.equal(writes[0]?.row.name, 'Changed');
+  assert.equal(writes.find((write) => write.collection === 'products')?.row.name, 'Changed');
   assert.deepEqual(
     writes.map((w) => w.collection),
-    ['products', 'catalogSeoRequests'],
+    ['catalogSeoControl', 'products', 'catalogSeoRequests'],
   );
 });
 
 test('the native 100-operation boundary includes the request and preserves existing large approval capacity', async () => {
-  for (const count of [98, 99]) {
+  for (const count of [96, 97]) {
     const writes: string[] = [];
     const run = recordCatalogSeoWrites(
       {
-        get: async () => before,
+        get: async (collection: string) => (collection === 'products' ? before : null),
         set: async (collection) => {
           writes.push(collection);
         },
@@ -174,9 +177,9 @@ test('the native 100-operation boundary includes the request and preserves exist
           await tx.set('approvalRows', { _id: `row-${index}` });
       },
     );
-    if (count === 98) {
+    if (count === 96) {
       await run;
-      assert.equal(writes.length, 99);
+      assert.equal(writes.length, 98);
       assert.equal(writes.at(-1), 'catalogSeoRequests');
     } else {
       await assert.rejects(run, /operation budget/);

@@ -30,6 +30,9 @@ export async function deliverStaticContent(
     request = fetchFully,
     postCheck = async (_context) => {},
     adapterOptions = {},
+    wrapAdapters = (api) => api,
+    beforeAcceptance = async () => {},
+    allowRecovery = async () => true,
     requireUnchangedFiles = false,
     publicProductPaths = /** @type {string[]} */ ([]),
     readPublicProductPaths = async () => publicProductPaths,
@@ -40,7 +43,7 @@ export async function deliverStaticContent(
   const target = { envId: policy.envId, site: policy.siteOrigin };
   if (
     identity(provider.target) !== identity(target) ||
-    !['publish', 'restore', 'adopt'].includes(mode)
+    !['publish', 'restore', 'adopt', 'reconcile'].includes(mode)
   )
     throw new Error('Invalid Blog delivery target');
   let started = false;
@@ -158,20 +161,23 @@ export async function deliverStaticContent(
       plan: hostingCoordinatorPlan(plan, configurationPlan),
     });
     started = true;
-    const adapters = createHostingRecoveryAdapters({
-      ...adapterOptions,
-      plan,
-      directory: source.directory,
-      configurationPlan,
-      coordinator,
-      guard,
-      runId: key,
-      provider,
-      request,
-      errorDocument,
-    });
+    const adapters = wrapAdapters(
+      createHostingRecoveryAdapters({
+        ...adapterOptions,
+        plan,
+        directory: source.directory,
+        configurationPlan,
+        coordinator,
+        guard,
+        runId: key,
+        provider,
+        request,
+        errorDocument,
+      }),
+    );
     await executeHostingRecovery(plan, adapters);
     await postCheck({ action, plan });
+    await beforeAcceptance({ source, action });
     const committed = await coordinator.commitRun({
       guard,
       runId: key,
@@ -190,7 +196,7 @@ export async function deliverStaticContent(
       status.target.lease.fence !== guard.fence ||
       status.pendingStep ||
       status.target.currentRunId ||
-      (status.target.dirtyRunId && mode !== 'restore')
+      (status.target.dirtyRunId && !['restore', 'reconcile'].includes(mode))
     )
       throw new Error('Blog delivery target is busy or unresolved');
     if (status.target.dirtyRunId) {
@@ -276,7 +282,12 @@ export async function deliverStaticContent(
     }
     return {
       status: 'accepted',
-      receipt: await execute(input, runId, baseline ? 'publish' : 'initialize', owned),
+      receipt: await execute(
+        input,
+        runId,
+        mode === 'reconcile' ? 'reconcile' : baseline ? 'publish' : 'initialize',
+        owned,
+      ),
     };
   } catch (error) {
     try {
@@ -309,6 +320,11 @@ export async function deliverStaticContent(
           return {
             status: 'unknown',
             reason: 'No accepted recovery target; stopped without recursive recovery',
+          };
+        if (!(await allowRecovery()))
+          return {
+            status: 'unknown',
+            reason: 'Current public content changed; historical content was not restored',
           };
         // Recover exactly the baseline checked before the first write, once only.
         try {

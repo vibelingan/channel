@@ -78,3 +78,37 @@ test('legacy refresh errors retain public body and expose a retry instead of fai
   assert.match(html, /role="alert"/);
   assert.ok(html.includes(content.list.retryLabel));
 });
+
+test('first delivery uses the existing dynamic route and later acceptance restores its stable URL', async () => {
+  const { productBrowserPath } = await import('./product-identity.ts');
+  assert.equal(
+    productBrowserPath({ ...product, publicPageReady: false }),
+    '/products/item/?id=canonical-product',
+  );
+  assert.equal(productBrowserPath({ ...product, publicPageReady: true }), productPath(product._id));
+  assert.equal(productBrowserPath(product), productPath(product._id));
+  const page = productPageDescriptor(
+    {
+      product,
+      revision: 'legacy',
+      publicVersion: { sequence: 1, semanticHash: 'a'.repeat(64), changedAt: null },
+    },
+    'https://example.com',
+    'Brand',
+  );
+  assert.equal(page.content.updatedAt, undefined);
+  const updated = productPageDescriptor(
+    {
+      product,
+      revision: 'legacy',
+      publicVersion: {
+        sequence: 2,
+        semanticHash: 'b'.repeat(64),
+        changedAt: '2026-10-30T00:00:00.000Z',
+      },
+    },
+    'https://example.com',
+    'Brand',
+  );
+  assert.equal(updated.content.updatedAt, '2026-10-30T00:00:00.000Z');
+});

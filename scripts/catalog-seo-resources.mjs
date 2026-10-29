@@ -24,11 +24,14 @@ export const CATALOG_SEO_NOSQL_RESOURCES = Object.freeze([
       ]),
     }),
   ),
-  Object.freeze({
-    collectionName: 'catalogPublicHeads',
-    permission: 'ADMINONLY',
-    indexes: Object.freeze([]),
-  }),
+  ...['catalogPublicHeads', 'catalogSeoPages', 'catalogSeoControl', 'catalogSeoBuilders'].map(
+    (collectionName) =>
+      Object.freeze({
+        collectionName,
+        permission: 'ADMINONLY',
+        indexes: Object.freeze([]),
+      }),
+  ),
 ]);
 
 export function ensureCatalogSeoNoSqlResources(callTool, log = console.log) {

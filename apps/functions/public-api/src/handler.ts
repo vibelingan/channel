@@ -7,6 +7,7 @@ import {
   list,
   readCatalogImageReference,
 } from '@vibelingan-channel/db';
+import type { CatalogSeoPageReader } from '@vibelingan-channel/db/catalog-seo-pages';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -57,6 +58,7 @@ export interface CatalogQuery {
 }
 
 export interface PublicApiConfig {
+  catalogPages?: CatalogSeoPageReader;
   apiBaseUrl?: string;
   /**
    * Portal session-signing secret (same value the admin function signs with).
@@ -263,9 +265,19 @@ export async function listCatalog(
     collection,
     result.items.filter((_, index) => projections[index]?.kind === 'row'),
   );
+  const availability =
+    collection === 'products'
+      ? await pageAvailability(
+          config,
+          result.items.map((doc) => doc._id),
+        )
+      : null;
   return ok({
     items: result.items.map((doc, index) => {
-      const projected = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
+      const base = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
+      const projected = availability
+        ? { ...base, publicPageReady: availability.get(doc._id) === true }
+        : base;
       const own = variants.get(doc._id);
       // Only products that actually have variants gain the key, so existing
       // legacy and Alibaba-linked payloads stay byte-identical.
@@ -291,7 +303,9 @@ export async function getCatalogItem(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(await withVariants(collection, doc, publicItem(collection, doc, config, viewer)));
+  const item = await withVariants(collection, doc, publicItem(collection, doc, config, viewer));
+  const availability = collection === 'products' ? await pageAvailability(config, [doc._id]) : null;
+  return ok(availability ? { ...item, publicPageReady: availability.get(doc._id) === true } : item);
 }
 
 export async function getCatalogItemBySlug(
@@ -308,7 +322,9 @@ export async function getCatalogItemBySlug(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(await withVariants('products', doc, publicItem('products', doc, config, viewer)));
+  const item = await withVariants('products', doc, publicItem('products', doc, config, viewer));
+  const availability = await pageAvailability(config, [doc._id]);
+  return ok(availability ? { ...item, publicPageReady: availability.get(doc._id) === true } : item);
 }
 
 /** Attach variants to one already-projected document, when it has any. */
@@ -482,4 +498,17 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
 
 export function parseCatalogName(pathPart: string): PublicCatalog | null {
   return isPublicCatalog(pathPart) ? pathPart : null;
+}
+
+async function pageAvailability(
+  config: PublicApiConfig,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, boolean> | null> {
+  if (!config.catalogPages) return null;
+  try {
+    return await config.catalogPages.read(ids);
+  } catch {
+    console.warn('[public-api] page availability is unavailable; use the dynamic detail entry');
+    return new Map();
+  }
 }

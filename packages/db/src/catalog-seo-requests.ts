@@ -47,6 +47,7 @@ export const CatalogSeoRequestSchema = z.discriminatedUnion('kind', [
     .extend({
       kind: z.literal('family'),
       family: z.enum(['headphones', 'ai-gadgets', 'toys', 'misc']),
+      cursor: id.optional(),
     })
     .strict(),
 ]);
@@ -143,26 +144,7 @@ export function catalogSeoRequests(
       })),
     ...[...families].sort().map((family) => ({ kind: 'family' as const, family })),
   ];
-  return targets.map((target) =>
-    CatalogSeoRequestSchema.parse({
-      ...target,
-      schemaVersion: 1,
-      siteOrigin: config.siteOrigin,
-      state: 'pending',
-      requestedAt: now,
-      token: randomUUID(),
-      _id: createHash('sha256')
-        .update(
-          JSON.stringify([
-            'catalog-seo-request-v1',
-            config.siteOrigin,
-            target.kind,
-            'productId' in target ? target.productId : target.family,
-          ]),
-        )
-        .digest('hex'),
-    }),
-  );
+  return targets.map((target) => createCatalogSeoRequest(config.siteOrigin, target, now));
 }
 
 /** The local adapter calls this immediately before its existing atomic file rename. */
@@ -245,4 +227,31 @@ function variantContent(
     };
   }
   return { value: publicVariant(row), position: row.position };
+}
+
+export function createCatalogSeoRequest(
+  siteOrigin: string,
+  target:
+    | { kind: 'product'; productId: string; previouslyPublic: boolean }
+    | { kind: 'family'; family: string },
+  now: string,
+): CatalogSeoRequest {
+  return CatalogSeoRequestSchema.parse({
+    ...target,
+    schemaVersion: 1,
+    siteOrigin,
+    state: 'pending',
+    requestedAt: now,
+    token: randomUUID(),
+    _id: createHash('sha256')
+      .update(
+        JSON.stringify([
+          'catalog-seo-request-v1',
+          siteOrigin,
+          target.kind,
+          'productId' in target ? target.productId : target.family,
+        ]),
+      )
+      .digest('hex'),
+  });
 }

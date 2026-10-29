@@ -1,5 +1,5 @@
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
-import { isPlainProductClick, productPath } from '../../lib/seo/product-identity.ts';
+import { isPlainProductClick, productBrowserPath } from '../../lib/seo/product-identity.ts';
 import { CatalogPagination } from './CatalogPagination.tsx';
 import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
@@ -46,7 +46,7 @@ function CatalogProductCard({
   const identifier = product.skuCode ?? product.modName ?? product.productCode;
   return (
     <a
-      href={productPath(product._id)}
+      href={productBrowserPath(product)}
       data-product-card={product._id}
       onClick={(event) => {
         if (isPlainProductClick(event)) {

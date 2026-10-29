@@ -1,3 +1,4 @@
+import { planCatalogSeoWrite, writeCatalogSeoPermit } from './catalog-seo-control.ts';
 import { catalogSeoRequests, readCatalogSeoRecordingConfig } from './catalog-seo-requests.ts';
 import {
   catalogSeoRecordingConfig,
@@ -326,7 +327,9 @@ export async function saveCatalogProductInCloudBase(
     const seoRequests = seo
       ? catalogSeoRequests([{ collection: 'products', before: existing, after: plan.doc }], seo, now)
       : [];
+    const seoPermit = seo ? await planCatalogSeoWrite(operationTx, seo, [{collection:'products',before:existing,after:plan.doc}],seoRequests,now) : undefined;
 
+    await writeCatalogSeoPermit(operationTx,seoPermit);
     if (actorRef) {
       const acknowledgement = await actorRef.update({ classificationAuthFence: randomUUID() });
       if (

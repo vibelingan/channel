@@ -42,7 +42,13 @@
     "./article-public-reader": "./src/article-public-reader.ts",
     "./catalog-public-content": "./src/catalog-public-content.ts",
     "./catalog-seo-requests": "./src/catalog-seo-requests.ts",
-    "./catalog-seo-write": "./src/catalog-seo-write.ts"
+    "./catalog-seo-write": "./src/catalog-seo-write.ts",
+    "./catalog-seo-consumer": "./src/catalog-seo-consumer.ts",
+    "./catalog-seo-cloud": "./src/catalog-seo-cloud.ts",
+    "./catalog-public-changes": "./src/catalog-public-changes.ts",
+    "./catalog-seo-control": "./src/catalog-seo-control.ts",
+    "./catalog-seo-pages": "./src/catalog-seo-pages.ts",
+    "./catalog-seo-delivery": "./src/catalog-seo-delivery.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

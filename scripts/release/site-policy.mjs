@@ -67,7 +67,7 @@ export function assertSiteDeliveryInvocation(env) {
         env.SITE_ARTICLE_TASK_ID ||
         env.SITE_DELIVERY_FAULT === 'after-upload')) ||
     normal !== (env.SITE_DELIVERY_BUILT_INPUT === '1') ||
-    !['fresh', 'accepted'].includes(env.SITE_PRODUCT_SOURCE ?? 'fresh') ||
+    !['fresh', 'accepted', 'refresh'].includes(env.SITE_PRODUCT_SOURCE ?? 'fresh') ||
     !['none', 'after-upload'].includes(env.SITE_DELIVERY_FAULT ?? 'none') ||
     (env.SITE_DELIVERY_FAULT === 'after-upload' &&
       (env.SITE_DELIVERY_MODE !== 'publish' ||

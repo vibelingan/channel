@@ -10,6 +10,10 @@ import { renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import {
+  createCatalogSeoPageReader,
+  readCatalogSeoPageOrigin,
+} from '@vibelingan-channel/db/catalog-seo-pages';
 import { readCatalogSeoRecordingConfig } from '@vibelingan-channel/db/catalog-seo-requests';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
@@ -277,7 +281,15 @@ app.get('/api/files/:id', async (req, res) => {
 // `getCatalogItem`) for the same parity reason as the image route above — in
 // particular the public field allowlist and the server-side role-gated VIP
 // tier (verified from the Bearer token) must not drift between the two.
+const catalogPageOrigin = readCatalogSeoPageOrigin(process.env);
 const catalogConfig = {
+  ...(catalogPageOrigin
+    ? {
+        catalogPages: createCatalogSeoPageReader(catalogPageOrigin, async (ids) =>
+          adapter.readCatalogSeoPageRows(ids),
+        ),
+      }
+    : {}),
   jwtSecret: config.jwtSecret,
   enableInquiries: config.enableInquiries === true,
   enableCatalogDetail: config.enableDetailApproval === true,

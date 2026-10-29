@@ -67,7 +67,7 @@ export const CatalogPublicHeadSchema = z
     visible: z.boolean(),
     semanticHash: digest,
     detailRevision: identity.nullable(),
-    changedAt: timestamp,
+    changedAt: timestamp.nullable(),
     latestEventId: digest,
   })
   .strict();
@@ -123,7 +123,7 @@ export interface CatalogPublicChangeStore {
 }
 
 export type CatalogPublicChangePlan = Readonly<{
-  kind: 'unchanged' | 'metadata' | 'changed';
+  kind: 'unchanged' | 'metadata' | 'changed' | 'initialized';
   productId: string;
   siteOrigin: string;
   sequence: number | null;
@@ -151,7 +151,7 @@ export async function planCatalogPublicChange(
   if (!request.success) throw new CatalogPublicChangeError('INVALID_INPUT');
   const { siteOrigin, before, after, now } = request.data;
   const productId = after.productId;
-  const recordId = hash(['catalog-public-record-v1', siteOrigin, productId]);
+  const recordId = catalogPublicRecordId(siteOrigin, productId);
   const headRow = await store.get('catalogPublicHeads', recordId);
   const taskRow = await store.get('catalogSeoTasks', recordId);
   let head: CatalogPublicHead | null = null;
@@ -186,7 +186,7 @@ export async function planCatalogPublicChange(
     nextSequence = (head?.sequence ?? 0) + 1;
     if (!Number.isSafeInteger(nextSequence))
       throw new CatalogPublicChangeError('PUBLIC_SEQUENCE_EXHAUSTED');
-    if (head && Date.parse(now) < Date.parse(head.changedAt))
+    if (head?.changedAt && Date.parse(now) < Date.parse(head.changedAt))
       throw new CatalogPublicChangeError('PUBLIC_CLOCK_REGRESSION');
     const semanticHash = stateHash(after);
     const nextHead = CatalogPublicHeadSchema.parse({
@@ -240,4 +240,74 @@ export async function writeCatalogPublicChange(
   // After a partial/unknown write, retry the entire transaction, never this plan in isolation.
   record.attempted = true;
   for (const write of record.writes) await store.set(write.collection, structuredClone(write.row));
+}
+
+export function catalogPublicRecordId(siteOrigin: string, productId: string): string {
+  return hash(['catalog-public-record-v1', origin.parse(siteOrigin), identity.parse(productId)]);
+}
+
+/** An untracked version needs delivery proof, but its original publication time is unknown. */
+export async function planCatalogPublicRefresh(
+  store: CatalogPublicChangeStore,
+  input: unknown,
+): Promise<CatalogPublicChangePlan> {
+  const { siteOrigin, after, now } = z
+    .object({ siteOrigin: origin, after: CatalogPublicStateSchema, now: timestamp })
+    .strict()
+    .parse(input);
+  const recordId = catalogPublicRecordId(siteOrigin, after.productId);
+  const old = await store.get('catalogPublicHeads', recordId);
+  if (old) {
+    const head = CatalogPublicHeadSchema.parse(old);
+    const before: CatalogPublicState = head.visible
+      ? {
+          productId: head.productId,
+          visible: true,
+          semanticHash: head.semanticHash,
+          detailRevision: head.detailRevision,
+        }
+      : { productId: head.productId, visible: false };
+    return planCatalogPublicChange(store, { siteOrigin, before, after, now });
+  }
+  if (await store.get('catalogSeoTasks', recordId))
+    throw new CatalogPublicChangeError('CORRUPT_RECORD');
+  const semanticHash = stateHash(after);
+  const head = CatalogPublicHeadSchema.parse({
+    _id: recordId,
+    schemaVersion: 1,
+    siteOrigin,
+    productId: after.productId,
+    sequence: 1,
+    visible: after.visible,
+    semanticHash,
+    detailRevision: after.visible ? after.detailRevision : null,
+    changedAt: null,
+    latestEventId: hash([siteOrigin, after.productId, 1, semanticHash]),
+  });
+  const task = CatalogSeoTaskSchema.parse({
+    _id: recordId,
+    schemaVersion: 1,
+    siteOrigin,
+    productId: after.productId,
+    requestedSequence: 1,
+    acceptedSequence: 0,
+    state: 'pending',
+    attempts: 0,
+    lease: null,
+  });
+  const plan = Object.freeze({
+    kind: 'initialized' as const,
+    productId: after.productId,
+    siteOrigin,
+    sequence: 1,
+  });
+  prepared.set(plan, {
+    store,
+    writes: [
+      { collection: 'catalogPublicHeads', row: head },
+      { collection: 'catalogSeoTasks', row: task },
+    ],
+    attempted: false,
+  });
+  return plan;
 }

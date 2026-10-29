@@ -220,6 +220,9 @@ jobs:
       - name: Verify standalone recovery drill bundle on deployed runtime
         run: node --test scripts/release-drill/build.integration.test.mjs
 
+      - name: Verify isolated catalog probe on deployed runtime
+        run: node --test scripts/catalog-probe-build.test.mjs
+
       - name: Verify restricted draft importer on deployed runtime and retain its independent package
         run: node scripts/blog/article-import-package.mjs
 

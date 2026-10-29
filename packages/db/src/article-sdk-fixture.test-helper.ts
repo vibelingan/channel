@@ -51,6 +51,10 @@ function matches(row: Row, query: Record<string, unknown>): boolean {
   return Object.entries(query).every(([path, expected]) => {
     const value = nested(row, path);
     if (typeof expected !== 'object' || expected === null) return value === expected;
+    if ('$in' in expected) {
+      if (!Array.isArray(expected.$in)) throw Error('Invalid offline in query');
+      return expected.$in.includes(value);
+    }
     if ('$gt' in expected) return typeof value === 'string' && value > String(expected.$gt);
     if ('$regex' in expected)
       return typeof value === 'string' && new RegExp(String(expected.$regex)).test(value);

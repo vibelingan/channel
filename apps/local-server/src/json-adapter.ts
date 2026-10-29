@@ -111,6 +111,10 @@ import {
   runCatalogRowMutation,
 } from '@vibelingan-channel/db/catalog-row-mutation';
 import {
+  catalogSeoControlId,
+  planCatalogSeoWriteFromControl,
+} from '@vibelingan-channel/db/catalog-seo-control';
+import {
   type CatalogSeoRecordingConfig,
   CatalogSeoRecordingConfigSchema,
   catalogSeoRequestsForStore,
@@ -696,6 +700,40 @@ export class JsonFileAdapter implements DbAdapter {
           new Date().toISOString(),
         );
         if (requests.length) {
+          const previousProducts = new Map((previous.products ?? []).map((row) => [row._id, row]));
+          const nextProducts = new Map((this.store.products ?? []).map((row) => [row._id, row]));
+          const changes = requests.flatMap((request) =>
+            request.kind === 'product'
+              ? [
+                  {
+                    collection: 'products',
+                    before: previousProducts.get(request.productId) ?? null,
+                    after: nextProducts.get(request.productId) ?? null,
+                  },
+                ]
+              : [],
+          );
+          const controlId = catalogSeoControlId(this.catalogSeo.siteOrigin);
+          const permit = planCatalogSeoWriteFromControl(
+            (previous.catalogSeoControl ?? []).find((row) => row._id === controlId) ?? null,
+            this.catalogSeo,
+            changes,
+            requests,
+            new Date().toISOString(),
+          );
+          if (permit) {
+            const controls = new Map(
+              (this.store.catalogSeoControl ?? []).map((row) => [row._id, row]),
+            );
+            controls.set(permit.control._id, permit.control);
+            const pages = new Map((this.store.catalogSeoPages ?? []).map((row) => [row._id, row]));
+            for (const page of permit.pages) pages.set(page._id, page);
+            this.store = {
+              ...this.store,
+              catalogSeoControl: [...controls.values()],
+              catalogSeoPages: [...pages.values()],
+            };
+          }
           const existing = new Map(
             (this.store.catalogSeoRequests ?? []).map((row) => [row._id, row]),
           );
@@ -747,6 +785,13 @@ export class JsonFileAdapter implements DbAdapter {
   ): Promise<string | null> {
     return this.withMutationLock(() =>
       firstApprovalImageHold(this.docs('catalogDetailApprovals'), imageId, startedAfter),
+    );
+  }
+
+  readCatalogSeoPageRows(ids: readonly string[]): CollectionDoc[] {
+    const wanted = new Set(ids);
+    return structuredClone(
+      (this.load().catalogSeoPages ?? []).filter((row) => wanted.has(row._id)),
     );
   }
 

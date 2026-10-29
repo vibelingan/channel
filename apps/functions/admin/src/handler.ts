@@ -196,6 +196,7 @@ export interface AdminConfig {
   articleQueueStatus?: () => Promise<{ hasQueued: boolean; hasUnknown: boolean }>;
   enableArticleReleases?: boolean;
   articleDeliveryMode?: 'static' | 'server';
+  catalogSeoRecording?: boolean;
   enableInquiries?: boolean;
   /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
   enableDetailApproval?: boolean;
@@ -638,6 +639,7 @@ export async function handleAdminRequest(
         return ok({
           ...releaseInfo('admin'),
           articleDeliveryMode: config.articleDeliveryMode ?? 'static',
+          catalogSeoRecording: config.catalogSeoRecording === true,
           articlePublishingEnabled: config.enableArticleReleases === true,
         });
       case 'articleQueueStatus':

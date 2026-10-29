@@ -46,7 +46,14 @@ function fixture({ failReadback = false } = {}) {
 test('SEO resources are explicit function-only collections outside the default deploy manifest', () => {
   assert.deepEqual(
     CATALOG_SEO_NOSQL_RESOURCES.map((item) => item.collectionName),
-    ['catalogSeoRequests', 'catalogSeoTasks', 'catalogPublicHeads'],
+    [
+      'catalogSeoRequests',
+      'catalogSeoTasks',
+      'catalogPublicHeads',
+      'catalogSeoPages',
+      'catalogSeoControl',
+      'catalogSeoBuilders',
+    ],
   );
   assert.ok(
     CATALOG_SEO_NOSQL_RESOURCES.every(
@@ -58,7 +65,14 @@ test('SEO resources are explicit function-only collections outside the default d
   );
   assert.equal(
     REQUIRED_NOSQL_RESOURCES.some((item) =>
-      ['catalogSeoRequests', 'catalogSeoTasks', 'catalogPublicHeads'].includes(item.collectionName),
+      [
+        'catalogSeoRequests',
+        'catalogSeoTasks',
+        'catalogPublicHeads',
+        'catalogSeoPages',
+        'catalogSeoControl',
+        'catalogSeoBuilders',
+      ].includes(item.collectionName),
     ),
     false,
   );
@@ -74,7 +88,7 @@ test('explicit SEO preparation creates only its collections and verifies permiss
   assert.ok([...current.permissions.values()].every((value) => value === 'ADMINONLY'));
   assert.equal(
     current.calls.filter((item) => item.args.action === 'getResourcePermission').length,
-    6,
+    12,
   );
   assert.ok(
     current.calls.every((item) =>

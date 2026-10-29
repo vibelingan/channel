@@ -9,6 +9,8 @@ import { parseDocument } from 'yaml';
 import { serverBlogBuild } from '../../scripts/release/public-build-env.mjs';
 import { readBlogBuild } from './src/lib/blog/snapshot.ts';
 import { seoGate } from './src/lib/seo/integration.ts';
+import { productSitemapDates } from './src/lib/seo/product-sitemap.ts';
+import { decodeProductSnapshot } from './src/lib/seo/product-snapshot.ts';
 import {
   includeInSitemap as includePage,
   isSitemapPathIncluded as includePath,
@@ -28,6 +30,11 @@ const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
 const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
 const blogServer = serverBlogBuild(env);
+const productDates = env.SEO_CATALOG_SNAPSHOT
+  ? productSitemapDates(
+      decodeProductSnapshot(JSON.parse(readFileSync(env.SEO_CATALOG_SNAPSHOT, 'utf8')), site),
+    )
+  : new Map<string, string>();
 const blog = blogServer ? { snapshot: null } : await readBlogBuild(site);
 
 const catalogSource = readFileSync(
@@ -65,6 +72,10 @@ export default defineConfig({
   integrations: [
     react(),
     sitemap({
+      serialize: (item) => {
+        const date = productDates.get(item.url);
+        return date ? { ...item, lastmod: date } : item;
+      },
       filter: (page) =>
         blogServer && new URL(page).pathname.startsWith('/blog') ? false : includeInSitemap(page),
       ...(blogServer ? { customSitemaps: [`${site}/blog/sitemap.xml`] } : {}),

@@ -36,7 +36,7 @@ test('the production catalog mutation sends the product and SEO request in the s
   const writes = fixture.calls.filter((call) => call.api === 'database.modifyDocument');
   assert.deepEqual(
     writes.map((call) => call.params.collectionName),
-    ['products', 'catalogSeoRequests'],
+    ['catalogSeoControl', 'products', 'catalogSeoRequests'],
   );
   assert.equal(new Set(writes.map((call) => call.params.transactionId)).size, 1);
   assert.equal(
@@ -231,7 +231,7 @@ test('the supplier lease fence, product and request share one native commit; a l
   const writes = fixture.calls.filter((call) => call.api === 'database.modifyDocument');
   assert.deepEqual(
     writes.map((call) => call.params.collectionName),
-    ['alibabaSyncLeases', 'products', 'catalogSeoRequests'],
+    ['alibabaSyncLeases', 'catalogSeoControl', 'products', 'catalogSeoRequests'],
   );
   assert.equal(new Set(writes.map((call) => call.params.transactionId)).size, 1);
   const saved = structuredClone([...fixture.rows]);
@@ -326,74 +326,85 @@ test('legacy atomic approval accepts the installed SDK acknowledgement for a new
 });
 
 test('legacy approval retains all 46 variants within the native operation limit with SEO enabled', async (t) => {
-  const fixture = articleSdkFixture(t);
-  nativeDatabase(fixture.db);
-  const header = {
-    _id: 'p',
-    schemaVersion: 'catalog-product-detail-v1',
-    name: 'Headset',
-    images: [],
-    facts: [],
-    offers: [],
-  };
-  const variants = Array.from({ length: 46 }, (_, position) => ({
-    _id: `v${position}`,
-    productId: 'p',
-    sku: `SKU-${position}`,
-    optionValues: { Color: `${position}` },
-    position,
-    imageIds: [],
-    detailSourceOwner: 'alibaba:source',
-    detailSourceRevision: 'r1',
-    detailSourceMissing: false,
-    detailSourceCandidate: {
-      id: `v${position}`,
-      options: [],
-      images: [],
-      offers: [],
-      inventory: { state: 'unknown' },
-    },
-  }));
-  const product = {
-    _id: 'p',
-    name: 'Headset',
-    published: true,
-    imageIds: [],
-    detailSourceReady: true,
-    detailSourceOwner: 'alibaba:source',
-    detailSourceRevision: 'r1',
-    detailSourceCandidate: header,
-    detailSourceManifest: { revision: 'r1', variantIds: variants.map((v) => v._id) },
-  };
-  fixture.put('products', 'p', product);
-  fixture.put('users', 'admin', { role: 'admin' });
-  for (const variant of variants) fixture.put('productVariants', variant._id, variant);
-  const result = await approveCatalogDetailInCloud(
-    fixture.db,
-    'admin',
-    {
-      productId: 'p',
-      operationId: '12345678-1234-4234-8234-123456789012',
-      expectedRevision: null,
-      expectedDigest: catalogApprovalDigest(product, variants),
-    },
-    config,
-  );
-  assert.ok(result.ok, JSON.stringify(result));
-  assert.equal(result.variants, 46);
-  for (const variant of variants)
-    assert.equal(
-      fixture.rows.get(`productVariants/${variant._id}`)?.catalogDetailRevision,
-      result.revision,
-    );
-  assert.equal(
-    [...fixture.rows].filter(([key]) => key.startsWith('catalogSeoRequests/')).length,
-    1,
-  );
-  assert.ok(
-    fixture.calls.filter((c) => ['database.getDocument', 'database.modifyDocument'].includes(c.api))
-      .length <= 100,
-  );
+  for (const withImage of [false, true])
+    await t.test(withImage ? 'with one shared image' : 'without images', async (t) => {
+      const fixture = articleSdkFixture(t);
+      nativeDatabase(fixture.db);
+      const header = {
+        _id: 'p',
+        schemaVersion: 'catalog-product-detail-v1',
+        name: 'Headset',
+        images: [],
+        facts: [],
+        offers: [],
+      };
+      const variants = Array.from({ length: 46 }, (_, position) => ({
+        _id: `v${position}`,
+        productId: 'p',
+        sku: `SKU-${position}`,
+        optionValues: { Color: `${position}` },
+        position,
+        imageIds: [],
+        detailSourceOwner: 'alibaba:source',
+        detailSourceRevision: 'r1',
+        detailSourceMissing: false,
+        detailSourceCandidate: {
+          id: `v${position}`,
+          options: [],
+          images: [],
+          offers: [],
+          inventory: { state: 'unknown' },
+        },
+      }));
+      const product = {
+        _id: 'p',
+        name: 'Headset',
+        published: true,
+        imageIds: withImage ? ['shared-image'] : [],
+        detailSourceReady: true,
+        detailSourceOwner: 'alibaba:source',
+        detailSourceRevision: 'r1',
+        detailSourceCandidate: header,
+        detailSourceManifest: { revision: 'r1', variantIds: variants.map((v) => v._id) },
+      };
+      if (withImage) {
+        fixture.put('images', 'shared-image', {
+          status: 'active',
+          storageProvider: 'cloudbase-storage',
+          publishedRefCount: 1,
+        });
+      }
+      fixture.put('products', 'p', product);
+      fixture.put('users', 'admin', { role: 'admin' });
+      for (const variant of variants) fixture.put('productVariants', variant._id, variant);
+      const result = await approveCatalogDetailInCloud(
+        fixture.db,
+        'admin',
+        {
+          productId: 'p',
+          operationId: '12345678-1234-4234-8234-123456789012',
+          expectedRevision: null,
+          expectedDigest: catalogApprovalDigest(product, variants),
+        },
+        config,
+      );
+      assert.ok(result.ok, JSON.stringify(result));
+      assert.equal(result.variants, 46);
+      for (const variant of variants)
+        assert.equal(
+          fixture.rows.get(`productVariants/${variant._id}`)?.catalogDetailRevision,
+          result.revision,
+        );
+      assert.equal(
+        [...fixture.rows].filter(([key]) => key.startsWith('catalogSeoRequests/')).length,
+        1,
+      );
+      assert.ok(
+        fixture.calls.filter((c) =>
+          ['database.getDocument', 'database.modifyDocument'].includes(c.api),
+        ).length <= 100,
+      );
+    });
 });
 
 test('the dedicated product form save commits its public creation and request together', async (t) => {

@@ -6,6 +6,10 @@ import { setAdapter } from '@vibelingan-channel/db';
  * Access / gateway routing is configured later in P0.9.
  */
 import { createCloudBasePublicArticles } from '@vibelingan-channel/db/article-public-reader';
+import {
+  createCloudCatalogSeoPageReader,
+  readCatalogSeoPageOrigin,
+} from '@vibelingan-channel/db/catalog-seo-pages';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -20,6 +24,7 @@ initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
 setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
+const catalogPageOrigin = readCatalogSeoPageOrigin(process.env);
 const config: PublicHttpConfig = {
   ...(optionalEnv('ARTICLE_PUBLIC_READ_ENABLED') === '1'
     ? {
@@ -30,6 +35,14 @@ const config: PublicHttpConfig = {
       }
     : {}),
   enableCatalogDetail: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
+  ...(catalogPageOrigin
+    ? {
+        catalogPages: createCloudCatalogSeoPageReader(
+          cloudStorageSdk().database(),
+          catalogPageOrigin,
+        ),
+      }
+    : {}),
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   ...(optionalEnv('PUBLIC_API_BASE_URL') ? { apiBaseUrl: optionalEnv('PUBLIC_API_BASE_URL') } : {}),
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')

@@ -69,6 +69,10 @@ test('the actual admin cloud entry injects its CloudBase article repository with
       import.meta.url,
     ),
     '@vibelingan-channel/db': { setAdapter() {} },
+    '@vibelingan-channel/db/catalog-seo-requests': tsxRequire(
+      '../packages/db/src/catalog-seo-requests.ts',
+      import.meta.url,
+    ),
     '@vibelingan-channel/db/cloudbase': {
       initCloudBase() {},
       cloudBaseAdapter: {},
@@ -114,6 +118,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   const entry = {};
   runInNewContext(compiled, {
     exports: entry,
+    process: { env: {} },
     require: (name) => {
       assert.ok(Object.hasOwn(modules, name), `Unexpected runtime import: ${name}`);
       return modules[name];
@@ -130,6 +135,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   articleMode = 'server';
   runInNewContext(compiled, {
     exports: {},
+    process: { env: {} },
     require: (name) => {
       assert(Object.hasOwn(modules, name));
       return modules[name];

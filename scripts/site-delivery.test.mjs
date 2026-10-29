@@ -439,3 +439,40 @@ test('a recovery checkpoint accepts unchanged files but refuses any upload or re
   assert.equal(accepted.status, 'accepted');
   assert.equal(f.writes.length, 0);
 });
+
+test('current-data recovery replaces a failed candidate without resurrecting the accepted historical content', async (t) => {
+  const f = await setup(t);
+  const b = f.source('B');
+  const failed = await f.deliver(b.input, 'publish', {
+    allowRecovery: async () => false,
+    postCheck: async () => {
+      throw Error('confirmed failure');
+    },
+  });
+  assert.equal(failed.status, 'unknown');
+  const status = await f.coordinator.status({ scopeKey: 'site' });
+  const dirty = await f.coordinator.runStatus(status.target.dirtyRunId);
+  f.expireLease();
+  await f.coordinator.reconcile({
+    expectedVersion: status.target.version,
+    expectedFence: status.target.lease.fence,
+    proof: {
+      runnerRef: status.target.lease.runnerRef,
+      job: { status: 'completed', evidenceRef: 'finished-owner' },
+      cloud: {
+        status: 'quiescent',
+        operationId: null,
+        observedHash: null,
+        evidenceRef: 'all-storage-requests-terminal',
+      },
+      checkedAt: f.now(),
+    },
+  });
+  const c = f.source('C');
+  const result = await f.deliver(c.input, 'reconcile', {
+    failedCandidates: [{ run: dirty, input: b.input }],
+  });
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  for (const [path, bytes] of c.data) assert.deepEqual(f.files.get(path), bytes);
+  assert.equal((await f.coordinator.status({ scopeKey: 'site' })).target.dirtyRunId, null);
+});
