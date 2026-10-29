@@ -110,6 +110,11 @@ import {
   isCatalogRowCollection,
   runCatalogRowMutation,
 } from '@vibelingan-channel/db/catalog-row-mutation';
+import {
+  type CatalogSeoRecordingConfig,
+  CatalogSeoRecordingConfigSchema,
+  catalogSeoRequestsForStore,
+} from '@vibelingan-channel/db/catalog-seo-requests';
 import { planSourceInvalidation } from '@vibelingan-channel/db/catalog-source-invalidation';
 import { runCategoryCommand } from '@vibelingan-channel/db/category-transaction';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
@@ -568,11 +573,17 @@ export class JsonFileAdapter implements DbAdapter {
   }
   private readonly file: string;
   private store: Store;
+  private readonly catalogSeo: CatalogSeoRecordingConfig | undefined;
 
   constructor(
     file: string,
     private readonly enablePublicInquiries = false,
+    catalogSeo?: CatalogSeoRecordingConfig,
   ) {
+    this.catalogSeo =
+      catalogSeo === undefined
+        ? undefined
+        : Object.freeze(CatalogSeoRecordingConfigSchema.parse(catalogSeo));
     this.file = resolve(file);
     this.claimProcessOwnership();
     this.store = this.load();
@@ -675,9 +686,28 @@ export class JsonFileAdapter implements DbAdapter {
   private persist(): void {
     mkdirSync(dirname(this.file), { recursive: true });
     const temporaryFile = `${this.file}.${process.pid}.${randomUUID()}.tmp`;
+    const previous = this.catalogSeo ? this.load() : undefined;
     try {
+      if (this.catalogSeo && previous) {
+        const requests = catalogSeoRequestsForStore(
+          previous,
+          this.store,
+          this.catalogSeo,
+          new Date().toISOString(),
+        );
+        if (requests.length) {
+          const existing = new Map(
+            (this.store.catalogSeoRequests ?? []).map((row) => [row._id, row]),
+          );
+          for (const request of requests) existing.set(request._id, request);
+          this.store = { ...this.store, catalogSeoRequests: [...existing.values()] };
+        }
+      }
       writeFileSync(temporaryFile, JSON.stringify(this.store, null, 2), 'utf8');
       renameSync(temporaryFile, this.file);
+    } catch (error) {
+      if (previous) this.store = previous;
+      throw error;
     } finally {
       rmSync(temporaryFile, { force: true });
     }

@@ -2,81 +2,81 @@
 
 ## 先看摘要
 
-事务记录组件、公开内容摘要及本地测试已完成。公开接口已复用同一份字段挑选规则；商品保存、审批、同步和分类事务还没有接入记录组件，也没有创建云端集合或启用自动更新。
+商品保存、公开审批、供应商写入和分类维护的实际入口，现已接入可靠的更新记录；本地文件版和 CloudBase 事务版都已写代码并运行测试。默认开关仍关闭，本轮没有部署函数、创建云端集合或修改真实商品。完整自动更新 HTML 尚需模块 03，不能把本模块的代码验收说成商品已经自动重建。
 
-这一块的目标是记住“哪个商品真的变了，需要更新它的页面”。客户保存商品时，商品与待办一起写入；任何一半失败就都不算成功，避免接口已改但页面更新永远漏掉。几次连续修改可以合成最新一版，失败会留下待办，不要求客户再点保存。它本身不生成HTML，也不通知Google。所有实际商品写入入口都需要接入，私有草稿和内部同步状态不触发更新。解释见[先读说明](EXPLAIN.zh-CN.md)。
+上一段完成的是“给出修改前后两份资料，可以判断公开内容有没有变化”。这一段补上“客户实际点击保存后，系统会留下持久待办”。Google/Bing 不会监听后台的保存操作；后续程序先更新网站上的 HTML，搜索引擎再访问网址获取新内容。
 
-## 需求
+例如把商品名称从 A 改成 B：后台保存成功后，商品数据和一条待办一起提交；网页内的 API 可读到 B。后续页面程序消费这条待办，把托管服务器上的 HTML 更新成 B。用户和搜索引擎下次打开同一网址，才会直接收到新 HTML。没有把 HTML 主动上传到 Google。
 
-商品新增公开、修改已公开内容、换分类、撤回、重新公开，都要有可靠更新记录；私有草稿或同步任务只改变内部状态时不触发重建。记录与业务写入在同一事务中完成，不能商品保存成功而待办凭空丢失。失败不能靠客户再次点保存补救。
+## 实现为什么分两次判断
 
-## MIU CAT-01：公开版本与待办同事务提交
+保存商品时先判断“有没有必要重新检查”，把待办与业务数据放在同一个事务。后台不生成 HTML，也不请求 GitHub。稍后再完整比较公开正文、全部批准变体和分类；内容相同就结束检查，不重建页面。
 
-### 现状
+这是对最初设计的修正：CloudBase 官方事务只支持按文档读写，不支持事务内 `where` 查询；还有 100 次文档操作和 30 秒限制。现有发布支持分批准备大量变体，不能为了 SEO 在每次保存中读取全部变体。参考：[官方事务限制](https://docs.cloudbase.net/database/transaction)、[可靠待办的事务模式](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)。本轮使用已安装的 Node SDK 3.17.2 / database 1.4.3 验证，没有添加 SDK 类型或不存在的方法。
 
-`catalog-product-state.ts::advanceCatalogProduct`已有内容、生命周期和分类版本；`catalog-product-operation.ts`提交批准快照。`catalog-publication-fingerprint.ts`已有业务指纹，但它不是完整公开页面摘要，不能直接把这个值当SSG所有输入的版本。公开列表DTO也没有稳定的公开版本字段，不能靠列表名称或URL不变判断正文没变。
+| 保存时做什么 | 后续页面程序做什么（尚待模块 03） |
+| --- | --- |
+| 从当前事务已读到的商品资料，检查公开字段、批准版本和变体变化 | 读取一致的完整公开内容，复用 `catalog-public-content.ts` 比较 |
+| 写一条 `catalogSeoRequests`，每个站点/商品一条，连续修改替换其识别码 | 有实质变化才调用现有 `catalog-public-changes.ts` 写公开版本和交付任务 |
+| 分类名称、路径等变化只写一条分类待办，不扫描商品 | 分批找受影响商品，留下每批进度 |
+| 私有草稿、同步时间、内部计数不留下待办 | 相同正文重新审批，即使批准编号不同，也不重建、不改 lastmod |
 
-### 数据与归属
+批准编号变了，可能指向新的变体集合，所以保存时要检查一次；它本身不能证明正文变了。不能把“需要检查”和“必须构建”当成同一件事。
 
-仅新增服务端集合，浏览器拒绝直接读写，不改商品业务schema的含义：
+## 已接入的入口
 
-```ts
-type PublicHead = {
-  productId: string; sequence: number; visible: boolean;
-  semanticHash: string; detailRevision: string | null;
-  changedAt: string; latestEventId: string;
-};
-type RefreshTask = {
-  productId: string; requestedSequence: number; acceptedSequence: number;
-  state: 'pending'|'leased'|'writing'|'accepted'|'needs-readback';
-  attempts: number; lease: null | { runId: string; until: number };
-};
-```
-
-`catalogPublicHeads`与`catalogSeoTasks`按商品ID确定编号，同站点明确绑定。sequence为安全整数，只在实际公开投影变化时递增；撤回保留visible=false的墓碑，不删除记录。semanticHash由规范化后的公开列表字段、已批准的实际公开详情内容、分类路径及公开图片引用组成，不含内部价格、同步时间和构建时间。detailRevision用于读回和分页一致性，不把这个不透明编号本身当成内容变化：相同公开内容重新审批得到新编号，也不应凭此重建或伪造lastmod。现有source invalidation会forceContent，原始contentGeneration也不能直接当作公开语义版本。若当前审批摘要含内部字段，需在已有批准快照上增加明确的公开摘要；不能靠散列整份DB文档省略这一步。
-
-在现有事务中读公开前后状态，计算完整公开投影差异，再写head和最新待办。重复请求已由业务回执认领，不再重复加版本。旧商品无head时以当前公开投影初始化，不能把缺字段一律当撤回。已有发布器先登记已验收快照对应版本，初始化只读核对，不重新公开商品。
-
-### 写入方接入清单
-
-至少核对实际存在的`catalog-row-mutation.ts`、`catalog-product-operation.ts`、`category-transaction.ts`、`catalog-source-invalidation.ts`、`alibaba-product-identity.ts`、adapter.ts及其CloudBase事务入口；批准详情与旧后台入口也要列明。它们不都是同一个函数的调用者。实施时逐项记下事务、读写字段、公开影响和测试，不凭一次rg就说全部覆盖。供应商同步只有改变真正公开投影才排队。
-
-本轮在当前代码上补读了下面这些具体位置，作为下一段实现的入口；这不是宣称所有写入方已经接完：
-
-| 已核对的位置 | 看到的实际行为 | 接入时必须防止什么 |
+| 用户或程序的动作 | 实际代码入口 | 本轮验证方式 |
 | --- | --- | --- |
-| `catalog-product-operation.ts::publishOperation`末尾 | 商品、完成回执和批准证明在同一事务写入；详情使用immutable-v1版本 | 只监听`published`布尔值，会漏掉已经公开商品重新批准的新正文 |
-| `catalog-row-mutation.ts::runCatalogRowMutation` | 商品创建/修改/删除；变体和源资料改变时也可推进父商品版本 | 内部输入版本变化不一定改变已批准的公开内容，不能全部重建 |
-| `catalog-source-invalidation.ts::planSourceInvalidation` | 同一值的绑定写入也可能只用于并发协调；另一路会forceContent | 不能把一次锁定或contentGeneration增加当作公开正文变了 |
-| `category-transaction.ts::runCategoryCommand` | 除分类指派外，还分派mapping和taxonomy命令；有些路径写规则而不写商品 | 不能只在一处商品保存函数挂钩，就说分类路径变化全部覆盖 |
-| `catalog-taxonomy-transaction.ts` | 独立的分类注册表事务入口 | 需核对分类名称/路径变更影响哪些已公开页面，并为这些商品留下待办 |
-| `alibaba-product-identity.ts::runAlibabaProductMutation` | 多条分支经writeProduct写商品，并与来源绑定/租约一同提交 | 保留现有同步互斥与审核流程，仅按公开投影判断是否排队 |
-| `cloudbase-adapter.ts`与`catalog-detail-staging.ts` | 前者有真实CloudBase事务，后者接入批准工作流 | 待办必须在真实事务内写入，不能仅让本地假存储测试通过 |
-| `adapter.ts`的持久化本地实现 | 与CloudBase适配器并非处处调用同一个函数 | 两种适配器的公开变化行为都要验收，不凭相同类型签名推定一致 |
+| 后台商品表单保存 | `cloudbase-adapter.ts::saveCatalogProductInCloudBase` | 当前安装 SDK 的真实入口测试；业务写入和待办使用同一事务 |
+| 普通商品/变体新增、修改、撤回、删除 | `mutateCatalogRowInCloudBase` → 原 `runCatalogRowMutation` | 实际 SDK、重复保存、变体换父商品、失败一起回滚 |
+| 同步程序持有现有租约写商品或变体 | `upsertDocWithAlibabaLeaseInCloudBase` / `updateDocWithAlibabaLeaseInCloudBase` | SDK 核对租约、商品、待办同次提交；旧租约不写入 |
+| 供应商绑定、解绑等 | `mutateAlibabaProductInCloud` → 原供应商事务 | 实际解绑测试；保留原绑定校验和同步互斥 |
+| 现有整套后台发布流程最后公开 | `persistStagedApprovalInCloud` → `runProductOperation` | 先经真实 Admin 协议完成准备，再用安装 SDK 提交公开商品、完成回执和待办；重试不换识别码 |
+| 旧式整次批准和已有分批批准 | `approveCatalogDetailInCloud` / `persistStagedApprovalInCloud` | 公开版本切换；新建回执；46 个变体全部保留且不超事务上限 |
+| 分类指派、分类登记表维护 | `manageCatalogCategoryInCloud` → 原分类命令 | 分类级待办；内部 fence/revision 变化不排队；不扫描商品 |
+| 准备任务中的父商品写入 | `manageCatalogPreparationJobInCloudBase` → 原准备命令 | 沿用同一记录包装；仅内部资料变化不会排队 |
+| 本地开发用的所有持久化写入 | `JsonFileAdapter.persist` | 在已有文件锁内比较，与商品一起临时文件写入、原子换名；真实 Admin 发布、撤回、重开与磁盘失败测试 |
 
-先在这些入口的现有测试中补公开前后投影与事务失败案例，再接公共记录模块。分类批量影响需要有界枚举和可靠待办；不能在一个事务中无上限扫描全部商品。逐项覆盖及最终接入结果仍待CAT-01代码实现。
+源资料观察另有直接写入路径。已读 `catalog-source-invalidation.ts`：该路径只保留原商品或推进内部输入计数，不改变公开投影；它不直接生成页面待办。真正公开资料在批准版本切换时留下待办。图片准备、引用计数、询盘和文章数据也不因本轮多排商品任务。
 
-核心形状：
+公开 API 的字段、价格权限、现有保存与发布协议保持原样；没有增加客户审批步骤，没有 UI 改动。已公开商品重新批准同样覆盖，不能只监听 `published` 从 false 变 true。
 
-```ts
-const change = await planPublicChange(tx, beforePublic, afterPublic); // 先读版本与待办，完成计算
-await tx.writeProduct(next);
-await writePublicChange(tx, change); // 同一事务，只写已算好的结果
-```
+## 数据、并发和失败处理
 
-这里的planPublicChange/writePublicChange是拟新增模块，不是现有API。沿用仓库“所有读取与计算在前，写入在后”的事务组织，不在写完商品后再临时读取版本。完整公开详情的摘要应在已有批准流程准备好，事务内核对其不可变版本与证明，不逐件扫描全部变体来算散列。SDK调用沿用现有Node SDK适配，不给wx类型补不存在的方法。上云前按仓库SDK合同核对官方与安装包，确认新增集合权限。
+`catalogSeoRequests` 每条只有站点、商品或分类 ID、随机识别码、请求时间、pending/checked 状态及“此前公开过”的提示，不存商品正文、价格或私有资料。识别码用于分清先后两次修改，与 AI token、费用无关。
 
-独立分类事务若实际改变多个公开页的投影，应在同一次提交留下分类级待办，再有界分批派生成商品待办并保存进度；不能让分类事务无上限扫描或写全部商品。重复分派仍以当前公开投影、商品版本与分类版本核对，不增加重复版本。是否影响商品正文、分类页或仅后台配置，要以03实际使用的投影为准，不把所有分类维护都当作商品重建。
+相同商品连续修改替换同一条待办，换新识别码；重复保存相同公开候选值不换码。一个事务内先改成 B 再改回 A，不多排待办。不同商品和不同站点使用不同记录。已有 `catalogSeoTasks` 的执行者、占用和重试次数不由保存入口改写。
 
-### 取舍和测试
+CloudBase 版先完成读取与计算，再执行原业务写入和待办写入。待办写入被拒绝、回执无效或提交失败，异常退出原事务，商品也不提交。SDK 并发重试会重新读取最新商品，保留他人已提交的私有字段。额外 SEO 写入算进 100 次文档操作；分批审批保留既有上限，不把全部变体塞回保存事务。单次批准仍沿用原有较小上限。
 
-不让每个页面手动发GitHub请求；也不把HTTP外部调用放数据库事务里。外部唤醒失败不会丢待办。
+本地版使用已有文件锁和原子换名；磁盘写入失败，文件和适配器内存均退回之前的内容。仅启用此功能时多读一次本地 JSON 文件；它是开发适配器开销，不是访客请求或生产数据库路径。
 
-测试：公开新增/修改/撤回/重发分别递增；相同投影、相同内容重新审批与重试不递增；事务失败不留下半个待办；老数据初始化；人工保存、分类移动和供应商同步都覆盖；并发变更序号严格单调；不同商品与内部草稿不相互阻塞。
+后续消费待办时，必须按“读到的识别码仍是最新”确认完成；旧检查不得把新修改标成已处理。读取全部公开内容后，还要核对商品批准指针、父商品输入计数、分类版本，防止读到混合版本。交付前也要核对最新待办，不能只看之前生成的公开版本序号。上述消费与交付保护属于模块 03，当前尚未接线。
+
+## 开启前的步骤和停止条件
+
+本轮只准备代码，不开启云端记录。开关默认 `CATALOG_SEO_RECORDING=0`；开启需要显式 `CATALOG_SEO_SITE_ORIGIN`（规范 HTTPS 站点，不带末尾斜杠），有 `SITE_URL` 时必须一致。公开详情开关沿用 `CATALOG_DETAIL_APPROVAL_ENABLED`，admin 与同步函数一致配置。
+
+1. 在已确认的目标环境，显式调用 `ensureCatalogSeoNoSqlResources`，准备 `catalogSeoRequests`、`catalogPublicHeads`、`catalogSeoTasks`，读回服务端专用权限和队列索引。它们不加入默认部署的资源清单，也不向浏览器开放。
+2. 在现有 test 部署流程配置上述变量。正常发布从 GitHub 环境变量取值并传给两个写入函数；不能只改云控制台，否则下一次部署可能清除设置。public-api 不启用写入开关。
+3. 使用独立测试商品验证公开、修改、重复保存、撤回、事务拒绝和并发，再读回商品与待办。普通客户商品不作为故障注入对象。
+4. 模块 03 完成消费、交付和版本核对后，才开启自动 HTML 更新；观察旧待办没有吞掉新修改、撤回结果和已有发布恢复链路。
+
+权限或索引读回不符、站点不匹配、SDK 回执异常、业务测试失败就停止开启。恢复先关闭记录开关，保留已提交待办；不删除记录、不回灌商品数据。未启用前的保存行为保持原样。真实云端验收仍未执行。
+
+## MIU 与验收
+
+CAT-01 已完成记录组件、完整公开比较与实际写入入口的代码接线。当前本地验收和远端检查结果见 README 与工作记录；云端集合、开关和真实数据库验收单列，不据此宣称已上线。CAT-02 负责可靠唤醒、积压补漏和请求消费，仍待下一段；商品 HTML 交付是模块 03。
+
+专项代码：`catalog-seo-requests*.ts`、`catalog-seo-write*.ts`、`catalog-seo-writing.sdk.test.ts`、本地 `catalog-seo-writing.test.ts`。覆盖实际业务入口、文件和原生 SDK 提交失败、同商品合并、并发重试、站点隔离、租约失效、变体移动、公开/私有边界和事务容量。安装 SDK 的网络层用离线传输替换，这不等于真实云库验收。
+
+## 早期组件记录
+
+下面记录此前的组件交付。早期“在每次保存中直接计算完整公开摘要并写 head/task”的接入方案已由上面的轻量待办设计替代；组件保留给后续消费程序使用。
 
 ## CAT-01分段实施记录
 
-### 第一段：事务记录组件（代码与本地验证完成）
+### 先前完成的事务记录组件（历史步骤）
 
 现有商品变更事务还没有公开版本与页面更新待办。先实现`packages/db/src/catalog-public-changes.ts`，由调用方传入已核对的变更前后公开摘要；组件不接收整份商品文档，不自行猜测哪些内部字段可以公开。
 
@@ -91,7 +91,7 @@ await tx.set('products', nextProduct);
 await writeCatalogPublicChange(tx, plan); // 只写记录，不再发起读取
 ```
 
-`before/after`包含商品ID、是否公开、完整公开内容的SHA-256和当前详情版本。详情版本只用于读取，单独变化不增加内容序号，也不更新lastmod。公开内容摘要的生成和真实写入方接线属于下一段，不能用`publicationContentFingerprint`替代。
+`before/after`包含商品ID、是否公开、完整公开内容的SHA-256和当前详情版本。详情版本只用于读取，单独变化不增加内容序号，也不更新lastmod。这是当时的组件边界；公开摘要与写入方接线现按上面的实施设计完成。不能用`publicationContentFingerprint`替代公开摘要。
 
 约束：调用方必须持有同一数据库事务或本地文件写锁；组件不提交事务、不发送HTTP、不调用GitHub、不生成HTML。新增商品从1开始；连续修改只保留同一商品的一条最新待办。正在交付或结果未知的任务仍保留原执行者和待确认状态，即使租期过了也不能由新变化擅自释放。
 
@@ -101,7 +101,7 @@ await writeCatalogPublicChange(tx, plan); // 只写记录，不再发起读取
 
 五次故意破坏检查也均被测试捕获：漏写待办、丢失执行者、版本重置、盲目重复写入，以及让新内容继承旧版本已耗尽的重试次数。原文件均已恢复并复测。
 
-SDK测试实际运行`@cloudbase/node-sdk 3.17.2`和`@cloudbase/database 1.4.3`，网络层替换为既有离线测试传输；它不是CloudBase模拟器，更不是真实云库验收。没有改SDK类型声明、现有业务接口或部署流程。未接入业务入口前，只报告组件结果。
+SDK测试实际运行`@cloudbase/node-sdk 3.17.2`和`@cloudbase/database 1.4.3`，网络层替换为既有离线测试传输；它不是CloudBase模拟器，更不是真实云库验收。没有改SDK类型声明、现有业务接口或部署流程。这份历史记录只证明当时的组件结果；本轮接入与测试另见上方。
 
 ### 第二段：公开内容摘要（代码与本地验证完成）
 
@@ -123,16 +123,9 @@ SDK测试实际运行`@cloudbase/node-sdk 3.17.2`和`@cloudbase/database 1.4.3`�
 
 两种存储适配器分别验证，重新核算CloudBase操作预算，保留分类登记表变化的有界分派路径。只有逐项接线、私有集合权限和真实数据库验收完成后，才标记CAT-01完成；CAT-02与商品SSG自动交付仍独立交付。
 
-## MIU CAT-02：可靠唤醒与补漏
 
-事务提交后异步唤醒受限调度器，待办是事实来源。首次通知丢失、回复丢失、服务重启都由保留待办恢复。几秒内连续变更合成每个商品最高sequence；撤回优先，不因常规合并窗口额外等待。
+## CAT-02：可靠唤醒与补漏（待实现）
 
-调度器只启动指定仓库、已验收源码与指定内容更新入口。推荐GitHub App短期安装令牌，权限仅本仓库Actions写和必要的Contents读；不在浏览器、助手或商品记录里存GitHub个人长期令牌。已有安全凭据若不能覆盖这项能力，部署前单独完成授权，不能把CloudBase管理密钥当GitHub凭据。
+保存事务成功后可尝试一次轻量唤醒；唤醒失败不丢待办。后台定期检查仍为 pending 的记录，并按固定顺序分批消费。必须带站点约束、并发上限和超时，按最新识别码确认完成，长时间积压要有明确错误信息。不得每次保存触发全站构建。
 
-独立定时补漏按待办查询，不每次抓全站正文；先按5分钟配置评估。GitHub schedule并非严格准点，因此不作为唯一唤醒通道或一分钟目标的保证。重复唤醒仍由共享部署锁和已认领版本收敛。日常内容变化复用已验收程序包，不重新跑全仓代码CI；代码发生变化才走代码检查。
-
-测试：唤醒失败、重复事件、乱序、工作进程退出、同商品连续三次更新、跨商品批量、现有部署占用、未知旧任务均有确定结果。没有真实上云配置和事件记录前，不标为自动更新已启用。
-
-### 拟实现的验证入口
-
-CAT-01第一段已实现：`packages/db/src/catalog-public-changes.test.ts`及`catalog-public-changes.sdk.test.ts`，命令`pnpm --filter @vibelingan-channel/db exec tsx --test src/catalog-public-changes.test.ts src/catalog-public-changes.sdk.test.ts`。写入方接线测试尚待下一段。CAT-02的`node --test scripts/product-refresh-dispatch.test.mjs`仍是计划，文件未实现、测试未执行。
+重试需覆盖：外部调用失败、执行端离线、旧检查遇到新修改、分类分批中断、同一待办重复投递。自动通知搜索引擎只消费已实际交付的变化，属于模块 04。

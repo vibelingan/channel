@@ -73,6 +73,7 @@ export function articleSdkFixture(t: TestContext) {
   const control: {
     failNextCommit: boolean;
     zeroNextWrite: boolean;
+    zeroWriteCollection?: string;
     returnedReadError: boolean;
     beforeCommit?: (() => void) | undefined;
     afterQuery?: () => void;
@@ -147,7 +148,7 @@ export function articleSdkFixture(t: TestContext) {
       }
       if (api === 'database.modifyDocument') {
         if (!transaction) throw new Error('Article writes must carry a transaction');
-        if (control.zeroNextWrite) {
+        if (control.zeroNextWrite || control.zeroWriteCollection === collection) {
           control.zeroNextWrite = false;
           return { data: { updated: 0 } };
         }

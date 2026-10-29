@@ -6,9 +6,9 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/private/var/folders/6t/sqpbmjw967b83s1xp0bkvvpr0000gn/T/channel-blog-review-p1awhyi1/docs/seo/continuation/diagrams/search-continuity.html",
-    "sha256": "991950404188ed15983aad854b3d8648c8aff7a80d1a5c42a0b6e82f6e6dc838",
-    "bytes": 811946
+    "path": "/Volumes/Lexar-Mac/CodexCaches/channel-formal-validation-20261027/docs/seo/continuation/diagrams/search-continuity.html",
+    "sha256": "295151521a625d2a0bfe992b1871d89a37984e29bd665901a3042a03a91099e3",
+    "bytes": 811998
   },
   "state": {
     "detail": "read",

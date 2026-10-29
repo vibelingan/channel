@@ -37,6 +37,8 @@ export function buildFunctionDefs(ctx) {
         TCB_ENV: ctx.envId,
         APP_ENV: ctx.appEnv,
         ADMIN_EMAIL: ctx.adminEmail,
+        CATALOG_SEO_RECORDING: ctx.optionalEnv('CATALOG_SEO_RECORDING'),
+        CATALOG_SEO_SITE_ORIGIN: ctx.optionalEnv('CATALOG_SEO_SITE_ORIGIN'),
         ARTICLE_PUBLISHING_ENABLED: ctx.optionalEnv('ARTICLE_PUBLISHING_ENABLED'),
         ARTICLE_DELIVERY_MODE: ctx.optionalEnv('ARTICLE_DELIVERY_MODE'),
         BLOG_QUEUE_STATUS_KEY_HASH: ctx.optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),
@@ -91,6 +93,9 @@ export function buildFunctionDefs(ctx) {
         JWT_SECRET: ctx.requireEnv('JWT_SECRET'),
         CORS_ALLOWED_ORIGINS: ctx.corsAllowedOrigins,
         SITE_URL: ctx.siteUrl,
+        CATALOG_SEO_RECORDING: ctx.optionalEnv('CATALOG_SEO_RECORDING'),
+        CATALOG_SEO_SITE_ORIGIN: ctx.optionalEnv('CATALOG_SEO_SITE_ORIGIN'),
+        CATALOG_DETAIL_APPROVAL_ENABLED: ctx.optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED'),
         // Feature secrets are OPTIONAL: cold start + /health never need them
         // and the function fails closed to not_configured (R1 L7/L12).
         ALIBABA_SYNC_BACKGROUND_ENABLED: '1',

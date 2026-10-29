@@ -152,3 +152,31 @@ Context7工具本轮不可用。对照官方事务文档https://docs.cloudbase.n
 推送后继续核对上线依赖，发现productVariants原资源清单只有productId/position索引。新增独立的非唯一variant_product_position_id，保留旧索引、原权限和现有准备步骤，不改创建/校验SDK入口，不在本轮操作云端。新测试先因索引声明缺失失败，再通过；另验证准备工具只提交CreateIndexes，并在读回时确认新旧索引都在。测试初稿没有模拟创建后的读回，被现有工具正确拒绝，补齐测试存储状态后22项全部通过。最初直接用node运行测试时无法加载既有.ts导入，改用同版tsx后，仅留下目标测试失败，未修改测试加载规则。
 
 已读CloudBase主技能、SDK合同与ENGINEERING_CRAFT部署组，并核对现有ensureNoSqlResourceSet及资源读回行为。Context7不可用；官方检索结果https://docs.cloudbase.net/recipes/optimize-database-query-performance说明组合索引顺序与_id稳定排序，https://docs.cloudbase.net/model/data-index提供索引规则。两次正文抓取超时，不声称已完成现网索引或查询计划验证。此处登记配套索引是为后续部署准备，不据此承诺查询提速。
+
+
+## 实际商品写入接线：执行开始
+
+基于01438e52继续原分支；main/test未变。用户要求一边解释一边执行，不再把单个比较组件写成完整自动更新功能。本段交付目标是实际商品保存、公开审批、来源同步和分类变更与可靠待办一起提交，并验证本地真实后台/持久化入口及安装SDK事务；自动HTML交付仍属于03。
+
+实施取舍：核对CloudBase官方事务限制为100操作、30秒且不支持where。将完整变体读取放进每次业务事务会增加响应时间和越限风险。因此业务事务写轻量的catalogSeoRequests，每件商品/每个分类保留最新随机token和pending状态，后续消费者用现有完整内容比较器生成语义版本及交付待办。它与catalogSeoTasks分开，更新请求不能清除正在交付任务的执行者。只有真正完成内容比较后才改变语义sequence；重新审批相同正文最多多一次核对，不触发SSG。此处明确调整旧设计“完整语义版本当场与商品一起算”的做法，以可靠请求同事务替代，避免隐式缩小商品容量。依据：https://docs.cloudbase.net/database/transaction、https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html。
+
+验收分四块：1) 请求只含受限站点、目标ID、token和状态，不带私有商品资料；2) 实际CloudBase事务入口写商品和请求同时成功/同时回滚，来源租约和现有数据权限保留；3) JsonFileAdapter通过原子文件写入提交相同请求，失败不能让内存或文件留下半次保存；4) 后台发布协议、重复操作、撤回、分类批量、内部同步与并发分别验证。功能开关默认关闭，部署前必须先准备私有集合、完成隔离云端验收，再针对明确环境启用；本段不操作云端。
+
+
+## 实际商品写入接线：本地验收结果
+
+本轮已把保存入口、普通商品/变体写入、供应商租约写入与绑定变更、旧审批、分批审批和现有后台整套发布的最后提交接入 `catalogSeoRequests`。本地文件版在已有持久化锁内，把商品和待办放进同一次原子换名。公开正文完整比较与公开版本/交付任务组件继续保留给后续消费程序使用；没有在保存时全量扫描变体。分类改动写分类级待办，不扫描商品。
+
+自审与测试发现并修正三处具体问题：新记录的 SDK 回执为 upserted，旧式批准只认 updated=1，现改用已有 assertDocumentWrite；关闭功能时包装对象不能用展开语法丢掉类原型方法，现显式调用原对象；SKU 图片的私有引用清单不能触发公开内容检查，候选投影改为公开字段白名单。负数或小数操作预算、控制字符 ID 也会在写入前拒绝。
+
+33 项新增专项通过，含实际 Admin 协议准备后再由安装 SDK 最终发布、重复投递、事务提交失败、拒绝待办写入、并发重试保留他人字段、供应商租约失效、46 个旧式批准变体全部保留及 100 次操作边界。数据库包 2600、共享包 361、公开 API 187、相关资源/运行环境脚本 46 项通过，无跳过。DB、本地服务和公开 API 类型检查、Biome、SDK 合同检查均通过；三个函数按 Node20 目标构建，并用当前 Mac 的原生图片依赖打包运行现有裸包检查通过。Linux 原生包仍由远端 CI 验证。
+
+本地后台全套首轮共 1236 项，1235 通过、1 失败：既有 catalog-operation-final-continue 第一项在图片准备阶段收到可重试状态，断言期待立即完成。完整错误日志保留；原文件独立连续复测三轮，每轮 36 项全部通过，没有改业务实现、测试断言或时限。第一次失败的具体原因尚未确证，不能因复测通过就写成“已修复”；远端完整回归仍须按本次提交核对。
+
+三项故障注入在独立临时副本执行：断开实际业务入口、忽略待办失败回执、移除待办写入，均被选中的真实 SDK 接线测试以断言失败捕获。原源码前后 hash 核对不变，临时副本已清理。证明测试会发现关键接线失效，不把只调用比较函数当作完整集成验证。
+
+本轮读过并核对的文件包括 cloudbase-adapter.ts、catalog-detail-staging.ts、catalog-detail-commit.ts、catalog-row-mutation.ts、catalog-source-invalidation.ts、catalog-product-operation.ts、category-transaction.ts、JsonFileAdapter 和真实 Admin 工作流测试，以及 CloudBase 事务官方说明和安装 SDK。当前未提供 Context7，采用官方文档与已安装源码两条路径。文字按 humanizer/SKILL.md 及 plain-technical-writing.md 检查；把“已经检测到商品变化”改为“比较函数已完成；本轮才接实际保存入口”，明确识别能力、业务接线、线上开关和 HTML 交付的区别。
+
+设计、实际写入覆盖表和开启/停止步骤已经更新到模块 02，模块 03 增加最新待办识别码检查，不能只核对旧公开序号。两张 Archify 图按同样流程更新，结构与浏览器检查、人工查看的截图另存图验收记录。本轮未改 UI、价格或客户业务流程，没有云端写入、线上部署、消息发送、其他应用修改或 main/test 合并。
+
+[代码与本地验证记录](evidence/catalog-seo-writing.json)。下一段是消费最新待办、完整公开比较与商品 HTML 交付；当前线上自动更新仍未开启。

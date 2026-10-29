@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-29",
+  "branch": "feat/seo-foundation",
+  "baseCommit": "01438e528b5dd09a074e1cda0e66c3b016711c93",
+  "scope": "Existing product writers atomically persist bounded public-check requests; no cloud writes or auto-delivery enablement.",
+  "sdk": {
+    "node": "3.17.2",
+    "database": "1.4.3",
+    "wx": "4.0.2",
+    "transport": "real installed SDK, existing offline transport only; not live CloudBase"
+  },
+  "tests": {
+    "newFocused": {
+      "passed": 33,
+      "failed": 0,
+      "skipped": 0
+    },
+    "database": {
+      "passed": 2600,
+      "failed": 0,
+      "skipped": 0
+    },
+    "shared": {
+      "passed": 361,
+      "failed": 0,
+      "skipped": 0
+    },
+    "publicApi": {
+      "passed": 187,
+      "failed": 0,
+      "skipped": 0
+    },
+    "resourceAndRuntime": {
+      "passed": 46,
+      "failed": 0,
+      "skipped": 0
+    },
+    "localServerFirstFullRun": {
+      "passed": 1235,
+      "failed": 1,
+      "skipped": 0,
+      "total": 1236,
+      "failure": "catalog-operation-final-continue: existing first-continue test received staging/preparation.nextAction=retry instead of complete",
+      "productionCodeOrAssertionChangedForThisFailure": false,
+      "failureLogRetained": true,
+      "cause": "not conclusively established"
+    },
+    "failedFileIsolatedRepeats": [
+      {
+        "run": 1,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "run": 2,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "run": 3,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "checks": {
+    "dbTypes": "passed",
+    "localServerTypes": "passed",
+    "publicApiTypes": "passed",
+    "biome": "passed",
+    "cloudbaseSdkGate": "passed",
+    "threeNode20TargetBuilds": "passed",
+    "threePackagedMacArtifactSmokes": "passed"
+  },
+  "mutations": {
+    "originalSourcesUnchanged": true,
+    "results": [
+      {
+        "mutation": "row-entry-disconnected",
+        "caught": true,
+        "exitCode": 1,
+        "pattern": "the production catalog mutation",
+        "failure": "ERR_ASSERTION in the selected real-SDK integration test"
+      },
+      {
+        "mutation": "request-ack-ignored",
+        "caught": true,
+        "exitCode": 1,
+        "pattern": "a rejected request write",
+        "failure": "ERR_ASSERTION in the selected real-SDK integration test"
+      },
+      {
+        "mutation": "request-write-removed",
+        "caught": true,
+        "exitCode": 1,
+        "pattern": "the production catalog mutation",
+        "failure": "ERR_ASSERTION in the selected real-SDK integration test"
+      }
+    ]
+  },
+  "remoteChecks": "Must verify the exact pushed commit; no deployment is implied by these offline checks.",
+  "notExecuted": [
+    "CloudBase collection creation/permission changes",
+    "function deployment",
+    "live database transaction acceptance",
+    "enabling CATALOG_SEO_RECORDING",
+    "automatic request consumption, SSG build/upload, or crawler notification",
+    "main/test merges"
+  ],
+  "sourceHashes": {
+    "packages/db/src/catalog-seo-requests.ts": "084a8eee0e8dfa2f584777d831e82b0e2813687a7784b6ecde0e28bb4a754e32",
+    "packages/db/src/catalog-seo-requests.test.ts": "292abfe7fdbdf4da40e9162ddcd99fa3bb52c7077d4f2477a2e215db510a19bf",
+    "packages/db/src/catalog-seo-write.ts": "64b1f134b87e4c6f1494d64e3ce2ac383acbabbc8859d1d34f785c9e30644b7e",
+    "packages/db/src/catalog-seo-write.test.ts": "60c7145dad4b66be1b70da286f765b5ec22b06e24db9668316cf0337c3e71db2",
+    "packages/db/src/catalog-seo-writing.sdk.test.ts": "4f804af01035e2499160138df6f9af434d1063ad0ebc58c98b2ce85d03d494c4",
+    "packages/db/src/cloudbase-adapter.ts": "22faad9b2f51a142c73bf8dfaddeffbce949e2cf1809db42d203a6ce9900f85b",
+    "packages/db/src/catalog-detail-commit.ts": "0ed5715b500ade12e16a476eec6c36a29b2ec29c55f9255d0f84d4cc9723f585",
+    "packages/db/src/catalog-detail-commit.test.ts": "7b60a6d6d449b5c34e54e1de93695cef1809065f15b949d0c4d2420ab35d54f0",
+    "packages/db/src/catalog-detail-staging.ts": "3a28725397e07fd442230d9549b7e5ce0c024448d00c681a67efe7d58ca3a3b4",
+    "packages/db/src/article-sdk-fixture.test-helper.ts": "fd37faeb20bb6079a9e080f27f6ad0b631e568ff62f7477a225ed1b80e9ad4b9",
+    "apps/local-server/src/json-adapter.ts": "3e436ed1879b2b96594d90473aff1b51db2dfba2f4f8247c6acbd1f99c08c667",
+    "apps/local-server/src/main.ts": "765dcd929ce0f2d3c641a2917ded5dc798a15ad762a2ddc3e296146d14d4337d",
+    "apps/local-server/src/testing/catalog-operation-workspace.ts": "22f42a163acc1ba9ce7184215dc243409c75a3f282b09119ec2ad4f634da1cc7",
+    "apps/local-server/src/catalog-seo-writing.test.ts": "90d799528526674ff11584a487169fa2cb0290cc86d1632dd23e31fc4fc80673",
+    "scripts/catalog-seo-resources.mjs": "0c2f95496ff5b672d38988e29937f48c6fde430f1712da006ee4119d297437f4",
+    "scripts/catalog-seo-resources.test.mjs": "a0307487aae59373ab6c7d2c6f19c1062ed299353fa866a0e33ed7545e594774",
+    "scripts/cloudbase-function-manifest.mjs": "2028d11af455b175c4b82b1a0ccc13f208e15ccebfad57060bf25c74062d08f1",
+    "scripts/function-manifest.test.mjs": "8ee1d02eb2277da6408bd7b366f99052ed120c7ce0830845bbbdc76d55b37c02"
+  }
+}

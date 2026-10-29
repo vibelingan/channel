@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "商品更新与网站收录：本轮补齐流程",
+    "title": "商品更新与网站收录：目标流程与当前进度",
     "locale": "zh-CN",
     "quality_profile": "showcase",
     "animation": "none"
@@ -37,9 +37,9 @@
       "lane": "business",
       "col": 1,
       "type": "database",
-      "label": "记录最新公开版本",
-      "sublabel": "与商品写入同一事务",
-      "tag": "待接入",
+      "label": "记录公开变化待办",
+      "sublabel": "商品同事务；接通未开启",
+      "tag": "已接线，未开启",
       "width": 150
     },
     {
@@ -48,7 +48,7 @@
       "col": 1,
       "type": "messagebus",
       "label": "唤醒并合并更新",
-      "sublabel": "失败重试，定时补漏",
+      "sublabel": "自动消费待实现",
       "tag": "待接入"
     },
     {
@@ -173,7 +173,7 @@
     {
       "dot": "orange",
       "title": "实施顺序",
-      "items": ["先补收录核对，再接商品版本记录与更新执行", "已有发布恢复共用，不另起一套部署系统"]
+      "items": ["保存写入已接通；后续自动交付待实现", "已有发布恢复共用，不另起一套部署系统"]
     }
   ]
 }

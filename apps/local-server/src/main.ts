@@ -10,6 +10,7 @@ import { renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import { readCatalogSeoRecordingConfig } from '@vibelingan-channel/db/catalog-seo-requests';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import { errorStatus } from '@vibelingan-channel/fn-admin/http-adapter';
@@ -71,7 +72,11 @@ config.preparationInvoke = createLocalCatalogPreparationInvoker((call) =>
   runCatalogPreparationCall(preparationAuthority, call),
 );
 
-const adapter = new JsonFileAdapter(DB_FILE, config.enableInquiries === true);
+const adapter = new JsonFileAdapter(
+  DB_FILE,
+  config.enableInquiries === true,
+  readCatalogSeoRecordingConfig(process.env),
+);
 config.articleRepository = adapter.articleRepository;
 setAdapter(adapter);
 

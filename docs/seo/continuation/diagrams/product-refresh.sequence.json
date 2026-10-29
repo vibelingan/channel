@@ -25,14 +25,14 @@
     {
       "id": "store",
       "type": "database",
-      "label": "公开版本与待办",
-      "sublabel": "拟新增服务端记录"
+      "label": "检查待办与版本",
+      "sublabel": "写入已接通，云端未开启"
     },
     {
       "id": "worker",
       "type": "backend",
       "label": "内容更新任务",
-      "sublabel": "已验收程序包"
+      "sublabel": "自动交付尚待实现"
     },
     {
       "id": "host",
@@ -55,7 +55,7 @@
       "from": "api",
       "to": "store",
       "y": 192,
-      "label": "同事务提交商品、版本和待办",
+      "label": "同事务保存商品和检查待办",
       "variant": "emphasis"
     },
     {
@@ -71,7 +71,7 @@
       "from": "worker",
       "to": "store",
       "y": 256,
-      "label": "认领最新版本，合并连续修改",
+      "label": "读取最新待办，合并连续修改",
       "variant": "default"
     },
     {
@@ -79,7 +79,7 @@
       "from": "worker",
       "to": "api",
       "y": 288,
-      "label": "读取变化商品的公开详情",
+      "label": "读完整公开内容，比较实质变化",
       "variant": "default"
     },
     {
@@ -87,7 +87,7 @@
       "from": "worker",
       "to": "store",
       "y": 320,
-      "label": "短暂占用受影响商品并核对版本",
+      "label": "记录内容版本并核对最新识别码",
       "variant": "security"
     },
     {
@@ -119,7 +119,7 @@
     {
       "dot": "orange",
       "title": "失败与恢复",
-      "items": ["未知调用先读回，保留占用和待办", "代码恢复沿用最新内容，不回灌数据库"]
+      "items": ["保存接线已验证；后续自动交付待实现", "未知结果先读回，保留待办；恢复不回灌内容"]
     }
   ]
 }

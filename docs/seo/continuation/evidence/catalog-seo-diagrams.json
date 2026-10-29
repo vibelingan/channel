@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-29",
+  "diagrams": [
+    {
+      "diagram": "diagrams/product-refresh.html",
+      "sha256": "95ffdcfeb866aad00e1e736fd1d6426b6b650323d78422f08f406678534e595e",
+      "artifactChecks": 9,
+      "compositionErrors": 0,
+      "compositionWarnings": 0,
+      "automatedBrowser": "passed",
+      "manualImageReview": "Labels and routes inspected at desktop size; current and future steps marked separately.",
+      "source": "diagrams/product-refresh.sequence.json"
+    },
+    {
+      "diagram": "diagrams/search-continuity.html",
+      "sha256": "295151521a625d2a0bfe992b1871d89a37984e29bd665901a3042a03a91099e3",
+      "artifactChecks": 9,
+      "compositionErrors": 0,
+      "compositionWarnings": 0,
+      "automatedBrowser": "passed",
+      "manualImageReview": "Labels and routes inspected at desktop size; current and future steps marked separately.",
+      "source": "diagrams/search-continuity.workflow.json"
+    }
+  ]
+}
