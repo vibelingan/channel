@@ -85,3 +85,6 @@ CloudBase 来源库和事务在跨仓验收中是合成适配器；实际 SDK �
 ## 远端复验补充
 
 首个 Channel 远端运行已通过合同、Sales 接线及定向缺陷注入，但全包 Local server 回归中的两个既有测试会从 site 包加载 React／共享前端模块。原来的过滤安装只包含后端依赖图，CI 缺少 site 的包内依赖，导致导入失败。本地完整依赖下这两项已通过。现将实际被测试消费的 site 依赖图加入锁文件安装范围，不修改测试断言、不改产品代码；对应代码与环境修正分别提交，最终以修正后的远端运行结果为准。
+
+
+最终远端结果已确认：Channel 代码／CI配置提交 `2b41560da5745912fc9a067309391b629d86ed97` 的 [Sales contracts 运行](https://github.com/vibelingan/channel/actions/runs/40871239290)通过，覆盖锁定依赖、合同、接线、缺陷注入、五包回归、SDK和打包；Hermes `c75bd9be06b35c6996e4e523b9466bde03c4e8e0` 的 [Sales runtime 运行](https://github.com/vibelingan/hermesinfra/actions/runs/40870234984)通过。Channel 功能实现在 `eb06c2bf`，后续 CI 提交只补测试依赖安装；本次再补的是这份验证记录，没有修改已验收的业务代码。

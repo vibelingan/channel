@@ -70,5 +70,18 @@
     "local future-cutover save",
     "modern attachment with unused legacy field"
   ],
-  "compatibility": "text conflicts reviewed, no other worktree modified; combined branch integration tests not run"
+  "compatibility": "text conflicts reviewed, no other worktree modified; combined branch integration tests not run",
+  "remote_checks": {
+    "channel": {
+      "commit": "2b41560da5745912fc9a067309391b629d86ed97",
+      "status": "success",
+      "url": "https://github.com/vibelingan/channel/actions/runs/40871239290"
+    },
+    "hermes": {
+      "commit": "c75bd9be06b35c6996e4e523b9466bde03c4e8e0",
+      "status": "success",
+      "url": "https://github.com/vibelingan/hermesinfra/actions/runs/40870234984"
+    }
+  },
+  "agentic_loop_commit": "39f7597"
 }
