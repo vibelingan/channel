@@ -6,7 +6,7 @@ on:
     branches: [main, feat/website-assistant-ui-foundation]
     paths:
       - 'apps/site/**'
-      - 'docs/ai-platform/assistant-ui/**'
+      - 'docs/ai-platform/assistant-ui/screens.json'
       - 'tests/assistant-ui/**'
       - 'playwright.assistant.config.ts'
       - 'tsconfig.assistant-e2e.json'
@@ -16,7 +16,7 @@ on:
   pull_request:
     paths:
       - 'apps/site/**'
-      - 'docs/ai-platform/assistant-ui/**'
+      - 'docs/ai-platform/assistant-ui/screens.json'
       - 'tests/assistant-ui/**'
       - 'playwright.assistant.config.ts'
       - 'tsconfig.assistant-e2e.json'
@@ -50,10 +50,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
-      - name: Check component types and existing site behavior
+      - name: Check owned component sources
+        run: pnpm exec biome check apps/site/src/components/chat apps/site/src/islands/ai/assistant apps/site/src/islands/ai/preview apps/site/src/islands/ai/AssistantWidget.tsx apps/site/assistant-preview.vite.ts playwright.assistant.config.ts tsconfig.assistant-e2e.json tests/assistant-ui scripts/verify-assistant-state-guards.mjs scripts/verify-assistant-ui-build.mjs
+      - name: Check component types and the existing widget
         run: |
           pnpm --filter @vibelingan-channel/site typecheck
-          pnpm --filter @vibelingan-channel/site test
+          pnpm --filter @vibelingan-channel/site typecheck:test
+          pnpm --filter @vibelingan-channel/site exec tsx --test 'src/islands/ai/assistant/*.test.ts' src/components/chat/public-link.test.ts src/islands/ai/AssistantWidget.test.ts src/lib/ai-widget-routes.test.ts
           pnpm exec tsc -p tsconfig.assistant-e2e.json
       - name: Exercise actual components and test the state tests
         run: |

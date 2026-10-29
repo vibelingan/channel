@@ -300,7 +300,7 @@ test('expired conversation starts fresh without bringing back contact details', 
 test('short mobile screen remains usable', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await select(page, 'inquiry_review');
-  await expect(page.getByLabel('Your requirement')).toBeVisible();
+  await expect(page.getByLabel('Your requirement')).toBeInViewport();
   const panel = await page.getByRole('dialog').boundingBox();
   if (!panel) throw new Error('Panel is missing');
   expect(panel.width).toBeLessThanOrEqual(288);
@@ -323,4 +323,17 @@ test('temporary history failure keeps the current discussion and retry can resto
   await expect(page.getByRole('textbox', { name: 'Your question' })).toBeEnabled();
   await page.getByRole('button', { name: 'Restore conversation' }).click();
   await expect(page.locator('[data-message-role]')).toHaveCount(40);
+});
+
+test('capture actual component screens for visual review', async ({ page }, info) => {
+  const { mkdir } = await import('node:fs/promises');
+  const directory = 'output/assistant-ui/screens';
+  await mkdir(directory, { recursive: true });
+  for (const scenario of ['welcome', 'product_results', 'inquiry_review']) {
+    await select(page, scenario);
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page
+      .getByRole('dialog')
+      .screenshot({ path: `${directory}/${info.project.name}-${scenario}.png` });
+  }
 });

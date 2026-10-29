@@ -54,7 +54,7 @@ export function AssistantExperience({
     )
     .join('|');
   const revision = `${messageRevision}:${state.turn?.phase}:${inquiry.phase}:${session.inquiryOpen}`;
-  const viewport = useChatViewport(state.open, revision);
+  const viewport = useChatViewport(state.open && !session.inquiryOpen, revision);
   const working = isTurnWorking(state.turn?.phase);
   const blocked =
     state.sessionStatus === 'restoring' ||
@@ -111,159 +111,164 @@ export function AssistantExperience({
         aria-live="off"
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-surface-alt p-4"
       >
-        {state.sessionStatus === 'restoring' && (
-          <output className="block rounded-xl bg-white p-4 text-sm">
-            Restoring your conversation…
-          </output>
-        )}
-        {state.restoreFailed && (
-          <output className="block rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Could not restore the saved conversation. Your current conversation is kept. Use Restore
-            conversation to try again.
-          </output>
-        )}
-        {state.sessionStatus === 'expired' && (
-          <section className="rounded-xl bg-white p-4 text-sm">
-            <h3 className="font-semibold">Start a new conversation</h3>
-            <p className="mt-2">
-              This conversation is no longer available. Earlier contact details will not be carried
-              over.
-            </p>
-            <button type="button" onClick={session.reset} className={`${actionClass} mt-3`}>
-              Start new conversation
-            </button>
-          </section>
-        )}
-        {state.messages.length === 0 &&
-          (state.sessionStatus === 'welcome' || state.sessionStatus === 'ready') && (
-            <section className="rounded-xl bg-white p-4 text-sm leading-relaxed shadow-sm">
-              <p>
-                Find product options, understand OEM details, or prepare an inquiry for our team.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => send('Help me choose headphones for 500 company gifts.')}
-                  className={actionClass}
-                >
-                  Help me choose
+        {!session.inquiryOpen && (
+          <>
+            {state.sessionStatus === 'restoring' && (
+              <output className="block rounded-xl bg-white p-4 text-sm">
+                Restoring your conversation…
+              </output>
+            )}
+            {state.restoreFailed && (
+              <output className="block rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                Could not restore the saved conversation. Your current conversation is kept. Use
+                Restore conversation to try again.
+              </output>
+            )}
+            {state.sessionStatus === 'expired' && (
+              <section className="rounded-xl bg-white p-4 text-sm">
+                <h3 className="font-semibold">Start a new conversation</h3>
+                <p className="mt-2">
+                  This conversation is no longer available. Earlier contact details will not be
+                  carried over.
+                </p>
+                <button type="button" onClick={session.reset} className={`${actionClass} mt-3`}>
+                  Start new conversation
                 </button>
-                <button
-                  type="button"
-                  onClick={() => send('What can I customize for an OEM order?')}
-                  className={actionClass}
-                >
-                  OEM options
-                </button>
-              </div>
-            </section>
-          )}
-        <AssistantMessages
-          messages={state.messages}
-          compareIds={compareIds}
-          onCompare={compare}
-          onInquiry={session.beginInquiry}
-        />
-        {compared.length > 0 && (
-          <section
-            aria-label="Compare options"
-            className="rounded-xl border border-slate-200 bg-white p-4 text-sm"
-          >
-            <h3 className="font-semibold">Compare options</h3>
-            <div className="mt-3 space-y-3">
-              {compared.map((product) => (
-                <div key={product.id} className="rounded-lg bg-surface-alt p-3">
-                  <h4 className="font-semibold">{product.name}</h4>
-                  <p className="mt-1 text-xs">{product.summary}</p>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    Version: {product.revision}. Commercial terms require confirmation.
+              </section>
+            )}
+            {state.messages.length === 0 &&
+              (state.sessionStatus === 'welcome' || state.sessionStatus === 'ready') && (
+                <section className="rounded-xl bg-white p-4 text-sm leading-relaxed shadow-sm">
+                  <p>
+                    Find product options, understand OEM details, or prepare an inquiry for our
+                    team.
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => send('Help me choose headphones for 500 company gifts.')}
+                      className={actionClass}
+                    >
+                      Help me choose
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => send('What can I customize for an OEM order?')}
+                      className={actionClass}
+                    >
+                      OEM options
+                    </button>
+                  </div>
+                </section>
+              )}
+            <AssistantMessages
+              messages={state.messages}
+              compareIds={compareIds}
+              onCompare={compare}
+              onInquiry={session.beginInquiry}
+            />
+            {compared.length > 0 && (
+              <section
+                aria-label="Compare options"
+                className="rounded-xl border border-slate-200 bg-white p-4 text-sm"
+              >
+                <h3 className="font-semibold">Compare options</h3>
+                <div className="mt-3 space-y-3">
+                  {compared.map((product) => (
+                    <div key={product.id} className="rounded-lg bg-surface-alt p-3">
+                      <h4 className="font-semibold">{product.name}</h4>
+                      <p className="mt-1 text-xs">{product.summary}</p>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        Version: {product.revision}. Commercial terms require confirmation.
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              className={`${actionClass} mt-3`}
-              onClick={() => setCompareIds([])}
-            >
-              Close comparison
-            </button>
-          </section>
-        )}
-        {state.turn?.steps.length ? (
-          <ol
-            aria-label="Product checks"
-            className="space-y-1 rounded-lg border border-slate-200 p-3 text-xs text-ink-muted"
-          >
-            {[...new Set(state.turn.steps)].map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        ) : null}
-        {state.turn && (
-          <section
-            aria-label="Answer status"
-            className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-ink-soft"
-          >
-            <output aria-live="polite">{turnStatus(state.turn)}</output>
-            {session.retrySeconds > 0 && state.turn.phase === 'rate_limited' && (
-              <p className="mt-2">
-                Retry available in {session.retrySeconds} seconds, as requested by the service.
-              </p>
+                <button
+                  type="button"
+                  className={`${actionClass} mt-3`}
+                  onClick={() => setCompareIds([])}
+                >
+                  Close comparison
+                </button>
+              </section>
             )}
-            {['reconnecting', 'failed', 'rate_limited'].includes(state.turn.phase) && (
-              <button
-                type="button"
-                onClick={session.retry}
-                disabled={session.retrySeconds > 0}
-                className={`${actionClass} mt-2`}
+            {state.turn?.steps.length ? (
+              <ol
+                aria-label="Product checks"
+                className="space-y-1 rounded-lg border border-slate-200 p-3 text-xs text-ink-muted"
               >
-                Resume this answer
-              </button>
-            )}
-            {state.turn.phase === 'stop_unknown' && (
-              <button
-                type="button"
-                onClick={() => void session.stop()}
-                className={`${actionClass} mt-2`}
+                {[...new Set(state.turn.steps)].map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            ) : null}
+            {state.turn && (
+              <section
+                aria-label="Answer status"
+                className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-ink-soft"
               >
-                Check stop status
-              </button>
-            )}
-            {state.turn.phase === 'stopped' && !confirmRegenerate && (
-              <button
-                type="button"
-                onClick={() => setConfirmRegenerate(true)}
-                className={`${actionClass} mt-2`}
-              >
-                Answer again
-              </button>
-            )}
-            {confirmRegenerate && state.turn.phase === 'stopped' && (
-              <div className="mt-3">
-                <p>Start a new answer? The earlier answer will remain in this conversation.</p>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <output aria-live="polite">{turnStatus(state.turn)}</output>
+                {session.retrySeconds > 0 && state.turn.phase === 'rate_limited' && (
+                  <p className="mt-2">
+                    Retry available in {session.retrySeconds} seconds, as requested by the service.
+                  </p>
+                )}
+                {['reconnecting', 'failed', 'rate_limited'].includes(state.turn.phase) && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setConfirmRegenerate(false);
-                      session.send(state.turn?.request.message, true);
-                    }}
-                    className={actionClass}
+                    onClick={session.retry}
+                    disabled={session.retrySeconds > 0}
+                    className={`${actionClass} mt-2`}
                   >
-                    Start new answer
+                    Resume this answer
                   </button>
+                )}
+                {state.turn.phase === 'stop_unknown' && (
                   <button
                     type="button"
-                    onClick={() => setConfirmRegenerate(false)}
-                    className={actionClass}
+                    onClick={() => void session.stop()}
+                    className={`${actionClass} mt-2`}
                   >
-                    Keep earlier answer
+                    Check stop status
                   </button>
-                </div>
-              </div>
+                )}
+                {state.turn.phase === 'stopped' && !confirmRegenerate && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRegenerate(true)}
+                    className={`${actionClass} mt-2`}
+                  >
+                    Answer again
+                  </button>
+                )}
+                {confirmRegenerate && state.turn.phase === 'stopped' && (
+                  <div className="mt-3">
+                    <p>Start a new answer? The earlier answer will remain in this conversation.</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmRegenerate(false);
+                          session.send(state.turn?.request.message, true);
+                        }}
+                        className={actionClass}
+                      >
+                        Start new answer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRegenerate(false)}
+                        className={actionClass}
+                      >
+                        Keep earlier answer
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
             )}
-          </section>
+          </>
         )}
         {session.inquiryOpen && inquiry.phase !== 'closed' && (
           <InquiryReview
@@ -275,7 +280,7 @@ export function AssistantExperience({
         )}
       </div>
       <footer className="shrink-0 border-t border-slate-200 bg-white p-3">
-        {viewport.hasNew && (
+        {viewport.hasNew && !session.inquiryOpen && (
           <button
             type="button"
             className={`${actionClass} mb-2 w-full`}
