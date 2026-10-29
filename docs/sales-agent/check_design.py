@@ -24,7 +24,7 @@ for item in supplements:
     assert (ROOT / item['design']).is_file()
     if item['status'] == 'implemented_verified_offline':
         assert (ROOT / item['evidence_ref']).is_file()
-allowed_statuses = {'planned_not_implemented', 'implemented_verified_offline', 'verified_code_snapshot'}
+allowed_statuses = {'planned_not_implemented', 'in_progress', 'implemented_verified_offline', 'verified_code_snapshot'}
 assert all(item['status'] in allowed_statuses and not item['live_enabled'] for item in units)
 for item in units:
     if item['status'] != 'planned_not_implemented':

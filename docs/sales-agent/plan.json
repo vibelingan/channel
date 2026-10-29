@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "date": "2026-10-24",
+  "date": "2026-10-29",
   "mode": "initial_module_implementation",
   "worktree": "${SALES_WORKTREE}",
   "branch": "feat/sales-agent-integration",
@@ -108,8 +108,17 @@
       "write_scope": "OEM/单品保存后最小hook及source reconciler",
       "acceptance": "保存成功后通知丢失可补扫；附件回滚和历史记录不误发",
       "primary_test": "save_succeeds_notification_fails_reconciler_recovers",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "in_progress",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG1.2-IMPLEMENTATION-PLAN.md",
+      "completed_components": [
+        "trusted source verification and short-lived read grants"
+      ],
+      "remaining_components": [
+        "website atomic registration",
+        "reliable notification and reconciliation",
+        "real producer-to-Hermes acceptance"
+      ]
     },
     {
       "id": "SG2.3",
