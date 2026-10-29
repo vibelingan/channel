@@ -169,8 +169,17 @@
       "write_scope": "准备流水线/事实校验/成果提交",
       "acceptance": "自动形成带来源、缺项、HTML/text及附件的审核版本",
       "primary_test": "redraft_preserves_previous_snapshot",
-      "status": "planned_not_implemented",
-      "live_enabled": false
+      "status": "implemented_verified_offline",
+      "live_enabled": false,
+      "evidence_ref": "evidence/SG3.2-PREPARATION-HANDOFF.md",
+      "implementation_commit": null,
+      "implementation_scope": "Callable preparation pipeline with actual authorized Channel HTTP, immutable snapshot/evidence/archive and single-execution worker; synthetic content and fake SG4 acceptance",
+      "remaining_runtime_integration": [
+        "trusted Channel source verification and lease issuance",
+        "authoritative task loader and automatic trigger",
+        "private real model/content adapter",
+        "production Resend draft export outbox and approval/send modules"
+      ]
     },
     {
       "id": "SG4.1",

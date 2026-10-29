@@ -1,5 +1,7 @@
 # Sales Agent 分模块设计与执行入口
 
+2026-10-29 SG3.2：可调用准备模块完成本地实现、分轮复核与 14 项真实 HTTP/MySQL 模块端到端；50 项针对性、15 项旧归档回归和 19 项定向缺陷注入通过。实际内容模型、自动触发和发送仍未接通，见[本轮交接](evidence/SG3.2-PREPARATION-HANDOFF.md)。本轮未提交、推送或部署。
+
 2026-10-28后续：SG2.4已完成Hermes持久任务读取授权及真实MySQL／跨仓客户端联调，并推送通过对应代码CI。见[本轮详细汇报](evidence/SG2.4-REPORT.md)。当前仍未上线；下一步是自动来源核验和handoff/lease签发，再接任务独立上下文与模型工具执行。
 
 2026-10-28：D1首批SG0.3共同协议与SG1.3强制任务门禁已完成本地和对应代码提交的远端验证，见[协议记录](evidence/SG0.3-VALIDATION.md)与[门禁记录](evidence/SG1.3-VALIDATION.md)。仅Sales新流程采用，其他Agent不变；线上仍未启用。
