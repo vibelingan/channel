@@ -5,10 +5,7 @@
     "title": "商品更新后，浏览器画面与服务器 HTML 各自怎样改变",
     "locale": "zh-CN",
     "quality_profile": "showcase",
-    "viewBox": [
-      1000,
-      480
-    ],
+    "viewBox": [1000, 480],
     "column_fit": "spread"
   },
   "participants": [
@@ -138,9 +135,7 @@
     {
       "dot": "amber",
       "title": "自动更新待接通",
-      "items": [
-        "API 只改当前画面；服务器 HTML 需另行更新。Blog 已用实时正文。"
-      ]
+      "items": ["API 只改当前画面；服务器 HTML 需另行更新。Blog 已用实时正文。"]
     }
   ]
 }

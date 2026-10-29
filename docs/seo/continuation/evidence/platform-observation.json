@@ -28,13 +28,7 @@
           "pages": 5
         }
       ],
-      "notIndexedExamples": [
-        "/ai-gadgets/",
-        "/electronics-toys/",
-        "/misc/",
-        "/oem/",
-        "/toys/"
-      ],
+      "notIndexedExamples": ["/ai-gadgets/", "/electronics-toys/", "/misc/", "/oem/", "/toys/"],
       "historicalReportNotCurrentInventory": true
     },
     "inspectedProduct": {
