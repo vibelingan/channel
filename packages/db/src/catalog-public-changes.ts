@@ -267,7 +267,10 @@ export async function planCatalogPublicRefresh(
           detailRevision: head.detailRevision,
         }
       : { productId: head.productId, visible: false };
-    return planCatalogPublicChange(store, { siteOrigin, before, after, now });
+    // Retried saves can commit after requests with a later start time.
+    const changedAt =
+      head.changedAt && Date.parse(head.changedAt) > Date.parse(now) ? head.changedAt : now;
+    return planCatalogPublicChange(store, { siteOrigin, before, after, now: changedAt });
   }
   if (await store.get('catalogSeoTasks', recordId))
     throw new CatalogPublicChangeError('CORRUPT_RECORD');

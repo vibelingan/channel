@@ -136,3 +136,23 @@ test('active ownership requires both its owner and deadline, and duplicate targe
   ])
     assert.equal(CatalogSeoControlSchema.safeParse(bad).success, false);
 });
+
+test('a known failed delivery can retry its task, while an unknown cloud outcome cannot', async (t) => {
+  const f = articleSdkFixture(t);
+  const db: unknown = f.db;
+  native(db);
+  const id = seed(f);
+  const store = createCatalogSeoStore(db);
+  const delivery = createCatalogSeoDelivery(store, site, 0, 'run', () => now);
+  const ticket = await delivery.begin(['p']);
+  await assert.rejects(delivery.retryKnownFailure(), /Unknown/);
+  await delivery.end(ticket, 'verified');
+  await delivery.retryKnownFailure();
+  assert.equal(f.rows.get(`catalogSeoTasks/${id}`)?.state, 'pending');
+  assert.equal(f.rows.get(`catalogSeoTasks/${id}`)?.lease, null);
+  const next = createCatalogSeoDelivery(store, site, 0, 'new-run', () => now);
+  const held = await next.begin(['p']);
+  await next.end(held, 'unknown');
+  await assert.rejects(next.retryKnownFailure(), /Unknown/);
+  assert.equal(f.rows.get(`catalogSeoTasks/${id}`)?.state, 'writing');
+});

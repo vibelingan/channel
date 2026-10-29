@@ -585,3 +585,20 @@ test('a malformed price summary never fails the product or the page; it reads as
   assert.equal(readPriceSummary(page.items[0] as Product), undefined);
   assert.deepEqual(readPriceSummary(page.items[1] as Product), validSummary);
 });
+
+test('page readiness survives the catalog transport and invalid readiness is rejected', async (t) => {
+  installBrowserMocks(t, [
+    jsonResponse({
+      items: [{ _id: 'p', name: 'Headset', publicPageReady: false, images: ['/api/images/i'] }],
+      total: 1,
+      page: 1,
+      pageSize: 48,
+    }),
+    jsonResponse({ _id: 'p', name: 'Headset', publicPageReady: true }),
+    jsonResponse({ _id: 'p', name: 'Headset', publicPageReady: 'false' }),
+  ]);
+  const page = await fetchProductFamily('headphones');
+  assert.equal(page.items[0]?.publicPageReady, false);
+  assert.equal((await fetchProductBySlug('p')).publicPageReady, true);
+  await assert.rejects(fetchProductBySlug('p'), /Failed to load item/);
+});

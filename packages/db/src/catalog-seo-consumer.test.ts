@@ -247,3 +247,24 @@ test('a newer classification read prevents confirming an older prepared product'
   assert.equal(result.status, 'stale');
   assert.equal((await h.read('catalogSeoRequests', h.request._id))?.state, 'pending');
 });
+
+test('a save that started earlier but committed last still advances content without moving lastmod backwards', async () => {
+  const h = fixture();
+  await consumeCatalogSeoRequest(h.db, h.request, config, now);
+  const save = async (name: string, time: string) => {
+    const request = createCatalogSeoRequest(
+      config.siteOrigin,
+      { kind: 'product', productId: 'p', previouslyPublic: true },
+      time,
+    );
+    h.put('products', { _id: 'p', name, published: true, productFamily: 'misc' });
+    h.put('catalogSeoRequests', request);
+    return consumeCatalogSeoRequest(h.db, request, config, '2026-10-29T16:00:00.000Z');
+  };
+  await save('First committed change', '2026-10-29T14:00:00.000Z');
+  const next = await save('A retried save committed later', '2026-10-29T13:59:59.000Z');
+  assert.equal(next.status, 'checked');
+  const [head] = await h.db.list('catalogPublicHeads', {}, null, 20);
+  assert.equal(head?.sequence, 3);
+  assert.equal(head?.changedAt, '2026-10-29T14:00:00.000Z');
+});

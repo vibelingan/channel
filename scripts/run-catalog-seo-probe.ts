@@ -6,6 +6,8 @@ import { setTimeout as pause } from 'node:timers/promises';
 import CloudBase from '@cloudbase/manager-node';
 import { probeCollections } from '../packages/db/src/catalog-seo-live-probe.ts';
 import { buildCatalogProbe } from './catalog-probe-build.mjs';
+import { cleanupCatalogProbe } from './catalog-probe-cleanup.mjs';
+import { readCatalogProbeResult } from './catalog-probe-result.mjs';
 import { createSiteGithubSource } from './release/site-github-source.mjs';
 const env = process.env;
 const run = env.GITHUB_RUN_ID ?? '';
@@ -55,7 +57,22 @@ const receipt: {
   result?: unknown;
   cleaned?: boolean;
   error?: string;
-} = { schemaVersion: 1, run, codeSha: sha, scope: prefix, createdCollections: owned };
+  cleanup: unknown[];
+  cleanupError?: string;
+  functionName: string;
+  invocationConfirmed: boolean;
+} = {
+  schemaVersion: 1,
+  run,
+  codeSha: sha,
+  scope: prefix,
+  createdCollections: owned,
+  cleanup: [],
+  cleaned: false,
+  functionName: name,
+  invocationConfirmed: false,
+};
+let failure: Error | undefined;
 try {
   const inventory = await manager.database.listCollections({ MgoLimit: 100, MgoOffset: 0 });
   assert.ok(
@@ -70,6 +87,7 @@ try {
     assert.equal(names.has(collection), false, 'Probe name is occupied');
     await manager.database.createCollection(collection);
     owned.push(collection);
+    await writeFile(resolve(directory, 'result.json'), JSON.stringify(receipt, null, 2));
     await manager.permission.modifyResourcePermission({
       resourceType: 'collection',
       resource: collection,
@@ -81,6 +99,21 @@ try {
     });
     assert.equal(acl.Data?.PermissionList?.[0]?.Permission, 'ADMINONLY');
   }
+  const approvedCollection = `${prefix}catalogDetailVariants`;
+  const keys = ['productId', 'catalogDetailRevision', '_id'].map((Name) => ({
+    Name,
+    Direction: '1',
+  }));
+  await manager.database.updateCollection(approvedCollection, {
+    CreateIndexes: [
+      { IndexName: 'probe_approved_id', MgoKeySchema: { MgoIsUnique: false, MgoIndexKeys: keys } },
+    ],
+  });
+  const index = (await manager.database.describeCollection(approvedCollection)).Indexes?.find(
+    (row) => row.Name === 'probe_approved_id',
+  );
+  assert.ok(index && index.Unique === false, 'Exact isolated variant index readback required');
+  assert.deepEqual(index.Keys, keys);
   await buildCatalogProbe(resolve(directory, 'function'));
   const functions = await manager.functions.listFunctions(100, 0);
   assert.ok(
@@ -117,49 +150,36 @@ try {
   if (!active) throw Error('Probe function did not become available within 60 seconds');
   invocationStarted = true;
   const response = await manager.functions.invokeFunction(name, { action: 'run', token });
+  const result = readCatalogProbeResult(response, run);
   invocationTerminal = true;
-  assert.equal(typeof response.RetMsg, 'string');
-  const result = JSON.parse(response.RetMsg);
-  if (result.purpose !== 'catalog-seo-live-probe-v1')
-    throw Error(
-      `Probe function failed: ${String(result.errorMessage ?? response.ErrMsg ?? 'invalid result')}`,
-    );
-  assert.equal(result.purpose, 'catalog-seo-live-probe-v1');
-  assert.equal(result.passed, 8);
-  assert.equal(result.businessCollectionsAccessed, 0);
   receipt.result = result;
+  receipt.invocationConfirmed = true;
+  await writeFile(resolve(directory, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(
     `Real CloudBase probe passed ${result.passed} checks; no business collections or website files were touched.`,
   );
 } catch (error) {
   receipt.error = error instanceof Error ? error.message : 'Probe failed';
-  throw error;
-} finally {
-  // Unknown execution must finish before removing its test data.
-  try {
-    if (!invocationStarted || invocationTerminal) {
-      if (functionCreated) await manager.functions.deleteFunction(name);
-      for (const collection of owned) await manager.database.deleteCollection(collection);
-      const remaining = await manager.database.listCollections({ MgoLimit: 100, MgoOffset: 0 });
-      assert.ok(
-        Array.isArray(remaining.Collections) &&
-          remaining.Pager?.Total === remaining.Collections.length,
-        'Complete cleanup readback required',
-      );
-      assert.ok(
-        remaining.Collections.every((row) => !owned.includes(row.CollectionName)),
-        'Probe collections remain',
-      );
-      const functions = await manager.functions.listFunctions(100, 0);
-      assert.ok(
-        Array.isArray(functions) &&
-          functions.length < 100 &&
-          functions.every((row) => row.FunctionName !== name),
-        'Probe function remains',
-      );
-      receipt.cleaned = true;
-    } else receipt.cleaned = false;
-  } finally {
-    await writeFile(resolve(directory, 'result.json'), JSON.stringify(receipt, null, 2));
-  }
+  failure = new Error(receipt.error);
 }
+// Only a complete invocation, or a preparation that never invoked it, permits cleanup.
+try {
+  if (!invocationStarted || invocationTerminal) {
+    await cleanupCatalogProbe({
+      manager,
+      run,
+      owned,
+      functionCreated,
+      onEvent: async (event: unknown) => {
+        receipt.cleanup.push(event);
+        await writeFile(resolve(directory, 'result.json'), JSON.stringify(receipt, null, 2));
+      },
+    });
+    receipt.cleaned = true;
+  }
+} catch (error) {
+  receipt.cleanupError = error instanceof Error ? error.message : 'Cleanup not confirmed';
+  failure ??= new Error(receipt.cleanupError);
+}
+await writeFile(resolve(directory, 'result.json'), JSON.stringify(receipt, null, 2));
+if (failure) throw failure;

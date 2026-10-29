@@ -321,11 +321,14 @@ export async function deliverStaticContent(
             status: 'unknown',
             reason: 'No accepted recovery target; stopped without recursive recovery',
           };
-        if (!(await allowRecovery()))
+        if (!(await allowRecovery())) {
+          await coordinator.releaseFailedSite(guard, runId);
           return {
-            status: 'unknown',
-            reason: 'Current public content changed; historical content was not restored',
+            status: 'retry-current-data',
+            reason:
+              'Known writes stopped; rebuild current public content instead of restoring history',
           };
+        }
         // Recover exactly the baseline checked before the first write, once only.
         try {
           const receipt = await execute(

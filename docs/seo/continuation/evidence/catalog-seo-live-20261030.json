@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "environment": "diversity-123-d9grnqfux221323bb",
+  "region": "ap-shanghai",
+  "runId": "40910382710",
+  "url": "https://github.com/vibelingan/channel/actions/runs/40910382710",
+  "codeSha": "3fdf8b465941c1eb89549134a54050f9f1010bf7",
+  "workflowConclusion": "failure",
+  "businessChecks": {
+    "status": "passed",
+    "count": 8,
+    "artifactId": "12913512290",
+    "htmlDeliveryVerified": false
+  },
+  "cleanup": {
+    "status": "recovered-and-verified",
+    "initialError": {
+      "action": "DeleteTable",
+      "code": "FailedOperation.Timeout",
+      "requestId": "6ac2f103-8dc4-45bc-ac20-e85571ff2692",
+      "observation": "The first table was absent despite the timeout reply."
+    },
+    "function": {
+      "name": "seo-catalog-probe-40910382710",
+      "absent": true,
+      "readbackCode": "ResourceNotFound.Function",
+      "requestId": "df1f1826-3b8d-4b75-9916-9caea6736087"
+    },
+    "collections": [
+      {
+        "name": "seo_probe_40910382710_products",
+        "absent": true,
+        "deleteRequestId": null
+      },
+      {
+        "name": "seo_probe_40910382710_productVariants",
+        "absent": true,
+        "deleteRequestId": "e0df5a9b-4783-4257-a843-c074ff57be11"
+      },
+      {
+        "name": "seo_probe_40910382710_catalogTaxonomies",
+        "absent": true,
+        "deleteRequestId": "639ae519-0e22-4f70-b6e7-907ba31ec9f0"
+      },
+      {
+        "name": "seo_probe_40910382710_catalogSeoRequests",
+        "absent": true,
+        "deleteRequestId": "23ccdf5e-b3e5-4cf6-b751-3ba8a6841c58"
+      },
+      {
+        "name": "seo_probe_40910382710_catalogPublicHeads",
+        "absent": true,
+        "deleteRequestId": "92e8c5b3-a378-49b4-a0fa-2ece16eba0a2"
+      },
+      {
+        "name": "seo_probe_40910382710_catalogSeoTasks",
+        "absent": true,
+        "deleteRequestId": "e89f8d2b-798f-436c-9d89-d525dd52d793"
+      },
+      {
+        "name": "seo_probe_40910382710_catalogSeoPages",
+        "absent": true,
+        "deleteRequestId": "6b966ea3-cdfe-4402-868e-2b36439e4315"
+      },
+      {
+        "name": "seo_probe_40910382710_catalogSeoControl",
+        "absent": true,
+        "deleteRequestId": "d88f8403-6952-4763-b186-fa4bd19f404f"
+      }
+    ],
+    "remaining": [],
+    "finalInventoryRequestId": "83907505-d0cf-4177-8fea-e7cdb9fbeca1"
+  },
+  "businessCollectionWrites": 0,
+  "websiteWrites": 0,
+  "recordingEnabled": false,
+  "automaticHtmlDeliveryEnabled": false
+}

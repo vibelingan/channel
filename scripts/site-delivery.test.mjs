@@ -449,25 +449,9 @@ test('current-data recovery replaces a failed candidate without resurrecting the
       throw Error('confirmed failure');
     },
   });
-  assert.equal(failed.status, 'unknown');
+  assert.equal(failed.status, 'retry-current-data');
   const status = await f.coordinator.status({ scopeKey: 'site' });
   const dirty = await f.coordinator.runStatus(status.target.dirtyRunId);
-  f.expireLease();
-  await f.coordinator.reconcile({
-    expectedVersion: status.target.version,
-    expectedFence: status.target.lease.fence,
-    proof: {
-      runnerRef: status.target.lease.runnerRef,
-      job: { status: 'completed', evidenceRef: 'finished-owner' },
-      cloud: {
-        status: 'quiescent',
-        operationId: null,
-        observedHash: null,
-        evidenceRef: 'all-storage-requests-terminal',
-      },
-      checkedAt: f.now(),
-    },
-  });
   const c = f.source('C');
   const result = await f.deliver(c.input, 'reconcile', {
     failedCandidates: [{ run: dirty, input: b.input }],
@@ -475,4 +459,25 @@ test('current-data recovery replaces a failed candidate without resurrecting the
   assert.equal(result.status, 'accepted', JSON.stringify(result));
   for (const [path, bytes] of c.data) assert.deepEqual(f.files.get(path), bytes);
   assert.equal((await f.coordinator.status({ scopeKey: 'site' })).target.dirtyRunId, null);
+});
+
+test('an unknown cloud write cannot use the known-failure release shortcut', async (t) => {
+  const f = await setup(t);
+  const b = f.source('B');
+  f.setUnknown();
+  assert.equal((await f.deliver(b.input)).status, 'unknown');
+  const status = await f.coordinator.status({ scopeKey: 'site' });
+  assert.ok(status.pendingStep);
+  const lease = status.target.lease;
+  const guard = {
+    targetId: status.target.targetId,
+    ownerRunId: lease.ownerRunId,
+    fence: lease.fence,
+    acquiredVersion: lease.acquiredVersion,
+  };
+  await assert.rejects(
+    f.coordinator.releaseFailedSite(guard, status.target.currentRunId ?? status.target.dirtyRunId),
+    /UNRESOLVED_OPERATION/,
+  );
+  assert.ok((await f.coordinator.status({ scopeKey: 'site' })).pendingStep);
 });

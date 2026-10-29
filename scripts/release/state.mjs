@@ -807,6 +807,25 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
         return guard;
       });
     },
+    async releaseFailedSite(guard, key) {
+      return store.transact(async (tx) => {
+        const target = await guardTarget(tx, guard);
+        const run = await loadRun(tx, key, guard);
+        if (
+          target.unresolvedOperation ||
+          target.currentRunId ||
+          target.dirtyRunId !== key ||
+          run.state !== 'FAILED' ||
+          run.scopeKey !== 'site' ||
+          run.ownerRunId !== guard.ownerRunId ||
+          run.fence !== guard.fence
+        )
+          fail('UNRESOLVED_OPERATION');
+        // failRun permits this only after every submitted effect has a known result.
+        writeTarget(tx, { ...target, lease: null });
+        return { status: 'released-current-data-recovery-required' };
+      });
+    },
     async release(input) {
       const guard = freeze(jsonCopy(input));
       return store.transact(async (tx) => {

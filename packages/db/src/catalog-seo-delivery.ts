@@ -104,7 +104,7 @@ export function createCatalogSeoDelivery(
               CatalogSeoTaskSchema.parse({
                 ...task,
                 state: 'writing',
-                attempts: task.attempts + 1,
+                attempts: task.attempts + (task.lease ? 0 : 1),
                 lease: { runId, sequence: head.sequence, until: next.until },
               }),
             );
@@ -134,6 +134,37 @@ export function createCatalogSeoDelivery(
         );
       });
       ticketOwners.delete(ticket.owner);
+    },
+    async retryKnownFailure() {
+      const current = readCatalogSeoControl(
+        await store.get('catalogSeoControl', controlId),
+        siteOrigin,
+        clock(),
+      );
+      if (current.state !== 'idle' || ticketOwners.size)
+        throw Error('Unknown delivery cannot release its tasks');
+      for (let offset = 0; offset < heads.size; offset += 12)
+        await store.transaction(async (tx) => {
+          const now = clock();
+          const c = readCatalogSeoControl(
+            await tx.get('catalogSeoControl', controlId),
+            siteOrigin,
+            now,
+          );
+          if (c.state !== 'idle' || ticketOwners.size)
+            throw Error('Unknown delivery cannot release its tasks');
+          const tasks = [];
+          for (const productId of [...heads.keys()].slice(offset, offset + 12)) {
+            const id = catalogPublicRecordId(siteOrigin, productId);
+            const task = CatalogSeoTaskSchema.parse(await tx.get('catalogSeoTasks', id));
+            if (task._id !== id || task.productId !== productId || task.siteOrigin !== siteOrigin)
+              throw Error('Wrong delivery task');
+            if (task.lease?.runId === runId)
+              tasks.push(CatalogSeoTaskSchema.parse({ ...task, state: 'pending', lease: null }));
+          }
+          await tx.set('catalogSeoControl', { ...c, updatedAt: now });
+          for (const task of tasks) await tx.set('catalogSeoTasks', task);
+        });
     },
     async accept(pages: readonly { productId: string; htmlSha256: string | null }[]) {
       if (new Set(pages.map((p) => p.productId)).size !== pages.length)

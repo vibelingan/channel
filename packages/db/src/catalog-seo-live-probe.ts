@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import cloudbase from '@cloudbase/node-sdk';
+import { type CollectionDoc, storedCatalogTaxonomy } from '@vibelingan-channel/shared';
+import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import { catalogPublicRecordId } from './catalog-public-changes.ts';
+import { prepareCatalogPublicState } from './catalog-public-content.ts';
 import { type CatalogSeoDatabase, createCatalogSeoStore } from './catalog-seo-cloud.ts';
 import { consumeCatalogSeoRequest } from './catalog-seo-consumer.ts';
 import { catalogSeoControlId } from './catalog-seo-control.ts';
@@ -14,6 +17,7 @@ const environment = 'diversity-123-d9grnqfux221323bb';
 export const probeCollections = [
   'products',
   'productVariants',
+  'catalogDetailVariants',
   'catalogTaxonomies',
   'catalogSeoRequests',
   'catalogPublicHeads',
@@ -138,6 +142,11 @@ export async function main(event: unknown) {
   await assert.rejects(save({ name: 'Must wait' }));
   assert.equal((await store.get('products', 'probe-product'))?.name, 'Isolated probe C');
   await delivery.end(ticket, 'verified');
+  await delivery.retryKnownFailure();
+  assert.equal((await store.get('catalogSeoTasks', headId))?.state, 'pending');
+  const retry = await delivery.begin(['probe-product']);
+  await delivery.end(retry, 'verified');
+  results.push('known-failure-releases-only-owned-task');
   await delivery.accept([{ productId: 'probe-product', htmlSha256: 'a'.repeat(64) }]);
   results.push('real-transaction-blocks-save-during-delivery');
   assert.equal((await store.get('catalogSeoPages', headId))?.ready, true);
@@ -161,6 +170,82 @@ export async function main(event: unknown) {
     createCatalogSeoDelivery(store, site, latest, 'other-run', now).begin(['probe-product']),
   );
   results.push('unknown-outcome-prevents-takeover');
+  // This fixture tests complete approved reads, not the separate admin approval workflow.
+  const approvedId = 'approved-probe';
+  const header = {
+    _id: approvedId,
+    schemaVersion: 'catalog-product-detail-v1',
+    name: 'Approved probe',
+    images: [],
+    facts: [],
+    offers: [],
+  };
+  const approved = {
+    _id: approvedId,
+    published: true,
+    productFamily: 'misc',
+    name: 'Approved probe',
+    catalogDetailPublication: {
+      state: 'approved',
+      revision: 'r1',
+      variantCount: 137,
+      variantStorage: 'immutable-v1',
+      header,
+    },
+  };
+  const { _id: approvedKey, ...approvedData } = approved;
+  await native.collection(name('products')).doc(approvedKey).set(approvedData);
+  const variants: CollectionDoc[] = [];
+  for (let position = 0; position < 137; position++) {
+    const variantId = `v-${position}`;
+    const variant = {
+      _id: approvedVariantDocumentId(approvedId, 'r1', variantId),
+      productId: approvedId,
+      variantId,
+      catalogDetailRevision: 'r1',
+      catalogDetailPosition: position,
+      catalogDetailApproved: {
+        id: variantId,
+        options: [],
+        images: [],
+        offers: [],
+        inventory: { state: 'unknown' },
+      },
+      privateSource: 'DO_NOT_CAPTURE',
+    };
+    const { _id, ...data } = variant;
+    await native.collection(name('catalogDetailVariants')).doc(_id).set(data);
+    variants.push(variant);
+  }
+  const request = createCatalogSeoRequest(
+    site,
+    { kind: 'product', productId: approvedId, previouslyPublic: true },
+    now(),
+  );
+  const { _id: requestKey, ...requestData } = request;
+  await native.collection(name('catalogSeoRequests')).doc(requestKey).set(requestData);
+  const checkedResult = await consumeCatalogSeoRequest(
+    store,
+    request,
+    { ...config, detailEnabled: true },
+    now(),
+  );
+  assert.equal(checkedResult.status, 'checked');
+  const taxonomy = storedCatalogTaxonomy('misc', null);
+  assert.ok(taxonomy);
+  const expected = prepareCatalogPublicState({
+    product: approved,
+    detailEnabled: true,
+    taxonomy,
+    variants: { kind: 'approved', total: 137, items: variants },
+  });
+  assert.equal(expected.visible, true);
+  const approvedHead = await store.get(
+    'catalogPublicHeads',
+    catalogPublicRecordId(site, approvedId),
+  );
+  assert.equal(approvedHead?.semanticHash, expected.visible ? expected.semanticHash : null);
+  results.push('real-approved-variant-pagination');
   return {
     purpose: 'catalog-seo-live-probe-v1',
     environment,
@@ -170,5 +255,6 @@ export async function main(event: unknown) {
     businessCollectionsAccessed: 0,
     websiteWrites: 0,
     htmlDeliveryVerified: false,
+    approvedVariantCount: 137,
   };
 }

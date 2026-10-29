@@ -183,7 +183,7 @@ async function command(
   check();
 }
 async function verifyPublicDelivery({ action }: { action: string }) {
-  if (action === 'publish' || action === 'initialize') {
+  if (['publish', 'initialize', 'reconcile'].includes(action)) {
     const publicEnv = {
       PATH: env.PATH,
       HOME: env.HOME,
@@ -732,6 +732,8 @@ try {
       },
       { policy, scopeKey: 'site' },
     );
+    if (catalog && result.status === 'retry-current-data')
+      await catalog.delivery.retryKnownFailure();
     if (catalog && result.status === 'accepted') {
       // Unchanged HTML can still acknowledge a checked, identical public version.
       for (let offset = 0; offset < catalog.heads.length; offset += 12) {
