@@ -6,6 +6,7 @@ import { getProductDetail } from '../../public-api/src/catalog-detail.ts';
 import { type SalesRequest, type SalesResponse, createSalesHandler } from './handler.ts';
 import { readPrivateFile } from './private-file.ts';
 import { createSalesServer } from './server.ts';
+import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
 
 export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesResponse> {
   if (process.env.SALES_INTEGRATION_ENABLED !== '1')
@@ -39,6 +40,17 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
     installation_id: installationId,
     environment: environment === 'test' ? 'test' : 'production',
     cloud_env_id: envId,
+    ...(process.env.SALES_SOURCE_GRANTS_ENABLED === '1'
+      ? {
+          sourceGrants: {
+            enabled: true,
+            token: required('SALES_SOURCE_GRANT_TOKEN'),
+            forbiddenTokens: [required('SALES_HERMES_AUTH_TOKEN')],
+            store: createCloudBaseSourceGrantStore(cloudStorageSdk().database()),
+            now: () => Math.floor(Date.now() / 1000),
+          },
+        }
+      : {}),
     taskAccess: {
       now: () => Math.floor(Date.now() / 1000),
       loadLease: (hash) => loadSalesRecord('channelSalesTaskLeases', hash),

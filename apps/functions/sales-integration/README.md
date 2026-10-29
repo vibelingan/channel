@@ -46,10 +46,32 @@ Additional server-owned records (SDK `_id` metadata stays outside the `record` p
 | channelSalesTaskLeases / SHA-256 of decoded token bytes | validated TaskReadLease |
 | channelSalesSourceHandoffs / handoff_sha256 | validated SourceHandoff |
 
-No public route creates or edits these records. Source/lease issuance, their storage provisioning and the authenticated Hermes control endpoint belong to subsequent modules; they are not created or deployed by this unit. Missing records or an unavailable control service fail closed. Production remains disabled until those components and target-environment acceptance are complete.
+No public route creates or edits these records. The separate backend source-grant route below can issue handoffs and leases; storage provisioning and target-environment acceptance are still required. Missing records or an unavailable control service fail closed. Production remains disabled until all components and target-environment acceptance are complete.
 
 The reader validates local records before and after the remote permit roundtrip, and repeats authorization after data preparation/source revalidation. It rejects stale task/run/revision, changed source facts, revoked records and out-of-task attachments. Business closure blocks preparation even if Hermes has not observed it yet. No positive permission is cached across requests. As in D1, already returned data cannot be recalled; this is not a cross-service atomic revocation guarantee.
 
 Legacy records lacking explicit client/business/installation ownership are no longer implicitly accepted. A later verified ownership mapping may support them; this unit does not migrate or relabel existing rows. OEM reads also require server-written salesSubmissionState=finalized and salesSubmittedRevision matching the projected source revision; the producer hook is still pending. Existing website/admin routes and original data are unchanged.
 
 Default product queries continue to use the current approved reader, without an old revision. Submitted product facts remain historical. Range download limits and integrity checks are retained; malformed Range syntax fails the strict task contract with 403, while syntactically valid but unsatisfiable ranges still return 416 after authorization.
+
+## Trusted source-grant bootstrap (SG1.2a)
+
+`POST /integrations/sales/source-grants` is a separate backend route, absent unless `SALES_SOURCE_GRANTS_ENABLED=1` as well as the main runtime switch. It requires `Authorization: Bearer <SALES_SOURCE_GRANT_TOKEN>`, a random server-only token distinct from every registered connection token and `SALES_HERMES_AUTH_TOKEN`. Never expose it to a model, browser or public form. Other private reads retain their existing connection and task gates.
+
+The strict JSON request is exactly:
+
+```text
+protocol='sales-auth/1', request_id=32 lowercase hex,
+client_id, business_line, source_installation_id, environment,
+runtime_id, control_epoch, task_id=positive safe-integer decimal string,
+run_id=32 lowercase hex, task_revision=positive safe integer,
+connection_id, lease_sha256=64 lowercase hex, event=InquirySubmitted
+```
+
+The trusted Hermes host creates 32 random bytes and sends only their SHA-256. Channel never receives the raw lease token. The response is exactly `{protocol, request_id, handoff, lease}` using the existing shared contracts. The server chooses a 300-second lifetime, approved-catalog product scope, the active runtime connection's read actions and only this source's attachment references. The request body is bounded to 256KiB on this route; other routes keep their 16KiB limit.
+
+One node-sdk transaction rereads the fixed installation, current binding, owned inquiry and attachment metadata, then compares a canonical saved-source event with the supplied event. Only `event_id` is transport metadata and may differ; source, ownership, contact, requirements, timestamp, snapshot reference and attachment references must match. Assistant-origin claims are refused until a verified producer mapping exists. OEM additionally needs matching finalized submission markers. Closed OEM and terminal product inquiries are refused.
+
+The same transaction reads old grants and request identities before writing a stable source handoff, lease, request fingerprint and lease-hash claim. `channelSalesSourceGrantRequests` is a backend-only collection keyed by hashes; its rows use the same `{record}` wrapper. Exact retries return the original fresh grant without extending its lifetime. A reused request or lease hash cannot change task or event, an expired hash needs a fresh random token, and a revoked or corrupt stored handoff cannot be overwritten. No HTTP call occurs inside this transaction.
+
+Hermes must still validate its own current task, run and revision before and after this request, and normal reads still require a fresh Hermes permit. A Channel grant alone never resumes a stopped task or authorizes email. The website submit hooks, ownership metadata producer, OEM finalizer and reconciler are deliberately outside SG1.2a. Existing unattributed website records remain denied; this implementation does not make the live website automatically dispatch tasks.

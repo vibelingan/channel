@@ -1,11 +1,13 @@
 import { createServer } from 'node:http';
 import type { SalesRequest, SalesResponse } from './handler.ts';
+import { salesBodyLimit } from './source-grant-route.ts';
 
 export function createSalesServer(handle: (request: SalesRequest) => Promise<SalesResponse>) {
   return createServer({ headersTimeout: 10000, requestTimeout: 15000 }, async (request, reply) => {
     const chunks: Buffer[] = [];
     let size = 0;
     let replied = false;
+    const bodyLimit = salesBodyLimit(request.url ?? '/');
     const send = (result: SalesResponse) => {
       if (replied || reply.destroyed) return;
       replied = true;
@@ -21,14 +23,14 @@ export function createSalesServer(handle: (request: SalesRequest) => Promise<Sal
         headers: { 'Cache-Control': 'private, no-store' },
         body: Buffer.from('{"code":"BODY_TOO_LARGE"}'),
       });
-    if (Number(request.headers['content-length'] ?? 0) > 16384) {
+    if (Number(request.headers['content-length'] ?? 0) > bodyLimit) {
       request.resume();
       tooLarge();
       return;
     }
     request.on('data', (chunk: Buffer) => {
       size += chunk.byteLength;
-      if (size > 16384) {
+      if (size > bodyLimit) {
         chunks.length = 0;
         tooLarge();
       } else if (!replied) chunks.push(chunk);

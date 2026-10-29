@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "tsx --test src/*.test.ts",
+    "test:source-grant-defects": "node scripts/check-source-grant-defects.mjs",
     "typecheck": "tsc --noEmit",
     "build": "tsup",
     "check:artifact": "node scripts/check-artifact.mjs",

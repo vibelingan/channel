@@ -10,6 +10,13 @@ import { z } from 'zod';
 import { SalesTaskGate, type TaskGateDependencies } from './task-gate.ts';
 import { TaskAccessDenied } from '@vibelingan-channel/sales-contracts/task-access';
 import { SalesSourceError, readAsset, readInquiry, recordId } from './sources.ts';
+import {
+  issueSourceGrant,
+  SourceGrantError,
+  sourceGrantTokenMatches,
+  type SourceGrantDependencies,
+} from './source-grants.ts';
+import { salesBodyLimit, salesPath } from './source-grant-route.ts';
 
 export interface SalesRequest {
   method: string;
@@ -28,6 +35,7 @@ export interface SalesDependencies extends AccessDependencies {
   installation_id: string;
   environment: 'test' | 'production';
   cloud_env_id: string;
+  sourceGrants?: SourceGrantDependencies;
   taskAccess: TaskGateDependencies;
   readDoc(
     collection: 'oemProjects' | 'catalogQuoteRequests' | 'files',
@@ -132,14 +140,34 @@ export function createSalesHandler(dependencies: SalesDependencies) {
   const tasks = new SalesTaskGate(dependencies);
   return async (request: SalesRequest): Promise<SalesResponse> => {
     try {
-      if ((request.body?.byteLength ?? 0) > 16384) return response(413, { code: 'BODY_TOO_LARGE' });
+      if ((request.body?.byteLength ?? 0) > salesBodyLimit(request.url))
+        return response(413, { code: 'BODY_TOO_LARGE' });
       if (!request.url.startsWith('/') || request.url.startsWith('//') || request.url.length > 2400)
         return response(404, { code: 'NOT_FOUND' });
       const url = new URL(request.url, 'http://sales.invalid');
       if (url.search) return response(400, { code: 'INVALID_REQUEST' });
-      const path = url.pathname
-        .replace(/^\/api(?=\/)/, '')
-        .replace(/^\/integrations\/sales(?=\/)/, '');
+      const path = salesPath(request.url);
+      if (path === null) return response(404, { code: 'NOT_FOUND' });
+      if (path === '/source-grants') {
+        const config = dependencies.sourceGrants;
+        if (!config?.enabled) return response(404, { code: 'NOT_FOUND' });
+        if (request.method !== 'POST') return response(405, { code: 'METHOD_NOT_ALLOWED' });
+        const headers = lowerHeaders(request.headers);
+        const token = /^Bearer ([A-Za-z0-9_-]{32,512})$/i.exec(headers.authorization ?? '')?.[1];
+        if (!token || !sourceGrantTokenMatches(config, token))
+          return response(401, { code: 'UNAUTHENTICATED' });
+        if (headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
+          return response(415, { code: 'CONTENT_TYPE' });
+        let body: unknown;
+        try {
+          body = parseStrictJson(
+            new TextDecoder('utf-8', { fatal: true }).decode(request.body ?? Buffer.alloc(0)),
+          );
+        } catch {
+          return response(400, { code: 'INVALID_REQUEST' });
+        }
+        return response(200, await issueSourceGrant(dependencies, body));
+      }
       const inquiry = /^\/inquiries\/(oem|product)\/([A-Za-z0-9_-]{1,200})$/.exec(path);
       const asset = /^\/assets\/([A-Za-z0-9_-]{1,1800})$/.exec(path);
       const product = path === '/products/query';
@@ -252,6 +280,7 @@ export function createSalesHandler(dependencies: SalesDependencies) {
         },
       );
     } catch (error) {
+      if (error instanceof SourceGrantError) return response(error.status, { code: error.code });
       if (error instanceof SalesAccessDenied || error instanceof TaskAccessDenied)
         return response(403, { code: 'FORBIDDEN' });
       if (error instanceof SalesSourceError) return response(error.status, { code: error.code });
