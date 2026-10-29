@@ -1,3 +1,5 @@
+2026-10-30更新：本文保留早期实施记录。当前上线结果、真实CloudBase验收和仍未开启的自动更新，以[最新模块总表](continuation/README.zh-CN.md)为准，不能用下文的历史“未部署”或“完成”判断今天的状态。
+
 # 共享 SEO 基础实施结果
 
 2026-10-19，本地实现已完成并提交；未推送、未部署。独立目录 `$SEO_WORKTREE`，分支 `feat/seo-foundation`，实现提交 `2ae08f98248ac1f72549c40cbb292dbf2769e719`，从最新 main `37bcea5b38284210159e95f8d10f3a9b5cf2ee44` 开始。

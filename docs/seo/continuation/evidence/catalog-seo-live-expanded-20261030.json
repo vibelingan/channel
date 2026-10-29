@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "runId": "40920976437",
+  "url": "https://github.com/vibelingan/channel/actions/runs/40920976437",
+  "codeSha": "1bf019b972a5f3ba3f6d3955b57ecea399eee52e",
+  "workflowConclusion": "success",
+  "probeJobSeconds": 98,
+  "scope": "Nine private temporary collections and one event function. No customer product, article or hosting write.",
+  "invocationConfirmed": true,
+  "result": {
+    "purpose": "catalog-seo-live-probe-v1",
+    "environment": "diversity-123-d9grnqfux221323bb",
+    "prefix": "seo_probe_40920976437_",
+    "checks": [
+      "real-product-save-and-request-transaction",
+      "repeat-consumption-does-not-duplicate",
+      "public-change-advances-version",
+      "real-database-aborts-product-and-queue-together",
+      "known-failure-releases-only-owned-task",
+      "real-transaction-blocks-save-during-delivery",
+      "real-batched-page-availability-query",
+      "withdrawal-invalidates-ready-page",
+      "unknown-outcome-prevents-takeover",
+      "real-approved-variant-pagination"
+    ],
+    "passed": 10,
+    "businessCollectionsAccessed": 0,
+    "websiteWrites": 0,
+    "htmlDeliveryVerified": false,
+    "approvedVariantCount": 137
+  },
+  "cleanup": {
+    "cleaned": true,
+    "events": [
+      {
+        "kind": "function",
+        "name": "seo-catalog-probe-40920976437",
+        "attempt": 1,
+        "removed": false,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "function",
+        "name": "seo-catalog-probe-40920976437",
+        "attempt": 2,
+        "removed": true,
+        "errorCode": "FailedOperation.DeleteFunction",
+        "requestId": "63b2e241-7467-4af7-a32b-a7364fd6901c"
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_products",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_productVariants",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogDetailVariants",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogTaxonomies",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogSeoRequests",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogPublicHeads",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogSeoTasks",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogSeoPages",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      },
+      {
+        "kind": "collection",
+        "name": "seo_probe_40920976437_catalogSeoControl",
+        "attempt": 1,
+        "removed": true,
+        "errorCode": null,
+        "requestId": null
+      }
+    ],
+    "independentReadback": {
+      "inventoryRequestId": "54160a3f-9b0e-44ad-9e24-c65b62ad4241",
+      "total": 77,
+      "remaining": [],
+      "permanentSeoCounts": [
+        {
+          "collection": "catalogPublicHeads",
+          "count": 0
+        },
+        {
+          "collection": "catalogSeoBuilders",
+          "count": 0
+        },
+        {
+          "collection": "catalogSeoControl",
+          "count": 0
+        },
+        {
+          "collection": "catalogSeoPages",
+          "count": 0
+        },
+        {
+          "collection": "catalogSeoRequests",
+          "count": 0
+        },
+        {
+          "collection": "catalogSeoTasks",
+          "count": 0
+        }
+      ],
+      "functionAbsent": true,
+      "functionReadbackRequestId": "6b4650e2-7c0a-4bf6-8585-4e1ac00f69bf"
+    }
+  },
+  "recordingEnabled": false,
+  "automaticHtmlDeliveryEnabled": false
+}

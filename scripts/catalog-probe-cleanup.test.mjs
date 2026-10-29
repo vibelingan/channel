@@ -114,3 +114,29 @@ test('complete multi-page resource inventories remain safe above the first hundr
   assert.equal(f.rows.size, 207);
   assert.equal(f.fns.size, 106);
 });
+
+test('an acknowledged asynchronous function deletion is polled without submitting delete twice', async () => {
+  const f = fixture();
+  let pendingReads = 0;
+  f.manager.functions.deleteFunction = async (name) => {
+    f.calls.push(name);
+    pendingReads = 4;
+  };
+  f.manager.functions.listFunctions = async () => {
+    if (pendingReads > 0 && --pendingReads === 0) f.fns.delete(`seo-catalog-probe-${run}`);
+    return [...f.fns].map((FunctionName) => ({ FunctionName }));
+  };
+  await cleanupCatalogProbe(f.options);
+  assert.equal(f.calls.filter((name) => name === `seo-catalog-probe-${run}`).length, 1);
+  assert.deepEqual([...f.fns], ['admin']);
+});
+
+test('an acknowledged deletion that remains visible stops after bounded readback without deleting again', async () => {
+  const f = fixture();
+  f.manager.functions.deleteFunction = async (name) => {
+    f.calls.push(name);
+  };
+  await assert.rejects(cleanupCatalogProbe(f.options), /acknowledged but not yet confirmed/);
+  assert.equal(f.calls.filter((name) => name === `seo-catalog-probe-${run}`).length, 1);
+  assert.ok(f.rows.has(owned[0]));
+});

@@ -61,6 +61,12 @@ export async function cleanupCatalogProbe({
     }
     throw Error('Probe function inventory exceeds its bounded limit');
   };
+  const retryable = new Set([
+    'FailedOperation.Timeout',
+    'InternalError',
+    'ResourceNotFound.Table',
+    'ResourceNotFound.Function',
+  ]);
   const remove = async (kind, name, read, drop) => {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!(await read()).includes(name)) {
@@ -73,25 +79,26 @@ export async function cleanupCatalogProbe({
       } catch (error) {
         failure = error;
       }
-      const exists = (await read()).includes(name);
+      let exists = true;
+      let readbacks = 0;
+      for (; readbacks < 6; readbacks++) {
+        if (readbacks > 0) await wait(250 * 2 ** (readbacks - 1));
+        exists = (await read()).includes(name);
+        if (!exists || (failure && !retryable.has(failure.code))) break;
+      }
       await onEvent({
         kind,
         name,
         attempt: attempt + 1,
+        readbacks: Math.min(readbacks + 1, 6),
         removed: !exists,
         errorCode: typeof failure?.code === 'string' ? failure.code : null,
         requestId: typeof failure?.requestId === 'string' ? failure.requestId : null,
       });
       if (!exists) return;
-      if (
-        failure &&
-        ![
-          'FailedOperation.Timeout',
-          'InternalError',
-          'ResourceNotFound.Table',
-          'ResourceNotFound.Function',
-        ].includes(failure.code)
-      )
+      if (!failure)
+        throw Error(`Probe ${kind} deletion acknowledged but not yet confirmed; resource retained`);
+      if (!retryable.has(failure.code))
         throw Error(`Probe ${kind} cleanup refused; resource retained`);
       if (attempt < 2) await wait(1000 * (attempt + 1));
     }

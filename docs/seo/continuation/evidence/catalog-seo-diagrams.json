@@ -1,24 +1,24 @@
 {
-  "date": "2026-10-29",
+  "date": "2026-10-30",
   "diagrams": [
     {
       "diagram": "diagrams/product-refresh.html",
-      "sha256": "95ffdcfeb866aad00e1e736fd1d6426b6b650323d78422f08f406678534e595e",
+      "sha256": "9d39020e4fdd75b64e0c89ef3c3cf548ddd95b9e3d8dd42acc10e7decf075592",
       "artifactChecks": 9,
       "compositionErrors": 0,
       "compositionWarnings": 0,
       "automatedBrowser": "passed",
-      "manualImageReview": "Labels and routes inspected at desktop size; current and future steps marked separately.",
+      "manualImageReview": "Current implementation and pending automation are marked separately. Desktop light workflow and dark sequence captures were viewed; no overlap observed.",
       "source": "diagrams/product-refresh.sequence.json"
     },
     {
       "diagram": "diagrams/search-continuity.html",
-      "sha256": "295151521a625d2a0bfe992b1871d89a37984e29bd665901a3042a03a91099e3",
+      "sha256": "53ffb982c79121404b96fbb08a076f09e821fbaf7506cd81702e72078dfc2f07",
       "artifactChecks": 9,
       "compositionErrors": 0,
       "compositionWarnings": 0,
       "automatedBrowser": "passed",
-      "manualImageReview": "Labels and routes inspected at desktop size; current and future steps marked separately.",
+      "manualImageReview": "The final 2048x1320 light screenshot was viewed after correcting the Blog open status. No clipping or overlap observed.",
       "source": "diagrams/search-continuity.workflow.json"
     }
   ]
