@@ -189,14 +189,14 @@
       "primary_test": "redraft_preserves_previous_snapshot",
       "status": "implemented_verified_offline",
       "live_enabled": false,
-      "evidence_ref": "evidence/SG3.2-PREPARATION-HANDOFF.md",
-      "implementation_commit": "6527059a308c62dd9718ce37564e84de38d4a3c4",
-      "implementation_scope": "Callable preparation pipeline with actual authorized Channel HTTP, immutable snapshot/evidence/archive and single-execution worker; synthetic content and fake SG4 acceptance",
+      "evidence_ref": "evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md",
+      "implementation_commit": "3d53adab805813d9a70e3c025c4847d49bb5c5f7",
+      "implementation_scope": "Automatic current accepted task consumer, durable queue acknowledgments, source bootstrap, current authorized reads, real typed model planner and immutable preparation archive; verified with synthetic HTTP/MySQL and real provider; no production or email",
       "remaining_runtime_integration": [
-        "authoritative task loader and automatic trigger",
-        "private real model/content adapter",
-        "production Resend draft export outbox and approval/send modules"
-      ]
+        "customer-scoped production provisioning and live synthetic acceptance",
+        "Resend draft export SG4.1 and human approval/send SG5"
+      ],
+      "verification_environment": "synthetic isolated database and website storage adapter; actual HTTP/SDK/provider; live_enabled refers to production enablement"
     },
     {
       "id": "SG4.1",

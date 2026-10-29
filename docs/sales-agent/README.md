@@ -1,5 +1,7 @@
 # Sales Agent 分模块设计与执行入口
 
+2026-10-30 最新 SG3.2：Hermes 自动消费与真实模型接线已完成开发、独立复核和合成验收，跨仓库及真实模型 62 项通过；代码 `3d53adab` 已推送。未部署或发送邮件。见[本轮交付](evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)。下面较早日期的记录保留其当时状态。
+
 2026-10-29 最新交付：SG1.2 现有 OEM／单品表单的正式保存、原子登记、可靠通知及补偿已完成本地验收；新官网纵向 8 项和原来源授权 14 项通过。accepted 代表持久接收，生产自动模型与邮件仍未接入。见[完整交付](evidence/SG1.2-DELIVERY-REPORT.md)、[双重校验与耗时解释](evidence/SG1.2-EXPLAINED.md)、[上线准备](evidence/SG1.2-DELIVERY-RUNBOOK.md)。下方较早记录保留其当时状态。
 
 
