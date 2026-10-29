@@ -4,20 +4,11 @@
   "google": {
     "sitemapIndex": {
       "status": "success",
-      "discoveredPages": 10,
+      "discoveredPages": 539,
       "lastRead": "2026-10-27",
-      "children": [
-        {
-          "path": "/blog/sitemap.xml",
-          "discovered": 2,
-          "lastRead": "2026-10-27"
-        },
-        {
-          "path": "/sitemap-0.xml",
-          "discovered": 8,
-          "lastRead": "2026-10-22"
-        }
-      ]
+      "submitted": "2026-10-16",
+      "readMethod": "existing authenticated page explicitly reloaded",
+      "children": "not freshly inspected; do not infer child counts from the index"
     },
     "coverageReport": {
       "lastUpdated": "2026-10-23",
@@ -37,7 +28,14 @@
           "pages": 5
         }
       ],
-      "notIndexedExamples": ["/ai-gadgets/", "/electronics-toys/", "/misc/", "/oem/", "/toys/"]
+      "notIndexedExamples": [
+        "/ai-gadgets/",
+        "/electronics-toys/",
+        "/misc/",
+        "/oem/",
+        "/toys/"
+      ],
+      "historicalReportNotCurrentInventory": true
     },
     "inspectedProduct": {
       "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
@@ -48,6 +46,83 @@
       "breadcrumb": "one valid item",
       "productSnippets": "one invalid item",
       "issue": "Either offers, review, or aggregateRating should be specified"
+    },
+    "priorSitemapViewBeforeReload": {
+      "status": "success",
+      "discoveredPages": 10,
+      "lastRead": "2026-10-27",
+      "children": [
+        {
+          "path": "/blog/sitemap.xml",
+          "discovered": 2,
+          "lastRead": "2026-10-27"
+        },
+        {
+          "path": "/sitemap-0.xml",
+          "discovered": 8,
+          "lastRead": "2026-10-22"
+        }
+      ]
+    },
+    "inspectedArticles": [
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "googleIndex": "Excluded by noindex from previous crawl",
+        "previousCrawlTimeAsDisplayed": "Oct 29, 2026, 1:02:43 AM",
+        "liveTestTimeAsDisplayed": "Oct 29, 2026, 1:46:07 PM",
+        "liveCrawlSuccessful": true,
+        "liveIndexingAllowed": true,
+        "userCanonicalMatches": true,
+        "googleCanonical": "Only determined after indexing",
+        "indexingRequest": "accepted; URL added to a priority crawl queue",
+        "requestFirstAttempt": "not accepted: reCAPTCHA service connection failed",
+        "requestRetry": "accepted after one page reload; no CAPTCHA challenge solved",
+        "privateScreenshot": "google-indexing-requested.png"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "googleIndex": "Excluded by noindex from previous crawl",
+        "previousCrawlTimeAsDisplayed": "Oct 27, 2026, 10:56:47 AM",
+        "liveTestTimeAsDisplayed": "Oct 29, 2026, 1:51:49 PM",
+        "liveCrawlSuccessful": true,
+        "liveIndexingAllowed": true,
+        "userCanonicalMatches": true,
+        "googleCanonical": "Only determined after indexing",
+        "indexingRequest": "accepted; URL added to a priority crawl queue",
+        "privateScreenshot": "google-second-indexing-requested.png"
+      }
+    ],
+    "inspectedPages": [
+      {
+        "url": "https://supplychainsai.com/",
+        "indexing": "indexed",
+        "lastCrawlTimeAsDisplayed": "Oct 20, 2026, 1:07:42 AM",
+        "crawlAllowed": true,
+        "pageFetch": "successful",
+        "indexingAllowed": true,
+        "userCanonical": "https://supplychainsai.com/",
+        "googleSelectedCanonical": "Inspected URL",
+        "privateScreenshot": "google-home-indexed.png"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/",
+        "indexing": "indexed",
+        "breadcrumb": "one valid item",
+        "https": true
+      }
+    ],
+    "inspectedBlogIndex": {
+      "url": "https://supplychainsai.com/blog/",
+      "googleIndex": "Excluded by noindex from previous crawl",
+      "previousCrawlTimeAsDisplayed": "Oct 28, 2026, 6:04:19 PM",
+      "previousSitemapDiscovery": "Temporary processing error in the old URL inspection record; latest sitemap index report itself is successful with 539 URLs",
+      "liveTestTimeAsDisplayed": "Oct 29, 2026, 2:07:09 PM",
+      "liveCrawlSuccessful": true,
+      "liveIndexingAllowed": true,
+      "userCanonicalMatches": true,
+      "googleCanonical": "Only determined after indexing",
+      "indexingRequest": "accepted; URL added to a priority crawl queue",
+      "privateScreenshot": "google-list-indexing-requested.png"
     }
   },
   "bing": {
@@ -55,13 +130,28 @@
     "discoveredUrls": 517,
     "lastCrawl": "2026-10-26",
     "indexedUrls": null,
-    "indexedMeaning": "not read; discovered URLs are not indexed URLs"
+    "indexedMeaning": "not read; discovered URLs are not indexed URLs",
+    "resubmission": {
+      "date": "2026-10-29",
+      "status": "accepted-for-processing",
+      "url": "https://supplychainsai.com/sitemap-index.xml",
+      "stateAfter": "Processing",
+      "previousDiscoveredUrlsStillDisplayed": 517,
+      "privateScreenshot": "bing-sitemap-processing.png"
+    }
   },
   "mutations": {
-    "sitemapSubmitted": false,
-    "indexingRequested": false,
+    "sitemapSubmitted": true,
+    "indexingRequested": true,
     "removalRequested": false,
-    "liveURLTests": 1
+    "liveURLTests": 4,
+    "indexingAcceptedUrls": [
+      "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "https://supplychainsai.com/blog/"
+    ],
+    "googleSitemapSubmitted": false,
+    "bingExistingSitemapResubmitted": true
   },
   "privateScreenshotsCommitted": false,
   "rawAccountDataCommitted": false

@@ -1,0 +1,154 @@
+{
+  "site": "https://supplychainsai.com",
+  "blogProgramUpdateRun": "40814822583",
+  "blogIndexingRun": "40819158070",
+  "blogAccepted": {
+    "executorSha": "0892353752442d64ac95ff592dfb68d7c4bbaf4d",
+    "apiVersions": {
+      "admin": "914438425aa5b12193707d34c146f90372aff94e",
+      "publicApi": "914438425aa5b12193707d34c146f90372aff94e"
+    },
+    "blogSha": "71fb996b6252931756f50941697d057a268208b4",
+    "phase": "accepted",
+    "action": "expose",
+    "service": "blog-pages",
+    "releaseId": "71fb996b6252931756f50941697d057a268208b4",
+    "taskId": "2487660"
+  },
+  "blogPublic": {
+    "checkedAt": "2026-10-29T04:47:30.712Z",
+    "publicArticleDataUnchanged": true,
+    "pages": [
+      {
+        "path": "/blog/",
+        "ready": true,
+        "kind": "collection",
+        "images": []
+      },
+      {
+        "path": "/blog/oem-project-brief-acceptance-40249243887/",
+        "ready": true,
+        "kind": "article",
+        "images": [
+          {
+            "path": "/blog/media/articles/article-media-a8bd74b89e0bf83ae236eaea2f48389732958970077ca4514a1284283d3dc119/831595e0851dce0bb727df1297e11c0f700bc575c5b5ee3a18ba7c098008fa67.webp",
+            "status": 200,
+            "bytes": 96776
+          }
+        ]
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "ready": true,
+        "kind": "article",
+        "images": [
+          {
+            "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/f06ad20498172a01aee6468ded4174ebd95aa238fa18aeee63489af58f194a1e.png",
+            "status": 200,
+            "bytes": 2209843
+          },
+          {
+            "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/307bd1f4b8396740c3ee78653a69b7ced41f671beaa7e8310ac4fc38263a25b0.png",
+            "status": 200,
+            "bytes": 714791
+          }
+        ]
+      }
+    ]
+  },
+  "blogRouteChecks": {
+    "checkedAt": "2026-10-29T05:03:40.623Z",
+    "checks": [
+      {
+        "origin": "https://supplychainsai.com",
+        "path": "/blog",
+        "status": 308,
+        "noindex": true,
+        "location": "/blog/"
+      },
+      {
+        "origin": "https://supplychainsai.com",
+        "path": "/blog/sitemap.xml",
+        "status": 200,
+        "noindex": false,
+        "location": null
+      },
+      {
+        "origin": "https://supplychainsai.com",
+        "path": "/blog/health.json",
+        "status": 200,
+        "noindex": true,
+        "location": null
+      },
+      {
+        "origin": "https://supplychainsai.com",
+        "path": "/blog/seo-indexing-missing-40819158070/",
+        "status": 404,
+        "noindex": true,
+        "location": null
+      },
+      {
+        "origin": "https://blog-pages-298020-11-1443560658.sh.run.tcloudbase.com",
+        "path": "/blog/",
+        "status": 200,
+        "noindex": true,
+        "location": null
+      },
+      {
+        "origin": "https://blog-pages-298020-11-1443560658.sh.run.tcloudbase.com",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "status": 200,
+        "noindex": true,
+        "location": null
+      },
+      {
+        "origin": "https://blog-pages-298020-11-1443560658.sh.run.tcloudbase.com",
+        "path": "/blog/sitemap.xml",
+        "status": 200,
+        "noindex": true,
+        "location": null
+      }
+    ]
+  },
+  "staticRun": "40819519497",
+  "static": {
+    "status": "accepted",
+    "receipt": {
+      "deliveryId": "site-40819519497-1",
+      "artifactHash": "a100a10b64aedc51151f8ba3af38cc338cf350af49fc1f4ebc1b06a7eaef07b9",
+      "acceptedAt": "2026-10-29T05:37:07.335Z"
+    },
+    "articleTaskId": null,
+    "products": 528,
+    "productSource": "fresh"
+  },
+  "publicBrowser": {
+    "productPath": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+    "initialHtml": true,
+    "latestApi": true,
+    "categoryRefresh": true,
+    "quoteOpened": true,
+    "businessWrites": 0,
+    "articlePath": null,
+    "pageErrors": []
+  },
+  "staticJobSeconds": 3100,
+  "staticJobTime": "51m 40s",
+  "eightMinuteTargetMet": false,
+  "businessDataRollback": false,
+  "productAutomaticRefreshEnabled": false,
+  "rawAccountDataCommitted": false,
+  "afterStaticArticleIntegrity": {
+    "checkedAt": "2026-10-29T05:45:58.979Z",
+    "publicArticleDataUnchanged": true,
+    "blogProgram": "71fb996b6252931756f50941697d057a268208b4",
+    "formalIndexingAllowed": true
+  },
+  "allPageAudit": {
+    "ready": true,
+    "checked": 539,
+    "products": 528,
+    "problems": 0,
+    "report": "live-all-pages-after.json"
+  }
+}

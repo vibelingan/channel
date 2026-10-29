@@ -39,14 +39,32 @@ type RefreshTask = {
 
 至少核对实际存在的`catalog-row-mutation.ts`、`catalog-product-operation.ts`、`category-transaction.ts`、`catalog-source-invalidation.ts`、`alibaba-product-identity.ts`、adapter.ts及其CloudBase事务入口；批准详情与旧后台入口也要列明。它们不都是同一个函数的调用者。实施时逐项记下事务、读写字段、公开影响和测试，不凭一次rg就说全部覆盖。供应商同步只有改变真正公开投影才排队。
 
+本轮在当前代码上补读了下面这些具体位置，作为下一段实现的入口；这不是宣称所有写入方已经接完：
+
+| 已核对的位置 | 看到的实际行为 | 接入时必须防止什么 |
+| --- | --- | --- |
+| `catalog-product-operation.ts::publishOperation`末尾 | 商品、完成回执和批准证明在同一事务写入；详情使用immutable-v1版本 | 只监听`published`布尔值，会漏掉已经公开商品重新批准的新正文 |
+| `catalog-row-mutation.ts::runCatalogRowMutation` | 商品创建/修改/删除；变体和源资料改变时也可推进父商品版本 | 内部输入版本变化不一定改变已批准的公开内容，不能全部重建 |
+| `catalog-source-invalidation.ts::planSourceInvalidation` | 同一值的绑定写入也可能只用于并发协调；另一路会forceContent | 不能把一次锁定或contentGeneration增加当作公开正文变了 |
+| `category-transaction.ts::runCategoryCommand` | 除分类指派外，还分派mapping和taxonomy命令；有些路径写规则而不写商品 | 不能只在一处商品保存函数挂钩，就说分类路径变化全部覆盖 |
+| `catalog-taxonomy-transaction.ts` | 独立的分类注册表事务入口 | 需核对分类名称/路径变更影响哪些已公开页面，并为这些商品留下待办 |
+| `alibaba-product-identity.ts::runAlibabaProductMutation` | 多条分支经writeProduct写商品，并与来源绑定/租约一同提交 | 保留现有同步互斥与审核流程，仅按公开投影判断是否排队 |
+| `cloudbase-adapter.ts`与`catalog-detail-staging.ts` | 前者有真实CloudBase事务，后者接入批准工作流 | 待办必须在真实事务内写入，不能仅让本地假存储测试通过 |
+| `adapter.ts`的持久化本地实现 | 与CloudBase适配器并非处处调用同一个函数 | 两种适配器的公开变化行为都要验收，不凭相同类型签名推定一致 |
+
+先在这些入口的现有测试中补公开前后投影与事务失败案例，再接公共记录模块。分类批量影响需要有界枚举和可靠待办；不能在一个事务中无上限扫描全部商品。逐项覆盖及最终接入结果仍待CAT-01代码实现。
+
 核心形状：
 
 ```ts
+const change = await planPublicChange(tx, beforePublic, afterPublic); // 先读版本与待办，完成计算
 await tx.writeProduct(next);
-await recordPublicChange(tx, beforePublic, afterPublic); // 同一事务
+await writePublicChange(tx, change); // 同一事务，只写已算好的结果
 ```
 
-这里的recordPublicChange是拟新增的公共事务模块，不是现有API。SDK调用沿用现有Node SDK适配，不给wx类型补不存在的方法。上云前按仓库SDK合同核对官方与安装包，确认新增集合权限。
+这里的planPublicChange/writePublicChange是拟新增模块，不是现有API。沿用仓库“所有读取与计算在前，写入在后”的事务组织，不在写完商品后再临时读取版本。完整公开详情的摘要应在已有批准流程准备好，事务内核对其不可变版本与证明，不逐件扫描全部变体来算散列。SDK调用沿用现有Node SDK适配，不给wx类型补不存在的方法。上云前按仓库SDK合同核对官方与安装包，确认新增集合权限。
+
+独立分类事务若实际改变多个公开页的投影，应在同一次提交留下分类级待办，再有界分批派生成商品待办并保存进度；不能让分类事务无上限扫描或写全部商品。重复分派仍以当前公开投影、商品版本与分类版本核对，不增加重复版本。是否影响商品正文、分类页或仅后台配置，要以03实际使用的投影为准，不把所有分类维护都当作商品重建。
 
 ### 取舍和测试
 

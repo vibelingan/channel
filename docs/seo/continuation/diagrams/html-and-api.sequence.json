@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品更新后，浏览器画面与服务器 HTML 各自怎样改变",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1000,
+      480
+    ],
+    "column_fit": "spread"
+  },
+  "participants": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "浏览器",
+      "sublabel": "当前打开的页面"
+    },
+    {
+      "id": "hosting",
+      "type": "cloud",
+      "label": "静态托管",
+      "sublabel": "保存 HTML 文件"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "商品接口",
+      "sublabel": "读取当前公开数据"
+    },
+    {
+      "id": "refresh",
+      "type": "backend",
+      "label": "内容更新器",
+      "sublabel": "自动接线待实现"
+    },
+    {
+      "id": "crawler",
+      "type": "external",
+      "label": "搜索引擎",
+      "sublabel": "同一个公开网址"
+    }
+  ],
+  "segments": [
+    {
+      "from": 148,
+      "to": 262,
+      "label": "已有：接口更新浏览器画面"
+    },
+    {
+      "from": 278,
+      "to": 362,
+      "label": "待接通：变更自动更新 HTML"
+    },
+    {
+      "from": 372,
+      "to": 430,
+      "label": "搜索引擎随后自行抓取"
+    }
+  ],
+  "messages": [
+    {
+      "id": "initial-request",
+      "from": "browser",
+      "to": "hosting",
+      "y": 160,
+      "label": "打开商品网址",
+      "variant": "emphasis"
+    },
+    {
+      "id": "initial-response",
+      "from": "hosting",
+      "to": "browser",
+      "y": 189,
+      "label": "先返回上午生成的 HTML：A",
+      "variant": "return"
+    },
+    {
+      "id": "api-request",
+      "from": "browser",
+      "to": "api",
+      "y": 218,
+      "label": "React 读取最新商品",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-response",
+      "from": "api",
+      "to": "browser",
+      "y": 247,
+      "label": "返回下午的新内容 B，更新当前画面",
+      "variant": "return"
+    },
+    {
+      "id": "change-work",
+      "from": "api",
+      "to": "refresh",
+      "y": 276,
+      "label": "公开变更留下可靠待办",
+      "variant": "dashed"
+    },
+    {
+      "id": "current-data",
+      "from": "api",
+      "to": "refresh",
+      "y": 305,
+      "label": "取得当前公开数据 B",
+      "variant": "return"
+    },
+    {
+      "id": "replace-html",
+      "from": "refresh",
+      "to": "hosting",
+      "y": 334,
+      "label": "复用已验收模板，交付 HTML：B",
+      "variant": "dashed"
+    },
+    {
+      "id": "crawl-request",
+      "from": "crawler",
+      "to": "hosting",
+      "y": 363,
+      "label": "从链接或 sitemap 发现后访问",
+      "variant": "default"
+    },
+    {
+      "id": "crawl-response",
+      "from": "hosting",
+      "to": "crawler",
+      "y": 392,
+      "label": "与访客相同的初始 HTML：B",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "自动更新待接通",
+      "items": [
+        "API 只改当前画面；服务器 HTML 需另行更新。Blog 已用实时正文。"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "beforeRun": "40617257076",
+  "candidateRun": "40819519497",
+  "productPages": 528,
+  "sameAfterIgnoringOnlyDeliveryDateMinAndAstroUid": 528,
+  "otherDifferences": [],
+  "meaning": "read-only artifact comparison; no HTML was modified or deployed by this diagnostic",
+  "oldManifestFiles": 1776,
+  "newManifestFiles": 1776,
+  "unchangedFiles": 1247,
+  "changedFiles": 529,
+  "changedProductFiles": 528,
+  "otherChangedFile": "robots.txt",
+  "changedBytes": 54374710,
+  "installedAstroVersion": "6.4.6",
+  "sourceCause": "CatalogQuoteSheet renders localDay() into deliveryDate min; Astro island ID hashes the rendered HTML as well as props",
+  "sampleProductPropsRawEqual": true,
+  "codeChangedByInvestigation": false
+}

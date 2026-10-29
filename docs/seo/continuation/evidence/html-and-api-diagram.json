@@ -1,0 +1,15 @@
+{
+  "diagram_type": "sequence",
+  "output": "diagrams/html-and-api.html",
+  "specification_sha256": "8aecd6652e3859103f20646c45ca4f153de4405484cad0d485d397b2c5ff0143",
+  "artifact_sha256": "2304bf6509c9a517137d9ab5f14e824e0825d32b958586951ec2dc17d32930fb",
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "visual_review_scope": [
+    "2048x1320 light",
+    "1440x900 dark"
+  ],
+  "visual_review_observations": "已查看两张真实截图；文字、方向和既有/待实现区分可读，没有遮挡重要文字。",
+  "correction_rounds": 2
+}

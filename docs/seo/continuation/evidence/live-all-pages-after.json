@@ -1,0 +1,3257 @@
+{
+  "checkedAt": "2026-10-29T05:43:57.299Z",
+  "siteOrigin": "https://supplychainsai.com",
+  "ready": true,
+  "meaning": "technical-readiness-only; search-engine-indexing-is-not-proven",
+  "allPagesChecked": true,
+  "discoveredPages": 539,
+  "productPages": 528,
+  "publicProductPages": 528,
+  "missingProducts": [],
+  "retiredProducts": [],
+  "checkedProductPages": 528,
+  "imageCrawlAllowed": true,
+  "sitemaps": [
+    {
+      "url": "https://supplychainsai.com/sitemap-index.xml",
+      "urls": 2
+    },
+    {
+      "url": "https://supplychainsai.com/blog/sitemap.xml",
+      "urls": 3
+    },
+    {
+      "url": "https://supplychainsai.com/sitemap-0.xml",
+      "urls": 536
+    }
+  ],
+  "checked": [
+    {
+      "url": "https://supplychainsai.com/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/ai-gadgets/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/",
+      "ready": true,
+      "kind": "collection",
+      "revision": "4cda51eca7b6bee79684074435a7150daa8ffa8214e39fab4c78b67648048ed2"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "ready": true,
+      "kind": "article",
+      "revision": "0cc026cc6bd9be0e72bfff2454499528ee5076a4b0a736139b6792a9fc27f09c"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "ready": true,
+      "kind": "article",
+      "revision": "81db466452951f525e873bca6dcf954d3ebbbc3886ab9dd4d4f63a39721bd4d3"
+    },
+    {
+      "url": "https://supplychainsai.com/electronics-toys/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/headphones/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/misc/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/oem/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/portfolio/",
+      "ready": true,
+      "kind": "marketing"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-00bae324-2bee-467a-a0e5-e61bf99a8566/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2af0fdb7-6134-437d-abc1-41a4728ce1ed"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5bada6b3-7d38-4eb9-a719-c9663241bd99"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-012500bc-034a-4b30-a53c-96d5f9cccaf3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7f4033fd-c0f2-4fcf-8941-6a5d61a29914"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-02503c24-a383-48fb-ac75-b4598cb585e1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b947a97f-3cbb-4222-9cb3-870ca33e6f33"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-028f12d4-9b6e-4896-ae56-8774edf6bc45/",
+      "ready": true,
+      "kind": "product",
+      "revision": "73847b5a-ed28-4a70-a6f2-7eab3b6a7f5a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-04421dbe-e392-4da1-a3d5-e1d32030d3b8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "32fc8ecd-eaa1-4d63-a2b1-67421fad34b8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-05960748-6c4c-48c4-a2b5-8750132cb8e2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e93afe0f-0f96-4915-bf59-9e422f162f00"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-06475830-df1f-4533-a605-fa1fa35136f0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d3c31f58-c30e-4f7b-ad44-a7dbd60be3ac"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-07e7355f-90b6-45a7-a976-0bf93c321702/",
+      "ready": true,
+      "kind": "product",
+      "revision": "424ee769-9130-4e6e-85af-e68d2efb86f2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-07f60aaf-0450-4455-ac82-d6e778cbc509/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ed3af872-cedd-445a-8d9e-a21d6e6f8bce"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "28492d73-2d12-407a-8ea6-73544af1adff"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-090363c1-084d-4078-a31f-14ee799fa25b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "90acfc90-8362-4199-aa88-c9498841f0c6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-093dd5ef-8c43-4265-a852-ad9a60342f6f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eb8c37e6-7809-4993-9d66-abab214db7dc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0a2ca6e3-e76f-453f-a964-6ed2439c2d8d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "82128cbf-7d38-43e9-b946-4326d2a64f28"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0a9642c1-3a03-463a-a8da-19815937e702/",
+      "ready": true,
+      "kind": "product",
+      "revision": "16947270-510f-4d17-9af5-c7bdd0aeaa10"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0aa9d459-159c-4ffa-a5c0-db9a8e7c642f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "16514d43-bbac-49f1-b2ec-fdcb8fcad287"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0b06c67c-5a8e-42eb-a028-1e0a0dcfcb20/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ec2354fc-4851-486c-b448-3892923eb0a6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0b78edcd-da5e-493f-af46-f2dc8698a779/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1f1da95a-17d6-45e5-b496-c1f1a5565b6c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0c94540b-d262-4bd8-a168-0a377e94d57d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "935268f5-2910-4e27-a3cc-ca29b69db829"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0e0afdc26a681c8b0051e7dc4380cad4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "407aa633-c00b-4758-a610-566ac4fb7e5b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0e0afdc26a68204700523563353480a1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ba974940-e119-4cb9-9804-47b9632b70c0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0e0afdc26a6820b900523bfb27a9a5cd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "68de8b9b-a97a-4e09-b1d0-c87b1fb1925f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0e18d7ff-8a92-45b8-aa3d-461634880ac8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "621fe0f2-9041-48c2-8400-88e3d08b5b4d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0e3c77c5-de53-4406-a368-b61db105a5c1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a217ae12-2502-49f9-8915-e91ea528b6ff"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0e67a16c-e4c2-4276-a983-8ecbbb4b42e1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fa7ecedd-59ca-41db-a3ed-3502831ddb26"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-0f6699b8-2e2c-4b5b-a4d1-43c1f0fa582e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "664838f9-4120-4340-a1e4-e36035086289"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-103031de-7cb1-4bd1-ae79-5320004f6f26/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7b687733-b42f-4151-87da-b8c44d933882"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-104b4b0a-4657-4ee9-a66d-f52c44723a57/",
+      "ready": true,
+      "kind": "product",
+      "revision": "efd77127-875b-41d1-87df-4e19bd49e655"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1098d540-1101-4097-a64a-1024d3d4fee4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2aacc505-5bfd-46c1-81c7-9ae84b0b92e3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1121083f-848b-492b-a454-5fb7b1e3a009/",
+      "ready": true,
+      "kind": "product",
+      "revision": "53535c07-35ee-4ebb-9cd6-0fadfb57721e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-11404738-bf5b-4c16-aa3a-1f4806c83ff8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "aa050db1-4919-473d-90b1-8e9a3bf76fde"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1233306f-0b6c-444a-a912-1ab56ac659c2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f2df6069-843e-406c-b376-d90afb26c282"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-124f5ac9-24e5-4bbf-a3b3-600effc547e8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e98153e3-22f1-4bf5-890f-3be2a8f3262d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ea13db4a-afc1-46c1-8175-c874a8a29b07"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-12b26b7b-4a24-4912-a423-87967718286b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d48e1b8c-7949-44f1-9909-e81237a2dbb5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1404c0f0-05d9-4a7e-a08e-47035f43abbd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "431976c1-b181-4929-8f42-734834758b98"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e28b5784-9ebf-45b5-96ce-52bbdee82465"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1460973f-c901-4857-ac33-954c594d765e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cf95892f-c76e-48e4-8e7d-c6554d260a4e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-159a0400-b953-4b13-a444-98a8250aa679/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3029ac3e-666e-4a69-95b1-581849e501bf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-15cfb5e6-2547-45af-acf7-4058716023a8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eeafdfd9-fd46-46c8-817f-643d8dfe7c66"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-15df9f52-cd3d-4008-aef5-9e38e35e3088/",
+      "ready": true,
+      "kind": "product",
+      "revision": "25c79c9f-9603-4337-a25c-6b793997f14d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-165be142-f7ef-4f49-a8cb-6681e208ee75/",
+      "ready": true,
+      "kind": "product",
+      "revision": "066528c2-5201-4386-92ab-ea7d4fc26af9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "ready": true,
+      "kind": "product",
+      "revision": "abf25fcc-5586-456c-808e-9c018f7609a8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "ready": true,
+      "kind": "product",
+      "revision": "54b290d5-e624-4b5c-ad3c-22e65951fb02"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-19585d68-d7fd-4cac-a22e-b2bd4f56a489/",
+      "ready": true,
+      "kind": "product",
+      "revision": "08346de7-c71c-48ca-94a0-0b0701cb222f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-197ccfd7-d45c-4187-a73d-9564055aee49/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6d208111-e03c-40f6-bec4-db40cf50fc11"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-19df11b6-903e-4314-a0f1-7bf6bfc29601/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8cc794ae-c4a4-45ff-a5ba-d91a6af07183"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1a0bb1a0-4518-477a-a5cc-3fa9b6ac2798/",
+      "ready": true,
+      "kind": "product",
+      "revision": "317db6f5-33ea-4bb4-93c0-58411fc4b01b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1a334f5e-5cf9-4f8f-a335-341721656fc4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0ce4af5d-b62d-433a-a0a8-a39b805cd2c8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1bbc2361-5f07-4b92-a753-678d2c11fe20/",
+      "ready": true,
+      "kind": "product",
+      "revision": "522ffda1-00e1-4002-95b5-b5ec0fc9a213"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1c41e165-9491-4013-a373-4b27829f6483/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4f75c949-03eb-4ce8-a41b-c0b31cbf8512"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1c4c1593-1b15-4951-a052-89fb59b066a9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6b43a9fd-a0e7-4a3b-8e3c-43bf07b0dfa5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1d15d954-b9e2-496d-a966-bbfd88a1e18c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "614507bf-418b-4047-8cc3-45f6fd846d07"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1db41dd3-75bc-4af7-a609-467ff7dde0b7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eb9f3caa-ddaf-4786-8ee7-15ad3f0c388f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1df4f084-53cd-4b77-adf6-0ebf66b0639e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e65f206e-4402-4e80-ba8f-71b2e10a8ce6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1e09bcbb-476f-41e0-a5df-e45fb51c7ecf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b666901b-d638-4096-bda9-346bbe0c3b9e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1e8423da-d31e-4dba-ac15-47e0c0fe32b6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2e604d07-467e-4d8d-822d-d5c0f5fb4bf1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1ead3f02-898d-4493-a1a3-8a9df9536e09/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d79dab7b-e9a3-4906-87aa-48afc1fa12b6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1f5ae6e6-dfa6-47df-ac58-7a335600a1c7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c0499219-a80e-4b8a-9259-b4bd93f3499c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-1f88b34d-eb99-47fa-a8d6-c32e7debe707/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b7ef2202-1d44-4ffe-98ad-ee6aec2acaee"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-203cb252-a2d8-455f-a3ee-763198643bab/",
+      "ready": true,
+      "kind": "product",
+      "revision": "15c4dfe8-e6ca-441f-8809-ef6446f24312"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2070fd75-8df6-4f2d-a4e9-9393c4722887/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1a4bb582-0666-4ea6-a56f-a96091d88dae"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-20db9073-60fa-443e-a6d3-7e7edc75f0e6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ac74af76-6974-470f-a764-dd669d7d51d4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-20e9087f-2a7a-4068-adb9-e932c15df82a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c74c6e88-0b06-4648-adde-431e9c533ca1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-20eea8f1-44cf-400c-a068-cd426c6c6cc8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c3fb2768-4a72-4896-8878-e11d1bd74e1e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2107e728-22a8-4f33-ac58-09d1eaff8dd7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b64e0752-14ae-4517-b91d-c11f53979691"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-213251f9-3914-4e3a-a8b9-1292525f1687/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7446b0fd-d3e5-4d8a-ba2d-e5834590a419"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-21c1e52b-c1ef-4024-a7a3-831ce89dbc98/",
+      "ready": true,
+      "kind": "product",
+      "revision": "40f45803-bb45-4660-b0b8-7f9d908faddd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-22a0bc9b-2eaa-4f6b-ab6e-82a1053df777/",
+      "ready": true,
+      "kind": "product",
+      "revision": "de434071-3e7a-4068-b83f-f849714a7fd3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2306a96b-d84d-4906-ac21-661e9a5a6a4d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ced5ce8e-77bf-41a4-bca8-4b3e85be64bd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-23645c96-6b99-4537-a9f1-2679286b9e03/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ff6e7fa7-a87c-4690-95a5-737c5e695a43"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "ready": true,
+      "kind": "product",
+      "revision": "21bf9696-d5b8-4e39-aca8-0525c0cc1455"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-23cf7fb0-96b5-4b10-a2cf-dde5ef28c8de/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f83ce3af-713b-4384-822b-018606d73671"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b4b0983e-f40f-47d8-ad8c-553a92d7e6fd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2429aef6-18c9-4407-ab14-2551dac7c844/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c3b6dc44-251e-48e9-b7c5-801b72d657ba"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-24ddb14e-43c9-4e6c-a7f8-6a46a1490610/",
+      "ready": true,
+      "kind": "product",
+      "revision": "218b919c-40f9-415a-86a1-c369edec13f1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-258394ec-d04d-4777-a0ab-fa1b14ba4375/",
+      "ready": true,
+      "kind": "product",
+      "revision": "128a2f69-3a80-4efc-9790-5f81941687ac"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-25d4ce94-d6a4-45a8-a5c8-67866a1833ce/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f899e179-d60a-4add-b6c7-8d7cdf42c81f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-25f9a3cf-f60e-46af-aeec-aea7a8e63e6f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "26764cb9-8756-41d6-85d6-5bfbca49fbdc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-26f88014-7276-4c13-a123-a8550e2308d7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b0294e62-cbd8-48d5-9ae2-bd4719a49e45"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-271f8a0b-98e1-4a62-ae2b-46cda14cec2d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "69bbf35d-a718-444c-a3bf-77bee84ce2ab"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-27f65c9d-85e2-4b41-a0db-2195933b3c17/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cc3c62c3-f6d3-4058-b992-344439f9fa38"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-284b026f-a39e-4de0-a12e-49e5c8213ef8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "50f1f9ec-195e-4ef7-ad8d-a1aa4cc08773"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-284ba8b5-67a9-4f50-aba9-2bfcb076d138/",
+      "ready": true,
+      "kind": "product",
+      "revision": "411a0110-b83e-4ccb-9abe-62591d37cf22"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2857c0a1-54d0-4fe9-abc6-0192ee23464e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2c159060-5f00-48d8-9566-d198b9a6cd44"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-28f0d1e6-07ee-4953-a99a-eb64054bd77c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f8fe3cb4-da25-41d0-ac5e-237a3c100c60"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-29f1617a-10a7-4dfa-adc3-862bb2d6b1ed/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8702af29-bcf7-4165-bacc-5d539476ef3d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2a279ea9-b852-4899-a908-16ba37677682/",
+      "ready": true,
+      "kind": "product",
+      "revision": "596a1018-0b49-4a13-81d0-53ee03d8ad60"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2ac769a0-3971-4541-a4a7-ca513f90dccd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eb53360f-c23c-4a58-a866-f29ccf393bab"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2b9428b4-fcd5-4ae7-a716-fdbd3fbaf8aa/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c905896c-8148-4845-a232-be4a8a3121fc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2bb92c19-4889-4efb-a524-27aac71dba3e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1b21f41f-170b-4c90-95e9-5d5befa372db"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2cfa166a-7d59-4464-af48-095390acad2d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "84faac92-2306-4981-8d29-16063e8350fe"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2d69d9e5-3ff2-4f63-a7c4-d0f2fedafb1a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b8dc0702-ebdd-40b7-842a-8a2a21110f33"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2e096d39-3eb3-41e8-a703-ce2ba02ba007/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4693ef74-8356-4bab-9185-493896a1b04a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2e1c70cf-4c1b-44e1-a463-392e1f37c576/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e561126b-4593-4e65-922e-a047dce2ca3d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-2eebc463-114d-4b0f-aae0-c4673e320140/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fbac04a9-d7b8-451c-8770-38365511aec1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-302c4b44-da60-4546-a3c8-4989f077eb2a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b48a2822-bca7-4922-a8aa-e89b3a450ad4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-30b1165f-6949-493e-a40b-d7919bfb46b1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "71a1308b-7004-4d40-9e03-4af64c0923f1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-327b4393-848d-475a-a5ae-b4be487bcd18/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9d691679-c0ec-4eb0-8cad-c3a6c87e63b6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-327c3ed9-398c-4546-a012-b9e4f6237ef6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0bcd551c-d09a-4058-aacd-6f87c64565e4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-32a62594-e7c7-483a-a08f-0aab16613505/",
+      "ready": true,
+      "kind": "product",
+      "revision": "72cd4883-b094-43c4-a52e-107ee9482f2d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-32a7f6d0-f0cd-473b-a314-284bdad9b484/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6e617005-a2b7-4b3c-8dd1-87e3bb2afefc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-32e1337c-9378-4961-a010-8f7872234149/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b35fa85b-1d77-4eee-b192-eb7cceb10fc5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-33b2a860-a6d0-4215-ac8f-fa981c394acd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d6d9242b-9d54-4354-b8f9-4237d4d6c84a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-344827c5-640e-4ddc-ac31-64e959ddfd5a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9fcc499e-27da-47c5-a4c6-479002b11db0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3474c795-bd65-494f-a133-59be92b55595/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d35c4fc6-bc5f-45ca-b778-39191b9cdc9d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-348d3b88-3c12-4fb6-a589-b06ae12eebfe/",
+      "ready": true,
+      "kind": "product",
+      "revision": "14b5c58b-516b-4738-9722-8b68d0863baa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-35ae640a-3383-4639-ac6e-488aa4338210/",
+      "ready": true,
+      "kind": "product",
+      "revision": "29dc6135-5f03-4b95-8bca-a64e01c87859"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-35e6bc3d-ea78-4870-a66f-a96da2abe2bd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "596a55fe-34cc-4a25-8dd9-364fe46409c0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-35ec397d-bcd9-4c03-addf-7c0328824f44/",
+      "ready": true,
+      "kind": "product",
+      "revision": "87f79b32-853c-419e-8471-b68ca92aa4cf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-36e1055f-107e-4957-acc3-41131b964f03/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f3a83928-1ba0-40ef-bf2c-02a6e0c7cd8f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3713fbad-52ec-4368-a34e-f11df57c070f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "78ae04cd-1893-4758-a337-464e0a8fb299"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-384353da-fc0a-46f0-aa4d-bf24ef288c39/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1229877a-b1ea-475e-8c5b-b40c40ab472c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3853a2fc-4421-48e6-a2c1-4732fe373561/",
+      "ready": true,
+      "kind": "product",
+      "revision": "32fae8da-812d-4d73-aa28-8eeca0beeb9b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-385ba175-44f7-48b8-ac1e-0d5b081bb5e4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "85dadc9a-6f21-4fc6-bfab-acf92cfc0a23"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-38922bd4-f812-48a7-afe7-d069e13364df/",
+      "ready": true,
+      "kind": "product",
+      "revision": "40325f77-a924-4dc4-8a9d-bd6fd3e2ca85"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-38a066df-e16e-4ad7-a9a3-345fb342eaa6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f393bc37-8535-4d25-bee4-6efe6b14db18"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3908d67d-03c9-40a1-a029-1a8a113f04b5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9cdf0e26-3cda-4566-bfb0-fdebf64b1517"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-397b0c40-c422-49e5-ae8b-230955a56128/",
+      "ready": true,
+      "kind": "product",
+      "revision": "26d64032-da58-4cbb-8f0f-1a18a56e1504"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3a43ba63-2fa6-4f89-adae-44e7746d4fbf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "dab5d301-2569-4f39-85d4-d7ed83379abc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3b3e28a8-dbf9-4bdc-ae84-68870f81a704/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c1df4ec7-7cd2-4d9e-aac5-426bde18c051"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3b4a9635-0a17-4e59-aad5-2d03d323ff2f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c5f667b5-4807-46fb-b9e5-cda262b719b7"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3c90de71-6201-4f96-a323-e0b5ba6c6689/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1673b9c6-fbb9-42bb-a9b7-352425d07018"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3cf1f4aa-7971-4cbf-a5e6-c071be7b7c4f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4e2e1946-06e4-4c30-8b7a-c78b87b6ff95"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3dacaa0f-4fc7-49f6-a5f3-735473e195b4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4bfc3fb2-2d2d-4861-a4db-354bce02f2da"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3dcb1895-2d2d-4378-a6df-db5822c42960/",
+      "ready": true,
+      "kind": "product",
+      "revision": "237c3ab2-f6d3-4caa-bd7d-b1083c8ab436"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3e247f95-c4a0-4b25-a520-3efbeb3967d1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b2e72910-be07-4a98-a4e0-a966b1fa359e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3ec48f84-5ad0-4d50-a2ec-151f5d29bda6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ed4247cd-b787-4efe-b68a-927b766ecaf4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3f3699c0-dcbc-460f-af0c-a4ccc45caf3d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4ff50b2b-7cbc-43fc-ba0c-cda066c16067"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3ff06407-1d98-44dc-a37e-407b6e2d9ee7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1017ce4e-35bf-4168-b1de-58463a14276e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-3ff70bce-67d2-4939-affa-19282f16168c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cb5074d5-d2e9-4763-a5d8-5d3e5fbb1849"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-40d4b1e0-2344-468c-a68f-3472ff6931f8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c404e357-8824-4544-85fc-450c14cf252d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-40e46540-b7ef-43f3-afeb-7ea2c81dd3ef/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ac6ee8ea-6d99-41df-9f67-2d87988394f8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-414ed63b-f14d-4234-a3b9-a9ab38f3bbc9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2b12c3ae-3a1f-4996-8ded-6509bb0e237d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-415ca769-b2ec-47d4-a2e2-164784070f2b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "174c1480-0f7e-4586-8694-5e8dc1b8bc68"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-41655508-437d-4149-a90a-a9e889b698d6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "72592ace-78b4-44f9-b34a-3d4ff19e5b86"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-41ec2bb5-db14-4140-acb8-4b7340cc832b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2671c4b3-a7e9-46d3-86f0-ea1f4b71cb4a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-42041513-eb48-432f-a2b9-4e15b01752f8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3db3cee1-0a15-46b9-8712-3c873c9587c4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-42217ad4-a4c5-4632-a06a-cc461b21d058/",
+      "ready": true,
+      "kind": "product",
+      "revision": "611b92fa-7906-407a-adfa-e8993cf2bfd5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-425ff601-37e1-445a-abda-99d7564627e2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "27fc07cb-e945-4e35-b613-65fd72304428"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-42baf2a8-3cdf-432f-a29a-e9e1f13b23e5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2af28d0c-b085-4945-8190-7384cbec2c00"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-42c713d0-99de-4934-a0ca-582a7cb9c3bf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f4d327dc-cedf-4a25-82ed-6dacf1c9c91a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-43df53f9-3b32-4c81-ad4f-5371a2525f1a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "efb37b57-68e8-4e75-822a-c5b12a6baa88"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-47aed9b1-733b-4ab5-a4fd-1fd2b1ee046b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9d1cf33d-a9af-460b-b239-22a9485e95a3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-47f81a66-e55f-4e2a-a88c-48938a540f5f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1d868076-13d2-4a77-b58b-4471e6b7493e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-483207676a6829f2008b7cba2ca33a11/",
+      "ready": true,
+      "kind": "product",
+      "revision": "647a9b28-61eb-477f-8ef1-03440601a52f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-48a7c42d-508e-4d28-ad9c-2d7d5c0b98aa/",
+      "ready": true,
+      "kind": "product",
+      "revision": "56e4e94c-31e4-42c4-9f5e-c1de0822ddf2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-496b0c69-d25d-4afa-a657-38b090496412/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e10996e3-f64b-460f-aedb-7e04af334c20"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-49894dcb-12cf-4aa8-a675-5181db3d3306/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c314db4a-aee6-454f-81d6-f61405c0d949"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4a3f1699-3cd3-423e-a2dd-602b92b52b6c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a92b0a4a-75d1-4cd3-b381-c39d31f774e5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4a7e53b2-843c-44bc-a645-97be31d440e0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c94515ad-9b4b-4ecc-b7a4-e03a1c2a021e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4a83658d-56ea-4586-a806-325fa747d08a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a5efbe87-f600-439f-a522-e76e9ca87cb5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4ac1eef6-2d4a-4332-a8a9-55028332fc99/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0a7ad89b-06e1-450e-aed3-603750aa0a57"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4bf6aac2-4619-4646-a87c-21bfd4a9bea5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "dd94b5dd-e310-49c0-9e0a-5f04a154e892"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4c02eff6-eac7-47c8-acb3-7f9b4a882c05/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c8809178-ee1e-44ed-a777-a8c45e28c146"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4d4962cc-7ee9-414d-a3a0-08d150115ff0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9cfe9f19-0946-4d44-9465-db65ea9eab37"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4d5b4d4e-2794-4d3a-a4dc-253459ffd11f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0deee8f1-92f4-460b-9d21-9bfed8342df1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4df96dea-e7c2-41d9-a4a5-1cda86bc32d0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e25c4a5a-7344-4396-8c52-bfda250fe793"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4e2f0c91-6a68-40a8-aa9b-b7277793902f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e5a57c43-74fd-4f05-b346-e61e198e9563"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4e94d776-c1c0-45f0-a94c-78b16227ec0c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d4b36983-ff10-4377-b656-6ac9f524b906"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4e9d8a0a-ff53-4ae8-af35-2475a47614b9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "650f4cf1-a7cc-4b7c-a427-43af7731a727"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4f614dc1-467c-4618-a7d9-9eb4c800361d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0a916db8-ec97-4109-99cf-57b1968365ce"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4f6d4b36-9f9a-406d-aeff-1e8ecc81eec0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7d418197-29e9-40c5-a1f7-9b4f8323ad9b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4fb085f8-1393-415a-a859-fa181486444b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a3b5d07a-4497-4eec-9ee9-915446dd26e0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-4fd865b1-f4b3-4031-adcc-b32d57c9a668/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6f543872-79fa-4859-a03c-8877317fa7ae"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5021ffb3-3dfe-47f3-a1d5-8c9ae5de61c5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "abd18853-3a3e-475a-8955-fd6b114e0d93"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+      "ready": true,
+      "kind": "product",
+      "revision": "43308cf1-5ac9-4e3c-b4ae-d4a20c84228c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-50729175-42b0-4a64-ac01-c8762b763bd7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e584094a-0861-4b67-8551-a5e872b6b947"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-50fe68f7-b663-40ed-a97b-405fabeac747/",
+      "ready": true,
+      "kind": "product",
+      "revision": "bcc9497c-b9e8-4d84-849b-549c8bb90527"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-52121e8c-10f4-4daf-a164-61e1eba6b0c2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7c9ee451-9b64-4b6f-bd77-9f9287454691"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-52cbbc1e-cb72-480d-a5f0-7ff1fd703f16/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6d2aa283-927d-4cb8-adca-afbb4969a9ae"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-52d6e7c2-8fc7-4e4f-a7a1-204d051f9425/",
+      "ready": true,
+      "kind": "product",
+      "revision": "54d86acf-686d-4990-bd79-c8fb0b9514b9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-53566ca4-6af3-4afb-a2d8-49adc27e2f4b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a86c0596-631f-4789-a64d-39a5c2a60707"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-537a2487-8ecb-45ef-a0be-9de24764bc4a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "75441163-28d5-4869-90a7-4fd1684f8b1f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-544761fd-7f57-49a9-a175-fe656762d5fc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "19377106-9114-49d9-b3c5-9cafa07c0347"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-556e5d10-08f3-4a3e-aa3f-59a8f480117a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e16ae3c3-fc06-4dbc-a54f-f4a6a327420a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-55d056ed-563c-49f7-ae83-116be5036442/",
+      "ready": true,
+      "kind": "product",
+      "revision": "feead5dd-84d3-4861-8ae7-36e18e008bd0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-563728a8-804e-4126-a1dc-a93da39c5525/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4255d606-e7bd-45b4-acd3-bc841d5df022"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-567f10d6-f53d-4dba-ace6-3378b8831225/",
+      "ready": true,
+      "kind": "product",
+      "revision": "44023ef7-a556-49ba-89fc-f679dae225b0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-56db5a58-2dbd-4a2e-a0fe-3aad52f785ed/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7763ace9-935f-486f-9422-02217f4991e6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-57b69b28-cdeb-404c-af57-847d816e4a06/",
+      "ready": true,
+      "kind": "product",
+      "revision": "246aefe8-c2e4-4b7b-a345-78661550da78"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-57eb2710-acd6-4ee8-a8d9-7bc50f6548cc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c3fd8407-08b0-4dcc-a746-72d52cd55bd1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5805d5de-d2ea-4fc8-a852-af18aa3ea4a4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1d937f04-12da-4fef-99c6-11b39bc88a17"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-58f0bd2d-5df1-494d-a11f-65286631f283/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4bfec115-257e-4d6d-b881-33a8d5994fd5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-591a642a-1b81-4976-a020-c75148882320/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e6056daa-dfca-40df-b306-f293b00815ee"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-59211754-9027-479c-af38-0b2dc5f63883/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a1ce3ea3-fa9e-4f1b-931a-84c87ed2d335"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-59a114a7-db12-4b6d-a476-7477e8a9994f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "42190879-d31f-4305-b56c-c9ca22d7bdc2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-59cdf635-3f84-439b-a52d-32e0330bce47/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1ccad4df-bcdc-4ef5-8108-b9f86b28ec6e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5a077c5d-768f-45b3-aef0-e6870b63cbf9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4a994196-e076-401c-ac86-f2635c32e781"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5ade9c70-3492-4b41-aa09-42ebcf065c21/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4c9eb83a-5ac0-41ac-814f-9e42c2787881"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5ae71519-914c-464d-ad5f-ff4782acddb3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "26a87b7d-ca07-438d-b29d-c1346b269259"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5af89f90-6433-4b53-a08d-77276fade843/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4e1d6480-c573-4f5f-b946-0b12936405fb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5b7b429c-d23c-40e5-ae47-e391c34fd008/",
+      "ready": true,
+      "kind": "product",
+      "revision": "05e0dd5b-998a-4f2c-8117-dfe6689cbacd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5bb71f6a-3551-4b04-a7c8-760280c4ed1b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "14464eff-f03f-4f79-b0a9-6034c34f992a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5beb031b-43fe-42c1-a901-020ddd2ee1ca/",
+      "ready": true,
+      "kind": "product",
+      "revision": "614b524f-9a37-480d-8b90-cbfd605b593c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5c0b497f-1b1f-45c4-af23-17cf2e50aeca/",
+      "ready": true,
+      "kind": "product",
+      "revision": "03a80a24-3d09-4fb4-83da-c214fd8a7b66"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5c3e5c0b-ea29-44c7-a23a-316638f6596e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "79f8a6c7-6184-4cbd-b6fa-fe62c1d633f2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5cc2ec2f-c7c4-4ad1-ab1b-af3a3fb92f47/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1b912418-310c-4730-9f7d-4c05e08ce806"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5cc58ebe-66ac-4e60-a573-c7accf70f217/",
+      "ready": true,
+      "kind": "product",
+      "revision": "459241d3-57b5-449b-93b8-026720fee61d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5d753b14-2985-40af-a57f-e475a576e6a8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c455b5cc-547b-4854-a26b-04053d98db76"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-5d79a3f2-f744-4af3-a535-118cb2a72dfc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a379614d-bee1-492b-ad3f-81dc039d6e4f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-60722976-359d-4f77-a1d9-a569d3c88aeb/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2a8c9c2f-5d11-443e-9ef2-85d0d3b0f778"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6112f657-68d2-4339-a876-0012cbe1b713/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4e547c45-1334-468b-959a-efbf747f529f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-61afde45-675a-4a2f-aafc-ce4a7a8a96d3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7654b4ef-d546-4079-9c37-27efa4ceda82"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-61fd009e-fb55-42b1-a856-a8e09263e663/",
+      "ready": true,
+      "kind": "product",
+      "revision": "12949890-8476-49b4-a226-4aa5ebbe1938"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-627c5af6-6ee2-4047-a5b9-b4c05de0064d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "987b657c-2805-4e97-826d-0ef7da7f799c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-62824f25-8305-4248-a77a-6b9bb56a52e5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-629524ef-e557-45de-acdb-03fc0e1dcbff/",
+      "ready": true,
+      "kind": "product",
+      "revision": "10e9acf5-e0aa-4bf1-ad19-5f711a2ee489"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-62e3e19f-0c50-4c7c-abfc-cf0361e875fc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ba67593a-2c34-47d7-918f-07c4a36bd68a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-62e55cb7-91f6-43f9-aa20-7cf236409141/",
+      "ready": true,
+      "kind": "product",
+      "revision": "51a69481-9fb1-4b6c-a0ae-37eda3173adf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-634fcc4a-4bd6-4ce9-a009-0dba7b244bef/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e2c9c6bd-6161-4409-ab98-c23b99977e0e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-64f04e26-77d3-4aa4-a2a8-5632b26a486c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a262fc38-94c9-4098-9019-d7038003e6c6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-65248e00-cd83-488f-ab49-4609ae6878d3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f85147e8-23bd-4810-b5fa-8d44b93450a5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6547e08c-d307-46c8-a16a-e4d759a8b555/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9ce5d91d-698f-4715-8625-c50ba86cd3b0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6554e59f-a26a-4915-a978-723e553e09ed/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b1220c31-5592-47d0-97aa-848542df176f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-655678bc-51e4-44ad-a988-2d6ed0a14dec/",
+      "ready": true,
+      "kind": "product",
+      "revision": "aeb45ad9-6cb6-43a4-94f3-2fae76e2fc1d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-657cac86-cef0-447d-a72e-d96ba2b6e9c0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2fad7a7e-6872-492d-b4fb-ad5846f7332e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-66521c2e-0a13-4623-95f6-ef3d684bd870/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1835e8eb-b9d1-4a70-bc13-278233d6dbe3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-667890bf-da5f-47c8-a638-2b6424ed0e89/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eca3d9be-cdcc-4dbe-95f4-caac1bc50c46"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-670ffba3-4139-4f10-a996-0e2d640dc53c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b0225e8d-f223-45c9-8bf5-0b880f989b3c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-678846ab-26c7-4e0c-ad92-dc63bbe944cf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b543d338-639d-4c52-8895-c3967ce2b5af"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-67ca2ab7-eed8-4bbe-a199-ad2d421c30d0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b728179e-dd09-4401-a200-115b37922547"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6938b213-f90d-4974-a571-74799cbaa292/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f05d7433-ec43-436b-86c7-3d5a30205960"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-694e1eb7-a1a0-44a0-a65c-189766c49f1f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b2f9b384-45f8-4fd7-9231-41b580dd9c43"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6ae8d437-7a56-4699-acbe-207880acb197/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2fa33e35-9122-474f-9112-d4d7fc0dad43"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6af27f9c-42b0-46dd-a60d-047e5f10d2cc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c86969f3-ced7-46ee-b1fe-725860f31191"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6b230942-1c98-4bc9-ac93-2ce9a55d9428/",
+      "ready": true,
+      "kind": "product",
+      "revision": "95fa88e7-7ac6-4c5d-98cd-5c6015b70271"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6b24e9c4-6496-40a9-a7a0-b22a6f04b4eb/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8ceb41c8-5277-42ee-80cd-b2457b4501fd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6c0d253d-f9a3-42a0-af96-d587c5f54194/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d67d4e05-b3bc-4a1f-a27f-c2c26b660049"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6e5687cf-0443-4c62-a3ec-086013c7ad81/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d49a5488-989b-4f6b-b235-e81fd47ddc24"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6ea59f71-fab5-4884-aecc-d7249b672e37/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fb7f3e1c-a137-4cef-bc4a-372777e94a04"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6f099f21-b455-4c90-a016-6e7181d7379e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "70377c4d-9fa1-4fa3-af47-78c3060e60ce"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-6fe13f47-8c55-445f-a599-ade8644e688e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9a66991a-8fac-4905-b2da-baf6243f148d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-709b4ace-278f-4e7c-a175-b24835ca3ca8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0c94f617-622a-4b41-816a-1c4df64563aa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-70bd6aaa-796a-460a-a36d-33c2f0490f49/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d5fe5608-211b-4bf7-8696-a596ae286b16"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-71c04ae9-b133-44da-a1d8-036d34d55f66/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6dcd717a-a6e5-498e-982f-abe1ec7c5e3c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7252e531-1449-4f12-ac0c-5035064e4049/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d6138f82-c875-4d52-bf02-1df5f3d4c498"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-732cd413-59d9-4061-a230-b646659e8f2f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6a26000c-1ff7-4f48-88f2-952c1a175841"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-732d8261-b249-4bd1-af86-fa13373151c7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "529fd7d9-d4fb-429f-8eef-5a37a40059b9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-74a34d8c-f697-4c03-a5eb-33af470c4740/",
+      "ready": true,
+      "kind": "product",
+      "revision": "accbe63f-2e02-448a-93b7-49671cf73743"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-75b6c9d0-170f-41a4-acad-a853d5c36deb/",
+      "ready": true,
+      "kind": "product",
+      "revision": "58c2c9ce-7da5-4ee9-9578-8e62b7da879f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-773504de-d39d-46a0-a48c-7b06b5c9ed52/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f0279492-5125-4a55-8145-d60b487f80e5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-77bba235-d039-4f3e-a102-59110ca53691/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fea75e9f-b050-4bc2-9cca-e3257b9949b8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-78cc0880-8b8f-4c4a-a17d-a81070305ca2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "81e92eb7-4a06-4ed4-bc20-91d1ea2dcce7"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7945dcfb-eecf-4806-a0dd-1b6a5e2c9e39/",
+      "ready": true,
+      "kind": "product",
+      "revision": "934aca74-3f20-4eaa-b190-1c1181c72b72"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-79dad7c5-7be0-4be0-a394-43078702c277/",
+      "ready": true,
+      "kind": "product",
+      "revision": "dd560e93-1458-41b2-8f8a-c55ba45769f4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-79e7bb9d-8955-42c9-a239-b184829c599d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ec4aaf9d-3725-44a2-89e8-6645f9e71bd0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7a861ca2-fab5-4290-ab7b-d7b8024b4aa8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c9b5de21-ef3c-4788-9571-0e0e0f95c06f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7ac5152c-9f3c-4538-aa31-78c625ccea52/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8eb9ea4d-a083-4f25-b0f7-c0eeae9c7648"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7be5e4a7-588c-472b-af12-fa27259a963d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7c2aad6b-d73b-44a6-a6d1-cccf49ca6218/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9d220ef2-f269-4049-992e-f348e9ee0460"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b765897e-c1d8-4ac4-8861-63e3a48da30a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7d9bdbc0-4e2f-4e8b-a2ad-39f10eb9d333/",
+      "ready": true,
+      "kind": "product",
+      "revision": "88c40338-d3af-45e8-b1ea-7b29f87ae8ad"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eb7dd052-6062-4d44-92a5-6ef33a3f4883"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7df1ce02-579e-43a5-ae84-57a4f7dd857a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "53dd2faf-daf5-4102-876e-e52f7996c675"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7e498920-abd3-4dec-a8aa-97d9dab243e8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a99572ee-c8ae-4d5c-be99-70a83bfb23ca"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7e4a66c6-0ea2-49d5-aae7-bd420fa9ca21/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b48ed0ba-7353-4e12-a287-6ccedfc138dd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7e573229-7342-4d41-a3e0-c775507685d9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "264325db-a920-4cd2-8bd8-70aeac9d1563"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a5a4cebd-7ef6-49b2-8293-26a975f3fa52"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7e8c6ece-41ad-4573-a2ed-d3e7fea94c8f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ca6b4b1c-24c8-4bde-b282-5806d4a78b92"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7ecc8360-1503-4ecf-aac5-3d5c58ac659b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d7b1bde5-d1d8-464b-8be4-3afdfa497ea5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7f619eb5-e135-4f61-a833-d908570005df/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b4dd3585-af38-4d3c-b6dd-7e2398b83325"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-7f8d82f3-4d94-4913-aa9c-4f98e89dd1bf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "04df07bd-1626-4373-8e6c-54476521a070"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "bba0edbd-8381-4a4f-b1c6-690a46437639"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-80faf2fb-72d1-4184-a801-6541c0bb2475/",
+      "ready": true,
+      "kind": "product",
+      "revision": "20edca67-6a00-4883-920b-23e08652e25a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8145c286-1d9c-48e6-a68a-548d46fde074/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3d7d134b-69e4-49e3-8a88-1dce59e30566"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-818958a6-190b-4341-ab5b-726756085b73/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6ffacf91-32f8-41ae-82b4-7718b70b510a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-821e3d2c-a7d1-4467-a5f4-beb659d3bee5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a3d703cd-b214-48de-baeb-9c0977344a37"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-83ca0e92-928b-485e-a745-ff7de71b38c1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3dfbfad4-526c-4a92-ae0b-290b3fe8ac04"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-840b77a8-e78e-43ee-aae2-4df0ace57e60/",
+      "ready": true,
+      "kind": "product",
+      "revision": "18aad1e7-7646-451c-b835-4f4721bddf8c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-843793c7-c6e4-4c28-a744-eb37891df415/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cdad8a89-8a46-40fd-95cc-06562639d366"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-84ee9e16-db4f-4163-ac55-0581a0e46175/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c8f17698-2399-4421-b874-bce2d6c1a92c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-85b0ac05-52c3-404e-a20f-5887e2edf0c2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f293c893-f99f-4e5a-b7c4-780abdae386b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-85bf8f31-6e24-49aa-aa05-9f0d825ed4d9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "61bcd69f-7e6b-454f-8b40-096ba3230e33"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-85cf6154-0b86-4ced-af6a-afbd1e136c52/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9e86e55e-405a-466e-af62-f9aa58a5960d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-862b69db-2dc0-4435-a996-3a497163d05d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "dacc4a26-236a-444b-a864-7e11e9381784"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-869b52f8-70ea-4444-ab6b-145dc00f31a3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1c9a4102-5e7b-4ba9-912d-e8b64a626662"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-86d593b1-0d60-411a-a94b-5925ebf0ecac/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3765001a-0f16-48dc-b5a6-f4f24bb6d7aa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-87b9b584-b334-4189-a6fc-9157bf3d32dc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fef45134-d918-4f74-9adc-cae4659b941d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-88022729-f99d-44ce-ab72-68dd6fa01729/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8de3416c-f0b5-4451-888a-e01302a9b5d6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-88123881-8f40-430d-a426-410aae92e301/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fba7a923-c193-47a4-b82e-7c638861a6e0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-88ae7c0f-b094-42d9-abeb-67a21a652b82/",
+      "ready": true,
+      "kind": "product",
+      "revision": "557cd734-46e8-4347-a914-e8380b6f727a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-88c5b54f-a75e-421d-a064-4b50c6e1f99b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4b9cfed3-7b25-4eca-bfb2-5a4ee57eaa2f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8936cf4c-19a7-4684-a1cc-ce3295b48a52/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cb96f375-5606-4eec-9814-ebb279703287"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8938319f-c860-48a9-abca-c49ca4ffee3c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "0c75d672-8a20-4c4d-be8c-179f46cf7fcd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-893f6264-6662-455e-a649-a9866cc628ff/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c679acf6-85a7-4609-b4fa-58d3645e61ca"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8945a6c7-ed97-42a7-aeac-4bc98a886cc6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ce633300-93dd-4ade-94c0-0bf51eded731"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-89dc7220-8831-4bb9-a40d-8661fb196060/",
+      "ready": true,
+      "kind": "product",
+      "revision": "36a1344d-edc9-4bd7-97d8-50fb234ec197"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-89f59908-9302-45cc-aa92-18752d4c3ed4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "977025c3-ab9f-4294-89e8-7d531c303477"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8a6c9b4c-cfc6-450c-a725-4de2dfcb2c96/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9c40b11c-2135-496e-bdc9-ec813e8a45f2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8ab7ce31-0e33-416d-a9bc-d6fc2da23e27/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b2718df5-9c6a-4eb6-9ff6-45346d748b21"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8ac2f42e-6c70-4fec-a38c-8c5e089b07bd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "70c4f920-caab-4653-9072-080d0b1f0143"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8b4f7e16-93e0-4b8b-a6d7-24e318f1f059/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6ada1a9f-dcf7-44ec-807e-bdd8b9a16634"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8c009835-7801-4c11-a0dc-4f4bfd96dd05/",
+      "ready": true,
+      "kind": "product",
+      "revision": "67899e90-ad8b-42ca-a358-df0685d43199"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8c529844-8131-4005-af0e-e7267cf12cdd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b5e1dd50-c1df-4480-837e-fea18bb25bf0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8d89f819-f72e-4c3d-a03f-05bb84470247/",
+      "ready": true,
+      "kind": "product",
+      "revision": "92727052-8e86-44ab-8ea3-1cd35f3f6c02"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8df493d4-3e02-4f7c-a3a2-907c1639064d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "528a9799-49a7-4f45-b06a-22e57a55c242"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8e68f309-a005-4ccf-ad5d-aa9939056c77/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b39a27f2-5f4d-4ec6-8619-6e2c283aaac9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8e80061c-9def-4125-a6db-7afaba8513d3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e34ea4ee-a93f-49a9-8148-d56db47a2821"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8efadae0-dd06-40e6-abbd-5e716b4a929f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5fbec189-d812-44f5-8993-083bcd4360d3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8f45ab2e-a44f-40b8-a57e-fd7a27feefe8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d6114da3-ef28-4a89-b4de-497689dbee2b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-8fd31bc1-256c-4674-ac43-c8529c8d6147/",
+      "ready": true,
+      "kind": "product",
+      "revision": "149f8b6c-99ef-4943-aaa2-74cd6c1d8a50"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9079232d-c537-44f3-9a99-0bee45ecad65/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b36d091e-85b7-41e1-9a11-7b49ca246b97"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9128436b-96df-491d-a374-5f57bf4351dd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a2ab416f-b76f-434d-94e3-dd51e58667e0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-912f3298-b7d5-40f2-a89a-34f2e5162f36/",
+      "ready": true,
+      "kind": "product",
+      "revision": "29d3d069-a2c6-4479-b769-dcaad971dd10"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-920773e5-c086-4276-aca4-cc061b71010f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3ad09139-6089-463f-941e-8c7a05f17bc7"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-92c36cff-8d35-43b3-a9a2-6bb0b427491f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7523abdc-a757-41db-988a-64efd3d6d018"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9384703e-d09f-42f8-aa97-8dfbcaf87e04/",
+      "ready": true,
+      "kind": "product",
+      "revision": "abca3c93-39a1-4f03-a7df-55b87cb94f49"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-93a55b79-cbb5-4631-aa9b-5caef570881e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3007ddd3-e6f6-4db0-be8c-2be3eec24e3c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-94cb216a-c7f4-40bb-abcd-ee0210afdce7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e6ea25aa-2e27-45c9-8bc8-48376cfdcd74"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9504ba1c-247d-4864-a6ae-74b65da3d922/",
+      "ready": true,
+      "kind": "product",
+      "revision": "71a15866-bafb-440a-ada8-517b653d4c18"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9561bfe5-7a8e-41a4-a9c8-13a2ce52bc92/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d9a7628f-85b8-40d4-9f5b-34385babccbe"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-957356c3-2af3-43e1-a3c8-50136a13ad30/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b08a610e-7cd6-4b4d-ae85-05de7d5ca2a7"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-959361a5-f17d-406f-aa9f-2f655d85ccc6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4af32ef2-5c8e-4b6d-bca4-d9246afc90bb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-95ad2cce-50bf-4e06-a27d-a399462ee789/",
+      "ready": true,
+      "kind": "product",
+      "revision": "38643056-9ce0-49a7-a129-ce9c48ffdc6d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-95c799f6-0191-4044-a1f8-a6bb3895df85/",
+      "ready": true,
+      "kind": "product",
+      "revision": "99156256-1685-4526-a10f-959e4abb9b0a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-96a75b2d-ebb2-4227-aacf-16438ad354bc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f139cc6b-0434-4f0b-82ef-79aac1c9b4e5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-96acab67-ffc1-4744-a6c4-7e6dc7ba34ec/",
+      "ready": true,
+      "kind": "product",
+      "revision": "65bff004-5926-4652-9f7b-c59b79fada10"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-973c8584-c9d4-4ff6-a46a-387db3f9087d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "479efa10-dab8-48e3-b9db-2db4d15074ae"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f76325f5-5048-4979-9727-9dbb37576051"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9749adc9-acda-4536-a2a3-30282c44d3c7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "db33c6b2-7117-48dc-9f0c-c72c2b390582"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-98807436-ceba-4f32-a9bf-76acd0735160/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b5d5382b-ce3a-4461-aa77-e18570235899"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-98be3591-a7f5-4530-a31f-cd343a05e777/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d1026a7d-14a1-4f45-b7cc-1e17f539f094"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-99b74abe-4902-409e-ab96-f0d6912d36de/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2f007826-6d0c-4fae-a8e0-e004e0157c38"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-99ffffde-0a56-4598-ad82-4d13f3ec4b15/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d335bc6d-a4fb-48a9-a496-7b779f3b3716"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9b556755-c22e-4895-a508-574cd4922f76/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3a5a3ff2-687c-4128-85f6-0ba2da7eb997"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9b65fddc-c3f1-4056-a3ed-3feffa3bfb2b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3e3a2f4a-2b28-45f3-a539-ed18f1c58fbc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9bd2ad1c-16ce-4e97-a9b6-dadb82c45fb9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5dc74eed-da04-4341-b393-45c874aceb4e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9be4e714-d395-4255-a288-165d70937ee8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "de2805ab-6aa1-4e11-965a-3e9a84ca3e1e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9c078100-791e-47c7-ac9e-8744aa5e68b6/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1e7653ab-bae5-4a8c-9ff0-e7329db70308"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9c9fc809-1774-48b9-ad47-3fde5e47c900/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2e0d3104-8b91-41d6-815f-61eb52f299fc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9d102872-2e93-4b3b-ab29-a4d4cc220de2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c3614aff-d567-4d90-826b-8b4281d0e3d4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9d6b4318-6caf-4816-aeb0-6b623d6b741c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "61c3a342-bbcd-4009-a0a6-5c5f371aa567"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9e4a9c6c-9b25-49a9-a0eb-65091ac291e0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2416961f-58e0-4067-b70f-ab539659d66f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-9ebdad5c-46e1-4362-a0a5-aa83e894c495/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e4d1c7e9-0f53-4bd8-b7b3-76dc64308e35"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a13ff2dd-d78e-4155-ac75-2ce4eb3e4798/",
+      "ready": true,
+      "kind": "product",
+      "revision": "30fbce34-4e5c-42a3-a652-1d84566a7023"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a15448a2-68dd-4160-a7dd-6c35851e2450/",
+      "ready": true,
+      "kind": "product",
+      "revision": "07cee90d-9de4-483e-8689-6d57490a441f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a1f802a3-1db5-47a7-a1a8-bc095394e67b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6ddcefe4-408e-42db-a0fd-8a279d381657"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a35a097d-1988-4dfb-aa9e-22d1a72a7eb3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5e41d536-6b72-4ba6-b68b-7662b372fd31"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a47aaf99-6eff-4325-a1ba-eb3116ddf524/",
+      "ready": true,
+      "kind": "product",
+      "revision": "70a907cc-84b9-4f0d-b271-f9de79d1b07b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a5230dea-63e5-43af-aa8f-dd85e4b9e749/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7d2873dd-1ca3-44dc-bb95-9d860c2e1a6d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a5d7d92e-edc6-4f4c-a8b7-58799f37aebd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7f5f4eb2-b317-41a4-b78d-08b02a8d29a1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3c8d638d-fc49-4b67-a9c0-dd145ef5b161"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a6384b94-10d1-4dd5-a8c8-a90807b42fb2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "87493177-27f5-41bc-9ace-1ccdb989dc82"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a6893f02-d7a7-4b61-a0a4-bde753935c96/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c6b6490d-af6e-44f3-a5e8-8882af77b1e9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a7341af4-3247-46bb-a053-3dfec6292341/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b3942c06-1610-458d-90c2-023817705543"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a7b6cbff-da9e-4ac6-a015-410b16606694/",
+      "ready": true,
+      "kind": "product",
+      "revision": "bc89deef-8e8b-431e-be5a-b264fa1773e0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8e20a8f9-8419-4d0c-b2b0-3a9fc6251036"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a94a5729-ca2d-4649-a422-a13d473b9e5d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4a3d2996-34b9-4a09-9d0c-91e74dd7dc52"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a99c7a39-424c-4599-affa-bc5c5b51a14b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b2deed07-e55f-4f93-9dea-26e5ff4aa962"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a9de1dbc-9f29-4b79-ad07-4789907e251d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "53ca611c-107b-471f-a719-41eba6948172"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-aa5fdb0e-8991-4d99-a442-5851042e9b69/",
+      "ready": true,
+      "kind": "product",
+      "revision": "903df923-9f0d-40e7-8ae0-3e4ab9c258d8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-aa8e67be-0b92-4a14-a438-17840153abee/",
+      "ready": true,
+      "kind": "product",
+      "revision": "66a860ed-c8e8-4e6f-8322-b10901fada71"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-aaa418ba-bdaf-4d63-aa09-a2d549e22af1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d1cb29ec-6bb8-45d2-8d2c-0c81c87c8fab"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ab52b0cd-10c8-4bcf-ab87-1633cb44b195/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f5efa53d-3551-4b35-b09d-76589d52ed83"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ac5bf7f3-519c-4b3e-a4df-691e5ab57174/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cf565d8d-f3ea-4df1-8cb8-355246e97da6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-acc01279-3969-4683-ab68-2f4a13129bdf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1939109b-658f-494c-8725-1963cc237e26"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ae14e1e8-734f-419e-afa2-c98bd12cb074/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a36dee6b-d151-421a-ada8-d4851eed0f73"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ae6eb1e5-fb0b-4c05-a00a-ec8b65ec18eb/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1eb0da76-c86b-449e-bc6c-914642f683d8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-aecb4426-65fc-4492-a8d9-ec14b758f779/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f2d18e15-fbcc-4428-a854-5606c33170a2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "504512a7-ed41-43dd-874d-f1f3cd9a0aae"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-af743d00-ca07-45b3-a2c5-f7a6b256035b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "02cd590b-949c-401f-816a-b8c4a3fbbd0f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-afc19693-2e36-43cc-ad59-8d7d345aac05/",
+      "ready": true,
+      "kind": "product",
+      "revision": "23a3bb1d-e323-48e3-aec9-9215b39a6380"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-afd5cfea-ffed-45df-ae41-fbf6b7968b4a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "60721b26-ce4d-4401-87f5-45a9c1680c97"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b08219f7-6b88-4884-aac4-0305e0329036/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ff1bc39d-2dca-4d2e-9640-3083b1e207ae"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b0b73a9b-86e0-4c8e-a5d0-957d482c03a4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b192d351-4955-44e4-9db8-f4167e18a390"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b0c5c97b-9557-408d-adfb-53bd4ebc3a2a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8d3c5a15-9cc2-4aab-a625-9b17f61380fd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b20edb98-ee57-493e-a619-ef30fc7a3960/",
+      "ready": true,
+      "kind": "product",
+      "revision": "17dbfe6c-98ce-4ce4-8fb5-6befbe177085"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b25cbadb-4723-4e65-a24c-fbd04c81ce46/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8921d66e-a4d0-48c5-b053-a727dead4353"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b2a731c4-0c2d-406b-a551-c28885d14f12/",
+      "ready": true,
+      "kind": "product",
+      "revision": "153ad5b6-a475-4439-8786-356274e39da4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b322a642-41e5-427e-ad39-064b96073dca/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d6735437-29e6-47c9-9d44-eb2e02b9f60a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b5abd632-fb79-4d7c-ac82-1137111cdb73/",
+      "ready": true,
+      "kind": "product",
+      "revision": "109b5c83-f54a-4860-a30f-32427348cfec"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b5d40fc0-bbdd-424a-a8d3-b2d10b05b783/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fa6b0483-426a-42b0-9106-f7ce1bdf8cec"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b72755cb-581e-4b78-a66a-59a5787ec114/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f44a8470-1f14-4e66-8fe7-6f5d88243363"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b7c6b20f-8ca1-4f19-a183-02655119eb44/",
+      "ready": true,
+      "kind": "product",
+      "revision": "748616b6-5b36-4451-b3af-9860575e0550"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f9020c17-d2c1-476c-b164-632d29b5b87d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b86a96cf-a0fb-4527-a234-5a58e2a29e02/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4a7c8f20-67bc-479b-8538-841403cf334a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b86f46a2-3ff3-4af6-a75c-cd0f0e383e7a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "636fa9df-ab9a-414b-879e-4a65ee59395f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b8ab157d-da1b-4f1a-af25-3c00467d1c57/",
+      "ready": true,
+      "kind": "product",
+      "revision": "82b69a05-3020-4ed4-a3b6-c643be68c2eb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b8f491f0-a5bf-4a02-abd4-5203c434b7a1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ba323000-15ef-44b2-ac68-6f3c130ee856"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b9394760-da18-484f-a7ca-a6dd84c1bca7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5f8a8900-bc56-44a2-9193-3e047a6da1a7"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b9bb4c04-35ce-4862-a94b-f09c2aa7ad24/",
+      "ready": true,
+      "kind": "product",
+      "revision": "650f9980-32ae-4397-9797-9dca8e62b015"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b9e7e0cb-faaa-4723-a00f-88a0de13658f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f75e117f-e6b0-4dff-ad5f-152e77fa18b4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bab7642e-6300-4d66-a001-cc2092d42664/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b71a09ea-9c6d-4771-b86f-bd95968c13bf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bb020f7e-1694-4668-a3c3-094be21b9749/",
+      "ready": true,
+      "kind": "product",
+      "revision": "af45df08-c7bc-4e94-b93e-47f97a64e486"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bbdc923d-7103-40e2-a8ae-93e10bc27f58/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f4e949c5-6928-4768-9ddc-af294705fdb8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bc3d6a48-e77d-485c-a417-ba043b2da1bb/",
+      "ready": true,
+      "kind": "product",
+      "revision": "aaf1ef2f-1002-41fc-ac9a-70b7cdfe6da5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bc5376de-86ea-4ccb-acb3-37e22479c384/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b35ce0cc-1374-40dc-ada7-15efc35834a4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bc9ebfae-227a-4aeb-a7ef-48fb3641baa1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a7ec03c7-d4e2-4bef-8776-4424c3c36ab1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-be1c292c-7b91-4170-ae1f-51e008b2f5bc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a8c435ef-e2b0-4bcc-af5d-c7314d4a3079"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bea55772-97a1-42e7-accc-ce44009160d2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "90cd73c3-d8cd-4062-998e-22c6e1bd3e7c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-bf098d32-9b3b-4a6a-ac27-1892ad6fd177/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7f6c2590-29a3-4217-9e51-0f6bc2b36e4b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c08bc668-f694-4066-a652-3f251ad06668/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8caa4a94-5289-47cc-bf73-9cd9846369c2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c0d90bfa-5c62-4370-a3a3-39dd6231b279/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1cef7603-daa1-44e3-a5bb-74c62a8ceb21"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c19db540-647e-4129-a9bf-f4c457152a00/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a87c287f-074e-43af-bec8-cfc35f6a4229"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c2b9225e-0768-4965-ad93-7236cfbfffe5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9c63922e-46a3-41ea-a1aa-ea66294d44a5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c2d4a1c5-3024-4c90-a57c-00b3649aa4f2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eea63bdd-62b0-4b89-b238-e72ff574c2ce"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c2e9184c-2278-42c1-a245-a7362771ce84/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c20a89b8-c1d1-496f-ac98-0f698bc2ca1d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c3ba3512-40ac-4fd0-a6ff-3c69695faae9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "54ec5c28-9f50-43dc-908d-2b7c80bab4fe"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c46f3143-3169-4c5c-a004-d96e953d87fa/",
+      "ready": true,
+      "kind": "product",
+      "revision": "bd32057c-c804-499f-a20b-69056c6a23aa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c4c02e11-89e6-4e24-abb0-594539690005/",
+      "ready": true,
+      "kind": "product",
+      "revision": "245b5390-91b8-4c8b-bf72-34ddb8bfe80b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c5186aef-6bc1-4325-a5c9-b80e2f45bc47/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a3a6c889-a1de-46a9-93e5-90bd6b1b55fa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c5d3bbfd-0f1d-48d0-ad4a-d08dccb3d17a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "73293aa3-e559-4ae8-9418-215c5cb53e36"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c61d0f95-e84c-4d19-a86c-39c46cccfce5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b964bcd9-bdf4-4631-a1ac-1f6dc842e2b4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c6267f41-7bc1-4127-af09-7594cc8a7737/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fcf45f22-9c7a-4ec3-a0b0-9e127918d5ac"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c660e36a-6640-49b0-a564-ff1e6286a2b2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7240b890-5656-4612-b677-72f473b37f76"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c669771d-85b0-4108-a0c6-24952d334c5b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2a92906a-1130-4a03-9fae-4c06297b2caa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c6c8402d-044e-4bea-a29d-2a1dfd821664/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1fbaa7dc-dd36-4435-9bcd-25042af76764"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c7674324-f780-467f-a1fd-811824bcdf9d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "16c1e574-d185-4064-ae88-be7ffeea8632"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c7716b28-fe2d-4354-a623-5858b2ad4bcf/",
+      "ready": true,
+      "kind": "product",
+      "revision": "02184ec2-03aa-4892-9c40-9355150e200d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c7ecd935-7d10-4f86-a01b-14e18355284b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "73d0cb92-c2a1-40e2-a4df-2fa26abc0917"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c8faf68c-e3f1-4a01-a438-45a904f54965/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f8c72197-47fb-4e8e-939c-405a6b12a91e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-c9a4d22d-fc31-4123-a0ba-49ee29ec020e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "21ed11bc-996e-42cc-b746-83ed8f8a2fbb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ca0ac1d7-7a4b-4dce-a90e-40f5f7df994c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d03ca9e3-8c27-4e11-8e90-55f281ab07c8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cb080989-ef6d-4e52-afed-4da529ab0141/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7418bf6b-f5e8-49b8-9d02-c681bfbc081c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cb76f206-cf47-4048-ae99-0b9f79fb1a25/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e6b5f2fc-cbae-4b22-b6f7-02f562918c53"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cb7e8097-3953-4bfd-ae80-9e46e297547a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f956ef15-9ce0-4130-869f-70ef80f0dccf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cbb3ac3b-e4be-4d14-af94-bf86544e6549/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f6ea7629-aed9-4a1a-a52d-36b488b4aa47"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cbf55b08-fe1a-47c0-af73-bbbe2be065bc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ad641be7-59b8-4ed5-ad96-03a5c50dbc88"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "542ff659-835f-41c6-86b7-dc183bd8b55f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cc30a6dc-642f-41f8-afb1-9bfa5762a2b1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6df3efa0-e5bc-4ccf-9438-5382156cab0f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cc6da04d-8244-4708-a806-838119671129/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7982db21-9a2a-40f2-b8b2-288fbdde35c5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cd823b43-c5e8-4590-af70-3c771036e25d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b5c71109-7a14-430f-bbca-3b5d2ae0c342"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cd96a970-539d-4d69-ace5-40eb45e2a5e5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fa3e1f80-5d94-4172-b869-20d1fb4c4936"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cdada7cf-3bc3-4026-a56e-c7d17beed91b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "68128f97-a9b0-49a9-b6f8-035d8dbd14fd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cf64833d-82d3-4c77-ab43-aa1fc93137c2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f89512b9-4c77-484e-93c0-8165b9fa42e5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cf77e1c3-f176-4cf3-a6f9-3674e4224d0f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a5bf2d08-4224-4256-82de-08283a930f45"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cfb1faed-1fbf-4707-a8b7-be41abcf1450/",
+      "ready": true,
+      "kind": "product",
+      "revision": "36c41e30-0657-4e7a-949e-4644a51db6a3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-cfb80022-696c-478d-aaa4-d10e5c1c1d3a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "89528d75-f4a6-4b7b-ad4f-df5abc277586"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d0d33662-045b-4a38-a469-355f577609f9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "58d84df4-99d2-4c24-a8c5-b45314d2dde9"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d1b0c8a9-ebc4-4fa0-a78d-a7b3159c3dde/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cf91f4ff-9233-4ab5-b619-3cc3e04bf4da"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d1eec024-03ea-4524-af73-10217acb5962/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f8a881f5-c3c4-4200-9564-b1df699d9133"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d258469f-6963-4ebe-ad1c-452d15af13fa/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3ce9b356-0a1f-4e06-b742-5a3038998d81"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d2d2d59f-5051-4c7d-a21a-a7cc07c2e8f0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "93eb58bd-4483-48ab-9fa1-233f4887bd5f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d33def3c-b8b7-43fa-a44a-302f962c8486/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a0d5e9b9-5803-4f8e-88d1-e733151a0aaa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d34bfb35-bd37-4313-a986-514e2483f609/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3aa19bf1-2d21-4d1c-9b0c-b539ec4fb184"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d35c016a-6037-44fe-ab3d-e3acc3cb66cd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "dd517a73-86b4-4e74-8b19-9d04f5a3a889"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d368944d-0e16-4ade-a046-7bf33ba7d0c0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "480a6899-a1f8-4226-bb49-f6064069ecf8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d3821414-d200-4b63-a62a-a1b2eef65b89/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cafb68d1-64b6-4bb4-b777-4a36619d1ab1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d3e84792-157b-4b93-a064-84a17dca4a54/",
+      "ready": true,
+      "kind": "product",
+      "revision": "82b4e642-96f6-42fe-aa2a-432c8218af24"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d41fd491-c92f-4d7a-a9d9-c9069b996aa7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "732dabec-9247-4b35-af7b-6ea2520880dc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d4f5e876-8f22-48d1-a9d6-67c13a1d546c/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c88f9283-dd10-4e7f-8e26-3fef544893c1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d579765c-c971-46e4-a53f-b0b7c6744512/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ad2ab7f7-45fa-4d8e-9dd6-d7265ea946a0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d57d5d92-47a6-4d9d-a79b-3f14c114c60e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6439be2a-c7a2-4dc5-be5f-ad01d13a69e2"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cc4a88c7-b7bf-459d-a0de-067b65a68f3d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d68a313b-9bc8-4302-aed0-75c1fe1166f0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cc8f2a0b-b49f-43f9-b837-30a0a08f38ef"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d6b88fa5-6222-4e31-a0e5-74b69cd2e591/",
+      "ready": true,
+      "kind": "product",
+      "revision": "87f38f69-2204-411e-a44a-24a8023f7005"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d7442e5f-b3e1-42f8-a164-16a4f2d6283d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "592a900f-555b-451a-8126-781efa6c5024"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d82ad458-8211-4f2c-aa33-f699990bbf3b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "82dde88b-4179-4367-872a-005ae13e2f36"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d84ef029-cd31-47e5-ab72-a9de85fad104/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b5211270-d0dc-49a9-8573-27189771766d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d9790f70-147f-4dd0-aed9-acd9be4d223a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6ad3c877-bd0f-4564-b518-bb3622052d42"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d9a9cdf9-60bc-4f90-ad75-89d26504c6c4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1afc2133-98e4-4053-9375-28ebfd1d8429"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dabc3a9d-190e-4ea4-a439-37a25abdd0f7/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b19a4444-9f77-4b4f-accf-87726449539e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-db00a4fa-9efe-4428-a059-ccce3f8008cd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e5ad2536-aaaa-483f-ad41-0e59e26abd3d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-db73d3d4-9ae8-43eb-a6df-f29130e9ecc1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d9d6dfa1-34ad-42c1-b066-19201d7f3325"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dbf18c4e-1a94-4b80-a5f3-14ca78617387/",
+      "ready": true,
+      "kind": "product",
+      "revision": "10e3a37d-e9a1-4dcf-9e38-e4352ab78d18"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dc660cba-6fbb-4d55-ad29-dd07417f4f09/",
+      "ready": true,
+      "kind": "product",
+      "revision": "720579f7-ac3f-4a18-955f-98853f800e69"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dc6cea79-b9ff-4f4f-a5ec-334c1bbe8807/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cb3c3143-514d-460e-8c42-21e37e9ac27f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dd2ffb04-2e07-4bca-a216-523ad6c9296f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "398598b3-2aca-4744-99db-552aba1f39eb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-de0c5f08-e2b2-46ec-a30e-cd5bcd73007d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "21fc9def-ecdd-4415-838a-faa2a30c53c5"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-de1fc252-bfb2-44ae-aede-db9a788c3556/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f83881a6-3fe9-416f-a1b1-3f051722f4ed"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-de3ba6f0-1771-49e8-aed9-68c28a0301d8/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cf039d05-ac48-4201-a622-337a2ad2890b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-de80133c-7f73-455f-ae0c-4f937b204e84/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7fb11cd0-18e5-4320-96bb-5361ce5b021a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-df0ea4ba-1518-4d12-a9e8-b6e30d645f47/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4c3fd16e-d1f9-4fa8-b06e-0036f242b73e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dfd7399b-e217-41a2-ad59-6ae0f9422731/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a98d8ca4-8d74-4993-8a14-fe12c9856a93"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-dffb9ec1-234c-4579-a862-79945706b16e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "4edfa7a7-78de-4a46-b4d0-020fee6a78e8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e0806377-2f06-4edb-a4b1-191d5543c16f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "3ccabba8-e937-40d1-871c-99f7052f91f0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e110f36c-e711-40dc-aa8a-443d0704e2dd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "69f27597-6a28-410c-8b0c-9ce28e2a2d9e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e12f7ae7-3a3a-4c31-a9a4-ed5aef5de326/",
+      "ready": true,
+      "kind": "product",
+      "revision": "edb8367a-a230-4661-b6cb-5abc096803eb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e1575e39-c710-42ae-a376-d07195c24fb5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9a21029e-517f-4982-9e84-73cd7169faaa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e1a85d21-f6ae-4352-a1db-6044c0b5ac71/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6c6d349a-4d82-4f07-a004-9f52345f7da3"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e28445d5-d6b7-4205-a2e0-1f89d6059689/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ce3417db-da7c-490f-848a-edcf8ff8af17"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e293d462-bbef-4442-af11-bdb556cdc650/",
+      "ready": true,
+      "kind": "product",
+      "revision": "02948a8b-4c27-485c-80e7-ca4ee4632361"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e29a208c-2c2e-4d34-a229-9bb97166ef02/",
+      "ready": true,
+      "kind": "product",
+      "revision": "e051263d-26bc-4f25-ba93-9600b3d97fb6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e2b20750-0c53-4a0f-a7fe-684a078ddc3e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "80beac46-7fc7-4819-b7e0-0733617f2475"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e2b38f5c-bf1b-47ec-af95-8d334c0463fd/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d4d6347a-6c7f-43ef-a214-db12b578ee84"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e34a1873-6af7-4e06-a7d6-8be45f6dda78/",
+      "ready": true,
+      "kind": "product",
+      "revision": "85df27d2-7c6b-45d0-86f0-e0ee6f1559cf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e3bb5ccd-78fa-441c-a5b6-3030925d4014/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f19e447a-96dd-496c-8c00-a8312dabfbc8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e3c0b5aa-6ed6-4054-ab61-6f04bf5f24a0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "94cb2945-b6bb-42ef-8033-bfa8605c91bf"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e4bd5237-4d71-492f-a748-9fec706535d5/",
+      "ready": true,
+      "kind": "product",
+      "revision": "31992bd3-95a2-4cd0-99c7-7b52d1ee711a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e4fdf6bb-61ec-4282-aedc-0135436fcdbc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "de513526-8e81-4ce7-bb29-03025278cd1e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e58c8e1a-ccdc-460c-afb4-d6abd1d5e4b1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f3165836-fdb3-4981-a5e6-e99c6d3e63fe"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e5df8b2b-dab6-42b7-a916-7fec90b77837/",
+      "ready": true,
+      "kind": "product",
+      "revision": "7f5f9237-7b98-49d0-b892-6d536289bf2a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e61ebaf0-626e-4a0e-a0e1-8451166182a0/",
+      "ready": true,
+      "kind": "product",
+      "revision": "1432ed00-49f5-4835-81ee-068d7096d964"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e84b4ca1-555e-4f2a-ad60-2a6d4f7436a4/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a5f8d42a-42f7-4f33-82c8-3979e7f4f0f4"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e869c23c-9a80-4750-a509-e710101b9c7b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "dcea10d9-845c-4fbc-8a02-124f1e757474"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-e93ce399-d186-49b0-ad2d-f3b8ec5833b9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a3dd517b-6b90-4450-826b-6b62895982e8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ea411ae2-9925-45dc-a609-e64237aa880d/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d7693eda-2c53-4111-b8db-a1e447d71cdd"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ea65b0e4-54c4-419c-a7f0-bc3959cefe2a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "92bab096-8127-4ee7-adee-4eea966b3b1f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-eade1a3a-73ee-4816-a799-549c48a178a9/",
+      "ready": true,
+      "kind": "product",
+      "revision": "66736170-c779-4296-aafd-61a9c0d6ef22"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ebd73631-6c47-41b5-ab40-973d9b1a76f3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "317a20ff-c12a-4879-a5e6-ab8d63825a0a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ebd9c3bd-75ef-44cf-a8f0-66370723da99/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eacb13fc-331b-4481-8994-63cb3dd845f6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ec867958-760e-4b55-a5c5-d0dd980f9d67/",
+      "ready": true,
+      "kind": "product",
+      "revision": "29179705-2975-4f09-9dff-ff1e5fa3e66e"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ec9fc882-5bdc-43a3-a5d0-c8e87fde4a45/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d8032c27-2fe6-42ba-b09e-561946a40cbb"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ecc34ba8-dbe9-4c78-a131-ec63a33d41bc/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d7c5aec6-4c89-4f84-92e3-4628a5f24d5f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-edba83b2-5f33-4e12-a82c-9aba1bc142d1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ad203a40-53d4-4acb-9850-7ce9ca457009"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ee24d0fd-a0de-4830-abed-0bd459d0baf1/",
+      "ready": true,
+      "kind": "product",
+      "revision": "699356e0-856b-4aa2-b837-8ddc8e092c78"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-eec32387-50ad-44a5-a366-e4a72364a17b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "28c67ff7-7d28-4f17-ac0e-1a4a8a537dff"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ef4d9544-344c-407c-a151-27f65112f440/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f4838e39-e1d3-4dad-b66b-8ad05b7a65f8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ef5a3e3c-71f9-4e53-acd5-eda37d212c2a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5c6df1ca-c118-48e5-8270-b70436936f31"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f021d56b-eb25-40c7-afcf-77ff525b7763/",
+      "ready": true,
+      "kind": "product",
+      "revision": "46c06316-5154-4249-bf00-695984aed465"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f0295ff2-66c2-4514-a40c-be1da8c296b2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "6707d2e9-32b2-4f56-be96-3a5ee5c67231"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f10a6773-0712-4d8e-a137-0d60752b98d3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d02c731e-0f80-4edb-9293-b41bd5324ea1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f12af9db-fa78-4019-a4bf-957bf8f80a78/",
+      "ready": true,
+      "kind": "product",
+      "revision": "9ce06c39-797c-4a8a-9149-14309a39d636"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f12c2f69-7941-4a33-af3b-e377738d8034/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d87c54fe-bb53-49ff-952e-6d059a298bcc"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cbd2b723-2096-4681-9bdd-3fcc5d37ec51"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f23814fb-f0d0-4d10-a8b0-0c3b27e43c7b/",
+      "ready": true,
+      "kind": "product",
+      "revision": "cfcc6509-376c-46ce-a372-3159bc65c934"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f352e21e-d417-4e2b-a123-327572d85f5f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f2ef5d45-81d2-4d8c-bcb1-1252435c35aa"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f38885f5-a937-4b61-a7ad-99d2f28fa35f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2b5b35c1-c691-4145-b910-1c1b1e5f86d8"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f3a4e5ac-2068-4b12-a3a3-6ee79f401458/",
+      "ready": true,
+      "kind": "product",
+      "revision": "2a5eaf08-4209-43a1-b514-81633d89896b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f3fec37c-11a3-4fce-a721-ae47fc310809/",
+      "ready": true,
+      "kind": "product",
+      "revision": "baba3606-7b53-4b19-ab3a-0cc55b17883b"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f4647526-69bb-46e5-ae21-0af5804759e2/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c1afc35b-a63d-4be9-b512-7e47204bbe83"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f5bc71ed-5442-4b79-a0d5-362ca2e9d277/",
+      "ready": true,
+      "kind": "product",
+      "revision": "d4c5e93a-34fe-4f54-b759-8604caa3bca0"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f5bed890-e4b7-43ba-a5bb-001cb0b9985f/",
+      "ready": true,
+      "kind": "product",
+      "revision": "eacce34d-bec0-4040-88f2-88ee30fdfa25"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f5bf19de-3de1-47d1-a18b-4b12da038566/",
+      "ready": true,
+      "kind": "product",
+      "revision": "bf48c802-e6b7-486f-9747-1374331e1e9c"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f5e72d34-1c75-40a5-a7a0-4208e7c6477a/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a0cf52da-7afb-48d6-8cbc-28d5ec1e974a"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f64f47ba-92df-4a7c-af04-8be659128d39/",
+      "ready": true,
+      "kind": "product",
+      "revision": "a8147d34-b0d0-4665-9901-d4f50d5cb0e6"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f67c70a2-d786-401e-a9cc-42152c209090/",
+      "ready": true,
+      "kind": "product",
+      "revision": "fd045314-5f4c-48e4-8077-91da0189a30d"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f785f8d3-3244-47dd-a3b5-6f142a538699/",
+      "ready": true,
+      "kind": "product",
+      "revision": "8b2604c4-8225-4ba2-b0fc-ef9d8074c572"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f86fa593-c2e8-45c3-a3e1-75f7dce5e9fe/",
+      "ready": true,
+      "kind": "product",
+      "revision": "63cae498-0eb5-426a-b501-a26a1729d162"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f8d82ed3-c530-4c3d-a20a-7065a4ab0c97/",
+      "ready": true,
+      "kind": "product",
+      "revision": "5b97fb54-0f87-4e80-adab-546bb9b74f82"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-f9ecaeb3-8f1b-4175-a619-3bc5b0708934/",
+      "ready": true,
+      "kind": "product",
+      "revision": "b23374de-37a3-4a72-a07d-c0aa7f7548ea"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-faf2cc7a-d352-4790-a84c-f57df4df0952/",
+      "ready": true,
+      "kind": "product",
+      "revision": "c7813632-9228-4035-b0ef-5d5d1b3056b1"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-fc295fa0-c2a5-4693-ac2b-616dbfa0e7a3/",
+      "ready": true,
+      "kind": "product",
+      "revision": "f7558efa-7c01-43e2-b400-938228720f13"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-fee3aabc-32f4-426f-a8d4-23e344fa0f91/",
+      "ready": true,
+      "kind": "product",
+      "revision": "10bfc60a-3c0a-43ac-bcfd-b2a121dcbc4f"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ff78df03-83dd-4fc0-a252-d2506839ab91/",
+      "ready": true,
+      "kind": "product",
+      "revision": "ff8875b3-56ba-413e-8410-e28853d95743"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "ready": true,
+      "kind": "product",
+      "revision": "653938e3-5962-4868-bc84-37dbf01a44ca"
+    },
+    {
+      "url": "https://supplychainsai.com/toys/",
+      "ready": true,
+      "kind": "marketing"
+    }
+  ],
+  "problems": []
+}

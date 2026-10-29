@@ -4,6 +4,16 @@
 
 这一块解决“页面已经能看，搜索引擎却仍被明确挡住”的问题。我们会同时核对HTTP头、HTML正文、标准网址、地图和图片，不能只看页面返回200。用户已确认两篇现有公开文章可保留；本轮读过正文，没有发现虚构公司能力或报价。正式网站的Blog列表和公开文章应允许收录，临时服务地址、草稿、健康检查和错误页继续排除。客户仍照常审核、预览、发布，不增加构建操作。解释见[先读说明](EXPLAIN.zh-CN.md)。
 
+## 10月29日的实际交付
+
+Blog程序已更新为`71fb996b`，正式收录开关经受控入口`40819158070`打开并验收；临时地址、健康检查和404仍noindex。网站`40819519497`已完成发布并接受为`site-40819519497-1`，源代码`08923537`；公开图片robots例外已在线上读回，其他API仍禁止抓取。未修改两篇文章、价格、询盘业务或Cloud Functions。
+
+Google对列表及两篇文章的实时测试均允许收录，三个重新收录请求已被接受；不能写成已经索引。最后对地图中539个公开页面逐一复测，全部通过技术收录条件，528商品与公开API清单一致。[真实交付回执](evidence/live-indexing-acceptance.json)。
+
+已有文章程序更新入口只在首次创建时设预览限制；更新时不替换serverConfig，保留本次收录配置。常规静态前端发布也不更新文章服务器，本次已实际验证。
+
+恢复操作的约束也要保留：正式开放后的目标程序必须支持正式/临时主机区别，并在恢复后重新验收这两条规则。`71fb996b`是本轮实际验收的程序；更早、不含主机规则的镜像仍保留历史，不能因以前在预览状态下能运行，就当成现在正式开放后的直接恢复目标。这是操作和兼容要求，不宣称可以阻止管理员绕过工具手动部署任意镜像。
+
 ## 需求和完成条件
 
 公开营销页、分类页、商品页与人工发布的Blog都能被正确发现；私有页面、草稿、临时服务地址、缺失与错误页面不混入地图。不能把“HTTP200”或“地图提交成功”写成“Google已收录”。
@@ -14,7 +24,7 @@ Blog当前两篇公开内容分别是Preparing an OEM headphone project brief，
 
 ### 现状与风险
 
-现有`apps/site/src/lib/seo/output-gate.ts::inspectPage`在构建时检查正文、H1、标题、description、canonical和结构化数据，但看不到线上HTTP头。Blog的middleware在`BLOG_PREVIEW_ONLY=1`时增加noindex，HTML本身仍可通过构建检查。robots.txt的`Disallow: /api/`还挡住公开商品图。
+修复前，`apps/site/src/lib/seo/output-gate.ts::inspectPage`在构建时检查正文、H1、标题、description、canonical和结构化数据，但看不到线上HTTP头。Blog的middleware在`BLOG_PREVIEW_ONLY=1`时增加noindex，HTML本身仍可通过构建检查。robots.txt的`Disallow: /api/`还挡住公开商品图。
 
 ### 接口和边界
 
