@@ -211,3 +211,7 @@ Ruling：消费程序读取完整数据在事务外完成；最终事务核对�
 SDK合同采用本机manager-node5.9.1、node-sdk3.17.2及database1.4.3源码/类型，Context7不可用。官方依据https://docs.cloudbase.net/api-reference/manager/node/function确认functionPath和functionRootPath的区别，以及Node20事件函数配置；数据库官方页https://docs.cloudbase.net/api-reference/manager/node/database确认Exists为对象内布尔值。发现manager checkCollectionExists会把任何describe错误变成Exists:false，因此现场脚本使用完整集合清单证明测试名字未占用；没有把权限失败当作可新建依据。
 
 两张Archify图已更新当前进度，分别通过9项结构检查和四种尺寸/主题浏览器检查；实际查看了总图浅色、时序深色截图，未见遮挡。总图因新增说明过长先被检查器拒绝，按诊断加宽对应节点后重新通过；未把上次成功HTML当成新图。格式统一后将重新生成最终回执。
+
+### 首次远端检查后的修正
+
+1d5f7066已推送原分支。Blog dummy offline运行40906924937在类型检查发现run-catalog-seo-probe.ts读取的AvailableStatus没有列入manager-node5.9.1的IFunctionInfo类型。实际SDK对象原有发布器也核对该字段；本地缓存与锁文件均为5.9.1，并非擅自升级导致。保留Active与Available双重检查，改用Reflect.get读取未声明的返回字段，没有扩写SDK类型或移除检查。最后增加就绪轮询后，本地检查的退出结果没有在提交前确认，这是本次验证遗漏；修正后已等待同一tsconfig明确退出0，再推后续提交。此前远端失败记录保留，未启动云端probe。

@@ -106,7 +106,7 @@ try {
   let active = false;
   for (let attempt = 0; attempt < 30; attempt++) {
     const detail = await manager.functions.getFunctionDetail(name);
-    if (detail.Status === 'Active' && detail.AvailableStatus === 'Available') {
+    if (detail.Status === 'Active' && Reflect.get(detail, 'AvailableStatus') === 'Available') {
       active = true;
       break;
     }
