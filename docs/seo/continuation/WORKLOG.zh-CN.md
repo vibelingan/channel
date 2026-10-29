@@ -97,4 +97,6 @@ YAML检查最初尝试系统Python时缺少PyYAML；改用仓库已安装的yaml
 
 收尾再次只读请求正式域名的robots.txt和Blog健康检查，确认公开图片例外已生效、其他`/api/`仍禁止爬虫抓取，Blog正式收录保持开启。核对`apps/site/src/catalog/infrastructure/catalog-detail-api.ts`，详情请求实际使用`/api/products/{id}/detail`。
 
-据此把EXPLAIN里的“Google可以运行JavaScript”展开为两层事实：Google具有这种能力，但本站当前规则禁止抓商品详情API，不能把普通浏览器的接口更新等同于Google会取得最新正文。普通浏览器不受robots约束。只补说明，没有改API、robots或云配置；同时把Blog章节与此前进度纠正段明确写成已经交付/仍待实现，避免历史状态与当前结果混读。
+最初只根据主站robots与源代码路径，把详情接口判断为禁止抓取；这个判断遗漏了实际API域名，已在继续核对后纠正，没有保留为最终设计依据。正式商品页现场仍加载`ProductLanding.DvsMXRhH.js`，沿其实际依赖找到`public-quote-transport.1UVqmz39.js`使用的M函数，再核对`alibaba-sync-workflow.DkvSoLlW.js`的导出与常量，确认详情请求会拼到`https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com`。该域名robots.txt现场404。官方Google规则只适用于同host、协议与端口，robots返回404不等于禁止抓取。
+
+EXPLAIN已按以上真实请求来源修正；继续保持“Google有执行API的能力，但浏览器API不会改服务器HTML，初始正文与页面头部仍需更新”的结论，没有用错误的跨域robots推断为SSG辩护。只补说明，没有改API、robots或云配置；同时把Blog章节与此前进度纠正段明确写成已经交付/仍待实现，避免历史状态与当前结果混读。

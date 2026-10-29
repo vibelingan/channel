@@ -45,13 +45,13 @@ SSG不会因为有人点菜单、打开商品或Google访问就重新执行。�
 
 ## Google 会不会调用接口
 
-Google具备运行JavaScript并请求API的能力，不能把“Google不会调用接口”当成它的技术限制。不过，本站目前的robots规则是禁止抓取`/api/`，只放行`/api/images/`公开图片；商品详情实际请求`/api/products/{id}/detail`，仍在禁止范围。因此在当前设置下，不能指望Google靠这个接口获取最新商品。普通买家的浏览器不受robots约束，仍正常请求接口。
+Google具备运行JavaScript并请求API的能力，不能把“Google不会调用接口”当成它的技术限制。本轮沿正式商品页实际加载的JS核对，当前详情请求走独立的CloudBase API域名，而不是主站同域接口。主站robots的`Disallow: /api/`不能跨域应用到它；该API域名的robots.txt现场返回404，也不能据此说Google被禁止读取接口。具体能否完成一次页面渲染，应看Google实际测试，不能把普通浏览器成功或单独一条robots规则当作全部证据。
 
 Google先抓取页面，再安排渲染，最终决定是否索引；这些阶段不保证同时完成。其他抓取工具还可能不会运行JavaScript。现有商品初始HTML已提供公开正文，我们需要保持这份正文和页面标题等信息正确。
 
 所以浏览器接口继续保留，初始 HTML 也应保持正确。这样用户更早看见当前内容，搜索和分享工具不必依赖后续脚本来纠正旧正文。我们采用 SSG 是当前商品托管方式的选择，并非 SEO 强制所有网站构建静态文件；换成每次请求生成 HTML 的 SSR 也能满足要求，但会扩大商品服务与运维改动，本轮不迁移。
 
-[Google JavaScript 官方说明](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)。
+[Google JavaScript 官方说明](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)。[robots规则的适用范围与404处理](https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec)。
 
 ## 页面怎样进入搜索结果
 
