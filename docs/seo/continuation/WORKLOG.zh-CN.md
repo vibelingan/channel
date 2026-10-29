@@ -145,3 +145,10 @@ Context7工具本轮不可用。对照官方事务文档https://docs.cloudbase.n
 本段实际复核的文件包括handler.ts、catalog-detail.ts及测试、shared的product-detail/public-version/catalog-taxonomy、catalog-detail-storage、catalog-public-changes、product-snapshot.ts、product-page.ts和products/[publicKey].astro，以及ENGINEERING_CRAFT相关组。表达复核读了humanizer与plain-technical-writing，把“公开投影语义变更已接通”改为“内容判断代码完成，实际保存入口还没接”，避免把本地组件测试说成自动更新已经上线。项目指定的上游dev-pipeline与engineering-craft本地目录仍不可用，沿用已读项目适配说明与强制检查；按用户要求自行审查，没有启动其他agent。
 
 本轮没有UI样式或操作流程变化，没有云端写入、集合创建、部署、消息发送或其他应用修改。已核对push触发条件：SEO分支自动运行的是离线检查；网站、云函数和文章服务的写入入口仍需手动触发。本段验收及源码校验值见catalog-public-content.json。实际写入方、世代绑定、私有集合权限、真实云库与自动调度仍待实施；最大变体集合的内存和分页准备耗时也不能靠这些小规模测试宣称已经达标。
+
+
+## 固定排序的配套索引
+
+推送后继续核对上线依赖，发现productVariants原资源清单只有productId/position索引。新增独立的非唯一variant_product_position_id，保留旧索引、原权限和现有准备步骤，不改创建/校验SDK入口，不在本轮操作云端。新测试先因索引声明缺失失败，再通过；另验证准备工具只提交CreateIndexes，并在读回时确认新旧索引都在。测试初稿没有模拟创建后的读回，被现有工具正确拒绝，补齐测试存储状态后22项全部通过。最初直接用node运行测试时无法加载既有.ts导入，改用同版tsx后，仅留下目标测试失败，未修改测试加载规则。
+
+已读CloudBase主技能、SDK合同与ENGINEERING_CRAFT部署组，并核对现有ensureNoSqlResourceSet及资源读回行为。Context7不可用；官方检索结果https://docs.cloudbase.net/recipes/optimize-database-query-performance说明组合索引顺序与_id稳定排序，https://docs.cloudbase.net/model/data-index提供索引规则。两次正文抓取超时，不声称已完成现网索引或查询计划验证。此处登记配套索引是为后续部署准备，不据此承诺查询提速。

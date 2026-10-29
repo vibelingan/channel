@@ -66,6 +66,11 @@ export const REQUIRED_NOSQL_RESOURCES = [
         ['productId', '1'],
         ['position', '1'],
       ]),
+      index('variant_product_position_id', [
+        ['productId', '1'],
+        ['position', '1'],
+        ['_id', '1'],
+      ]),
     ],
   },
   {

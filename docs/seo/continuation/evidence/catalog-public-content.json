@@ -12,7 +12,9 @@
     "packages/db/src/catalog-public-content.ts": "0823e09f631cc8080c08d56a46f6777118fbc270c6e6934b2344c5c4b958559d",
     "packages/db/src/catalog-public-content.test.ts": "6d21c9e01f500cd525eed2fa4b15f383303b7a3dbe08ece91508ab79f4ba4e63",
     "apps/functions/public-api/src/handler.ts": "00a1606e5ff02142965efb3b01679d4c6e07320c2335ba4472b99ae3a4152c24",
-    "apps/functions/public-api/src/catalog-detail.test.ts": "f0c8bcabe30be7f98115855785d70afccb5978b25a00df2ddff250be10beed19"
+    "apps/functions/public-api/src/catalog-detail.test.ts": "f0c8bcabe30be7f98115855785d70afccb5978b25a00df2ddff250be10beed19",
+    "scripts/cloudbase-nosql-resources.mjs": "2441444d74770b7f8f74e59b88c6d2b73bcf0971908ca39801a33d628a7c46b7",
+    "scripts/cloudbase-nosql-resources.test.mjs": "2d0951f327078c17c6c1b3bc9cc90e013eb6dd59ced907a69ad51a9b504fbca8"
   },
   "checks": {
     "database": {
@@ -95,6 +97,13 @@
       "nativeNode20Execution": false,
       "bytes": 1737849,
       "sha256": "f9a0c3e93a742305f7aa0402ac7e8ffd04256cde6dc57e8f3cc029ac5e8c576b"
+    },
+    "nosqlResources": {
+      "tests": 22,
+      "pass": 22,
+      "fail": 0,
+      "skipped": 0,
+      "scope": "local declaration and provisioner readback; no cloud requests"
     }
   },
   "previousCommitCI": {
@@ -128,7 +137,14 @@
     "automaticHtmlRefreshEnabled": false,
     "uiStyleChanged": false,
     "businessFlowChanged": false,
-    "existingEqualPositionVariantOrder": "now fixed by _id after position"
+    "existingEqualPositionVariantOrder": "now fixed by _id after position",
+    "cloudIndexCreated": false,
+    "declaredAdditiveIndex": {
+      "collection": "productVariants",
+      "name": "variant_product_position_id",
+      "keys": ["productId", "position", "_id"],
+      "oldIndexRetained": true
+    }
   },
   "next": "Bind prepared variant/public digest to approval generation, connect each real writer in its existing transaction, verify private collection permissions and isolated real-cloud behavior."
 }

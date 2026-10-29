@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { REQUIRED_NOSQL_RESOURCES, ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+import {
+  REQUIRED_NOSQL_RESOURCES,
+  ensureNoSqlResourceSet,
+  ensureNoSqlResources,
+} from './cloudbase-nosql-resources.mjs';
 
 const deploySource = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
 const smokeSource = readFileSync(new URL('./smoke-cloudbase-deploy.mjs', import.meta.url), 'utf8');
@@ -123,8 +127,55 @@ test('legacy product reads require the private variants collection even before a
         { Name: 'productId', Direction: '1' },
         { Name: 'position', Direction: '1' },
       ],
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'position', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
     ],
   );
+});
+
+test('stable public variant sorting adds its index without replacing the existing index', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'productVariants');
+  assert.ok(resource);
+  const previous = resource.indexes.find((i) => i.IndexName === 'variant_product_position');
+  assert.ok(previous);
+  const added = resource.indexes.find((i) => i.IndexName === 'variant_product_position_id');
+  assert.ok(added, 'the position/_id query must have its own declared index');
+  assert.deepEqual(added.MgoKeySchema, {
+    MgoIsUnique: false,
+    MgoIndexKeys: [
+      { Name: 'productId', Direction: '1' },
+      { Name: 'position', Direction: '1' },
+      { Name: '_id', Direction: '1' },
+    ],
+  });
+  const writes = [];
+  const indexes = [listedIndex(previous)];
+  ensureNoSqlResourceSet(
+    (name, input) => {
+      if (input.action === 'checkCollection') return { success: true, exists: true };
+      if (input.action === 'listIndexes') return { success: true, indexes };
+      if (input.action === 'getResourcePermission') return { success: true, aclTag: 'ADMINONLY' };
+      writes.push({ name, input });
+      if (input.action === 'updateCollection')
+        indexes.push(...input.updateOptions.CreateIndexes.map(listedIndex));
+      return { success: true };
+    },
+    [resource],
+    () => {},
+  );
+  assert.deepEqual(writes, [
+    {
+      name: 'cloudbase.writeNoSqlDatabaseStructure',
+      input: {
+        action: 'updateCollection',
+        collectionName: 'productVariants',
+        updateOptions: { CreateIndexes: [added] },
+      },
+    },
+  ]);
 });
 
 test('inquiry records and durable caps are private; queue indexes match adapter sort', () => {
