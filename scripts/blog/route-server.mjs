@@ -3,6 +3,8 @@ import { DefaultArtifactClient } from '@actions/artifact';
 import { createGithubReadClient } from '../release/github-read.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
+import { blogConfigRelease } from './config-release.mjs';
+import { BlogExposureConflict, waitForBlogIndexing } from './indexing-convergence.mjs';
 import { assertBlogIndexingPreflight } from './indexing-preflight.mjs';
 import { connectBlogMcp } from './mcp-client.mjs';
 import { readFunctionRuntimeState } from './runtime-health.mjs';
@@ -108,9 +110,49 @@ try {
         readFunctionRuntimeState(policy.envId, 'public-api'),
       ]);
       if (JSON.stringify(current) !== JSON.stringify([admin, api]))
-        throw Error('A Blog API changed during the indexing operation');
+        throw new BlogExposureConflict('A Blog API changed during the indexing operation');
     };
     await stableApis();
+    const verifyMode = async (previewOnly) => {
+      await waitForBlogIndexing({
+        releaseId: identity.blogSha,
+        previewOnly,
+        read: async () => {
+          const [formalHealth, page, temporary] = await Promise.all([
+            fetchFully('GET', `${policy.siteOrigin}/blog/health.json`, {
+              redirect: 'error',
+              timeoutMs: 15000,
+              maxBytes: 32768,
+            }),
+            fetchFully('GET', `${policy.siteOrigin}/blog/`, {
+              redirect: 'error',
+              timeoutMs: 15000,
+            }),
+            fetchFully('GET', `${host}/blog/`, { redirect: 'error', timeoutMs: 15000 }),
+          ]);
+          if ([formalHealth, page, temporary].some((r) => r.status !== 200))
+            throw Error('A Blog entry point is unavailable');
+          const value = JSON.parse(formalHealth.body.toString());
+          if (
+            value.service !== 'blog-pages' ||
+            value.siteOrigin !== policy.siteOrigin ||
+            page.headers.get('x-channel-blog-version') !== value.releaseId
+          )
+            throw Error('Formal Blog identity not confirmed');
+          return {
+            releaseId: value.releaseId,
+            temporaryReleaseId: temporary.headers.get('x-channel-blog-version'),
+            previewOnly: value.previewOnly,
+            formalNoindex: Boolean(page.headers.get('x-robots-tag')?.includes('noindex')),
+            temporaryNoindex: Boolean(temporary.headers.get('x-robots-tag')?.includes('noindex')),
+          };
+        },
+      });
+      const actual = await assertServerBlogReady(policy.siteOrigin);
+      if (actual.releaseId !== identity.blogSha || actual.previewOnly !== previewOnly)
+        throw new BlogExposureConflict('Blog changed after its entry points converged');
+      await stableApis();
+    };
     await exposeBlogServer({
       client,
       save,
@@ -129,20 +171,16 @@ try {
           throw Error('Blog health not confirmed');
         return value;
       },
-      verify: async () => {
-        const actual = await assertServerBlogReady(policy.siteOrigin);
-        const page = await fetchFully('GET', `${policy.siteOrigin}/blog/`, { redirect: 'error' });
-        if (
-          actual.previewOnly ||
-          actual.releaseId !== identity.blogSha ||
-          page.headers.get('x-robots-tag')?.includes('noindex')
-        )
-          throw Error('The actual domain is still in staging mode');
-        const temporary = await fetchFully('GET', `${host}/blog/`, { redirect: 'error' });
-        if (!temporary.headers.get('x-robots-tag')?.includes('noindex'))
-          throw Error('The temporary Blog address lost its indexing restriction');
-        await stableApis();
-      },
+      readDeployment: async () =>
+        blogConfigRelease(
+          await client.call('queryCloudRun', {
+            action: 'getManageTask',
+            detailServerName: 'blog-pages',
+          }),
+          policy.envId,
+        ),
+      verify: () => verifyMode(false),
+      verifyRestored: () => verifyMode(true),
     });
   } else
     await setBlogRoutes({

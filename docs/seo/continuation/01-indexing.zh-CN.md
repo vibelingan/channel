@@ -36,7 +36,7 @@ Blog当前两篇公开内容分别是Preparing an OEM headphone project brief，
 
 先确认保留内容，归档当前Blog服务配置、容器版本和域名路由。核对`BLOG_PREVIEW_ONLY`、`BLOG_API_ORIGIN`及真实HTTP结果，不要求独立部署的API与文章服务器SHA相同，改为各自通过已验收的接口合同和health身份检查。
 
-只对blog-pages补丁更新收录相关键，不重发代码、不改变实例数或收费配置、不重发其他函数。正式域名、列表、逐篇文章、公开图和sitemap需通过IDX-01。默认服务地址仍应noindex，不能因为一个全局开关同时放开临时地址；实施前先现场确认网关传递的实际Host/转发头，不能臆测信任任意X-Forwarded-Host。
+实际读回发现旧blog-pages只有全局noindex开关，不能区分正式域名与临时地址。因此本轮先交付一个小的主机规则补丁，保留原内容和实例配置；随后真正切换收录时只补丁更新BLOG_PREVIEW_ONLY，不重发其他函数、不改变实例数或收费配置。正式域名、列表、逐篇文章、公开图和sitemap需通过IDX-01。默认服务地址仍应noindex，不能因为一个全局开关同时放开临时地址；实施前先现场确认网关传递的实际Host/转发头，不能臆测信任任意X-Forwarded-Host。
 
 撤回文章保留草稿与图片历史；原URL404、列表与地图移除。服务异常返回503与Retry-After，不伪装成永久删除。私有预览仍要求管理员授权、Blob显示；助手无公开权限。
 
