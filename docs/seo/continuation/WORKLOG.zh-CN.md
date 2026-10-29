@@ -1,0 +1,34 @@
+# 10月29日续作记录
+
+当前目标：把初始HTML、浏览器API和搜索引擎抓取解释清楚；保留现有两篇文章，接通正式Blog收录。继续原SEO分支，不改其他应用，不把已实现的部分重新做一遍。
+
+## 本轮已检查与修改
+
+- 用户已确认两篇现有公开文章可以保留。实际读取两篇正文：采购准备为短清单，样品检查为完整文章；未发现虚构公司报价、能力或认证。没有修改正文、日期、slug或发布状态。
+- 四个模块各加摘要，新增EXPLAIN说明上午HTML为A、下午API为B的具体例子；明确人和搜索引擎取同一份页面、Google可以运行JavaScript、sitemap不是直接向索引上传HTML。
+- 纠正PUBLIC_PAGE_CONTRACT中仍把Blog写成未来静态构建、Hermes尚未实现的旧开头；历史静态包规则保留并明确用途。
+- 补Blog正式主机规则：只有明确BLOG_PREVIEW_ONLY=0、直接HTTP Host与构建站点一致时允许收录。临时地址、未知配置、健康检查、404和重定向继续noindex；忽略客户端自行提供的转发主机声明。这不是认证功能，未发布内容仍由原权限控制。
+- 补独立服务的开放前检查，分别核对admin、public-api和blog-pages的实际版本与当前接口能力，不再强迫它们有相同源码SHA，也不为改收录头暂停正常文章发布。原路由初始化/恢复的旧要求没有放宽。
+- 开放后的验证失败时，只把BLOG_PREVIEW_ONLY恢复为1。恢复前再次核对运行程序；丢回复后读回，不盲目重复写；换了程序、读回不明或恢复不明时如实停止。归档失败不写云端。
+
+## 已运行的本地验证
+
+- 15项脚本测试通过：独立版本、接口能力、正式/临时地址、丢回复、恢复、换程序拒绝、归档失败等。
+- 17项站点SEO与新主机规则测试通过，包含原13项收录/地图检查。
+- 实际Astro文章服务器构建通过；同一构建分别运行正式开放、预览关闭、配置缺省三种模式的HTTP联测，全部通过。开放模式另外跑现有真实浏览器交互；这是本地SDK离线传输的联测，不能当作真实云库验收。
+- Astro检查285文件，0错误、0警告、11条既有提示。格式检查通过。
+- 先在旧构建上确认临时地址缺noindex的测试失败，再运行新实现通过。首次本地没有dist-blog，测试提前失败并留下自己的测试进程；已结束该进程，并把产物检查前置，未碰其他会话。新代理测试还确认Node fetch忽略自定义Host，改用真实HTTP代理请求传递Host，未放宽断言。
+
+## 云端合同与现场只读
+
+本轮使用锁定CloudBase MCP 2.36.1和Manager 5.9.1，读取manageCloudRun工具schema与安装包updateConfig实现：envParamsReplaceAll=false会先读远端环境变量、按键合并后提交配置差异，不把单键补丁当作整包替换。没有Context7工具；使用官方MCP合同、已安装包实现及项目SDK验证说明核对。读取CloudRun与code-review参考，规则索引中本次未修改认证、数据库和存储接口；未更改SDK版本或手写类型。
+
+实际服务仍是blog-pages、运行51b33151，Cpu0.25/Mem0.5/最少和最多各1实例；正式域名和临时域名都仍previewOnly=true。此处是写入前结果，不能写成已经开放收录。
+
+项目指定的dev-pipeline与engineering-craft本地安装目录本轮不可用；已读项目AGENTS、ENGINEERING_CRAFT的相关规则及全局agentic-delivery-loop、humanizer、CloudBase、simplify进行当前工作，没有声称重新安装或运行缺失技能。
+
+## 尚待本轮收尾
+
+远端精确提交CI、只更新blog-pages程序、主机现场核对、收录开关变更和线上HTTP验收。商品自动更新的02/03模块尚未实现；不把本轮Blog开放代码当作商品自动更新已启用。
+
+表达核对：实际阅读middleware.ts、health.json.ts、server-exposure.mjs、route-server.mjs、server-route-health.mjs、现有PUBLIC_PAGE_CONTRACT及四模块方案。把“Google不会调用API”纠正为“Google可运行脚本，但初始HTML也须正确”；把“SEO都好了”纠正为逐项列代码、部署和实际收录结果。未把测试通过写成上线，也未把可以收录写成已收录。

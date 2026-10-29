@@ -20,6 +20,7 @@ jobs:
     env:
       SITE_URL: https://supplychainsai.com
       BLOG_SSR_BROWSER: '1'
+      BLOG_PREVIEW_ONLY: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -89,6 +90,11 @@ jobs:
           if-no-files-found: error
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../scripts/blog/server-http.integration.ts
+      - name: Keep the preview service blocked with the same built program
+        env:
+          BLOG_PREVIEW_ONLY: '1'
+          BLOG_SSR_BROWSER: '0'
+        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../scripts/blog/server-http.integration.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:

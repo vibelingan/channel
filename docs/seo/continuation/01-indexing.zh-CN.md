@@ -1,10 +1,14 @@
 # 01 页面收录规则与Blog正式开放
 
+## 先看摘要
+
+这一块解决“页面已经能看，搜索引擎却仍被明确挡住”的问题。我们会同时核对HTTP头、HTML正文、标准网址、地图和图片，不能只看页面返回200。用户已确认两篇现有公开文章可保留；本轮读过正文，没有发现虚构公司能力或报价。正式网站的Blog列表和公开文章应允许收录，临时服务地址、草稿、健康检查和错误页继续排除。客户仍照常审核、预览、发布，不增加构建操作。解释见[先读说明](EXPLAIN.zh-CN.md)。
+
 ## 需求和完成条件
 
 公开营销页、分类页、商品页与人工发布的Blog都能被正确发现；私有页面、草稿、临时服务地址、缺失与错误页面不混入地图。不能把“HTTP200”或“地图提交成功”写成“Google已收录”。
 
-Blog当前两篇公开内容分别是演练文章Preparing an OEM headphone project brief，以及群测文章How to Inspect Your First OEM Headphone Sample。已向用户询问保留范围，仍待回答；在回答前不撤回任何一篇，不全站关闭noindex。
+Blog当前两篇公开内容分别是Preparing an OEM headphone project brief，以及How to Inspect Your First OEM Headphone Sample。用户于10月29日确认可以保留并开放收录。本轮读过两篇正文，前者较短但有实际清单，后者内容完整；不因来自测试自动撤回，不改正文和发布时间。
 
 ## MIU IDX-01：把HTTP、HTML和发现入口一起检查
 

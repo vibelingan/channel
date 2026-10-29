@@ -1,6 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
 <!-- formal-blog-latest -->
+10月29日续作：[白话说明与四模块摘要](../seo/continuation/EXPLAIN.zh-CN.md)已补齐。用户确认保留两篇文章；正式Blog主机保护与受控开放代码本地通过，远端检查和上线结果见[本轮记录](../seo/continuation/WORKLOG.zh-CN.md)。商品自动更新仍按02/03实施，不把本轮收录修复记作已接通。
 最新状态：内容机→VibeKB工作区2→发布机→网站私有草稿已经接通，文档201、202的真实保存与重投通过；正式凭证已实际轮换，每小时维护已启用。群内模型任务仍待用户验收。见[正式接入结果](2026-10-27/wecom/FORMAL-USE-STATUS.zh-CN.md)。
 
 图片专项已完成真实私有草稿验收：203原稿的两张现有图片已上传、排版并保存alt，版本2；重复交接不增图，旧版本插图被拒绝，刷新和预览正常。没有公开文章。见[实际验收](../blog/agent-design/formal-use/IMAGE-ACCEPTANCE.zh-CN.md)、[完整图片流程图](../blog/agent-design/formal-use/diagrams/image-draft.html)。下一步是用户在群里真实@内容助手验收，不需要重新安装。

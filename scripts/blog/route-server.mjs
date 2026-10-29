@@ -3,6 +3,7 @@ import { DefaultArtifactClient } from '@actions/artifact';
 import { createGithubReadClient } from '../release/github-read.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
+import { assertBlogIndexingPreflight } from './indexing-preflight.mjs';
 import { connectBlogMcp } from './mcp-client.mjs';
 import { readFunctionRuntimeState } from './runtime-health.mjs';
 import { exposeBlogServer } from './server-exposure.mjs';
@@ -20,13 +21,13 @@ const [admin, api] = await Promise.all([
   readFunctionRuntimeState(policy.envId, 'public-api'),
 ]);
 if (
-  admin.releaseId !== api.releaseId ||
   admin.articleDeliveryMode !== 'server' ||
-  admin.articlePublishingEnabled !== false ||
-  api.articlePublicReadEnabled !== true
+  api.articlePublicReadEnabled !== true ||
+  (action !== 'publish' &&
+    (admin.releaseId !== api.releaseId || admin.articlePublishingEnabled !== false))
 )
   throw Error('Pause publication and verify both actual APIs before changing routes');
-await github.requireCI(admin.releaseId);
+if (action !== 'publish') await github.requireCI(admin.releaseId);
 const client = await connectBlogMcp();
 const directory = 'output/blog-server-route';
 await mkdir(directory, { recursive: true });
@@ -53,7 +54,7 @@ try {
     response.status !== 200 ||
     health.service !== 'blog-pages' ||
     health.siteOrigin !== policy.siteOrigin ||
-    health.releaseId !== admin.releaseId
+    (action !== 'publish' && health.releaseId !== admin.releaseId)
   )
     throw Error('Actual Blog service does not match the reviewed APIs');
   const save = async (record) => {
@@ -61,7 +62,12 @@ try {
     await writeFile(
       file,
       JSON.stringify(
-        { executorSha: env.GITHUB_SHA, deployedSha: admin.releaseId, ...record },
+        {
+          executorSha: env.GITHUB_SHA,
+          apiVersions: { admin: admin.releaseId, publicApi: api.releaseId },
+          blogSha: health.releaseId,
+          ...record,
+        },
         null,
         2,
       ),
@@ -80,7 +86,31 @@ try {
   };
   if (action === 'publish') {
     const ready = await assertServerBlogReady(policy.siteOrigin);
-    if (ready.releaseId !== admin.releaseId) throw Error('Actual Blog domain differs');
+    const formalResponse = await fetchFully('GET', `${policy.siteOrigin}/blog/health.json`, {
+      redirect: 'error',
+      timeoutMs: 15000,
+      maxBytes: 32768,
+    });
+    if (formalResponse.status !== 200) throw Error('Formal Blog health is unavailable');
+    const formal = JSON.parse(formalResponse.body.toString());
+    const identity = assertBlogIndexingPreflight({
+      siteOrigin: policy.siteOrigin,
+      admin,
+      api,
+      formal,
+      temporary: health,
+    });
+    if (ready.releaseId !== identity.blogSha) throw Error('Actual Blog domain differs');
+    await github.requireCI(identity.blogSha);
+    const stableApis = async () => {
+      const current = await Promise.all([
+        readFunctionRuntimeState(policy.envId, 'admin'),
+        readFunctionRuntimeState(policy.envId, 'public-api'),
+      ]);
+      if (JSON.stringify(current) !== JSON.stringify([admin, api]))
+        throw Error('A Blog API changed during the indexing operation');
+    };
+    await stableApis();
     await exposeBlogServer({
       client,
       save,
@@ -104,10 +134,14 @@ try {
         const page = await fetchFully('GET', `${policy.siteOrigin}/blog/`, { redirect: 'error' });
         if (
           actual.previewOnly ||
-          actual.releaseId !== admin.releaseId ||
+          actual.releaseId !== identity.blogSha ||
           page.headers.get('x-robots-tag')?.includes('noindex')
         )
           throw Error('The actual domain is still in staging mode');
+        const temporary = await fetchFully('GET', `${host}/blog/`, { redirect: 'error' });
+        if (!temporary.headers.get('x-robots-tag')?.includes('noindex'))
+          throw Error('The temporary Blog address lost its indexing restriction');
+        await stableApis();
       },
     });
   } else

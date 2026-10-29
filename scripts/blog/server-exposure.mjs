@@ -45,7 +45,50 @@ export async function exposeBlogServer({
     if (actual && actual.releaseId !== before.releaseId)
       throw Error('Another Blog program appeared; no further write allowed');
     if (actual?.previewOnly === false) {
-      await verify();
+      try {
+        await verify();
+      } catch (error) {
+        const current = await readHealth();
+        if (current.releaseId !== before.releaseId || current.previewOnly !== false)
+          throw Error('Blog verification failed and its state changed; inspect before restoring');
+        await save({
+          phase: 'restore-before',
+          action: 'expose',
+          releaseId: before.releaseId,
+          prior: '0',
+          desired: '1',
+        });
+        try {
+          await client.call('manageCloudRun', {
+            action: 'updateConfig',
+            serverName: 'blog-pages',
+            envParamsReplaceAll: false,
+            serverConfig: { EnvParams: JSON.stringify({ BLOG_PREVIEW_ONLY: '1' }) },
+          });
+        } catch {
+          // One attempt; confirm the outcome from the running service.
+        }
+        const restoreDeadline = now() + timeoutMs;
+        while (now() < restoreDeadline) {
+          let restored;
+          try {
+            restored = await readHealth();
+          } catch {
+            /* A rolling instance may be unavailable. */
+          }
+          if (restored && restored.releaseId !== before.releaseId)
+            throw Error('Another Blog program appeared during restore; no further write allowed');
+          if (restored?.previewOnly === true) {
+            await save({ phase: 'restored', action: 'expose', releaseId: restored.releaseId });
+            throw Error(
+              'Blog verification failed; the original indexing restriction was restored',
+              { cause: error },
+            );
+          }
+          await pause();
+        }
+        throw Error('Blog verification failed; indexing restriction restore is unconfirmed');
+      }
       await save({
         phase: 'accepted',
         action: 'expose',

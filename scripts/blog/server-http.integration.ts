@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer, request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -39,6 +39,7 @@ const content = parseArticleContent({
   },
 });
 test('built SSR server publishes, updates and withdraws without a rebuild; real status and SEO HTML', async (t) => {
+  await access(new URL('../../apps/site/dist-blog/server/entry.mjs', import.meta.url));
   const f = articleSdkFixture(t);
   const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
   const imageBytes = await readFile(
@@ -62,13 +63,25 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     // Mirror the production gateway: Blog goes to Node; existing root assets
     // remain on static hosting. Never duplicate the full media tree in the service.
     if (req.url?.startsWith('/blog')) {
-      try {
-        const response = await fetch(`${serverOrigin}${req.url}`, { redirect: 'manual' });
-        res.writeHead(response.status, Object.fromEntries(response.headers));
-        res.end(Buffer.from(await response.arrayBuffer()));
-      } catch {
-        res.writeHead(502).end();
-      }
+      // Node's fetch ignores a custom Host. Use an actual HTTP proxy request so
+      // the integration checks the wire authority rather than a forged JS URL.
+      const upstream = httpRequest(
+        `${serverOrigin}${req.url}`,
+        {
+          headers: { host: new URL(process.env.SITE_URL || 'http://localhost:4321').host },
+        },
+        (response) => {
+          res.writeHead(response.statusCode ?? 502, response.headers);
+          response.once('error', () => res.destroy());
+          response.pipe(res);
+        },
+      );
+      upstream.setTimeout(15000, () => upstream.destroy(Error('Blog fixture proxy timed out')));
+      upstream.once('error', () => {
+        if (!res.headersSent) res.writeHead(502).end();
+        else res.destroy();
+      });
+      upstream.end();
       return;
     }
     if (
@@ -140,6 +153,21 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     }
   }
   const get = (path: string) => fetch(`${origin}${path}`, { redirect: 'error' });
+  // Opening the formal host must never open the provider's default address.
+  for (const headers of [
+    new Headers(),
+    new Headers({ 'x-forwarded-host': 'supplychainsai.com' }),
+  ]) {
+    const temporary = await fetch(`${serverOrigin}/blog/`, { headers });
+    assert.equal(temporary.headers.get('x-robots-tag'), 'noindex,nofollow');
+    await temporary.arrayBuffer();
+  }
+  const temporaryRedirect = await fetch(`${serverOrigin}/blog/without-slash`, {
+    redirect: 'manual',
+  });
+  assert.equal(temporaryRedirect.status, 308);
+  assert.equal(temporaryRedirect.headers.get('x-robots-tag'), 'noindex,nofollow');
+  await temporaryRedirect.arrayBuffer();
   const draft = await repo.create({
     actorId: 'admin',
     requestId: 'create',
@@ -190,13 +218,18 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   const response = await get('/blog/manufacturing-guide/');
   assert.equal(response.status, 200, output);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  const previewOnly = process.env.BLOG_PREVIEW_ONLY === '1';
+  const previewOnly = process.env.BLOG_PREVIEW_ONLY !== '0';
   assert.equal(response.headers.get('x-robots-tag'), previewOnly ? 'noindex,nofollow' : null);
   const health = await (await get('/blog/health.json')).json();
   const siteOrigin = process.env.SITE_URL || 'http://localhost:4321';
   assert(health !== null && typeof health === 'object');
   assert.equal(Reflect.get(health, 'siteOrigin'), siteOrigin);
   assert.equal(Reflect.get(health, 'previewOnly'), previewOnly);
+  assert.deepEqual(Reflect.get(health, 'indexing'), {
+    enabled: !previewOnly,
+    canonicalHost: true,
+    allowed: !previewOnly,
+  });
   assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
   assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
   const imageResponse = await get(`/blog/media/articles/${imageId}/${imageHash}.webp`);
