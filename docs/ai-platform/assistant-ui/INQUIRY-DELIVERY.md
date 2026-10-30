@@ -30,13 +30,13 @@
 
 浏览器连接的是实际 React 组件、BFF、PostgreSQL、Channel HTTP 接口和正式保存／来源代码。CloudBase 事务由支持回滚、文件持久化的本地替身承担；模型和产品为明确标注的样例。真实云库、真实模型、生产目录、Hermes 派发与 Resend 尚未在本轮联调。没有把这些测试称为线上验收。
 
-CloudBase 事务 API 已对照官方文档和安装的 SDK 源码，SDK 合同检查通过；函数构建、独立打包和冷加载通过。网站测试 1,497 项通过、1 项跳过；运行层回归 90 项通过。网站 typecheck 为 0 error，Astro 构建及渲染 SEO 检查通过；开发预览未进入构建。Sales `68bab602` 的 [远端 CI](https://github.com/vibelingan/channel/actions/runs/41079101819) 通过，网页分支 CI 在推送后核对。
+CloudBase 事务 API 已对照官方文档和安装的 SDK 源码，SDK 合同检查通过；函数构建、独立打包和冷加载通过。网站测试 1,497 项通过、1 项跳过；运行层回归 90 项通过。网站 typecheck 为 0 error，Astro 构建及渲染 SEO 检查通过；开发预览未进入构建。Sales `68bab602` 的 [远端 CI](https://github.com/vibelingan/channel/actions/runs/41079101819) 通过，UI 代码提交 `cfa445e55dc84ee8cde2bea7281f86bdc4956f95` 的 [聊天联调 CI](https://github.com/vibelingan/channel/actions/runs/41080160394) 通过；同一提交的 [组件状态 CI](https://github.com/vibelingan/channel/actions/runs/41080160693) 也通过。
 
-附加运行包检查发现 worker 将 workspace 的 TypeScript 合同留作外部依赖，普通 Node 22 冷加载会报 `ERR_UNKNOWN_FILE_EXTENSION`。已按 BFF 现有规则把 `ai-contracts` 一并打入 worker，修正后，BFF 和 worker 各自的独立生产依赖包在普通 Node 22 中均冷加载成功。首次 Docker 冷镜像检查在 npm 下载阶段失败，未完成容器内验证；独立 Node 运行包与 Linux 容器检查分别记录，不能互相冒充。
+附加运行包检查发现 worker 将 workspace 的 TypeScript 合同留作外部依赖，普通 Node 22 冷加载会报 `ERR_UNKNOWN_FILE_EXTENSION`。已按 BFF 现有规则把 `ai-contracts` 一并打入 worker，修正后，BFF 和 worker 各自的独立生产依赖包在普通 Node 22 中均冷加载成功。完整仓库 Dockerfile 的首次构建在 npm 下载阶段失败，该构建尚未通过。另将真实生产依赖包放进最小 Linux Node 22 镜像，BFF 和 worker 均冷加载成功。最初测试复制依赖时未保留相对符号链接，导致测试镜像找不到 pg；修正测试复制方式后才计为通过。这证明 Linux 运行包可导入，不代表已经验证完整构建或部署。
 
 ## 两条分支怎么接
 
-UI 分支 `feat/website-assistant-ui-foundation` 只接共享合同、BFF 和原组件 adapter。Sales 分支 `feat/sales-agent-integration` 提供原保存事务的内部接口；没有整合 pricing、SEO 或其他分支。共享合同先独立提交，随后复用到两边。浏览器 CI 固定读取 Sales `68bab6024488f58a29dd7d0eb0ceaeed103290c9`，不追随浮动分支。
+UI 分支 `feat/website-assistant-ui-foundation` 接共享合同、BFF 和原组件 adapter，并补齐 worker 的合同打包配置。Sales 分支 `feat/sales-agent-integration` 提供原保存事务的内部接口；没有整合 pricing、SEO 或其他分支。共享合同先独立提交，随后复用到两边。浏览器 CI 固定读取 Sales `68bab6024488f58a29dd7d0eb0ceaeed103290c9`，不追随浮动分支。
 
 可重跑：
 
