@@ -4,7 +4,7 @@
 
 SSH 密钥让服务器下载或推送 Git 代码。此次需要的是：腾讯云发现商品有更新后，通知 GitHub 启动已经写好的网页发布工作流。这是 GitHub API 的权限，仓库 SSH 公钥不能代替。
 
-选择专用 GitHub App，是为了不把管理员自己的登录令牌长期放进云函数。它只安装到 `vibelingan/channel`，只申请读取源码、读取仓库基本信息和启动 Actions。它不能修改源码或管理仓库。App 私钥用于换取短期安装令牌，程序自动换新，不需要客户每十四天重新配置。
+选择专用 GitHub App，是为了不把管理员自己的登录令牌长期放进云函数。它只安装到 `vibelingan/channel`，只申请读取源码、读取仓库基本信息和 Actions 读写。它不能直接修改源码或管理仓库。Actions 权限在 GitHub 上覆盖该仓库的工作流；本项目代码再固定允许启动的工作流、分支和输入。App 私钥用于换取短期安装令牌，程序自动换新，不需要客户每十四天重新配置。
 
 ## 账号持有人操作
 
@@ -20,7 +20,7 @@ SSH 密钥让服务器下载或推送 Git 代码。此次需要的是：腾讯�
 
 读取 App ID、安装 ID及私钥，先确认安装所有者为 vibelingan、范围为指定仓库，再交给独立 CloudBase 定时函数；不复用个人 gh 登录凭证或范围未知的 GH_PAT。不设置公开 HTTP 路由，数据库状态仅云函数可读写。
 
-先保持定时函数关闭：验证真实空队列、待办、重复通知和故障补漏，以及真实 HTML 和恢复，再开启每分钟检查。其余网站发布仍使用原来的共享部署队列。普通发 Blog 不受此定时器控制，文章仍由文章服务器实时返回。
+先保持定时函数关闭：真实 HTML 和恢复验收完成，再安装 App 并用它核对仓库范围、空队列、通知与故障补漏，最后开启每分钟检查。其余网站发布仍使用原来的共享部署队列。普通发 Blog 不受此定时器控制，文章仍由文章服务器实时返回。
 
 ## 停用与换钥匙
 
@@ -32,3 +32,17 @@ SSH 密钥让服务器下载或推送 Git 代码。此次需要的是：腾讯�
 
 - [GitHub App 的清单创建方式](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)
 - [腾讯云定时触发器](https://docs.cloudbase.net/cloud-function/timer-trigger)：采用七字段表达式 `0 * * * * * *`，每分钟检查一次；定时任务可能重复触发，通知租约和现有部署锁仍然必须保留。
+
+## 管理员可以照做的命令
+
+先在原 SEO 项目运行 `node tools/catalog-seo/github-app-setup.mjs`，保持终端运行，在它给出的本机链接完成上面五步。若提示已存在私钥文件，先确认它属于本次应用，不删除后重建。
+
+安装完成后，可在 GitHub 网页进入 `vibelingan/channel → Settings → Environments → test`：
+
+1. 将 App 页面显示的 App ID 添加为环境变量 `CATALOG_GITHUB_APP_ID`。
+2. 从安装详情地址的 `/installations/<数字>` 取得安装 ID，添加为环境变量 `CATALOG_GITHUB_INSTALLATION_ID`。它与 App ID 不是同一个数字。
+3. 将本机私有 JSON 中的 `privateKey` 值添加为环境密钥 `CATALOG_GITHUB_PRIVATE_KEY`。只将 PEM 本身写入密钥，不复制整个 JSON，不贴到群里。
+4. 让部署程序先检查 App 安装所有者、仓库及权限，再运行 `catalog-clock-enable`。此前必须已有通过验收的网页程序和对应接受版本；检查失败就保持关闭。
+5. 读回函数开启状态、程序提交和唯一的每分钟定时器，再看一次实际商品待办的处理记录。此时才能称自动更新已开启。
+
+也可以由已获得授权的本地 agent 通过 `gh secret set ... --env test` 直接从权限为 0600 的文件读取并设置，避免手工复制。不要在 shell 参数、日志或聊天里显示私钥。账户登录和一次性创建应用仍由账号持有人操作；不需要新增仓库 SSH 公钥。

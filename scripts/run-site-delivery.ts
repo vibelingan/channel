@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { DefaultArtifactClient } from '@actions/artifact';
 import CloudBase from '@cloudbase/manager-node';
+import COS from 'cos-nodejs-sdk-v5';
 import { productPath } from '../apps/site/src/lib/seo/product-identity.ts';
 import { prepareArticleBuild } from '../packages/articles/src/build.ts';
 import { articleReleaseBuildInput } from '../packages/articles/src/release-build.ts';
@@ -11,6 +12,7 @@ import type { ClaimedArticleRelease } from '../packages/articles/src/release-sto
 import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.ts';
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
+import { seedCatalogSeoRequests } from '../packages/db/src/catalog-seo-bootstrap.ts';
 import { createCatalogSeoStore } from '../packages/db/src/catalog-seo-cloud.ts';
 import { readCatalogSeoRecordingConfig } from '../packages/db/src/catalog-seo-requests.ts';
 import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
@@ -23,9 +25,11 @@ import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
+import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
 import { sha256 } from './release/input.mjs';
 import { readObject } from './release/input.mjs';
+import { createPrivateArchive } from './release/private-archive.mjs';
 import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
 import { readBuiltSite } from './release/site-build-record.mjs';
@@ -41,6 +45,7 @@ import {
 import { createSiteGithubSource } from './release/site-github-source.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 import { assertSiteDeliveryInvocation } from './release/site-policy.mjs';
+import { createSiteRetention } from './release/site-retention.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
 import { deliverStaticContent } from './release/static-delivery.mjs';
 import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
@@ -58,8 +63,7 @@ if (blogServer && env.SITE_ARTICLE_TASK_ID)
 const codeSha = env.GITHUB_SHA ?? '';
 if (!env.TENCENTCLOUD_SECRETID || !env.TENCENTCLOUD_SECRETKEY || !env.GITHUB_TOKEN)
   throw Error('Existing deployment credentials required');
-const github = createSiteGithubSource({ token: env.GITHUB_TOKEN });
-await github.requireCI(codeSha, {
+await createSiteGithubSource({ token: env.GITHUB_TOKEN }).requireCI(codeSha, {
   ref: env.GITHUB_REF,
   event: env.GITHUB_EVENT_NAME,
   runId: env.GITHUB_RUN_ID,
@@ -84,7 +88,21 @@ const sdk = blogWorkerSdk({
   secretKey: env.TENCENTCLOUD_SECRETKEY,
 });
 const db = sdk.database();
+const archiveCos = new COS({
+  SecretId: env.TENCENTCLOUD_SECRETID,
+  SecretKey: env.TENCENTCLOUD_SECRETKEY,
+  Timeout: 15000,
+});
+const objects = createPrivateArchive({
+  sdk,
+  manager,
+  policy,
+  readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+});
+const retention = createSiteRetention({ db, objects, policy });
+const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });
 const catalogConfig = readCatalogSeoRecordingConfig(env);
+if (catalogConfig) await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
 if (env.SITE_PRODUCT_SOURCE === 'refresh' && !catalogConfig)
   throw Error('Enable all product writers before automatic refresh');
 if (catalogConfig && !(await readFunctionRuntimeState(policy.envId, 'admin')).catalogSeoRecording)
@@ -96,7 +114,11 @@ if (catalogConfig && env.SITE_DELIVERY_MODE === 'restore' && !programRestore)
   throw Error(
     'Historical content restoration is disabled while product recording is enabled; rebuild the approved program with current public data',
   );
-if (env.SITE_PRODUCT_SOURCE === 'refresh' && !programRestore) {
+if (
+  env.SITE_PRODUCT_SOURCE === 'refresh' &&
+  !programRestore &&
+  env.SITE_CATALOG_BOOTSTRAP !== '1'
+) {
   let pending = false;
   for (const collection of ['catalogSeoRequests', 'catalogSeoTasks']) {
     const result = await db
@@ -119,7 +141,7 @@ let renderer:
         codeSha: string;
         manifestSha256: string;
         archiveSha256: string;
-        releaseId: number;
+        archiveFileId: string;
         inputSchema: number;
       };
     }
@@ -133,7 +155,7 @@ if (env.SITE_RENDERER_SHA || env.SITE_PRODUCT_SOURCE === 'refresh') {
   const result = await db.collection('catalogSeoBuilders').doc(rendererSha).get();
   const approved = Array.isArray(result.data) ? result.data[0] : result.data;
   if (!approved || approved.codeSha !== rendererSha) throw Error('Renderer approval is absent');
-  const source = await createRendererSource({ token: env.GITHUB_TOKEN }).download(approved);
+  const source = await createRendererSource({ objects }).download(approved);
   const archiveFile = resolve('output/renderer-download.tar.gz');
   await mkdir(resolve('output'), { recursive: true });
   await writeFile(archiveFile, source.archive, { flag: 'wx', mode: 0o600 });
@@ -296,8 +318,10 @@ async function loadAccepted(run: {
     policy,
     run: source,
     acceptedSeal: run.accepted.seals.static,
+    retainedProof: source.retainedProof ?? null,
   });
   if (blogServer) assertServerBlogRecoverySource(input);
+  await retention.save(input);
   acceptedCache.set(artifact.artifactId, input);
   return input;
 }
@@ -325,7 +349,14 @@ async function archivePayload(payload: string, prefix: string) {
     currentRunId: env.GITHUB_RUN_ID,
   });
   check();
-  return siteArtifact({ directory: destination, policy, run });
+  const input = siteArtifact({
+    directory: destination,
+    policy,
+    run,
+    retainedProof: run.retainedProof ?? null,
+  });
+  await retention.save(input);
+  return input;
 }
 try {
   const status = await coordinator.status({ scopeKey: 'site' });
@@ -584,16 +615,49 @@ try {
       assertOwnedArticleDrill({ taskId: requestedTaskId, task, draft: drafts.data[0].draft });
     }
     if (requestedTaskId) claim = await worker.claim(requestedTaskId, runId);
+    if (env.SITE_CATALOG_BOOTSTRAP === '1') {
+      if (!catalogConfig || !baseline || !renderer)
+        throw Error(
+          'Catalog bootstrap requires checked writers, an accepted public snapshot and an archived program',
+        );
+      const snapshot = JSON.parse(
+        readObject(baseline.directory, 'product-snapshot.json').toString(),
+      );
+      if (!Array.isArray(snapshot.products))
+        throw Error('Accept an initial full product snapshot before enabling change tracking');
+      const ids = [
+        ...publicProductPaths.map((path) => {
+          const match = /^\/products\/p-([A-Za-z0-9_-]{1,200})\/$/.exec(path);
+          if (!match) throw Error('Invalid public product path');
+          return match[1];
+        }),
+        ...snapshot.products.map((item: { product: { _id: string } }) => item.product._id),
+      ];
+      const result = await seedCatalogSeoRequests(
+        createCatalogSeoStore(db),
+        catalogConfig,
+        ids,
+        new Date().toISOString(),
+      );
+      console.log(
+        JSON.stringify({ operation: 'seed-existing-product-pages', ...result, businessWrites: 0 }),
+      );
+    }
     if (catalogConfig)
       catalog = await prepareCatalogRefresh(createCatalogSeoStore(db), catalogConfig, runId);
-    if (env.SITE_PRODUCT_SOURCE === 'refresh') {
+    if (env.SITE_PRODUCT_SOURCE === 'refresh' || env.SITE_CATALOG_BOOTSTRAP === '1') {
       if (!catalog || !baseline)
         throw Error('A current accepted snapshot and checked requests are required');
       if (!renderer) throw Error('Content refresh requires an approved archived renderer');
       const previousProgram = JSON.parse(
         readObject(baseline.directory, 'compatibility.json').toString(),
       ).renderer?.codeSha;
-      if (!programRestore && previousProgram && previousProgram !== renderer.proof.codeSha)
+      if (
+        !programRestore &&
+        env.SITE_CATALOG_BOOTSTRAP !== '1' &&
+        previousProgram &&
+        previousProgram !== renderer.proof.codeSha
+      )
         throw Error('Automatic content refresh cannot switch the accepted renderer program');
       const heads = catalog.heads.map(
         ({ productId, visible, detailRevision, sequence, semanticHash, changedAt }) => ({

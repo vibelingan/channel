@@ -19,7 +19,7 @@ export function createSitePayload({
   files,
   snapshot,
   blogDelivery = 'static',
-  renderer = /** @type {null | {codeSha:string,manifestSha256:string,archiveSha256:string,releaseId:number,inputSchema:number}} */ (
+  renderer = /** @type {null | {codeSha:string,manifestSha256:string,archiveSha256:string,archiveFileId:string,inputSchema:number}} */ (
     null
   ),
   objectProofs = /** @type {{path:string,bytes:number,sha256:string,etag:string,lastModified:string}[]} */ ([]),
@@ -86,8 +86,8 @@ export function createSitePayload({
     (!/^[a-f0-9]{40}$/.test(renderer.codeSha) ||
       !/^[a-f0-9]{64}$/.test(renderer.manifestSha256) ||
       !/^[a-f0-9]{64}$/.test(renderer.archiveSha256) ||
-      !Number.isSafeInteger(renderer.releaseId) ||
-      renderer.releaseId < 1 ||
+      typeof renderer.archiveFileId !== 'string' ||
+      !renderer.archiveFileId.startsWith(`cloud://${policy.envId}.`) ||
       renderer.inputSchema !== 1)
   )
     throw Error('Invalid archived renderer identity');
@@ -129,6 +129,7 @@ export function siteArtifact({
   policy,
   run,
   acceptedSeal = /** @type {unknown} */ (null),
+  retainedProof = /** @type {unknown} */ (null),
   now = Date.now(),
 }) {
   if (!['push', 'workflow_dispatch'].includes(run.event))
@@ -160,6 +161,7 @@ export function siteArtifact({
     policy: artifactPolicy,
     run,
     acceptedSeal,
+    retainedProof,
     mode: acceptedSeal ? 'recovery' : 'candidate',
     now,
   };

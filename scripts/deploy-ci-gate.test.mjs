@@ -159,7 +159,8 @@ function assertReleaseGate(ci, release) {
     archive.if,
     "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && vars.CATALOG_SEO_RECORDING == '1' && github.event.inputs.catalog_acceptance_only != 'true' }}",
   );
-  assert.deepEqual(archive.permissions, { contents: 'write', actions: 'read' });
+  assert.equal(archive.permissions, undefined);
+  assert.equal(release.permissions.contents, 'read');
   assert.equal(archive['continue-on-error'], undefined);
   assert.equal(
     archive.steps.find((s) => s.uses?.startsWith('actions/checkout@')).with.ref,

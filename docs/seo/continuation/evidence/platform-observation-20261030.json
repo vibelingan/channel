@@ -1,0 +1,78 @@
+{
+  "observedOn": "2026-10-30",
+  "source": "Authenticated Google Search Console and Bing Webmaster Tools UI in existing Chrome profile",
+  "siteOrigin": "https://supplychainsai.com",
+  "newSubmissionThisRound": false,
+  "google": {
+    "sitemap": {
+      "status": "Success",
+      "discoveredUrls": 539,
+      "lastReadDisplayed": "2026-10-27"
+    },
+    "indexingAggregate": {
+      "lastUpdated": "2026-10-23",
+      "indexed": 3,
+      "notIndexed": 7,
+      "scopeNote": "Delayed aggregate report; not a current inventory of all website URLs"
+    },
+    "urls": [
+      {
+        "url": "https://supplychainsai.com/blog/",
+        "indexStatus": "indexed",
+        "lastCrawlDisplayed": "2026-10-29 14:09:37",
+        "declaredCanonical": "https://supplychainsai.com/blog/",
+        "googleCanonical": "Inspected URL",
+        "fetch": "Successful",
+        "indexingAllowed": true,
+        "breadcrumbValidItems": 1
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "indexStatus": "indexed",
+        "lastCrawlDisplayed": "2026-10-29 13:55:32",
+        "googleCanonical": "Inspected URL",
+        "fetch": "Successful",
+        "indexingAllowed": true,
+        "breadcrumbValidItems": 1
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "indexStatus": "historical noindex exclusion awaiting recrawl",
+        "lastCrawlDisplayed": "2026-10-29 01:02:43",
+        "liveTestDisplayed": "2026-10-30 10:13:54",
+        "liveResult": "URL is available to Google; Page can be indexed",
+        "liveFetch": "Successful",
+        "liveIndexingAllowed": true,
+        "breadcrumbValidItems": 1,
+        "requestStatus": "Indexing requested from previous round"
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "indexStatus": "Discovered - currently not indexed",
+        "requestStatus": "Indexing requested from previous round",
+        "liveTestResult": "not captured; not claimed as this rounds live validation"
+      }
+    ]
+  },
+  "bing": {
+    "sitemap": {
+      "status": "Success",
+      "discoveredUrls": 519,
+      "errors": 0,
+      "warnings": 0
+    },
+    "blog": {
+      "url": "https://supplychainsai.com/blog/",
+      "indexStatus": "Discovered but not crawled",
+      "liveTestDisplayed": "Today at 10:30",
+      "liveResult": "URL can be indexed by Bing",
+      "seoGeoResult": "No SEO/GEO issues found",
+      "markupInsight": "Failed to load insights; this is not a successful schema validation"
+    }
+  },
+  "limits": [
+    "Displayed crawl times use the platform UI timezone, not inferred UTC.",
+    "Map discovery, live fetch eligibility and actual indexing are different results.",
+    "No guarantee that every eligible product will be selected for indexing."
+  ]
+}

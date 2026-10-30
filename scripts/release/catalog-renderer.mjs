@@ -92,8 +92,8 @@ export function verifyCatalogRenderer({ manifest, approved, archive }) {
     approved.codeSha !== manifest.codeSha ||
     approved.manifestSha256 !== sha256(JSON.stringify(manifest)) ||
     approved.archiveSha256 !== manifest.archive?.sha256 ||
-    !Number.isSafeInteger(approved.releaseId) ||
-    approved.releaseId <= 0
+    typeof approved.archiveObject?.fileID !== 'string' ||
+    !approved.archiveObject.fileID.startsWith('cloud://')
   )
     throw Error('Renderer has no matching approved archive');
   if (
@@ -108,7 +108,7 @@ export function verifyCatalogRenderer({ manifest, approved, archive }) {
     codeSha: manifest.codeSha,
     manifestSha256: approved.manifestSha256,
     archiveSha256: approved.archiveSha256,
-    releaseId: approved.releaseId,
+    archiveFileId: approved.archiveObject.fileID,
     inputSchema: 1,
   });
 }

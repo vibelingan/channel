@@ -4,6 +4,7 @@ on:
     inputs:
       action: {type: string, required: true}
       product_source: {type: string, required: false, default: fresh}
+      catalog_bootstrap: {type: boolean, required: false, default: false}
       renderer_sha: {type: string, required: false, default: ''}
       fault: {type: string, required: false, default: none}
       article_task_id: {type: string, required: false, default: ''}
@@ -24,7 +25,7 @@ jobs:
       CI: 'true'
       CATALOG_SEO_RECORDING: ${{ vars.CATALOG_SEO_RECORDING || '0' }}
       CATALOG_SEO_SITE_ORIGIN: ${{ vars.SITE_URL }}
-      CATALOG_DETAIL_APPROVAL_ENABLED: ${{ vars.CATALOG_DETAIL_APPROVAL_ENABLED || '0' }}
+      CATALOG_DETAIL_APPROVAL_ENABLED: ${{ vars.CATALOG_DETAIL_APPROVAL_ENABLED || '1' }}
       BLOG_SERVER_ENABLED: ${{ vars.BLOG_SERVER_ENABLED || '0' }}
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
       CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
@@ -35,6 +36,7 @@ jobs:
       PUBLIC_CB_PROXY: '0'
       SITE_DELIVERY_CONFIRM: FORMAL_SITE_ONLY
       SITE_DELIVERY_MODE: ${{ inputs.action }}
+      SITE_CATALOG_BOOTSTRAP: ${{ inputs.catalog_bootstrap && '1' || '0' }}
       SITE_RENDERER_SHA: ${{ inputs.renderer_sha }}
       SITE_PRODUCT_SOURCE: ${{ inputs.product_source }}
       SITE_DELIVERY_FAULT: ${{ inputs.fault }}

@@ -1,10 +1,13 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import CloudBase from '@cloudbase/manager-node';
+import COS from 'cos-nodejs-sdk-v5';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { packCatalogRenderer } from './release/catalog-renderer.mjs';
 import { createGithubReadClient } from './release/github-read.mjs';
 import { sha256 } from './release/input.mjs';
+import { createPrivateArchive } from './release/private-archive.mjs';
 import { requireSiteChecks } from './release/site-checks.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 const env = process.env;
@@ -36,74 +39,66 @@ if (codeSha !== env.GITHUB_SHA)
   await createGithubReadClient({ policy, token: env.GITHUB_TOKEN }).requireCI(codeSha);
 const directory = resolve('output/catalog-renderer');
 const manifest = packCatalogRenderer({ codeSha, directory });
-const source = createRendererSource({ token: env.GITHUB_TOKEN });
-const tag = `seo-renderer-${codeSha}`;
-const releases = await source.api('GET', '/releases?per_page=100');
-if (!Array.isArray(releases)) throw Error('Release inventory could not be read');
-const matches = releases.filter((r: { tag_name: string }) => r.tag_name === tag);
-if (matches.length > 1) throw Error('Duplicate renderer releases');
-let release = matches[0];
-if (!release)
-  release = await source.api('POST', '/releases', {
-    tag_name: tag,
-    target_commitish: codeSha,
-    name: `Catalog renderer ${codeSha.slice(0, 12)}`,
-    draft: true,
-    prerelease: true,
-    make_latest: 'false',
-    body: `Fixed source ${codeSha}. Node ${manifest.runtime.node}; pnpm ${manifest.runtime.pnpm}. Does not contain customer data or credentials.`,
-  });
-if (!release || release.tag_name !== tag || release.target_commitish !== codeSha)
-  throw Error('Release readback differs');
-for (const name of ['renderer.tar.gz', 'renderer.json']) {
-  const existing = release.assets.filter((a: { name: string }) => a.name === name);
-  if (existing.length > 1) throw Error('Duplicate renderer asset');
-  if (!existing.length) {
-    if (!release.draft)
-      throw Error('Published renderer archive is incomplete; preserve it for investigation');
-    await source.upload(release.id, name, await readFile(resolve(directory, name)));
-  }
-}
-if (release.draft)
-  release = await source.api('PATCH', `/releases/${release.id}`, {
-    draft: false,
-    make_latest: 'false',
-  });
-const approved = {
-  schemaVersion: 1,
-  codeSha,
-  manifestSha256: sha256(JSON.stringify(manifest)),
-  archiveSha256: manifest.archive.sha256,
-  releaseId: release.id,
-  sourceRunId: env.GITHUB_RUN_ID,
-  runtime: manifest.runtime,
-  inputSchema: 1,
-};
-await source.download(approved);
-const db = blogWorkerSdk({
+
+const config = {
   env: policy.envId,
   region: policy.region,
   secretId: env.TENCENTCLOUD_SECRETID,
   secretKey: env.TENCENTCLOUD_SECRETKEY,
-}).database();
+};
+const sdk = blogWorkerSdk(config);
+const manager = new CloudBase({ ...config, envId: policy.envId });
+const db = sdk.database();
+const archiveCos = new COS({
+  SecretId: env.TENCENTCLOUD_SECRETID,
+  SecretKey: env.TENCENTCLOUD_SECRETKEY,
+  Timeout: 15000,
+});
+const objects = createPrivateArchive({
+  sdk,
+  manager,
+  policy,
+  readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+});
+const source = createRendererSource({ objects });
 const row = db.collection('catalogSeoBuilders').doc(codeSha);
 const before = await row.get();
 const existing = Array.isArray(before.data) ? before.data[0] : before.data;
-if (
-  existing &&
-  (existing.manifestSha256 !== approved.manifestSha256 ||
-    existing.archiveSha256 !== approved.archiveSha256 ||
-    existing.releaseId !== approved.releaseId)
-)
-  throw Error('An existing renderer approval differs; no replacement allowed');
-if (!existing) await row.set(approved);
+const manifestBytes = Buffer.from(JSON.stringify(manifest));
+const manifestSha256 = sha256(manifestBytes);
+let approved = existing;
+if (existing) {
+  if (
+    existing.codeSha !== codeSha ||
+    existing.manifestSha256 !== manifestSha256 ||
+    existing.archiveSha256 !== manifest.archive.sha256
+  )
+    throw Error('An existing renderer approval differs; no replacement allowed');
+  await source.download(existing);
+} else {
+  const archiveObject = await objects.put(await readFile(resolve(directory, 'renderer.tar.gz')));
+  const manifestObject = await objects.put(manifestBytes);
+  approved = {
+    schemaVersion: 1,
+    codeSha,
+    manifestSha256,
+    archiveSha256: manifest.archive.sha256,
+    manifestObject,
+    archiveObject,
+    sourceRunId: env.GITHUB_RUN_ID,
+    runtime: manifest.runtime,
+    inputSchema: 1,
+  };
+  await source.download(approved);
+  await row.set(approved);
+}
 const after = await row.get();
 const verified = Array.isArray(after.data) ? after.data[0] : after.data;
 if (
   !verified ||
-  verified.manifestSha256 !== approved.manifestSha256 ||
-  verified.archiveSha256 !== approved.archiveSha256 ||
-  verified.releaseId !== approved.releaseId
+  verified.manifestSha256 !== manifestSha256 ||
+  verified.archiveSha256 !== manifest.archive.sha256 ||
+  verified.archiveObject?.fileID !== approved.archiveObject.fileID
 )
   throw Error('Renderer approval write needs readback');
 await writeFile(
@@ -111,4 +106,4 @@ await writeFile(
   JSON.stringify({ ...approved, downloadedAndVerified: true, websiteWrites: 0 }, null, 2),
   { flag: 'wx' },
 );
-console.log(`Renderer ${codeSha} permanently archived and read back. Website unchanged.`);
+console.log(`Renderer ${codeSha} privately archived and read back. Website unchanged.`);

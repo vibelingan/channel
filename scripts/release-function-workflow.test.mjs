@@ -33,56 +33,58 @@ test('all manual modes select exactly one job and retain the existing shared tar
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
     assert.deepEqual(selected, [
-      mode.startsWith('catalog-clock-')
-        ? 'catalog_clock'
-        : mode === 'renderer-archive'
-          ? 'renderer_archive'
-          : mode === 'catalog-probe'
-            ? 'catalog_probe'
-            : mode === 'blog-images-prepare'
-              ? 'blog_images_prepare'
-              : mode === 'blog-formal-prepare'
-                ? 'blog_formal_prepare'
-                : mode === 'cloud-readiness'
-                  ? 'cloud_readiness'
-                  : mode === 'blog-import-setup'
-                    ? 'blog_import_setup'
-                    : mode === 'site-readback'
-                      ? 'site_readback'
-                      : mode === 'blog-server-update'
-                        ? 'blog_server_update'
-                        : mode.startsWith('function-')
-                          ? 'functions'
-                          : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
-                            ? 'dummy_recovery'
-                            : mode === 'maintenance'
-                              ? 'maintenance'
-                              : mode === 'blog-server-route'
-                                ? 'blog_server_route'
-                                : mode === 'blog-server-switch'
-                                  ? 'blog_server_switch'
-                                  : mode === 'blog-server-apis'
-                                    ? 'blog_server_apis'
-                                    : mode === 'blog-server-stage'
-                                      ? 'blog_server_stage'
-                                      : mode === 'blog-bootstrap'
-                                        ? 'blog_bootstrap'
-                                        : mode === 'site-delivery'
-                                          ? 'site_delivery'
-                                          : mode === 'blog-enable'
-                                            ? 'blog_enable'
-                                            : [
-                                                  'blog-create',
-                                                  'blog-retry',
-                                                  'blog-update',
-                                                  'blog-withdraw',
-                                                  'blog-check',
-                                                  'blog-import-review',
-                                                  'blog-import-publish',
-                                                  'blog-import-withdraw',
-                                                ].includes(mode)
-                                              ? 'blog_acceptance'
-                                              : 'canary',
+      mode === 'catalog-prepare'
+        ? 'catalog_prepare'
+        : mode.startsWith('catalog-clock-')
+          ? 'catalog_clock'
+          : mode === 'renderer-archive'
+            ? 'renderer_archive'
+            : mode === 'catalog-probe'
+              ? 'catalog_probe'
+              : mode === 'blog-images-prepare'
+                ? 'blog_images_prepare'
+                : mode === 'blog-formal-prepare'
+                  ? 'blog_formal_prepare'
+                  : mode === 'cloud-readiness'
+                    ? 'cloud_readiness'
+                    : mode === 'blog-import-setup'
+                      ? 'blog_import_setup'
+                      : mode === 'site-readback'
+                        ? 'site_readback'
+                        : mode === 'blog-server-update'
+                          ? 'blog_server_update'
+                          : mode.startsWith('function-')
+                            ? 'functions'
+                            : ['dummy-recovery', 'dummy-readback', 'dummy-cleanup'].includes(mode)
+                              ? 'dummy_recovery'
+                              : mode === 'maintenance'
+                                ? 'maintenance'
+                                : mode === 'blog-server-route'
+                                  ? 'blog_server_route'
+                                  : mode === 'blog-server-switch'
+                                    ? 'blog_server_switch'
+                                    : mode === 'blog-server-apis'
+                                      ? 'blog_server_apis'
+                                      : mode === 'blog-server-stage'
+                                        ? 'blog_server_stage'
+                                        : mode === 'blog-bootstrap'
+                                          ? 'blog_bootstrap'
+                                          : ['site-delivery', 'catalog-bootstrap'].includes(mode)
+                                            ? 'site_delivery'
+                                            : mode === 'blog-enable'
+                                              ? 'blog_enable'
+                                              : [
+                                                    'blog-create',
+                                                    'blog-retry',
+                                                    'blog-update',
+                                                    'blog-withdraw',
+                                                    'blog-check',
+                                                    'blog-import-review',
+                                                    'blog-import-publish',
+                                                    'blog-import-withdraw',
+                                                  ].includes(mode)
+                                                ? 'blog_acceptance'
+                                                : 'canary',
     ]);
   }
   assert.equal(run(workflow.jobs.blog_images_prepare.if, 'blog-images-prepare', 'restore'), false);

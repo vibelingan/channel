@@ -30,6 +30,7 @@ export const CATALOG_SEO_NOSQL_RESOURCES = Object.freeze([
     'catalogSeoControl',
     'catalogSeoBuilders',
     'catalogSeoWakeups',
+    'catalogSeoArchives',
   ].map((collectionName) =>
     Object.freeze({
       collectionName,

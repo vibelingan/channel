@@ -11,6 +11,7 @@ import {
   readObject,
   sha256,
 } from './input.mjs';
+import { retainedSiteProof } from './site-retention.mjs';
 
 /** Match platform metadata supplied by a trusted adapter; this does not authenticate GitHub. */
 export function verifyReleaseArtifact({
@@ -19,6 +20,7 @@ export function verifyReleaseArtifact({
   policy,
   run,
   acceptedSeal,
+  retainedProof = null,
   mode = 'recovery',
   now = Date.now(),
 }) {
@@ -56,8 +58,10 @@ export function verifyReleaseArtifact({
     !isHash(ref.manifestSha256)
   )
     throw new Error('Invalid artifact source reference.');
+  const retained = retainedSiteProof(retainedProof, e);
+  if (retainedProof && !retained) throw Error('Unverified retained artifact proof');
   const expires = Date.parse(ref.expiresAt);
-  if (!Number.isFinite(expires) || expires <= now)
+  if (!Number.isFinite(expires) || (expires <= now && !retained))
     throw new Error('Artifact expired or missing expiry.');
   if (
     !run ||
@@ -69,7 +73,7 @@ export function verifyReleaseArtifact({
     run.runId !== ref.runId ||
     run.artifact?.id !== ref.artifactId ||
     run.artifact.runId !== ref.runId ||
-    run.artifact.expired !== false ||
+    (run.artifact.expired !== false && !retained) ||
     run.artifact.expiresAt !== ref.expiresAt
   )
     throw new Error('Artifact source metadata mismatch.');

@@ -50,7 +50,9 @@ test('renderer archive is deterministic, pinned and excludes local changes', () 
       codeSha,
       manifestSha256: sha256(JSON.stringify(a)),
       archiveSha256: a.archive.sha256,
-      releaseId: 1,
+      archiveObject: {
+        fileID: `cloud://fixture.bucket/seo-recovery/objects/${a.archive.sha256}.bin`,
+      },
     };
     assert.equal(verifyCatalogRenderer({ manifest: a, approved, archive }).codeSha, codeSha);
     assert.throws(

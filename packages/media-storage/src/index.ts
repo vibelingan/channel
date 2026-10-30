@@ -93,8 +93,10 @@ export interface MediaObjectReadOptions {
 const MEDIA_READ_ERROR = Symbol.for('@vibelingan-channel/media-read-error');
 export class MediaReadError extends Error {
   readonly [MEDIA_READ_ERROR] = true;
-  constructor(readonly reason: 'too-large' | 'timeout' | 'unavailable') {
+  readonly reason: 'too-large' | 'timeout' | 'unavailable';
+  constructor(reason: 'too-large' | 'timeout' | 'unavailable') {
     super(`Media read ${reason}.`);
+    this.reason = reason;
     this.name = 'MediaReadError';
   }
 }

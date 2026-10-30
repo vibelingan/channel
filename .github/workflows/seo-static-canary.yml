@@ -7,7 +7,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
+        options: [catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
         default: plan
         required: true
       integration_profile:
@@ -71,6 +71,34 @@ concurrency:
   queue: max
 
 jobs:
+  catalog_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-prepare' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Prepare only private SEO collections and additive read indexes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/prepare-catalog-seo.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-preparation-${{ github.run_id }}
+          path: output/catalog-preparation/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
   catalog_clock:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && startsWith(inputs.mode, 'catalog-clock-') }}
     runs-on: ubuntu-latest
@@ -108,7 +136,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: test
-    permissions: {contents: write, actions: read}
     env:
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
     steps:
@@ -352,12 +379,13 @@ jobs:
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
 
   site_delivery:
-    if: ${{ (github.ref == 'refs/heads/feat/seo-foundation' || github.ref == 'refs/heads/test') && inputs.mode == 'site-delivery' }}
+    if: ${{ (github.ref == 'refs/heads/feat/seo-foundation' || github.ref == 'refs/heads/test') && (inputs.mode == 'site-delivery' || inputs.mode == 'catalog-bootstrap') }}
     uses: ./.github/workflows/seo-site-delivery.yml
     with:
       action: ${{ inputs.action }}
       product_source: ${{ inputs.product_source }}
       renderer_sha: ${{ inputs.renderer_sha }}
+      catalog_bootstrap: ${{ inputs.mode == 'catalog-bootstrap' }}
       fault: ${{ inputs.fault }}
       article_task_id: ${{ inputs.artifact_id }}
       restore_run_id: ${{ inputs.restore_run_id }}

@@ -71,7 +71,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: test
-    permissions: {contents: write, actions: read}
     env:
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
     steps:
