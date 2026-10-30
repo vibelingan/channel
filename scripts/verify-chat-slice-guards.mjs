@@ -26,6 +26,26 @@ const checks = [
   },
 
   {
+    name: 'historical product field projection',
+    directory: 'packages/ai-store',
+    file: 'src/store.ts',
+    before: 'id: p.id,\n                name: p.name,',
+    after: '...p,\n                id: p.id,\n                name: p.name,',
+    test: 'src/store.test.ts',
+    pattern: 'next question receives only public product facts',
+    env: false,
+  },
+  {
+    name: 'public product identity survives contact redaction',
+    directory: 'packages/ai-policy',
+    file: 'src/index.ts',
+    before: 'id: p.id,',
+    after: 'id: redactContactData(p.id),',
+    test: 'src/index.test.ts',
+    pattern: 'public catalog context preserves',
+    env: false,
+  },
+  {
     name: 'public catalog field projection',
     directory: 'apps/ai-worker',
     file: 'src/product-workflow.ts',

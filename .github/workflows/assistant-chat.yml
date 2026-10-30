@@ -50,6 +50,10 @@ jobs:
           pnpm --filter @vibelingan-channel/ai-store typecheck
           pnpm --filter @vibelingan-channel/ai-bff typecheck
           pnpm --filter @vibelingan-channel/ai-worker typecheck
+          pnpm --filter @vibelingan-channel/ai-policy typecheck
+          pnpm --filter @vibelingan-channel/ai-engine-anythingllm typecheck
+          pnpm --filter @vibelingan-channel/ai-policy test
+          pnpm --filter @vibelingan-channel/ai-engine-anythingllm test
       - name: Exercise real database and existing runtime regressions
         run: |
           pnpm --filter @vibelingan-channel/ai-bff exec tsx --test --test-concurrency=1 'src/*.test.ts'

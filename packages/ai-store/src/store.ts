@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { isProductCards } from '@vibelingan-channel/ai-contracts';
 import type { EngineProvenance } from '@vibelingan-channel/ai-engine/capabilities';
+import type { EngineTurn } from '@vibelingan-channel/ai-engine/port';
 import type { Pool, PoolClient } from 'pg';
 import { createAiPool } from './pool.ts';
 
@@ -54,7 +56,7 @@ export interface RunExecutionContext {
   claimEpoch: number;
   locale: string;
   catalogAction?: unknown;
-  turns: Array<{ role: 'visitor' | 'assistant'; text: string }>;
+  turns: EngineTurn[];
 }
 
 export interface FencedTerminalEvent {
@@ -489,15 +491,54 @@ export class AiStore {
     );
     const row = run.rows[0];
     if (!row) return null;
-    const turns = await this.pool.query<{ role: 'visitor' | 'assistant'; content: string }>(
-      `SELECT role, content FROM (
-         SELECT role, content, created_at, id FROM conversation_messages
+    const turns = await this.pool.query<{
+      role: 'visitor' | 'assistant';
+      content: string;
+      payload: Record<string, unknown> | null;
+    }>(
+      `SELECT recent.role, recent.content, e.payload FROM (
+         SELECT role, content, created_at, id, event_sequence, answered_by_run FROM conversation_messages
          WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
            AND (role = 'assistant' OR answered_by_run IS NOT NULL)
          ORDER BY created_at DESC, id DESC LIMIT 30
-       ) recent ORDER BY created_at ASC, id ASC`,
+       ) recent LEFT JOIN conversation_events e ON e.conversation_id=$1
+         AND e.sequence=recent.event_sequence AND e.run_id=recent.answered_by_run AND e.type='final'
+       ORDER BY recent.created_at ASC, recent.id ASC`,
       [row.conversation_id],
     );
+    const contextual: EngineTurn[] = turns.rows.map((turn) => ({
+      role: turn.role,
+      text: turn.content,
+    }));
+    for (let i = turns.rows.length - 1; i >= 0; i--) {
+      const payload = turns.rows[i]?.payload;
+      if (
+        !payload ||
+        (!Array.isArray(payload.products) && !Array.isArray(payload.unavailableProductIds))
+      )
+        continue;
+      if (payload.products !== undefined && !isProductCards(payload.products)) continue;
+      const missing = payload.unavailableProductIds ?? [];
+      if (
+        !Array.isArray(missing) ||
+        missing.length > 2 ||
+        !missing.every((id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id))
+      )
+        continue;
+      const turn = contextual[i];
+      if (turn?.role === 'assistant')
+        turn.publicCatalog = {
+          products: isProductCards(payload.products)
+            ? payload.products.map((p) => ({
+                id: p.id,
+                name: p.name,
+                summary: p.summary.slice(0, 500),
+              }))
+            : [],
+          unavailableProductIds: missing,
+        };
+      break;
+    }
     const action = await this.pool.query<{ catalog_action: unknown }>(
       `SELECT catalog_action FROM conversation_messages WHERE conversation_id=$1 AND answered_by_run=$2 AND role='visitor'`,
       [row.conversation_id, row.id],
@@ -510,7 +551,7 @@ export class AiStore {
       controlVersion: Number(row.control_version),
       claimEpoch: Number(row.claim_epoch),
       locale: row.locale,
-      turns: turns.rows.map((turn) => ({ role: turn.role, text: turn.content })),
+      turns: contextual,
     };
   }
 

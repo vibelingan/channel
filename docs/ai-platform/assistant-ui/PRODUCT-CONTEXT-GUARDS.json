@@ -1,0 +1,58 @@
+[
+  {
+    "name": "latest question retained",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "73713db6d36ab00e9a755ad37b0852589cc758989b6641517db49b0df8d6f7a2",
+    "source_unchanged": true
+  },
+  {
+    "name": "historical product field projection",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "73713db6d36ab00e9a755ad37b0852589cc758989b6641517db49b0df8d6f7a2",
+    "source_unchanged": true
+  },
+  {
+    "name": "public product identity survives contact redaction",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "85f3c80d2e75fa364d36f5b95705164b70f4541923fde08c8655819465684069",
+    "source_unchanged": true
+  },
+  {
+    "name": "public catalog field projection",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "9267caeee4cbaff00af37813a347a62b042c9a44041b7b250b2c77e61eae8647",
+    "source_unchanged": true
+  },
+  {
+    "name": "typed action replay identity",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "73713db6d36ab00e9a755ad37b0852589cc758989b6641517db49b0df8d6f7a2",
+    "source_unchanged": true
+  },
+  {
+    "name": "cancel version",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "73713db6d36ab00e9a755ad37b0852589cc758989b6641517db49b0df8d6f7a2",
+    "source_unchanged": true
+  },
+  {
+    "name": "event run identity",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "64347777bf6a9ac743a311f9ed4ba606d208e586d2eaff00a332a3a106b20ad4",
+    "source_unchanged": true
+  },
+  {
+    "name": "server stream scope",
+    "baseline": "passed",
+    "mutant": "killed",
+    "source_sha256": "3523f73008d9b65a186d6b8dcd4d776f3bb5a5bcc84efd632d44349f48d9fb37",
+    "source_unchanged": true
+  }
+]

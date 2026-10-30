@@ -859,3 +859,48 @@ test('named product profile adds server-owned planning instructions; ordinary pr
   assert.ok(bodies[0]?.includes('Return exactly one JSON object'));
   assert.equal(bodies[1]?.includes('Return exactly one JSON object'), false);
 });
+
+test('product follow-up renders public data without treating it as current facts', async () => {
+  let body = '';
+  const credential = 'fixture';
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://vendor.invalid',
+    apiKey: credential,
+    workspaceSlug: 'public',
+    engineVersion: 'test',
+    citationsVerified: true,
+    fetchImpl: async (_url, init) => {
+      body = String(init?.body);
+      return new Response(
+        'data: {"type":"finalizeResponseStream","textResponse":"done","sources":[],"close":true}\n\n',
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+  const handle = await engine.createRun(
+    {
+      ...REQUEST,
+      profileId: 'channel-products-v1',
+      turns: [
+        {
+          role: 'assistant',
+          text: 'Options',
+          publicCatalog: {
+            products: [
+              { id: '123456789012345', name: 'Public product', summary: 'Published features' },
+            ],
+            unavailableProductIds: [],
+          },
+        },
+        { role: 'visitor', text: 'Check those again' },
+      ],
+    },
+    new AbortController().signal,
+  );
+  for await (const _event of engine.streamRun(handle, new AbortController().signal)) {
+    /* Consume complete response. */
+  }
+  assert.ok(body.includes('123456789012345'));
+  assert.ok(body.includes('Historical publicCatalog data'));
+  assert.ok(body.includes('Check those again'));
+});

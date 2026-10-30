@@ -1,6 +1,6 @@
 # 官网助手前端与后端交接
 
-2026-10-30 更新：[产品查询、卡片与实时比较增量](PRODUCT-SLICE-DELIVERY.md) 已完成本地前后端接线；[上轮问答与停止可靠性](CHAT-SLICE-DELIVERY.md) 继续复用。真实模型效果、生产目录、正式询盘与部署仍待验收。历史恢复暂不实施。
+2026-10-30 更新：[多轮产品上下文](PRODUCT-CONTEXT-DELIVERY.md) 已补齐，后续问题可携带最近一次公开卡片并重新核对目录；复用[产品查询、卡片与实时比较](PRODUCT-SLICE-DELIVERY.md)及[问答与停止可靠性](CHAT-SLICE-DELIVERY.md)。真实模型效果、生产目录、正式询盘与部署仍待验收。历史恢复暂不实施。
 
 - [给老板的 Resend 操作与安全交接步骤](RESEND-OWNER-SETUP.zh-CN.md)
 

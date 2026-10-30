@@ -156,3 +156,19 @@ test('missing product images fall back without breaking the product actions', as
     .getByRole('dialog')
     .screenshot({ path: `output/assistant-chat/product-cards-${test.info().project.name}.png` });
 });
+
+test('a follow-up uses prior public cards as context and rechecks current catalog details', async ({
+  page,
+  request,
+}) => {
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByRole('heading', { name: 'Everyday wireless headphones' })).toBeVisible();
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=updated');
+  await send(page, 'Check those again');
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'Updated published details',
+  );
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+});

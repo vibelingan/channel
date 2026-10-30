@@ -1,8 +1,8 @@
 /** Local acceptance runtime: real database/BFF/worker; deterministic model only. */
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
-import { PublicCatalog } from '../apps/ai-worker/src/product-workflow.ts';
 import { createAiBffServer } from '../apps/ai-bff/src/server.ts';
+import { PublicCatalog } from '../apps/ai-worker/src/product-workflow.ts';
 import { processOne } from '../apps/ai-worker/src/worker.ts';
 import { FakeEngine } from '../packages/ai-engine/src/fake-engine.ts';
 import { AiStore, migrateUp } from '../packages/ai-store/src/index.ts';
@@ -11,6 +11,10 @@ if (!database || !['127.0.0.1', 'localhost'].includes(new URL(database).hostname
   throw new Error('CHAT_TEST_DATABASE_URL must identify an isolated local database');
 const store = new AiStore(database);
 await migrateUp(store.pool);
+const runCatalog = new Map<
+  string,
+  import('../packages/ai-engine/src/port.ts').EngineTurn['publicCatalog']
+>();
 const engine = new FakeEngine({
   script: [
     'This local test answer confirms that the website, API, database and worker are connected.',
@@ -23,6 +27,15 @@ const engine = new FakeEngine({
     },
   ],
 });
+const createEngineRun = engine.createRun.bind(engine);
+engine.createRun = async (request, signal) => {
+  const result = await createEngineRun(request, signal);
+  runCatalog.set(
+    request.operationId,
+    request.turns.findLast((turn) => turn.publicCatalog)?.publicCatalog,
+  );
+  return result;
+};
 // Isolated public HTTP fixture; production uses the existing public-api service.
 let catalogState = 'normal';
 const catalogServer = createServer(async (req, res) => {
@@ -87,6 +100,8 @@ engine.streamRun = async function* (handle, signal) {
     [handle.operationId],
   );
   const question = context.rows[0]?.content ?? '';
+  const earlier = runCatalog.get(handle.operationId);
+  runCatalog.delete(handle.operationId);
   const duration = question.includes('slow') ? 10000 : 500;
   await new Promise<void>((resolve) => {
     const done = () => {
@@ -102,23 +117,25 @@ engine.streamRun = async function* (handle, signal) {
     yield { type: 'error', category: 'transient', retriable: true };
     return;
   }
-  const plan = question.includes('headphones')
-    ? { kind: 'search', query: 'headphones' }
-    : question.includes('no matching')
-      ? { kind: 'search', query: 'unknown' }
-      : question.includes('catalog failure')
-        ? { kind: 'search', query: 'failure' }
-        : question.includes('catalog slow')
-          ? { kind: 'search', query: 'slowcatalog' }
-          : question.includes('not sure')
-            ? {
-                kind: 'clarify',
-                question: 'What type of product do you need, and what will it be used for?',
-              }
-            : {
-                kind: 'answer',
-                text: 'This local test answer confirms that the website, API, database and worker are connected.',
-              };
+  const plan = question.includes('those again')
+    ? { kind: 'lookup', ids: earlier?.products.slice(0, 2).map((p) => p.id) ?? [] }
+    : question.includes('headphones')
+      ? { kind: 'search', query: 'headphones' }
+      : question.includes('no matching')
+        ? { kind: 'search', query: 'unknown' }
+        : question.includes('catalog failure')
+          ? { kind: 'search', query: 'failure' }
+          : question.includes('catalog slow')
+            ? { kind: 'search', query: 'slowcatalog' }
+            : question.includes('not sure')
+              ? {
+                  kind: 'clarify',
+                  question: 'What type of product do you need, and what will it be used for?',
+                }
+              : {
+                  kind: 'answer',
+                  text: 'This local test answer confirms that the website, API, database and worker are connected.',
+                };
   yield {
     type: 'final',
     text: JSON.stringify(plan),

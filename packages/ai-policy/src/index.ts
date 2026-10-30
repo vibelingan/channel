@@ -23,6 +23,18 @@ export function preparePublicTurns(turns: EngineTurn[]): EngineTurn[] {
   return turns.slice(-CHANNEL_PUBLIC_PROFILE.maxContextTurns).map((turn) => ({
     role: turn.role,
     text: redactContactData(turn.text),
+    ...(turn.publicCatalog
+      ? {
+          publicCatalog: {
+            products: turn.publicCatalog.products.slice(0, 6).map((p) => ({
+              id: p.id,
+              name: redactContactData(p.name),
+              summary: redactContactData(p.summary).slice(0, 500),
+            })),
+            unavailableProductIds: turn.publicCatalog.unavailableProductIds.slice(0, 2),
+          },
+        }
+      : {}),
   }));
 }
 

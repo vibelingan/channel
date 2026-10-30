@@ -447,6 +447,9 @@ importers:
 
   packages/ai-store:
     dependencies:
+      '@vibelingan-channel/ai-contracts':
+        specifier: workspace:*
+        version: link:../ai-contracts
       '@vibelingan-channel/ai-engine':
         specifier: workspace:*
         version: link:../ai-engine

@@ -640,7 +640,10 @@ export class AnythingLlmEngine implements ConversationEngine {
     if (turns.length === 1) return prefix + last.text;
     const history = turns
       .slice(0, -1)
-      .map((t) => `${t.role === 'visitor' ? 'Customer' : 'Assistant'}: ${t.text}`)
+      .map(
+        (t) =>
+          `${t.role === 'visitor' ? 'Customer' : 'Assistant'}: ${t.text}${t.publicCatalog ? `\nHistorical publicCatalog data (requery for current facts): ${JSON.stringify(t.publicCatalog)}` : ''}`,
+      )
       .join('\n');
     return `${prefix}Previous conversation:\n${history}\n\nCustomer's current question: ${last.text}`;
   }

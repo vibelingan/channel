@@ -791,3 +791,109 @@ test(
     assert.equal(context?.turns[0]?.text, 'Older answer 7');
   },
 );
+
+test(
+  'next question receives only public product facts from its own prior final event',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await store.createConversation();
+    const first = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'product-context-first',
+      content: 'Find products',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(first.run);
+    const claim = await store.claimRun(first.run.id);
+    assert.ok(claim);
+    const card = {
+      id: '123456789012345',
+      name: 'Public headphones',
+      summary: 'Published features',
+      revision: 'r1',
+      href: '/products/item/?id=123456789012345',
+      privateNote: 'PRIVATE_CONTEXT_CANARY',
+    };
+    await store.finishRunFenced({
+      conversationId: c.id,
+      runId: first.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: 'Here are product options.',
+            products: [card],
+            unavailableProductIds: [],
+          },
+        },
+      ],
+    });
+    const next = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'product-context-next',
+      content: 'Check those again',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(next.run);
+    const nextClaim = await store.claimRun(next.run.id);
+    assert.ok(nextClaim);
+    const context = await store.getRunExecutionContext(next.run.id);
+    assert.ok(context);
+    const serialized = JSON.stringify(context.turns);
+    assert.ok(serialized.includes('123456789012345'));
+    assert.ok(serialized.includes('Published features'));
+    assert.equal(serialized.includes('PRIVATE_CONTEXT_CANARY'), false);
+    await store.finishRunFenced({
+      conversationId: c.id,
+      runId: next.run.id,
+      expectedControlVersion: nextClaim.controlVersion,
+      claimEpoch: nextClaim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: { text: 'No longer listed.', products: [], unavailableProductIds: [card.id] },
+        },
+      ],
+    });
+    const followUp = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'after-withdrawal',
+      content: 'What happened to it?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(followUp.run);
+    await store.claimRun(followUp.run.id);
+    const refreshed = (await store.getRunExecutionContext(followUp.run.id))?.turns.filter(
+      (t) => t.publicCatalog,
+    );
+    assert.equal(refreshed?.length, 1);
+    assert.deepEqual(refreshed?.[0]?.publicCatalog, {
+      products: [],
+      unavailableProductIds: [card.id],
+    });
+    const other = await store.createConversation();
+    const third = await store.appendVisitorMessage({
+      conversationId: other.id,
+      idempotencyKey: 'different-session',
+      content: 'Hello',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(third.run);
+    await store.claimRun(third.run.id);
+    assert.equal(
+      JSON.stringify((await store.getRunExecutionContext(third.run.id))?.turns).includes(
+        'Public headphones',
+      ),
+      false,
+    );
+  },
+);
