@@ -69,7 +69,12 @@ const archiveCos = new COS({
   ChunkRetryTimes: 1,
 });
 const objects = createPrivateArchive({
-  ...createCosArchiveTransfer({ cos: archiveCos, policy }),
+  ...createCosArchiveTransfer({
+    cos: archiveCos,
+    policy,
+    onStatus: (event: object) =>
+      console.log(JSON.stringify({ event: 'private-archive-sdk', ...event })),
+  }),
   sdk,
   manager,
   policy,

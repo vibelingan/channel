@@ -174,3 +174,59 @@ test('a late metadata response cannot start a download after the overall deadlin
     false,
   );
 });
+
+test('SDK diagnostics expose only bounded stage names and byte counts and detach after transfer', async () => {
+  const x = fixture();
+  const events = [];
+  let listener;
+  let detached = false;
+  x.cos.on = (name, fn) => {
+    assert.equal(name, 'before-send');
+    listener = fn;
+  };
+  x.cos.off = (name, fn) => {
+    assert.equal(name, 'before-send');
+    assert.equal(fn, listener);
+    detached = true;
+  };
+  const original = x.cos.uploadFile;
+  x.cos.uploadFile = (params, done) => {
+    listener({
+      method: 'PUT',
+      url: `${credential.uploadUrl}?partNumber=1&uploadId=do-not-print&signature=private`,
+      headers: { Authorization: 'do-not-print' },
+    });
+    params.onTaskStart();
+    params.onProgress({ loaded: 2, total: 5, secret: 'do-not-print' });
+    original(params, done);
+  };
+  const transfer = createCosArchiveTransfer({
+    cos: x.cos,
+    policy,
+    onStatus: (event) => {
+      events.push(event);
+      throw Error('An observer cannot stop the transfer');
+    },
+  });
+  await transfer.put(credential, Buffer.from('bytes'), { uploadTimeoutMs: 1000 });
+  assert.equal(detached, true);
+  assert.equal(
+    events.some((event) => event.stage === 'multipart-part'),
+    true,
+  );
+  assert.equal(
+    events.some((event) => event.stage === 'task-started'),
+    true,
+  );
+  for (const event of events) {
+    assert.deepEqual(
+      Object.keys(event).sort(),
+      (event.loadedBytes === undefined
+        ? ['stage', 'totalBytes']
+        : ['loadedBytes', 'stage', 'totalBytes']
+      ).sort(),
+    );
+    assert.equal(event.totalBytes, 5);
+  }
+  assert.doesNotMatch(JSON.stringify(events), /do-not-print|signature|uploadId|Authorization/);
+});

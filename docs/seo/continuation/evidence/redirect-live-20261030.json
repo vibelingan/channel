@@ -1,0 +1,45 @@
+{
+  "observedAt": "2026-10-30T03:03:32.859Z",
+  "method": "GET without following redirects",
+  "checks": [
+    {
+      "url": "http://supplychainsai.com/",
+      "status": 200,
+      "location": null,
+      "canonical": "https://supplychainsai.com/"
+    },
+    {
+      "url": "https://supplychainsai.com/",
+      "status": 200,
+      "location": null,
+      "canonical": "https://supplychainsai.com/"
+    },
+    {
+      "url": "http://supplychainsai.com/blog/?source=seo-check",
+      "status": 200,
+      "location": null,
+      "canonical": "https://supplychainsai.com/blog/"
+    },
+    {
+      "url": "https://www.supplychainsai.com/",
+      "status": 200,
+      "location": null,
+      "canonical": "https://supplychainsai.com/"
+    },
+    {
+      "url": "http://www.supplychainsai.com/",
+      "status": 200,
+      "location": null,
+      "canonical": "https://supplychainsai.com/"
+    }
+  ],
+  "independentCurl": {
+    "url": "http://supplychainsai.com/",
+    "status": 200,
+    "server": "tcbgw",
+    "requestId": "d3c478b1-70c2-4795-b0c9-8ef002942d35"
+  },
+  "observedGatewayProtocol": "HTTP_AND_HTTPS",
+  "changedConfiguration": false,
+  "conclusion": "HTTP-to-HTTPS and www-to-canonical-host redirects are not yet accepted; HTTPS canonical pages remain accessible."
+}

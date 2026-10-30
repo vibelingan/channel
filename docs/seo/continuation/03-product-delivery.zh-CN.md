@@ -90,3 +90,8 @@ SSG-01增加明确要求：服务器初始表单输出稳定，浏览器负责�
 ### 拟实现的验证入口
 
 SSG-01：`apps/site/src/lib/seo/product-refresh.test.ts`，使用现有site工作区tsx运行。SSG-02：`scripts/product-refresh-delivery.test.mjs`，命令`node --test scripts/product-refresh-delivery.test.mjs`；沿用现有site-delivery.test.mjs验证交付与恢复。增量用例现位于product-snapshot.test.ts；真实上传器边界测试位于scripts/catalog-refresh.test.mjs，数据库交付状态用例位于catalog-seo-delivery.test.ts。云端验收与本地测试分别记录，不能用fake存储证明实际托管状态。
+
+
+### 10月30日：真实程序归档尚未通过
+
+61a7d508 已通过完整远端 CI；归档运行 40994923963 中小文件上传及读回成功，约46.7 MB程序分片上传仍在五分钟超时，补读404。没有批准程序或替换网站；暂不开启商品记录、自动通知或历史程序恢复。新增真实COS客户端加本地HTTP服务的分片/Range验证，并增加不含凭证、签名地址和multipart编号的阶段日志；云端结果仍需实测。详见[实际失败回执](evidence/renderer-native-failure-20261030.json)。

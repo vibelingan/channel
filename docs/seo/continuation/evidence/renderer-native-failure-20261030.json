@@ -1,0 +1,49 @@
+{
+  "conclusion": "failure",
+  "createdAt": "2026-10-30T03:00:39Z",
+  "headSha": "61a7d508a120aab6dcf17f30f848ff282a3f2953",
+  "runId": 40994923963,
+  "status": "completed",
+  "updatedAt": "2026-10-30T03:06:26Z",
+  "url": "https://github.com/vibelingan/channel/actions/runs/40994923963",
+  "transfers": [
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 556,
+      "sha256": "07d43011c133a5ee48f2f459bb3010689fb57c1c7ab397f38c0609d452921b17",
+      "elapsedMs": 351,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 556,
+      "sha256": "07d43011c133a5ee48f2f459bb3010689fb57c1c7ab397f38c0609d452921b17",
+      "elapsedMs": 3020,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 46716317,
+      "sha256": "fb7ce19e8b41158a04f546abea10062dbaa9519510cf410cd4642bb81f261541",
+      "elapsedMs": 300021,
+      "outcome": "unconfirmed",
+      "cause": "ETIMEDOUT"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 46716317,
+      "sha256": "fb7ce19e8b41158a04f546abea10062dbaa9519510cf410cd4642bb81f261541",
+      "elapsedMs": 299,
+      "outcome": "unconfirmed",
+      "cause": "http-404"
+    }
+  ],
+  "websiteWrites": 0,
+  "approvedProgramRegistered": false,
+  "transport": "COS SDK 2.15.4 uploadFile/downloadFile",
+  "diagnosis": "Small object succeeds; multipart program upload exceeds its complete deadline. No verified cause yet."
+}
