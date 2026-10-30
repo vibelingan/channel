@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import CloudBase from '@cloudbase/manager-node';
@@ -38,7 +39,16 @@ await requireSiteChecks({
 if (codeSha !== env.GITHUB_SHA)
   await createGithubReadClient({ policy, token: env.GITHUB_TOKEN }).requireCI(codeSha);
 const directory = resolve('output/catalog-renderer');
-const manifest = packCatalogRenderer({ codeSha, directory });
+const manifest = packCatalogRenderer({
+  codeSha,
+  directory,
+  ...(codeSha !== env.GITHUB_SHA
+    ? {
+        git: (args: string[]) =>
+          execFileSync('git', ['-C', 'renderer-source', ...args], { maxBuffer: 256 * 1024 * 1024 }),
+      }
+    : {}),
+});
 
 const config = {
   env: policy.envId,
@@ -59,6 +69,8 @@ const objects = createPrivateArchive({
   manager,
   policy,
   readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+  onTransfer: (event: unknown) =>
+    console.log(JSON.stringify({ event: 'private-archive-transfer', ...(event as object) })),
 });
 const source = createRendererSource({ objects });
 const row = db.collection('catalogSeoBuilders').doc(codeSha);
@@ -76,8 +88,8 @@ if (existing) {
     throw Error('An existing renderer approval differs; no replacement allowed');
   await source.download(existing);
 } else {
-  const archiveObject = await objects.put(await readFile(resolve(directory, 'renderer.tar.gz')));
   const manifestObject = await objects.put(manifestBytes);
+  const archiveObject = await objects.put(await readFile(resolve(directory, 'renderer.tar.gz')));
   approved = {
     schemaVersion: 1,
     codeSha,

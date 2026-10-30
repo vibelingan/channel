@@ -1,0 +1,30 @@
+{
+  "codeSha": "9f51aabd6dd4988e8e356d54857e851a65dff465",
+  "createdCollections": ["catalogSeoWakeups", "catalogSeoArchives"],
+  "verifiedCollections": [
+    "catalogSeoRequests",
+    "catalogSeoTasks",
+    "catalogPublicHeads",
+    "catalogSeoPages",
+    "catalogSeoControl",
+    "catalogSeoBuilders",
+    "catalogSeoWakeups",
+    "catalogSeoArchives"
+  ],
+  "createdIndexes": [
+    {
+      "collection": "catalogDetailVariants",
+      "name": "approved_variant_id"
+    },
+    {
+      "collection": "productVariants",
+      "name": "variant_product_id"
+    },
+    {
+      "collection": "products",
+      "name": "product_family_id"
+    }
+  ],
+  "businessWrites": 0,
+  "deletedResources": 0
+}

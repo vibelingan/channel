@@ -173,3 +173,12 @@ test('failure diagnostics retain a safe stage and code without raw messages or u
     ).includes('private fixture value'),
   );
 });
+
+test('historical renderer checkout leaves the reviewed executor in place', () => {
+  const steps = workflow.jobs.renderer_archive.steps;
+  const selected = steps.find((step) => step.with?.path === 'renderer-source');
+  assert.ok(selected);
+  assert.equal(selected.uses, 'actions/checkout@v4');
+  assert.equal(selected.with.ref, '${{ inputs.renderer_sha }}');
+  assert.equal(selected.with['persist-credentials'], false);
+});

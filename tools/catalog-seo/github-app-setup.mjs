@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,15 @@ import { join } from 'node:path';
 const state = randomBytes(32).toString('hex');
 const directory = join(homedir(), '.config/channel-catalog-seo');
 await mkdir(directory, { recursive: true, mode: 0o700 });
+const privateFile = join(directory, 'github-app.json');
+try {
+  await lstat(privateFile);
+  throw Error(
+    'A local GitHub App credential already exists. Inspect that application; do not create another one.',
+  );
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
 let used = false;
 const server = createServer(async (req, res) => {
   res.setHeader('cache-control', 'no-store');
@@ -65,7 +74,7 @@ const server = createServer(async (req, res) => {
       )
         throw Error('Invalid application response');
       await writeFile(
-        join(directory, 'github-app.json'),
+        privateFile,
         JSON.stringify({
           schemaVersion: 1,
           repository: 'vibelingan/channel',

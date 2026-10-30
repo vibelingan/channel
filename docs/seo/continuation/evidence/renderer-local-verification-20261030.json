@@ -1,0 +1,52 @@
+{
+  "scope": "local verification, not live acceptance",
+  "date": "2026-10-30",
+  "testedSource": "9f51aabd6dd4988e8e356d54857e851a65dff465",
+  "scriptTests": 1339,
+  "databaseTests": 2628,
+  "existingMediaStorageTests": 157,
+  "typechecks": ["scripts/blog/tsconfig.json", "packages/db"],
+  "repositoryLintPassed": true,
+  "cloudbaseSdkContractPassed": true,
+  "cloudbaseReview": {
+    "filesRead": [
+      "references/RULES_INDEX.md",
+      "references/rules/storage/STORAGE001.md",
+      "references/rules/cross-cutting/AUTH001.md"
+    ],
+    "applicability": "Server-side private archive; no changes to browser auth or storage safe domains",
+    "checks": [
+      "No keys or signed URLs in logs/archive",
+      "Private target and lifecycle checked before storage use",
+      "Actual package SDK methods, PUT contract and full byte hash checked",
+      "No customer writes or database rollback in program recovery"
+    ]
+  },
+  "logs": [
+    {
+      "name": "renderer-all-scripts-current.log",
+      "sha256": "74d9a73237afbfd5a0d0d6d84d4adad3f89f6c5af740519f825fa566ce86f755",
+      "bytes": 307722
+    },
+    {
+      "name": "renderer-db-current.log",
+      "sha256": "584d4675843d924fd2667801d8143757660fd597bd4df0f5edc5f188acbf98f8",
+      "bytes": 534556
+    },
+    {
+      "name": "renderer-all-lint-current.log",
+      "sha256": "8c6ba447b0367f9d40f0d82c22d925e192bc67ab45b2868aa3af1af377cb7b0e",
+      "bytes": 68
+    },
+    {
+      "name": "renderer-sdk-current.log",
+      "sha256": "fd5121e62e6d22bd5626a8b395023c705c38f1f066493bf0a6930feb9bf51638",
+      "bytes": 11385
+    },
+    {
+      "name": "private-archive-media-regression.log",
+      "sha256": "73aded9b12da0c1a55e12d72f4808d3dcfe6c1999b028286cedbb5514a970140",
+      "bytes": 29371
+    }
+  ]
+}

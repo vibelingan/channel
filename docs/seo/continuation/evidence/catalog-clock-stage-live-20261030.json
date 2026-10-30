@@ -1,0 +1,8 @@
+{
+  "action": "stage",
+  "name": "catalog-seo-clock",
+  "codeSha": "9f51aabd6dd4988e8e356d54857e851a65dff465",
+  "packageHash": "531693f4c1ef3a2c4044818277189956367feef3986715c0a9d69ae80625aa5f",
+  "enabled": false,
+  "websiteWrites": 0
+}

@@ -15,6 +15,7 @@ export function createPrivateArchive({
   readLifecycle,
   put = putCloudBaseBytes,
   read = readCloudBaseBytes,
+  onTransfer = (_event) => {},
 }) {
   const target = async (ref) => {
     if (
@@ -55,12 +56,42 @@ export function createPrivateArchive({
     assertArchiveLifecycle(lifecycle, path);
     return { bucket, path };
   };
+  const timeout = (bytes) => (bytes > 8 * 1024 * 1024 ? 300000 : 60000);
+  const observe = async (action, ref, operation) => {
+    const started = Date.now();
+    try {
+      const value = await operation();
+      onTransfer({
+        action,
+        bytes: ref.bytes,
+        sha256: ref.sha256,
+        elapsedMs: Date.now() - started,
+        outcome: 'complete',
+      });
+      return value;
+    } catch (error) {
+      onTransfer({
+        action,
+        bytes: ref.bytes,
+        sha256: ref.sha256,
+        elapsedMs: Date.now() - started,
+        outcome: 'unconfirmed',
+        cause: safeArchiveError(error),
+      });
+      throw error;
+    }
+  };
   const get = async (ref) => {
     await target(ref);
-    const bytes = await read(sdk, ref.fileID, { maxBytes: ref.bytes, timeoutMs: 60000 });
-    if (!Buffer.isBuffer(bytes) || bytes.length !== ref.bytes || sha256(bytes) !== ref.sha256)
-      throw Error('Private archive byte verification failed');
-    return bytes;
+    return observe('read', ref, async () => {
+      const bytes = await read(sdk, ref.fileID, {
+        maxBytes: ref.bytes,
+        timeoutMs: timeout(ref.bytes),
+      });
+      if (!Buffer.isBuffer(bytes) || bytes.length !== ref.bytes || sha256(bytes) !== ref.sha256)
+        throw Error('Private archive byte verification failed');
+      return bytes;
+    });
   };
   return {
     get,
@@ -79,7 +110,9 @@ export function createPrivateArchive({
       )
         throw Error('Archive upload target differs from its private object');
       try {
-        await put(credential, bytes, { uploadTimeoutMs: 60000 });
+        await observe('put', ref, () =>
+          put(credential, bytes, { uploadTimeoutMs: timeout(bytes.length) }),
+        );
       } catch {
         // Only a complete read of the exact immutable bytes can resolve a lost upload reply.
         try {
@@ -109,4 +142,14 @@ export function assertArchiveLifecycle(result, path) {
         'Archive path has an expiry or offline-storage rule; existing policy was not changed',
       );
   }
+}
+
+// SDK errors may contain signed URLs; retain only known categories, never the raw message.
+function safeArchiveError(error) {
+  if (['timeout', 'unavailable', 'too-large'].includes(error?.reason)) return error.reason;
+  if (/upload timed out$/.test(error?.message ?? '')) return 'timeout';
+  const status = /unconfirmed upload \(HTTP ([1-5][0-9]{2})\)/.exec(error?.message ?? '')?.[1];
+  if (status) return `http-${status}`;
+  if (/^[A-Z][A-Z0-9_]{1,63}$/.test(error?.code ?? '')) return error.code;
+  return 'unconfirmed';
 }

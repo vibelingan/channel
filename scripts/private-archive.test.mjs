@@ -145,3 +145,33 @@ test('lifecycle guards reject matching expiry and archive rules but preserve unr
   ])
     assert.throws(() => assertArchiveLifecycle({ Rules: [rule] }, path));
 });
+
+test('large immutable archives get a bounded transfer budget without leaking error details', async () => {
+  const x = setup();
+  const observations = [];
+  const original = x.put;
+  x.put = async (credential, bytes, options) => {
+    assert.equal(options.uploadTimeoutMs, 300000);
+    await original(credential, bytes);
+  };
+  const ref = await createPrivateArchive({
+    ...x,
+    policy,
+    onTransfer: (event) => observations.push(event),
+  }).put(Buffer.alloc(9 * 1024 * 1024));
+  assert.equal(ref.bytes, 9 * 1024 * 1024);
+  assert.equal(observations.find((e) => e.action === 'read').outcome, 'complete');
+  const y = setup();
+  y.put = async () => {
+    throw Error('https://private.example/?signature=never-log-this');
+  };
+  const failures = [];
+  await assert.rejects(
+    createPrivateArchive({ ...y, policy, onTransfer: (event) => failures.push(event) }).put(
+      Buffer.from('failed bytes'),
+    ),
+    /needs readback/,
+  );
+  assert.equal(JSON.stringify(failures).includes('never-log-this'), false);
+  assert.equal(failures[0].cause, 'unconfirmed');
+});

@@ -1,0 +1,15 @@
+{
+  "conclusion": "failure",
+  "headSha": "9f51aabd6dd4988e8e356d54857e851a65dff465",
+  "jobs": [
+    {
+      "name": "renderer_archive",
+      "status": "completed",
+      "conclusion": "failure",
+      "startedAt": "2026-10-30T02:05:08Z",
+      "completedAt": "2026-10-30T02:06:44Z"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/vibelingan/channel/actions/runs/40989526066"
+}

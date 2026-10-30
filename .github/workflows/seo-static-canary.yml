@@ -146,6 +146,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22.13.0, cache: pnpm}
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fetch the selected historical program without replacing the checked executor
+        if: ${{ inputs.renderer_sha != '' && inputs.renderer_sha != github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.renderer_sha }}
+          path: renderer-source
+          persist-credentials: false
       - name: Archive the exact CI-approved program; read back before registering
         env:
           SITE_RENDERER_SHA: ${{ inputs.renderer_sha }}
