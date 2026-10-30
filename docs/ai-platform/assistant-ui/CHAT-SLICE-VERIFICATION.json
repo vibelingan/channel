@@ -1,0 +1,68 @@
+{
+  "scope": "Browser to real BFF/PostgreSQL/worker with deterministic test engine; no live model, email or inquiry acceptance claim",
+  "code_commit": "75681301",
+  "service_tests": {
+    "bff": 11,
+    "worker": 27,
+    "store": 38,
+    "skipped": 0
+  },
+  "contract_tests": 2,
+  "frontend_tests": 21,
+  "connected_browser": {
+    "startTime": "2026-10-30T01:16:53.685Z",
+    "duration": 13688.789,
+    "expected": 8,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "ui_browser_regression": {
+    "startTime": "2026-10-30T01:12:36.607Z",
+    "duration": 56153.825,
+    "expected": 90,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "new_mutation_checks": [
+    {
+      "name": "cancel version",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "9918c2a9365e31c4aaa7aa81c8527866831772aa5d23a4d5d9925797ccdd4b99",
+      "source_unchanged": true
+    },
+    {
+      "name": "event run identity",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "c838f752343ba7b6d9bbce90f1b028ac560c040200f9a1ef53ac707469fc4251",
+      "source_unchanged": true
+    },
+    {
+      "name": "server stream scope",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "ec7e8da3b0cd09b1fa3d425f498337ece87e6dd4dcec10faba94814e561bc506",
+      "source_unchanged": true
+    }
+  ],
+  "existing_mutation_checks": "STATE-GUARDS.json",
+  "real_model_test": "not_run; runtime configuration absent",
+  "deploy": "not_run",
+  "remote_ci": [
+    {
+      "run_id": 40985051756,
+      "workflow": "Assistant chat integration",
+      "conclusion": "success",
+      "head_sha": "7568130153a85c3f874096f1984f6033332703da"
+    },
+    {
+      "run_id": 40985051585,
+      "workflow": "Assistant UI foundation",
+      "conclusion": "success",
+      "head_sha": "7568130153a85c3f874096f1984f6033332703da"
+    }
+  ]
+}

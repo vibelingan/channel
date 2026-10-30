@@ -910,3 +910,10 @@ low and 38 high. This breakdown meets the same bar before it proposes anything:
 Until step 2 is done, the only honest statement is the one this section opens
 with. Recording that here, rather than discovering it in week nine, is the point
 of decomposing before implementing.
+
+
+## Additive website chat implementation — 2026-10-30
+
+[Chat and stop delivery](assistant-ui/CHAT-SLICE-DELIVERY.md) records the implemented subset of MIUs 5f/6b/6c/7/11c. V2 adds `/api/ai/v2` with conversation-scoped turn status, strict replay content, run-bound cancellation, and identity-bearing filtered SSE. V1 remains compatible. The existing store transactions and provider-neutral worker remain authoritative; no new runtime, knowledge provider, inquiry store, or tool authority is introduced. Public output remains gated on approved evidence.
+
+V2 Stop binds the submission key, run ID and original control version before mutating the active run. A repeated or old request cannot cancel a subsequent run. The worker checks the durable fence while waiting for provider output; cancellation closes public writes and local reading, without claiming vendor billing has stopped. History restoration is deferred by the user. Original production and real-provider gates remain open until separately accepted.
