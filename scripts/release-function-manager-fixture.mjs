@@ -105,7 +105,9 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
         state.onUpdate?.();
         if (state.holdUpdate) await state.holdUpdate;
         state.updates++;
-        state.bytes = Buffer.from(payload.Code.ZipFile, 'base64');
+        state.bytes = payload.Code.ZipFile
+          ? Buffer.from(payload.Code.ZipFile, 'base64')
+          : Buffer.from(state.nativeObjects.get(payload.Code.CosObjectName));
         state.detail.CodeSize = state.bytes.length;
         state.detail.ModTime = 'version-A';
         state.detail.InstallDependency = payload.InstallDependency;

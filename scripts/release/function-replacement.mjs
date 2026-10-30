@@ -11,6 +11,7 @@ export async function replaceFunctionCode({
   beforeVersion,
   expectedVersion,
   readHealth,
+  archiveProfile = 'bundled',
   timeoutMs = 180000,
   now = Date.now,
   pause = () => new Promise((done) => setTimeout(done, 2000)),
@@ -23,8 +24,10 @@ export async function replaceFunctionCode({
     !expectedVersion
   )
     throw new Error('A verified original and a distinct runtime version are required');
-  const originalFiles = checkFunctionArchive(original);
-  const candidateFiles = checkFunctionArchive(candidate);
+  if (archiveProfile === 'catalog-native-decoder' && name !== 'alibaba-catalog-sync')
+    throw Error('Native archive profile is outside the fixed synchronization function');
+  const originalFiles = checkFunctionArchive(original, { profile: archiveProfile });
+  const candidateFiles = checkFunctionArchive(candidate, { profile: archiveProfile });
   if (beforeVersion === expectedVersion) {
     if (identity(originalFiles.contentSha256) !== identity(candidateFiles.contentSha256))
       throw new Error('Same runtime version has different program bytes');

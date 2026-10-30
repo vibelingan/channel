@@ -131,6 +131,13 @@ jobs:
               child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Catalog runtime setup stopped (${code}); inspect its receipt before retrying`)));
             });
       - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: catalog-runtime-stopped-inputs-${{ github.run_id }}
+          path: output/catalog-runtime/before/
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: catalog-runtime-receipt-${{ github.run_id }}

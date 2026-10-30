@@ -13,6 +13,11 @@ export function createCloudbaseFunctionProvider({
   names,
   configurationKey,
   expectedTriggers = {},
+  archiveProfiles = {},
+  archiveBucket = /** @type {string|null} */ (null),
+  stageArchive = /** @type {null|((bytes:Buffer)=>Promise<{fileID:string,bytes:number,sha256:string}>)} */ (
+    null
+  ),
   request = fetchFully,
 }) {
   const fixed = freeze(structuredClone(target));
@@ -45,6 +50,27 @@ export function createCloudbaseFunctionProvider({
     )
       throw Error('Invalid reviewed timer scope');
   }
+  const profiles = freeze(structuredClone(archiveProfiles));
+  if (
+    !profiles ||
+    typeof profiles !== 'object' ||
+    Array.isArray(profiles) ||
+    Object.entries(profiles).some(
+      ([name, profile]) =>
+        name !== 'alibaba-catalog-sync' ||
+        !allowed.has(name) ||
+        !timers[name] ||
+        profile !== 'catalog-native-decoder',
+    )
+  )
+    throw Error('Native archive scope is not reviewed');
+  if (
+    Object.keys(profiles).length &&
+    (typeof stageArchive !== 'function' ||
+      !/^[a-z0-9][a-z0-9-]+-[0-9]+$/.test(archiveBucket ?? '') ||
+      !archiveBucket.includes(fixed.envId))
+  )
+    throw Error('Private environment archive transport required for native code');
   const environment = manager.currentEnvironment();
   const functions = environment.getFunctionService();
   if (
@@ -254,7 +280,29 @@ export function createCloudbaseFunctionProvider({
         !/^Nodejs\d+\.\d+$/.test(runtime)
       )
         throw new Error('Invalid archived function update');
-      checkFunctionArchive(bytes);
+      const profile = profiles[name] ?? 'bundled';
+      checkFunctionArchive(bytes, { profile });
+      let code = { ZipFile: bytes.toString('base64') };
+      if (profile === 'catalog-native-decoder') {
+        if (runtime !== 'Nodejs20.19') throw Error('Native function runtime differs');
+        const stored = await safe(async (stage) => {
+          stage('stage-native-code');
+          signal?.throwIfAborted();
+          return stageArchive(bytes);
+        }, name);
+        if (
+          stored?.fileID !==
+            `cloud://${fixed.envId}.${archiveBucket}/seo-recovery/objects/${hash}.bin` ||
+          stored.bytes !== bytes.length ||
+          stored.sha256 !== hash
+        )
+          throw Error('Native function code archive differs');
+        code = {
+          CosBucketName: archiveBucket.replace(/-[0-9]+$/, ''),
+          CosBucketRegion: region,
+          CosObjectName: `/seo-recovery/objects/${hash}.bin`,
+        };
+      }
       signal?.throwIfAborted();
       const current = await read(name, { signal });
       if (
@@ -274,7 +322,7 @@ export function createCloudbaseFunctionProvider({
         signal?.throwIfAborted();
         const result = await functions.updateFunctionCode({
           func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
-          base64Code: bytes.toString('base64'),
+          ...(profile === 'bundled' ? { base64Code: code.ZipFile } : { code }),
         });
         if (!result?.RequestId) throw new Error('Function update has no receipt');
         return { submitted: true, providerOperationId: result.RequestId };

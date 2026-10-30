@@ -4,21 +4,25 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { DefaultArtifactClient } from '@actions/artifact';
 import CloudBase from '@cloudbase/manager-node';
+import COS from 'cos-nodejs-sdk-v5';
 import { readFunctionRuntimeState, readFunctionRuntimeVersion } from './blog/runtime-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { captureFunctionBackups } from './capture-function-backups.mjs';
 import { ALIBABA_SYNC_TIMER } from './cloudbase-function-manifest.mjs';
 import { settleInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
+import { preserveCatalogRuntimeBackup } from './release/catalog-runtime-backup.mjs';
 import { setCatalogRuntimeFlags } from './release/catalog-runtime-config.mjs';
 import {
   assertTrackedCatalogProgram,
   checkCatalogRuntimeFlags,
 } from './release/catalog-runtime-flags.mjs';
+import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 import { checkFunctionArchive } from './release/function-archive.mjs';
 import { createCloudbaseFunctionProvider } from './release/function-provider.mjs';
 import { replaceFunctionCode } from './release/function-replacement.mjs';
 import { identity } from './release/input.mjs';
+import { createPrivateArchive } from './release/private-archive.mjs';
 import { createSiteGithubSource } from './release/site-github-source.mjs';
 import { assertCleanAcceptedSite, SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
@@ -55,12 +59,25 @@ async function main() {
     secretId: env.TENCENTCLOUD_SECRETID,
     secretKey: env.TENCENTCLOUD_SECRETKEY,
   });
-  const db = blogWorkerSdk({
+  const sdk = blogWorkerSdk({
     env: policy.envId,
     region: policy.region,
     secretId: env.TENCENTCLOUD_SECRETID,
     secretKey: env.TENCENTCLOUD_SECRETKEY,
-  }).database();
+  });
+  const db = sdk.database();
+  const archiveCos = new COS({
+    SecretId: env.TENCENTCLOUD_SECRETID,
+    SecretKey: env.TENCENTCLOUD_SECRETKEY,
+    ...ARCHIVE_COS_OPTIONS,
+  });
+  const objects = createPrivateArchive({
+    ...createCosArchiveTransfer({ cos: archiveCos, policy }),
+    sdk,
+    manager,
+    policy,
+    readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+  });
   const coordinator = createReleaseCoordinator({
     store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
     policy,
@@ -78,6 +95,9 @@ async function main() {
     region: policy.region,
     names,
     expectedTriggers: { 'alibaba-catalog-sync': [ALIBABA_SYNC_TIMER] },
+    archiveProfiles: { 'alibaba-catalog-sync': 'catalog-native-decoder' },
+    archiveBucket: policy.archiveBucket,
+    stageArchive: (bytes: Buffer) => objects.put(bytes),
     configurationKey: createHmac('sha256', env.TENCENTCLOUD_SECRETKEY)
       .update(
         `channel-function-observation:v1:${identity({ envId: policy.envId, siteOrigin: policy.siteOrigin })}`,
@@ -92,6 +112,7 @@ async function main() {
     stage = 'capture-original-programs';
     for (const name of names) {
       const detail = await manager.functions.getFunctionDetail(name);
+      if (detail.Runtime !== 'Nodejs20.19') throw Error('Preserve the reviewed function runtime');
       if (
         detail.Environment?.Variables?.some(
           (v) =>
@@ -110,6 +131,7 @@ async function main() {
     const candidates = new Map<string, Buffer>();
     const files = [join(directory, 'before/function-backups.json')];
     for (const name of names) {
+      stage = `validate-${name}`;
       versions[name] = await readFunctionRuntimeVersion(policy.envId, name);
       const zip = join(directory, `${name}-candidate.zip`);
       execFileSync(
@@ -123,7 +145,12 @@ async function main() {
         { timeout: 30000, stdio: 'pipe' },
       );
       const bytes = await readFile(zip);
-      checkFunctionArchive(bytes, { smoke: true });
+      const profile = name === 'alibaba-catalog-sync' ? 'catalog-native-decoder' : 'bundled';
+      checkFunctionArchive(bytes, { smoke: true, profile });
+      checkFunctionArchive(await readFile(join(directory, `before/${name}.zip`)), {
+        smoke: true,
+        profile,
+      });
       candidates.set(name, bytes);
       files.push(zip, join(directory, `before/${name}.zip`));
     }
@@ -134,6 +161,28 @@ async function main() {
     );
     files.push(join(directory, 'before/runtime.json'));
     stage = 'preserve-original-programs';
+    const originals = [];
+    for (const entry of captured.entries) {
+      const name = entry.snapshot.name;
+      originals.push({
+        name,
+        snapshot: entry.snapshot,
+        bytes: await readFile(join(directory, `before/${name}.zip`)),
+        version: versions[name],
+      });
+    }
+    const preserved = await preserveCatalogRuntimeBackup({
+      row: db.collection('catalogSeoBuilders').doc(`runtime-backup-${codeSha}`),
+      objects,
+      target,
+      codeSha,
+      sourceRunId: env.GITHUB_RUN_ID,
+      originals,
+    });
+    await writeFile(join(directory, 'before/retention.json'), JSON.stringify(preserved, null, 2), {
+      flag: 'wx',
+    });
+    files.push(join(directory, 'before/retention.json'));
     const backup = await new DefaultArtifactClient().uploadArtifact(
       `catalog-runtime-backup-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`,
       files,
@@ -150,6 +199,7 @@ async function main() {
       if (!before || !candidate) throw Error('Captured function disappeared');
       const result = await replaceFunctionCode({
         name,
+        archiveProfile: name === 'alibaba-catalog-sync' ? 'catalog-native-decoder' : 'bundled',
         provider,
         before,
         original: await readFile(join(directory, `before/${name}.zip`)),
