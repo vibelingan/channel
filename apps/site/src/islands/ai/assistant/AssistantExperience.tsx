@@ -66,9 +66,13 @@ export function AssistantExperience({
     state.sessionStatus === 'restoring' ||
     state.sessionStatus === 'expired' ||
     state.sessionStatus === 'unavailable';
-  const products = state.messages.flatMap((message) => message.products ?? []);
+  const products = new Map<string, PublicProduct>();
+  for (const message of state.messages) {
+    for (const product of message.products ?? []) products.set(product.id, product);
+    for (const id of message.unavailableProductIds ?? []) products.delete(id);
+  }
   const compared = compareIds
-    .map((id) => products.findLast((product) => product.id === id))
+    .map((id) => products.get(id))
     .filter((product): product is PublicProduct => Boolean(product));
   function compare(product: PublicProduct) {
     setCompareIds((current) =>
@@ -174,6 +178,8 @@ export function AssistantExperience({
             <AssistantMessages
               messages={state.messages}
               compareIds={compareIds}
+              currentProducts={products}
+              inquiriesEnabled={capabilities.inquiries}
               onCompare={compare}
               onInquiry={session.beginInquiry}
             />
@@ -189,11 +195,27 @@ export function AssistantExperience({
                       <h4 className="font-semibold">{product.name}</h4>
                       <p className="mt-1 text-xs">{product.summary}</p>
                       <p className="mt-1 text-xs text-ink-muted">
-                        Version: {product.revision}. Commercial terms require confirmation.
+                        Public product details. Commercial terms require confirmation.
                       </p>
                     </div>
                   ))}
                 </div>
+                {!preview && (
+                  <button
+                    type="button"
+                    disabled={working || blocked}
+                    className={`${actionClass} mt-3 mr-2`}
+                    onClick={() =>
+                      session.send(
+                        'Check the latest published details for these products.',
+                        false,
+                        { kind: 'lookup', ids: compared.map((p) => p.id) },
+                      )
+                    }
+                  >
+                    Check current details
+                  </button>
+                )}
                 <button
                   type="button"
                   className={`${actionClass} mt-3`}
@@ -227,11 +249,19 @@ export function AssistantExperience({
                 {['reconnecting', 'failed', 'rate_limited'].includes(state.turn.phase) && (
                   <button
                     type="button"
-                    onClick={session.retry}
+                    onClick={() =>
+                      state.turn?.retryMode === 'new_answer'
+                        ? session.send(
+                            state.turn.request.message,
+                            true,
+                            state.turn.request.catalogAction,
+                          )
+                        : session.retry()
+                    }
                     disabled={session.retrySeconds > 0}
                     className={`${actionClass} mt-2`}
                   >
-                    Resume this answer
+                    {state.turn.retryMode === 'new_answer' ? 'Try again' : 'Resume this answer'}
                   </button>
                 )}
                 {state.turn.phase === 'stop_unknown' && (
@@ -260,7 +290,11 @@ export function AssistantExperience({
                         type="button"
                         onClick={() => {
                           setConfirmRegenerate(false);
-                          session.send(state.turn?.request.message, true);
+                          session.send(
+                            state.turn?.request.message,
+                            true,
+                            state.turn?.request.catalogAction,
+                          );
                         }}
                         className={actionClass}
                       >

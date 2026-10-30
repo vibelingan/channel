@@ -527,3 +527,86 @@ test('a stray field never survives narrowing, and nested junk defaults safely', 
   assert.equal(parsed.positiveControl.resultCount, 0); // Number('many') is NaN -> coerced to 0 below
   assert.equal(parsed.toolSurface.verdict, 'unknown');
 });
+
+test(
+  'worker commits real public reads as structured results and lookup bypasses the model',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () =>
+      Response.json({
+        ok: true,
+        data: {
+          _id: 'p1',
+          name: 'Public headphones',
+          description: 'Published facts',
+          published: true,
+          privateNote: 'SECRET',
+        },
+      }),
+    );
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'worker-product-lookup',
+      content: 'Check latest',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      catalogAction: { kind: 'lookup', ids: ['p1'] },
+    });
+    const engine = new FakeEngine();
+    engine.createRun = async () => {
+      throw new Error('No model needed for a typed read');
+    };
+    assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+    const events = await store.listEvents(conversation.id);
+    assert.equal(events.at(-1)?.type, 'final');
+    assert.equal(events.at(-1)?.payload.kind, 'product_updated');
+    assert.ok(JSON.stringify(events).includes('Public headphones'));
+    assert.equal(JSON.stringify(events).includes('SECRET'), false);
+    assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
+  },
+);
+
+test(
+  'model selects a bounded search or clarification; ordinary answers retain citation policy',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () =>
+      Response.json({
+        ok: true,
+        data: { items: [{ _id: 'p1', name: 'Public headphones', published: true }] },
+      }),
+    );
+    for (const [key, plan, expectedKind] of [
+      ['search', '{"kind":"search","query":"headphones"}', 'answer'],
+      [
+        'clarify',
+        '{"kind":"clarify","question":"Which product type do you need?"}',
+        'clarification',
+      ],
+      ['answer', '{"kind":"answer","text":"An unsupported commercial promise"}', undefined],
+    ] as const) {
+      const c = await store.createConversation();
+      await store.appendVisitorMessage({
+        conversationId: c.id,
+        idempotencyKey: `product-plan-${key}`,
+        content: 'Help me',
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      const engine = new FakeEngine({ script: [plan], citations: [] });
+      assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+      const terminal = (await store.listEvents(c.id)).at(-1);
+      if (expectedKind) {
+        assert.equal(terminal?.type, 'final');
+        assert.equal(terminal.payload.kind, expectedKind);
+      } else {
+        assert.equal(JSON.stringify(terminal).includes('unsupported commercial promise'), false);
+      }
+    }
+  },
+);

@@ -15,6 +15,38 @@ const scratch = await mkdtemp(path.join(tmpdir(), 'chat-slice-guards-'));
 const sha = (v) => createHash('sha256').update(v).digest('hex');
 const checks = [
   {
+    name: 'latest question retained',
+    directory: 'packages/ai-store',
+    file: 'src/store.ts',
+    before: 'ORDER BY created_at DESC, id DESC LIMIT 30',
+    after: 'ORDER BY created_at ASC, id ASC LIMIT 30',
+    test: 'src/store.test.ts',
+    pattern: 'bounded model context keeps',
+    env: false,
+  },
+
+  {
+    name: 'public catalog field projection',
+    directory: 'apps/ai-worker',
+    file: 'src/product-workflow.ts',
+    before: 'const data = {',
+    after: 'const data = { privateNote: raw.privateNote,',
+    test: 'src/product-workflow.test.ts',
+    pattern: 'catalog projects only',
+    env: false,
+  },
+  {
+    name: 'typed action replay identity',
+    directory: 'packages/ai-store',
+    file: 'src/store.ts',
+    before: ' || !existing.rows[0].same_action',
+    after: '',
+    test: 'src/store.test.ts',
+    pattern: 'typed catalog action is durable',
+    env: false,
+  },
+
+  {
     name: 'cancel version',
     directory: 'packages/ai-store',
     file: 'src/store.ts',

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { type Server, createServer } from 'node:http';
+import { isCatalogAction } from '@vibelingan-channel/ai-contracts';
 import { AnythingLlmEngine, assertNoToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
 import {
   type EngineProvenance,
@@ -8,6 +9,7 @@ import {
 } from '@vibelingan-channel/ai-engine/capabilities';
 import { EngineError } from '@vibelingan-channel/ai-engine/errors';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
+import { PRODUCT_PROFILE_ID } from '@vibelingan-channel/ai-engine/port';
 import type { ConversationEngine, EngineEvent } from '@vibelingan-channel/ai-engine/port';
 import {
   enforceGroundedFinal,
@@ -21,8 +23,10 @@ import {
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
+import { PublicCatalog, parseProductPlan } from './product-workflow.ts';
 
 export interface WorkerConfig {
+  catalog?: PublicCatalog;
   pollMs: number;
   leaseSeconds: number;
   maxAttempts: number;
@@ -327,14 +331,35 @@ async function startRun(
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
   const stopWatching = watchRunFence(store, context, controller);
+  const finishProduct = async (action: Parameters<PublicCatalog['execute']>[0]) => {
+    const catalog = config.catalog;
+    if (!catalog) throw new WorkerFailure('invalid_request', 'catalog_not_configured');
+    const result = await workerStage('read_public_catalog', () =>
+      catalog.execute(action, controller.signal),
+    );
+    await store.finishRunFenced({
+      conversationId: context.conversationId,
+      runId: context.runId,
+      expectedControlVersion: context.controlVersion,
+      claimEpoch: context.claimEpoch,
+      status: 'completed',
+      events: [{ type: 'final', payload: result }],
+    });
+  };
   try {
+    if (context.catalogAction !== undefined) {
+      if (!isCatalogAction(context.catalogAction))
+        throw new WorkerFailure('invalid_request', 'invalid_catalog_action');
+      await finishProduct(context.catalogAction);
+      return;
+    }
     const handle = await workerStage('create_engine_run', () =>
       engine.createRun(
         {
           operationId: context.operationId,
           conversationRef: context.conversationId,
           turns: preparePublicTurns(context.turns),
-          profileId: config.profileId,
+          profileId: config.catalog ? PRODUCT_PROFILE_ID : config.profileId,
           locale: context.locale,
           limits: {
             maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
@@ -384,7 +409,32 @@ async function startRun(
         return;
       }
 
-      const policyResult = enforceGroundedFinal(rawEvent, {
+      let candidate = rawEvent;
+      if (config.catalog) {
+        let plan: ReturnType<typeof parseProductPlan>;
+        try {
+          plan = parseProductPlan(rawEvent.text);
+        } catch {
+          throw new WorkerFailure('invalid_request', 'invalid_product_plan');
+        }
+        if (plan.kind === 'search' || plan.kind === 'lookup') {
+          await finishProduct(plan);
+          return;
+        }
+        if (plan.kind === 'clarify') {
+          await store.finishRunFenced({
+            conversationId: context.conversationId,
+            runId: context.runId,
+            expectedControlVersion: context.controlVersion,
+            claimEpoch: context.claimEpoch,
+            status: 'completed',
+            events: [{ type: 'final', payload: { text: plan.question, kind: 'clarification' } }],
+          });
+          return;
+        }
+        candidate = { ...rawEvent, text: plan.text };
+      }
+      const policyResult = enforceGroundedFinal(candidate, {
         approvedSourcePrefix: config.approvedSourcePrefix,
       });
       const approved =
@@ -749,6 +799,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
   }
   const config = validateWorkerConfig({
+    ...(process.env.AI_PUBLIC_CATALOG_ORIGIN
+      ? { catalog: new PublicCatalog(process.env.AI_PUBLIC_CATALOG_ORIGIN) }
+      : {}),
     pollMs: envNumber('AI_WORKER_POLL_MS', 250),
     leaseSeconds: envNumber('AI_WORKER_LEASE_SECONDS', 90),
     maxAttempts: envNumber('AI_WORKER_MAX_ATTEMPTS', 5),

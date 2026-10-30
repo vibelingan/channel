@@ -136,11 +136,19 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
                 ? answer.text
                 : 'I could not find an answer for this question. Try another question or share your requirement with our team.',
             kind: event.kind ?? 'answer',
+            ...(event.products ? { products: event.products } : {}),
+            ...(event.unavailableProductIds
+              ? { unavailableProductIds: event.unavailableProductIds }
+              : {}),
           }),
           turn: { ...next, phase: 'complete' },
         };
       case 'failed':
-        return { ...state, turn: { ...next, phase: 'failed', detail: event.message } };
+        return {
+          ...state,
+          messages: update({ text: answer?.text?.trim() ? answer.text : event.message }),
+          turn: { ...next, phase: 'failed', retryMode: 'new_answer', detail: event.message },
+        };
       case 'rate_limited':
         return {
           ...state,

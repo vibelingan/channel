@@ -188,3 +188,89 @@ test('v2 streams only the selected run with durable identity', { skip }, async (
   assert.equal(event.type, 'assistant.cancelled');
   assert.equal((await request(c, 'events')).status, 400);
 });
+
+test(
+  'v2 validates typed actions and projects only public card fields; v1 stays text-only',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await conversation();
+    assert.equal(
+      (
+        await request(c, 'messages', {
+          message: 'Read',
+          idempotencyKey: randomUUID(),
+          catalogAction: { kind: 'lookup', ids: ['bad/path'] },
+        })
+      ).status,
+      400,
+    );
+    const key = randomUUID();
+    const action = { kind: 'lookup', ids: ['p1'] };
+    const response = await request(c, 'messages', {
+      message: 'Read',
+      idempotencyKey: key,
+      catalogAction: action,
+    });
+    const state = await readTurn(response);
+    assert.equal(
+      (
+        await request(c, 'messages', {
+          message: 'Read',
+          idempotencyKey: key,
+          catalogAction: { kind: 'lookup', ids: ['p2'] },
+        })
+      ).status,
+      409,
+    );
+    const claim = await store.claimRun(state.runId);
+    assert.ok(claim);
+    await store.finishRunFenced({
+      conversationId: c.conversationId,
+      runId: state.runId,
+      expectedControlVersion: state.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: 'Current product',
+            kind: 'product_updated',
+            products: [
+              {
+                id: 'p1',
+                name: 'Public headphones',
+                summary: 'Published',
+                revision: 'v1',
+                href: '/products/item/?id=p1',
+                privateNote: 'SECRET_NEVER_PROJECT',
+              },
+            ],
+            unavailableProductIds: [],
+          },
+        },
+      ],
+    });
+    const stream = await (await request(c, `events?turn=${key}`)).text();
+    assert.ok(stream.includes('Public headphones'));
+    assert.ok(stream.includes('product_updated'));
+    assert.equal(stream.includes('SECRET_NEVER_PROJECT'), false);
+    const v1 = await fetch(`${base}/api/ai/conversations/${c.conversationId}/events`, {
+      headers: { Authorization: `Bearer ${c.credential}` },
+    });
+    const legacy = await v1.text();
+    assert.ok(legacy.includes('Current product'));
+    assert.equal(legacy.includes('products'), false);
+    const rejected = await fetch(`${base}/api/ai/conversations/${c.conversationId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${c.credential}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Read',
+        idempotencyKey: randomUUID(),
+        catalogAction: action,
+      }),
+    });
+    assert.equal(rejected.status, 400);
+  },
+);

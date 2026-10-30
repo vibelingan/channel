@@ -72,3 +72,87 @@ test('lost acceptance reply retries the original submission through the real API
   await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(1);
   await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(1);
 });
+
+test('public HTTP products render images, compare, refresh and withdraw consistently', async ({
+  page,
+  request,
+}) => {
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones for company gifts');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const cards = page.locator('[data-message-role="assistant"]').last();
+  await expect(cards.getByRole('heading', { name: 'Everyday wireless headphones' })).toBeVisible();
+  await expect(cards.locator('img')).toHaveCount(2);
+  await expect
+    .poll(() =>
+      cards
+        .locator('img')
+        .first()
+        .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+    )
+    .toBe(true);
+  await expect(cards.getByRole('link', { name: 'View product' }).first()).toHaveAttribute(
+    'href',
+    '/products/item/?id=demo-1',
+  );
+  await expect(cards.getByRole('button', { name: 'Prepare inquiry' })).toHaveCount(0);
+  await cards.getByRole('button', { name: 'Compare', exact: true }).first().click();
+  await cards.getByRole('button', { name: 'Compare', exact: true }).click();
+  const comparison = page.getByRole('region', { name: 'Compare options' });
+  await expect(comparison.getByRole('heading', { level: 4 })).toHaveCount(2);
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=updated');
+  await comparison.getByRole('button', { name: 'Check current details' }).click();
+  await expect(comparison).toContainText('Updated published details');
+  await expect(page.getByText('Earlier details. See the updated card below.')).toBeVisible();
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=withdrawn');
+  await comparison.getByRole('button', { name: 'Check current details' }).click();
+  await expect(comparison.getByRole('heading', { level: 4 })).toHaveCount(1);
+  await expect(comparison).not.toContainText('Office wireless headphones');
+  await expect(
+    page.getByText('This product is no longer available in the public catalog.').first(),
+  ).toBeVisible();
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await page
+    .getByRole('dialog')
+    .screenshot({ path: `output/assistant-chat/products-${test.info().project.name}.png` });
+});
+
+test('clarification, no match, catalog failure and a fresh request all have usable responses', async ({
+  page,
+}) => {
+  await send(page, 'I am not sure what product I want');
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'What type of product',
+  );
+  await send(page, 'Find no matching product');
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'could not find a published product',
+  );
+  await send(page, 'catalog failure');
+  await expect(page.getByLabel('Answer status')).toContainText('could not verify');
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible();
+  await send(page, 'Show headphones');
+  await expect(page.getByRole('heading', { name: 'Everyday wireless headphones' })).toBeVisible();
+});
+
+test('stopping a pending catalog read prevents its late product cards', async ({ page }) => {
+  await send(page, 'catalog slow');
+  await page.waitForTimeout(900);
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page.getByLabel('Answer status')).toContainText('has stopped');
+  await page.waitForTimeout(1000);
+  await expect(page.locator('[data-message-role="assistant"] section')).toHaveCount(0);
+  await send(page, 'Show headphones');
+  await expect(page.getByRole('heading', { name: 'Everyday wireless headphones' })).toBeVisible();
+});
+
+test('missing product images fall back without breaking the product actions', async ({ page }) => {
+  await page.route('**/api/images/**', (route) => route.abort());
+  await send(page, 'Show headphones');
+  await expect(page.getByRole('heading', { name: 'Everyday wireless headphones' })).toBeVisible();
+  await expect(page.locator('[data-message-role="assistant"] img')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'View product' })).toHaveCount(2);
+  await page
+    .getByRole('dialog')
+    .screenshot({ path: `output/assistant-chat/product-cards-${test.info().project.name}.png` });
+});

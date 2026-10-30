@@ -72,6 +72,9 @@ importers:
 
   apps/ai-worker:
     dependencies:
+      '@vibelingan-channel/ai-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ai-contracts
       '@vibelingan-channel/ai-engine':
         specifier: workspace:*
         version: link:../../packages/ai-engine

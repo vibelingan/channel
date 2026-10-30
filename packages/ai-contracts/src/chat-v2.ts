@@ -1,4 +1,5 @@
 import type { PublicSseEvent } from './index.ts';
+import { PRODUCT_KINDS, type PublicProductCard, isProductCards } from './products.ts';
 export interface ChatTurnV2 {
   protocolVersion: 2;
   conversationId: string;
@@ -10,6 +11,9 @@ export interface ChatTurnV2 {
   cancelRequested: boolean;
 }
 export type ChatEventV2 = PublicSseEvent & {
+  products?: PublicProductCard[];
+  kind?: (typeof PRODUCT_KINDS)[number];
+  unavailableProductIds?: string[];
   protocolVersion: 2;
   conversationId: string;
   messageId: string;
@@ -61,8 +65,19 @@ export function isChatEventV2(value: unknown): value is ChatEventV2 {
     return false;
   switch (value.type) {
     case 'token':
-    case 'final':
       return text(value.text);
+    case 'final':
+      return (
+        text(value.text) &&
+        (value.products === undefined || isProductCards(value.products)) &&
+        (value.kind === undefined || PRODUCT_KINDS.some((kind) => kind === value.kind)) &&
+        (value.unavailableProductIds === undefined ||
+          (Array.isArray(value.unavailableProductIds) &&
+            value.unavailableProductIds.length <= 2 &&
+            value.unavailableProductIds.every(
+              (id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id),
+            )))
+      );
     case 'citation':
       return (
         text(value.sourceId, 256) &&

@@ -1,3 +1,4 @@
+import type { CatalogAction } from '@vibelingan-channel/ai-contracts';
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { validateInquiry } from './inquiry';
 import type {
@@ -108,7 +109,7 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       if (active.current === controller) active.current = null;
     }
   }
-  function send(message = draft, regenerate = false) {
+  function send(message = draft, regenerate = false, catalogAction?: CatalogAction) {
     const current = latest.current;
     if (
       !message.trim() ||
@@ -127,6 +128,7 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       turnKey: key,
       idempotencyKey: key,
       message: message.trim(),
+      ...(catalogAction ? { catalogAction } : {}),
     };
     dispatch({ type: 'begin', request, regenerate });
     setDraft('');

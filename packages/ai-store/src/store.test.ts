@@ -729,3 +729,65 @@ test('a dead-lettered cancel_run atomically cancels the active run', { skip }, a
     ['assistant.cancelled'],
   );
 });
+
+test(
+  'typed catalog action is durable and changing it under the same key is rejected',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const input = {
+      conversationId: conversation.id,
+      idempotencyKey: 'catalog-action-replay',
+      content: 'Check current details',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      strictReplay: true,
+      catalogAction: { kind: 'lookup', ids: ['p1'] },
+    };
+    const accepted = await store.appendVisitorMessage(input);
+    assert.ok(accepted.run);
+    await store.claimRun(accepted.run.id);
+    assert.deepEqual(
+      (await store.getRunExecutionContext(accepted.run.id))?.catalogAction,
+      input.catalogAction,
+    );
+    assert.equal((await store.appendVisitorMessage(input)).replayed, true);
+    await assert.rejects(
+      () =>
+        store.appendVisitorMessage({ ...input, catalogAction: { kind: 'lookup', ids: ['p2'] } }),
+      /replay_content_conflict/,
+    );
+    await assert.rejects(
+      () => store.appendVisitorMessage({ ...input, catalogAction: undefined }),
+      /replay_content_conflict/,
+    );
+  },
+);
+
+test(
+  'bounded model context keeps the latest question after more than thirty messages',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await store.createConversation();
+    await store.pool.query(
+      `INSERT INTO conversation_messages(id,conversation_id,role,content,created_at,idempotency_key,accepted_in_epoch)
+ SELECT gen_random_uuid(),$1,'assistant','Older answer '||i,clock_timestamp()-interval '1 hour'+ i*interval '1 second','history-'||i,0 FROM generate_series(1,35) i`,
+      [c.id],
+    );
+    const accepted = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'latest-context',
+      content: 'LATEST QUESTION',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(accepted.run);
+    await store.claimRun(accepted.run.id);
+    const context = await store.getRunExecutionContext(accepted.run.id);
+    assert.equal(context?.turns.length, 30);
+    assert.equal(context?.turns.at(-1)?.text, 'LATEST QUESTION');
+    assert.equal(context?.turns[0]?.text, 'Older answer 7');
+  },
+);

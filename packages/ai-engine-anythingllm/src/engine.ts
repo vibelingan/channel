@@ -1,3 +1,7 @@
+import {
+  PRODUCT_PLANNER_INSTRUCTION,
+  PRODUCT_PROFILE_ID,
+} from '@vibelingan-channel/ai-engine/port';
 /**
  * `ConversationEngine` adapter for AnythingLLM (ADR-002).
  *
@@ -631,12 +635,14 @@ export class AnythingLlmEngine implements ConversationEngine {
     const turns = request.turns;
     const last = turns.at(-1);
     if (!last) return '';
-    if (turns.length === 1) return last.text;
+    const prefix =
+      request.profileId === PRODUCT_PROFILE_ID ? `${PRODUCT_PLANNER_INSTRUCTION}\n\n` : '';
+    if (turns.length === 1) return prefix + last.text;
     const history = turns
       .slice(0, -1)
       .map((t) => `${t.role === 'visitor' ? 'Customer' : 'Assistant'}: ${t.text}`)
       .join('\n');
-    return `Previous conversation:\n${history}\n\nCustomer's current question: ${last.text}`;
+    return `${prefix}Previous conversation:\n${history}\n\nCustomer's current question: ${last.text}`;
   }
 
   #citationsFrom(sources: VendorSource[] | undefined): EngineCitation[] {

@@ -1,4 +1,5 @@
 import { safePublicChatLink } from '../../../components/chat/public-link';
+import { ProductThumbnail } from './ProductThumbnail';
 import type { ChatMessage, PublicProduct } from './model';
 
 export function AssistantMessages({
@@ -6,9 +7,13 @@ export function AssistantMessages({
   compareIds,
   onCompare,
   onInquiry,
+  currentProducts,
+  inquiriesEnabled = true,
 }: {
   messages: ChatMessage[];
   compareIds: string[];
+  currentProducts?: Map<string, PublicProduct>;
+  inquiriesEnabled?: boolean;
   onCompare: (product: PublicProduct) => void;
   onInquiry: (product?: PublicProduct) => void;
 }) {
@@ -32,44 +37,52 @@ export function AssistantMessages({
               className="mt-3 overflow-hidden rounded-xl border border-slate-200"
               aria-label={product.name}
             >
-              <div
-                className="flex h-20 items-center justify-center bg-brand-50 text-brand-900"
-                aria-hidden="true"
-              >
-                <svg
-                  role="presentation"
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="h-10 w-10"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path d="M4 14v-3a8 8 0 0 1 16 0v3M4 13H2v8h5v-8H4Zm16 0h2v8h-5v-8h3Z" />
-                </svg>
-              </div>
+              <ProductThumbnail url={product.imageUrl} />
               <div className="p-3">
                 <h3 className="font-semibold">{product.name}</h3>
                 <p className="mt-1 text-xs">{product.summary}</p>
                 <p className="mt-2 text-xs text-ink-muted">
                   Price, MOQ and lead time: confirm with our team.
                 </p>
+                {currentProducts &&
+                  (!currentProducts.has(product.id) ||
+                    currentProducts.get(product.id)?.revision !== product.revision) && (
+                    <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+                      {!currentProducts.has(product.id)
+                        ? 'This product is no longer available in the public catalog.'
+                        : 'Earlier details. See the updated card below.'}
+                    </p>
+                  )}
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <a
+                    className="flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-xs font-semibold"
+                    href={product.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View product
+                  </a>
                   <button
                     type="button"
+                    disabled={
+                      currentProducts &&
+                      currentProducts.get(product.id)?.revision !== product.revision
+                    }
                     aria-pressed={compareIds.includes(product.id)}
                     onClick={() => onCompare(product)}
                     className="min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
                   >
                     {compareIds.includes(product.id) ? 'Selected' : 'Compare'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onInquiry(product)}
-                    className="min-h-11 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white"
-                  >
-                    Prepare inquiry
-                  </button>
+                  {inquiriesEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => onInquiry(product)}
+                      className="min-h-11 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white"
+                    >
+                      Prepare inquiry
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -97,7 +110,8 @@ export function AssistantMessages({
               })}
             </ul>
           ) : null}
-          {message.kind === 'clarification' || message.kind === 'team_followup' ? (
+          {inquiriesEnabled &&
+          (message.kind === 'clarification' || message.kind === 'team_followup') ? (
             <button
               type="button"
               className="mt-3 min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
@@ -108,7 +122,7 @@ export function AssistantMessages({
           ) : null}
           {message.kind === 'product_updated' && (
             <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-              Product details changed. Review the current information before confirming your
+              These details were checked again. Review the latest information before preparing your
               inquiry.
             </p>
           )}

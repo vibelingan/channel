@@ -829,3 +829,33 @@ test('a public host over http is refused, and no name gets it a pass', () => {
 test('https needs no override anywhere', () => {
   assert.doesNotThrow(() => build('https://kb.supplychainsai.com'));
 });
+
+test('named product profile adds server-owned planning instructions; ordinary profiles stay unchanged', async () => {
+  const fixtureCredential = 'synthetic-profile-fixture';
+  const bodies: string[] = [];
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://vendor.invalid',
+    apiKey: fixtureCredential,
+    workspaceSlug: 'public',
+    engineVersion: 'test',
+    citationsVerified: true,
+    fetchImpl: async (_url, init) => {
+      if (init?.body) bodies.push(String(init.body));
+      return new Response(
+        'data: {"type":"finalizeResponseStream","textResponse":"{\\"kind\\":\\"clarify\\",\\"question\\":\\"What product?\\"}","sources":[],"close":true}\n\n',
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+  for (const profileId of ['channel-products-v1', 'channel-public-v1']) {
+    const handle = await engine.createRun(
+      { ...REQUEST, operationId: profileId, profileId },
+      new AbortController().signal,
+    );
+    for await (const _event of engine.streamRun(handle, new AbortController().signal)) {
+      /* Consume the transport. */
+    }
+  }
+  assert.ok(bodies[0]?.includes('Return exactly one JSON object'));
+  assert.equal(bodies[1]?.includes('Return exactly one JSON object'), false);
+});

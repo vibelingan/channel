@@ -153,7 +153,16 @@ export function createHttpAssistantAdapter(
           });
           break;
         case 'final':
-          emit({ ...identity, type: 'finished', text: event.text });
+          emit({
+            ...identity,
+            type: 'finished',
+            text: event.text,
+            ...(event.products ? { products: event.products } : {}),
+            ...(event.kind ? { kind: event.kind } : {}),
+            ...(event.unavailableProductIds
+              ? { unavailableProductIds: event.unavailableProductIds }
+              : {}),
+          });
           return;
         case 'assistant.cancelled':
           emit({ ...identity, type: 'cancelled' });
@@ -178,6 +187,7 @@ export function createHttpAssistantAdapter(
     async run(request, cursor, emit, signal) {
       const turn = await state(request, signal, {
         message: request.message,
+        ...(request.catalogAction ? { catalogAction: request.catalogAction } : {}),
         idempotencyKey: request.idempotencyKey,
       });
       if (!turn.runId)
@@ -190,6 +200,7 @@ export function createHttpAssistantAdapter(
     async stop(request, signal) {
       const turn = await state(request, signal, {
         message: request.message,
+        ...(request.catalogAction ? { catalogAction: request.catalogAction } : {}),
         idempotencyKey: request.idempotencyKey,
       });
       if (turn.status === 'cancelled') return 'stopped';

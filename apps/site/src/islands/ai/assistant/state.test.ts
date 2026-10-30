@@ -132,3 +132,26 @@ test('temporary history failure preserves the current conversation and allows re
   assert.deepEqual(failed.messages, original.messages);
   assert.equal(failed.restoreFailed, true);
 });
+
+test('terminal failure writes a visible reply and retries as a new answer', () => {
+  const initial = initialAssistantState('c');
+  const request = {
+    conversationKey: 'c',
+    turnKey: 't',
+    idempotencyKey: 'k',
+    message: 'Find a product',
+  };
+  const working = reduceAssistant(initial, { type: 'begin', request });
+  const failed = reduceAssistant(working, {
+    type: 'event',
+    event: {
+      conversationKey: 'c',
+      turnKey: 't',
+      sequence: 1,
+      type: 'failed',
+      message: 'The product service is unavailable. Try again.',
+    },
+  });
+  assert.equal(failed.messages.at(-1)?.text, 'The product service is unavailable. Try again.');
+  assert.equal(failed.turn?.retryMode, 'new_answer');
+});

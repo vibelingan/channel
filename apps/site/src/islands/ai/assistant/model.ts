@@ -1,9 +1,11 @@
+import type { CatalogAction, PublicProductCard } from '@vibelingan-channel/ai-contracts';
 /** View contracts only. A server adapter must authorize and decode its own wire data. */
 export interface TurnRequest {
   conversationKey: string;
   turnKey: string;
   idempotencyKey: string;
   message: string;
+  catalogAction?: CatalogAction;
 }
 export type AnswerKind =
   | 'answer'
@@ -12,13 +14,7 @@ export type AnswerKind =
   | 'unsupported'
   | 'team_followup'
   | 'product_updated';
-export interface PublicProduct {
-  id: string;
-  name: string;
-  summary: string;
-  revision: string;
-  href: string;
-}
+export type PublicProduct = PublicProductCard;
 export interface ChatMessage {
   id: string;
   role: 'visitor' | 'assistant';
@@ -26,6 +22,7 @@ export interface ChatMessage {
   kind?: AnswerKind;
   citations?: Array<{ title: string; url?: string }>;
   products?: PublicProduct[];
+  unavailableProductIds?: string[];
 }
 export type TurnPhase =
   | 'queued'
@@ -45,6 +42,7 @@ export interface TurnView {
   steps: string[];
   detail?: string;
   retryAt?: number;
+  retryMode?: 'new_answer';
 }
 export interface AssistantState {
   conversationKey: string;
@@ -62,7 +60,13 @@ export type TurnEvent = EventIdentity &
     | { type: 'token'; text: string }
     | { type: 'products'; products: PublicProduct[] }
     | { type: 'citation'; title: string; url?: string }
-    | { type: 'finished'; text?: string; kind?: AnswerKind }
+    | {
+        type: 'finished';
+        text?: string;
+        kind?: AnswerKind;
+        products?: PublicProduct[];
+        unavailableProductIds?: string[];
+      }
     | { type: 'failed'; message: string }
     | { type: 'rate_limited'; retryAt?: number }
     | { type: 'cancelled' }

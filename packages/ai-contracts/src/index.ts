@@ -1,3 +1,4 @@
+import { type CatalogAction, isCatalogAction } from './products.ts';
 export interface CreateConversationRequest {
   locale?: string;
 }
@@ -11,6 +12,7 @@ export interface CreateConversationResponse {
 export interface AppendMessageRequest {
   message: string;
   idempotencyKey: string;
+  catalogAction?: CatalogAction;
 }
 
 export interface AppendMessageResponse {
@@ -65,7 +67,8 @@ export function isAppendMessageRequest(value: unknown): value is AppendMessageRe
     value.message.length <= 8000 &&
     typeof value.idempotencyKey === 'string' &&
     value.idempotencyKey.length >= 8 &&
-    value.idempotencyKey.length <= 128
+    value.idempotencyKey.length <= 128 &&
+    (value.catalogAction === undefined || isCatalogAction(value.catalogAction))
   );
 }
 
@@ -89,3 +92,11 @@ export {
   isUuid,
   isOperationKey,
 } from './chat-v2.ts';
+export {
+  type PublicProductCard,
+  type CatalogAction,
+  isCatalogAction,
+  isPublicProductCard,
+  isProductCards,
+  PRODUCT_KINDS,
+} from './products.ts';

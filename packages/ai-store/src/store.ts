@@ -53,6 +53,7 @@ export interface RunExecutionContext {
   controlVersion: number;
   claimEpoch: number;
   locale: string;
+  catalogAction?: unknown;
   turns: Array<{ role: 'visitor' | 'assistant'; text: string }>;
 }
 
@@ -239,6 +240,7 @@ export class AiStore {
     engineVersion: string;
     provenance?: EngineProvenance;
     strictReplay?: boolean;
+    catalogAction?: unknown;
   }): Promise<{ messageId: string; run: NewRun | null; replayed: boolean }> {
     return this.transaction(async (client) => {
       const conversation = await client.query<{
@@ -259,13 +261,21 @@ export class AiStore {
         id: string;
         content: string;
         answered_by_run: string | null;
+        same_action: boolean;
       }>(
-        `SELECT id, content, answered_by_run FROM conversation_messages
+        `SELECT id, content, answered_by_run, catalog_action IS NOT DISTINCT FROM $3::jsonb AS same_action FROM conversation_messages
          WHERE conversation_id = $1 AND idempotency_key = $2`,
-        [input.conversationId, input.idempotencyKey],
+        [
+          input.conversationId,
+          input.idempotencyKey,
+          input.catalogAction ? JSON.stringify(input.catalogAction) : null,
+        ],
       );
       if (existing.rows[0]) {
-        if (input.strictReplay && existing.rows[0].content !== input.content)
+        if (
+          input.strictReplay &&
+          (existing.rows[0].content !== input.content || !existing.rows[0].same_action)
+        )
           throw new Error('replay_content_conflict');
         return { messageId: existing.rows[0].id, run: null, replayed: true };
       }
@@ -275,9 +285,16 @@ export class AiStore {
       const messageId = randomUUID();
       await client.query(
         `INSERT INTO conversation_messages(
-           id, conversation_id, role, content, idempotency_key, accepted_in_epoch
-         ) VALUES ($1, $2, 'visitor', $3, $4, $5)`,
-        [messageId, input.conversationId, input.content, input.idempotencyKey, row.takeover_epoch],
+           id, conversation_id, role, content, idempotency_key, accepted_in_epoch, catalog_action
+         ) VALUES ($1, $2, 'visitor', $3, $4, $5, $6::jsonb)`,
+        [
+          messageId,
+          input.conversationId,
+          input.content,
+          input.idempotencyKey,
+          row.takeover_epoch,
+          input.catalogAction ? JSON.stringify(input.catalogAction) : null,
+        ],
       );
       await client.query(
         `INSERT INTO audit_events(conversation_id, actor_type, action, metadata)
@@ -473,13 +490,20 @@ export class AiStore {
     const row = run.rows[0];
     if (!row) return null;
     const turns = await this.pool.query<{ role: 'visitor' | 'assistant'; content: string }>(
-      `SELECT role, content FROM conversation_messages
-       WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
-         AND (role = 'assistant' OR answered_by_run IS NOT NULL)
-       ORDER BY created_at ASC, id ASC LIMIT 30`,
+      `SELECT role, content FROM (
+         SELECT role, content, created_at, id FROM conversation_messages
+         WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
+           AND (role = 'assistant' OR answered_by_run IS NOT NULL)
+         ORDER BY created_at DESC, id DESC LIMIT 30
+       ) recent ORDER BY created_at ASC, id ASC`,
       [row.conversation_id],
     );
+    const action = await this.pool.query<{ catalog_action: unknown }>(
+      `SELECT catalog_action FROM conversation_messages WHERE conversation_id=$1 AND answered_by_run=$2 AND role='visitor'`,
+      [row.conversation_id, row.id],
+    );
     return {
+      ...(action.rows[0]?.catalog_action ? { catalogAction: action.rows[0].catalog_action } : {}),
       conversationId: row.conversation_id,
       runId: row.id,
       operationId: row.operation_id,

@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
+import { PRODUCT_KINDS, isProductCards } from '@vibelingan-channel/ai-contracts';
 import {
   type AiApiErrorCode,
   type AiApiErrorEnvelope,
@@ -154,7 +155,11 @@ export function createAiBffServer(
 
       if (request.method === 'POST' && route.action === 'messages') {
         const body = await readJson(request);
-        if (!isAppendMessageRequest(body) || (v2 && !isOperationKey(body.idempotencyKey))) {
+        if (
+          !isAppendMessageRequest(body) ||
+          (v2 && !isOperationKey(body.idempotencyKey)) ||
+          (!v2 && isAppendMessageRequest(body) && body.catalogAction !== undefined)
+        ) {
           error(response, 400, 'BAD_REQUEST', 'Invalid message request', requestId);
           return;
         }
@@ -165,7 +170,7 @@ export function createAiBffServer(
           engineId: config.engineId,
           engineVersion: config.engineVersion,
           ...(config.engineProvenance ? { provenance: config.engineProvenance } : {}),
-          ...(v2 ? { strictReplay: true } : {}),
+          ...(v2 ? { strictReplay: true, catalogAction: body.catalogAction } : {}),
         });
         const payload: AppendMessageResponse = {
           messageId: accepted.messageId,
@@ -397,6 +402,7 @@ async function streamEvents(
       const publicEvent = turn
         ? {
             ...toPublicEvent(event),
+            ...(event.type === 'final' ? productFields(event.payload) : {}),
             protocolVersion: 2,
             conversationId,
             messageId: turn.messageId,
@@ -594,4 +600,32 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } catch (error) {
     if (!stopping.signal.aborted) throw error;
   }
+}
+
+function productFields(payload: Record<string, unknown>) {
+  // Rebuild cards explicitly: a valid shape does not authorize additional fields.
+  const products = isProductCards(payload.products)
+    ? payload.products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        summary: p.summary,
+        revision: p.revision,
+        href: p.href,
+        ...(p.imageUrl ? { imageUrl: p.imageUrl } : {}),
+        ...(p.retrievedAt ? { retrievedAt: p.retrievedAt } : {}),
+      }))
+    : undefined;
+  const unavailableProductIds =
+    Array.isArray(payload.unavailableProductIds) &&
+    payload.unavailableProductIds.length <= 2 &&
+    payload.unavailableProductIds.every(
+      (id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id),
+    )
+      ? payload.unavailableProductIds
+      : undefined;
+  return {
+    ...(products ? { products } : {}),
+    ...(PRODUCT_KINDS.some((kind) => kind === payload.kind) ? { kind: payload.kind } : {}),
+    ...(unavailableProductIds ? { unavailableProductIds } : {}),
+  };
 }
