@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { assertArchiveLifecycle, createPrivateArchive } from './release/private-archive.mjs';
-const policy = { envId: 'fixture-env', region: 'ap-shanghai' };
+const policy = { envId: 'fixture-env', region: 'ap-shanghai', archiveBucket: 'fixture-bucket' };
 function setup() {
   const objects = new Map();
   const calls = [];
@@ -41,7 +41,7 @@ function setup() {
   };
   return { sdk, manager, put, read, objects, calls, readLifecycle: async () => ({ Rules: [] }) };
 }
-test('server-owned content keys use the verified raw PUT contract and check all readback bytes', async () => {
+test('archive objects retain CloudBase identity and require complete readback bytes', async () => {
   const x = setup();
   const archive = createPrivateArchive({ ...x, policy });
   const ref = await archive.put(Buffer.from('program bytes'));
@@ -177,4 +177,19 @@ test('large immutable archives get a bounded transfer budget without leaking err
   assert.equal(JSON.stringify(failures).includes('never-log-this'), false);
   assert.equal(JSON.stringify(failures).includes('NEVERLOGTHISCODE'), false);
   assert.equal(failures[0].cause, 'unconfirmed');
+});
+
+test('another bucket under the same environment is rejected before any permission query', async () => {
+  const x = setup();
+  const original = x.sdk.getUploadMetadata;
+  x.sdk.getUploadMetadata = async (input) => {
+    const result = await original(input);
+    result.data.fileId = result.data.fileId.replace('fixture-bucket/', 'another-bucket/');
+    return result;
+  };
+  await assert.rejects(
+    createPrivateArchive({ ...x, policy }).put(Buffer.from('bytes')),
+    /Wrong archive bucket/,
+  );
+  assert.equal(x.calls.length, 0);
 });

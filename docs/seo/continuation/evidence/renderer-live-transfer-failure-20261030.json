@@ -1,0 +1,52 @@
+{
+  "conclusion": "failure",
+  "headSha": "4e14d975ea995f0f11af3cd6e775070c9367ac22",
+  "jobs": [
+    {
+      "name": "renderer_archive",
+      "status": "completed",
+      "conclusion": "failure",
+      "startedAt": "2026-10-30T02:23:34Z",
+      "completedAt": "2026-10-30T02:29:17Z"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/vibelingan/channel/actions/runs/40991401564",
+  "transfers": [
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 556,
+      "sha256": "3c7b3f7ee0afd3099a6bf40c6003047fef2a08649ffae1fd361e80128a613797",
+      "elapsedMs": 962,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 556,
+      "sha256": "3c7b3f7ee0afd3099a6bf40c6003047fef2a08649ffae1fd361e80128a613797",
+      "elapsedMs": 1217,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 46710341,
+      "sha256": "e95ddd08573862a1616e8b00facd30073691b4beba104f45a85cf669ca4cedc9",
+      "elapsedMs": 300001,
+      "outcome": "unconfirmed",
+      "cause": "timeout"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 46710341,
+      "sha256": "e95ddd08573862a1616e8b00facd30073691b4beba104f45a85cf669ca4cedc9",
+      "elapsedMs": 859,
+      "outcome": "unconfirmed",
+      "cause": "unavailable"
+    }
+  ],
+  "websiteWrites": 0
+}

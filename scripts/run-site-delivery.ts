@@ -27,6 +27,7 @@ import { activateCatalogRenderer } from './release/catalog-activation.mjs';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
+import { createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
 import { sha256 } from './release/input.mjs';
 import { readObject } from './release/input.mjs';
@@ -93,8 +94,12 @@ const archiveCos = new COS({
   SecretId: env.TENCENTCLOUD_SECRETID,
   SecretKey: env.TENCENTCLOUD_SECRETKEY,
   Timeout: 15000,
+  ChunkParallelLimit: 3,
+  FileParallelLimit: 1,
+  ChunkRetryTimes: 1,
 });
 const objects = createPrivateArchive({
+  ...createCosArchiveTransfer({ cos: archiveCos, policy }),
   sdk,
   manager,
   policy,

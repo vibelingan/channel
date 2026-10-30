@@ -1,8 +1,4 @@
-import { readCloudBaseBytes } from '../../packages/media-storage/src/cloudbase-get.ts';
-import {
-  checkedUploadUrl,
-  putCloudBaseBytes,
-} from '../../packages/media-storage/src/cloudbase-put.ts';
+import { checkedUploadUrl } from '../../packages/media-storage/src/cloudbase-put.ts';
 import { mintCloudBaseUploadCredential } from '../../packages/media-storage/src/cloudbase.ts';
 import { sha256 } from './input.mjs';
 const limit = 128 * 1024 * 1024;
@@ -13,10 +9,14 @@ export function createPrivateArchive({
   manager,
   policy,
   readLifecycle,
-  put = putCloudBaseBytes,
-  read = readCloudBaseBytes,
+  put,
+  read,
   onTransfer = (_event) => {},
 }) {
+  if (typeof put !== 'function' || typeof read !== 'function')
+    throw Error('An explicit verified archive transport is required');
+  if (!/^[-a-z0-9]+$/.test(policy.archiveBucket ?? ''))
+    throw Error('The exact private archive bucket is required');
   const target = async (ref) => {
     if (
       !ref ||
@@ -40,6 +40,8 @@ export function createPrivateArchive({
       path !== `seo-recovery/objects/${ref.sha256}.bin`
     )
       throw Error('Archive object escapes its content key');
+    if (bucket !== policy.archiveBucket)
+      throw Error('Wrong archive bucket; no other resource was queried');
     const result = await manager.permission.describeResourcePermission({
       resourceType: 'storage',
       resources: [bucket],
@@ -148,6 +150,8 @@ export function assertArchiveLifecycle(result, path) {
 function safeArchiveError(error) {
   if (['timeout', 'unavailable', 'too-large'].includes(error?.reason)) return error.reason;
   if (/upload timed out$/.test(error?.message ?? '')) return 'timeout';
+  if (Number.isSafeInteger(error?.statusCode) && error.statusCode >= 100 && error.statusCode <= 599)
+    return `http-${error.statusCode}`;
   const status = /unconfirmed upload \(HTTP ([1-5][0-9]{2})\)/.exec(error?.message ?? '')?.[1];
   if (status) return `http-${status}`;
   if (
