@@ -70,3 +70,9 @@
 下一段仍按原 MIU：真实模型的规划效果验收；MIU 8a／6d 的客户核对、联系方式、同意和正式询盘唯一保存入口，随后才是事件触发 Sales。Resend 密钥不会阻挡官网这些代码的继续开发，邮件实际接入和真实发信另做验收。
 
 最后复跑时系统盘发生 ENOSPC，已将本轮测试临时目录改到 Lexar 后完成复跑，未清理其他工作树或项目文件。
+
+## 负责人操作说明修订
+
+按用户反馈，将 `RESEND-OWNER-SETUP.zh-CN.md` 收敛为一条顺序：客户创建专用 Key → 在本机加密 → 交加密文件给 Sean。删除 Invite 与密钥交接并列的写法；不再让负责人处理 Webhook 事件和技术命令。此前本节所述的长版操作内容已被该短版取代。
+
+核对了官网实际 HTML 的 mailto 链接、`apps/site/src/i18n/content/en-US.md`、`apps/site/src/layouts/BaseLayout.astro`，三者均为 `sales@supplychainsai.com`；这只能确认公开联系地址，不能证明 Resend 已授权该发件身份。另核对 Resend 官方密钥管理与权限文档。具体措辞从“选一种安全交接方式”改为“请创建一把接入专用 API Key，加密后交给 Sean”，并明确技术人员邀请邮箱与测试收件邮箱不是同一用途。仅修改文档，没有修改邮箱配置或发信。
