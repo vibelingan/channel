@@ -17,7 +17,8 @@
     "./cloudbase": "./src/cloudbase-adapter.ts",
     "./sales-inquiry-source": "./src/sales-inquiry-source.ts",
     "./sales-inquiry-read": "./src/sales-inquiry-read.ts",
-    "./sales-inquiry-submission": "./src/sales-inquiry-submission.ts"
+    "./sales-inquiry-submission": "./src/sales-inquiry-submission.ts",
+    "./assistant-inquiry": "./src/assistant-inquiry.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",
@@ -28,7 +29,8 @@
     "@vibelingan-channel/shared": "workspace:*",
     "wx-server-sdk": "4.0.2",
     "zod": "^3.24.1",
-    "@vibelingan-channel/sales-contracts": "workspace:*"
+    "@vibelingan-channel/sales-contracts": "workspace:*",
+    "@vibelingan-channel/ai-contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

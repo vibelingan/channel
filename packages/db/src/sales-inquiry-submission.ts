@@ -214,9 +214,12 @@ export interface VerifiedOemClaim {
   checksumSha256: string;
   mimeType: string;
 }
+export class AssistantInquiryConflict extends Error {}
 export interface FinalizedSalesOemInput {
   projectId: string;
   projectData: Record<string, unknown>;
+  /** Internal assistant path only: freezes one confirmed submission for safe retries. */
+  assistantFingerprint?: string;
   claim?: VerifiedOemClaim;
 }
 export async function saveFinalizedOemInCloud(
@@ -231,7 +234,23 @@ export async function saveFinalizedOemInCloud(
       normalizeSalesSdkDocument(await tx.collection(collection).doc(id).get(), id);
     const install = await read('channelSalesInstallations', scope.source_installation_id);
     assertSalesInstallation(install?.record, scope);
-    if (await read('oemProjects', input.projectId)) throw new Error('OEM identity already exists');
+    const existing = await read('oemProjects', input.projectId);
+    if (existing) {
+      if (
+        input.assistantFingerprint &&
+        /^[a-f0-9]{64}$/.test(input.assistantFingerprint) &&
+        existing.client_id === scope.client_id &&
+        existing.business_line === scope.business_line &&
+        existing.source_installation_id === scope.source_installation_id &&
+        existing.assistantSubmission &&
+        typeof existing.assistantSubmission === 'object' &&
+        Reflect.get(existing.assistantSubmission, 'fingerprint') === input.assistantFingerprint &&
+        existing.salesSubmissionState === 'finalized'
+      )
+        return existing;
+      if (input.assistantFingerprint) throw new AssistantInquiryConflict('Submission changed');
+      throw new Error('OEM identity already exists');
+    }
     const drawing = input.claim?.fileId ?? '';
     let file: CollectionDoc | null = null;
     if (input.claim) {

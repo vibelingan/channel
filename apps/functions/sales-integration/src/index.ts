@@ -1,3 +1,6 @@
+import { createAssistantIntake } from './assistant-intake.ts';
+import { createAssistantInquiryStore } from '@vibelingan-channel/db/assistant-inquiry';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { createPermitClient } from './permit-client.ts';
 import { setAdapter } from '@vibelingan-channel/db';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
@@ -28,6 +31,13 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
   if (storageHosts.some((host) => !/^[a-z0-9.-]+$/.test(host)))
     throw new Error('Invalid SALES_STORAGE_HOSTS');
   if (!['test', 'production'].includes(environment)) throw new Error('Invalid SALES_ENVIRONMENT');
+  if (
+    process.env.SALES_ASSISTANT_INTAKE_ENABLED === '1' &&
+    [process.env.SALES_SOURCE_GRANT_TOKEN, process.env.SALES_HERMES_AUTH_TOKEN].includes(
+      required('SALES_ASSISTANT_INTAKE_TOKEN'),
+    )
+  )
+    throw new Error('Assistant credential must be dedicated');
   const permitClient = createPermitClient(
     required('SALES_HERMES_AUTH_URL'),
     required('SALES_HERMES_AUTH_TOKEN'),
@@ -42,6 +52,36 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
     installation_id: installationId,
     environment: environment === 'test' ? 'test' : 'production',
     cloud_env_id: envId,
+    ...(process.env.SALES_ASSISTANT_INTAKE_ENABLED === '1'
+      ? {
+          assistantIntake: createAssistantIntake(
+            createAssistantInquiryStore(
+              cloudStorageSdk().database(),
+              (() => {
+                const scope = salesCaptureFromEnv(process.env);
+                if (!scope) throw new Error('Assistant intake requires sales source capture');
+                return scope;
+              })(),
+              async (id) => {
+                if (process.env.CATALOG_DETAIL_APPROVAL_ENABLED !== '1')
+                  throw new Error('Approved product reader not enabled');
+                const result = await getProductDetail(id, 1, 1);
+                if (!result.ok) {
+                  if (result.error.code === 'NOT_FOUND') return null;
+                  throw new Error('Public product unavailable');
+                }
+                if (!result.data.revision) throw new Error('Public revision missing');
+                return {
+                  productId: id,
+                  productName: result.data.name,
+                  revision: result.data.revision,
+                };
+              },
+            ),
+            required('SALES_ASSISTANT_INTAKE_TOKEN'),
+          ),
+        }
+      : {}),
     ...(process.env.SALES_SOURCE_GRANTS_ENABLED === '1'
       ? {
           sourceGrants: {

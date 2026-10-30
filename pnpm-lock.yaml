@@ -447,6 +447,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@vibelingan-channel/ai-contracts':
+        specifier: workspace:*
+        version: link:../ai-contracts
       '@cloudbase/node-sdk':
         specifier: 3.17.2
         version: 3.17.2
@@ -535,6 +538,9 @@ importers:
 
   apps/functions/sales-integration:
     dependencies:
+      '@vibelingan-channel/ai-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/ai-contracts
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db

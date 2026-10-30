@@ -1,3 +1,4 @@
+import { AssistantInquirySummary } from './AssistantInquirySummary';
 import { useQuery } from '@tanstack/react-query';
 import {
   type CollectionDef,
@@ -335,6 +336,9 @@ export function RecordForm({
           data-record-form-body
           className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
         >
+          {collection.name === 'oemProjects' && (
+            <AssistantInquirySummary value={initial?.assistantSubmission} />
+          )}
           {sections.length > 0 ? (
             <div className="grid min-w-0 gap-6 lg:grid-cols-2">
               {sectionColumns

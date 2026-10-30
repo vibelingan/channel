@@ -18,7 +18,8 @@
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@vibelingan-channel/ai-contracts": "workspace:*"
   },
   "devDependencies": {
     "@vibelingan-channel/auth": "workspace:*",

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "frozen submission fingerprint",
+    "baseline": "passed",
+    "mutation": "killed"
+  },
+  {
+    "name": "active installation on recovery",
+    "baseline": "passed",
+    "mutation": "killed"
+  },
+  {
+    "name": "atomic delivery registration",
+    "baseline": "passed",
+    "mutation": "killed"
+  },
+  {
+    "name": "dedicated intake credential",
+    "baseline": "passed",
+    "mutation": "killed"
+  }
+]

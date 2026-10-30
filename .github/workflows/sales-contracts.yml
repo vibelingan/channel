@@ -4,8 +4,11 @@ on:
   push:
     branches: [feat/sales-agent-modular-design, feat/sales-agent-integration]
     paths:
+      - 'packages/ai-contracts/**'
       - 'packages/sales-contracts/**'
       - 'apps/functions/sales-integration/**'
+      - 'apps/site/src/islands/admin/AssistantInquirySummary*'
+      - 'apps/site/src/islands/admin/RecordForm.tsx'
       - 'packages/db/**'
       - 'apps/functions/admin/**'
       - 'apps/functions/public-api/**'
@@ -14,8 +17,11 @@ on:
       - '.github/workflows/sales-contracts.yml'
   pull_request:
     paths:
+      - 'packages/ai-contracts/**'
       - 'packages/sales-contracts/**'
       - 'apps/functions/sales-integration/**'
+      - 'apps/site/src/islands/admin/AssistantInquirySummary*'
+      - 'apps/site/src/islands/admin/RecordForm.tsx'
       - 'packages/db/**'
       - 'apps/functions/admin/**'
       - 'apps/functions/public-api/**'
@@ -60,8 +66,10 @@ jobs:
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:task-conformance
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration typecheck
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration test
+      - run: pnpm --filter @vibelingan-channel/site exec tsx --test src/islands/admin/AssistantInquirySummary.test.ts
       - name: Prove source and delivery tests detect broken guards
         run: |
+          node apps/functions/sales-integration/scripts/check-assistant-inquiry-defects.mjs
           pnpm --filter @vibelingan-channel/fn-sales-integration test:source-grant-defects
           node apps/functions/sales-integration/scripts/check-website-delivery-defects.mjs --output docs/sales-agent/evidence/SG1.2-delivery-defects-ci
       - name: Preserve website submission and persistence behavior

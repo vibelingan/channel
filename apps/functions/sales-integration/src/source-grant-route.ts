@@ -9,5 +9,6 @@ export function salesPath(raw: string): string | null {
 }
 
 export function salesBodyLimit(raw: string): number {
+  if (salesPath(raw) === '/assistant-inquiries') return 32768;
   return salesPath(raw) === '/source-grants' ? SOURCE_GRANT_MAX_BYTES : SALES_READ_MAX_BYTES;
 }

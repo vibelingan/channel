@@ -42,6 +42,32 @@ const oemSchema = z.object({
   drawing: z.string().max(200).optional(),
   status: z.enum(['new', 'reviewing', 'quoted', 'closed']),
   createdAt: z.string().datetime(),
+  assistantSubmission: z
+    .object({
+      fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      conversationId: z.string().uuid(),
+      submissionKey: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/),
+      requirement: z.string().min(1).max(4000),
+      consentVersion: z.literal('inquiry-contact-v1'),
+      consentedAt: z.string().datetime(),
+      productReference: z
+        .object({
+          requestedId: recordId,
+          queriedAt: z.string().datetime(),
+          current: z
+            .object({
+              productId: recordId,
+              productName: z.string().min(1).max(500),
+              revision: z.string().min(1).max(200),
+            })
+            .strict()
+            .nullable(),
+        })
+        .strict()
+        .optional(),
+    })
+    .strict()
+    .optional(),
 });
 const fileSchema = z.object({
   _id: recordId,
@@ -178,6 +204,20 @@ export async function readSalesInquiry(
     category: oem.category ?? '',
     quantity_text: oem.quantity === undefined ? '' : String(oem.quantity),
     whatsapp: oem.whatsapp ?? '',
+    ...(oem.assistantSubmission
+      ? {
+          brief: oem.assistantSubmission.requirement,
+          inquiry_entry: 'assistant',
+          ...(oem.assistantSubmission.productReference
+            ? {
+                requested_product_id: oem.assistantSubmission.productReference.requestedId,
+                product_available_at_submission:
+                  oem.assistantSubmission.productReference.current !== null,
+                product_reference: oem.assistantSubmission.productReference,
+              }
+            : {}),
+        }
+      : {}),
   };
   const revision = hashCanonicalJson({
     id,
@@ -217,6 +257,14 @@ export async function readSalesInquiry(
       record_status: oem.status,
       contact,
       requirements,
+      ...(oem.assistantSubmission?.productReference?.current
+        ? {
+            product_snapshot: {
+              ...oem.assistantSubmission.productReference.current,
+              queriedAt: oem.assistantSubmission.productReference.queriedAt,
+            },
+          }
+        : {}),
       assets,
     },
     ...(file ? { file } : {}),
@@ -244,7 +292,8 @@ export function canonicalInquiryEvent(owner: InquiryOwner, view: InquiryView): I
     business_line: owner.business_line,
     source_installation_id: owner.source_installation_id,
   };
-  const text = view.kind === 'oem' ? view.requirements.category : view.requirements.brief;
+  const text =
+    view.requirements.brief ?? (view.kind === 'oem' ? view.requirements.category : undefined);
   const snapshot = view.product_snapshot;
   const name =
     snapshot && typeof snapshot === 'object' && 'productName' in snapshot
@@ -282,8 +331,7 @@ export function canonicalInquiryEvent(owner: InquiryOwner, view: InquiryView): I
       confirmed_summary: summary,
       ...(quantity === undefined ? {} : { quantity }),
     },
-    product_snapshot_refs:
-      view.kind === 'product' ? [`snapshot:${hashCanonicalJson(snapshot)}`] : [],
+    product_snapshot_refs: snapshot ? [`snapshot:${hashCanonicalJson(snapshot)}`] : [],
     attachment_refs: view.assets.map((asset) => asset.ref),
   });
 }
