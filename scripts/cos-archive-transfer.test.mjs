@@ -73,6 +73,7 @@ test('native multipart upload keeps the CloudBase file metadata and writes only 
   assert.equal(p.Key, key);
   assert.equal(p.SliceSize, 1048576);
   assert.equal(p.ChunkSize, 1048576);
+  assert.equal(p.AsyncLimit, 8);
   assert.deepEqual(p.Headers, { 'x-cos-meta-fileid': 'native-file-meta' });
   assert.equal(p.ACL, undefined);
   assert.deepEqual(x.files.get(key), body);

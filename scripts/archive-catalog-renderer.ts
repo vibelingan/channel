@@ -6,7 +6,7 @@ import COS from 'cos-nodejs-sdk-v5';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { packCatalogRenderer } from './release/catalog-renderer.mjs';
-import { createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 import { createGithubReadClient } from './release/github-read.mjs';
 import { sha256 } from './release/input.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
@@ -63,10 +63,7 @@ const db = sdk.database();
 const archiveCos = new COS({
   SecretId: env.TENCENTCLOUD_SECRETID,
   SecretKey: env.TENCENTCLOUD_SECRETKEY,
-  Timeout: 15000,
-  ChunkParallelLimit: 3,
-  FileParallelLimit: 1,
-  ChunkRetryTimes: 1,
+  ...ARCHIVE_COS_OPTIONS,
 });
 const objects = createPrivateArchive({
   ...createCosArchiveTransfer({

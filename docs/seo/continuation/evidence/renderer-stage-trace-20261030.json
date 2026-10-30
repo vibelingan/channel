@@ -1,0 +1,442 @@
+{
+  "runId": "40998863863",
+  "codeSha": "d2205a1f76da41f9644cf7e284c0b51f60fe19fc",
+  "conclusion": "failure",
+  "totalBytes": 46718878,
+  "maximumSdkReportedBytes": 44236800,
+  "sdkStages": {
+    "task-ready": 1,
+    "task-started": 1,
+    "multipart-list": 1,
+    "multipart-initialize": 1,
+    "uploading": 19,
+    "multipart-part": 44,
+    "deadline": 1
+  },
+  "events": [
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-ready",
+      "totalBytes": 556
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-started",
+      "totalBytes": 556
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 556,
+      "loadedBytes": 0
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "object-request",
+      "totalBytes": 556
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 556,
+      "loadedBytes": 556
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 556,
+      "sha256": "87ea883722a0d62efbd87d88291c0a49e592b2fc51353ea04af3da3f53667c97",
+      "elapsedMs": 329,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 556,
+      "sha256": "87ea883722a0d62efbd87d88291c0a49e592b2fc51353ea04af3da3f53667c97",
+      "elapsedMs": 1051,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-ready",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-started",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-list",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-initialize",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 0
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 3670016
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 5177344
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 7471104
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 9961472
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 12189696
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 13893632
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 16384000
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 18874368
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 21430272
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 24576000
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 27000832
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 29229056
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 31391744
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 33554432
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 36044800
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 38666240
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 40763392
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718878,
+      "loadedBytes": 44236800
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "deadline",
+      "totalBytes": 46718878
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 46718878,
+      "sha256": "66547510a12437aaa4263ad8c65773eebec800d07ce538d83962b1f6a695c240",
+      "elapsedMs": 300017,
+      "outcome": "unconfirmed",
+      "cause": "ETIMEDOUT"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 46718878,
+      "sha256": "66547510a12437aaa4263ad8c65773eebec800d07ce538d83962b1f6a695c240",
+      "elapsedMs": 282,
+      "outcome": "unconfirmed",
+      "cause": "http-404"
+    }
+  ],
+  "websiteWrites": 0,
+  "approvedProgramRegistered": false,
+  "interpretation": "Control operations completed and upload kept progressing until the 300-second deadline. SDK-reported bytes do not prove server acceptance or completed multipart merge.",
+  "nextValidation": "Eight bounded upload parts; first verify a new content key with no previous multipart upload. A resumed historical package is reported separately."
+}

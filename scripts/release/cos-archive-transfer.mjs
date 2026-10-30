@@ -3,6 +3,13 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+export const ARCHIVE_COS_OPTIONS = Object.freeze({
+  Timeout: 15000,
+  ChunkParallelLimit: 8,
+  FileParallelLimit: 1,
+  ChunkRetryTimes: 1,
+});
+
 /** Official SDK multipart/range transfers; the caller still checks private ACL, lifecycle and full SHA-256. */
 export function createCosArchiveTransfer({ cos, policy, onStatus = (_event) => {} }) {
   if (!policy.archiveBucket || !policy.archiveBucket.includes(policy.envId))
@@ -45,6 +52,7 @@ export function createCosArchiveTransfer({ cos, policy, onStatus = (_event) => {
                 FilePath,
                 SliceSize: 1024 * 1024,
                 ChunkSize: 1024 * 1024,
+                AsyncLimit: ARCHIVE_COS_OPTIONS.ChunkParallelLimit,
                 Headers: { 'x-cos-meta-fileid': fileId },
                 ContentType: 'application/octet-stream',
                 CacheControl: 'private, no-store',

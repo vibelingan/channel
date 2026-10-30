@@ -9,15 +9,22 @@ import test from 'node:test';
 import { createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 
 // The real SDK handles task queues, HTTP bodies, multipart XML and Range writes. Only the COS server is local.
-test('the actual COS client uploads a small object, reads it, then completes a multipart archive and range read', async () => {
+test('the actual COS client uploads a small object, reads it, then completes a multipart archive and range read', async (t) => {
   const require = createRequire(import.meta.url);
   const COS = require('cos-nodejs-sdk-v5');
   const objects = new Map();
   const parts = new Map();
   const calls = [];
+  let activeParts = 0;
+  let maximumActiveParts = 0;
   const directory = await mkdtemp(join(tmpdir(), 'archive-cos-network-'));
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    const partUpload = req.method === 'PUT' && url.searchParams.has('partNumber');
+    if (partUpload) {
+      activeParts++;
+      maximumActiveParts = Math.max(maximumActiveParts, activeParts);
+    }
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = Buffer.concat(chunks);
@@ -36,6 +43,9 @@ test('the actual COS client uploads a small object, reads it, then completes a m
       );
     if (req.method === 'PUT' && url.searchParams.has('partNumber')) {
       parts.set(Number(url.searchParams.get('partNumber')), body);
+      // Hold replies briefly so the real client's parallel request limit is observable.
+      await new Promise((done) => setTimeout(done, 100));
+      activeParts--;
       res.setHeader('etag', `"${createHash('md5').update(body).digest('hex')}"`);
       return res.end();
     }
@@ -104,7 +114,7 @@ test('the actual COS client uploads a small object, reads it, then completes a m
   });
   try {
     const small = Buffer.from('small');
-    const large = Buffer.alloc(2 * 1024 * 1024 + 23, 7);
+    const large = Buffer.alloc(8 * 1024 * 1024 + 23, 7);
     await transfer.put(credential('a'), small, { uploadTimeoutMs: 4000 });
     assert.deepEqual(
       await transfer.read(null, credential('a').storageFileId, {
@@ -123,11 +133,16 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     );
     assert.equal(
       calls.filter((call) => call.method === 'PUT' && call.query.includes('partNumber')).length,
-      3,
+      9,
     );
     assert.equal(
       calls.filter((call) => call.method === 'POST' && call.query.includes('uploadId')).length,
       1,
+    );
+    t.diagnostic(JSON.stringify({ bytes: large.length, maximumActiveParts }));
+    assert.ok(
+      maximumActiveParts > 3 && maximumActiveParts <= 8,
+      `Expected 4–8 overlapping parts, got ${maximumActiveParts}`,
     );
     assert.equal(
       cos.getTaskList().every((task) => task.state === 'success'),
