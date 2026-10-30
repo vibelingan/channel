@@ -32,6 +32,12 @@ BFF 与浏览器分别检查回执中的会话和提交身份。即使聊天凭�
 
 官方事务参考：[CloudBase 事务操作](https://docs.cloudbase.net/database/transaction)。源码路径：`packages/db/src/assistant-inquiry.ts`、`sales-inquiry-submission.ts`、`sales-inquiry-source.ts`、`apps/functions/sales-integration/src/assistant-intake.ts`、`index.ts`。
 
+## 提交和远端检查
+
+Channel 保存端代码 `68bab6024488f58a29dd7d0eb0ceaeed103290c9` 已推送 `feat/sales-agent-integration`，[Sales CI](https://github.com/vibelingan/channel/actions/runs/41079101819) 通过。UI／BFF 接线代码 `cfa445e55dc84ee8cde2bea7281f86bdc4956f95` 已推送 `feat/website-assistant-ui-foundation`，[聊天联调](https://github.com/vibelingan/channel/actions/runs/41080160394) 和 [组件状态](https://github.com/vibelingan/channel/actions/runs/41080160693) CI 均通过。随后仅补交付文档，没有新增运行变更。
+
+网页本地 24 项浏览器联调、运行层 90 项、站点 1,497 项（另跳过 1 项）通过；Astro 构建通过。运行包检查发现 worker 漏打包合同，已在 UI 分支修正，BFF／worker 独立 Node 22 和最小 Linux 容器均冷加载通过。完整 Dockerfile 构建在依赖下载阶段失败，该完整构建仍未通过；不把最小容器验证称为完整镜像或线上验收。
+
 ## 配置与下一步
 
 默认关闭。正式接入需要：Channel 同时开启 `SALES_INTEGRATION_ENABLED`、`SALES_SOURCE_CAPTURE_ENABLED`、`SALES_ASSISTANT_INTAKE_ENABLED`；设置不同于 source-grant／Hermes 凭据的 `SALES_ASSISTANT_INTAKE_TOKEN`；沿用当前客户、安装、环境和 cutover 配置。涉及产品的提交还需批准目录读取开关。原安装必须已经登记 active；不新建业务集合。
