@@ -13,6 +13,7 @@ import {
   isOperationKey,
   isUuid,
 } from '@vibelingan-channel/ai-contracts';
+import { isInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import {
   type EngineProvenance,
   provenanceFromEnv,
@@ -23,6 +24,11 @@ import {
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
+import {
+  type InquiryClient,
+  InquirySubmissionChanged,
+  createInquiryClient,
+} from './inquiry-client.ts';
 
 export interface AiBffConfig {
   allowedOrigins: ReadonlySet<string>;
@@ -41,6 +47,7 @@ export interface AiBffConfig {
 }
 
 export interface AiBffServerOptions {
+  inquiryClient?: InquiryClient;
   /**
    * False while startup is still waiting for the database. Until then every
    * route except liveness answers 503, so a visitor gets "try again shortly"
@@ -150,6 +157,41 @@ export function createAiBffServer(
       }
       if (!(await authorizeConversation(request, store, route.conversationId))) {
         error(response, 401, 'UNAUTHORIZED', 'Conversation credential is invalid', requestId);
+        return;
+      }
+
+      if (v2 && request.method === 'POST' && route.action === 'inquiries') {
+        if (!options.inquiryClient) {
+          error(response, 404, 'NOT_FOUND', 'Inquiry submission is not enabled', requestId);
+          return;
+        }
+        const body = await readJson(request, 32768);
+        if (!isInquirySubmission(body)) {
+          error(
+            response,
+            400,
+            'BAD_REQUEST',
+            'Confirm the inquiry details and contact permission',
+            requestId,
+          );
+          return;
+        }
+        try {
+          const receipt = await options.inquiryClient.submit({
+            schemaVersion: '1',
+            conversationId: route.conversationId,
+            submission: body,
+          });
+          json(response, 200, receipt);
+        } catch (e) {
+          error(
+            response,
+            e instanceof InquirySubmissionChanged ? 409 : 503,
+            e instanceof InquirySubmissionChanged ? 'CONFLICT' : 'UNAVAILABLE',
+            'The original inquiry result could not be confirmed',
+            requestId,
+          );
+        }
         return;
       }
 
@@ -337,7 +379,7 @@ function hashCredential(token: string): string {
 
 function conversationRoute(pathname: string): {
   conversationId: string;
-  action: 'messages' | 'cancel' | 'events' | 'turn' | 'turn_cancel';
+  action: 'messages' | 'cancel' | 'events' | 'turn' | 'turn_cancel' | 'inquiries';
   operationKey?: string;
 } | null {
   const turn = pathname.match(
@@ -350,19 +392,22 @@ function conversationRoute(pathname: string): {
       action: turn[3] ? 'turn_cancel' : 'turn',
     };
   const match = pathname.match(
-    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events)$/,
+    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events|inquiries)$/,
   );
   if (!match?.[1] || !match[2]) return null;
-  return { conversationId: match[1], action: match[2] as 'messages' | 'cancel' | 'events' };
+  return {
+    conversationId: match[1],
+    action: match[2] as 'messages' | 'cancel' | 'events' | 'inquiries',
+  };
 }
 
-async function readJson(request: IncomingMessage): Promise<unknown> {
+async function readJson(request: IncomingMessage, maxBytes = 16384): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 16_384) throw new Error('body_too_large');
+    if (size > maxBytes) throw new Error('body_too_large');
     chunks.push(buffer);
   }
   try {
@@ -574,7 +619,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // instead of a refused connection, for as long as the outage lasts.
   let ready = false;
   const stopping = new AbortController();
-  const server = createAiBffServer(store, config, { isReady: () => ready });
+  const server = createAiBffServer(store, config, {
+    isReady: () => ready,
+    ...(process.env.AI_INQUIRY_ENABLED === '1'
+      ? {
+          inquiryClient: createInquiryClient(
+            process.env.AI_INQUIRY_BASE_URL ?? '',
+            process.env.AI_INQUIRY_TOKEN ?? '',
+          ),
+        }
+      : {}),
+  });
   const port = numberEnv('PORT', 8080);
   server.listen(port, '0.0.0.0', () => {
     console.log(JSON.stringify({ level: 'info', event: 'listening', port }));

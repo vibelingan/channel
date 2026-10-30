@@ -3,27 +3,46 @@ import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import { isChatTurnV2 } from '@vibelingan-channel/ai-contracts';
+import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import { createAiBffServer } from './server.ts';
+const saved: InternalInquirySubmission[] = [];
 const url = process.env.DATABASE_URL;
 const Store = process.env.AI_TEST_STORE_MODULE
   ? ((await import(process.env.AI_TEST_STORE_MODULE)).AiStore as typeof AiStore)
   : AiStore;
 const store = url ? new Store(url) : null;
 const server = store
-  ? createAiBffServer(store, {
-      allowedOrigins: new Set(['http://127.0.0.1:62058']),
-      credentialTtlSeconds: 600,
-      engineId: 'fake',
-      engineVersion: '0.1.0',
-      globalRequestsPerMinute: 10000,
-      ipRequestsPerMinute: 10000,
-      ipHashSecret: randomUUID(),
-      trustProxy: false,
-      ssePollMs: 2,
-      sseHeartbeatMs: 10,
-      sseMaxDurationMs: 40,
-    })
+  ? createAiBffServer(
+      store,
+      {
+        allowedOrigins: new Set(['http://127.0.0.1:62058']),
+        credentialTtlSeconds: 600,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+        globalRequestsPerMinute: 10000,
+        ipRequestsPerMinute: 10000,
+        ipHashSecret: randomUUID(),
+        trustProxy: false,
+        ssePollMs: 2,
+        sseHeartbeatMs: 10,
+        sseMaxDurationMs: 40,
+      },
+      {
+        inquiryClient: {
+          async submit(input) {
+            saved.push(input);
+            return {
+              schemaVersion: '1',
+              conversationId: input.conversationId,
+              submissionKey: input.submission.submissionKey,
+              reference: `ai_${'a'.repeat(64)}`,
+              submittedAt: new Date().toISOString(),
+            };
+          },
+        },
+      },
+    )
   : null;
 let base = '';
 before(async () => {
@@ -272,5 +291,43 @@ test(
       }),
     });
     assert.equal(rejected.status, 400);
+  },
+);
+
+test(
+  'inquiry submission is credential scoped, confirmed and kept out of model history',
+  { skip },
+  async () => {
+    const c = await conversation();
+    const submission = {
+      submissionKey: randomUUID(),
+      requirement: '500 headphones',
+      name: 'Buyer',
+      email: 'buyer@example.invalid',
+      company: '',
+      consent: true,
+      consentVersion: 'inquiry-contact-v1',
+    };
+    const n = saved.length;
+    const foreign = await conversation();
+    assert.equal(
+      (await request({ ...c, credential: foreign.credential }, 'inquiries', submission)).status,
+      401,
+    );
+    assert.equal((await request(c, 'inquiries', { ...submission, consent: false })).status, 400);
+    assert.equal((await request(c, 'inquiries', { ...submission, client_id: 'b' })).status, 400);
+    assert.equal(saved.length, n);
+    const r = await request(c, 'inquiries', submission);
+    assert.equal(r.status, 200);
+    const receipt = (await r.json()) as { conversationId: string; submissionKey: string };
+    assert.equal(receipt.conversationId, c.conversationId);
+    assert.equal(receipt.submissionKey, submission.submissionKey);
+    assert.equal(saved.at(-1)?.conversationId, c.conversationId);
+    assert.ok(store);
+    const messages = await store.pool.query(
+      'SELECT content FROM conversation_messages WHERE conversation_id=$1',
+      [c.conversationId],
+    );
+    assert.equal(messages.rows.length, 0);
   },
 );

@@ -18,7 +18,7 @@ test('actual components communicate with BFF, database and worker across two tur
   page,
 }) => {
   await expect(page.getByRole('button', { name: 'Restore conversation' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Prepare inquiry', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Prepare inquiry', exact: true })).toBeVisible();
   await send(page, 'A product question');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   await expect(page.locator('[data-message-role="assistant"]')).toContainText(
@@ -95,7 +95,7 @@ test('public HTTP products render images, compare, refresh and withdraw consiste
     'href',
     '/products/item/?id=demo-1',
   );
-  await expect(cards.getByRole('button', { name: 'Prepare inquiry' })).toHaveCount(0);
+  await expect(cards.getByRole('button', { name: 'Prepare inquiry' })).toHaveCount(2);
   await cards.getByRole('button', { name: 'Compare', exact: true }).first().click();
   await cards.getByRole('button', { name: 'Compare', exact: true }).click();
   const comparison = page.getByRole('region', { name: 'Compare options' });
@@ -171,4 +171,90 @@ test('a follow-up uses prior public cards as context and rechecks current catalo
   );
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+});
+
+async function fillInquiry(page: Page) {
+  await page
+    .getByRole('textbox', { name: 'Your requirement' })
+    .fill('We need 500 promotional headphones. Please recommend options.');
+  await page.getByRole('textbox', { name: 'Email *', exact: true }).fill('buyer@example.invalid');
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Local Buyer');
+  await page.getByRole('checkbox').check();
+}
+test('confirmed category inquiry saves once through the actual Channel intake and recovers a lost receipt', async ({
+  page,
+  request,
+}) => {
+  await page.getByRole('button', { name: 'Prepare inquiry', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm & submit' }).click();
+  await expect(page.getByText('Please agree to be contacted')).toBeVisible();
+  await fillInquiry(page);
+  const before = (await (
+    await request.get('http://127.0.0.1:62384/__fixture/state')
+  ).json()) as Record<string, unknown>;
+  const bodies: string[] = [];
+  await page.route('**/api/ai/v2/conversations/*/inquiries', async (route) => {
+    const body = route.request().postData();
+    if (!body) throw new Error('Missing inquiry request body');
+    bodies.push(body);
+    const response = await route.fetch();
+    if (bodies.length === 1) {
+      expect(response.status()).toBe(200);
+      await response.dispose();
+      await route.abort('connectionreset');
+    } else await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Confirm & submit' }).click();
+  await expect(page.getByText('We have not confirmed the result.')).toBeVisible();
+  await page.getByRole('button', { name: 'Check original submission' }).click();
+  await expect(page.getByLabel('Inquiry receipt')).toContainText('Your inquiry is recorded');
+  expect(bodies).toHaveLength(2);
+  expect(bodies[0]).toBe(bodies[1]);
+  const after = (await (
+    await request.get('http://127.0.0.1:62384/__fixture/state')
+  ).json()) as Record<string, unknown>;
+  const newKeys = Object.keys(after).filter((k) => !Object.hasOwn(before, k));
+  expect(newKeys.filter((k) => k.startsWith('oemProjects/'))).toHaveLength(1);
+  expect(newKeys.filter((k) => k.startsWith('channelSalesSourceRegistrations/'))).toHaveLength(1);
+  expect(newKeys.filter((k) => k.startsWith('channelSalesSourceDeliveries/'))).toHaveLength(1);
+  await page
+    .getByRole('dialog')
+    .screenshot({ path: `output/assistant-chat/inquiry-${test.info().project.name}.png` });
+});
+test('product-card inquiry sends only its ID and preserves current public evidence', async ({
+  page,
+  request,
+}) => {
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page
+    .locator('[data-message-role="assistant"]')
+    .last()
+    .getByRole('button', { name: 'Prepare inquiry', exact: true })
+    .first()
+    .click();
+  await fillInquiry(page);
+  await page.getByRole('button', { name: 'Confirm & submit' }).click();
+  const receipt = page.getByLabel('Inquiry receipt');
+  await expect(receipt).toContainText('Your inquiry is recorded');
+  const text = await receipt.innerText();
+  const id = /ai_[a-f0-9]{64}/.exec(text)?.[0];
+  if (!id) throw new Error('Missing saved inquiry reference');
+  const rows = (await (
+    await request.get('http://127.0.0.1:62384/__fixture/state')
+  ).json()) as Record<
+    string,
+    {
+      assistantSubmission: {
+        productReference: { requestedId: string; current: { productName: string } };
+      };
+    }
+  >;
+  expect(rows[`oemProjects/${id}`]?.assistantSubmission.productReference.requestedId).toBe(
+    'demo-1',
+  );
+  expect(rows[`oemProjects/${id}`]?.assistantSubmission.productReference.current.productName).toBe(
+    'Everyday wireless headphones',
+  );
 });

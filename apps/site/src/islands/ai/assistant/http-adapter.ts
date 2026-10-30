@@ -4,16 +4,24 @@ import {
   isChatTurnV2,
   isUuid,
 } from '@vibelingan-channel/ai-contracts';
+import {
+  INQUIRY_CONSENT_VERSION,
+  isInquirySubmissionReceipt,
+} from '@vibelingan-channel/ai-contracts/inquiry';
 import type { AssistantAdapter, TurnEvent, TurnRequest } from './model';
 import { AssistantTransportError } from './transport-error';
 
-/** One mounted conversation; no browser storage, history restore, or inquiry submission. */
+/** One mounted conversation; credentials stay in memory. */
 export function createHttpAssistantAdapter(
   baseUrl: string,
   requestFetch: typeof fetch = fetch,
 ): AssistantAdapter {
   const base = `${baseUrl.replace(/\/$/, '')}/api/ai/v2`;
   let credentials: Promise<{ conversationId: string; credential: string }> | undefined;
+  const submissions = new Map<
+    string,
+    { conversationId: string; credential: string; body: string }
+  >();
   let current:
     | { request: TurnRequest; emit: (e: TurnEvent) => void; turn: ChatTurnV2; cursor: number }
     | undefined;
@@ -224,8 +232,43 @@ export function createHttpAssistantAdapter(
     async restore() {
       throw new Error('History restore is not enabled');
     },
-    async submitInquiry() {
-      throw new Error('Inquiry submission is not enabled');
+    async submitInquiry(draft, submissionKey, signal) {
+      const body = {
+        submissionKey,
+        requirement: draft.requirement.trim(),
+        name: draft.name.trim(),
+        email: draft.email.trim(),
+        company: draft.company.trim(),
+        consent: draft.consent,
+        consentVersion: INQUIRY_CONSENT_VERSION,
+        ...(draft.product ? { productId: draft.product.id } : {}),
+      };
+      let original = submissions.get(submissionKey);
+      if (!original) {
+        const identity = await auth(signal);
+        original = { ...identity, body: JSON.stringify(body) };
+        submissions.set(submissionKey, original);
+      }
+      if (original.body !== JSON.stringify(body))
+        throw new AssistantTransportError(
+          'Check the original inquiry before starting another one.',
+        );
+      const response = await checked(
+        `${base}/conversations/${original.conversationId}/inquiries`,
+        signal,
+        original.credential,
+        body,
+      );
+      const receipt: unknown = await response.json();
+      if (
+        !isInquirySubmissionReceipt(receipt) ||
+        receipt.conversationId !== original.conversationId ||
+        receipt.submissionKey !== submissionKey
+      )
+        throw new AssistantTransportError(
+          'The inquiry receipt could not be verified. Check the original submission.',
+        );
+      return { reference: receipt.reference };
     },
   };
 }

@@ -7,6 +7,7 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   noExternal: [
+    '@vibelingan-channel/ai-contracts',
     '@vibelingan-channel/ai-engine',
     '@vibelingan-channel/ai-engine-anythingllm',
     '@vibelingan-channel/ai-policy',

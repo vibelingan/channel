@@ -94,3 +94,52 @@ test('HTTP adapter rejects a foreign terminal event before it can change the ans
   );
   assert.equal(events.length, 0);
 });
+
+test('inquiry retries freeze the form and bind receipt to the original conversation even after credential expiry', async () => {
+  const conversationId = randomUUID();
+  let auths = 0;
+  let posts = 0;
+  const sent: string[] = [];
+  let mode = 'lost';
+  const key = randomUUID();
+  const draft = {
+    requirement: '500 gifts',
+    name: '',
+    email: 'buyer@example.invalid',
+    company: '',
+    consent: true,
+  };
+  const api: typeof fetch = async (url, init) => {
+    if (String(url).endsWith('/conversations')) {
+      auths++;
+      return Response.json({ conversationId, credential: 't'.repeat(40) });
+    }
+    posts++;
+    sent.push(String(init?.body));
+    if (mode === 'lost') throw new Error('Lost after commit');
+    if (mode === 'expired') return new Response('', { status: 401 });
+    return Response.json({
+      schemaVersion: '1',
+      conversationId: mode === 'foreign' ? randomUUID() : conversationId,
+      submissionKey: key,
+      reference: `ai_${'a'.repeat(64)}`,
+      submittedAt: new Date().toISOString(),
+    });
+  };
+  const adapter = createHttpAssistantAdapter('', api);
+  const signal = new AbortController().signal;
+  await assert.rejects(adapter.submitInquiry(draft, key, signal));
+  mode = 'foreign';
+  await assert.rejects(adapter.submitInquiry(draft, key, signal));
+  mode = 'expired';
+  await assert.rejects(adapter.submitInquiry(draft, key, signal));
+  mode = 'ok';
+  assert.deepEqual(await adapter.submitInquiry(draft, key, signal), {
+    reference: `ai_${'a'.repeat(64)}`,
+  });
+  assert.equal(auths, 1);
+  assert.equal(new Set(sent).size, 1);
+  const before = posts;
+  await assert.rejects(adapter.submitInquiry({ ...draft, requirement: 'changed' }, key, signal));
+  assert.equal(posts, before);
+});

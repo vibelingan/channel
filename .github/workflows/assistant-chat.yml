@@ -30,8 +30,16 @@ jobs:
       CI: 'true'
       DATABASE_URL: postgres://ai:ai@127.0.0.1:5432/chat_test
       CHAT_TEST_DATABASE_URL: postgres://ai:ai@127.0.0.1:5432/chat_test
+      ASSISTANT_SALES_SOURCE_ROOT: ${{ github.workspace }}/.assistant-sales-source
     steps:
       - uses: actions/checkout@v4
+      - name: Read the reviewed Channel inquiry implementation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: 68bab6024488f58a29dd7d0eb0ceaeed103290c9
+          path: .assistant-sales-source
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 11.5.0
@@ -41,6 +49,8 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install the pinned intake and database implementation
+        run: pnpm --dir .assistant-sales-source --filter @vibelingan-channel/fn-sales-integration... install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - name: Validate contracts and service types
         run: |

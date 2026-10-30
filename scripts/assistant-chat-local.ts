@@ -1,6 +1,11 @@
+import { spawn } from 'node:child_process';
 /** Local acceptance runtime: real database/BFF/worker; deterministic model only. */
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createInquiryClient } from '../apps/ai-bff/src/inquiry-client.ts';
 import { createAiBffServer } from '../apps/ai-bff/src/server.ts';
 import { PublicCatalog } from '../apps/ai-worker/src/product-workflow.ts';
 import { processOne } from '../apps/ai-worker/src/worker.ts';
@@ -9,6 +14,51 @@ import { AiStore, migrateUp } from '../packages/ai-store/src/index.ts';
 const database = process.env.CHAT_TEST_DATABASE_URL;
 if (!database || !['127.0.0.1', 'localhost'].includes(new URL(database).hostname))
   throw new Error('CHAT_TEST_DATABASE_URL must identify an isolated local database');
+const salesRoot = process.env.ASSISTANT_SALES_SOURCE_ROOT;
+if (!salesRoot)
+  throw new Error(
+    'Set ASSISTANT_SALES_SOURCE_ROOT to the verified sales-integration checkout for inquiry E2E',
+  );
+const fixtureDir = await mkdtemp(join(tmpdir(), 'assistant-inquiry-'));
+const fixtureId = randomUUID();
+const fixtureToken = randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '');
+const intake = spawn(
+  process.execPath,
+  [
+    join(salesRoot, 'node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/cli.mjs'),
+    join(salesRoot, 'apps/functions/sales-integration/scripts/assistant-inquiry-fixture.mts'),
+  ],
+  {
+    env: {
+      ...process.env,
+      ASSISTANT_FIXTURE_ID: fixtureId,
+      ASSISTANT_FIXTURE_TOKEN: fixtureToken,
+      ASSISTANT_FIXTURE_FILE: join(fixtureDir, 'records.json'),
+    },
+    stdio: 'inherit',
+  },
+);
+const intakeDone = new Promise<void>((resolve) => intake.once('close', () => resolve()));
+let fixtureError: Error | undefined;
+intake.on('error', (e) => {
+  fixtureError = e;
+});
+for (let tries = 0; ; tries++) {
+  if (fixtureError || intake.exitCode !== null)
+    throw fixtureError ?? new Error('Inquiry fixture exited before startup');
+  try {
+    const r = await fetch('http://127.0.0.1:62384/__fixture/ready', {
+      headers: { Authorization: `Bearer ${fixtureToken}` },
+      signal: AbortSignal.timeout(500),
+    });
+    if (r.ok && ((await r.json()) as { fixtureId?: string }).fixtureId === fixtureId) break;
+  } catch {}
+  if (tries > 100) {
+    intake.kill('SIGTERM');
+    throw new Error('Inquiry fixture did not start');
+  }
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
 const store = new AiStore(database);
 await migrateUp(store.pool);
 const runCatalog = new Map<
@@ -149,22 +199,26 @@ engine.streamRun = async function* (handle, signal) {
     ],
   };
 };
-const server = createAiBffServer(store, {
-  allowedOrigins: new Set(['http://127.0.0.1:62058']),
-  credentialTtlSeconds: 3600,
-  engineId: 'fake',
-  engineVersion: '0.1.0',
-  globalRequestsPerMinute: 10000,
-  ipRequestsPerMinute: 10000,
-  ipHashSecret: randomUUID(),
-  trustProxy: false,
-  ssePollMs: 30,
-  sseHeartbeatMs: 1000,
-  sseMaxDurationMs: 30000,
-});
+const server = createAiBffServer(
+  store,
+  {
+    allowedOrigins: new Set(['http://127.0.0.1:62058']),
+    credentialTtlSeconds: 3600,
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+    globalRequestsPerMinute: 10000,
+    ipRequestsPerMinute: 10000,
+    ipHashSecret: randomUUID(),
+    trustProxy: false,
+    ssePollMs: 30,
+    sseHeartbeatMs: 1000,
+    sseMaxDurationMs: 30000,
+  },
+  { inquiryClient: createInquiryClient('http://127.0.0.1:62384', fixtureToken, fetch, true) },
+);
 await new Promise<void>((resolve) => server.listen(62382, '127.0.0.1', resolve));
 console.log(
-  'LOCAL TEST ENGINE ONLY. BFF on 127.0.0.1:62382; no outbound model, email, or inquiry requests.',
+  'LOCAL TEST ENGINE ONLY. BFF on 127.0.0.1:62382; local inquiry HTTP on 62384 uses actual Channel intake/save with a local transaction substitute; no outbound model or email.',
 );
 let stopping = false;
 const loop = (async () => {
@@ -193,6 +247,9 @@ async function shutdown() {
   await new Promise<void>((resolve) => catalogServer.close(() => resolve()));
   await loop;
   await store.close();
+  intake.kill('SIGTERM');
+  await intakeDone;
+  await rm(fixtureDir, { recursive: true });
 }
 process.once('SIGTERM', () => void shutdown());
 process.once('SIGINT', () => void shutdown());

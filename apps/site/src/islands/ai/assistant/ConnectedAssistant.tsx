@@ -5,7 +5,8 @@ import { initialAssistantState } from './state';
 export function ConnectedAssistant({
   baseUrl,
   initialOpen = false,
-}: { baseUrl?: string; initialOpen?: boolean }) {
+  inquiries = import.meta.env.PUBLIC_AI_INQUIRIES === '1',
+}: { baseUrl?: string; initialOpen?: boolean; inquiries?: boolean }) {
   const [adapter] = useState(() =>
     createHttpAssistantAdapter(baseUrl ?? import.meta.env.PUBLIC_AI_API_BASE_URL ?? ''),
   );
@@ -16,7 +17,7 @@ export function ConnectedAssistant({
     <AssistantExperience
       adapter={adapter}
       seed={seed}
-      capabilities={{ history: false, inquiries: false }}
+      capabilities={{ history: false, inquiries }}
     />
   );
 }
