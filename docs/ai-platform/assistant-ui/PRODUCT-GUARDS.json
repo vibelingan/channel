@@ -1,0 +1,48 @@
+{
+  "scope": "Targeted defects in disposable copies; excludes live provider and production security claims",
+  "source_commit": "8a9129fbe6b908d346e3116303394688ddd5d491",
+  "checks": [
+    {
+      "name": "latest question retained",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "4ae4febe2ca675cb97f3c3a2efa9927e28786ee638631684ea95b6687fe9ba19",
+      "source_unchanged": true
+    },
+    {
+      "name": "public catalog field projection",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "9267caeee4cbaff00af37813a347a62b042c9a44041b7b250b2c77e61eae8647",
+      "source_unchanged": true
+    },
+    {
+      "name": "typed action replay identity",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "4ae4febe2ca675cb97f3c3a2efa9927e28786ee638631684ea95b6687fe9ba19",
+      "source_unchanged": true
+    },
+    {
+      "name": "cancel version",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "4ae4febe2ca675cb97f3c3a2efa9927e28786ee638631684ea95b6687fe9ba19",
+      "source_unchanged": true
+    },
+    {
+      "name": "event run identity",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "64347777bf6a9ac743a311f9ed4ba606d208e586d2eaff00a332a3a106b20ad4",
+      "source_unchanged": true
+    },
+    {
+      "name": "server stream scope",
+      "baseline": "passed",
+      "mutant": "killed",
+      "source_sha256": "3523f73008d9b65a186d6b8dcd4d776f3bb5a5bcc84efd632d44349f48d9fb37",
+      "source_unchanged": true
+    }
+  ]
+}

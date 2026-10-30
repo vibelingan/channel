@@ -17,6 +17,8 @@
 | 正式询盘保存 | 有前端预览，未接正式保存 | 联调页面继续隐藏提交按钮，避免显示一个实际上不能保存的入口 |
 | 历史恢复 | 前端保留设计样例 | 用户已决定暂不实施；真实接线没有恢复按钮或浏览器持久凭据 |
 
+当前关闭再打开同一页面的助手，内存中的对话保留；刷新页面则新建会话，没有自动恢复。
+
 历史恢复若以后做：记录存在服务器，浏览器只保留会话凭据。清除站点存储、换浏览器／设备、无痕窗口关闭或凭据过期后，都不能据此找回。不能承诺匿名访客有跨设备的账号历史。
 
 ## 原模块编号与实现位置
@@ -43,7 +45,7 @@
 - 缺陷注入：6 处全部被测试抓到，包括新增的最新问题保留、公共字段投影、动作重放身份，以及原取消版本、事件身份、流的任务范围。变异只作用于临时副本，工作树源码未被测试篡改。
 - 类型检查、Astro 检查、公共站点构建、AI 服务构建通过；Astro 为 0 errors、0 warnings、11 hints。公开构建验证了 19 份 HTML、10 个可索引 canonical URL、sitemap 和验证文件；开发预览不进入公开构建。
 
-证据：本地 `output/assistant-chat/`、`output/assistant-ui/`；缺陷注入由 `scripts/verify-chat-slice-guards.mjs` 重跑。CI 自动执行同类检查，远端具体 SHA 结果见提交后的记录。
+证据：本地 `output/assistant-chat/`、`output/assistant-ui/`；缺陷注入由 `scripts/verify-chat-slice-guards.mjs` 重跑。CI 自动执行同类检查。代码提交为 `8a9129fbe6b908d346e3116303394688ddd5d491`；[完整后端与浏览器接线 CI](https://github.com/vibelingan/channel/actions/runs/40995969239) 已通过。[前端回归与构建 CI](https://github.com/vibelingan/channel/actions/runs/40995969342) 也已通过，二者检查的都是上述代码 SHA。定向变异的来源指纹和结果见 [PRODUCT-GUARDS.json](PRODUCT-GUARDS.json)。
 
 ## 两轮复核及修正
 
