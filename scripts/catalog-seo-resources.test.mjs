@@ -53,6 +53,7 @@ test('SEO resources are explicit function-only collections outside the default d
       'catalogSeoPages',
       'catalogSeoControl',
       'catalogSeoBuilders',
+      'catalogSeoWakeups',
     ],
   );
   assert.ok(
@@ -72,6 +73,7 @@ test('SEO resources are explicit function-only collections outside the default d
         'catalogSeoPages',
         'catalogSeoControl',
         'catalogSeoBuilders',
+        'catalogSeoWakeups',
       ].includes(item.collectionName),
     ),
     false,
@@ -88,7 +90,7 @@ test('explicit SEO preparation creates only its collections and verifies permiss
   assert.ok([...current.permissions.values()].every((value) => value === 'ADMINONLY'));
   assert.equal(
     current.calls.filter((item) => item.args.action === 'getResourcePermission').length,
-    12,
+    14,
   );
   assert.ok(
     current.calls.every((item) =>

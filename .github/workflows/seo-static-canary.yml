@@ -1,4 +1,5 @@
 name: SEO static canary (manual)
+run-name: ${{ inputs.reason }}
 
 on:
   workflow_dispatch:
@@ -6,7 +7,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
+        options: [catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
         default: plan
         required: true
       integration_profile:
@@ -20,6 +21,10 @@ on:
         type: choice
         options: [fresh, accepted, refresh]
         default: fresh
+        required: false
+      renderer_sha:
+        description: Approved archived renderer commit; restore rebuilds this program with current content
+        type: string
         required: false
       fault:
         description: Controlled article-only acceptance drill; after-upload requires an exact owned article task ID and intentionally fails before acceptance
@@ -66,6 +71,68 @@ concurrency:
   queue: max
 
 jobs:
+  catalog_clock:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && startsWith(inputs.mode, 'catalog-clock-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CATALOG_CLOCK_ACTION: ${{ inputs.mode == 'catalog-clock-enable' && 'enable' || inputs.mode == 'catalog-clock-disable' && 'disable' || 'stage' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Stage, stop or enable only the owned catalog clock function
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          CATALOG_GITHUB_APP_ID: ${{ vars.CATALOG_GITHUB_APP_ID }}
+          CATALOG_GITHUB_INSTALLATION_ID: ${{ vars.CATALOG_GITHUB_INSTALLATION_ID }}
+          CATALOG_GITHUB_PRIVATE_KEY: ${{ secrets.CATALOG_GITHUB_PRIVATE_KEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/run-catalog-clock.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-clock-receipt-${{ github.run_id }}
+          path: output/catalog-clock/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
+  renderer_archive:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'renderer-archive' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    permissions: {contents: write, actions: read}
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Archive the exact CI-approved program; read back before registering
+        env:
+          SITE_RENDERER_SHA: ${{ inputs.renderer_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/archive-catalog-renderer.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-renderer-receipt-${{ github.run_id }}
+          path: output/catalog-renderer/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
   catalog_probe:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-probe' }}
     uses: ./.github/workflows/seo-catalog-probe.yml
@@ -290,6 +357,7 @@ jobs:
     with:
       action: ${{ inputs.action }}
       product_source: ${{ inputs.product_source }}
+      renderer_sha: ${{ inputs.renderer_sha }}
       fault: ${{ inputs.fault }}
       article_task_id: ${{ inputs.artifact_id }}
       restore_run_id: ${{ inputs.restore_run_id }}

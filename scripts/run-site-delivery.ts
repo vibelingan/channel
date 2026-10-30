@@ -21,6 +21,8 @@ import { blogWorkerSdk } from './blog/worker-source.ts';
 import { guardCatalogHostingAdapters, prepareCatalogRefresh } from './catalog-refresh.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
+import { createRendererSource } from './release/catalog-renderer-source.mjs';
+import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
 import { sha256 } from './release/input.mjs';
 import { readObject } from './release/input.mjs';
@@ -87,10 +89,63 @@ if (env.SITE_PRODUCT_SOURCE === 'refresh' && !catalogConfig)
   throw Error('Enable all product writers before automatic refresh');
 if (catalogConfig && !(await readFunctionRuntimeState(policy.envId, 'admin')).catalogSeoRecording)
   throw Error('The actual admin runtime has not enabled catalog change recording');
-if (catalogConfig && env.SITE_DELIVERY_MODE === 'restore')
+const programRestore = env.SITE_DELIVERY_MODE === 'restore' && Boolean(env.SITE_RENDERER_SHA);
+if (programRestore && (!catalogConfig || env.SITE_PRODUCT_SOURCE !== 'refresh'))
+  throw Error('Program restoration requires current catalog tracking and refresh inputs');
+if (catalogConfig && env.SITE_DELIVERY_MODE === 'restore' && !programRestore)
   throw Error(
     'Historical content restoration is disabled while product recording is enabled; rebuild the approved program with current public data',
   );
+if (env.SITE_PRODUCT_SOURCE === 'refresh' && !programRestore) {
+  let pending = false;
+  for (const collection of ['catalogSeoRequests', 'catalogSeoTasks']) {
+    const result = await db
+      .collection(collection)
+      .where({ siteOrigin: policy.siteOrigin, state: 'pending' })
+      .limit(1)
+      .get();
+    if (!Array.isArray(result.data)) throw Error('Catalog pending queue could not be read');
+    pending ||= result.data.length > 0;
+  }
+  if (!pending) {
+    console.log('No pending product changes. No website writes or build.');
+    process.exit(0);
+  }
+}
+let renderer:
+  | {
+      root: string;
+      proof: {
+        codeSha: string;
+        manifestSha256: string;
+        archiveSha256: string;
+        releaseId: number;
+        inputSchema: number;
+      };
+    }
+  | undefined;
+if (env.SITE_RENDERER_SHA || env.SITE_PRODUCT_SOURCE === 'refresh') {
+  const active = await db.collection('catalogSeoBuilders').doc('active').get();
+  const activeRow = Array.isArray(active.data) ? active.data[0] : active.data;
+  const rendererSha = env.SITE_RENDERER_SHA || activeRow?.codeSha;
+  if (!/^[a-f0-9]{40}$/.test(rendererSha ?? ''))
+    throw Error('An approved renderer SHA is required');
+  const result = await db.collection('catalogSeoBuilders').doc(rendererSha).get();
+  const approved = Array.isArray(result.data) ? result.data[0] : result.data;
+  if (!approved || approved.codeSha !== rendererSha) throw Error('Renderer approval is absent');
+  const source = await createRendererSource({ token: env.GITHUB_TOKEN }).download(approved);
+  const archiveFile = resolve('output/renderer-download.tar.gz');
+  await mkdir(resolve('output'), { recursive: true });
+  await writeFile(archiveFile, source.archive, { flag: 'wx', mode: 0o600 });
+  const rendererRoot = resolve('output/approved-renderer');
+  const proof = unpackCatalogRenderer({
+    manifest: source.manifest,
+    approved,
+    archiveFile,
+    directory: rendererRoot,
+  });
+  renderer = { root: rendererRoot, proof };
+}
 let catalog: Awaited<ReturnType<typeof prepareCatalogRefresh>> | undefined;
 const worker = createCloudBaseArticleReleaseWorker(db);
 const coordinator = createReleaseCoordinator({
@@ -447,7 +502,7 @@ try {
       { flag: 'wx' },
     );
     if (result.status !== 'accepted') throw Error(`Site checkpoint: ${result.status}`);
-  } else if (env.SITE_DELIVERY_MODE === 'restore') {
+  } else if (env.SITE_DELIVERY_MODE === 'restore' && !programRestore) {
     const sourceRunId = env.SITE_RESTORE_RUN_ID ?? '';
     if (!/^[A-Za-z0-9:_-]{1,200}$/.test(sourceRunId))
       throw Error('Exact accepted site run required');
@@ -534,8 +589,12 @@ try {
     if (env.SITE_PRODUCT_SOURCE === 'refresh') {
       if (!catalog || !baseline)
         throw Error('A current accepted snapshot and checked requests are required');
-      if (baseline.envelope.codeSha !== codeSha)
-        throw Error('Content refresh must use the exact accepted website program');
+      if (!renderer) throw Error('Content refresh requires an approved archived renderer');
+      const previousProgram = JSON.parse(
+        readObject(baseline.directory, 'compatibility.json').toString(),
+      ).renderer?.codeSha;
+      if (!programRestore && previousProgram && previousProgram !== renderer.proof.codeSha)
+        throw Error('Automatic content refresh cannot switch the accepted renderer program');
       const heads = catalog.heads.map(
         ({ productId, visible, detailRevision, sequence, semanticHash, changedAt }) => ({
           productId,
@@ -639,13 +698,28 @@ try {
           { flag: 'wx' },
         );
       }
-      const dist = join(root, 'apps/site/.astro/formal-site-delivery/site');
+      const buildRoot = renderer?.root ?? root;
+      if (renderer) {
+        await command(
+          'pnpm',
+          [
+            'install',
+            '--frozen-lockfile',
+            '--ignore-scripts',
+            '--filter',
+            '@vibelingan-channel/site...',
+          ],
+          buildRoot,
+        );
+      }
+      const dist = join(buildRoot, 'apps/site/.astro/formal-site-delivery/site');
       await command(
-        join(root, 'apps/site/node_modules/.bin/astro'),
+        join(buildRoot, 'apps/site/node_modules/.bin/astro'),
         ['build', '--outDir', dist],
-        join(root, 'apps/site'),
+        join(buildRoot, 'apps/site'),
         {
           SEO_CATALOG_SNAPSHOT: productFile,
+          ...(renderer ? { CHANNEL_BUILD_SHA: renderer.proof.codeSha } : {}),
           SEO_BLOG_SNAPSHOT: claim ? '' : blogFile,
           SEO_BLOG_RELEASE_INPUT: claim ? blogFile : '',
           SEO_BLOG_TASK_ID: claim?.task.id ?? '',
@@ -666,6 +740,7 @@ try {
       configuration: await provider.readConfiguration(),
       codeSha,
       releaseId: runId,
+      ...(renderer ? { renderer: renderer.proof } : {}),
       files,
       snapshot: products,
       objectProofs: baseline.staticManifest.entries.flatMap((e: SiteObjectEntry) =>
@@ -734,6 +809,18 @@ try {
     );
     if (catalog && result.status === 'retry-current-data')
       await catalog.delivery.retryKnownFailure();
+    if (renderer && result.status === 'accepted') {
+      await db
+        .collection('catalogSeoBuilders')
+        .doc('active')
+        .set({
+          codeSha: renderer.proof.codeSha,
+          executorSha: codeSha,
+          executorRef: env.GITHUB_REF?.slice(11),
+          acceptedRunId: runId,
+          manifestSha256: renderer.proof.manifestSha256,
+        });
+    }
     if (catalog && result.status === 'accepted') {
       // Unchanged HTML can still acknowledge a checked, identical public version.
       for (let offset = 0; offset < catalog.heads.length; offset += 12) {
@@ -766,6 +853,8 @@ try {
           articleTaskId: claim?.task.id ?? null,
           products: publicProductPaths.length,
           productSource: env.SITE_PRODUCT_SOURCE ?? 'fresh',
+          renderer: renderer?.proof ?? null,
+          programRestore,
         },
         null,
         2,

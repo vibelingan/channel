@@ -65,9 +65,33 @@ jobs:
     name: Verified source and browser checks
     uses: ./.github/workflows/seo-module-1.yml
 
-  deploy:
+  renderer-archive:
     needs: ci
-    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && vars.CATALOG_SEO_RECORDING == '1' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    permissions: {contents: write, actions: read}
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Preserve this approved site program before normal delivery
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/archive-catalog-renderer.ts
+
+  deploy:
+    needs: [ci, renderer-archive]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -94,6 +118,7 @@ jobs:
       BOOTSTRAP_ENABLED: '0'
       CATALOG_RFQ_ENABLED: '1'
       CATALOG_DETAIL_APPROVAL_ENABLED: '1'
+      SITE_RENDERER_SHA: ${{ vars.CATALOG_SEO_RECORDING == '1' && github.sha || '' }}
       CATALOG_SEO_RECORDING: ${{ vars.CATALOG_SEO_RECORDING || '0' }}
       CATALOG_SEO_SITE_ORIGIN: ${{ vars.CATALOG_SEO_SITE_ORIGIN }}
       CATALOG_SEO_PAGE_READINESS: ${{ vars.CATALOG_SEO_PAGE_READINESS || '0' }}

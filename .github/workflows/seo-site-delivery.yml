@@ -4,6 +4,7 @@ on:
     inputs:
       action: {type: string, required: true}
       product_source: {type: string, required: false, default: fresh}
+      renderer_sha: {type: string, required: false, default: ''}
       fault: {type: string, required: false, default: none}
       article_task_id: {type: string, required: false, default: ''}
       restore_run_id: {type: string, required: false, default: ''}
@@ -34,6 +35,7 @@ jobs:
       PUBLIC_CB_PROXY: '0'
       SITE_DELIVERY_CONFIRM: FORMAL_SITE_ONLY
       SITE_DELIVERY_MODE: ${{ inputs.action }}
+      SITE_RENDERER_SHA: ${{ inputs.renderer_sha }}
       SITE_PRODUCT_SOURCE: ${{ inputs.product_source }}
       SITE_DELIVERY_FAULT: ${{ inputs.fault }}
       SITE_ARTICLE_TASK_ID: ${{ inputs.article_task_id }}

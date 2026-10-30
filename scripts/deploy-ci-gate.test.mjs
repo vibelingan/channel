@@ -152,10 +152,22 @@ function assertReleaseGate(ci, release) {
   assert.equal(prerequisite.secrets, undefined, 'code checks do not need deployment secrets');
   assert.equal(prerequisite['continue-on-error'], undefined);
   const deploy = release.jobs.deploy;
-  assert.deepEqual([deploy.needs].flat(), ['ci']);
+  assert.deepEqual([deploy.needs].flat(), ['ci', 'renderer-archive']);
+  const archive = release.jobs['renderer-archive'];
+  assert.equal(archive.needs, 'ci');
+  assert.equal(
+    archive.if,
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && vars.CATALOG_SEO_RECORDING == '1' && github.event.inputs.catalog_acceptance_only != 'true' }}",
+  );
+  assert.deepEqual(archive.permissions, { contents: 'write', actions: 'read' });
+  assert.equal(archive['continue-on-error'], undefined);
+  assert.equal(
+    archive.steps.find((s) => s.uses?.startsWith('actions/checkout@')).with.ref,
+    '${{ github.sha }}',
+  );
   assert.equal(
     deploy.if,
-    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}",
+    "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
   );
   assert.equal(deploy['continue-on-error'], undefined);
   assert.equal(deploy.environment, 'test');
@@ -203,7 +215,12 @@ test('push and manual deployments require same-SHA unit, build and SDK checks', 
   assertReleaseGate(ci, release);
   assert.deepEqual(release.on.push.branches, ['test']);
   assert.ok(Object.hasOwn(release.on, 'workflow_dispatch'));
-  assert.deepEqual(Object.keys(release.jobs).sort(), ['catalog-acceptance', 'ci', 'deploy']);
+  assert.deepEqual(Object.keys(release.jobs).sort(), [
+    'catalog-acceptance',
+    'ci',
+    'deploy',
+    'renderer-archive',
+  ]);
 });
 
 test('browser component units retain both required engines in the site unit group', () => {
@@ -297,6 +314,12 @@ test('release guard detects missing dependencies, success bypass, moving refs an
   const release = workflow('deploy-test');
   assertReleaseGate(ci, release);
   for (const mutate of [
+    (_ci, candidate) => {
+      candidate.jobs['renderer-archive'].needs = undefined;
+    },
+    (_ci, candidate) => {
+      candidate.jobs['renderer-archive'].if = '${{ always() }}';
+    },
     (_ci, candidate) => {
       candidate.jobs.deploy.needs = undefined;
     },

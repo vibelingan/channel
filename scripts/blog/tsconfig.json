@@ -12,6 +12,8 @@
     "./*.ts",
     "../run-site-delivery.ts",
     "../catalog-refresh.ts",
+    "../archive-catalog-renderer.ts",
+    "../run-catalog-clock.ts",
     "../run-catalog-seo-probe.ts"
   ]
 }

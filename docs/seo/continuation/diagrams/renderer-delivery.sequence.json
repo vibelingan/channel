@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品自动更新与程序恢复：目标时序",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1080,
+      690
+    ],
+    "animation": "none"
+  },
+  "participants": [
+    {
+      "id": "data",
+      "type": "database",
+      "label": "当前商品资料",
+      "sublabel": "保存和待办同事务"
+    },
+    {
+      "id": "clock",
+      "type": "backend",
+      "label": "腾讯云定时检查",
+      "sublabel": "每分钟；重复通知受控"
+    },
+    {
+      "id": "delivery",
+      "type": "cloud",
+      "label": "GitHub 网页交付",
+      "sublabel": "沿用共享部署队列"
+    },
+    {
+      "id": "program",
+      "type": "external",
+      "label": "固定程序归档",
+      "sublabel": "已批准提交和校验值"
+    },
+    {
+      "id": "website",
+      "type": "frontend",
+      "label": "访客与搜索引擎",
+      "sublabel": "访问同一份正文 HTML"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step-1",
+      "from": "data",
+      "to": "clock",
+      "y": 160,
+      "label": "公开变更留下待办",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-2",
+      "from": "clock",
+      "to": "delivery",
+      "y": 192,
+      "label": "有待办才通知，重复触发先查队列",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-3",
+      "from": "delivery",
+      "to": "program",
+      "y": 226,
+      "label": "核对归档程序、锁文件和版本",
+      "variant": "security"
+    },
+    {
+      "id": "step-4",
+      "from": "program",
+      "to": "delivery",
+      "y": 260,
+      "label": "返回固定程序，不携带旧业务数据",
+      "variant": "return"
+    },
+    {
+      "id": "step-5",
+      "from": "delivery",
+      "to": "data",
+      "y": 294,
+      "label": "合并待办，读取当前公开商品资料",
+      "variant": "default"
+    },
+    {
+      "id": "step-6",
+      "from": "data",
+      "to": "delivery",
+      "y": 328,
+      "label": "返回当前版本，复用未变化的详情",
+      "variant": "return"
+    },
+    {
+      "id": "step-7",
+      "from": "delivery",
+      "to": "website",
+      "y": 362,
+      "label": "生成 HTML、地图，按差异交付",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-8",
+      "from": "website",
+      "to": "delivery",
+      "y": 396,
+      "label": "验证 HTTP、正文、缓存和浏览器刷新",
+      "variant": "return"
+    },
+    {
+      "id": "step-9",
+      "from": "delivery",
+      "to": "data",
+      "y": 430,
+      "label": "验收后记录页面已更新，切换程序指针",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-10",
+      "from": "delivery",
+      "to": "program",
+      "y": 464,
+      "label": "恢复时指定已批准的旧程序",
+      "variant": "security"
+    },
+    {
+      "id": "step-11",
+      "from": "delivery",
+      "to": "data",
+      "y": 498,
+      "label": "恢复仍读取当前商品，不恢复数据库",
+      "variant": "default"
+    },
+    {
+      "id": "step-12",
+      "from": "delivery",
+      "to": "website",
+      "y": 532,
+      "label": "重新生成并验收；未知写入先查清",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "交付边界",
+      "items": [
+        "Blog 仍实时返回当前公开文章，不参加商品定时构建",
+        "本图说明目标机制；本地、CI、部署、现场验收分别记账"
+      ]
+    }
+  ]
+}

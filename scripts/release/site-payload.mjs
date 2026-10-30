@@ -19,6 +19,9 @@ export function createSitePayload({
   files,
   snapshot,
   blogDelivery = 'static',
+  renderer = /** @type {null | {codeSha:string,manifestSha256:string,archiveSha256:string,releaseId:number,inputSchema:number}} */ (
+    null
+  ),
   objectProofs = /** @type {{path:string,bytes:number,sha256:string,etag:string,lastModified:string}[]} */ ([]),
   now = Date.now(),
 }) {
@@ -78,6 +81,16 @@ export function createSitePayload({
   };
   data.set('static-manifest.json', Buffer.from(JSON.stringify(manifest)));
   data.set('product-snapshot.json', Buffer.from(JSON.stringify(snapshot)));
+  if (
+    renderer &&
+    (!/^[a-f0-9]{40}$/.test(renderer.codeSha) ||
+      !/^[a-f0-9]{64}$/.test(renderer.manifestSha256) ||
+      !/^[a-f0-9]{64}$/.test(renderer.archiveSha256) ||
+      !Number.isSafeInteger(renderer.releaseId) ||
+      renderer.releaseId < 1 ||
+      renderer.inputSchema !== 1)
+  )
+    throw Error('Invalid archived renderer identity');
   const compatibility = Buffer.from(
     JSON.stringify({
       schemaVersion: 1,
@@ -85,6 +98,7 @@ export function createSitePayload({
       codeSha,
       functions: 'unchanged',
       database: 'unchanged',
+      ...(renderer ? { renderer } : {}),
     }),
   );
   data.set('compatibility.json', compatibility);

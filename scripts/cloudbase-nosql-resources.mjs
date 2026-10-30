@@ -48,6 +48,11 @@ export const REQUIRED_NOSQL_RESOURCES = [
     collectionName: 'catalogDetailVariants',
     permission: 'ADMINONLY',
     indexes: [
+      index('approved_variant_id', [
+        ['productId', '1'],
+        ['catalogDetailRevision', '1'],
+        ['_id', '1'],
+      ]),
       index('approved_variant_page', [
         ['productId', '1'],
         ['catalogDetailRevision', '1'],
@@ -62,6 +67,10 @@ export const REQUIRED_NOSQL_RESOURCES = [
     collectionName: 'productVariants',
     permission: 'ADMINONLY',
     indexes: [
+      index('variant_product_id', [
+        ['productId', '1'],
+        ['_id', '1'],
+      ]),
       index('variant_product_position', [
         ['productId', '1'],
         ['position', '1'],
@@ -149,6 +158,10 @@ export const REQUIRED_NOSQL_RESOURCES = [
     collectionName: 'products',
     permission: 'ADMINONLY',
     indexes: [
+      index('product_family_id', [
+        ['productFamily', '1'],
+        ['_id', '1'],
+      ]),
       index('product_alibaba_review_queue', [
         ['alibabaReviewPending', '-1'],
         ['createdAt', '-1'],

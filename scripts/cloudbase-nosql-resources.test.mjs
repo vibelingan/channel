@@ -109,6 +109,11 @@ test('staged approvals are private and immutable snapshot paging has a declared 
       [
         { Name: 'productId', Direction: '1' },
         { Name: 'catalogDetailRevision', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'catalogDetailRevision', Direction: '1' },
         { Name: 'catalogDetailPosition', Direction: '1' },
         { Name: '_id', Direction: '1' },
       ],
@@ -123,6 +128,10 @@ test('legacy product reads require the private variants collection even before a
   assert.deepEqual(
     resource.indexes.map((i) => i.MgoKeySchema.MgoIndexKeys),
     [
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
       [
         { Name: 'productId', Direction: '1' },
         { Name: 'position', Direction: '1' },
@@ -172,7 +181,12 @@ test('stable public variant sorting adds its index without replacing the existin
       input: {
         action: 'updateCollection',
         collectionName: 'productVariants',
-        updateOptions: { CreateIndexes: [added] },
+        updateOptions: {
+          CreateIndexes: [
+            resource.indexes.find((i) => i.IndexName === 'variant_product_id'),
+            added,
+          ],
+        },
       },
     },
   ]);
@@ -271,10 +285,11 @@ test('products declares review queues and the public family pagination index', (
   );
   assert.ok(resource);
   assert.equal(resource.permission, 'ADMINONLY');
-  assert.equal(resource.indexes.length, 3);
+  assert.equal(resource.indexes.length, 4);
   assert.deepEqual(
     resource.indexes.map((candidate) => candidate.IndexName),
     [
+      'product_family_id',
       'product_alibaba_review_queue',
       'product_family_alibaba_review_queue',
       'product_family_public_page',
@@ -286,6 +301,7 @@ test('products declares review queues and the public family pagination index', (
       candidate.MgoKeySchema.MgoIndexKeys.map(({ Name, Direction }) => `${Name}:${Direction}`),
     ),
     [
+      ['productFamily:1', '_id:1'],
       ['alibabaReviewPending:-1', 'createdAt:-1'],
       ['productFamily:1', 'alibabaReviewPending:-1', 'createdAt:-1'],
       ['productFamily:1', 'published:1', 'archived:1', '_id:1'],
