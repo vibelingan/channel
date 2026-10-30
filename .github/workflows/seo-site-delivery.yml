@@ -23,7 +23,7 @@ jobs:
     environment: test
     env:
       CI: 'true'
-      CATALOG_SEO_RECORDING: ${{ vars.CATALOG_SEO_RECORDING || '0' }}
+      CATALOG_SEO_RECORDING: ${{ (inputs.catalog_bootstrap || inputs.product_source == 'refresh') && '1' || vars.CATALOG_SEO_RECORDING || '0' }}
       CATALOG_SEO_SITE_ORIGIN: ${{ vars.SITE_URL }}
       CATALOG_DETAIL_APPROVAL_ENABLED: ${{ vars.CATALOG_DETAIL_APPROVAL_ENABLED || '1' }}
       BLOG_SERVER_ENABLED: ${{ vars.BLOG_SERVER_ENABLED || '0' }}

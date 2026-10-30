@@ -13,8 +13,8 @@
     {
       "id": "delivery",
       "type": "cloud",
-      "label": "受控上线入口",
-      "sublabel": "沿用共享部署队列"
+      "label": "GitHub 人工发布",
+      "sublabel": "按队列一次执行一项"
     },
     {
       "id": "backup",
@@ -32,7 +32,7 @@
       "id": "html",
       "type": "frontend",
       "label": "商品页面 HTML",
-      "sublabel": "内容始终读取当前数据"
+      "sublabel": "构建时读取当前商品"
     }
   ],
   "messages": [
