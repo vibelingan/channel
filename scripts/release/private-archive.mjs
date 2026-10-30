@@ -150,6 +150,19 @@ function safeArchiveError(error) {
   if (/upload timed out$/.test(error?.message ?? '')) return 'timeout';
   const status = /unconfirmed upload \(HTTP ([1-5][0-9]{2})\)/.exec(error?.message ?? '')?.[1];
   if (status) return `http-${status}`;
-  if (/^[A-Z][A-Z0-9_]{1,63}$/.test(error?.code ?? '')) return error.code;
+  if (
+    [
+      'ETIMEDOUT',
+      'ECONNRESET',
+      'EPIPE',
+      'ENOTFOUND',
+      'ECONNREFUSED',
+      'EHOSTUNREACH',
+      'ENETUNREACH',
+      'ERR_TLS_CERT_ALTNAME_INVALID',
+      'CERT_HAS_EXPIRED',
+    ].includes(error?.code)
+  )
+    return error.code;
   return 'unconfirmed';
 }

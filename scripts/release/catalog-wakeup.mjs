@@ -12,6 +12,7 @@ export async function wakeCatalog({ store, github, now = Date.now(), nonce = ran
   const active = await store.activeRenderer();
   if (
     !active ||
+    active.catalogTracked !== true ||
     !/^[a-f0-9]{40}$/.test(active.executorSha ?? '') ||
     !/^[a-f0-9]{40}$/.test(active.codeSha ?? '')
   )

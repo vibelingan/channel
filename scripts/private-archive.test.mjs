@@ -163,7 +163,9 @@ test('large immutable archives get a bounded transfer budget without leaking err
   assert.equal(observations.find((e) => e.action === 'read').outcome, 'complete');
   const y = setup();
   y.put = async () => {
-    throw Error('https://private.example/?signature=never-log-this');
+    throw Object.assign(Error('https://private.example/?signature=never-log-this'), {
+      code: 'NEVERLOGTHISCODE',
+    });
   };
   const failures = [];
   await assert.rejects(
@@ -173,5 +175,6 @@ test('large immutable archives get a bounded transfer budget without leaking err
     /needs readback/,
   );
   assert.equal(JSON.stringify(failures).includes('never-log-this'), false);
+  assert.equal(JSON.stringify(failures).includes('NEVERLOGTHISCODE'), false);
   assert.equal(failures[0].cause, 'unconfirmed');
 });

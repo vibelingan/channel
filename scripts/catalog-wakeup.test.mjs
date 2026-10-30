@@ -9,7 +9,7 @@ function fixture() {
     calls,
     store: {
       hasPending: async () => true,
-      activeRenderer: async () => ({ executorSha: sha, codeSha: sha }),
+      activeRenderer: async () => ({ executorSha: sha, codeSha: sha, catalogTracked: true }),
       claim: async () => true,
       finish: async (...v) => calls.push(['finish', ...v]),
     },
@@ -96,4 +96,11 @@ test('foreign run inventory stops dispatch', async () => {
   x.github.runs = async () => [{ repository: { full_name: 'other/repo' } }];
   await assert.rejects(wakeCatalog(x), /foreign/);
   assert.equal(x.calls.length, 0);
+});
+
+test('the timer itself refuses an untracked manual publication', async () => {
+  const x = fixture();
+  x.store.activeRenderer = async () => ({ executorSha: sha, codeSha: sha, catalogTracked: false });
+  assert.equal((await wakeCatalog(x)).status, 'not-configured');
+  assert.deepEqual(x.calls, []);
 });

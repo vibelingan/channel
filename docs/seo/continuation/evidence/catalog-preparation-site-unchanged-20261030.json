@@ -1,0 +1,48 @@
+{
+  "sampledPathsUnchanged": true,
+  "websiteWrites": 0,
+  "before": [
+    {
+      "path": "/",
+      "sha256": "9835addcfcdc08f3dbab4066527f66f33227866646af96724ca4610fde004ac2",
+      "bytes": 101896
+    },
+    {
+      "path": "/headphones/",
+      "sha256": "1b69c103d3cfc30df180338ab0e631305635dc3adbb38dbbc8e181cb49432b14",
+      "bytes": 55919
+    },
+    {
+      "path": "/sitemap-index.xml",
+      "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+      "bytes": 262
+    },
+    {
+      "path": "/sitemap-0.xml",
+      "sha256": "c0322b651f1f7b9c331f5906ff2bec676de15c4946237d716ed1c284f34373be",
+      "bytes": 51989
+    }
+  ],
+  "after": [
+    {
+      "path": "/",
+      "sha256": "9835addcfcdc08f3dbab4066527f66f33227866646af96724ca4610fde004ac2",
+      "bytes": 101896
+    },
+    {
+      "path": "/headphones/",
+      "sha256": "1b69c103d3cfc30df180338ab0e631305635dc3adbb38dbbc8e181cb49432b14",
+      "bytes": 55919
+    },
+    {
+      "path": "/sitemap-index.xml",
+      "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+      "bytes": 262
+    },
+    {
+      "path": "/sitemap-0.xml",
+      "sha256": "c0322b651f1f7b9c331f5906ff2bec676de15c4946237d716ed1c284f34373be",
+      "bytes": 51989
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import { blogWorkerSdk } from './blog/worker-source.ts';
 import { guardCatalogHostingAdapters, prepareCatalogRefresh } from './catalog-refresh.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
+import { activateCatalogRenderer } from './release/catalog-activation.mjs';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
@@ -873,33 +874,39 @@ try {
     );
     if (catalog && result.status === 'retry-current-data')
       await catalog.delivery.retryKnownFailure();
-    if (renderer && result.status === 'accepted') {
-      await db
-        .collection('catalogSeoBuilders')
-        .doc('active')
-        .set({
-          codeSha: renderer.proof.codeSha,
+    if (result.status === 'accepted') {
+      const finishCatalog = catalog
+        ? async () => {
+            if (!catalog) throw Error('Catalog acceptance context changed');
+            // Unchanged HTML can still acknowledge a checked, identical public version.
+            for (let offset = 0; offset < catalog.heads.length; offset += 12) {
+              const batch = catalog.heads.slice(offset, offset + 12);
+              const ticket = await catalog.delivery.begin(batch.map((h) => h.productId));
+              await catalog.delivery.end(ticket, 'verified');
+            }
+            await catalog.delivery.accept(
+              catalog.heads.map((h) => {
+                const path = `${productPath(h.productId).slice(1)}index.html`;
+                const bytes = files.get(path);
+                if (h.visible && !bytes) throw Error('Accepted product HTML is absent');
+                return {
+                  productId: h.productId,
+                  htmlSha256: h.visible && bytes ? sha256(bytes) : null,
+                };
+              }),
+            );
+          }
+        : null;
+      if (renderer)
+        await activateCatalogRenderer({
+          db,
+          proof: renderer.proof,
+          runId,
           executorSha: codeSha,
           executorRef: env.GITHUB_REF?.slice(11),
-          acceptedRunId: runId,
-          manifestSha256: renderer.proof.manifestSha256,
+          finishCatalog,
         });
-    }
-    if (catalog && result.status === 'accepted') {
-      // Unchanged HTML can still acknowledge a checked, identical public version.
-      for (let offset = 0; offset < catalog.heads.length; offset += 12) {
-        const batch = catalog.heads.slice(offset, offset + 12);
-        const ticket = await catalog.delivery.begin(batch.map((h) => h.productId));
-        await catalog.delivery.end(ticket, 'verified');
-      }
-      await catalog.delivery.accept(
-        catalog.heads.map((h) => {
-          const path = `${productPath(h.productId).slice(1)}index.html`;
-          const bytes = files.get(path);
-          if (h.visible && !bytes) throw Error('Accepted product HTML is absent');
-          return { productId: h.productId, htmlSha256: h.visible && bytes ? sha256(bytes) : null };
-        }),
-      );
+      else await finishCatalog?.();
     }
     if (claim) {
       if (result.status === 'accepted' && result.receipt)

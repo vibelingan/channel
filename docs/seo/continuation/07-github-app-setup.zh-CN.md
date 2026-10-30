@@ -42,7 +42,7 @@ SSH 密钥让服务器下载或推送 Git 代码。此次需要的是：腾讯�
 1. 将 App 页面显示的 App ID 添加为环境变量 `CATALOG_GITHUB_APP_ID`。
 2. 从安装详情地址的 `/installations/<数字>` 取得安装 ID，添加为环境变量 `CATALOG_GITHUB_INSTALLATION_ID`。它与 App ID 不是同一个数字。
 3. 将本机私有 JSON 中的 `privateKey` 值添加为环境密钥 `CATALOG_GITHUB_PRIVATE_KEY`。只将 PEM 本身写入密钥，不复制整个 JSON，不贴到群里。
-4. 让部署程序先检查 App 安装所有者、仓库及权限，再运行 `catalog-clock-enable`。此前必须已有通过验收的网页程序和对应接受版本；检查失败就保持关闭。
+4. 让部署程序先检查 App 安装所有者、仓库及权限。若代码提交已变化，先对当前提交运行 `catalog-clock-stage` 保持关闭，再运行 `catalog-clock-enable`。此前必须已有通过验收的网页程序和对应接受版本；检查失败就保持关闭。
 5. 读回函数开启状态、程序提交和唯一的每分钟定时器，再看一次实际商品待办的处理记录。此时才能称自动更新已开启。
 
 也可以由已获得授权的本地 agent 通过 `gh secret set ... --env test` 直接从权限为 0600 的文件读取并设置，避免手工复制。不要在 shell 参数、日志或聊天里显示私钥。账户登录和一次性创建应用仍由账号持有人操作；不需要新增仓库 SSH 公钥。

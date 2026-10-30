@@ -1,0 +1,17 @@
+{
+  "scope": "Mac official-tool transport control; not GitHub renderer acceptance",
+  "codeSha": "9f51aabd6dd4988e8e356d54857e851a65dff465",
+  "bytes": 46709104,
+  "sha256": "7a2c6735e3128379a9947b11ad90877aa8a0d78f00d6f17a4417c09e845419ca",
+  "uploadMs": 32171,
+  "downloadMs": 37636,
+  "fullLocalReadbackMatched": true,
+  "etag": "dffbb6a78e28f7fb8227e482fbf6d1e8-45",
+  "approvedRendererRegistered": false,
+  "websiteWrites": 0,
+  "customerDataWrites": 0,
+  "limits": [
+    "Different execution location and upload transport from the failing GitHub run; does not establish its root cause.",
+    "No private links or credentials included."
+  ]
+}

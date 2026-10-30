@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
+import {
+  assertTrackedCatalogProgram,
+  checkCatalogRuntimeFlags,
+} from './release/catalog-runtime-flags.mjs';
 const config = { siteOrigin: 'https://fixture.example', detailEnabled: true };
 function setup() {
   const records = Object.fromEntries(
@@ -53,4 +56,29 @@ test('approval mode and environment mismatch fail before content delivery', asyn
       /mode differs/,
     );
   }
+});
+
+test('clock activation requires tracked pages and the exact accepted website run', () => {
+  const active = { catalogTracked: true, acceptedRunId: 'site-101-1', codeSha: 'a'.repeat(40) };
+  const baseline = { sourceRunId: 'site-101-1' };
+  assert.doesNotThrow(() => assertTrackedCatalogProgram(active, baseline));
+  for (const wrong of [
+    { ...active, catalogTracked: false },
+    { ...active, acceptedRunId: 'site-100-1' },
+    null,
+  ])
+    assert.throws(() => assertTrackedCatalogProgram(wrong, baseline), /tracked HTML acceptance/);
+});
+
+test('clock enabling also requires the public API readiness switch after bootstrap', async () => {
+  const x = setup();
+  await assert.rejects(
+    checkCatalogRuntimeFlags(x.manager, { ...config, requireReadiness: true }, 'fixture-env'),
+    /readiness has not/,
+  );
+  x.records['public-api'].Environment.Variables.push(
+    { Key: 'CATALOG_SEO_PAGE_READINESS', Value: '1' },
+    { Key: 'CATALOG_SEO_SITE_ORIGIN', Value: config.siteOrigin },
+  );
+  await checkCatalogRuntimeFlags(x.manager, { ...config, requireReadiness: true }, 'fixture-env');
 });

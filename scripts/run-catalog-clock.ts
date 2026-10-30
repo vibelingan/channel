@@ -5,6 +5,10 @@ import { blogWorkerSdk } from './blog/worker-source.ts';
 import { buildCatalogClock } from './catalog-clock-build.mjs';
 import { deployCatalogClock } from './release/catalog-clock-deploy.mjs';
 import { createCatalogGithubApp } from './release/catalog-github-app.mjs';
+import {
+  assertTrackedCatalogProgram,
+  checkCatalogRuntimeFlags,
+} from './release/catalog-runtime-flags.mjs';
 import { createSiteGithubSource } from './release/site-github-source.mjs';
 import { assertCleanAcceptedSite, SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
@@ -51,6 +55,11 @@ if (action === 'enable') {
     installationId: env.CATALOG_GITHUB_INSTALLATION_ID,
     privateKey: env.CATALOG_GITHUB_PRIVATE_KEY,
   };
+  await checkCatalogRuntimeFlags(
+    manager,
+    { siteOrigin: policy.siteOrigin, detailEnabled: true, requireReadiness: true },
+    policy.envId,
+  );
   const github = createCatalogGithubApp(credentials);
   await github.head('feat/seo-foundation');
   const db = blogWorkerSdk({
@@ -67,8 +76,7 @@ if (action === 'enable') {
   );
   const response = await db.collection('catalogSeoBuilders').doc('active').get();
   const active = Array.isArray(response.data) ? response.data[0] : response.data;
-  if (!active || active.acceptedRunId !== baseline.sourceRunId)
-    throw Error('Current HTML has no matching accepted renderer');
+  assertTrackedCatalogProgram(active, baseline);
   accepted = { verified: true, rendererSha: active.codeSha };
 }
 if (action === 'stage') await buildCatalogClock(resolve(directory, 'function'), env.GITHUB_SHA);

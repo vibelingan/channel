@@ -27,7 +27,23 @@ export async function checkCatalogRuntimeFlags(manager, config, envId) {
         flag('CATALOG_SEO_SITE_ORIGIN') !== config.siteOrigin)
     )
       throw Error(`${name}: product change recording has not been enabled for this website`);
+    if (
+      name === 'public-api' &&
+      config.requireReadiness &&
+      (flag('CATALOG_SEO_PAGE_READINESS') !== '1' ||
+        flag('CATALOG_SEO_SITE_ORIGIN') !== config.siteOrigin)
+    )
+      throw Error('public-api: existing product-page readiness has not been enabled');
     results.push({ name, detailEnabled: config.detailEnabled, recording: writers.includes(name) });
   }
   return results;
+}
+
+export function assertTrackedCatalogProgram(active, baseline) {
+  if (
+    active?.catalogTracked !== true ||
+    active.acceptedRunId !== baseline?.sourceRunId ||
+    !/^[a-f0-9]{40}$/.test(active.codeSha ?? '')
+  )
+    throw Error('Existing product pages have not finished tracked HTML acceptance');
 }

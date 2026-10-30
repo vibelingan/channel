@@ -32,7 +32,7 @@ Blog 由文章服务器读取当前公开版本，发布文章不用等待商品
 3. `catalog-clock-stage`：安装独立函数 `catalog-seo-clock`，保持关闭，不加定时器或 HTTP 路由；检查真正运行的程序提交与云端包 hash。
 4. 部署全部实际商品写入程序，并核对配置一致：`admin` 和 `alibaba-catalog-sync` 都记录变化，`public-api` 与构建端使用同一批准详情模式。仅在 GitHub 填开关不算完成。
 5. `catalog-bootstrap`：登记已有网址，首次生成带跟踪版本的 HTML，验收并记录接受版本。已有较新待办、客户内容均保留。
-6. 完成网页程序 A→B→A 的真实交付及恢复验收，再按[授权说明](07-github-app-setup.zh-CN.md)开通仓库专用 GitHub App，最后开启定时通知。
+6. 完成网页程序 A→B→A 的真实交付及恢复验收，确认商品页就绪查询已开启，再按[授权说明](07-github-app-setup.zh-CN.md)开通仓库专用 GitHub App，最后开启定时通知。
 
 准备入口沿用 `.github/workflows/seo-static-canary.yml` 和原 `test` 目标、原共享部署队列。不增加另一个日常网站发布流程，不改 main/test 的代码来抢先注册调度器。
 
@@ -64,3 +64,6 @@ SDK 已核对 manager-node 5.9.1、node-sdk 3.17.2、COS 2.15.4 的实际实现�
 
 
 核对依据：[GitHub 创建 Release 的工作流权限限制](https://docs.github.com/en/rest/releases/releases#create-a-release)、[腾讯云 COS 生命周期读取接口](https://cloud.tencent.com/document/product/436/8278)、[Node.js SDK 生命周期示例](https://cloud.tencent.com/document/product/436/43806)。后两项都是读取配置；本实现不设置或删除生命周期规则。
+
+
+本轮审查补充：只有网页交付和商品页面状态都验收完，才能更新自动通知读取的程序记录，并完整读回该记录。人工完整构建未纳入商品跟踪时，明确记为 `catalogTracked:false`。开启定时通知前还检查全部实际商品写入方、已有页面登记及公开 API 的就绪查询；仅有一份可访问的网页包不足以开启自动通知。
