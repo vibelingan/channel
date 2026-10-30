@@ -11,6 +11,7 @@ export type AssistantAction =
   | { type: 'open'; open: boolean }
   | { type: 'begin'; request: TurnRequest; regenerate?: boolean }
   | { type: 'event'; event: TurnEvent }
+  | { type: 'transport_error'; message: string; retryAt?: number }
   | {
       type:
         | 'resume'
@@ -154,6 +155,21 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
     }
   }
   if (terminal(turn.phase)) return state;
+  if (action.type === 'transport_error')
+    return {
+      ...state,
+      turn: {
+        ...turn,
+        phase:
+          turn.phase === 'stopping' || turn.phase === 'stop_unknown'
+            ? 'stop_unknown'
+            : action.retryAt
+              ? 'rate_limited'
+              : 'failed',
+        detail: action.message,
+        ...(action.retryAt ? { retryAt: action.retryAt } : {}),
+      },
+    };
   switch (action.type) {
     case 'resume':
       return { ...state, turn: { ...turn, phase: 'reconnecting', detail: undefined } };

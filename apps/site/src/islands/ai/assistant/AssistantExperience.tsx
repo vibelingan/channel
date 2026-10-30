@@ -42,7 +42,13 @@ export function AssistantExperience({
   adapter,
   seed,
   preview = false,
-}: { adapter: AssistantAdapter; seed: AssistantSeed; preview?: boolean }) {
+  capabilities = { history: true, inquiries: true },
+}: {
+  adapter: AssistantAdapter;
+  seed: AssistantSeed;
+  preview?: boolean;
+  capabilities?: { history: boolean; inquiries: boolean };
+}) {
   const session = useAssistantSession(adapter, seed);
   const { state, inquiry } = session;
   const [compareIds, setCompareIds] = useState(seed.compareIds ?? []);
@@ -81,20 +87,24 @@ export function AssistantExperience({
       open={state.open}
       onOpenChange={session.setOpen}
       headerActions={
-        <button
-          type="button"
-          aria-label="Restore conversation"
-          title={
-            inquiry.phase === 'editing'
-              ? 'Finish reviewing your inquiry before restoring another conversation'
-              : 'Restore conversation'
-          }
-          disabled={working || blocked || ['editing', 'saving', 'unknown'].includes(inquiry.phase)}
-          onClick={() => void session.restore()}
-          className="min-h-11 min-w-11 rounded-lg text-white disabled:opacity-40"
-        >
-          ↶
-        </button>
+        capabilities.history && (
+          <button
+            type="button"
+            aria-label="Restore conversation"
+            title={
+              inquiry.phase === 'editing'
+                ? 'Finish reviewing your inquiry before restoring another conversation'
+                : 'Restore conversation'
+            }
+            disabled={
+              working || blocked || ['editing', 'saving', 'unknown'].includes(inquiry.phase)
+            }
+            onClick={() => void session.restore()}
+            className="min-h-11 min-w-11 rounded-lg text-white disabled:opacity-40"
+          >
+            ↶
+          </button>
+        )
       }
     >
       {preview && (
@@ -311,7 +321,7 @@ export function AssistantExperience({
               stopping={state.turn?.phase === 'stopping'}
               disabled={blocked || session.retrySeconds > 0}
             />
-            {!blocked && (
+            {!blocked && capabilities.inquiries && (
               <button
                 type="button"
                 onClick={() => session.beginInquiry()}

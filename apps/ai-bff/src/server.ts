@@ -4,10 +4,13 @@ import {
   type AiApiErrorCode,
   type AiApiErrorEnvelope,
   type AppendMessageResponse,
+  type ChatTurnV2,
   type CreateConversationResponse,
   type PublicSseEvent,
   isAppendMessageRequest,
   isCreateConversationRequest,
+  isOperationKey,
+  isUuid,
 } from '@vibelingan-channel/ai-contracts';
 import {
   type EngineProvenance,
@@ -60,6 +63,12 @@ export function createAiBffServer(
       }
 
       const url = new URL(request.url ?? '/', 'http://ai-bff.local');
+
+      const v2 = url.pathname.startsWith('/api/ai/v2/');
+      if (v2) {
+        response.setHeader('Cache-Control', 'private, no-store');
+        url.pathname = url.pathname.replace('/api/ai/v2/', '/api/ai/');
+      }
 
       // Liveness: unauthenticated, no dependencies. It answers "is this process
       // up", never "is it able to serve". Calling the database here means a
@@ -145,7 +154,7 @@ export function createAiBffServer(
 
       if (request.method === 'POST' && route.action === 'messages') {
         const body = await readJson(request);
-        if (!isAppendMessageRequest(body)) {
+        if (!isAppendMessageRequest(body) || (v2 && !isOperationKey(body.idempotencyKey))) {
           error(response, 400, 'BAD_REQUEST', 'Invalid message request', requestId);
           return;
         }
@@ -156,17 +165,63 @@ export function createAiBffServer(
           engineId: config.engineId,
           engineVersion: config.engineVersion,
           ...(config.engineProvenance ? { provenance: config.engineProvenance } : {}),
+          ...(v2 ? { strictReplay: true } : {}),
         });
         const payload: AppendMessageResponse = {
           messageId: accepted.messageId,
           runId: accepted.run?.id ?? null,
           disposition: accepted.replayed ? 'replayed' : accepted.run ? 'started' : 'queued',
         };
+        if (v2) {
+          const state = await store.getChatTurn(route.conversationId, body.idempotencyKey);
+          json(response, accepted.replayed ? 200 : 202, state);
+          return;
+        }
         json(response, accepted.replayed ? 200 : 202, payload);
         return;
       }
 
-      if (request.method === 'POST' && route.action === 'cancel') {
+      if (v2 && route.operationKey) {
+        const state = await store.getChatTurn(route.conversationId, route.operationKey);
+        if (!state) {
+          error(response, 404, 'NOT_FOUND', 'Turn not found', requestId);
+          return;
+        }
+        if (request.method === 'GET' && route.action === 'turn') {
+          json(response, 200, state);
+          return;
+        }
+        if (request.method === 'POST' && route.action === 'turn_cancel') {
+          const body = await readJson(request);
+          if (
+            !body ||
+            typeof body !== 'object' ||
+            !('runId' in body) ||
+            !isUuid(body.runId) ||
+            !('controlVersion' in body) ||
+            typeof body.controlVersion !== 'number' ||
+            !Number.isSafeInteger(body.controlVersion) ||
+            body.controlVersion < 1
+          ) {
+            error(response, 400, 'BAD_REQUEST', 'Invalid cancellation', requestId);
+            return;
+          }
+          if (
+            !(await store.cancelChatTurn(
+              route.conversationId,
+              route.operationKey,
+              body.runId,
+              body.controlVersion,
+            ))
+          ) {
+            error(response, 409, 'CONFLICT', 'Turn changed', requestId);
+            return;
+          }
+          json(response, 202, await store.getChatTurn(route.conversationId, route.operationKey));
+          return;
+        }
+      }
+      if (!v2 && request.method === 'POST' && route.action === 'cancel') {
         const conversation = await store.getConversation(route.conversationId);
         if (!conversation) {
           error(response, 404, 'NOT_FOUND', 'Conversation not found', requestId);
@@ -181,7 +236,21 @@ export function createAiBffServer(
       }
 
       if (request.method === 'GET' && route.action === 'events') {
-        await streamEvents(request, response, store, route.conversationId, config);
+        let turn: ChatTurnV2 | undefined;
+        if (v2) {
+          const key = url.searchParams.get('turn');
+          if (!isOperationKey(key)) {
+            error(response, 400, 'BAD_REQUEST', 'Turn key required', requestId);
+            return;
+          }
+          const found = await store.getChatTurn(route.conversationId, key);
+          if (!found?.runId) {
+            error(response, 404, 'NOT_FOUND', 'Run not found', requestId);
+            return;
+          }
+          turn = found;
+        }
+        await streamEvents(request, response, store, route.conversationId, config, turn);
         return;
       }
 
@@ -192,6 +261,14 @@ export function createAiBffServer(
         error(response, 400, 'BAD_REQUEST', 'Invalid JSON body', requestId);
       } else if (message === 'conversation_closed') {
         error(response, 409, 'CONFLICT', 'Conversation is closed', requestId);
+      } else if (message === 'replay_content_conflict' || message === 'conversation_busy') {
+        error(
+          response,
+          409,
+          'CONFLICT',
+          'This submission changed or another answer is active',
+          requestId,
+        );
       } else if (isDatabaseUnavailable(caught)) {
         // An outage, not a bug: say so, and say when to try again.
         console.error(JSON.stringify({ level: 'error', requestId, code: 'database_unavailable' }));
@@ -253,9 +330,20 @@ function hashCredential(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function conversationRoute(
-  pathname: string,
-): { conversationId: string; action: 'messages' | 'cancel' | 'events' } | null {
+function conversationRoute(pathname: string): {
+  conversationId: string;
+  action: 'messages' | 'cancel' | 'events' | 'turn' | 'turn_cancel';
+  operationKey?: string;
+} | null {
+  const turn = pathname.match(
+    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/turns\/([a-zA-Z0-9_-]{8,128})(\/cancel)?$/,
+  );
+  if (turn?.[1] && turn[2])
+    return {
+      conversationId: turn[1],
+      operationKey: turn[2],
+      action: turn[3] ? 'turn_cancel' : 'turn',
+    };
   const match = pathname.match(
     /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events)$/,
   );
@@ -285,6 +373,7 @@ async function streamEvents(
   store: AiStore,
   conversationId: string,
   config: AiBffConfig,
+  turn?: ChatTurnV2,
 ): Promise<void> {
   response.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
@@ -297,13 +386,41 @@ async function streamEvents(
   let heartbeatAt = startedAt;
 
   while (!request.destroyed && Date.now() - startedAt < config.sseMaxDurationMs) {
+    if (turn && !(await authorizeConversation(request, store, conversationId))) {
+      response.end();
+      return;
+    }
     const events = await store.listEvents(conversationId, sequence);
     for (const event of events) {
-      const publicEvent = toPublicEvent(event);
+      sequence = event.sequence;
+      if (turn && event.runId !== turn.runId) continue;
+      const publicEvent = turn
+        ? {
+            ...toPublicEvent(event),
+            protocolVersion: 2,
+            conversationId,
+            messageId: turn.messageId,
+            runId: turn.runId,
+            controlVersion: turn.controlVersion,
+          }
+        : toPublicEvent(event);
       response.write(
         `id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(publicEvent)}\n\n`,
       );
-      sequence = event.sequence;
+      if (
+        turn &&
+        [
+          'final',
+          'error',
+          'run.failed',
+          'assistant.cancelled',
+          'handoff.started',
+          'conversation.closed',
+        ].includes(event.type)
+      ) {
+        response.end();
+        return;
+      }
     }
     if (Date.now() - heartbeatAt >= config.sseHeartbeatMs) {
       response.write(': heartbeat\n\n');

@@ -9,6 +9,7 @@ import type {
   TurnRequest,
 } from './model';
 import { initialAssistantState, isTurnWorking, reduceAssistant } from './state';
+import { AssistantTransportError } from './transport-error';
 
 export interface AssistantSeed {
   state: AssistantState;
@@ -88,9 +89,21 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       );
       if (!ended && generation.current === attempt && !controller.signal.aborted)
         dispatch({ type: 'connection_error' });
-    } catch {
-      if (generation.current === attempt && !controller.signal.aborted)
-        dispatch({ type: 'connection_error' });
+    } catch (error) {
+      if (generation.current === attempt && !controller.signal.aborted) {
+        if (error instanceof AssistantTransportError) {
+          if (error.expired) {
+            dispatch({ type: 'expired' });
+            return;
+          }
+          setNow(Date.now());
+          dispatch({
+            type: 'transport_error',
+            message: error.message,
+            ...(error.retryAt ? { retryAt: error.retryAt } : {}),
+          });
+        } else dispatch({ type: 'connection_error' });
+      }
     } finally {
       if (active.current === controller) active.current = null;
     }
@@ -147,9 +160,13 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
         running?.abort();
         if (active.current === running) active.current = null;
       }
-    } catch {
-      if (generation.current === attempt && !controller.signal.aborted)
-        dispatch({ type: 'stop_unknown' });
+    } catch (error) {
+      if (generation.current === attempt && !controller.signal.aborted) {
+        if (error instanceof AssistantTransportError && error.expired) {
+          running?.abort();
+          dispatch({ type: 'expired' });
+        } else dispatch({ type: 'stop_unknown' });
+      }
     } finally {
       if (cancelling.current === controller) cancelling.current = null;
     }

@@ -80,3 +80,12 @@ export function isCreateConversationRequest(value: unknown): value is CreateConv
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+export {
+  type ChatTurnV2,
+  type ChatEventV2,
+  isChatTurnV2,
+  isChatEventV2,
+  isUuid,
+  isOperationKey,
+} from './chat-v2.ts';

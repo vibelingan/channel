@@ -326,53 +326,86 @@ async function startRun(
   const context = await workerStage('load_run_context', () => store.getRunExecutionContext(runId));
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
-  const handle = await workerStage('create_engine_run', () =>
-    engine.createRun(
-      {
-        operationId: context.operationId,
-        conversationRef: context.conversationId,
-        turns: preparePublicTurns(context.turns),
-        profileId: config.profileId,
-        locale: context.locale,
-        limits: {
-          maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
-          maxStreamDurationMs: config.maxStreamDurationMs,
-          maxToolCalls: config.maxToolCalls,
+  const stopWatching = watchRunFence(store, context, controller);
+  try {
+    const handle = await workerStage('create_engine_run', () =>
+      engine.createRun(
+        {
+          operationId: context.operationId,
+          conversationRef: context.conversationId,
+          turns: preparePublicTurns(context.turns),
+          profileId: config.profileId,
+          locale: context.locale,
+          limits: {
+            maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
+            maxStreamDurationMs: config.maxStreamDurationMs,
+            maxToolCalls: config.maxToolCalls,
+          },
         },
-      },
-      controller.signal,
-    ),
-  );
-  await workerStage('record_engine_handle', () =>
-    store.recordEngineHandle({
-      conversationId: context.conversationId,
-      runId: context.runId,
-      operationId: context.operationId,
-      engineRunId: handle.engineRunId,
-    }),
-  );
+        controller.signal,
+      ),
+    );
+    await workerStage('record_engine_handle', () =>
+      store.recordEngineHandle({
+        conversationId: context.conversationId,
+        runId: context.runId,
+        operationId: context.operationId,
+        engineRunId: handle.engineRunId,
+      }),
+    );
 
-  for await (const rawEvent of engine.streamRun(handle, controller.signal)) {
-    if (!(await workerStage('check_run_fence', () => store.isRunCommitAuthorized(context)))) {
-      controller.abort();
-      return;
-    }
+    for await (const rawEvent of engine.streamRun(handle, controller.signal)) {
+      if (!(await workerStage('check_run_fence', () => store.isRunCommitAuthorized(context)))) {
+        controller.abort();
+        return;
+      }
 
-    if (rawEvent.type === 'token' || rawEvent.type === 'citation') {
-      // Citations arrive at the end on the hosted KB. Until the final evidence
-      // set passes policy, neither its prose nor its source names are public.
-      continue;
-    }
+      if (rawEvent.type === 'token' || rawEvent.type === 'citation') {
+        // Citations arrive at the end on the hosted KB. Until the final evidence
+        // set passes policy, neither its prose nor its source names are public.
+        continue;
+      }
 
-    if (rawEvent.type === 'error') {
-      const committed = await workerStage('finish_engine_error', () =>
+      if (rawEvent.type === 'error') {
+        const committed = await workerStage('finish_engine_error', () =>
+          store.finishRunFenced({
+            conversationId: context.conversationId,
+            runId: context.runId,
+            expectedControlVersion: context.controlVersion,
+            claimEpoch: context.claimEpoch,
+            status: 'failed',
+            events: [storeEvent(rawEvent)],
+          }),
+        );
+        if (!committed) {
+          controller.abort();
+          return;
+        }
+        return;
+      }
+
+      const policyResult = enforceGroundedFinal(rawEvent, {
+        approvedSourcePrefix: config.approvedSourcePrefix,
+      });
+      const approved =
+        policyResult.type === 'final'
+          ? {
+              ...policyResult,
+              citations: normalizeCitations(policyResult.citations, {
+                siteOrigin: config.citationSiteOrigin,
+              }),
+            }
+          : policyResult;
+      const safeEvents = approvedEvents(approved);
+      const status = approved.type === 'final' ? 'completed' : 'failed';
+      const committed = await workerStage(`finish_${status}`, () =>
         store.finishRunFenced({
           conversationId: context.conversationId,
           runId: context.runId,
           expectedControlVersion: context.controlVersion,
           claimEpoch: context.claimEpoch,
-          status: 'failed',
-          events: [storeEvent(rawEvent)],
+          status,
+          events: safeEvents.map(storeEvent),
         }),
       );
       if (!committed) {
@@ -381,38 +414,44 @@ async function startRun(
       }
       return;
     }
-
-    const policyResult = enforceGroundedFinal(rawEvent, {
-      approvedSourcePrefix: config.approvedSourcePrefix,
-    });
-    const approved =
-      policyResult.type === 'final'
-        ? {
-            ...policyResult,
-            citations: normalizeCitations(policyResult.citations, {
-              siteOrigin: config.citationSiteOrigin,
-            }),
-          }
-        : policyResult;
-    const safeEvents = approvedEvents(approved);
-    const status = approved.type === 'final' ? 'completed' : 'failed';
-    const committed = await workerStage(`finish_${status}`, () =>
-      store.finishRunFenced({
-        conversationId: context.conversationId,
-        runId: context.runId,
-        expectedControlVersion: context.controlVersion,
-        claimEpoch: context.claimEpoch,
-        status,
-        events: safeEvents.map(storeEvent),
-      }),
-    );
-    if (!committed) {
-      controller.abort();
-      return;
-    }
-    return;
+    if (!controller.signal.aborted)
+      throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
+  } finally {
+    await stopWatching();
+    controller.abort();
   }
-  throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
+}
+
+/** Check cancellation even when a provider is not sending any frames. */
+function watchRunFence(store: AiStore, context: RunExecutionContext, controller: AbortController) {
+  const watch = new AbortController();
+  const task = (async () => {
+    while (!watch.signal.aborted) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer);
+          watch.signal.removeEventListener('abort', finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, 200);
+        watch.signal.addEventListener('abort', finish, { once: true });
+      });
+      if (watch.signal.aborted) return;
+      try {
+        if (!(await store.isRunCommitAuthorized(context))) {
+          controller.abort();
+          return;
+        }
+      } catch {
+        controller.abort();
+        return;
+      }
+    }
+  })();
+  return async () => {
+    watch.abort();
+    await task;
+  };
 }
 
 async function workerStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {

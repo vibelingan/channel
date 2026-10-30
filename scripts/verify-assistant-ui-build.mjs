@@ -9,6 +9,7 @@ const forbidden = [
   'Local interaction evidence',
   'PREVIEW-001',
   'assistant-preview.html',
+  'assistant-chat.html',
 ];
 let checked = 0;
 async function visit(directory) {

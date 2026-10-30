@@ -23,7 +23,17 @@ interface ChatMessage {
 const STORAGE_KEY = 'channel.ai.conversation.v1';
 const SEQUENCE_KEY = 'channel.ai.sequence.v1';
 
+import { ConnectedAssistant } from './assistant/ConnectedAssistant';
+
 export function AssistantWidget() {
+  return import.meta.env.PUBLIC_AI_CHAT_V2 === '1' ? (
+    <ConnectedAssistant />
+  ) : (
+    <LegacyAssistantWidget />
+  );
+}
+
+function LegacyAssistantWidget() {
   const apiBase = (import.meta.env.PUBLIC_AI_API_BASE_URL ?? '').replace(/\/$/, '');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);

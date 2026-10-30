@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "lib": ["ES2023", "DOM"],
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "playwright.assistant-chat.config.ts",
+    "tests/assistant-chat/**/*.ts",
+    "scripts/assistant-chat-local.ts"
+  ]
+}

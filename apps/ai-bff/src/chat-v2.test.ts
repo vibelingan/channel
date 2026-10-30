@@ -1,0 +1,190 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import { after, before, test } from 'node:test';
+import { isChatTurnV2 } from '@vibelingan-channel/ai-contracts';
+import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
+import { createAiBffServer } from './server.ts';
+const url = process.env.DATABASE_URL;
+const Store = process.env.AI_TEST_STORE_MODULE
+  ? ((await import(process.env.AI_TEST_STORE_MODULE)).AiStore as typeof AiStore)
+  : AiStore;
+const store = url ? new Store(url) : null;
+const server = store
+  ? createAiBffServer(store, {
+      allowedOrigins: new Set(['http://127.0.0.1:62058']),
+      credentialTtlSeconds: 600,
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      globalRequestsPerMinute: 10000,
+      ipRequestsPerMinute: 10000,
+      ipHashSecret: randomUUID(),
+      trustProxy: false,
+      ssePollMs: 2,
+      sseHeartbeatMs: 10,
+      sseMaxDurationMs: 40,
+    })
+  : null;
+let base = '';
+before(async () => {
+  if (!store || !server) return;
+  await migrateUp(store.pool);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+after(async () => {
+  if (!store || !server) return;
+  server.closeAllConnections();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await store.close();
+});
+const skip = !url;
+async function conversation() {
+  const r = await fetch(`${base}/api/ai/v2/conversations`, { method: 'POST', body: '{}' });
+  assert.equal(r.status, 201);
+  return (await r.json()) as { conversationId: string; credential: string };
+}
+async function readTurn(response: Response) {
+  const data: unknown = await response.json();
+  assert.ok(isChatTurnV2(data));
+  assert.ok(data.runId);
+  assert.ok(data.controlVersion !== null);
+  return { ...data, runId: data.runId, controlVersion: data.controlVersion };
+}
+function request(c: { conversationId: string; credential: string }, path: string, body?: unknown) {
+  return fetch(`${base}/api/ai/v2/conversations/${c.conversationId}/${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { Authorization: `Bearer ${c.credential}`, 'Content-Type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+test(
+  'v2 creates a real scoped turn and rejects changed replays and parallel new questions',
+  { skip },
+  async () => {
+    const c = await conversation();
+    const key = randomUUID();
+    const r = await request(c, 'messages', { message: 'First question', idempotencyKey: key });
+    assert.equal(r.status, 202);
+    const state = await readTurn(await request(c, `turns/${key}`));
+    assert.equal(state.status, 'creating');
+    assert.equal(state.operationKey, key);
+    assert.ok(state.runId);
+    const repeated = await request(c, 'messages', {
+      message: 'First question',
+      idempotencyKey: key,
+    });
+    assert.equal(repeated.status, 200);
+    assert.equal((await readTurn(repeated)).runId, state.runId);
+    assert.equal(
+      (await request(c, 'messages', { message: 'Changed question', idempotencyKey: key })).status,
+      409,
+    );
+    assert.equal(
+      (await request(c, 'messages', { message: 'Another question', idempotencyKey: randomUUID() }))
+        .status,
+      409,
+    );
+    const foreign = await conversation();
+    assert.equal(
+      (await request({ ...foreign, conversationId: c.conversationId }, `turns/${key}`)).status,
+      401,
+    );
+  },
+);
+test(
+  'cancel is task-bound, repeated requests enqueue once, an old click cannot cancel the next run',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await conversation();
+    const key = randomUUID();
+    await request(c, 'messages', { message: 'Stop this one', idempotencyKey: key });
+    const state = await readTurn(await request(c, `turns/${key}`));
+    assert.equal(
+      (
+        await request(c, `turns/${key}/cancel`, {
+          runId: randomUUID(),
+          controlVersion: state.controlVersion,
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await request(c, `turns/${key}/cancel`, {
+          runId: state.runId,
+          controlVersion: state.controlVersion + 1,
+        })
+      ).status,
+      409,
+    );
+    const body = { runId: state.runId, controlVersion: state.controlVersion };
+    assert.equal((await request(c, `turns/${key}/cancel`, body)).status, 202);
+    assert.equal((await request(c, `turns/${key}/cancel`, body)).status, 202);
+    const count = await store.pool.query(
+      "SELECT count(*)::int AS n FROM outbox WHERE run_id=$1 AND type='cancel_run'",
+      [state.runId],
+    );
+    assert.equal(count.rows[0].n, 1);
+    await store.terminalizeRun({ runId: state.runId, reason: 'cancel_requested' });
+    assert.equal(
+      (
+        await request(c, `turns/${key}/cancel`, {
+          ...body,
+          controlVersion: body.controlVersion + 1,
+        })
+      ).status,
+      409,
+    );
+    const next = randomUUID();
+    const accepted = await request(c, 'messages', {
+      message: 'Next question',
+      idempotencyKey: next,
+    });
+    assert.equal(accepted.status, 202);
+    await request(c, `turns/${key}/cancel`, body);
+    const current = await readTurn(await request(c, `turns/${next}`));
+    assert.equal(current.cancelRequested, false);
+    assert.equal(current.status, 'creating');
+  },
+);
+test('v2 streams only the selected run with durable identity', { skip }, async () => {
+  assert.ok(store);
+  const c = await conversation();
+  const previous = randomUUID();
+  await request(c, 'messages', { message: 'An earlier answer', idempotencyKey: previous });
+  const old = await readTurn(await request(c, `turns/${previous}`));
+  await request(c, `turns/${previous}/cancel`, {
+    runId: old.runId,
+    controlVersion: old.controlVersion,
+  });
+  await store.terminalizeRun({ runId: old.runId, reason: 'cancel_requested' });
+  const key = randomUUID();
+  await request(c, 'messages', { message: 'Read this run', idempotencyKey: key });
+  const state = await readTurn(await request(c, `turns/${key}`));
+  await request(c, `turns/${key}/cancel`, {
+    runId: state.runId,
+    controlVersion: state.controlVersion,
+  });
+  await store.terminalizeRun({ runId: state.runId, reason: 'cancel_requested' });
+  const r = await request(c, `events?turn=${key}`);
+  assert.equal(r.status, 200);
+  const stream = await r.text();
+  assert.equal(stream.split('\n').filter((line) => line.startsWith('data: ')).length, 1);
+  const line = stream.split('\n').find((line) => line.startsWith('data: '));
+  assert.ok(line);
+  const event = JSON.parse(line.slice(6));
+  const recorded = (await store.listEvents(c.conversationId)).find(
+    (row) => row.runId === state.runId,
+  );
+  assert.ok(recorded);
+  assert.equal(event.sequence, recorded.sequence);
+  assert.equal(event.runId, state.runId);
+  assert.equal(event.messageId, state.messageId);
+  assert.equal(event.conversationId, c.conversationId);
+  assert.equal(event.protocolVersion, 2);
+  assert.equal(event.type, 'assistant.cancelled');
+  assert.equal((await request(c, 'events')).status, 400);
+});

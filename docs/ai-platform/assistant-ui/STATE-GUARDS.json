@@ -1,6 +1,6 @@
 {
   "scope": "targeted frontend reducer guards; disposable source copy; no browser/backend authority claim",
-  "source_sha256": "c2c4918d8fea5a609650bb19620b627775e12e948f4530dec6f0a5e730a08532",
+  "source_sha256": "fbabe5bd37fecd12156f33f12a0a21a7913745a4ab038f10ac0c869a6bdfec2b",
   "baseline": {
     "status": 0,
     "passed": true
@@ -9,25 +9,25 @@
     {
       "name": "turn identity",
       "test": "foreign conversation and old turn events cannot modify current answer",
-      "mutant_sha256": "2b7d13c28a442b9b62ee0e3149dff1065a321de02cab0f1605045f4ec8ba09d7",
+      "mutant_sha256": "94965be78fe0fe4806895c64e530de7fba707d92733c224a220c144c21cd4fd9",
       "outcome": "killed"
     },
     {
       "name": "sequence deduplication",
       "test": "duplicate event cannot append the same token twice",
-      "mutant_sha256": "512149d2c5c0f7faf7a5cc4cc2f60c2529a405fef2c34eb99fafa79505cac045",
+      "mutant_sha256": "df60e67c1496ffc46f685420eb63f52a3de05aa3a5ba4b92b2e640646ac0af5c",
       "outcome": "killed"
     },
     {
       "name": "terminal fence",
       "test": "terminal answers ignore late text even with a newer sequence",
-      "mutant_sha256": "b38ba23086201590c914968076edaa8030a4370773ec83aef80d01fae092bae1",
+      "mutant_sha256": "fc5b04172978a70f67d02e022bff76cc3d1356a5fdea7c06e48686220d68eb4f",
       "outcome": "killed"
     },
     {
       "name": "unconfirmed stop",
       "test": "requesting stop and uncertain acknowledgement never pretend the answer stopped",
-      "mutant_sha256": "27e9bd372ce7f0ad898c92e91a14bf571961c1f560074b14fea9c0ddc4473db1",
+      "mutant_sha256": "11202d3fe0b2031e8236bd0a68062085a649a0ec33bbc8bb8c122a0806c627ca",
       "outcome": "killed"
     }
   ],

@@ -238,6 +238,7 @@ export class AiStore {
     engineId: string;
     engineVersion: string;
     provenance?: EngineProvenance;
+    strictReplay?: boolean;
   }): Promise<{ messageId: string; run: NewRun | null; replayed: boolean }> {
     return this.transaction(async (client) => {
       const conversation = await client.query<{
@@ -254,14 +255,22 @@ export class AiStore {
       if (!row) throw new Error('conversation_not_found');
       if (row.status === 'closed') throw new Error('conversation_closed');
 
-      const existing = await client.query<{ id: string }>(
-        `SELECT id FROM conversation_messages
+      const existing = await client.query<{
+        id: string;
+        content: string;
+        answered_by_run: string | null;
+      }>(
+        `SELECT id, content, answered_by_run FROM conversation_messages
          WHERE conversation_id = $1 AND idempotency_key = $2`,
         [input.conversationId, input.idempotencyKey],
       );
       if (existing.rows[0]) {
+        if (input.strictReplay && existing.rows[0].content !== input.content)
+          throw new Error('replay_content_conflict');
         return { messageId: existing.rows[0].id, run: null, replayed: true };
       }
+      if (input.strictReplay && (row.status !== 'ai' || row.active_run_id))
+        throw new Error('conversation_busy');
 
       const messageId = randomUUID();
       await client.query(
@@ -993,6 +1002,86 @@ export class AiStore {
       ],
     );
     return result.rows[0] ? mapConversation(result.rows[0]) : null;
+  }
+
+  async getChatTurn(conversationId: string, key: string) {
+    const result = await this.pool.query<{
+      message_id: string;
+      run_id: string | null;
+      control_version: string | null;
+      status: 'creating' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
+      cancel_requested: boolean;
+    }>(
+      `SELECT m.id AS message_id, r.id AS run_id, r.control_version, r.status,
+       (r.cancel_requested_at IS NOT NULL) AS cancel_requested
+       FROM conversation_messages m LEFT JOIN ai_runs r ON r.id = m.answered_by_run AND r.conversation_id = m.conversation_id
+       WHERE m.conversation_id=$1 AND m.idempotency_key=$2 AND m.role='visitor'`,
+      [conversationId, key],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          protocolVersion: 2 as const,
+          conversationId,
+          operationKey: key,
+          messageId: row.message_id,
+          runId: row.run_id,
+          controlVersion: row.control_version === null ? null : Number(row.control_version),
+          status: row.status ?? ('queued' as const),
+          cancelRequested: row.cancel_requested,
+        }
+      : null;
+  }
+
+  async cancelChatTurn(
+    conversationId: string,
+    key: string,
+    runId: string,
+    version: number,
+  ): Promise<boolean> {
+    return this.transaction(async (client) => {
+      const current = await client.query<{
+        active_run_id: string | null;
+        control_version: string;
+        status: string;
+      }>('SELECT active_run_id,control_version,status FROM conversations WHERE id=$1 FOR UPDATE', [
+        conversationId,
+      ]);
+      const turn = await client.query<{
+        status: string;
+        control_version: string;
+        cancel_requested_at: Date | null;
+      }>(
+        `SELECT r.status,r.control_version,r.cancel_requested_at FROM ai_runs r
+         JOIN conversation_messages m ON m.answered_by_run=r.id AND m.conversation_id=r.conversation_id
+         WHERE r.id=$1 AND r.conversation_id=$2 AND m.idempotency_key=$3 AND m.role='visitor' FOR UPDATE OF r`,
+        [runId, conversationId, key],
+      );
+      const c = current.rows[0];
+      const r = turn.rows[0];
+      if (!c || !r || Number(r.control_version) !== version) return false;
+      if (r.cancel_requested_at || ['completed', 'failed', 'cancelled'].includes(r.status))
+        return true;
+      if (c.status !== 'ai' || c.active_run_id !== runId || Number(c.control_version) !== version)
+        return false;
+      await client.query(
+        'UPDATE conversations SET control_version=control_version+1,updated_at=clock_timestamp() WHERE id=$1',
+        [conversationId],
+      );
+      await client.query(
+        'UPDATE ai_runs SET cancel_requested_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1',
+        [runId],
+      );
+      await client.query(
+        "INSERT INTO outbox(conversation_id,run_id,type) VALUES ($1,$2,'cancel_run')",
+        [conversationId, runId],
+      );
+      await client.query(
+        "INSERT INTO audit_events(conversation_id,actor_type,action,metadata) VALUES ($1,'visitor','run.cancel_requested',jsonb_build_object('runId',$2::text))",
+        [conversationId, runId],
+      );
+      return true;
+    });
   }
 
   async requestCancellation(conversationId: string, expectedVersion: number): Promise<boolean> {

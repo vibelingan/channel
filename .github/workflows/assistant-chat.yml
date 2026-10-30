@@ -1,0 +1,67 @@
+name: Assistant chat integration
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feat/website-assistant-ui-foundation]
+    paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'apps/site/assistant-*.html', 'apps/site/assistant-preview.vite.ts', 'scripts/*chat*.mjs', 'scripts/assistant-chat-local.ts', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
+  pull_request:
+    paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'scripts/*chat*.mjs', 'scripts/assistant-chat-local.ts', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
+permissions:
+  contents: read
+concurrency:
+  group: assistant-chat-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+          POSTGRES_DB: chat_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ai -d chat_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CI: 'true'
+      DATABASE_URL: postgres://ai:ai@127.0.0.1:5432/chat_test
+      CHAT_TEST_DATABASE_URL: postgres://ai:ai@127.0.0.1:5432/chat_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Validate contracts and service types
+        run: |
+          pnpm exec tsc -p tsconfig.assistant-chat.json
+          pnpm --filter @vibelingan-channel/ai-contracts test
+          pnpm --filter @vibelingan-channel/ai-contracts typecheck
+          pnpm --filter @vibelingan-channel/ai-store typecheck
+          pnpm --filter @vibelingan-channel/ai-bff typecheck
+          pnpm --filter @vibelingan-channel/ai-worker typecheck
+      - name: Exercise real database and existing runtime regressions
+        run: |
+          pnpm --filter @vibelingan-channel/ai-bff exec tsx --test --test-concurrency=1 'src/*.test.ts'
+          pnpm --filter @vibelingan-channel/ai-worker exec tsx --test --test-concurrency=1 'src/*.test.ts'
+          pnpm --filter @vibelingan-channel/ai-store exec tsx --test --test-concurrency=1 'src/*.test.ts'
+      - name: Test the new boundaries and whole browser flow
+        run: |
+          node scripts/verify-chat-slice-guards.mjs
+          pnpm exec playwright test --config playwright.assistant-chat.config.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assistant-chat-${{ github.sha }}
+          path: output/assistant-chat/
+          if-no-files-found: error
