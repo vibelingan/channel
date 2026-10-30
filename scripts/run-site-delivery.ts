@@ -26,6 +26,7 @@ import { createCanaryProvider } from './release/canary-provider.mjs';
 import { activateCatalogRenderer } from './release/catalog-activation.mjs';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
+import { assertInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
 import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
 import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
@@ -105,11 +106,20 @@ const objects = createPrivateArchive({
 const retention = createSiteRetention({ db, objects, policy });
 const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });
 const catalogConfig = readCatalogSeoRecordingConfig(env);
-if (catalogConfig) await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
+if (catalogConfig) {
+  await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
+  const activation = await db.collection('catalogSeoBuilders').doc('runtime-activation').get();
+  assertInitialCatalogRuntime(
+    Array.isArray(activation.data) ? activation.data[0] : activation.data,
+    policy.siteOrigin,
+  );
+}
 if (env.SITE_PRODUCT_SOURCE === 'refresh' && !catalogConfig)
   throw Error('Enable all product writers before automatic refresh');
-if (catalogConfig && !(await readFunctionRuntimeState(policy.envId, 'admin')).catalogSeoRecording)
-  throw Error('The actual admin runtime has not enabled catalog change recording');
+if (catalogConfig)
+  for (const name of ['admin', 'alibaba-catalog-sync'])
+    if (!(await readFunctionRuntimeState(policy.envId, name)).catalogSeoRecording)
+      throw Error(`The actual ${name} runtime has not enabled catalog change recording`);
 const programRestore = env.SITE_DELIVERY_MODE === 'restore' && Boolean(env.SITE_RENDERER_SHA);
 if (programRestore && (!catalogConfig || env.SITE_PRODUCT_SOURCE !== 'refresh'))
   throw Error('Program restoration requires current catalog tracking and refresh inputs');

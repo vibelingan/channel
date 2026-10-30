@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 
 // The real SDK handles task queues, HTTP bodies, multipart XML and Range writes. Only the COS server is local.
 test('the actual COS client uploads a small object, reads it, then completes a multipart archive and range read', async (t) => {
@@ -100,12 +100,11 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     SecretKey: 'fixture',
     Protocol: 'http:',
     Domain: `127.0.0.1:${server.address().port}`,
-    Timeout: 1000,
+    ...ARCHIVE_COS_OPTIONS,
     ChunkParallelLimit: 3,
-    FileParallelLimit: 1,
-    ChunkRetryTimes: 1,
     ConfCwd: directory,
   });
+  // This is a protocol/byte-integrity test; deadline and cancellation are exercised separately.
   const transfer = createCosArchiveTransfer({ cos, policy });
   const credential = (hash) => ({
     storageFileId: `cloud://${policy.envId}.${policy.archiveBucket}/seo-recovery/objects/${hash.repeat(64)}.bin`,
@@ -115,19 +114,19 @@ test('the actual COS client uploads a small object, reads it, then completes a m
   try {
     const small = Buffer.from('small');
     const large = Buffer.alloc(8 * 1024 * 1024 + 23, 7);
-    await transfer.put(credential('a'), small, { uploadTimeoutMs: 4000 });
+    await transfer.put(credential('a'), small, { uploadTimeoutMs: 30000 });
     assert.deepEqual(
       await transfer.read(null, credential('a').storageFileId, {
         maxBytes: small.length,
-        timeoutMs: 4000,
+        timeoutMs: 30000,
       }),
       small,
     );
-    await transfer.put(credential('b'), large, { uploadTimeoutMs: 4000 });
+    await transfer.put(credential('b'), large, { uploadTimeoutMs: 30000 });
     assert.deepEqual(
       await transfer.read(null, credential('b').storageFileId, {
         maxBytes: large.length,
-        timeoutMs: 4000,
+        timeoutMs: 30000,
       }),
       large,
     );

@@ -1,0 +1,396 @@
+{
+  "runId": "41001915319",
+  "codeSha": "f8e96d830a41e18d151dbb17f1dbcc0fa38ba877",
+  "conclusion": "success",
+  "freshObjectComparedToPriorRun": true,
+  "uploadParallelLimit": 8,
+  "events": [
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-ready",
+      "totalBytes": 556
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-started",
+      "totalBytes": 556
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 556,
+      "loadedBytes": 0
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "object-request",
+      "totalBytes": 556
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 556,
+      "loadedBytes": 556
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 556,
+      "sha256": "b3d606fd3596843f4e75e0c8a7cd2ff104ebfa6b93a1b0eba39fddedcc750d16",
+      "elapsedMs": 291,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 556,
+      "sha256": "b3d606fd3596843f4e75e0c8a7cd2ff104ebfa6b93a1b0eba39fddedcc750d16",
+      "elapsedMs": 1025,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-ready",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "task-started",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-list",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-initialize",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 0
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 11337728
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 17235968
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 22937600
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 26804224
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 32440320
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 36765696
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 42467328
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-part",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 46194528
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "multipart-complete",
+      "totalBytes": 46718816
+    },
+    {
+      "event": "private-archive-sdk",
+      "stage": "uploading",
+      "totalBytes": 46718816,
+      "loadedBytes": 46718816
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "put",
+      "bytes": 46718816,
+      "sha256": "2d29badeb6dd3f04a9306687e96d83514774204d75b1c71eea8d72fe569316db",
+      "elapsedMs": 143539,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 46718816,
+      "sha256": "2d29badeb6dd3f04a9306687e96d83514774204d75b1c71eea8d72fe569316db",
+      "elapsedMs": 9849,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 556,
+      "sha256": "b3d606fd3596843f4e75e0c8a7cd2ff104ebfa6b93a1b0eba39fddedcc750d16",
+      "elapsedMs": 1002,
+      "outcome": "complete"
+    },
+    {
+      "event": "private-archive-transfer",
+      "action": "read",
+      "bytes": 46718816,
+      "sha256": "2d29badeb6dd3f04a9306687e96d83514774204d75b1c71eea8d72fe569316db",
+      "elapsedMs": 6278,
+      "outcome": "complete"
+    }
+  ],
+  "websiteWrites": 0,
+  "note": "全新提交的新归档路径；完成上传、两次完整读回与摘要校验。单次实测，不承诺所有网络条件下固定耗时。"
+}

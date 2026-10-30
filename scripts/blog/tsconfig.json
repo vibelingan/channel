@@ -15,6 +15,7 @@
     "../archive-catalog-renderer.ts",
     "../run-catalog-clock.ts",
     "../prepare-catalog-seo.ts",
+    "../stage-catalog-runtime.ts",
     "../run-catalog-seo-probe.ts"
   ]
 }

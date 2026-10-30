@@ -1,11 +1,12 @@
 import { fetchFully } from '../smoke-http.mjs';
 /** The fixed environment endpoint reports the program actually running, independently of SDK update receipts. */
 export async function readFunctionRuntimeState(envId, name, request = fetchFully) {
-  if (!['admin', 'public-api'].includes(name)) throw Error('Unplanned Blog function');
+  if (!['admin', 'public-api', 'alibaba-catalog-sync'].includes(name))
+    throw Error('Unplanned managed function');
   if (!/^[A-Za-z0-9-]+$/.test(envId)) throw Error('Explicit admin environment required');
   const response = await request(
     name === 'admin' ? 'POST' : 'GET',
-    `https://${envId}.service.tcloudbase.com/api${name === 'admin' ? '/admin' : '/health'}`,
+    `https://${envId}.service.tcloudbase.com/api${name === 'admin' ? '/admin' : name === 'public-api' ? '/health' : '/alibaba-catalog-sync/health'}`,
     {
       headers: { 'content-type': 'application/json' },
       ...(name === 'admin' ? { body: JSON.stringify({ action: 'health' }) } : {}),
@@ -25,6 +26,7 @@ export async function readFunctionRuntimeState(envId, name, request = fetchFully
   return {
     releaseId: health.data.releaseId,
     catalogSeoRecording: health.data.catalogSeoRecording === true,
+    catalogSeoPageReadiness: health.data.catalogSeoPageReadiness === true,
     articleDeliveryMode: ['static', 'server'].includes(health.data.articleDeliveryMode)
       ? health.data.articleDeliveryMode
       : undefined,

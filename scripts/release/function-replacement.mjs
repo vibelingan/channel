@@ -1,8 +1,8 @@
-import { checkFunctionArchive } from '../release/function-archive.mjs';
-import { identity, sha256 } from '../release/input.mjs';
+import { checkFunctionArchive } from './function-archive.mjs';
+import { identity, sha256 } from './input.mjs';
 
 /** One code-only expansion; failed health may recover known B once, never an unknown package or changed config. */
-export async function replaceBlogFunctionCode({
+export async function replaceFunctionCode({
   name = 'admin',
   provider,
   before,
@@ -16,7 +16,7 @@ export async function replaceBlogFunctionCode({
   pause = () => new Promise((done) => setTimeout(done, 2000)),
 }) {
   if (
-    !['admin', 'public-api'].includes(name) ||
+    !['admin', 'public-api', 'alibaba-catalog-sync'].includes(name) ||
     before.name !== name ||
     sha256(original) !== before.packageSha256 ||
     !beforeVersion ||

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品接口接通：一次上线分三段",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1080, 480],
+    "animation": "none"
+  },
+  "participants": [
+    {
+      "id": "delivery",
+      "type": "cloud",
+      "label": "受控上线入口",
+      "sublabel": "沿用共享部署队列"
+    },
+    {
+      "id": "backup",
+      "type": "security",
+      "label": "原程序备份",
+      "sublabel": "完整包与校验值"
+    },
+    {
+      "id": "apis",
+      "type": "backend",
+      "label": "商品接口程序",
+      "sublabel": "保存、同步、公开读取"
+    },
+    {
+      "id": "html",
+      "type": "frontend",
+      "label": "商品页面 HTML",
+      "sublabel": "内容始终读取当前数据"
+    }
+  ],
+  "messages": [
+    {
+      "id": "initial-1",
+      "from": "delivery",
+      "to": "backup",
+      "y": 160,
+      "label": "先保存三个现网程序包",
+      "variant": "security"
+    },
+    {
+      "id": "initial-2",
+      "from": "delivery",
+      "to": "apis",
+      "y": 194,
+      "label": "逐个换代码；配置保持原样",
+      "variant": "security"
+    },
+    {
+      "id": "initial-3",
+      "from": "apis",
+      "to": "delivery",
+      "y": 228,
+      "label": "回报实际版本；异常则停或恢复",
+      "variant": "return"
+    },
+    {
+      "id": "initial-4",
+      "from": "delivery",
+      "to": "apis",
+      "y": 262,
+      "label": "单独开启两条商品变化记录",
+      "variant": "emphasis"
+    },
+    {
+      "id": "initial-5",
+      "from": "delivery",
+      "to": "apis",
+      "y": 296,
+      "label": "等旧请求结束，再核对版本与配置",
+      "variant": "security"
+    },
+    {
+      "id": "initial-6",
+      "from": "delivery",
+      "to": "html",
+      "y": 330,
+      "label": "生成并验收已有商品页面",
+      "variant": "emphasis"
+    },
+    {
+      "id": "initial-7",
+      "from": "delivery",
+      "to": "apis",
+      "y": 364,
+      "label": "页面验收通过后，再开独立链接查询",
+      "variant": "security"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "artifactId": "12873389106",
+  "acceptedRunId": "site-40819519497-1",
+  "codeSha": "0892353752442d64ac95ff592dfb68d7c4bbaf4d",
+  "manifestSha256": "aa08662b9a55839efa3c3aaec6173f7370322587522463e0e8c1fd37ef8ab913",
+  "payloadEntries": 1779,
+  "publicProducts": 528,
+  "metadataAndAllContentVerified": true,
+  "websiteWrites": 0,
+  "downloadMethod": "gh run download",
+  "firstNodeDownload": "30s timeout, retained; CLI alternative succeeded",
+  "note": "只验证当前已接受恢复包可取得且全部内容校验一致，未执行网页替换或恢复。"
+}

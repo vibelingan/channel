@@ -374,7 +374,11 @@ async function routeGet(
     return jsonResponse(
       event,
       config,
-      ok({ ...releaseInfo('public-api'), articlePublicReadEnabled: config.articles !== undefined }),
+      ok({
+        ...releaseInfo('public-api'),
+        articlePublicReadEnabled: config.articles !== undefined,
+        catalogSeoPageReadiness: config.catalogPages !== undefined,
+      }),
     );
   }
 

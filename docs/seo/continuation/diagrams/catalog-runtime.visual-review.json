@@ -1,0 +1,18 @@
+{
+  "evidenceKind": "assistant-image-review",
+  "artifact": "catalog-runtime.html",
+  "artifactSha256": "19abb20afcc7a478368c1b6166ce536c5cac2678bc83a0fb90b798652b12d8ed",
+  "screenshot": "catalog-runtime.visual-check.1440x900.light.png",
+  "screenshotSha256": "793451b8e2b39330216b0c1b1d03ae72c1a8dde4cbb072d0035924f41970b884",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "theme": "light"
+  },
+  "reviewed": true,
+  "observations": [
+    "检查箭头由受控入口发起，页面不直接修改接口配置",
+    "标题、正文、图例可见，无横向或纵向内容截断",
+    "未改动网站UI；这是部署模块的说明图"
+  ]
+}

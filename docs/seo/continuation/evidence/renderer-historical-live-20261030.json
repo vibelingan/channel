@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "codeSha": "9f51aabd6dd4988e8e356d54857e851a65dff465",
+  "manifestSha256": "d0bc70034bc2a964c5cda38a074a3cc928ba36ee8c3062c5e8251076110192cc",
+  "archiveSha256": "432e5bd00099956a3bc3995b7ae625ffd90a6a0eb2eb627d371f4d7e5a46ca75",
+  "manifestObject": {
+    "fileID": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/seo-recovery/objects/d0bc70034bc2a964c5cda38a074a3cc928ba36ee8c3062c5e8251076110192cc.bin",
+    "bytes": 556,
+    "sha256": "d0bc70034bc2a964c5cda38a074a3cc928ba36ee8c3062c5e8251076110192cc"
+  },
+  "archiveObject": {
+    "fileID": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/seo-recovery/objects/432e5bd00099956a3bc3995b7ae625ffd90a6a0eb2eb627d371f4d7e5a46ca75.bin",
+    "bytes": 46709104,
+    "sha256": "432e5bd00099956a3bc3995b7ae625ffd90a6a0eb2eb627d371f4d7e5a46ca75"
+  },
+  "sourceRunId": "41002328583",
+  "runtime": {
+    "node": "22.13.0",
+    "pnpm": "11.5.0"
+  },
+  "inputSchema": 1,
+  "downloadedAndVerified": true,
+  "websiteWrites": 0
+}

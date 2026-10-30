@@ -12,6 +12,7 @@ export function createCloudbaseFunctionProvider({
   region,
   names,
   configurationKey,
+  expectedTriggers = {},
   request = fetchFully,
 }) {
   const fixed = freeze(structuredClone(target));
@@ -24,6 +25,26 @@ export function createCloudbaseFunctionProvider({
   )
     throw new Error('Explicit function scope required');
   const allowed = new Set(names);
+  if (!expectedTriggers || typeof expectedTriggers !== 'object' || Array.isArray(expectedTriggers))
+    throw Error('Explicit reviewed timer map required');
+  const timers = freeze(structuredClone(expectedTriggers));
+  for (const [name, list] of Object.entries(timers)) {
+    if (
+      !allowed.has(name) ||
+      !Array.isArray(list) ||
+      list.length !== 1 ||
+      list.some(
+        (t) =>
+          !t ||
+          t.type !== 'timer' ||
+          !/^[A-Za-z0-9_-]{1,100}$/.test(t.name ?? '') ||
+          typeof t.config !== 'string' ||
+          t.config.split(' ').length !== 7 ||
+          t.config.length > 128,
+      )
+    )
+      throw Error('Invalid reviewed timer scope');
+  }
   const environment = manager.currentEnvironment();
   const functions = environment.getFunctionService();
   if (
@@ -103,7 +124,8 @@ export function createCloudbaseFunctionProvider({
       throw new Error('Unproven event function detail');
     if (!Array.isArray(detail.Triggers)) throw new Error('Unproven function trigger inventory');
     const recoveryReasons = [];
-    if (detail.Triggers.length) recoveryReasons.push('EXISTING_TRIGGER_OUTSIDE_RECOVERY_SCOPE');
+    if ((timers[name] || detail.Triggers.length) && !matchesTimers(detail.Triggers, timers[name]))
+      recoveryReasons.push('EXISTING_TRIGGER_OUTSIDE_RECOVERY_SCOPE');
     if (
       detail.VpcConfig?.VpcId ||
       detail.VpcConfig?.SubnetId ||
@@ -280,4 +302,25 @@ export function functionConfiguration(detail) {
     ...configuration
   } = detail;
   return configuration;
+}
+
+// Existing timer metadata remains part of the configuration fingerprint before and after code writes.
+function matchesTimers(actual, expected) {
+  if (!expected || actual.length !== expected.length) return false;
+  return actual.every((trigger, index) => {
+    const reviewed = expected[index];
+    let config;
+    try {
+      config = JSON.parse(trigger.TriggerDesc);
+    } catch {
+      return false;
+    }
+    return (
+      trigger.TriggerName === reviewed.name &&
+      trigger.Type === reviewed.type &&
+      config &&
+      Object.keys(config).length === 1 &&
+      config.cron === reviewed.config
+    );
+  });
 }

@@ -7,9 +7,19 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
+        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
         default: plan
         required: true
+      catalog_runtime_action:
+        description: Initial catalog runtime setup; code first, recording next, page readiness after tracked HTML acceptance
+        type: choice
+        options: [stage, record, readiness]
+        default: stage
+        required: false
+      catalog_runtime_sha:
+        description: Exact deployed and CI-approved function source for recording/readiness; empty uses this workflow commit
+        type: string
+        required: false
       integration_profile:
         description: Fixed draft credential owner; local is the completed pilot, wecom is the publishing helper
         type: choice
@@ -71,6 +81,64 @@ concurrency:
   queue: max
 
 jobs:
+  catalog_runtime:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-runtime' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CATALOG_RUNTIME_ACTION: ${{ inputs.catalog_runtime_action }}
+      CATALOG_RUNTIME_SHA: ${{ inputs.catalog_runtime_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fix the candidate build identity
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        run: echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
+      - name: Package only the managed function candidates
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        env:
+          CHANNEL_BUILD_SHA: ${{ github.sha }}
+        run: pnpm package:functions
+      - uses: actions/setup-node@v4
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        with: {node-version: 20.19.0}
+      - name: Cold-start every candidate on the actual function runtime
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        env:
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/smoke-function-artifacts.mjs
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0}
+      - name: Preserve originals, update exact code or enable the reviewed catalog setting
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        with:
+          script: |
+            const { spawn } = require('node:child_process');
+            await new Promise((resolve, reject) => {
+              const child = spawn('./apps/site/node_modules/.bin/tsx', ['scripts/stage-catalog-runtime.ts'], {stdio:'inherit', env:process.env});
+              child.once('error', reject);
+              child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Catalog runtime setup stopped (${code}); inspect its receipt before retrying`)));
+            });
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-runtime-receipt-${{ github.run_id }}
+          path: |
+            output/catalog-runtime/receipt.json
+            output/catalog-runtime/progress.json
+          if-no-files-found: ignore
+          retention-days: 90
   catalog_prepare:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-prepare' }}
     runs-on: ubuntu-latest
