@@ -415,3 +415,10 @@ Archify 新增程序与内容时序图，产物9项检查及自动浏览器检�
 查到诊断工具自身的缺口：提交错误被读回流程吞掉，脱敏器又遗漏腾讯云带点的错误编号。先用两个失败测试证明缺口，再保留固定错误编号、步骤、请求编号，禁止记录 message、配置或签名链接；补阶段耗时和归档传输摘要，不改变部署/恢复判断。1389项脚本、脚本TypeScript、CloudBase SDK和修改文件Biome检查通过。实际拒绝原因仍未确认，接下来以新日志执行一次受控重试；不把测试里的示例错误编号写成现场原因。
 
 只读复核了function-provider、function-replacement、stage-catalog-runtime及两项测试；本次将“部署失败”展开为“公开接口已更新，同步接口未写入，后台未尝试”，以实际包hash和HTTP版本为依据，避免读者误以为三个接口都坏了。
+
+
+83e6543a精确远端CI 41280830157的17项job与另两组Blog检查全部成功。受控重试41281502849：三个原包完整归档并下载到本机验算，公开接口替换成功，同步仍原包、后台未尝试。同步新ZIP 9,076,182字节上传105089ms、读取3588ms，完整SHA-256通过；随后腾讯云submit-code返回InvalidParameter，RequestId=20db3905-70be-47bd-b1d5-82c618acd2f0。这次已能区分“上传完成”和“引用被拒绝”，不能再归咎于未传完整。
+
+实际读取官方CloudBase-AI-ToolKit的function-cos-upload.ts与functions.ts第2429–2459行：环境桶上传返回原始key，管理SDK原样传给TCB UpdateFunctionCode，没有前导/。旧实现把SCF直接API文档中的/加进了TCB引用。先改实际SDK断言为官方格式，旧代码确实失败；仅去掉CosObjectName开头/并把测试对象key改成真实COS格式，31项专项通过、脚本TypeScript/Biome/CloudBase SDK检查通过。桶、地域、.bin后缀、ZIP字节校验、配置/定时/权限均不改。该差异有主源依据，但实际根因须下一次云端成功才能确认；不把MCP自身的fnzip-upload/.zip校验当作TCB服务器限制。
+
+路径修正后全量1389项脚本再次全部通过，无跳过；此结果仅是本地验证，下一步精确远端CI和现场复测。

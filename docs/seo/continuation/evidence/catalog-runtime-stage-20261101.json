@@ -68,5 +68,32 @@
     "changedBiome": "passed"
   },
   "websiteBaselineUnchanged": true,
-  "businessDataWrites": 0
+  "businessDataWrites": 0,
+  "retry": {
+    "runId": "41281502849",
+    "codeSha": "83e6543a3dcacfec9697998d5da24cf2904ac15c",
+    "conclusion": "failure",
+    "publicApi": "accepted",
+    "sync": "not-written",
+    "admin": "not-attempted",
+    "backupArtifactId": "13073269236",
+    "nativeCandidate": {
+      "bytes": 9076182,
+      "sha256": "60e7551c49c487994d43dfe636c7f09e768ef58e66adc60e13514a2fe8112e59",
+      "uploadMs": 105089,
+      "readMs": 3588,
+      "verified": true
+    },
+    "providerFailure": {
+      "code": "InvalidParameter",
+      "stage": "submit-code",
+      "requestId": "20db3905-70be-47bd-b1d5-82c618acd2f0"
+    },
+    "pathCorrection": {
+      "officialTcbMapping": "https://raw.githubusercontent.com/TencentCloudBase/CloudBase-AI-ToolKit/main/mcp/src/tools/functions.ts",
+      "officialUpload": "https://raw.githubusercontent.com/TencentCloudBase/CloudBase-AI-ToolKit/main/mcp/src/tools/function-cos-upload.ts",
+      "change": "Pass the exact COS object key without the leading slash used by the direct SCF API. Keep all other descriptor fields and immutable archive storage unchanged.",
+      "actualRootCauseConfirmed": false
+    }
+  }
 }

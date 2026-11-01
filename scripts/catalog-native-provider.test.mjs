@@ -28,7 +28,7 @@ function setup(bytes, onStage = () => {}) {
     archiveBucket: bucket,
     stageArchive: async (data) => {
       const hash = sha256(data);
-      x.state.nativeObjects.set(`/seo-recovery/objects/${hash}.bin`, Buffer.from(data));
+      x.state.nativeObjects.set(`seo-recovery/objects/${hash}.bin`, Buffer.from(data));
       onStage(x);
       return {
         fileID: `cloud://fixture-env.${bucket}/seo-recovery/objects/${hash}.bin`,
@@ -58,7 +58,7 @@ test('the real management SDK receives only a verified environment COS descripto
     assert.deepEqual(call.payload.Code, {
       CosBucketName: 'fixture-env',
       CosBucketRegion: 'ap-shanghai',
-      CosObjectName: `/seo-recovery/objects/${sha256(candidate)}.bin`,
+      CosObjectName: `seo-recovery/objects/${sha256(candidate)}.bin`,
     });
     assert.equal(call.payload.InstallDependency, 'FALSE');
     assert.equal(call.payload.Handler, 'index.main');
