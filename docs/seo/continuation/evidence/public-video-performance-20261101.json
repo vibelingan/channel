@@ -1,0 +1,119 @@
+{
+  "date": "2026-11-01",
+  "status": "local-validated-not-deployed",
+  "scope": "Homepage factory video; OEM video override retained",
+  "reason": "Avoid an offscreen autoplay download without making readers watch the original pure-black introduction.",
+  "original": {
+    "path": "apps/site/public/media/oem/factory-video.mp4",
+    "retained": true,
+    "bytes": 10523748,
+    "sha256": "b1256981dda8833e51e93bbf582a5a5e035a139a90b6e25956f9bea2d92037d5",
+    "pureBlackFramesRemovedFromDisplayCopy": 515,
+    "pureBlackSeconds": 17.166666666666668,
+    "audioStreams": 0,
+    "subtitleStreams": 0
+  },
+  "display": {
+    "path": "apps/site/public/media/oem/factory-video-display-015f0629.mp4",
+    "bytes": 10561994,
+    "sha256": "015f062970ce54f90f5bddc83585c8f0946a1e10378125110a0c6e62b71b14d0",
+    "frames": 2527,
+    "width": 1280,
+    "height": 720,
+    "framesPerSecond": 30,
+    "durationSeconds": 84.233008,
+    "lossyEncoding": true,
+    "ssimAll": 0.991866
+  },
+  "behavior": {
+    "htmlSourceRetained": true,
+    "initialPreload": "none",
+    "nearViewportPixels": 300,
+    "visible": "muted loop playback",
+    "offscreen": "paused",
+    "javascriptDisabled": "poster and native manual controls",
+    "autoplayBlocked": "native controls enabled"
+  },
+  "build": {
+    "fixtureProducts": 2,
+    "htmlPagesChecked": 19,
+    "productionContentValidation": false
+  },
+  "browserRegression": {
+    "command": "E2E_SITE_URL=http://127.0.0.1:57521 playwright test tests/e2e/public.spec.ts --project=chromium --grep 'factory video loading' --workers=1",
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  },
+  "firstDisplayedFrame": {
+    "method": "Production static build on loopback. Actual repository display source, no DOM source override, no JavaScript seek. No deployment or field CWV claim.",
+    "samples": [
+      {
+        "engine": "chromium",
+        "browser": "149.0.7827.55",
+        "mobile": false,
+        "start": {
+          "currentTime": 0.004113,
+          "firstPresentedMediaTime": 0,
+          "presentedFrames": 1,
+          "duration": 84.233008,
+          "meanRgb": 136.76157407407408,
+          "readyState": 4
+        },
+        "passed": true
+      },
+      {
+        "engine": "chromium",
+        "browser": "149.0.7827.55",
+        "mobile": true,
+        "start": {
+          "currentTime": 0.008022,
+          "firstPresentedMediaTime": 0,
+          "presentedFrames": 1,
+          "duration": 84.233008,
+          "meanRgb": 136.76157407407408,
+          "readyState": 4
+        },
+        "passed": true
+      },
+      {
+        "engine": "webkit",
+        "browser": "26.5",
+        "mobile": false,
+        "start": {
+          "currentTime": 0,
+          "firstPresentedMediaTime": 0,
+          "presentedFrames": 1,
+          "duration": 84.233,
+          "meanRgb": 155.83796296296296,
+          "readyState": 4
+        },
+        "passed": true
+      },
+      {
+        "engine": "webkit",
+        "browser": "26.5",
+        "mobile": true,
+        "start": {
+          "currentTime": 0,
+          "firstPresentedMediaTime": 0,
+          "presentedFrames": 1,
+          "duration": 84.233,
+          "meanRgb": 155.83796296296296,
+          "readyState": 4
+        },
+        "passed": true
+      }
+    ]
+  },
+  "limitations": [
+    "This is a local build and browser result, not field Core Web Vitals.",
+    "The video file is not smaller; the improvement is preventing its initial offscreen download and removing the pure-black introduction.",
+    "The copy-only MP4 experiment was rejected because WebKit omitted valid opening content.",
+    "No production page or hosting configuration was changed by these local tests."
+  ],
+  "references": [
+    "https://developers.google.com/search/docs/crawling-indexing/javascript/lazy-loading",
+    "https://web.dev/articles/lazy-loading-video"
+  ]
+}
