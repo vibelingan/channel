@@ -1,7 +1,7 @@
 {
   "checked_on": "2026-11-01",
   "cloudbase_auth": "ready",
-  "scope": "read-only environment inventory; no cloud writes or deployment",
+  "scope": "user-authorized marked synthetic inquiry acceptance in existing Channel CloudBase; email off",
   "current_env_id": "diversity-123-d9grnqfux221323bb",
   "production_identity": {
     "github_repository": "vibelingan/channel",
@@ -21,8 +21,8 @@
     "other regions are outside queryEnv supported region enum"
   ],
   "isolated_cloud_environment_confirmed": false,
-  "cloud_write_allowed": false,
-  "cloud_acceptance": "pending dedicated environment; no production test records created",
+  "cloud_write_allowed": true,
+  "cloud_acceptance": "passed actual save, retry, conflicting content rejection, concurrent deduplication, transaction rollback and independent readback",
   "hermes_cloud_account": "not determined by Channel authorization",
   "ssh": {
     "content_profile": "channel-blog-content-20261027",
@@ -31,5 +31,17 @@
     "expected_hub_systemd_units": "not found on queried hosts",
     "limits": "does not identify the current Hub deployment or its cloud account"
   },
-  "local_acceptance": "owned disposable PostgreSQL/MySQL, loopback-only ports; Channel transaction double and local model HTTP; no email"
+  "local_acceptance": "owned disposable PostgreSQL/MySQL, loopback-only ports; Channel transaction double and local model HTTP; no email",
+  "previous_read_only_inventory": {
+    "scope": "read-only environment inventory; no cloud writes or deployment",
+    "cloud_write_allowed": false,
+    "cloud_acceptance": "pending dedicated environment; no production test records created"
+  },
+  "isolated_cloud_environment_required": false,
+  "cloud_acceptance_function": "sales-assistant-acceptance-20261101",
+  "synthetic_inquiry_count": 3,
+  "synthetic_client_id": "acceptance_20261101",
+  "cloud_request_id": "59624397-392b-47d9-b815-eaecec01e21c",
+  "cloud_email_calls": 0,
+  "real_natural_language_model_acceptance": "pending model and VibeKB MCP adapter and deployed service integration"
 }

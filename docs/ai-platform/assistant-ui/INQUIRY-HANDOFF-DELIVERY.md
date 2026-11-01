@@ -1,6 +1,6 @@
 # 助手询盘与 Hermes 自动任务：本轮交付
 
-2026-11-01。SG1.2／SG3.2 延续原编号。本轮补齐跨系统接缝，未部署、未改线上配置、未发送邮件。
+2026-11-01。SG1.2／SG3.2 延续原编号。前轮补齐跨系统接缝；本轮追加现有云库真实验收，仅新增专用验收函数和 Sales 私有集合，未发送邮件。
 
 ## 现在验证到哪里
 
@@ -8,7 +8,7 @@
 
 浏览器测试从原 Prepare inquiry 按钮进入，核对客户需求与同意后提交；不是伪造 Hermes 事件。测试后台先启动轮询，不需要按每条询盘下销售启动命令。故意丢失第一份成功回执，核对原提交后仍只有一个询盘 reference、一个 task/run 和一份归档。
 
-这是实际组件与服务代码的隔离验收。Channel 文档库仍是事务替身，产品与模型为本地样例；BFF PostgreSQL 与 Hermes MySQL 为本次创建的真实独立数据库。它没有证明真实模型的自然语言询盘识别、VibeKB MCP、线上调度或真实 CloudBase 已验收。
+这是实际组件与服务代码的隔离验收。Channel 文档库仍是事务替身，产品与模型为本地样例；BFF PostgreSQL 与 Hermes MySQL 为本次创建的真实独立数据库。此前这轮本地／CI 结果没有证明真实模型、VibeKB MCP、线上调度或真实 CloudBase。2026-11-01 已另行完成真实 CloudBase 保存／去重／回滚／回读；真实模型与完整线上串联仍未验收。
 
 ## 发现并修正了什么
 
@@ -20,7 +20,7 @@ UI 分支新增的 `scripts/assistant-sales-browser.mts` 只用于本地／CI：
 
 ## 云环境与部署影响
 
-已登录 Channel 的 CloudBase 管理账号。上海／广州／新加坡环境清单只找到正在服务官网的 `diversity-123-d9grnqfux221323bb`，与 GitHub `test` 的正式站点配置一致。因此没有写测试询盘、建集合或部署；第一步真实云库验收仍缺独立环境。见 [环境核对结果](INQUIRY-ENVIRONMENT-VERIFICATION.json)。无需换成 Hermes 云账号来解决 Channel 云库隔离。
+已登录 Channel 的 CloudBase 管理账号。上海／广州／新加坡环境清单只找到正在服务官网的 `diversity-123-d9grnqfux221323bb`，与 GitHub `test` 的正式站点配置一致。用户随后明确授权使用现有环境写入标记测试数据，不再要求独立环境。已新增三个 Sales 私有集合与一个无触发器的管理端验收函数；实际保存 3 条 TEST 询盘，重试、并发去重、最终写入失败回滚及独立回读均通过。见 [环境核对结果](INQUIRY-ENVIRONMENT-VERIFICATION.json)。无需换成 Hermes 云账号来解决 Channel 云库隔离。
 
 SSH 权限已经配置，两台助手主机均可登录；所查主机未发现预期 Hub 服务，不能据此确定当前 Hermes 云账号与部署。当前测试使用本机独立资源，没有借用线上 Agent 的任务库或私有目录。
 
@@ -32,4 +32,6 @@ Hermes 的运行修改只涉及 Sales 读取协议、模型资料整理与邮件
 
 代码提交：Channel `ad01506b1246baeb24caa2ce897f1353df54e911`；Hermes 运行代码 `3f9eda354665266a0be3f1321df7fa63fb08b8a2`，CI 安装修正 `d8be659673ff2bc940f16d086d17423c504665ce`。Channel 最新代码的 [CI](https://github.com/vibelingan/channel/actions/runs/41295738066) 已通过；Hermes 修正后 `d8be659` 的 [CI](https://github.com/vibelingan/hermesinfra/actions/runs/41296244682) 两个 job 均通过，包含实际助手入口 4 项与 A/B 容器隔离。本次最终文档提交不改变运行代码。
 
-文字复核读取本文件、执行计划、环境 JSON、Hermes 读取／整理／渲染代码与 E2E。将“模拟入口”改成“实际组件，云库／模型仍为替身”，并核对云端零写入、自动轮询先启动及成果发送权限为 none。
+文字复核读取本文件、执行计划、环境 JSON、Hermes 读取／整理／渲染代码与 E2E。将“模拟入口”改成“实际组件，云库／模型仍为替身”，并核对前轮云端只读、自动轮询先启动及成果发送权限为 none；本轮新增的真实云写入单独记录在更新说明和证据中。
+
+2026-11-01 更新：真实云执行请求 `59624397-392b-47d9-b815-eaecec01e21c`；完整证据在 Sales 分支 `docs/sales-agent/SHARED-ENV-ACCEPTANCE-DELIVERY.md`。账号与真实聊天接线步骤见 [从账号开始的操作顺序](REAL-CHAT-SETUP.zh-CN.md)。本轮没有修改聊天运行代码，当前 worker 仍缺 VibeKB MCP 适配，不能声称补 Key 后即已完成。
