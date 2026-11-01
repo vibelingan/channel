@@ -8,7 +8,7 @@ import { chromium, expect } from '@playwright/test';
 import { createInquiryClient } from '../apps/ai-bff/src/inquiry-client.ts';
 import { createAiBffServer } from '../apps/ai-bff/src/server.ts';
 import { createServer } from '../apps/site/node_modules/vite/dist/node/index.js';
-import { AiStore, migrateUp } from '../packages/ai-store/src/index.ts';
+import { AiStore, waitForDatabase } from '../packages/ai-store/src/index.ts';
 
 function loopback(value: string | undefined) {
   const url = new URL(value ?? '');
@@ -28,7 +28,7 @@ let bff: ReturnType<typeof createAiBffServer> | undefined;
 let preview: Awaited<ReturnType<typeof createServer>> | undefined;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
-  await migrateUp(store.pool);
+  await waitForDatabase(store, { signal: AbortSignal.timeout(15000), delaysMs: [100, 250, 500] });
   bff = createAiBffServer(
     store,
     {
@@ -72,6 +72,16 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const browserErrors: string[] = [];
   page.on('pageerror', (e) => browserErrors.push(e.message));
+  await page.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      ['http:', 'https:'].includes(url.protocol) &&
+      !['127.0.0.1', 'localhost'].includes(url.hostname)
+    ) {
+      browserErrors.push('External request refused by local acceptance');
+      await route.abort('blockedbyclient');
+    } else await route.continue();
+  });
   await page.goto(`http://127.0.0.1:${web.port}/assistant-chat.html`);
   await page.getByRole('button', { name: 'Prepare inquiry', exact: true }).click();
   await page
