@@ -238,11 +238,10 @@ try {
       source_unchanged: true,
     });
   }
-  await mkdir(path.join(root, 'output/assistant-chat'), { recursive: true });
-  await writeFile(
-    path.join(root, 'output/assistant-chat/guards.json'),
-    JSON.stringify(report, null, 2),
-  );
+  const reportPath =
+    process.env.ASSISTANT_GUARD_REPORT ?? path.join(root, 'output/assistant-chat/guards.json');
+  await mkdir(path.dirname(reportPath), { recursive: true });
+  await writeFile(reportPath, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } finally {
   await rm(scratch, { recursive: true, force: true });

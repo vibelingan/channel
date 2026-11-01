@@ -4,7 +4,7 @@
 
 ## 实际问题与已核对的代码
 
-`engineFromEnvironment()` 当前只构造 fake／旧适配；Hermes 的实际配置已是腾讯 TokenHub DeepSeek 和 `vibekb-kb` Streamable HTTP MCP。当前主机连通、MCP service active。不能把旧官网代码误说成基础设施仍使用 AnythingLLM。本轮新增独立 VibeKB 适配，继续实现 ConversationEngine；不在通用 port 中放供应商逻辑。
+实施前 `engineFromEnvironment()` 只构造 fake／旧适配；Hermes 的实际配置已是腾讯 TokenHub DeepSeek 和 `vibekb-kb` Streamable HTTP MCP。当前已新增 VibeKB 构造路径和独立适配，继续实现 ConversationEngine；启动配置的测试不依赖旧 KB 凭据。实际主机连通、MCP service active，不把旧官网代码误说成基础设施仍使用 AnythingLLM。
 
 现有前端 `ChatPanel`、`ChatComposer`、`useAssistantSession`、`AssistantMessages`、`InquiryReview`、产品卡／比较／停止／失败恢复已存在。现有 worker 可以将严格产品计划交给 PublicCatalog，但真实模型尚未驱动验收，询盘缺模型整理的多轮需求。复用这些模块，只补缺口；历史恢复仍按用户此前决定暂缓，不擅自开放跨设备历史。
 

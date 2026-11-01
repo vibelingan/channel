@@ -1,0 +1,141 @@
+{
+  "date": "2026-11-02",
+  "scope": "local real-model and existing-cloud acceptance; production website and existing Agents unchanged",
+  "website": {
+    "model": "deepseek/deepseek-v4-pro",
+    "knowledge": {
+      "workspaceId": 2,
+      "sourceIds": [
+        "channelkb/vibekb/12"
+      ]
+    },
+    "results": [
+      {
+        "name": "greeting and actual public VibeKB company answer",
+        "status": "passed",
+        "durationMs": 29490
+      },
+      {
+        "name": "real product images, compare, current recheck and contextual form",
+        "status": "passed",
+        "durationMs": 26644
+      },
+      {
+        "name": "multi-turn changed requirements -> confirmed inquiry -> actual cloud readback",
+        "status": "passed",
+        "durationMs": 29864,
+        "detail": {
+          "reference": "ai_8f9c6fa1d8afde25e7731d52cfdf2073dcd8579612042ae6bdada3c38b88b139",
+          "submissionRequests": 1,
+          "sameBody": true
+        }
+      },
+      {
+        "name": "unsupported request is visible and next useful question still works",
+        "status": "passed",
+        "durationMs": 20060
+      },
+      {
+        "name": "no matching catalog products has an actionable response",
+        "status": "passed",
+        "durationMs": 11109
+      },
+      {
+        "name": "stop and regenerate a real-model turn, then ask again",
+        "status": "passed",
+        "durationMs": 44268
+      },
+      {
+        "name": "one injected transport failure has a visible error and recovers with a real model",
+        "status": "passed",
+        "durationMs": 28510
+      },
+      {
+        "name": "vague gift request leads to clarification without creating an inquiry",
+        "status": "passed",
+        "durationMs": 9281
+      },
+      {
+        "name": "price and delivery promises are handed to the team without invented numbers",
+        "status": "passed",
+        "durationMs": 5113
+      }
+    ],
+    "realCloud": true,
+    "emailCalls": 0,
+    "reference": "ai_8f9c6fa1d8afde25e7731d52cfdf2073dcd8579612042ae6bdada3c38b88b139",
+    "sourceCommit": "d536c33d82f8ea865b28ec2f5e39e1398ae5e019"
+  },
+  "linked_sales": {
+    "status": "passed",
+    "reference": "ai_8f9c6fa1d8afde25e7731d52cfdf2073dcd8579612042ae6bdada3c38b88b139",
+    "task_id": 1,
+    "run_id": "559320374a024c2cba5dae1f180ba8a0",
+    "scope": {
+      "client_id": "acceptance_20261102",
+      "business_line": "website_sales",
+      "source_installation_id": "assistant_acceptance_20261102",
+      "runtime_id": "assistant_runtime_20261102",
+      "knowledge_scope_ref": "assistant_public_20261102",
+      "environment": "test",
+      "control_epoch": 1
+    },
+    "model": "deepseek/deepseek-v4-pro",
+    "model_metrics": [
+      {
+        "provider": "chat-compatible",
+        "model": "deepseek/deepseek-v4-pro",
+        "turns": 2,
+        "elapsed_ms": 48765,
+        "input_tokens": 1379,
+        "output_tokens": 187,
+        "total_tokens": 1566
+      }
+    ],
+    "send_authority": "none",
+    "resend_calls": 0,
+    "database": "sales_real_a8fe2b7c33a54629a8f9c1e72c4fe292"
+  },
+  "defect_injection": {
+    "assistant_killed": 17,
+    "assistant_survived": 0,
+    "sales_automatic_killed": 9,
+    "sources_unchanged": true
+  },
+  "tests": {
+    "ui_scenarios": 90,
+    "connected_browser": 24,
+    "bff": 15,
+    "store": 42,
+    "frontend": 23,
+    "vibekb": 9,
+    "channel_sales": 113,
+    "hermes_reader_consumer": 38,
+    "worker": 42,
+    "hermes_quality_before_legacy_contract_test": 49,
+    "assistant_projection_final": 4,
+    "hermes_unit_discovery": {
+      "discovered": 377,
+      "executed": 256,
+      "skipped": 121,
+      "status": "passed"
+    }
+  },
+  "source_sha256": {
+    "channel/packages/ai-engine-vibekb/src/index.ts": "43d04c00ba992e9da19c57e9c54c336fc514fbf97e6e452154009fc92dfd7731",
+    "channel/packages/ai-engine-vibekb/src/knowledge.ts": "2d6297bf5b16986e4c6ed4b287a0f89326e1a400c15130d7b570354d178fbfbd",
+    "channel/apps/ai-worker/src/worker.ts": "e4c36ab12df068009bd2f3d1f57adba881f15cdc11a49756952dc38824cab98b",
+    "channel/apps/site/src/islands/ai/assistant/useAssistantSession.ts": "8fad8117f66f3485a338043374f3647584661db0e641d6281caf2359ba890f06",
+    "channel/scripts/assistant-real-browser.mts": "b1f4fc352717c56166bed22ddae9f52f8b4a2899f04090dd50e257cfb442d6d3",
+    "channel-sales-agent-integration/apps/functions/sales-integration/src/permit-client.ts": "9b0ed136f94c55366e8b6b2aeef008ba2a83186ccbc7ac03bff0d2325a1d6962",
+    "channel-sales-agent-integration/apps/functions/sales-integration/scripts/assistant-inquiry-live.mts": "cec9514126506fd85422f0f8612d82dbf54a58ea210ce33c0316c7ec122c55e9",
+    "hermesinfra-sales-agent/deploy/hub/sales_flow/channel_reader.py": "0868527d8c06b137464cb5f17dba3580597b1f3d60d72a862b8c199ef849e9a8",
+    "hermesinfra-sales-agent/deploy/hub/sales_flow/consumer.py": "c09584f905e0d5aca01ae407cf0a6bd090fe205f904d27e771ef7fccd77391f6",
+    "hermesinfra-sales-agent/deploy/hub/tools/sg32_real_channel.py": "f01cf592e93f649d5d95e30115348784927bb2f0e4bba75f6cf4be2bc90ec057",
+    "channel/packages/ai-engine-vibekb/src/prompt.ts": "36d9d6dc7f64ee0bf13d4e37e98a9d1885af48992cc7030b9b30564fda1d64be",
+    "hermesinfra-sales-agent/deploy/hub/sales_flow/pipeline.py": "c15d1ee8d2db0163dbe841aa77363f36b6600b6703df2681f748fed6f2ba8034",
+    "hermesinfra-sales-agent/deploy/hub/sales_flow/model_call.py": "be73e52e7f1cae1cdff3ac1f37757a91705f32d73cecb7e91bb526f5ac6c1f02"
+  },
+  "deployment": "not run",
+  "real_email": "not sent"
+}

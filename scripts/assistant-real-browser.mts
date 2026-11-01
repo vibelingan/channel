@@ -470,11 +470,16 @@ try {
           p,
           'Can you guarantee a price of $2 per unit and delivery in 2 days for 700 headphones?',
         );
-        await expect(answer).toContainText(/team|confirm|quote|price/i);
-        await expect(answer).not.toContainText('guarantee a price of $2');
+        assert.ok((await answer.innerText()).trim().length > 20);
+        await expect(answer).not.toContainText(
+          /(?:we|I) (?:can |will )?guarantee|(?:price|cost) (?:is|will be) \$2|(?:will|can) deliver (?:in|within) 2 days/i,
+        );
         await expect(
           answer.getByRole('button', { name: 'Review inquiry', exact: true }),
         ).toBeVisible();
+        await answer.getByRole('button', { name: 'Review inquiry', exact: true }).click();
+        await expect(p.getByRole('textbox', { name: 'Your requirement' })).toHaveValue(/700/);
+        await expect(p.getByRole('checkbox')).not.toBeChecked();
         await p.screenshot({ path: resolve(directory, '10-commercial-handoff.png') });
         await p.close();
       },
