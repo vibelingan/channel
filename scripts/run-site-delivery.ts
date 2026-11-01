@@ -20,6 +20,10 @@ import { readFunctionRuntimeState } from './blog/runtime-health.mjs';
 import { assertBlogDeliveryOwnership, assertServerBlogReady } from './blog/server-route-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
+import {
+  assertCatalogBuildInputCurrent,
+  assertPrebuiltCatalogMode,
+} from './catalog-build-input.ts';
 import { guardCatalogHostingAdapters, prepareCatalogRefresh } from './catalog-refresh.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
@@ -60,6 +64,7 @@ interface SiteObjectEntry {
 }
 const env = process.env;
 const policy = assertSiteDeliveryInvocation(env);
+assertPrebuiltCatalogMode(env);
 const blogServer = serverBlogBuild(env);
 if (blogServer && env.SITE_ARTICLE_TASK_ID)
   throw Error('Server Blog does not use a static article build task');
@@ -394,6 +399,7 @@ try {
           codeSha,
           dist: 'apps/site/dist',
           productFile: 'output/seo-release/product-snapshot.json',
+          productSourceFile: 'output/seo-release/product-source.json',
           blogFile: 'output/seo-release/blog/snapshot.json',
           blogDelivery: blogServer ? 'server' : 'static',
           recordFile: 'output/seo-release/build-record.json',
@@ -658,6 +664,18 @@ try {
     }
     if (catalogConfig)
       catalog = await prepareCatalogRefresh(createCatalogSeoStore(db), catalogConfig, runId);
+    if (built && catalogConfig && catalog) {
+      const captured = JSON.parse(await readFile('output/seo-release/product-source.json', 'utf8'));
+      assert(captured.source === env.SITE_PRODUCT_SOURCE, 'Product source changed after capture');
+      assert(captured.source === 'fresh' || captured.source === 'accepted');
+      assertCatalogBuildInputCurrent({
+        config: catalogConfig,
+        source: captured.source,
+        snapshot: await readFile('output/seo-release/product-snapshot.json'),
+        proof: captured.catalog,
+        current: catalog,
+      });
+    }
     if (env.SITE_PRODUCT_SOURCE === 'refresh' || env.SITE_CATALOG_BOOTSTRAP === '1') {
       if (!catalog || !baseline)
         throw Error('A current accepted snapshot and checked requests are required');

@@ -95,5 +95,56 @@
       "change": "Pass the exact COS object key without the leading slash used by the direct SCF API. Keep all other descriptor fields and immutable archive storage unchanged.",
       "actualRootCauseConfirmed": false
     }
+  },
+  "keyFormatRetry": {
+    "runId": "41283214446",
+    "codeSha": "88f944981a8ea8481e59589014d93d424c630982",
+    "conclusion": "failure",
+    "publicApi": "accepted",
+    "sync": "not-written",
+    "admin": "not-attempted",
+    "backupArtifactId": "13074037357",
+    "nativeCandidate": {
+      "bytes": 9076182,
+      "sha256": "1f519d451f888f0d432b8e9e0657125b6b2d3cbfb3602a23f7fba2b0d8593cc6",
+      "uploadMs": 158682,
+      "readMs": 5011,
+      "verified": true
+    },
+    "providerFailure": {
+      "code": "InvalidParameter",
+      "stage": "submit-code",
+      "requestId": "ee0fd3ec-d08e-41cd-abcd-79fd54061aa0"
+    },
+    "pathChangeWasSufficient": false,
+    "observedFunctions": {
+      "public-api": "88f944981a8ea8481e59589014d93d424c630982",
+      "alibaba-catalog-sync": "914438425aa5b12193707d34c146f90372aff94e",
+      "admin": "914438425aa5b12193707d34c146f90372aff94e"
+    },
+    "recording": false,
+    "readiness": false,
+    "websiteWrites": 0,
+    "businessDataWrites": 0
+  },
+  "nextContractCorrection": {
+    "source": "https://cloud.tencent.cn/document/product/876/137952",
+    "installedManager": "5.9.1",
+    "difference": "Manager custom-code branch does not forward the documented CodeSource. Fixed native archive uses the public TCB commonService with CodeSource Cos; other bundles retain the existing SDK path.",
+    "pathDocumentationConflict": "TCB CodeReq says leading slash; current official MCP implementation forwards the raw key. Keep the 88f94498 key unchanged for this isolated CodeSource check.",
+    "scfNestedFailure": "Reject nonempty SCFErrorCode even when RequestId is present. Retain fixed field/reason labels without raw provider message.",
+    "liveVerified": false
+  },
+  "localFixValidation": {
+    "allScripts": 1406,
+    "passed": 1406,
+    "failed": 0,
+    "skipped": 0,
+    "focused": 53,
+    "scriptsTypecheck": "passed",
+    "cloudbaseSdk": "passed",
+    "changedBiome": "passed",
+    "remoteCi": "not-yet-run",
+    "nextLiveRetry": "not-started"
   }
 }

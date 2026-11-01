@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { parse } from 'yaml';
 const workflow = (name) =>
   parse(readFileSync(new URL(`../.github/workflows/${name}.yml`, import.meta.url), 'utf8'));
@@ -29,10 +30,27 @@ test('Blog regression exercises real local editor and published HTML without clo
   assert.doesNotMatch(commands, /--build-only|workflow run|deploy:cloudbase|continue-on-error/);
   assert.ok(job.steps.every((step) => step['continue-on-error'] === undefined));
 });
-test('manual restore keeps its HTTP checks without installing an unused browser', () => {
+test('rebuilt public pages install their acceptance browser before any cloud write, including program restore', () => {
   const job = workflow('seo-site-delivery').jobs.site;
-  const browser = job.steps.find((step) => step.run?.includes('playwright install'));
-  assert.equal(browser.if, "${{ inputs.action == 'publish' }}");
-  assert(job.steps.some((step) => step.with?.script?.includes('run-site-delivery.ts')));
+  const browserIndex = job.steps.findIndex((step) => step.run?.includes('playwright install'));
+  const writerIndex = job.steps.findIndex((step) =>
+    step.with?.script?.includes('run-site-delivery.ts'),
+  );
+  assert(browserIndex >= 0 && browserIndex < writerIndex);
+  const expression = job.steps[browserIndex].if.slice(3, -2);
+  for (const [action, renderer_sha, expected] of [
+    ['publish', '', true],
+    ['publish', 'a'.repeat(40), true],
+    ['restore', 'a'.repeat(40), true],
+    ['restore', '', false],
+    ['initialize', '', false],
+  ]) {
+    // These string comparisons and booleans have the same meaning in Actions and JS.
+    assert.equal(
+      runInNewContext(expression, { inputs: { action, renderer_sha } }, { timeout: 100 }),
+      expected,
+      `${action} with ${renderer_sha ? 'an archived program' : 'no program'}`,
+    );
+  }
   assert(job.steps.every((step) => step['continue-on-error'] === undefined));
 });

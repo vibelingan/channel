@@ -422,3 +422,15 @@ Archify 新增程序与内容时序图，产物9项检查及自动浏览器检�
 实际读取官方CloudBase-AI-ToolKit的function-cos-upload.ts与functions.ts第2429–2459行：环境桶上传返回原始key，管理SDK原样传给TCB UpdateFunctionCode，没有前导/。旧实现把SCF直接API文档中的/加进了TCB引用。先改实际SDK断言为官方格式，旧代码确实失败；仅去掉CosObjectName开头/并把测试对象key改成真实COS格式，31项专项通过、脚本TypeScript/Biome/CloudBase SDK检查通过。桶、地域、.bin后缀、ZIP字节校验、配置/定时/权限均不改。该差异有主源依据，但实际根因须下一次云端成功才能确认；不把MCP自身的fnzip-upload/.zip校验当作TCB服务器限制。
 
 路径修正后全量1389项脚本再次全部通过，无跳过；此结果仅是本地验证，下一步精确远端CI和现场复测。
+
+88f94498精确远端17项CI及两组Blog检查全部成功后，受控运行41283214446仍停在同步函数提交：原包完整备份，公开接口接受88f94498，同步与后台独立HTTP读回仍91443842。9,076,182字节候选完整上传158682ms、读回5011ms且hash一致；TCB InvalidParameter，请求ee0fd3ec-d08e-41cd-abcd-79fd54061aa0。去掉斜杠不足以解释或修复现场错误，保留此失败，不改写成根因已解决。
+
+继续核对官方TCB UpdateFunctionCode与CodeReq、官方MCP源码及安装Manager5.9.1：OpenAPI有CodeSource:Cos，Manager自定义代码分支没有传出。先对真实Manager请求增加CodeSource断言，旧代码确实失败(undefined!==Cos)，再通过公开commonService只为固定原生包补齐该字段；来源路径保持88版本以隔离变量。官方CodeReq要求前导斜杠，与MCP源码冲突如实保留。补拒绝RequestId存在但SCFErrorCode非空的回应用例，固定字段名和原因标签可以记录，原始message不记录；上传和代码读回判断不变。当前仅本地通过，不提前认定现场成功。
+
+只读审查发现普通预构建可能用旧HTML接受构建期间的新商品版本，实际改了prepare-products、catalog-refresh、run-site-delivery、site-build-record，并新增catalog-build-input：采集前消费已有待办，前后核对版本与写入计数，构建前绑定公开版本并封印原证明，交付前严格比对；复用旧快照不能补标成最新，预构建拒绝与refresh/bootstrap/恢复混用。首次导入网站前商品发生变化即停止，客户数据及待办保留。另修复程序恢复缺少Playwright浏览器的工作流条件，旧条件的恢复场景已验证失败，新条件通过。
+
+新增测试用本地合成数据和实际消费者核对预先pending、同ID正文/价格/变体/分类语义变化、撤回、新增、改回原文、详情版本、快照及证明被改、未跟踪到跟踪切换、fresh到accepted复用及互斥入口。第一次直接用Node strip-only加载旧TS参数属性失败，测试改用仓库已有tsx加载方式；脚本类型检查最初因引入前端整个快照模块而报上下文错误，已移除这条跨层导入，只使用已有DB版本schema和必要边界检查。不是放宽检查。
+
+本轮实际读取humanizer及plain-technical-writing、Fable手册、CloudBase SDK约束、ENGINEERING_CRAFT部署与E2E规则、安装SDK源码、06和本工作记录。将“参数修正通过”更正为“参数修正的本地测试通过，现场仍返回参数错误”，以真实run与HTTP版本为依据；用户取消老板Word报告，仅维护实现对应的内部记录。
+
+当前修正的最终本地结果：53项专项、1406项全量脚本全部通过，失败0、跳过0；scripts/blog/tsconfig.json类型检查、CloudBase SDK契约验证及修改文件Biome通过。新增浏览器安装、构建版本证明、原生TCB来源参数分别有独立检查；线上参数是否成功仍待新提交精确CI后复测。41283214446备份已下载，三个原ZIP各自CRC及SHA独立验算通过，保留首轮原始恢复点。

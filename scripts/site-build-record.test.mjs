@@ -61,3 +61,28 @@ test('server Blog records its separate ownership and never requires or freezes a
   writeFileSync(productFile, 'changed products');
   assert.throws(() => readBuiltSite(input));
 });
+
+test('same-run HTML also freezes the original catalog capture receipt', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'catalog-capture-record-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const dist = join(root, 'site');
+  mkdirSync(join(dist, 'errors'), { recursive: true });
+  writeFileSync(join(dist, 'errors/not-found.html'), '404');
+  writeFileSync(join(dist, 'index.html'), 'Current build');
+  const productFile = join(root, 'products.json');
+  const productSourceFile = join(root, 'source.json');
+  writeFileSync(productFile, 'products');
+  writeFileSync(productSourceFile, JSON.stringify({ source: 'fresh', catalog: { writes: 1 } }));
+  const input = {
+    codeSha: 'a'.repeat(40),
+    dist,
+    productFile,
+    productSourceFile,
+    blogDelivery: 'server',
+    recordFile: join(root, 'build.json'),
+  };
+  assert.equal(sealBuiltSite(input).schemaVersion, 3);
+  assert.equal(readBuiltSite(input).size, 2);
+  writeFileSync(productSourceFile, JSON.stringify({ source: 'fresh', catalog: { writes: 2 } }));
+  assert.throws(() => readBuiltSite(input), /frozen input changed/);
+});

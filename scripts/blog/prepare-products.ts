@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import CloudBase from '@cloudbase/manager-node';
+import { createCatalogSeoStore } from '../../packages/db/src/catalog-seo-cloud.ts';
+import { readCatalogSeoRecordingConfig } from '../../packages/db/src/catalog-seo-requests.ts';
+import { sealCatalogBuildInput, versionFreshCatalogBuildSnapshot } from '../catalog-build-input.ts';
+import { prepareCatalogRefresh } from '../catalog-refresh.ts';
+import { assertInitialCatalogRuntime } from '../release/catalog-runtime-activation.mjs';
+import { checkCatalogRuntimeFlags } from '../release/catalog-runtime-flags.mjs';
 import { publicBuildEnvironment } from '../release/public-build-env.mjs';
 import { createSiteGithubSource } from '../release/site-github-source.mjs';
 import { siteArtifact } from '../release/site-payload.mjs';
@@ -11,6 +18,7 @@ import {
   createCloudbaseReleaseDatabase,
   createCloudbaseReleaseStore,
 } from '../release/store-cloudbase.mjs';
+import { readFunctionRuntimeState } from './runtime-health.mjs';
 const env = process.env;
 const policy = assertSiteDeliveryInvocation(env);
 if (
@@ -20,6 +28,7 @@ if (
 )
   throw Error('Explicit normal test snapshot preparation required');
 const source = env.SITE_PRODUCT_SOURCE ?? 'fresh';
+assert(source === 'fresh' || source === 'accepted', 'Explicit product source required');
 const output = resolve('output/seo-release');
 await mkdir(output, { recursive: true });
 const github = createSiteGithubSource({ token: env.GITHUB_TOKEN });
@@ -43,6 +52,33 @@ const coordinator = createReleaseCoordinator({
 });
 const status = await coordinator.status({ scopeKey: 'site' });
 assertCleanAcceptedSite(status);
+const catalogConfig = readCatalogSeoRecordingConfig(env);
+const catalogStore = createCatalogSeoStore(db);
+if (catalogConfig) {
+  await checkCatalogRuntimeFlags(
+    new CloudBase({
+      envId: policy.envId,
+      region: policy.region,
+      secretId: env.TENCENTCLOUD_SECRETID,
+      secretKey: env.TENCENTCLOUD_SECRETKEY,
+    }),
+    catalogConfig,
+    policy.envId,
+  );
+  const activation = await db.collection('catalogSeoBuilders').doc('runtime-activation').get();
+  assertInitialCatalogRuntime(
+    Array.isArray(activation.data) ? activation.data[0] : activation.data,
+    policy.siteOrigin,
+  );
+  for (const name of ['admin', 'alibaba-catalog-sync'])
+    assert(
+      (await readFunctionRuntimeState(policy.envId, name)).catalogSeoRecording,
+      'Actual product writer has not enabled change recording',
+    );
+}
+const catalogBefore = catalogConfig
+  ? await prepareCatalogRefresh(catalogStore, catalogConfig, `capture-${env.GITHUB_RUN_ID}`)
+  : null;
 async function command(args: string[]) {
   await new Promise<void>((done, reject) => {
     const child = spawn(resolve('apps/site/node_modules/.bin/tsx'), args, {
@@ -84,6 +120,25 @@ else {
     resolve(output, 'product-snapshot.json'),
   ]);
   receipt = { source, acceptedSiteRunId: accepted.runId, artifactId: artifact.artifactId };
+}
+if (catalogConfig && catalogBefore) {
+  const after = await prepareCatalogRefresh(
+    catalogStore,
+    catalogConfig,
+    `capture-${env.GITHUB_RUN_ID}`,
+  );
+  const capture: Parameters<typeof sealCatalogBuildInput>[0] = {
+    config: catalogConfig,
+    source,
+    before: catalogBefore,
+    after,
+    snapshot: await readFile(resolve(output, 'product-snapshot.json')),
+  };
+  if (source === 'fresh') {
+    capture.snapshot = versionFreshCatalogBuildSnapshot(capture);
+    await writeFile(resolve(output, 'product-snapshot.json'), capture.snapshot);
+  }
+  receipt.catalog = sealCatalogBuildInput(capture);
 }
 await writeFile(resolve(output, 'product-source.json'), JSON.stringify(receipt, null, 2), {
   flag: 'wx',

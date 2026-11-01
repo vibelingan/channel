@@ -61,10 +61,13 @@ export async function prepareCatalogRefresh(
       if (page.length < 100) break;
       if (heads.length > 50000) throw Error('SEO head count exceeds bound');
     }
+    const delivery = createCatalogSeoDelivery(store, config.siteOrigin, after.writes, runId);
+    // A product write during the paginated head read invalidates the entire capture.
+    await delivery.check();
     return {
       writes: after.writes,
       heads,
-      delivery: createCatalogSeoDelivery(store, config.siteOrigin, after.writes, runId),
+      delivery,
     };
   }
   throw Error('Product changes did not settle within the bounded preparation window; retry later');

@@ -55,12 +55,16 @@ test('the real management SDK receives only a verified environment COS descripto
       expectedSnapshot: before,
     });
     const call = x.state.calls.find((c) => c.action === 'UpdateFunctionCode');
+    assert.equal(call.service, 'tcb');
+    assert.equal(call.version, '2018-06-08');
+    assert.equal(call.region, 'ap-shanghai');
     assert.deepEqual(call.payload.Code, {
       CosBucketName: 'fixture-env',
       CosBucketRegion: 'ap-shanghai',
       CosObjectName: `seo-recovery/objects/${sha256(candidate)}.bin`,
     });
     assert.equal(call.payload.InstallDependency, 'FALSE');
+    assert.equal(call.payload.CodeSource, 'Cos');
     assert.equal(call.payload.Handler, 'index.main');
     assert.equal(Object.hasOwn(call.payload, 'Environment'), false);
     assert.equal((await x.provider.read(name)).packageSha256, sha256(candidate));
@@ -80,6 +84,38 @@ test('the real management SDK receives only a verified environment COS descripto
       }),
     );
     assert.equal(drift.state.updates, 0);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test('TCB success with a nested SCF rejection is not reported as a submitted update', async () => {
+  const fixture = nativeFunctionFixture();
+  try {
+    const base = fixture.pack();
+    const candidate = fixture.pack({ 'index.js': 'exports.main=async()=>({revision:2});' });
+    const x = setup(base);
+    const before = await x.provider.read(name);
+    x.state.scfError = true;
+    await assert.rejects(
+      x.provider.updateCode({
+        name,
+        runtime: 'Nodejs20.19',
+        handler: 'index.main',
+        bytes: candidate,
+        sha256: sha256(candidate),
+        expectedSnapshot: before,
+      }),
+      (error) => {
+        assert.equal(error.causeCode, 'InvalidParameterValue.CosObjectName');
+        assert.equal(error.requestId, 'scf-rejected');
+        assert.equal(error.parameterHint, 'CosObjectName');
+        assert.equal(error.reasonHint, 'OBJECT_NOT_FOUND');
+        assert.equal(JSON.stringify(error).includes('fixture-secret'), false);
+        return true;
+      },
+    );
+    assert.equal(x.state.updates, 0);
   } finally {
     fixture.cleanup();
   }

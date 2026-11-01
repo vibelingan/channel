@@ -116,6 +116,7 @@ export function createCloudbaseFunctionProvider({
           code: 'FUNCTION_PROVIDER_UNCONFIRMED',
           stage,
           functionName,
+          ...functionParameterHint(error),
           ...(/^[A-Za-z][A-Za-z0-9_.]{0,127}$/.test(causeCode ?? '') ? { causeCode } : {}),
           ...(/^[A-Za-z0-9_-]{1,128}$/.test(error?.requestId ?? '')
             ? { requestId: error.requestId }
@@ -322,15 +323,63 @@ export function createCloudbaseFunctionProvider({
       return safe(async (stage) => {
         stage('submit-code');
         signal?.throwIfAborted();
-        const result = await functions.updateFunctionCode({
-          func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
-          ...(profile === 'bundled' ? { base64Code: code.ZipFile } : { code }),
-        });
+        // Manager 5.9.1 cannot forward CodeSource. The public TCB API explicitly
+        // distinguishes a COS reference from inline ZIP bytes; use its public
+        // pass-through port for this one reviewed native archive only.
+        const result =
+          profile === 'catalog-native-decoder'
+            ? await manager.commonService('tcb', '2018-06-08').call({
+                Action: 'UpdateFunctionCode',
+                Param: {
+                  EnvId: fixed.envId,
+                  FunctionName: name,
+                  Handler: handler,
+                  InstallDependency: 'FALSE',
+                  CodeSource: 'Cos',
+                  Code: code,
+                },
+              })
+            : await functions.updateFunctionCode({
+                func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
+                base64Code: code.ZipFile,
+              });
+        if (result?.SCFErrorCode)
+          throw Object.assign(new Error(String(result.SCFErrorMsg ?? 'Function code rejected')), {
+            code: result.SCFErrorCode,
+            requestId: result.RequestId,
+          });
         if (!result?.RequestId) throw new Error('Function update has no receipt');
         return { submitted: true, providerOperationId: result.RequestId };
       }, name);
     },
   });
+}
+
+/** Return fixed labels only; provider messages may contain signed URLs or credentials. */
+function functionParameterHint(error) {
+  const message = typeof error?.message === 'string' ? error.message.slice(0, 8192) : '';
+  const parameterHint = [
+    'CodeSource',
+    'CosBucketName',
+    'CosBucketRegion',
+    'CosObjectName',
+    'TempCosObjectName',
+    'ZipFile',
+    'InstallDependency',
+    'Handler',
+    'EnvId',
+    'Namespace',
+  ].find((name) => new RegExp(`\\b${name}\\b`, 'i').test(message));
+  const reasonHint = /not found|不存在|NoSuchKey/i.test(message)
+    ? 'OBJECT_NOT_FOUND'
+    : /denied|forbidden|无权限|未授权|鉴权/i.test(message)
+      ? 'ACCESS_DENIED'
+      : /required|missing|缺少|缺失|不能为空/i.test(message)
+        ? 'MISSING_PARAMETER'
+        : /invalid.*zip|不是标准.*zip|解压|压缩文件/i.test(message)
+          ? 'ARCHIVE_INVALID'
+          : undefined;
+  return { ...(parameterHint ? { parameterHint } : {}), ...(reasonHint ? { reasonHint } : {}) };
 }
 
 /** Secret-bearing configuration stays inside the trusted process. Never log or archive it. */

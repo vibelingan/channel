@@ -55,8 +55,8 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
   const manager = new CloudBase({
     envId: 'fixture-env',
     region: 'ap-shanghai',
-    requestFn: async ({ action, payload }) => {
-      state.calls.push({ action, payload: structuredClone(payload) });
+    requestFn: async ({ service, version, region, action, payload }) => {
+      state.calls.push({ service, version, region, action, payload: structuredClone(payload) });
       if (action === 'DescribeEnvInfo')
         return {
           EnvInfo: {
@@ -102,6 +102,12 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
         return { RequestId: 'config-update' };
       }
       if (action === 'UpdateFunctionCode') {
+        if (state.scfError)
+          return {
+            SCFErrorCode: 'InvalidParameterValue.CosObjectName',
+            SCFErrorMsg: 'CosObjectName not found https://private.example/?secret=fixture-secret',
+            RequestId: 'scf-rejected',
+          };
         state.onUpdate?.();
         if (state.holdUpdate) await state.holdUpdate;
         state.updates++;

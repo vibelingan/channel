@@ -19,7 +19,7 @@ export async function replaceFunctionCode({
 }) {
   const reportFailure = (stage, error) => {
     const diagnostic = {};
-    for (const key of ['code', 'causeCode', 'stage', 'requestId']) {
+    for (const key of ['code', 'causeCode', 'stage', 'requestId', 'parameterHint', 'reasonHint']) {
       const value = error?.[key];
       if (typeof value === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(value))
         diagnostic[key] = value;
