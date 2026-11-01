@@ -125,7 +125,10 @@ const captured = catalogConfig
       coordinator,
       owner: { ownerRunId: runId, runnerRef },
       config: catalogConfig,
-      createClient: (guard: object) =>
+      createClient: (
+        guard: object,
+        { withLease }: { withLease: (operation: () => Promise<unknown>) => Promise<unknown> },
+      ) =>
         createCatalogRegionalClient({
           manager,
           policy,
@@ -135,6 +138,7 @@ const captured = catalogConfig
           guard,
           directory: resolve(output, 'regional'),
           requestHash: catalogRegionalRequestHash,
+          withLease,
         }),
       collect: ({ baseline }: { baseline: { sourceRunId: string } }) => collectSnapshot(baseline),
     })

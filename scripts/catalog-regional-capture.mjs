@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
+import { createExclusiveLeaseHeartbeat } from './release/lease-heartbeat.mjs';
 import { assertCleanAcceptedSite } from './release/site-policy.mjs';
 
 const stopped = (code) => Object.assign(Error(code), { code });
@@ -13,52 +14,52 @@ export async function captureCatalogRegionalInput({
   collect,
   schedule = setInterval,
   cancel = clearInterval,
+  now = () => performance.now(),
 }) {
   const baseline = assertCleanAcceptedSite(await coordinator.status({ scopeKey: 'site' }));
   const guard = await coordinator.acquire(owner);
   let client;
-  let renewing;
-  let leaseFailure;
   let failed = false;
   let failure;
   let result;
-  const checkpoint = async () => {
-    if (leaseFailure) throw leaseFailure;
-    if (!renewing)
-      renewing = (async () => {
-        try {
-          await coordinator.renew(guard);
-          const current = await coordinator.status({ scopeKey: 'site' });
-          if (
-            !isDeepStrictEqual(current.scope?.baseline, baseline) ||
-            current.state !== 'leased' ||
-            current.target?.lease?.ownerRunId !== owner.ownerRunId ||
-            current.target.lease.runnerRef !== owner.runnerRef ||
-            current.target.lease.fence !== guard.fence ||
-            current.target.lease.acquiredVersion !== guard.acquiredVersion ||
-            current.target.currentRunId ||
-            current.target.dirtyRunId ||
-            current.target.unresolvedOperation ||
-            current.pendingStep
-          )
-            throw stopped('CATALOG_CAPTURE_BASELINE_CHANGED');
-        } catch (error) {
-          leaseFailure =
-            error?.code === 'CATALOG_CAPTURE_BASELINE_CHANGED'
-              ? error
-              : stopped('CATALOG_CAPTURE_LEASE_LOST');
-          throw leaseFailure;
-        }
-      })().finally(() => {
-        renewing = undefined;
-      });
-    await renewing;
+  const validateCurrent = async () => {
+    const current = await coordinator.status({ scopeKey: 'site' });
+    if (
+      !isDeepStrictEqual(current.scope?.baseline, baseline) ||
+      current.state !== 'leased' ||
+      current.target?.lease?.ownerRunId !== owner.ownerRunId ||
+      current.target.lease.runnerRef !== owner.runnerRef ||
+      current.target.lease.fence !== guard.fence ||
+      current.target.lease.acquiredVersion !== guard.acquiredVersion ||
+      current.target.currentRunId ||
+      current.target.dirtyRunId ||
+      current.target.unresolvedOperation ||
+      current.pendingStep
+    )
+      throw stopped('CATALOG_CAPTURE_BASELINE_CHANGED');
   };
-  const timer = schedule(() => checkpoint().catch(() => {}), 30000);
+  const renew = async () => {
+    try {
+      await coordinator.renew(guard);
+      await validateCurrent();
+    } catch (error) {
+      throw error?.code === 'CATALOG_CAPTURE_BASELINE_CHANGED'
+        ? error
+        : stopped('CATALOG_CAPTURE_LEASE_LOST');
+    }
+  };
+  const heartbeat = createExclusiveLeaseHeartbeat({ renew, schedule, cancel, now });
+  const checkpoint = async () => {
+    await heartbeat.checkpoint();
+    await validateCurrent();
+    heartbeat.check();
+  };
   try {
     await checkpoint();
     try {
-      client = await createClient(guard);
+      client = await createClient(guard, {
+        withLease: (operation) => heartbeat.withLease(operation),
+      });
     } catch {
       // No returned client can prove that a partially created function was removed.
       throw stopped('CATALOG_REGIONAL_UNCONFIRMED');
@@ -75,6 +76,7 @@ export async function captureCatalogRegionalInput({
     failed = true;
     failure = error;
   } finally {
+    await heartbeat.stop();
     let cleaned = false;
     const unknown = client?.unconfirmed || failure?.code === 'CATALOG_REGIONAL_UNCONFIRMED';
     if (unknown && !failed) {
@@ -92,15 +94,13 @@ export async function captureCatalogRegionalInput({
         failure = stopped('CATALOG_CAPTURE_CLEANUP_UNCONFIRMED');
       }
     }
-    cancel(timer);
-    if (renewing) await renewing.catch(() => {});
-    if (leaseFailure) {
+    if (heartbeat.failed) {
       failed = true;
-      failure = leaseFailure;
+      failure = heartbeat.failure;
     }
-    if (cleaned && !leaseFailure) {
+    if (cleaned && !heartbeat.failed) {
       try {
-        await checkpoint();
+        await renew();
         await coordinator.release(guard);
       } catch (error) {
         failed = true;

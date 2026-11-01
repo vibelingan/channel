@@ -31,15 +31,22 @@ import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { activateCatalogRenderer } from './release/catalog-activation.mjs';
+import { loadCatalogPreparationEvidence } from './release/catalog-preparation-evidence.mjs';
+import { recoverCatalogPreparation } from './release/catalog-preparation-recovery.mjs';
 import { completeCatalogRegistration } from './release/catalog-registration.mjs';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { assertInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
 import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
 import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import { createGithubReadClient } from './release/github-read.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
-import { sha256 } from './release/input.mjs';
+import { identity, sha256 } from './release/input.mjs';
 import { readObject } from './release/input.mjs';
+import {
+  createExclusiveLeaseHeartbeat,
+  renewCurrentSiteLease,
+} from './release/lease-heartbeat.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
 import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
@@ -231,6 +238,47 @@ if (requestedTaskId && !/^release-[a-f0-9]{64}$/.test(requestedTaskId))
   throw Error('Invalid article task id');
 const directory = resolve('output/site-delivery');
 await mkdir(directory, { recursive: true });
+if (catalogConfig) {
+  const recoveryGithub = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
+  const recovered = await recoverCatalogPreparation({
+    coordinator,
+    github: recoveryGithub,
+    policy,
+    functions: manager.functions,
+    readPreparationRun: (priorRunId: string) =>
+      createCatalogSeoStore(db).get(
+        'siteReleaseRuns',
+        identity({ targetId: coordinator.targetId, runId: priorRunId }),
+      ),
+    loadEvidence: (input: {
+      run: Record<string, unknown>;
+      artifactName: string;
+      regionalPath: string;
+    }) =>
+      loadCatalogPreparationEvidence({
+        ...input,
+        github: recoveryGithub,
+        artifacts: new DefaultArtifactClient(),
+        token: env.GITHUB_TOKEN,
+        directory: join(directory, 'preparation-evidence'),
+      }),
+  });
+  await writeFile(
+    join(directory, 'preparation-check.json'),
+    JSON.stringify(
+      {
+        state: recovered.state,
+        baselineRunId: recovered.scope?.baseline?.sourceRunId ?? null,
+        reconciliation: recovered.target?.lastReconciliation ?? null,
+        websiteWrites: 0,
+        businessWrites: 0,
+      },
+      null,
+      2,
+    ),
+    { flag: 'wx', mode: 0o600 },
+  );
+}
 const runId = `site-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
 let guard = await coordinator.acquire({
   ownerRunId: runId,
@@ -248,41 +296,23 @@ const regionalCatalog = async () => {
       guard,
       directory: join(directory, 'regional'),
       requestHash: catalogRegionalRequestHash,
+      withLease: (operation: () => Promise<unknown>) => heartbeat.withLease(operation),
     });
   return regional;
 };
 let claim: ClaimedArticleRelease | undefined;
 let deploying = false;
-let failure: unknown;
-let renewing = false;
-const clock = setInterval(async () => {
-  if (renewing) return;
-  renewing = true;
-  try {
-    try {
-      await coordinator.renew(guard);
-    } catch (error) {
-      const status = await coordinator.status({ scopeKey: 'site' }).catch(() => null);
-      // Acceptance ends this lease; ignore only that confirmed handover.
-      if (
-        !status ||
-        (status.target.lease && status.target.lease.ownerRunId !== runId) ||
-        status.target.currentRunId ||
-        status.target.dirtyRunId ||
-        status.target.unresolvedOperation
-      )
-        throw error;
-    }
-    if (claim) await worker.renew(claim.guard);
-  } catch (error) {
-    failure = error;
-  } finally {
-    renewing = false;
-  }
-}, 30000);
-const check = () => {
-  if (failure) throw failure;
+const renewLease = async () => {
+  await renewCurrentSiteLease({
+    coordinator,
+    getGuard: () => guard,
+    runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+    acceptedRunIds: [runId, `${runId}-baseline`],
+  });
+  if (claim) await worker.renew(claim.guard);
 };
+let heartbeat = createExclusiveLeaseHeartbeat({ renew: renewLease });
+const check = () => heartbeat.check();
 async function command(
   bin: string,
   args: string[],
@@ -500,12 +530,16 @@ try {
     );
     if (adopted.status !== 'accepted')
       throw Error('Current site could not be accepted without writes');
-    // commitRun ends its lease. Acquire a new fence before publishing B.
+    // Drain the old renewal before acquiring the next fence.
+    await heartbeat.stop();
+    heartbeat.check();
     const next = await coordinator.acquire({
       ownerRunId: runId,
       runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
     });
     guard = next;
+    heartbeat = createExclusiveLeaseHeartbeat({ renew: renewLease });
+    regional?.setGuard(guard);
     const accepted = await coordinator.status({ scopeKey: 'site' });
     baseline = await loadAccepted(await coordinator.runStatus(accepted.scope.baseline.sourceRunId));
   }
@@ -956,6 +990,8 @@ try {
       if (renderer && catalog) {
         const acceptedRun = await coordinator.runStatus(runId);
         candidate.acceptedSeal = acceptedRun.accepted.seals.static;
+        await heartbeat.stop();
+        heartbeat.check();
         await completeCatalogRegistration({
           coordinator,
           store: createCatalogSeoStore(db),
@@ -974,19 +1010,30 @@ try {
             writeActive: (data: object) => Promise<void>;
             guard: typeof guard;
           }) => {
+            guard = registrationGuard;
+            heartbeat = createExclusiveLeaseHeartbeat({ renew: checkpoint });
             regional?.setGuard(registrationGuard);
-            return activateCatalogRenderer({
-              db,
-              proof: renderer.proof,
-              runId,
-              executorSha: codeSha,
-              executorRef: env.GITHUB_REF?.slice(11),
-              finishCatalog: async () => {
-                if (!catalog) throw Error('Catalog acceptance context changed');
-                await finishCatalogAcceptance({ catalog, files, checkpoint });
-              },
-              writeActive,
-            });
+            try {
+              return await activateCatalogRenderer({
+                db,
+                proof: renderer.proof,
+                runId,
+                executorSha: codeSha,
+                executorRef: env.GITHUB_REF?.slice(11),
+                finishCatalog: async () => {
+                  if (!catalog) throw Error('Catalog acceptance context changed');
+                  await finishCatalogAcceptance({
+                    catalog,
+                    files,
+                    checkpoint: () => heartbeat.checkpoint(),
+                  });
+                },
+                writeActive: (data: object) => heartbeat.withLease(() => writeActive(data)),
+              });
+            } finally {
+              await heartbeat.stop();
+              heartbeat.check();
+            }
           },
         });
       } else if (renderer)
@@ -1027,6 +1074,7 @@ try {
     if (result.status !== 'accepted') throw Error(`Site publication: ${result.status}`);
   }
 } catch (error) {
+  await heartbeat.stop();
   if (claim) {
     try {
       if (deploying) await worker.markUnknown(claim.guard);
@@ -1042,6 +1090,6 @@ try {
     } catch {}
   throw error;
 } finally {
-  clearInterval(clock);
+  await heartbeat.stop();
   await regional?.close();
 }

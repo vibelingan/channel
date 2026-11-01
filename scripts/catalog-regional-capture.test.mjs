@@ -101,6 +101,7 @@ async function fixture(t) {
       owner,
       config,
       collect,
+      now: time.now,
       createClient: async (value) => {
         assert.equal(value.ownerRunId, runId);
         events.push('create');
@@ -204,6 +205,7 @@ test('renewal failure prevents after-capture and sealing even if the public API 
     f
       .run(async () => {
         f.failRenewal = true;
+        f.time.advance(30_000);
         await f.tick();
         return 'API succeeded';
       })
@@ -264,13 +266,15 @@ test('cleanup waits for an already running renewal before releasing the lease', 
   const outcome = f
     .run(async () => {
       blocked = true;
+      f.time.advance(30_000);
       tick = f.tick();
+      await nextTurn();
       throw apiFailure;
     })
     .catch((error) => error);
   try {
     await nextTurn();
-    assert.equal(f.events.includes('close-confirmed'), true);
+    assert.equal(f.events.includes('close-confirmed'), false);
     assert.equal(f.events.includes('release'), false);
   } finally {
     releaseRenewal();
@@ -346,7 +350,7 @@ test('real regional client confirms deletion through management readback before 
       },
     },
   };
-  const start = (guard) =>
+  const start = (guard, { withLease }) =>
     createCatalogRegionalClient({
       manager,
       policy: livePolicy,
@@ -356,6 +360,7 @@ test('real regional client confirms deletion through management readback before 
       guard,
       directory,
       requestHash: () => 'b'.repeat(64),
+      withLease,
       build: async () => {},
       wait: async () => {},
       mask: () => {},
@@ -366,7 +371,7 @@ test('real regional client confirms deletion through management readback before 
   assert.equal(functions.size, 1);
   assert.deepEqual(functions.get(other.FunctionName), other);
   const nextGuard = await f.actual.acquire(owner);
-  const next = await start(nextGuard);
+  const next = await start(nextGuard, { withLease: (operation) => operation() });
   await next.close();
   await f.actual.release(nextGuard);
   assert.equal(creates, 2);
@@ -383,4 +388,44 @@ test('a changed accepted baseline stops the capture and is never released as thi
     { code: 'CATALOG_CAPTURE_BASELINE_CHANGED' },
   );
   assert.equal(f.events.includes('release'), false);
+});
+
+test('capture shares the regional call boundary with renewal for a run longer than its lease', async (t) => {
+  const f = await fixture(t);
+  let active = false;
+  const renew = f.coordinator.renew;
+  f.coordinator.renew = async (guard) => {
+    assert.equal(active, false, 'Renewal must not write the target during a regional transaction');
+    return renew(guard);
+  };
+  let withLease;
+  const result = await f.run(
+    async () => {
+      for (let n = 0; n < 40; n++)
+        await withLease(async () => {
+          active = true;
+          try {
+            f.time.advance(6_000);
+            await f.tick();
+            const status = await f.actual.status();
+            assert.equal(status.state, 'leased');
+          } finally {
+            active = false;
+          }
+        });
+      return 'fresh snapshot';
+    },
+    {
+      createClient: async (_guard, options) => {
+        withLease = options.withLease;
+        return f.client;
+      },
+    },
+  );
+  assert.equal(result.value, 'fresh snapshot');
+  assert.ok(
+    f.events.filter((event) => event === 'renew').length < 15,
+    'Thirty-second renewal must not turn every regional call into another WAN round-trip',
+  );
+  assert.equal((await f.actual.status()).state, 'idle');
 });

@@ -42,6 +42,7 @@ jobs:
           name: site-readback-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             output/site-readback/result.json
+            output/site-readback/regional/result.json
             output/site-delivery/public-browser/
           if-no-files-found: error
           retention-days: 90

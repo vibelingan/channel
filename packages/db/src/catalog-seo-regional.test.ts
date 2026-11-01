@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { articleSdkFixture } from './article-sdk-fixture.test-helper.ts';
 import { CatalogPublicHeadSchema, catalogPublicRecordId } from './catalog-public-changes.ts';
+import { type CatalogSeoDatabase, createCatalogSeoStore } from './catalog-seo-cloud.ts';
 import type { CatalogSeoStore } from './catalog-seo-consumer.ts';
 import { catalogSeoControlId, idleCatalogSeoControl } from './catalog-seo-control.ts';
 import { createCatalogSeoDeliveryStateless } from './catalog-seo-delivery.ts';
@@ -41,6 +43,365 @@ const request = (action: string, input = {}, requestId = 'request-1') => ({
   guard,
   action,
   input,
+});
+const acceptedArtifact = {
+  repository: 'vibelingan/channel',
+  workflowPath: '.github/workflows/seo-static-canary.yml',
+  runId: '41300590230',
+  artifactId: '12345',
+  manifestSha256: 'e'.repeat(64),
+  expiresAt: '2026-12-01T00:00:00.000Z',
+};
+const acceptedSeal = {
+  schemaVersion: 1,
+  activationId: 'f'.repeat(64),
+  releaseId: config.runId,
+  codeSha: config.codeSha,
+  artifact: acceptedArtifact,
+  target: { envId: config.envId, siteOrigin: config.siteOrigin },
+  scope: { kind: 'site' },
+};
+const runKey = createHash('sha256')
+  .update(JSON.stringify({ runId: config.runId, targetId: config.targetId }))
+  .digest('hex');
+const clearInput = (state = 'leased', cursor: string | null = null) => ({
+  artifact: acceptedArtifact,
+  acceptedSeal,
+  state,
+  cursor,
+});
+
+function acceptedRows(
+  put: (collection: string, row: CollectionDoc) => void,
+  target: CollectionDoc,
+) {
+  put('siteReleaseTargets', {
+    ...target,
+    currentRunId: null,
+    dirtyRunId: null,
+    unresolvedOperation: null,
+  });
+  const pointer = {
+    sourceRunId: config.runId,
+    activationId: acceptedSeal.activationId,
+    compositionHash: '7'.repeat(64),
+  };
+  put('siteReleaseScopes', {
+    _id: `${config.targetId}-site`,
+    schemaVersion: 1,
+    targetId: config.targetId,
+    scopeKey: 'site',
+    scope: { kind: 'site' },
+    version: 1,
+    active: pointer,
+    baseline: pointer,
+  });
+  put('siteReleaseRuns', {
+    _id: runKey,
+    schemaVersion: 1,
+    runId: config.runId,
+    targetId: config.targetId,
+    scopeKey: 'site',
+    state: 'SUCCEEDED',
+    composition: { static: { artifact: acceptedArtifact } },
+    accepted: {
+      sourceRunId: config.runId,
+      activationId: acceptedSeal.activationId,
+      seals: { static: acceptedSeal },
+    },
+  });
+}
+
+function registrationTask(
+  put: (collection: string, row: CollectionDoc) => void,
+  productId: string,
+  runId = config.runId,
+) {
+  const key = catalogPublicRecordId(config.siteOrigin, productId);
+  put('catalogPublicHeads', {
+    _id: key,
+    schemaVersion: 1,
+    siteOrigin: config.siteOrigin,
+    productId,
+    sequence: 2,
+    visible: true,
+    semanticHash: 'a'.repeat(64),
+    detailRevision: null,
+    changedAt: new Date(now).toISOString(),
+    latestEventId: 'b'.repeat(64),
+  });
+  put('catalogSeoTasks', {
+    _id: key,
+    schemaVersion: 1,
+    siteOrigin: config.siteOrigin,
+    productId,
+    requestedSequence: 2,
+    acceptedSequence: 1,
+    state: 'writing',
+    attempts: 2,
+    lease: { runId, sequence: 2, until: new Date(now + 30000).toISOString() },
+  });
+  return key;
+}
+
+function registrationControl(products: readonly string[]) {
+  return {
+    ...idleCatalogSeoControl(config.siteOrigin, new Date(now).toISOString()),
+    state: 'writing',
+    owner: `${config.runId}:registration`,
+    until: new Date(now + 30000).toISOString(),
+    fence: 3,
+    writes: 7,
+    products: [...products],
+    families: [],
+    discovery: false,
+  };
+}
+
+test('bounded accepted registration cleanup visits all owned tasks, preserves others and replays its atomic receipt', async () => {
+  const x = fixture();
+  acceptedRows(x.put, x.target);
+  const owned = Array.from({ length: 7 }, (_, index) => `owned-${index}`);
+  for (const productId of owned) registrationTask(x.put, productId);
+  const other = Array.from({ length: 107 }, (_, index) => `foreign-${index}`);
+  for (const productId of other) registrationTask(x.put, productId, 'site-12345-2');
+  x.put('catalogSeoControl', registrationControl(owned.slice(0, 2)));
+  const pending = createCatalogSeoRequest(
+    config.siteOrigin,
+    { kind: 'product', productId: 'new-request', previouslyPublic: true },
+    new Date(now).toISOString(),
+  );
+  x.put('catalogSeoRequests', pending);
+  const untouched = other.map((productId) =>
+    x.read('catalogSeoTasks', catalogPublicRecordId(config.siteOrigin, productId)),
+  );
+  let input = clearInput();
+  let total = 0;
+  let finalized = 0;
+  let replayInput: ReturnType<typeof request> | undefined;
+  let replayResult: unknown;
+  let done = false;
+  for (let index = 0; index < 30; index++) {
+    const command = request('registration.clear', input, `clear-${index}`);
+    const response = await x.handler(command);
+    assert.equal(response.ok, true, JSON.stringify(response.error));
+    const result = response.result;
+    assert(result && typeof result.releasedTasks === 'number' && result.releasedTasks <= 2);
+    total += result.releasedTasks;
+    finalized += result.controlReleased ? 1 : 0;
+    if (result.releasedTasks && !replayInput) {
+      replayInput = command;
+      replayResult = structuredClone(result);
+    }
+    if (result.done) {
+      done = true;
+      assert.equal(result.next, null);
+      break;
+    }
+    const next = result.next;
+    assert(next && typeof next === 'object' && !Array.isArray(next));
+    input = clearInput(String(Reflect.get(next, 'state')), Reflect.get(next, 'cursor'));
+  }
+  assert.equal(done, true);
+  assert.equal(total, 7);
+  assert.equal(finalized, 1);
+  const control = x.read('catalogSeoControl', catalogSeoControlId(config.siteOrigin));
+  assert.equal(control?.state, 'idle');
+  assert.equal(control?.writes, 7);
+  assert.equal(control?.fence, 4);
+  for (const productId of owned) {
+    const task = x.read('catalogSeoTasks', catalogPublicRecordId(config.siteOrigin, productId));
+    assert.equal(task?.state, 'pending');
+    assert.equal(task?.lease, null);
+    assert.equal(task?.acceptedSequence, 1);
+    assert.equal(task?.attempts, 2);
+  }
+  assert.deepEqual(
+    other.map((productId) =>
+      x.read('catalogSeoTasks', catalogPublicRecordId(config.siteOrigin, productId)),
+    ),
+    untouched,
+  );
+  assert.deepEqual(x.read('catalogSeoRequests', pending._id), pending);
+  assert(replayInput);
+  const before = x.written.length;
+  assert.deepEqual((await x.handler(replayInput)).result, replayResult);
+  assert.equal(x.written.length, before);
+  assert.ok(
+    x.written.every((collection) =>
+      ['catalogSeoTasks', 'catalogSeoControl', 'catalogSeoBuilders', 'siteReleaseTargets'].includes(
+        collection,
+      ),
+    ),
+  );
+});
+
+test('accepted cleanup binds the old site run to the new readback guard, not to caller-supplied SUCCEEDED state', async () => {
+  const x = fixture();
+  const readbackConfig = { ...config, runnerRef: 'github:vibelingan/channel:99999999:attempt-2' };
+  const readbackGuard = { ...guard, ownerRunId: 'readback-99999999-2' };
+  acceptedRows(x.put, {
+    ...x.target,
+    lease: { ...readbackGuard, runnerRef: readbackConfig.runnerRef, expiresAt: now + 120000 },
+  });
+  const handler = createCatalogRegionalHandler(readbackConfig, {
+    createStore: () => x.store,
+    createDelivery: createCatalogSeoDeliveryStateless,
+    now: () => now,
+  });
+  assert.equal(
+    (await handler({ ...request('registration.clear', clearInput()), guard: readbackGuard })).ok,
+    true,
+  );
+  for (const changed of [
+    { artifact: { ...acceptedArtifact, artifactId: '9999' } },
+    { acceptedSeal: { ...acceptedSeal, codeSha: '0'.repeat(40) } },
+  ]) {
+    const response = await handler({
+      ...request(
+        'registration.clear',
+        { ...clearInput(), ...changed },
+        `reject-${Object.keys(changed)[0]}`,
+      ),
+      guard: readbackGuard,
+    });
+    assert.equal(response.error?.code, 'REGIONAL_REGISTRATION_SOURCE_CHANGED');
+  }
+  x.put('siteReleaseRuns', { _id: runKey, state: 'FAILED', runId: config.runId });
+  assert.equal(
+    (
+      await handler({
+        ...request('registration.clear', clearInput(), 'failed-real-run'),
+        guard: readbackGuard,
+      })
+    ).error?.code,
+    'REGIONAL_REGISTRATION_SOURCE_CHANGED',
+  );
+});
+
+test('cleanup rejects other owners, unknown hosting, and source changes inside its real transaction', async () => {
+  for (const kind of ['owner', 'discovery', 'dirty', 'transaction-baseline']) {
+    const x = fixture();
+    acceptedRows(x.put, x.target);
+    const key = registrationTask(x.put, 'p');
+    const control = registrationControl(['p']);
+    x.put('catalogSeoControl', {
+      ...control,
+      ...(kind === 'owner' ? { owner: 'site-other:metadata' } : {}),
+      ...(kind === 'discovery' ? { discovery: true } : {}),
+    });
+    if (kind === 'dirty')
+      x.put('siteReleaseTargets', {
+        ...x.target,
+        currentRunId: null,
+        dirtyRunId: 'unknown-site',
+        unresolvedOperation: null,
+      });
+    if (kind === 'transaction-baseline') {
+      const transaction = x.store.transaction;
+      x.store.transaction = async (operation) => {
+        const scope = x.read('siteReleaseScopes', `${config.targetId}-site`);
+        assert(scope);
+        x.put('siteReleaseScopes', {
+          ...scope,
+          baseline: { sourceRunId: 'new-site', activationId: 'a'.repeat(64) },
+        });
+        return transaction(operation);
+      };
+    }
+    const before = x.read('catalogSeoTasks', key);
+    const result = await x.handler(request('registration.clear', clearInput('writing')));
+    assert.equal(result.ok, false);
+    assert.deepEqual(x.read('catalogSeoTasks', key), before);
+    assert.equal(
+      x.read('catalogSeoBuilders', catalogRegionalReceiptId(config.runId, 'request-1')),
+      null,
+    );
+  }
+});
+
+test('the installed SDK rolls back task cleanup when its same-transaction receipt is not acknowledged', async (t) => {
+  const x = articleSdkFixture(t);
+  const native: unknown = x.db;
+  assert(native && typeof native === 'object');
+  assert.equal(typeof Reflect.get(native, 'runTransaction'), 'function');
+  const db = native as CatalogSeoDatabase;
+  const put = (collection: string, row: CollectionDoc) => x.put(collection, row._id, row);
+  const target = {
+    _id: config.targetId,
+    schemaVersion: 1,
+    targetId: config.targetId,
+    target: { envId: config.envId, siteOrigin: config.siteOrigin },
+    lease: { ...guard, runnerRef: config.runnerRef, expiresAt: now + 120000 },
+  };
+  acceptedRows(put, target);
+  const key = registrationTask(put, 'real-sdk');
+  put('catalogSeoControl', registrationControl(['real-sdk']));
+  const store = createCatalogSeoStore(db);
+  const handler = createCatalogRegionalHandler(config, {
+    createStore: () => store,
+    createDelivery: createCatalogSeoDeliveryStateless,
+    now: () => now,
+  });
+  x.control.zeroWriteCollection = 'catalogSeoBuilders';
+  const command = request('registration.clear', clearInput('writing'));
+  assert.equal((await handler(command)).ok, false);
+  assert.equal(x.rows.get(`catalogSeoTasks/${key}`)?.state, 'writing');
+  assert.equal(
+    x.rows.has(`catalogSeoBuilders/${catalogRegionalReceiptId(config.runId, command.requestId)}`),
+    false,
+  );
+  Reflect.deleteProperty(x.control, 'zeroWriteCollection');
+  const renewedUntil = now + 600000;
+  x.control.beforeCommit = () => {
+    x.control.beforeCommit = undefined;
+    const current = x.rows.get(`siteReleaseTargets/${config.targetId}`);
+    assert(current);
+    const lease = current.lease;
+    assert(lease && typeof lease === 'object' && !Array.isArray(lease));
+    x.put('siteReleaseTargets', config.targetId, {
+      ...current,
+      lease: { ...lease, expiresAt: renewedUntil },
+    });
+  };
+  const response = await handler(command);
+  assert.equal(response.ok, true);
+  assert.equal(response.result?.releasedTasks, 1);
+  const observed = await handler(
+    request(
+      'operation.get',
+      { requestId: command.requestId, inputHash: catalogRegionalRequestHash(command) },
+      'lookup-clear',
+    ),
+  );
+  assert.deepEqual(observed.result, {
+    state: 'completed',
+    receipt: { action: 'registration.clear', result: response.result },
+  });
+  assert.equal(x.rows.get(`catalogSeoTasks/${key}`)?.lease, null);
+  assert.equal(
+    Reflect.get(Object(x.rows.get(`siteReleaseTargets/${config.targetId}`)?.lease), 'expiresAt'),
+    renewedUntil,
+  );
+  assert.ok(x.calls.filter((call) => call.api === 'database.startTransaction').length >= 3);
+});
+
+test('capture.read is a fresh zero-write read and refuses pending work without consuming it', async () => {
+  const x = fixture();
+  const first = await x.handler(request('capture.read'));
+  assert.equal(first.ok, true);
+  assert.deepEqual(first.result, { writes: 0, heads: [] });
+  assert.deepEqual(x.written, []);
+  const pending = createCatalogSeoRequest(
+    config.siteOrigin,
+    { kind: 'product', productId: 'new', previouslyPublic: true },
+    new Date(now).toISOString(),
+  );
+  x.put('catalogSeoRequests', pending);
+  const result = await x.handler(request('capture.read', {}, 'read-with-pending'));
+  assert.equal(result.error?.code, 'REGIONAL_NOT_SETTLED');
+  assert.deepEqual(x.read('catalogSeoRequests', pending._id), pending);
+  assert.deepEqual(x.written, []);
 });
 function fixture() {
   let rows = new Map<string, CollectionDoc>();

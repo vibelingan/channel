@@ -217,6 +217,7 @@ async function fixture(t, { tracked = true } = {}) {
       guard,
       directory,
       requestHash: catalogRegionalRequestHash,
+      withLease: (operation) => operation(),
       build: async (_directory, source) => assert.equal(source, codeSha),
       wait: async () => {},
       mask: () => {},

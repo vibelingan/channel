@@ -81,7 +81,7 @@ async function fixture(t) {
     },
   };
   f.manager = manager;
-  f.start = () =>
+  f.start = (overrides = {}) =>
     createCatalogRegionalClient({
       manager,
       policy,
@@ -92,13 +92,111 @@ async function fixture(t) {
       directory,
       build: async (_dir, sha) => assert.equal(sha, codeSha),
       requestHash: () => 'd'.repeat(64),
+      withLease: (operation) => operation(),
       wait: async () => {},
       mask: (value) => masks.push(value),
       onStatus: () => {},
+      ...overrides,
     });
   f.receipt = async () => JSON.parse(await readFile(join(directory, 'result.json'), 'utf8'));
   return f;
 }
+
+test('readback keeps original task identity but owns a new temporary function and guard', async (t) => {
+  const f = await fixture(t);
+  const oldName = 'seo-catalog-region-41300590230-1';
+  f.functions.set(oldName, { FunctionName: oldName, Description: 'retained original run' });
+  const ownerRunId = 'readback-41303614689-2';
+  f.invoke = (request) => {
+    assert.equal(request.action, 'capture.read');
+    assert.equal(request.runId, runId);
+    assert.equal(request.guard.ownerRunId, ownerRunId);
+    assert.deepEqual(request.input, {});
+    return { writes: 0, heads: [] };
+  };
+  const client = await f.start({
+    ownerRunId,
+    guard: { ...guard, ownerRunId },
+    runnerRef: 'github:vibelingan/channel:41303614689:attempt-2',
+  });
+  const capture = await client.capture({ detailEnabled: true });
+  assert.equal(capture.writes, 0);
+  assert.deepEqual(capture.heads, []);
+  assert.equal(
+    f.calls.some((call) => call[1] === 'prepare.step'),
+    false,
+  );
+  await client.close();
+  assert.deepEqual(f.deleted, ['seo-catalog-region-41303614689-2']);
+  assert.equal(f.functions.has(oldName), true);
+});
+
+test('a guard for another operator cannot be reused by a readback runner', async (t) => {
+  const f = await fixture(t);
+  await assert.rejects(
+    f.start({
+      ownerRunId: 'readback-41303614689-2',
+      guard,
+      runnerRef: 'github:vibelingan/channel:41303614689:attempt-2',
+    }),
+  );
+  await assert.rejects(
+    f.start({
+      ownerRunId: 'readback-41303614689-1',
+      guard: { ...guard, ownerRunId: 'readback-41303614689-1' },
+      runnerRef: 'github:vibelingan/channel:41303614689:attempt-2',
+    }),
+  );
+  assert.equal(f.calls.length, 0);
+});
+
+test('accepted registration cleanup follows bounded cursors and preserves its sealed identity', async (t) => {
+  const f = await fixture(t);
+  const artifact = { artifactId: 123, codeSha };
+  const acceptedSeal = { sha256: 'e'.repeat(64) };
+  const states = ['leased', 'writing', 'needs-readback', 'control'];
+  let index = 0;
+  f.invoke = (request) => {
+    assert.equal(request.action, 'registration.clear');
+    assert.deepEqual(request.input, { artifact, acceptedSeal, state: states[index], cursor: null });
+    index++;
+    return {
+      done: index === states.length,
+      next: index === states.length ? null : { state: states[index], cursor: null },
+      releasedTasks: index === 1 ? 2 : 0,
+      controlReleased: index === states.length,
+    };
+  };
+  const client = await f.start();
+  let checkpoints = 0;
+  assert.deepEqual(
+    await client.clearAcceptedRegistration({
+      artifact,
+      acceptedSeal,
+      checkpoint: async () => {
+        checkpoints++;
+      },
+    }),
+    { releasedTasks: 2, controlReleased: true },
+  );
+  assert.equal(index, 4);
+  assert.equal(checkpoints, 5);
+  await client.close();
+});
+
+test('registration cleanup stops rather than accepting a repeated cursor or skipped state', async (t) => {
+  for (const next of [
+    { state: 'leased', cursor: null },
+    { state: 'control', cursor: null },
+  ]) {
+    const f = await fixture(t);
+    f.invoke = () => ({ done: false, next, releasedTasks: 0, controlReleased: false });
+    const client = await f.start();
+    await assert.rejects(client.clearAcceptedRegistration({ artifact: {}, acceptedSeal: {} }));
+    assert.equal(f.calls.filter((call) => call[1] === 'registration.clear').length, 1);
+    await client.close();
+  }
+});
 
 test('regional lifecycle owns only its exact temporary function and leaves other apps alone', async (t) => {
   const f = await fixture(t);
@@ -116,6 +214,41 @@ test('regional lifecycle owns only its exact temporary function and leaves other
   assert.equal(f.deleted.length, 1);
 });
 
+test('every invocation and its receipt lookup stay inside the release owner lease boundary', async (t) => {
+  const f = await fixture(t);
+  const invoke = f.manager.functions.invokeFunction;
+  let active = false;
+  let boundaries = 0;
+  f.manager.functions.invokeFunction = (...args) => {
+    assert.equal(active, true);
+    return invoke(...args);
+  };
+  const client = await f.start({
+    withLease: async (operation) => {
+      assert.equal(active, false);
+      active = true;
+      boundaries++;
+      try {
+        return await operation();
+      } finally {
+        active = false;
+      }
+    },
+  });
+  f.unknownAction = 'seed';
+  f.invoke = (request) => {
+    assert.equal(request.action, 'operation.get');
+    return {
+      state: 'completed',
+      receipt: { action: 'seed', result: { queued: 1, preserved: 0, tracked: 0, upgraded: 0 } },
+    };
+  };
+  await client.seed(['p1'], { detailEnabled: true });
+  assert.equal(boundaries, 2);
+  assert.equal(active, false);
+  await client.close();
+});
+
 test('wrong target and occupied function fail before creation without deleting anything', async (t) => {
   const f = await fixture(t);
   f.manager.getManagerConfig = () => ({ envId: 'other', region: policy.region });
@@ -129,12 +262,34 @@ test('wrong target and occupied function fail before creation without deleting a
   assert.deepEqual(f.deleted, []);
 });
 
+test('omitting the lease boundary is rejected before any cloud operation', async (t) => {
+  const f = await fixture(t);
+  await assert.rejects(f.start({ withLease: undefined }));
+  assert.equal(f.calls.length, 0);
+});
+
 test('lost creation reply is read back once; creation is never repeated', async (t) => {
   const f = await fixture(t);
   f.lostCreate = true;
   const client = await f.start();
   assert.equal(f.calls.filter(([kind]) => kind === 'create').length, 1);
   await client.close();
+});
+
+test('uncertain creation and unavailable inventory preserve its exact function and guard', async (t) => {
+  const f = await fixture(t);
+  f.lostCreate = true;
+  const list = f.manager.functions.listFunctions;
+  let lists = 0;
+  f.manager.functions.listFunctions = (...args) => {
+    if (++lists > 1) throw Error('inventory unavailable after creation');
+    return list(...args);
+  };
+  await assert.rejects(f.start(), { code: 'CATALOG_REGIONAL_UNCONFIRMED' });
+  assert.equal(f.calls.filter(([kind]) => kind === 'create').length, 1);
+  assert.equal(f.functions.has('seo-catalog-region-41300590230-1'), true);
+  assert.deepEqual(f.deleted, []);
+  assert.equal((await f.receipt()).unconfirmed, true);
 });
 
 test('unconfirmed invocation preserves the function and records the exact request without credentials', async (t) => {

@@ -1,15 +1,24 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import cloudbase from '@cloudbase/node-sdk';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
-import { CatalogPublicHeadSchema, catalogPublicRecordId } from './catalog-public-changes.ts';
+import {
+  CatalogPublicHeadSchema,
+  CatalogSeoTaskSchema,
+  catalogPublicRecordId,
+} from './catalog-public-changes.ts';
 import type { CatalogPublicChangeStore } from './catalog-public-changes.ts';
 import { seedCatalogSeoRequests } from './catalog-seo-bootstrap.ts';
 import { createCatalogSeoStore } from './catalog-seo-cloud.ts';
 import type { CatalogSeoDatabase } from './catalog-seo-cloud.ts';
 import { consumeCatalogSeoRequest } from './catalog-seo-consumer.ts';
 import type { CatalogSeoStore } from './catalog-seo-consumer.ts';
-import { catalogSeoControlId, readCatalogSeoControl } from './catalog-seo-control.ts';
+import {
+  catalogSeoControlId,
+  idleCatalogSeoControl,
+  readCatalogSeoControl,
+} from './catalog-seo-control.ts';
 import {
   CatalogSeoRecordingConfigSchema,
   CatalogSeoRequestSchema,
@@ -38,10 +47,34 @@ const common = z.object({
 });
 const empty = z.object({}).strict();
 const expectedWrites = { expectedWrites: counter };
+const cleanupStates = ['leased', 'writing', 'needs-readback', 'control'] as const;
+const artifactSchema = z
+  .object({
+    repository: z.literal('vibelingan/channel'),
+    workflowPath: z.string().regex(/^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/),
+    runId: z.string().regex(/^[1-9][0-9]*$/),
+    artifactId: z.string().regex(/^[1-9][0-9]*$/),
+    manifestSha256: hash,
+    expiresAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
 const action = <T extends string, S extends z.ZodTypeAny>(name: T, input: S) =>
   common.extend({ action: z.literal(name), input }).strict();
 export const CatalogRegionalRequestSchema = z.discriminatedUnion('action', [
   action('health', empty),
+  action('capture.read', empty),
+  action(
+    'registration.clear',
+    z
+      .object({
+        artifact: artifactSchema,
+        acceptedSeal: z.record(z.unknown()),
+        state: z.enum(cleanupStates),
+        cursor: hash.nullable(),
+      })
+      .strict()
+      .refine((value) => value.state !== 'control' || value.cursor === null),
+  ),
   action(
     'seed',
     z.object({ productIds: z.array(id).max(16), detailEnabled: z.boolean() }).strict(),
@@ -176,6 +209,15 @@ export function createCatalogRegionalHandler(
         );
         return success(result);
       }
+      if (request.action === 'capture.read') {
+        await assertCurrentLease(store, request, config, now());
+        const result = await captureHeads(store, config.siteOrigin, () =>
+          new Date(now()).toISOString(),
+        );
+        await assertCurrentLease(store, request, config, now());
+        assertResultSize(result);
+        return success(result);
+      }
       const previous = await store.get('catalogSeoBuilders', receiptId);
       if (previous) {
         await assertCurrentLease(store, request, config, now());
@@ -187,7 +229,8 @@ export function createCatalogRegionalHandler(
       let tail: Promise<unknown> = Promise.resolve();
       let unit = 0;
       const atomicDelivery =
-        request.action.startsWith('delivery.') && request.action !== 'delivery.check';
+        (request.action.startsWith('delivery.') && request.action !== 'delivery.check') ||
+        request.action === 'registration.clear';
       const guarded: CatalogSeoStore = {
         get: store.get.bind(store),
         list: store.list.bind(store),
@@ -255,7 +298,9 @@ export function createCatalogRegionalHandler(
         detailEnabled: 'detailEnabled' in request.input ? request.input.detailEnabled : false,
       };
       let result: JsonResult;
-      if (request.action === 'seed') {
+      if (request.action === 'registration.clear') {
+        result = await clearRegistrationStep(guarded, request, config, clock, now);
+      } else if (request.action === 'seed') {
         result = await seedCatalogSeoRequests(
           guarded,
           recording,
@@ -507,7 +552,179 @@ async function captureHeads(store: CatalogSeoStore, siteOrigin: string, clock: (
     throw new RegionalError('REGIONAL_NOT_SETTLED');
   return { writes: after.writes, heads };
 }
+type RegistrationClearRequest = Extract<CatalogRegionalRequest, { action: 'registration.clear' }>;
+
+async function assertAcceptedRegistration(
+  store: Pick<CatalogSeoStore, 'get'>,
+  request: RegistrationClearRequest,
+  config: CatalogRegionalConfig,
+  now: number,
+) {
+  const target = await store.get('siteReleaseTargets', config.targetId);
+  assertLease(target, request, config, now);
+  const scope = await store.get('siteReleaseScopes', `${config.targetId}-site`);
+  // This is the coordinator's canonical identity({targetId,runId}), not the literal run ID.
+  const key = digest(JSON.stringify({ runId: config.runId, targetId: config.targetId }));
+  const run = await store.get('siteReleaseRuns', key);
+  const accepted = run?.accepted;
+  const pointer = scope?.baseline;
+  if (
+    target.currentRunId !== null ||
+    target.dirtyRunId !== null ||
+    target.unresolvedOperation !== null ||
+    scope?._id !== `${config.targetId}-site` ||
+    scope.schemaVersion !== 1 ||
+    scope.targetId !== config.targetId ||
+    scope.scopeKey !== 'site' ||
+    !isDeepStrictEqual(scope.scope, { kind: 'site' }) ||
+    !isDeepStrictEqual(scope.active, pointer) ||
+    !pointer ||
+    typeof pointer !== 'object' ||
+    Array.isArray(pointer) ||
+    !run ||
+    run._id !== key ||
+    run.state !== 'SUCCEEDED' ||
+    run.runId !== config.runId ||
+    run.targetId !== config.targetId ||
+    run.scopeKey !== 'site' ||
+    !accepted ||
+    typeof accepted !== 'object' ||
+    Array.isArray(accepted) ||
+    Reflect.get(accepted, 'sourceRunId') !== config.runId ||
+    Reflect.get(pointer, 'sourceRunId') !== config.runId ||
+    typeof Reflect.get(accepted, 'activationId') !== 'string' ||
+    !hash.safeParse(Reflect.get(accepted, 'activationId')).success ||
+    Reflect.get(pointer, 'activationId') !== Reflect.get(accepted, 'activationId')
+  )
+    throw new RegionalError('REGIONAL_REGISTRATION_SOURCE_CHANGED');
+  const composition = run.composition;
+  const staticPart =
+    composition && typeof composition === 'object' && !Array.isArray(composition)
+      ? Reflect.get(composition, 'static')
+      : null;
+  const seals = Reflect.get(accepted, 'seals');
+  const seal =
+    seals && typeof seals === 'object' && !Array.isArray(seals)
+      ? Reflect.get(seals, 'static')
+      : null;
+  if (
+    !staticPart ||
+    typeof staticPart !== 'object' ||
+    Array.isArray(staticPart) ||
+    !isDeepStrictEqual(Reflect.get(staticPart, 'artifact'), request.input.artifact) ||
+    !seal ||
+    !isDeepStrictEqual(seal, request.input.acceptedSeal)
+  )
+    throw new RegionalError('REGIONAL_REGISTRATION_SOURCE_CHANGED');
+}
+
+async function clearRegistrationStep(
+  store: CatalogSeoStore,
+  request: RegistrationClearRequest,
+  config: CatalogRegionalConfig,
+  clock: () => string,
+  now: () => number,
+): Promise<JsonResult> {
+  await assertAcceptedRegistration(store, request, config, now());
+  const controlId = catalogSeoControlId(config.siteOrigin);
+  const owned = async (reader: Pick<CatalogSeoStore, 'get'>) => {
+    const control = readCatalogSeoControl(
+      await reader.get('catalogSeoControl', controlId),
+      config.siteOrigin,
+      clock(),
+    );
+    if (
+      control.state !== 'idle' &&
+      (!control.owner?.startsWith(`${config.runId}:`) || control.discovery)
+    )
+      throw new RegionalError('REGIONAL_REGISTRATION_OWNER_CHANGED');
+    for (const productId of control.products) {
+      const id = catalogPublicRecordId(config.siteOrigin, productId);
+      const head = CatalogPublicHeadSchema.parse(await reader.get('catalogPublicHeads', id));
+      if (head._id !== id || head.siteOrigin !== config.siteOrigin || head.productId !== productId)
+        throw new RegionalError('REGIONAL_REGISTRATION_OWNER_CHANGED');
+    }
+    return control;
+  };
+  await owned(store);
+  const { state, cursor } = request.input;
+  const selected: ReturnType<typeof CatalogSeoTaskSchema.parse>[] = [];
+  let next: { state: (typeof cleanupStates)[number]; cursor: string | null } | null = null;
+  if (state !== 'control') {
+    const rows = await store.list(
+      'catalogSeoTasks',
+      { siteOrigin: config.siteOrigin, state },
+      cursor,
+      100,
+    );
+    if (rows.length > 100) throw new RegionalError('REGIONAL_RESULT_LIMIT');
+    let last = cursor;
+    let remaining = false;
+    for (const row of rows) {
+      const task = CatalogSeoTaskSchema.parse(row);
+      if (
+        task.siteOrigin !== config.siteOrigin ||
+        task.state !== state ||
+        task._id !== catalogPublicRecordId(config.siteOrigin, task.productId) ||
+        task._id <= (last ?? '')
+      )
+        throw new RegionalError('REGIONAL_REGISTRATION_TASK_CHANGED');
+      if (task.lease?.runId === config.runId) {
+        if (selected.length === 2) {
+          remaining = true;
+          break;
+        }
+        selected.push(task);
+      }
+      last = task._id;
+    }
+    if (remaining || rows.length === 100) {
+      if (!last || last === cursor) throw new RegionalError('REGIONAL_RESULT_LIMIT');
+      next = { state, cursor: last };
+    } else {
+      const index = cleanupStates.indexOf(state);
+      const nextState = cleanupStates[index + 1];
+      if (!nextState) throw new RegionalError('REGIONAL_RESULT_LIMIT');
+      next = { state: nextState, cursor: null };
+    }
+  }
+  return store.transaction(async (tx) => {
+    await assertAcceptedRegistration(tx, request, config, now());
+    const control = await owned(tx);
+    const release = [];
+    for (const expected of selected) {
+      const task = CatalogSeoTaskSchema.parse(await tx.get('catalogSeoTasks', expected._id));
+      if (
+        task._id !== expected._id ||
+        task.siteOrigin !== config.siteOrigin ||
+        task.productId !== expected.productId
+      )
+        throw new RegionalError('REGIONAL_REGISTRATION_TASK_CHANGED');
+      if (task.lease?.runId === config.runId)
+        release.push(CatalogSeoTaskSchema.parse({ ...task, state: 'pending', lease: null }));
+    }
+    const controlReleased = state === 'control' && control.state !== 'idle';
+    if (controlReleased) {
+      if (!Number.isSafeInteger(control.fence + 1))
+        throw new RegionalError('REGIONAL_RESULT_LIMIT');
+      await tx.set('catalogSeoControl', {
+        ...idleCatalogSeoControl(config.siteOrigin, clock()),
+        writes: control.writes,
+        fence: control.fence + 1,
+      });
+    }
+    for (const task of release) await tx.set('catalogSeoTasks', task);
+    return { done: state === 'control', next, releasedTasks: release.length, controlReleased };
+  });
+}
 function deliveryResult(request: CatalogRegionalRequest, value: unknown): JsonResult {
+  if (
+    request.action === 'registration.clear' &&
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  )
+    return { ...value };
   if (request.action === 'delivery.end') return { ended: true };
   if (request.action === 'delivery.accept') return { accepted: request.input.pages.length };
   if (request.action === 'delivery.retry') return { retried: request.input.productIds.length };

@@ -16,11 +16,13 @@ export async function createCatalogRegionalClient({
   manager,
   policy,
   runId,
+  ownerRunId = runId,
   codeSha,
   runnerRef,
   guard: initialGuard,
   directory,
   requestHash,
+  withLease,
   build = buildCatalogRegional,
   wait = pause,
   mask = (token) => console.log(`::add-mask::${token}`),
@@ -32,22 +34,35 @@ export async function createCatalogRegionalClient({
   assert.match(runId, /^site-([1-9][0-9]{7,19})-([1-9][0-9]*)$/);
   assert.match(codeSha, /^[a-f0-9]{40}$/);
   assert.equal(typeof requestHash, 'function');
+  assert.equal(typeof withLease, 'function');
   const target = manager.getManagerConfig();
   assert.equal(target.envId, policy.envId);
   assert.equal(target.region, policy.region);
-  assert.match(runnerRef, /^github:vibelingan\/channel:[1-9][0-9]{7,19}:attempt-[1-9][0-9]*$/);
-  const name = `seo-catalog-region-${runId.slice(5)}`;
+  const runner = /^github:vibelingan\/channel:([1-9][0-9]{7,19}):attempt-([1-9][0-9]*)$/.exec(
+    runnerRef,
+  );
+  assert.ok(runner, 'Exact current GitHub runner required');
+  const operatorId = `${runner[1]}-${runner[2]}`;
+  assert.ok(
+    (ownerRunId === runId && runId === `site-${operatorId}`) ||
+      ownerRunId === `readback-${operatorId}`,
+    'Current operator must own the regional execution guard',
+  );
+  const name = `seo-catalog-region-${operatorId}`;
   const token = randomBytes(32).toString('hex');
   const digest = createHash('sha256').update(token).digest('hex');
   mask(token);
   let guard = initialGuard;
   let unknown = false;
+  let creationStarted = false;
   let created = false;
   let closed = false;
   const receipt = {
     schemaVersion: 1,
     purpose,
     runId,
+    ownerRunId,
+    runnerRef,
     codeSha,
     functionName: name,
     environment: policy.envId,
@@ -66,7 +81,7 @@ export async function createCatalogRegionalClient({
   };
   const validateGuard = (value) => {
     assert.match(value?.targetId ?? '', /^[a-f0-9]{64}$/);
-    assert.equal(value.ownerRunId, runId);
+    assert.equal(value.ownerRunId, ownerRunId);
     for (const key of ['fence', 'acquiredVersion'])
       assert.ok(Number.isSafeInteger(value[key]) && value[key] >= 0);
     return Object.freeze({
@@ -146,7 +161,7 @@ export async function createCatalogRegionalClient({
       assert.equal(result.accepted, request.input.pages.length);
     if (request.action === 'delivery.check') assert.equal(result.checked, true);
   };
-  const call = async (action, input = {}) => {
+  const invoke = async (action, input = {}) => {
     assert.equal(closed, false, 'Regional client is closed');
     assert.equal(unknown, false, 'Unconfirmed regional operation needs readback');
     const request = {
@@ -227,6 +242,10 @@ export async function createCatalogRegionalClient({
     }
     return value.result;
   };
+  // The release owner serializes renewal with the entire invocation/readback.
+  // Remote transactions also write the target guard, so a concurrent WAN renewal
+  // can repeatedly conflict until the lease expires.
+  const call = (action, input = {}) => withLease(() => invoke(action, input));
   const close = async () => {
     if (closed) return;
     if (unknown) {
@@ -259,10 +278,76 @@ export async function createCatalogRegionalClient({
     closed = true;
     return { cleaned: receipt.cleaned, unconfirmed: false };
   };
+  const capture = (readOnly) => async (config) => {
+    for (let round = 0; round < 12_500; round++) {
+      const result = readOnly
+        ? { ...(await call('capture.read')), ready: true }
+        : await call('prepare.step', {
+            detailEnabled: config.detailEnabled,
+            maxItems: 4,
+          });
+      if (!result.ready) continue;
+      assert.ok(Number.isSafeInteger(result.writes) && result.writes >= 0);
+      assert.ok(Array.isArray(result.heads) && result.heads.length <= 50_000);
+      const heads = new Map();
+      const owners = new Set();
+      const expectedWrites = result.writes;
+      const delivery = {
+        check: () => call('delivery.check', { expectedWrites }),
+        primeExpectedHeads(rows) {
+          for (const row of rows) {
+            assert.equal(row.siteOrigin, policy.siteOrigin);
+            assert.ok(
+              result.heads.some(
+                (head) => head.productId === row.productId && isDeepStrictEqual(head, row),
+              ),
+              'Acceptance head was not captured',
+            );
+            heads.set(row.productId, row);
+          }
+        },
+        async begin(products, discovery = false) {
+          const value = await call('delivery.begin', { expectedWrites, products, discovery });
+          assert.ok(Array.isArray(value.expectedHeads));
+          for (const head of value.expectedHeads) heads.set(head.productId, head);
+          assert.equal(typeof value.ticket?.owner, 'string');
+          owners.add(value.ticket.owner);
+          return Object.freeze(value.ticket);
+        },
+        async end(ticket, outcome) {
+          assert.ok(owners.has(ticket.owner), 'Unknown SEO delivery ticket');
+          await call('delivery.end', { expectedWrites, ticket, outcome });
+          owners.delete(ticket.owner);
+        },
+        async accept(pages) {
+          assert.equal(new Set(pages.map((p) => p.productId)).size, pages.length);
+          for (let offset = 0; offset < pages.length; offset += 2) {
+            const batch = pages.slice(offset, offset + 2);
+            const expectedHeads = batch.map((p) => {
+              assert.ok(heads.has(p.productId), 'Missing delivered product version');
+              return heads.get(p.productId);
+            });
+            await call('delivery.accept', { expectedWrites, expectedHeads, pages: batch });
+          }
+        },
+        async retryKnownFailure() {
+          assert.equal(owners.size, 0, 'Unknown delivery cannot release its tasks');
+          for (const head of heads.values())
+            await call('delivery.retry', { expectedWrites, productIds: [head.productId] });
+        },
+        get trackedProducts() {
+          return [...heads.keys()];
+        },
+      };
+      return { writes: expectedWrites, heads: result.heads, delivery };
+    }
+    throw Error('Regional product changes did not settle within the bounded preparation window');
+  };
   try {
     assert.equal((await inventory()).includes(name), false, 'Regional function name is occupied');
     await persist();
     await build(join(directory, 'function'), codeSha);
+    creationStarted = true;
     try {
       await manager.functions.createFunction({
         func: {
@@ -319,6 +404,45 @@ export async function createCatalogRegionalClient({
         guard = validateGuard(value);
       },
       close,
+      async clearAcceptedRegistration({ artifact, acceptedSeal, checkpoint = async () => {} }) {
+        const states = ['leased', 'writing', 'needs-readback', 'control'];
+        let current = { state: states[0], cursor: null };
+        let releasedTasks = 0;
+        let controlReleased = false;
+        for (let round = 0; round < 30_000; round++) {
+          await checkpoint();
+          const result = await call('registration.clear', { artifact, acceptedSeal, ...current });
+          assert.equal(typeof result.done, 'boolean');
+          assert.ok(Number.isSafeInteger(result.releasedTasks) && result.releasedTasks >= 0);
+          assert.ok(result.releasedTasks <= 2);
+          assert.equal(typeof result.controlReleased, 'boolean');
+          assert.ok(!result.controlReleased || current.state === 'control');
+          releasedTasks += result.releasedTasks;
+          assert.ok(releasedTasks <= 50_000, 'Catalog cleanup exceeds its bound');
+          controlReleased ||= result.controlReleased;
+          if (result.done) {
+            assert.equal(current.state, 'control');
+            assert.equal(result.next, null);
+            await checkpoint();
+            return { releasedTasks, controlReleased };
+          }
+          const next = result.next;
+          assert.ok(next && states.includes(next.state), 'Missing cleanup continuation');
+          const previousIndex = states.indexOf(current.state);
+          const nextIndex = states.indexOf(next.state);
+          if (nextIndex === previousIndex) {
+            assert.notEqual(next.state, 'control');
+            assert.match(next.cursor ?? '', /^[a-f0-9]{64}$/);
+            assert.ok(current.cursor === null || next.cursor > current.cursor);
+            assert.notEqual(next.cursor, current.cursor);
+          } else {
+            assert.equal(nextIndex, previousIndex + 1);
+            assert.equal(next.cursor, null);
+          }
+          current = { state: next.state, cursor: next.cursor };
+        }
+        throw Error('Accepted catalog cleanup did not finish within its bound');
+      },
       async seed(productIds, config) {
         const ids = [...new Set(productIds)];
         assert.ok(ids.length <= 50_000);
@@ -335,73 +459,18 @@ export async function createCatalogRegionalClient({
         }
         return totals;
       },
-      async prepare(config) {
-        for (let round = 0; round < 12_500; round++) {
-          const result = await call('prepare.step', {
-            detailEnabled: config.detailEnabled,
-            maxItems: 4,
-          });
-          if (!result.ready) continue;
-          assert.ok(Number.isSafeInteger(result.writes) && result.writes >= 0);
-          assert.ok(Array.isArray(result.heads) && result.heads.length <= 50_000);
-          const heads = new Map();
-          const owners = new Set();
-          const expectedWrites = result.writes;
-          const delivery = {
-            check: () => call('delivery.check', { expectedWrites }),
-            primeExpectedHeads(rows) {
-              for (const row of rows) {
-                assert.equal(row.siteOrigin, policy.siteOrigin);
-                assert.ok(
-                  result.heads.some(
-                    (head) => head.productId === row.productId && isDeepStrictEqual(head, row),
-                  ),
-                  'Acceptance head was not captured',
-                );
-                heads.set(row.productId, row);
-              }
-            },
-            async begin(products, discovery = false) {
-              const value = await call('delivery.begin', { expectedWrites, products, discovery });
-              assert.ok(Array.isArray(value.expectedHeads));
-              for (const head of value.expectedHeads) heads.set(head.productId, head);
-              assert.equal(typeof value.ticket?.owner, 'string');
-              owners.add(value.ticket.owner);
-              return Object.freeze(value.ticket);
-            },
-            async end(ticket, outcome) {
-              assert.ok(owners.has(ticket.owner), 'Unknown SEO delivery ticket');
-              await call('delivery.end', { expectedWrites, ticket, outcome });
-              owners.delete(ticket.owner);
-            },
-            async accept(pages) {
-              assert.equal(new Set(pages.map((p) => p.productId)).size, pages.length);
-              for (let offset = 0; offset < pages.length; offset += 2) {
-                const batch = pages.slice(offset, offset + 2);
-                const expectedHeads = batch.map((p) => {
-                  assert.ok(heads.has(p.productId), 'Missing delivered product version');
-                  return heads.get(p.productId);
-                });
-                await call('delivery.accept', { expectedWrites, expectedHeads, pages: batch });
-              }
-            },
-            async retryKnownFailure() {
-              assert.equal(owners.size, 0, 'Unknown delivery cannot release its tasks');
-              for (const head of heads.values())
-                await call('delivery.retry', { expectedWrites, productIds: [head.productId] });
-            },
-            get trackedProducts() {
-              return [...heads.keys()];
-            },
-          };
-          return { writes: expectedWrites, heads: result.heads, delivery };
-        }
-        throw Error(
-          'Regional product changes did not settle within the bounded preparation window',
-        );
-      },
+      prepare: capture(false),
+      capture: capture(true),
     };
   } catch (error) {
+    if (creationStarted && !created) {
+      unknown = true;
+      receipt.unconfirmed = true;
+      await persist();
+      throw Object.assign(Error('Regional creation needs readback; keep its delivery lock'), {
+        code: 'CATALOG_REGIONAL_UNCONFIRMED',
+      });
+    }
     await close();
     throw error;
   }
