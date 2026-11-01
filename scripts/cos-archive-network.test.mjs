@@ -199,7 +199,7 @@ function deferred() {
 }
 
 // Keep the real SDK, filesystem, task cancellation and HTTP/XML parsing. The local server owns only COS state.
-async function multipartResumeFixture(t) {
+async function multipartResumeFixture(t, sdkOptions = {}, stalledHeaders = false) {
   const require = createRequire(import.meta.url);
   assert.equal(require('cos-nodejs-sdk-v5/package.json').version, '2.15.4');
   const COS = require('cos-nodejs-sdk-v5');
@@ -290,6 +290,10 @@ async function multipartResumeFixture(t) {
           oldResponses.push({ res, closed });
           firstMissing.add(partNumber);
           if (firstMissing.size === 2) missingReceived.resolve();
+          if (stalledHeaders) {
+            res.writeHead(200, { 'content-length': 1 });
+            res.flushHeaders();
+          }
           return;
         }
         if (phase === 2 && partNumber >= 3) {
@@ -355,6 +359,7 @@ async function multipartResumeFixture(t) {
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   t.after(async () => {
     secondResponses.resolve();
+    for (const task of cos.getTaskList()) if (task.state !== 'success') cos.cancelTask(task.id);
     server.closeAllConnections();
     await new Promise((done) => server.close(done));
     await rm(directory, { recursive: true, force: true });
@@ -367,6 +372,7 @@ async function multipartResumeFixture(t) {
     ...ARCHIVE_COS_OPTIONS,
     ProgressInterval: 10,
     ConfCwd: directory,
+    ...sdkOptions,
   });
   const upload = cos.uploadFile.bind(cos);
   cos.uploadFile = (params, callback) => {
@@ -503,5 +509,117 @@ for (const mismatch of [null, 'md5', 'size'])
           bytes: f.bytes.length,
         }),
       );
+    },
+  );
+
+for (const retries of [0, 1])
+  test(
+    `a real connected COS socket timeout preserves its cause, cancels ownership and resumes safely (${retries} chunk retries)`,
+    { timeout: 15_000 },
+    async (t) => {
+      const require = createRequire(import.meta.url);
+      const requestPackage = require.resolve('request/package.json', {
+        paths: [require.resolve('cos-nodejs-sdk-v5')],
+      });
+      assert.equal(require(requestPackage).version, '2.88.2');
+      const f = await multipartResumeFixture(
+        t,
+        { Timeout: 200, ChunkRetryTimes: retries },
+        retries === 1,
+      );
+      assert.equal(f.cos.options.Timeout, 200);
+      assert.equal(f.cos.options.ChunkRetryTimes, retries);
+      const rawErrors = [];
+      const cancellations = [];
+      const upload = f.cos.uploadFile.bind(f.cos);
+      const cancel = f.cos.cancelTask.bind(f.cos);
+      f.cos.cancelTask = (id) => {
+        cancellations.push(id);
+        return cancel(id);
+      };
+      f.cos.uploadFile = (params, callback) =>
+        upload(params, (error, result) => {
+          if (error)
+            rawErrors.push({
+              code: error.code,
+              connect: error.connect,
+              statusCode: error.statusCode,
+            });
+          callback(error, result);
+        });
+      // The overall budget is 25 times the socket deadline. No global cancellation is triggered by this test.
+      const outcome = f.put({ uploadTimeoutMs: 5000 }).then(
+        () => assert.fail('A stalled multipart response succeeded'),
+        (error) => error,
+      );
+      await Promise.all([f.firstAcknowledged, f.missingReceived]);
+      const failure = await outcome;
+      assert.equal(rawErrors.length, 1);
+      assert.equal(rawErrors[0].code, 'ESOCKETTIMEDOUT');
+      if (retries === 1) assert.equal(rawErrors[0].statusCode, 200);
+      assert.ok(
+        f.calls.some((call) => call.method === 'PUT' && call.partNumber >= 3),
+        'The server received the entire HTTP request before withholding its reply',
+      );
+      t.diagnostic(
+        JSON.stringify({
+          sdk: '2.15.4',
+          request: '2.88.2',
+          retries,
+          raw: rawErrors[0],
+          publicCode: failure.code,
+        }),
+      );
+      const firstTask = f.cos.getTaskList()[0];
+      assert.deepEqual(
+        { code: failure.code, state: firstTask.state, cancellations: cancellations.length },
+        { code: 'ESOCKETTIMEDOUT', state: 'canceled', cancellations: 1 },
+        'A native SDK error must release only its local task ownership and retain the actual timeout cause',
+      );
+      assert.deepEqual(cancellations, [firstTask.id]);
+      await Promise.all(f.oldResponses.map(({ closed }) => closed.promise));
+      assert.deepEqual([...f.uploads.get('resume-upload-1').keys()].sort(), [1, 2]);
+      assert.equal(
+        f.calls.some((call) => call.method === 'DELETE'),
+        false,
+        'Local cancel must not abort remote multipart data',
+      );
+      f.secondPhase();
+      const second = f.put({ uploadTimeoutMs: 5000 });
+      await f.secondMissingReceived;
+      f.releaseSecond();
+      await second;
+      const sent = f.calls.filter(
+        (call) => call.phase === 2 && call.method === 'PUT' && call.partNumber,
+      );
+      assert.deepEqual(sent.map((call) => call.partNumber).sort(), [3, 4]);
+      assert.ok(sent.every((call) => call.uploadId === 'resume-upload-1'));
+      assert.equal(
+        f.calls.filter(
+          (call) => call.phase === 2 && call.method === 'POST' && call.query.includes('uploads'),
+        ).length,
+        0,
+      );
+      assert.equal(
+        f.calls.filter(
+          (call) => call.phase === 2 && call.method === 'GET' && call.query.includes('uploads'),
+        ).length,
+        1,
+      );
+      assert.equal(
+        f.calls.filter(
+          (call) =>
+            call.phase === 2 && call.method === 'GET' && call.uploadId === 'resume-upload-1',
+        ).length,
+        1,
+      );
+      assert.notEqual(f.temporaryFiles[0], f.temporaryFiles[1]);
+      assert.ok(f.temporaryFiles.every((file) => !existsSync(file) && !existsSync(dirname(file))));
+      assert.deepEqual(await f.read(), f.bytes);
+      assert.deepEqual(
+        f.cos.getTaskList().map((task) => task.state),
+        ['canceled', 'success'],
+      );
+      assert.deepEqual(f.errors, []);
     },
   );

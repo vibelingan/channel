@@ -29,6 +29,7 @@ const sdkStages = new Set([
   'hashing',
   'uploading',
   'deadline',
+  'task-canceled',
   'multipart-initialize',
   'multipart-list',
   'multipart-parts-list',

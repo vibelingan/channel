@@ -197,10 +197,14 @@ export function createPrivateArchive({
 }
 
 function transientArchiveUpload(error) {
-  if (Number.isSafeInteger(error?.statusCode))
+  // A successful response header does not prove its body arrived: request 2.88.2
+  // can still report ESOCKETTIMEDOUT with statusCode 200. Redirects and client
+  // errors remain terminal, even when accompanied by a network code.
+  if (Number.isSafeInteger(error?.statusCode) && error.statusCode >= 300)
     return error.statusCode >= 500 && error.statusCode <= 599;
   return [
     'ETIMEDOUT',
+    'ESOCKETTIMEDOUT',
     'ECONNRESET',
     'EPIPE',
     'ENOTFOUND',
@@ -230,13 +234,14 @@ export function assertArchiveLifecycle(result, path) {
 function safeArchiveError(error) {
   if (['timeout', 'unavailable', 'too-large'].includes(error?.reason)) return error.reason;
   if (/upload timed out$/.test(error?.message ?? '')) return 'timeout';
-  if (Number.isSafeInteger(error?.statusCode) && error.statusCode >= 100 && error.statusCode <= 599)
+  if (Number.isSafeInteger(error?.statusCode) && error.statusCode >= 300 && error.statusCode <= 599)
     return `http-${error.statusCode}`;
   const status = /unconfirmed upload \(HTTP ([1-5][0-9]{2})\)/.exec(error?.message ?? '')?.[1];
   if (status) return `http-${status}`;
   if (
     [
       'ETIMEDOUT',
+      'ESOCKETTIMEDOUT',
       'ECONNRESET',
       'EPIPE',
       'ENOTFOUND',
@@ -253,5 +258,7 @@ function safeArchiveError(error) {
     ].includes(error?.code)
   )
     return error.code;
+  if (Number.isSafeInteger(error?.statusCode) && error.statusCode >= 100 && error.statusCode < 300)
+    return `http-${error.statusCode}`;
   return 'unconfirmed';
 }

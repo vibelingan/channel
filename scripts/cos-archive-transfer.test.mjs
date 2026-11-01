@@ -263,12 +263,20 @@ test('a timed-out upload is canceled once and raw SDK credential details never e
   assert.equal(canceled.AsyncLimit, 32);
   assert.equal(existsSync(canceled.FilePath), false);
   const y = fixture();
-  y.cos.uploadFile = (_params, done) =>
+  const events = [];
+  y.transport = createCosArchiveTransfer({
+    cos: y.cos,
+    policy,
+    onStatus: (event) => events.push(event),
+  });
+  y.cos.uploadFile = (params, done) => {
+    params.onTaskReady('owned-upload');
     done(
       Object.assign(Error('https://private/?signature=never-log-this-signature'), {
         statusCode: 403,
       }),
     );
+  };
   try {
     await y.transport.put(credential, Buffer.from('bytes'), { uploadTimeoutMs: 1000 });
     assert.fail('must reject');
@@ -276,6 +284,12 @@ test('a timed-out upload is canceled once and raw SDK credential details never e
     assert.equal(e.statusCode, 403);
     assert.equal(String(e).includes('signature'), false);
   }
+  assert.equal(y.calls.filter((call) => call[0] === 'cancel-upload').length, 1);
+  assert.equal(events.filter((event) => event.stage === 'task-canceled').length, 1);
+  assert.equal(
+    events.some((event) => event.stage === 'deadline'),
+    false,
+  );
 });
 test('a late metadata response cannot start a download after the overall deadline', async () => {
   const x = fixture();

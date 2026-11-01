@@ -88,8 +88,8 @@ export function createCosArchiveTransfer({
               done,
             );
           },
-          () => {
-            trace.report('deadline');
+          (reason) => {
+            trace.report(reason === 'sdk-error' ? 'task-canceled' : 'deadline');
             canceled = true;
             if (task) cos.cancelTask(task);
           },
@@ -253,7 +253,7 @@ function traceTransfer(cos, params, totalBytes, observe) {
   return { report, close: () => cos.off?.('before-send', request) };
 }
 
-/** A timed-out SDK task is canceled, not silently retried by this caller. Late results cannot extend its budget. */
+/** Failed or timed-out SDK tasks release local ownership; late results cannot extend the budget. */
 function boundedTransfer(timeoutMs, start, cancel = () => {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000)
     throw Error('Invalid archive transfer time limit');
@@ -264,11 +264,17 @@ function boundedTransfer(timeoutMs, start, cancel = () => {}) {
       finished = true;
       clearTimeout(timer);
       if (error) {
+        // COS 2.15.4 keeps multipart ownership after an error until cancelTask.
+        // Cancel locally, retaining remote parts for the caller's verified continuation.
+        try {
+          cancel('sdk-error');
+        } catch {}
         const wrapped = new Error('Archive COS transfer unconfirmed');
         if (
           typeof error.code === 'string' &&
           [
             'ETIMEDOUT',
+            'ESOCKETTIMEDOUT',
             'ECONNRESET',
             'EPIPE',
             'ENOTFOUND',
@@ -291,7 +297,7 @@ function boundedTransfer(timeoutMs, start, cancel = () => {}) {
       if (finished) return;
       finished = true;
       try {
-        cancel();
+        cancel('deadline');
       } catch {}
       reject(Object.assign(new Error('Archive COS transfer timed out'), { code: 'ETIMEDOUT' }));
     }, timeoutMs);

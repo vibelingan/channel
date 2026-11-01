@@ -281,11 +281,55 @@ test('a continuation never loops and can resolve its own lost reply with exact r
   }
 });
 
+test('connected socket timeouts can resume after absent-object readback, including incomplete HTTP 200 responses', async () => {
+  for (const statusCode of [undefined, 200]) {
+    const x = setup();
+    const send = x.put;
+    const events = [];
+    let writes = 0;
+    x.put = async (...args) => {
+      if (++writes === 1)
+        throw Object.assign(Error('private signed URL must not escape'), {
+          code: 'ESOCKETTIMEDOUT',
+          ...(statusCode === undefined ? {} : { statusCode }),
+        });
+      return send(...args);
+    };
+    x.read = async (_sdk, id) => {
+      if (!x.objects.has(id))
+        throw Object.assign(Error('absent'), { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+      return Buffer.from(x.objects.get(id));
+    };
+    const bytes = Buffer.alloc(9 * 1024 * 1024, 17);
+    const ref = await createPrivateArchive({
+      ...x,
+      policy,
+      onTransfer: (event) => events.push(event),
+    }).put(bytes);
+    assert.equal(writes, 2);
+    assert.deepEqual(x.objects.get(ref.fileID), bytes);
+    assert.equal(events.find((event) => event.action === 'put').cause, 'ESOCKETTIMEDOUT');
+    assert.equal(events.filter((event) => event.action === 'resume').length, 1);
+    assert.equal(JSON.stringify(events).includes('private signed URL'), false);
+  }
+});
+
 test('permission failures, unknown errors, small files and unconfirmed reads cannot start a continuation', async () => {
   for (const scenario of [
-    { upload: { statusCode: 403 }, read: { statusCode: 404 } },
-    { upload: { statusCode: 400 }, read: { statusCode: 404 } },
-    { upload: {}, read: { statusCode: 404 } },
+    {
+      upload: { statusCode: 403 },
+      read: { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' },
+    },
+    {
+      upload: { statusCode: 400 },
+      read: { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' },
+    },
+    ...[301, 400, 403, 429].map((statusCode) => ({
+      upload: { code: 'ESOCKETTIMEDOUT', statusCode },
+      read: { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' },
+    })),
+    { upload: { statusCode: 200 }, read: { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' } },
+    { upload: {}, read: { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' } },
     { upload: { code: 'ETIMEDOUT' }, read: { statusCode: 503 } },
     { upload: { code: 'ETIMEDOUT' }, read: { code: 'ETIMEDOUT' } },
     { upload: { code: 'ETIMEDOUT' }, read: { statusCode: 403 } },
@@ -406,3 +450,67 @@ test('changed transport bytes cannot be written again under the original content
   );
   assert.equal(writes, 1);
 });
+
+for (const changedPolicy of ['permission', 'lifecycle'])
+  test(`a ${changedPolicy} change after confirmed absence prevents the continuation upload`, async () => {
+    const x = setup();
+    const events = [];
+    const observations = [];
+    let absent = false;
+    let writes = 0;
+    let reads = 0;
+    const permission = x.manager.permission.describeResourcePermission;
+    x.manager.permission.describeResourcePermission = async (input) => {
+      events.push(absent ? 'permission-after-absence' : 'permission-before-absence');
+      if (absent && changedPolicy === 'permission')
+        return {
+          Data: {
+            PermissionList: [
+              { Resource: policy.archiveBucket, ResourceType: 'storage', Permission: 'PUBLICREAD' },
+            ],
+          },
+        };
+      return permission(input);
+    };
+    x.readLifecycle = async () => {
+      events.push(absent ? 'lifecycle-after-absence' : 'lifecycle-before-absence');
+      return {
+        Rules:
+          absent && changedPolicy === 'lifecycle'
+            ? [{ Status: 'Enabled', Filter: { Prefix: 'seo-recovery/' }, Expiration: { Days: 1 } }]
+            : [],
+      };
+    };
+    x.put = async () => {
+      writes++;
+      events.push('first-upload');
+      throw Object.assign(Error('temporary interruption'), { code: 'ETIMEDOUT' });
+    };
+    x.read = async () => {
+      reads++;
+      absent = true;
+      events.push('confirmed-absent');
+      throw Object.assign(Error('exact object missing'), {
+        statusCode: 404,
+        code: 'ARCHIVE_OBJECT_NOT_FOUND',
+      });
+    };
+    await assert.rejects(
+      createPrivateArchive({ ...x, policy, onTransfer: (event) => observations.push(event) }).put(
+        Buffer.alloc(9 * 1024 * 1024),
+      ),
+      /needs readback/,
+    );
+    assert.equal(writes, 1, 'A changed storage policy must stop before the second put');
+    assert.equal(reads, 1, 'A policy failure must stop before another byte read');
+    assert.equal(
+      observations.some((event) => event.action === 'resume'),
+      false,
+    );
+    const missing = events.indexOf('confirmed-absent');
+    assert.ok(missing > events.indexOf('first-upload'));
+    assert.ok(
+      events.indexOf(`${changedPolicy}-after-absence`) > missing,
+      'The new policy must be checked after the exact missing-object confirmation',
+    );
+  });
