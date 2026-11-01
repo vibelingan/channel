@@ -122,6 +122,7 @@ const bff = createAiBffServer(
 await new Promise<void>((done) => bff.listen(62682, '127.0.0.1', done));
 process.env.VITE_ASSISTANT_LIVE = '1';
 const web = await createServer({
+  cacheDir: resolve(directory, '.vite-cache'),
   root: resolve(root, 'apps/site'),
   configFile: resolve(root, 'apps/site/assistant-preview.vite.ts'),
   logLevel: 'warn',
