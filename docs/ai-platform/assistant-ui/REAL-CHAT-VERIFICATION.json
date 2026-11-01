@@ -111,7 +111,7 @@
     "vibekb": 9,
     "channel_sales": 113,
     "hermes_reader_consumer": 38,
-    "worker": 42,
+    "worker": 45,
     "hermes_quality_before_legacy_contract_test": 49,
     "assistant_projection_final": 4,
     "hermes_unit_discovery": {
@@ -126,16 +126,60 @@
     "channel/packages/ai-engine-vibekb/src/knowledge.ts": "2d6297bf5b16986e4c6ed4b287a0f89326e1a400c15130d7b570354d178fbfbd",
     "channel/apps/ai-worker/src/worker.ts": "e4c36ab12df068009bd2f3d1f57adba881f15cdc11a49756952dc38824cab98b",
     "channel/apps/site/src/islands/ai/assistant/useAssistantSession.ts": "8fad8117f66f3485a338043374f3647584661db0e641d6281caf2359ba890f06",
-    "channel/scripts/assistant-real-browser.mts": "b1f4fc352717c56166bed22ddae9f52f8b4a2899f04090dd50e257cfb442d6d3",
+    "channel/scripts/assistant-real-browser.mts": "3d2b7ad88120aed5b4f20870ac13fea2263b24e64430c1a3e1bbe45e527f4d77",
     "channel-sales-agent-integration/apps/functions/sales-integration/src/permit-client.ts": "9b0ed136f94c55366e8b6b2aeef008ba2a83186ccbc7ac03bff0d2325a1d6962",
     "channel-sales-agent-integration/apps/functions/sales-integration/scripts/assistant-inquiry-live.mts": "cec9514126506fd85422f0f8612d82dbf54a58ea210ce33c0316c7ec122c55e9",
     "hermesinfra-sales-agent/deploy/hub/sales_flow/channel_reader.py": "0868527d8c06b137464cb5f17dba3580597b1f3d60d72a862b8c199ef849e9a8",
     "hermesinfra-sales-agent/deploy/hub/sales_flow/consumer.py": "c09584f905e0d5aca01ae407cf0a6bd090fe205f904d27e771ef7fccd77391f6",
     "hermesinfra-sales-agent/deploy/hub/tools/sg32_real_channel.py": "f01cf592e93f649d5d95e30115348784927bb2f0e4bba75f6cf4be2bc90ec057",
-    "channel/packages/ai-engine-vibekb/src/prompt.ts": "36d9d6dc7f64ee0bf13d4e37e98a9d1885af48992cc7030b9b30564fda1d64be",
+    "channel/packages/ai-engine-vibekb/src/prompt.ts": "49ccd9a73dc6328420059a75104dbf2155c50f489bbccfe9a2f8895e982f9670",
     "hermesinfra-sales-agent/deploy/hub/sales_flow/pipeline.py": "c15d1ee8d2db0163dbe841aa77363f36b6600b6703df2681f748fed6f2ba8034",
-    "hermesinfra-sales-agent/deploy/hub/sales_flow/model_call.py": "be73e52e7f1cae1cdff3ac1f37757a91705f32d73cecb7e91bb526f5ac6c1f02"
+    "hermesinfra-sales-agent/deploy/hub/sales_flow/model_call.py": "be73e52e7f1cae1cdff3ac1f37757a91705f32d73cecb7e91bb526f5ac6c1f02",
+    "channel/apps/ai-worker/src/product-workflow.ts": "6e943adc57e857898b8c4d59bd7005db4716ed5aca2f2ca6d4f71b014964b4ad"
   },
   "deployment": "not run",
-  "real_email": "not sent"
+  "real_email": "not sent",
+  "additional_real_category_search": {
+    "model": "deepseek/deepseek-v4-pro",
+    "knowledge": {
+      "workspaceId": 2,
+      "sourceIds": [
+        "channelkb/vibekb/12"
+      ]
+    },
+    "results": [
+      {
+        "name": "real product images, compare, current recheck and contextual form",
+        "status": "passed",
+        "durationMs": 33776
+      }
+    ],
+    "observations": [
+      {
+        "kind": "mcp",
+        "action": "search_documents"
+      },
+      {
+        "kind": "mcp",
+        "action": "get_document"
+      },
+      {
+        "kind": "model",
+        "status": 200,
+        "finishReason": "stop",
+        "planKind": "search"
+      },
+      {
+        "kind": "model",
+        "status": 200,
+        "finishReason": "stop",
+        "planKind": "answer"
+      }
+    ],
+    "mode": "focused",
+    "realCloud": false,
+    "emailCalls": 0,
+    "reference": "",
+    "sourceCommit": "cb832a0b344553ed961012ba58dfda14165a0843"
+  }
 }

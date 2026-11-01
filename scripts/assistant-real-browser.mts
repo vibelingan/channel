@@ -250,7 +250,7 @@ try {
       const p = await page();
       const answer = await send(
         p,
-        'We need wireless headphones for 500 employee gifts, with our logo. Please show actual product options.',
+        '我们想采购带公司 logo 的无线耳机作为员工礼品，请推荐当前真实产品。',
       );
       const cards = answer.locator('section');
       await expect(cards.first()).toBeVisible();

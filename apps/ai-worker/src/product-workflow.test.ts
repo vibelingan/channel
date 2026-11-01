@@ -11,6 +11,66 @@ test('planner cannot select tools, private connections or arbitrary URLs', () =>
     { kind: 'clarify', question: 'Which type of product do you need?' },
   );
 });
+
+test('category fallback is a bounded internal search plan without extra tool arguments', () => {
+  assert.deepEqual(
+    parseProductPlan(
+      '{"kind":"search","query":"wireless headphones logo","fallbackQuery":"headphones"}',
+    ),
+    { kind: 'search', query: 'wireless headphones logo', fallbackQuery: 'headphones' },
+  );
+  for (const patch of [
+    { fallbackQuery: '' },
+    { fallbackQuery: 'x'.repeat(81) },
+    { fallbackQuery: 'headphones', url: 'https://private.invalid' },
+  ])
+    assert.throws(() =>
+      parseProductPlan(JSON.stringify({ kind: 'search', query: 'wireless headphones', ...patch })),
+    );
+});
+
+test('empty precise search may broaden once, using only the same public catalog', async () => {
+  const queries: string[] = [];
+  const catalog = new PublicCatalog('https://catalog.invalid', async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.origin, 'https://catalog.invalid');
+    queries.push(url.searchParams.get('search') ?? '');
+    return Response.json({
+      ok: true,
+      data: {
+        items: queries.length === 1 ? [] : [{ _id: 'p1', name: 'Headphones', published: true }],
+      },
+    });
+  });
+  const result = await catalog.execute(
+    { kind: 'search', query: 'wireless headphones logo', fallbackQuery: 'headphones' },
+    new AbortController().signal,
+  );
+  assert.equal(result.products.length, 1);
+  assert.deepEqual(queries, ['wireless headphones logo', 'headphones']);
+  assert.match(result.text, /broader/);
+  assert.match(result.text, /confirm/);
+});
+
+test('fallback stops after two empty searches and never retries a failed service', async () => {
+  for (const fail of [false, true]) {
+    let calls = 0;
+    const catalog = new PublicCatalog('https://catalog.invalid', async () => {
+      calls++;
+      return fail
+        ? new Response(null, { status: 503 })
+        : Response.json({ ok: true, data: { items: [] } });
+    });
+    const run = () =>
+      catalog.execute(
+        { kind: 'search', query: 'robots neon', fallbackQuery: 'robots' },
+        new AbortController().signal,
+      );
+    if (fail) await assert.rejects(run);
+    else assert.equal((await run()).kind, 'no_match');
+    assert.equal(calls, fail ? 1 : 2);
+  }
+});
 test('catalog projects only public fields and always reads current data', async () => {
   let seen = '';
   const api: typeof fetch = async (input, init) => {

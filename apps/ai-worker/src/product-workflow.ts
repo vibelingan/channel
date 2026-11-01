@@ -4,8 +4,9 @@ import {
   type PublicProductCard,
   isCatalogAction,
 } from '@vibelingan-channel/ai-contracts';
+export type CatalogPlan = CatalogAction & { fallbackQuery?: string };
 export type ProductPlan =
-  | CatalogAction
+  | CatalogPlan
   | { kind: 'clarify'; question: string }
   | { kind: 'inquiry'; summary: string; productId?: string }
   | { kind: 'help'; topic: 'greeting' | 'unsupported' | 'no_knowledge' | 'handoff' }
@@ -15,6 +16,17 @@ export function parseProductPlan(text: string): ProductPlan {
   if (text.length > 6000) throw new Error('invalid_product_plan');
   const v: unknown = JSON.parse(text);
   if (isCatalogAction(v)) return v;
+  if (
+    record(v) &&
+    v.kind === 'search' &&
+    Object.keys(v).every((key) => ['kind', 'query', 'fallbackQuery'].includes(key)) &&
+    typeof v.query === 'string' &&
+    isCatalogAction({ kind: 'search', query: v.query }) &&
+    typeof v.fallbackQuery === 'string' &&
+    v.fallbackQuery.trim() &&
+    v.fallbackQuery.length <= 80
+  )
+    return { kind: 'search', query: v.query, fallbackQuery: v.fallbackQuery.trim() };
   if (
     record(v) &&
     v.kind === 'inquiry' &&
@@ -178,17 +190,38 @@ export class PublicCatalog {
       retrievedAt: new Date().toISOString(),
     };
   }
-  async execute(action: CatalogAction, signal: AbortSignal) {
-    if (!isCatalogAction(action)) throw new Error('invalid_catalog_action');
+  async execute(action: CatalogPlan, signal: AbortSignal) {
+    const { fallbackQuery, ...base } = action;
+    if (
+      !isCatalogAction(base) ||
+      (fallbackQuery !== undefined &&
+        (base.kind !== 'search' ||
+          typeof fallbackQuery !== 'string' ||
+          !fallbackQuery.trim() ||
+          fallbackQuery.length > 80))
+    )
+      throw new Error('invalid_catalog_action');
     let rows: unknown[];
+    let broadened = false;
     if (action.kind === 'search') {
-      const data = await this.read(
-        `/api/products?search=${encodeURIComponent(action.query.trim())}&pageSize=6`,
-        signal,
-      );
-      if (!record(data) || !Array.isArray(data.items) || data.items.length > 6)
-        throw new Error('invalid_public_catalog');
-      rows = data.items;
+      const search = async (query: string) => {
+        const data = await this.read(
+          `/api/products?search=${encodeURIComponent(query.trim())}&pageSize=6`,
+          signal,
+        );
+        if (!record(data) || !Array.isArray(data.items) || data.items.length > 6)
+          throw new Error('invalid_public_catalog');
+        return data.items;
+      };
+      rows = await search(action.query);
+      if (
+        !rows.length &&
+        fallbackQuery &&
+        fallbackQuery.trim().toLowerCase() !== action.query.trim().toLowerCase()
+      ) {
+        broadened = true;
+        rows = await search(fallbackQuery);
+      }
     } else
       rows = await Promise.all(
         action.ids.map((id) => this.read(`/api/products/${encodeURIComponent(id)}`, signal)),
@@ -214,7 +247,9 @@ export class PublicCatalog {
         action.kind === 'lookup'
           ? 'These are the latest published details. Unavailable products have been removed from the current comparison.'
           : products.length
-            ? 'Here are published product options matching your request. Compare the options or open a product page for details.'
+            ? broadened
+              ? 'Here are broader published product options. Our team needs to confirm the requested features and customization.'
+              : 'Here are published product options matching your request. Compare the options or open a product page for details.'
             : 'I could not find a published product matching that request. Try a broader product type or describe what it will be used for.',
     };
   }
