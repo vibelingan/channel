@@ -108,12 +108,7 @@ export async function deployCatalogClock({
     current.CATALOG_SEO_CLOCK_ENABLED === '1',
   );
   const triggers = detail.Triggers ?? [];
-  if (
-    triggers.some(
-      (t) =>
-        t.TriggerName !== trigger.name || t.Type !== 'timer' || t.TriggerDesc !== trigger.config,
-    )
-  )
+  if (triggers.some((t) => !matchesClockTimer(t)))
     throw Error('Existing timer configuration differs; preserve and inspect');
   if (!triggers.length) await manager.functions.createFunctionTriggers(name, [trigger]);
   await manager.functions.updateFunctionConfig({
@@ -132,7 +127,7 @@ export async function deployCatalogClock({
     values.CATALOG_SEO_CLOCK_ENABLED !== '1' ||
     values.CATALOG_GITHUB_PRIVATE_KEY !== credentials.privateKey ||
     (after.Triggers ?? []).length !== 1 ||
-    after.Triggers[0].TriggerDesc !== trigger.config
+    !matchesClockTimer(after.Triggers[0])
   )
     throw Error('Clock activation needs readback; stop before another change');
   return {
@@ -166,4 +161,22 @@ export function readClockHealth(response, codeSha, enabled) {
   if (health?.service !== name || health.codeSha !== codeSha || health.enabled !== enabled)
     throw Error('Running clock program differs from staged source');
   return health;
+}
+
+function matchesClockTimer(value) {
+  let config;
+  try {
+    config = JSON.parse(value.TriggerDesc);
+  } catch {
+    return false;
+  }
+  return (
+    value.TriggerName === trigger.name &&
+    value.Type === 'timer' &&
+    config !== null &&
+    typeof config === 'object' &&
+    !Array.isArray(config) &&
+    Object.keys(config).length === 1 &&
+    config.cron === trigger.config
+  );
 }

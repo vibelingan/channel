@@ -53,7 +53,11 @@ function fixture(existing = false) {
     createFunctionTriggers: async () => {
       writes.push('trigger');
       detail.Triggers = [
-        { TriggerName: 'catalog-seo-minute', Type: 'timer', TriggerDesc: '0 * * * * * *' },
+        {
+          TriggerName: 'catalog-seo-minute',
+          Type: 'timer',
+          TriggerDesc: JSON.stringify({ cron: '0 * * * * * *' }),
+        },
       ];
     },
   };
@@ -169,4 +173,26 @@ test('a different existing timer blocks activation before cloud writes', async (
   ];
   await assert.rejects(deployCatalogClock(x), /configuration differs/);
   assert.equal(x.writes.length, 0);
+});
+
+test('an existing platform JSON timer is reused, while malformed or changed timers stop before writes', async () => {
+  for (const desc of [
+    JSON.stringify({ cron: '0 * * * * * *' }),
+    JSON.stringify({ cron: '0 0 * * * * *' }),
+    '{',
+    JSON.stringify({ cron: '0 * * * * * *', extra: true }),
+  ]) {
+    const x = fixture(true);
+    x.action = 'enable';
+    x.accepted = { verified: true, rendererSha: sha };
+    x.credentials = { appId: 1, installationId: 2, privateKey: 'fixture PRIVATE KEY' };
+    x.detail().Triggers = [{ TriggerName: 'catalog-seo-minute', Type: 'timer', TriggerDesc: desc }];
+    if (desc === JSON.stringify({ cron: '0 * * * * * *' })) {
+      assert.equal((await deployCatalogClock(x)).enabled, true);
+      assert.deepEqual(x.writes, ['config']);
+    } else {
+      await assert.rejects(deployCatalogClock(x), /configuration differs/);
+      assert.deepEqual(x.writes, []);
+    }
+  }
 });
