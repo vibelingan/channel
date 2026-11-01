@@ -179,6 +179,30 @@ test('large immutable archives get a bounded transfer budget without leaking err
   assert.equal(failures[0].cause, 'unconfirmed');
 });
 
+test('known archive integrity failures retain only their fixed diagnostic labels', async () => {
+  for (const code of [
+    'ARCHIVE_SOURCE_MISMATCH',
+    'ARCHIVE_PROGRESS_INVALID',
+    'ARCHIVE_SOURCE_CHANGED',
+    'ARCHIVE_LOCAL_SIZE_MISMATCH',
+  ]) {
+    const x = setup();
+    const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.from('bytes'));
+    const observations = [];
+    x.read = async () => {
+      throw Object.assign(Error('https://private.example/?signature=never-log-this'), { code });
+    };
+    await assert.rejects(
+      createPrivateArchive({ ...x, policy, onTransfer: (event) => observations.push(event) }).get(
+        ref,
+      ),
+    );
+    assert.equal(observations[0].cause, code);
+    assert.equal(observations[0].outcome, 'unconfirmed');
+    assert.equal(JSON.stringify(observations).includes('never-log-this'), false);
+  }
+});
+
 test('another bucket under the same environment is rejected before any permission query', async () => {
   const x = setup();
   const original = x.sdk.getUploadMetadata;

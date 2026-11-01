@@ -115,7 +115,9 @@ export function createCosArchiveTransfer({ cos, policy, onStatus = (_event) => {
                 length > 128 * 1024 * 1024 ||
                 typeof before.ETag !== 'string'
               )
-                throw Error('Archive source length or version differs');
+                throw Object.assign(Error('Archive source length or version differs'), {
+                  code: 'ARCHIVE_SOURCE_MISMATCH',
+                });
               await new Promise((resolve, reject) =>
                 cos.downloadFile(
                   {
@@ -126,9 +128,25 @@ export function createCosArchiveTransfer({ cos, policy, onStatus = (_event) => {
                     ParallelLimit: 3,
                     RetryTimes: 1,
                     onProgress(progress) {
-                      if (progress.total !== maxBytes || progress.loaded > maxBytes) {
+                      // COS 2.15.4 forwards Content-Length as text during a small
+                      // getObject read, then emits a numeric total at completion.
+                      const total =
+                        typeof progress.total === 'string' && /^\d+$/.test(progress.total)
+                          ? Number(progress.total)
+                          : progress.total;
+                      if (
+                        !Number.isSafeInteger(total) ||
+                        total !== maxBytes ||
+                        !Number.isSafeInteger(progress.loaded) ||
+                        progress.loaded < 0 ||
+                        progress.loaded > maxBytes
+                      ) {
                         stop();
-                        reject(Error('Archive download exceeds expected bytes'));
+                        reject(
+                          Object.assign(Error('Archive download progress differs'), {
+                            code: 'ARCHIVE_PROGRESS_INVALID',
+                          }),
+                        );
                       }
                     },
                   },
@@ -140,10 +158,15 @@ export function createCosArchiveTransfer({ cos, policy, onStatus = (_event) => {
               active();
               if (
                 after?.ETag !== before.ETag ||
-                Number(after?.headers?.['content-length']) !== maxBytes ||
-                (await stat(FilePath)).size !== maxBytes
+                Number(after?.headers?.['content-length']) !== maxBytes
               )
-                throw Error('Archive object changed during download');
+                throw Object.assign(Error('Archive object changed during download'), {
+                  code: 'ARCHIVE_SOURCE_CHANGED',
+                });
+              if ((await stat(FilePath)).size !== maxBytes)
+                throw Object.assign(Error('Archive local file size differs'), {
+                  code: 'ARCHIVE_LOCAL_SIZE_MISMATCH',
+                });
               return await readFile(FilePath);
             };
             run().then(
@@ -225,6 +248,10 @@ function boundedTransfer(timeoutMs, start, cancel = () => {}) {
             'ECONNREFUSED',
             'EHOSTUNREACH',
             'ENETUNREACH',
+            'ARCHIVE_SOURCE_MISMATCH',
+            'ARCHIVE_PROGRESS_INVALID',
+            'ARCHIVE_SOURCE_CHANGED',
+            'ARCHIVE_LOCAL_SIZE_MISMATCH',
           ].includes(error.code)
         )
           wrapped.code = error.code;

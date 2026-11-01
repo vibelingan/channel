@@ -1,0 +1,163 @@
+{
+  "sdk": "cos-nodejs-sdk-v5@2.15.4",
+  "localOnly": true,
+  "cloudWrites": 0,
+  "source": "Installed sdk/base.js getObject forwards HTTP Content-Length as progress.total; sdk/advance.js downloadFile uses getObject for small objects and numeric totals for multipart ranges.",
+  "independentBeforeFix": [
+    {
+      "name": "fast-small",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 23,
+      "totalTypes": ["number"],
+      "error": null
+    },
+    {
+      "name": "fast-small",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 21,
+      "totalTypes": ["number"],
+      "error": null
+    },
+    {
+      "name": "slow-small",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 571,
+      "totalTypes": ["string", "number"],
+      "error": null
+    },
+    {
+      "name": "slow-small",
+      "mode": "existing-adapter",
+      "outcome": "rejected",
+      "elapsedMs": 107,
+      "totalTypes": ["string"],
+      "error": {
+        "message": "Archive COS transfer unconfirmed",
+        "code": null
+      }
+    },
+    {
+      "name": "fast-large",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 228,
+      "totalTypes": ["number"],
+      "error": null
+    },
+    {
+      "name": "fast-large",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 682,
+      "totalTypes": ["number"],
+      "error": null
+    },
+    {
+      "name": "slow-large",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 1304,
+      "totalTypes": ["number"],
+      "error": null
+    },
+    {
+      "name": "slow-large",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 1595,
+      "totalTypes": ["number"],
+      "error": null
+    }
+  ],
+  "regression": "scripts/cos-archive-network.test.mjs: actual SDK with a delayed local HTTP body; failed before the fix.",
+  "fix": "Normalize only unsigned decimal progress.total to a safe integer and compare with the exact expected length. loaded must be a nonnegative safe integer within that length. Preserve source length, ETag, local size and outer full SHA-256 checks.",
+  "historicalFailureAttribution": "The defect is independently reproduced. The original 41287017248 log lacks a precise stage/category and cannot conclusively identify that historical failure as this defect.",
+  "cloudValidation": "not-started-for-this-fix",
+  "independentAfterFix": [
+    {
+      "name": "fast-small",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 15,
+      "totalTypes": ["number"],
+      "error": null,
+      "readBytes": null
+    },
+    {
+      "name": "fast-small",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 20,
+      "totalTypes": ["number"],
+      "error": null,
+      "readBytes": 409600
+    },
+    {
+      "name": "slow-small",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 574,
+      "totalTypes": ["string", "number"],
+      "error": null,
+      "readBytes": null
+    },
+    {
+      "name": "slow-small",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 660,
+      "totalTypes": ["string", "number"],
+      "error": null,
+      "readBytes": 409600
+    },
+    {
+      "name": "fast-large",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 44,
+      "totalTypes": ["number"],
+      "error": null,
+      "readBytes": null
+    },
+    {
+      "name": "fast-large",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 97,
+      "totalTypes": ["number"],
+      "error": null,
+      "readBytes": 2506752
+    },
+    {
+      "name": "slow-large",
+      "mode": "direct-sdk",
+      "outcome": "ok",
+      "elapsedMs": 1308,
+      "totalTypes": ["number"],
+      "error": null,
+      "readBytes": null
+    },
+    {
+      "name": "slow-large",
+      "mode": "existing-adapter",
+      "outcome": "ok",
+      "elapsedMs": 1399,
+      "totalTypes": ["number"],
+      "error": null,
+      "readBytes": 2506752
+    }
+  ],
+  "localValidation": {
+    "scripts": 1410,
+    "passed": 1410,
+    "failed": 0,
+    "skipped": 0,
+    "scriptsTypecheck": "passed",
+    "cloudbaseSdk": "passed",
+    "changedBiome": "passed",
+    "independentReadOnlyReview": "passed"
+  }
+}

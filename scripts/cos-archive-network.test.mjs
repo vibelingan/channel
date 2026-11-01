@@ -15,6 +15,7 @@ test('the actual COS client uploads a small object, reads it, then completes a m
   const objects = new Map();
   const parts = new Map();
   const calls = [];
+  let slowRead = false;
   let activeParts = 0;
   let maximumActiveParts = 0;
   const directory = await mkdtemp(join(tmpdir(), 'archive-cos-network-'));
@@ -84,6 +85,11 @@ test('the actual COS client uploads a small object, reads it, then completes a m
         return res.end(data.subarray(start, end + 1));
       }
       res.setHeader('content-length', data.length);
+      if (slowRead) {
+        res.write(data.subarray(0, 1));
+        await new Promise((done) => setTimeout(done, 100));
+        return res.end(data.subarray(1));
+      }
       return res.end(data);
     }
     res.statusCode = 500;
@@ -102,6 +108,7 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     Domain: `127.0.0.1:${server.address().port}`,
     ...ARCHIVE_COS_OPTIONS,
     ChunkParallelLimit: 3,
+    ProgressInterval: 10,
     ConfCwd: directory,
   });
   // This is a protocol/byte-integrity test; deadline and cancellation are exercised separately.
@@ -122,6 +129,20 @@ test('the actual COS client uploads a small object, reads it, then completes a m
       }),
       small,
     );
+    slowRead = true;
+    await t.test(
+      'slow small-object reads accept the actual SDK byte-count representation',
+      async () => {
+        assert.deepEqual(
+          await transfer.read(null, credential('a').storageFileId, {
+            maxBytes: small.length,
+            timeoutMs: 30000,
+          }),
+          small,
+        );
+      },
+    );
+    slowRead = false;
     await transfer.put(credential('b'), large, { uploadTimeoutMs: 30000 });
     assert.deepEqual(
       await transfer.read(null, credential('b').storageFileId, {

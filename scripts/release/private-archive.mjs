@@ -165,6 +165,10 @@ function safeArchiveError(error) {
       'ENETUNREACH',
       'ERR_TLS_CERT_ALTNAME_INVALID',
       'CERT_HAS_EXPIRED',
+      'ARCHIVE_SOURCE_MISMATCH',
+      'ARCHIVE_PROGRESS_INVALID',
+      'ARCHIVE_SOURCE_CHANGED',
+      'ARCHIVE_LOCAL_SIZE_MISMATCH',
     ].includes(error?.code)
   )
     return error.code;

@@ -183,5 +183,36 @@
       "change": "Keep CodeSource Cos and add the documented leading slash only to the API descriptor. Actual COS object key and immutable cloud file ID remain unchanged.",
       "liveVerified": false
     }
+  },
+  "leadingSlashAttempt": {
+    "runId": "41287017248",
+    "codeSha": "8f5cd3567def66f76d07dd92c69cad7dcdda2443",
+    "remoteCi": {
+      "conclusion": "success",
+      "runs": ["41286124017", "41286123985", "41286123981"],
+      "releaseChecks": 17
+    },
+    "conclusion": "failure",
+    "stoppedStage": "preserve-original-programs",
+    "functionWrites": 0,
+    "websiteWrites": 0,
+    "businessDataWrites": 0,
+    "stoppedInputsArtifactId": "13075872988",
+    "originalsUploadedAndFirstReadVerified": true,
+    "failedRead": {
+      "bytes": 415438,
+      "sha256": "f1319f7fa28aea7d5604a9d0c8e76e188f57581422692ad106e4e91cb74a3e99",
+      "elapsedMs": 4113,
+      "cause": "unconfirmed"
+    },
+    "codeSourceAndLeadingSlashCombinationExercised": false,
+    "observedFunctions": {
+      "public-api": "c84a0c0b8ee38be729b619e019364ce1b1b12780",
+      "alibaba-catalog-sync": "914438425aa5b12193707d34c146f90372aff94e",
+      "admin": "914438425aa5b12193707d34c146f90372aff94e"
+    },
+    "recording": false,
+    "readiness": false,
+    "stoppedInputVerification": "Downloaded all three original ZIPs independently; CRC and each recorded SHA-256 match."
   }
 }

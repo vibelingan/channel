@@ -107,12 +107,63 @@ test('another bucket, environment or namespace cannot reach COS', async () => {
     );
   assert.equal(x.calls.length, 0);
 });
+test('only equivalent unsigned decimal SDK progress totals are normalized', async () => {
+  for (const total of ['5', '005']) {
+    const x = fixture();
+    x.files.set(key, Buffer.from('bytes'));
+    const download = x.cos.downloadFile;
+    x.cos.downloadFile = (params, done) =>
+      download({ ...params, onProgress: (info) => params.onProgress({ ...info, total }) }, done);
+    assert.deepEqual(
+      await x.transport.read(null, fileID, { maxBytes: 5, timeoutMs: 1000 }),
+      Buffer.from('bytes'),
+    );
+  }
+});
+test('malformed or excessive progress still rejects before accepting downloaded bytes', async () => {
+  const badTotals = [
+    '',
+    '5junk',
+    '5e0',
+    ' 5',
+    '+5',
+    '-5',
+    '5.0',
+    'NaN',
+    'Infinity',
+    null,
+    undefined,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    5.1,
+    6,
+    4,
+    Number.MAX_SAFE_INTEGER + 1,
+  ];
+  const badLoaded = [-1, 6, 0.5, '1', null, undefined, Number.NaN, Number.POSITIVE_INFINITY];
+  for (const progress of [
+    ...badTotals.map((total) => ({ total, loaded: 0 })),
+    ...badLoaded.map((loaded) => ({ total: '5', loaded })),
+  ]) {
+    const x = fixture();
+    x.files.set(key, Buffer.from('bytes'));
+    x.cos.downloadFile = (params, done) => {
+      params.onProgress(progress);
+      done(null, {});
+    };
+    await assert.rejects(
+      x.transport.read(null, fileID, { maxBytes: 5, timeoutMs: 1000 }),
+      (error) => error.code === 'ARCHIVE_PROGRESS_INVALID',
+    );
+    assert.equal(x.calls.filter((c) => c[0] === 'head').length, 1);
+  }
+});
 test('unexpected remote size is rejected before any file download', async () => {
   const x = fixture();
   x.files.set(key, Buffer.alloc(11));
   await assert.rejects(
     x.transport.read(null, fileID, { maxBytes: 10, timeoutMs: 1000 }),
-    /unconfirmed/,
+    (error) => error.code === 'ARCHIVE_SOURCE_MISMATCH',
   );
   assert.equal(
     x.calls.some((c) => c[0] === 'download'),
@@ -130,7 +181,7 @@ test('a source version change during a native download cannot be accepted', asyn
   });
   await assert.rejects(
     x.transport.read(null, fileID, { maxBytes: 5, timeoutMs: 1000 }),
-    /unconfirmed/,
+    (error) => error.code === 'ARCHIVE_SOURCE_CHANGED',
   );
   assert.equal(existsSync(x.getPath()), false);
 });
