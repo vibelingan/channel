@@ -7,8 +7,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { parse } from 'yaml';
 import { configuration } from './release-hosting-fixtures.mjs';
-import { memoryStore, plan, receipt, stepInput } from './release-state-fixtures.mjs';
+import { clock, memoryStore, plan, receipt, stepInput } from './release-state-fixtures.mjs';
 import { createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import { createGithubReadClient } from './release/github-read.mjs';
 import { sha256 } from './release/input.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
 import {
@@ -62,7 +63,8 @@ async function fixture(t) {
   };
   const input = siteArtifact({ directory, policy, run: metadata });
   const ledger = memoryStore();
-  const coordinator = createReleaseCoordinator({ store: ledger, policy });
+  const time = clock();
+  const coordinator = createReleaseCoordinator({ store: ledger, policy, clock: time.now });
   const guard = await coordinator.acquire({
     ownerRunId: 'site-101-1',
     runnerRef: 'github:fixture/channel:101:attempt-1',
@@ -149,9 +151,11 @@ async function fixture(t) {
     directory: join(root, 'work'),
     owner: { ownerRunId: 'site-archive-999-1', runnerRef: 'github:fixture/channel:999:attempt-1' },
     observe: diagnostic.observe,
+    now: time.now,
   };
   return {
     root,
+    time,
     db,
     ledger,
     coordinator,
@@ -166,6 +170,301 @@ async function fixture(t) {
     options,
   };
 }
+
+async function stoppedArchive(t) {
+  const f = await fixture(t);
+  await f.coordinator.acquire({
+    ownerRunId: 'site-archive-456-1',
+    runnerRef: 'github:fixture/channel:456:attempt-1',
+  });
+  f.time.advance(180001);
+  const run = {
+    id: 456,
+    run_attempt: 1,
+    event: 'workflow_dispatch',
+    path: policy.workflowPath,
+    head_branch: policy.trustedRef.slice(11),
+    head_sha: 'a'.repeat(40),
+    status: 'completed',
+    conclusion: 'timed_out',
+    repository: { full_name: policy.repository },
+    head_repository: { full_name: policy.repository },
+  };
+  const job = {
+    id: 876,
+    run_id: 456,
+    head_sha: run.head_sha,
+    name: 'site_archive',
+    status: 'completed',
+    conclusion: 'timed_out',
+    started_at: '2026-10-21T00:00:00Z',
+    completed_at: '2026-10-21T00:02:59Z',
+  };
+  const definition = {
+    on: { workflow_dispatch: { inputs: { mode: { options: ['site-archive'] } } } },
+    jobs: {
+      site_archive: {
+        if: "${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-archive' }}",
+        environment: 'test',
+        steps: [{ run: './apps/site/node_modules/.bin/tsx scripts/archive-accepted-site.ts' }],
+      },
+    },
+  };
+  const reads = [];
+  const beforeRead = { run: () => {}, jobs: () => {}, source: () => {} };
+  const github = createGithubReadClient({
+    policy,
+    token: 'fixture-token',
+    request: async (method, url) => {
+      assert.equal(method, 'GET');
+      const path = new URL(url).pathname.replace(`/repos/${policy.repository}`, '');
+      reads.push(path);
+      let answer;
+      if (path === '/actions/runs/456/attempts/1') {
+        await beforeRead.run();
+        answer = run;
+      } else if (path === '/actions/runs/456/attempts/1/jobs') {
+        await beforeRead.jobs();
+        answer = { total_count: 1, jobs: [job] };
+      } else if (path === `/contents/${policy.workflowPath}`) {
+        await beforeRead.source();
+        const bytes = Buffer.from(JSON.stringify(definition));
+        answer = {
+          type: 'file',
+          path: policy.workflowPath,
+          encoding: 'base64',
+          size: bytes.length,
+          content: bytes.toString('base64'),
+        };
+      } else throw Error(`Unexpected fixture API path: ${path}`);
+      return { status: 200, body: Buffer.from(JSON.stringify(answer)) };
+    },
+  });
+  return { ...f, run, job, definition, reads, beforeRead, options: { ...f.options, github } };
+}
+
+test('a killed archive-only job is taken over only after exact terminal GitHub and source proof, preserving its accepted site', async (t) => {
+  const f = await stoppedArchive(t);
+  const before = (await f.coordinator.status()).scope.baseline;
+  assert.equal((await f.coordinator.status()).state, 'stalled');
+  await archiveAcceptedSite(f.options);
+  const after = await f.coordinator.status();
+  assert.equal(after.state, 'idle');
+  assert.deepEqual(after.scope.baseline, before);
+  assert.equal(after.target.lastReconciliation.cloud.kind, 'stopped-site-archive-only');
+  assert.equal(after.target.lastReconciliation.cloud.operationId, null);
+  assert.equal(after.target.lastReconciliation.cloud.observedHash, null);
+  assert.deepEqual(f.reads, [
+    '/actions/runs/456/attempts/1',
+    '/actions/runs/456/attempts/1/jobs',
+    `/contents/${policy.workflowPath}`,
+  ]);
+  assert.equal(f.records.size, 1);
+  assert.equal(JSON.parse(readFileSync(f.file)).status, 'complete');
+});
+
+for (const [label, patch] of [
+  [
+    'unfinished workflow',
+    (f) => {
+      f.run.status = 'in_progress';
+      f.run.conclusion = null;
+    },
+  ],
+  [
+    'different attempt',
+    (f) => {
+      f.run.run_attempt = 2;
+    },
+  ],
+  [
+    'foreign repository',
+    (f) => {
+      f.run.head_repository.full_name = 'foreign/channel';
+    },
+  ],
+  [
+    'automatic workflow',
+    (f) => {
+      f.run.event = 'push';
+    },
+  ],
+  [
+    'other branch',
+    (f) => {
+      f.run.head_branch = 'test';
+    },
+  ],
+  [
+    'unfinished archive job',
+    (f) => {
+      f.job.status = 'in_progress';
+      f.job.conclusion = null;
+    },
+  ],
+  [
+    'skipped archive job from another mode',
+    (f) => {
+      f.job.conclusion = 'skipped';
+    },
+  ],
+  [
+    'wrong job',
+    (f) => {
+      f.job.name = 'site_delivery';
+    },
+  ],
+  [
+    'wrong job SHA',
+    (f) => {
+      f.job.head_sha = 'b'.repeat(40);
+    },
+  ],
+  [
+    'source without archive-only condition',
+    (f) => {
+      f.definition.jobs.site_archive.if = '${{ always() }}';
+    },
+  ],
+  [
+    'source with another command',
+    (f) => {
+      f.definition.jobs.site_archive.steps[0].run = 'node scripts/deploy-cloudbase-test.mjs';
+    },
+  ],
+])
+  test(`${label} cannot release an archive lock`, async (t) => {
+    const f = await stoppedArchive(t);
+    patch(f);
+    await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+    const status = await f.coordinator.status();
+    assert.equal(status.state, 'stalled');
+    assert.equal(status.target.lease.ownerRunId, 'site-archive-456-1');
+    assert.deepEqual(f.calls, []);
+  });
+
+test('another owner and a live archive lease are never released by this entry', async (t) => {
+  const f = await stoppedArchive(t);
+  const status = await f.coordinator.status();
+  f.ledger.replace('targets', status.targetId, {
+    ...status.target,
+    lease: { ...status.target.lease, ownerRunId: 'site-456-1' },
+  });
+  await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+  assert.deepEqual(f.reads, []);
+  assert.equal((await f.coordinator.status()).target.lease.ownerRunId, 'site-456-1');
+});
+
+test('an unexpired archive lease or mismatched runner identity never uses GitHub takeover proof', async (t) => {
+  const f = await stoppedArchive(t);
+  const status = await f.coordinator.status();
+  f.ledger.replace('targets', status.targetId, {
+    ...status.target,
+    lease: { ...status.target.lease, expiresAt: f.time.now() + 60000 },
+  });
+  await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+  assert.deepEqual(f.reads, []);
+  f.ledger.replace('targets', status.targetId, {
+    ...status.target,
+    lease: { ...status.target.lease, runnerRef: 'github:fixture/channel:789:attempt-1' },
+  });
+  await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+  assert.deepEqual(f.reads, []);
+});
+
+for (const kind of ['pending', 'dirty'])
+  test(`a real ${kind} hosting operation cannot be cleared as archive-only work`, async (t) => {
+    const f = await stoppedArchive(t);
+    f.time.advance(-180001);
+    const status = await f.coordinator.status();
+    const guard = {
+      targetId: status.targetId,
+      ownerRunId: status.target.lease.ownerRunId,
+      fence: status.target.lease.fence,
+      acquiredVersion: status.target.lease.acquiredVersion,
+    };
+    const source = await f.coordinator.runStatus('site-101-1');
+    await f.coordinator.startRun({
+      guard,
+      runId: 'site-456-1',
+      scopeKey: 'site',
+      kind: 'publish',
+      composition: source.composition,
+      plan: plan(2),
+      deliveredComponents: ['static'],
+    });
+    const step = await f.coordinator.beginStep({
+      guard,
+      runId: 'site-456-1',
+      ...stepInput('write'),
+    });
+    if (kind === 'dirty') {
+      await f.coordinator.confirmStep({
+        guard,
+        runId: 'site-456-1',
+        stepId: step.stepId,
+        receipt: receipt(step),
+      });
+      await f.coordinator.failRun({ guard, runId: 'site-456-1', reason: 'known hosting failure' });
+    }
+    f.time.advance(180001);
+    await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+    const after = await f.coordinator.status();
+    assert.equal(after.state, 'stalled');
+    assert.equal(after.target.lease.ownerRunId, 'site-archive-456-1');
+    assert(after.target.unresolvedOperation || after.target.dirtyRunId);
+    assert.deepEqual(f.reads, []);
+    assert.deepEqual(f.calls, []);
+  });
+
+test('a renewed version or changed baseline during GitHub checks cannot be reconciled', async (t) => {
+  const f = await stoppedArchive(t);
+  f.beforeRead.source = async () => {
+    const status = await f.coordinator.status();
+    f.ledger.replace('targets', status.targetId, {
+      ...status.target,
+      version: status.target.version + 1,
+    });
+  };
+  await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+  assert.equal((await f.coordinator.status()).state, 'stalled');
+  assert.deepEqual(f.calls, []);
+});
+
+test('the existing coordinator transaction rejects a version race after the final takeover check', async (t) => {
+  const f = await stoppedArchive(t);
+  const reconcile = f.coordinator.reconcile;
+  const coordinator = {
+    ...f.coordinator,
+    reconcile: async (input) => {
+      const status = await f.coordinator.status();
+      f.ledger.replace('targets', status.targetId, {
+        ...status.target,
+        version: status.target.version + 1,
+      });
+      return reconcile(input);
+    },
+  };
+  await assert.rejects(archiveAcceptedSite({ ...f.options, coordinator }), /SITE_ARCHIVE_FAILED/);
+  assert.equal((await f.coordinator.status()).state, 'stalled');
+  assert.deepEqual(f.calls, []);
+});
+
+test('a baseline replacement during proof reads remains intact and prevents takeover', async (t) => {
+  const f = await stoppedArchive(t);
+  f.beforeRead.source = async () => {
+    const status = await f.coordinator.status();
+    const key = `${status.targetId}-site`;
+    const scope = f.ledger.inspect().find(([id]) => id === `scopes/${key}`)[1];
+    const pointer = { ...scope.baseline, activationId: 'changed-during-proof' };
+    f.ledger.replace('scopes', key, { ...scope, active: pointer, baseline: pointer });
+  };
+  await assert.rejects(archiveAcceptedSite(f.options), /SITE_ARCHIVE_FAILED/);
+  const after = await f.coordinator.status();
+  assert.equal(after.scope.baseline.activationId, 'changed-during-proof');
+  assert.equal(after.state, 'stalled');
+  assert.deepEqual(f.calls, []);
+});
 
 test('archives the current sealed site through real retention packaging and full readback without website ports', async (t) => {
   const f = await fixture(t);

@@ -3,6 +3,7 @@ import CloudBase from '@cloudbase/manager-node';
 import COS from 'cos-nodejs-sdk-v5';
 import { blogWorkerSdk } from './blog/worker-source.ts';
 import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import { createGithubReadClient } from './release/github-read.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
 import {
   archiveAcceptedSite,
@@ -68,6 +69,7 @@ try {
       policy,
     }),
     source: github,
+    github: createGithubReadClient({ policy, token: env.GITHUB_TOKEN }),
     retention,
     policy,
     directory: resolve(directory, 'payload'),
