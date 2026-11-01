@@ -42,6 +42,7 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
     required('SALES_HERMES_AUTH_URL'),
     required('SALES_HERMES_AUTH_TOKEN'),
     environment === 'test' ? 'test' : 'production',
+    Number(process.env.SALES_PERMIT_TIMEOUT_MS ?? 3000),
   );
   initCloudBase(envId);
   setAdapter(cloudBaseAdapter);

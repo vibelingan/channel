@@ -118,3 +118,32 @@ test('control request has a finite deadline even when the server never answers',
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('configured control deadline handles a slow reply but still rejects an expired wait', async () => {
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const server = createServer((_request, reply) => {
+    const timer = setTimeout(() => {
+      timers.delete(timer);
+      reply.writeHead(200, { 'Content-Type': 'application/json' });
+      reply.end(JSON.stringify(f.permit));
+    }, 200);
+    timers.add(timer);
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const endpoint = `http://127.0.0.1:${address.port}/sales/authorize-read`;
+    for (const timeout of [NaN, Infinity, 0, 99, 10001, 1.5])
+      assert.throws(() => createPermitClient(endpoint, token, 'test', timeout));
+    await assert.rejects(createPermitClient(endpoint, token, 'test', 100)(f.request), {
+      message: 'Sales control unavailable',
+    });
+    assert.deepEqual(await createPermitClient(endpoint, token, 'test', 2000)(f.request), f.permit);
+  } finally {
+    for (const timer of timers) clearTimeout(timer);
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});

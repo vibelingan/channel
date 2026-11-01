@@ -5,11 +5,15 @@ export function createPermitClient(
   endpoint: string,
   token: string,
   environment: 'test' | 'production',
+  timeoutMs = 3000,
 ) {
   const url = new URL(endpoint);
   const loopback =
     environment === 'test' && url.protocol === 'http:' && url.hostname === '127.0.0.1';
   if (
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs < 100 ||
+    timeoutMs > 10000 ||
     (!loopback && url.protocol !== 'https:') ||
     url.username ||
     url.password ||
@@ -24,7 +28,7 @@ export function createPermitClient(
       const reply = await fetch(url, {
         method: 'POST',
         redirect: 'error',
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(timeoutMs),
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
