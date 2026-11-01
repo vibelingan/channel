@@ -8,6 +8,7 @@ export async function activateCatalogRenderer({
   executorSha,
   executorRef,
   finishCatalog = /** @type {null | (()=>Promise<void>)} */ (null),
+  writeActive = /** @type {null | ((data:object)=>Promise<void>)} */ (null),
 }) {
   if (
     !/^[a-f0-9]{40}$/.test(proof?.codeSha ?? '') ||
@@ -17,6 +18,8 @@ export async function activateCatalogRenderer({
     !/^site-[1-9][0-9]*-[1-9][0-9]*$/.test(runId)
   )
     throw Error('Invalid accepted catalog program');
+  if (finishCatalog && typeof writeActive !== 'function')
+    throw Error('Tracked catalog activation requires a guarded registration writer');
   if (finishCatalog) await finishCatalog();
   const data = {
     codeSha: proof.codeSha,
@@ -27,10 +30,13 @@ export async function activateCatalogRenderer({
     catalogTracked: Boolean(finishCatalog),
   };
   const doc = db.collection('catalogSeoBuilders').doc('active');
-  try {
-    await doc.set(data);
-  } catch {
-    /* Readback settles a lost reply for this exact accepted run. */
+  if (writeActive) await writeActive(data);
+  else {
+    try {
+      await doc.set(data);
+    } catch {
+      /* Readback settles a lost reply for this exact untracked run. */
+    }
   }
   const response = await doc.get();
   const row = Array.isArray(response?.data) ? response.data[0] : response?.data;

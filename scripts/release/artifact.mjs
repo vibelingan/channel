@@ -1,3 +1,4 @@
+import { assertCatalogAcceptanceProof } from './catalog-proof.mjs';
 import {
   assertHostingPath,
   assertOrigin,
@@ -202,7 +203,15 @@ export function verifyReleaseArtifact({
   } else throw new Error('Unknown release scope.');
   if (!isHash(e.compatibilityRef?.sha256)) throw new Error('Missing compatibility file hash.');
   requireFile(e.compatibilityRef?.path, e.compatibilityRef.sha256);
-  readJson(directory, e.compatibilityRef.path);
+  const compatibility = readJson(directory, e.compatibilityRef.path);
+  if (compatibility.catalog !== undefined) {
+    if (e.scope.kind !== 'site' || !e.snapshotPath)
+      throw Error('Catalog acceptance requires a full site snapshot');
+    assertCatalogAcceptanceProof(compatibility.catalog, {
+      siteOrigin: e.target.siteOrigin,
+      snapshot: readObject(directory, e.snapshotPath),
+    });
+  }
   const declared = new Set([
     e.staticManifestPath,
     ...staticManifest.entries.map((entry) => entry.path),

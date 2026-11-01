@@ -32,7 +32,7 @@
     "unknownCopyRetry": false,
     "unknownObjectDeletion": false
   },
-  "boundary": "The successful control proves a working protocol for this environment, not that .bin or a prefix alone caused the rejected requests. New path still needs exact-commit CI and live acceptance.",
+  "boundary": "The complete official-style staging protocol accepted this exact ZIP in the same environment. This does not isolate the previous cause to the .bin suffix or a directory prefix alone.",
   "localValidation": {
     "scriptTests": 1456,
     "passed": 1456,
@@ -45,5 +45,42 @@
     "changedFilesBiome": "passed",
     "diffCheck": "passed",
     "independentReview": "passed after fixing all external-error privacy boundaries and misleading archive text"
+  },
+  "officialStagingLiveAcceptance": {
+    "runId": "41291665194",
+    "sourceSha": "dc3af64b3f5c3d01e675f0938a36a3854b9aabde",
+    "conclusion": "success",
+    "ciRunId": "41290661977",
+    "ciJobsPassed": 17,
+    "backupArtifactId": "13077264126",
+    "backupArtifactBytes": 20160824,
+    "receiptArtifactId": "13077434220",
+    "functions": [
+      {
+        "name": "public-api",
+        "status": "accepted",
+        "bytes": 415437,
+        "sha256": "34a411095bdc7057cc37fc3cb3b71e9c936399d51af28fc08266c801ee48c6b6"
+      },
+      {
+        "name": "alibaba-catalog-sync",
+        "status": "accepted",
+        "bytes": 9076181,
+        "sha256": "dff2c96176940328b77ee5f31194e149cb8cdcc40d5517051eaa072beee67ba1"
+      },
+      {
+        "name": "admin",
+        "status": "accepted",
+        "bytes": 590419,
+        "sha256": "8746375c5294898bbd9e6ba8ec13a218f8f8428214b3c3cafbad502fadc8c380"
+      }
+    ],
+    "independentHttpHealth": "all three returned exact dc3af64b; recording false; page readiness false; Blog reads and publishing retained",
+    "websiteWrites": 0,
+    "businessWrites": 0,
+    "recordActivationRunId": "41292508820",
+    "recordActivationStatus": "in_progress",
+    "htmlDeliveryAccepted": false,
+    "programAbaAccepted": false
   }
 }

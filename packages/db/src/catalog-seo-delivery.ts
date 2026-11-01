@@ -200,6 +200,20 @@ export function createCatalogSeoDelivery(
             )
               changed();
             if (h.visible !== (page.htmlSha256 !== null)) changed();
+            if (t.state === 'accepted' && t.acceptedSequence === h.sequence) {
+              const existing = await tx.get('catalogSeoPages', id);
+              if (existing) {
+                const p = CatalogSeoPageSchema.parse(existing);
+                if (p._id !== id || p.siteOrigin !== siteOrigin || p.productId !== page.productId)
+                  changed();
+                if (
+                  page.htmlSha256 === null
+                    ? !p.ready
+                    : p.ready && p.sequence === h.sequence && p.htmlSha256 === page.htmlSha256
+                )
+                  continue;
+              }
+            }
             writes.push({
               collection: 'catalogSeoTasks',
               row: CatalogSeoTaskSchema.parse({

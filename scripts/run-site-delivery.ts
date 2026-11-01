@@ -20,14 +20,17 @@ import { readFunctionRuntimeState } from './blog/runtime-health.mjs';
 import { assertBlogDeliveryOwnership, assertServerBlogReady } from './blog/server-route-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
+import { createCatalogAcceptanceProof, finishCatalogAcceptance } from './catalog-acceptance.ts';
 import {
   assertCatalogBuildInputCurrent,
   assertPrebuiltCatalogMode,
+  versionFreshCatalogBuildSnapshot,
 } from './catalog-build-input.ts';
 import { guardCatalogHostingAdapters, prepareCatalogRefresh } from './catalog-refresh.ts';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { activateCatalogRenderer } from './release/catalog-activation.mjs';
+import { completeCatalogRegistration } from './release/catalog-registration.mjs';
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { assertInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
@@ -738,6 +741,18 @@ try {
         root,
         { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
       );
+      if (catalogConfig && catalog) {
+        const after = await prepareCatalogRefresh(createCatalogSeoStore(db), catalogConfig, runId);
+        const versioned = versionFreshCatalogBuildSnapshot({
+          config: catalogConfig,
+          source: 'fresh',
+          snapshot: await readFile(productFile),
+          before: catalog,
+          after,
+        });
+        await writeFile(productFile, versioned);
+        catalog = after;
+      }
     }
     const products = JSON.parse(await readFile(productFile, 'utf8'));
     assert(Array.isArray(products.products));
@@ -836,6 +851,15 @@ try {
       codeSha,
       releaseId: runId,
       ...(renderer ? { renderer: renderer.proof } : {}),
+      ...(catalog && catalogConfig
+        ? {
+            catalog: createCatalogAcceptanceProof({
+              config: catalogConfig,
+              capture: catalog,
+              snapshot: Buffer.from(JSON.stringify(products)),
+            }),
+          }
+        : {}),
       files,
       snapshot: products,
       objectProofs: baseline.staticManifest.entries.flatMap((e: SiteObjectEntry) =>
@@ -908,26 +932,42 @@ try {
       const finishCatalog = catalog
         ? async () => {
             if (!catalog) throw Error('Catalog acceptance context changed');
-            // Unchanged HTML can still acknowledge a checked, identical public version.
-            for (let offset = 0; offset < catalog.heads.length; offset += 12) {
-              const batch = catalog.heads.slice(offset, offset + 12);
-              const ticket = await catalog.delivery.begin(batch.map((h) => h.productId));
-              await catalog.delivery.end(ticket, 'verified');
-            }
-            await catalog.delivery.accept(
-              catalog.heads.map((h) => {
-                const path = `${productPath(h.productId).slice(1)}index.html`;
-                const bytes = files.get(path);
-                if (h.visible && !bytes) throw Error('Accepted product HTML is absent');
-                return {
-                  productId: h.productId,
-                  htmlSha256: h.visible && bytes ? sha256(bytes) : null,
-                };
-              }),
-            );
+            await finishCatalogAcceptance({ catalog, files });
           }
         : null;
-      if (renderer)
+      if (renderer && catalog) {
+        const acceptedRun = await coordinator.runStatus(runId);
+        candidate.acceptedSeal = acceptedRun.accepted.seals.static;
+        await completeCatalogRegistration({
+          coordinator,
+          store: createCatalogSeoStore(db),
+          runId,
+          input: candidate,
+          owner: {
+            ownerRunId: runId,
+            runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+          },
+          register: async ({
+            checkpoint,
+            writeActive,
+          }: {
+            checkpoint: () => Promise<unknown>;
+            writeActive: (data: object) => Promise<void>;
+          }) =>
+            activateCatalogRenderer({
+              db,
+              proof: renderer.proof,
+              runId,
+              executorSha: codeSha,
+              executorRef: env.GITHUB_REF?.slice(11),
+              finishCatalog: async () => {
+                if (!catalog) throw Error('Catalog acceptance context changed');
+                await finishCatalogAcceptance({ catalog, files, checkpoint });
+              },
+              writeActive,
+            }),
+        });
+      } else if (renderer)
         await activateCatalogRenderer({
           db,
           proof: renderer.proof,

@@ -463,7 +463,7 @@ export function createReleaseCoordinator({ store, policy, clock = Date.now, leas
           target.currentRunId !== run.runId ||
           target.dirtyRunId !== run.runId ||
           run.state !== 'RUNNING' ||
-          !['publish', 'restore'].includes(run.kind) ||
+          !['publish', 'restore', 'reconcile'].includes(run.kind) ||
           run.scopeKey !== 'site' ||
           run.deliveredComponents.length !== 1 ||
           run.deliveredComponents[0] !== 'static' ||

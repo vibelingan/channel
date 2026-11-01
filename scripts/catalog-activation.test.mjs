@@ -34,6 +34,7 @@ test('product-page acceptance finishes before the clock program changes', async 
   const x = fixture();
   const result = await activateCatalogRenderer({
     ...x.input,
+    writeActive: (data) => x.input.db.collection('catalogSeoBuilders').doc('active').set(data),
     finishCatalog: async () => {
       x.events.push('pages');
     },
@@ -46,6 +47,7 @@ test('failed page acceptance cannot make an unfinished program active', async ()
   await assert.rejects(
     activateCatalogRenderer({
       ...x.input,
+      writeActive: (data) => x.input.db.collection('catalogSeoBuilders').doc('active').set(data),
       finishCatalog: async () => {
         throw Error('page write failed');
       },

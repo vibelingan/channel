@@ -19,6 +19,7 @@ const {
   versionFreshCatalogBuildSnapshot,
 } = tsxRequire('./catalog-build-input.ts', import.meta.url);
 const { prepareCatalogRefresh } = tsxRequire('./catalog-refresh.ts', import.meta.url);
+const { createCatalogAcceptanceProof } = tsxRequire('./catalog-acceptance.ts', import.meta.url);
 const { createCatalogSeoRequest } = tsxRequire(
   '../packages/db/src/catalog-seo-requests.ts',
   import.meta.url,
@@ -66,6 +67,25 @@ const options = () => ({
   snapshot: snapshot(),
   before: capture(),
   after: capture(),
+});
+test('manual fresh collection gains checked versions before HTML and acceptance are built', () => {
+  const fresh = JSON.parse(snapshot().toString());
+  for (const entry of fresh.products) entry.publicVersion = undefined;
+  const raw = Buffer.from(JSON.stringify(fresh));
+  assert.throws(() => createCatalogAcceptanceProof({ config, capture: capture(), snapshot: raw }));
+  const versioned = versionFreshCatalogBuildSnapshot({ ...options(), snapshot: raw });
+  const proof = createCatalogAcceptanceProof({ config, capture: capture(), snapshot: versioned });
+  assert.equal(proof.writes, capture().writes);
+  assert.equal(JSON.parse(versioned.toString()).products[0].publicVersion.sequence, 1);
+  assert.throws(
+    () =>
+      versionFreshCatalogBuildSnapshot({
+        ...options(),
+        snapshot: raw,
+        after: capture({ writes: capture().writes + 1 }),
+      }),
+    /Products changed/,
+  );
 });
 test('a frozen build can acknowledge only its original public content version', () => {
   const x = options();

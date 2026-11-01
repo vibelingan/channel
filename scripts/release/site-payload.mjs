@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { verifyReleaseArtifact } from './artifact.mjs';
+import { assertCatalogAcceptanceProof } from './catalog-proof.mjs';
 import { configurationHash } from './hosting-configuration.mjs';
 import { assertHostingPath, checkEntries, limits, readJson, sha256 } from './input.mjs';
 import { siteProducerPolicy } from './site-producers.mjs';
@@ -22,6 +23,7 @@ export function createSitePayload({
   renderer = /** @type {null | {codeSha:string,manifestSha256:string,archiveSha256:string,archiveFileId:string,inputSchema:number}} */ (
     null
   ),
+  catalog = /** @type {null | object} */ (null),
   objectProofs = /** @type {{path:string,bytes:number,sha256:string,etag:string,lastModified:string}[]} */ ([]),
   now = Date.now(),
 }) {
@@ -81,6 +83,11 @@ export function createSitePayload({
   };
   data.set('static-manifest.json', Buffer.from(JSON.stringify(manifest)));
   data.set('product-snapshot.json', Buffer.from(JSON.stringify(snapshot)));
+  if (catalog)
+    assertCatalogAcceptanceProof(catalog, {
+      siteOrigin: policy.siteOrigin,
+      snapshot: data.get('product-snapshot.json'),
+    });
   if (
     renderer &&
     (!/^[a-f0-9]{40}$/.test(renderer.codeSha) ||
@@ -99,6 +106,7 @@ export function createSitePayload({
       functions: 'unchanged',
       database: 'unchanged',
       ...(renderer ? { renderer } : {}),
+      ...(catalog ? { catalog } : {}),
     }),
   );
   data.set('compatibility.json', compatibility);
