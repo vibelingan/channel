@@ -88,6 +88,10 @@ jobs:
           pnpm --filter @vibelingan-channel/fn-public-api build
       - run: pnpm verify:cloudbase-sdk
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration build
+      - name: Build standalone cloud acceptance handler without calling cloud services
+        run: |
+          pnpm --filter @vibelingan-channel/fn-sales-integration build:acceptance
+          node -e 'const h = require("./apps/functions/sales-integration/dist/acceptance/index.js"); if (typeof h.main !== "function") process.exit(1)'
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration package:artifact
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration check:artifact
       - name: Preserve website delivery defect evidence

@@ -538,6 +538,9 @@ importers:
 
   apps/functions/sales-integration:
     dependencies:
+      '@cloudbase/node-sdk':
+        specifier: 3.17.2
+        version: 3.17.2
       '@vibelingan-channel/ai-contracts':
         specifier: workspace:*
         version: link:../../../packages/ai-contracts
