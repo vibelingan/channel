@@ -301,9 +301,9 @@ export function createCloudbaseFunctionProvider({
         code = {
           CosBucketName: archiveBucket.replace(/-[0-9]+$/, ''),
           CosBucketRegion: region,
-          // Manager forwards this to TCB UpdateFunctionCode. Its official two-phase
-          // uploader passes the COS object key unchanged, without the SCF API's leading '/'.
-          CosObjectName: `seo-recovery/objects/${hash}.bin`,
+          // TCB CodeReq requires a leading '/' in this API descriptor. The stored
+          // COS object key and cloud:// fileID above retain their original format.
+          CosObjectName: `/seo-recovery/objects/${hash}.bin`,
         };
       }
       signal?.throwIfAborted();

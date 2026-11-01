@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import CloudBase from '@cloudbase/manager-node';
 
@@ -102,6 +103,10 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
         return { RequestId: 'config-update' };
       }
       if (action === 'UpdateFunctionCode') {
+        if (!payload.Code.ZipFile) {
+          assert.equal(payload.CodeSource, 'Cos');
+          assert.match(payload.Code.CosObjectName, /^\/seo-recovery\/objects\/[^/]+\.bin$/);
+        }
         if (state.scfError)
           return {
             SCFErrorCode: 'InvalidParameterValue.CosObjectName',
@@ -113,7 +118,7 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
         state.updates++;
         state.bytes = payload.Code.ZipFile
           ? Buffer.from(payload.Code.ZipFile, 'base64')
-          : Buffer.from(state.nativeObjects.get(payload.Code.CosObjectName));
+          : Buffer.from(state.nativeObjects.get(payload.Code.CosObjectName.slice(1)));
         state.detail.CodeSize = state.bytes.length;
         state.detail.ModTime = 'version-A';
         state.detail.InstallDependency = payload.InstallDependency;

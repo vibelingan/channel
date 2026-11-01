@@ -434,3 +434,14 @@ Archify 新增程序与内容时序图，产物9项检查及自动浏览器检�
 本轮实际读取humanizer及plain-technical-writing、Fable手册、CloudBase SDK约束、ENGINEERING_CRAFT部署与E2E规则、安装SDK源码、06和本工作记录。将“参数修正通过”更正为“参数修正的本地测试通过，现场仍返回参数错误”，以真实run与HTTP版本为依据；用户取消老板Word报告，仅维护实现对应的内部记录。
 
 当前修正的最终本地结果：53项专项、1406项全量脚本全部通过，失败0、跳过0；scripts/blog/tsconfig.json类型检查、CloudBase SDK契约验证及修改文件Biome通过。新增浏览器安装、构建版本证明、原生TCB来源参数分别有独立检查；线上参数是否成功仍待新提交精确CI后复测。41283214446备份已下载，三个原ZIP各自CRC及SHA独立验算通过，保留首轮原始恢复点。
+
+
+### 2026-11-01：按实际拒绝字段修正代码包引用
+
+c84a0c0b的17项远端检查及两组Blog检查全部通过；现场运行41285079302仍未接通原生同步包。9,076,181字节完整上传171808ms、读回4359ms且SHA一致；腾讯云返回InvalidParameter并明确提示CosObjectName。公开接口接受c84，同步仍91443842，后台未尝试；商品记录和页面就绪保持关闭，未写网站正文或业务数据。13073994811备份中的三个原ZIP已独立核对CRC和SHA，首轮原始恢复点继续保留。
+
+本次重新读取CloudBase官方CodeReq、安装Manager请求边界、catalog-native-provider测试及真实Manager夹具、部署工程规则、humanizer与plain-technical-writing。官方CodeReq明确要求API路径以/开头；与MCP helper无斜杠的实现差异原样保留，不把后者当作服务器规范。先加强真实SDK请求断言，旧代码确实失败，再只修改API描述符为带/路径；实际COS key、归档后缀、权限及ZIP字节不变。夹具按实际存储key保存对象，只在模拟API读取时去掉一个前导/。
+
+措辞把“代码包上传失败”改为“代码包已完整上传，引用该包的更新请求被参数检查拒绝”；两者分别由上传读回hash及腾讯云RequestId b90cf93a-6c8b-4824-a1b7-c3f5bae83c1a核实。本地测试通过不代表此组合现场已成功，须等精确CI和真实版本读回。
+
+修正后本地1406项脚本全部通过（0失败、0跳过），真实Manager的两项直接回归通过；脚本TypeScript、CloudBase SDK契约和修改文件Biome检查通过。独立只读审查确认只改变API路径格式、夹具没有放宽准入。07:45 UTC真实HTTP读回仍为公开接口c84、同步/后台914，开关均关闭。下一步仅推送原分支并等待该提交的精确远端检查。

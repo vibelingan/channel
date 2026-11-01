@@ -144,7 +144,44 @@
     "scriptsTypecheck": "passed",
     "cloudbaseSdk": "passed",
     "changedBiome": "passed",
-    "remoteCi": "not-yet-run",
-    "nextLiveRetry": "not-started"
+    "remoteCi": {
+      "conclusion": "success",
+      "codeSha": "c84a0c0b8ee38be729b619e019364ce1b1b12780",
+      "runs": ["41284301566", "41284301470", "41284301537"],
+      "releaseChecks": 17
+    },
+    "nextLiveRetry": "41285079302-failed"
+  },
+  "explicitSourceRetry": {
+    "runId": "41285079302",
+    "codeSha": "c84a0c0b8ee38be729b619e019364ce1b1b12780",
+    "conclusion": "failure",
+    "publicApi": "accepted",
+    "sync": "not-written",
+    "admin": "not-attempted",
+    "backupArtifactId": "13073994811",
+    "backupIndependentVerification": "Three original ZIP CRCs and recorded SHA-256 values match; immutable first originals retained.",
+    "nativeCandidate": {
+      "bytes": 9076181,
+      "sha256": "9db8a1b8ab205c3245d3f5ddf6a32b7a0da5aa90935479d289be9d7b4289a44f",
+      "uploadMs": 171808,
+      "readMs": 4359,
+      "verified": true
+    },
+    "providerFailure": {
+      "code": "InvalidParameter",
+      "stage": "submit-code",
+      "requestId": "b90cf93a-6c8b-4824-a1b7-c3f5bae83c1a",
+      "parameterHint": "CosObjectName"
+    },
+    "recording": false,
+    "readiness": false,
+    "websiteWrites": 0,
+    "businessDataWrites": 0,
+    "nextCorrection": {
+      "source": "https://cloud.tencent.cn/document/api/876/34822#CodeReq",
+      "change": "Keep CodeSource Cos and add the documented leading slash only to the API descriptor. Actual COS object key and immutable cloud file ID remain unchanged.",
+      "liveVerified": false
+    }
   }
 }

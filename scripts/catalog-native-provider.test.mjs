@@ -61,7 +61,7 @@ test('the real management SDK receives only a verified environment COS descripto
     assert.deepEqual(call.payload.Code, {
       CosBucketName: 'fixture-env',
       CosBucketRegion: 'ap-shanghai',
-      CosObjectName: `seo-recovery/objects/${sha256(candidate)}.bin`,
+      CosObjectName: `/seo-recovery/objects/${sha256(candidate)}.bin`,
     });
     assert.equal(call.payload.InstallDependency, 'FALSE');
     assert.equal(call.payload.CodeSource, 'Cos');
