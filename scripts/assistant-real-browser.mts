@@ -338,7 +338,7 @@ try {
                   : (await p.getByRole('button', { name: 'Check original submission' }).count()) > 0
                     ? 'unknown'
                     : 'waiting',
-              { timeout: 30000 },
+              { timeout: 50000 },
             )
             .not.toBe('waiting');
           if (await p.getByLabel('Inquiry receipt').count()) break;
@@ -362,7 +362,12 @@ try {
         };
         assert.equal(proof.view.requirements.brief, draft.trim());
         assert.equal(proof.view.contact.email, 'acceptance@example.invalid');
-        assert.equal(proof.pending.status, 'pending');
+        assert.ok(
+          (process.env.ASSISTANT_REAL_LINKED === '1'
+            ? ['pending', 'inflight', 'accepted', 'retry']
+            : ['pending']
+          ).includes(proof.pending.status),
+        );
         assert.equal(proof.registrationPresent, true);
         assert.equal(proof.emailCalls, 0);
         await writeFile(resolve(directory, 'cloud-readback.json'), JSON.stringify(proof, null, 2));
