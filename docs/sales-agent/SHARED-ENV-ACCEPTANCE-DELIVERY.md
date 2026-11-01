@@ -36,3 +36,7 @@
 
 文字复核读取本报告、原保存／事务／来源代码、验收探针、旧环境核对文档及 worker 的 engineFromEnvironment。将“缺独立云环境”修正为“现有环境已完成标记数据验收”；将“真实聊天只缺账号”修正为“还缺 VibeKB／模型适配与实际部署联通”，以实际代码和云端读回为准。
 
+
+## 远端交付
+
+实现与云库证据已推送 `feat/sales-agent-integration`，代码提交 `9dd50534a44895895c4876e37f89687c3454017f`。[该 SHA 的 Sales CI](https://github.com/vibelingan/channel/actions/runs/41303276847) 全部通过，耗时 4 分 23 秒，包含原 DB／admin／public-api／local-server 回归、合同互通、缺陷注入、SDK 门禁和新验收包冷加载。后续本文件的补充只记录 CI 结果，不改变运行代码。UI 账号步骤与环境说明已推送 `feat/website-assistant-ui-foundation` 的文档提交 `fad0b8da8d8c79009b21bc352c3ec6aa7fc57ef6`。
