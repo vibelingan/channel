@@ -65,6 +65,7 @@ jobs:
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:conformance
       - run: pnpm --filter @vibelingan-channel/sales-contracts test:task-conformance
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration typecheck
+      - run: pnpm exec tsc --noEmit -p apps/functions/sales-integration/tsconfig.live.json
       - run: pnpm --filter @vibelingan-channel/fn-sales-integration test
       - run: pnpm --filter @vibelingan-channel/site exec tsx --test src/islands/admin/AssistantInquirySummary.test.ts
       - name: Prove source and delivery tests detect broken guards
