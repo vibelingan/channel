@@ -11,15 +11,29 @@ export const ARCHIVE_COS_OPTIONS = Object.freeze({
 });
 
 /** Official SDK multipart/range transfers; the caller still checks private ACL, lifecycle and full SHA-256. */
-export function createCosArchiveTransfer({ cos, policy, onStatus = (_event) => {} }) {
+export function createCosArchiveTransfer({
+  cos,
+  policy,
+  onStatus = (_event) => {},
+  nativeCodeKey = null,
+}) {
   if (!policy.archiveBucket || !policy.archiveBucket.includes(policy.envId))
     throw Error('The archive storage bucket must be bound to this environment');
+  if (
+    nativeCodeKey !== null &&
+    !/^fnzip-upload\/\d{10}-[a-f0-9]{16}\/alibaba-catalog-sync\.zip$/.test(nativeCodeKey)
+  )
+    throw Error('An exact native function staging key is required');
   const target = (fileId) => {
     const prefix = `cloud://${policy.envId}.${policy.archiveBucket}/`;
     if (typeof fileId !== 'string' || !fileId.startsWith(prefix))
       throw Error('Archive transfer belongs to another bucket or environment');
     const Key = fileId.slice(prefix.length);
-    if (!/^seo-recovery\/objects\/[a-f0-9]{64}\.bin$/.test(Key))
+    if (
+      nativeCodeKey === null
+        ? !/^seo-recovery\/objects\/[a-f0-9]{64}\.bin$/.test(Key)
+        : Key !== nativeCodeKey
+    )
       throw Error('Archive transfer escapes its owned content path');
     return { Bucket: policy.archiveBucket, Region: policy.region, Key };
   };

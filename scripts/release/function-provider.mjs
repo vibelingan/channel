@@ -292,8 +292,11 @@ export function createCloudbaseFunctionProvider({
           return stageArchive(bytes);
         }, name);
         if (
-          stored?.fileID !==
-            `cloud://${fixed.envId}.${archiveBucket}/seo-recovery/objects/${hash}.bin` ||
+          typeof stored?.fileID !== 'string' ||
+          !stored.fileID.startsWith(`cloud://${fixed.envId}.${archiveBucket}/`) ||
+          !/^fnzip-upload\/\d{10}-[a-f0-9]{16}\/alibaba-catalog-sync\.zip$/.test(
+            stored.fileID.slice(`cloud://${fixed.envId}.${archiveBucket}/`.length),
+          ) ||
           stored.bytes !== bytes.length ||
           stored.sha256 !== hash
         )
@@ -301,9 +304,8 @@ export function createCloudbaseFunctionProvider({
         code = {
           CosBucketName: archiveBucket.replace(/-[0-9]+$/, ''),
           CosBucketRegion: region,
-          // TCB CodeReq requires a leading '/' in this API descriptor. The stored
-          // COS object key and cloud:// fileID above retain their original format.
-          CosObjectName: `/seo-recovery/objects/${hash}.bin`,
+          // Match the official MCP/Manager path already accepted by this environment.
+          CosObjectName: stored.fileID.slice(`cloud://${fixed.envId}.${archiveBucket}/`.length),
         };
       }
       signal?.throwIfAborted();
@@ -323,21 +325,14 @@ export function createCloudbaseFunctionProvider({
       return safe(async (stage) => {
         stage('submit-code');
         signal?.throwIfAborted();
-        // Manager 5.9.1 cannot forward CodeSource. The public TCB API explicitly
-        // distinguishes a COS reference from inline ZIP bytes; use its public
-        // pass-through port for this one reviewed native archive only.
+        // Native ZIPs use the same public Manager custom-code port as the proven
+        // normal deployment. Permanent recovery objects are never submitted directly.
         const result =
           profile === 'catalog-native-decoder'
-            ? await manager.commonService('tcb', '2018-06-08').call({
-                Action: 'UpdateFunctionCode',
-                Param: {
-                  EnvId: fixed.envId,
-                  FunctionName: name,
-                  Handler: handler,
-                  InstallDependency: 'FALSE',
-                  CodeSource: 'Cos',
-                  Code: code,
-                },
+            ? await functions.updateFunctionCode({
+                func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
+                deployMode: 'cos',
+                code,
               })
             : await functions.updateFunctionCode({
                 func: { name, runtime, handler, installDependency: false, isWaitInstall: false },

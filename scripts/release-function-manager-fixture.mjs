@@ -104,8 +104,11 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
       }
       if (action === 'UpdateFunctionCode') {
         if (!payload.Code.ZipFile) {
-          assert.equal(payload.CodeSource, 'Cos');
-          assert.match(payload.Code.CosObjectName, /^\/seo-recovery\/objects\/[^/]+\.bin$/);
+          assert.equal(payload.CodeSource, undefined);
+          assert.match(
+            payload.Code.CosObjectName,
+            /^fnzip-upload\/\d{10}-[a-f0-9]{16}\/alibaba-catalog-sync\.zip$/,
+          );
         }
         if (state.scfError)
           return {
@@ -118,7 +121,7 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
         state.updates++;
         state.bytes = payload.Code.ZipFile
           ? Buffer.from(payload.Code.ZipFile, 'base64')
-          : Buffer.from(state.nativeObjects.get(payload.Code.CosObjectName.slice(1)));
+          : Buffer.from(state.nativeObjects.get(payload.Code.CosObjectName));
         state.detail.CodeSize = state.bytes.length;
         state.detail.ModTime = 'version-A';
         state.detail.InstallDependency = payload.InstallDependency;

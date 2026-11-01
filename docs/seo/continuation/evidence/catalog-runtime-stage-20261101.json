@@ -147,7 +147,11 @@
     "remoteCi": {
       "conclusion": "success",
       "codeSha": "c84a0c0b8ee38be729b619e019364ce1b1b12780",
-      "runs": ["41284301566", "41284301470", "41284301537"],
+      "runs": [
+        "41284301566",
+        "41284301470",
+        "41284301537"
+      ],
       "releaseChecks": 17
     },
     "nextLiveRetry": "41285079302-failed"
@@ -189,7 +193,11 @@
     "codeSha": "8f5cd3567def66f76d07dd92c69cad7dcdda2443",
     "remoteCi": {
       "conclusion": "success",
-      "runs": ["41286124017", "41286123985", "41286123981"],
+      "runs": [
+        "41286124017",
+        "41286123985",
+        "41286123981"
+      ],
       "releaseChecks": 17
     },
     "conclusion": "failure",
@@ -214,5 +222,34 @@
     "recording": false,
     "readiness": false,
     "stoppedInputVerification": "Downloaded all three original ZIPs independently; CRC and each recorded SHA-256 match."
+  },
+  "combinedDescriptorRetry": {
+    "runId": "41288703415",
+    "codeSha": "43b38ea1ea71d6415d0ee87b98112c7c58ab1045",
+    "conclusion": "failure",
+    "backupArtifactId": "13076541708",
+    "stoppedArtifactId": "13076333263",
+    "receiptArtifactId": "13076004340",
+    "publicApi": "accepted",
+    "sync": "not-written",
+    "admin": "not-attempted",
+    "nativeCandidate": {
+      "bytes": 9076181,
+      "sha256": "0d26242cb63a565ae5b1c5f64b57a554c505d89ad639238ed33a11fb120dda84",
+      "uploadMs": 120698,
+      "readMs": 3322,
+      "verified": true
+    },
+    "providerFailure": {
+      "code": "InvalidParameter",
+      "parameterHint": "CosObjectName",
+      "requestId": "eb21faca-6172-442d-8c8d-77a0e2edc4e8"
+    },
+    "backupSecondReads": "all-complete",
+    "downloadedOriginalCrcAndSha256": "all-matched",
+    "recording": false,
+    "readiness": false,
+    "websiteWrites": 0,
+    "businessDataWrites": 0
   }
 }

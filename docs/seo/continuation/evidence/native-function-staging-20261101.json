@@ -1,0 +1,49 @@
+{
+  "observedAt": "2026-11-01",
+  "purpose": "separate-permanent-backup-from-native-code-import",
+  "failedRun": "41288703415",
+  "successfulHistoricalControl": {
+    "runId": "40317622122",
+    "sourceSha": "914438425aa5b12193707d34c146f90372aff94e",
+    "function": "alibaba-catalog-sync",
+    "bytes": 9083505,
+    "objectKey": "fnzip-upload/1793017973-0a0e7eebb6a950bb/alibaba-catalog-sync.zip",
+    "method": "private-staged-zip",
+    "activeAndHealthAccepted": true,
+    "fullDownloadedZipHashCheckedByThatOldRun": false
+  },
+  "contracts": {
+    "manager": "5.9.1",
+    "cos": "2.15.4",
+    "cloudbaseNode": "3.17.2",
+    "officialMcpSource": "https://raw.githubusercontent.com/TencentCloudBase/CloudBase-AI-ToolKit/main/mcp/src/tools/function-cos-upload.ts",
+    "officialCopy": "https://cloud.tencent.com/document/product/436/64984",
+    "context7": "unavailable"
+  },
+  "implementation": {
+    "permanentObject": "seo-recovery/objects/<sha256>.bin",
+    "deploymentObject": "fnzip-upload/<10-digit-seconds>-<16-hex>/alibaba-catalog-sync.zip",
+    "exactZipReused": true,
+    "copy": "COS putObjectCopy; same bucket; source ETag condition; replacement destination CloudBase metadata",
+    "fullReadbackBeforeSubmit": true,
+    "sdkSubmit": "manager.functions.updateFunctionCode custom code, deployMode cos; raw object key; no CodeSource override",
+    "permissionsChanged": false,
+    "mcpGlobalEnvironmentChanged": false,
+    "unknownCopyRetry": false,
+    "unknownObjectDeletion": false
+  },
+  "boundary": "The successful control proves a working protocol for this environment, not that .bin or a prefix alone caused the rejected requests. New path still needs exact-commit CI and live acceptance.",
+  "localValidation": {
+    "scriptTests": 1456,
+    "passed": 1456,
+    "failed": 0,
+    "skipped": 0,
+    "nativeStageCases": 44,
+    "realInstalledCosHttpCopy": "passed; zero request-body bytes, conditional source ETag, destination metadata, full ranged readback",
+    "scriptsTypecheck": "passed",
+    "cloudbaseSdkContract": "passed",
+    "changedFilesBiome": "passed",
+    "diffCheck": "passed",
+    "independentReview": "passed after fixing all external-error privacy boundaries and misleading archive text"
+  }
+}

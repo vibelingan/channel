@@ -456,3 +456,13 @@ c84a0c0b的17项远端检查及两组Blog检查全部通过；现场运行412850
 修改cos-archive-transfer：仅接受等值的纯十进制文字总数，校验安全整数和有效loaded；仍保留前后对象身份、实际文件大小及外层SHA。新增25种非法进度输入、慢速真实SDK场景和固定错误标签测试；未增加盲目网络重试。private-archive只新增安全错误分类，无原始message、临时网址或密钥入日志。文字将“云端读取不稳定”改为“已复现我们的检查会误拒合法SDK进度，历史这一次仍缺细分错误证据”。
 
 本轮最终验证：1410项本地脚本全部通过，0失败/0跳过；scripts/blog TypeScript、CloudBase SDK契约和修改文件Biome通过。独立harness保留原适配器，修正副本在快/慢小包及快/慢大包共8组对照全部成功，慢小包仍出现文字进度但完整返回409600字节。独立只读审查通过，未放宽完整性检查。13075872988停止输入中的三份原ZIP再次下载后CRC与记录SHA逐一一致。本轮不修改CI调度或速度策略，继续原分支精确远端检查后再现场复测。
+
+### 2026-11-01：长期原件与部署临时ZIP分开
+
+43b38ea1精确CI 41287864951为17/17通过，Blog两组通过。现场41288703415中三原程序及清单上传、首次读回、二次读回均完整；下载备份artifact13076541708，再逐份检查CRC与function-backups.json的SHA，全部一致。公开接口接受43b，原生同步候选9,076,181字节上传120698ms、读回3322ms后仍报InvalidParameter/CosObjectName，请求eb21faca-6172-442d-8c8d-77a0e2edc4e8。同步未写，后台未尝试，商品记录与就绪关闭，网站正文及业务资料未变。保留receipt13076004340和stopped13076333263，不重复发同一失败请求。
+
+对照同仓库Deploy Test 40317622122的实际成功日志与原入口cloudbase-function-code-upload.mjs，改为独立临时ZIP协议：永久原件和恢复清单不改，COS同桶复制到fnzip-upload官方格式，不重复压缩或再次从runner上传9MB。新native-function-stage.mjs核对绑定环境实际Storages、复制前后PRIVATE规则、目标独立CloudBase元数据与源ETag，完整读回长度/版本/SHA后才返回提交源。未知复制不重试/删除，不触碰其他app。原archive reader仍固定seo-recovery；新增读取模式只认本次一个精确临时key。固定同步函数改用Manager公开custom code入口，保留实际包hash、配置及两次HTTP健康检查。
+
+本轮实际重读humanizer与plain-technical-writing、CloudBase函数/HTTP参考、SDK合同、ENGINEERING_CRAFT部署与恢复条目、安装Manager5.9.1/COS2.15.4源码类型、官方COS复制说明、官方MCP暂存协议。Context7不可用，使用官方一手资料和实际安装包交叉核对。真实COS SDK配本地HTTP验证复制请求正文为0、条件与目标元数据正确，随后Range完整读回；44项新增专项覆盖错误目标、权限、损坏字节、超时迟到回调、环境与底层异常隐私。独立审查查出归档/凭据异常原本在脱敏边界外，已先修复再通过；将未完成归档也显示“original ZIP retained”改为“未提交函数代码”，不把失败误报为已有恢复包。
+
+最终本地1456项脚本通过，0失败0跳过；scripts/blog类型检查、CloudBase SDK契约通过，9个修改源码/测试文件Biome及diff检查通过。新临时路径仍待精确远端CI和实际云端验收，不能称同步已接通。CI速度优化继续后置，未改main/test、其他部署工作流或pricing。

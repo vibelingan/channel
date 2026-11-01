@@ -22,6 +22,7 @@ import { checkFunctionArchive } from './release/function-archive.mjs';
 import { createCloudbaseFunctionProvider } from './release/function-provider.mjs';
 import { replaceFunctionCode } from './release/function-replacement.mjs';
 import { identity } from './release/input.mjs';
+import { createNativeFunctionStage } from './release/native-function-stage.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
 import { createSiteGithubSource } from './release/site-github-source.mjs';
 import { assertCleanAcceptedSite, SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
@@ -106,7 +107,7 @@ async function main() {
     expectedTriggers: { 'alibaba-catalog-sync': [ALIBABA_SYNC_TIMER] },
     archiveProfiles: { 'alibaba-catalog-sync': 'catalog-native-decoder' },
     archiveBucket: policy.archiveBucket,
-    stageArchive: (bytes: Buffer) => objects.put(bytes),
+    stageArchive: createNativeFunctionStage({ manager, sdk, cos: archiveCos, policy, objects }),
     configurationKey: createHmac('sha256', env.TENCENTCLOUD_SECRETKEY)
       .update(
         `channel-function-observation:v1:${identity({ envId: policy.envId, siteOrigin: policy.siteOrigin })}`,

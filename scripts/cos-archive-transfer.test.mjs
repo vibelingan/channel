@@ -60,8 +60,42 @@ test('the installed official COS SDK exposes the reviewed multipart, range and c
   assert.equal(require('cos-nodejs-sdk-v5/package.json').version, '2.15.4');
   const COS = require('cos-nodejs-sdk-v5');
   const cos = new COS({ SecretId: 'fixture', SecretKey: 'fixture' });
-  for (const method of ['uploadFile', 'downloadFile', 'headObject', 'cancelTask', 'emit'])
+  for (const method of [
+    'uploadFile',
+    'downloadFile',
+    'headObject',
+    'putObjectCopy',
+    'cancelTask',
+    'emit',
+  ])
     assert.equal(typeof cos[method], 'function');
+});
+test('native staging reads only one exact ZIP and does not broaden the default archive reader', async () => {
+  const x = fixture();
+  const nativeCodeKey = 'fnzip-upload/1793520000-0123456789abcdef/alibaba-catalog-sync.zip';
+  const nativeFile = `cloud://${policy.envId}.${policy.archiveBucket}/${nativeCodeKey}`;
+  const data = Buffer.from('verified staging bytes');
+  x.files.set(nativeCodeKey, data);
+  await assert.rejects(
+    x.transport.read(null, nativeFile, { maxBytes: data.length, timeoutMs: 1000 }),
+  );
+  const reader = createCosArchiveTransfer({ cos: x.cos, policy, nativeCodeKey });
+  assert.deepEqual(
+    await reader.read(null, nativeFile, { maxBytes: data.length, timeoutMs: 1000 }),
+    data,
+  );
+  for (const other of [
+    fileID,
+    nativeFile.replace('0123456789abcdef', '1123456789abcdef'),
+    nativeFile.replace('alibaba-catalog-sync', 'admin'),
+  ])
+    await assert.rejects(reader.read(null, other, { maxBytes: data.length, timeoutMs: 1000 }));
+  for (const key of [
+    '',
+    'fnzip-upload/../admin.zip',
+    nativeCodeKey.replace('alibaba-catalog-sync', 'admin'),
+  ])
+    assert.throws(() => createCosArchiveTransfer({ cos: x.cos, policy, nativeCodeKey: key }));
 });
 test('native multipart upload keeps the CloudBase file metadata and writes only the exact private content target', async () => {
   const x = fixture();

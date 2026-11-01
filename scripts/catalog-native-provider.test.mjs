@@ -6,6 +6,7 @@ import { createCloudbaseFunctionProvider } from './release/function-provider.mjs
 import { sha256 } from './release/input.mjs';
 const name = 'alibaba-catalog-sync';
 const bucket = 'fixture-env-1234567890';
+const stagingKey = 'fnzip-upload/1793520000-0123456789abcdef/alibaba-catalog-sync.zip';
 function setup(bytes, onStage = () => {}) {
   const x = functionManagerFixture({ name, bytes });
   x.state.nativeObjects = new Map();
@@ -28,10 +29,10 @@ function setup(bytes, onStage = () => {}) {
     archiveBucket: bucket,
     stageArchive: async (data) => {
       const hash = sha256(data);
-      x.state.nativeObjects.set(`seo-recovery/objects/${hash}.bin`, Buffer.from(data));
+      x.state.nativeObjects.set(stagingKey, Buffer.from(data));
       onStage(x);
       return {
-        fileID: `cloud://fixture-env.${bucket}/seo-recovery/objects/${hash}.bin`,
+        fileID: `cloud://fixture-env.${bucket}/${stagingKey}`,
         bytes: data.length,
         sha256: hash,
       };
@@ -61,10 +62,10 @@ test('the real management SDK receives only a verified environment COS descripto
     assert.deepEqual(call.payload.Code, {
       CosBucketName: 'fixture-env',
       CosBucketRegion: 'ap-shanghai',
-      CosObjectName: `/seo-recovery/objects/${sha256(candidate)}.bin`,
+      CosObjectName: stagingKey,
     });
     assert.equal(call.payload.InstallDependency, 'FALSE');
-    assert.equal(call.payload.CodeSource, 'Cos');
+    assert.equal(Object.hasOwn(call.payload, 'CodeSource'), false);
     assert.equal(call.payload.Handler, 'index.main');
     assert.equal(Object.hasOwn(call.payload, 'Environment'), false);
     assert.equal((await x.provider.read(name)).packageSha256, sha256(candidate));
