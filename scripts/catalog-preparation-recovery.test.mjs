@@ -200,8 +200,13 @@ async function fixture({ inheritedDirty = false } = {}) {
     github,
     policy,
     functions: {
-      listFunctions: async (limit, offset) =>
-        f.names.slice(offset, offset + limit).map((FunctionName) => ({ FunctionName })),
+      getFunctionList: async (limit, offset) => ({
+        RequestId: 'function-list',
+        TotalCount: f.names.length,
+        Functions: f.names
+          .slice(offset, offset + limit)
+          .map((FunctionName) => ({ FunctionName, Namespace: policy.envId })),
+      }),
     },
     readPreparationRun: async (owner) => {
       if (inheritedDirty && owner === dirtyRunId) return coordinator.runStatus(dirtyRunId);
@@ -329,9 +334,11 @@ function pendingWorkers(f) {
     assert.deepEqual(event, {}, 'Only the reviewed empty-request rejection path may run');
     f.probes.push(name);
     return {
-      RequestId: 'probe-request',
-      InvokeFinished: 1,
-      RetCode: 0,
+      RequestId: '11111111-1111-4111-8111-111111111111',
+      FunctionRequestId: '22222222-2222-4222-8222-222222222222',
+      InvokeResult: 0,
+      Duration: 1,
+      ErrMsg: '',
       RetMsg: JSON.stringify(
         name === releaseName
           ? {
@@ -408,6 +415,162 @@ test('cancelled preparation cleans only its two verified private workers and rec
     true,
   );
   assert.doesNotMatch(JSON.stringify(f.cleanupEvents), /TOKEN_DIGEST|"Value"|aaaaaaa/);
+});
+
+test('the official modern Invoke shape and legacy completed-log fields are checked separately', async () => {
+  for (const shape of ['modern', 'deprecated-200', 'without-deprecated-result', 'legacy']) {
+    const f = pendingWorkers(await fixture({ inheritedDirty: true }));
+    const invoke = f.options.functions.invokeFunction;
+    f.options.functions.invokeFunction = async (...args) => {
+      const result = await invoke(...args);
+      assert.equal(Object.hasOwn(result, 'RetCode'), false);
+      assert.equal(Object.hasOwn(result, 'InvokeFinished'), false);
+      if (shape === 'deprecated-200') return { ...result, InvokeResult: 200 };
+      if (shape === 'without-deprecated-result')
+        return Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'InvokeResult'));
+      if (shape === 'legacy')
+        return {
+          ...Object.fromEntries(
+            Object.entries(result).filter(
+              ([key]) => !['FunctionRequestId', 'InvokeResult', 'Duration'].includes(key),
+            ),
+          ),
+          RetCode: 0,
+          InvokeFinished: 1,
+        };
+      return result;
+    };
+    assert.equal((await recoverCatalogPreparation(f.options)).state, 'recovery-required', shape);
+    assert.equal(f.cleaned.length, 2);
+  }
+});
+
+test('bad invocation status, broken JSON and transport failures retain workers and expose only safe probe diagnostics', async () => {
+  const cases = [
+    ...[null, -1, 1, 500, '0', {}, Number.NaN].map((InvokeResult) => ({ InvokeResult })),
+    ...[null, 1, '0'].map((RetCode) => ({ RetCode })),
+    ...[null, 0, 2, '1'].map((InvokeFinished) => ({ InvokeFinished })),
+    { ErrMsg: 'SECRET_FUNCTION_ERROR' },
+    { ErrMsg: null },
+    { RequestId: '' },
+    { RequestId: 1 },
+    { FunctionRequestId: '' },
+    { FunctionRequestId: null },
+    { Duration: -1 },
+    { Duration: '1' },
+    { RetMsg: '{SECRET_BROKEN_JSON' },
+    { RetMsg: 'null' },
+    { RetMsg: '[]' },
+    { RetMsg: 'x'.repeat(8193) },
+    { returnedIdentity: { purpose: 'another-app' } },
+    { returnedIdentity: { codeSha: 'e'.repeat(40) } },
+    { returnedIdentity: { runId: 'another-run' } },
+    { returnedIdentity: { ok: true } },
+    { returnedIdentity: { ownerRunId: 'another-owner' }, target: 'release' },
+    { returnedIdentity: { envId: 'another-environment' }, target: 'release' },
+    { transport: true },
+  ];
+  for (const patch of cases) {
+    const f = pendingWorkers(await fixture({ inheritedDirty: true }));
+    const invoke = f.options.functions.invokeFunction;
+    f.options.functions.invokeFunction = async (...args) => {
+      if (patch.transport)
+        throw Object.assign(Error('SECRET_SIGNED_URL'), {
+          code: 'API_ERROR',
+          requestId: '33333333-3333-4333-8333-333333333333',
+        });
+      const response = await invoke(...args);
+      if (
+        patch.returnedIdentity &&
+        (patch.target !== 'release' || args[0] === f.releaseEvidence.functionName)
+      )
+        return {
+          ...response,
+          RetMsg: JSON.stringify({ ...JSON.parse(response.RetMsg), ...patch.returnedIdentity }),
+        };
+      return { ...response, ...patch, Log: 'SECRET_RAW_LOG' };
+    };
+    const cause = await recoverCatalogPreparation(f.options).catch((value) => value);
+    assert.ok(cause instanceof Error, JSON.stringify(patch));
+    assert.deepEqual(f.cleaned, []);
+    assert.equal((await f.coordinator.status()).state, 'stalled');
+    assert.ok(f.cleanupEvents.at(-1).functions.some((row) => row.probeDiagnostic));
+    assert.doesNotMatch(
+      JSON.stringify({ cause, events: f.cleanupEvents }),
+      /SECRET_|RAW_LOG|RetMsg|"Value"/,
+    );
+  }
+});
+
+test('installed Manager invokes SCF and flattens the actual Result before the recovery verifier sees it', async () => {
+  const f = pendingWorkers(await fixture({ inheritedDirty: true }));
+  const require = createRequire(new URL('../package.json', import.meta.url));
+  const Manager = require('@cloudbase/manager-node');
+  const manager = new Manager({ envId: policy.envId, region: policy.region });
+  const environment = manager.currentEnvironment();
+  // Both replacements are network boundaries on this isolated SDK instance.
+  environment.lazyEnvironmentConfig = {
+    EnvId: policy.envId,
+    Functions: [{ Namespace: policy.envId }],
+  };
+  environment.lazyInit = async () => {};
+  const native = manager.functions;
+  const invoke = f.options.functions.invokeFunction;
+  const { require: tsxRequire } = createRequire(
+    new URL('../apps/site/package.json', import.meta.url),
+  )('tsx/cjs/api');
+  const { createCatalogRegionalHandler } = tsxRequire(
+    '../packages/db/src/catalog-seo-regional.ts',
+    import.meta.url,
+  );
+  let databaseInitializations = 0;
+  const catalogHandler = createCatalogRegionalHandler(
+    {
+      envId: policy.envId,
+      runId: oldOwner,
+      targetId: f.coordinator.targetId,
+      siteOrigin: policy.siteOrigin,
+      codeSha,
+      tokenDigest: 'a'.repeat(64),
+      runnerRef: `github:${policy.repository}:${oldRun}:attempt-1`,
+    },
+    {
+      createStore: () => {
+        databaseInitializations++;
+        throw Error('SECRET_DATABASE_INIT');
+      },
+      createDelivery: () => {
+        throw Error('No delivery is allowed for an empty request');
+      },
+    },
+  );
+  const calls = [];
+  native.scfService.request = async (action, params) => {
+    assert.equal(action, 'Invoke');
+    assert.deepEqual(params, {
+      FunctionName: params.FunctionName,
+      Namespace: policy.envId,
+      LogType: 'Tail',
+      ClientContext: '{}',
+    });
+    const flattened = await invoke(params.FunctionName, JSON.parse(params.ClientContext));
+    if (params.FunctionName === f.regional.functionName)
+      flattened.RetMsg = JSON.stringify(await catalogHandler(JSON.parse(params.ClientContext)));
+    const { RequestId, ...Result } = flattened;
+    calls.push(params.FunctionName);
+    return { RequestId, Result };
+  };
+  f.options.functions.invokeFunction = async (...args) => {
+    const result = await native.invokeFunction(...args);
+    assert.equal(result.InvokeResult, 0);
+    assert.equal(Object.hasOwn(result, 'RetCode'), false);
+    assert.equal(Object.hasOwn(result, 'InvokeFinished'), false);
+    assert.equal(Object.hasOwn(result, 'Result'), false);
+    return result;
+  };
+  assert.equal((await recoverCatalogPreparation(f.options)).state, 'recovery-required');
+  assert.deepEqual(calls, [f.regional.functionName, f.releaseEvidence.functionName]);
+  assert.equal(databaseInitializations, 0);
 });
 
 test('a later cancelled preupload may have finished the fixed old-catalog cleanup action', async () => {
@@ -747,7 +910,7 @@ test('installed Manager exposes exactly the public ownership and cleanup methods
   assert.equal(typeof manager.commonService('tcb', '2018-06-08').call, 'function');
   const env = manager.currentEnvironment();
   assert.equal(env.getEnvId(), policy.envId);
-  for (const name of ['listFunctions', 'getFunctionDetail', 'invokeFunction', 'deleteFunction'])
+  for (const name of ['getFunctionList', 'getFunctionDetail', 'invokeFunction', 'deleteFunction'])
     assert.equal(typeof manager.functions[name], 'function');
   assert.equal(typeof env.getAccessService().getAccessList, 'function');
   assert.equal(typeof env.getEnvService().describeHttpServiceRoute, 'function');
@@ -859,22 +1022,62 @@ test('uncertain cleanup, any delivery action or a remaining function prevents re
   }
 });
 
-test('complete multi-page inventory may contain other apps, while duplicates across pages are rejected', async () => {
+test('a complete single-page inventory may contain other apps, while duplicates or another page are rejected', async () => {
   const f = await fixture();
-  f.names = Array.from({ length: 119 }, (_, index) => `unrelated-${index}`);
+  f.names = Array.from({ length: 99 }, (_, index) => `unrelated-${index}`);
   const pages = [];
-  const list = f.options.functions.listFunctions;
-  f.options.functions.listFunctions = async (limit, offset) => {
+  const list = f.options.functions.getFunctionList;
+  f.options.functions.getFunctionList = async (limit, offset) => {
     pages.push(offset);
     return list(limit, offset);
   };
   assert.equal((await recoverCatalogPreparation(f.options)).state, 'idle');
-  assert.deepEqual(pages, [0, 100]);
+  assert.deepEqual(pages, [0]);
   const duplicate = await fixture();
-  duplicate.names = Array.from({ length: 101 }, (_, index) => `function-${index}`);
-  duplicate.names[100] = 'function-0';
+  duplicate.names = Array.from({ length: 99 }, (_, index) => `function-${index}`);
+  duplicate.names[98] = 'function-0';
   await assert.rejects(recoverCatalogPreparation(duplicate.options));
   assert.equal((await duplicate.coordinator.status()).state, 'stalled');
+  const multiPage = await fixture();
+  multiPage.names = Array.from({ length: 101 }, (_, index) => `function-${index}`);
+  const before = multiPage.store.inspect();
+  await assert.rejects(recoverCatalogPreparation(multiPage.options));
+  assert.deepEqual(multiPage.store.inspect(), before);
+});
+
+test('incomplete raw inventory stops preparation cleanup before any probe, delete or lock release', async () => {
+  for (const response of [
+    { RequestId: 'function-list', TotalCount: 3 },
+    { RequestId: 'function-list', TotalCount: 3, Functions: [] },
+    { TotalCount: 0, Functions: [] },
+  ]) {
+    const f = pendingWorkers(await fixture({ inheritedDirty: true }));
+    const before = f.store.inspect();
+    f.options.functions.getFunctionList = async () => response;
+    await assert.rejects(recoverCatalogPreparation(f.options), {
+      code: 'CATALOG_PREPARATION_RECOVERY_UNPROVEN',
+    });
+    assert.deepEqual(f.cleaned, []);
+    assert.deepEqual(f.probes, []);
+    assert.deepEqual(f.store.inspect(), before);
+  }
+});
+
+test('an incomplete deletion readback does not mark a worker absent or release its lock', async () => {
+  const f = pendingWorkers(await fixture({ inheritedDirty: true }));
+  const before = f.store.inspect();
+  const list = f.options.functions.getFunctionList;
+  f.options.functions.getFunctionList = async (limit, offset) =>
+    f.cleaned.length
+      ? { RequestId: 'function-list', TotalCount: f.names.length }
+      : list(limit, offset);
+  await assert.rejects(recoverCatalogPreparation(f.options), {
+    code: 'CATALOG_PREPARATION_CLEANUP_NEEDS_READBACK',
+  });
+  assert.deepEqual(f.cleaned, [f.regional.functionName]);
+  assert.equal(f.cleanupEvents.at(-1).functions[0].state, 'deleting');
+  assert.equal(f.cleanupEvents.at(-1).functions[1].state, 'pending');
+  assert.deepEqual(f.store.inspect(), before);
 });
 
 test('live leases are untouched and every unresolved hosting marker blocks expired-lease recovery', async () => {
@@ -940,10 +1143,14 @@ test('missing evidence, malformed function inventory and dirty hosting state nev
         throw Error('PRIVATE_SIGNED_URL');
       };
     if (phase === 'inventory')
-      f.options.functions.listFunctions = async () => [
-        { FunctionName: 'duplicate' },
-        { FunctionName: 'duplicate' },
-      ];
+      f.options.functions.getFunctionList = async () => ({
+        RequestId: 'function-list',
+        TotalCount: 2,
+        Functions: [
+          { FunctionName: 'duplicate', Namespace: policy.envId },
+          { FunctionName: 'duplicate', Namespace: policy.envId },
+        ],
+      });
     if (phase === 'dirty') {
       const status = await f.coordinator.status();
       f.store.replace('targets', status.targetId, {

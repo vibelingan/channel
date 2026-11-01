@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readCompleteFunctionInventory } from './function-inventory.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './site-policy.mjs';
 
 export function assertStoppedCatalogReceipt(receipt, context) {
@@ -37,19 +38,6 @@ export function assertStoppedCatalogReceipt(receipt, context) {
 }
 
 export async function assertStoppedFunctionsAbsent(functions, names) {
-  const found = new Set();
-  for (let offset = 0; offset < 1000; offset += 100) {
-    const rows = await functions.listFunctions(100, offset);
-    assert.ok(Array.isArray(rows) && rows.length <= 100);
-    for (const row of rows) {
-      assert.equal(typeof row?.FunctionName, 'string');
-      assert.ok(row.FunctionName && !found.has(row.FunctionName));
-      found.add(row.FunctionName);
-    }
-    if (rows.length < 100) {
-      for (const name of names) assert.ok(!found.has(name), `Stopped worker still exists: ${name}`);
-      return;
-    }
-  }
-  throw Error('Complete function inventory could not be established');
+  const found = new Set(await readCompleteFunctionInventory(functions, policy.envId));
+  for (const name of names) assert.ok(!found.has(name), `Stopped worker still exists: ${name}`);
 }

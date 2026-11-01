@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 import { parse } from 'yaml';
 import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
@@ -109,25 +110,57 @@ test('a previous technical recovery is allowed in a later stopped writer receipt
     );
 });
 
-test('function absence checks every page and never deletes an unrelated function', async () => {
+test('function absence requires a complete single response and never deletes an unrelated function', async () => {
   const calls = [];
   const functions = {
-    listFunctions: async (limit, offset) => {
+    getFunctionList: async (limit, offset) => {
       calls.push([limit, offset]);
-      return offset === 0
-        ? Array.from({ length: 100 }, (_, i) => ({ FunctionName: `unrelated-${i}` }))
-        : [{ FunctionName: 'old-worker' }];
+      return {
+        RequestId: 'function-list',
+        TotalCount: 100,
+        Functions: [
+          ...Array.from({ length: 99 }, (_, i) => ({
+            FunctionName: `unrelated-${i}`,
+            Namespace: policy.envId,
+          })),
+          { FunctionName: 'old-worker', Namespace: policy.envId },
+        ],
+      };
     },
   };
   await assert.rejects(assertStoppedFunctionsAbsent(functions, ['old-worker']), /still exists/);
-  assert.deepEqual(calls, [
-    [100, 0],
-    [100, 100],
-  ]);
+  assert.deepEqual(calls, [[100, 0]]);
   await assert.doesNotReject(assertStoppedFunctionsAbsent(functions, ['absent-worker']));
   await assert.rejects(
-    assertStoppedFunctionsAbsent({ listFunctions: async () => ({}) }, ['worker']),
+    assertStoppedFunctionsAbsent({ getFunctionList: async () => ({}) }, ['worker']),
   );
+});
+
+test('actual Manager cannot turn an incomplete raw function response into confirmed absence', async () => {
+  const require = createRequire(new URL('../package.json', import.meta.url));
+  const Manager = require('@cloudbase/manager-node');
+  const calls = [];
+  const manager = new Manager({
+    envId: policy.envId,
+    region: policy.region,
+    requestFn: async ({ action, payload }) => {
+      calls.push({ action, payload });
+      if (action === 'DescribeEnvInfo')
+        return {
+          EnvInfo: {
+            EnvBaseInfo: {
+              EnvId: policy.envId,
+              Functions: [{ Namespace: policy.envId }],
+            },
+          },
+        };
+      assert.equal(action, 'ListFunctions');
+      assert.deepEqual(payload, { EnvId: policy.envId, Limit: 100, Offset: 0 });
+      return { RequestId: 'offline-incomplete-list', TotalCount: 2 };
+    },
+  });
+  await assert.rejects(assertStoppedFunctionsAbsent(manager.functions, ['old-worker']));
+  assert.equal(calls.filter((call) => call.action === 'ListFunctions').length, 1);
 });
 
 test('manual reconciliation shares the deploy queue, has no website upload and always retains its receipt', () => {

@@ -1,4 +1,5 @@
 import { setTimeout as pause } from 'node:timers/promises';
+import { readCompleteFunctionInventory as functionInventory } from './function-inventory.mjs';
 import { identity } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
 import { assertCleanAcceptedSite } from './site-policy.mjs';
@@ -64,23 +65,6 @@ function checkInheritedDirty(status, row, policy, now) {
   )
     fail();
   return preserved;
-}
-
-async function functionInventory(functions) {
-  const names = [];
-  for (let offset = 0; offset < 1000; offset += 100) {
-    const rows = await functions.listFunctions(100, offset);
-    if (!Array.isArray(rows) || rows.length > 100) fail();
-    for (const row of rows) {
-      if (typeof row?.FunctionName !== 'string' || !row.FunctionName) fail();
-      names.push(row.FunctionName);
-    }
-    if (rows.length < 100) {
-      if (new Set(names).size !== names.length) fail();
-      return names;
-    }
-  }
-  fail();
 }
 
 function checkReceipt(receipt, { policy, ownerRunId, functionName, codeSha }) {
@@ -267,18 +251,62 @@ function ownedWorker(detail, name, kind, context) {
 }
 
 async function rejectedEmptyRequest(functions, name, kind, context) {
-  const response = await functions.invokeFunction(name, {});
+  const safeId = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(value);
+  const reject = (reason, response, cause) => {
+    const requestId = response?.RequestId ?? cause?.requestId;
+    throw Object.assign(Error(unproven), {
+      code: unproven,
+      probeDiagnostic: {
+        reason,
+        ...(safeId(requestId) ? { requestId } : {}),
+        ...(['API_ERROR', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET', 'EAI_AGAIN'].includes(
+          cause?.code,
+        )
+          ? { sdkCode: cause.code }
+          : {}),
+      },
+    });
+  };
+  let response;
+  try {
+    response = await functions.invokeFunction(name, {});
+  } catch (cause) {
+    reject('transport', null, cause);
+  }
   if (
-    !response?.RequestId ||
-    response.RetCode !== 0 ||
-    response.InvokeFinished !== 1 ||
-    response.ErrMsg?.trim() ||
+    !safeId(response?.RequestId) ||
+    typeof response.ErrMsg !== 'string' ||
+    response.ErrMsg.trim() ||
     typeof response.RetMsg !== 'string' ||
     Buffer.byteLength(response.RetMsg) > 8192
   )
-    fail();
-  const result = JSON.parse(response.RetMsg);
+    reject('response-shape', response);
+  // Manager flattens SCF Invoke.Result. RetCode/InvokeFinished are function-log response fields.
+  // InvokeResult is deprecated; official examples use both 0 and 200. The fixed returned
+  // rejection and request identity below remain required even when that field is absent.
   if (
+    (Object.hasOwn(response, 'RetCode') && response.RetCode !== 0) ||
+    (Object.hasOwn(response, 'InvokeFinished') && response.InvokeFinished !== 1) ||
+    (Object.hasOwn(response, 'InvokeResult') && ![0, 200].includes(response.InvokeResult)) ||
+    (Object.hasOwn(response, 'FunctionRequestId') && !safeId(response.FunctionRequestId)) ||
+    (!safeId(response.FunctionRequestId) &&
+      !(response.RetCode === 0 && response.InvokeFinished === 1)) ||
+    (Object.hasOwn(response, 'Duration') &&
+      (typeof response.Duration !== 'number' ||
+        !Number.isFinite(response.Duration) ||
+        response.Duration < 0))
+  )
+    reject('invocation-status', response);
+  let result;
+  try {
+    result = JSON.parse(response.RetMsg);
+  } catch {
+    reject('return-json', response);
+  }
+  if (
+    !result ||
+    typeof result !== 'object' ||
+    Array.isArray(result) ||
     result.ok !== false ||
     result.codeSha !== context.codeSha ||
     result.purpose !== `${kind === 'catalog' ? 'catalog-seo' : 'release'}-regional-v1` ||
@@ -291,8 +319,8 @@ async function rejectedEmptyRequest(functions, name, kind, context) {
         result.targetId !== context.targetId ||
         result.envId !== context.policy.envId)
   )
-    fail();
-  return /^[A-Za-z0-9_-]{1,200}$/.test(response.RequestId) ? response.RequestId : null;
+    reject('handler-identity', response);
+  return response.RequestId;
 }
 
 async function settlePreparationWorkers({
@@ -318,7 +346,7 @@ async function settlePreparationWorkers({
       fail();
   };
   if (manager) fixedManager();
-  const listed = await functionInventory(functions);
+  const listed = await functionInventory(functions, context.policy.envId);
   const present = names.filter((name) => listed.includes(name));
   if (!present.length && catalogReceipt.cleaned) return null;
   fixedManager();
@@ -362,8 +390,16 @@ async function settlePreparationWorkers({
       const detail = await functions.getFunctionDetail(name);
       const fingerprint = ownedWorker(detail, name, kind, context);
       fingerprints.set(name, fingerprint);
-      const probeRequestId = await rejectedEmptyRequest(functions, name, kind, context);
       const row = supplementary.functions.find((item) => item.name === name);
+      let probeRequestId;
+      try {
+        probeRequestId = await rejectedEmptyRequest(functions, name, kind, context);
+      } catch (cause) {
+        row.state = 'probe-failed';
+        row.probeDiagnostic = cause.probeDiagnostic;
+        await onCleanup(structuredClone(supplementary));
+        throw cause;
+      }
       Object.assign(row, {
         functionId: detail.FunctionId,
         identitySha256: fingerprint,
@@ -400,7 +436,7 @@ async function settlePreparationWorkers({
       for (let round = 0; round < 6; round++) {
         if (round) await wait(250 * 2 ** (round - 1));
         bound();
-        if (!(await functionInventory(functions)).includes(name)) {
+        if (!(await functionInventory(functions, context.policy.envId)).includes(name)) {
           absent = true;
           break;
         }
@@ -410,7 +446,7 @@ async function settlePreparationWorkers({
       await onCleanup(structuredClone(supplementary));
     }
   }
-  const after = await functionInventory(functions);
+  const after = await functionInventory(functions, context.policy.envId);
   if (names.some((name) => after.includes(name)))
     fail('CATALOG_PREPARATION_CLEANUP_NEEDS_READBACK');
   await checkpoint();
