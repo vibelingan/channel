@@ -340,6 +340,8 @@ jobs:
           name: site-delivery-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             output/site-delivery/result.json
+            output/site-delivery/regional/result.json
+            output/seo-release/regional/result.json
             output/site-delivery/public-browser/
           if-no-files-found: ignore
           retention-days: 90

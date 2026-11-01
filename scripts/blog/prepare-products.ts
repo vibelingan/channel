@@ -3,10 +3,11 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import CloudBase from '@cloudbase/manager-node';
-import { createCatalogSeoStore } from '../../packages/db/src/catalog-seo-cloud.ts';
+import { catalogRegionalRequestHash } from '../../packages/db/src/catalog-seo-regional.ts';
 import { readCatalogSeoRecordingConfig } from '../../packages/db/src/catalog-seo-requests.ts';
 import { sealCatalogBuildInput, versionFreshCatalogBuildSnapshot } from '../catalog-build-input.ts';
-import { prepareCatalogRefresh } from '../catalog-refresh.ts';
+import { captureCatalogRegionalInput } from '../catalog-regional-capture.mjs';
+import { createCatalogRegionalClient } from '../catalog-regional-client.mjs';
 import { assertInitialCatalogRuntime } from '../release/catalog-runtime-activation.mjs';
 import { checkCatalogRuntimeFlags } from '../release/catalog-runtime-flags.mjs';
 import { publicBuildEnvironment } from '../release/public-build-env.mjs';
@@ -53,18 +54,14 @@ const coordinator = createReleaseCoordinator({
 const status = await coordinator.status({ scopeKey: 'site' });
 assertCleanAcceptedSite(status);
 const catalogConfig = readCatalogSeoRecordingConfig(env);
-const catalogStore = createCatalogSeoStore(db);
+const manager = new CloudBase({
+  envId: policy.envId,
+  region: policy.region,
+  secretId: env.TENCENTCLOUD_SECRETID,
+  secretKey: env.TENCENTCLOUD_SECRETKEY,
+});
 if (catalogConfig) {
-  await checkCatalogRuntimeFlags(
-    new CloudBase({
-      envId: policy.envId,
-      region: policy.region,
-      secretId: env.TENCENTCLOUD_SECRETID,
-      secretKey: env.TENCENTCLOUD_SECRETKEY,
-    }),
-    catalogConfig,
-    policy.envId,
-  );
+  await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
   const activation = await db.collection('catalogSeoBuilders').doc('runtime-activation').get();
   assertInitialCatalogRuntime(
     Array.isArray(activation.data) ? activation.data[0] : activation.data,
@@ -76,9 +73,6 @@ if (catalogConfig) {
       'Actual product writer has not enabled change recording',
     );
 }
-const catalogBefore = catalogConfig
-  ? await prepareCatalogRefresh(catalogStore, catalogConfig, `capture-${env.GITHUB_RUN_ID}`)
-  : null;
 async function command(args: string[]) {
   await new Promise<void>((done, reject) => {
     const child = spawn(resolve('apps/site/node_modules/.bin/tsx'), args, {
@@ -91,14 +85,16 @@ async function command(args: string[]) {
     );
   });
 }
-let receipt: Record<string, unknown> = { source };
-if (source === 'fresh')
-  await command([
-    'apps/site/scripts/prepare-product-seo.ts',
-    resolve(output, 'product-snapshot.json'),
-  ]);
-else {
-  const accepted = await coordinator.runStatus(status.scope.baseline.sourceRunId);
+async function collectSnapshot(baseline: { sourceRunId: string }) {
+  let receipt: Record<string, unknown> = { source };
+  if (source === 'fresh') {
+    await command([
+      'apps/site/scripts/prepare-product-seo.ts',
+      resolve(output, 'product-snapshot.json'),
+    ]);
+    return receipt;
+  }
+  const accepted = await coordinator.runStatus(baseline.sourceRunId);
   assert.equal(accepted.state, 'SUCCEEDED');
   const artifact = accepted.composition.static.artifact;
   const directory = resolve(output, 'product-reuse-source');
@@ -120,18 +116,38 @@ else {
     resolve(output, 'product-snapshot.json'),
   ]);
   receipt = { source, acceptedSiteRunId: accepted.runId, artifactId: artifact.artifactId };
+  return receipt;
 }
-if (catalogConfig && catalogBefore) {
-  const after = await prepareCatalogRefresh(
-    catalogStore,
-    catalogConfig,
-    `capture-${env.GITHUB_RUN_ID}`,
-  );
+const runId = `site-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
+const runnerRef = `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`;
+const captured = catalogConfig
+  ? await captureCatalogRegionalInput({
+      coordinator,
+      owner: { ownerRunId: runId, runnerRef },
+      config: catalogConfig,
+      createClient: (guard: object) =>
+        createCatalogRegionalClient({
+          manager,
+          policy,
+          runId,
+          codeSha: env.GITHUB_SHA,
+          runnerRef,
+          guard,
+          directory: resolve(output, 'regional'),
+          requestHash: catalogRegionalRequestHash,
+        }),
+      collect: ({ baseline }: { baseline: { sourceRunId: string } }) => collectSnapshot(baseline),
+    })
+  : null;
+const receipt: Record<string, unknown> = captured
+  ? captured.value
+  : await collectSnapshot(status.scope.baseline);
+if (catalogConfig && captured) {
   const capture: Parameters<typeof sealCatalogBuildInput>[0] = {
     config: catalogConfig,
     source,
-    before: catalogBefore,
-    after,
+    before: captured.before,
+    after: captured.after,
     snapshot: await readFile(resolve(output, 'product-snapshot.json')),
   };
   if (source === 'fresh') {
