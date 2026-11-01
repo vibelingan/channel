@@ -116,7 +116,7 @@ export function createCloudbaseFunctionProvider({
           code: 'FUNCTION_PROVIDER_UNCONFIRMED',
           stage,
           functionName,
-          ...(/^[A-Z][A-Z0-9_]{0,80}$/.test(causeCode ?? '') ? { causeCode } : {}),
+          ...(/^[A-Za-z][A-Za-z0-9_.]{0,127}$/.test(causeCode ?? '') ? { causeCode } : {}),
           ...(/^[A-Za-z0-9_-]{1,128}$/.test(error?.requestId ?? '')
             ? { requestId: error.requestId }
             : {}),

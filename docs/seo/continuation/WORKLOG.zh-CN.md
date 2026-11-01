@@ -408,3 +408,10 @@ Archify 新增程序与内容时序图，产物9项检查及自动浏览器检�
 本机第一次全量脚本从未加载运行环境的shell启动，1386通过、1项Git目录检查失败；没有把它当作代码失败或通过。重新加载原SEO Git元数据及Node22.13后，1387项全部通过、无跳过；20项函数包/备份/定时/首次接通专项通过，脚本TypeScript、两文件Biome和CloudBase SDK检查通过。最初SDK检查的Git环境错误和错误的tsconfig文件名均保留为本机调用错误，改用scripts/blog/tsconfig.json后通过。未修改共享依赖或其他工作区。
 
 实际读取humanizer技能及plain-technical-writing参考、05/06/README和当前工作记录；将“stage通过”明确写成“候选包检查通过，旧程序仍在备份，尚未换线上代码”，依据为Actions步骤和HTTP版本读回。CloudBase管理MCP登录已过期，改用已有GitHub受控入口及原环境密钥，不索取或复制新凭证。导出源码未附带dev-pipeline/engineering-craft安装副本，采用仓库内Codex适配说明及ENGINEERING_CRAFT规则继续，未声称运行缺失技能的命令。
+
+
+41279713440 最终停在 code-alibaba-catalog-sync：三个原程序 ZIP 已完整保存并逐份校验，public-api 替换成功；同步函数确认仍是原包，后台未尝试。06:25 UTC 独立 HTTP 读回 public-api 为70383e06、同步和后台为91443842，记录/就绪均关闭；四份网站正文 hash 与开始前相同。原程序长期归档和运行13072562908备份均保留，没有回退业务数据或改网站。
+
+查到诊断工具自身的缺口：提交错误被读回流程吞掉，脱敏器又遗漏腾讯云带点的错误编号。先用两个失败测试证明缺口，再保留固定错误编号、步骤、请求编号，禁止记录 message、配置或签名链接；补阶段耗时和归档传输摘要，不改变部署/恢复判断。1389项脚本、脚本TypeScript、CloudBase SDK和修改文件Biome检查通过。实际拒绝原因仍未确认，接下来以新日志执行一次受控重试；不把测试里的示例错误编号写成现场原因。
+
+只读复核了function-provider、function-replacement、stage-catalog-runtime及两项测试；本次将“部署失败”展开为“公开接口已更新，同步接口未写入，后台未尝试”，以实际包hash和HTTP版本为依据，避免读者误以为三个接口都坏了。

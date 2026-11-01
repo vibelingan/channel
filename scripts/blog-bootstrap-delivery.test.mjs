@@ -55,6 +55,39 @@ test('lost update reply is resolved by actual package and health without repeati
   assert.equal(result.status, 'accepted');
   assert.equal(f.state.updates, 1);
 });
+test('a rejected code request retains only safe diagnostics and still proves the old version', async () => {
+  const f = await setup();
+  const events = [];
+  let submissions = 0;
+  f.provider = {
+    ...f.provider,
+    async updateCode() {
+      submissions++;
+      throw Object.assign(Error('secret https://private.example/?signature=secret'), {
+        code: 'FUNCTION_PROVIDER_UNCONFIRMED',
+        causeCode: 'InvalidParameterValue.CosObjectName',
+        stage: 'submit-code',
+        requestId: 'provider-request-id',
+        configuration: 'secret',
+      });
+    },
+  };
+  const result = await replaceFunctionCode({ ...f, report: (event) => events.push(event) });
+  assert.equal(result.status, 'not-written');
+  assert.equal(submissions, 1);
+  assert.deepEqual(events, [
+    {
+      stage: 'code-submission-unconfirmed',
+      diagnostic: {
+        code: 'FUNCTION_PROVIDER_UNCONFIRMED',
+        causeCode: 'InvalidParameterValue.CosObjectName',
+        stage: 'submit-code',
+        requestId: 'provider-request-id',
+      },
+    },
+  ]);
+  assert.equal(JSON.stringify(events).includes('secret'), false);
+});
 for (const failure of ['drift', 'wrong-bytes'])
   test(`unexpected ${failure} stops without restoring over unknown state`, async () => {
     const f = await setup();

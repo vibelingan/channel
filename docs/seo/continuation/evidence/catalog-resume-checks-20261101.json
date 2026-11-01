@@ -22,11 +22,19 @@
   },
   "runtimeStage": {
     "runId": "41279713440",
-    "statusAtCapture": "in_progress",
-    "accepted": false
+    "statusAtCapture": "completed",
+    "conclusion": "failure",
+    "stoppedAt": "code-alibaba-catalog-sync",
+    "accepted": false,
+    "results": {
+      "public-api": "accepted",
+      "alibaba-catalog-sync": "not-written",
+      "admin": "not-attempted"
+    }
   },
   "notes": [
     "First local shell without SEO Git metadata failed one Git-based test; corrected environment rerun passed all.",
-    "This record does not claim live function replacement, HTML delivery or automatic wakeup acceptance."
+    "This record does not claim live function replacement, HTML delivery or automatic wakeup acceptance.",
+    "Actual HTTP readback on 2026-11-01 confirms public-api at 70383e06; sync/admin remain 91443842; recording/readiness are off; website baseline is unchanged."
   ]
 }

@@ -30,6 +30,13 @@ import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
 import { fetchFully } from './smoke-http.mjs';
 const env = process.env;
 let stage = 'invocation';
+const startedAt = Date.now();
+const advance = (value: string) => {
+  stage = value;
+  console.log(
+    JSON.stringify({ operation: 'catalog-runtime', stage, elapsedMs: Date.now() - startedAt }),
+  );
+};
 async function main() {
   const phase = env.CATALOG_RUNTIME_ACTION;
   const codeSha = env.CATALOG_RUNTIME_SHA || env.GITHUB_SHA;
@@ -49,7 +56,7 @@ async function main() {
   )
     throw Error('Untrusted catalog runtime invocation');
   const github = createSiteGithubSource({ token: env.GITHUB_TOKEN });
-  stage = 'checked-source';
+  advance('checked-source');
   await github.requireCI(env.GITHUB_SHA);
   await github.requireCI(codeSha);
   const target = { envId: policy.envId, region: policy.region, siteOrigin: policy.siteOrigin };
@@ -77,6 +84,8 @@ async function main() {
     manager,
     policy,
     readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+    onTransfer: (event: object) =>
+      console.log(JSON.stringify({ operation: 'catalog-runtime-archive', ...event })),
   });
   const coordinator = createReleaseCoordinator({
     store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
@@ -109,7 +118,7 @@ async function main() {
   const website = await readBlogSiteBaseline();
   const results: object[] = [];
   if (phase === 'stage') {
-    stage = 'capture-original-programs';
+    advance('capture-original-programs');
     for (const name of names) {
       const detail = await manager.functions.getFunctionDetail(name);
       if (detail.Runtime !== 'Nodejs20.19') throw Error('Preserve the reviewed function runtime');
@@ -131,7 +140,7 @@ async function main() {
     const candidates = new Map<string, Buffer>();
     const files = [join(directory, 'before/function-backups.json')];
     for (const name of names) {
-      stage = `validate-${name}`;
+      advance(`validate-${name}`);
       versions[name] = await readFunctionRuntimeVersion(policy.envId, name);
       const zip = join(directory, `${name}-candidate.zip`);
       execFileSync(
@@ -160,7 +169,7 @@ async function main() {
       { flag: 'wx' },
     );
     files.push(join(directory, 'before/runtime.json'));
-    stage = 'preserve-original-programs';
+    advance('preserve-original-programs');
     const originals = [];
     for (const entry of captured.entries) {
       const name = entry.snapshot.name;
@@ -193,7 +202,7 @@ async function main() {
       throw Error('Original programs not archived; no code write allowed');
     await checkBlogSiteBaseline(website);
     for (const name of names) {
-      stage = `code-${name}`;
+      advance(`code-${name}`);
       const before = captured.entries.find((e) => e.snapshot.name === name)?.snapshot;
       const candidate = candidates.get(name);
       if (!before || !candidate) throw Error('Captured function disappeared');
@@ -207,6 +216,8 @@ async function main() {
         beforeVersion: versions[name],
         expectedVersion: codeSha,
         readHealth: () => readFunctionRuntimeVersion(policy.envId, name),
+        report: (event: object) =>
+          console.log(JSON.stringify({ operation: 'catalog-runtime-function', name, ...event })),
       });
       results.push({ name, result });
       await writeFile(
@@ -218,7 +229,7 @@ async function main() {
       await checkBlogSiteBaseline(website);
     }
   } else {
-    stage = 'verify-running-programs';
+    advance('verify-running-programs');
     for (const name of names) {
       await provider.read(name);
       if ((await readFunctionRuntimeVersion(policy.envId, name)) !== codeSha)
@@ -237,7 +248,7 @@ async function main() {
       );
     }
     for (const name of phase === 'record' ? ['admin', 'alibaba-catalog-sync'] : ['public-api']) {
-      stage = `${phase}-${name}`;
+      advance(`${phase}-${name}`);
       const before = await manager.functions.getFunctionDetail(name);
       const result = await setCatalogRuntimeFlags({ manager, target, name, phase, before });
       results.push(result);
@@ -268,7 +279,7 @@ async function main() {
     }
   }
   if (phase === 'record') {
-    stage = 'finish-prior-writer-requests';
+    advance('finish-prior-writer-requests');
     const row = db.collection('catalogSeoBuilders').doc('runtime-activation');
     const registry = {
       async get() {

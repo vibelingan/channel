@@ -15,7 +15,21 @@ export async function replaceFunctionCode({
   timeoutMs = 180000,
   now = Date.now,
   pause = () => new Promise((done) => setTimeout(done, 2000)),
+  report = (_event) => {},
 }) {
+  const reportFailure = (stage, error) => {
+    const diagnostic = {};
+    for (const key of ['code', 'causeCode', 'stage', 'requestId']) {
+      const value = error?.[key];
+      if (typeof value === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(value))
+        diagnostic[key] = value;
+    }
+    try {
+      report({ stage, diagnostic });
+    } catch {
+      // Diagnostic output cannot alter deployment or recovery decisions.
+    }
+  };
   if (
     !['admin', 'public-api', 'alibaba-catalog-sync'].includes(name) ||
     before.name !== name ||
@@ -80,13 +94,15 @@ export async function replaceFunctionCode({
   }
   try {
     await submit(candidate, before);
-  } catch {
+  } catch (error) {
+    reportFailure('code-submission-unconfirmed', error);
     /* An acknowledgement alone cannot decide the result. */
   }
   let result;
   try {
     result = await observe(expectedHash, expectedVersion);
-  } catch {
+  } catch (error) {
+    reportFailure('code-observation-unconfirmed', error);
     return { status: 'unknown' };
   }
   if (result.status === 'accepted') return result;
@@ -107,7 +123,8 @@ export async function replaceFunctionCode({
     return { status: 'unknown' };
   try {
     await submit(original, current);
-  } catch {
+  } catch (error) {
+    reportFailure('recovery-submission-unconfirmed', error);
     /* Read back once; never submit a second recovery. */
   }
   try {
