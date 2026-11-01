@@ -220,6 +220,9 @@ jobs:
       - name: Verify standalone recovery drill bundle on deployed runtime
         run: node --test scripts/release-drill/build.integration.test.mjs
 
+      - name: Verify regional release ledger bundle on deployed runtime
+        run: node --test scripts/release-regional-build.test.mjs
+
       - name: Verify isolated catalog probe on deployed runtime
         run: node --test scripts/catalog-probe-build.test.mjs
 

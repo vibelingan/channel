@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import CloudBase from '@cloudbase/manager-node';
 import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { planSiteReleaseCandidate } from './hosting-recovery.mjs';
+import { createReleaseRegionalClient } from './release-regional-client.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { activateCatalogRenderer } from './release/catalog-activation.mjs';
 import {
@@ -24,11 +25,7 @@ import { siteArtifact } from './release/site-payload.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 import { siteProducerPolicy } from './release/site-producers.mjs';
 import { siteReadbackEvidence, verifySiteReadback } from './release/site-readback.mjs';
-import { createReleaseCoordinator } from './release/state.mjs';
-import {
-  createCloudbaseReleaseDatabase,
-  createCloudbaseReleaseStore,
-} from './release/store-cloudbase.mjs';
+import { createCloudbaseReleaseDatabase } from './release/store-cloudbase.mjs';
 const { require: tsxRequire } = createRequire(
   new URL('../apps/site/package.json', import.meta.url),
 )('tsx/cjs/api');
@@ -179,10 +176,7 @@ export async function runSiteReadback(env = process.env) {
     secretKey: env.TENCENTCLOUD_SECRETKEY,
   };
   const db = createCloudbaseReleaseDatabase({ ...config, env: policy.envId });
-  const coordinator = createReleaseCoordinator({
-    store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
-    policy,
-  });
+  const manager = new CloudBase(config);
   const runId = env.SITE_READBACK_RUN_ID;
   const output = resolve('output/site-readback');
   await mkdir(output, { recursive: true });
@@ -226,7 +220,16 @@ export async function runSiteReadback(env = process.env) {
     });
     return JSON.parse(await readFile(path, 'utf8'));
   }
+  let releaseRegional;
   try {
+    releaseRegional = await createReleaseRegionalClient({
+      manager,
+      policy,
+      ...readbackOwner,
+      codeSha: env.GITHUB_SHA,
+      directory: resolve(output, 'release-regional'),
+    });
+    const coordinator = releaseRegional.coordinator;
     let run = await coordinator.runStatus(runId);
     const acceptedRegistration = run.state === 'SUCCEEDED';
     const artifact = run.composition.static.artifact;
@@ -257,7 +260,6 @@ export async function runSiteReadback(env = process.env) {
       throw Error('Original write evidence unreadable');
     const steps = response.data;
     const evidence = siteReadbackEvidence({ run, input, steps, policy, acceptedRegistration });
-    const manager = new CloudBase(config);
     const provider = createCanaryProvider({ manager, policy });
     await provider.controlPlane({ execute: true });
     const catalogStore = catalogProof ? createCatalogSeoStore(db) : null;
@@ -539,19 +541,29 @@ export async function runSiteReadback(env = process.env) {
     // Never clear uncertainty or start restoration merely because this read failed.
     throw error;
   } finally {
-    await heartbeat?.stop();
-    await regionalAccess?.drain();
-    if (regionalAccess) {
-      try {
-        // The client retains an unconfirmed worker; this never releases its lease.
-        record.regional = await regionalAccess.close();
-      } catch (error) {
-        cleanupFailure = error;
-        record.regional = { cleaned: false };
-        record.regionalCleanupError = error.message;
+    try {
+      await heartbeat?.stop();
+      await regionalAccess?.drain();
+      if (regionalAccess) {
+        try {
+          // The client retains an unconfirmed worker; this never releases its lease.
+          record.regional = await regionalAccess.close();
+        } catch (error) {
+          cleanupFailure = error;
+          record.regional = { cleaned: false };
+          record.regionalCleanupError = error.message;
+          await save();
+        }
         await save();
       }
-      await save();
+    } finally {
+      try {
+        await releaseRegional?.close();
+      } catch (error) {
+        record.releaseRegionalCleanupError = error.code ?? 'RELEASE_REGIONAL_CLEANUP_FAILED';
+        await save();
+        cleanupFailure ??= error;
+      }
     }
   }
   if (cleanupFailure) throw cleanupFailure;

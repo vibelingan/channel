@@ -29,6 +29,7 @@ import {
 import { guardCatalogHostingAdapters, type prepareCatalogRefresh } from './catalog-refresh.ts';
 import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { auditHostingContract } from './hosting-contract.mjs';
+import { createReleaseRegionalClient } from './release-regional-client.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { activateCatalogRenderer } from './release/catalog-activation.mjs';
 import { loadCatalogPreparationEvidence } from './release/catalog-preparation-evidence.mjs';
@@ -49,6 +50,7 @@ import {
 } from './release/lease-heartbeat.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
 import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
+import { releaseRegionalDiagnostic } from './release/regional-coordinator.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
 import { readBuiltSite } from './release/site-build-record.mjs';
 import {
@@ -64,9 +66,17 @@ import { createSiteGithubSource } from './release/site-github-source.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 import { assertSiteDeliveryInvocation } from './release/site-policy.mjs';
 import { createSiteRetention } from './release/site-retention.mjs';
-import { createReleaseCoordinator } from './release/state.mjs';
 import { deliverStaticContent } from './release/static-delivery.mjs';
-import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
+function reportSiteStop(phase: string, error: Error) {
+  console.error(
+    JSON.stringify({
+      event: 'site-delivery-stopped',
+      phase,
+      ...releaseRegionalDiagnostic(error),
+      message: error.message,
+    }),
+  );
+}
 interface SiteObjectEntry {
   path: string;
   bytes: number;
@@ -206,10 +216,6 @@ if (env.SITE_RENDERER_SHA || env.SITE_PRODUCT_SOURCE === 'refresh') {
 }
 let catalog: Awaited<ReturnType<typeof prepareCatalogRefresh>> | undefined;
 const worker = createCloudBaseArticleReleaseWorker(db);
-const coordinator = createReleaseCoordinator({
-  store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
-  policy,
-});
 const automatic = env.SITE_ARTICLE_TASK_ID === 'auto';
 let requestedTaskId = env.SITE_ARTICLE_TASK_ID ?? '';
 if (env.SITE_DELIVERY_MODE === 'publish' && requestedTaskId === 'auto') {
@@ -238,52 +244,71 @@ if (requestedTaskId && !/^release-[a-f0-9]{64}$/.test(requestedTaskId))
   throw Error('Invalid article task id');
 const directory = resolve('output/site-delivery');
 await mkdir(directory, { recursive: true });
-if (catalogConfig) {
-  const recoveryGithub = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
-  const recovered = await recoverCatalogPreparation({
-    coordinator,
-    github: recoveryGithub,
-    policy,
-    functions: manager.functions,
-    readPreparationRun: (priorRunId: string) =>
-      createCatalogSeoStore(db).get(
-        'siteReleaseRuns',
-        identity({ targetId: coordinator.targetId, runId: priorRunId }),
-      ),
-    loadEvidence: (input: {
-      run: Record<string, unknown>;
-      artifactName: string;
-      regionalPath: string;
-    }) =>
-      loadCatalogPreparationEvidence({
-        ...input,
-        github: recoveryGithub,
-        artifacts: new DefaultArtifactClient(),
-        token: env.GITHUB_TOKEN,
-        directory: join(directory, 'preparation-evidence'),
-      }),
-  });
-  await writeFile(
-    join(directory, 'preparation-check.json'),
-    JSON.stringify(
-      {
-        state: recovered.state,
-        baselineRunId: recovered.scope?.baseline?.sourceRunId ?? null,
-        reconciliation: recovered.target?.lastReconciliation ?? null,
-        websiteWrites: 0,
-        businessWrites: 0,
-      },
-      null,
-      2,
-    ),
-    { flag: 'wx', mode: 0o600 },
-  );
-}
 const runId = `site-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
-let guard = await coordinator.acquire({
+const releaseRegional = await createReleaseRegionalClient({
+  manager,
+  policy,
   ownerRunId: runId,
   runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+  codeSha,
+  directory: join(directory, 'release-regional'),
 });
+const coordinator = releaseRegional.coordinator;
+let guard: Awaited<ReturnType<typeof coordinator.acquire>>;
+try {
+  if (catalogConfig) {
+    const recoveryGithub = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
+    const recovered = await recoverCatalogPreparation({
+      coordinator,
+      github: recoveryGithub,
+      policy,
+      functions: manager.functions,
+      readPreparationRun: (priorRunId: string) =>
+        createCatalogSeoStore(db).get(
+          'siteReleaseRuns',
+          identity({ targetId: coordinator.targetId, runId: priorRunId }),
+        ),
+      loadEvidence: (input: {
+        run: Record<string, unknown>;
+        artifactName: string;
+        regionalPath: string;
+      }) =>
+        loadCatalogPreparationEvidence({
+          ...input,
+          github: recoveryGithub,
+          artifacts: new DefaultArtifactClient(),
+          token: env.GITHUB_TOKEN,
+          directory: join(directory, 'preparation-evidence'),
+        }),
+    });
+    await writeFile(
+      join(directory, 'preparation-check.json'),
+      JSON.stringify(
+        {
+          state: recovered.state,
+          baselineRunId: recovered.scope?.baseline?.sourceRunId ?? null,
+          reconciliation: recovered.target?.lastReconciliation ?? null,
+          websiteWrites: 0,
+          businessWrites: 0,
+        },
+        null,
+        2,
+      ),
+      { flag: 'wx', mode: 0o600 },
+    );
+  }
+  guard = await coordinator.acquire({
+    ownerRunId: runId,
+    runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+  });
+} catch (error) {
+  try {
+    await releaseRegional.close();
+  } catch (cleanupError) {
+    reportSiteStop('release-cleanup', cleanupError as Error);
+  }
+  throw error;
+}
 let regional: Awaited<ReturnType<typeof createCatalogRegionalClient>> | undefined;
 const regionalCatalog = async () => {
   if (!regional)
@@ -302,6 +327,7 @@ const regionalCatalog = async () => {
 };
 let claim: ClaimedArticleRelease | undefined;
 let deploying = false;
+let releaseCleanupFailure: unknown;
 const renewLease = async () => {
   await renewCurrentSiteLease({
     coordinator,
@@ -524,7 +550,7 @@ try {
         publicProductPaths,
         readPublicProductPaths,
         postCheck: verifyPublicDelivery,
-        onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
@@ -593,8 +619,7 @@ try {
           if (!(await auditHostingContract(policy.siteOrigin)).passed)
             throw Error('Unchanged site status/cache check failed');
         },
-        onStop: (phase: string, error: Error) =>
-          console.error(`Checkpoint ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
@@ -655,7 +680,7 @@ try {
         publicProductPaths,
         readPublicProductPaths,
         postCheck: verifyPublicDelivery,
-        onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
@@ -974,7 +999,7 @@ try {
         publicProductPaths,
         readPublicProductPaths,
         postCheck: verifyPublicDelivery,
-        onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
@@ -1083,6 +1108,8 @@ try {
   }
   if (
     !regional?.unconfirmed &&
+    !releaseRegional.unconfirmed &&
+    Reflect.get(Object(error), 'code') !== 'RELEASE_REGIONAL_UNCONFIRMED' &&
     Reflect.get(Object(error), 'code') !== 'CATALOG_REGIONAL_UNCONFIRMED'
   )
     try {
@@ -1090,6 +1117,17 @@ try {
     } catch {}
   throw error;
 } finally {
-  await heartbeat.stop();
-  await regional?.close();
+  try {
+    await heartbeat.stop();
+    await regional?.close();
+  } finally {
+    try {
+      await releaseRegional.close();
+    } catch (error) {
+      reportSiteStop('release-cleanup', error as Error);
+      releaseCleanupFailure = error;
+    }
+  }
 }
+
+if (releaseCleanupFailure) throw releaseCleanupFailure;
