@@ -24,46 +24,45 @@ export async function seedCatalogSeoRequests(
     ),
   );
   const totals = { queued: 0, preserved: 0, tracked: 0, upgraded: 0 };
-  for (let offset = 0; offset < requests.length; offset += 20) {
-    const counts = await store.transaction(async (tx) => {
-      const writes = [];
-      const counts = { queued: 0, preserved: 0, tracked: 0, upgraded: 0 };
-      for (const request of requests.slice(offset, offset + 20)) {
-        if (request.kind !== 'product') throw Error('Unexpected bootstrap request');
-        const head = await tx.get(
-          'catalogPublicHeads',
-          catalogPublicRecordId(config.siteOrigin, request.productId),
-        );
-        if (head) {
-          counts.tracked++;
-          continue;
-        }
-        const row = await tx.get('catalogSeoRequests', request._id);
-        if (row) {
-          const previous = CatalogSeoRequestSchema.parse(row);
-          if (
-            previous.kind !== 'product' ||
-            previous.productId !== request.productId ||
-            previous.siteOrigin !== config.siteOrigin
-          )
-            throw Error('Existing bootstrap request belongs to another product');
-          if (previous.state === 'pending') {
-            // This monotone flag also covers an accepted URL withdrawn before its first tracked head.
-            if (!previous.previouslyPublic) {
-              writes.push({ ...previous, previouslyPublic: true });
-              counts.upgraded++;
-            } else counts.preserved++;
-            continue;
+  // CloudBase expires transactions after 30 seconds. Keep each one to one product.
+  for (let offset = 0; offset < requests.length; offset += 4) {
+    const results = await Promise.allSettled(
+      requests.slice(offset, offset + 4).map(async (request) =>
+        store.transaction(async (tx): Promise<keyof typeof totals> => {
+          if (request.kind !== 'product') throw Error('Unexpected bootstrap request');
+          const head = await tx.get(
+            'catalogPublicHeads',
+            catalogPublicRecordId(config.siteOrigin, request.productId),
+          );
+          if (head) return 'tracked';
+          const row = await tx.get('catalogSeoRequests', request._id);
+          if (row) {
+            const previous = CatalogSeoRequestSchema.parse(row);
+            if (
+              previous.kind !== 'product' ||
+              previous.productId !== request.productId ||
+              previous.siteOrigin !== config.siteOrigin
+            )
+              throw Error('Existing bootstrap request belongs to another product');
+            if (previous.state === 'pending') {
+              // This monotone flag also covers an accepted URL withdrawn before its first tracked head.
+              if (!previous.previouslyPublic) {
+                await tx.set('catalogSeoRequests', { ...previous, previouslyPublic: true });
+                return 'upgraded';
+              }
+              return 'preserved';
+            }
           }
-        }
-        writes.push(request);
-        counts.queued++;
-      }
-      for (const request of writes) await tx.set('catalogSeoRequests', request);
-      return counts;
-    });
-    for (const key of ['queued', 'preserved', 'tracked', 'upgraded'] as const)
-      totals[key] += counts[key];
+          await tx.set('catalogSeoRequests', request);
+          return 'queued';
+        }),
+      ),
+    );
+    // Let in-flight transactions finish before reporting failure; no writes outlive this call.
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason;
+      totals[result.value]++;
+    }
   }
   return totals;
 }

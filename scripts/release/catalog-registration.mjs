@@ -147,18 +147,20 @@ export async function completeCatalogRegistration({
   };
   try {
     await checkpoint();
-    result = await register({ run, checkpoint, checkTransaction, writeActive });
+    result = await register({ run, guard, checkpoint, checkTransaction, writeActive });
     await checkpoint();
   } catch (error) {
     failed = true;
     failure = error;
   }
-  try {
-    await coordinator.release(guard);
-  } catch (error) {
-    if (!failed) {
-      failed = true;
-      failure = error;
+  if (failure?.code !== 'CATALOG_REGIONAL_UNCONFIRMED') {
+    try {
+      await coordinator.release(guard);
+    } catch (error) {
+      if (!failed) {
+        failed = true;
+        failure = error;
+      }
     }
   }
   if (failed) throw failure;

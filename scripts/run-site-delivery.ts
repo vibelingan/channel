@@ -12,8 +12,8 @@ import type { ClaimedArticleRelease } from '../packages/articles/src/release-sto
 import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.ts';
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
-import { seedCatalogSeoRequests } from '../packages/db/src/catalog-seo-bootstrap.ts';
 import { createCatalogSeoStore } from '../packages/db/src/catalog-seo-cloud.ts';
+import { catalogRegionalRequestHash } from '../packages/db/src/catalog-seo-regional.ts';
 import { readCatalogSeoRecordingConfig } from '../packages/db/src/catalog-seo-requests.ts';
 import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
 import { readFunctionRuntimeState } from './blog/runtime-health.mjs';
@@ -26,7 +26,8 @@ import {
   assertPrebuiltCatalogMode,
   versionFreshCatalogBuildSnapshot,
 } from './catalog-build-input.ts';
-import { guardCatalogHostingAdapters, prepareCatalogRefresh } from './catalog-refresh.ts';
+import { guardCatalogHostingAdapters, type prepareCatalogRefresh } from './catalog-refresh.ts';
+import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
 import { activateCatalogRenderer } from './release/catalog-activation.mjs';
@@ -235,6 +236,21 @@ let guard = await coordinator.acquire({
   ownerRunId: runId,
   runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
 });
+let regional: Awaited<ReturnType<typeof createCatalogRegionalClient>> | undefined;
+const regionalCatalog = async () => {
+  if (!regional)
+    regional = await createCatalogRegionalClient({
+      manager,
+      policy,
+      runId,
+      codeSha,
+      runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+      guard,
+      directory: join(directory, 'regional'),
+      requestHash: catalogRegionalRequestHash,
+    });
+  return regional;
+};
 let claim: ClaimedArticleRelease | undefined;
 let deploying = false;
 let failure: unknown;
@@ -663,18 +679,12 @@ try {
         }),
         ...snapshot.products.map((item: { product: { _id: string } }) => item.product._id),
       ];
-      const result = await seedCatalogSeoRequests(
-        createCatalogSeoStore(db),
-        catalogConfig,
-        ids,
-        new Date().toISOString(),
-      );
+      const result = await (await regionalCatalog()).seed(ids, catalogConfig);
       console.log(
         JSON.stringify({ operation: 'seed-existing-product-pages', ...result, businessWrites: 0 }),
       );
     }
-    if (catalogConfig)
-      catalog = await prepareCatalogRefresh(createCatalogSeoStore(db), catalogConfig, runId);
+    if (catalogConfig) catalog = await (await regionalCatalog()).prepare(catalogConfig);
     if (built && catalogConfig && catalog) {
       const captured = JSON.parse(await readFile('output/seo-release/product-source.json', 'utf8'));
       assert(captured.source === env.SITE_PRODUCT_SOURCE, 'Product source changed after capture');
@@ -750,7 +760,7 @@ try {
         { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
       );
       if (catalogConfig && catalog) {
-        const after = await prepareCatalogRefresh(createCatalogSeoStore(db), catalogConfig, runId);
+        const after = await (await regionalCatalog()).prepare(catalogConfig);
         const versioned = versionFreshCatalogBuildSnapshot({
           config: catalogConfig,
           source: 'fresh',
@@ -958,11 +968,14 @@ try {
           register: async ({
             checkpoint,
             writeActive,
+            guard: registrationGuard,
           }: {
             checkpoint: () => Promise<unknown>;
             writeActive: (data: object) => Promise<void>;
-          }) =>
-            activateCatalogRenderer({
+            guard: typeof guard;
+          }) => {
+            regional?.setGuard(registrationGuard);
+            return activateCatalogRenderer({
               db,
               proof: renderer.proof,
               runId,
@@ -973,7 +986,8 @@ try {
                 await finishCatalogAcceptance({ catalog, files, checkpoint });
               },
               writeActive,
-            }),
+            });
+          },
         });
       } else if (renderer)
         await activateCatalogRenderer({
@@ -1019,10 +1033,15 @@ try {
       else await worker.failBuild(claim.guard);
     } catch {}
   }
-  try {
-    await coordinator.release(guard);
-  } catch {}
+  if (
+    !regional?.unconfirmed &&
+    Reflect.get(Object(error), 'code') !== 'CATALOG_REGIONAL_UNCONFIRMED'
+  )
+    try {
+      await coordinator.release(guard);
+    } catch {}
   throw error;
 } finally {
   clearInterval(clock);
+  await regional?.close();
 }

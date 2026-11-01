@@ -106,6 +106,29 @@ const activate = (f, { writeActive }, finishCatalog = async () => {}) =>
     writeActive,
   });
 
+test('an unconfirmed regional invocation retains the exact registration lease for readback', async (t) => {
+  const f = await sdkFixture(t);
+  let captured;
+  await assert.rejects(
+    completeCatalogRegistration({
+      ...f,
+      register: async ({ guard }) => {
+        captured = guard;
+        throw Object.assign(Error('regional response was lost'), {
+          code: 'CATALOG_REGIONAL_UNCONFIRMED',
+        });
+      },
+    }),
+    { code: 'CATALOG_REGIONAL_UNCONFIRMED' },
+  );
+  const status = await f.coordinator.status({ scopeKey: 'site' });
+  assert.equal(status.target.lease.ownerRunId, captured.ownerRunId);
+  assert.equal(status.target.lease.fence, captured.fence);
+  assert.equal(status.target.lease.acquiredVersion, captured.acquiredVersion);
+  assert.equal(status.scope.baseline.sourceRunId, f.runId);
+  assert.equal(f.rows.has('catalogSeoBuilders/active'), false);
+});
+
 test('accepted registration interrupted before another product save is cleaned without accepting old HTML, then refresh runs', async (t) => {
   const f = await sdkFixture(t);
   const config = { siteOrigin: policy.siteOrigin, detailEnabled: true };

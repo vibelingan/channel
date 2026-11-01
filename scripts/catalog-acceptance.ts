@@ -315,12 +315,9 @@ export async function finishCatalogAcceptance({
     assert(head.visible ? bytes : !bytes, 'Accepted product HTML differs from its public version');
     return { productId: head.productId, htmlSha256: bytes ? sha256(bytes) : null };
   });
-  for (let offset = 0; offset < catalog.heads.length; offset += 12) {
-    await checkpoint();
-    const batch = catalog.heads.slice(offset, offset + 12);
-    const ticket = await catalog.delivery.begin(batch.map((head) => head.productId));
-    await catalog.delivery.end(ticket, 'verified');
-  }
+  // These exact versions were captured before the accepted site's build. Registration
+  // does not upload files, so it must not acquire another artificial hosting ticket.
+  catalog.delivery.primeExpectedHeads(catalog.heads);
   for (let offset = 0; offset < pages.length; offset += 12) {
     await checkpoint();
     await catalog.delivery.check();

@@ -173,7 +173,7 @@ test('interruption between registration batches can be resumed without accepting
       catalog,
       files: f.files,
       checkpoint: async () => {
-        if (++checkpoints === 2) throw Error('interrupted after DB-only preparation');
+        if (++checkpoints === 1) throw Error('interrupted before DB-only acceptance');
       },
     }),
     /interrupted/,
@@ -194,7 +194,7 @@ test('an interruption after some pages committed preserves those receipts while 
       catalog,
       files: f.files,
       checkpoint: async () => {
-        if (++checkpoints === 4) throw Error('interrupted after first acceptance batch');
+        if (++checkpoints === 2) throw Error('interrupted after first acceptance batch');
       },
     }),
     /interrupted/,
@@ -213,17 +213,19 @@ test('an interruption after some pages committed preserves those receipts while 
   );
 });
 
-test('a process stop after beginning DB-only registration is recoverable only from the accepted original run', async (t) => {
+test('DB-only registration uses the captured product versions without another hosting begin/end', async (t) => {
   const f = fixture(t);
   const catalog = await f.prepare();
-  catalog.delivery.end = async () => {
-    throw Error('registrar stopped before releasing its DB guard');
+  catalog.delivery.begin = async () => {
+    throw Error('registration must not create a hosting ticket');
   };
-  await assert.rejects(finishCatalogAcceptance({ catalog, files: f.files }), /registrar stopped/);
-  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).state, 'writing');
-  const resumed = await f.prepare({ acceptedRun });
-  await finishCatalogAcceptance({ catalog: resumed, files: f.files });
+  catalog.delivery.end = async () => {
+    throw Error('registration must not release a hosting ticket');
+  };
+  await finishCatalogAcceptance({ catalog, files: f.files });
   assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).state, 'idle');
+  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).fence, 3);
+  assert.equal(f.rows.get(`catalogSeoTasks/${f.heads[0]._id}`).state, 'accepted');
 });
 
 test('a new request written after preparation still blocks final registration with unconsumed old heads', async (t) => {
@@ -302,10 +304,9 @@ test('accepted cleanup leaves another run task lease and its accepted sequence u
   f.put('catalogSeoTasks', head._id, foreign);
   const prepared = await f.prepare({ acceptedRun });
   assert.deepEqual(f.rows.get(`catalogSeoTasks/${head._id}`), foreign);
-  await assert.rejects(
-    finishCatalogAcceptance({ catalog: prepared, files: f.files }),
-    /Earlier SEO delivery/,
-  );
+  await assert.rejects(finishCatalogAcceptance({ catalog: prepared, files: f.files }), {
+    code: 'STOP_CATALOG_CHANGE',
+  });
   assert.deepEqual(f.rows.get(`catalogSeoTasks/${head._id}`), foreign);
 });
 
