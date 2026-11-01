@@ -466,3 +466,5 @@ c84a0c0b的17项远端检查及两组Blog检查全部通过；现场运行412850
 本轮实际重读humanizer与plain-technical-writing、CloudBase函数/HTTP参考、SDK合同、ENGINEERING_CRAFT部署与恢复条目、安装Manager5.9.1/COS2.15.4源码类型、官方COS复制说明、官方MCP暂存协议。Context7不可用，使用官方一手资料和实际安装包交叉核对。真实COS SDK配本地HTTP验证复制请求正文为0、条件与目标元数据正确，随后Range完整读回；44项新增专项覆盖错误目标、权限、损坏字节、超时迟到回调、环境与底层异常隐私。独立审查查出归档/凭据异常原本在脱敏边界外，已先修复再通过；将未完成归档也显示“original ZIP retained”改为“未提交函数代码”，不把失败误报为已有恢复包。
 
 最终本地1456项脚本通过，0失败0跳过；scripts/blog类型检查、CloudBase SDK契约通过，9个修改源码/测试文件Biome及diff检查通过。新临时路径仍待精确远端CI和实际云端验收，不能称同步已接通。CI速度优化继续后置，未改main/test、其他部署工作流或pricing。
+
+远端a4b0a836的业务回归与单元检查均通过，Build and smoke在全仓Biome检查因证据JSON两处旧runs数组的换行失败，尚未执行现场写入。原因是本地只检查了9个源码/测试文件，Python更新JSON后漏查该文件。保留失败运行41289874720，按仓库格式修正JSON并补跑全仓Biome；功能代码不变，不放宽或跳过原CI。

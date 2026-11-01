@@ -147,11 +147,7 @@
     "remoteCi": {
       "conclusion": "success",
       "codeSha": "c84a0c0b8ee38be729b619e019364ce1b1b12780",
-      "runs": [
-        "41284301566",
-        "41284301470",
-        "41284301537"
-      ],
+      "runs": ["41284301566", "41284301470", "41284301537"],
       "releaseChecks": 17
     },
     "nextLiveRetry": "41285079302-failed"
@@ -193,11 +189,7 @@
     "codeSha": "8f5cd3567def66f76d07dd92c69cad7dcdda2443",
     "remoteCi": {
       "conclusion": "success",
-      "runs": [
-        "41286124017",
-        "41286123985",
-        "41286123981"
-      ],
+      "runs": ["41286124017", "41286123985", "41286123981"],
       "releaseChecks": 17
     },
     "conclusion": "failure",
