@@ -119,7 +119,17 @@ export function createCosArchiveTransfer({
           (done) => {
             const run = async () => {
               // The single deadline covers both metadata checks and every body range.
-              const before = await cos.headObject(params);
+              let before;
+              try {
+                before = await cos.headObject(params);
+              } catch (error) {
+                if (error?.statusCode === 404)
+                  throw Object.assign(Error('Archive object is absent at initial HEAD'), {
+                    code: 'ARCHIVE_OBJECT_NOT_FOUND',
+                    statusCode: 404,
+                  });
+                throw error;
+              }
               active();
               const length = Number(before?.headers?.['content-length']);
               if (
@@ -269,6 +279,7 @@ function boundedTransfer(timeoutMs, start, cancel = () => {}) {
             'ARCHIVE_PROGRESS_INVALID',
             'ARCHIVE_SOURCE_CHANGED',
             'ARCHIVE_LOCAL_SIZE_MISMATCH',
+            'ARCHIVE_OBJECT_NOT_FOUND',
           ].includes(error.code)
         )
           wrapped.code = error.code;

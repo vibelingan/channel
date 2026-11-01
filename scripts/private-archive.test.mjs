@@ -217,3 +217,192 @@ test('another bucket under the same environment is rejected before any permissio
   );
   assert.equal(x.calls.length, 0);
 });
+
+test('a large interrupted upload resumes once only after the exact object is confirmed absent', async () => {
+  const x = setup();
+  const bytes = Buffer.alloc(9 * 1024 * 1024, 7);
+  const send = x.put;
+  let writes = 0;
+  let clock = 0;
+  const attempts = [];
+  const events = [];
+  x.read = async (_sdk, id, options) => {
+    if (!x.objects.has(id)) {
+      assert.equal(writes, 1);
+      assert.equal(options.timeoutMs, 120000);
+      clock += 500;
+      throw Object.assign(Error('private URL must not escape'), {
+        statusCode: 404,
+        code: 'ARCHIVE_OBJECT_NOT_FOUND',
+      });
+    }
+    return Buffer.from(x.objects.get(id));
+  };
+  x.put = async (credential, input, options) => {
+    writes++;
+    attempts.push({ credential, input, options });
+    if (writes === 1) throw Object.assign(Error('deadline'), { code: 'ETIMEDOUT' });
+    await send(credential, input);
+  };
+  const ref = await createPrivateArchive({
+    ...x,
+    policy,
+    now: () => clock,
+    onTransfer: (event) => events.push(event),
+  }).put(bytes);
+  assert.equal(writes, 2);
+  assert.equal(attempts[0].options.uploadTimeoutMs, 300000);
+  assert.equal(attempts[1].options.uploadTimeoutMs, 119500);
+  assert.equal(attempts[0].credential, attempts[1].credential);
+  assert.equal(attempts[0].input, attempts[1].input);
+  assert.deepEqual(x.objects.get(ref.fileID), bytes);
+  assert.equal(events.filter((event) => event.action === 'resume').length, 1);
+});
+
+test('a continuation never loops and can resolve its own lost reply with exact readback', async () => {
+  for (const completed of [false, true]) {
+    const x = setup();
+    const send = x.put;
+    let writes = 0;
+    x.read = async (_sdk, id) => {
+      if (!x.objects.has(id))
+        throw Object.assign(Error('absent'), { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+      return Buffer.from(x.objects.get(id));
+    };
+    x.put = async (...args) => {
+      writes++;
+      if (completed && writes === 2) await send(...args);
+      throw Object.assign(Error('lost reply'), { code: 'ECONNRESET' });
+    };
+    const operation = createPrivateArchive({ ...x, policy }).put(Buffer.alloc(9 * 1024 * 1024));
+    if (completed) await operation;
+    else await assert.rejects(operation, /needs readback/);
+    assert.equal(writes, 2);
+  }
+});
+
+test('permission failures, unknown errors, small files and unconfirmed reads cannot start a continuation', async () => {
+  for (const scenario of [
+    { upload: { statusCode: 403 }, read: { statusCode: 404 } },
+    { upload: { statusCode: 400 }, read: { statusCode: 404 } },
+    { upload: {}, read: { statusCode: 404 } },
+    { upload: { code: 'ETIMEDOUT' }, read: { statusCode: 503 } },
+    { upload: { code: 'ETIMEDOUT' }, read: { code: 'ETIMEDOUT' } },
+    { upload: { code: 'ETIMEDOUT' }, read: { statusCode: 403 } },
+    { upload: { code: 'ETIMEDOUT' }, read: { statusCode: 404 } },
+    {
+      upload: { code: 'ETIMEDOUT' },
+      read: { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' },
+      small: true,
+    },
+    { upload: { code: 'ETIMEDOUT' }, corrupt: true },
+  ]) {
+    const x = setup();
+    const bytes = Buffer.alloc(scenario.small ? 10 : 9 * 1024 * 1024);
+    let writes = 0;
+    x.put = async () => {
+      writes++;
+      throw Object.assign(Error('private URL must not escape'), scenario.upload);
+    };
+    x.read = async () => {
+      if (scenario.corrupt) return Buffer.alloc(bytes.length, 1);
+      throw Object.assign(Error('private URL must not escape'), scenario.read);
+    };
+    await assert.rejects(createPrivateArchive({ ...x, policy }).put(bytes), /needs readback/);
+    assert.equal(writes, 1, JSON.stringify(scenario));
+  }
+});
+
+test('continuation budget includes readback and renewed ACL checks', async () => {
+  const x = setup();
+  let clock = 0;
+  let writes = 0;
+  x.put = async () => {
+    writes++;
+    throw Object.assign(Error('deadline'), { code: 'ETIMEDOUT' });
+  };
+  x.read = async () => {
+    clock = 120001;
+    throw Object.assign(Error('absent'), { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+  };
+  await assert.rejects(
+    createPrivateArchive({ ...x, policy, now: () => clock }).put(Buffer.alloc(9 * 1024 * 1024)),
+    /needs readback/,
+  );
+  assert.equal(writes, 1);
+});
+
+test('the private archive owns a fixed byte copy across asynchronous upload continuation', async () => {
+  const x = setup();
+  const bytes = Buffer.alloc(9 * 1024 * 1024, 7);
+  const original = Buffer.from(bytes);
+  const send = x.put;
+  let writes = 0;
+  x.put = async (...args) => {
+    writes++;
+    assert.deepEqual(args[1], original);
+    if (writes === 1) {
+      bytes.fill(9);
+      throw Object.assign(Error('temporary unavailable'), { statusCode: 503 });
+    }
+    await send(...args);
+  };
+  x.read = async (_sdk, id) => {
+    if (!x.objects.has(id))
+      throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+    return Buffer.from(x.objects.get(id));
+  };
+  const ref = await createPrivateArchive({ ...x, policy }).put(bytes);
+  assert.equal(writes, 2);
+  assert.deepEqual(x.objects.get(ref.fileID), original);
+});
+
+test('late permission checks cannot outlive the continuation budget or start another upload', async () => {
+  const x = setup();
+  let clock = 0;
+  let writes = 0;
+  let permissions = 0;
+  let finishPolicy;
+  const permission = x.manager.permission.describeResourcePermission;
+  x.manager.permission.describeResourcePermission = async (input) => {
+    permissions++;
+    if (permissions >= 3)
+      await new Promise((resolve) => {
+        finishPolicy = resolve;
+      });
+    return permission(input);
+  };
+  x.put = async () => {
+    writes++;
+    throw Object.assign(Error('deadline'), { code: 'ETIMEDOUT' });
+  };
+  x.read = async () => {
+    clock = 119995;
+    throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+  };
+  await assert.rejects(
+    createPrivateArchive({ ...x, policy, now: () => clock }).put(Buffer.alloc(9 * 1024 * 1024)),
+    /needs readback/,
+  );
+  finishPolicy?.();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(writes, 1);
+});
+
+test('changed transport bytes cannot be written again under the original content hash', async () => {
+  const x = setup();
+  let writes = 0;
+  x.put = async (_credential, bytes) => {
+    writes++;
+    bytes[0] = 7;
+    throw Object.assign(Error('deadline'), { code: 'ETIMEDOUT' });
+  };
+  x.read = async () => {
+    throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+  };
+  await assert.rejects(
+    createPrivateArchive({ ...x, policy }).put(Buffer.alloc(9 * 1024 * 1024)),
+    /needs readback/,
+  );
+  assert.equal(writes, 1);
+});

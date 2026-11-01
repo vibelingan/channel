@@ -12,6 +12,7 @@ export function createPrivateArchive({
   put,
   read,
   onTransfer = (_event) => {},
+  now = () => performance.now(),
 }) {
   if (typeof put !== 'function' || typeof read !== 'function')
     throw Error('An explicit verified archive transport is required');
@@ -83,13 +84,46 @@ export function createPrivateArchive({
       throw error;
     }
   };
-  const get = async (ref) => {
-    await target(ref);
+  const remaining = (deadline) => {
+    const value = Math.floor(deadline - now());
+    if (value < 1)
+      throw Object.assign(Error('Archive continuation budget exhausted'), { code: 'ETIMEDOUT' });
+    return value;
+  };
+  const withinDeadline = async (deadline, operation) => {
+    if (deadline === Number.POSITIVE_INFINITY) return operation();
+    const milliseconds = remaining(deadline);
+    let timer;
+    try {
+      const value = await Promise.race([
+        new Promise((_resolve, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                Object.assign(Error('Archive continuation budget exhausted'), {
+                  code: 'ETIMEDOUT',
+                }),
+              ),
+            milliseconds,
+          );
+        }),
+        Promise.resolve().then(operation),
+      ]);
+      remaining(deadline);
+      return value;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const get = async (ref, deadline = Number.POSITIVE_INFINITY) => {
+    await withinDeadline(deadline, () => target(ref));
     return observe('read', ref, async () => {
-      const bytes = await read(sdk, ref.fileID, {
-        maxBytes: ref.bytes,
-        timeoutMs: timeout(ref.bytes),
-      });
+      const bytes = await withinDeadline(deadline, () =>
+        read(sdk, ref.fileID, {
+          maxBytes: ref.bytes,
+          timeoutMs: Math.min(timeout(ref.bytes), remaining(deadline)),
+        }),
+      );
       if (!Buffer.isBuffer(bytes) || bytes.length !== ref.bytes || sha256(bytes) !== ref.sha256)
         throw Error('Private archive byte verification failed');
       return bytes;
@@ -97,9 +131,12 @@ export function createPrivateArchive({
   };
   return {
     get,
-    async put(bytes) {
-      if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > limit)
+    async put(input) {
+      if (!Buffer.isBuffer(input) || input.length < 1 || input.length > limit)
         throw Error('Private archive size exceeds bound');
+      // Own the bytes before any await: a caller changing its Buffer cannot alter
+      // a later continuation or write different content under this digest.
+      const bytes = Buffer.from(input);
       const digest = sha256(bytes);
       const cloudPath = `seo-recovery/objects/${digest}.bin`;
       const credential = await mintCloudBaseUploadCredential(sdk, cloudPath);
@@ -115,8 +152,37 @@ export function createPrivateArchive({
         await observe('put', ref, () =>
           put(credential, bytes, { uploadTimeoutMs: timeout(bytes.length) }),
         );
-      } catch {
+      } catch (uploadError) {
+        // One short continuation window covers readback, renewed policy checks and
+        // the resumed upload. The transport creates a new local path on each call,
+        // forcing COS 2.15.4 to check remote part MD5/size instead of its path cache.
+        const deadline = now() + 120000;
         // Only a complete read of the exact immutable bytes can resolve a lost upload reply.
+        try {
+          await get(ref, deadline);
+          return ref;
+        } catch (readError) {
+          if (
+            bytes.length <= 8 * 1024 * 1024 ||
+            !transientArchiveUpload(uploadError) ||
+            readError?.code !== 'ARCHIVE_OBJECT_NOT_FOUND'
+          )
+            throw Error('Private archive upload needs readback; website was not changed');
+        }
+        try {
+          await withinDeadline(deadline, () => target(ref));
+          if (sha256(bytes) !== digest)
+            throw Error('Private archive bytes changed before continuation');
+          const uploadTimeoutMs = Math.min(120000, remaining(deadline));
+          await observe('resume', ref, () => put(credential, bytes, { uploadTimeoutMs }));
+        } catch {
+          try {
+            await get(ref, deadline);
+            return ref;
+          } catch {
+            throw Error('Private archive upload needs readback; website was not changed');
+          }
+        }
         try {
           await get(ref);
           return ref;
@@ -128,6 +194,20 @@ export function createPrivateArchive({
       return ref;
     },
   };
+}
+
+function transientArchiveUpload(error) {
+  if (Number.isSafeInteger(error?.statusCode))
+    return error.statusCode >= 500 && error.statusCode <= 599;
+  return [
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'EPIPE',
+    'ENOTFOUND',
+    'ECONNREFUSED',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+  ].includes(error?.code);
 }
 
 export function assertArchiveLifecycle(result, path) {
@@ -169,6 +249,7 @@ function safeArchiveError(error) {
       'ARCHIVE_PROGRESS_INVALID',
       'ARCHIVE_SOURCE_CHANGED',
       'ARCHIVE_LOCAL_SIZE_MISMATCH',
+      'ARCHIVE_OBJECT_NOT_FOUND',
     ].includes(error?.code)
   )
     return error.code;

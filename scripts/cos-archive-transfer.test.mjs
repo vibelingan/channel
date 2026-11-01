@@ -219,6 +219,35 @@ test('a source version change during a native download cannot be accepted', asyn
   );
   assert.equal(existsSync(x.getPath()), false);
 });
+
+test('only an initial origin HEAD 404 proves absence, never a body or final HEAD failure', async () => {
+  for (const stage of ['initial-head', 'body', 'final-head']) {
+    const x = fixture();
+    x.files.set(key, Buffer.from('archive bytes'));
+    const head = x.cos.headObject;
+    let checks = 0;
+    x.cos.headObject = async (params) => {
+      checks++;
+      if ((stage === 'initial-head' && checks === 1) || (stage === 'final-head' && checks === 2))
+        throw Object.assign(Error('private URL must not escape'), { statusCode: 404 });
+      return head(params);
+    };
+    if (stage === 'body')
+      x.cos.downloadFile = (_params, done) =>
+        done(Object.assign(Error('private URL must not escape'), { statusCode: 404 }));
+    await assert.rejects(
+      x.transport.read(null, fileID, { maxBytes: 13, timeoutMs: 1000 }),
+      (error) => {
+        assert.equal(error.statusCode, 404);
+        assert.equal(error.code === 'ARCHIVE_OBJECT_NOT_FOUND', stage === 'initial-head');
+        assert.doesNotMatch(error.message, /private URL/);
+        return true;
+      },
+    );
+    if (stage === 'initial-head')
+      assert.equal(x.calls.filter((call) => call[0] === 'download').length, 0);
+  }
+});
 test('a timed-out upload is canceled once and raw SDK credential details never escape', async () => {
   const x = fixture();
   x.cos.uploadFile = (params) => {

@@ -189,3 +189,319 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+// Keep the real SDK, filesystem, task cancellation and HTTP/XML parsing. The local server owns only COS state.
+async function multipartResumeFixture(t) {
+  const require = createRequire(import.meta.url);
+  assert.equal(require('cos-nodejs-sdk-v5/package.json').version, '2.15.4');
+  const COS = require('cos-nodejs-sdk-v5');
+  const chunkSize = 1024 * 1024;
+  const bytes = Buffer.alloc(chunkSize * 3 + 23);
+  for (let n = 0; n < 4; n++)
+    bytes.fill(11 + n, n * chunkSize, Math.min((n + 1) * chunkSize, bytes.length));
+  const policy = {
+    envId: 'resume-fixture-env',
+    archiveBucket: 'resume-fixture-env-1234567890',
+    region: 'ap-shanghai',
+  };
+  const key = `seo-recovery/objects/${createHash('sha256').update(bytes).digest('hex')}.bin`;
+  const credential = {
+    storageFileId: `cloud://${policy.envId}.${policy.archiveBucket}/${key}`,
+    uploadUrl: `https://${policy.archiveBucket}.cos.${policy.region}.myqcloud.com/${key}`,
+    headers: { 'x-cos-meta-fileid': 'resume-fixture-meta' },
+  };
+  const directory = await mkdtemp(join(tmpdir(), 'archive-cos-resume-'));
+  const uploads = new Map();
+  const objects = new Map();
+  const calls = [];
+  const temporaryFiles = [];
+  const firstAcknowledged = deferred();
+  const missingReceived = deferred();
+  const secondMissingReceived = deferred();
+  const secondResponses = deferred();
+  const oldResponses = [];
+  const firstAcks = new Set();
+  const firstMissing = new Set();
+  const errors = [];
+  let phase = 1;
+  let initialized = 0;
+  let wrongSize = false;
+  const md5 = (data) => `"${createHash('md5').update(data).digest('hex')}"`;
+  const server = createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = Buffer.concat(chunks);
+      const uploadId = url.searchParams.get('uploadId');
+      const partNumber = Number(url.searchParams.get('partNumber')) || null;
+      calls.push({
+        phase,
+        method: req.method,
+        query: [...url.searchParams.keys()],
+        uploadId,
+        partNumber,
+        bytes: body.length,
+      });
+      const xml = (value) => {
+        res.setHeader('content-type', 'application/xml');
+        res.end(value);
+      };
+      if (req.method === 'GET' && url.searchParams.has('uploads')) {
+        assert.equal(url.searchParams.get('prefix'), key);
+        return xml(
+          `<ListMultipartUploadsResult><IsTruncated>false</IsTruncated>${[...uploads.keys()].map((id) => `<Upload><Key>${key}</Key><UploadId>${id}</UploadId><StorageClass>STANDARD</StorageClass></Upload>`).join('')}</ListMultipartUploadsResult>`,
+        );
+      }
+      if (req.method === 'POST' && url.searchParams.has('uploads')) {
+        const id = `resume-upload-${++initialized}`;
+        uploads.set(id, new Map());
+        return xml(
+          `<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`,
+        );
+      }
+      if (req.method === 'GET' && uploadId) {
+        assert.ok(uploads.has(uploadId));
+        const listed = [...uploads.get(uploadId)].sort((a, b) => a[0] - b[0]);
+        return xml(
+          `<ListPartsResult><IsTruncated>false</IsTruncated>${listed.map(([number, data]) => `<Part><PartNumber>${number}</PartNumber><ETag>${md5(data)}</ETag><Size>${data.length - (wrongSize && uploadId === 'resume-upload-1' && number === 1 ? 1 : 0)}</Size></Part>`).join('')}</ListPartsResult>`,
+        );
+      }
+      if (req.method === 'PUT' && partNumber) {
+        assert.ok(uploads.has(uploadId));
+        assert.equal(req.headers['content-md5'], createHash('md5').update(body).digest('base64'));
+        const expected = bytes.subarray(
+          (partNumber - 1) * chunkSize,
+          Math.min(partNumber * chunkSize, bytes.length),
+        );
+        assert.deepEqual(body, expected);
+        if (phase === 1 && partNumber >= 3) {
+          // These requests reached the server, but COS has not accepted their bytes.
+          const closed = deferred();
+          res.once('close', closed.resolve);
+          oldResponses.push({ res, closed });
+          firstMissing.add(partNumber);
+          if (firstMissing.size === 2) missingReceived.resolve();
+          return;
+        }
+        if (phase === 2 && partNumber >= 3) {
+          secondMissingReceived.resolve();
+          await secondResponses.promise;
+        }
+        uploads.get(uploadId).set(partNumber, body);
+        res.setHeader('etag', md5(body));
+        return res.end();
+      }
+      if (req.method === 'POST' && uploadId) {
+        const parts = uploads.get(uploadId);
+        assert.equal(parts.size, 4, 'Completion requires every part');
+        const completed = [
+          ...body
+            .toString()
+            .matchAll(/<Part><PartNumber>(\d+)<\/PartNumber><ETag>(.*?)<\/ETag><\/Part>/g),
+        ];
+        assert.equal(completed.length, 4, 'The real SDK must supply its complete part manifest');
+        for (const [, number, etag] of completed)
+          assert.equal(etag.replaceAll('&quot;', '"'), md5(parts.get(Number(number))));
+        objects.set(
+          url.pathname,
+          Buffer.concat([...parts].sort((a, b) => a[0] - b[0]).map(([, data]) => data)),
+        );
+        uploads.delete(uploadId);
+        return xml(
+          '<CompleteMultipartUploadResult><ETag>"complete-resumed"</ETag></CompleteMultipartUploadResult>',
+        );
+      }
+      const data = objects.get(url.pathname);
+      if (!data) {
+        res.statusCode = 404;
+        return res.end();
+      }
+      res.setHeader('etag', '"complete-resumed"');
+      if (req.method === 'HEAD') {
+        res.setHeader('content-length', data.length);
+        return res.end();
+      }
+      if (req.method === 'GET') {
+        const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range ?? '');
+        if (range) {
+          const start = Number(range[1]);
+          const end = Number(range[2]);
+          res.statusCode = 206;
+          res.setHeader('content-range', `bytes ${start}-${end}/${data.length}`);
+          res.setHeader('content-length', end - start + 1);
+          return res.end(data.subarray(start, end + 1));
+        }
+        res.setHeader('content-length', data.length);
+        return res.end(data);
+      }
+      throw Error('Unexpected COS request');
+    } catch (error) {
+      if (req.destroyed && error.code === 'ECONNRESET') return;
+      errors.push(error);
+      t.diagnostic(error.stack);
+      res.statusCode = 500;
+      res.end();
+    }
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(async () => {
+    secondResponses.resolve();
+    server.closeAllConnections();
+    await new Promise((done) => server.close(done));
+    await rm(directory, { recursive: true, force: true });
+  });
+  const cos = new COS({
+    SecretId: 'fixture',
+    SecretKey: 'fixture',
+    Protocol: 'http:',
+    Domain: `127.0.0.1:${server.address().port}`,
+    ...ARCHIVE_COS_OPTIONS,
+    ProgressInterval: 10,
+    ConfCwd: directory,
+  });
+  const upload = cos.uploadFile.bind(cos);
+  cos.uploadFile = (params, callback) => {
+    temporaryFiles.push(params.FilePath);
+    return upload(params, callback);
+  };
+  const multipart = cos.multipartUpload.bind(cos);
+  cos.multipartUpload = (params, callback) =>
+    multipart(params, (error, value) => {
+      // Observe an actual SDK acknowledgement, not merely a server write or a sleep.
+      if (!error && phase === 1 && params.PartNumber <= 2) {
+        firstAcks.add(params.PartNumber);
+        if (firstAcks.size === 2) firstAcknowledged.resolve();
+      }
+      callback(error, value);
+    });
+  const transfer = createCosArchiveTransfer({ cos, policy });
+  return {
+    bytes,
+    credential,
+    calls,
+    cos,
+    uploads,
+    objects,
+    temporaryFiles,
+    errors,
+    firstAcknowledged: firstAcknowledged.promise,
+    missingReceived: missingReceived.promise,
+    secondMissingReceived: secondMissingReceived.promise,
+    releaseSecond: secondResponses.resolve,
+    oldResponses,
+    secondPhase() {
+      phase = 2;
+    },
+    corruptDigest() {
+      const data = Buffer.from(uploads.get('resume-upload-1').get(1));
+      data[0] ^= 0xff;
+      uploads.get('resume-upload-1').set(1, data);
+    },
+    corruptSize() {
+      wrongSize = true;
+    },
+    put: (options) => transfer.put(credential, bytes, options),
+    read: () =>
+      transfer.read(null, credential.storageFileId, { maxBytes: bytes.length, timeoutMs: 10_000 }),
+  };
+}
+
+for (const mismatch of [null, 'md5', 'size'])
+  test(
+    `the real COS client resumes a canceled new-path upload${mismatch ? ` and rejects an old ${mismatch} mismatch` : ' by sending only missing parts'}`,
+    { timeout: 25_000 },
+    async (t) => {
+      const f = await multipartResumeFixture(t);
+      const firstOutcome = f.put({ uploadTimeoutMs: 4000 }).then(
+        () => ({ succeeded: true }),
+        (error) => error,
+      );
+      await Promise.all([f.firstAcknowledged, f.missingReceived]);
+      assert.equal((await firstOutcome).code, 'ETIMEDOUT');
+      await Promise.all(f.oldResponses.map(({ closed }) => closed.promise));
+      assert.deepEqual([...f.uploads.get('resume-upload-1').keys()].sort(), [1, 2]);
+      assert.equal(f.cos.getTaskList()[0].state, 'canceled');
+      assert.equal(existsSync(f.temporaryFiles[0]), false);
+      assert.equal(existsSync(dirname(f.temporaryFiles[0])), false);
+      assert.equal(
+        f.calls.some((call) => call.method === 'POST' && call.query.includes('uploadId')),
+        false,
+      );
+      if (mismatch === 'md5') f.corruptDigest();
+      if (mismatch === 'size') f.corruptSize();
+      f.secondPhase();
+      let secondCompleted = false;
+      const second = f.put({ uploadTimeoutMs: 10_000 }).then(() => {
+        secondCompleted = true;
+      });
+      await f.secondMissingReceived;
+      // Replies attempted after the old socket was canceled cannot complete the new task.
+      for (const { res } of f.oldResponses) {
+        assert.equal(res.destroyed, true);
+        res.end();
+      }
+      assert.equal(secondCompleted, false);
+      assert.equal(f.cos.getTaskList()[0].state, 'canceled');
+      assert.notEqual(f.cos.getTaskList()[1].state, 'success');
+      assert.equal(
+        f.calls.some(
+          (call) => call.phase === 2 && call.method === 'POST' && call.query.includes('uploadId'),
+        ),
+        false,
+      );
+      f.releaseSecond();
+      await second;
+      assert.notEqual(
+        f.temporaryFiles[0],
+        f.temporaryFiles[1],
+        'Each put must use a fresh private temporary path',
+      );
+      assert.ok(f.temporaryFiles.every((file) => !existsSync(file) && !existsSync(dirname(file))));
+      const calls = f.calls.filter((call) => call.phase === 2);
+      assert.equal(
+        calls.filter((call) => call.method === 'GET' && call.query.includes('uploads')).length,
+        1,
+      );
+      assert.equal(
+        calls.filter((call) => call.method === 'GET' && call.uploadId === 'resume-upload-1').length,
+        1,
+      );
+      const sent = calls.filter((call) => call.method === 'PUT' && call.partNumber);
+      assert.deepEqual(
+        sent.map((call) => call.partNumber).sort(),
+        mismatch ? [1, 2, 3, 4] : [3, 4],
+      );
+      assert.equal(
+        calls.filter((call) => call.method === 'POST' && call.query.includes('uploads')).length,
+        mismatch ? 1 : 0,
+      );
+      assert.ok(
+        sent.every((call) => call.uploadId === (mismatch ? 'resume-upload-2' : 'resume-upload-1')),
+      );
+      assert.equal(calls.filter((call) => call.method === 'POST' && call.uploadId).length, 1);
+      assert.deepEqual(await f.read(), f.bytes);
+      assert.deepEqual(
+        f.cos.getTaskList().map((task) => task.state),
+        ['canceled', 'success'],
+      );
+      assert.deepEqual(f.errors, []);
+      t.diagnostic(
+        JSON.stringify({
+          sdk: '2.15.4',
+          mismatch,
+          reusedParts: mismatch ? 0 : 2,
+          sentParts: sent.length,
+          bytes: f.bytes.length,
+        }),
+      );
+    },
+  );
