@@ -9,6 +9,7 @@
   "include": [
     "playwright.assistant-chat.config.ts",
     "tests/assistant-chat/**/*.ts",
-    "scripts/assistant-chat-local.ts"
+    "scripts/assistant-chat-local.ts",
+    "scripts/assistant-sales-browser.mts"
   ]
 }
