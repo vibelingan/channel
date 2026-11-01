@@ -184,6 +184,87 @@ test('accepted registration cleanup follows bounded cursors and preserves its se
   await client.close();
 });
 
+const renderer = {
+  codeSha: 'e'.repeat(40),
+  manifestSha256: 'e'.repeat(64),
+  archiveSha256: 'f'.repeat(64),
+  archiveFileId: `cloud://${policy.envId}.private/renderer`,
+  inputSchema: 1,
+};
+const activation = {
+  artifact: { artifactId: '12345' },
+  acceptedSeal: { seal: 'exact' },
+  renderer,
+  executorRef: 'feat/seo-foundation',
+  expectedWrites: 9,
+};
+const active = {
+  codeSha: renderer.codeSha,
+  manifestSha256: renderer.manifestSha256,
+  executorSha: codeSha,
+  executorRef: activation.executorRef,
+  acceptedRunId: runId,
+  catalogTracked: true,
+};
+test('activation sends the fixed registration proof and validates every returned active field', async (t) => {
+  const f = await fixture(t);
+  f.invoke = (request) => {
+    assert.equal(request.action, 'registration.activate');
+    assert.deepEqual(request.input, activation);
+    return { registered: true, active };
+  };
+  const client = await f.start();
+  assert.deepEqual(await client.activateAcceptedRegistration(activation), {
+    registered: true,
+    active,
+  });
+  await client.close();
+});
+test('activation lost reply resolves only the original receipt and never submits a second activation', async (t) => {
+  const f = await fixture(t);
+  let original;
+  f.invoke = (request) => {
+    if (request.action === 'registration.activate') {
+      original = request;
+      throw Error('Reply lost after registration');
+    }
+    assert.equal(request.action, 'operation.get');
+    assert.deepEqual(request.input, { requestId: original.requestId, inputHash: 'd'.repeat(64) });
+    return {
+      state: 'completed',
+      receipt: { action: 'registration.activate', result: { registered: true, active } },
+    };
+  };
+  const client = await f.start();
+  assert.deepEqual(await client.activateAcceptedRegistration(activation), {
+    registered: true,
+    active,
+  });
+  assert.equal(f.calls.filter((call) => call[1] === 'registration.activate').length, 1);
+  assert.equal((await f.receipt()).unconfirmed, false);
+  await client.close();
+});
+test('a mismatched activation receipt retains its worker rather than accepting another program', async (t) => {
+  const f = await fixture(t);
+  f.invoke = (request) =>
+    request.action === 'operation.get'
+      ? {
+          state: 'completed',
+          receipt: {
+            action: 'registration.activate',
+            result: { registered: true, active: { ...active, acceptedRunId: 'site-99999999-1' } },
+          },
+        }
+      : { registered: true, active: { ...active, codeSha: '0'.repeat(40) } };
+  const client = await f.start();
+  await assert.rejects(client.activateAcceptedRegistration(activation), {
+    code: 'CATALOG_REGIONAL_UNCONFIRMED',
+  });
+  assert.equal(client.unconfirmed, true);
+  assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
+  assert.deepEqual(f.deleted, []);
+});
+
 test('registration cleanup stops rather than accepting a repeated cursor or skipped state', async (t) => {
   for (const next of [
     { state: 'leased', cursor: null },

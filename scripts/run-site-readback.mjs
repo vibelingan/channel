@@ -10,7 +10,10 @@ import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { planSiteReleaseCandidate } from './hosting-recovery.mjs';
 import { createReleaseRegionalClient } from './release-regional-client.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
-import { activateCatalogRenderer } from './release/catalog-activation.mjs';
+import {
+  activateAcceptedCatalogRegistration,
+  activateCatalogRenderer,
+} from './release/catalog-activation.mjs';
 import {
   completeCatalogRegistration,
   releaseStoppedCatalogRegistration,
@@ -462,12 +465,7 @@ export async function runSiteReadback(env = process.env) {
         runId,
         input,
         owner: readbackOwner,
-        register: async ({
-          run: acceptedRun,
-          guard: registrationGuard,
-          checkpoint,
-          writeActive,
-        }) => {
+        register: async ({ run: acceptedRun, guard: registrationGuard, checkpoint }) => {
           const source = compatibility.renderer;
           const approved = await catalogStore.get('catalogSeoBuilders', source.codeSha);
           if (
@@ -516,11 +514,15 @@ export async function runSiteReadback(env = process.env) {
                   files,
                   checkpoint: regionalCheckpoint,
                 }),
-              writeActive: async (data) => {
-                await regionalAccess.drain();
-                regionalAccess.check();
-                return writeActive(data);
-              },
+              writeActive: (data) =>
+                activateAcceptedCatalogRegistration({
+                  regional,
+                  input,
+                  renderer: source,
+                  executorRef: env.GITHUB_REF.slice(11),
+                  expectedWrites: current.writes,
+                  data,
+                }),
             });
           } finally {
             await regionalAccess.drain();

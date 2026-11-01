@@ -31,7 +31,10 @@ import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { auditHostingContract } from './hosting-contract.mjs';
 import { createReleaseRegionalClient } from './release-regional-client.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
-import { activateCatalogRenderer } from './release/catalog-activation.mjs';
+import {
+  activateAcceptedCatalogRegistration,
+  activateCatalogRenderer,
+} from './release/catalog-activation.mjs';
 import { loadCatalogPreparationEvidence } from './release/catalog-preparation-evidence.mjs';
 import { recoverCatalogPreparation } from './release/catalog-preparation-recovery.mjs';
 import { completeCatalogRegistration } from './release/catalog-registration.mjs';
@@ -1028,11 +1031,9 @@ try {
           },
           register: async ({
             checkpoint,
-            writeActive,
             guard: registrationGuard,
           }: {
             checkpoint: () => Promise<unknown>;
-            writeActive: (data: object) => Promise<void>;
             guard: typeof guard;
           }) => {
             guard = registrationGuard;
@@ -1053,7 +1054,17 @@ try {
                     checkpoint: () => heartbeat.checkpoint(),
                   });
                 },
-                writeActive: (data: object) => heartbeat.withLease(() => writeActive(data)),
+                writeActive: async (data: object) => {
+                  if (!catalog || !renderer) throw Error('Catalog registration context changed');
+                  await activateAcceptedCatalogRegistration({
+                    regional: await regionalCatalog(),
+                    input: candidate,
+                    renderer: renderer.proof,
+                    executorRef: env.GITHUB_REF?.slice(11),
+                    expectedWrites: catalog.writes,
+                    data,
+                  });
+                },
               });
             } finally {
               await heartbeat.stop();

@@ -58,11 +58,40 @@ const artifactSchema = z
     expiresAt: z.string().datetime({ offset: true }),
   })
   .strict();
+const rendererSchema = z
+  .object({
+    codeSha: z.string().regex(/^[a-f0-9]{40}$/),
+    manifestSha256: hash,
+    archiveSha256: hash,
+    archiveFileId: z.string().min(1).max(2000),
+    inputSchema: z.literal(1),
+  })
+  .strict();
+const activationInputSchema = z
+  .object({
+    artifact: artifactSchema,
+    acceptedSeal: z.record(z.unknown()),
+    renderer: rendererSchema,
+    executorRef: z.enum(['feat/seo-foundation', 'test']),
+    expectedWrites: counter,
+  })
+  .strict();
+const activeRendererSchema = z
+  .object({
+    codeSha: z.string().regex(/^[a-f0-9]{40}$/),
+    manifestSha256: hash,
+    executorSha: z.string().regex(/^[a-f0-9]{40}$/),
+    executorRef: z.enum(['feat/seo-foundation', 'test']),
+    acceptedRunId: z.string().regex(/^site-[1-9][0-9]*-[1-9][0-9]*$/),
+    catalogTracked: z.literal(true),
+  })
+  .strict();
 const action = <T extends string, S extends z.ZodTypeAny>(name: T, input: S) =>
   common.extend({ action: z.literal(name), input }).strict();
 export const CatalogRegionalRequestSchema = z.discriminatedUnion('action', [
   action('health', empty),
   action('capture.read', empty),
+  action('registration.activate', activationInputSchema),
   action(
     'registration.clear',
     z
@@ -205,7 +234,7 @@ export function createCatalogRegionalHandler(
           request,
           request.input.requestId,
           request.input.inputHash,
-          now(),
+          now,
         );
         return success(result);
       }
@@ -224,13 +253,16 @@ export function createCatalogRegionalHandler(
         const result = readReceipt(previous, request.runId, request.requestId, inputHash);
         if (request.action === 'delivery.begin')
           await assertBeginStillOwned(store, config.siteOrigin, result);
+        if (request.action === 'registration.activate')
+          await assertActivationReceiptCurrent(store, previous, request, config, now);
         return success(result);
       }
       let tail: Promise<unknown> = Promise.resolve();
       let unit = 0;
       const atomicDelivery =
         (request.action.startsWith('delivery.') && request.action !== 'delivery.check') ||
-        request.action === 'registration.clear';
+        request.action === 'registration.clear' ||
+        request.action === 'registration.activate';
       const guarded: CatalogSeoStore = {
         get: store.get.bind(store),
         list: store.list.bind(store),
@@ -253,6 +285,8 @@ export function createCatalogRegionalHandler(
                 );
                 if (currentRequest.action === 'delivery.begin')
                   await assertBeginStillOwned(tx, config.siteOrigin, result);
+                if (currentRequest.action === 'registration.activate')
+                  await assertActivationReceiptCurrent(tx, existing, currentRequest, config, now);
                 return existing.value as T;
               }
               const writes: { collection: string; row: CollectionDoc }[] = [];
@@ -263,7 +297,15 @@ export function createCatalogRegionalHandler(
                   return tx.get(collection, key);
                 },
                 set: async (collection, row) => {
-                  if (!seoWrites.has(collection)) throw new RegionalError('REGIONAL_WRITE_SCOPE');
+                  if (
+                    !seoWrites.has(collection) &&
+                    !(
+                      currentRequest.action === 'registration.activate' &&
+                      collection === 'catalogSeoBuilders' &&
+                      row._id === 'active'
+                    )
+                  )
+                    throw new RegionalError('REGIONAL_WRITE_SCOPE');
                   writing = true;
                   writes.push({ collection, row: structuredClone(row) });
                 },
@@ -298,7 +340,9 @@ export function createCatalogRegionalHandler(
         detailEnabled: 'detailEnabled' in request.input ? request.input.detailEnabled : false,
       };
       let result: JsonResult;
-      if (request.action === 'registration.clear') {
+      if (request.action === 'registration.activate') {
+        result = await activateAcceptedRenderer(guarded, request, config, now);
+      } else if (request.action === 'registration.clear') {
         result = await clearRegistrationStep(guarded, request, config, clock, now);
       } else if (request.action === 'seed') {
         result = await seedCatalogSeoRequests(
@@ -507,7 +551,7 @@ function assertLease(
     throw new RegionalError('REGIONAL_LEASE_CHANGED');
 }
 async function assertCurrentLease(
-  store: CatalogSeoStore,
+  store: Pick<CatalogSeoStore, 'get'>,
   request: CatalogRegionalRequest,
   config: CatalogRegionalConfig,
   now: number,
@@ -553,10 +597,14 @@ async function captureHeads(store: CatalogSeoStore, siteOrigin: string, clock: (
   return { writes: after.writes, heads };
 }
 type RegistrationClearRequest = Extract<CatalogRegionalRequest, { action: 'registration.clear' }>;
+type RegistrationActivateRequest = Extract<
+  CatalogRegionalRequest,
+  { action: 'registration.activate' }
+>;
 
 async function assertAcceptedRegistration(
   store: Pick<CatalogSeoStore, 'get'>,
-  request: RegistrationClearRequest,
+  request: RegistrationClearRequest | RegistrationActivateRequest,
   config: CatalogRegionalConfig,
   now: number,
 ) {
@@ -593,7 +641,7 @@ async function assertAcceptedRegistration(
     Reflect.get(accepted, 'sourceRunId') !== config.runId ||
     Reflect.get(pointer, 'sourceRunId') !== config.runId ||
     typeof Reflect.get(accepted, 'activationId') !== 'string' ||
-    !hash.safeParse(Reflect.get(accepted, 'activationId')).success ||
+    !id.safeParse(Reflect.get(accepted, 'activationId')).success ||
     Reflect.get(pointer, 'activationId') !== Reflect.get(accepted, 'activationId')
   )
     throw new RegionalError('REGIONAL_REGISTRATION_SOURCE_CHANGED');
@@ -616,6 +664,111 @@ async function assertAcceptedRegistration(
     !isDeepStrictEqual(seal, request.input.acceptedSeal)
   )
     throw new RegionalError('REGIONAL_REGISTRATION_SOURCE_CHANGED');
+  return run;
+}
+
+/** This action has one fixed destination; caller data never becomes an arbitrary document. */
+async function activateAcceptedRenderer(
+  store: CatalogSeoStore,
+  request: RegistrationActivateRequest,
+  config: CatalogRegionalConfig,
+  now: () => number,
+): Promise<JsonResult> {
+  return store.transaction(async (tx) => {
+    const run = await assertAcceptedRegistration(tx, request, config, now());
+    const renderer = request.input.renderer;
+    const approved = await tx.get('catalogSeoBuilders', renderer.codeSha);
+    if (
+      approved?._id !== renderer.codeSha ||
+      approved.schemaVersion !== 1 ||
+      approved.codeSha !== renderer.codeSha ||
+      approved.manifestSha256 !== renderer.manifestSha256 ||
+      approved.archiveSha256 !== renderer.archiveSha256 ||
+      approved.inputSchema !== 1 ||
+      !approved.archiveObject ||
+      typeof approved.archiveObject !== 'object' ||
+      Array.isArray(approved.archiveObject) ||
+      Reflect.get(approved.archiveObject, 'fileID') !== renderer.archiveFileId
+    )
+      throw new RegionalError('REGIONAL_RENDERER_NOT_APPROVED');
+    const control = readCatalogSeoControl(
+      await tx.get('catalogSeoControl', catalogSeoControlId(config.siteOrigin)),
+      config.siteOrigin,
+      new Date(now()).toISOString(),
+    );
+    if (control.state !== 'idle' || control.writes !== request.input.expectedWrites)
+      throw new RegionalError('REGIONAL_NOT_SETTLED');
+    const active = {
+      codeSha: approved.codeSha,
+      manifestSha256: approved.manifestSha256,
+      executorSha: config.codeSha,
+      executorRef: request.input.executorRef,
+      acceptedRunId: config.runId,
+      catalogTracked: true,
+    };
+    const previous = await tx.get('catalogSeoBuilders', 'active');
+    if (previous) {
+      const prior = activeRendererSchema
+        .extend({ catalogTracked: z.boolean() })
+        .parse(Object.fromEntries(Object.entries(previous).filter(([key]) => key !== '_id')));
+      if (prior.acceptedRunId === config.runId) {
+        if (prior.codeSha !== active.codeSha || prior.manifestSha256 !== active.manifestSha256)
+          throw new RegionalError('REGIONAL_ACTIVATION_CHANGED');
+      } else {
+        const key = digest(
+          JSON.stringify({ runId: prior.acceptedRunId, targetId: config.targetId }),
+        );
+        const older = await tx.get('siteReleaseRuns', key);
+        if (
+          older?.state !== 'SUCCEEDED' ||
+          older.runId !== prior.acceptedRunId ||
+          older.targetId !== config.targetId ||
+          older.scopeKey !== 'site' ||
+          !older.accepted ||
+          typeof older.accepted !== 'object' ||
+          Array.isArray(older.accepted) ||
+          Reflect.get(older.accepted, 'sourceRunId') !== prior.acceptedRunId ||
+          !counter.safeParse(older.baseScopeVersion).success ||
+          !counter.safeParse(run.baseScopeVersion).success ||
+          Number(older.baseScopeVersion) >= Number(run.baseScopeVersion)
+        )
+          throw new RegionalError('REGIONAL_ACTIVATION_CHANGED');
+      }
+    }
+    await assertCurrentLease(tx, request, config, now());
+    await tx.set('catalogSeoBuilders', { _id: 'active', ...active });
+    return { registered: true, active };
+  });
+}
+
+async function assertActivationReceiptCurrent(
+  store: Pick<CatalogSeoStore, 'get'>,
+  row: CollectionDoc,
+  request: CatalogRegionalRequest,
+  config: CatalogRegionalConfig,
+  now: () => number,
+) {
+  const input = activationInputSchema.parse(row.activationInput);
+  const original: RegistrationActivateRequest = {
+    ...request,
+    action: 'registration.activate',
+    input,
+  };
+  await assertAcceptedRegistration(store, original, config, now());
+  const result = z
+    .object({ registered: z.literal(true), active: activeRendererSchema })
+    .strict()
+    .parse(row.result);
+  const current = await store.get('catalogSeoBuilders', 'active');
+  if (
+    !current ||
+    !isDeepStrictEqual(
+      Object.fromEntries(Object.entries(current).filter(([key]) => key !== '_id')),
+      result.active,
+    )
+  )
+    throw new RegionalError('REGIONAL_ACTIVATION_CHANGED');
+  await assertCurrentLease(store, request, config, now());
 }
 
 async function clearRegistrationStep(
@@ -719,7 +872,7 @@ async function clearRegistrationStep(
 }
 function deliveryResult(request: CatalogRegionalRequest, value: unknown): JsonResult {
   if (
-    request.action === 'registration.clear' &&
+    ['registration.clear', 'registration.activate'].includes(request.action) &&
     value &&
     typeof value === 'object' &&
     !Array.isArray(value)
@@ -758,6 +911,7 @@ function receipt(
     inputHash,
     result,
     completedAt: new Date(now).toISOString(),
+    ...(request.action === 'registration.activate' ? { activationInput: request.input } : {}),
   };
 }
 function readReceipt(
@@ -787,7 +941,7 @@ async function operationStatus(
   request: CatalogRegionalRequest,
   requestId: string,
   inputHash: string,
-  now: number,
+  now: () => number,
 ): Promise<JsonResult> {
   const completed = await store.get(
     'catalogSeoBuilders',
@@ -796,9 +950,11 @@ async function operationStatus(
   if (completed) {
     const result = readReceipt(completed, config.runId, requestId, inputHash);
     if (completed.action === 'delivery.begin') {
-      await assertCurrentLease(store, request, config, now);
+      await assertCurrentLease(store, request, config, now());
       await assertBeginStillOwned(store, config.siteOrigin, result);
     }
+    if (completed.action === 'registration.activate')
+      await assertActivationReceiptCurrent(store, completed, request, config, now);
     return { state: 'completed', receipt: { action: completed.action, result } };
   }
   const first = await store.get(

@@ -54,7 +54,7 @@ const acceptedArtifact = {
 };
 const acceptedSeal = {
   schemaVersion: 1,
-  activationId: 'f'.repeat(64),
+  activationId: 'cf576f0a-e3ca-40a5-9b1b-3a095a5e2594',
   releaseId: config.runId,
   codeSha: config.codeSha,
   artifact: acceptedArtifact,
@@ -384,6 +384,311 @@ test('the installed SDK rolls back task cleanup when its same-transaction receip
     renewedUntil,
   );
   assert.ok(x.calls.filter((call) => call.api === 'database.startTransaction').length >= 3);
+});
+
+const rendererProof = {
+  codeSha: 'd'.repeat(40),
+  manifestSha256: '6'.repeat(64),
+  archiveSha256: '7'.repeat(64),
+  archiveFileId: `cloud://${config.envId}.private/catalog-renderer/approved.tar.gz`,
+  inputSchema: 1,
+};
+const activeInput = () => ({
+  artifact: acceptedArtifact,
+  acceptedSeal,
+  renderer: rendererProof,
+  executorRef: 'feat/seo-foundation',
+  expectedWrites: 0,
+});
+const activeData = () => ({
+  codeSha: rendererProof.codeSha,
+  manifestSha256: rendererProof.manifestSha256,
+  executorSha: config.codeSha,
+  executorRef: 'feat/seo-foundation',
+  acceptedRunId: config.runId,
+  catalogTracked: true,
+});
+function approveRenderer(put: (collection: string, row: CollectionDoc) => void) {
+  put('catalogSeoBuilders', {
+    _id: rendererProof.codeSha,
+    schemaVersion: 1,
+    codeSha: rendererProof.codeSha,
+    manifestSha256: rendererProof.manifestSha256,
+    archiveSha256: rendererProof.archiveSha256,
+    archiveObject: { fileID: rendererProof.archiveFileId },
+    inputSchema: 1,
+  });
+}
+function prepareActiveFixture() {
+  const x = fixture();
+  acceptedRows(x.put, x.target);
+  const run = x.read('siteReleaseRuns', runKey);
+  assert(run);
+  x.put('siteReleaseRuns', { ...run, baseScopeVersion: 1 });
+  approveRenderer(x.put);
+  return x;
+}
+
+test('regional activation derives a fixed active record from approved renderer and accepted site', async () => {
+  const x = prepareActiveFixture();
+  const business = { _id: 'customer', published: true, name: 'Keep current product', extra: 42 };
+  const article = { _id: 'article', title: 'New article remains', revision: 12 };
+  x.put('products', business);
+  x.put('articles', article);
+  const command = request('registration.activate', activeInput());
+  const result = await x.handler(command);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(result.result, { registered: true, active: activeData() });
+  assert.deepEqual(x.read('catalogSeoBuilders', 'active'), { _id: 'active', ...activeData() });
+  assert.deepEqual(x.read('products', business._id), business);
+  assert.deepEqual(x.read('articles', article._id), article);
+  assert.ok(
+    x.written.every((collection) =>
+      ['catalogSeoBuilders', 'siteReleaseTargets'].includes(collection),
+    ),
+  );
+  const written = x.written.length;
+  assert.deepEqual((await x.handler(command)).result, result.result);
+  assert.equal(x.written.length, written);
+  const replay = await x.handler(
+    request(
+      'operation.get',
+      {
+        requestId: command.requestId,
+        inputHash: catalogRegionalRequestHash(command),
+      },
+      'activation-readback',
+    ),
+  );
+  assert.deepEqual(replay.result, {
+    state: 'completed',
+    receipt: { action: 'registration.activate', result: result.result },
+  });
+});
+
+test('activation rejects unapproved renderer identities and arbitrary remote write fields', async () => {
+  for (const changed of [
+    { renderer: { ...rendererProof, manifestSha256: '0'.repeat(64) } },
+    { renderer: { ...rendererProof, archiveSha256: '0'.repeat(64) } },
+    { renderer: { ...rendererProof, archiveFileId: `cloud://${config.envId}.private/other` } },
+    { data: { _id: 'customer', catalogTracked: true } },
+    { collection: 'products' },
+    { executorRef: 'main' },
+  ]) {
+    const x = prepareActiveFixture();
+    const result = await x.handler(
+      request('registration.activate', { ...activeInput(), ...changed }),
+    );
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.error?.code,
+      'renderer' in changed ? 'REGIONAL_RENDERER_NOT_APPROVED' : 'REGIONAL_INVALID_REQUEST',
+    );
+    assert.equal(x.read('catalogSeoBuilders', 'active'), null);
+  }
+});
+
+test('older site and newer active pointers cannot be overwritten by a stale registration', async () => {
+  for (const changed of ['baseline', 'newer-active', 'same-run-different-renderer']) {
+    const x = prepareActiveFixture();
+    const newerRunId = 'site-99999999-1';
+    const newerKey = createHash('sha256')
+      .update(JSON.stringify({ runId: newerRunId, targetId: config.targetId }))
+      .digest('hex');
+    const next = { ...activeData(), acceptedRunId: newerRunId };
+    if (changed === 'baseline') {
+      const scope = x.read('siteReleaseScopes', `${config.targetId}-site`);
+      assert(scope);
+      x.put('siteReleaseScopes', {
+        ...scope,
+        active: { sourceRunId: newerRunId },
+        baseline: { sourceRunId: newerRunId },
+      });
+    } else if (changed === 'newer-active') {
+      x.put('siteReleaseRuns', {
+        _id: newerKey,
+        schemaVersion: 1,
+        targetId: config.targetId,
+        runId: newerRunId,
+        scopeKey: 'site',
+        state: 'SUCCEEDED',
+        baseScopeVersion: 2,
+        accepted: { sourceRunId: newerRunId },
+      });
+    } else {
+      next.acceptedRunId = config.runId;
+      next.codeSha = '0'.repeat(40);
+    }
+    x.put('catalogSeoBuilders', { _id: 'active', ...next });
+    const result = await x.handler(request('registration.activate', activeInput()));
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.error?.code,
+      changed === 'baseline'
+        ? 'REGIONAL_REGISTRATION_SOURCE_CHANGED'
+        : 'REGIONAL_ACTIVATION_CHANGED',
+    );
+    assert.deepEqual(x.read('catalogSeoBuilders', 'active'), { _id: 'active', ...next });
+  }
+});
+
+test('an older accepted active pointer may advance to the current accepted program', async () => {
+  const x = prepareActiveFixture();
+  const previousRunId = 'site-11111111-1';
+  const previousKey = createHash('sha256')
+    .update(JSON.stringify({ runId: previousRunId, targetId: config.targetId }))
+    .digest('hex');
+  x.put('siteReleaseRuns', {
+    _id: previousKey,
+    schemaVersion: 1,
+    targetId: config.targetId,
+    runId: previousRunId,
+    scopeKey: 'site',
+    state: 'SUCCEEDED',
+    baseScopeVersion: 0,
+    accepted: { sourceRunId: previousRunId },
+  });
+  x.put('catalogSeoBuilders', { _id: 'active', ...activeData(), acceptedRunId: previousRunId });
+  assert.equal((await x.handler(request('registration.activate', activeInput()))).ok, true);
+  assert.equal(x.read('catalogSeoBuilders', 'active')?.acceptedRunId, config.runId);
+});
+
+test('a changed registration guard or current product revision prevents active writes', async () => {
+  for (const changed of ['fence', 'writes', 'control']) {
+    const x = prepareActiveFixture();
+    if (changed === 'fence')
+      x.put('siteReleaseTargets', {
+        ...x.target,
+        currentRunId: null,
+        dirtyRunId: null,
+        unresolvedOperation: null,
+        lease: {
+          ...guard,
+          fence: guard.fence + 1,
+          runnerRef: config.runnerRef,
+          expiresAt: now + 120000,
+        },
+      });
+    else
+      x.put('catalogSeoControl', {
+        ...idleCatalogSeoControl(config.siteOrigin, new Date(now).toISOString()),
+        ...(changed === 'writes' ? { writes: 1 } : registrationControl([])),
+      });
+    const response = await x.handler(request('registration.activate', activeInput()));
+    assert.equal(response.ok, false);
+    assert.equal(
+      response.error?.code,
+      changed === 'fence' ? 'REGIONAL_LEASE_CHANGED' : 'REGIONAL_NOT_SETTLED',
+    );
+    assert.equal(x.read('catalogSeoBuilders', 'active'), null);
+  }
+});
+
+test('activation rejects changed accepted artifact, seal and malformed real activation identities', async () => {
+  for (const changed of ['artifact', 'seal', 'activation-id']) {
+    const x = prepareActiveFixture();
+    const input = activeInput();
+    if (changed === 'artifact') input.artifact = { ...input.artifact, artifactId: '9999' };
+    else if (changed === 'seal')
+      input.acceptedSeal = { ...input.acceptedSeal, codeSha: '0'.repeat(40) };
+    else {
+      const run = x.read('siteReleaseRuns', runKey);
+      assert(run);
+      x.put('siteReleaseRuns', {
+        ...run,
+        accepted: {
+          sourceRunId: config.runId,
+          activationId: 'invalid id with spaces',
+          seals: { static: acceptedSeal },
+        },
+      });
+    }
+    const result = await x.handler(request('registration.activate', input));
+    assert.equal(result.error?.code, 'REGIONAL_REGISTRATION_SOURCE_CHANGED');
+    assert.equal(x.read('catalogSeoBuilders', 'active'), null);
+  }
+});
+
+test('lease expiry during activation reads rolls back active and the atomic receipt', async () => {
+  const x = prepareActiveFixture();
+  const transaction = x.store.transaction;
+  x.store.transaction = (operation) =>
+    transaction((tx) =>
+      operation({
+        ...tx,
+        get: async (collection, key) => {
+          const result = await tx.get(collection, key);
+          if (collection === 'catalogSeoBuilders' && key === rendererProof.codeSha)
+            x.advance(120001);
+          return result;
+        },
+      }),
+    );
+  const command = request('registration.activate', activeInput());
+  const result = await x.handler(command);
+  assert.equal(result.error?.code, 'REGIONAL_LEASE_CHANGED');
+  assert.equal(x.read('catalogSeoBuilders', 'active'), null);
+  assert.equal(
+    x.read('catalogSeoBuilders', catalogRegionalReceiptId(config.runId, command.requestId)),
+    null,
+  );
+});
+
+test('failed activation receipt storage cannot leave an active pointer without its receipt', async () => {
+  const x = prepareActiveFixture();
+  const command = request('registration.activate', activeInput());
+  const key = catalogRegionalReceiptId(config.runId, command.requestId);
+  x.failReceipt(key);
+  assert.equal((await x.handler(command)).ok, false);
+  assert.equal(x.read('catalogSeoBuilders', 'active'), null);
+  assert.equal(x.read('catalogSeoBuilders', key), null);
+  x.failReceipt('');
+  assert.equal((await x.handler(command)).ok, true);
+});
+
+test('activation receipt cannot claim current authority after active or site ownership changes', async () => {
+  for (const changed of ['active', 'baseline', 'fence', 'expiry']) {
+    const x = prepareActiveFixture();
+    const command = request('registration.activate', activeInput());
+    assert.equal((await x.handler(command)).ok, true);
+    if (changed === 'active')
+      x.put('catalogSeoBuilders', { _id: 'active', ...activeData(), executorSha: '0'.repeat(40) });
+    if (changed === 'baseline') {
+      const scope = x.read('siteReleaseScopes', `${config.targetId}-site`);
+      assert(scope);
+      x.put('siteReleaseScopes', { ...scope, baseline: { sourceRunId: 'site-99999999-1' } });
+    }
+    if (changed === 'fence')
+      x.put('siteReleaseTargets', {
+        ...x.target,
+        lease: { ...guard, fence: 99, runnerRef: config.runnerRef, expiresAt: now + 120000 },
+      });
+    if (changed === 'expiry') x.advance(120001);
+    const written = x.written.length;
+    const reply = await x.handler(
+      request(
+        'operation.get',
+        { requestId: command.requestId, inputHash: catalogRegionalRequestHash(command) },
+        'read-activation',
+      ),
+    );
+    assert.equal(reply.ok, false);
+    assert.equal(x.written.length, written);
+    assert.equal((await x.handler(command)).ok, false);
+    assert.equal(x.written.length, written);
+  }
+});
+
+test('the same accepted renderer can upgrade an untracked pointer without erasing its program identity', async () => {
+  const x = prepareActiveFixture();
+  x.put('catalogSeoBuilders', {
+    _id: 'active',
+    ...activeData(),
+    catalogTracked: false,
+    executorSha: '0'.repeat(40),
+  });
+  assert.equal((await x.handler(request('registration.activate', activeInput()))).ok, true);
+  assert.deepEqual(x.read('catalogSeoBuilders', 'active'), { _id: 'active', ...activeData() });
 });
 
 test('capture.read is a fresh zero-write read and refuses pending work without consuming it', async () => {

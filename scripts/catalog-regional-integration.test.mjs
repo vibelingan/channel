@@ -6,8 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
+import { plan, receipt, stepInput } from './release-state-fixtures.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
+import { createReleaseCoordinator } from './release/state.mjs';
+import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
 
 const { require: tsxRequire } = createRequire(
   new URL('../apps/site/package.json', import.meta.url),
@@ -50,6 +53,7 @@ const hash = (body) => createHash('sha256').update(body).digest('hex');
 
 async function fixture(t, { tracked = true } = {}) {
   const f = articleSdkFixture(t);
+  f.db.config.env = policy.envId;
   // Both application modules use the actual installed SDK. Only its network
   // transport is replaced; CJS/ESM Db constructors can otherwise diverge.
   const originalRequest = f.db.constructor.reqClass;
@@ -137,6 +141,7 @@ async function fixture(t, { tracked = true } = {}) {
   const requests = [];
   const deleted = [];
   let loseNextReply;
+  const afterActions = new Map();
   const manager = {
     getManagerConfig: () => ({ envId: policy.envId, region: policy.region }),
     functions: {
@@ -194,6 +199,11 @@ async function fixture(t, { tracked = true } = {}) {
         const handler = functions.get(name)?.handler;
         assert.equal(typeof handler, 'function');
         const result = await handler(request);
+        const after = afterActions.get(request.action);
+        if (after) {
+          afterActions.delete(request.action);
+          await after(result, request);
+        }
         if (loseNextReply === request.action) {
           loseNextReply = undefined;
           throw Error('Synthetic reply loss after the real regional handler returned');
@@ -249,6 +259,9 @@ async function fixture(t, { tracked = true } = {}) {
     deleted,
     functions,
     start,
+    afterAction(action, callback) {
+      afterActions.set(action, callback);
+    },
     loseReply(action) {
       loseNextReply = action;
     },
@@ -392,4 +405,190 @@ test('a database commit acknowledgement lost inside a completed invocation is re
   await client.close();
   assert.deepEqual(f.deleted, [functionName]);
   assert.equal(f.functions.has('other-app'), true);
+});
+
+const activationRenderer = {
+  codeSha: 'c'.repeat(40),
+  manifestSha256: 'd'.repeat(64),
+  archiveSha256: 'e'.repeat(64),
+  archiveFileId: `cloud://${policy.envId}.private/accepted-renderer`,
+  inputSchema: 1,
+};
+const activationArtifact = {
+  repository: policy.repository,
+  workflowPath: '.github/workflows/seo-static-canary.yml',
+  runId: '41300590230',
+  artifactId: '123456',
+  manifestSha256: 'f'.repeat(64),
+  expiresAt: '2026-12-01T00:00:00.000Z',
+};
+const activationSeal = {
+  schemaVersion: 1,
+  codeSha,
+  activationId: '1'.repeat(64),
+  releaseId: runId,
+  artifact: activationArtifact,
+};
+const activationPayload = {
+  renderer: activationRenderer,
+  artifact: activationArtifact,
+  acceptedSeal: activationSeal,
+  executorRef: 'feat/seo-foundation',
+  expectedWrites: 7,
+};
+const expectedActive = {
+  codeSha: activationRenderer.codeSha,
+  manifestSha256: activationRenderer.manifestSha256,
+  executorSha: codeSha,
+  executorRef: activationPayload.executorRef,
+  acceptedRunId: runId,
+  catalogTracked: true,
+};
+async function acceptSiteForActivation(f) {
+  const coordinator = createReleaseCoordinator({
+    store: createCloudbaseReleaseStore({ db: f.db, envId: policy.envId }),
+    policy,
+    clock: () => now,
+  });
+  const owner = { ownerRunId: runId, runnerRef };
+  const guard = await coordinator.acquire(owner);
+  await coordinator.startRun({
+    guard,
+    runId,
+    scopeKey: 'site',
+    kind: 'adopt',
+    plan: plan(1),
+    composition: {
+      static: {
+        releaseId: runId,
+        codeSha,
+        contentSha256: 'f'.repeat(64),
+        artifact: activationArtifact,
+      },
+    },
+  });
+  const step = await coordinator.beginStep({ guard, runId, ...stepInput('accept') });
+  await coordinator.confirmStep({ guard, runId, stepId: step.stepId, receipt: receipt(step) });
+  await coordinator.commitRun({
+    guard,
+    runId,
+    changeSetRef: 'actual offline coordinator acceptance',
+  });
+  const accepted = await coordinator.runStatus(runId);
+  assert.match(accepted.accepted.activationId, /^[a-f0-9-]{36}$/);
+  Object.assign(f.guard, await coordinator.acquire(owner));
+  f.put('catalogSeoBuilders', activationRenderer.codeSha, {
+    schemaVersion: 1,
+    codeSha: activationRenderer.codeSha,
+    manifestSha256: activationRenderer.manifestSha256,
+    archiveSha256: activationRenderer.archiveSha256,
+    archiveObject: { fileID: activationRenderer.archiveFileId },
+    inputSchema: 1,
+  });
+  return { ...activationPayload, acceptedSeal: accepted.accepted.seals.static };
+}
+
+test('real activation commits fixed active and receipt together; a lost invocation reply only reads that receipt', async (t) => {
+  const f = await fixture(t);
+  const payload = await acceptSiteForActivation(f);
+  const client = await f.start();
+  const catalog = await client.prepare({ detailEnabled: true });
+  catalog.delivery.primeExpectedHeads(catalog.heads);
+  await catalog.delivery.accept(
+    catalog.heads.map((head) => ({
+      productId: head.productId,
+      htmlSha256: hash(`accepted ${head.productId}`),
+    })),
+  );
+  f.loseReply('registration.activate');
+  assert.deepEqual(await client.activateAcceptedRegistration(payload), {
+    registered: true,
+    active: expectedActive,
+  });
+  assert.deepEqual(f.rows.get('catalogSeoBuilders/active'), { _id: 'active', ...expectedActive });
+  assert.equal(f.requests.filter((r) => r.action === 'registration.activate').length, 1);
+  assert.equal(f.requests.filter((r) => r.action === 'operation.get').length, 1);
+  const writes = f.calls.filter(
+    (row) =>
+      row.api === 'database.modifyDocument' && row.params.collectionName === 'catalogSeoBuilders',
+  );
+  const lastTransaction = writes.at(-1).params.transactionId;
+  assert.ok(
+    writes.filter((row) => row.params.transactionId === lastTransaction).length >= 2,
+    'active and its receipt share the same transaction',
+  );
+  f.assertBusinessUnchanged();
+  await client.close();
+  assert.deepEqual(f.deleted, [functionName]);
+  assert.equal(f.functions.has('other-app'), true);
+});
+
+test('database commit reply loss recovers the real activation without a second write invocation', async (t) => {
+  const f = await fixture(t);
+  const payload = await acceptSiteForActivation(f);
+  const client = await f.start();
+  f.loseDatabaseCommitReply();
+  assert.deepEqual(await client.activateAcceptedRegistration(payload), {
+    registered: true,
+    active: expectedActive,
+  });
+  assert.equal(f.requests.filter((r) => r.action === 'registration.activate').length, 1);
+  assert.equal(f.requests.filter((r) => r.action === 'operation.get').length, 1);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+
+test('activation reply loss followed by ownership change retains the worker and does not release the new owner', async (t) => {
+  const f = await fixture(t);
+  const payload = await acceptSiteForActivation(f);
+  const client = await f.start();
+  f.loseReply('registration.activate');
+  const current = f.rows.get(`siteReleaseTargets/${targetId}`);
+  const next = {
+    ...current,
+    lease: {
+      ...current.lease,
+      ownerRunId: 'site-99999999-1',
+      runnerRef: 'github:vibelingan/channel:99999999:attempt-1',
+      fence: 8,
+    },
+  };
+  f.afterAction('registration.activate', () => f.put('siteReleaseTargets', targetId, next));
+  await assert.rejects(client.activateAcceptedRegistration(payload), {
+    code: 'CATALOG_REGIONAL_UNCONFIRMED',
+  });
+  assert.equal(f.rows.get(`siteReleaseTargets/${targetId}`).lease.ownerRunId, 'site-99999999-1');
+  assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
+  assert.deepEqual(f.deleted, []);
+  assert.equal(f.functions.has(functionName), true);
+  f.assertBusinessUnchanged();
+});
+
+test('scope change inside the real activation transaction rolls back active and its receipt', async (t) => {
+  const f = await fixture(t);
+  const payload = await acceptSiteForActivation(f);
+  const client = await f.start();
+  f.control.beforeCommit = () => {
+    f.control.beforeCommit = undefined;
+    const scope = f.rows.get(`siteReleaseScopes/${targetId}-site`);
+    const pointer = {
+      sourceRunId: 'site-99999999-1',
+      activationId: '3'.repeat(64),
+      compositionHash: '4'.repeat(64),
+    };
+    f.put('siteReleaseScopes', `${targetId}-site`, {
+      ...scope,
+      active: pointer,
+      baseline: pointer,
+    });
+  };
+  await assert.rejects(client.activateAcceptedRegistration(payload), {
+    code: 'REGIONAL_REGISTRATION_SOURCE_CHANGED',
+  });
+  assert.equal(f.rows.has('catalogSeoBuilders/active'), false);
+  const action = f.requests.find((r) => r.action === 'registration.activate');
+  const regionReceipt = `region-op-${hash(JSON.stringify([runId, action.requestId, 'completed']))}`;
+  assert.equal(f.rows.has(`catalogSeoBuilders/${regionReceipt}`), false);
+  f.assertBusinessUnchanged();
+  await client.close();
 });

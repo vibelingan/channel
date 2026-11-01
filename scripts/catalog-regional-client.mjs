@@ -156,6 +156,17 @@ export async function createCatalogRegionalClient({
         assert.ok(request.input.products.includes(head.productId));
       }
     }
+    if (request.action === 'registration.activate') {
+      assert.equal(result.registered, true);
+      assert.deepEqual(result.active, {
+        codeSha: request.input.renderer.codeSha,
+        manifestSha256: request.input.renderer.manifestSha256,
+        executorSha: codeSha,
+        executorRef: request.input.executorRef,
+        acceptedRunId: runId,
+        catalogTracked: true,
+      });
+    }
     if (request.action === 'delivery.end') assert.equal(result.ended, true);
     if (request.action === 'delivery.accept')
       assert.equal(result.accepted, request.input.pages.length);
@@ -404,6 +415,7 @@ export async function createCatalogRegionalClient({
         guard = validateGuard(value);
       },
       close,
+      activateAcceptedRegistration: (input) => call('registration.activate', input),
       async clearAcceptedRegistration({ artifact, acceptedSeal, checkpoint = async () => {} }) {
         const states = ['leased', 'writing', 'needs-readback', 'control'];
         let current = { state: states[0], cursor: null };

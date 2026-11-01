@@ -48,3 +48,25 @@ export async function activateCatalogRenderer({
     throw Error('Accepted catalog program registration needs readback');
   return data;
 }
+
+/** Ask the guarded same-region worker to register exactly the accepted renderer. */
+export async function activateAcceptedCatalogRegistration({
+  regional,
+  input,
+  renderer,
+  executorRef,
+  expectedWrites,
+  data,
+}) {
+  const result = await regional.activateAcceptedRegistration({
+    artifact: input.envelope.artifact,
+    acceptedSeal: input.acceptedSeal,
+    renderer,
+    executorRef,
+    expectedWrites,
+  });
+  if (result?.registered !== true || identity(result.active) !== identity(data))
+    throw Object.assign(Error('Accepted renderer registration does not match its readback'), {
+      code: 'CATALOG_REGIONAL_ACTIVATION_MISMATCH',
+    });
+}
