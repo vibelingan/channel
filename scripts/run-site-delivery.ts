@@ -13,6 +13,7 @@ import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
 import { createCatalogSeoStore } from '../packages/db/src/catalog-seo-cloud.ts';
+import { catalogSeoControlId } from '../packages/db/src/catalog-seo-control.ts';
 import { catalogRegionalRequestHash } from '../packages/db/src/catalog-seo-regional.ts';
 import { readCatalogSeoRecordingConfig } from '../packages/db/src/catalog-seo-requests.ts';
 import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
@@ -42,6 +43,8 @@ import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { assertInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
 import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
+import { assertStoppedFunctionsAbsent } from './release/catalog-stopped-evidence.mjs';
+import { recoverStoppedCatalogDelivery } from './release/catalog-stopped-recovery.mjs';
 import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 import { createGithubReadClient } from './release/github-read.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
@@ -266,6 +269,13 @@ try {
       github: recoveryGithub,
       policy,
       functions: manager.functions,
+      manager,
+      onCleanup: (supplementalRecovery: Record<string, unknown>) =>
+        writeFile(
+          join(directory, 'preparation-cleanup.json'),
+          JSON.stringify(supplementalRecovery, null, 2),
+          { mode: 0o600 },
+        ),
       readPreparationRun: (priorRunId: string) =>
         createCatalogSeoStore(db).get(
           'siteReleaseRuns',
@@ -281,7 +291,11 @@ try {
           github: recoveryGithub,
           artifacts: new DefaultArtifactClient(),
           token: env.GITHUB_TOKEN,
-          directory: join(directory, 'preparation-evidence'),
+          directory: join(
+            directory,
+            'preparation-evidence',
+            input.regionalPath === 'release-regional/result.json' ? 'release' : 'catalog',
+          ),
         }),
     });
     await writeFile(
@@ -313,6 +327,19 @@ try {
   throw error;
 }
 let regional: Awaited<ReturnType<typeof createCatalogRegionalClient>> | undefined;
+const failedInputs = new Map<string, Awaited<ReturnType<typeof github.downloadFailed>>>();
+const failedInput = async (run: Awaited<ReturnType<typeof coordinator.runStatus>>) => {
+  let input = failedInputs.get(run.runId);
+  if (!input) {
+    input = await github.downloadFailed(
+      run,
+      join(directory, `current-data-failed-${failedInputs.size + 1}`),
+      run.runId,
+    );
+    failedInputs.set(run.runId, input);
+  }
+  return input;
+};
 const regionalCatalog = async () => {
   if (!regional)
     regional = await createCatalogRegionalClient({
@@ -723,6 +750,74 @@ try {
       assertOwnedArticleDrill({ taskId: requestedTaskId, task, draft: drafts.data[0].draft });
     }
     if (requestedTaskId) claim = await worker.claim(requestedTaskId, runId);
+    if (catalogConfig) {
+      const recovery = await recoverStoppedCatalogDelivery({
+        coordinator,
+        regional: await regionalCatalog(),
+        github: createGithubReadClient({ policy, token: env.GITHUB_TOKEN }),
+        policy,
+        readSteps: async (stoppedRunId: string) => {
+          const result = await db
+            .collection('siteReleaseSteps')
+            .where({ runId: stoppedRunId, kind: 'write' })
+            .limit(1000)
+            .get();
+          if (!Array.isArray(result.data)) throw Error('Stopped release steps were not read');
+          return result.data;
+        },
+        readReceipt: (id: string) => createCatalogSeoStore(db).get('catalogSeoBuilders', id),
+        readControl: () =>
+          createCatalogSeoStore(db).get(
+            'catalogSeoControl',
+            catalogSeoControlId(policy.siteOrigin),
+          ),
+        readTasks: (state: string, cursor: string | null, limit: number) =>
+          createCatalogSeoStore(db).list(
+            'catalogSeoTasks',
+            { siteOrigin: policy.siteOrigin, state },
+            cursor,
+            limit,
+          ),
+        loadCandidate: failedInput,
+        loadEvidence: (context: { githubRun: Record<string, unknown>; artifactName: string }) =>
+          loadCatalogPreparationEvidence({
+            github: createGithubReadClient({ policy, token: env.GITHUB_TOKEN }),
+            artifacts: new DefaultArtifactClient(),
+            token: env.GITHUB_TOKEN,
+            directory: join(directory, 'stopped-catalog-evidence'),
+            run: context.githubRun,
+            artifactName: context.artifactName,
+            regionalPath: 'regional/result.json',
+          }),
+        verifyQuiescence: async (context: {
+          githubRunId: string;
+          attempt: string;
+          [key: string]: unknown;
+        }) => {
+          await assertStoppedFunctionsAbsent(manager.functions, [
+            `seo-catalog-region-${context.githubRunId}-${context.attempt}`,
+            `seo-release-region-${context.githubRunId}-${context.attempt}`,
+          ]);
+          return {
+            ...context,
+            functionsAbsent: true,
+            oldJobCompleted: true,
+            checkedAt: Date.now(),
+          };
+        },
+        onProgress: (progress: Record<string, unknown>) =>
+          writeFile(
+            join(directory, 'stopped-catalog-recovery.json'),
+            JSON.stringify(progress, null, 2),
+            { mode: 0o600 },
+          ),
+      });
+      await writeFile(
+        join(directory, 'stopped-catalog-recovery.json'),
+        JSON.stringify(recovery, null, 2),
+        { mode: 0o600 },
+      );
+    }
     if (env.SITE_CATALOG_BOOTSTRAP === '1') {
       if (!catalogConfig || !baseline || !renderer)
         throw Error(
@@ -970,11 +1065,7 @@ try {
       if (seen.has(dirty) || seen.size >= 16) throw Error('Invalid recovery history');
       seen.add(dirty);
       const run = await coordinator.runStatus(dirty);
-      const input = await github.downloadFailed(
-        run,
-        join(directory, `current-data-failed-${seen.size}`),
-        dirty,
-      );
+      const input = await failedInput(run);
       failedCandidates.push({ run, input });
       dirty = run.failedRunId;
     }

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { plan, receipt, stepInput } from './release-state-fixtures.mjs';
+import { hostingBatchBeforeHash, hostingBatchHash } from './release/hosting-batches.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
@@ -35,6 +36,10 @@ const { catalogPublicRecordId } = tsxRequire(
   '../packages/db/src/catalog-public-changes.ts',
   import.meta.url,
 );
+const { createCatalogSeoRequest } = tsxRequire(
+  '../packages/db/src/catalog-seo-requests.ts',
+  import.meta.url,
+);
 const { catalogSeoControlId, idleCatalogSeoControl } = tsxRequire(
   '../packages/db/src/catalog-seo-control.ts',
   import.meta.url,
@@ -51,7 +56,8 @@ const targetId = normalizePolicy(policy).targetId;
 const functionName = 'seo-catalog-region-41300590230-1';
 const hash = (body) => createHash('sha256').update(body).digest('hex');
 
-async function fixture(t, { tracked = true } = {}) {
+async function fixture(t, { tracked = true, productIds = ['p1', 'p2'] } = {}) {
+  let clockNow = now;
   const f = articleSdkFixture(t);
   f.db.config.env = policy.envId;
   // Both application modules use the actual installed SDK. Only its network
@@ -100,7 +106,7 @@ async function fixture(t, { tracked = true } = {}) {
     writes: 7,
     fence: 3,
   });
-  for (const productId of ['p1', 'p2']) {
+  for (const productId of productIds) {
     f.put('products', productId, {
       name: `Customer product ${productId}`,
       productFamily: 'misc',
@@ -167,7 +173,7 @@ async function fixture(t, { tracked = true } = {}) {
           {
             createStore: () => store,
             createDelivery: createCatalogSeoDeliveryStateless,
-            now: () => now,
+            now: () => clockNow,
           },
         );
         functions.set(func.name, {
@@ -249,6 +255,10 @@ async function fixture(t, { tracked = true } = {}) {
   };
   return {
     ...f,
+    clock: () => clockNow,
+    advance: (ms) => {
+      clockNow += ms;
+    },
     store,
     guard,
     target,
@@ -589,6 +599,473 @@ test('scope change inside the real activation transaction rolls back active and 
   const action = f.requests.find((r) => r.action === 'registration.activate');
   const regionReceipt = `region-op-${hash(JSON.stringify([runId, action.requestId, 'completed']))}`;
   assert.equal(f.rows.has(`catalogSeoBuilders/${regionReceipt}`), false);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+
+async function stoppedRecoveryFixture(t) {
+  const ids = Array.from({ length: 8 }, (_, i) => `p${i + 1}`);
+  const f = await fixture(t, { productIds: ids });
+  const coordinator = createReleaseCoordinator({
+    store: createCloudbaseReleaseStore({ db: f.db, envId: policy.envId }),
+    policy,
+    clock: f.clock,
+  });
+  const baseId = 'site-40000000000-1';
+  const baseArtifact = { ...activationArtifact, runId: '40000000000' };
+  await coordinator.startRun({
+    guard: f.guard,
+    runId: baseId,
+    scopeKey: 'site',
+    kind: 'adopt',
+    plan: plan(1),
+    composition: {
+      static: { releaseId: baseId, codeSha, contentSha256: 'f'.repeat(64), artifact: baseArtifact },
+    },
+  });
+  const acceptance = await coordinator.beginStep({
+    guard: f.guard,
+    runId: baseId,
+    ...stepInput('accept'),
+  });
+  await coordinator.confirmStep({
+    guard: f.guard,
+    runId: baseId,
+    stepId: acceptance.stepId,
+    receipt: receipt(acceptance),
+  });
+  await coordinator.commitRun({
+    guard: f.guard,
+    runId: baseId,
+    changeSetRef: 'recovery actual accepted baseline',
+  });
+  const stoppedRunId = 'site-41000000000-1';
+  const stoppedRunner = 'github:vibelingan/channel:41000000000:attempt-1';
+  const oldSha = '9'.repeat(40);
+  const oldToken = '8'.repeat(64);
+  const oldGuard = await coordinator.acquire({
+    ownerRunId: stoppedRunId,
+    runnerRef: stoppedRunner,
+  });
+  await coordinator.startRun({
+    guard: oldGuard,
+    runId: stoppedRunId,
+    scopeKey: 'site',
+    kind: 'publish',
+    plan: plan(3),
+    deliveredComponents: ['static'],
+    composition: {
+      static: {
+        releaseId: stoppedRunId,
+        codeSha: oldSha,
+        contentSha256: 'e'.repeat(64),
+        artifact: { ...activationArtifact, runId: '41000000000' },
+      },
+    },
+  });
+  const oldHandler = createCatalogRegionalHandler(
+    {
+      envId: policy.envId,
+      runId: stoppedRunId,
+      targetId,
+      siteOrigin: policy.siteOrigin,
+      codeSha: oldSha,
+      tokenDigest: hash(oldToken),
+      runnerRef: stoppedRunner,
+    },
+    { createStore: () => f.store, createDelivery: createCatalogSeoDeliveryStateless, now: f.clock },
+  );
+  const oldRequest = (action, input, requestId = randomUUID()) => ({
+    schemaVersion: 1,
+    token: oldToken,
+    runId: stoppedRunId,
+    targetId,
+    siteOrigin: policy.siteOrigin,
+    executorCodeSha: oldSha,
+    requestId,
+    guard: oldGuard,
+    action,
+    input,
+  });
+  let failedStep;
+  let beginRequest;
+  let endRequest;
+  let failedTicket;
+  for (const [index, products] of [ids.slice(0, 7), ids.slice(7)].entries()) {
+    const members = products.map((productId) => ({
+      path: `products/p-${productId}/index.html`,
+      bytes: 8,
+      sha256: hash(`HTML ${productId}`),
+      beforeHash: '0'.repeat(64),
+    }));
+    const afterHash = hostingBatchHash(members);
+    const step = await coordinator.beginStep({
+      guard: oldGuard,
+      runId: stoppedRunId,
+      ...stepInput('write'),
+      members,
+      beforeHash: hostingBatchBeforeHash(members),
+      afterHash,
+      subject: `upload-batch:${afterHash}`,
+      verifySubject: `read-batch:${afterHash}`,
+    });
+    const begin = oldRequest('delivery.begin', { expectedWrites: 7, products, discovery: false });
+    const started = await oldHandler(begin);
+    assert.equal(started.ok, true);
+    const ticket = started.result.ticket;
+    await coordinator.recordSubmitted({
+      guard: oldGuard,
+      runId: stoppedRunId,
+      stepId: step.stepId,
+      receipt: receipt(step, 'submitted'),
+    });
+    if (index === 0)
+      await coordinator.confirmStep({
+        guard: oldGuard,
+        runId: stoppedRunId,
+        stepId: step.stepId,
+        receipt: receipt(step),
+      });
+    else
+      await coordinator.markUnknown({
+        guard: oldGuard,
+        runId: stoppedRunId,
+        stepId: step.stepId,
+        reason: 'offline lost verification reply',
+      });
+    const end = oldRequest('delivery.end', {
+      expectedWrites: 7,
+      ticket,
+      outcome: index === 0 ? 'verified' : 'unknown',
+    });
+    assert.equal((await oldHandler(end)).ok, true);
+    if (index === 1) {
+      failedStep = step;
+      beginRequest = begin;
+      endRequest = end;
+      failedTicket = ticket;
+    }
+  }
+  f.advance(180001);
+  const status = await coordinator.status({ scopeKey: 'site' });
+  const proof = {
+    runnerRef: stoppedRunner,
+    checkedAt: f.clock(),
+    job: {
+      status: 'completed',
+      evidenceRef: `github:41000000000:attempt-1:job-123:failure:source-${oldSha}`,
+    },
+    cloud: {
+      status: 'quiescent',
+      kind: 'stopped-site-html-batch',
+      operationId: failedStep.operationId,
+      observedHash: failedStep.afterHash,
+      evidenceRef: `candidate:${activationArtifact.artifactId}:batch:${failedStep.afterHash}:three-cache-modes:absent:seo-catalog-region-41000000000-1`,
+    },
+  };
+  await coordinator.reconcile({
+    expectedVersion: status.target.version,
+    expectedFence: oldGuard.fence,
+    proof,
+  });
+  Object.assign(f.guard, await coordinator.acquire({ ownerRunId: runId, runnerRef }));
+  const input = {
+    stoppedRunId,
+    stepId: failedStep.stepId,
+    beginRequestId: beginRequest.requestId,
+    endRequestId: endRequest.requestId,
+    originalWrites: 7,
+    state: 'leased',
+    cursor: null,
+  };
+  return { ...f, coordinator, ids, input, failedStep, failedTicket, beginRequest, endRequest };
+}
+async function finishRecovery(f, client, changed = {}) {
+  let input = { ...f.input, ...changed };
+  let released = 0;
+  const initialGateState = f.rows.get(`catalogSeoControl/${f.controlId}`).state;
+  for (let i = 0; i < 100; i++) {
+    const result = await client.recoverStoppedDeliveryStep(input);
+    released += result.releasedTasks;
+    if (result.done) return { ...result, totalReleased: released };
+    assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).state, initialGateState);
+    input = { ...input, ...result.next };
+  }
+  throw Error('Recovery did not finish');
+}
+test('real old failed delivery releases all prior batch leases before clearing control and never changes customer data', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  const foreignId = catalogPublicRecordId(policy.siteOrigin, 'foreign-product');
+  const foreign = {
+    _id: foreignId,
+    schemaVersion: 1,
+    siteOrigin: policy.siteOrigin,
+    productId: 'foreign-product',
+    requestedSequence: 2,
+    acceptedSequence: 1,
+    state: 'writing',
+    attempts: 2,
+    lease: {
+      runId: 'site-99999999-1',
+      sequence: 2,
+      until: new Date(f.clock() + 30000).toISOString(),
+    },
+  };
+  f.put('catalogSeoTasks', foreignId, foreign);
+  const result = await finishRecovery(f, client);
+  assert.equal(result.totalReleased, 8);
+  assert.equal(result.controlReleased, true);
+  const control = f.rows.get(`catalogSeoControl/${f.controlId}`);
+  assert.equal(control.state, 'idle');
+  assert.equal(control.fence, f.failedTicket.fence + 1);
+  assert.equal(control.writes, 7);
+  for (const productId of f.ids) {
+    const task = f.rows.get(
+      `catalogSeoTasks/${catalogPublicRecordId(policy.siteOrigin, productId)}`,
+    );
+    assert.equal(task.state, 'pending');
+    assert.equal(task.lease, null);
+    assert.equal(task.acceptedSequence, 1);
+  }
+  assert.deepEqual(f.rows.get(`catalogSeoTasks/${foreignId}`), foreign);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+test('recovery refuses a caller skipping straight to control', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  await assert.rejects(client.recoverStoppedDeliveryStep({ ...f.input, state: 'control' }), {
+    code: 'REGIONAL_RECOVERY_CURSOR',
+  });
+  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).state, 'needs-readback');
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+
+test('recovery lost reply reads its exact page receipt and never repeats the page mutation', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  const first = await client.recoverStoppedDeliveryStep(f.input);
+  f.loseReply('recovery.clear');
+  const input = { ...f.input, ...first.next };
+  const second = await client.recoverStoppedDeliveryStep(input);
+  assert.equal(second.releasedTasks, 2);
+  assert.equal(f.requests.filter((r) => r.action === 'recovery.clear').length, 2);
+  assert.equal(f.requests.filter((r) => r.action === 'operation.get').length, 1);
+  const rest = await finishRecovery(f, client, second.next);
+  assert.equal(rest.totalReleased + second.releasedTasks, 8);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+test('completed failed-delivery recovery is safe to repeat under a new guard without incrementing control again', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  await finishRecovery(f, client);
+  const before = structuredClone(f.rows.get(`catalogSeoControl/${f.controlId}`));
+  f.advance(180001);
+  const status = await f.coordinator.status({ scopeKey: 'site' });
+  await f.coordinator.reconcile({
+    expectedVersion: status.target.version,
+    expectedFence: f.guard.fence,
+    proof: {
+      runnerRef,
+      checkedAt: f.clock(),
+      job: { status: 'completed', evidenceRef: 'new preparation stopped' },
+      cloud: {
+        status: 'quiescent',
+        kind: 'stopped-catalog-preparation-only',
+        operationId: null,
+        observedHash: null,
+        evidenceRef: 'no new site run',
+      },
+    },
+  });
+  const guard = await f.coordinator.acquire({ ownerRunId: runId, runnerRef });
+  client.setGuard(guard);
+  const repeated = await finishRecovery(f, client);
+  assert.equal(repeated.totalReleased, 0);
+  assert.equal(repeated.controlReleased, false);
+  assert.deepEqual(f.rows.get(`catalogSeoControl/${f.controlId}`), before);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+test('changed old begin/end receipt or step proof rejects failed-delivery recovery before any task is returned', async (t) => {
+  for (const kind of ['begin', 'end', 'step', 'writes']) {
+    const f = await stoppedRecoveryFixture(t);
+    const client = await f.start();
+    let input = f.input;
+    if (kind === 'begin' || kind === 'end') {
+      const command = kind === 'begin' ? f.beginRequest : f.endRequest;
+      const key = `region-op-${hash(JSON.stringify([input.stoppedRunId, command.requestId, 'completed']))}`;
+      f.put('catalogSeoBuilders', key, {
+        ...f.rows.get(`catalogSeoBuilders/${key}`),
+        inputHash: '0'.repeat(64),
+      });
+    } else if (kind === 'step') {
+      const key = hash(
+        JSON.stringify({ runId: input.stoppedRunId, stepId: input.stepId, targetId }),
+      );
+      f.put('siteReleaseSteps', key, {
+        ...f.rows.get(`siteReleaseSteps/${key}`),
+        intentHash: '0'.repeat(64),
+      });
+    } else input = { ...input, originalWrites: 8 };
+    const before = new Map(
+      [...f.rows].filter(
+        ([key]) => key.startsWith('catalogSeoTasks/') || key.startsWith('catalogSeoControl/'),
+      ),
+    );
+    await assert.rejects(client.recoverStoppedDeliveryStep(input));
+    assert.deepEqual(
+      new Map(
+        [...f.rows].filter(
+          ([key]) => key.startsWith('catalogSeoTasks/') || key.startsWith('catalogSeoControl/'),
+        ),
+      ),
+      before,
+    );
+    f.assertBusinessUnchanged();
+    await client.close();
+  }
+});
+test('ownership loss after a recovery reply is lost retains the worker and blocks further recovery', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  f.loseReply('recovery.clear');
+  f.afterAction('recovery.clear', () => {
+    const target = f.rows.get(`siteReleaseTargets/${targetId}`);
+    f.put('siteReleaseTargets', targetId, {
+      ...target,
+      lease: { ...target.lease, ownerRunId: 'site-99999999-1', fence: target.lease.fence + 1 },
+    });
+  });
+  await assert.rejects(client.recoverStoppedDeliveryStep(f.input), {
+    code: 'CATALOG_REGIONAL_UNCONFIRMED',
+  });
+  assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
+  assert.equal(f.deleted.length, 0);
+  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).state, 'needs-readback');
+  f.assertBusinessUnchanged();
+});
+test('a current guard change at recovery commit rolls back page progress and task mutations', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  const first = await client.recoverStoppedDeliveryStep(f.input);
+  const before = new Map([...f.rows].filter(([key]) => key.startsWith('catalogSeoTasks/')));
+  f.control.beforeCommit = () => {
+    f.control.beforeCommit = undefined;
+    const target = f.rows.get(`siteReleaseTargets/${targetId}`);
+    f.put('siteReleaseTargets', targetId, {
+      ...target,
+      lease: { ...target.lease, ownerRunId: 'site-99999999-1', fence: target.lease.fence + 1 },
+    });
+  };
+  await assert.rejects(client.recoverStoppedDeliveryStep({ ...f.input, ...first.next }), {
+    code: 'REGIONAL_LEASE_CHANGED',
+  });
+  assert.deepEqual(
+    new Map([...f.rows].filter(([key]) => key.startsWith('catalogSeoTasks/'))),
+    before,
+  );
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+
+test('failed recovery preserves newer customer content, pending changes, accepted pages and the latest write counter', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  f.put('products', 'p1', {
+    ...f.rows.get('products/p1'),
+    name: 'Latest customer edit',
+    newField: 'keep new field',
+  });
+  f.put('catalogSeoControl', f.controlId, {
+    ...f.rows.get(`catalogSeoControl/${f.controlId}`),
+    writes: 8,
+    updatedAt: new Date(f.clock()).toISOString(),
+  });
+  const pageId = catalogPublicRecordId(policy.siteOrigin, 'p1');
+  f.put('catalogSeoPages', pageId, {
+    schemaVersion: 1,
+    siteOrigin: policy.siteOrigin,
+    productId: 'p1',
+    ready: true,
+    sequence: 1,
+    htmlSha256: hash('previously accepted page'),
+    acceptedAt: timestamp,
+  });
+  const pending = createCatalogSeoRequest(
+    policy.siteOrigin,
+    { kind: 'product', productId: 'p1', previouslyPublic: true },
+    new Date(f.clock()).toISOString(),
+  );
+  f.put('catalogSeoRequests', pending._id, pending);
+  const keep = new Map(
+    [...f.rows].filter(([key]) =>
+      /^(products|articleDrafts|catalogPublicHeads|catalogSeoPages|catalogSeoRequests)\//.test(key),
+    ),
+  );
+  await finishRecovery(f, client);
+  assert.deepEqual(
+    new Map(
+      [...f.rows].filter(([key]) =>
+        /^(products|articleDrafts|catalogPublicHeads|catalogSeoPages|catalogSeoRequests)\//.test(
+          key,
+        ),
+      ),
+    ),
+    keep,
+  );
+  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).writes, 8);
+  for (const productId of f.ids)
+    assert.equal(
+      f.rows.get(`catalogSeoTasks/${catalogPublicRecordId(policy.siteOrigin, productId)}`)
+        .acceptedSequence,
+      1,
+    );
+  await client.close();
+});
+
+test('an already idle gate is not a shortcut around old task cleanup or page order', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  f.put('catalogSeoControl', f.controlId, {
+    ...idleCatalogSeoControl(policy.siteOrigin, new Date(f.clock()).toISOString()),
+    writes: 7,
+    fence: f.failedTicket.fence + 1,
+  });
+  await assert.rejects(client.recoverStoppedDeliveryStep({ ...f.input, state: 'control' }), {
+    code: 'REGIONAL_RECOVERY_CURSOR',
+  });
+  const result = await finishRecovery(f, client);
+  assert.equal(result.totalReleased, 8);
+  assert.equal(result.controlReleased, false);
+  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).fence, f.failedTicket.fence + 1);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+test('an old receipt changed during a real page transaction rolls back task and progress writes', async (t) => {
+  const f = await stoppedRecoveryFixture(t);
+  const client = await f.start();
+  const first = await client.recoverStoppedDeliveryStep(f.input);
+  const before = new Map([...f.rows].filter(([key]) => key.startsWith('catalogSeoTasks/')));
+  const oldReceiptKey = `region-op-${hash(JSON.stringify([f.input.stoppedRunId, f.endRequest.requestId, 'completed']))}`;
+  f.control.beforeCommit = () => {
+    f.control.beforeCommit = undefined;
+    f.put('catalogSeoBuilders', oldReceiptKey, {
+      ...f.rows.get(`catalogSeoBuilders/${oldReceiptKey}`),
+      inputHash: '0'.repeat(64),
+    });
+  };
+  await assert.rejects(client.recoverStoppedDeliveryStep({ ...f.input, ...first.next }), {
+    code: 'REGIONAL_OPERATION_MISMATCH',
+  });
+  assert.deepEqual(
+    new Map([...f.rows].filter(([key]) => key.startsWith('catalogSeoTasks/'))),
+    before,
+  );
+  assert.equal(f.rows.get(`catalogSeoControl/${f.controlId}`).state, 'needs-readback');
   f.assertBusinessUnchanged();
   await client.close();
 });

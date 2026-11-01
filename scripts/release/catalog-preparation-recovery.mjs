@@ -1,3 +1,4 @@
+import { setTimeout as pause } from 'node:timers/promises';
 import { identity } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
 import { assertCleanAcceptedSite } from './site-policy.mjs';
@@ -12,13 +13,60 @@ const noHosting = (status) =>
   status?.state === 'stalled' &&
   status.target?.lease &&
   status.target.currentRunId === null &&
-  status.target.dirtyRunId === null &&
   status.target.unresolvedOperation === null &&
   status.pendingStep === null &&
   status.scope?.scopeKey === 'site' &&
   status.scope.baseline?.sourceRunId;
 
-async function absentFunction(functions, name) {
+function checkInheritedDirty(status, row, policy, now) {
+  const runId = status.target.dirtyRunId;
+  if (runId === null) return null;
+  const match = /^site-([1-9][0-9]*)-([1-9][0-9]*)$/.exec(runId ?? '');
+  const proof = row?.reconciliation;
+  const part = row?.composition?.static;
+  if (
+    !match ||
+    row?.schemaVersion !== 1 ||
+    row.targetId !== status.targetId ||
+    row.runId !== runId ||
+    row.state !== 'FAILED' ||
+    row.accepted !== null ||
+    row.scopeKey !== 'site' ||
+    !['publish', 'reconcile'].includes(row.kind) ||
+    row.ownerRunId !== runId ||
+    row.deliveredComponents?.join(',') !== 'static' ||
+    Object.keys(row.composition ?? {}).join(',') !== 'static' ||
+    !/^[a-f0-9]{40}$/.test(part?.codeSha ?? '') ||
+    part?.artifact?.repository !== policy.repository ||
+    String(part?.artifact?.runId) !== match[1] ||
+    proof?.runnerRef !== `github:${policy.repository}:${match[1]}:attempt-${match[2]}` ||
+    !Number.isSafeInteger(proof.checkedAt) ||
+    proof.checkedAt < 0 ||
+    proof.checkedAt > now ||
+    proof.job?.status !== 'completed' ||
+    !new RegExp(
+      `^github:${match[1]}:attempt-${match[2]}:job-[1-9][0-9]*:(?:success|failure|cancelled|timed_out):source-${part.codeSha}$`,
+    ).test(proof.job?.evidenceRef ?? '') ||
+    proof.cloud?.kind !== 'stopped-site-html-batch' ||
+    proof.cloud.status !== 'quiescent' ||
+    typeof proof.cloud.operationId !== 'string' ||
+    !/^[A-Za-z0-9:_-]{1,200}$/.test(proof.cloud.operationId) ||
+    !/^[a-f0-9]{64}$/.test(proof.cloud.observedHash ?? '') ||
+    proof.cloud.evidenceRef !==
+      `candidate:${part.artifact.artifactId}:batch:${proof.cloud.observedHash}:three-cache-modes:absent:seo-catalog-region-${match[1]}-${match[2]}`
+  )
+    fail();
+  const preserved = { runId, proof, sha256: identity(proof) };
+  const latest = status.target.lastReconciliation;
+  if (
+    identity(latest) !== identity(proof) &&
+    identity(latest?.inheritedReconciliation) !== identity(preserved)
+  )
+    fail();
+  return preserved;
+}
+
+async function functionInventory(functions) {
   const names = [];
   for (let offset = 0; offset < 1000; offset += 100) {
     const rows = await functions.listFunctions(100, offset);
@@ -28,8 +76,8 @@ async function absentFunction(functions, name) {
       names.push(row.FunctionName);
     }
     if (rows.length < 100) {
-      if (new Set(names).size !== names.length || names.includes(name)) fail();
-      return;
+      if (new Set(names).size !== names.length) fail();
+      return names;
     }
   }
   fail();
@@ -46,7 +94,7 @@ function checkReceipt(receipt, { policy, ownerRunId, functionName, codeSha }) {
     receipt.websiteWrites !== 0 ||
     receipt.businessWrites !== 0 ||
     receipt.created !== true ||
-    receipt.cleaned !== true ||
+    typeof receipt.cleaned !== 'boolean' ||
     receipt.unconfirmed !== false ||
     !Array.isArray(receipt.calls) ||
     !receipt.calls.length ||
@@ -60,12 +108,313 @@ function checkReceipt(receipt, { policy, ownerRunId, functionName, codeSha }) {
   for (const call of receipt.calls)
     if (
       !call ||
-      !['health', 'seed', 'prepare.step'].includes(call.action) ||
+      !['health', 'seed', 'prepare.step', 'recovery.clear'].includes(call.action) ||
       !['completed', 'failed', 'readback-confirmed'].includes(call.state) ||
       typeof call.requestId !== 'string' ||
       !/^[A-Za-z0-9:_-]{1,200}$/.test(call.requestId)
     )
       fail();
+}
+
+function checkReleaseReceipt(receipt, context) {
+  if (
+    receipt?.schemaVersion !== 1 ||
+    receipt.purpose !== 'release-regional-v1' ||
+    receipt.ownerRunId !== context.ownerRunId ||
+    receipt.runnerRef !== context.runnerRef ||
+    receipt.targetId !== context.targetId ||
+    receipt.environment !== context.policy.envId ||
+    receipt.codeSha !== context.codeSha ||
+    receipt.functionName !== context.releaseName ||
+    receipt.created !== true ||
+    typeof receipt.cleaned !== 'boolean' ||
+    receipt.unconfirmed !== false ||
+    receipt.websiteWrites !== 0 ||
+    receipt.businessWrites !== 0 ||
+    !Array.isArray(receipt.calls) ||
+    !receipt.calls.length ||
+    receipt.calls.length > 50000 ||
+    !receipt.calls.some((row) => row.method === 'health' && row.state === 'completed')
+  )
+    fail();
+  for (const call of receipt.calls)
+    if (
+      !['health', 'status', 'runStatus', 'acquire', 'renew', 'reconcile', 'release'].includes(
+        call?.method,
+      ) ||
+      !['completed', 'failed', 'readback-confirmed'].includes(call.state) ||
+      !/^[A-Za-z0-9:_-]{1,200}$/.test(call.operationId ?? '')
+    )
+      fail();
+}
+
+async function assertNoHttp(environment, names, policy) {
+  for (const name of names) {
+    const result = await environment.getAccessService().getAccessList({ name });
+    if (
+      typeof result?.RequestId !== 'string' ||
+      !result.RequestId.trim() ||
+      (Object.hasOwn(result, 'Total') && result.Total !== 0) ||
+      !Array.isArray(result.APISet) ||
+      result.APISet.length
+    )
+      fail();
+  }
+  let count = 0;
+  let total;
+  const domains = new Set();
+  for (let offset = 0; offset < 1000; offset += 100) {
+    const result = await environment
+      .getEnvService()
+      .describeHttpServiceRoute({ EnvId: policy.envId, Offset: offset, Limit: 100 });
+    if (
+      !result?.RequestId ||
+      !Number.isSafeInteger(result.TotalCount) ||
+      result.TotalCount < 0 ||
+      result.TotalCount > 1000 ||
+      !Array.isArray(result.Domains) ||
+      result.Domains.length > 100 ||
+      (total !== undefined && result.TotalCount !== total)
+    )
+      fail();
+    total = result.TotalCount;
+    for (const domain of result.Domains) {
+      if (!domain || typeof domain.Domain !== 'string' || !Array.isArray(domain.Routes ?? []))
+        fail();
+      if (domains.has(domain.Domain)) fail();
+      domains.add(domain.Domain);
+      for (const route of domain.Routes ?? []) {
+        if (
+          typeof route?.UpstreamResourceName !== 'string' ||
+          typeof route.UpstreamResourceType !== 'string'
+        )
+          fail();
+        if (names.some((name) => route.UpstreamResourceName.includes(name))) fail();
+      }
+    }
+    count += result.Domains.length;
+    if (count === total) return;
+    if (count > total || result.Domains.length !== 100) fail();
+  }
+  fail();
+}
+
+function ownedWorker(detail, name, kind, context) {
+  if (
+    detail?.FunctionName !== name ||
+    detail.Description !== `channel-${kind}-regional-v1` ||
+    detail.Runtime !== 'Nodejs20.19' ||
+    detail.Type !== 'Event' ||
+    detail.Handler !== 'index.main' ||
+    detail.Namespace !== context.policy.envId ||
+    detail.Timeout !== 45 ||
+    detail.MemorySize !== 256 ||
+    typeof detail.FunctionId !== 'string' ||
+    !/^[A-Za-z0-9_-]{1,200}$/.test(detail.FunctionId) ||
+    typeof detail.AddTime !== 'string' ||
+    !detail.AddTime ||
+    detail.AddTime.length > 128 ||
+    typeof detail.ModTime !== 'string' ||
+    !detail.ModTime ||
+    detail.ModTime.length > 128 ||
+    !Number.isSafeInteger(detail.CodeSize) ||
+    detail.CodeSize < 1 ||
+    !Array.isArray(detail.Layers) ||
+    detail.Layers.length ||
+    detail.Status !== 'Active' ||
+    detail.AvailableStatus !== 'Available' ||
+    !Array.isArray(detail.Triggers) ||
+    detail.Triggers.length ||
+    !Array.isArray(detail.Environment?.Variables)
+  )
+    fail();
+  const variables = Object.fromEntries(
+    detail.Environment.Variables.map((row) => [row.Key, row.Value]),
+  );
+  if (Object.keys(variables).length !== detail.Environment.Variables.length) fail();
+  const prefix = kind === 'catalog' ? 'CATALOG' : 'RELEASE';
+  if (
+    variables.TCB_ENV !== context.policy.envId ||
+    variables[`${prefix}_REGIONAL_TARGET_ID`] !== context.targetId ||
+    variables[`${prefix}_REGIONAL_SITE_ORIGIN`] !== context.policy.siteOrigin ||
+    variables[`${prefix}_REGIONAL_RUNNER_REF`] !== context.runnerRef ||
+    !/^[a-f0-9]{64}$/.test(variables[`${prefix}_REGIONAL_TOKEN_DIGEST`] ?? '') ||
+    (kind === 'catalog'
+      ? variables.CATALOG_REGIONAL_RUN_ID !== context.ownerRunId
+      : variables.RELEASE_REGIONAL_OWNER_RUN_ID !== context.ownerRunId ||
+        variables.RELEASE_REGIONAL_REPOSITORY !== context.policy.repository)
+  )
+    fail();
+  return identity({
+    name,
+    kind,
+    variables,
+    codeHash: detail.CodeSha256 ?? null,
+    namespace: detail.Namespace,
+    functionId: detail.FunctionId,
+    addedAt: detail.AddTime,
+    modifiedAt: detail.ModTime,
+    bytes: detail.CodeSize,
+    timeout: detail.Timeout,
+    memory: detail.MemorySize,
+    layers: detail.Layers,
+    description: detail.Description,
+    runtime: detail.Runtime,
+    type: detail.Type,
+    handler: detail.Handler,
+    triggers: detail.Triggers,
+  });
+}
+
+async function rejectedEmptyRequest(functions, name, kind, context) {
+  const response = await functions.invokeFunction(name, {});
+  if (
+    !response?.RequestId ||
+    response.RetCode !== 0 ||
+    response.InvokeFinished !== 1 ||
+    response.ErrMsg?.trim() ||
+    typeof response.RetMsg !== 'string' ||
+    Buffer.byteLength(response.RetMsg) > 8192
+  )
+    fail();
+  const result = JSON.parse(response.RetMsg);
+  if (
+    result.ok !== false ||
+    result.codeSha !== context.codeSha ||
+    result.purpose !== `${kind === 'catalog' ? 'catalog-seo' : 'release'}-regional-v1` ||
+    result.error?.code !==
+      (kind === 'catalog' ? 'REGIONAL_INVALID_REQUEST' : 'RELEASE_REGIONAL_REQUEST') ||
+    (kind === 'catalog'
+      ? result.runId !== context.ownerRunId
+      : result.ownerRunId !== context.ownerRunId ||
+        result.runnerRef !== context.runnerRef ||
+        result.targetId !== context.targetId ||
+        result.envId !== context.policy.envId)
+  )
+    fail();
+  return /^[A-Za-z0-9_-]{1,200}$/.test(response.RequestId) ? response.RequestId : null;
+}
+
+async function settlePreparationWorkers({
+  functions,
+  manager,
+  onCleanup,
+  wait,
+  context,
+  catalogReceipt,
+  loadReleaseReceipt,
+  checkpoint,
+  beforeDelete,
+  now,
+}) {
+  const names = [context.functionName, context.releaseName];
+  const fixedManager = () => {
+    if (
+      !manager ||
+      manager.functions !== functions ||
+      manager.getManagerConfig().envId !== context.policy.envId ||
+      manager.getManagerConfig().region !== context.policy.region
+    )
+      fail();
+  };
+  if (manager) fixedManager();
+  const listed = await functionInventory(functions);
+  const present = names.filter((name) => listed.includes(name));
+  if (!present.length && catalogReceipt.cleaned) return null;
+  fixedManager();
+  if (typeof onCleanup !== 'function') fail();
+  if (present.includes(context.functionName) && catalogReceipt.cleaned) fail();
+  if (present.includes(context.releaseName)) {
+    const originalRelease = await loadReleaseReceipt();
+    checkReleaseReceipt(originalRelease, context);
+    if (originalRelease.cleaned) fail();
+  }
+  const supplementary = {
+    schemaVersion: 1,
+    purpose: 'stopped-catalog-preparation-cleanup',
+    preparationRunId: context.ownerRunId,
+    dirtyRunId: context.dirtyRunId,
+    codeSha: context.codeSha,
+    environment: context.policy.envId,
+    targetId: context.targetId,
+    observedAt: new Date(now()).toISOString(),
+    websiteWrites: 0,
+    businessWrites: 0,
+    functions: names.map((name) => ({ name, state: listed.includes(name) ? 'pending' : 'absent' })),
+  };
+  await onCleanup(structuredClone(supplementary));
+  if (present.length) {
+    const environment = manager.currentEnvironment();
+    if (environment.getEnvId() !== context.policy.envId) fail();
+    const bound = () => {
+      if (
+        manager.getManagerConfig().envId !== context.policy.envId ||
+        manager.getManagerConfig().region !== context.policy.region ||
+        environment.getEnvId() !== context.policy.envId
+      )
+        fail();
+    };
+    const fingerprints = new Map();
+    await assertNoHttp(environment, present, context.policy);
+    for (const name of present) {
+      bound();
+      const kind = name === context.functionName ? 'catalog' : 'release';
+      const detail = await functions.getFunctionDetail(name);
+      const fingerprint = ownedWorker(detail, name, kind, context);
+      fingerprints.set(name, fingerprint);
+      const probeRequestId = await rejectedEmptyRequest(functions, name, kind, context);
+      const row = supplementary.functions.find((item) => item.name === name);
+      Object.assign(row, {
+        functionId: detail.FunctionId,
+        identitySha256: fingerprint,
+        codeSha: context.codeSha,
+        probe: 'empty-request-rejected-before-database',
+        probeRequestId,
+      });
+    }
+    await onCleanup(structuredClone(supplementary));
+    for (const name of present) {
+      bound();
+      await checkpoint();
+      await assertNoHttp(environment, [name], context.policy);
+      const kind = name === context.functionName ? 'catalog' : 'release';
+      if (
+        ownedWorker(await functions.getFunctionDetail(name), name, kind, context) !==
+        fingerprints.get(name)
+      )
+        fail(changed);
+      const row = supplementary.functions.find((item) => item.name === name);
+      row.state = 'deleting';
+      await onCleanup(structuredClone(supplementary));
+      beforeDelete();
+      // The higher-level deleteFunction also deletes legacy HTTP bindings. This port cannot.
+      try {
+        await manager.commonService('tcb', '2018-06-08').call({
+          Action: 'DeleteFunction',
+          Param: { EnvId: context.policy.envId, FunctionName: name },
+        });
+      } catch {
+        // A lost reply proves nothing. Only the complete inventory below may confirm absence.
+      }
+      let absent = false;
+      for (let round = 0; round < 6; round++) {
+        if (round) await wait(250 * 2 ** (round - 1));
+        bound();
+        if (!(await functionInventory(functions)).includes(name)) {
+          absent = true;
+          break;
+        }
+      }
+      if (!absent) fail('CATALOG_PREPARATION_CLEANUP_NEEDS_READBACK');
+      row.state = 'absent';
+      await onCleanup(structuredClone(supplementary));
+    }
+  }
+  const after = await functionInventory(functions);
+  if (names.some((name) => after.includes(name)))
+    fail('CATALOG_PREPARATION_CLEANUP_NEEDS_READBACK');
+  await checkpoint();
+  return supplementary;
 }
 
 /** Release only a stopped preparation whose exact receipts prove that website delivery never began. */
@@ -76,9 +425,13 @@ export async function recoverCatalogPreparation({
   functions,
   readPreparationRun,
   loadEvidence,
+  manager,
+  onCleanup,
+  wait = pause,
   now = Date.now,
 }) {
   let reconciling = false;
+  let cleanupIssued = false;
   try {
     const status = await coordinator.status({ scopeKey: 'site' });
     if (status.state !== 'stalled') return status;
@@ -103,6 +456,9 @@ export async function recoverCatalogPreparation({
     const ownerRunId = lease.ownerRunId;
     // RUN_NOT_FOUND also covers malformed rows. Only an explicit raw null proves absence.
     if ((await readPreparationRun(ownerRunId)) !== null) fail();
+    const dirtyRunId = status.target.dirtyRunId;
+    const dirtyRun = dirtyRunId === null ? null : await readPreparationRun(dirtyRunId);
+    const inheritedReconciliation = checkInheritedDirty(status, dirtyRun, policy, now());
     const run = await github.api(`/actions/runs/${match[1]}/attempts/${match[2]}`);
     if (
       String(run.id) !== match[1] ||
@@ -180,14 +536,56 @@ export async function recoverCatalogPreparation({
       regionalPath: 'regional/result.json',
     });
     checkReceipt(evidence, { policy, ownerRunId, functionName, codeSha: run.head_sha });
-    await absentFunction(functions, functionName);
+    const checkpoint = async () => {
+      if ((await readPreparationRun(ownerRunId)) !== null) fail(changed);
+      const current = await coordinator.status({ scopeKey: 'site' });
+      if (
+        !noHosting(current) ||
+        identity(current.target) !== identity(status.target) ||
+        identity(current.scope) !== identity(status.scope) ||
+        (dirtyRunId !== null &&
+          identity(await readPreparationRun(dirtyRunId)) !== identity(dirtyRun))
+      )
+        fail(changed);
+    };
+    const supplementalRecovery = await settlePreparationWorkers({
+      functions,
+      manager,
+      onCleanup,
+      wait,
+      catalogReceipt: evidence,
+      context: {
+        policy,
+        ownerRunId,
+        targetId,
+        functionName,
+        releaseName: `seo-release-region-${match[1]}-${match[2]}`,
+        runnerRef: lease.runnerRef,
+        codeSha: run.head_sha,
+        dirtyRunId,
+      },
+      loadReleaseReceipt: () =>
+        loadEvidence({
+          run,
+          job,
+          ownerRunId,
+          artifactName,
+          regionalPath: 'release-regional/result.json',
+        }),
+      checkpoint,
+      beforeDelete: () => {
+        cleanupIssued = true;
+      },
+      now,
+    });
     if ((await readPreparationRun(ownerRunId)) !== null) fail();
     const current = await coordinator.status({ scopeKey: 'site' });
     if (
       !noHosting(current) ||
       current.target.version !== status.target.version ||
-      identity(current.target.lease) !== identity(lease) ||
-      identity(current.scope.baseline) !== identity(status.scope.baseline)
+      identity(current.target) !== identity(status.target) ||
+      identity(current.scope) !== identity(status.scope) ||
+      (dirtyRunId !== null && identity(await readPreparationRun(dirtyRunId)) !== identity(dirtyRun))
     )
       fail(changed);
     reconciling = true;
@@ -208,14 +606,34 @@ export async function recoverCatalogPreparation({
           observedHash: null,
           evidenceRef: `${artifactName}:regional-cleaned:no-site-run:no-function:${functionName}`,
         },
+        ...(inheritedReconciliation ? { inheritedReconciliation } : {}),
       },
     });
     const released = await coordinator.status({ scopeKey: 'site' });
     if (identity(released.scope?.baseline) !== identity(status.scope.baseline)) fail(changed);
-    assertCleanAcceptedSite(released);
-    return released;
+    if (dirtyRunId === null) assertCleanAcceptedSite(released);
+    else if (
+      released.state !== 'recovery-required' ||
+      released.target.lease !== null ||
+      released.target.currentRunId !== null ||
+      released.target.unresolvedOperation !== null ||
+      released.pendingStep !== null ||
+      released.target.dirtyRunId !== dirtyRunId ||
+      identity(await readPreparationRun(dirtyRunId)) !== identity(dirtyRun) ||
+      identity(released.target.lastReconciliation?.inheritedReconciliation) !==
+        identity(inheritedReconciliation)
+    )
+      fail('CATALOG_PREPARATION_RECOVERY_NEEDS_READBACK');
+    return supplementalRecovery ? { ...released, supplementalRecovery } : released;
   } catch (error) {
-    if ([unproven, changed].includes(error?.code)) throw error;
-    fail(reconciling ? 'CATALOG_PREPARATION_RECOVERY_NEEDS_READBACK' : unproven);
+    if ([unproven, changed, 'CATALOG_PREPARATION_CLEANUP_NEEDS_READBACK'].includes(error?.code))
+      throw error;
+    fail(
+      reconciling
+        ? 'CATALOG_PREPARATION_RECOVERY_NEEDS_READBACK'
+        : cleanupIssued
+          ? 'CATALOG_PREPARATION_CLEANUP_NEEDS_READBACK'
+          : unproven,
+    );
   }
 }

@@ -85,6 +85,30 @@ test('a closed, exact old worker receipt is required, not just a successful invo
     assert.throws(() => assertStoppedCatalogReceipt({ ...receipt, ...patch }, context));
 });
 
+test('a previous technical recovery is allowed in a later stopped writer receipt', () => {
+  const recovered = {
+    ...receipt,
+    calls: [
+      ...receipt.calls,
+      { action: 'recovery.clear', state: 'readback-confirmed', requestId: 'prior-recovery' },
+    ],
+  };
+  assert.doesNotThrow(() => assertStoppedCatalogReceipt(recovered, context));
+  for (const state of ['unconfirmed', 'failed', 'running'])
+    assert.throws(() =>
+      assertStoppedCatalogReceipt(
+        {
+          ...recovered,
+          calls: [
+            ...receipt.calls,
+            { action: 'recovery.clear', state, requestId: 'not-confirmed' },
+          ],
+        },
+        context,
+      ),
+    );
+});
+
 test('function absence checks every page and never deletes an unrelated function', async () => {
   const calls = [];
   const functions = {
@@ -129,4 +153,27 @@ test('manual reconciliation shares the deploy queue, has no website upload and a
     source,
     /(?:uploadFile|deleteFile|updateFunction|updateWebsite|deployHosting)\(/,
   );
+});
+
+test('both formal and controlled delivery retain supplemental cleanup and catalog recovery evidence', () => {
+  for (const path of ['deploy-test.yml', 'seo-site-delivery.yml']) {
+    const workflow = parse(
+      readFileSync(new URL(`../.github/workflows/${path}`, import.meta.url), 'utf8'),
+    );
+    const archives = Object.values(workflow.jobs).flatMap((job) =>
+      (job.steps ?? []).filter(
+        (step) =>
+          step.uses === 'actions/upload-artifact@v4' &&
+          step.with?.name?.startsWith('site-delivery-evidence-'),
+      ),
+    );
+    assert.equal(archives.length, 1, path);
+    assert.equal(archives[0].if, 'always()');
+    for (const name of [
+      'preparation-check.json',
+      'preparation-cleanup.json',
+      'stopped-catalog-recovery.json',
+    ])
+      assert.ok(archives[0].with.path.split('\n').includes(`output/site-delivery/${name}`), path);
+  }
 });

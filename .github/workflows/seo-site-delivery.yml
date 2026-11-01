@@ -76,6 +76,8 @@ jobs:
             output/site-delivery/result.json
             output/site-delivery/release-regional/result.json
             output/site-delivery/preparation-check.json
+            output/site-delivery/preparation-cleanup.json
+            output/site-delivery/stopped-catalog-recovery.json
             output/site-delivery/regional/result.json
             output/site-delivery/before/recovery-manifest.json
             output/site-delivery/public-browser/

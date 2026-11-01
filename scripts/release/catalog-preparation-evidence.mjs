@@ -18,7 +18,10 @@ export async function loadCatalogPreparationEvidence({
   assert.ok(Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0);
   assert.match(run.head_sha ?? '', /^[a-f0-9]{40}$/);
   assert.equal(artifactName, `site-delivery-evidence-${run.id}-${run.run_attempt}`);
-  assert.equal(regionalPath, 'regional/result.json');
+  assert.ok(
+    ['regional/result.json', 'release-regional/result.json'].includes(regionalPath),
+    'Only the two fixed regional receipts may be used as preparation proof',
+  );
   assert.equal(typeof token, 'string');
   assert.ok(token);
   const rows = [];

@@ -167,6 +167,32 @@ export async function createCatalogRegionalClient({
         catalogTracked: true,
       });
     }
+    if (request.action === 'recovery.clear') {
+      const states = ['leased', 'writing', 'needs-readback', 'control'];
+      assert.equal(result.done, request.input.state === 'control');
+      assert.ok(
+        Number.isSafeInteger(result.releasedTasks) &&
+          result.releasedTasks >= 0 &&
+          result.releasedTasks <= 2,
+      );
+      assert.equal(typeof result.controlReleased, 'boolean');
+      assert.ok(!result.controlReleased || result.done);
+      if (result.done) assert.equal(result.next, null);
+      else {
+        const next = result.next;
+        assert.ok(next && states.includes(next.state));
+        const before = states.indexOf(request.input.state);
+        const after = states.indexOf(next.state);
+        if (after === before) {
+          assert.notEqual(next.state, 'control');
+          assert.match(next.cursor ?? '', /^[a-f0-9]{64}$/);
+          assert.ok(request.input.cursor === null || next.cursor > request.input.cursor);
+        } else {
+          assert.equal(after, before + 1);
+          assert.equal(next.cursor, null);
+        }
+      }
+    }
     if (request.action === 'delivery.end') assert.equal(result.ended, true);
     if (request.action === 'delivery.accept')
       assert.equal(result.accepted, request.input.pages.length);
@@ -416,6 +442,7 @@ export async function createCatalogRegionalClient({
       },
       close,
       activateAcceptedRegistration: (input) => call('registration.activate', input),
+      recoverStoppedDeliveryStep: (input) => call('recovery.clear', input),
       async clearAcceptedRegistration({ artifact, acceptedSeal, checkpoint = async () => {} }) {
         const states = ['leased', 'writing', 'needs-readback', 'control'];
         let current = { state: states[0], cursor: null };

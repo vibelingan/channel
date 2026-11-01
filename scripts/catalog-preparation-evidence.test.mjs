@@ -39,6 +39,11 @@ async function fixture(t) {
       });
       await mkdir(join(options.path, 'regional'));
       await writeFile(join(options.path, 'regional/result.json'), JSON.stringify(receipt));
+      await mkdir(join(options.path, 'release-regional'));
+      await writeFile(
+        join(options.path, 'release-regional/result.json'),
+        JSON.stringify({ ...receipt, purpose: 'release-regional-v1' }),
+      );
       return { downloadPath: options.path, digestMismatch: false, ...f.downloadResult };
     },
   };
@@ -57,6 +62,16 @@ async function fixture(t) {
 test('the exact original receipt is read only after source, size and archive hash checks', async (t) => {
   const f = await fixture(t);
   assert.deepEqual(await loadCatalogPreparationEvidence(f.options), f.receipt);
+  assert.equal(f.downloads, 1);
+});
+
+test('the stopped preparation may also read its fixed release ledger receipt', async (t) => {
+  const f = await fixture(t);
+  f.options.regionalPath = 'release-regional/result.json';
+  assert.deepEqual(await loadCatalogPreparationEvidence(f.options), {
+    ...f.receipt,
+    purpose: 'release-regional-v1',
+  });
   assert.equal(f.downloads, 1);
 });
 
@@ -113,6 +128,12 @@ for (const [name, change] of [
     'path traversal',
     (f) => {
       f.options.regionalPath = '../regional/result.json';
+    },
+  ],
+  [
+    'arbitrary artifact member',
+    (f) => {
+      f.options.regionalPath = 'result.json';
     },
   ],
 ]) {

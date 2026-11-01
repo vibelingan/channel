@@ -282,7 +282,7 @@ async function quiet(verify, context, now) {
     fail();
 }
 
-async function stoppedJobs(github, runId, attempt, run, now) {
+export async function stoppedJobs(github, runId, attempt, run, now) {
   const jobs = [];
   let total;
   for (let page = 1; page <= 10; page++) {
@@ -352,7 +352,7 @@ async function readWorkflow(github, path, sha) {
   return parse(bytes.toString('utf8'));
 }
 
-async function trustedWorkflow(github, sha, policy) {
+export async function trustedWorkflow(github, sha, policy) {
   const workflow = await readWorkflow(github, policy.workflowPath, sha);
   const delivery = await readWorkflow(github, deliveryPath, sha);
   const wrapper = workflow.jobs?.site_delivery;

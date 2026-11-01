@@ -691,6 +691,31 @@ test('the same accepted renderer can upgrade an untracked pointer without erasin
   assert.deepEqual(x.read('catalogSeoBuilders', 'active'), { _id: 'active', ...activeData() });
 });
 
+test('pending zero plus an unresolved gate stops the first prepare call instead of spinning', async () => {
+  const x = fixture();
+  x.put('catalogSeoControl', { ...registrationControl(['p1']), state: 'needs-readback' });
+  const answer = await x.handler(request('prepare.step', { maxItems: 4, detailEnabled: true }));
+  assert.equal(answer.error?.code, 'REGIONAL_PREVIOUS_DELIVERY_NEEDS_READBACK');
+  assert.deepEqual(x.written, []);
+});
+
+test('recovery.clear requires a real stopped source rather than accepting caller proof alone', async () => {
+  const x = fixture();
+  const answer = await x.handler(
+    request('recovery.clear', {
+      stoppedRunId: 'site-41000000000-1',
+      stepId: 'stopped-step',
+      beginRequestId: 'stopped-begin',
+      endRequestId: 'stopped-end',
+      originalWrites: 0,
+      state: 'leased',
+      cursor: null,
+    }),
+  );
+  assert.equal(answer.error?.code, 'REGIONAL_RECOVERY_SOURCE_CHANGED');
+  assert.deepEqual(x.written, []);
+});
+
 test('capture.read is a fresh zero-write read and refuses pending work without consuming it', async () => {
   const x = fixture();
   const first = await x.handler(request('capture.read'));

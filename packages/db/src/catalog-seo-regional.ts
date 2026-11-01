@@ -76,6 +76,18 @@ const activationInputSchema = z
     expectedWrites: counter,
   })
   .strict();
+const recoveryInputSchema = z
+  .object({
+    stoppedRunId: z.string().regex(/^site-[1-9][0-9]*-[1-9][0-9]*$/),
+    stepId: id,
+    beginRequestId: id,
+    endRequestId: id,
+    originalWrites: counter,
+    state: z.enum(cleanupStates),
+    cursor: hash.nullable(),
+  })
+  .strict()
+  .refine((value) => value.state !== 'control' || value.cursor === null);
 const activeRendererSchema = z
   .object({
     codeSha: z.string().regex(/^[a-f0-9]{40}$/),
@@ -92,6 +104,7 @@ export const CatalogRegionalRequestSchema = z.discriminatedUnion('action', [
   action('health', empty),
   action('capture.read', empty),
   action('registration.activate', activationInputSchema),
+  action('recovery.clear', recoveryInputSchema),
   action(
     'registration.clear',
     z
@@ -255,6 +268,8 @@ export function createCatalogRegionalHandler(
           await assertBeginStillOwned(store, config.siteOrigin, result);
         if (request.action === 'registration.activate')
           await assertActivationReceiptCurrent(store, previous, request, config, now);
+        if (request.action === 'recovery.clear')
+          await assertRecoveryReceiptCurrent(store, previous, request, config, now);
         return success(result);
       }
       let tail: Promise<unknown> = Promise.resolve();
@@ -262,7 +277,8 @@ export function createCatalogRegionalHandler(
       const atomicDelivery =
         (request.action.startsWith('delivery.') && request.action !== 'delivery.check') ||
         request.action === 'registration.clear' ||
-        request.action === 'registration.activate';
+        request.action === 'registration.activate' ||
+        request.action === 'recovery.clear';
       const guarded: CatalogSeoStore = {
         get: store.get.bind(store),
         list: store.list.bind(store),
@@ -287,6 +303,8 @@ export function createCatalogRegionalHandler(
                   await assertBeginStillOwned(tx, config.siteOrigin, result);
                 if (currentRequest.action === 'registration.activate')
                   await assertActivationReceiptCurrent(tx, existing, currentRequest, config, now);
+                if (currentRequest.action === 'recovery.clear')
+                  await assertRecoveryReceiptCurrent(tx, existing, currentRequest, config, now);
                 return existing.value as T;
               }
               const writes: { collection: string; row: CollectionDoc }[] = [];
@@ -303,6 +321,11 @@ export function createCatalogRegionalHandler(
                       currentRequest.action === 'registration.activate' &&
                       collection === 'catalogSeoBuilders' &&
                       row._id === 'active'
+                    ) &&
+                    !(
+                      currentRequest.action === 'recovery.clear' &&
+                      collection === 'catalogSeoBuilders' &&
+                      row._id === recoveryProgressId(currentRequest)
                     )
                   )
                     throw new RegionalError('REGIONAL_WRITE_SCOPE');
@@ -342,7 +365,7 @@ export function createCatalogRegionalHandler(
       let result: JsonResult;
       if (request.action === 'registration.activate') {
         result = await activateAcceptedRenderer(guarded, request, config, now);
-      } else if (request.action === 'registration.clear') {
+      } else if (request.action === 'registration.clear' || request.action === 'recovery.clear') {
         result = await clearRegistrationStep(guarded, request, config, clock, now);
       } else if (request.action === 'seed') {
         result = await seedCatalogSeoRequests(
@@ -352,6 +375,7 @@ export function createCatalogRegionalHandler(
           clock(),
         );
       } else if (request.action === 'prepare.step') {
+        await assertPreparationGate(guarded, config.siteOrigin, clock());
         let processed = 0;
         while (processed < request.input.maxItems && now() - started < 15_000) {
           const pending = await guarded.list(
@@ -389,6 +413,7 @@ export function createCatalogRegionalHandler(
           } catch (error) {
             if (!(error instanceof RegionalError && error.code === 'REGIONAL_NOT_SETTLED'))
               throw error;
+            await assertPreparationGate(guarded, config.siteOrigin, clock());
           }
         }
       } else {
@@ -597,6 +622,7 @@ async function captureHeads(store: CatalogSeoStore, siteOrigin: string, clock: (
   return { writes: after.writes, heads };
 }
 type RegistrationClearRequest = Extract<CatalogRegionalRequest, { action: 'registration.clear' }>;
+type RecoveryClearRequest = Extract<CatalogRegionalRequest, { action: 'recovery.clear' }>;
 type RegistrationActivateRequest = Extract<
   CatalogRegionalRequest,
   { action: 'registration.activate' }
@@ -771,14 +797,369 @@ async function assertActivationReceiptCurrent(
   await assertCurrentLease(store, request, config, now());
 }
 
+async function assertPreparationGate(
+  store: Pick<CatalogSeoStore, 'get'>,
+  siteOrigin: string,
+  clock: string,
+) {
+  const control = readCatalogSeoControl(
+    await store.get('catalogSeoControl', catalogSeoControlId(siteOrigin)),
+    siteOrigin,
+    clock,
+  );
+  if (control.state !== 'idle')
+    throw new RegionalError('REGIONAL_PREVIOUS_DELIVERY_NEEDS_READBACK');
+}
+
+// Matches the release ledger's canonical JSON identities; checked against actual coordinator records.
+function ledgerIdentity(value: unknown): string {
+  const sort = (item: unknown): unknown =>
+    Array.isArray(item)
+      ? item.map(sort)
+      : item !== null && typeof item === 'object'
+        ? Object.fromEntries(
+            Object.keys(item)
+              .sort()
+              .map((key) => [key, sort(Reflect.get(item, key))]),
+          )
+        : item;
+  return digest(JSON.stringify(sort(value)));
+}
+function recoveryProgressId(request: RecoveryClearRequest) {
+  const { state: _state, cursor: _cursor, ...proof } = request.input;
+  return `recovery-progress-${ledgerIdentity({ guard: request.guard, runId: request.runId, proof })}`;
+}
+function assertRecoveryProgress(row: CollectionDoc | null, request: RecoveryClearRequest) {
+  const position = { state: request.input.state, cursor: request.input.cursor };
+  if (row === null) {
+    if (position.state !== 'leased' || position.cursor !== null)
+      throw new RegionalError('REGIONAL_RECOVERY_CURSOR');
+    return;
+  }
+  if (
+    row._id !== recoveryProgressId(request) ||
+    row.schemaVersion !== 1 ||
+    row.purpose !== 'catalog-failed-recovery-progress' ||
+    !(
+      isDeepStrictEqual(row.next, position) ||
+      (row.next === null && position.state === 'control' && position.cursor === null)
+    )
+  )
+    throw new RegionalError('REGIONAL_RECOVERY_CURSOR');
+}
+function assertRecoveryControl(
+  control: ReturnType<typeof readCatalogSeoControl>,
+  ticket: z.infer<typeof ticketSchema>,
+  originalWrites: number,
+  now: number,
+) {
+  if (control.writes < originalWrites) throw new RegionalError('REGIONAL_RECOVERY_SOURCE_CHANGED');
+  if (control.state === 'idle' && control.fence === ticket.fence + 1) return;
+  if (
+    control.state !== 'needs-readback' ||
+    control.owner !== ticket.owner ||
+    control.fence !== ticket.fence ||
+    control.discovery ||
+    !isDeepStrictEqual(control.products, ticket.products) ||
+    !isDeepStrictEqual(control.families, ['headphones', 'ai-gadgets', 'toys', 'misc']) ||
+    !control.until ||
+    Date.parse(control.until) > now
+  )
+    throw new RegionalError('REGIONAL_RECOVERY_SOURCE_CHANGED');
+}
+async function assertFailedRecoverySource(
+  store: Pick<CatalogSeoStore, 'get'>,
+  request: RecoveryClearRequest,
+  config: CatalogRegionalConfig,
+  now: () => number,
+) {
+  const reject = () => {
+    throw new RegionalError('REGIONAL_RECOVERY_SOURCE_CHANGED');
+  };
+  const input = request.input;
+  const target = await store.get('siteReleaseTargets', config.targetId);
+  assertLease(target, request, config, now());
+  if (
+    target.currentRunId !== null ||
+    target.unresolvedOperation !== null ||
+    target.dirtyRunId !== input.stoppedRunId ||
+    request.guard.ownerRunId === input.stoppedRunId
+  )
+    reject();
+  const runKey = ledgerIdentity({ targetId: config.targetId, runId: input.stoppedRunId });
+  const parsedRun = z
+    .object({
+      _id: z.literal(runKey),
+      schemaVersion: z.literal(1),
+      targetId: z.literal(config.targetId),
+      runId: z.literal(input.stoppedRunId),
+      ownerRunId: z.literal(input.stoppedRunId),
+      scopeKey: z.literal('site'),
+      state: z.literal('FAILED'),
+      kind: z.enum(['publish', 'reconcile']),
+      accepted: z.null(),
+      fence: counter.min(1),
+      acquiredVersion: counter,
+      baseScopeVersion: counter,
+      verifiedSteps: counter,
+      verifiedWrites: counter,
+      deliveredComponents: z.tuple([z.literal('static')]),
+      plan: z.object({ planSha256: hash, stepCount: counter.min(2) }).passthrough(),
+      composition: z
+        .object({
+          static: z
+            .object({ codeSha: z.string().regex(/^[a-f0-9]{40}$/), artifact: artifactSchema })
+            .passthrough(),
+        })
+        .strict(),
+      reconciliation: z.record(z.unknown()),
+    })
+    .passthrough()
+    .safeParse(await store.get('siteReleaseRuns', runKey));
+  if (!parsedRun.success) return reject();
+  const run = parsedRun.data;
+  const match = /^site-([1-9][0-9]*)-([1-9][0-9]*)$/.exec(run.runId);
+  if (
+    !match ||
+    run.composition.static.artifact.runId !== match[1] ||
+    request.guard.fence <= run.fence ||
+    request.guard.acquiredVersion <= run.acquiredVersion
+  )
+    return reject();
+  const scope = await store.get('siteReleaseScopes', `${config.targetId}-site`);
+  if (
+    scope?._id !== `${config.targetId}-site` ||
+    scope.schemaVersion !== 1 ||
+    scope.targetId !== config.targetId ||
+    scope.scopeKey !== 'site' ||
+    !isDeepStrictEqual(scope.scope, { kind: 'site' }) ||
+    !scope.baseline ||
+    typeof scope.baseline !== 'object' ||
+    Array.isArray(scope.baseline) ||
+    !id.safeParse(Reflect.get(scope.baseline, 'sourceRunId')).success ||
+    Reflect.get(scope.baseline, 'sourceRunId') === run.runId ||
+    !isDeepStrictEqual(scope.active, scope.baseline) ||
+    scope.version !== run.baseScopeVersion
+  )
+    reject();
+  const stepKey = ledgerIdentity({
+    targetId: config.targetId,
+    runId: run.runId,
+    stepId: input.stepId,
+  });
+  const parsedStep = z
+    .object({
+      _id: z.literal(stepKey),
+      schemaVersion: z.literal(1),
+      targetId: z.literal(config.targetId),
+      runId: z.literal(run.runId),
+      stepId: z.literal(input.stepId),
+      operationId: id,
+      component: z.literal('static'),
+      kind: z.literal('write'),
+      beforeHash: hash,
+      afterHash: hash,
+      subject: z.string(),
+      verifySubject: z.string(),
+      executionId: id,
+      planSha256: z.literal(run.plan.planSha256),
+      sequence: z.literal(run.verifiedSteps),
+      fence: z.literal(run.fence),
+      members: z
+        .array(
+          z
+            .object({
+              path: z.string().regex(/^products\/p-([A-Za-z0-9_-]{1,200})\/index\.html$/),
+              bytes: counter.max(128 * 1024 * 1024),
+              sha256: hash,
+              beforeHash: z.union([hash, z.literal('absent')]),
+            })
+            .passthrough(),
+        )
+        .min(1)
+        .max(12),
+      intentHash: hash,
+      state: z.literal('reconciled'),
+      resolution: z.record(z.unknown()),
+    })
+    .passthrough()
+    .safeParse(await store.get('siteReleaseSteps', stepKey));
+  if (!parsedStep.success) return reject();
+  const step = parsedStep.data;
+  const intentKeys = [
+    'schemaVersion',
+    'targetId',
+    'runId',
+    'stepId',
+    'operationId',
+    'component',
+    'kind',
+    'beforeHash',
+    'afterHash',
+    'subject',
+    'verifySubject',
+    'executionId',
+    'planSha256',
+    'sequence',
+    'fence',
+    'members',
+  ];
+  if (
+    Object.hasOwn(step, 'removals') ||
+    run.verifiedWrites !== run.verifiedSteps ||
+    step.sequence >= run.plan.stepCount - 1 ||
+    step.intentHash !==
+      ledgerIdentity(Object.fromEntries(intentKeys.map((key) => [key, Reflect.get(step, key)]))) ||
+    step.beforeHash !==
+      ledgerIdentity(step.members.map(({ path, beforeHash }) => ({ path, beforeHash }))) ||
+    step.afterHash !==
+      ledgerIdentity(step.members.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 }))) ||
+    step.subject !== `upload-batch:${step.afterHash}` ||
+    step.verifySubject !== `read-batch:${step.afterHash}` ||
+    new Set(step.members.map((member) => member.path)).size !== step.members.length ||
+    !isDeepStrictEqual(step.resolution, run.reconciliation)
+  )
+    reject();
+  const proof = z
+    .object({
+      runnerRef: z.literal(`github:vibelingan/channel:${match[1]}:attempt-${match[2]}`),
+      checkedAt: counter,
+      job: z
+        .object({ status: z.literal('completed'), evidenceRef: z.string().min(1) })
+        .passthrough(),
+      cloud: z
+        .object({
+          status: z.literal('quiescent'),
+          kind: z.literal('stopped-site-html-batch'),
+          operationId: z.literal(step.operationId),
+          observedHash: z.literal(step.afterHash),
+          evidenceRef: z.string().min(1),
+        })
+        .passthrough(),
+    })
+    .passthrough()
+    .safeParse(run.reconciliation);
+  if (
+    !proof.success ||
+    proof.data.checkedAt > now() ||
+    !new RegExp(
+      `^github:${match[1]}:attempt-${match[2]}:job-[1-9][0-9]*:(success|failure|cancelled|timed_out):source-${run.composition.static.codeSha}$`,
+    ).test(proof.data.job.evidenceRef) ||
+    proof.data.cloud.evidenceRef !==
+      `candidate:${run.composition.static.artifact.artifactId}:batch:${step.afterHash}:three-cache-modes:absent:seo-catalog-region-${match[1]}-${match[2]}`
+  )
+    return reject();
+  const beginRow = await store.get(
+    'catalogSeoBuilders',
+    catalogRegionalReceiptId(run.runId, input.beginRequestId),
+  );
+  const endRow = await store.get(
+    'catalogSeoBuilders',
+    catalogRegionalReceiptId(run.runId, input.endRequestId),
+  );
+  if (
+    !beginRow ||
+    !endRow ||
+    beginRow.action !== 'delivery.begin' ||
+    endRow.action !== 'delivery.end'
+  )
+    return reject();
+  const parsedBegin = z
+    .object({ ticket: ticketSchema, expectedHeads: z.array(CatalogPublicHeadSchema).max(12) })
+    .strict()
+    .safeParse(beginRow.result);
+  if (!parsedBegin.success) return reject();
+  const ticket = parsedBegin.data.ticket;
+  const products = step.members.map((member) =>
+    member.path.slice('products/p-'.length, -'/index.html'.length),
+  );
+  if (
+    !ticket.owner.startsWith(`${run.runId}:`) ||
+    ticket.owner.length <= run.runId.length + 1 ||
+    new Set(ticket.products).size !== ticket.products.length ||
+    !isDeepStrictEqual([...products].sort(), [...ticket.products].sort()) ||
+    parsedBegin.data.expectedHeads.some(
+      (head) => head.siteOrigin !== config.siteOrigin || !ticket.products.includes(head.productId),
+    ) ||
+    new Set(parsedBegin.data.expectedHeads.map((head) => head.productId)).size !==
+      parsedBegin.data.expectedHeads.length
+  )
+    return reject();
+  const oldBase = {
+    ...request,
+    runId: run.runId,
+    executorCodeSha: run.composition.static.codeSha,
+    guard: {
+      targetId: config.targetId,
+      ownerRunId: run.ownerRunId,
+      fence: run.fence,
+      acquiredVersion: run.acquiredVersion,
+    },
+  };
+  const begin = {
+    ...oldBase,
+    requestId: input.beginRequestId,
+    action: 'delivery.begin',
+    input: { expectedWrites: input.originalWrites, products: ticket.products, discovery: false },
+  };
+  const end = {
+    ...oldBase,
+    requestId: input.endRequestId,
+    action: 'delivery.end',
+    input: { expectedWrites: input.originalWrites, ticket, outcome: 'unknown' },
+  };
+  readReceipt(beginRow, run.runId, input.beginRequestId, catalogRegionalRequestHash(begin));
+  const ended = readReceipt(endRow, run.runId, input.endRequestId, catalogRegionalRequestHash(end));
+  if (
+    !isDeepStrictEqual(ended, { ended: true }) ||
+    Date.parse(String(endRow.completedAt)) < Date.parse(String(beginRow.completedAt))
+  )
+    reject();
+  await assertCurrentLease(store, request, config, now());
+  return { ticket };
+}
+async function assertRecoveryReceiptCurrent(
+  store: Pick<CatalogSeoStore, 'get'>,
+  row: CollectionDoc,
+  request: CatalogRegionalRequest,
+  config: CatalogRegionalConfig,
+  now: () => number,
+) {
+  const original: RecoveryClearRequest = {
+    ...request,
+    action: 'recovery.clear',
+    input: recoveryInputSchema.parse(row.recoveryInput),
+  };
+  const source = await assertFailedRecoverySource(store, original, config, now);
+  const control = readCatalogSeoControl(
+    await store.get('catalogSeoControl', catalogSeoControlId(config.siteOrigin)),
+    config.siteOrigin,
+    new Date(now()).toISOString(),
+  );
+  assertRecoveryControl(control, source.ticket, original.input.originalWrites, now());
+  await assertCurrentLease(store, request, config, now());
+}
+
 async function clearRegistrationStep(
   store: CatalogSeoStore,
-  request: RegistrationClearRequest,
+  request: RegistrationClearRequest | RecoveryClearRequest,
   config: CatalogRegionalConfig,
   clock: () => string,
   now: () => number,
 ): Promise<JsonResult> {
-  await assertAcceptedRegistration(store, request, config, now());
+  const recovery =
+    request.action === 'recovery.clear'
+      ? await assertFailedRecoverySource(store, request, config, now)
+      : null;
+  if (request.action === 'registration.clear')
+    await assertAcceptedRegistration(store, request, config, now());
+  if (request.action === 'recovery.clear')
+    assertRecoveryProgress(
+      await store.get('catalogSeoBuilders', recoveryProgressId(request)),
+      request,
+    );
+  const sourceRunId =
+    request.action === 'recovery.clear' ? request.input.stoppedRunId : config.runId;
   const controlId = catalogSeoControlId(config.siteOrigin);
   const owned = async (reader: Pick<CatalogSeoStore, 'get'>) => {
     const control = readCatalogSeoControl(
@@ -786,6 +1167,10 @@ async function clearRegistrationStep(
       config.siteOrigin,
       clock(),
     );
+    if (request.action === 'recovery.clear' && recovery) {
+      assertRecoveryControl(control, recovery.ticket, request.input.originalWrites, now());
+      return control;
+    }
     if (
       control.state !== 'idle' &&
       (!control.owner?.startsWith(`${config.runId}:`) || control.discovery)
@@ -822,7 +1207,7 @@ async function clearRegistrationStep(
         task._id <= (last ?? '')
       )
         throw new RegionalError('REGIONAL_REGISTRATION_TASK_CHANGED');
-      if (task.lease?.runId === config.runId) {
+      if (task.lease?.runId === sourceRunId) {
         if (selected.length === 2) {
           remaining = true;
           break;
@@ -842,7 +1227,15 @@ async function clearRegistrationStep(
     }
   }
   return store.transaction(async (tx) => {
-    await assertAcceptedRegistration(tx, request, config, now());
+    if (request.action === 'recovery.clear') {
+      const current = await assertFailedRecoverySource(tx, request, config, now);
+      if (!recovery || !isDeepStrictEqual(current.ticket, recovery.ticket))
+        throw new RegionalError('REGIONAL_RECOVERY_SOURCE_CHANGED');
+      assertRecoveryProgress(
+        await tx.get('catalogSeoBuilders', recoveryProgressId(request)),
+        request,
+      );
+    } else await assertAcceptedRegistration(tx, request, config, now());
     const control = await owned(tx);
     const release = [];
     for (const expected of selected) {
@@ -853,7 +1246,7 @@ async function clearRegistrationStep(
         task.productId !== expected.productId
       )
         throw new RegionalError('REGIONAL_REGISTRATION_TASK_CHANGED');
-      if (task.lease?.runId === config.runId)
+      if (task.lease?.runId === sourceRunId)
         release.push(CatalogSeoTaskSchema.parse({ ...task, state: 'pending', lease: null }));
     }
     const controlReleased = state === 'control' && control.state !== 'idle';
@@ -867,12 +1260,19 @@ async function clearRegistrationStep(
       });
     }
     for (const task of release) await tx.set('catalogSeoTasks', task);
+    if (request.action === 'recovery.clear')
+      await tx.set('catalogSeoBuilders', {
+        _id: recoveryProgressId(request),
+        schemaVersion: 1,
+        purpose: 'catalog-failed-recovery-progress',
+        next: state === 'control' ? null : next,
+      });
     return { done: state === 'control', next, releasedTasks: release.length, controlReleased };
   });
 }
 function deliveryResult(request: CatalogRegionalRequest, value: unknown): JsonResult {
   if (
-    ['registration.clear', 'registration.activate'].includes(request.action) &&
+    ['registration.clear', 'registration.activate', 'recovery.clear'].includes(request.action) &&
     value &&
     typeof value === 'object' &&
     !Array.isArray(value)
@@ -912,6 +1312,7 @@ function receipt(
     result,
     completedAt: new Date(now).toISOString(),
     ...(request.action === 'registration.activate' ? { activationInput: request.input } : {}),
+    ...(request.action === 'recovery.clear' ? { recoveryInput: request.input } : {}),
   };
 }
 function readReceipt(
@@ -955,6 +1356,8 @@ async function operationStatus(
     }
     if (completed.action === 'registration.activate')
       await assertActivationReceiptCurrent(store, completed, request, config, now);
+    if (completed.action === 'recovery.clear')
+      await assertRecoveryReceiptCurrent(store, completed, request, config, now);
     return { state: 'completed', receipt: { action: completed.action, result } };
   }
   const first = await store.get(

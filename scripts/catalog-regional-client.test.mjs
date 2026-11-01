@@ -525,3 +525,48 @@ test('bootstrap deduplicates IDs and advances only after each bounded seed finis
   );
   await client.close();
 });
+
+test('failed-delivery recovery exposes one checked page and preserves its exact proof', async (t) => {
+  const f = await fixture(t);
+  const input = {
+    stoppedRunId: 'site-41000000000-1',
+    stepId: 'old-step',
+    beginRequestId: 'old-begin',
+    endRequestId: 'old-end',
+    originalWrites: 7,
+    state: 'writing',
+    cursor: null,
+  };
+  f.invoke = (request) => {
+    assert.equal(request.action, 'recovery.clear');
+    assert.deepEqual(request.input, input);
+    return {
+      done: false,
+      next: { state: 'writing', cursor: 'f'.repeat(64) },
+      releasedTasks: 2,
+      controlReleased: false,
+    };
+  };
+  const client = await f.start();
+  assert.equal((await client.recoverStoppedDeliveryStep(input)).releasedTasks, 2);
+  assert.equal(f.calls.filter((call) => call[1] === 'recovery.clear').length, 1);
+  await client.close();
+});
+test('a recovery page cannot skip stages or claim an early control release', async (t) => {
+  const f = await fixture(t);
+  f.invoke = (request) =>
+    request.action === 'operation.get'
+      ? { state: 'not-found' }
+      : {
+          done: false,
+          next: { state: 'control', cursor: null },
+          releasedTasks: 2,
+          controlReleased: true,
+        };
+  const client = await f.start();
+  await assert.rejects(client.recoverStoppedDeliveryStep({ state: 'leased', cursor: null }), {
+    code: 'CATALOG_REGIONAL_UNCONFIRMED',
+  });
+  assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
+  assert.equal(f.deleted.length, 0);
+});
