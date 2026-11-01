@@ -81,6 +81,50 @@
     "recordActivationRunId": "41292508820",
     "recordActivationStatus": "in_progress",
     "htmlDeliveryAccepted": false,
-    "programAbaAccepted": false
+    "programAbaAccepted": false,
+    "activationRun": {
+      "runId": "41292508820",
+      "url": "https://github.com/vibelingan/channel/actions/runs/41292508820",
+      "status": "completed",
+      "conclusion": "success",
+      "artifactId": 13078766697,
+      "receipt": {
+        "phase": "record",
+        "codeSha": "dc3af64b3f5c3d01e675f0938a36a3854b9aabde",
+        "executorSha": "dc3af64b3f5c3d01e675f0938a36a3854b9aabde",
+        "results": [
+          {
+            "name": "admin",
+            "phase": "record",
+            "changed": true,
+            "websiteWrites": 0
+          },
+          {
+            "name": "alibaba-catalog-sync",
+            "phase": "record",
+            "changed": true,
+            "websiteWrites": 0
+          },
+          {
+            "initialActivation": {
+              "schemaVersion": 1,
+              "purpose": "initial-catalog-runtime",
+              "siteOrigin": "https://supplychainsai.com",
+              "codeSha": "dc3af64b3f5c3d01e675f0938a36a3854b9aabde",
+              "sourceRunId": "41292508820",
+              "configurationHash": "91659946e332418e6edc8f857ba4ebf7cbfc1f5be072590a62a94878e6b130d4",
+              "maximumTimeoutSeconds": 900,
+              "observedAt": 1793524761272,
+              "usableAfter": 1793525781272,
+              "accepted": true,
+              "acceptedAt": 1793525795010
+            }
+          }
+        ],
+        "websiteWrites": 0,
+        "businessWrites": 0,
+        "clockEnabled": false
+      }
+    }
   }
 }

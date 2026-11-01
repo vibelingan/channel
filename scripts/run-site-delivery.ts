@@ -105,11 +105,18 @@ const archiveCos = new COS({
   ...ARCHIVE_COS_OPTIONS,
 });
 const objects = createPrivateArchive({
-  ...createCosArchiveTransfer({ cos: archiveCos, policy }),
+  ...createCosArchiveTransfer({
+    cos: archiveCos,
+    policy,
+    onStatus: (event: object) =>
+      console.log(JSON.stringify({ event: 'private-archive-sdk', ...event })),
+  }),
   sdk,
   manager,
   policy,
   readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+  onTransfer: (event: object) =>
+    console.log(JSON.stringify({ event: 'private-archive-transfer', ...event })),
 });
 const retention = createSiteRetention({ db, objects, policy });
 const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });

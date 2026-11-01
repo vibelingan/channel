@@ -13,6 +13,7 @@
     "../run-site-delivery.ts",
     "../catalog-refresh.ts",
     "../archive-catalog-renderer.ts",
+    "../archive-accepted-site.ts",
     "../run-catalog-clock.ts",
     "../prepare-catalog-seo.ts",
     "../stage-catalog-runtime.ts",

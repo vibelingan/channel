@@ -32,6 +32,10 @@ test('all manual modes select exactly one job and retain the existing shared tar
     const selected = Object.entries(workflow.jobs)
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
+    if (mode === 'site-archive') {
+      assert.deepEqual(selected, ['site_archive']);
+      continue;
+    }
     assert.deepEqual(selected, [
       mode === 'catalog-runtime'
         ? 'catalog_runtime'

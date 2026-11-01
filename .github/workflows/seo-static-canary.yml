@@ -7,7 +7,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
+        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, site-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
         default: plan
         required: true
       catalog_runtime_action:
@@ -205,6 +205,37 @@ jobs:
           name: catalog-clock-receipt-${{ github.run_id }}
           path: output/catalog-clock/receipt.json
           if-no-files-found: ignore
+          retention-days: 90
+  site_archive:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-archive' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_ARCHIVE_CONFIRM: CURRENT_ACCEPTED_SITE_ONLY
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Verify or retain only the current accepted website recovery archive
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/archive-accepted-site.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: site-archive-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/site-archive/receipt.json
+          if-no-files-found: error
           retention-days: 90
   renderer_archive:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'renderer-archive' }}
