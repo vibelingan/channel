@@ -151,8 +151,16 @@ async function fixture(t, { tracked = true, productIds = ['p1', 'p2'] } = {}) {
   const manager = {
     getManagerConfig: () => ({ envId: policy.envId, region: policy.region }),
     functions: {
-      async listFunctions(limit, offset) {
-        return [...functions.values()].map((row) => row.detail).slice(offset, offset + limit);
+      async getFunctionList(limit, offset) {
+        assert.deepEqual([limit, offset], [100, 0]);
+        return {
+          RequestId: 'offline-function-list',
+          TotalCount: functions.size,
+          Functions: [...functions.values()].map((row) => ({
+            Namespace: policy.envId,
+            ...row.detail,
+          })),
+        };
       },
       async createFunction({ func, force }) {
         assert.equal(force, false);

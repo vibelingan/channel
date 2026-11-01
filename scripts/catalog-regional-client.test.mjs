@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -26,8 +27,9 @@ async function fixture(t) {
   const manager = {
     getManagerConfig: () => ({ envId: policy.envId, region: policy.region }),
     functions: {
-      async listFunctions(limit, offset) {
-        return [...functions.values()].slice(offset, offset + limit);
+      async getFunctionList(limit, offset) {
+        assert.deepEqual([limit, offset], [100, 0]);
+        return completeInventory(f);
       },
       async createFunction({ func, force }) {
         calls.push(['create', func.name]);
@@ -100,6 +102,38 @@ async function fixture(t) {
     });
   f.receipt = async () => JSON.parse(await readFile(join(directory, 'result.json'), 'utf8'));
   return f;
+}
+
+function installedInventory(f, response) {
+  const require = createRequire(new URL('../package.json', import.meta.url));
+  const Manager = require('@cloudbase/manager-node');
+  f.inventoryCalls = [];
+  const actual = new Manager({
+    envId: policy.envId,
+    region: policy.region,
+    requestFn: async ({ service, action, payload }) => {
+      if (action === 'DescribeEnvInfo')
+        return {
+          EnvInfo: {
+            EnvBaseInfo: { EnvId: policy.envId, Functions: [{ Namespace: policy.envId }] },
+          },
+        };
+      assert.equal(service, 'tcb');
+      assert.equal(action, 'ListFunctions');
+      assert.deepEqual(payload, { EnvId: policy.envId, Limit: 100, Offset: 0 });
+      f.inventoryCalls.push(payload);
+      return response();
+    },
+  });
+  f.manager.functions.listFunctions = actual.functions.listFunctions.bind(actual.functions);
+  f.manager.functions.getFunctionList = actual.functions.getFunctionList.bind(actual.functions);
+}
+function completeInventory(f) {
+  return {
+    RequestId: 'offline-function-list',
+    TotalCount: f.functions.size,
+    Functions: [...f.functions.values()].map((row) => ({ Namespace: policy.envId, ...row })),
+  };
 }
 
 test('readback keeps original task identity but owns a new temporary function and guard', async (t) => {
@@ -360,9 +394,9 @@ test('lost creation reply is read back once; creation is never repeated', async 
 test('uncertain creation and unavailable inventory preserve its exact function and guard', async (t) => {
   const f = await fixture(t);
   f.lostCreate = true;
-  const list = f.manager.functions.listFunctions;
+  const list = f.manager.functions.getFunctionList;
   let lists = 0;
-  f.manager.functions.listFunctions = (...args) => {
+  f.manager.functions.getFunctionList = (...args) => {
     if (++lists > 1) throw Error('inventory unavailable after creation');
     return list(...args);
   };
@@ -451,7 +485,7 @@ test('acknowledged deletion still present is reported rather than called clean',
   const f = await fixture(t);
   const client = await f.start();
   f.keepAfterDelete = true;
-  await assert.rejects(client.close(), /not confirmed/);
+  await assert.rejects(client.close(), { code: 'CATALOG_REGIONAL_UNCONFIRMED' });
   assert.equal((await f.receipt()).cleaned, false);
 });
 
@@ -569,4 +603,98 @@ test('a recovery page cannot skip stages or claim an early control release', asy
   });
   assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
   assert.equal(f.deleted.length, 0);
+});
+
+test('actual Manager missing Functions cannot confirm a failed deletion', async (t) => {
+  const f = await fixture(t);
+  installedInventory(f, () =>
+    f.deleted.length
+      ? { RequestId: 'offline-incomplete-list', TotalCount: f.functions.size }
+      : completeInventory(f),
+  );
+  const client = await f.start();
+  f.keepAfterDelete = true;
+  f.lostDelete = true;
+  await assert.rejects(client.close(), { code: 'CATALOG_REGIONAL_UNCONFIRMED' });
+  assert.equal(f.functions.size, 1);
+  assert.equal(client.unconfirmed, true);
+  const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+  assert.equal(receipt.cleaned, false);
+  assert.equal(receipt.unconfirmed, true);
+  assert.equal(f.deleted.length, 1);
+  const invokeCount = f.calls.filter(([kind]) => kind === 'invoke').length;
+  const inventoryCount = f.inventoryCalls.length;
+  assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
+  await assert.rejects(client.prepare({ detailEnabled: true }), /Unconfirmed regional operation/);
+  assert.equal(f.calls.filter(([kind]) => kind === 'invoke').length, invokeCount);
+  assert.equal(f.deleted.length, 1);
+  assert.equal(f.inventoryCalls.length, inventoryCount);
+  assert.equal(JSON.stringify(receipt).includes('secret'), false);
+});
+
+test('invalid raw inventory cannot create a regional worker', async (t) => {
+  const wrong = { FunctionName: 'other-app', Namespace: 'wrong-env' };
+  for (const response of [
+    { RequestId: 'offline-list', TotalCount: 0 },
+    { RequestId: 'offline-list', TotalCount: 1, Functions: [] },
+    { TotalCount: 0, Functions: [] },
+    { RequestId: 'offline-list', TotalCount: 1, Functions: [wrong] },
+    {
+      RequestId: 'offline-list',
+      TotalCount: 2,
+      Functions: [
+        { ...wrong, Namespace: policy.envId },
+        { ...wrong, Namespace: policy.envId },
+      ],
+    },
+    { RequestId: 'offline-list', TotalCount: 101, Functions: [] },
+  ]) {
+    const f = await fixture(t);
+    installedInventory(f, () => response);
+    await assert.rejects(f.start());
+    assert.equal(f.calls.filter(([kind]) => kind === 'create').length, 0);
+    assert.equal(f.calls.filter(([kind]) => kind === 'invoke').length, 0);
+    assert.deepEqual(f.deleted, []);
+    assert.equal(f.functions.size, 0);
+    assert.equal(f.inventoryCalls.length, 1);
+  }
+});
+
+test('a malformed deletion readback leaves cleanup explicitly unconfirmed', async (t) => {
+  for (const invalid of [
+    { RequestId: 'offline-list', TotalCount: 1, Functions: [] },
+    {
+      RequestId: 'offline-list',
+      TotalCount: 1,
+      Functions: [{ FunctionName: 'other-app', Namespace: 'wrong-env' }],
+    },
+    { RequestId: 'offline-list', TotalCount: 101, Functions: [] },
+    () => {
+      throw Object.assign(Error('PRIVATE_CLEANUP_SECRET'), { code: 'AuthFailure' });
+    },
+  ]) {
+    const f = await fixture(t);
+    installedInventory(f, () =>
+      f.deleted.length
+        ? typeof invalid === 'function'
+          ? invalid()
+          : invalid
+        : completeInventory(f),
+    );
+    const client = await f.start();
+    f.keepAfterDelete = true;
+    await assert.rejects(
+      client.close(),
+      (error) =>
+        error.code === 'CATALOG_REGIONAL_UNCONFIRMED' &&
+        !error.message.includes('PRIVATE_CLEANUP_SECRET'),
+    );
+    assert.equal(client.unconfirmed, true);
+    const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+    assert.equal(receipt.cleaned, false);
+    assert.equal(receipt.unconfirmed, true);
+    assert.equal(JSON.stringify(receipt).includes('PRIVATE_CLEANUP_SECRET'), false);
+    assert.equal(f.functions.size, 1);
+    assert.equal(f.deleted.length, 1);
+  }
 });

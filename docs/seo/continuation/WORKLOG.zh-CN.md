@@ -654,3 +654,23 @@ D3 的三组精确远端检查均通过后，A1 运行 41322701720 在初始化3
 单页修复已完成，专项45项通过，独立复审另跑8项并确认101项反例已拒绝。所有缺字段、漏项、跨环境或重复名称均停止；删除后读回不完整时保留deleting与原锁，第二个函数不删除。实际读过function-inventory、准备恢复、停止证据及两处调用入口，将“完整目录可排除并发变化”改成“单次响应核齐；超100停止”。SDK检查通过；最终完整脚本、精确提交和远端结果分别记录，不把离线验证写成线上恢复成功。
 
 提交前最终完整脚本1,749项通过，0失败/取消/跳过；执行器类型、全仓1,820文件Biome和diff检查通过。完整日志catalog-inventory-single-page-all-final.log约99.9秒；此前SDK检查日志catalog-inventory-sdk.log通过。原图像改动、.source-sha、Python缓存与工具node_modules均未加入提交。
+
+fe32181a1b04057ae5e4c4d72b221ca588ec175d 已推送原分支。精确远端41328641788共17组全部成功，41328641714 Blog HTTP、41328641744 dummy offline成功；云dummy仍按开关跳过。根会话另外通过GitHub读取三份完整结论并核对源码，非仅采用代理转述。操作前19次公开GET/HEAD通过：528商品清单、抽查HTML与实时API一致，sitemap与404可用，两篇Blog正文、修订、图片资料和公开时间均与原基准一致。目标version3777、旧占用与基准activation3bcab25f-f26c-45cf-88e3-1c3043cff2c0再次读回未变，未见其他正在运行的GitHub任务。
+
+随后仅派发一次A1现场任务41329760692，精确源码fe32181a，归档程序f8e96d830a41e18d151dbb17f1dbcc0fa38ba877，刷新当前商品资料。两个旧临时函数已从完整清单消失，其他既有函数名称保留；新任务取得fence29占用。恢复进度记录recovery-progress-c4bc91a70e7d4271d258c60aed84bed8d90b3c27cbe22b69805164001b3ba125持续前进。UTC17:14:57旧writing占用314条，17:15:46降为294；leased/needs-readback旧占用均0。旧全局商品保护仍待最后一步解除，尚不能算网站交付成功。
+
+这段少发生的故障恢复每解除两个任务，正常路径包括helper首尾各一次status/runStatus检查，共4次release函数调用，再加1次catalog恢复调用。独立只读代码复查已确认5次固定调用，但未单独计时，不能把当前耗时直接归因于跨境网络。后续先用现有回执区分观察与恢复耗时，再考虑合并只读观察；保留事务内版本/来源/任务重读与未知结果保锁，不在正在执行的验收中修改源码，也不把故障恢复耗时混成正常发布八分钟指标。
+
+UTC17:27:42根会话独立读回：旧writing占用已为0，恢复progress.next=null；catalogSeoControl在17:27:35.482已变idle、owner=null、fence35、writes0。这证明旧商品任务占用已真实解除，不等于网站发布或程序A→B→A已通过。原始只读观测另存外盘catalog-A1-41329760692-root-observations.json；现场任务继续生成和交付当前HTML，未手改业务记录或强行清除保护。
+
+本轮随后完成真实网页交付。prepare.step于17:30:27返回ready=true，候选归档site-payload-41329760692-1为69,073,144字节；实际采用差异交付，12个写入批次及最后的整站验收全部通过。17:45:46网页账本转SUCCEEDED，activation为455abebb-535b-4026-9464-8a839e13a86c，候选artifact为13094086497。17:52根会话读回528个ready页面，active指向site-41329760692-1、归档程序f8e96d830a41e18d151dbb17f1dbcc0fa38ba877、执行源码fe32181a，catalogTracked=true。GitHub同一精确源码任务已completed/success；完整小证据与日志另存外盘，不下载大候选包。
+
+上传期间另做19次独立公开GET/HEAD，全部通过：商品HTML与实时API对应，sitemap及专用404可用，两篇Blog的正文、修订、图片资料、公开时间及文章服务版本保持不变。图片仅HEAD。两份结果为public-catalog-A1-inflight.log、public-blog-A1-inflight.log及各自完整JSON。根会话原始函数清单请求48829a54-f5ed-4b62-bd70-ee2bdcdbf9fa核齐TotalCount=7、实际7项且Namespace全部匹配固定环境；本轮两临时函数缺席，其余7个既有函数保留。目标currentRunId、dirtyRunId、lease、unresolvedOperation均null；未开启自动clock或修改main/test。
+
+收尾复查又发现同类检查尚未覆盖两个正常区域客户端：catalog-regional-client及release-regional-client仍用会省略总数的listFunctions确认缺席。真实Manager5.9.1离线反例已证明：删除抛错、函数仍在而响应缺Functions时，旧代码会误报cleaned=true。外盘regional-inventory-followup-20261102保存原始复现；没有将此离线缺口说成腾讯现场故障。此次A1的实际清理已通过上面的独立完整清单确认。下一次现场前，限定补齐这两个入口和相关夹具，复用现有完整单页检查，随后重新测试和远端CI。正常登记完成后锁可能已释放，清理错误不能笼统写成一定保留原锁。
+
+实际读过两个区域客户端、function-inventory、catalog-acceptance、static-delivery、hosting-adapter及真实SDK代码。措辞把“最后一批上传未完成”纠正为“12个写入批次已完成，最后一步是整站验收”，避免把网页写入与验收混为一谈。网站交付成功、商品登记成功与下一轮程序切换分别记录，不将本轮成功写成全部SEO或自动唤醒已经完成。
+
+两个正常客户端现已复用readCompleteFunctionInventory，仍只允许总数不超过100且单次响应完整、环境及名称无歧义的清单。catalog清理无法证实时补记cleaned=false、unconfirmed=true，并停止后续调用或重复删除；release沿用原固定错误流程。只改两客户端、两自身测试及两处真实客户端集成夹具。真实Manager5.9.1两条用例在旧实现均因缺少预期拒绝而失败，修后通过；五模块77项通过，独立复审另跑同组77项，无阻断P1/P2。最终全脚本1,756项通过，0失败/取消/跳过，约96.96秒；脚本类型、SDK门禁、全仓1,820文件Biome及diff检查通过。日志为外盘regional-cleanup-*-final.log，未相加重复用例。
+
+根会话另解包并直接断言本次原始result、public-browser/result及两区域回执：accepted、528商品、f8程序；初始HTML、最新API、分类刷新、询盘入口均true，pageErrors为空；catalog579次及release1066次调用全部completed。现场手机截图曾只露出第二张耳机图的顶部，补做一次390宽匿名浏览器诊断：点击时complete=false且自然尺寸0×0，等待decode约416毫秒后为完整800×800，前后布局不变。图片完整截图及JSON保存在product-image-diagnostic-A1-20261102；原截图没有记录加载状态，不能百分之百还原当时原因，也未将其宣称为已修复的布局bug。没有改UI或放宽验收阈值。

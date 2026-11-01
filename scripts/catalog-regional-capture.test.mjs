@@ -284,99 +284,127 @@ test('cleanup waits for an already running renewal before releasing the lease', 
   assert.equal((await f.actual.status()).state, 'idle');
 });
 
-test('real regional client confirms deletion through management readback before a same-name later session', async (t) => {
-  const f = await fixture(t);
-  const directory = await mkdtemp(join(tmpdir(), 'catalog-capture-manager-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const other = { FunctionName: 'existing-other-app', Description: 'unrelated' };
-  const functions = new Map([[other.FunctionName, other]]);
-  let deleting;
-  let readbacks = 0;
-  let creates = 0;
-  const manager = {
-    getManagerConfig: () => ({ envId: livePolicy.envId, region: livePolicy.region }),
-    functions: {
-      listFunctions: async (limit, offset) => {
-        if (deleting && ++readbacks === 2) {
-          functions.delete(deleting);
-          f.events.push('function-deletion-readback');
-          deleting = undefined;
-        }
-        return [...functions.values()].slice(offset, offset + limit);
+for (const incompleteReadback of [false, true])
+  test(`real regional client ${incompleteReadback ? 'retains a capture lease after incomplete cleanup readback' : 'confirms deletion before a same-name later session'}`, async (t) => {
+    const f = await fixture(t);
+    const directory = await mkdtemp(join(tmpdir(), 'catalog-capture-manager-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const other = { FunctionName: 'existing-other-app', Description: 'unrelated' };
+    const functions = new Map([[other.FunctionName, other]]);
+    let deleting;
+    let readbacks = 0;
+    let creates = 0;
+    const manager = {
+      getManagerConfig: () => ({ envId: livePolicy.envId, region: livePolicy.region }),
+      functions: {
+        getFunctionList: async (limit, offset) => {
+          assert.deepEqual([limit, offset], [100, 0]);
+          if (deleting && incompleteReadback)
+            return { RequestId: 'offline-incomplete-list', TotalCount: functions.size };
+          if (deleting && ++readbacks === 2) {
+            functions.delete(deleting);
+            f.events.push('function-deletion-readback');
+            deleting = undefined;
+          }
+          return {
+            RequestId: 'offline-function-list',
+            TotalCount: functions.size,
+            Functions: [...functions.values()].map((row) => ({
+              Namespace: livePolicy.envId,
+              ...row,
+            })),
+          };
+        },
+        createFunction: async ({ func, force }) => {
+          assert.equal(force, false);
+          assert.equal(functions.has(func.name), false);
+          creates++;
+          functions.set(func.name, {
+            FunctionName: func.name,
+            Description: func.description,
+            Runtime: func.runtime,
+            Type: func.type,
+            Handler: func.handler,
+            Triggers: [],
+            Status: 'Active',
+            AvailableStatus: 'Available',
+            Environment: {
+              Variables: Object.entries(func.envVariables).map(([Key, Value]) => ({ Key, Value })),
+            },
+          });
+        },
+        getFunctionDetail: async (name) => functions.get(name),
+        deleteFunction: async (name) => {
+          assert.equal(name, `seo-catalog-region-${runId.slice(5)}`);
+          deleting = name;
+          readbacks = 0;
+        },
+        invokeFunction: async (_name, request) => {
+          const result =
+            request.action === 'health'
+              ? { codeSha: 'a'.repeat(40), runId }
+              : { ready: true, writes: 4, heads: [] };
+          return {
+            RequestId: 'offline-manager',
+            InvokeFinished: 1,
+            RetCode: 0,
+            RetMsg: JSON.stringify({
+              purpose: 'catalog-seo-regional-v1',
+              codeSha: 'a'.repeat(40),
+              runId,
+              requestId: request.requestId,
+              action: request.action,
+              ok: true,
+              result,
+            }),
+          };
+        },
       },
-      createFunction: async ({ func, force }) => {
-        assert.equal(force, false);
-        assert.equal(functions.has(func.name), false);
-        creates++;
-        functions.set(func.name, {
-          FunctionName: func.name,
-          Description: func.description,
-          Runtime: func.runtime,
-          Type: func.type,
-          Handler: func.handler,
-          Triggers: [],
-          Status: 'Active',
-          AvailableStatus: 'Available',
-          Environment: {
-            Variables: Object.entries(func.envVariables).map(([Key, Value]) => ({ Key, Value })),
-          },
-        });
-      },
-      getFunctionDetail: async (name) => functions.get(name),
-      deleteFunction: async (name) => {
-        assert.equal(name, `seo-catalog-region-${runId.slice(5)}`);
-        deleting = name;
-        readbacks = 0;
-      },
-      invokeFunction: async (_name, request) => {
-        const result =
-          request.action === 'health'
-            ? { codeSha: 'a'.repeat(40), runId }
-            : { ready: true, writes: 4, heads: [] };
-        return {
-          RequestId: 'offline-manager',
-          InvokeFinished: 1,
-          RetCode: 0,
-          RetMsg: JSON.stringify({
-            purpose: 'catalog-seo-regional-v1',
-            codeSha: 'a'.repeat(40),
-            runId,
-            requestId: request.requestId,
-            action: request.action,
-            ok: true,
-            result,
-          }),
-        };
-      },
-    },
-  };
-  const start = (guard, { withLease }) =>
-    createCatalogRegionalClient({
-      manager,
-      policy: livePolicy,
-      runId,
-      codeSha: 'a'.repeat(40),
-      runnerRef: owner.runnerRef,
-      guard,
-      directory,
-      requestHash: () => 'b'.repeat(64),
-      withLease,
-      build: async () => {},
-      wait: async () => {},
-      mask: () => {},
-      onStatus: () => {},
-    });
-  await f.run(async () => ({ source: 'accepted' }), { createClient: start });
-  assert.ok(f.events.indexOf('function-deletion-readback') < f.events.indexOf('release'));
-  assert.equal(functions.size, 1);
-  assert.deepEqual(functions.get(other.FunctionName), other);
-  const nextGuard = await f.actual.acquire(owner);
-  const next = await start(nextGuard, { withLease: (operation) => operation() });
-  await next.close();
-  await f.actual.release(nextGuard);
-  assert.equal(creates, 2);
-  assert.deepEqual(functions.get(other.FunctionName), other);
-});
+    };
+    const start = (guard, { withLease }) =>
+      createCatalogRegionalClient({
+        manager,
+        policy: livePolicy,
+        runId,
+        codeSha: 'a'.repeat(40),
+        runnerRef: owner.runnerRef,
+        guard,
+        directory,
+        requestHash: () => 'b'.repeat(64),
+        withLease,
+        build: async () => {},
+        wait: async () => {},
+        mask: () => {},
+        onStatus: () => {},
+      });
+    if (incompleteReadback) {
+      await assert.rejects(
+        f.run(async () => ({ source: 'accepted' }), { createClient: start }),
+        {
+          code: 'CATALOG_CAPTURE_CLEANUP_UNCONFIRMED',
+        },
+      );
+      assert.equal(f.events.includes('release'), false);
+      const current = await f.actual.status({ scopeKey: 'site' });
+      assert.equal(current.state, 'leased');
+      assert.equal(current.target.lease.ownerRunId, runId);
+      assert.deepEqual(current.scope.baseline, f.baseline);
+      assert.equal(functions.size, 2);
+      assert.deepEqual(functions.get(other.FunctionName), other);
+      assert.equal(creates, 1);
+      return;
+    }
+    await f.run(async () => ({ source: 'accepted' }), { createClient: start });
+    assert.ok(f.events.indexOf('function-deletion-readback') < f.events.indexOf('release'));
+    assert.equal(functions.size, 1);
+    assert.deepEqual(functions.get(other.FunctionName), other);
+    const nextGuard = await f.actual.acquire(owner);
+    const next = await start(nextGuard, { withLease: (operation) => operation() });
+    await next.close();
+    await f.actual.release(nextGuard);
+    assert.equal(creates, 2);
+    assert.deepEqual(functions.get(other.FunctionName), other);
+  });
 
 test('a changed accepted baseline stops the capture and is never released as this session', async (t) => {
   const f = await fixture(t);

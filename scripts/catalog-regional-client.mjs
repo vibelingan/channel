@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'node:util';
 import { buildCatalogRegional } from './catalog-regional-build.mjs';
+import { readCompleteFunctionInventory } from './release/function-inventory.mjs';
 
 const purpose = 'catalog-seo-regional-v1';
 const description = 'channel-catalog-regional-v1';
@@ -107,22 +108,7 @@ export async function createCatalogRegionalClient({
     assert.equal(v.CATALOG_REGIONAL_TOKEN_DIGEST, digest);
     assert.equal(v.CATALOG_REGIONAL_RUNNER_REF, runnerRef);
   };
-  const inventory = async () => {
-    const names = [];
-    for (let offset = 0; offset < 1000; offset += 100) {
-      const rows = await manager.functions.listFunctions(100, offset);
-      assert.ok(Array.isArray(rows) && rows.length <= 100);
-      for (const row of rows) {
-        assert.equal(typeof row.FunctionName, 'string');
-        names.push(row.FunctionName);
-      }
-      if (rows.length < 100) {
-        assert.equal(new Set(names).size, names.length);
-        return names;
-      }
-    }
-    throw Error('Regional function inventory exceeds bound');
-  };
+  const inventory = () => readCompleteFunctionInventory(manager.functions, policy.envId);
   const terminal = (response, request) => {
     assert.ok(response && typeof response.RequestId === 'string' && response.RequestId);
     assert.equal(typeof response.RetMsg, 'string');
@@ -289,28 +275,40 @@ export async function createCatalogRegionalClient({
       await persist();
       return { cleaned: false, unconfirmed: true };
     }
-    if (created) {
-      own(await manager.functions.getFunctionDetail(name));
-      let deletionFailed = false;
-      try {
-        await manager.functions.deleteFunction(name);
-      } catch {
-        deletionFailed = true;
-      }
-      let removed = false;
-      for (let n = 0; n < 6; n++) {
-        if (n) await wait(250 * 2 ** (n - 1));
-        if (!(await inventory()).includes(name)) {
-          removed = true;
-          break;
+    try {
+      if (created) {
+        own(await manager.functions.getFunctionDetail(name));
+        let deletionFailed = false;
+        try {
+          await manager.functions.deleteFunction(name);
+        } catch {
+          deletionFailed = true;
         }
+        let removed = false;
+        for (let n = 0; n < 6; n++) {
+          if (n) await wait(250 * 2 ** (n - 1));
+          if (!(await inventory()).includes(name)) {
+            removed = true;
+            break;
+          }
+        }
+        receipt.cleaned = removed;
+        await persist();
+        assert.ok(
+          removed,
+          deletionFailed
+            ? 'Regional deletion needs readback'
+            : 'Regional deletion is not confirmed',
+        );
       }
-      receipt.cleaned = removed;
+    } catch {
+      unknown = true;
+      receipt.cleaned = false;
+      receipt.unconfirmed = true;
       await persist();
-      assert.ok(
-        removed,
-        deletionFailed ? 'Regional deletion needs readback' : 'Regional deletion is not confirmed',
-      );
+      throw Object.assign(Error('Regional cleanup needs readback; retain its function'), {
+        code: 'CATALOG_REGIONAL_UNCONFIRMED',
+      });
     }
     closed = true;
     return { cleaned: receipt.cleaned, unconfirmed: false };

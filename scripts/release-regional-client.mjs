@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { buildReleaseRegional } from './release-regional-build.mjs';
+import { readCompleteFunctionInventory } from './release/function-inventory.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import {
   releaseRegionalDiagnostic,
@@ -87,26 +88,12 @@ export async function createReleaseRegionalClient({
   };
   const markUnknown = async (diagnostic = {}) => {
     unknown = true;
+    receipt.cleaned = false;
     receipt.unconfirmed = true;
     await persist();
     throw unconfirmedError(diagnostic);
   };
-  const inventory = async () => {
-    const names = [];
-    for (let offset = 0; offset < 1000; offset += 100) {
-      const rows = await manager.functions.listFunctions(100, offset);
-      assert.ok(Array.isArray(rows) && rows.length <= 100);
-      for (const row of rows) {
-        assert.equal(typeof row.FunctionName, 'string');
-        names.push(row.FunctionName);
-      }
-      if (rows.length < 100) {
-        assert.equal(new Set(names).size, names.length);
-        return names;
-      }
-    }
-    throw Error('Release regional inventory exceeds its bound');
-  };
+  const inventory = () => readCompleteFunctionInventory(manager.functions, policy.envId);
   const expectedVariables = {
     TCB_ENV: config.envId,
     RELEASE_REGIONAL_TARGET_ID: config.targetId,
