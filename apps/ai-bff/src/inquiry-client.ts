@@ -38,7 +38,7 @@ export function createInquiryClient(
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
         redirect: 'error',
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(30000),
       });
       if (!response.ok) {
         await response.body?.cancel();

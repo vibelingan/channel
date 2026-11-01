@@ -1,6 +1,8 @@
 # 官网助手前端与后端交接
 
-2026-11-01：[助手到 Hermes 自动任务](INQUIRY-HANDOFF-DELIVERY.md) 已通过本地实际组件／服务联调，补齐 Hermes 字段兼容；真实 CloudBase 尚缺独立环境，没有部署或发邮件。
+2026-11-02：[真实模型与 VibeKB 交付](REAL-CHAT-DELIVERY.md) 为当前状态入口。真实聊天、产品推荐／比较、多轮需求核对与现有 CloudBase 保存已通过实际浏览器验收；没有部署官网或发送邮件。复用 Hermes 当前 DeepSeek 与 VibeKB MCP，没有按 AnythingLLM 接新流程。
+
+2026-11-01：[助手到 Hermes 自动任务](INQUIRY-HANDOFF-DELIVERY.md) 保留前轮的本地／CI 和云端保存证据。用户已授权使用现有云库，不需要新建环境。
 
 2026-10-31：[确认询盘统一保存](INQUIRY-DELIVERY.md) 已完成本地前后端接线，复用 SG1.2 的询盘／来源／待派发事务。历史恢复暂缓，真实云库与上线尚未验收；下文早期计划保留其当时状态。
 

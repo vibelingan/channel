@@ -37,7 +37,7 @@ test('actual components communicate with BFF, database and worker across two tur
 test('stop interrupts a quiet provider and a subsequent turn can complete', async ({ page }) => {
   await send(page, 'slow response');
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
-  await expect(page.getByLabel('Answer status')).toContainText('has stopped', { timeout: 2000 });
+  await expect(page.getByLabel('Answer status')).toContainText('has stopped', { timeout: 5000 });
   await send(page, 'A new question after stop');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(

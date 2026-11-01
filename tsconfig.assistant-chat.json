@@ -10,6 +10,10 @@
     "playwright.assistant-chat.config.ts",
     "tests/assistant-chat/**/*.ts",
     "scripts/assistant-chat-local.ts",
-    "scripts/assistant-sales-browser.mts"
+    "scripts/assistant-sales-browser.mts",
+    "scripts/assistant-real-browser.mts",
+    "scripts/assistant-real-smoke.mts",
+    "scripts/assistant-real-model-bridge.mts",
+    "scripts/assistant-ssh-fetch.ts"
   ]
 }

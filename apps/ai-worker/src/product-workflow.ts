@@ -7,12 +7,39 @@ import {
 export type ProductPlan =
   | CatalogAction
   | { kind: 'clarify'; question: string }
+  | { kind: 'inquiry'; summary: string; productId?: string }
+  | { kind: 'help'; topic: 'greeting' | 'unsupported' | 'no_knowledge' | 'handoff' }
   | { kind: 'answer'; text: string };
 
 export function parseProductPlan(text: string): ProductPlan {
-  if (text.length > 4000) throw new Error('invalid_product_plan');
+  if (text.length > 6000) throw new Error('invalid_product_plan');
   const v: unknown = JSON.parse(text);
   if (isCatalogAction(v)) return v;
+  if (
+    record(v) &&
+    v.kind === 'inquiry' &&
+    Object.keys(v).every((k) => ['kind', 'summary', 'productId'].includes(k)) &&
+    typeof v.summary === 'string' &&
+    v.summary.trim() &&
+    v.summary.length <= 4000 &&
+    (v.productId === undefined ||
+      (typeof v.productId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v.productId)))
+  )
+    return {
+      kind: 'inquiry',
+      summary: v.summary,
+      ...(typeof v.productId === 'string' ? { productId: v.productId } : {}),
+    };
+  if (
+    record(v) &&
+    Object.keys(v).length === 2 &&
+    v.kind === 'help' &&
+    ['greeting', 'unsupported', 'no_knowledge', 'handoff'].some((topic) => topic === v.topic)
+  )
+    return {
+      kind: 'help',
+      topic: v.topic as 'greeting' | 'unsupported' | 'no_knowledge' | 'handoff',
+    };
   if (
     v &&
     typeof v === 'object' &&
@@ -47,8 +74,11 @@ export class PublicCatalog {
     origin: string,
     private readonly api: typeof fetch = fetch,
     allowLocal = false,
+    private readonly timeoutMs = 15000,
   ) {
     const u = new URL(origin);
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 30000)
+      throw new Error('invalid_catalog_timeout');
     if (
       u.username ||
       u.password ||
@@ -66,7 +96,7 @@ export class PublicCatalog {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
       redirect: 'error',
-      signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)]),
     });
     if (r.status === 404) {
       await r.body?.cancel();

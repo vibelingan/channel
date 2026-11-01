@@ -1,4 +1,6 @@
-# 助手询盘与 Hermes 自动任务：本轮交付
+# 助手询盘与 Hermes 自动任务：前轮交付
+
+2026-11-02 更新：真实模型、VibeKB、公开产品与云端保存的最新状态见 [本轮交付](REAL-CHAT-DELIVERY.md)。下文保留前轮验收范围，不能用其当时的待办代替当前状态。
 
 2026-11-01。SG1.2／SG3.2 延续原编号。前轮补齐跨系统接缝；本轮追加现有云库真实验收，仅新增专用验收函数和 Sales 私有集合，未发送邮件。
 
@@ -34,4 +36,4 @@ Hermes 的运行修改只涉及 Sales 读取协议、模型资料整理与邮件
 
 文字复核读取本文件、执行计划、环境 JSON、Hermes 读取／整理／渲染代码与 E2E。将“模拟入口”改成“实际组件，云库／模型仍为替身”，并核对前轮云端只读、自动轮询先启动及成果发送权限为 none；本轮新增的真实云写入单独记录在更新说明和证据中。
 
-2026-11-01 更新：真实云执行请求 `59624397-392b-47d9-b815-eaecec01e21c`；完整证据在 Sales 分支 `docs/sales-agent/SHARED-ENV-ACCEPTANCE-DELIVERY.md`。账号与真实聊天接线步骤见 [从账号开始的操作顺序](REAL-CHAT-SETUP.zh-CN.md)。本轮没有修改聊天运行代码，当前 worker 仍缺 VibeKB MCP 适配，不能声称补 Key 后即已完成。
+2026-11-01 更新：真实云执行请求 `59624397-392b-47d9-b815-eaecec01e21c`；完整证据在 Sales 分支 `docs/sales-agent/SHARED-ENV-ACCEPTANCE-DELIVERY.md`。账号与真实聊天接线步骤见 [从账号开始的操作顺序](REAL-CHAT-SETUP.zh-CN.md)。该前轮没有修改聊天运行代码；VibeKB MCP adapter 已在 2026-11-02 的新一轮补齐并另行验收。

@@ -26,6 +26,11 @@ export interface CancelResponse {
 }
 
 export type PublicSseEvent =
+  | {
+      type: 'tool.progress';
+      sequence: number;
+      action: 'knowledge_search' | 'model_answer' | 'product_search';
+    }
   | { type: 'token'; sequence: number; text: string }
   | {
       type: 'citation';
@@ -99,4 +104,6 @@ export {
   isPublicProductCard,
   isProductCards,
   PRODUCT_KINDS,
+  type InquirySuggestion,
+  isInquirySuggestion,
 } from './products.ts';

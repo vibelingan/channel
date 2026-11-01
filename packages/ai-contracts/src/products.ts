@@ -53,4 +53,26 @@ export function isProductCards(v: unknown): v is PublicProductCard[] {
     new Set(v.map((p) => p.id)).size === v.length
   );
 }
-export const PRODUCT_KINDS = ['answer', 'clarification', 'no_match', 'product_updated'] as const;
+export const PRODUCT_KINDS = [
+  'answer',
+  'clarification',
+  'no_match',
+  'product_updated',
+  'team_followup',
+  'unsupported',
+] as const;
+export interface InquirySuggestion {
+  requirement: string;
+  productId?: string;
+}
+export function isInquirySuggestion(value: unknown): value is InquirySuggestion {
+  return (
+    record(value) &&
+    Object.keys(value).every((k) => ['requirement', 'productId'].includes(k)) &&
+    typeof value.requirement === 'string' &&
+    value.requirement.trim().length > 0 &&
+    value.requirement.length <= 4000 &&
+    (value.productId === undefined ||
+      (typeof value.productId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value.productId)))
+  );
+}

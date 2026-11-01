@@ -8,6 +8,7 @@ import type {
 } from './model';
 
 export type AssistantAction =
+  | { type: 'inquiry_saved'; reference: string }
   | { type: 'open'; open: boolean }
   | { type: 'begin'; request: TurnRequest; regenerate?: boolean }
   | { type: 'event'; event: TurnEvent }
@@ -40,6 +41,23 @@ function terminal(phase: TurnPhase): boolean {
 }
 
 export function reduceAssistant(state: AssistantState, action: AssistantAction): AssistantState {
+  if (action.type === 'inquiry_saved') {
+    const id = `inquiry:${action.reference}`;
+    return state.messages.some((message) => message.id === id)
+      ? state
+      : {
+          ...state,
+          messages: [
+            ...state.messages,
+            {
+              id,
+              role: 'assistant',
+              kind: 'answer',
+              text: `Your inquiry is recorded. Reference: ${action.reference}`,
+            },
+          ],
+        };
+  }
   if (action.type === 'reset') return action.state;
   if (action.type === 'open') return { ...state, open: action.open };
   if (action.type === 'restoring')
@@ -136,6 +154,7 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
                 ? answer.text
                 : 'I could not find an answer for this question. Try another question or share your requirement with our team.',
             kind: event.kind ?? 'answer',
+            ...(event.inquirySuggestion ? { inquirySuggestion: event.inquirySuggestion } : {}),
             ...(event.products ? { products: event.products } : {}),
             ...(event.unavailableProductIds
               ? { unavailableProductIds: event.unavailableProductIds }

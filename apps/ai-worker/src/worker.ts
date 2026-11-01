@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { type Server, createServer } from 'node:http';
 import { isCatalogAction } from '@vibelingan-channel/ai-contracts';
 import { AnythingLlmEngine, assertNoToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
+import { VibeKbEngine } from '@vibelingan-channel/ai-engine-vibekb';
 import {
   type EngineProvenance,
   assertEngineUsable,
@@ -23,6 +24,7 @@ import {
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
+import { explainCatalog } from './catalog-answer.ts';
 import { PublicCatalog, parseProductPlan } from './product-workflow.ts';
 
 export interface WorkerConfig {
@@ -330,20 +332,61 @@ async function startRun(
   const context = await workerStage('load_run_context', () => store.getRunExecutionContext(runId));
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), config.maxStreamDurationMs);
   const stopWatching = watchRunFence(store, context, controller);
   const finishProduct = async (action: Parameters<PublicCatalog['execute']>[0]) => {
     const catalog = config.catalog;
     if (!catalog) throw new WorkerFailure('invalid_request', 'catalog_not_configured');
+    if (engine instanceof VibeKbEngine)
+      await store.appendEventFenced({
+        conversationId: context.conversationId,
+        runId: context.runId,
+        expectedControlVersion: context.controlVersion,
+        claimEpoch: context.claimEpoch,
+        type: 'tool.progress',
+        payload: { action: 'product_search' },
+      });
     const result = await workerStage('read_public_catalog', () =>
       catalog.execute(action, controller.signal),
     );
+    const explanation =
+      engine instanceof VibeKbEngine && context.catalogAction === undefined
+        ? await explainCatalog(
+            engine,
+            {
+              operationId: context.operationId,
+              conversationRef: context.conversationId,
+              turns: preparePublicTurns(context.turns),
+              profileId: PRODUCT_PROFILE_ID,
+              locale: context.locale,
+              limits: {
+                maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
+                maxStreamDurationMs: config.maxStreamDurationMs,
+                maxToolCalls: 0,
+              },
+            },
+            result.products,
+            controller.signal,
+            config.approvedSourcePrefix,
+          )
+        : null;
     await store.finishRunFenced({
       conversationId: context.conversationId,
       runId: context.runId,
       expectedControlVersion: context.controlVersion,
       claimEpoch: context.claimEpoch,
       status: 'completed',
-      events: [{ type: 'final', payload: result }],
+      events: [
+        ...(explanation
+          ? approvedEvents(explanation)
+              .map(storeEvent)
+              .filter((event) => event.type !== 'final')
+          : []),
+        {
+          type: 'final',
+          payload: { ...result, ...(explanation ? { text: explanation.text } : {}) },
+        },
+      ],
     });
   };
   try {
@@ -383,6 +426,21 @@ async function startRun(
       if (!(await workerStage('check_run_fence', () => store.isRunCommitAuthorized(context)))) {
         controller.abort();
         return;
+      }
+      if (rawEvent.type === 'activity') {
+        const committed = await store.appendEventFenced({
+          conversationId: context.conversationId,
+          runId: context.runId,
+          expectedControlVersion: context.controlVersion,
+          claimEpoch: context.claimEpoch,
+          type: 'tool.progress',
+          payload: { action: rawEvent.action },
+        });
+        if (!committed) {
+          controller.abort();
+          return;
+        }
+        continue;
       }
 
       if (rawEvent.type === 'token' || rawEvent.type === 'citation') {
@@ -432,6 +490,68 @@ async function startRun(
           });
           return;
         }
+        if (plan.kind === 'inquiry' || plan.kind === 'help') {
+          const chinese = /[\u3400-\u9fff]/.test(
+            context.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text ?? '',
+          );
+          if (plan.kind === 'inquiry' && plan.productId) {
+            const latestProducts = new Map<string, unknown>();
+            for (const turn of context.turns) {
+              for (const product of turn.publicCatalog?.products ?? [])
+                latestProducts.set(product.id, product);
+              for (const id of turn.publicCatalog?.unavailableProductIds ?? [])
+                latestProducts.delete(id);
+            }
+            if (!latestProducts.has(plan.productId))
+              throw new WorkerFailure('invalid_request', 'inquiry_product_not_in_context');
+          }
+          const text =
+            plan.kind === 'inquiry'
+              ? chinese
+                ? '我已整理采购需求。请核对需求、填写邮箱，并确认是否交给团队跟进；确认前不会提交。'
+                : 'Your purchase requirements are ready to review. Check the details and add your email before confirming. Nothing is submitted yet.'
+              : plan.topic === 'greeting'
+                ? chinese
+                  ? '你好，我可以帮你查找产品、了解 OEM 服务，或整理询盘需求。你想采购什么？'
+                  : 'Hello. I can help find products, explain our OEM services, or prepare an inquiry. What are you looking for?'
+                : plan.topic === 'unsupported'
+                  ? chinese
+                    ? '这件事超出我目前能处理的范围。我可以帮你查产品、了解服务，或者整理需求交给团队。'
+                    : 'I cannot carry out that request. I can help with products, our services, or preparing a requirement for our team.'
+                  : chinese
+                    ? '这部分需要团队进一步确认。你可以继续说明需求，或核对询盘后交给团队跟进。'
+                    : 'Our team needs to confirm that detail. You can describe your needs or review an inquiry for follow-up.';
+          await store.finishRunFenced({
+            conversationId: context.conversationId,
+            runId: context.runId,
+            expectedControlVersion: context.controlVersion,
+            claimEpoch: context.claimEpoch,
+            status: 'completed',
+            events: [
+              {
+                type: 'final',
+                payload: {
+                  text,
+                  kind:
+                    plan.kind === 'help' && plan.topic === 'unsupported'
+                      ? 'unsupported'
+                      : plan.kind === 'help' && plan.topic === 'greeting'
+                        ? 'answer'
+                        : 'team_followup',
+                  ...(plan.kind === 'inquiry'
+                    ? {
+                        inquirySuggestion: {
+                          requirement: plan.summary,
+                          ...(plan.productId ? { productId: plan.productId } : {}),
+                        },
+                      }
+                    : {}),
+                },
+              },
+            ],
+          });
+          return;
+        }
         candidate = { ...rawEvent, text: plan.text };
       }
       const policyResult = enforceGroundedFinal(candidate, {
@@ -467,6 +587,7 @@ async function startRun(
     if (!controller.signal.aborted)
       throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
   } finally {
+    clearTimeout(deadline);
     await stopWatching();
     controller.abort();
   }
@@ -812,7 +933,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // ignore it. Renamed from maxOutputTokens, which promised the second thing.
     maxDeliveredOutputUnits: envNumber('AI_MAX_OUTPUT_TOKENS', 4096),
     maxStreamDurationMs: envNumber('AI_MAX_STREAM_DURATION_MS', 55_000),
-    maxToolCalls: envNonNegativeNumber('AI_MAX_TOOL_CALLS', 0),
+    maxToolCalls: envNonNegativeNumber('AI_MAX_TOOL_CALLS', engine instanceof VibeKbEngine ? 8 : 0),
     approvedSourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
     citationSiteOrigin: process.env.AI_SITE_ORIGIN ?? 'http://localhost:4321',
   });
@@ -855,6 +976,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       () => shuttingDown,
     );
   }
+  if (engine instanceof VibeKbEngine) {
+    await retryStartupStep(
+      'public_knowledge_unreachable',
+      async () => {
+        await engine.verifyKnowledge();
+      },
+      () => shuttingDown,
+    );
+  }
 
   let databaseReady = false;
   try {
@@ -878,7 +1008,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 }
 
-function engineFromEnvironment(): ConversationEngine {
+export function engineFromEnvironment(): ConversationEngine {
   const engineId = process.env.AI_ENGINE_ID ?? 'fake';
   if (engineId === 'fake') {
     return new FakeEngine({
@@ -909,6 +1039,27 @@ function engineFromEnvironment(): ConversationEngine {
           ],
         },
       ],
+    });
+  }
+  if (engineId === 'vibekb') {
+    const thinkingMode = process.env.AI_MODEL_THINKING_MODE;
+    if (thinkingMode !== undefined && thinkingMode !== 'enabled' && thinkingMode !== 'disabled')
+      throw new Error('invalid_AI_MODEL_THINKING_MODE');
+    return new VibeKbEngine({
+      modelBaseUrl: requiredEnv('AI_MODEL_BASE_URL'),
+      model: requiredEnv('AI_MODEL_ID'),
+      modelApiKey: requiredEnv('AI_MODEL_API_KEY'),
+      ...(thinkingMode ? { thinkingMode } : {}),
+      provenance: provenanceFromEnvironment(),
+      knowledge: {
+        url: requiredEnv('VIBEKB_MCP_URL'),
+        apiKey: requiredEnv('VIBEKB_MCP_API_KEY'),
+        workspaceId: Number(requiredEnv('VIBEKB_PUBLIC_WORKSPACE_ID')),
+        publicDocumentIds: requiredEnv('VIBEKB_PUBLIC_DOCUMENT_IDS').split(',').map(Number),
+        publicTag: process.env.VIBEKB_PUBLIC_TAG ?? '对外公开',
+        sourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
+        allowLocalHttp: process.env.VIBEKB_MCP_ALLOW_LOOPBACK_HTTP === '1',
+      },
     });
   }
   if (engineId !== 'anythingllm') throw new Error(`unsupported_AI_ENGINE_ID:${engineId}`);

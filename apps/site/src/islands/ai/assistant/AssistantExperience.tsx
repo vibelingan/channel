@@ -4,6 +4,7 @@ import { ChatPanel } from '../../../components/chat/ChatPanel';
 import { useChatViewport } from '../../../components/chat/useChatViewport';
 import { AssistantMessages } from './AssistantMessages';
 import { InquiryReview } from './InquiryReview';
+import { currentPublicProducts } from './inquiry';
 import type { AssistantAdapter, PublicProduct, TurnView } from './model';
 import { isTurnWorking } from './state';
 import { type AssistantSeed, useAssistantSession } from './useAssistantSession';
@@ -66,11 +67,7 @@ export function AssistantExperience({
     state.sessionStatus === 'restoring' ||
     state.sessionStatus === 'expired' ||
     state.sessionStatus === 'unavailable';
-  const products = new Map<string, PublicProduct>();
-  for (const message of state.messages) {
-    for (const product of message.products ?? []) products.set(product.id, product);
-    for (const id of message.unavailableProductIds ?? []) products.delete(id);
-  }
+  const products = currentPublicProducts(state.messages);
   const compared = compareIds
     .map((id) => products.get(id))
     .filter((product): product is PublicProduct => Boolean(product));
@@ -193,7 +190,7 @@ export function AssistantExperience({
                   {compared.map((product) => (
                     <div key={product.id} className="rounded-lg bg-surface-alt p-3">
                       <h4 className="font-semibold">{product.name}</h4>
-                      <p className="mt-1 text-xs">{product.summary}</p>
+                      <p className="mt-1 line-clamp-3 text-xs">{product.summary}</p>
                       <p className="mt-1 text-xs text-ink-muted">
                         Public product details. Commercial terms require confirmation.
                       </p>

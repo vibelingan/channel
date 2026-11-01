@@ -1,6 +1,6 @@
 import type { CatalogAction } from '@vibelingan-channel/ai-contracts';
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { validateInquiry } from './inquiry';
+import { beginInquiryReview, currentPublicProducts, validateInquiry } from './inquiry';
 import type {
   AssistantAdapter,
   AssistantState,
@@ -213,26 +213,30 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       if (active.current === controller) active.current = null;
     }
   }
-  function beginInquiry(product?: PublicProduct) {
-    if (inquiryRef.current.phase === 'closed') {
-      const next: InquiryView = {
-        phase: 'editing',
-        key: crypto.randomUUID(),
-        draft: {
-          requirement:
-            latest.current.messages.filter((message) => message.role === 'visitor').at(-1)?.text ??
-            '',
-          name: '',
-          email: '',
-          company: '',
-          consent: false,
-          ...(product ? { product } : {}),
-        },
-        errors: {},
-      };
-      inquiryRef.current = next;
-      setInquiry(next);
-    }
+  function beginInquiry(product?: PublicProduct, requirement?: string) {
+    const suggestion = latest.current.messages
+      .filter((message) => message.role === 'assistant')
+      .at(-1)?.inquirySuggestion;
+    const selected =
+      product ??
+      (!requirement && suggestion?.productId
+        ? currentPublicProducts(latest.current.messages).get(suggestion.productId)
+        : undefined);
+    const next = beginInquiryReview(
+      inquiryRef.current,
+      {
+        requirement:
+          requirement ??
+          suggestion?.requirement ??
+          latest.current.messages.filter((message) => message.role === 'visitor').at(-1)?.text ??
+          '',
+        ...(selected ? { product: selected } : {}),
+        explicitUpdate: requirement !== undefined || product !== undefined,
+      },
+      () => crypto.randomUUID(),
+    );
+    inquiryRef.current = next;
+    setInquiry(next);
     setInquiryOpen(true);
   }
   function editInquiry(patch: Partial<InquiryDraft>) {
@@ -267,6 +271,7 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
         : { ...next, phase: 'unknown' };
       inquiryRef.current = result;
       setInquiry(result);
+      if (receipt) dispatch({ type: 'inquiry_saved', reference: receipt.reference });
     } catch {
       if (inquiryGeneration.current === attempt && !controller.signal.aborted) {
         const result: InquiryView = { ...next, phase: 'unknown' };

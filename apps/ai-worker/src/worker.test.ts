@@ -610,3 +610,55 @@ test(
     }
   },
 );
+
+test(
+  'model inquiry suggestion cannot select an unseen product or submit anything',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () => {
+      throw new Error('No catalog read expected');
+    });
+    for (const [id, plan] of [
+      ['valid', { kind: 'inquiry', summary: '700 headphones with logo' }],
+      ['foreign', { kind: 'inquiry', summary: '700 headphones', productId: 'unseen-product' }],
+    ] as const) {
+      const conversation = await store.createConversation();
+      await store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `inquiry-plan-${id}`,
+        content: 'Please prepare an inquiry',
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      const engine = new FakeEngine({ script: [JSON.stringify(plan)] });
+      const disposition = await processOne(store, engine, { ...config, catalog, maxAttempts: 1 });
+      const events = await store.listEvents(conversation.id);
+      if (id === 'valid') {
+        const result = events.find((e) => e.type === 'final');
+        assert.ok(result);
+        assert.deepEqual(result.payload.inquirySuggestion, {
+          requirement: '700 headphones with logo',
+        });
+        assert.equal(result.payload.kind, 'team_followup');
+        assert.equal(
+          (
+            await store.pool.query(
+              'SELECT COUNT(*)::int AS total FROM leads WHERE conversation_id=$1',
+              [conversation.id],
+            )
+          ).rows[0].total,
+          0,
+        );
+      } else {
+        assert.equal(disposition, 'dead_letter');
+        assert.equal(
+          events.some((e) => e.type === 'final'),
+          false,
+        );
+        assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
+      }
+    }
+  },
+);

@@ -1,5 +1,11 @@
 import type { PublicSseEvent } from './index.ts';
-import { PRODUCT_KINDS, type PublicProductCard, isProductCards } from './products.ts';
+import {
+  type InquirySuggestion,
+  PRODUCT_KINDS,
+  type PublicProductCard,
+  isInquirySuggestion,
+  isProductCards,
+} from './products.ts';
 export interface ChatTurnV2 {
   protocolVersion: 2;
   conversationId: string;
@@ -14,6 +20,7 @@ export type ChatEventV2 = PublicSseEvent & {
   products?: PublicProductCard[];
   kind?: (typeof PRODUCT_KINDS)[number];
   unavailableProductIds?: string[];
+  inquirySuggestion?: InquirySuggestion;
   protocolVersion: 2;
   conversationId: string;
   messageId: string;
@@ -64,12 +71,18 @@ export function isChatEventV2(value: unknown): value is ChatEventV2 {
   )
     return false;
   switch (value.type) {
+    case 'tool.progress':
+      return ['knowledge_search', 'model_answer', 'product_search'].some(
+        (action) => action === value.action,
+      );
     case 'token':
       return text(value.text);
     case 'final':
       return (
         text(value.text) &&
         (value.products === undefined || isProductCards(value.products)) &&
+        (value.inquirySuggestion === undefined ||
+          (value.kind === 'team_followup' && isInquirySuggestion(value.inquirySuggestion))) &&
         (value.kind === undefined || PRODUCT_KINDS.some((kind) => kind === value.kind)) &&
         (value.unavailableProductIds === undefined ||
           (Array.isArray(value.unavailableProductIds) &&

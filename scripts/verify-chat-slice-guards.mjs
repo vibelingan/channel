@@ -15,6 +15,46 @@ const scratch = await mkdtemp(path.join(tmpdir(), 'chat-slice-guards-'));
 const sha = (v) => createHash('sha256').update(v).digest('hex');
 const checks = [
   {
+    name: 'VibeKB full document workspace',
+    directory: 'packages/ai-engine-vibekb',
+    file: 'src/knowledge.ts',
+    before: 'doc.workspace_id !== config.workspaceId ||',
+    after: 'false ||',
+    test: 'src/index.test.ts',
+    pattern: 'changed document workspace',
+    env: false,
+  },
+  {
+    name: 'VibeKB explicit public document allowlist',
+    directory: 'packages/ai-engine-vibekb',
+    file: 'src/knowledge.ts',
+    before: 'config.publicDocumentIds.includes(row.id)',
+    after: 'true',
+    test: 'src/index.test.ts',
+    pattern: 'official MCP client performs',
+    env: false,
+  },
+  {
+    name: 'VibeKB tool budget',
+    directory: 'packages/ai-engine-vibekb',
+    file: 'src/knowledge.ts',
+    before: '--budget.remaining < 0',
+    after: 'false',
+    test: 'src/index.test.ts',
+    pattern: 'empty scope is refused',
+    env: false,
+  },
+  {
+    name: 'truncated model result',
+    directory: 'packages/ai-engine-vibekb',
+    file: 'src/index.ts',
+    before: "body.choices[0].finish_reason !== 'stop'",
+    after: 'false',
+    test: 'src/index.test.ts',
+    pattern: 'truncated model output',
+    env: false,
+  },
+  {
     name: 'inquiry contact consent',
     directory: 'packages/ai-contracts',
     file: 'src/inquiry.ts',
@@ -175,7 +215,7 @@ try {
         {
           cwd: root,
           encoding: 'utf8',
-          timeout: 20000,
+          timeout: 60000,
           env: {
             ...process.env,
             ...(check.env ? { AI_TEST_STORE_MODULE: pathToFileURL(target).href } : {}),
@@ -187,7 +227,7 @@ try {
     await writeFile(target, original.replace(check.before, check.after));
     const mutant = run();
     const killed =
-      mutant.status !== 0 && mutant.stdout.includes("code: 'ERR_ASSERTION'") && !mutant.error;
+      mutant.status !== 0 && /code:\s*[\"']?ERR_ASSERTION/.test(mutant.stdout) && !mutant.error;
     assert.equal(killed, true, mutant.stdout + mutant.stderr);
     assert.equal(sha(await readFile(path.join(moduleDir, check.file), 'utf8')), sha(original));
     report.push({

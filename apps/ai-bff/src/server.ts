@@ -1,6 +1,10 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
-import { PRODUCT_KINDS, isProductCards } from '@vibelingan-channel/ai-contracts';
+import {
+  PRODUCT_KINDS,
+  isInquirySuggestion,
+  isProductCards,
+} from '@vibelingan-channel/ai-contracts';
 import {
   type AiApiErrorCode,
   type AiApiErrorEnvelope,
@@ -444,6 +448,7 @@ async function streamEvents(
     for (const event of events) {
       sequence = event.sequence;
       if (turn && event.runId !== turn.runId) continue;
+      if (!turn && event.type === 'tool.progress') continue;
       const publicEvent = turn
         ? {
             ...toPublicEvent(event),
@@ -485,6 +490,12 @@ async function streamEvents(
 function toPublicEvent(event: EventRow): PublicSseEvent {
   const sequence = event.sequence;
   switch (event.type) {
+    case 'tool.progress': {
+      const action = event.payload.action;
+      if (action !== 'knowledge_search' && action !== 'model_answer' && action !== 'product_search')
+        throw new Error('Invalid public tool progress');
+      return { type: 'tool.progress', sequence, action };
+    }
     case 'token':
       return { type: 'token', sequence, text: stringField(event.payload, 'text') };
     case 'citation': {
@@ -682,5 +693,15 @@ function productFields(payload: Record<string, unknown>) {
     ...(products ? { products } : {}),
     ...(PRODUCT_KINDS.some((kind) => kind === payload.kind) ? { kind: payload.kind } : {}),
     ...(unavailableProductIds ? { unavailableProductIds } : {}),
+    ...(payload.kind === 'team_followup' && isInquirySuggestion(payload.inquirySuggestion)
+      ? {
+          inquirySuggestion: {
+            requirement: payload.inquirySuggestion.requirement,
+            ...(payload.inquirySuggestion.productId
+              ? { productId: payload.inquirySuggestion.productId }
+              : {}),
+          },
+        }
+      : {}),
   };
 }

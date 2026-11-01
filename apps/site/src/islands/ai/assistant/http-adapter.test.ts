@@ -143,3 +143,52 @@ test('inquiry retries freeze the form and bind receipt to the original conversat
   await assert.rejects(adapter.submitInquiry({ ...draft, requirement: 'changed' }, key, signal));
   assert.equal(posts, before);
 });
+
+test('stop waits for queued cancellation of the same run instead of immediately reporting unknown', async () => {
+  const conversationId = randomUUID();
+  const runId = randomUUID();
+  const messageId = randomUUID();
+  const key = randomUUID();
+  let polls = 0;
+  let cancellations = 0;
+  const turn = {
+    protocolVersion: 2,
+    conversationId,
+    operationKey: key,
+    messageId,
+    runId,
+    controlVersion: 1,
+    status: 'running',
+    cancelRequested: false,
+  };
+  const api: typeof fetch = async (url) => {
+    const path = String(url);
+    if (path.endsWith('/conversations'))
+      return Response.json({
+        conversationId,
+        credential: 'test-token-'.repeat(4),
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      });
+    if (path.endsWith('/messages')) return Response.json(turn);
+    if (path.endsWith('/cancel')) {
+      cancellations++;
+      return Response.json({ ...turn, cancelRequested: true }, { status: 202 });
+    }
+    polls++;
+    return Response.json({
+      ...turn,
+      status: polls > 1 ? 'cancelled' : 'running',
+      cancelRequested: true,
+    });
+  };
+  const adapter = createHttpAssistantAdapter('http://local.invalid', api);
+  assert.equal(
+    await adapter.stop(
+      { conversationKey: 'view', turnKey: key, idempotencyKey: key, message: 'Question' },
+      AbortSignal.timeout(1000),
+    ),
+    'stopped',
+  );
+  assert.equal(cancellations, 1);
+  assert.equal(polls, 2);
+});

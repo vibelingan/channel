@@ -7,6 +7,7 @@ import { createAiPool } from './pool.ts';
 
 export type EventType =
   | 'token'
+  | 'tool.progress'
   | 'citation'
   | 'final'
   | 'error'

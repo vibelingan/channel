@@ -1,4 +1,8 @@
-import type { CatalogAction, PublicProductCard } from '@vibelingan-channel/ai-contracts';
+import type {
+  CatalogAction,
+  InquirySuggestion,
+  PublicProductCard,
+} from '@vibelingan-channel/ai-contracts';
 /** View contracts only. A server adapter must authorize and decode its own wire data. */
 export interface TurnRequest {
   conversationKey: string;
@@ -23,6 +27,7 @@ export interface ChatMessage {
   citations?: Array<{ title: string; url?: string }>;
   products?: PublicProduct[];
   unavailableProductIds?: string[];
+  inquirySuggestion?: InquirySuggestion;
 }
 export type TurnPhase =
   | 'queued'
@@ -66,6 +71,7 @@ export type TurnEvent = EventIdentity &
         kind?: AnswerKind;
         products?: PublicProduct[];
         unavailableProductIds?: string[];
+        inquirySuggestion?: InquirySuggestion;
       }
     | { type: 'failed'; message: string }
     | { type: 'rate_limited'; retryAt?: number }

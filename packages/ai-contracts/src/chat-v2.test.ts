@@ -57,3 +57,29 @@ test('product final has bounded public paths, unique identities and a known resu
   ])
     assert.equal(isChatEventV2({ ...event, ...patch }), false);
 });
+
+test('inquiry suggestion carries only editable need and public product identity, never authority', () => {
+  const suggested = {
+    ...event,
+    kind: 'team_followup',
+    inquirySuggestion: { requirement: '700 headphones with logo', productId: 'public-1' },
+  };
+  assert.ok(isChatEventV2(suggested));
+  for (const patch of [
+    { send: true },
+    { client_id: 'foreign' },
+    { email: 'private@example.invalid' },
+    { productId: '../private' },
+    { requirement: '' },
+  ])
+    assert.equal(
+      isChatEventV2({
+        ...suggested,
+        inquirySuggestion: { ...suggested.inquirySuggestion, ...patch },
+      }),
+      false,
+    );
+  assert.equal(isChatEventV2({ ...suggested, kind: 'answer' }), false);
+  assert.ok(isChatEventV2({ ...event, type: 'tool.progress', action: 'knowledge_search' }));
+  assert.equal(isChatEventV2({ ...event, type: 'tool.progress', action: 'run_shell' }), false);
+});

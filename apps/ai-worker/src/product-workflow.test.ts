@@ -97,3 +97,42 @@ test('a detail endpoint cannot substitute a different product identity', async (
     catalog.execute({ kind: 'lookup', ids: ['expected'] }, new AbortController().signal),
   );
 });
+
+test('catalog uses a bounded configurable deadline and refuses invalid deadlines', async () => {
+  const api: typeof fetch = async (_url, init) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => resolve(Response.json({ ok: true, data: { items: [] } })),
+        1000,
+      );
+      init?.signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          reject(new Error('deadline'));
+        },
+        { once: true },
+      );
+    });
+  await assert.rejects(
+    new PublicCatalog('https://catalog.invalid', api, false, 20).execute(
+      { kind: 'search', query: 'headphones' },
+      new AbortController().signal,
+    ),
+    /deadline/,
+  );
+  assert.throws(() => new PublicCatalog('https://catalog.invalid', api, false, 0));
+});
+test('inquiry and safe help plans cannot grant submission authority or carry arbitrary fields', () => {
+  assert.deepEqual(
+    parseProductPlan(
+      '{"kind":"inquiry","summary":"700 headphones with logo","productId":"public-1"}',
+    ),
+    { kind: 'inquiry', summary: '700 headphones with logo', productId: 'public-1' },
+  );
+  assert.throws(() => parseProductPlan('{"kind":"inquiry","summary":"need","send":true}'));
+  assert.throws(() => parseProductPlan('{"kind":"help","topic":"delete"}'));
+  assert.throws(() =>
+    parseProductPlan('{"kind":"help","topic":"greeting","text":"invented commitments"}'),
+  );
+});

@@ -14,6 +14,7 @@
     "@vibelingan-channel/ai-contracts": "workspace:*",
     "@vibelingan-channel/ai-engine": "workspace:*",
     "@vibelingan-channel/ai-engine-anythingllm": "workspace:*",
+    "@vibelingan-channel/ai-engine-vibekb": "workspace:*",
     "@vibelingan-channel/ai-policy": "workspace:*",
     "@vibelingan-channel/ai-store": "workspace:*",
     "pg": "^8.23.0",

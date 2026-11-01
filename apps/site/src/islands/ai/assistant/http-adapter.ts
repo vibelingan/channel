@@ -32,6 +32,7 @@ export function createHttpAssistantAdapter(
     body?: unknown,
     stream = false,
     cursor = 0,
+    timeoutMs = 10000,
   ) {
     const response = await requestFetch(url, {
       method: body === undefined ? 'GET' : 'POST',
@@ -41,7 +42,7 @@ export function createHttpAssistantAdapter(
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.any([signal, AbortSignal.timeout(stream ? 90000 : 10000)]),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(stream ? 90000 : timeoutMs)]),
       cache: 'no-store',
       credentials: 'omit',
       redirect: 'error',
@@ -149,6 +150,18 @@ export function createHttpAssistantAdapter(
         sequence: event.sequence,
       };
       switch (event.type) {
+        case 'tool.progress':
+          emit({
+            ...identity,
+            type: 'tool',
+            label:
+              event.action === 'knowledge_search'
+                ? 'Checking public company information'
+                : event.action === 'product_search'
+                  ? 'Checking current published products'
+                  : 'Preparing a helpful response',
+          });
+          break;
         case 'token':
           emit({ ...identity, type: 'token', text: event.text });
           break;
@@ -167,6 +180,7 @@ export function createHttpAssistantAdapter(
             text: event.text,
             ...(event.products ? { products: event.products } : {}),
             ...(event.kind ? { kind: event.kind } : {}),
+            ...(event.inquirySuggestion ? { inquirySuggestion: event.inquirySuggestion } : {}),
             ...(event.unavailableProductIds
               ? { unavailableProductIds: event.unavailableProductIds }
               : {}),
@@ -225,8 +239,25 @@ export function createHttpAssistantAdapter(
         c.credential,
         { runId: turn.runId, controlVersion: turn.controlVersion },
       );
-      const after = await state(request, signal);
-      if (after.status === 'cancelled') return 'stopped';
+      // Cancellation is queued. Wait briefly for that exact run to terminalize.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const after = await state(request, signal);
+        if (after.runId !== turn.runId || after.controlVersion !== turn.controlVersion)
+          return 'unknown';
+        if (after.status === 'cancelled') return 'stopped';
+        if (after.status === 'completed' || after.status === 'failed') return 'unknown';
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', finish);
+            resolve();
+          };
+          const timer = setTimeout(finish, 100);
+          signal.addEventListener('abort', finish, { once: true });
+          if (signal.aborted) finish();
+        });
+        signal.throwIfAborted();
+      }
       return 'unknown';
     },
     async restore() {
@@ -258,6 +289,9 @@ export function createHttpAssistantAdapter(
         signal,
         original.credential,
         body,
+        false,
+        0,
+        45000,
       );
       const receipt: unknown = await response.json();
       if (

@@ -10,6 +10,7 @@ export default defineConfig({
     '@vibelingan-channel/ai-contracts',
     '@vibelingan-channel/ai-engine',
     '@vibelingan-channel/ai-engine-anythingllm',
+    '@vibelingan-channel/ai-engine-vibekb',
     '@vibelingan-channel/ai-policy',
     '@vibelingan-channel/ai-store',
   ],

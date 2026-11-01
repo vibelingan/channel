@@ -15,7 +15,7 @@ export function AssistantMessages({
   currentProducts?: Map<string, PublicProduct>;
   inquiriesEnabled?: boolean;
   onCompare: (product: PublicProduct) => void;
-  onInquiry: (product?: PublicProduct) => void;
+  onInquiry: (product?: PublicProduct, requirement?: string) => void;
 }) {
   const origin = typeof window === 'undefined' ? 'https://preview.invalid' : window.location.origin;
   return (
@@ -40,7 +40,7 @@ export function AssistantMessages({
               <ProductThumbnail url={product.imageUrl} />
               <div className="p-3">
                 <h3 className="font-semibold">{product.name}</h3>
-                <p className="mt-1 text-xs">{product.summary}</p>
+                <p className="mt-1 line-clamp-3 text-xs">{product.summary}</p>
                 <p className="mt-2 text-xs text-ink-muted">
                   Price, MOQ and lead time: confirm with our team.
                 </p>
@@ -115,7 +115,14 @@ export function AssistantMessages({
             <button
               type="button"
               className="mt-3 min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
-              onClick={() => onInquiry()}
+              onClick={() =>
+                onInquiry(
+                  message.inquirySuggestion?.productId
+                    ? currentProducts?.get(message.inquirySuggestion.productId)
+                    : undefined,
+                  message.inquirySuggestion?.requirement,
+                )
+              }
             >
               Review inquiry
             </button>

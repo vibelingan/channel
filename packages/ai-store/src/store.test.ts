@@ -897,3 +897,56 @@ test(
     );
   },
 );
+
+test(
+  'tool progress is fenced, typed and cannot store model reasoning or missing actions',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const accepted = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'progress-test',
+      content: 'Show headphones',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(accepted.run);
+    const claim = await store.claimRun(accepted.run.id);
+    assert.ok(claim);
+    const identity = {
+      conversationId: conversation.id,
+      runId: accepted.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+    };
+    assert.ok(
+      await store.appendEventFenced({
+        ...identity,
+        type: 'tool.progress',
+        payload: { action: 'product_search' },
+      }),
+    );
+    for (const payload of [
+      {},
+      { action: null },
+      { action: 'run_shell' },
+      { action: 'model_answer', text: 'private reasoning' },
+    ])
+      await assert.rejects(
+        store.appendEventFenced({ ...identity, type: 'tool.progress', payload }),
+      );
+    const events = await store.listEvents(conversation.id);
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.sequence, 1);
+    assert.equal(
+      await store.appendEventFenced({
+        ...identity,
+        expectedControlVersion: claim.controlVersion + 1,
+        type: 'tool.progress',
+        payload: { action: 'model_answer' },
+      }),
+      null,
+    );
+  },
+);
