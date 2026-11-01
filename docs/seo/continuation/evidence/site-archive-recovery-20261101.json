@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-11-01",
+  "executorSha": "80b212f86660c4334ad788b855a971a0a9ff46ff",
+  "sdk": {
+    "cos": "2.15.4",
+    "manager": "5.9.1",
+    "node": "3.17.2"
+  },
+  "acceptedWebsite": {
+    "sourceRunId": "site-40819519497-1",
+    "artifactId": "12873389106"
+  },
+  "archive": {
+    "bytes": 71745418,
+    "sha256": "8ebe3f71b583378b04577bc8f2f3a5293a302f6dea20db8d455aeb9e9b55e783"
+  },
+  "attempts": [
+    {
+      "runId": "41298348661",
+      "jobId": "124823877051",
+      "status": "failed",
+      "uploadTimeoutMs": 300000,
+      "lastReportedLoadedBytes": 69386122,
+      "lastReportedBytesIncludeInFlightParts": true,
+      "uploadCause": "ETIMEDOUT",
+      "completeObjectReadStatus": 404,
+      "leaseReleased": true,
+      "websiteWrites": 0,
+      "businessWrites": 0
+    },
+    {
+      "runId": "41299088471",
+      "jobId": "124826098047",
+      "status": "complete",
+      "sameArchiveVerifiedResume": true,
+      "sourceVerified": true,
+      "fullArchiveReadbackVerified": true,
+      "elapsedMs": 177501,
+      "leaseReleased": true,
+      "websiteWrites": 0,
+      "businessWrites": 0
+    }
+  ],
+  "boundaries": {
+    "currentSiteArchiveUsable": true,
+    "websiteVersionSwitchTested": false,
+    "coldUploadPerformanceProven": false,
+    "publicConcurrency32Deployed": false,
+    "businessContentRestored": false
+  }
+}

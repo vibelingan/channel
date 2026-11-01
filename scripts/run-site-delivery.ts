@@ -297,6 +297,7 @@ async function verifyPublicDelivery({ action }: { action: string }) {
       E2E_SITE_URL: policy.siteOrigin,
       E2E_API_URL: `https://${policy.envId}.service.tcloudbase.com`,
       E2E_SEO_PUBLIC_LIVE: '1',
+      E2E_BLOG_DELIVERY_MODE: blogServer ? 'server' : 'static',
       E2E_RECORD_ARTIFACTS: '0',
       ...(claim
         ? {

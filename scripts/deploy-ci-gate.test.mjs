@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { matchesGlob } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, matchesGlob } from 'node:path';
 import test from 'node:test';
 import { parse } from 'yaml';
 
@@ -157,11 +159,21 @@ function assertReleaseGate(ci, release) {
   assert.equal(archive.needs, 'ci');
   assert.equal(
     archive.if,
-    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && vars.CATALOG_SEO_RECORDING == '1' && github.event.inputs.catalog_acceptance_only != 'true' }}",
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}",
   );
   assert.equal(archive.permissions, undefined);
   assert.equal(release.permissions.contents, 'read');
   assert.equal(archive['continue-on-error'], undefined);
+  assert.equal(archive.environment, 'test');
+  const setting = archive.steps.find((step) => step.id === 'catalog');
+  assert(setting?.run, 'environment flag must be checked in an actual runner step');
+  assert.equal(setting.if, undefined);
+  assert.equal(setting['continue-on-error'], undefined);
+  assert.equal(setting.env.CATALOG_SEO_RECORDING, "${{ vars.CATALOG_SEO_RECORDING || '0' }}");
+  for (const step of archive.steps.filter((step) => step !== setting)) {
+    assert.equal(step.if, "${{ steps.catalog.outputs.required == 'true' }}");
+    assert.equal(step['continue-on-error'], undefined);
+  }
   assert.equal(
     archive.steps.find((s) => s.uses?.startsWith('actions/checkout@')).with.ref,
     '${{ github.sha }}',
@@ -222,6 +234,39 @@ test('push and manual deployments require same-SHA unit, build and SDK checks', 
     'deploy',
     'renderer-archive',
   ]);
+});
+
+test('the real archive policy shell handles the test environment flag after job selection, with recording disabled still succeeding', (t) => {
+  const archive = workflow('deploy-test').jobs['renderer-archive'];
+  assert.doesNotMatch(archive.if, /vars\./);
+  const step = archive.steps.find((candidate) => candidate.id === 'catalog');
+  const root = mkdtempSync(join(tmpdir(), 'catalog-archive-setting-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const [flag, output] of [
+    ['0', 'required=false\n'],
+    ['1', 'required=true\n'],
+  ]) {
+    const file = join(root, `flag-${flag}`);
+    const result = spawnSync('bash', ['-e', '-c', step.run], {
+      env: { PATH: process.env.PATH, CATALOG_SEO_RECORDING: flag, GITHUB_OUTPUT: file },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(file, 'utf8'), output);
+  }
+  const invalid = join(root, 'invalid');
+  const result = spawnSync('bash', ['-e', '-c', step.run], {
+    env: {
+      PATH: process.env.PATH,
+      CATALOG_SEO_RECORDING: 'never-log-this-value',
+      GITHUB_OUTPUT: invalid,
+    },
+    encoding: 'utf8',
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(existsSync(invalid), false);
+  assert.equal(result.stderr.includes('never-log-this-value'), false);
+  assert.deepEqual(workflow('deploy-test').jobs.deploy.needs, ['ci', 'renderer-archive']);
 });
 
 test('browser component units retain both required engines in the site unit group', () => {
@@ -320,6 +365,15 @@ test('release guard detects missing dependencies, success bypass, moving refs an
     },
     (_ci, candidate) => {
       candidate.jobs['renderer-archive'].if = '${{ always() }}';
+    },
+    (_ci, candidate) => {
+      candidate.jobs['renderer-archive'].steps.find((step) => step.id === 'catalog').if =
+        "${{ vars.CATALOG_SEO_RECORDING == '1' }}";
+    },
+    (_ci, candidate) => {
+      candidate.jobs['renderer-archive'].steps.find((step) =>
+        step.run?.includes('archive-catalog-renderer.ts'),
+      ).if = undefined;
     },
     (_ci, candidate) => {
       candidate.jobs.deploy.needs = undefined;

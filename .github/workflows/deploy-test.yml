@@ -67,21 +67,37 @@ jobs:
 
   renderer-archive:
     needs: ci
-    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && vars.CATALOG_SEO_RECORDING == '1' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: test
     env:
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
     steps:
+      # Environment variables are available on the runner, after job.if was evaluated.
+      - name: Check the environment's catalog recording setting
+        id: catalog
+        env:
+          CATALOG_SEO_RECORDING: ${{ vars.CATALOG_SEO_RECORDING || '0' }}
+        run: |
+          case "$CATALOG_SEO_RECORDING" in
+            0) echo 'required=false' >> "$GITHUB_OUTPUT" ;;
+            1) echo 'required=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'CATALOG_SEO_RECORDING must be 0 or 1' >&2; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
+        if: ${{ steps.catalog.outputs.required == 'true' }}
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: pnpm/action-setup@v4
+        if: ${{ steps.catalog.outputs.required == 'true' }}
         with: {version: 11.5.0, run_install: false}
       - uses: actions/setup-node@v4
+        if: ${{ steps.catalog.outputs.required == 'true' }}
         with: {node-version: 22.13.0, cache: pnpm}
       - run: pnpm install --frozen-lockfile --ignore-scripts
+        if: ${{ steps.catalog.outputs.required == 'true' }}
       - name: Preserve this approved site program before normal delivery
+        if: ${{ steps.catalog.outputs.required == 'true' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}

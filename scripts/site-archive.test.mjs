@@ -752,6 +752,24 @@ test('diagnostics only retain fixed stages, byte counts, hashes and fixed error 
   assert(text.includes('unconfirmed'));
 });
 
+test('archive diagnostics distinguish part listing from completion and retain chronological operation timings', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'site-archive-timing-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  let now = 100;
+  const diagnostic = createSiteArchiveDiagnostic({
+    file: join(root, 'receipt.json'),
+    now: () => now,
+  });
+  now = 300;
+  diagnostic.observe({ kind: 'sdk', stage: 'multipart-parts-list', totalBytes: 100 });
+  now = 310;
+  diagnostic.observe({ kind: 'transfer', action: 'put', outcome: 'complete', elapsedMs: 5 });
+  assert.deepEqual(diagnostic.record.events.slice(1), [
+    { elapsedMs: 200, kind: 'sdk', stage: 'multipart-parts-list', totalBytes: 100 },
+    { elapsedMs: 210, kind: 'transfer', action: 'put', outcome: 'complete', transferElapsedMs: 5 },
+  ]);
+});
+
 test('manual archive invocation is pinned to exact GitHub source, branch, workflow, environment and region', () => {
   const env = {
     GITHUB_ACTIONS: 'true',

@@ -107,7 +107,7 @@ test('native multipart upload keeps the CloudBase file metadata and writes only 
   assert.equal(p.Key, key);
   assert.equal(p.SliceSize, 1048576);
   assert.equal(p.ChunkSize, 1048576);
-  assert.equal(p.AsyncLimit, 8);
+  assert.equal(p.AsyncLimit, 32);
   assert.deepEqual(p.Headers, { 'x-cos-meta-fileid': 'native-file-meta' });
   assert.equal(p.ACL, undefined);
   assert.deepEqual(x.files.get(key), body);
@@ -230,6 +230,9 @@ test('a timed-out upload is canceled once and raw SDK credential details never e
     /timed out/,
   );
   assert.equal(x.calls.filter((c) => c[0] === 'cancel-upload').length, 1);
+  const canceled = x.calls.find((call) => call[0] === 'upload')[1];
+  assert.equal(canceled.AsyncLimit, 32);
+  assert.equal(existsSync(canceled.FilePath), false);
   const y = fixture();
   y.cos.uploadFile = (_params, done) =>
     done(
@@ -277,6 +280,8 @@ test('SDK diagnostics expose only bounded stage names and byte counts and detach
   };
   const original = x.cos.uploadFile;
   x.cos.uploadFile = (params, done) => {
+    listener({ method: 'GET', url: `${credential.uploadUrl}?uploadId=do-not-print` });
+    listener({ method: 'POST', url: `${credential.uploadUrl}?uploadId=do-not-print` });
     listener({
       method: 'PUT',
       url: `${credential.uploadUrl}?partNumber=1&uploadId=do-not-print&signature=private`,
@@ -296,6 +301,8 @@ test('SDK diagnostics expose only bounded stage names and byte counts and detach
   });
   await transfer.put(credential, Buffer.from('bytes'), { uploadTimeoutMs: 1000 });
   assert.equal(detached, true);
+  assert.equal(events.filter((event) => event.stage === 'multipart-parts-list').length, 1);
+  assert.equal(events.filter((event) => event.stage === 'multipart-complete').length, 1);
   assert.equal(
     events.some((event) => event.stage === 'multipart-part'),
     true,

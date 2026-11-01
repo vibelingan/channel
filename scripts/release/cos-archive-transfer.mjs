@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 export const ARCHIVE_COS_OPTIONS = Object.freeze({
   Timeout: 15000,
-  ChunkParallelLimit: 8,
+  ChunkParallelLimit: 32,
   FileParallelLimit: 1,
   ChunkRetryTimes: 1,
 });
@@ -232,8 +232,11 @@ function traceTransfer(cos, params, totalBytes, observe) {
       if (Object.hasOwn(query, 'uploads'))
         report(options.method === 'POST' ? 'multipart-initialize' : 'multipart-list');
       else if (Object.hasOwn(query, 'partNumber')) report('multipart-part');
-      else if (Object.hasOwn(query, 'uploadId')) report('multipart-complete');
-      else report('object-request');
+      else if (Object.hasOwn(query, 'uploadId')) {
+        if (options.method === 'GET') report('multipart-parts-list');
+        else if (options.method === 'POST') report('multipart-complete');
+        else if (options.method === 'DELETE') report('multipart-abort');
+      } else report('object-request');
     } catch {}
   };
   cos.on?.('before-send', request);

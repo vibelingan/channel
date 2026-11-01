@@ -31,8 +31,10 @@ const sdkStages = new Set([
   'deadline',
   'multipart-initialize',
   'multipart-list',
+  'multipart-parts-list',
   'multipart-part',
   'multipart-complete',
+  'multipart-abort',
   'object-request',
 ]);
 const codes = new Set([
@@ -259,8 +261,10 @@ export function createSiteArchiveDiagnostic({ file, now = Date.now, log = (_line
       if (!stages.has(event.stage)) return;
       safe.stage = event.stage;
     }
-    for (const key of ['bytes', 'totalBytes', 'loadedBytes', 'elapsedMs'])
+    for (const key of ['bytes', 'totalBytes', 'loadedBytes'])
       if (Number.isSafeInteger(event[key]) && event[key] >= 0) safe[key] = event[key];
+    if (event.kind === 'transfer' && Number.isSafeInteger(event.elapsedMs) && event.elapsedMs >= 0)
+      safe.transferElapsedMs = event.elapsedMs;
     if (typeof event.sha256 === 'string' && /^[a-f0-9]{64}$/.test(event.sha256))
       safe.sha256 = event.sha256;
     if (typeof event.executorSha === 'string' && /^[a-f0-9]{40}$/.test(event.executorSha))

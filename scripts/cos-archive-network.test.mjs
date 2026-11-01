@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
 
@@ -111,6 +112,14 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     ProgressInterval: 10,
     ConfCwd: directory,
   });
+  const temporaryFiles = [];
+  for (const method of ['uploadFile', 'downloadFile']) {
+    const original = cos[method].bind(cos);
+    cos[method] = (params, callback) => {
+      temporaryFiles.push(params.FilePath);
+      return original(params, callback);
+    };
+  }
   // This is a protocol/byte-integrity test; deadline and cancellation are exercised separately.
   const transfer = createCosArchiveTransfer({ cos, policy });
   const credential = (hash) => ({
@@ -120,7 +129,7 @@ test('the actual COS client uploads a small object, reads it, then completes a m
   });
   try {
     const small = Buffer.from('small');
-    const large = Buffer.alloc(8 * 1024 * 1024 + 23, 7);
+    const large = Buffer.alloc(32 * 1024 * 1024 + 23, 7);
     await transfer.put(credential('a'), small, { uploadTimeoutMs: 30000 });
     assert.deepEqual(
       await transfer.read(null, credential('a').storageFileId, {
@@ -144,16 +153,22 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     );
     slowRead = false;
     await transfer.put(credential('b'), large, { uploadTimeoutMs: 30000 });
-    assert.deepEqual(
-      await transfer.read(null, credential('b').storageFileId, {
-        maxBytes: large.length,
-        timeoutMs: 30000,
-      }),
-      large,
+    const downloaded = await transfer.read(null, credential('b').storageFileId, {
+      maxBytes: large.length,
+      timeoutMs: 30000,
+    });
+    assert.deepEqual(downloaded, large);
+    assert.equal(
+      createHash('sha256').update(downloaded).digest('hex'),
+      createHash('sha256').update(large).digest('hex'),
+    );
+    assert(
+      temporaryFiles.every((file) => !existsSync(file) && !existsSync(dirname(file))),
+      'Every private transfer file and directory must be removed',
     );
     assert.equal(
       calls.filter((call) => call.method === 'PUT' && call.query.includes('partNumber')).length,
-      9,
+      33,
     );
     assert.equal(
       calls.filter((call) => call.method === 'POST' && call.query.includes('uploadId')).length,
@@ -161,8 +176,8 @@ test('the actual COS client uploads a small object, reads it, then completes a m
     );
     t.diagnostic(JSON.stringify({ bytes: large.length, maximumActiveParts }));
     assert.ok(
-      maximumActiveParts > 3 && maximumActiveParts <= 8,
-      `Expected 4–8 overlapping parts, got ${maximumActiveParts}`,
+      maximumActiveParts > 8 && maximumActiveParts <= 32,
+      `Expected 9–32 overlapping parts, got ${maximumActiveParts}`,
     );
     assert.equal(
       cos.getTaskList().every((task) => task.state === 'success'),
