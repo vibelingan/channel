@@ -1,18 +1,22 @@
 import type { CatalogAction } from '@vibelingan-channel/ai-contracts';
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import {
-  beginInquiryReview,
+  applyInquiryUpdate,
   currentPublicProducts,
   inquiryAfterFailure,
   inquiryCheckStart,
+  inquiryReceipt,
+  keepInquiryDraft,
   nextInquiryCheckDelay,
   persistedInquiry,
+  proposeInquiry,
   restoredInquiry,
   validateInquiry,
 } from './inquiry';
 import type {
   AssistantAdapter,
   AssistantState,
+  ChatMessage,
   InquiryDraft,
   InquiryView,
   PublicProduct,
@@ -25,7 +29,8 @@ import { AssistantTransportError } from './transport-error';
 export interface AssistantSeed {
   state: AssistantState;
   inquiry?: InquiryView;
-  inquiryOpen?: boolean;
+  /** Whether the inquiry card in the conversation shows its form or only a summary. */
+  inquiryExpanded?: boolean;
   compareIds?: string[];
   confirmRegenerate?: boolean;
   draft?: string;
@@ -45,7 +50,18 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
   useLayoutEffect(() => {
     inquiryRef.current = inquiry;
   }, [inquiry]);
-  const [inquiryOpen, setInquiryOpen] = useState(seed.inquiryOpen ?? false);
+  function commitInquiry(next: InquiryView) {
+    inquiryRef.current = next;
+    setInquiry(next);
+  }
+  const [inquiryExpanded, setInquiryExpanded] = useState(seed.inquiryExpanded ?? false);
+  /** Bumped when the visitor asks to see the card, so it can take focus. */
+  const [inquiryFocus, setInquiryFocus] = useState(0);
+  // Suggestions already in the conversation when it was seeded or restored are
+  // not offered again; only answers that arrive while a draft is open are.
+  const suggestionSeen = useRef<string | undefined | null>(null);
+  if (suggestionSeen.current === null)
+    suggestionSeen.current = lastSuggestion(seed.state.messages)?.id;
   const active = useRef<AbortController | null>(null);
   const cancelling = useRef<AbortController | null>(null);
   const saving = useRef<AbortController | null>(null);
@@ -149,6 +165,8 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     };
     dispatch({ type: 'begin', request, regenerate });
     setDraft('');
+    // The answer appears above the card; a folded card keeps it in view.
+    setInquiryExpanded(false);
     void drive(request, 0);
   }
   function retry() {
@@ -200,9 +218,9 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     cancelling.current = null;
     adapter.forget?.();
     dispatch({ type: 'reset', state: initialAssistantState(crypto.randomUUID()) });
-    setInquiry({ phase: 'closed' });
-    inquiryRef.current = { phase: 'closed' };
-    setInquiryOpen(false);
+    commitInquiry({ phase: 'closed' });
+    suggestionSeen.current = undefined;
+    setInquiryExpanded(false);
     setDraft('');
   }
   async function restore() {
@@ -219,9 +237,8 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     const attempt = ++generation.current;
     inquiryGeneration.current += 1;
     dispatch({ type: 'restoring' });
-    setInquiry({ phase: 'closed' });
-    inquiryRef.current = { phase: 'closed' };
-    setInquiryOpen(false);
+    commitInquiry({ phase: 'closed' });
+    setInquiryExpanded(false);
     try {
       const restored = await adapter.restore(controller.signal);
       if (generation.current !== attempt || controller.signal.aborted) return;
@@ -229,13 +246,13 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
         dispatch({ type: 'expired' });
         return;
       }
+      suggestionSeen.current = lastSuggestion(restored.messages)?.id;
       dispatch({ type: 'restored', conversation: restored });
       const view = restoredInquiry(restored.inquiry);
-      inquiryRef.current = view;
-      setInquiry(view);
-      setInquiryOpen(view.phase === 'editing' || view.phase === 'unknown');
+      commitInquiry(view);
+      setInquiryExpanded(view.phase === 'editing' || view.phase === 'unknown');
       if (view.phase === 'saved')
-        dispatch({ type: 'inquiry_saved', reference: view.receipt.reference });
+        dispatch({ type: 'inquiry_saved', receipt: inquiryReceipt(view) });
       if (active.current === controller) active.current = null;
       if (restored.resume) void drive(restored.resume, 0);
     } catch {
@@ -272,39 +289,71 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       inquiry: persistedInquiry(inquiry),
     });
   }, [seed.persistence, state.conversationKey, state.open, resumable, inquiry]);
+  /**
+   * The visitor's own request to start or review an inquiry. With a product or
+   * requirement it proposes that change to the draft; without, it opens a new
+   * draft from the latest suggestion or simply shows the existing one.
+   */
   function beginInquiry(product?: PublicProduct, requirement?: string) {
-    const suggestion = latest.current.messages
-      .filter((message) => message.role === 'assistant')
-      .at(-1)?.inquirySuggestion;
-    const selected =
-      product ??
-      (!requirement && suggestion?.productId
-        ? currentPublicProducts(latest.current.messages).get(suggestion.productId)
-        : undefined);
-    const next = beginInquiryReview(
-      inquiryRef.current,
-      {
-        requirement:
-          requirement ??
-          suggestion?.requirement ??
-          latest.current.messages.filter((message) => message.role === 'visitor').at(-1)?.text ??
-          '',
-        ...(selected ? { product: selected } : {}),
-        explicitUpdate: requirement !== undefined || product !== undefined,
-      },
-      () => crypto.randomUUID(),
-    );
-    inquiryRef.current = next;
-    setInquiry(next);
-    setInquiryOpen(true);
+    const current = inquiryRef.current;
+    const messages = latest.current.messages;
+    if (product || requirement !== undefined)
+      commitInquiry(
+        proposeInquiry(
+          current,
+          {
+            origin: 'visitor',
+            requirement:
+              requirement ??
+              (current.phase === 'editing' ? undefined : defaultRequirement(messages)),
+            ...(product ? { product } : {}),
+          },
+          () => crypto.randomUUID(),
+        ),
+      );
+    else if (current.phase === 'closed' || current.phase === 'saved') {
+      const suggestion = lastSuggestion(messages)?.inquirySuggestion;
+      const suggested = suggestion?.productId
+        ? currentPublicProducts(messages).get(suggestion.productId)
+        : undefined;
+      commitInquiry(
+        proposeInquiry(
+          current,
+          {
+            origin: 'visitor',
+            requirement: defaultRequirement(messages),
+            ...(suggested ? { product: suggested } : {}),
+          },
+          () => crypto.randomUUID(),
+        ),
+      );
+    }
+    setInquiryExpanded(true);
+    setInquiryFocus((count) => count + 1);
   }
   function editInquiry(patch: Partial<InquiryDraft>) {
     const current = inquiryRef.current;
     if (current.phase !== 'editing') return;
-    const next: InquiryView = { ...current, draft: { ...current.draft, ...patch }, errors: {} };
+    commitInquiry({ ...current, draft: { ...current.draft, ...patch }, errors: {} });
+  }
+  // A new answer that suggests a different requirement or product puts that
+  // change on the open draft for the visitor to accept or keep; it never opens
+  // a draft or edits one by itself.
+  const working = isTurnWorking(state.turn?.phase);
+  useEffect(() => {
+    const message = lastSuggestion(state.messages);
+    if (working || !message?.inquirySuggestion || message.id === suggestionSeen.current) return;
+    suggestionSeen.current = message.id;
+    const { requirement, productId } = message.inquirySuggestion;
+    const product = productId ? currentPublicProducts(state.messages).get(productId) : undefined;
+    const next = proposeInquiry(
+      inquiryRef.current,
+      { origin: 'conversation', requirement, ...(product ? { product } : {}) },
+      () => crypto.randomUUID(),
+    );
     inquiryRef.current = next;
     setInquiry(next);
-  }
+  }, [state.messages, working]);
   /** `automatic`: a scheduled recheck of an unknown result, counted against the limit. */
   async function submitInquiry(automatic = false) {
     const current = inquiryRef.current;
@@ -313,9 +362,8 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     if (current.phase === 'editing') {
       const errors = validateInquiry(current.draft);
       if (Object.keys(errors).length) {
-        const invalid: InquiryView = { ...current, errors, formError: undefined };
-        inquiryRef.current = invalid;
-        setInquiry(invalid);
+        const { formError: _cleared, ...rest } = current;
+        commitInquiry({ ...rest, errors });
         return;
       }
       next = {
@@ -326,25 +374,23 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
         uncertain: false,
       };
     } else next = inquiryCheckStart(current, automatic);
-    inquiryRef.current = next;
-    setInquiry(next);
+    commitInquiry(next);
     const controller = new AbortController();
     saving.current = controller;
     const attempt = inquiryGeneration.current;
     try {
       const receipt = await adapter.submitInquiry(next.draft, next.key, controller.signal);
       if (inquiryGeneration.current !== attempt || controller.signal.aborted) return;
-      const result: InquiryView = receipt
-        ? { phase: 'saved', key: next.key, draft: next.draft, receipt }
-        : { phase: 'unknown', key: next.key, draft: next.draft, checks: next.checks };
-      inquiryRef.current = result;
-      setInquiry(result);
-      if (receipt) dispatch({ type: 'inquiry_saved', reference: receipt.reference });
+      if (receipt) {
+        const saved = { phase: 'saved', key: next.key, draft: next.draft, receipt } as const;
+        commitInquiry(saved);
+        setInquiryExpanded(false);
+        dispatch({ type: 'inquiry_saved', receipt: inquiryReceipt(saved) });
+      } else
+        commitInquiry({ phase: 'unknown', key: next.key, draft: next.draft, checks: next.checks });
     } catch (error) {
       if (inquiryGeneration.current === attempt && !controller.signal.aborted) {
-        const result = inquiryAfterFailure(next, error);
-        inquiryRef.current = result;
-        setInquiry(result);
+        commitInquiry(inquiryAfterFailure(next, error));
       }
     } finally {
       if (saving.current === controller) saving.current = null;
@@ -373,11 +419,27 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     restore,
     setOpen: (open: boolean) => dispatch({ type: 'open', open }),
     inquiry,
-    inquiryOpen,
-    setInquiryOpen,
+    inquiryExpanded,
+    setInquiryExpanded,
+    inquiryFocus,
     beginInquiry,
     editInquiry,
+    applyInquiryUpdate: () =>
+      commitInquiry(applyInquiryUpdate(inquiryRef.current, () => crypto.randomUUID())),
+    keepInquiryDraft: () => commitInquiry(keepInquiryDraft(inquiryRef.current)),
     submitInquiry,
     retrySeconds: Math.max(0, Math.ceil(((retryAt ?? 0) - now) / 1000)),
   };
+}
+
+function lastSuggestion(messages: ChatMessage[]) {
+  return messages.findLast((message) => message.role === 'assistant' && message.inquirySuggestion);
+}
+/** A new draft starts from the latest suggestion, else from the visitor's last question. */
+function defaultRequirement(messages: ChatMessage[]) {
+  return (
+    lastSuggestion(messages)?.inquirySuggestion?.requirement ??
+    messages.findLast((message) => message.role === 'visitor')?.text ??
+    ''
+  );
 }

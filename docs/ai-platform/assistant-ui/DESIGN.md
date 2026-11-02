@@ -30,7 +30,7 @@
 | `islands/ai/assistant/model.ts` | 内部 view state／event／adapter 类型；不是新的服务端 wire 协议 |
 | `islands/ai/assistant/state.ts` | 纯 reducer：本次任务身份、序号去重、状态转移、停止与完成竞争 |
 | `islands/ai/assistant/useAssistantSession.ts` | 调用 adapter、稳定提交身份、取消／恢复／询盘结果，隔离过期异步回调 |
-| `AssistantExperience/AssistantMessages/InquiryReview` | 官网特有文案、产品／比较／来源、明确同意的表单 |
+| `AssistantExperience/AssistantMessages/InquiryCard` | 官网特有文案、产品／比较／来源、明确同意的表单 |
 | `islands/ai/preview/*` | 仅开发的场景与模拟 IO；29 个状态和连续旅程都用同一产品组件 |
 
 对话 key、turn key、消息 key 只用于前端关联，不是权限。未来真实 adapter 负责会话凭据；view state 和展示组件不接收服务密钥。adapter 与 Experience 的配置／会话边界固定，边界变化时由调用方重新挂载，不把旧消息带到新的配置里。消息用 React 文本节点渲染，不接受原始 HTML；链接限制 HTTP／HTTPS。产品示例不用远端图片或对象存储。浏览器不保存联系人、本次内容或授权事实到 localStorage。
@@ -69,7 +69,7 @@ null 代表结果未确认／服务器明确会话不可恢复；临时恢复失
 | 14–15 重连、限流 | 同 turn/cursor 重连；Retry-After | 现有 sequence 基础可复用；补 run 归属、严格事件解码和真实重试时间 |
 | 16–19 停止受理、未知、确认、重答 | stopping／stop_unknown／stopped，重答确认 | 现取消仅受理；须终态确认与 run CAS，重答建新操作，旧结果保留 |
 | 20–22 历史、长对话、过期 | restoring／ready／expired，滚动钩子 | 需身份校验的分页会话快照，不能只凭本地 ID 取历史 |
-| 23–27 核对、错误、保存、未知、成功 | InquiryReview，冻结提交和稳定 key | 需可信 BFF 到现有正式询盘保存的桥接、幂等与查询结果；不自动发邮件 |
+| 23–27 核对、错误、保存、未知、成功 | InquiryCard（聊天内卡片，第二轮 MIU 16），冻结提交和稳定 key | 需可信 BFF 到现有正式询盘保存的桥接、幂等与查询结果；不自动发邮件 |
 | 28 团队跟进 | 留资／异步联系说明 | 不宣称真人已接入；正式留资仍须核对和提交 |
 | 29 产品更新 | revision 提醒，重新核对 | server 重新查批准产品，过期事实不沿用为商务承诺 |
 

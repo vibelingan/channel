@@ -228,7 +228,8 @@ test('inquiry requires explicit consent and keeps values after validation errors
   await form.getByLabel('Your requirement').fill('500 gifts without a chosen model.');
   await form.getByRole('textbox', { name: /^Email/ }).fill('buyer@example.invalid');
   await form.getByRole('checkbox').check();
-  await form.getByRole('button', { name: 'Back to chat' }).click();
+  await form.getByRole('button', { name: 'Hide inquiry' }).click();
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toContainText('not submitted');
   await page.getByRole('button', { name: 'Review your inquiry' }).click();
   await expect(form.getByLabel('Company')).toHaveValue('Keep my company');
   await form.getByRole('button', { name: 'Confirm & submit' }).click();
@@ -257,12 +258,112 @@ test('answering a new question cannot discard an in-flight inquiry receipt', asy
   const form = await fillInquiry(page);
   await form.getByRole('button', { name: 'Confirm & submit' }).click();
   await expect(form.getByRole('button', { name: 'Saving…' })).toBeDisabled();
-  await form.getByRole('button', { name: 'Back to chat' }).click();
   await send(page, 'Can I change the color?');
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toContainText(
+    'Saving your inquiry',
+  );
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
-  await page.getByRole('button', { name: 'Review your inquiry', exact: true }).click();
   await expect(page.getByLabel('Inquiry receipt')).toContainText('PREVIEW-001');
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toHaveCount(0);
   expect((await ledger(page)).records).toBe(1);
+});
+
+test('inquiry_is_inside_transcript and chat_remains_visible_during_edit', async ({ page }) => {
+  await send(page);
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const transcript = page.getByTestId('assistant-transcript');
+  await transcript.getByRole('button', { name: 'Prepare inquiry', exact: true }).first().click();
+  const form = transcript.getByRole('form', { name: 'Review your inquiry' });
+  await expect(form).toBeVisible();
+  await expect(form.getByLabel('Your requirement')).toBeFocused();
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Back to chat' })).toHaveCount(0);
+  await form.getByLabel('Company').fill('Keep my company');
+  await send(page, 'Can the earbuds be engraved?');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(2);
+  await expect(form).toHaveCount(0);
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toBeInViewport();
+  await page.getByRole('button', { name: 'Show inquiry' }).click();
+  await expect(form.getByLabel('Company')).toHaveValue('Keep my company');
+  expect((await ledger(page)).submissions).toHaveLength(0);
+});
+
+test('two_products_do_not_silently_swap_draft', async ({ page }) => {
+  await send(page);
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const transcript = page.getByTestId('assistant-transcript');
+  const cards = transcript.getByRole('button', { name: 'Prepare inquiry', exact: true });
+  await cards.nth(0).click();
+  const form = transcript.getByRole('form', { name: 'Review your inquiry' });
+  const first = (await form.locator('p', { hasText: 'Product:' }).textContent()) ?? '';
+  await cards.nth(1).click();
+  const update = form.getByLabel('Suggested update');
+  await expect(update).toContainText('Update this inquiry?');
+  await expect(update).toContainText('Product');
+  await expect(form.locator('p', { hasText: 'Product:' })).toHaveText(first);
+  await update.getByRole('button', { name: 'Keep current' }).click();
+  await expect(update).toHaveCount(0);
+  await expect(form.locator('p', { hasText: 'Product:' })).toHaveText(first);
+});
+
+test('model_update_shows_change_summary, manual_edit_not_overwritten_silently and changed_need_preserves_contact_and_clears_consent', async ({
+  page,
+}, info) => {
+  await select(page, 'handoff', true);
+  await send(page, '500 headphones for company gifts');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page.getByRole('button', { name: 'Prepare inquiry', exact: true }).click();
+  const form = page.getByRole('form', { name: 'Review your inquiry' });
+  await expect(form.getByLabel('Your requirement')).toHaveValue('500 headphones for company gifts');
+  await form.getByLabel('Your requirement').fill('500 headphones, my wording');
+  await form.getByRole('textbox', { name: /^Email/ }).fill('buyer@example.invalid');
+  await form.getByRole('checkbox').check();
+
+  await send(page, 'Add custom packaging too');
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toContainText('Update suggested');
+  await page.getByRole('button', { name: 'Show inquiry' }).click();
+  const update = form.getByLabel('Suggested update');
+  await expect(update).toContainText('Suggested update from the conversation');
+  await expect(update).toContainText('500 headphones, my wording');
+  await expect(update).toContainText('Add custom packaging too');
+  await update.scrollIntoViewIfNeeded();
+  await page.getByRole('dialog').screenshot({
+    path: `output/assistant-ui/screens/${info.project.name}-inquiry_update.png`,
+  });
+  await expect(form.getByLabel('Your requirement')).toHaveValue('500 headphones, my wording');
+  await update.getByRole('button', { name: 'Keep current' }).click();
+  await expect(form.getByLabel('Your requirement')).toHaveValue('500 headphones, my wording');
+  await expect(form.getByRole('checkbox')).toBeChecked();
+
+  await send(page, '700 headphones with custom packaging');
+  await page.getByRole('button', { name: 'Show inquiry' }).click();
+  await form.getByLabel('Suggested update').getByRole('button', { name: 'Use update' }).click();
+  await expect(form.getByLabel('Your requirement')).toHaveValue(
+    '700 headphones with custom packaging',
+  );
+  await expect(form.getByRole('textbox', { name: /^Email/ })).toHaveValue('buyer@example.invalid');
+  await expect(form.getByRole('checkbox')).not.toBeChecked();
+  expect((await ledger(page)).submissions).toHaveLength(0);
+});
+
+test('saved_receipt_does_not_resubmit', async ({ page }) => {
+  await select(page, 'handoff', true);
+  await send(page, '500 headphones for company gifts');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const form = await fillInquiry(page);
+  await form.getByRole('button', { name: 'Confirm & submit' }).click();
+  const receipt = page.getByLabel('Inquiry receipt');
+  await expect(receipt).toContainText('PREVIEW-001');
+  await expect(receipt).toContainText('500 gifts; model not decided');
+  await send(page, 'OK, thanks');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toHaveCount(0);
+  await expect(form).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Start another inquiry' })).toBeVisible();
+  const result = await ledger(page);
+  expect(result.submissions).toHaveLength(1);
+  expect(result.records).toBe(1);
 });
 
 test('restored long history keeps reader position when new messages arrive', async ({ page }) => {
@@ -305,8 +406,9 @@ test('short mobile screen remains usable', async ({ page }) => {
   if (!panel) throw new Error('Panel is missing');
   expect(panel.width).toBeLessThanOrEqual(288);
   expect(panel.y).toBeGreaterThanOrEqual(0);
-  await page.getByRole('button', { name: 'Back to chat' }).click();
   await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hide inquiry' }).click();
+  await expect(page.getByLabel('Your inquiry', { exact: true })).toBeInViewport();
 });
 
 test('temporary history failure keeps the current discussion and retry can restore it', async ({

@@ -276,7 +276,7 @@ try {
       await latest.getByRole('button', { name: 'Prepare inquiry', exact: true }).first().click();
       await expect(p.getByRole('textbox', { name: 'Your requirement' })).toBeVisible();
       await expect(p.getByRole('checkbox')).not.toBeChecked();
-      await p.getByRole('button', { name: 'Back to chat' }).click();
+      await p.getByRole('button', { name: 'Hide inquiry' }).click();
       await comparison.scrollIntoViewIfNeeded();
       await p.screenshot({ path: resolve(directory, '02-products-compare-desktop.png') });
       await p.close();
@@ -297,12 +297,16 @@ try {
           .getByRole('textbox', { name: 'Email *', exact: true })
           .fill('acceptance@example.invalid');
         await p.getByRole('checkbox').check();
-        await p.getByRole('button', { name: 'Back to chat' }).click();
         const answer = await send(
           p,
           'Please prepare an inquiry for your team using the first product. Change the quantity to 700 units instead of 500. Keep the company logo, retail packaging and delivery to Germany. We have not agreed a price or delivery date.',
         );
         await answer.getByRole('button', { name: 'Review inquiry', exact: true }).click();
+        // A changed requirement waits on the card until the visitor accepts it.
+        await p
+          .getByRole('region', { name: 'Suggested update' })
+          .getByRole('button', { name: 'Use update' })
+          .click();
         const requirement = p.getByRole('textbox', { name: 'Your requirement' });
         const draft = await requirement.inputValue();
         await expect(p.getByRole('checkbox')).not.toBeChecked();
@@ -336,14 +340,14 @@ try {
               async () =>
                 (await p.getByLabel('Inquiry receipt').count()) > 0
                   ? 'saved'
-                  : (await p.getByRole('button', { name: 'Check original submission' }).count()) > 0
+                  : (await p.getByRole('button', { name: 'Check again now' }).count()) > 0
                     ? 'unknown'
                     : 'waiting',
               { timeout: 50000 },
             )
             .not.toBe('waiting');
           if (await p.getByLabel('Inquiry receipt').count()) break;
-          await p.getByRole('button', { name: 'Check original submission' }).click();
+          await p.getByRole('button', { name: 'Check again now' }).click();
         }
         const receipt = p.getByLabel('Inquiry receipt');
         await expect(receipt).toContainText('Your inquiry is recorded');

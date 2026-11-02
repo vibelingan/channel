@@ -99,6 +99,7 @@ export function createPreviewAdapter(scenario: string) {
                 ? {
                     text: 'Our team can follow up after you check and submit your inquiry.',
                     kind: 'team_followup' as const,
+                    inquirySuggestion: { requirement: request.message },
                   }
                 : null;
       if (alternate) {

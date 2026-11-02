@@ -1,5 +1,12 @@
 import type { InquiryRejectionReason } from '@vibelingan-channel/ai-contracts/inquiry';
-import type { ChatMessage, InquiryDraft, InquiryView, PublicProduct } from './model';
+import type {
+  ChatMessage,
+  InquiryDraft,
+  InquiryReceiptSummary,
+  InquiryUpdate,
+  InquiryView,
+  PublicProduct,
+} from './model';
 import type { PersistedInquiry } from './persistence';
 import { InquiryRejectedError } from './transport-error';
 export function currentPublicProducts(messages: ChatMessage[]) {
@@ -10,35 +17,107 @@ export function currentPublicProducts(messages: ChatMessage[]) {
   }
   return products;
 }
-/** Explicitly reviewing new requirements can update a draft, never an uncertain submission. */
-export function beginInquiryReview(
+export interface InquiryProposal {
+  /** `visitor`: their own click. Only that may open a draft or replace something without asking. */
+  origin: 'visitor' | 'conversation';
+  requirement?: string;
+  product?: PublicProduct;
+}
+export interface InquiryChange {
+  field: 'requirement' | 'product';
+  before: string;
+  after: string;
+}
+/** What `update` would change in `draft`, shown to the visitor before they choose. */
+export function inquiryChanges(
+  draft: InquiryDraft,
+  update: Pick<InquiryProposal, 'requirement' | 'product'>,
+): InquiryChange[] {
+  const changes: InquiryChange[] = [];
+  const requirement = update.requirement?.trim();
+  if (requirement && requirement !== draft.requirement.trim())
+    changes.push({ field: 'requirement', before: draft.requirement.trim(), after: requirement });
+  const product = update.product;
+  if (product && (product.id !== draft.product?.id || product.revision !== draft.product.revision))
+    changes.push({
+      field: 'product',
+      before: draft.product?.name ?? '',
+      after: product.id === draft.product?.id ? `${product.name} (updated details)` : product.name,
+    });
+  return changes;
+}
+/**
+ * Opens or updates the one active draft. A suggestion from the conversation
+ * never opens a draft and never changes one by itself: anything it would
+ * change waits on the card for the visitor. The visitor's own click may fill
+ * an empty field directly, but replacing a value they can see also waits, so
+ * a second product card cannot silently swap the first. A saving or uncertain
+ * submission is frozen, and a saved one is only followed by a new draft the
+ * visitor starts.
+ */
+export function proposeInquiry(
   current: InquiryView,
-  proposal: { requirement: string; product?: PublicProduct; explicitUpdate: boolean },
+  proposal: InquiryProposal,
   key: () => string,
 ): InquiryView {
   if (current.phase === 'saving' || current.phase === 'unknown') return current;
-  if (
-    current.phase !== 'closed' &&
-    (!proposal.explicitUpdate ||
-      (current.draft.requirement.trim() === proposal.requirement.trim() &&
-        current.draft.product?.id === proposal.product?.id &&
-        current.draft.product?.revision === proposal.product?.revision))
-  )
-    return current;
-  const contact =
-    current.phase === 'closed'
-      ? { name: '', email: '', company: '' }
-      : { name: current.draft.name, email: current.draft.email, company: current.draft.company };
+  if (current.phase === 'closed' || current.phase === 'saved') {
+    if (proposal.origin !== 'visitor') return current;
+    return {
+      phase: 'editing',
+      key: key(),
+      errors: {},
+      draft: {
+        name: current.phase === 'saved' ? current.draft.name : '',
+        email: current.phase === 'saved' ? current.draft.email : '',
+        company: current.phase === 'saved' ? current.draft.company : '',
+        requirement: proposal.requirement?.trim() ?? '',
+        consent: false,
+        ...(proposal.product ? { product: proposal.product } : {}),
+      },
+    };
+  }
+  const changes = inquiryChanges(current.draft, proposal);
+  if (!changes.length) return current;
+  const pending: InquiryUpdate = { origin: proposal.origin };
+  for (const change of changes)
+    if (change.field === 'requirement' && proposal.requirement)
+      pending.requirement = proposal.requirement.trim();
+    else if (change.field === 'product' && proposal.product) pending.product = proposal.product;
+  const next = { ...current, pending };
+  return proposal.origin === 'visitor' && changes.every((c) => !c.before)
+    ? applyInquiryUpdate(next, key)
+    : next;
+}
+/** Use the pending change: contact details stay, consent must be given again. */
+export function applyInquiryUpdate(view: InquiryView, key: () => string): InquiryView {
+  if (view.phase !== 'editing' || !view.pending) return view;
+  const { requirement, product } = view.pending;
   return {
     phase: 'editing',
     key: key(),
     errors: {},
     draft: {
-      ...contact,
-      requirement: proposal.requirement,
+      ...view.draft,
+      ...(requirement ? { requirement } : {}),
+      ...(product ? { product } : {}),
       consent: false,
-      ...(proposal.product ? { product: proposal.product } : {}),
     },
+  };
+}
+/** Keep the draft as the visitor has it and drop the pending change. */
+export function keepInquiryDraft(view: InquiryView): InquiryView {
+  if (view.phase !== 'editing' || !view.pending) return view;
+  const { pending: _dropped, ...rest } = view;
+  return rest;
+}
+export function inquiryReceipt(
+  view: Extract<InquiryView, { phase: 'saved' }>,
+): InquiryReceiptSummary {
+  return {
+    reference: view.receipt.reference,
+    requirement: view.draft.requirement,
+    ...(view.draft.product ? { product: view.draft.product.name } : {}),
   };
 }
 export function validateInquiry(draft: InquiryDraft): Partial<Record<keyof InquiryDraft, string>> {

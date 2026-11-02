@@ -2,14 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   INQUIRY_AUTO_CHECK_DELAYS_MS,
-  beginInquiryReview,
+  applyInquiryUpdate,
   inquiryAfterFailure,
+  inquiryChanges,
   inquiryCheckStart,
+  inquiryReceipt,
+  keepInquiryDraft,
   nextInquiryCheckDelay,
   persistedInquiry,
+  proposeInquiry,
   restoredInquiry,
   validateInquiry,
 } from './inquiry';
+import type { InquiryDraft, PublicProduct } from './model';
 import { InquiryRejectedError } from './transport-error';
 const draft = {
   requirement: '500 company gifts; model not decided',
@@ -29,68 +34,148 @@ test('invalid fields have specific errors without changing the input', () => {
   assert.deepEqual(input, before);
 });
 
-test('reviewing updated requirements keeps contact fields, resets consent and changes an unsent key', () => {
-  const current = {
-    phase: 'editing' as const,
-    key: 'old',
-    errors: {},
-    draft: {
-      requirement: '500 headphones',
-      name: 'Buyer',
-      email: 'buyer@example.invalid',
-      company: 'BuyerCo',
-      consent: true,
-    },
-  };
-  const next = beginInquiryReview(
-    current,
-    { requirement: '700 headphones with logo', explicitUpdate: true },
-    () => 'new',
-  );
-  assert.equal(next.phase, 'editing');
-  if (next.phase !== 'editing') throw new Error('expected review');
-  assert.equal(next.draft.requirement, '700 headphones with logo');
-  assert.equal(next.draft.email, current.draft.email);
-  assert.equal(next.draft.consent, false);
-  assert.equal(next.key, 'new');
-  assert.equal(
-    beginInquiryReview(current, { requirement: 'other', explicitUpdate: false }, () => 'new'),
-    current,
-  );
-});
-test('an uncertain or saving inquiry is frozen, while a saved inquiry needs an explicit new proposal', () => {
-  const draft = {
-    requirement: '500 gifts',
+const editing = (patch: Partial<InquiryDraft> = {}) => ({
+  phase: 'editing' as const,
+  key: 'old',
+  errors: {},
+  draft: {
+    requirement: '500 headphones',
     name: 'Buyer',
     email: 'buyer@example.invalid',
     company: 'BuyerCo',
     consent: true,
-  };
+    ...patch,
+  },
+});
+const productA: PublicProduct = {
+  id: 'pa',
+  revision: 'r1',
+  name: 'Headphone A',
+  summary: 'A',
+  href: '/products/pa',
+};
+const productB = { ...productA, id: 'pb', name: 'Headphone B', href: '/products/pb' };
+test('model_update_shows_change_summary: a conversation suggestion waits on the card with old and new values', () => {
+  const current = editing();
+  const next = proposeInquiry(
+    current,
+    { origin: 'conversation', requirement: '700 headphones with logo' },
+    () => 'new',
+  );
+  assert.ok(next.phase === 'editing' && next.pending);
+  if (next.phase !== 'editing' || !next.pending) return;
+  assert.deepEqual(next.draft, current.draft);
+  assert.deepEqual(inquiryChanges(next.draft, next.pending), [
+    { field: 'requirement', before: '500 headphones', after: '700 headphones with logo' },
+  ]);
+  assert.equal(
+    proposeInquiry(current, { origin: 'conversation', requirement: ' 500 headphones ' }, () => 'x'),
+    current,
+  );
+});
+test('changed_need_preserves_contact_and_clears_consent: using an update keeps contact, needs consent again and changes the unsent key', () => {
+  const proposed = proposeInquiry(
+    editing(),
+    { origin: 'conversation', requirement: '700 headphones with logo' },
+    () => 'unused',
+  );
+  const next = applyInquiryUpdate(proposed, () => 'new');
+  assert.ok(next.phase === 'editing');
+  if (next.phase !== 'editing') return;
+  assert.equal(next.draft.requirement, '700 headphones with logo');
+  assert.equal(next.draft.email, 'buyer@example.invalid');
+  assert.equal(next.draft.company, 'BuyerCo');
+  assert.equal(next.draft.consent, false);
+  assert.equal(next.key, 'new');
+  assert.equal(next.pending, undefined);
+});
+test('manual_edit_not_overwritten_silently: keeping the current draft drops the suggestion and keeps the visitor text and consent', () => {
+  const mine = editing({ requirement: '500 headphones, my own wording' });
+  const proposed = proposeInquiry(
+    mine,
+    { origin: 'conversation', requirement: '700 headphones' },
+    () => 'x',
+  );
+  const kept = keepInquiryDraft(proposed);
+  assert.deepEqual(kept, mine);
+});
+test('two_products_do_not_silently_swap_draft: a second product card asks first, an empty product is filled directly', () => {
+  const withA = editing({ product: productA });
+  const asked = proposeInquiry(withA, { origin: 'visitor', product: productB }, () => 'x');
+  assert.ok(asked.phase === 'editing' && asked.pending);
+  assert.equal(asked.phase === 'editing' && asked.draft.product?.id, 'pa');
+  assert.deepEqual(
+    asked.phase === 'editing' && asked.pending && inquiryChanges(asked.draft, asked.pending),
+    [{ field: 'product', before: 'Headphone A', after: 'Headphone B' }],
+  );
+  const filled = proposeInquiry(editing(), { origin: 'visitor', product: productA }, () => 'k2');
+  assert.ok(filled.phase === 'editing' && !filled.pending);
+  assert.equal(filled.phase === 'editing' && filled.draft.product?.id, 'pa');
+  assert.equal(filled.phase === 'editing' && filled.draft.consent, false);
+  const refreshed = { ...productA, revision: 'r2' };
+  const changed = proposeInquiry(withA, { origin: 'conversation', product: refreshed }, () => 'x');
+  assert.deepEqual(
+    changed.phase === 'editing' &&
+      changed.pending &&
+      inquiryChanges(changed.draft, changed.pending),
+    [{ field: 'product', before: 'Headphone A', after: 'Headphone A (updated details)' }],
+  );
+});
+test('only the visitor opens a draft; a frozen submission is never changed', () => {
+  assert.deepEqual(
+    proposeInquiry({ phase: 'closed' }, { origin: 'conversation', requirement: '700' }, () => 'k'),
+    { phase: 'closed' },
+  );
+  const opened = proposeInquiry(
+    { phase: 'closed' },
+    { origin: 'visitor', requirement: ' 700 gifts ', product: productA },
+    () => 'k',
+  );
+  assert.deepEqual(opened, {
+    phase: 'editing',
+    key: 'k',
+    errors: {},
+    draft: {
+      name: '',
+      email: '',
+      company: '',
+      requirement: '700 gifts',
+      consent: false,
+      product: productA,
+    },
+  });
+  const { draft } = editing();
   for (const current of [
     { phase: 'saving' as const, key: 'original', draft, checks: 0, uncertain: false },
     { phase: 'unknown' as const, key: 'original', draft, checks: 0 },
-  ]) {
-    assert.equal(
-      beginInquiryReview(current, { requirement: '700 gifts', explicitUpdate: true }, () => 'new'),
-      current,
-    );
-  }
+  ])
+    for (const origin of ['visitor', 'conversation'] as const)
+      assert.equal(
+        proposeInquiry(current, { origin, requirement: '700 gifts' }, () => 'new'),
+        current,
+      );
+});
+test('saved_receipt_does_not_resubmit: after saving, the conversation cannot start another inquiry; the visitor can', () => {
   const saved = {
     phase: 'saved' as const,
     key: 'original',
-    draft,
+    draft: { ...editing().draft, product: productA },
     receipt: { reference: 'ai_saved' },
   };
   assert.equal(
-    beginInquiryReview(saved, { requirement: '700 gifts', explicitUpdate: false }, () => 'new'),
+    proposeInquiry(saved, { origin: 'conversation', requirement: 'ok, thanks' }, () => 'new'),
     saved,
   );
-  const next = beginInquiryReview(
-    saved,
-    { requirement: '700 gifts', explicitUpdate: true },
-    () => 'new',
-  );
-  assert.equal(next.phase, 'editing');
+  const next = proposeInquiry(saved, { origin: 'visitor', requirement: '200 more' }, () => 'new');
+  assert.ok(next.phase === 'editing');
+  assert.equal(next.phase === 'editing' && next.key, 'new');
+  assert.equal(next.phase === 'editing' && next.draft.email, 'buyer@example.invalid');
+  assert.equal(next.phase === 'editing' && next.draft.consent, false);
+  assert.deepEqual(inquiryReceipt(saved), {
+    reference: 'ai_saved',
+    requirement: '500 headphones',
+    product: 'Headphone A',
+  });
 });
 
 const contact = {

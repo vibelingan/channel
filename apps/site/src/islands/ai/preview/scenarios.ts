@@ -135,7 +135,12 @@ export function seedFor(id: string): AssistantSeed {
       ...(id === 'inquiry_validation' ? { email: 'invalid', requirement: '' } : {}),
     };
     const base = { key: 'preview-inquiry-key', draft };
-    seed.inquiryOpen = true;
+    seed.inquiryExpanded = true;
+    if (id === 'inquiry_saved')
+      seed.state = reduceAssistant(seed.state, {
+        type: 'inquiry_saved',
+        receipt: { reference: 'PREVIEW-001', requirement: draft.requirement },
+      });
     seed.inquiry =
       id === 'inquiry_submitting'
         ? { ...base, phase: 'saving', checks: 0, uncertain: false }

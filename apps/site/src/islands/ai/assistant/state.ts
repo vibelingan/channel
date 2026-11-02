@@ -1,6 +1,7 @@
 import type {
   AssistantState,
   ChatMessage,
+  InquiryReceiptSummary,
   RestoredConversation,
   TurnEvent,
   TurnPhase,
@@ -8,7 +9,7 @@ import type {
 } from './model';
 
 export type AssistantAction =
-  | { type: 'inquiry_saved'; reference: string }
+  | { type: 'inquiry_saved'; receipt: InquiryReceiptSummary }
   | { type: 'open'; open: boolean }
   | { type: 'begin'; request: TurnRequest; regenerate?: boolean }
   | { type: 'event'; event: TurnEvent }
@@ -42,7 +43,7 @@ function terminal(phase: TurnPhase): boolean {
 
 export function reduceAssistant(state: AssistantState, action: AssistantAction): AssistantState {
   if (action.type === 'inquiry_saved') {
-    const id = `inquiry:${action.reference}`;
+    const id = `inquiry:${action.receipt.reference}`;
     return state.messages.some((message) => message.id === id)
       ? state
       : {
@@ -53,7 +54,8 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
               id,
               role: 'assistant',
               kind: 'answer',
-              text: `Your inquiry is recorded. Reference: ${action.reference}`,
+              text: `Your inquiry is recorded. Reference: ${action.receipt.reference}`,
+              receipt: action.receipt,
             },
           ],
         };

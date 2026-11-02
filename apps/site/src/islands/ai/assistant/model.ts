@@ -29,6 +29,13 @@ export interface ChatMessage {
   products?: PublicProduct[];
   unavailableProductIds?: string[];
   inquirySuggestion?: InquirySuggestion;
+  /** A saved inquiry, shown in the conversation where the review card was. */
+  receipt?: InquiryReceiptSummary;
+}
+export interface InquiryReceiptSummary {
+  reference: string;
+  requirement: string;
+  product?: string;
 }
 export type TurnPhase =
   | 'queued'
@@ -115,6 +122,15 @@ export interface AssistantAdapter {
     signal: AbortSignal,
   ): Promise<InquiryReceipt | null>;
 }
+/**
+ * A change to the requirement or product the visitor has not accepted yet. The
+ * draft keeps its current values until they choose to use it.
+ */
+export interface InquiryUpdate {
+  origin: 'visitor' | 'conversation';
+  requirement?: string;
+  product?: PublicProduct;
+}
 export type InquiryView =
   | { phase: 'closed' }
   | {
@@ -124,6 +140,7 @@ export type InquiryView =
       errors: Partial<Record<keyof InquiryDraft, string>>;
       /** Why the service refused it before saving; nothing was submitted. */
       formError?: string;
+      pending?: InquiryUpdate;
     }
   /** `uncertain`: an earlier attempt with this key may have been saved. */
   | { phase: 'saving'; draft: InquiryDraft; key: string; checks: number; uncertain: boolean }

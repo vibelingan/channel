@@ -1,4 +1,5 @@
 import { safePublicChatLink } from '../../../components/chat/public-link';
+import { InquiryReceipt } from './InquiryCard';
 import { ProductThumbnail } from './ProductThumbnail';
 import type { ChatMessage, PublicProduct } from './model';
 
@@ -30,7 +31,11 @@ export function AssistantMessages({
               : 'mr-2 rounded-xl bg-white p-4 text-sm leading-relaxed text-ink shadow-sm'
           }
         >
-          {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+          {message.receipt ? (
+            <InquiryReceipt receipt={message.receipt} />
+          ) : (
+            message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>
+          )}
           {message.products?.map((product) => (
             <section
               key={product.id}

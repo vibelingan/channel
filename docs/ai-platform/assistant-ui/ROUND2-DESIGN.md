@@ -519,3 +519,13 @@ CloudBase 账号与环境（负责人确认）：
 - 边界：问题还没发出（建立会话前）就离开页面时无法恢复，这时也还没有服务端会话。跨标签、跨设备、清除存储后的恢复和登录历史仍然后置。恢复最多 60 条消息。
 - 期限：关掉标签页即结束；凭据 24 小时固定期限；服务端目前不删除历史。保留期限、同一设备回访续聊和凭据续期列在 [ROADMAP.md](ROADMAP.md) §2、§5.2，待负责人决定。
 
+### MIU 16（2026-11-02）
+
+- 位置：询盘不再盖住聊天。唯一一张活跃草稿作为卡片放在消息流末尾（`InquiryCard.tsx`，原 `InquiryReview.tsx` 改名），可以展开或折叠成一行摘要；聊天输入框一直可用，没有 Back to chat。访客发新问题时卡片自动折叠，答案出现在它上方；在卡片里打字时，新消息不会把视图拉到底（`useChatViewport`）。
+- 模型建议：只有草稿打开时、新答案带 `inquirySuggestion` 才处理，且只作为“待确认的更新”挂在卡片上，显示旧值 → 新值；访客选 **Use update**（需求／产品换新，联系人保留，同意取消，换新的未提交 key）或 **Keep current**，也可以直接手改。对话里的建议不会打开新草稿，也不会直接改草稿；恢复或预置的旧建议不会再提一次。逻辑在 `inquiry.ts` 的 `proposeInquiry`／`inquiryChanges`／`applyInquiryUpdate`／`keepInquiryDraft`。
+- 访客自己的点击：产品卡“Prepare inquiry”在草稿还没有产品时直接带入；已有另一款时显示“Update this inquiry?”和产品 A → B，不静默替换。保存中和结果未知时草稿冻结，任何更新都不接受，折叠的摘要也显示保存／核对状态。
+- 成功后：卡片消失，消息流里出现回执（单号、产品、确认的需求）。之后对话再给建议也不会开新询盘；底部按钮变成“Start another inquiry”，只有访客明确点击才开第二份草稿（联系人沿用，同意重新勾）。
+- 与设计的差别：没有另设 draftId／revision，活跃草稿就是现有的提交 key；接受更新时换 key 是安全的，因为编辑中的 key 从未产生写入。待确认的更新不存进标签页，刷新后消失，答案上的“Review inquiry”可以重新提出。
+- 检查：询盘单测 12 项（新增 6 项，按验收名命名）；site 1518 项中 1517 通过、1 项跳过；助手浏览器旅程 98 项通过（桌面＋手机，新增 `inquiry_is_inside_transcript`／`chat_remains_visible_during_edit`、`two_products_do_not_silently_swap_draft`、`model_update_shows_change_summary`＋`manual_edit_not_overwritten_silently`＋`changed_need_preserves_contact_and_clears_consent`、`saved_receipt_does_not_resubmit`）；真实 BFF＋Postgres＋worker 浏览器测试 28 项通过；状态守卫变异 4/4 被杀；site、测试和 e2e 的 typecheck 与 biome 通过。
+- 未实测：真实模型脚本 `scripts/assistant-real-browser.mts` 已改为新交互（并修正 MIU 12 遗留的旧按钮名 “Check original submission”），要等 SSH 主机别名才能跑。
+- 边界：回执刷新后出现在消息末尾而不是原位置；先提交一单再开第二份草稿后刷新，第一单的回执不再显示（记录仍在 Sales，单号不丢）。

@@ -81,7 +81,7 @@
 | 安全策略档案（只说公开事实、不编价格、联系方式不进模型） | `packages/ai-policy` | 结构能，内容要按行业换 |
 | 前后端合同 | `packages/ai-contracts` | 能 |
 | 页面的会话层：发送、停止、续读、刷新恢复 | `apps/site/src/islands/ai/assistant` 的 session／adapter／persistence | 能 |
-| 业务专用：销售提示词、产品查找与产品卡、询盘表单与 Sales 落盘 | engine 提示词、`catalog-*`、`InquiryReview`、`apps/functions/sales-integration` | 不能，这是“外贸销售”这个业务插件 |
+| 业务专用：销售提示词、产品查找与产品卡、询盘表单与 Sales 落盘 | engine 提示词、`catalog-*`、`InquiryCard`、`apps/functions/sales-integration` | 不能，这是“外贸销售”这个业务插件 |
 
 现在的问题是：业务专用部分和通用部分写在同一批文件里，还没有一个“业务插件”的边界。
 
