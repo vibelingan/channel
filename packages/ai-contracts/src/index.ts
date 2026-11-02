@@ -95,10 +95,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export {
+  type AnswerExtrasV2,
   type ChatTurnV2,
   type ChatEventV2,
+  type ConversationSnapshotV2,
   isChatTurnV2,
   isChatEventV2,
+  isConversationSnapshotV2,
   isUuid,
   isOperationKey,
 } from './chat-v2.ts';

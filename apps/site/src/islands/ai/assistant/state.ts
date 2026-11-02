@@ -66,13 +66,25 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
     return { ...state, sessionStatus: 'ready', restoreFailed: true };
   if (action.type === 'expired')
     return { ...state, sessionStatus: 'expired', messages: [], turn: null, restoreFailed: false };
-  if (action.type === 'restored')
+  if (action.type === 'restored') {
+    const { conversation } = action;
+    const resume = conversation.resume;
+    const messages = [...conversation.messages];
+    if (resume) {
+      if (!messages.some((m) => m.id === `visitor:${resume.turnKey}`))
+        messages.push({ id: `visitor:${resume.turnKey}`, role: 'visitor', text: resume.message });
+      if (!messages.some((m) => m.id === `answer:${resume.turnKey}`))
+        messages.push({ id: `answer:${resume.turnKey}`, role: 'assistant', text: '' });
+    }
     return {
-      ...initialAssistantState(action.conversation.conversationKey),
-      messages: action.conversation.messages,
+      ...initialAssistantState(conversation.conversationKey),
+      messages,
       sessionStatus: 'ready',
-      open: state.open,
+      open: conversation.open ?? state.open,
+      // Events replay from 0 into an empty answer, so earlier tokens come back too.
+      turn: resume ? { request: resume, phase: 'queued', cursor: 0, steps: [] } : null,
     };
+  }
   if (action.type === 'begin') {
     if (
       action.request.conversationKey !== state.conversationKey ||

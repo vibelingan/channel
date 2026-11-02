@@ -6,6 +6,8 @@ import {
   inquiryAfterFailure,
   inquiryCheckStart,
   nextInquiryCheckDelay,
+  persistedInquiry,
+  restoredInquiry,
   validateInquiry,
 } from './inquiry';
 import type {
@@ -16,6 +18,7 @@ import type {
   PublicProduct,
   TurnRequest,
 } from './model';
+import type { AssistantPersistence } from './persistence';
 import { initialAssistantState, isTurnWorking, reduceAssistant } from './state';
 import { AssistantTransportError } from './transport-error';
 
@@ -26,6 +29,8 @@ export interface AssistantSeed {
   compareIds?: string[];
   confirmRegenerate?: boolean;
   draft?: string;
+  /** The tab's saved conversation; restored once on mount when present. */
+  persistence?: AssistantPersistence;
 }
 
 export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSeed) {
@@ -47,6 +52,11 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
   const generation = useRef(0);
   const inquiryGeneration = useRef(0);
   const [now, setNow] = useState(Date.now());
+  // Read in a ref, not state: the server render has no storage, and the first
+  // client render must match it. Until the restore settles nothing is written,
+  // so an empty first render cannot overwrite what the tab saved.
+  const pendingRestore = useRef<boolean | null>(null);
+  if (pendingRestore.current === null) pendingRestore.current = Boolean(seed.persistence?.load());
   const retryAt = state.turn?.retryAt;
   useEffect(() => {
     if (!retryAt || retryAt <= now) return;
@@ -188,6 +198,7 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     active.current = null;
     cancelling.current?.abort();
     cancelling.current = null;
+    adapter.forget?.();
     dispatch({ type: 'reset', state: initialAssistantState(crypto.randomUUID()) });
     setInquiry({ phase: 'closed' });
     inquiryRef.current = { phase: 'closed' };
@@ -199,8 +210,10 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       active.current ||
       isTurnWorking(latest.current.turn?.phase) ||
       ['editing', 'saving', 'unknown'].includes(inquiryRef.current.phase)
-    )
+    ) {
+      pendingRestore.current = false;
       return;
+    }
     const controller = new AbortController();
     active.current = controller;
     const attempt = ++generation.current;
@@ -212,14 +225,53 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     try {
       const restored = await adapter.restore(controller.signal);
       if (generation.current !== attempt || controller.signal.aborted) return;
-      dispatch(restored ? { type: 'restored', conversation: restored } : { type: 'expired' });
+      if (!restored) {
+        dispatch({ type: 'expired' });
+        return;
+      }
+      dispatch({ type: 'restored', conversation: restored });
+      const view = restoredInquiry(restored.inquiry);
+      inquiryRef.current = view;
+      setInquiry(view);
+      setInquiryOpen(view.phase === 'editing' || view.phase === 'unknown');
+      if (view.phase === 'saved')
+        dispatch({ type: 'inquiry_saved', reference: view.receipt.reference });
+      if (active.current === controller) active.current = null;
+      if (restored.resume) void drive(restored.resume, 0);
     } catch {
       if (generation.current === attempt && !controller.signal.aborted)
         dispatch({ type: 'restore_failed' });
     } finally {
       if (active.current === controller) active.current = null;
+      pendingRestore.current = false;
     }
   }
+  const restoreOnMount = useRef(restore);
+  useEffect(() => {
+    if (pendingRestore.current) void restoreOnMount.current();
+  }, []);
+  // The tab record mirrors what a refresh needs: the conversation key, whether
+  // the panel was open, an unfinished question and an unsent or uncertain inquiry.
+  const resumable =
+    state.turn && (isTurnWorking(state.turn.phase) || state.turn.phase === 'reconnecting')
+      ? state.turn.request
+      : undefined;
+  useEffect(() => {
+    if (!seed.persistence || pendingRestore.current) return;
+    seed.persistence.update({
+      conversationKey: state.conversationKey,
+      open: state.open,
+      turn: resumable
+        ? {
+            turnKey: resumable.turnKey,
+            idempotencyKey: resumable.idempotencyKey,
+            message: resumable.message,
+            ...(resumable.catalogAction ? { catalogAction: resumable.catalogAction } : {}),
+          }
+        : undefined,
+      inquiry: persistedInquiry(inquiry),
+    });
+  }, [seed.persistence, state.conversationKey, state.open, resumable, inquiry]);
   function beginInquiry(product?: PublicProduct, requirement?: string) {
     const suggestion = latest.current.messages
       .filter((message) => message.role === 'assistant')

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createHttpAssistantAdapter } from './http-adapter';
 import type { TurnEvent } from './model';
+import { sessionAssistantPersistence } from './persistence';
 import { InquiryRejectedError } from './transport-error';
 
 test('HTTP adapter replays a lost append acknowledgement using the same key, never invents completion', async () => {
@@ -251,4 +252,256 @@ test('known_rejection_stays_editable: a refusal before saving frees the key; an 
       (e) => !(e instanceof InquiryRejectedError),
     );
   }
+});
+
+class TabStorage {
+  values = new Map<string, string>();
+  getItem(key: string) {
+    return this.values.get(key) ?? null;
+  }
+  setItem(key: string, value: string) {
+    this.values.set(key, value);
+  }
+  removeItem(key: string) {
+    this.values.delete(key);
+  }
+}
+/** One fake BFF shared by two page loads in the same tab. */
+function fakeBff() {
+  const conversationId = randomUUID();
+  const credential = 'r'.repeat(40);
+  const turns = new Map<
+    string,
+    { runId: string; messageId: string; text: string; done: boolean }
+  >();
+  const calls = { conversations: 0, inquiries: [] as string[], snapshots: 0 };
+  let dropAfterFirstToken = true;
+  let snapshotStatus = 401;
+  const api: typeof fetch = async (input, init) => {
+    const url = new URL(String(input), 'http://site.test');
+    const path = url.pathname;
+    if (path.endsWith('/conversations')) {
+      calls.conversations++;
+      return Response.json(
+        { conversationId, credential, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        { status: 201 },
+      );
+    }
+    if (new Headers(init?.headers).get('authorization') !== `Bearer ${credential}`)
+      return new Response('', { status: 401 });
+    if (path.endsWith('/messages')) {
+      const body = JSON.parse(String(init?.body));
+      const prior = turns.get(body.idempotencyKey);
+      const turn = prior ?? {
+        runId: randomUUID(),
+        messageId: randomUUID(),
+        text: body.message,
+        done: false,
+      };
+      turns.set(body.idempotencyKey, turn);
+      return Response.json(
+        {
+          protocolVersion: 2,
+          conversationId,
+          operationKey: body.idempotencyKey,
+          messageId: turn.messageId,
+          runId: turn.runId,
+          controlVersion: 1,
+          status: 'running',
+          cancelRequested: false,
+        },
+        { status: 202 },
+      );
+    }
+    if (path.endsWith('/events')) {
+      const turn = turns.get(url.searchParams.get('turn') ?? '');
+      assert.ok(turn);
+      const after = Number(new Headers(init?.headers).get('last-event-id'));
+      const base = {
+        protocolVersion: 2,
+        conversationId,
+        messageId: turn.messageId,
+        runId: turn.runId,
+        controlVersion: 1,
+      };
+      const events = [
+        { ...base, type: 'token', sequence: 1, text: 'Model A ' },
+        { ...base, type: 'final', sequence: 2, text: 'Model A suits 700 gifts.' },
+      ].filter((e) => e.sequence > after);
+      const shown = dropAfterFirstToken ? events.slice(0, 1) : events;
+      if (!dropAfterFirstToken) turn.done = true;
+      return new Response(
+        shown.map((e) => `id: ${e.sequence}\ndata: ${JSON.stringify(e)}\n\n`).join(''),
+        {
+          headers: { 'content-type': 'text/event-stream' },
+        },
+      );
+    }
+    if (path.endsWith('/snapshot')) {
+      calls.snapshots++;
+      if (snapshotStatus !== 200) return new Response('', { status: snapshotStatus });
+      const messages = [...turns.entries()].flatMap(([key, t]) => [
+        {
+          role: 'visitor',
+          operationKey: key,
+          runId: t.runId,
+          status: t.done ? 'completed' : 'running',
+          text: t.text,
+        },
+        ...(t.done
+          ? [
+              {
+                role: 'assistant',
+                runId: t.runId,
+                text: 'Model A suits 700 gifts.',
+                kind: 'answer',
+              },
+            ]
+          : []),
+      ]);
+      return Response.json({ protocolVersion: 2, conversationId, messages });
+    }
+    if (path.endsWith('/inquiries')) {
+      calls.inquiries.push(String(init?.body));
+      throw new Error('Lost after commit');
+    }
+    return new Response('', { status: 404 });
+  };
+  return {
+    api,
+    calls,
+    turns,
+    conversationId,
+    set dropAfterFirstToken(v: boolean) {
+      dropAfterFirstToken = v;
+    },
+    set snapshotStatus(v: number) {
+      snapshotStatus = v;
+    },
+  };
+}
+
+test('refresh_resumes_same_conversation and inflight_reply_resumes_without_second_model_run', async () => {
+  const bff = fakeBff();
+  const storage = new TabStorage();
+  const signal = new AbortController().signal;
+  const firstLoad = sessionAssistantPersistence('site.test:website_sales', storage);
+  const before = createHttpAssistantAdapter('', bff.api, firstLoad);
+  const request = {
+    conversationKey: 'website-chat',
+    turnKey: 'turn_700_gifts',
+    idempotencyKey: 'turn_700_gifts',
+    message: 'And for 700?',
+  };
+  const seen: TurnEvent[] = [];
+  await before.run(request, 0, (e) => seen.push(e), signal);
+  assert.deepEqual(
+    seen.map((e) => e.type),
+    ['token'],
+  );
+  // The session records the in-flight question; the page then navigates.
+  firstLoad.update({
+    turn: {
+      turnKey: request.turnKey,
+      idempotencyKey: request.idempotencyKey,
+      message: request.message,
+    },
+  });
+  bff.snapshotStatus = 200;
+  bff.dropAfterFirstToken = false;
+  const after = createHttpAssistantAdapter(
+    '',
+    bff.api,
+    sessionAssistantPersistence('site.test:website_sales', storage),
+  );
+  const restored = await after.restore(signal);
+  assert.ok(restored);
+  assert.equal(restored.conversationKey, 'website-chat');
+  assert.deepEqual(restored.resume, request);
+  assert.deepEqual(
+    restored.messages.map((m) => m.id),
+    ['visitor:turn_700_gifts'],
+  );
+  const replay: TurnEvent[] = [];
+  await after.run(restored.resume, 0, (e) => replay.push(e), signal);
+  assert.deepEqual(
+    replay.map((e) => e.type),
+    ['token', 'finished'],
+  );
+  assert.equal(bff.calls.conversations, 1);
+  assert.equal(bff.turns.size, 1);
+});
+
+test('finished_run_during_navigation_shows_final_answer without resuming it', async () => {
+  const bff = fakeBff();
+  const storage = new TabStorage();
+  const signal = new AbortController().signal;
+  const p = sessionAssistantPersistence('s', storage);
+  const before = createHttpAssistantAdapter('', bff.api, p);
+  bff.dropAfterFirstToken = false;
+  const request = {
+    conversationKey: 'website-chat',
+    turnKey: 'turn_gift_1',
+    idempotencyKey: 'turn_gift_1',
+    message: 'Gifts?',
+  };
+  await before.run(request, 0, () => undefined, signal);
+  p.update({
+    turn: {
+      turnKey: request.turnKey,
+      idempotencyKey: request.idempotencyKey,
+      message: request.message,
+    },
+  });
+  bff.snapshotStatus = 200;
+  const restored = await createHttpAssistantAdapter(
+    '',
+    bff.api,
+    sessionAssistantPersistence('s', storage),
+  ).restore(signal);
+  assert.ok(restored);
+  assert.equal(restored.resume, undefined);
+  assert.deepEqual(
+    restored.messages.map((m) => [m.id, m.text]),
+    [
+      ['visitor:turn_gift_1', 'Gifts?'],
+      ['answer:turn_gift_1', 'Model A suits 700 gifts.'],
+    ],
+  );
+});
+
+test('expired_session_is_not_silently_resubmitted and unknown_submission_survives_refresh_with_same_key', async () => {
+  const bff = fakeBff();
+  const storage = new TabStorage();
+  const signal = new AbortController().signal;
+  const draft = {
+    requirement: '700 gifts',
+    name: 'Nina',
+    email: 'nina@vibelingan.com',
+    company: 'VibeLingan',
+    consent: true,
+  };
+  const before = createHttpAssistantAdapter('', bff.api, sessionAssistantPersistence('s', storage));
+  await assert.rejects(before.submitInquiry(draft, 'inquiry_key_1', signal));
+  bff.snapshotStatus = 200;
+  const after = createHttpAssistantAdapter('', bff.api, sessionAssistantPersistence('s', storage));
+  assert.ok(await after.restore(signal));
+  await assert.rejects(after.submitInquiry(draft, 'inquiry_key_1', signal));
+  assert.equal(bff.calls.inquiries.length, 2);
+  assert.equal(new Set(bff.calls.inquiries).size, 1);
+  // A changed draft cannot reuse the uncertain key, even after refresh.
+  await assert.rejects(
+    after.submitInquiry({ ...draft, requirement: '900 gifts' }, 'inquiry_key_1', signal),
+  );
+  assert.equal(bff.calls.inquiries.length, 2);
+  // The credential expired on the server: restoring reports expiry and clears the tab record.
+  bff.snapshotStatus = 401;
+  const expired = createHttpAssistantAdapter(
+    '',
+    bff.api,
+    sessionAssistantPersistence('s', storage),
+  );
+  assert.equal(await expired.restore(signal), null);
+  assert.equal(sessionAssistantPersistence('s', storage).load(), null);
+  assert.equal(bff.calls.inquiries.length, 2);
 });

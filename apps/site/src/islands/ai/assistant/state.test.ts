@@ -155,3 +155,39 @@ test('terminal failure writes a visible reply and retries as a new answer', () =
   assert.equal(failed.messages.at(-1)?.text, 'The product service is unavailable. Try again.');
   assert.equal(failed.turn?.retryMode, 'new_answer');
 });
+
+test('a restored in-flight question keeps its message and waits to resume from cursor 0', () => {
+  const resume = {
+    conversationKey: 'website-chat',
+    turnKey: 'turn_700',
+    idempotencyKey: 'turn_700',
+    message: 'And for 700?',
+  };
+  const restored = reduceAssistant(initialAssistantState('website-chat'), {
+    type: 'restored',
+    conversation: {
+      conversationKey: 'website-chat',
+      messages: [{ id: 'visitor:turn_700', role: 'visitor', text: 'And for 700?' }],
+      resume,
+      open: false,
+    },
+  });
+  assert.deepEqual(
+    restored.messages.map((m) => m.id),
+    ['visitor:turn_700', 'answer:turn_700'],
+  );
+  assert.equal(restored.turn?.phase, 'queued');
+  assert.equal(restored.turn?.cursor, 0);
+  assert.equal(restored.open, false);
+  const lost = reduceAssistant(initialAssistantState('website-chat'), {
+    type: 'restored',
+    conversation: { conversationKey: 'website-chat', messages: [], resume },
+  });
+  assert.deepEqual(
+    lost.messages.map((m) => [m.id, m.text]),
+    [
+      ['visitor:turn_700', 'And for 700?'],
+      ['answer:turn_700', ''],
+    ],
+  );
+});

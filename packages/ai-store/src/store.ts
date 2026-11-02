@@ -24,6 +24,16 @@ export interface ConversationRow {
   activeRunId: string | null;
 }
 
+export interface SnapshotRow {
+  role: 'visitor' | 'assistant';
+  content: string;
+  /** The visitor's idempotency key; null for assistant turns. */
+  operationKey: string | null;
+  runId: string | null;
+  /** Null while a visitor message waits for a run. */
+  runStatus: 'creating' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
+  finalPayload: Record<string, unknown> | null;
+}
 export interface EventRow {
   id: string;
   conversationId: string;
@@ -1178,6 +1188,41 @@ export class AiStore {
       );
       return true;
     });
+  }
+
+  /**
+   * The latest visitor and assistant turns, oldest first, for restoring one
+   * conversation in its own tab. Callers authorize the conversation first and
+   * project the final payload; nothing here is public as-is.
+   */
+  async getConversationSnapshot(conversationId: string, limit = 60): Promise<SnapshotRow[]> {
+    const result = await this.pool.query<{
+      role: 'visitor' | 'assistant';
+      content: string;
+      idempotency_key: string;
+      run_id: string | null;
+      run_status: SnapshotRow['runStatus'];
+      payload: Record<string, unknown> | null;
+    }>(
+      `SELECT m.role, m.content, m.idempotency_key, m.answered_by_run AS run_id,
+              r.status AS run_status, e.payload
+       FROM conversation_messages m
+       LEFT JOIN ai_runs r ON r.conversation_id = m.conversation_id AND r.id = m.answered_by_run
+       LEFT JOIN conversation_events e
+         ON m.role = 'assistant' AND e.conversation_id = m.conversation_id
+        AND e.sequence = m.event_sequence AND e.type = 'final'
+       WHERE m.conversation_id = $1 AND m.role IN ('visitor', 'assistant')
+       ORDER BY m.created_at DESC, m.id DESC LIMIT $2`,
+      [conversationId, limit],
+    );
+    return result.rows.reverse().map((row) => ({
+      role: row.role,
+      content: row.content,
+      operationKey: row.role === 'visitor' ? row.idempotency_key : null,
+      runId: row.run_id,
+      runStatus: row.run_status,
+      finalPayload: row.payload,
+    }));
   }
 
   async listEvents(conversationId: string, afterSequence = 0, limit = 200): Promise<EventRow[]> {

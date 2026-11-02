@@ -27,6 +27,28 @@ export type ChatEventV2 = PublicSseEvent & {
   runId: string;
   controlVersion: number;
 };
+/** Final-answer extras shared by live `final` events and restored answers. */
+export interface AnswerExtrasV2 {
+  products?: PublicProductCard[];
+  kind?: (typeof PRODUCT_KINDS)[number];
+  unavailableProductIds?: string[];
+  inquirySuggestion?: InquirySuggestion;
+}
+/** Restores one conversation in the tab that holds its credential. */
+export interface ConversationSnapshotV2 {
+  protocolVersion: 2;
+  conversationId: string;
+  messages: Array<
+    | {
+        role: 'visitor';
+        operationKey: string;
+        runId: string | null;
+        status: ChatTurnV2['status'];
+        text: string;
+      }
+    | ({ role: 'assistant'; runId: string; text: string } & AnswerExtrasV2)
+  >;
+}
 export function isUuid(value: unknown): value is string {
   return (
     typeof value === 'string' &&
@@ -78,19 +100,7 @@ export function isChatEventV2(value: unknown): value is ChatEventV2 {
     case 'token':
       return text(value.text);
     case 'final':
-      return (
-        text(value.text) &&
-        (value.products === undefined || isProductCards(value.products)) &&
-        (value.inquirySuggestion === undefined ||
-          (value.kind === 'team_followup' && isInquirySuggestion(value.inquirySuggestion))) &&
-        (value.kind === undefined || PRODUCT_KINDS.some((kind) => kind === value.kind)) &&
-        (value.unavailableProductIds === undefined ||
-          (Array.isArray(value.unavailableProductIds) &&
-            value.unavailableProductIds.length <= 2 &&
-            value.unavailableProductIds.every(
-              (id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id),
-            )))
-      );
+      return text(value.text) && answerExtras(value);
     case 'citation':
       return (
         text(value.sourceId, 256) &&
@@ -109,3 +119,38 @@ export function isChatEventV2(value: unknown): value is ChatEventV2 {
       return false;
   }
 }
+function answerExtras(value: Record<string, unknown>): boolean {
+  return (
+    (value.products === undefined || isProductCards(value.products)) &&
+    (value.inquirySuggestion === undefined ||
+      (value.kind === 'team_followup' && isInquirySuggestion(value.inquirySuggestion))) &&
+    (value.kind === undefined || PRODUCT_KINDS.some((kind) => kind === value.kind)) &&
+    (value.unavailableProductIds === undefined ||
+      (Array.isArray(value.unavailableProductIds) &&
+        value.unavailableProductIds.length <= 2 &&
+        value.unavailableProductIds.every(
+          (id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id),
+        )))
+  );
+}
+const SNAPSHOT_STATUSES = ['queued', 'creating', 'running', 'completed', 'failed', 'cancelled'];
+export function isConversationSnapshotV2(value: unknown): value is ConversationSnapshotV2 {
+  return (
+    record(value) &&
+    value.protocolVersion === 2 &&
+    isUuid(value.conversationId) &&
+    Array.isArray(value.messages) &&
+    value.messages.length <= 200 &&
+    value.messages.every(
+      (m) =>
+        record(m) &&
+        text(m.text) &&
+        (m.role === 'visitor'
+          ? isOperationKey(m.operationKey) &&
+            (m.runId === null || isUuid(m.runId)) &&
+            SNAPSHOT_STATUSES.includes(m.status as string)
+          : m.role === 'assistant' && isUuid(m.runId) && answerExtras(m)),
+    )
+  );
+}
+

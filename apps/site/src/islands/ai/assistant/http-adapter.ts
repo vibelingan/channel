@@ -2,6 +2,7 @@ import {
   type ChatTurnV2,
   isChatEventV2,
   isChatTurnV2,
+  isConversationSnapshotV2,
   isUuid,
 } from '@vibelingan-channel/ai-contracts';
 import {
@@ -9,20 +10,39 @@ import {
   isInquiryRejectionReason,
   isInquirySubmissionReceipt,
 } from '@vibelingan-channel/ai-contracts/inquiry';
-import type { AssistantAdapter, TurnEvent, TurnRequest } from './model';
+import type { AssistantAdapter, ChatMessage, TurnEvent, TurnRequest } from './model';
+import type { AssistantPersistence } from './persistence';
 import { AssistantTransportError, InquiryRejectedError } from './transport-error';
 
-/** One mounted conversation; credentials stay in memory. */
+/**
+ * One conversation per tab. Without `persistence` the credential stays in
+ * memory; with it, a refresh or same-tab navigation continues the conversation.
+ */
 export function createHttpAssistantAdapter(
   baseUrl: string,
   requestFetch: typeof fetch = fetch,
+  persistence?: AssistantPersistence,
 ): AssistantAdapter {
   const base = `${baseUrl.replace(/\/$/, '')}/api/ai/v2`;
-  let credentials: Promise<{ conversationId: string; credential: string }> | undefined;
-  const submissions = new Map<
-    string,
-    { conversationId: string; credential: string; body: string }
-  >();
+  const saved = persistence?.load();
+  let credentials: Promise<{ conversationId: string; credential: string }> | undefined = saved
+    ? Promise.resolve({ conversationId: saved.conversationId, credential: saved.credential })
+    : undefined;
+  const submissions = new Map<string, { conversationId: string; credential: string; body: string }>(
+    (saved?.submissions ?? []).map((s) => [
+      s.key,
+      {
+        conversationId: saved?.conversationId ?? '',
+        credential: saved?.credential ?? '',
+        body: s.body,
+      },
+    ]),
+  );
+  function rememberSubmissions() {
+    persistence?.update({
+      submissions: [...submissions].slice(-4).map(([key, s]) => ({ key, body: s.body })),
+    });
+  }
   let current:
     | { request: TurnRequest; emit: (e: TurnEvent) => void; turn: ChatTurnV2; cursor: number }
     | undefined;
@@ -67,6 +87,7 @@ export function createHttpAssistantAdapter(
       if (response.status === 401) {
         credentials = undefined;
         current = undefined;
+        persistence?.clear();
         throw new AssistantTransportError(
           'This conversation expired. Start a new conversation.',
           undefined,
@@ -85,7 +106,7 @@ export function createHttpAssistantAdapter(
     }
     return response;
   }
-  function auth(signal: AbortSignal) {
+  function auth(signal: AbortSignal, conversationKey = 'website-chat') {
     if (!credentials)
       credentials = (async () => {
         const response = await checked(`${base}/conversations`, signal, undefined, {});
@@ -103,6 +124,17 @@ export function createHttpAssistantAdapter(
           throw new AssistantTransportError(
             'The conversation could not be verified. Please try again.',
           );
+        const expiresAt =
+          'expiresAt' in data && typeof data.expiresAt === 'string' ? data.expiresAt : '';
+        if (Number.isFinite(Date.parse(expiresAt)))
+          persistence?.save({
+            version: 1,
+            conversationId: data.conversationId,
+            credential: data.credential,
+            expiresAt,
+            conversationKey,
+            open: true,
+          });
         return { conversationId: data.conversationId, credential: data.credential };
       })().catch((error) => {
         credentials = undefined;
@@ -111,7 +143,14 @@ export function createHttpAssistantAdapter(
     return credentials;
   }
   async function state(request: TurnRequest, signal: AbortSignal, body?: unknown) {
-    const c = await auth(signal);
+    const c = await auth(signal, request.conversationKey);
+    if (body !== undefined) {
+      // Record the question before sending it: after a reload, resending it with
+      // the same key either finds it or creates it once. The tab record may only
+      // exist from this request on; the session clears it when the answer ends.
+      const { conversationKey: _key, ...question } = request;
+      persistence?.update({ turn: question });
+    }
     const response = await checked(
       `${base}/conversations/${c.conversationId}/${body === undefined ? `turns/${encodeURIComponent(request.idempotencyKey)}` : 'messages'}`,
       signal,
@@ -275,8 +314,78 @@ export function createHttpAssistantAdapter(
       }
       return 'unknown';
     },
-    async restore() {
-      throw new Error('History restore is not enabled');
+    async restore(signal) {
+      const record = persistence?.load();
+      if (!record) return null;
+      credentials = Promise.resolve({
+        conversationId: record.conversationId,
+        credential: record.credential,
+      });
+      let response: Response;
+      try {
+        response = await checked(
+          `${base}/conversations/${record.conversationId}/snapshot`,
+          signal,
+          record.credential,
+        );
+      } catch (error) {
+        if (error instanceof AssistantTransportError && error.expired) return null;
+        throw error;
+      }
+      const snapshot: unknown = await response.json();
+      if (!isConversationSnapshotV2(snapshot) || snapshot.conversationId !== record.conversationId)
+        throw new AssistantTransportError('The saved conversation could not be verified.');
+      const messages: ChatMessage[] = [];
+      const questionByRun = new Map<string, string>();
+      let resume: TurnRequest | undefined;
+      let resumeSeen = false;
+      for (const m of snapshot.messages) {
+        if (m.role === 'visitor') {
+          if (m.runId) questionByRun.set(m.runId, m.operationKey);
+          messages.push({ id: `visitor:${m.operationKey}`, role: 'visitor', text: m.text });
+          if (record.turn?.idempotencyKey === m.operationKey) {
+            resumeSeen = true;
+            if (['queued', 'creating', 'running'].includes(m.status))
+              resume = { conversationKey: record.conversationKey, ...record.turn };
+          }
+          if (m.status === 'failed' || m.status === 'cancelled')
+            messages.push({
+              id: `answer:${m.operationKey}`,
+              role: 'assistant',
+              kind: 'answer',
+              text:
+                m.status === 'failed'
+                  ? 'This answer could not finish. You can ask again.'
+                  : 'This answer was stopped.',
+            });
+          continue;
+        }
+        const { role: _role, runId, ...answer } = m;
+        messages.push({
+          ...answer,
+          id: `answer:${questionByRun.get(runId) ?? `run:${runId}`}`,
+          role: 'assistant',
+          kind: answer.kind ?? 'answer',
+        });
+      }
+      // A question sent just before leaving may not have reached the server:
+      // resending it with the same key either finds it or creates it once.
+      if (record.turn && !resumeSeen)
+        resume = { conversationKey: record.conversationKey, ...record.turn };
+      return {
+        conversationKey: record.conversationKey,
+        messages,
+        open: record.open,
+        ...(resume ? { resume } : {}),
+        ...(record.inquiry ? { inquiry: record.inquiry } : {}),
+        ...(record.anchor ? { anchor: record.anchor } : {}),
+      };
+    },
+    forget() {
+      credentials = undefined;
+      current = undefined;
+      submissions.clear();
+      persistence?.clear();
     },
     async submitInquiry(draft, submissionKey, signal) {
       const body = {
@@ -294,6 +403,7 @@ export function createHttpAssistantAdapter(
         const identity = await auth(signal);
         original = { ...identity, body: JSON.stringify(body) };
         submissions.set(submissionKey, original);
+        rememberSubmissions();
       }
       if (original.body !== JSON.stringify(body))
         throw new AssistantTransportError(
@@ -313,7 +423,10 @@ export function createHttpAssistantAdapter(
         );
       } catch (error) {
         // Nothing was saved under this key, so a corrected draft may reuse it.
-        if (error instanceof InquiryRejectedError) submissions.delete(submissionKey);
+        if (error instanceof InquiryRejectedError) {
+          submissions.delete(submissionKey);
+          rememberSubmissions();
+        }
         throw error;
       }
       const receipt: unknown = await response.json();

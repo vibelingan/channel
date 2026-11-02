@@ -6,6 +6,8 @@ import {
   inquiryAfterFailure,
   inquiryCheckStart,
   nextInquiryCheckDelay,
+  persistedInquiry,
+  restoredInquiry,
   validateInquiry,
 } from './inquiry';
 import { InquiryRejectedError } from './transport-error';
@@ -134,4 +136,29 @@ test('a refusal after an uncertain attempt cannot unfreeze a submission that may
     new InquiryRejectedError('NOT_ACCEPTING'),
   );
   assert.equal(next.phase, 'unknown');
+});
+test('an inquiry survives refresh: drafts stay editable, in-flight saves come back as unknown', () => {
+  const draftView = { phase: 'editing' as const, key: 'k_editing1', draft: contact, errors: {} };
+  assert.deepEqual(restoredInquiry(persistedInquiry(draftView)), draftView);
+  const saving = {
+    phase: 'saving' as const,
+    key: 'k_saving01',
+    draft: contact,
+    checks: 1,
+    uncertain: true,
+  };
+  assert.deepEqual(restoredInquiry(persistedInquiry(saving)), {
+    phase: 'unknown',
+    key: 'k_saving01',
+    draft: contact,
+    checks: 1,
+  });
+  const saved = {
+    phase: 'saved' as const,
+    key: 'k_saved001',
+    draft: contact,
+    receipt: { reference: `ai_${'b'.repeat(64)}` },
+  };
+  assert.deepEqual(restoredInquiry(persistedInquiry(saved)), saved);
+  assert.equal(persistedInquiry({ phase: 'closed' }), undefined);
 });

@@ -8,8 +8,10 @@ import {
 import {
   type AiApiErrorCode,
   type AiApiErrorEnvelope,
+  type AnswerExtrasV2,
   type AppendMessageResponse,
   type ChatTurnV2,
+  type ConversationSnapshotV2,
   type CreateConversationResponse,
   type PublicSseEvent,
   isAppendMessageRequest,
@@ -25,6 +27,7 @@ import {
 import {
   AiStore,
   type EventRow,
+  type SnapshotRow,
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
@@ -295,6 +298,18 @@ export function createAiBffServer(
         return;
       }
 
+      if (v2 && request.method === 'GET' && route.action === 'snapshot') {
+        json(
+          response,
+          200,
+          conversationSnapshot(
+            route.conversationId,
+            await store.getConversationSnapshot(route.conversationId),
+          ),
+        );
+        return;
+      }
+
       if (request.method === 'GET' && route.action === 'events') {
         let turn: ChatTurnV2 | undefined;
         if (v2) {
@@ -392,7 +407,7 @@ function hashCredential(token: string): string {
 
 function conversationRoute(pathname: string): {
   conversationId: string;
-  action: 'messages' | 'cancel' | 'events' | 'turn' | 'turn_cancel' | 'inquiries';
+  action: 'messages' | 'cancel' | 'events' | 'turn' | 'turn_cancel' | 'inquiries' | 'snapshot';
   operationKey?: string;
 } | null {
   const turn = pathname.match(
@@ -405,12 +420,12 @@ function conversationRoute(pathname: string): {
       action: turn[3] ? 'turn_cancel' : 'turn',
     };
   const match = pathname.match(
-    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events|inquiries)$/,
+    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events|inquiries|snapshot)$/,
   );
   if (!match?.[1] || !match[2]) return null;
   return {
     conversationId: match[1],
-    action: match[2] as 'messages' | 'cancel' | 'events' | 'inquiries',
+    action: match[2] as 'messages' | 'cancel' | 'events' | 'inquiries' | 'snapshot',
   };
 }
 
@@ -678,7 +693,30 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 }
 
-function productFields(payload: Record<string, unknown>) {
+/** Same projection as live `final` events: stored payloads never pass through as-is. */
+function conversationSnapshot(conversationId: string, rows: SnapshotRow[]): ConversationSnapshotV2 {
+  const messages: ConversationSnapshotV2['messages'] = [];
+  for (const row of rows) {
+    if (row.role === 'visitor' && row.operationKey)
+      messages.push({
+        role: 'visitor',
+        operationKey: row.operationKey,
+        runId: row.runId,
+        status: row.runStatus ?? 'queued',
+        text: row.content,
+      });
+    else if (row.role === 'assistant' && row.runId)
+      messages.push({
+        role: 'assistant',
+        runId: row.runId,
+        text: row.content,
+        ...(row.finalPayload ? productFields(row.finalPayload) : {}),
+      });
+  }
+  return { protocolVersion: 2, conversationId, messages };
+}
+
+function productFields(payload: Record<string, unknown>): AnswerExtrasV2 {
   // Rebuild cards explicitly: a valid shape does not authorize additional fields.
   const products = isProductCards(payload.products)
     ? payload.products.map((p) => ({
@@ -691,6 +729,7 @@ function productFields(payload: Record<string, unknown>) {
         ...(p.retrievedAt ? { retrievedAt: p.retrievedAt } : {}),
       }))
     : undefined;
+  const kind = PRODUCT_KINDS.find((value) => value === payload.kind);
   const unavailableProductIds =
     Array.isArray(payload.unavailableProductIds) &&
     payload.unavailableProductIds.length <= 2 &&
@@ -701,7 +740,7 @@ function productFields(payload: Record<string, unknown>) {
       : undefined;
   return {
     ...(products ? { products } : {}),
-    ...(PRODUCT_KINDS.some((kind) => kind === payload.kind) ? { kind: payload.kind } : {}),
+    ...(kind ? { kind } : {}),
     ...(unavailableProductIds ? { unavailableProductIds } : {}),
     ...(payload.kind === 'team_followup' && isInquirySuggestion(payload.inquirySuggestion)
       ? {

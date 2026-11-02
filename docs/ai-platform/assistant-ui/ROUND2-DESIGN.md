@@ -508,3 +508,13 @@ CloudBase 账号与环境（负责人确认）：
 - 检查：db 2485、sales-integration 115、ai-bff 17（本机 Postgres）、ai-contracts 6、site 1506、根目录脚本 1264、助手浏览器 90 项全部通过；site typecheck 和改动文件 biome 通过。新增测试：`ordinary_company_in_test_scope_can_submit`、`known_rejection_stays_editable`、`lost_receipt_recovers_same_submission`，以及拒绝原因、未知不解冻、BFF 422／503 映射。`repeated_confirm_has_one_record` 由原有的并发重试与浏览器账本测试覆盖。
 - 未实测：真实 CloudBase 读回与正常资料的人工试用，等 MIU 20 用协作者账号登录后做。
 
+### MIU 17（2026-11-02）
+
+- 服务端：会话库新增 `getConversationSnapshot`（最近 60 条问答，按时间正序，带运行状态和最终答案的原始 payload）。BFF 新增 `GET /api/ai/v2/conversations/{id}/snapshot`，用原授权头校验凭据，答案的产品卡、类型、建议按与实时 `final` 事件相同的投影重建，原始 payload 不外泄。合同 `ConversationSnapshotV2` 与校验函数在 `packages/ai-contracts`。
+- 页面：新增 `persistence.ts`，每个标签页按“站点:业务”保存一条带版本的记录（凭据、过期时间、会话 key、是否展开、未完成的问题、未提交或结果未知的询盘、冻结的提交内容）。过期、版本不符、字段不符的记录直接丢弃；存储被禁用时退回只在内存里聊。新标签页没有这条记录，按新对话处理。
+- 恢复：页面加载时如有记录就自动恢复一次。答案用与实时相同的 `visitor:`／`answer:` id，MIU 18 的卡片锚点在恢复后仍然有效。仍在运行的问题用原 idempotencyKey 从游标 0 续读，已出过的字也会回来；服务端按 key 返回同一个 run，不会再调一次模型。导航期间已完成的问题直接显示最终答案，不再续读。服务端返回 401 时显示“开始新对话”，清掉记录，不会自动重发询盘。
+- 询盘：未提交的草稿恢复后仍可编辑；保存中被打断的按“结果未知”恢复，继续用同一 key 和冻结内容核对。
+- 发现并修正的问题：第一问时记录要等到建立会话后才存在，会话层写不进“未完成的问题”，刷新后就续不上。改为由 adapter 在发送问题前写入，覆盖“刚发出就刷新”的情况。
+- 检查：会话库快照测试、BFF 快照测试（凭据隔离、私有字段不外泄）、adapter 刷新／续读／完成于导航期间／过期／询盘冻结测试、reducer 和询盘恢复测试；真实 BFF＋Postgres＋worker 的浏览器测试新增“刷新后历史还在、新标签页是新对话”“回答中刷新后接着出同一答案、两次发送是同一 key”，桌面和手机共 28 项通过。
+- 边界：问题还没发出（建立会话前）就离开页面时无法恢复，这时也还没有服务端会话。跨标签、跨设备、清除存储后的恢复和登录历史仍然后置。恢复最多 60 条消息。
+

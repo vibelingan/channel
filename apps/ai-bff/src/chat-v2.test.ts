@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
-import { isChatTurnV2 } from '@vibelingan-channel/ai-contracts';
+import { isChatTurnV2, isConversationSnapshotV2 } from '@vibelingan-channel/ai-contracts';
 import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import { InquiryRejected } from './inquiry-client.ts';
@@ -373,5 +373,77 @@ test(
     } finally {
       inquiryFailure = undefined;
     }
+  },
+);
+
+test(
+  'snapshot restores the credential holder’s turns with projected answers and in-flight status',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await conversation();
+    const first = randomUUID();
+    const done = await readTurn(
+      await request(c, 'messages', { message: 'Gift headphones?', idempotencyKey: first }),
+    );
+    const claim = await store.claimRun(done.runId);
+    assert.ok(claim);
+    await store.finishRunFenced({
+      conversationId: c.conversationId,
+      runId: done.runId,
+      expectedControlVersion: done.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: 'Try these',
+            kind: 'answer',
+            products: [
+              {
+                id: 'p1',
+                name: 'Public headphones',
+                summary: 'Published',
+                revision: 'v1',
+                href: '/products/item/?id=p1',
+                privateNote: 'SECRET_NEVER_PROJECT',
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const second = randomUUID();
+    const pending = await readTurn(
+      await request(c, 'messages', { message: 'And for 700?', idempotencyKey: second }),
+    );
+    const foreign = await conversation();
+    assert.equal(
+      (await request({ ...c, credential: foreign.credential }, 'snapshot')).status,
+      401,
+    );
+    const r = await request(c, 'snapshot');
+    assert.equal(r.status, 200);
+    const raw = await r.text();
+    assert.ok(!raw.includes('SECRET_NEVER_PROJECT'));
+    const snapshot: unknown = JSON.parse(raw);
+    assert.ok(isConversationSnapshotV2(snapshot));
+    assert.equal(snapshot.conversationId, c.conversationId);
+    assert.deepEqual(
+      snapshot.messages.map((m) => [m.role, m.text, m.role === 'visitor' ? m.status : m.kind]),
+      [
+        ['visitor', 'Gift headphones?', 'completed'],
+        ['assistant', 'Try these', 'answer'],
+        ['visitor', 'And for 700?', pending.status],
+      ],
+    );
+    const answer = snapshot.messages[1];
+    assert.ok(answer?.role === 'assistant');
+    assert.equal(answer.runId, done.runId);
+    assert.equal(answer.products?.[0]?.id, 'p1');
+    const visitor = snapshot.messages[2];
+    assert.ok(visitor?.role === 'visitor');
+    assert.equal(visitor.operationKey, second);
   },
 );

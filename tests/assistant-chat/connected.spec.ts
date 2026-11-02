@@ -205,8 +205,8 @@ test('confirmed category inquiry saves once through the actual Channel intake an
     } else await route.fulfill({ response });
   });
   await page.getByRole('button', { name: 'Confirm & submit' }).click();
-  await expect(page.getByText('We have not confirmed the result.')).toBeVisible();
-  await page.getByRole('button', { name: 'Check original submission' }).click();
+  await expect(page.getByText('could not confirm the result yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Check again now' }).click();
   await expect(page.getByLabel('Inquiry receipt')).toContainText('Your inquiry is recorded');
   expect(bodies).toHaveLength(2);
   expect(bodies[0]).toBe(bodies[1]);
@@ -257,4 +257,50 @@ test('product-card inquiry sends only its ID and preserves current public eviden
   expect(rows[`oemProjects/${id}`]?.assistantSubmission.productReference.current.productName).toBe(
     'Everyday wireless headphones',
   );
+});
+
+test('refresh_resumes_same_conversation: history comes back and a new tab starts fresh', async ({
+  page,
+  context,
+}) => {
+  await send(page, 'A product question');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page.reload();
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveText(['A product question']);
+  await expect(page.locator('[data-message-role="assistant"]')).toContainText(
+    'database and worker',
+  );
+  await send(page, 'Another question');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(2);
+  const fresh = await context.newPage();
+  await fresh.goto('/assistant-chat.html');
+  await expect(fresh.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+  await expect(fresh.locator('[data-message-role="visitor"]')).toHaveCount(0);
+});
+
+test('inflight_reply_resumes_without_second_model_run after a refresh mid-answer', async ({
+  page,
+}) => {
+  const posts: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().endsWith('/messages')) posts.push(r.postData() ?? '');
+  });
+  const accepted = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/messages'),
+  );
+  await send(page, 'slow answer please');
+  await accepted;
+  await page.reload();
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveText(['slow answer please']);
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready', { timeout: 15000 });
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(1);
+  await expect(page.locator('[data-message-role="assistant"]')).toContainText(
+    'database and worker',
+  );
+  // Both page loads sent the same question with the same key; the server answers it once.
+  expect(posts).toHaveLength(2);
+  expect(new Set(posts).size).toBe(1);
+  await page.reload();
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(1);
 });

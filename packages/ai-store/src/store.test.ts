@@ -950,3 +950,54 @@ test(
     );
   },
 );
+
+test(
+  'conversation snapshot lists questions and answers in order with run status and final payload',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const first = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'snap-1',
+      content: 'Which headphones suit 500 gifts?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(first.run);
+    const claim = await store.claimRun(first.run.id);
+    assert.ok(claim);
+    await store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: first.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [{ type: 'final', payload: { text: 'Try model A', kind: 'answer' } }],
+    });
+    const second = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'snap-2',
+      content: 'And for 700?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(second.run);
+    const other = await store.createConversation();
+    const snapshot = await store.getConversationSnapshot(conversation.id);
+    assert.deepEqual(
+      snapshot.map((row) => [row.role, row.content, row.operationKey, row.runStatus]),
+      [
+        ['visitor', 'Which headphones suit 500 gifts?', 'snap-1', 'completed'],
+        ['assistant', 'Try model A', null, 'completed'],
+        ['visitor', 'And for 700?', 'snap-2', 'creating'],
+      ],
+    );
+    assert.equal(snapshot[1]?.runId, first.run.id);
+    assert.equal(snapshot[0]?.runId, first.run.id);
+    assert.equal(snapshot[1]?.finalPayload?.kind, 'answer');
+    assert.deepEqual(await store.getConversationSnapshot(other.id), []);
+    assert.equal((await store.getConversationSnapshot(conversation.id, 1)).length, 1);
+    assert.equal((await store.getConversationSnapshot(conversation.id, 1))[0]?.operationKey, 'snap-2');
+  },
+);

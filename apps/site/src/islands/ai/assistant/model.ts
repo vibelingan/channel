@@ -19,6 +19,7 @@ export type AnswerKind =
   | 'team_followup'
   | 'product_updated';
 export type PublicProduct = PublicProductCard;
+import type { PersistedInquiry } from './persistence';
 export interface ChatMessage {
   id: string;
   role: 'visitor' | 'assistant';
@@ -80,6 +81,11 @@ export type TurnEvent = EventIdentity &
 export interface RestoredConversation {
   conversationKey: string;
   messages: ChatMessage[];
+  /** A question still being answered; continue it with the same key from cursor 0. */
+  resume?: TurnRequest;
+  open?: boolean;
+  inquiry?: PersistedInquiry;
+  anchor?: { messageId: string };
 }
 export interface InquiryDraft {
   requirement: string;
@@ -101,6 +107,8 @@ export interface AssistantAdapter {
   ): Promise<void>;
   stop(request: TurnRequest, signal: AbortSignal): Promise<'stopped' | 'unknown'>;
   restore(signal: AbortSignal): Promise<RestoredConversation | null>;
+  /** Drop the conversation so the next question starts a new one. */
+  forget?(): void;
   submitInquiry(
     draft: InquiryDraft,
     submissionKey: string,

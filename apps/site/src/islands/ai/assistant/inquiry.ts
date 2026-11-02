@@ -1,5 +1,6 @@
 import type { InquiryRejectionReason } from '@vibelingan-channel/ai-contracts/inquiry';
 import type { ChatMessage, InquiryDraft, InquiryView, PublicProduct } from './model';
+import type { PersistedInquiry } from './persistence';
 import { InquiryRejectedError } from './transport-error';
 export function currentPublicProducts(messages: ChatMessage[]) {
   const products = new Map<string, PublicProduct>();
@@ -91,4 +92,39 @@ export function inquiryCheckStart(view: Unknown, automatic: boolean): Saving {
     checks: view.checks + (automatic ? 1 : 0),
     uncertain: true,
   };
+}
+/** A save interrupted by navigation is uncertain, so it comes back as `unknown`. */
+export function persistedInquiry(view: InquiryView): PersistedInquiry | undefined {
+  switch (view.phase) {
+    case 'closed':
+      return undefined;
+    case 'editing':
+      return { phase: 'editing', key: view.key, draft: view.draft };
+    case 'saving':
+    case 'unknown':
+      return { phase: 'unknown', key: view.key, draft: view.draft, checks: view.checks };
+    case 'saved':
+      return {
+        phase: 'saved',
+        key: view.key,
+        draft: view.draft,
+        reference: view.receipt.reference,
+      };
+  }
+}
+export function restoredInquiry(saved: PersistedInquiry | undefined): InquiryView {
+  if (!saved) return { phase: 'closed' };
+  switch (saved.phase) {
+    case 'editing':
+      return { ...saved, errors: {} };
+    case 'unknown':
+      return saved;
+    case 'saved':
+      return {
+        phase: 'saved',
+        key: saved.key,
+        draft: saved.draft,
+        receipt: { reference: saved.reference },
+      };
+  }
 }
