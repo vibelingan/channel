@@ -2,10 +2,23 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { isInternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import {
   AssistantInquiryConflict,
+  AssistantInquiryRejected,
   type AssistantInquiryStore,
 } from '@vibelingan-channel/db/assistant-inquiry';
 import { parseStrictJson } from '@vibelingan-channel/sales-contracts';
 import type { SalesRequest, SalesResponse } from './handler.ts';
+/**
+ * Acceptance and manual trials save real-looking contact details under a
+ * server-fixed test installation. Test status comes from that installation,
+ * never from the company name, email domain or anything the visitor typed.
+ */
+export function testScopeInquiryStore(
+  store: AssistantInquiryStore,
+  scope: { environment: 'test' | 'production' },
+): AssistantInquiryStore {
+  if (scope.environment !== 'test') throw new Error('Test intake requires a test installation');
+  return store;
+}
 export function createAssistantIntake(store: AssistantInquiryStore, token: string) {
   if (!/^[A-Za-z0-9_-]{32,512}$/.test(token)) throw new Error('Invalid assistant intake token');
   const digest = (v: string) => createHash('sha256').update(v).digest();
@@ -18,6 +31,7 @@ export function createAssistantIntake(store: AssistantInquiryStore, token: strin
     },
     body: Buffer.from(JSON.stringify(body)),
   });
+  const invalid = { code: 'INVALID_REQUEST', outcome: 'not_started', reason: 'INVALID_DETAILS' };
   return async (request: SalesRequest): Promise<SalesResponse> => {
     const headers: Record<string, string> = {};
     for (const [k, v] of Object.entries(request.headers)) {
@@ -39,14 +53,19 @@ export function createAssistantIntake(store: AssistantInquiryStore, token: strin
         new TextDecoder('utf-8', { fatal: true }).decode(request.body ?? Buffer.alloc(0)),
       );
     } catch {
-      return reply(400, { code: 'INVALID_REQUEST' });
+      return reply(400, invalid);
     }
-    if (!isInternalInquirySubmission(input)) return reply(400, { code: 'INVALID_REQUEST' });
+    if (!isInternalInquirySubmission(input)) return reply(400, invalid);
     try {
       return reply(200, await store.submit(input));
     } catch (e) {
+      // Only a refusal raised before any write may say "not saved"; anything
+      // else might have committed and is reported as unknown.
+      if (e instanceof AssistantInquiryRejected)
+        return reply(422, { code: 'REJECTED', outcome: 'not_started', reason: e.reason });
       return reply(e instanceof AssistantInquiryConflict ? 409 : 503, {
         code: e instanceof AssistantInquiryConflict ? 'SUBMISSION_CHANGED' : 'UNAVAILABLE',
+        outcome: 'unknown',
       });
     }
   };

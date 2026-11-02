@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
+import { INQUIRY_AUTO_CHECK_DELAYS_MS } from './inquiry';
 import type { InquiryDraft, InquiryView } from './model';
 const inputClass =
   'mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:outline-2 focus:outline-brand-600 disabled:bg-slate-100';
@@ -17,6 +18,7 @@ export function InquiryReview({
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
   const errors = view.phase === 'editing' ? view.errors : {};
+  const formError = view.phase === 'editing' ? view.formError : undefined;
   useEffect(() => {
     form.current?.querySelector<HTMLElement>('textarea:not([disabled])')?.focus();
   }, []);
@@ -24,6 +26,9 @@ export function InquiryReview({
     if (Object.keys(errors).length)
       form.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
   }, [errors]);
+  useEffect(() => {
+    if (formError) form.current?.querySelector<HTMLElement>('[data-inquiry-refusal]')?.focus();
+  }, [formError]);
   if (view.phase === 'saved')
     return (
       <section
@@ -139,10 +144,22 @@ export function InquiryReview({
       {view.phase === 'saving' && (
         <output className="block text-sm text-brand-800">Saving your inquiry…</output>
       )}
+      {formError && (
+        <p
+          data-inquiry-refusal
+          tabIndex={-1}
+          role="alert"
+          className="rounded-lg bg-red-50 p-3 text-sm text-red-800"
+        >
+          {formError}
+        </p>
+      )}
       {view.phase === 'unknown' && (
         <output className="block rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-          We have not confirmed the result. Check the original submission before trying a new
-          inquiry.
+          {view.checks < INQUIRY_AUTO_CHECK_DELAYS_MS.length
+            ? 'We could not confirm the result yet and are checking this same submission again. It will not be sent twice.'
+            : 'We still cannot confirm whether this inquiry was recorded. Your details are kept unchanged; check again later. Checking never sends it twice.'}
+          <span className="mt-1 block text-xs">Check code: {view.key.slice(0, 8)}</span>
         </output>
       )}
       <div className="flex flex-wrap gap-2">
@@ -159,7 +176,7 @@ export function InquiryReview({
           className="min-h-11 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           {view.phase === 'unknown'
-            ? 'Check original submission'
+            ? 'Check again now'
             : view.phase === 'saving'
               ? 'Saving…'
               : 'Confirm & submit'}

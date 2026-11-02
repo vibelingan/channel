@@ -22,6 +22,21 @@ export interface InquirySubmissionReceipt {
   reference: string;
   submittedAt: string;
 }
+/**
+ * Why a confirmed inquiry was refused before anything was saved. Only these
+ * cross the service boundary; raw database or provider errors never do.
+ */
+export const INQUIRY_REJECTION_REASONS = [
+  'INVALID_DETAILS',
+  'PRODUCT_UNVERIFIED',
+  'NOT_ACCEPTING',
+] as const;
+export type InquiryRejectionReason = (typeof INQUIRY_REJECTION_REASONS)[number];
+/** `not_started`: nothing was saved. `unknown`: it may have been; check with the same key. */
+export type InquiryOutcome = 'not_started' | 'unknown';
+export function isInquiryRejectionReason(v: unknown): v is InquiryRejectionReason {
+  return (INQUIRY_REJECTION_REASONS as readonly unknown[]).includes(v);
+}
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const key = /^[A-Za-z0-9_-]{8,128}$/;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Reject unsafe control bytes in customer fields.

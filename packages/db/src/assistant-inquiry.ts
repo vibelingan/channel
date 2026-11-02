@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  type InquiryRejectionReason,
   type InquirySubmissionReceipt,
   type InternalInquirySubmission,
   isInternalInquirySubmission,
@@ -21,6 +22,18 @@ export interface InquiryProductEvidence {
   productName: string;
   revision: string;
 }
+/**
+ * A deterministic refusal raised before anything is written, so the visitor can
+ * be told plainly that nothing was submitted. Outages and anything that may have
+ * happened after a write stay plain errors: the caller must treat them as unknown.
+ */
+export class AssistantInquiryRejected extends Error {
+  readonly reason: InquiryRejectionReason;
+  constructor(reason: InquiryRejectionReason) {
+    super(`Inquiry rejected before saving: ${reason}`);
+    this.reason = reason;
+  }
+}
 export interface AssistantInquiryStore {
   submit(input: InternalInquirySubmission): Promise<InquirySubmissionReceipt>;
 }
@@ -34,7 +47,8 @@ export function createAssistantInquiryStore(
   const scope = parseSalesCaptureScope(scopeValue);
   return {
     async submit(input) {
-      if (!isInternalInquirySubmission(input)) throw new Error('Invalid confirmed inquiry');
+      if (!isInternalInquirySubmission(input))
+        throw new AssistantInquiryRejected('INVALID_DETAILS');
       const fingerprint = hashCanonicalJson(input);
       const projectId = `ai_${createHash('sha256')
         .update(
@@ -55,7 +69,11 @@ export function createAssistantInquiryStore(
           await tx.collection('channelSalesInstallations').doc(scope.source_installation_id).get(),
           scope.source_installation_id,
         );
-        assertSalesInstallation(install?.record, scope);
+        try {
+          assertSalesInstallation(install?.record, scope);
+        } catch {
+          throw new AssistantInquiryRejected('NOT_ACCEPTING');
+        }
         return normalizeSalesSdkDocument(
           await tx.collection('oemProjects').doc(projectId).get(),
           projectId,
@@ -74,7 +92,7 @@ export function createAssistantInquiryStore(
           !product.revision ||
           product.revision.length > 200)
       )
-        throw new Error('Invalid public product evidence');
+        throw new AssistantInquiryRejected('PRODUCT_UNVERIFIED');
       const s = input.submission;
       const row = await saveFinalizedOemInCloud(
         db,

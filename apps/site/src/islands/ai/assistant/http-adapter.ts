@@ -6,10 +6,11 @@ import {
 } from '@vibelingan-channel/ai-contracts';
 import {
   INQUIRY_CONSENT_VERSION,
+  isInquiryRejectionReason,
   isInquirySubmissionReceipt,
 } from '@vibelingan-channel/ai-contracts/inquiry';
 import type { AssistantAdapter, TurnEvent, TurnRequest } from './model';
-import { AssistantTransportError } from './transport-error';
+import { AssistantTransportError, InquiryRejectedError } from './transport-error';
 
 /** One mounted conversation; credentials stay in memory. */
 export function createHttpAssistantAdapter(
@@ -33,6 +34,7 @@ export function createHttpAssistantAdapter(
     stream = false,
     cursor = 0,
     timeoutMs = 10000,
+    inquiry = false,
   ) {
     const response = await requestFetch(url, {
       method: body === undefined ? 'GET' : 'POST',
@@ -48,6 +50,19 @@ export function createHttpAssistantAdapter(
       redirect: 'error',
     });
     if (!response.ok) {
+      if (inquiry && (response.status === 400 || response.status === 422)) {
+        // Only an explicit "not_started" may tell the visitor nothing was saved.
+        const refusal: unknown = await response.json().catch(() => undefined);
+        const detail =
+          refusal && typeof refusal === 'object' ? Reflect.get(refusal, 'error') : null;
+        if (
+          detail &&
+          typeof detail === 'object' &&
+          Reflect.get(detail, 'outcome') === 'not_started' &&
+          isInquiryRejectionReason(Reflect.get(detail, 'reason'))
+        )
+          throw new InquiryRejectedError(Reflect.get(detail, 'reason'));
+      }
       await response.body?.cancel().catch(() => undefined);
       if (response.status === 401) {
         credentials = undefined;
@@ -284,15 +299,23 @@ export function createHttpAssistantAdapter(
         throw new AssistantTransportError(
           'Check the original inquiry before starting another one.',
         );
-      const response = await checked(
-        `${base}/conversations/${original.conversationId}/inquiries`,
-        signal,
-        original.credential,
-        body,
-        false,
-        0,
-        45000,
-      );
+      let response: Response;
+      try {
+        response = await checked(
+          `${base}/conversations/${original.conversationId}/inquiries`,
+          signal,
+          original.credential,
+          body,
+          false,
+          0,
+          45000,
+          true,
+        );
+      } catch (error) {
+        // Nothing was saved under this key, so a corrected draft may reuse it.
+        if (error instanceof InquiryRejectedError) submissions.delete(submissionKey);
+        throw error;
+      }
       const receipt: unknown = await response.json();
       if (
         !isInquirySubmissionReceipt(receipt) ||

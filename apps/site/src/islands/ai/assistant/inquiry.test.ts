@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { beginInquiryReview, validateInquiry } from './inquiry';
+import {
+  INQUIRY_AUTO_CHECK_DELAYS_MS,
+  beginInquiryReview,
+  inquiryAfterFailure,
+  inquiryCheckStart,
+  nextInquiryCheckDelay,
+  validateInquiry,
+} from './inquiry';
+import { InquiryRejectedError } from './transport-error';
 const draft = {
   requirement: '500 company gifts; model not decided',
   email: 'buyer@example.invalid',
@@ -56,8 +64,10 @@ test('an uncertain or saving inquiry is frozen, while a saved inquiry needs an e
     company: 'BuyerCo',
     consent: true,
   };
-  for (const phase of ['saving', 'unknown'] as const) {
-    const current = { phase, key: 'original', draft };
+  for (const current of [
+    { phase: 'saving' as const, key: 'original', draft, checks: 0, uncertain: false },
+    { phase: 'unknown' as const, key: 'original', draft, checks: 0 },
+  ]) {
     assert.equal(
       beginInquiryReview(current, { requirement: '700 gifts', explicitUpdate: true }, () => 'new'),
       current,
@@ -79,4 +89,49 @@ test('an uncertain or saving inquiry is frozen, while a saved inquiry needs an e
     () => 'new',
   );
   assert.equal(next.phase, 'editing');
+});
+
+const contact = {
+  requirement: '500 gifts',
+  name: 'Nina',
+  email: 'nina@vibelingan.com',
+  company: 'VibeLingan',
+  consent: true,
+};
+test('known_rejection_stays_editable: a refusal on a first attempt reopens the same draft with a reason', () => {
+  const next = inquiryAfterFailure(
+    { phase: 'saving', key: 'k1', draft: contact, checks: 0, uncertain: false },
+    new InquiryRejectedError('PRODUCT_UNVERIFIED'),
+  );
+  assert.equal(next.phase, 'editing');
+  assert.ok(next.phase === 'editing' && next.formError);
+  assert.deepEqual(next.phase === 'editing' && next.draft, contact);
+  assert.equal(next.key, 'k1');
+});
+test('lost_receipt_recovers_same_submission: an unknown result is rechecked a bounded number of times with the frozen draft', () => {
+  let view = inquiryAfterFailure(
+    { phase: 'saving', key: 'k1', draft: contact, checks: 0, uncertain: false },
+    new Error('Lost after commit'),
+  );
+  const delays: number[] = [];
+  for (;;) {
+    assert.equal(view.phase, 'unknown');
+    const delay = nextInquiryCheckDelay(view);
+    if (delay === null) break;
+    delays.push(delay);
+    const saving = inquiryCheckStart(view, true);
+    assert.ok(saving && saving.phase === 'saving' && saving.key === 'k1' && saving.uncertain);
+    assert.deepEqual(saving.draft, contact);
+    view = inquiryAfterFailure(saving, new Error('still down'));
+  }
+  assert.deepEqual(delays, [...INQUIRY_AUTO_CHECK_DELAYS_MS]);
+  // A manual check is still possible after the automatic ones run out.
+  assert.ok(inquiryCheckStart(view, false));
+});
+test('a refusal after an uncertain attempt cannot unfreeze a submission that may have been saved', () => {
+  const next = inquiryAfterFailure(
+    { phase: 'saving', key: 'k1', draft: contact, checks: 1, uncertain: true },
+    new InquiryRejectedError('NOT_ACCEPTING'),
+  );
+  assert.equal(next.phase, 'unknown');
 });

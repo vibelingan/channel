@@ -5,6 +5,7 @@ import { after, before, test } from 'node:test';
 import { isChatTurnV2 } from '@vibelingan-channel/ai-contracts';
 import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
+import { InquiryRejected } from './inquiry-client.ts';
 import { createAiBffServer } from './server.ts';
 const saved: InternalInquirySubmission[] = [];
 const url = process.env.DATABASE_URL;
@@ -31,6 +32,7 @@ const server = store
       {
         inquiryClient: {
           async submit(input) {
+            if (inquiryFailure) throw inquiryFailure;
             saved.push(input);
             return {
               schemaVersion: '1',
@@ -45,6 +47,7 @@ const server = store
     )
   : null;
 let base = '';
+let inquiryFailure: Error | undefined;
 before(async () => {
   if (!store || !server) return;
   await migrateUp(store.pool);
@@ -329,5 +332,46 @@ test(
       [c.conversationId],
     );
     assert.equal(messages.rows.length, 0);
+  },
+);
+
+test(
+  'inquiry results tell the page whether nothing was saved or the result is unknown',
+  { skip },
+  async () => {
+    const c = await conversation();
+    const submission = {
+      submissionKey: randomUUID(),
+      requirement: '500 headphones',
+      name: 'Nina',
+      email: 'nina@vibelingan.com',
+      company: 'VibeLingan',
+      consent: true,
+      consentVersion: 'inquiry-contact-v1',
+    };
+    try {
+      inquiryFailure = new InquiryRejected('PRODUCT_UNVERIFIED');
+      const rejected = await request(c, 'inquiries', submission);
+      assert.equal(rejected.status, 422);
+      const body = (await rejected.json()) as { error: Record<string, unknown> };
+      assert.equal(body.error.code, 'INQUIRY_REJECTED');
+      assert.equal(body.error.outcome, 'not_started');
+      assert.equal(body.error.reason, 'PRODUCT_UNVERIFIED');
+      inquiryFailure = new Error('timeout after write');
+      const unknown = await request(c, 'inquiries', submission);
+      assert.equal(unknown.status, 503);
+      assert.equal(
+        ((await unknown.json()) as { error: Record<string, unknown> }).error.outcome,
+        'unknown',
+      );
+      inquiryFailure = undefined;
+      const invalid = await request(c, 'inquiries', { ...submission, consent: false });
+      assert.equal(
+        ((await invalid.json()) as { error: Record<string, unknown> }).error.outcome,
+        'not_started',
+      );
+    } finally {
+      inquiryFailure = undefined;
+    }
   },
 );

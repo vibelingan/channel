@@ -114,6 +114,11 @@ export type InquiryView =
       draft: InquiryDraft;
       key: string;
       errors: Partial<Record<keyof InquiryDraft, string>>;
+      /** Why the service refused it before saving; nothing was submitted. */
+      formError?: string;
     }
-  | { phase: 'saving' | 'unknown'; draft: InquiryDraft; key: string }
+  /** `uncertain`: an earlier attempt with this key may have been saved. */
+  | { phase: 'saving'; draft: InquiryDraft; key: string; checks: number; uncertain: boolean }
+  /** `checks`: automatic rechecks already made with the frozen draft and key. */
+  | { phase: 'unknown'; draft: InquiryDraft; key: string; checks: number }
   | { phase: 'saved'; draft: InquiryDraft; key: string; receipt: InquiryReceipt };

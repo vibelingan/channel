@@ -428,7 +428,7 @@ UI/UX Pro Max 的本地检索用于核对错误反馈、键盘和触摸操作。
 
 - 9 个冲突文件（admin handler／入口、public-api、local-server、后台 RecordForm、db 导出、锁文件、一份计划文档），都是两边各加了不同内容，保留双方。
 - 合并暴露两个真实问题并已修：`sales-contracts` 引入的 `jsonc-parser` 默认入口是 UMD 构建，打进 admin 云函数包后冷启动报 `Cannot find module './impl/format'`，改为引入它的 ESM 构建；admin 入口合同测试补上新的 sales 配置依赖。
-- 检查：全仓 typecheck 通过；根目录与各包单测 1264 项通过；`apps/site` 有 103 项失败，与未合并的官网助手分支完全相同（合并前已存在，集中在后台产品页浏览器测试），不是本次引入，单独排查。
+- 检查：全仓 typecheck 通过；根目录与各包单测 1264 项通过；`apps/site` 当时有 103 项失败，后查明是本机未安装 Playwright 的 Chromium／WebKit；安装后 1506 项全部通过，不是代码问题。
 
 ### 12.3 channel 侧整理（已确认，第一个提交）
 
@@ -494,3 +494,17 @@ CloudBase 账号与环境（负责人确认）：
 4. §10 的顺序。MIU 20 缺陷注入按七项执行。
 
 本文件即为最终版本；后续变化直接修改本文件并在此追加记录。
+
+## 15. 执行记录
+
+每个单元完成后在此追加：做了什么、改在哪里、实际跑过的检查、没有实测的边界。不另建逐轮文件。
+
+### MIU 12（2026-11-02）
+
+- 测试身份：去掉验收入口里“公司名以 `[TEST` 开头、邮箱以 `@example.invalid` 结尾”的限制。测试状态只来自服务器固定的测试安装：新增 `testScopeInquiryStore`（`apps/functions/sales-integration/src/assistant-intake.ts`），非 test 安装直接拒绝启动。业务字段原样保存。
+- 结果分类：保存层只在写入前的确定性拒绝时抛 `AssistantInquiryRejected`（`INVALID_DETAILS`／`PRODUCT_UNVERIFIED`／`NOT_ACCEPTING`，`packages/db/src/assistant-inquiry.ts`）；保存端返回 422 `not_started`，其余失败一律 `unknown`。BFF 只在收到格式正确的 `not_started` 时转发 422 `INQUIRY_REJECTED`，错误包装增加可选的 `outcome`／`reason`（`packages/ai-contracts`）。
+- 页面：明确未提交 → 表单重新可改，显示原因，同一 key 可提交修正后的内容；结果未知 → 冻结原内容，按 3s／8s／20s 自动用同一 key 和内容核对三次，之后显示核对码并保留“Check again now”。一旦某次尝试结果未知，之后即使收到拒绝也不解冻。
+- 与设计的差别：没有另做只读查询接口。保存按 key 幂等，“用同一 key 和相同内容再提交”本身就是核对，已有归属、指纹校验，少一条路由。后台测试标记推迟到 MIU 20：当前项目行没有 environment 字段，加字段会改动 Sales 合同。
+- 检查：db 2485、sales-integration 115、ai-bff 17（本机 Postgres）、ai-contracts 6、site 1506、根目录脚本 1264、助手浏览器 90 项全部通过；site typecheck 和改动文件 biome 通过。新增测试：`ordinary_company_in_test_scope_can_submit`、`known_rejection_stays_editable`、`lost_receipt_recovers_same_submission`，以及拒绝原因、未知不解冻、BFF 422／503 映射。`repeated_confirm_has_one_record` 由原有的并发重试与浏览器账本测试覆盖。
+- 未实测：真实 CloudBase 读回与正常资料的人工试用，等 MIU 20 用协作者账号登录后做。
+

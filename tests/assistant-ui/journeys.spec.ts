@@ -242,9 +242,9 @@ test('unknown inquiry retries the frozen original key and body and creates only 
   await select(page, 'inquiry_unknown', true);
   const form = await fillInquiry(page);
   await form.getByRole('button', { name: 'Confirm & submit' }).click();
-  await expect(form).toContainText('not confirmed the result');
+  await expect(form).toContainText('could not confirm the result yet');
   await expect(form.getByRole('textbox', { name: /^Email/ })).toBeDisabled();
-  await form.getByRole('button', { name: 'Check original submission' }).click();
+  await form.getByRole('button', { name: 'Check again now' }).click();
   await expect(page.getByLabel('Inquiry receipt')).toContainText('PREVIEW-001');
   const result = await ledger(page);
   expect(result.submissions).toHaveLength(2);

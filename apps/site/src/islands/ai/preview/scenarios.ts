@@ -138,9 +138,9 @@ export function seedFor(id: string): AssistantSeed {
     seed.inquiryOpen = true;
     seed.inquiry =
       id === 'inquiry_submitting'
-        ? { ...base, phase: 'saving' }
+        ? { ...base, phase: 'saving', checks: 0, uncertain: false }
         : id === 'inquiry_unknown'
-          ? { ...base, phase: 'unknown' }
+          ? { ...base, phase: 'unknown', checks: 0 }
           : id === 'inquiry_saved'
             ? { ...base, phase: 'saved', receipt: { reference: 'PREVIEW-001' } }
             : {

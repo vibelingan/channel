@@ -1,3 +1,4 @@
+import type { InquiryOutcome, InquiryRejectionReason } from './inquiry.ts';
 import { type CatalogAction, isCatalogAction } from './products.ts';
 export interface CreateConversationRequest {
   locale?: string;
@@ -54,6 +55,7 @@ export type AiApiErrorCode =
   | 'RATE_LIMITED'
   | 'BUDGET_EXHAUSTED'
   | 'UNAVAILABLE'
+  | 'INQUIRY_REJECTED'
   | 'INTERNAL';
 
 export interface AiApiErrorEnvelope {
@@ -61,6 +63,9 @@ export interface AiApiErrorEnvelope {
     code: AiApiErrorCode;
     message: string;
     requestId: string;
+    /** Inquiry submissions only: whether anything may have been saved. */
+    outcome?: InquiryOutcome;
+    reason?: InquiryRejectionReason;
   };
 }
 

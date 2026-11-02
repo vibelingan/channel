@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createHttpAssistantAdapter } from './http-adapter';
 import type { TurnEvent } from './model';
+import { InquiryRejectedError } from './transport-error';
 
 test('HTTP adapter replays a lost append acknowledgement using the same key, never invents completion', async () => {
   const conversationId = randomUUID();
@@ -191,4 +192,63 @@ test('stop waits for queued cancellation of the same run instead of immediately 
   );
   assert.equal(cancellations, 1);
   assert.equal(polls, 2);
+});
+
+test('known_rejection_stays_editable: a refusal before saving frees the key; an unknown result keeps it frozen', async () => {
+  const conversationId = randomUUID();
+  const key = randomUUID();
+  const draft = {
+    requirement: '500 gifts',
+    name: 'Nina',
+    email: 'nina@vibelingan.com',
+    company: 'VibeLingan',
+    consent: true,
+  };
+  let reply: () => Response = () => new Response('', { status: 500 });
+  const api: typeof fetch = async (url) => {
+    if (String(url).endsWith('/conversations'))
+      return Response.json({ conversationId, credential: 't'.repeat(40) });
+    return reply();
+  };
+  const adapter = createHttpAssistantAdapter('', api);
+  const signal = new AbortController().signal;
+  const refusal =
+    (status: number, reason: string, outcome = 'not_started') =>
+    () =>
+      Response.json(
+        { error: { code: 'INQUIRY_REJECTED', message: 'x', requestId: 'r', outcome, reason } },
+        { status },
+      );
+  reply = refusal(422, 'PRODUCT_UNVERIFIED');
+  await assert.rejects(
+    adapter.submitInquiry(draft, key, signal),
+    (e) => e instanceof InquiryRejectedError && e.reason === 'PRODUCT_UNVERIFIED',
+  );
+  // Nothing was saved, so the corrected draft may use the same key.
+  reply = () =>
+    Response.json(
+      { error: { code: 'UNAVAILABLE', message: 'x', requestId: 'r', outcome: 'unknown' } },
+      { status: 503 },
+    );
+  const corrected = { ...draft, requirement: '500 gifts, blue' };
+  await assert.rejects(
+    adapter.submitInquiry(corrected, key, signal),
+    (e) => !(e instanceof InquiryRejectedError),
+  );
+  // That attempt may have been saved: the content is frozen again.
+  await assert.rejects(
+    adapter.submitInquiry(draft, key, signal),
+    (e) => !(e instanceof InquiryRejectedError),
+  );
+  for (const bogus of [
+    refusal(422, 'DB_DOWN'),
+    refusal(422, 'INVALID_DETAILS', 'unknown'),
+    refusal(503, 'INVALID_DETAILS'),
+  ]) {
+    reply = bogus;
+    await assert.rejects(
+      adapter.submitInquiry(corrected, key, signal),
+      (e) => !(e instanceof InquiryRejectedError),
+    );
+  }
 });

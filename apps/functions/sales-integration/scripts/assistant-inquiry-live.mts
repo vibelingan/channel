@@ -15,7 +15,7 @@ import {
   planSalesSubmission,
   registrationKey,
 } from '../../../../packages/db/src/sales-inquiry-submission.ts';
-import { createAssistantIntake } from '../src/assistant-intake.ts';
+import { createAssistantIntake, testScopeInquiryStore } from '../src/assistant-intake.ts';
 import { createDeliveryStore } from '../src/delivery-store.ts';
 import { createSalesHandler } from '../src/handler.ts';
 import { HttpInquirySender } from '../src/inquiry-sender.ts';
@@ -96,19 +96,19 @@ const store = createAssistantInquiryStore(db, scope, async (id) => {
 });
 let linkedReference = '';
 let captureNewSubmissions = false;
+// Test status is the server-fixed installation above, not the visitor's
+// company or email: manual trials use ordinary details. Nothing here sends mail.
 const intake = createAssistantIntake(
-  {
-    submit: async (input) => {
-      if (
-        !input.submission.email.endsWith('@example.invalid') ||
-        !input.submission.company.startsWith('[TEST')
-      )
-        throw new Error('Live acceptance refuses real customer data');
-      const receipt = await store.submit(input);
-      if (captureNewSubmissions) linkedReference = receipt.reference;
-      return receipt;
+  testScopeInquiryStore(
+    {
+      submit: async (input) => {
+        const receipt = await store.submit(input);
+        if (captureNewSubmissions) linkedReference = receipt.reference;
+        return receipt;
+      },
     },
-  },
+    scope,
+  ),
   token,
 );
 const reply = (status: number, body: unknown) => ({
@@ -163,8 +163,6 @@ if (linkedFile) {
     );
     assert.equal(original?.client_id, scope.client_id);
     assert.equal(original?.source_installation_id, scope.source_installation_id);
-    assert.equal(original?.email, 'acceptance@example.invalid');
-    assert.ok(String(original?.company).startsWith('[TEST'));
   }
   await db.runTransaction(async (tx: Transaction) => {
     const target = tx.collection('channelSalesBindings').doc(scope.source_installation_id);

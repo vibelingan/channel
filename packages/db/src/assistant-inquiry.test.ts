@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
-import { AssistantInquiryConflict, createAssistantInquiryStore } from './assistant-inquiry.ts';
+import {
+  AssistantInquiryConflict,
+  AssistantInquiryRejected,
+  createAssistantInquiryStore,
+} from './assistant-inquiry.ts';
 import { readSalesInquiry } from './sales-inquiry-source.ts';
 import { createSalesTestDatabase } from './testing/sales-database.ts';
 const scope = {
@@ -176,4 +180,33 @@ test('concurrent changed bodies sharing a key have one winner and one explicit c
   const rejected = results.find((r) => r.status === 'rejected');
   assert.ok(rejected?.status === 'rejected' && rejected.reason instanceof AssistantInquiryConflict);
   assert.equal(Object.keys(f.snapshot()).filter((k) => k.startsWith('oemProjects/')).length, 1);
+});
+test('known rejections before any write carry a reason; outages stay unclassified', async () => {
+  const f = setup();
+  const bad = createAssistantInquiryStore(f.db, scope, async (id) => ({
+    productId: id,
+    productName: '',
+    revision: 'r1',
+  }));
+  await assert.rejects(bad.submit(input), (e) => {
+    assert.ok(e instanceof AssistantInquiryRejected);
+    assert.equal(e.reason, 'PRODUCT_UNVERIFIED');
+    return true;
+  });
+  const down = createAssistantInquiryStore(f.db, scope, async () => {
+    throw new Error('Public product unavailable');
+  });
+  await assert.rejects(down.submit(input), (e) => !(e instanceof AssistantInquiryRejected));
+  await f.db.runTransaction(async (tx) => {
+    await tx
+      .collection('channelSalesInstallations')
+      .doc('site_a')
+      .set({ record: { ...scope, state: 'revoked' } });
+  });
+  await assert.rejects(f.store.submit(input), (e) => {
+    assert.ok(e instanceof AssistantInquiryRejected);
+    assert.equal(e.reason, 'NOT_ACCEPTING');
+    return true;
+  });
+  assert.equal(Object.keys(f.snapshot()).filter((k) => k.startsWith('oemProjects/')).length, 0);
 });

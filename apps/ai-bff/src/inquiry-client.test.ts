@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
-import { InquirySubmissionChanged, createInquiryClient } from './inquiry-client.ts';
+import {
+  InquiryRejected,
+  InquirySubmissionChanged,
+  createInquiryClient,
+} from './inquiry-client.ts';
 const input: InternalInquirySubmission = {
   schemaVersion: '1',
   conversationId: '00000000-0000-4000-8000-000000000001',
@@ -59,4 +63,38 @@ test('foreign receipts, malformed or oversized bodies and changed requests canno
     ).submit(input),
     InquirySubmissionChanged,
   );
+});
+test('a refusal before saving is told apart from a result that may have been saved', async () => {
+  const submit = (response: Response) =>
+    createInquiryClient('https://example.invalid', 't'.repeat(40), async () => response).submit(
+      input,
+    );
+  await assert.rejects(
+    submit(
+      Response.json(
+        { code: 'REJECTED', outcome: 'not_started', reason: 'PRODUCT_UNVERIFIED' },
+        { status: 422 },
+      ),
+    ),
+    (e) => e instanceof InquiryRejected && e.reason === 'PRODUCT_UNVERIFIED',
+  );
+  await assert.rejects(
+    submit(
+      Response.json(
+        { code: 'INVALID_REQUEST', outcome: 'not_started', reason: 'INVALID_DETAILS' },
+        { status: 400 },
+      ),
+    ),
+    (e) => e instanceof InquiryRejected && e.reason === 'INVALID_DETAILS',
+  );
+  for (const response of [
+    Response.json({ code: 'UNAVAILABLE', outcome: 'unknown' }, { status: 503 }),
+    Response.json({ code: 'REJECTED', outcome: 'not_started', reason: 'DB_DOWN' }, { status: 422 }),
+    Response.json(
+      { code: 'REJECTED', outcome: 'not_started', reason: 'INVALID_DETAILS' },
+      { status: 503 },
+    ),
+    new Response('not json', { status: 422 }),
+  ])
+    await assert.rejects(submit(response), (e) => !(e instanceof InquiryRejected));
 });

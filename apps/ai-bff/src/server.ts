@@ -30,6 +30,7 @@ import {
 } from '@vibelingan-channel/ai-store';
 import {
   type InquiryClient,
+  InquiryRejected,
   InquirySubmissionChanged,
   createInquiryClient,
 } from './inquiry-client.ts';
@@ -177,6 +178,7 @@ export function createAiBffServer(
             'BAD_REQUEST',
             'Confirm the inquiry details and contact permission',
             requestId,
+            { outcome: 'not_started', reason: 'INVALID_DETAILS' },
           );
           return;
         }
@@ -188,13 +190,20 @@ export function createAiBffServer(
           });
           json(response, 200, receipt);
         } catch (e) {
-          error(
-            response,
-            e instanceof InquirySubmissionChanged ? 409 : 503,
-            e instanceof InquirySubmissionChanged ? 'CONFLICT' : 'UNAVAILABLE',
-            'The original inquiry result could not be confirmed',
-            requestId,
-          );
+          if (e instanceof InquiryRejected)
+            error(response, 422, 'INQUIRY_REJECTED', 'The inquiry was not saved', requestId, {
+              outcome: 'not_started',
+              reason: e.reason,
+            });
+          else
+            error(
+              response,
+              e instanceof InquirySubmissionChanged ? 409 : 503,
+              e instanceof InquirySubmissionChanged ? 'CONFLICT' : 'UNAVAILABLE',
+              'The original inquiry result could not be confirmed',
+              requestId,
+              { outcome: 'unknown' },
+            );
         }
         return;
       }
@@ -575,8 +584,9 @@ function error(
   code: AiApiErrorCode,
   message: string,
   requestId: string,
+  inquiry?: Pick<AiApiErrorEnvelope['error'], 'outcome' | 'reason'>,
 ): void {
-  const payload: AiApiErrorEnvelope = { error: { code, message, requestId } };
+  const payload: AiApiErrorEnvelope = { error: { code, message, requestId, ...inquiry } };
   json(response, status, payload);
 }
 

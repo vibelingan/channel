@@ -1,6 +1,13 @@
 import type { CatalogAction } from '@vibelingan-channel/ai-contracts';
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { beginInquiryReview, currentPublicProducts, validateInquiry } from './inquiry';
+import {
+  beginInquiryReview,
+  currentPublicProducts,
+  inquiryAfterFailure,
+  inquiryCheckStart,
+  nextInquiryCheckDelay,
+  validateInquiry,
+} from './inquiry';
 import type {
   AssistantAdapter,
   AssistantState,
@@ -246,35 +253,44 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     inquiryRef.current = next;
     setInquiry(next);
   }
-  async function submitInquiry() {
+  /** `automatic`: a scheduled recheck of an unknown result, counted against the limit. */
+  async function submitInquiry(automatic = false) {
     const current = inquiryRef.current;
     if (saving.current || (current.phase !== 'editing' && current.phase !== 'unknown')) return;
-    const errors = validateInquiry(current.draft);
-    if (Object.keys(errors).length) {
-      const next: InquiryView = { ...current, phase: 'editing', errors };
-      inquiryRef.current = next;
-      setInquiry(next);
-      return;
-    }
-    const snapshot = structuredClone(current.draft);
-    const next: InquiryView = { phase: 'saving', key: current.key, draft: snapshot };
+    let next: Extract<InquiryView, { phase: 'saving' }>;
+    if (current.phase === 'editing') {
+      const errors = validateInquiry(current.draft);
+      if (Object.keys(errors).length) {
+        const invalid: InquiryView = { ...current, errors, formError: undefined };
+        inquiryRef.current = invalid;
+        setInquiry(invalid);
+        return;
+      }
+      next = {
+        phase: 'saving',
+        key: current.key,
+        draft: structuredClone(current.draft),
+        checks: 0,
+        uncertain: false,
+      };
+    } else next = inquiryCheckStart(current, automatic);
     inquiryRef.current = next;
     setInquiry(next);
     const controller = new AbortController();
     saving.current = controller;
     const attempt = inquiryGeneration.current;
     try {
-      const receipt = await adapter.submitInquiry(snapshot, current.key, controller.signal);
+      const receipt = await adapter.submitInquiry(next.draft, next.key, controller.signal);
       if (inquiryGeneration.current !== attempt || controller.signal.aborted) return;
       const result: InquiryView = receipt
-        ? { ...next, phase: 'saved', receipt }
-        : { ...next, phase: 'unknown' };
+        ? { phase: 'saved', key: next.key, draft: next.draft, receipt }
+        : { phase: 'unknown', key: next.key, draft: next.draft, checks: next.checks };
       inquiryRef.current = result;
       setInquiry(result);
       if (receipt) dispatch({ type: 'inquiry_saved', reference: receipt.reference });
-    } catch {
+    } catch (error) {
       if (inquiryGeneration.current === attempt && !controller.signal.aborted) {
-        const result: InquiryView = { ...next, phase: 'unknown' };
+        const result = inquiryAfterFailure(next, error);
         inquiryRef.current = result;
         setInquiry(result);
       }
@@ -282,6 +298,18 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       if (saving.current === controller) saving.current = null;
     }
   }
+  // An unknown result is rechecked with the same key a few times, then waits for
+  // the visitor. The save is idempotent on the key, so a recheck never duplicates.
+  const recheckInquiry = useRef(submitInquiry);
+  useLayoutEffect(() => {
+    recheckInquiry.current = submitInquiry;
+  });
+  useEffect(() => {
+    const delay = nextInquiryCheckDelay(inquiry);
+    if (delay === null) return;
+    const timer = setTimeout(() => void recheckInquiry.current(true), delay);
+    return () => clearTimeout(timer);
+  }, [inquiry]);
   return {
     state,
     draft,
