@@ -21,7 +21,7 @@ run also releases its in-memory handle. Provider billing cancellation and crash-
 idempotent generation are not claimed.
 
 Current configuration and local acceptance steps are in
-`docs/ai-platform/assistant-ui/REAL-CHAT-DELIVERY.md`. A production service must use an
+`docs/ai-platform/assistant-ui/REAL-CHAT-SETUP.zh-CN.md`. A production service must use an
 approved fixed MCP channel and server credentials; the temporary SSH harness is an
 acceptance transport, not a daemon deployment.
 

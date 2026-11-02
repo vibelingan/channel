@@ -1,6 +1,6 @@
 # Sales 权限与真实工具接入设计
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 · 修订 D1 · 待确认，开发暂停。
 
@@ -264,6 +264,6 @@ SG0.1／0.2／1.0／1.1／2.1／2.2 的既有测试记录不删除，状态保�
 
 源码核对：Channel `packages/sales-contracts/src/access.ts`；`apps/functions/sales-integration/src/{handler,sources,index}.ts`；Hermes `deploy/hub/sales_flow/{boundary,intake,service}.py`、相关tests。阅读发现与代码对应的缺口：access scope无任务、sources历史行缺字段放行、Boundary客户HOME挂载、Intake无Channel来源核验、service尚未启动Sales模型循环。
 
-现有证据：[SG1.1](evidence/SG1.1-VALIDATION.md)、[SG2.1／SG2.2](evidence/SG2.1-SG2.2-VALIDATION.md)、[线上验收计划](evidence/LIVE-TEST-PLAN.md)。它们记录的是既有验证，不证明本轮目标已经实施。
+现有证据：[SG1.1](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.1-VALIDATION.md)、[SG2.1／SG2.2](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.1-SG2.2-VALIDATION.md)、[线上验收计划](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/LIVE-TEST-PLAN.md)。它们记录的是既有验证，不证明本轮目标已经实施。
 
 设计参考：[OWASP 多租户安全](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)要求把客户上下文与认证身份绑定，并落实数据与存储边界；[OWASP Agent 安全](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)要求在执行层控制工具、隔离记忆，并绑定高影响动作的审批对象。本版的协议形状、短时授权和模块分工是结合代码提出的项目设计，未把参考指南当产品认证。

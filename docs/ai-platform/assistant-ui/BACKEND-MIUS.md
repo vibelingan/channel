@@ -1,12 +1,12 @@
 # 官网助手后端：下一次实施顺序
 
-2026-11-02 更新：当前实现与验收请看 [真实聊天交付](REAL-CHAT-DELIVERY.md)。本文件下文保留早期计划或当时的交付事实；当前新流程已接 Hermes 现用模型与 VibeKB MCP、实时产品及统一询盘保存。历史恢复继续暂缓，未部署官网、未发邮件。
+2026-11-02 更新：当前实现与验收请看 [真实聊天交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui/REAL-CHAT-DELIVERY.md)。本文件下文保留早期计划或当时的交付事实；当前新流程已接 Hermes 现用模型与 VibeKB MCP、实时产品及统一询盘保存。历史恢复继续暂缓，未部署官网、未发邮件。
 
-2026-10-31：[确认询盘统一保存](INQUIRY-DELIVERY.md) 已完成本地前后端接线，复用 SG1.2 的询盘／来源／待派发事务。历史恢复暂缓，真实云库与上线尚未验收；下文早期计划保留其当时状态。
+2026-10-31：[确认询盘统一保存](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui/INQUIRY-DELIVERY.md) 已完成本地前后端接线，复用 SG1.2 的询盘／来源／待派发事务。历史恢复暂缓，真实云库与上线尚未验收；下文早期计划保留其当时状态。
 
-2026-10-30：MIU 4／5a 与 11 的产品查询、卡片、实时比较已完成本地接线，详见 [本轮交付](PRODUCT-SLICE-DELIVERY.md)；真实模型与生产目录待验收。历史恢复暂不实施；正式询盘保存仍是下一段。
+2026-10-30：MIU 4／5a 与 11 的产品查询、卡片、实时比较已完成本地接线，详见 [本轮交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui/PRODUCT-SLICE-DELIVERY.md)；真实模型与生产目录待验收。历史恢复暂不实施；正式询盘保存仍是下一段。
 
-当前实现进度见 [提问和停止交付](CHAT-SLICE-DELIVERY.md)。v2 协议、运行状态、精确停止及真实 adapter 的首段已实现；历史恢复暂缓。下文保留最初的整体设计，不能把其计划状态当作最新完成清单。
+当前实现进度见 [提问和停止交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui/CHAT-SLICE-DELIVERY.md)。v2 协议、运行状态、精确停止及真实 adapter 的首段已实现；历史恢复暂缓。下文保留最初的整体设计，不能把其计划状态当作最新完成清单。
 
 这份方案是 29 屏前端的后端交接。2026-10-30 只做设计；下面每项都还没有在本分支实现。沿用原有 MIU 号，不拆出新的 SG 编号。原架构的生产门禁继续有效，前端预览通过不代表这些项目完成。
 

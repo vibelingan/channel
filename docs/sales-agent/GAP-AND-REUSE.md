@@ -1,9 +1,9 @@
 # 复用与缺口
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 复核：以[权限与真实工具设计 D1](SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
-2026-10-23。优先保留已有工作。详细来源、分支和校验记录见 [BASELINE](evidence/BASELINE.md)。
+2026-10-23。优先保留已有工作。详细来源、分支和校验记录见 [BASELINE](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/BASELINE.md)。
 
 | 范围 | 已有内容 | 本轮处理 |
 |---|---|---|
@@ -28,6 +28,6 @@
 
 ## 实施前要核实的代码差异
 
-原销售设计worktree从`03be923c`创建。SG1.0选定main `404d1a25`，随后在用户授权SG1.1时从该main建立`feat/sales-agent-integration`并带入我们自己的销售提交；产品实现未改写。Phase 2 `a7e16aa2`只作客服设计参考，两者不是包含关系。详细路径、附件完成条件及字段差异见[SG1.0复用结论](evidence/SG1.0-BASELINE.md)。Hermes仍须核对实际部署与本地快照。
+原销售设计worktree从`03be923c`创建。SG1.0选定main `404d1a25`，随后在用户授权SG1.1时从该main建立`feat/sales-agent-integration`并带入我们自己的销售提交；产品实现未改写。Phase 2 `a7e16aa2`只作客服设计参考，两者不是包含关系。详细路径、附件完成条件及字段差异见[SG1.0复用结论](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.0-BASELINE.md)。Hermes仍须核对实际部署与本地快照。
 
 这些是工程证据任务，不再向客户重复询问 Resend 是否付费开通。需要客户提供的是负责人/批准权限、可信业务资料、首批渠道和留存政策。内部接口、重试、预览路由和并发处理由工程设计负责。

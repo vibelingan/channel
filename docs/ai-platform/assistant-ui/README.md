@@ -1,21 +1,12 @@
 # 官网助手前端与后端交接
 
-2026-11-02：[真实模型与 VibeKB 交付](REAL-CHAT-DELIVERY.md) 为当前状态入口。真实聊天、产品推荐／比较、多轮需求核对与现有 CloudBase 保存已通过实际浏览器验收；没有部署官网或发送邮件。复用 Hermes 当前 DeepSeek 与 VibeKB MCP，没有按 AnythingLLM 接新流程。
+## 当前状态与入口（2026-11-02）
 
-2026-11-01：[助手到 Hermes 自动任务](INQUIRY-HANDOFF-DELIVERY.md) 保留前轮的本地／CI 和云端保存证据。用户已授权使用现有云库，不需要新建环境。
-
-2026-10-31：[确认询盘统一保存](INQUIRY-DELIVERY.md) 已完成本地前后端接线，复用 SG1.2 的询盘／来源／待派发事务。历史恢复暂缓，真实云库与上线尚未验收；下文早期计划保留其当时状态。
-
-2026-10-30 更新：[多轮产品上下文](PRODUCT-CONTEXT-DELIVERY.md) 已补齐，后续问题可携带最近一次公开卡片并重新核对目录；复用[产品查询、卡片与实时比较](PRODUCT-SLICE-DELIVERY.md)及[问答与停止可靠性](CHAT-SLICE-DELIVERY.md)。真实模型效果、生产目录、正式询盘与部署仍待验收。历史恢复暂不实施。
-
-- [给老板的 Resend 操作与安全交接步骤](RESEND-OWNER-SETUP.zh-CN.md)
-
-- [交付与复核记录](DELIVERY.md)：完成什么、检查证据、发现和修正、明确未完成项。
-- [设计](DESIGN.md)：现有代码缺口、组件分工、状态与系统边界。
-- [前端 MIU](MIU-PLAN.md)：原 MIU 编号、文件、完成记录和下一次待办。
-- [后端 MIU](BACKEND-MIUS.md)：按顺序接协议、恢复、停止、产品查询和正式询盘。
-- [29 个状态](screens.json)：沿用原编号。
-- [定向缺陷注入结果](STATE-GUARDS.json)：4 处 guard 移除后均被测试抓到，不代表完整安全或生产 E2E。
+- **当前设计与执行顺序：** [第二轮设计（定稿）](ROUND2-DESIGN.md)。MIU 12–20 在整合分支 `feat/sales-assistant` 上实施，剩余工作统一列在其 §8。
+- 已有能力：真实 DeepSeek 与 VibeKB 问答、产品推荐／比较、多轮产品上下文、停止与恢复、确认询盘统一保存并交给 Hermes 自动任务；没有部署官网，没有发送邮件。
+- 原始设计与 MIU 记录：[设计](DESIGN.md)、[前端 MIU](MIU-PLAN.md)、[后端 MIU](BACKEND-MIUS.md)、[真实模型实现说明](REAL-CHAT-IMPLEMENTATION.md)、[29 个状态](screens.json)。
+- 操作说明：[真实运行步骤](REAL-CHAT-SETUP.zh-CN.md)、[给老板的 Resend 操作与安全交接步骤](RESEND-OWNER-SETUP.zh-CN.md)、[Resend 客户设置](RESEND-CUSTOMER-SETUP.md)。
+- 逐轮计划、交付记录和验证 JSON 已归档到 tag [`archive/process-evidence-2026-11-02`](https://github.com/vibelingan/channel/tree/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui)。取回：`git show archive/process-evidence-2026-11-02:docs/ai-platform/assistant-ui/<file>`。缺陷注入脚本把结果写到 `output/`（不提交）。
 
 ## 打开实际组件
 

@@ -1,6 +1,6 @@
 # 官网助手：29 状态、前端组件与后端接线设计
 
-当前进度更新：[提问与停止前后端闭环](CHAT-SLICE-DELIVERY.md) 已完成。本文保留前一轮设计／计划，原模块的其余内容仍待实施；历史恢复由用户暂缓。
+当前进度更新：[提问与停止前后端闭环](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui/CHAT-SLICE-DELIVERY.md) 已完成。本文保留前一轮设计／计划，原模块的其余内容仍待实施；历史恢复由用户暂缓。
 
 2026-10-30。本轮按用户要求先完成设计、MIU 和前端组件，真实后端及新模型对话留到下一次实施。不是 Resend 对接，也不改 Hermes 销售任务控制。
 

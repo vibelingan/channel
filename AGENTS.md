@@ -35,6 +35,20 @@ Apply judgment within the authorization above; do not treat upstream templates a
 permission to delegate, change branches, create a PR or deploy. Setup and pinned
 sources are documented in `docs/cloud-handoff/SKILLS.zh-CN.md`.
 
+## What not to commit
+
+- Never commit local run products: `output/`, screenshots, PDFs, zips, run
+  reports, evidence JSON, `.claude/` review notes. Never use `git add -f` to get
+  past `.gitignore`. CI fails when a tracked file matches `.gitignore`
+  (`git ls-files -ci --exclude-standard` must print nothing).
+- Scripts that produce reports write under `output/` by default; CI uploads them
+  as workflow artifacts. Evidence a reviewer needs goes in the PR description
+  (command, counts, result), not as files in `docs/`.
+- One feature keeps one design doc and one execution record, updated in place.
+  Do not add a new plan/verification/delivery file per round or per step.
+- Old process files live in the tag `archive/process-evidence-2026-11-02`
+  (`git show <tag>:<path>`); do not restore them to the branch.
+
 ## Public page SEO contract
 
 Before creating or changing a public route, read `docs/seo/PUBLIC_PAGE_CONTRACT.md`.

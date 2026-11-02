@@ -1,6 +1,6 @@
 # 真实聊天与询盘：当前接线和操作顺序
 
-2026-11-02。当前交付见 [真实模型与 VibeKB](REAL-CHAT-DELIVERY.md)。不需要你再开云账号或给 Resend／Apollo Key 来测试官网聊天。
+2026-11-02。当前交付见 [真实模型与 VibeKB](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/ai-platform/assistant-ui/REAL-CHAT-DELIVERY.md)。不需要你再开云账号或给 Resend／Apollo Key 来测试官网聊天。
 
 1. 腾讯云授权已完成，沿用上海现有 `diversity-123-d9grnqfux221323bb`。仅写本轮带 TEST 标记的合成询盘。
 2. 已核对 Hermes 的实际配置：腾讯 TokenHub `deepseek/deepseek-v4-pro`；VibeKB 为官方 Streamable HTTP MCP，workspace 2。新官网代码已新增 VibeKB adapter，旧兼容路径不参与本轮新聊天。

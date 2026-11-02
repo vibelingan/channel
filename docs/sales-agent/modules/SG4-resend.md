@@ -1,6 +1,6 @@
 # SG4 Resend 邮件与联系人适配
 
-实施单元：SG4.1、SG4.2、SG4.3。官方接口依据见 [PROVIDER-CAPABILITIES](../evidence/PROVIDER-CAPABILITIES.md)。
+实施单元：SG4.1、SG4.2、SG4.3。官方接口依据见 [PROVIDER-CAPABILITIES](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/PROVIDER-CAPABILITIES.md)。
 
 ## 选定路径
 

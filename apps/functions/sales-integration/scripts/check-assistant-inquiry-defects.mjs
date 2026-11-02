@@ -82,8 +82,9 @@ try {
       baseline: 'passed',
       mutation: killed ? 'killed' : broken.error ? 'invalid_or_timeout' : 'survived',
     });
+    await mkdir(join(repo, 'output/sales-agent'), { recursive: true });
     await writeFile(
-      join(repo, 'docs/sales-agent/evidence/assistant-inquiry-defects.json'),
+      join(repo, 'output/sales-agent/assistant-inquiry-defects.json'),
       `${JSON.stringify(report, null, 2)}\n`,
     );
     assert.ok(killed, `${check.name}\n${broken.stdout}${broken.stderr}`);

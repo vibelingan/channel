@@ -1,14 +1,14 @@
 # 下一轮从这里开始
 
-2026-10-28后续：先读[SG2.4详细报告](../evidence/SG2.4-REPORT.md)及[结构化回执](../evidence/SG2.4-VALIDATION.json)。Hermes代码6b36a9d已通过真实MySQL及Docker CI，Channel实际客户端本地联调通过。新任务默认等待核验，禁止用合成SQL布置当生产激活。
+2026-10-28后续：先读[SG2.4详细报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)及[结构化回执](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-VALIDATION.json)。Hermes代码6b36a9d已通过真实MySQL及Docker CI，Channel实际客户端本地联调通过。新任务默认等待核验，禁止用合成SQL布置当生产激活。
 
-2026-10-28：SG0.3共同协议已完成两仓库远端验证；SG1.3已完成强制读取门禁的本地与远端验证（代码ad3ab621），见[验证记录](../evidence/SG1.3-VALIDATION.md)。Hermes持久读取授权已由SG2.4补齐；后续需要自动来源核验／lease签发和任务独立运行接线，不要把纯协议函数当成已接通在线定海。
+2026-10-28：SG0.3共同协议已完成两仓库远端验证；SG1.3已完成强制读取门禁的本地与远端验证（代码ad3ab621），见[验证记录](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)。Hermes持久读取授权已由SG2.4补齐；后续需要自动来源核验／lease签发和任务独立运行接线，不要把纯协议函数当成已接通在线定海。
 
-2026-10-28：用户已授权继续D1实现。先按[权限补齐计划](../evidence/D1-IMPLEMENTATION-PLAN.md)逐项实施；下文2026-10-26暂停状态保留为历史，不能视作当前暂停。其他Agent、真实账号及外发保持原边界。
+2026-10-28：用户已授权继续D1实现。先按[权限补齐计划](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/D1-IMPLEMENTATION-PLAN.md)逐项实施；下文2026-10-26暂停状态保留为历史，不能视作当前暂停。其他Agent、真实账号及外发保持原边界。
 
 2026-10-26：**开发暂停，等待设计确认。** 先读[权限与真实接线修订 D1](../SECURITY-AND-TOOLS-DESIGN.md)。用户本轮仅授权文档和图；不能按下文候选任务自动开工。既有验证保留，但任务授权、安装归属、来源核验及真实接线尚未完成。
 
-SG0.1、SG0.2、SG1.0、SG1.1及SG2.1、SG2.2已完成各自代码/核对和隔离验证，见[SG2交付](../evidence/SG2.1-SG2.2-VALIDATION.md)。Channel分支feat/sales-agent-integration继续放销售文档与读取API；Hermes分支feat/sales-agent-runtime存客户运行及接收服务。两者均独立检出，原工作区保留。其余17个单元未实现；没有PR、部署、客户账号联调或真实发信。
+SG0.1、SG0.2、SG1.0、SG1.1及SG2.1、SG2.2已完成各自代码/核对和隔离验证，见[SG2交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.1-SG2.2-VALIDATION.md)。Channel分支feat/sales-agent-integration继续放销售文档与读取API；Hermes分支feat/sales-agent-runtime存客户运行及接收服务。两者均独立检出，原工作区保留。其余17个单元未实现；没有PR、部署、客户账号联调或真实发信。
 
 ## 开始实施前读什么
 
@@ -18,13 +18,13 @@ SG0.1、SG0.2、SG1.0、SG1.1及SG2.1、SG2.2已完成各自代码/核对和隔�
 
 ## 已有基础
 
-SG0.1代码位于packages/sales-contracts。当前六种schema、生成TS类型、双语言校验、固定JSON摘要、无网络fake及58个共享样例均有检查命令，详见[验证记录](../evidence/SG0.1-VALIDATION.md)。SG0.2已补服务器授权，SG2.1再补运行/目录边界；schema本身仍不授予权限。
+SG0.1代码位于packages/sales-contracts。当前六种schema、生成TS类型、双语言校验、固定JSON摘要、无网络fake及58个共享样例均有检查命令，详见[验证记录](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.1-VALIDATION.md)。SG0.2已补服务器授权，SG2.1再补运行/目录边界；schema本身仍不授予权限。
 
-SG1.0逐入口证据及字段差异见[复用结论](../evidence/SG1.0-BASELINE.md)。后续实现参考main 404d1a25，Phase 2 a7e16aa2用于客服设计；正式单品RFQ两者都有，无需重做。`python3 docs/sales-agent/check_source_snapshot.py`可复查固定源码。SG1.1已从选定main复用正式实现，没有复制另一套RFQ或合入未完成的其他分支。
+SG1.0逐入口证据及字段差异见[复用结论](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.0-BASELINE.md)。后续实现参考main 404d1a25，Phase 2 a7e16aa2用于客服设计；正式单品RFQ两者都有，无需重做。`python3 docs/sales-agent/check_source_snapshot.py`可复查固定源码。SG1.1已从选定main复用正式实现，没有复制另一套RFQ或合入未完成的其他分支。
 
 ## 后续开始条件
 
-SG2.1/SG2.2已有基础实现；完成本次设计确认和安全补齐后，才可重新安排SG1.2的官网通知/补扫和SG2.3的成果manifest，本轮没有继续这两个单元。[本轮边界](../evidence/SG0.2-SG1.1-PLAN.md)记录pricing/SEO兼容范围，[真实测试计划](../evidence/LIVE-TEST-PLAN.md)要求先核对实际线上Infra。SG1.2须补OEM最终完成标记、稳定事件身份和可靠补扫，不能只凭项目行存在、后台status或UI offset分页派发。客服预填仍归原Phase 2工作范围，当前只通过普通OEM链接不等于已实现第三来源。
+SG2.1/SG2.2已有基础实现；完成本次设计确认和安全补齐后，才可重新安排SG1.2的官网通知/补扫和SG2.3的成果manifest，本轮没有继续这两个单元。[本轮边界](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.2-SG1.1-PLAN.md)记录pricing/SEO兼容范围，[真实测试计划](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/LIVE-TEST-PLAN.md)要求先核对实际线上Infra。SG1.2须补OEM最终完成标记、稳定事件身份和可靠补扫，不能只凭项目行存在、后台status或UI offset分页派发。客服预填仍归原Phase 2工作范围，当前只通过普通OEM链接不等于已实现第三来源。
 
 ## 各模块后续交接说明
 

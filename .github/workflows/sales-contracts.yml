@@ -72,7 +72,7 @@ jobs:
         run: |
           node apps/functions/sales-integration/scripts/check-assistant-inquiry-defects.mjs
           pnpm --filter @vibelingan-channel/fn-sales-integration test:source-grant-defects
-          node apps/functions/sales-integration/scripts/check-website-delivery-defects.mjs --output docs/sales-agent/evidence/SG1.2-delivery-defects-ci
+          node apps/functions/sales-integration/scripts/check-website-delivery-defects.mjs --output output/sales-agent/SG1.2-delivery-defects-ci
       - name: Preserve website submission and persistence behavior
         run: |
           pnpm --filter @vibelingan-channel/db typecheck
@@ -100,5 +100,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: website-delivery-defects
-          path: docs/sales-agent/evidence/SG1.2-delivery-defects-ci/
+          path: output/sales-agent/SG1.2-delivery-defects-ci/
           if-no-files-found: warn

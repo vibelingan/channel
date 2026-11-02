@@ -21,6 +21,10 @@ One environment serves supplychainsai.com and is the owner's test environment; d
 
 Single-context repo — `CONTEXT.md` at root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
 
+### What not to commit
+
+No local run products (`output/`, screenshots, PDFs, reports, evidence JSON) and no `git add -f` past `.gitignore`; CI enforces it. One design doc and one execution record per feature, updated in place. See `AGENTS.md` → "What not to commit".
+
 ## OEM Website 2.0 Upgrade
 
 Phase 1 (current): Homepage restructure + Company Cases (CMS) + Market Case Teardown Lab + Blue Ocean Product Showcase.

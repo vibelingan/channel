@@ -1,9 +1,9 @@
 # SG1 官网询盘接入与受控业务资料
 
-2026-10-29 当前：SG1.2 的真实保存、registration＋pending 原子登记、可靠通知及补偿已本地验收，见[交付记录](../evidence/SG1.2-DELIVERY-REPORT.md)。线上部署、CloudBase 真实来源库、定时调用和自动模型仍未验收；下文较早的待实现状态保留为历史说明。
+2026-10-29 当前：SG1.2 的真实保存、registration＋pending 原子登记、可靠通知及补偿已本地验收，见[交付记录](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.2-DELIVERY-REPORT.md)。线上部署、CloudBase 真实来源库、定时调用和自动模型仍未验收；下文较早的待实现状态保留为历史说明。
 
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](../evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 复核：以[权限与真实工具设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
 
@@ -11,11 +11,11 @@
 
 ## 复用事实与写范围
 
-SG1.0已完成[源码核对](../evidence/SG1.0-BASELINE.md)。SG1.1使用以main `404d1a25`为起点的销售集成分支；正式单品询盘在该版本及Phase 2 `a7e16aa2`均已具备事务、幂等、快照、管理历史，生产transport已接线。OEM保存及附件激活后best-effort发SMTP确认，无持久发送账。旧模拟组件不等于当前正式目录在走dummy；客服预填仍是设计。功能开关和部署未验证，既有产品代码保持main原内容。
+SG1.0已完成[源码核对](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.0-BASELINE.md)。SG1.1使用以main `404d1a25`为起点的销售集成分支；正式单品询盘在该版本及Phase 2 `a7e16aa2`均已具备事务、幂等、快照、管理历史，生产transport已接线。OEM保存及附件激活后best-effort发SMTP确认，无持久发送账。旧模拟组件不等于当前正式目录在走dummy；客服预填仍是设计。功能开关和部署未验证，既有产品代码保持main原内容。
 
 候选新增范围：`apps/functions/sales-integration/`、`packages/db/src/sales-inquiry-*`及对应tests；现有OEM/单品保存路径只加最小交接，产品schema/限流/批准revision校验继续复用。SDK、Storage或事务代码实施前遵守项目CloudBase contract gate，核对选定基线的已安装包和官方合同。
 
-SG1.1实际只新增独立sales-integration HTTP函数并复用db/media-storage facade、InquiryDetailSchema及public-api的getProductDetail；没有改既有数据库公共接口、询盘保存、报价或SEO代码。接口为受信任后端服务调用，模型不能持有该服务凭据；SG2工具代理仍须把调用限定到任务来源和run。部署时固定一个客户/业务/安装/环境，不按请求切换全局adapter。完整边界及本地结果见[SG1.1验证](../evidence/SG1.1-VALIDATION.md)。
+SG1.1实际只新增独立sales-integration HTTP函数并复用db/media-storage facade、InquiryDetailSchema及public-api的getProductDetail；没有改既有数据库公共接口、询盘保存、报价或SEO代码。接口为受信任后端服务调用，模型不能持有该服务凭据；SG2工具代理仍须把调用限定到任务来源和run。部署时固定一个客户/业务/安装/环境，不按请求切换全局adapter。完整边界及本地结果见[SG1.1验证](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.1-VALIDATION.md)。
 
 ## 目标流程
 

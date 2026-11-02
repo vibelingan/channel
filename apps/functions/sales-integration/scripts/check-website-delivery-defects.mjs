@@ -11,7 +11,7 @@ const repo = resolve(project, '../../..');
 const output =
   process.argv[2] === '--output' && process.argv.length === 4
     ? resolve(process.argv[3])
-    : join(repo, `docs/sales-agent/evidence/SG1.2-delivery-defects-${Date.now()}`);
+    : join(repo, `output/sales-agent/SG1.2-delivery-defects-${Date.now()}`);
 const temporary = await mkdtemp(join(tmpdir(), 'website-delivery-defects-'));
 const target = join(temporary, 'apps/functions/sales-integration');
 const sha = (value) => createHash('sha256').update(value).digest('hex');

@@ -1,12 +1,12 @@
 # SG3 Sales 准备与内容工厂协作
 
-2026-10-30 最新 SG3.2：Hermes 自动消费与真实模型接线已完成开发、独立复核和合成验收，跨仓库及真实模型 62 项通过；代码 `05b17224` 已推送。未部署或发送邮件。见[本轮交付](../evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)。下面较早日期的记录保留其当时状态。
+2026-10-30 最新 SG3.2：Hermes 自动消费与真实模型接线已完成开发、独立复核和合成验收，跨仓库及真实模型 62 项通过；代码 `05b17224` 已推送。未部署或发送邮件。见[本轮交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)。下面较早日期的记录保留其当时状态。
 
-2026-10-29 SG3.2：可调用准备模块完成本地实现、分轮复核与 14 项真实 HTTP/MySQL 模块端到端；50 项针对性、15 项旧归档回归和 19 项定向缺陷注入通过。实际内容模型、自动触发和发送仍未接通，见[本轮交接](../evidence/SG3.2-PREPARATION-HANDOFF.md)。本轮未提交、推送或部署。
+2026-10-29 SG3.2：可调用准备模块完成本地实现、分轮复核与 14 项真实 HTTP/MySQL 模块端到端；50 项针对性、15 项旧归档回归和 19 项定向缺陷注入通过。实际内容模型、自动触发和发送仍未接通，见[本轮交接](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG3.2-PREPARATION-HANDOFF.md)。本轮未提交、推送或部署。
 
-2026-10-29：SG3.1离线销售准备模块已有代码与验证，23项针对性及8样例通过，见[本轮交接](../evidence/SG3.1-PREPARATION-HANDOFF.md)。不代表已接真实模型、询盘自动生成或邮件发送；企微交互仍只做设计，暂停/接管后置。
+2026-10-29：SG3.1离线销售准备模块已有代码与验证，23项针对性及8样例通过，见[本轮交接](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG3.1-PREPARATION-HANDOFF.md)。不代表已接真实模型、询盘自动生成或邮件发送；企微交互仍只做设计，暂停/接管后置。
 
-2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](../evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](../evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](../evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
 
 2026-10-26 复核：以[权限与真实工具设计 D1](../SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
 

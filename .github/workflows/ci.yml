@@ -179,6 +179,18 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      # Local run products (output/, screenshots, reports) are gitignored; one
+      # force-added past .gitignore is junk in the repository. AGENTS.md
+      # "What not to commit".
+      - name: No tracked files that .gitignore excludes
+        run: |
+          tracked="$(git ls-files -ci --exclude-standard)"
+          if [ -n "$tracked" ]; then
+            echo "::error::These tracked files match .gitignore; remove them with git rm --cached:"
+            echo "$tracked"
+            exit 1
+          fi
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
