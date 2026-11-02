@@ -517,7 +517,7 @@ CloudBase 账号与环境（负责人确认）：
 - 发现并修正的问题：第一问时记录要等到建立会话后才存在，会话层写不进“未完成的问题”，刷新后就续不上。改为由 adapter 在发送问题前写入，覆盖“刚发出就刷新”的情况。
 - 检查：会话库快照测试、BFF 快照测试（凭据隔离、私有字段不外泄）、adapter 刷新／续读／完成于导航期间／过期／询盘冻结测试、reducer 和询盘恢复测试；真实 BFF＋Postgres＋worker 的浏览器测试新增“刷新后历史还在、新标签页是新对话”“回答中刷新后接着出同一答案、两次发送是同一 key”，桌面和手机共 28 项通过。
 - 边界：问题还没发出（建立会话前）就离开页面时无法恢复，这时也还没有服务端会话。跨标签、跨设备、清除存储后的恢复和登录历史仍然后置。恢复最多 60 条消息。
-- 期限：关掉标签页即结束；凭据 24 小时固定期限；服务端目前不删除历史。保留期限、同一设备回访续聊和凭据续期列在 [ROADMAP.md](ROADMAP.md) §2、§5.2，待负责人决定。
+- 期限：关掉标签页即结束；凭据 24 小时固定期限；服务端目前不删除历史。负责人 2026-11-03 决定：有价值的聊天长期保存、只删无效的，跨天回访不做，见 [ROADMAP.md](ROADMAP.md) §2、§3、§8。
 
 ### MIU 16（2026-11-02）
 
@@ -529,3 +529,11 @@ CloudBase 账号与环境（负责人确认）：
 - 检查：询盘单测 12 项（新增 6 项，按验收名命名）；site 1518 项中 1517 通过、1 项跳过；助手浏览器旅程 98 项通过（桌面＋手机，新增 `inquiry_is_inside_transcript`／`chat_remains_visible_during_edit`、`two_products_do_not_silently_swap_draft`、`model_update_shows_change_summary`＋`manual_edit_not_overwritten_silently`＋`changed_need_preserves_contact_and_clears_consent`、`saved_receipt_does_not_resubmit`）；真实 BFF＋Postgres＋worker 浏览器测试 28 项通过；状态守卫变异 4/4 被杀；site、测试和 e2e 的 typecheck 与 biome 通过。
 - 未实测：真实模型脚本 `scripts/assistant-real-browser.mts` 已改为新交互（并修正 MIU 12 遗留的旧按钮名 “Check original submission”），要等 SSH 主机别名才能跑。
 - 边界：回执刷新后出现在消息末尾而不是原位置；先提交一单再开第二份草稿后刷新，第一单的回执不再显示（记录仍在 Sales，单号不丢）。
+
+### 隐私说明入口（2026-11-03，本轮之外的小项）
+
+- 负责人要求：隐私说明不要太显眼，需要时能看到。网站原来没有隐私说明页。
+- 页面：新增 `/privacy/`（`apps/site/src/pages/privacy.astro`），内容在 `apps/site/src/i18n/content/privacy/en-US.md`，按系统实际行为写：收集什么、模型调用前去掉联系方式、腾讯云上海、按价值保存、浏览器存储、访客权利与联系邮箱。
+- 入口：页脚法律信息栏的 “Privacy”、聊天底部 “AI can make mistakes…” 一行的 “Privacy”（新标签页打开，不打断对话）、询盘卡同意说明里的链接、OEM 项目表单说明后的链接。不弹窗，不做 cookie 横幅（网站没有统计或广告 cookie）。
+- 检查：`privacy-content.test.ts` 核对每个入口都在，并把页面上的每条陈述钉到代码上（Argon2 密码、IP 只存 HMAC、联系方式在进模型前替换、助手只用 sessionStorage、没有统计脚本、单纯聊天不进 Sales）；公开页 SEO 元数据测试登记了新页面；site `astro check` 0 错误。
+- 待负责人确认（并入 main 前）：见 [ROADMAP.md](ROADMAP.md) §6.4 四项。聊天里问隐私时由助手引用这页（N8），随全链路联调把页面加入公开知识库。
