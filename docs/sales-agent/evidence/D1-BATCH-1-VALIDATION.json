@@ -1,0 +1,257 @@
+{
+  "date": "2026-10-28",
+  "status": "local_and_matching_code_ci_passed_not_live",
+  "scope": [
+    "SG0.3",
+    "SG1.3"
+  ],
+  "protocol": "sales-auth/1",
+  "other_agents_changed": false,
+  "code_commits": {
+    "channel_protocol": "8b25f22833e26bb2561ca3defd5f82bbdc1e8b89",
+    "channel_read_gate": "ad3ab62142abe35277afadda77ed54c357a55f7d",
+    "hermes_contract_consumer": "40fbac55463e8de0edd403e080b2e5eb3fdb55a1"
+  },
+  "remote_runs": [
+    {
+      "repo": "channel",
+      "head_sha": "8b25f22833e26bb2561ca3defd5f82bbdc1e8b89",
+      "url": "https://github.com/vibelingan/channel/actions/runs/40627274084",
+      "conclusion": "success"
+    },
+    {
+      "repo": "hermesinfra",
+      "head_sha": "40fbac55463e8de0edd403e080b2e5eb3fdb55a1",
+      "url": "https://github.com/vibelingan/hermesinfra/actions/runs/40627523609",
+      "conclusion": "success",
+      "real_dependency_jobs": [
+        "MySQL intake",
+        "concurrent A/B containers"
+      ]
+    },
+    {
+      "repo": "channel",
+      "head_sha": "ad3ab62142abe35277afadda77ed54c357a55f7d",
+      "url": "https://github.com/vibelingan/channel/actions/runs/40630655316",
+      "conclusion": "success"
+    }
+  ],
+  "local_workspace": {
+    "command": "pnpm test",
+    "node_version": "22.13.0",
+    "totals": {
+      "tests": 2863,
+      "pass": 2860,
+      "fail": 0,
+      "skipped": 3,
+      "cancelled": 0
+    },
+    "suites": {
+      "packages/ai-contracts": {
+        "tests": 0,
+        "pass": 0,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/ai-engine": {
+        "tests": 57,
+        "pass": 55,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 2
+      },
+      "packages/media-storage": {
+        "tests": 27,
+        "pass": 27,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/sales-contracts": {
+        "tests": 66,
+        "pass": 66,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/shared": {
+        "tests": 157,
+        "pass": 157,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/ai-policy": {
+        "tests": 80,
+        "pass": 80,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/auth": {
+        "tests": 2,
+        "pass": 2,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/db": {
+        "tests": 230,
+        "pass": 230,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/catalog-import": {
+        "tests": 288,
+        "pass": 288,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/ai-engine-anythingllm": {
+        "tests": 101,
+        "pass": 101,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "apps/site": {
+        "tests": 512,
+        "pass": 511,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 1
+      },
+      "apps/functions/public-api": {
+        "tests": 115,
+        "pass": 115,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "packages/alibaba-catalog-sync": {
+        "tests": 149,
+        "pass": 149,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "apps/functions/admin": {
+        "tests": 245,
+        "pass": 245,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "apps/functions/alibaba-catalog-sync": {
+        "tests": 218,
+        "pass": 218,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "apps/functions/sales-integration": {
+        "tests": 32,
+        "pass": 32,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "apps/local-server": {
+        "tests": 152,
+        "pass": 152,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "test:deploy-smoke": {
+        "tests": 432,
+        "pass": 432,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    }
+  },
+  "local_focused": {
+    "sales_contracts_ts": 66,
+    "sales_http": 32,
+    "contract_python_test_methods": 8,
+    "original_parity_vectors": 58,
+    "new_auth_parity_vectors": 42,
+    "function_typecheck": "passed",
+    "sdk_gate": "passed",
+    "artifact_cold_start_node22": "passed",
+    "artifact_cold_start_node20_19": "passed_direct_node_without_pnpm"
+  },
+  "review": {
+    "kind": "author_source_review_and_behavior_counterexamples",
+    "independent_security_certification": false,
+    "red_then_green": [
+      "path_like_task_id",
+      "business_source_terminal",
+      "pause_during_final_source_check",
+      "lease_revoke_during_final_permit_wait"
+    ]
+  },
+  "runtime_code_sha256": {
+    "apps/functions/sales-integration/src/handler.ts": "0f713042ce1541ef6ffb990cffc219dba4b39baae965a6a30d6133041f89ed22",
+    "apps/functions/sales-integration/src/sources.ts": "0f6f859cb0a2022bea566e998fed7a0ed71a9d27ef3ec9cd27c12d47f4d3f62e",
+    "apps/functions/sales-integration/src/index.ts": "cf5e4242a2bd7594c6be23982741595094a458345078af8c4eef2b5165e5eace",
+    "apps/functions/sales-integration/src/task-gate.ts": "305ffcc81bbda0bf91300168e1035ac33555f25e38d3a80a9f35fa0124228880",
+    "apps/functions/sales-integration/src/permit-client.ts": "36584927ef1467d036021c80bca45f02f3b33219ad639059233851e34e88ed07"
+  },
+  "live_enabled": false,
+  "deployed": false,
+  "customer_accounts_connected": false,
+  "email_sent": false,
+  "lockfile_changed": false,
+  "remaining": [
+    "trusted source producer and lease issuance",
+    "persistent authenticated Hermes task authorization endpoint",
+    "task private runtime and real model tool loop",
+    "live Infra acceptance",
+    "human approval and controlled external send"
+  ],
+  "design_checks": {
+    "status": "passed",
+    "unit_count": 25,
+    "core_unit_count": 23,
+    "supplement_count": 2,
+    "dag": "acyclic",
+    "topological_order": [
+      "SG0.1",
+      "SG0.2",
+      "SG1.0",
+      "SG1.1",
+      "SG2.1",
+      "SG2.2",
+      "SG0.3",
+      "SG1.3",
+      "SG1.2",
+      "SG2.3",
+      "SG3.1",
+      "SG3.2",
+      "SG4.1",
+      "SG4.2",
+      "SG5.1",
+      "SG5.2",
+      "SG8.1",
+      "SG5.3",
+      "SG4.3",
+      "SG8.2",
+      "SG6.0",
+      "SG6.1",
+      "SG6.2",
+      "SG7.1",
+      "SG7.2"
+    ],
+    "local_links_checked": 148,
+    "historical_copies": "hashes_match",
+    "protected_source_docs": "hashes_match",
+    "schema": "1 valid accepted, 2 invalid rejected; not an authorization test",
+    "scope": "design package checks only; no implementation or live validation"
+  }
+}

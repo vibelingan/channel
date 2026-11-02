@@ -96,6 +96,9 @@ test('the actual admin cloud entry injects its CloudBase article repository with
         return preparationAuthority;
       },
     },
+    '@vibelingan-channel/db/sales-inquiry-submission': {
+      salesCaptureFromEnv: () => undefined,
+    },
     './catalog-preparation-invoker.ts': {
       createCatalogPreparationInvoker: (value) => {
         assert.equal(value, sdk);
@@ -114,6 +117,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   const entry = {};
   runInNewContext(compiled, {
     exports: entry,
+    process: { env: {} },
     require: (name) => {
       assert.ok(Object.hasOwn(modules, name), `Unexpected runtime import: ${name}`);
       return modules[name];
@@ -130,6 +134,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   articleMode = 'server';
   runInNewContext(compiled, {
     exports: {},
+    process: { env: {} },
     require: (name) => {
       assert(Object.hasOwn(modules, name));
       return modules[name];
@@ -137,7 +142,11 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   });
   assert.deepEqual(injectedModes, ['static', 'server']);
   articleMode = 'typo';
-  assert.throws(() => runInNewContext(compiled, { exports: {}, require: (name) => modules[name] }));
+  assert.throws(() => runInNewContext(compiled, {
+        exports: {},
+        process: { env: {} },
+        require: (name) => modules[name],
+      }));
   assert.deepEqual(injectedModes, ['static', 'server']);
 });
 const scriptTrees = [

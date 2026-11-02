@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "mutations_detected": [
+    {
+      "mutation": "utf16_key_sort",
+      "exit_code": 1,
+      "expected_test_failed": "canonical order follows Unicode code points"
+    },
+    {
+      "mutation": "duplicate_key_guard",
+      "exit_code": 1,
+      "expected_test_failed": "strict duplicate keys are rejected"
+    }
+  ],
+  "source_restored_sha256": "bf2a0d6d450674fac2a4dd8288bc78c92cb2993b20e300d15fa58581a50130e3"
+}

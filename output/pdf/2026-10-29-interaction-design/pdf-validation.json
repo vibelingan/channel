@@ -1,0 +1,27 @@
+{
+  "pdfs": [
+    {
+      "path": "output/pdf/2026-10-29-interaction-design/Agent-Interaction-Design-and-Delivery.pdf",
+      "pages": 6,
+      "version": "MVP V2 2026-10-29",
+      "all_pages_have_text": true,
+      "text_out_of_bounds": [],
+      "sha256": "e2e56d63688308f5b7133e4645fdef5083d7256fe0e06122aec78a6cb929f91b"
+    },
+    {
+      "path": "output/design/2026-10-28-assistant-controls/WeCom-Interaction-Screens.pdf",
+      "pages": 18,
+      "all_pages_have_text": true,
+      "text_out_of_bounds": [],
+      "sha256": "91ae00df3b80d9090c5772661e763d3f8a157b41c47be2e621dadc35376baf8b"
+    },
+    {
+      "path": "output/design/2026-10-28-assistant-controls/assistant-ui-screens.pdf",
+      "pages": 29,
+      "all_pages_have_text": true,
+      "text_out_of_bounds": [],
+      "sha256": "3496066c2d4405247acef146402de33a27bd075bc2840fc1f21de2fb3e8c56e7"
+    }
+  ],
+  "visual_review": "V2 summary all six rendered pages inspected; no new screen PDF requested; historical screen books preserved"
+}

@@ -1,0 +1,172 @@
+{
+  "unit": "SG2.4",
+  "date": "2026-10-28",
+  "status": "local_and_matching_code_ci_passed_not_live",
+  "code_commit": "6b36a9dc6a3fb1d4f9ea34b351c457ab966d5abc",
+  "branch": "feat/sales-agent-runtime",
+  "protocol_source": "Channel 8b25f22833e26bb2561ca3defd5f82bbdc1e8b89",
+  "remote_ci": {
+    "run_id": 40643073628,
+    "url": "https://github.com/vibelingan/hermesinfra/actions/runs/40643073628",
+    "head_sha": "6b36a9dc6a3fb1d4f9ea34b351c457ab966d5abc",
+    "conclusion": "success",
+    "executed_checks": {
+      "hub": {
+        "tests": 90,
+        "pass": 65,
+        "skip": 25
+      },
+      "dispatcher": 33,
+      "legacy_mysql": 10,
+      "new_mysql_authorization": 13,
+      "real_concurrent_container_boundary": 1
+    }
+  },
+  "local_checks": {
+    "mysql_authorization": {
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "skip": 0
+    },
+    "hub_discovery": {
+      "tests": 90,
+      "pass": 65,
+      "fail": 0,
+      "skip": 25
+    },
+    "new_http_tests_in_hub": 3,
+    "dispatcher_self_checks": 33,
+    "actual_channel_client_python_http_mysql": {
+      "tests": 1,
+      "pass": 1
+    },
+    "pyflakes": "passed",
+    "black": "passed",
+    "diff_check": "passed"
+  },
+  "skipped_from_hub_run": {
+    "legacy_mysql": 10,
+    "new_mysql": 13,
+    "docker": 1,
+    "separate_channel_checkout": 1
+  },
+  "synthetic_mysql": {
+    "version": "8.0.46",
+    "image": "mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+    "loopback_only": true,
+    "container_removed_after_tests": true
+  },
+  "review": {
+    "kind": "author_source_review_with_observed_red_green_cases",
+    "independent_security_certification": false,
+    "red_green": [
+      "missing_http_route_404_vs_200",
+      "cancelled_assignment_stale_preparing",
+      "succeeded_assignment_stale_preparing",
+      "failed_assignment_stale_preparing"
+    ],
+    "test_fixture_errors_corrected": [
+      "product.read must preserve ids object shape and pagination",
+      "tsx launched from existing sales-integration package"
+    ]
+  },
+  "runtime_sha256": {
+    "deploy/hub/sales_flow/authorization.py": "d3cb0a033cdc012449196efa148462ef71215a6f0bd5daae1c1847335f683c9c",
+    "deploy/hub/sales_flow/intake.py": "b4d4a5a2e9951ab7b6adeea06237bfdbe45878ea1da7297e51a3c59821ee50af",
+    "deploy/hub/sales_flow/http.py": "bf379951d384a3b10932603c6b7a5d2ed31288cce084bd6a5f17b3955870243c",
+    "deploy/hub/sales_flow/service.py": "4dddf5e78bec18526190d9bc06946cd79d1810241d0765ceae2b78cc7e2e1dd7",
+    "deploy/hub/sales_flow/schema.sql": "8047a3c885949c92071b3f4d5229300ef8f08826902c0be00b1bb5e0932a1928"
+  },
+  "local_log_manifest": {
+    "sg24-http-red.log": {
+      "sha256": "5b4307c58af29f73aef0e8ed806065aa369fd593a0deea2a44688df791f927e8",
+      "bytes": 815
+    },
+    "sg24-mysql-review-red.log": {
+      "sha256": "456e78b9e8d4016ae0bd85a85475e22b0a6460f7dd594b798828e8718fe423ec",
+      "bytes": 7137
+    },
+    "sg24-mysql-green.log": {
+      "sha256": "81e108fda5ca4f1b262a5da73af860b8f3c71d52b2cb4518e8cf4e362ca36fbf",
+      "bytes": 114
+    },
+    "sg24-hub-final.log": {
+      "sha256": "15b298594285c477f39d013febbd0211563eb184843be368d2c9ab164cd34a22",
+      "bytes": 2561
+    },
+    "sg24-dispatcher-final.log": {
+      "sha256": "cb71e507c0d31c7a4053d9d3f21bc8832fc47832c58e8691e4a6952ec9f7c902",
+      "bytes": 1204
+    },
+    "sg24-channel-client.log": {
+      "sha256": "f058656bcb526a585ba6fdbbcadaf4c5045aabc395086f51a6f319e0c7068f15",
+      "bytes": 845
+    },
+    "sg24-channel-client-green.log": {
+      "sha256": "717cf1885f705bc3a053ada31292425fcddcebc73f09f20740b9e0812f08c787",
+      "bytes": 99
+    },
+    "sg24-ci.log": {
+      "sha256": "d7c209af4b895bd8a83c6957da17512bddc82ec9e12fd650a0110845dee2ca69",
+      "bytes": 104760
+    }
+  },
+  "unchanged": {
+    "shared_hub": true,
+    "dispatcher_source": true,
+    "contracts_and_source_pin": true,
+    "channel_runtime": true,
+    "pricing_seo_runtime": true
+  },
+  "live_enabled": false,
+  "deployed": false,
+  "real_customer_accounts_connected": false,
+  "email_sent": false,
+  "remaining": [
+    "automatic Channel source verification and handoff/lease issuance",
+    "task private context and real model/tool execution",
+    "authenticated human controls and approval",
+    "controlled send and live Infra acceptance"
+  ],
+  "design_checks": {
+    "status": "passed",
+    "unit_count": 26,
+    "core_unit_count": 23,
+    "supplement_count": 3,
+    "dag": "acyclic",
+    "topological_order": [
+      "SG0.1",
+      "SG0.2",
+      "SG1.0",
+      "SG1.1",
+      "SG2.1",
+      "SG2.2",
+      "SG0.3",
+      "SG1.3",
+      "SG2.4",
+      "SG1.2",
+      "SG2.3",
+      "SG3.1",
+      "SG3.2",
+      "SG4.1",
+      "SG4.2",
+      "SG5.1",
+      "SG5.2",
+      "SG8.1",
+      "SG5.3",
+      "SG4.3",
+      "SG8.2",
+      "SG6.0",
+      "SG6.1",
+      "SG6.2",
+      "SG7.1",
+      "SG7.2"
+    ],
+    "local_links_checked": 169,
+    "historical_copies": "hashes_match",
+    "protected_source_docs": "hashes_match",
+    "schema": "1 valid accepted, 2 invalid rejected; not an authorization test",
+    "scope": "design package checks only; no implementation or live validation"
+  }
+}

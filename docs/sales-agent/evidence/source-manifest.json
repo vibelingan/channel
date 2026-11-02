@@ -1,0 +1,75 @@
+{
+  "as_of": "2026-10-23",
+  "sources": [
+    {
+      "path": "${PRIOR_SALES_DESIGNS}/2026-10-14-sales-meeting-final-v1.1/最终方案-会议整合版-v1.1.md",
+      "copy": "reference/最终方案-会议整合版-v1.1.md",
+      "sha256": "798541cad82773451adf205f8fbc209a5cdc050a48fcf16128ca7175b9820e40",
+      "role": "historical_design_not_current_implementation"
+    },
+    {
+      "path": "${CHANNEL_SOURCE}/output/sales-design/2026-10-15-apollo-explained-v3/白话解释与推荐-v3.md",
+      "copy": "reference/白话解释与推荐-v3.md",
+      "sha256": "a90b71be3dae9493789d434d32475210309ba5a7f7abd45da5143ee8a45fd4c6",
+      "role": "historical_design_not_current_implementation"
+    },
+    {
+      "path": "${CHANNEL_SOURCE}/output/sales-design/2026-10-15-apollo-explained-v3/计算模型.json",
+      "copy": "reference/计算模型.json",
+      "sha256": "c4b20c96a66c55cf3e9446f42406fab7d9db3a55d43eb8b54434b2a929f3ebf6",
+      "role": "historical_design_not_current_implementation"
+    },
+    {
+      "path": "${CHANNEL_SOURCE}/docs/ai-platform/CHANNEL_AI_ASSISTANT_ARCHITECTURE.md",
+      "sha256": "49b86ae1a2ca6bb0e10052ac6ce404b26329fd0a8e0b217f46e9abdc7662d7ce",
+      "role": "read_only_uncommitted_other_workstream"
+    },
+    {
+      "path": "${CHANNEL_SOURCE}/docs/ai-platform/MIU_BREAKDOWN.md",
+      "sha256": "1ce6cc0e4ccedecc48e9dced6bcba3604a4ee865ac5fa35942836612e047f851",
+      "role": "read_only_uncommitted_other_workstream"
+    },
+    {
+      "path": "${CHANNEL_SOURCE}/docs/ai-platform/README.md",
+      "sha256": "6e6ccc930cde342d742a21038b7af4669220e457a16274ec9a9a58b80405c044",
+      "role": "read_only_uncommitted_other_workstream"
+    },
+    {
+      "path": "${CHANNEL_SOURCE}/docs/ai-platform/HUMAN-SUPPORT-CONSOLE-MIU-DESIGN.md",
+      "sha256": "41d876850166de2b18e32388ed8e74e1dcf261ec5b29030d27ffb6908e01d0d4",
+      "role": "read_only_uncommitted_other_workstream"
+    },
+    {
+      "ref": "origin/feat/ai-assistant-phase2",
+      "revision": "a7e16aa2c89792cbb3fe49f9330848aea0b05405",
+      "path": "docs/ai-assistant-phase2/PLAN.md",
+      "copy": "reference/PLAN.md",
+      "sha256": "21b1ac6c7ae3a390f81ca51fad0b6dc91e4e7905826d972ba7e1279d4e8de966",
+      "role": "existing_phase2_reference_not_merged"
+    },
+    {
+      "ref": "origin/feat/ai-assistant-phase2",
+      "revision": "a7e16aa2c89792cbb3fe49f9330848aea0b05405",
+      "path": "docs/ai-assistant-phase2/SPEC.md",
+      "copy": "reference/SPEC.md",
+      "sha256": "53863e35bf4281af52935b85cbad4ff3da7ee32c462b8d10e49ed817771b4eb6",
+      "role": "existing_phase2_reference_not_merged"
+    },
+    {
+      "ref": "origin/feat/ai-assistant-phase2",
+      "revision": "a7e16aa2c89792cbb3fe49f9330848aea0b05405",
+      "path": "docs/ai-assistant-phase2/CLIENT-ANSWERS-2026-10-12.md",
+      "copy": "reference/CLIENT-ANSWERS-2026-10-12.md",
+      "sha256": "42a4cf29e759427886d2a37406d5f2c05135b2b9ce56670f829bba9b1821f8b7",
+      "role": "existing_phase2_reference_not_merged"
+    },
+    {
+      "ref": "origin/feat/ai-assistant-phase2",
+      "revision": "a7e16aa2c89792cbb3fe49f9330848aea0b05405",
+      "path": "docs/ai-platform/ADR-003-TOOL-CALLING-SALES-AGENT.md",
+      "copy": "reference/ADR-003-TOOL-CALLING-SALES-AGENT.md",
+      "sha256": "0490645a6a457fd76565464f9d14ab2dca6de73959b8b94212410ca44247ee0a",
+      "role": "existing_phase2_reference_not_merged"
+    }
+  ]
+}

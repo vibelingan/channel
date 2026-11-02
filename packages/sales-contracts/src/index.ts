@@ -1,0 +1,89 @@
+import addFormats from 'ajv-formats';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import { canonicalizeJson, parseStrictJson } from './canonical.ts';
+import { ContractValidationError } from './errors.ts';
+import { CONTRACT_SCHEMAS } from './schemas.generated.ts';
+import type {
+  Approval,
+  ClientBindings,
+  SourceHandoff,
+  TaskReadLease,
+  TaskReadRequest,
+  TaskAuthority,
+  TaskPermit,
+  ControlCommand,
+  InquirySubmitted,
+  MailSnapshot,
+  SalesRunContext,
+} from './types.generated.ts';
+
+export type {
+  InquirySubmitted,
+  MailSnapshot,
+  ControlCommand,
+  Approval,
+  SalesRunContext,
+  ClientBindings,
+  SourceHandoff,
+  TaskReadLease,
+  TaskReadRequest,
+  TaskAuthority,
+  TaskPermit,
+} from './types.generated.ts';
+export { canonicalizeJson, hashCanonicalJson, parseStrictJson } from './canonical.ts';
+export { ContractValidationError } from './errors.ts';
+
+export interface ContractMap {
+  inquiry: InquirySubmitted;
+  'mail-snapshot': MailSnapshot;
+  'control-command': ControlCommand;
+  approval: Approval;
+  'run-context': SalesRunContext;
+  'client-bindings': ClientBindings;
+  'sales-auth-handoff': SourceHandoff;
+  'sales-auth-lease': TaskReadLease;
+  'sales-auth-request': TaskReadRequest;
+  'sales-auth-authority': TaskAuthority;
+  'sales-auth-permit': TaskPermit;
+}
+export type ContractKind = keyof ContractMap;
+export const CONTRACT_KINDS: readonly ContractKind[] = [
+  'inquiry',
+  'mail-snapshot',
+  'control-command',
+  'approval',
+  'run-context',
+  'client-bindings',
+  'sales-auth-handoff',
+  'sales-auth-lease',
+  'sales-auth-request',
+  'sales-auth-authority',
+  'sales-auth-permit',
+];
+const ajv = new Ajv2020({
+  strict: true,
+  allErrors: false,
+  coerceTypes: false,
+  useDefaults: false,
+  removeAdditional: false,
+});
+addFormats(ajv);
+const validators = new Map(
+  CONTRACT_KINDS.map((kind) => [kind, ajv.compile(CONTRACT_SCHEMAS[kind])]),
+);
+
+export function validateContract<K extends ContractKind>(kind: K, value: unknown): ContractMap[K] {
+  const validator = validators.get(kind);
+  if (!validator) throw new ContractValidationError('Unknown contract kind');
+  const copy: unknown = JSON.parse(canonicalizeJson(value));
+  if (!validator(copy)) {
+    throw new ContractValidationError(
+      `Invalid ${kind}: ${validator.errors?.[0]?.keyword ?? 'schema'}`,
+    );
+  }
+  return copy as ContractMap[K];
+}
+
+export function parseContract<K extends ContractKind>(kind: K, raw: string): ContractMap[K] {
+  return validateContract(kind, parseStrictJson(raw));
+}

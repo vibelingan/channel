@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "${SALES_WORKTREE}/docs/sales-agent/diagrams/modules.json",
+  "output": "${SALES_WORKTREE}/docs/sales-agent/diagrams/modules.html",
+  "specification": {
+    "sha256": "9277493be58071ed2bf7853040fe583f11c2f82b8bd720ca6c2b66b968892b56",
+    "bytes": 4471
+  },
+  "artifact": {
+    "sha256": "81b08cc0aebe995bfd1458cbc0e1dd4102d446d4c167d9b935f4ff6780c8cfac",
+    "bytes": 809163
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

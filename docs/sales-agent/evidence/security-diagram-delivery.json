@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "${SALES_WORKTREE}/docs/sales-agent/diagrams/security-boundaries.json",
+  "output": "${SALES_WORKTREE}/docs/sales-agent/diagrams/security-boundaries.html",
+  "specification": {
+    "sha256": "2dfe466892dc395363a40824fc0418f05265d06e9e702e4ae918b00819df7e6e",
+    "bytes": 4372
+  },
+  "artifact": {
+    "sha256": "1f7afd3d273aa0ba40fb1e407b2dca53995fa07a91d6b8c872fed459fb4860f5",
+    "bytes": 809835
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

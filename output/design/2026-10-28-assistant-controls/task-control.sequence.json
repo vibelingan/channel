@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "引用任务通知后，怎样准确暂停",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1080,
+      550
+    ]
+  },
+  "participants": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "销售人员",
+      "sublabel": "已验证身份"
+    },
+    {
+      "id": "bot",
+      "type": "frontend",
+      "label": "企微入口",
+      "sublabel": "引用或卡片"
+    },
+    {
+      "id": "control",
+      "type": "security",
+      "label": "任务控制服务",
+      "sublabel": "Hermes Sales"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "任务数据库",
+      "sublabel": "客户独立"
+    },
+    {
+      "id": "runner",
+      "type": "backend",
+      "label": "执行与工具门禁",
+      "sublabel": "模型不能绕过"
+    },
+    {
+      "id": "notifier",
+      "type": "messagebus",
+      "label": "通知服务",
+      "sublabel": "合并与去重"
+    }
+  ],
+  "messages": [
+    {
+      "from": "operator",
+      "to": "bot",
+      "y": 170,
+      "label": "引用询盘卡片：暂停这条",
+      "variant": "emphasis"
+    },
+    {
+      "from": "bot",
+      "to": "control",
+      "y": 206,
+      "label": "身份、任务引用、命令ID",
+      "variant": "security"
+    },
+    {
+      "from": "control",
+      "to": "store",
+      "y": 242,
+      "label": "核对归属与权限，锁定任务",
+      "variant": "security"
+    },
+    {
+      "from": "control",
+      "to": "store",
+      "y": 278,
+      "label": "写暂停状态，撤销旧批准",
+      "variant": "security"
+    },
+    {
+      "from": "control",
+      "to": "runner",
+      "y": 314,
+      "label": "禁止新动作，停止当前计算",
+      "variant": "security"
+    },
+    {
+      "from": "runner",
+      "to": "store",
+      "y": 350,
+      "label": "保存停止点与在途结果",
+      "variant": "default"
+    },
+    {
+      "from": "store",
+      "to": "notifier",
+      "y": 386,
+      "label": "读取持久通知事件",
+      "variant": "dashed"
+    },
+    {
+      "from": "notifier",
+      "to": "bot",
+      "y": 422,
+      "label": "已暂停或发送结果待核对",
+      "variant": "dashed"
+    },
+    {
+      "from": "bot",
+      "to": "operator",
+      "y": 458,
+      "label": "给本次操作明确回执",
+      "variant": "return"
+    }
+  ]
+}

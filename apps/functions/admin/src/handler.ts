@@ -56,6 +56,7 @@ import {
   remove,
   saveCatalogProductWithIdentities,
   unfinishedApprovalUsingImage,
+  saveFinalizedSalesOemSubmission,
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
@@ -156,6 +157,7 @@ import { z } from 'zod';
 import { executeArticleMediaRequest } from './article-media.ts';
 import { readArticleQueueStatusRequest } from './article-queue-status.ts';
 import { approveInOneRequest } from './catalog-approve-once.ts';
+import type { SalesCaptureScope } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
 import {
   type ChangeAuditReader,
@@ -190,6 +192,7 @@ import { cleanupSourceMediaImage } from './source-media-cleanup.ts';
 
 import type { OwnedFinalContinuationStep } from './catalog-operation-final-continue.ts';
 export interface AdminConfig {
+  salesCapture?: SalesCaptureScope;
   jwtSecret: string;
   articleRepository?: ArticleRepository;
   articleQueueStatusKeyHash?: string;
@@ -643,9 +646,9 @@ export async function handleAdminRequest(
       case 'articleQueueStatus':
         return await readArticleQueueStatusRequest(req, config);
       case 'submitProject':
-        return await submitProject(req, context);
+        return await submitProject(req, context,config.salesCapture);
       case 'createOemFileUploadIntent':
-        return await createOemFileUploadIntentAction(req, context);
+        return await createOemFileUploadIntentAction(req, context,config.salesCapture);
     }
 
     // ---- Everything below requires a valid session --------------------
@@ -1236,6 +1239,7 @@ interface OemUploadClaim {
   storageFileId: string;
   byteSize: number;
   checksumSha256: string;
+  mimeType:string;
 }
 
 /**
@@ -1251,11 +1255,14 @@ interface OemUploadClaim {
  * JS read-then-write): only the request that flips `finalizeClaim` 0→1 proceeds;
  * a concurrent double-submit / replay gets >1 and loses without side effects.
  */
-async function verifyAndClaimOemUpload(input: {
-  drawingFileId: string;
-  uploadIntentId: string;
-  uploadSecret: string;
-}): Promise<{ ok: true; claim: OemUploadClaim } | { ok: false; error: ApiResult<unknown> }> {
+async function verifyAndClaimOemUpload(
+  input: {
+    drawingFileId: string;
+    uploadIntentId: string;
+    uploadSecret: string;
+  },
+  capture?: SalesCaptureScope,
+): Promise<{ ok: true; claim: OemUploadClaim } | { ok: false; error: ApiResult<unknown> }> {
   const fail = (error: ApiResult<unknown>) => ({ ok: false as const, error });
   const notFound = fail(err('NOT_FOUND', 'Upload not found.'));
 
@@ -1284,6 +1291,13 @@ async function verifyAndClaimOemUpload(input: {
     presentedHash.length === storedHash.length &&
     timingSafeEqual(Buffer.from(presentedHash), Buffer.from(storedHash));
   if (!secretOk) return fail(err('FORBIDDEN', 'Upload verification failed.'));
+  if (
+    capture &&
+    (doc.client_id !== capture.client_id ||
+      doc.business_line !== capture.business_line ||
+      doc.source_installation_id !== capture.source_installation_id)
+  )
+    return notFound;
 
   // --- Ownership PROVEN by the secret. ---
   const storageFileId = doc.storageFileId;
@@ -1335,10 +1349,17 @@ async function verifyAndClaimOemUpload(input: {
   if (!oemBytesMatchType(fileName, bytes)) {
     return rejectOwned('File content does not match its type.');
   }
+  const signature = sniffMagicBytes(bytes);
 
   return {
     ok: true,
-    claim: { fileId: input.drawingFileId, storageFileId, byteSize, checksumSha256 },
+    claim: {
+      fileId: input.drawingFileId,
+      storageFileId,
+      byteSize,
+      checksumSha256,
+      mimeType: signature === 'unknown' ? 'application/octet-stream' : SIGNATURE_MIME[signature],
+    },
   };
 }
 
@@ -1352,7 +1373,12 @@ async function verifyAndClaimOemUpload(input: {
 async function submitProject(
   req: AdminRequest,
   context?: RequestContext,
+  captureConfig?: SalesCaptureScope,
 ): Promise<ApiResult<unknown>> {
+  const capture =
+    captureConfig && Math.floor(Date.now() / 1000) >= captureConfig.cutover_at
+      ? captureConfig
+      : undefined;
   const parsed = submitProjectSchema.safeParse(req.data);
   if (!parsed.success) {
     return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
@@ -1383,8 +1409,8 @@ async function submitProject(
   } = parsed.data;
   const numericQuantity = quantity === undefined || quantity === '' ? undefined : Number(quantity);
 
-  // The storage triad and legacy base64 are mutually exclusive; the triad must be
-  // complete (all three) or it is rejected rather than silently dropping a drawing.
+  // A storage reference must be complete. A complete triad takes precedence
+  // over legacy bytes, including when choosing the Sales capture path.
   const hasAnyStorageRef = Boolean(drawingFileId || uploadIntentId || uploadSecret);
   const hasFullStorageRef = Boolean(drawingFileId && uploadIntentId && uploadSecret);
   if (hasAnyStorageRef && !hasFullStorageRef) {
@@ -1394,11 +1420,14 @@ async function submitProject(
   let drawingId = '';
   let claim: OemUploadClaim | undefined;
   if (drawingFileId && uploadIntentId && uploadSecret) {
-    const finalized = await verifyAndClaimOemUpload({
-      drawingFileId,
-      uploadIntentId,
-      uploadSecret,
-    });
+    const finalized = await verifyAndClaimOemUpload(
+      {
+        drawingFileId,
+        uploadIntentId,
+        uploadSecret,
+      },
+      capture,
+    );
     if (!finalized.ok) return finalized.error;
     claim = finalized.claim;
     drawingId = claim.fileId; // still `pending`; activated AFTER the project exists
@@ -1441,40 +1470,54 @@ async function submitProject(
   // A storage upload is already CLAIMED here, so failing to create the project must
   // not leave a zombie pending row — mark it failed and surface the error.
   let project: CollectionDoc;
-  try {
-    project = await createDoc('oemProjects', projectData);
-  } catch (e) {
-    console.error('[submitProject] project create failed', e);
-    if (claim) {
-      await updateDoc('files', claim.fileId, { status: 'failed' }).catch((err2) =>
-        console.error('[submitProject] mark-failed after project-create failure failed', err2),
+  if (capture && (claim || !drawingData)) {
+    try {
+      project = await saveFinalizedSalesOemSubmission(
+        { projectId: randomUUID(), projectData, ...(claim ? { claim } : {}) },
+        capture,
       );
+    } catch (error) {
+      console.error('[submitProject] atomic sales submission failed', error);
+      // A lost commit reply may mean the file is already active. Never downgrade
+      // it here; uncommitted pending uploads use the existing expiry cleanup.
+      return err('INTERNAL_ERROR', 'Could not submit your project. Please try again.');
     }
-    return err('INTERNAL_ERROR', 'Could not submit your project. Please try again.');
-  }
+  } else {
+    try {
+      project = await createDoc('oemProjects', projectData);
+    } catch (e) {
+      console.error('[submitProject] project create failed', e);
+      if (claim) {
+        await updateDoc('files', claim.fileId, { status: 'failed' }).catch((err2) =>
+          console.error('[submitProject] mark-failed after project-create failure failed', err2),
+        );
+      }
+      return err('INTERNAL_ERROR', 'Could not submit your project. Please try again.');
+    }
 
-  if (claim) {
-    // Activate the drawing AFTER the project exists and bind it. Compensation: if
-    // activation fails, the project must not keep a dangling pending drawing —
-    // remove it, mark the upload failed, and surface the error (never success).
-    const activated = await updateDoc('files', claim.fileId, {
-      status: 'active',
-      ownerProjectId: project._id,
-      byteSize: claim.byteSize,
-      checksumSha256: claim.checksumSha256,
-      uploadSecretHash: '',
-    }).catch((e) => {
-      console.error('[submitProject] activation failed after project create', e);
-      return null;
-    });
-    if (!activated) {
-      await remove('oemProjects', project._id).catch((e) =>
-        console.error('[submitProject] project rollback failed', e),
-      );
-      await updateDoc('files', claim.fileId, { status: 'failed' }).catch((e) =>
-        console.error('[submitProject] mark-failed after activation failure failed', e),
-      );
-      return err('INTERNAL_ERROR', 'Could not finalize the upload. Please try again.');
+    if (claim) {
+      // Activate the drawing AFTER the project exists and bind it. Compensation: if
+      // activation fails, the project must not keep a dangling pending drawing —
+      // remove it, mark the upload failed, and surface the error (never success).
+      const activated = await updateDoc('files', claim.fileId, {
+        status: 'active',
+        ownerProjectId: project._id,
+        byteSize: claim.byteSize,
+        checksumSha256: claim.checksumSha256,
+        uploadSecretHash: '',
+      }).catch((e) => {
+        console.error('[submitProject] activation failed after project create', e);
+        return null;
+      });
+      if (!activated) {
+        await remove('oemProjects', project._id).catch((e) =>
+          console.error('[submitProject] project rollback failed', e),
+        );
+        await updateDoc('files', claim.fileId, { status: 'failed' }).catch((e) =>
+          console.error('[submitProject] mark-failed after activation failure failed', e),
+        );
+        return err('INTERNAL_ERROR', 'Could not finalize the upload. Please try again.');
+      }
     }
   }
 
@@ -3503,6 +3546,7 @@ async function sweepExpiredOemPendingUploads(limit: number): Promise<{
 async function createOemFileUploadIntentAction(
   req: AdminRequest,
   context?: RequestContext,
+  capture?: SalesCaptureScope,
 ): Promise<ApiResult<unknown>> {
   const parsed = oemFileUploadSchema.safeParse(req.data);
   if (!parsed.success) {
@@ -3566,6 +3610,13 @@ async function createOemFileUploadIntentAction(
   const uploadSecretHash = createHash('sha256').update(uploadSecret).digest('hex');
 
   const reserved = await createDoc('files', {
+    ...(capture
+      ? {
+          client_id: capture.client_id,
+          business_line: capture.business_line,
+          source_installation_id: capture.source_installation_id,
+        }
+      : {}),
     name: parsed.data.fileName,
     mimeType: parsed.data.mimeType,
     purpose: 'oem-drawing',

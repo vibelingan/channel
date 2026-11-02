@@ -1,0 +1,1050 @@
+{
+  "version": 1,
+  "date": "2026-10-23",
+  "scope": "SG1.0 pinned read-only source audit; no product execution or deployment verification",
+  "commits": {
+    "main": "404d1a257722175dcd70916e3f92ec6763fa0243",
+    "phase2": "a7e16aa2c89792cbb3fe49f9330848aea0b05405",
+    "worktree_source_base": "03be923c0d7f8cf0f8bfa86a9f8224ba07315f17",
+    "formal_inquiry_origin": "dbf802b270bf24ab32a666f591b1aaa4086da406"
+  },
+  "ancestry": {
+    "main_phase2_merge_base": "b0015c015c7410b9b1c383ee5a83bbc160b8d5b8",
+    "unique_commits_main_phase2": [
+      8,
+      9
+    ]
+  },
+  "expected_file_count": 44,
+  "coverage": {
+    "oem": [
+      "home",
+      "home-cta",
+      "oem-page",
+      "oem-form",
+      "admin-handler",
+      "oem-email"
+    ],
+    "product": [
+      "item-page",
+      "sku-page",
+      "family-page",
+      "family-component",
+      "family-preview",
+      "shared-detail",
+      "detail-controller",
+      "quote-sheet",
+      "quote-transport",
+      "http-router",
+      "quote-http",
+      "quote-shape"
+    ],
+    "product_admin": [
+      "admin-inquiry-api",
+      "admin-shell",
+      "admin-product-page",
+      "admin-detail",
+      "admin-sections"
+    ],
+    "legacy": [
+      "legacy-modal",
+      "legacy-detail",
+      "legacy-cart",
+      "legacy-grid",
+      "hidden-overstock"
+    ],
+    "assistant": [
+      "assistant-widget",
+      "assistant-contract",
+      "assistant-worker",
+      "assistant-schema",
+      "phase2-spec",
+      "phase2-plan"
+    ],
+    "storage": [
+      "quote-store",
+      "quote-plan",
+      "db-adapter",
+      "db-facade",
+      "oem-schema",
+      "inquiry-model",
+      "quote-store-tests"
+    ],
+    "switches": [
+      "public-switch",
+      "admin-switch",
+      "api-base"
+    ]
+  },
+  "files": [
+    {
+      "id": "home",
+      "ref": "main",
+      "path": "apps/site/src/pages/index.astro",
+      "sha256": "8d54439d38dbeef5f86f154d236e76dab4a642cc110f3b7c2c2b9ee17e3adfc8",
+      "line_count": 73,
+      "markers": [
+        {
+          "text": "CTASection",
+          "lines": [
+            3,
+            68
+          ]
+        }
+      ]
+    },
+    {
+      "id": "home-cta",
+      "ref": "main",
+      "path": "apps/site/src/components/CTASection.astro",
+      "sha256": "2ef1afe408b0a6bfc1a32e5cbab95042d3c7972c124128da5b8c7d04656e91d2",
+      "line_count": 60,
+      "markers": [
+        {
+          "text": "ProjectForm",
+          "lines": [
+            7,
+            49
+          ]
+        },
+        {
+          "text": "action=\"/api/admin\"",
+          "lines": [
+            55
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oem-page",
+      "ref": "main",
+      "path": "apps/site/src/pages/oem.astro",
+      "sha256": "f86429409a44c235b382477f931f148948688cb3a5b7fbbef24263aa7e6960fc",
+      "line_count": 103,
+      "markers": [
+        {
+          "text": "ProjectForm",
+          "lines": [
+            6,
+            88
+          ]
+        },
+        {
+          "text": "action=\"/api/admin\"",
+          "lines": [
+            94
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oem-form",
+      "ref": "main",
+      "path": "apps/site/src/components/ProjectForm.astro",
+      "sha256": "b47bef95a815df6b9eca9bf2a12155128c5b1b56d3b5ed824bf5ed99c45111f4",
+      "line_count": 263,
+      "markers": [
+        {
+          "text": "postAction",
+          "lines": [
+            163,
+            220,
+            245
+          ]
+        },
+        {
+          "text": "submitProject",
+          "lines": [
+            245
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-handler",
+      "ref": "main",
+      "path": "apps/functions/admin/src/handler.ts",
+      "sha256": "c8579bee2036c3ef9a01547ef8dade52d0f7413fe380e949f36cfe96b8097a3d",
+      "line_count": 2989,
+      "markers": [
+        {
+          "text": "createDoc('oemProjects', projectData)",
+          "lines": [
+            1181
+          ]
+        },
+        {
+          "text": "status: 'active'",
+          "lines": [
+            726,
+            761,
+            1197,
+            2550,
+            2571,
+            2628
+          ]
+        },
+        {
+          "text": "ownerProjectId: project._id",
+          "lines": [
+            1198
+          ]
+        },
+        {
+          "text": "remove('oemProjects', project._id)",
+          "lines": [
+            1207
+          ]
+        },
+        {
+          "text": "sendOemConfirmationEmail({",
+          "lines": [
+            1218
+          ]
+        },
+        {
+          "text": "verifyAndClaimOemUpload",
+          "lines": [
+            990,
+            1133
+          ]
+        },
+        {
+          "text": "enableInquiries",
+          "lines": [
+            133,
+            581,
+            625
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oem-email",
+      "ref": "main",
+      "path": "packages/email/src/index.ts",
+      "sha256": "781a09541d28eb5fc7c7b34b18b104ec42993aa776ec736081534bcefe65c89f",
+      "line_count": 122,
+      "markers": [
+        {
+          "text": "SMTP not configured",
+          "lines": [
+            53
+          ]
+        },
+        {
+          "text": "sendOemConfirmationEmail",
+          "lines": [
+            116
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-page",
+      "ref": "main",
+      "path": "apps/site/src/pages/products/item.astro",
+      "sha256": "87ee92245ccec66f11548e53b98010872ac362f799c8bdc6b9ce686567ffbeee",
+      "line_count": 29,
+      "markers": [
+        {
+          "text": "SkuDetailPage",
+          "lines": [
+            6,
+            26
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sku-page",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/SkuDetailPage.tsx",
+      "sha256": "88a380e48cb7656089c3ba5322ce9740bf3874657d9615d243d62ed8d683c21b",
+      "line_count": 340,
+      "markers": [
+        {
+          "text": "const SharedPreview",
+          "lines": [
+            38
+          ]
+        },
+        {
+          "text": "OEM_INQUIRY_HREF",
+          "lines": [
+            10,
+            224
+          ]
+        }
+      ]
+    },
+    {
+      "id": "family-page",
+      "ref": "main",
+      "path": "apps/site/src/pages/headphones.astro",
+      "sha256": "1f9605940acee4972b34e55d2b4c6af514dfaaecb962e8719ea0b2cb6b90756b",
+      "line_count": 213,
+      "markers": [
+        {
+          "text": "CatalogFamilyPage",
+          "lines": [
+            8,
+            176
+          ]
+        }
+      ]
+    },
+    {
+      "id": "family-component",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/CatalogFamilyPage.tsx",
+      "sha256": "5f3d43d7f7e909fadcb2e58d6c0ce1cc113b04bea045d0f11e46dee69d1e6910",
+      "line_count": 512,
+      "markers": [
+        {
+          "text": "SharedCatalogPreview",
+          "lines": [
+            38,
+            56,
+            59
+          ]
+        }
+      ]
+    },
+    {
+      "id": "family-preview",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/SharedCatalogPreview.tsx",
+      "sha256": "cc36e1d2bf27377114db5060abf6c54a387c77cf5b4fdb31b65caf7059b23165",
+      "line_count": 219,
+      "markers": [
+        {
+          "text": "submitPublicQuote",
+          "lines": [
+            8,
+            200
+          ]
+        },
+        {
+          "text": "localPreview",
+          "lines": [
+            29,
+            37,
+            41,
+            55,
+            161,
+            198,
+            200,
+            207
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shared-detail",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/SharedDetailPreview.tsx",
+      "sha256": "aed4ff6424e360a6d944b457b283b95ac98002021dc4d5f274e06d4831993508",
+      "line_count": 121,
+      "markers": [
+        {
+          "text": "const localPreview",
+          "lines": [
+            49
+          ]
+        },
+        {
+          "text": "value={localPreview ? submitLocalQuote : submitPublicQuote}",
+          "lines": [
+            89
+          ]
+        }
+      ]
+    },
+    {
+      "id": "detail-controller",
+      "ref": "main",
+      "path": "apps/site/src/catalog/application/CatalogDetailController.tsx",
+      "sha256": "3cab572e0ecee9d997f0572fb7760b58187f1bd6eec93eeb862ea8d7ac1f059d",
+      "line_count": 211,
+      "markers": [
+        {
+          "text": "legacyFallback",
+          "lines": [
+            20,
+            28,
+            108,
+            109
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-sheet",
+      "ref": "main",
+      "path": "apps/site/src/catalog/presentation/CatalogQuoteSheet.tsx",
+      "sha256": "f7478c069faf7c99de68ee7bbc655402126675f1d78f2ea2dc309725f13c9756",
+      "line_count": 541,
+      "markers": [
+        {
+          "text": "idempotencyKey",
+          "lines": [
+            262
+          ]
+        },
+        {
+          "text": "transport(",
+          "lines": [
+            259
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-transport",
+      "ref": "main",
+      "path": "apps/site/src/catalog/application/public-quote-transport.ts",
+      "sha256": "0ca5bcfc4bfd3d38434ea8f7950afc09f2e88a82f288d24f0a8ff7b01adc921b",
+      "line_count": 54,
+      "markers": [
+        {
+          "text": "apiUrl('/api/catalog-quote-requests')",
+          "lines": [
+            12
+          ]
+        },
+        {
+          "text": "CatalogQuoteSubmissionSchema",
+          "lines": [
+            1,
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "id": "http-router",
+      "ref": "main",
+      "path": "apps/functions/public-api/src/http-adapter.ts",
+      "sha256": "731a6b9ba177f54b2f982dbe6207299671ed8c682bfabe203a45c14fdd051e28",
+      "line_count": 426,
+      "markers": [
+        {
+          "text": "catalog-quote-requests",
+          "lines": [
+            419
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-http",
+      "ref": "main",
+      "path": "apps/functions/public-api/src/catalog-quote-http.ts",
+      "sha256": "8251bad9f87a1dcb7cb22e1ff53fedc339023a8d1c16bbb71fff398b1952cae2",
+      "line_count": 70,
+      "markers": [
+        {
+          "text": "enableInquiries",
+          "lines": [
+            24
+          ]
+        },
+        {
+          "text": "corsAllowedOrigins",
+          "lines": [
+            32
+          ]
+        },
+        {
+          "text": "save",
+          "lines": [
+            7,
+            60,
+            68
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-shape",
+      "ref": "main",
+      "path": "packages/shared/src/catalog/quote-draft.ts",
+      "sha256": "bc5e13e467ddd233d4be72d66c9625d620cf59486512a50aa58f4be2967479f7",
+      "line_count": 102,
+      "markers": [
+        {
+          "text": "const quantity",
+          "lines": [
+            14
+          ]
+        },
+        {
+          "text": "CatalogQuoteSubmissionSchema",
+          "lines": [
+            68,
+            76
+          ]
+        },
+        {
+          "text": "productId: identity",
+          "lines": [
+            62
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-store",
+      "ref": "main",
+      "path": "packages/db/src/catalog-inquiry-cloud.ts",
+      "sha256": "8c9870f79fdfec922920242f140524f0fb30b93ac81e41c321b53690f1922c8b",
+      "line_count": 117,
+      "markers": [
+        {
+          "text": "INQUIRY_COLLECTION",
+          "lines": [
+            17,
+            37,
+            88
+          ]
+        },
+        {
+          "text": "return db.runTransaction",
+          "lines": [
+            36,
+            84
+          ]
+        },
+        {
+          "text": "notification: 'disabled'",
+          "lines": [
+            53
+          ]
+        },
+        {
+          "text": "await ref.set(data)",
+          "lines": [
+            71,
+            113
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-plan",
+      "ref": "main",
+      "path": "packages/db/src/catalog-quote.ts",
+      "sha256": "e1259484870c7bb82c3196cf1dcd4a0d278058a8b0fa5cef827ba7b9824847cf",
+      "line_count": 108,
+      "markers": [
+        {
+          "text": "const snapshot =",
+          "lines": [
+            69
+          ]
+        },
+        {
+          "text": "version: 0",
+          "lines": [
+            90
+          ]
+        },
+        {
+          "text": "notification: options.notification",
+          "lines": [
+            91
+          ]
+        },
+        {
+          "text": "fingerprint: quoteFingerprint",
+          "lines": [
+            104
+          ]
+        }
+      ]
+    },
+    {
+      "id": "db-adapter",
+      "ref": "main",
+      "path": "packages/db/src/cloudbase-adapter.ts",
+      "sha256": "751da75af2aaf7ac2bb45591a35bc4dcd5ee4624f4b245be7975eb40e5478182",
+      "line_count": 1011,
+      "markers": [
+        {
+          "text": "async submitCatalogQuote",
+          "lines": [
+            529
+          ]
+        },
+        {
+          "text": "const doc = { ...data, createdAt: now, updatedAt: now }",
+          "lines": [
+            669
+          ]
+        }
+      ]
+    },
+    {
+      "id": "db-facade",
+      "ref": "main",
+      "path": "packages/db/src/index.ts",
+      "sha256": "a160feaa472253a62634b17f7bc64c49cb61dc2abc1e0bb944bb33405cbb2d44",
+      "line_count": 718,
+      "markers": [
+        {
+          "text": "export function createDoc",
+          "lines": [
+            211,
+            348
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oem-schema",
+      "ref": "main",
+      "path": "packages/shared/src/collections.ts",
+      "sha256": "ee94ab56aad5f03a990e88ab65f74df73d8368ecb79993382cd5aea5a290f5e2",
+      "line_count": 1783,
+      "markers": [
+        {
+          "text": "oemProjects",
+          "lines": [
+            239
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inquiry-model",
+      "ref": "main",
+      "path": "packages/db/src/catalog-inquiry.ts",
+      "sha256": "34aa49b358d3889c061431de9dbea782e51bf88b28d8b2d51f7bb05952ce7e69",
+      "line_count": 180,
+      "markers": [
+        {
+          "text": ".sort(",
+          "lines": [
+            70
+          ]
+        },
+        {
+          "text": "cmd.version !== item.version",
+          "lines": [
+            141
+          ]
+        },
+        {
+          "text": "events:",
+          "lines": [
+            33,
+            173
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quote-store-tests",
+      "ref": "main",
+      "path": "packages/db/src/catalog-inquiry-cloud.test.ts",
+      "sha256": "37d1570bc6357e8ef7575ec95210bff13aae98c8ac00b7a71ba92c4da054b548",
+      "line_count": 218,
+      "markers": [
+        {
+          "text": "test(",
+          "lines": [
+            107,
+            139,
+            150,
+            208
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-inquiry-api",
+      "ref": "main",
+      "path": "apps/site/src/islands/admin/inquiries/inquiry-api.ts",
+      "sha256": "5ebb63a9057b7f0efa7e29278433a2232ca91ebf7f3135b2eb6836c9d515d772",
+      "line_count": 85,
+      "markers": [
+        {
+          "text": "action: 'inquiry'",
+          "lines": [
+            29
+          ]
+        },
+        {
+          "text": "apiUrl",
+          "lines": [
+            7,
+            14,
+            24,
+            45
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-shell",
+      "ref": "main",
+      "path": "apps/site/src/islands/admin/DashboardShell.tsx",
+      "sha256": "52edcdec3dab0cde43dec91966da96fd38d4620c1be992da1b525f1593797144",
+      "line_count": 176,
+      "markers": [
+        {
+          "text": "Product Inquiries",
+          "lines": [
+            56,
+            70
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-product-page",
+      "ref": "main",
+      "path": "apps/site/src/islands/admin/inquiries/ProductInquiriesPage.tsx",
+      "sha256": "b71ba2f01448ff3dfd9abe0792079af185855a4c4cfcc5b7399f63695386a401",
+      "line_count": 133,
+      "markers": [
+        {
+          "text": "InquiryDetailPanel",
+          "lines": [
+            5,
+            22
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-detail",
+      "ref": "main",
+      "path": "apps/site/src/islands/admin/inquiries/InquiryDetailPanel.tsx",
+      "sha256": "50b6ab517144f22ea47da571c35fa1e78c2541e628c58112d51a7d4894cdd133",
+      "line_count": 268,
+      "markers": [
+        {
+          "text": "operationId",
+          "lines": [
+            79
+          ]
+        },
+        {
+          "text": "does not send email",
+          "lines": [
+            195
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-sections",
+      "ref": "main",
+      "path": "apps/site/src/islands/admin/sections.ts",
+      "sha256": "faf54e5c697e61ddabe87dfa14a6e412592c6691c4ce273454861f57e0466405",
+      "line_count": 70,
+      "markers": [
+        {
+          "text": "oemProjects",
+          "lines": [
+            36
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy-modal",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/InquiryForm.tsx",
+      "sha256": "b7a6720be98168bbf0058f0845c6f1647f8e0f97a41c95125a8e24d0714b9865",
+      "line_count": 189,
+      "markers": [
+        {
+          "text": "setTimeout",
+          "lines": [
+            32
+          ]
+        },
+        {
+          "text": "600",
+          "lines": [
+            32,
+            42,
+            57,
+            150,
+            159
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy-detail",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/ProductDetail.tsx",
+      "sha256": "dd9b1b56082ce8e4001c9d7dacbbd719c731080cd56ff0f318ac92bc7cc7f110",
+      "line_count": 204,
+      "markers": [
+        {
+          "text": "InquiryForm",
+          "lines": [
+            4,
+            196
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy-cart",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/InquiryCartBar.tsx",
+      "sha256": "97408366ca5d30d57386f571955fee39acdacf19dc7cacdd87bcc21d23811239",
+      "line_count": 124,
+      "markers": [
+        {
+          "text": "InquiryForm",
+          "lines": [
+            3,
+            115
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy-grid",
+      "ref": "main",
+      "path": "apps/site/src/islands/shop/ProductGrid.tsx",
+      "sha256": "208be726dd3484270fcc85bbe82554591f6291092dbe92daff02451b4ead9453",
+      "line_count": 197,
+      "markers": [
+        {
+          "text": "InquiryCartBar",
+          "lines": [
+            3,
+            194
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hidden-overstock",
+      "ref": "main",
+      "path": "apps/site/src/pages/_overstock.astro",
+      "sha256": "6bdb6e0fc198ff1e94ee0ac7374ecbbb0dcd20ec388ce7f7e98a674a9a5e4b94",
+      "line_count": 50,
+      "markers": [
+        {
+          "text": "ProductGrid",
+          "lines": [
+            6,
+            44
+          ]
+        }
+      ]
+    },
+    {
+      "id": "assistant-widget",
+      "ref": "main",
+      "path": "apps/site/src/islands/ai/AssistantWidget.tsx",
+      "sha256": "addde6a061b190ae1b3d5f6564a2205755953f97274156fcc0fd599643acecb4",
+      "line_count": 527,
+      "markers": [
+        {
+          "text": "idempotencyKey",
+          "lines": [
+            113
+          ]
+        },
+        {
+          "text": "oem-inquiry",
+          "lines": [
+            298,
+            376
+          ]
+        }
+      ]
+    },
+    {
+      "id": "assistant-contract",
+      "ref": "main",
+      "path": "packages/ai-contracts/src/index.ts",
+      "sha256": "a24433a5158495d3ff2e605651d2f7833f2f838cfb14769c7296ee1056cd0424",
+      "line_count": 82,
+      "markers": [
+        {
+          "text": "idempotencyKey",
+          "lines": [
+            13,
+            66,
+            67,
+            68
+          ]
+        }
+      ]
+    },
+    {
+      "id": "assistant-worker",
+      "ref": "main",
+      "path": "apps/ai-worker/src/worker.ts",
+      "sha256": "b709d377d42e104c05cdbc9eeb92c210e8895360f2a67f0f06af483caca5fd8d",
+      "line_count": 862,
+      "markers": [
+        {
+          "text": "handler_not_configured",
+          "lines": [
+            267
+          ]
+        }
+      ]
+    },
+    {
+      "id": "assistant-schema",
+      "ref": "main",
+      "path": "packages/ai-store/src/migrations/001_ai_assistant.up.sql",
+      "sha256": "63fdfa51f8d7e4fa59c08e9d075c9de48d19fe0b4cecba79f3d3908239b2b6ca",
+      "line_count": 163,
+      "markers": [
+        {
+          "text": "leads",
+          "lines": [
+            114
+          ]
+        },
+        {
+          "text": "outbox",
+          "lines": [
+            127,
+            143,
+            144
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase2-spec",
+      "ref": "phase2",
+      "path": "docs/ai-assistant-phase2/SPEC.md",
+      "sha256": "53863e35bf4281af52935b85cbad4ff3da7ee32c462b8d10e49ed817771b4eb6",
+      "line_count": 102,
+      "markers": [
+        {
+          "text": "prepare",
+          "lines": [
+            29
+          ]
+        },
+        {
+          "text": "submit",
+          "lines": [
+            29,
+            63
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase2-plan",
+      "ref": "phase2",
+      "path": "docs/ai-assistant-phase2/PLAN.md",
+      "sha256": "21b1ac6c7ae3a390f81ca51fad0b6dc91e4e7905826d972ba7e1279d4e8de966",
+      "line_count": 359,
+      "markers": [
+        {
+          "text": "conversation",
+          "lines": [
+            29,
+            53,
+            62,
+            64,
+            71,
+            80,
+            145,
+            164,
+            165,
+            167,
+            172,
+            279,
+            288,
+            325,
+            340
+          ]
+        },
+        {
+          "text": "IMAP",
+          "lines": [
+            298,
+            301
+          ]
+        },
+        {
+          "text": "SMTP",
+          "lines": [
+            298
+          ]
+        }
+      ]
+    },
+    {
+      "id": "public-switch",
+      "ref": "main",
+      "path": "apps/functions/public-api/src/index.ts",
+      "sha256": "8a32c9f7803e150a1730c0c08880df7f02a7ef8ad47cad2e10defe3049fc3c49",
+      "line_count": 37,
+      "markers": [
+        {
+          "text": "CATALOG_RFQ_ENABLED",
+          "lines": [
+            24
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin-switch",
+      "ref": "main",
+      "path": "apps/functions/admin/src/index.ts",
+      "sha256": "bdf0fdbacdfc05919a68125227ec35af7297791c55906993d28c22d5a6cc8de6",
+      "line_count": 44,
+      "markers": [
+        {
+          "text": "CATALOG_RFQ_ENABLED",
+          "lines": [
+            25
+          ]
+        }
+      ]
+    },
+    {
+      "id": "api-base",
+      "ref": "main",
+      "path": "apps/site/src/lib/api-url.ts",
+      "sha256": "0b3d741ef696c518ef6e90cf938758d7f8354cf21caea0b4a537ae9c59c45472",
+      "line_count": 27,
+      "markers": [
+        {
+          "text": "PUBLIC_API_BASE_URL",
+          "lines": [
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "identical_main_phase2": [
+    "packages/db/src/catalog-inquiry-cloud.ts",
+    "packages/db/src/catalog-quote.ts",
+    "packages/db/src/catalog-inquiry.ts",
+    "apps/functions/public-api/src/catalog-quote-http.ts",
+    "packages/shared/src/catalog/quote-draft.ts",
+    "apps/site/src/islands/shop/SharedDetailPreview.tsx"
+  ],
+  "unverified": [
+    "live_feature_flags",
+    "deployed_routes",
+    "database_records",
+    "SMTP_delivery",
+    "CloudBase_SDK_transaction_runtime",
+    "assistant_Phase_2_delivery"
+  ]
+}

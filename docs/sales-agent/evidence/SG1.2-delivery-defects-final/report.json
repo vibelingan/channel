@@ -1,0 +1,39 @@
+{
+  "scope": "targeted website delivery guards in disposable source copies; no account, provider or real mail",
+  "status": "failed",
+  "baseline": [
+    {
+      "id": "wrong_source_receipt",
+      "returncode": 0
+    },
+    {
+      "id": "absolute_deadline_removed",
+      "returncode": 0
+    },
+    {
+      "id": "stream_limit_removed",
+      "returncode": 0
+    },
+    {
+      "id": "terminal_source_allowed",
+      "returncode": 0
+    },
+    {
+      "id": "changed_registered_recipient_allowed",
+      "returncode": 143
+    }
+  ],
+  "mutants": [],
+  "source_hashes_before": {
+    "inquiry-sender.ts": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+    "website-delivery.ts": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+    "delivery-store.ts": "fbc094eecce7da0e567bdef7824bf62d94423629b0b3bd5c11ab3651de826098"
+  },
+  "failure": "Clean baseline failed: changed_registered_recipient_allowed\nTAP version 13\n\n\n\n143 !== 0\n",
+  "source_hashes_after": {
+    "inquiry-sender.ts": "7d298619e5b9e394d26f14058ba9d363adbb66891ed0f76bd85f052a1165deb2",
+    "website-delivery.ts": "11c0f720fd0168c603f319aaca280ecb56a77cb349f9aa4d1af064dd8d8ce093",
+    "delivery-store.ts": "fbc094eecce7da0e567bdef7824bf62d94423629b0b3bd5c11ab3651de826098"
+  },
+  "source_unchanged": true
+}

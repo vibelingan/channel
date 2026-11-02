@@ -14,6 +14,7 @@ import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
 import { createCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { handleAdminRequest } from './handler.ts';
 import {
   type AdminHttpConfig,
@@ -28,8 +29,10 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 const articleDeliveryMode = ArticlePublicationModeSchema.parse(
   optionalEnv('ARTICLE_DELIVERY_MODE') || undefined,
 );
+const salesCapture = salesCaptureFromEnv(process.env);
 const config: AdminHttpConfig = {
   articleDeliveryMode,
+  ...(salesCapture ? { salesCapture } : {}),
   jwtSecret: requireEnv('JWT_SECRET'),
   enableArticleReleases: optionalEnv('ARTICLE_PUBLISHING_ENABLED') === '1',
   articleQueueStatusKeyHash: optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),

@@ -1,0 +1,184 @@
+{
+  "date": "2026-10-26",
+  "scope": "design_and_artifacts_only",
+  "design_status": "awaiting_user_confirmation",
+  "development_paused": true,
+  "code_bases": {
+    "channel": "33e9f5041ac39ba96b49858ffd64e932b8a5582a",
+    "hermes": "2fbc50c466b2168aa57ef746eaeb0e2172c51e66"
+  },
+  "runtime_code_modified": false,
+  "schemas_modified": false,
+  "deployed": false,
+  "real_mail_sent": false,
+  "design_checks": {
+    "status": "passed",
+    "unit_count": 23,
+    "dag": "acyclic",
+    "topological_order": [
+      "SG0.1",
+      "SG0.2",
+      "SG1.0",
+      "SG1.1",
+      "SG2.1",
+      "SG2.2",
+      "SG1.2",
+      "SG2.3",
+      "SG3.1",
+      "SG3.2",
+      "SG4.1",
+      "SG4.2",
+      "SG5.1",
+      "SG5.2",
+      "SG8.1",
+      "SG5.3",
+      "SG4.3",
+      "SG8.2",
+      "SG6.0",
+      "SG6.1",
+      "SG6.2",
+      "SG7.1",
+      "SG7.2"
+    ],
+    "local_links_checked": 117,
+    "historical_copies": "hashes_match",
+    "protected_source_docs": "hashes_match",
+    "schema": "1 valid accepted, 2 invalid rejected; not an authorization test",
+    "scope": "design package checks only; no implementation or live validation"
+  },
+  "pdf": {
+    "pages": 6,
+    "text_extraction": "passed",
+    "rendered_pages_reviewed": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "visual_review": "passed"
+  },
+  "diagrams": [
+    {
+      "name": "modules",
+      "diagram_type": "architecture",
+      "output": "${SALES_WORKTREE}/docs/sales-agent/diagrams/modules.html",
+      "specification_sha256": "9277493be58071ed2bf7853040fe583f11c2f82b8bd720ca6c2b66b968892b56",
+      "artifact_sha256": "81b08cc0aebe995bfd1458cbc0e1dd4102d446d4c167d9b935f4ff6780c8cfac",
+      "validation": "9/9 showcase, 0 errors, 0 warnings",
+      "browser_evidence": "passed",
+      "visual_review": "passed",
+      "correction_rounds": 0,
+      "visual_correction_rounds": 0,
+      "reviewed_captures": [
+        "1440x900.light",
+        "1440x900.dark",
+        "2048x1320.light",
+        "2048x1320.dark"
+      ],
+      "containment_viewports": [
+        [
+          1440,
+          900
+        ],
+        [
+          1600,
+          1000
+        ],
+        [
+          1920,
+          1080
+        ],
+        [
+          2048,
+          1320
+        ]
+      ]
+    },
+    {
+      "name": "security-boundaries",
+      "diagram_type": "architecture",
+      "output": "${SALES_WORKTREE}/docs/sales-agent/diagrams/security-boundaries.html",
+      "specification_sha256": "2dfe466892dc395363a40824fc0418f05265d06e9e702e4ae918b00819df7e6e",
+      "artifact_sha256": "1f7afd3d273aa0ba40fb1e407b2dca53995fa07a91d6b8c872fed459fb4860f5",
+      "validation": "9/9 showcase, 0 errors, 0 warnings",
+      "browser_evidence": "passed",
+      "visual_review": "passed",
+      "correction_rounds": 2,
+      "visual_correction_rounds": 0,
+      "reviewed_captures": [
+        "1440x900.light",
+        "1440x900.dark",
+        "2048x1320.light",
+        "2048x1320.dark"
+      ],
+      "containment_viewports": [
+        [
+          1440,
+          900
+        ],
+        [
+          1600,
+          1000
+        ],
+        [
+          1920,
+          1080
+        ],
+        [
+          2048,
+          1320
+        ]
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "SECURITY-AND-TOOLS-DESIGN.md",
+      "sha256": "1f44ff014eedffbc355002cfa6e990c8d9c9ee92da9ca7f61d7bc6c32f646cd2",
+      "bytes": 30857
+    },
+    {
+      "path": "diagrams/security-design-review.source.md",
+      "sha256": "bf255a359527422ae709c15c066abe1a89f8d6b6448c2f90a6ed42eb02e2a660",
+      "bytes": 5772
+    },
+    {
+      "path": "diagrams/security-design-review.pdf",
+      "sha256": "e45ace564b2b8fa088ef26ed87deb02ca28c847be14f4fd0be609355cda0821d",
+      "bytes": 995522
+    },
+    {
+      "path": "diagrams/modules.json",
+      "sha256": "9277493be58071ed2bf7853040fe583f11c2f82b8bd720ca6c2b66b968892b56",
+      "bytes": 4471
+    },
+    {
+      "path": "diagrams/modules.html",
+      "sha256": "81b08cc0aebe995bfd1458cbc0e1dd4102d446d4c167d9b935f4ff6780c8cfac",
+      "bytes": 809163
+    },
+    {
+      "path": "diagrams/modules.png",
+      "sha256": "0c789e5e865970275aaeab7ba0e10ab4b7622baf292b12e983cde011e7d75aee",
+      "bytes": 458851
+    },
+    {
+      "path": "diagrams/security-boundaries.json",
+      "sha256": "2dfe466892dc395363a40824fc0418f05265d06e9e702e4ae918b00819df7e6e",
+      "bytes": 4372
+    },
+    {
+      "path": "diagrams/security-boundaries.html",
+      "sha256": "1f7afd3d273aa0ba40fb1e407b2dca53995fa07a91d6b8c872fed459fb4860f5",
+      "bytes": 809835
+    },
+    {
+      "path": "diagrams/security-boundaries.png",
+      "sha256": "79f37cfcd36cacf71f9507e1415cf0cf9b210ff074d944c587c51890cc7384eb",
+      "bytes": 453510
+    }
+  ],
+  "review": "Author source and design review; not an independent security certification"
+}

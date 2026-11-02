@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-29",
+  "scope": "static design prototype; no real WeCom backend or sending",
+  "screen_count": 18,
+  "layout_checks": 90,
+  "layout_widths": [
+    320,
+    390,
+    768,
+    1024,
+    1440
+  ],
+  "layout_failures": [],
+  "journeys": {
+    "review_v3_stays_v3": true,
+    "redraft_uses_v4": true,
+    "pause_is_single_task": true
+  },
+  "corrections": [
+    "Print layout retains task action buttons",
+    "Explicit review recipient in private preview/confirmation",
+    "Preview/confirmation/quote preserve the same v3 or v4 context"
+  ],
+  "browser_js": "Playwright CLI sales-design-controls session; local static HTTP only",
+  "artifacts": {
+    "wecom-controls.html": {
+      "sha256": "7d97dcb2221b1dfad1885994a2369fde7358cdf33305e5440aa100f847c657a3",
+      "bytes": 21289
+    },
+    "wecom-screens.json": {
+      "sha256": "25f441dbdf414a98209a8d3e456256006e52877202bdf7569f4ae4cbe9135084",
+      "bytes": 15419
+    },
+    "WeCom-Interaction-Screens.pdf": {
+      "sha256": "91ae00df3b80d9090c5772661e763d3f8a157b41c47be2e621dadc35376baf8b",
+      "bytes": 714460
+    },
+    "task-control-flow.html": {
+      "sha256": "c1d5f64cc78247dbbc0f491691bea76171b2ec6fdfa85f212d1d13d489906c0e",
+      "bytes": 805464
+    }
+  }
+}

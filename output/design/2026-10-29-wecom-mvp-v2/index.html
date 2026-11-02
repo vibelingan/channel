@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>企微销售助手 · 完整操作样稿 v2</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><div class="eyebrow">CHANNEL × HERMES / INTERACTION SAMPLE V2</div><h1>点一遍，看看下一步发生什么</h1><p>本期先做邮件准备、预览、改稿与确认发送。暂停、恢复和接管保留为后续设计。</p></div>
+    <div class="prototype-label">交互设计 · 示例数据 · 无真实操作</div>
+  </header>
+  <div class="modebar"><div role="group" aria-label="方案范围"><button data-mode="mvp" aria-pressed="true">本期 MVP</button><button data-mode="future" aria-pressed="false">后续控制 · 仅看设计</button></div><div role="group" aria-label="消息入口"><button data-entry="buttons" aria-pressed="true">原生卡片按钮示意</button><button data-entry="quote" aria-pressed="false">文字引用备选</button></div><span id="mode-note">本期不提供暂停、恢复、接管和群内终止。</span></div>
+  <main class="workspace">
+    <aside class="navigator" aria-label="演示导航">
+      <h2>选择一条任务</h2>
+      <button class="task-select" data-task="A"><strong>Q-1042 · ACME</strong><span>500 份耳机 · HTML + 2 个附件</span><small id="task-a-status"></small></button>
+      <button class="task-select" data-task="B"><strong>Q-1043 · NOVA</strong><span>先询问目的地 · 纯文字，无附件</span><small id="task-b-status"></small></button>
+      <h2 class="section-title">推荐你这样体验</h2>
+      <ol class="journey-list"><li>点「查看邮件」读群内预览</li><li>点「查看完整邮件」看跳转表面</li><li>逐个查看附件，再返回原任务</li><li>点「引用改稿」写一句意见</li><li>新版本生成后重新预览</li><li>确认具体版本，再看发送结果</li></ol>
+      <div class="viewer-actions"><button id="show-stale">查看一张旧卡片</button><button id="show-ambiguous">模拟没有引用的指令</button><button id="reset">重置示例</button></div>
+      <p class="fineprint">左侧、顶部和右侧是样稿查看器，不是企微原生界面。聊天区域只示意受支持的消息和卡片结构。</p>
+    </aside>
+    <section class="experience" aria-label="当前操作画面"><div id="surface"></div><section id="simulation" aria-label="设计查看器的模拟操作"></section><div id="live-announcement" class="sr-only" aria-live="polite"></div></section>
+    <aside class="inspector" aria-label="这一步的说明"><div id="step-explanation"></div><section class="capability-note"><h3>平台边界</h3><p>群里是摘要预览，不能把任意邮件 HTML 当作企微消息直接发送。卡片按钮由企微模板和客户端样式决定，本页外框不是可投放的 HTML。原生按钮只能使用平台规定的样式，不能任意自定义 CSS。</p><p>完整邮件与附件需按需打开工作台或鉴权预览。本样稿用独立画面模拟这个切换，没有登录 Resend，也没有伪造真实草稿链接。</p><p>所有状态和回执均是本地演示。真实身份、版本锁定、发送幂等与外部结果核对仍须后台实现。</p></section></aside>
+  </main>
+  <footer>2026-10-29 · 本页不会调用模型、企业微信、Resend、Apollo 或真实发送接口。</footer>
+  <script src="app.js"></script>
+</body>
+</html>

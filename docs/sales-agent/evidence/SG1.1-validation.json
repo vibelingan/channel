@@ -1,0 +1,68 @@
+{
+  "unit": "SG1.1",
+  "status": "implemented_verified_offline",
+  "scope": "local source, isolated HTTP socket, synthetic records and final package; no deployment or live provider call",
+  "base_commit": "404d1a257722175dcd70916e3f92ec6763fa0243",
+  "tests": {
+    "node": {
+      "packages": 6,
+      "tests": 565,
+      "passed": 565,
+      "failed": 0,
+      "sales_api_tests": 15
+    },
+    "python": {
+      "tests": 6,
+      "passed": 6
+    },
+    "conformance": {
+      "cases": 58,
+      "languages": [
+        "TypeScript",
+        "Python"
+      ],
+      "passed": true
+    },
+    "typecheck": [
+      "sales-contracts",
+      "fn-sales-integration"
+    ],
+    "generated_contracts": "passed",
+    "cloudbase_sdk_contract": "passed",
+    "biome": "14 source/script files passed",
+    "attachment": {
+      "loopback_bytes_compared": [
+        27,
+        2097179,
+        10485760
+      ],
+      "max_response_bytes": 4194304,
+      "large_file_transport": "three closed byte ranges; complete bytes compared",
+      "real_gateway_tested": false
+    }
+  },
+  "artifact": {
+    "path": "apps/functions/sales-integration/dist/package/index.js",
+    "bytes": 1527338,
+    "sha256": "98905e12958a78dc136c25a480e3ab834a165faa285e8d9be1c86ddd42960599",
+    "standalone_cold_start": "passed without workspace, node_modules or schema sidecars",
+    "bootstrap_executable": true
+  },
+  "compatibility_pins": {
+    "pricing": "27611ff69fecc7f8746b21e3c2844e011c08eb5b",
+    "seo": "cd4df7e2518ae8cc7b7445d3a9cc04ba803e321c"
+  },
+  "tdd_observations": [
+    "positive source reads failed before handler implementation",
+    "foreign client/business source was incorrectly accepted before scope guard",
+    "private body overflow failed before streaming bound",
+    "Range was ignored and oversized HTTP response was accepted before bounded transport"
+  ],
+  "live": {
+    "deployed": false,
+    "hermes_runtime": false,
+    "customer_data_read": false,
+    "resend_draft": false,
+    "email_delivered": false
+  }
+}

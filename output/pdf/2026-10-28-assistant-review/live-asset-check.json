@@ -1,0 +1,15 @@
+{
+  "asset": "https://supplychainsai.com/_astro/AssistantWidget.PvdNAv7f.js",
+  "sha256": "eddbc79368fa33d73fbae4d9232a31ff1b63405d57d60286cf57e88e5ee7dd0c",
+  "bytes": 9616,
+  "ai_service_urls": [
+    "https://ai-bff-298020-11-1443560658.sh.run.tcloudbase.com"
+  ],
+  "strings": {
+    "I could not ground an answer": true,
+    "assistant is unavailable": true,
+    "channel.ai.conversation.v1": true
+  },
+  "has_PR_waiting_copy_exact": false,
+  "has_replyTo_binding": false
+}
