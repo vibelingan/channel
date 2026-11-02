@@ -1,12 +1,12 @@
 # 官网助手第二轮：整改设计、执行顺序与剩余工作（定稿）
 
-2026-11-02，日本时间。状态：**定稿，待负责人确认后开始实现**。本版由 Claude 在 Codex 草稿基础上按负责人逐条意见修订，取代草稿，不再交 Codex 复核。
+2026-11-02，日本时间。状态：**定稿，负责人已确认（2026-11-02 第二轮讨论后），按 §10 顺序实施**。本版由 Claude 在 Codex 草稿基础上按负责人逐条意见修订，取代草稿，不再交 Codex 复核。
 
 代码基点：channel 整合分支 `feat/sales-assistant` `765c4a65`（= 官网助手 `46895b62` 合并 Channel Sales `e2f55b7c`，见 §12）；Hermes Sales `9c30d4b`（`hermesinfra` `feat/sales-agent-runtime`）。
 
 本版相对草稿的改动：
 
-- §6 点产品的交互改为**聊天内产品速览**（手机底部半屏、桌面聊天旁侧栏），新增可复用的 Sheet 组件；完整详情页仍可同标签页打开并续聊。
+- §6 点产品：同标签页打开完整产品页并恢复聊天（桌面自动展开，手机显示“继续刚才的对话”入口）。曾评估的页内半屏／侧栏速览因手机上必然遮挡聊天而放弃，不做 Sheet 组件。
 - MIU 17 保留“跳页时正在生成的回答接着续上”：现有接口已按幂等键去重并支持 `Last-Event-ID` 续读，成本低于草稿评估。
 - MIU 16 冲突处理简化为“显示改了什么＋整体采用或保留＋手改”；MIU 19 用模型返回用量＋保守估算，重点放在结构化需求摘要；MIU 20 的缺陷注入只覆盖七道关键门禁。
 - 新增 §12 仓库／分支整合与整理方案（含 Hermes 202 个文件的审计）、§13 环境与权限方案、§14 待确认项。
@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | 提交后只看到结果未知 | 区分明确拒绝、明确成功、真正未知；测试身份由服务器标记，正常公司名不承担测试开关作用 | P0 |
 | 表单遮住整段聊天 | 询盘作为一条可编辑的聊天消息；保留上下文和输入框，取消 Back to chat | P0 |
-| 点产品后聊天消失 | 默认在聊天内打开产品速览（Sheet），聊天不离开；需要完整页时同标签页跳转并恢复同一会话 | P0 |
+| 点产品后聊天消失 | 同标签页打开完整产品页，并恢复同一会话、草稿和进行中的回答 | P0 |
 | 刷新／跳页丢会话 | 同标签页恢复原会话、草稿和正在生成的回答，不重复调用模型 | P0 |
 | 卡片向下堆积 | 每批最多五张，消息内横向浏览；桌面箭头和圆点，手机滑动和下一张边缘提示 | P1 |
 | 不知道接下来怎么问 | 每次回答后最多三个与当前需求有关的建议，点击后显示为用户自己的新问题 | P1 |
@@ -160,7 +160,7 @@ resultSetId 对应这次用户问题和筛选条件。左右滑动、点圆点�
 
 产品卡里的“询这款”直接带入该产品。已有另一款未提交草稿时，清楚提示更换产品，不能静默把 A 的询盘改成 B；提交过程中不切换原提交身份。成功后核对卡变成紧凑回执，显示单号、产品和已确认需求；AI 后续说“好的”不会再创建一条询盘。
 
-## 6. 点开产品：聊天内速览，完整页同标签页续聊
+## 6. 点开产品：同标签页打开完整产品页，聊天接着用
 
 ### 6.1 当前缺口
 
@@ -169,75 +169,51 @@ resultSetId 对应这次用户问题和筛选条件。左右滑动、点圆点�
 - AssistantWidget 只挂在首页、OEM 和耳机页；两类产品详情页没有挂助手。
 - 本地 Vite 聊天验收页没有整站路由，`/products/item/?id=...` 返回 404；这不是数据缺失。
 
-已有可复用的能力：回答按 `idempotencyKey` 建立，BFF 返回同一 operation 时不新建 run（`http-adapter.ts` 校验 `operationKey`），事件流用 `Last-Event-ID` 从游标续读；`SkuDetailPage` 接受 `productId` 参数并用 `fetchCatalogItem` 读取公开商品；`CatalogQuoteSheet` 已经是一个原生 `<dialog>` 底部弹层（手机贴底、桌面居中）。
+已有可复用的能力：回答按 `idempotencyKey` 建立，BFF 返回同一 operation 时不新建 run（`http-adapter.ts` 校验 `operationKey`），事件流用 `Last-Event-ID` 从游标续读；产品详情页 `SkuDetailPage` 已能按 `productId` 读取公开商品。
 
-### 6.2 方案比较与决定
+### 6.2 方案比较与决定（负责人确认）
 
-| 方案 | 做法 | 优点 | 问题 |
-| --- | --- | --- | --- |
-| A 同标签页跳详情页并恢复聊天（草稿主方案） | 保存凭据与锚点 → 跳转 → 新页面验证后恢复、自动展开 | 有真实 URL，可分享、可 SEO | 每次看产品都整页重载；依赖快照恢复链路；手机上自动展开的聊天会挡住刚打开的产品 |
-| B 页内产品速览（负责人提议） | 不跳页，在当前页面拉起产品面板；聊天组件一直挂着 | 聊天状态天然保留，无需恢复；最稳定；回来时滚动位置不变 | 速览不是完整详情页，需要“查看完整页面”入口 |
-| C 新标签页（现状） | `target="_blank"` | 零成本 | 用户感觉聊天消失，回不去 |
-
-**决定：B 为默认，A 作为速览里的“查看完整页面”。** 理由：最常见的动作是“看一眼这款，再接着问”，B 不需要任何恢复就能做到；A 仍然需要（用户要细看、刷新、分享时），而它依赖的会话恢复（MIU 17）本来就要做，所以两者都做，但 A 不再是主路径。
-
-这个“半屏”不是 WebView，也不是带独立 URL 的页面，而是同一页面里的一个 React 组件（原生 `<dialog>` 元素）。它只在浏览器历史里压一条不改 URL 的记录，让手机返回键先关闭面板而不是离开页面。
-
-### 6.3 可复用的 Sheet 组件
-
-位置：`apps/site/src/components/overlay/`，与现有 `components/chat/` 同级。仓库里的 `packages/*` 目前都是非 UI 逻辑包，React 只有 site 一个应用，所以先不单独建 UI package；出现第二个消费方时再抽。`CatalogQuoteSheet` 这轮不迁移（涉及报价流程），后续单独改用 Sheet。
-
-```tsx
-type SheetProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;                         // 必填，作为 aria-labelledby
-  placement?: 'auto' | 'bottom' | 'side'; // auto：<1024px 底部，≥1024px 侧栏
-  detent?: 'half' | 'full';               // 仅底部；受控或非受控
-  onDetentChange?: (d: 'half' | 'full') => void;
-  modal?: boolean | 'auto';               // auto：底部为模态，侧栏为非模态
-  closeOnBack?: boolean;                  // 默认 true：压一条同 URL 的 history 记录
-  returnFocusRef?: RefObject<HTMLElement | null>;
-  footer?: ReactNode;                     // 固定在底部的操作区
-  children: ReactNode;                    // 内容区自己滚动
-};
-```
-
-配套：
-
-- `overlay-stack.ts`：全页面唯一的叠层栈。Esc、返回键、点遮罩只关闭最上层；滚动锁按层计数，最后一层关闭才解锁。聊天面板、产品速览、询盘里的确认框都登记在同一个栈里。
-- `useSheetController<T>()`：`{ open, payload, show(payload), close(), detent, setDetent }`，调用方只管“给谁看什么”，不自己管 history 和焦点。
-
-行为：
-
-| 项目 | 手机／平板（<1024px） | 桌面（≥1024px） |
+| 方案 | 做法 | 结论 |
 | --- | --- | --- |
-| 位置 | 底部弹层，盖在聊天面板之上 | 侧栏，贴在聊天面板左侧、同高，宽 `min(26rem, 可用宽度)` |
-| 高度 | 半屏约 55dvh；顶部把手点按或上滑展开到约 92dvh；下滑或点遮罩关闭 | 与聊天面板同高 |
-| 模态 | 模态（`showModal`），有遮罩，焦点限制在面板内 | 非模态，聊天仍可输入，边看产品边问 |
-| 手势 | 只在把手区域识别拖动，内容区正常纵向滚动，不拦截整面板触摸 | 无 |
-| 返回 | 系统返回键／浏览器后退先关闭面板 | 同左 |
-| 焦点 | 打开时聚焦标题，不自动聚焦输入框（避免弹键盘）；关闭后回到原卡片的“查看产品”按钮 | 同左 |
-| 动画 | 尊重减少动画设置；不做三维堆叠 | 同左 |
+| A 同标签页跳完整产品页，聊天恢复 | 保存会话与锚点 → 当前标签页跳转 → 新页面验证后恢复 | **采用** |
+| B 页内半屏／侧栏产品速览 | 不跳页，在当前页拉起产品面板 | 不采用，原因见下 |
+| C 新标签页（现状） | `target="_blank"` | 不采用：用户感觉聊天消失，回不去 |
 
-### 6.4 产品速览内容（ProductPeek）
+不采用 B 的原因（按实际尺寸核对）：
 
-- 数据：`useProductPeek(productId)`，复用 `api.ts` 的 `fetchCatalogItem`，带 AbortController 和本页内存缓存；显示读取时间。下架、无权限、读取失败分别显示原因和重试，不显示旧报价冒充当前报价。
-- 内容：图片、名称、公开规格、MOQ 与公开价格档（只显示已发布数据）。
-- 操作（固定在底部）：**询这款**（关闭速览，进入 MIU 16 的聊天内询盘卡）、**在聊天里问**（往输入框放入“关于 X：”，不自动发送；已有草稿不覆盖）、**查看完整页面**（走 6.5）。
-- 聊天上下文：速览打开时只把 `viewingProductId` 告诉会话；服务端仍按公开产品接口核对后才用作回答依据。
+- 手机上聊天面板宽为 `100vw - 2rem`、高为 `min(38rem, 100svh - 7rem)`，几乎是全屏。半屏产品面板只能盖住聊天下半截，恰好是输入框和最新回答；如果改为把聊天顶上去，两边都只剩半屏，都看不全。手机上无论怎样都只能一次看一样，半屏只是多出一个不上不下的状态。
+- 桌面上聊天是右下角 24rem 浮窗。跳到完整产品页再展开聊天，左边是产品、右边是聊天，本身就能边看边问，不需要另做侧栏。
+- 会话恢复（MIU 17）无论如何都要做（刷新也会丢会话），A 的增量成本小；B 还要另做一份缩略产品视图和叠层管理，没有其他使用方。
 
-### 6.5 完整详情页：同标签页跳转并续聊
+因此本轮**不做** Sheet、ProductPeek、叠层栈，`CatalogQuoteSheet` 保持不变。
+
+### 6.3 交互规则
+
+| 情况 | 桌面（≥1024px） | 手机／平板（<1024px） |
+| --- | --- | --- |
+| 点卡片上的“查看产品” | 当前标签页跳到产品页，聊天自动展开，停在来源卡片 | 当前标签页跳到产品页，聊天收成启动按钮，按钮显示“继续刚才的对话”；不自动展开，以免挡住产品 |
+| 在产品页再打开聊天 | — | 点按钮即全屏恢复，停在来源卡片 |
+| 离开期间回答写完 | 直接显示最终回答 | 启动按钮上显示提示点 |
+| 浏览器返回上一页 | 上一页恢复聊天，停在来源卡片 | 同左，按离开时的展开状态恢复 |
+| 浮窗挡住产品右栏 | 1024–1440px 宽度会挡住部分规格／价格，可随时收起；试用后若仍觉得挡，再评估“贴边停靠”（页面让出聊天宽度） | — |
+
+- 不做“把聊天滑到屏幕边缘”的手势：iOS 和 Android 都把边缘滑动当作返回，容易冲突；收起成按钮就是贴边状态。
+- 跳页时回答还在生成：到新页面后用原 idempotencyKey 与游标续读，不再调用一次模型（MIU 17）。
+- 询盘草稿填到一半：随会话恢复，不丢失。
+- 用户长按或用快捷键在新标签页打开：新标签没有本标签页的 sessionStorage，按新对话处理，原标签不受影响。这是有意的，避免凭据跨标签共享。
+- 每次跳页要重新读取产品数据，海外访客在 CloudBase 网关上每次多 0.6–3 秒。缓解方式不是另做速览，而是让 MIU 14 的卡片本身带足比较信息（图片、名称、关键规格、MOQ、公开价格档），横滑即可比较，只有要细看某一款才跳页。
+
+### 6.4 完整详情页：同标签页跳转并续聊
 
 ```mermaid
 sequenceDiagram
   participant U as 用户
-  participant C as 当前页（速览）
+  participant C as 当前页（聊天）
   participant S as 同标签页 sessionStorage
   participant P as 产品详情页
   participant B as 原 BFF/会话库
-  U->>C: 查看完整页面
-  C->>S: 保存会话凭据、进行中的回答、草稿、来源卡片锚点
+  U->>C: 查看产品
+  C->>S: 保存会话凭据、进行中的回答、草稿、来源卡片锚点、展开意图
   C->>P: 当前标签页导航（既有 publicKey URL）
   P->>S: 读取短期恢复信息
   P->>B: 用原凭据读会话快照
@@ -247,10 +223,7 @@ sequenceDiagram
 ```
 
 - 新增薄的 `AssistantHost`，由首页、OEM、耳机和两类产品页复用；每页只挂一个助手。不改 SEO 共用的 BaseLayout，不在 admin 挂公共客服。URL 复用既有 publicKey 规则，不改 canonical、sitemap、pricing。
-- 手机端在详情页**不自动展开**整块聊天（否则挡住用户刚要看的产品），只在启动按钮上显示“继续刚才的对话”，一点即恢复到原卡片位置。桌面端自动恢复展开面板。这取代草稿里待定的“手机半屏展开”。
-- 用户自己用快捷键开新标签不禁止；新标签没有该标签页的 sessionStorage，按新会话处理。
-
-sessionStorage 规则沿用草稿：按站点／业务／协议版本分区，只保存凭据、expiresAt、最后事件序号、进行中回答的 idempotencyKey 与游标、展开意图、来源消息和卡片 ID、必要的未提交草稿。消息正文以服务端会话库为准。凭据不进 URL、日志或模型；服务器仍校验凭据和会话归属。有效期以服务端 expiresAt 为准（默认 24 小时）。恢复只执行一次，找不到锚点时恢复最新位置并说明。跨设备、跨浏览器、清除存储后的恢复与登录账号历史继续后置。
+- sessionStorage 按站点／业务／协议版本分区，只保存凭据、expiresAt、最后事件序号、进行中回答的 idempotencyKey 与游标、展开意图、来源消息和卡片 ID、必要的未提交草稿。消息正文以服务端会话库为准。凭据不进 URL、日志或模型；服务器仍校验凭据和会话归属。有效期以服务端 expiresAt 为准（默认 24 小时）。恢复只执行一次，找不到锚点时恢复到最新位置并说明。跨设备、跨浏览器、清除存储后的恢复与登录账号历史继续后置。
 
 ## 7. Conversation Memory 与成本
 
@@ -372,15 +345,15 @@ DeepSeek chat-completions 是无状态调用，应用需要把需要的上下文
 - 验收：`refresh_resumes_same_conversation`、`foreign_credential_cannot_read_snapshot`、`expired_session_is_not_silently_resubmitted`、`inflight_reply_resumes_without_second_model_run`、`finished_run_during_navigation_shows_final_answer`、`unknown_submission_survives_refresh_with_same_key`。
 - 依赖：MIU 12 的提交身份与结果模型。
 
-### MIU 18：Sheet 组件、聊天内产品速览与完整页续聊
+### MIU 18：同标签页打开产品页并续聊
 
 - 场景：现有链接开新 tab，产品页未挂助手；Vite 人工入口产品路由 404。
-- 数据：速览只需 productId 与卡片锚点；完整页导航意图含消息／产品／批次锚点和展开意图，授权来自原凭据。
-- 改动位置：新增 `components/overlay/`（Sheet、overlay-stack、useSheetController）、ProductPeek 与 useProductPeek；AssistantMessages 产品按钮；ChatPanel 登记叠层栈；薄的 AssistantHost 与五个挂载页；真实 Astro 手工入口和固定公开读取配置。
-- 核心流程：速览 `show(productId) → fetchCatalogItem → 关闭回原卡片`；完整页 `saveAnchor -> sameTabNavigate -> verifySnapshot -> restore`。单纯看产品不请求模型。
-- 选择：见 §6.2–6.5。不通过全局重写 BaseLayout 改动 SEO；每页一个 widget；CatalogQuoteSheet 本轮不迁移。
-- 验收：Sheet 组件测试（打开／关闭、Esc 与返回键只关最上层、焦点进出、滚动锁计数、减少动画、把手拖动不影响内容滚动、320/390/430/768/1024/1440px 布局）；速览加载／下架／失败／重试；速览中“询这款”“在聊天里问”；完整页点开、刷新、后退／前进、桌面自动展开与手机“继续对话”入口、原卡片位置、导航时仍在回答或保存、直接访问产品页、无双 widget、无第二次生成。涉及公开页时跑原 SEO 合同与构建。
-- 依赖：MIU 17（完整页部分）；速览部分只依赖 Sheet，可先做。与 MIU 14 共享按 productId 的卡片锚点。
+- 数据：导航意图含来源消息／产品／批次锚点和展开意图，授权来自原凭据（MIU 17 的恢复数据）。
+- 改动位置：AssistantMessages 产品按钮改为同标签页导航并先保存锚点；薄的 AssistantHost 与五个挂载页；ChatPanel 启动按钮的“继续刚才的对话”状态和提示点；真实 Astro 手工入口和固定公开读取配置。
+- 核心流程：`saveAnchor -> sameTabNavigate -> verifySnapshot -> restore -> scrollToAnchor`。单纯看产品不请求模型。
+- 选择：见 §6。不通过全局重写 BaseLayout 改动 SEO；每页一个 widget；不做 Sheet／速览；CatalogQuoteSheet 不变。
+- 验收：`product_link_navigates_same_tab`、`desktop_restores_expanded_at_source_card`、`mobile_shows_continue_launcher_not_expanded`、`launcher_marks_answer_finished_while_away`、`back_restores_previous_page_chat`、`navigation_mid_answer_has_no_second_model_run`、`navigation_mid_save_keeps_same_submission`、`new_tab_starts_fresh_conversation`、`direct_product_visit_has_single_widget`、`missing_anchor_restores_latest_with_notice`；320/390/430/768/1024/1440px 截图核对；公开页 SEO 合同与构建。
+- 依赖：MIU 17。与 MIU 14 共享按 productId 的卡片锚点。
 
 ### MIU 19：结构化需求摘要、有效上下文与用量
 
@@ -396,7 +369,7 @@ DeepSeek chat-completions 是无状态调用，应用需要把需要的上下文
 ### MIU 20：按真实使用路径整合验收
 
 - 场景：此前技术链路通过，却漏掉正常公司名、产品跳页及试用入口差异。
-- 范围：真实 Astro 首页 → 真实提问 → 五张以内卡片 → 横滑／追问 → 聊天内速览 → 完整详情页并续聊 → 聊天内询盘 → 后台读回 → 自动 Sales 待审核成果。
+- 范围：真实 Astro 首页 → 真实提问 → 五张以内卡片 → 横滑／追问 → 同标签页打开完整详情页并续聊 → 聊天内询盘 → 后台读回 → 自动 Sales 待审核成果。
 - 选择：自动化和人工试用分开记录；人工入口不再用只有聊天页的测试壳冒充整站。
 - 必测：正常公司名、已知拒绝、回执丢失、重复确认、导航时还在回答／保存、切换产品、报价／交期不瞎承诺、产品下架、移动端键盘、20/30 轮记忆、不同访客与租户隔离。
 - 缺陷注入（只做关键门禁，已确认）：目的是证明“测试真的会抓到问题”。做法是一个脚本对代码打一个很小的补丁，故意拆掉一道保护，只跑对应的测试文件，期望它失败，然后还原。测试失败记为 killed（测试有效）；测试仍通过记为 survived（这道保护其实没被测到，必须补测试）。只做以下七项，每次发布前手动跑一次，不放进每次 CI：
@@ -413,12 +386,12 @@ DeepSeek chat-completions 是无状态调用，应用需要把需要的上下文
 ## 10. 实施顺序与交付门槛
 
 0. 已完成：channel 整合分支 `feat/sales-assistant`（§12.2）。
-1. 确认后先做整理提交（§12.3 的 channel 部分，§12.4 的 H1–H3 在 hermesinfra 分支并行）。
+1. 整理提交：§12.3 的 channel 部分；§12.4 的 H1、H2 在 hermesinfra 分支。
 2. MIU 12，解除当前无法提交的阻塞。
-3. MIU 18 的 Sheet 组件与产品速览（不依赖恢复，可早给你试用）。
-4. MIU 17 → MIU 16 → MIU 18 的完整页续聊部分。
-5. MIU 13 → 14 → 19 → 15。
-6. MIU 20 整站回归与七项缺陷注入。
+3. MIU 17 → MIU 16 → MIU 18。
+4. MIU 13 → 14 → 19 → 15。
+5. MIU 20 整站回归与七项缺陷注入。
+6. Sales 流程开发完成并可部署后，再做 H3（登记 Sales agent）。
 
 每个单元都要说明实现位置、复用部分、实际通过的检查、尚未实测的边界；通过后提交并推送 `feat/sales-assistant`。遇到 pricing／SEO 的不可兼容冲突，先停止这部分整合，不改他人工作。全部完成后从 `feat/sales-assistant` 向 main 开一个 PR。
 
@@ -443,7 +416,7 @@ UI/UX Pro Max 的本地检索用于核对错误反馈、键盘和触摸操作。
 | 官网助手（询盘前半段：客户与我们的第一轮交互） | channel `feat/website-assistant-ui-foundation` | 前端组件、BFF、worker、会话库、VibeKB engine |
 | Channel 侧 Sales 落盘 | channel `feat/sales-agent-integration` | `apps/functions/sales-integration`、`packages/sales-contracts`、`packages/db` 的 sales-inquiry-*、后台询盘摘要 |
 | Sales Agent 运行时（处理落盘记录、生成内容） | hermesinfra `feat/sales-agent-runtime` | `deploy/hub/sales_flow`，独立 HTTP 服务＋worker＋专用 MySQL |
-| VibeEntAgentsFoundation | main，最后提交 2026-08-08 | 只有设计文档，没有 sales 分支，本轮代码不涉及 |
+| VibeEntAgentsFoundation | 独立仓库，与 hermesinfra 没有共同提交历史 | “Vibelingan Enterprise Brain” 需求文档与 `feature/phase1-mvp`（Go 控制面，最后提交 2026-08-20）；无 Sales 代码，不引用 channel，本轮不涉及。交接里说的 “Foundation／Hermes Infra” 指 hermesinfra（负责人另一台机器上的本地目录名） |
 
 ### 12.2 channel 分支决定（已执行）
 
@@ -457,10 +430,13 @@ UI/UX Pro Max 的本地检索用于核对错误反馈、键盘和触摸操作。
 - 合并暴露两个真实问题并已修：`sales-contracts` 引入的 `jsonc-parser` 默认入口是 UMD 构建，打进 admin 云函数包后冷启动报 `Cannot find module './impl/format'`，改为引入它的 ESM 构建；admin 入口合同测试补上新的 sales 配置依赖。
 - 检查：全仓 typecheck 通过；根目录与各包单测 1264 项通过；`apps/site` 有 103 项失败，与未合并的官网助手分支完全相同（合并前已存在，集中在后台产品页浏览器测试），不是本次引入，单独排查。
 
-### 12.3 channel 侧整理（确认后作为第一个提交）
+### 12.3 channel 侧整理（已确认，第一个提交）
 
-- `output/` 本来在 `.gitignore` 里，但被强制加入了 93 个文件（约 11MB 设计截图／PDF，其中 71 个来自 Sales 分支）。从 git 移除，文件留在本地或放到发布附件。
-- `docs/sales-agent/evidence/` 49 个证据文件保留（体积小），只补一个索引；不再为每轮验收新增一堆文件，改为追加到索引和一份交付记录。
+- 先在整理前的提交上打归档 tag `archive/process-evidence-2026-11-02`，再从分支删除过程文件；需要时用 `git show <tag>:<path>` 取回。
+- 删除被强制提交、但本在 `.gitignore` 里的文件：`output/` 下 93 个设计截图／PDF（约 11MB）和 `.claude/` 下两份本地复核记录。
+- 归档 `docs/sales-agent/evidence/`、`docs/sales-agent/diagrams/*.visual-check.*` 截图，以及 `docs/sales-agent`、`docs/ai-platform/assistant-ui` 里逐轮的计划／交付／验证文件；各目录 README 改为“当前状态＋设计索引＋归档说明”。
+- 让脚本不再往 `docs/` 写证据：Sales 的两个缺陷注入脚本默认写到 `output/sales-agent/`，CI 上传路径同步改。
+- `AGENTS.md` 与 `CLAUDE.md` 写明不提交本地产物；CI 增加检查：`git ls-files -ci --exclude-standard` 有输出即失败。
 
 ### 12.4 Hermes 202 个文件的审计
 
@@ -479,11 +455,11 @@ UI/UX Pro Max 的本地检索用于核对错误反馈、键盘和触摸操作。
 3. **代码量对需求来说不算离谱，但它是一套平行系统。** Hub 现有的 `hubkit/taskqueue` 是按聊天消息判断忙闲的轻量队列，不适合需要幂等、可审计、按客户隔离的询盘处理，所以单独做服务有道理。问题是 Sales 没有作为 agent 登记到 `deploy/hub/agents/*.json`，现有协调层看不到它。
 4. **授权层偏重。** 5 个 sales-auth-* schema 加 lease／permit／handoff 多层授权，是为多客户、多运行账户设计的；当前只有一个负责人部署，偏重。但它已有测试、涉及安全，本轮不推倒。
 
-整理方案（在 hermesinfra 分支做，合 main 之前完成）：
+整理方案（在 hermesinfra `feat/sales-agent-runtime` 做，负责人已确认）：
 
-- H1：证据与逐轮文档移出主线，只保留 `sales_flow/README.md`、一份 `IMPLEMENTATION.md`、一份证据索引；预计减少约 100 个文件。
-- H2：`preparation-cases.json` 等测试数据移到 `tests/fixtures`。
-- H3：新增 `agents/` 里的 Sales agent 定义（persona、技能、operation grants），指向现有服务。这样它出现在 agent 注册表里、能和其他 agent 协同，事务处理仍走它自己的服务，不改走 taskqueue。
+- H1（现在做）：先打归档 tag `archive/sales-agent-evidence-2026-11-02`，再删除证据与逐轮文档，只保留 `sales_flow/README.md`、一份 `IMPLEMENTATION.md`、一份证据索引（写明 tag）；预计减少约 100 个文件。从 channel 固定复制的合同文件是代码在用的，保留。
+- H2（现在做）：`preparation-cases.json` 等测试数据移到 `tests/fixtures`。
+- H3（Sales 流程开发完成、可部署后再做）：按平台标准 `deploy/create_agent.py` 登记 Sales agent（分配端口、起容器、写 `hub/agents/{id}.json`、注册进 Hub）。现在只登记 JSON 会让 @ 提及和协调路由指向一个没人接的目标，所以推迟；之前只用 `--dry-run` 核对与标准接入的差距。事务处理仍走它自己的服务，不改走 taskqueue。
 - H4（后置）：等 SG8 确定真实部署形态后，再评估把多层授权合并简化。
 
 ## 13. 环境与权限
@@ -499,19 +475,22 @@ UI/UX Pro Max 的本地检索用于核对错误反馈、键盘和触摸操作。
 | Hermes Sales 运行时 | 本机 Docker MySQL 跑它的测试 | 全链路时与 channel 联调 | 无 |
 | CloudBase 账号 | 暂不需要 | MIU 20、或需要查真实询盘记录时 | 一次浏览器登录，见下 |
 
-CloudBase 登录设计：
+CloudBase 账号与环境（负责人确认）：
 
-- 这个环境同时是线上站 supplychainsai.com，所以建议在腾讯云 CAM 建一个子用户（例如 `claude-dev`），只给云开发只读和函数调用权限，不给删除和部署权限。真实写入照常通过已部署的函数（例如公开询盘接口）完成。
-- 登录方式：在本机终端运行项目已固定版本的 CloudBase CLI 登录命令，它会打开浏览器授权页；你用子用户登录确认一次，凭据保存在本机 `~/.config/.cloudbase`，之后这台机器可以自己刷新，不用你每次登录。撤销：删除该子用户的授权或在本机退出登录。
-- CloudBase MCP 可以后加，先确认它能复用 CLI 的登录再接；只用 CLI 就够本轮使用。
-- 规则不变：不用 CLI 部署（部署只靠快进 `test` 分支）；写线上数据前后都做只读核对，写入需要你点头。
-- 如果你嫌建子用户麻烦，也可以直接用主账号登录，更快，但这台机器就有了线上环境的完整权限。
+- channel 使用的是挂在环境所有者主账号下的**协作者账号**，权限由主账号授予；本机 CloudBase CLI 用这个协作者账号在浏览器登录一次，凭据保存在本机。无法也不需要另建子用户。登录后先确认 CLI 能看到环境；看不到时显式传环境 ID。
+- 不能新建 CloudBase 环境，所以**继续只用现有一个环境**（它同时是线上站）。CloudBase 是无服务器的：云函数、NoSQL 和静态托管都绑在环境 ID 上，没有“实例”和“端口”可以另开。因此：
+  - 日常开发与测试全部在本地完成（local-server JSON 库、本机 Postgres、测试替身），线上产品数据只读。
+  - 写入线上库只通过已部署的函数，测试数据由服务器端测试身份标记（MIU 12），写入前后做只读核对，写入需负责人点头。
+  - 部署照旧只靠快进 `test` 分支；不用 CLI 部署。
+- Hermes 在另一个账号的服务器上，本身就是每个 agent 一个容器、一个端口。需要测试实例时，在同一台机器上另起一套 sales_flow（另一个端口、独立 MySQL 库、独立配置），不影响线上 agent。经 SSH 访问，不需要那边的云控制台。
 
-## 14. 待你确认
+## 14. 确认记录
 
-1. §6 产品交互：默认聊天内速览（手机底部半屏、桌面聊天旁侧栏），完整页同标签页续聊，手机详情页不自动展开聊天。
-2. §12.3／§12.4 的整理：移除 `output/` 下被强制提交的 93 个文件；Hermes 做 H1–H3，H4 后置。
-3. §13：CloudBase 用 CAM 子用户还是主账号；明天提供 SSH 主机别名。
-4. §10 的顺序。
+2026-11-02 负责人第二轮确认：
 
-确认后即开始实现，本文件即为最终版本。
+1. §6 产品交互：同标签页打开完整产品页并续聊；不做页内半屏／侧栏速览。
+2. §12.3／§12.4 的整理：channel 移除强制提交的 `output/` 等文件并归档过程文件；Hermes 现在做 H1、H2，H3 推迟到 Sales 流程完成，H4 后置；AGENTS.md／CLAUDE.md 增加不提交本地产物的规则并由 CI 检查。
+3. §13：CloudBase 用协作者账号登录；不新建环境，谨慎使用现有环境；Hermes 测试实例可用另一端口。
+4. §10 的顺序。MIU 20 缺陷注入按七项执行。
+
+本文件即为最终版本；后续变化直接修改本文件并在此追加记录。
