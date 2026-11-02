@@ -259,7 +259,11 @@ function InquiryForm({
       )}
       <p className="text-xs text-ink-muted">
         Nothing is submitted until you confirm; chatting alone does not create an inquiry. Model,
-        price and delivery terms will be confirmed separately.
+        price and delivery terms will be confirmed separately. How we use your details:{' '}
+        <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline">
+          Privacy notice
+        </a>
+        .
       </p>
       {view.phase === 'saving' && (
         <output className="block text-sm text-brand-800">Saving your inquiry…</output>

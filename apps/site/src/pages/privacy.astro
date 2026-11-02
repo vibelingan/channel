@@ -1,0 +1,38 @@
+---
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getPrivacyContent } from '../i18n/privacy.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const privacy = getPrivacyContent(DEFAULT_LOCALE);
+const brand = site.brand;
+const seoTitle = `Privacy Notice | ${brand.name}`;
+const seoDescription =
+  'What this website and its AI assistant collect, why, where it is processed, how long it is kept, and how to ask us to see or delete it.';
+---
+<BaseLayout title={seoTitle} description={seoDescription}>
+  <SiteHeader brand={site.brand} nav={site.nav} />
+  <main data-privacy-page class="mx-auto max-w-3xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+    <h1 class="font-display text-3xl font-bold text-ink sm:text-4xl">{privacy.heading}</h1>
+    <p class="mt-2 text-sm text-ink-muted">Last updated {privacy.updated}</p>
+    <p class="mt-6 text-base leading-relaxed text-ink-soft">{privacy.intro}</p>
+    {
+      privacy.sections.map((section) => (
+        <section class="mt-10">
+          <h2 class="font-display text-xl font-semibold text-ink">{section.heading}</h2>
+          <dl class="mt-4 space-y-4">
+            {section.items.map((item) => (
+              <div>
+                <dt class="text-sm font-semibold text-ink">{item.title}</dt>
+                <dd class="mt-1 text-sm leading-relaxed text-ink-soft">{item.body}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))
+    }
+  </main>
+  <SiteFooter brand={site.brand} footer={site.footer} />
+</BaseLayout>

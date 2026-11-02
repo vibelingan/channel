@@ -365,7 +365,10 @@ export function AssistantExperience({
           </>
         )}
         <p className="mt-1 text-center text-[11px] text-ink-muted">
-          AI can make mistakes. Verify commercial terms with our team.
+          AI can make mistakes. Verify commercial terms with our team. ·{' '}
+          <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline">
+            Privacy
+          </a>
         </p>
       </footer>
     </ChatPanel>
