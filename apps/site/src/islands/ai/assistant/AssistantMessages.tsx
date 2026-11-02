@@ -8,6 +8,7 @@ export function AssistantMessages({
   compareIds,
   onCompare,
   onInquiry,
+  onViewProduct,
   currentProducts,
   inquiriesEnabled = true,
 }: {
@@ -17,6 +18,8 @@ export function AssistantMessages({
   inquiriesEnabled?: boolean;
   onCompare: (product: PublicProduct) => void;
   onInquiry: (product?: PublicProduct, requirement?: string) => void;
+  /** Called before a product link opens in this tab, to remember the card. */
+  onViewProduct?: (messageId: string, productId: string) => void;
 }) {
   const origin = typeof window === 'undefined' ? 'https://preview.invalid' : window.location.origin;
   return (
@@ -24,6 +27,7 @@ export function AssistantMessages({
       {messages.map((message) => (
         <article
           key={message.id}
+          data-message-id={message.id}
           data-message-role={message.role}
           className={
             message.role === 'visitor'
@@ -39,6 +43,7 @@ export function AssistantMessages({
           {message.products?.map((product) => (
             <section
               key={product.id}
+              data-product-id={product.id}
               className="mt-3 overflow-hidden rounded-xl border border-slate-200"
               aria-label={product.name}
             >
@@ -62,8 +67,19 @@ export function AssistantMessages({
                   <a
                     className="flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-xs font-semibold"
                     href={product.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={(event) => {
+                      // Same tab, so the conversation continues on the product
+                      // page. A modified click opens a new tab: a new conversation.
+                      if (
+                        event.button !== 0 ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey
+                      )
+                        return;
+                      onViewProduct?.(message.id, product.id);
+                    }}
                   >
                     View product
                   </a>

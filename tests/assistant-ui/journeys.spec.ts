@@ -138,7 +138,12 @@ test('closing during a turn preserves its answer without issuing stop', async ({
   await send(page);
   await page.getByRole('button', { name: 'Close assistant' }).click();
   await expect.poll(async () => (await ledger(page)).runs.length).toBe(1);
-  await page.getByRole('button', { name: 'Ask our AI' }).click();
+  // The closed launcher offers the conversation back and marks the finished answer.
+  await expect(
+    page.getByRole('button', { name: 'Continue conversation · New answer' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /^Continue conversation/ }).click();
+  await expect(page.locator('[data-launcher-notice]')).toHaveCount(0);
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   expect((await ledger(page)).stops).toEqual([]);
   await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(1);

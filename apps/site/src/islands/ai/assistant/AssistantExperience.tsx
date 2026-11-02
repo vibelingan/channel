@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChatComposer } from '../../../components/chat/ChatComposer';
 import { ChatPanel } from '../../../components/chat/ChatPanel';
 import { useChatViewport } from '../../../components/chat/useChatViewport';
@@ -61,7 +61,21 @@ export function AssistantExperience({
     )
     .join('|');
   const revision = `${messageRevision}:${state.turn?.phase}:${inquiry.phase}:${session.inquiryExpanded}:${inquiry.phase === 'editing' && Boolean(inquiry.pending)}`;
-  const viewport = useChatViewport(state.open, revision);
+  // Arriving from a product page: open at the card the visitor left from. When
+  // that card is no longer in the restored history, open at the latest and say so.
+  const anchor = session.anchor;
+  const anchorMissing =
+    Boolean(anchor) &&
+    state.sessionStatus === 'ready' &&
+    !state.messages.some((message) => message.id === anchor?.messageId);
+  const anchorSelectors = useMemo(() => {
+    if (!anchor || anchorMissing) return undefined;
+    const message = `[data-message-id="${CSS.escape(anchor.messageId)}"]`;
+    return anchor.productId
+      ? [`${message} [data-product-id="${CSS.escape(anchor.productId)}"]`, message]
+      : [message];
+  }, [anchor, anchorMissing]);
+  const viewport = useChatViewport(state.open, revision, anchorSelectors);
   const working = isTurnWorking(state.turn?.phase);
   const blocked =
     state.sessionStatus === 'restoring' ||
@@ -87,6 +101,10 @@ export function AssistantExperience({
     <ChatPanel
       open={state.open}
       onOpenChange={session.setOpen}
+      {...(!state.open && state.messages.length > 0
+        ? { launcherLabel: 'Continue conversation' }
+        : {})}
+      {...(session.unseenAnswer ? { launcherNotice: 'New answer' } : {})}
       headerActions={
         capabilities.history && (
           <button
@@ -176,7 +194,14 @@ export function AssistantExperience({
           inquiriesEnabled={capabilities.inquiries}
           onCompare={compare}
           onInquiry={session.beginInquiry}
+          onViewProduct={session.leaveForProduct}
         />
+        {anchorMissing && (
+          <output className="block rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            The product card you opened is no longer shown here, so the conversation continues from
+            the latest messages.
+          </output>
+        )}
         {compared.length > 0 && (
           <section
             aria-label="Compare options"

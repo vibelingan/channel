@@ -530,6 +530,32 @@ CloudBase 账号与环境（负责人确认）：
 - 未实测：真实模型脚本 `scripts/assistant-real-browser.mts` 已改为新交互（并修正 MIU 12 遗留的旧按钮名 “Check original submission”），要等 SSH 主机别名才能跑。
 - 边界：回执刷新后出现在消息末尾而不是原位置；先提交一单再开第二份草稿后刷新，第一单的回执不再显示（记录仍在 Sales，单号不丢）。
 
+### MIU 18（2026-11-03）
+
+- 跳页：产品卡的 “View product” 不再开新标签页。点击时先在本标签页的记录里写下来源（消息 id、产品 id、`arriving`），再由浏览器正常跳到 `/products/item/?id=…`；链接本身不变，无 JS 和 SEO 都不受影响。按住 Ctrl／⌘ 或中键打开的新标签页没有本标签页的记录，按新对话处理，原标签页不受影响。
+- 到达：产品页恢复会话时看到 `arriving`，宽屏（≥1024px）直接展开聊天，手机只显示启动按钮 “Continue conversation”，然后清掉 `arriving`。展开后先停在来源卡片（只滚动聊天记录，不动页面），之后由访客自己滚动；再次打开面板时回到最新消息。找不到来源卡片时停在最新消息，并说明一句。
+- 离开期间：正在生成的回答按 MIU 17 用原 key 续读，不再调用一次模型；面板收起时回答写完，启动按钮出现红点，读屏读作 “New answer”，打开即消失。保存中的询盘按“结果未知”恢复，用同一 key 和冻结内容核对，只落一条记录。
+- 返回：Back 回到上一页时按离开时的展开状态恢复。访客在产品页又提了问题时，来源卡片随新问题清除，上一页打开在最新消息。浏览器从前进后退缓存直接还原旧页面时（`pageshow` 的 `persisted`），以标签页记录和服务器快照为准重新恢复一次，不显示过时的对话。
+- 挂载：新增 `components/AssistantHost.astro`，首页、OEM、耳机和两类产品页（`products/item`、`products/[publicKey]`）各挂一次；其他页面和 BaseLayout 不挂。路由白名单 `AI_WIDGET_ROUTES` 同步。
+- 本机入口：
+  - 自动测试用的 Vite 页面现在把 `/products/item/` 指向一个产品页替身（`assistant-product.html`），挂的是同一个 `ConnectedAssistant`。
+  - 人工试用改用真实 Astro 整站：`pnpm --filter @vibelingan-channel/site dev:assistant-site`，地址 `http://127.0.0.1:62059`。产品数据固定读本机测试产品接口，聊天连本机 BFF。本机运行时允许这个来源；这条命令关掉了 Astro 开发工具条，因为它在手机尺寸下会挡住启动按钮。
+- 检查：
+  - 单测：记录里来源字段的校验、“离开期间写完”的标记、路由白名单，以及“只有 AssistantHost 挂助手、BaseLayout 不挂”。
+  - 真实 BFF＋Postgres＋worker 的浏览器测试新增 7 项，桌面和手机各跑一遍：`product_link_navigates_same_tab`（含 `desktop_restores_expanded_at_source_card`、`mobile_shows_continue_launcher_not_expanded`、`back_restores_previous_page_chat`）、`launcher_marks_answer_finished_while_away`＋`navigation_mid_answer_has_no_second_model_run`、`navigation_mid_save_keeps_same_submission`、`new_tab_starts_fresh_conversation`＋`direct_product_visit_has_single_widget`、`missing_anchor_restores_latest_with_notice`、在产品页提问后返回，以及从前进后退缓存还原。
+  - 缺陷注入：去掉点击时保存来源，或去掉 `pageshow` 处理，对应测试都会失败。
+  - 合计：
+    - 真实 BFF＋Postgres＋worker 浏览器测试 42 项通过。
+    - 助手浏览器旅程 98 项通过。“回答中收起面板”一项改为核对新的启动按钮文字和红点。
+    - site 1522 项中 1520 通过、1 项跳过、1 项失败。失败的是后台商品列表的一个浏览器测试，整套并发跑时 46 秒超时，单独重跑 4 秒通过；本单元没有改动后台。
+    - 状态守卫变异 4/4 被杀。
+    - `astro check`、测试与 e2e 的 typecheck、改动文件的 biome 都通过。
+  - 真实 Astro 整站（`dev:assistant-site`）用脚本实测：首页提问 → 点 “View product” → 真实产品详情页显示 “Everyday wireless headphones”。桌面聊天展开并停在该卡片；手机显示 “Continue conversation”，打开后历史还在。每页只有一个助手，没有页面错误。
+- 边界：
+  - Playwright 和 Vite 开发服务器都不让 Chromium 缓存这些页面，所以从缓存还原是用同样的 `pageshow` 事件模拟的，没有在真实缓存里跑过。
+  - 存储被禁用时记不下来源，产品页按新对话处理。
+  - 320／768px 截图和 SEO 构建核对放进 MIU 20 的整站回归。
+
 ### 隐私说明入口（2026-11-03，本轮之外的小项）
 
 - 负责人要求：隐私说明不要太显眼，需要时能看到。网站原来没有隐私说明页。

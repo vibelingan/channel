@@ -60,6 +60,31 @@ test('expired, foreign-version or malformed records are dropped, never trusted',
   assert.equal(p.load(), null);
 });
 
+test('the product card the visitor left from is kept, and arriving is cleared by the next page', () => {
+  const storage = new MemoryStorage();
+  const p = sessionAssistantPersistence('s', storage);
+  p.save(record());
+  p.update({ anchor: { messageId: 'answer:turn_1', productId: 'demo-1', arriving: true } });
+  assert.deepEqual(p.load()?.anchor, {
+    messageId: 'answer:turn_1',
+    productId: 'demo-1',
+    arriving: true,
+  });
+  p.update({ anchor: { messageId: 'answer:turn_1', productId: 'demo-1' } });
+  assert.deepEqual(p.load()?.anchor, { messageId: 'answer:turn_1', productId: 'demo-1' });
+  p.update({ anchor: undefined });
+  assert.equal(p.load()?.anchor, undefined);
+  for (const anchor of [
+    { messageId: '' },
+    { messageId: 'answer:1', productId: 'a b' },
+    { messageId: 'answer:1', arriving: false },
+    { messageId: 'answer:1', href: '/products/item/?id=1' },
+  ]) {
+    storage.setItem([...storage.values.keys()][0] ?? 'x', JSON.stringify({ ...record(), anchor }));
+    assert.equal(p.load(), null, JSON.stringify(anchor));
+  }
+});
+
 test('blocked storage degrades to an in-memory conversation without throwing', () => {
   const blocked = {
     getItem() {

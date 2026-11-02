@@ -461,6 +461,8 @@ test('finished_run_during_navigation_shows_final_answer without resuming it', as
   ).restore(signal);
   assert.ok(restored);
   assert.equal(restored.resume, undefined);
+  // launcher_marks_answer_finished_while_away: the next page knows to show a dot.
+  assert.equal(restored.finishedWhileAway, true);
   assert.deepEqual(
     restored.messages.map((m) => [m.id, m.text]),
     [

@@ -21,7 +21,17 @@ export interface PersistedAssistant {
   /** Frozen request bodies by submission key, so a recheck resends identical content. */
   submissions?: Array<{ key: string; body: string }>;
   /** The product card the visitor left from (MIU 18). */
-  anchor?: { messageId: string };
+  anchor?: AssistantAnchor;
+}
+/**
+ * Where the visitor left the conversation for a product page. `arriving` is set
+ * by the click and cleared by the page that opens next, which decides whether
+ * the panel starts expanded; Back then restores the state the visitor left.
+ */
+export interface AssistantAnchor {
+  messageId: string;
+  productId?: string;
+  arriving?: true;
 }
 export type PersistedInquiry =
   | { phase: 'editing'; key: string; draft: InquiryDraft }
@@ -140,6 +150,15 @@ function isTurn(v: unknown): v is PersistedAssistant['turn'] {
     (v.catalogAction === undefined || record(v.catalogAction))
   );
 }
+function isAnchor(v: unknown): v is AssistantAnchor {
+  return (
+    record(v) &&
+    only(v, ['messageId', 'productId', 'arriving']) &&
+    text(v.messageId, 300, true) &&
+    (v.productId === undefined || (text(v.productId, 128, true) && /^[\w-]+$/.test(v.productId))) &&
+    (v.arriving === undefined || v.arriving === true)
+  );
+}
 function isPersistedAssistant(v: unknown): v is PersistedAssistant {
   return (
     record(v) &&
@@ -172,7 +191,6 @@ function isPersistedAssistant(v: unknown): v is PersistedAssistant {
           (s) =>
             record(s) && only(s, ['key', 'body']) && isOperationKey(s.key) && text(s.body, 20000),
         ))) &&
-    (v.anchor === undefined ||
-      (record(v.anchor) && only(v.anchor, ['messageId']) && text(v.anchor.messageId, 300, true)))
+    (v.anchor === undefined || isAnchor(v.anchor))
   );
 }

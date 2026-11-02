@@ -259,7 +259,7 @@
 
 ### 7.1 现在（本轮，按顺序，不需要再决定）
 
-MIU 18 → 13 → 14 → 19 → 15 → 20。完成后一个 PR 合入 main，再与 hermesinfra 做全链路联调。详见 [ROUND2-DESIGN.md](ROUND2-DESIGN.md) §9、§10。MIU 12、17、16 和隐私说明入口已完成。
+MIU 13 → 14 → 19 → 15 → 20。完成后一个 PR 合入 main，再与 hermesinfra 做全链路联调。详见 [ROUND2-DESIGN.md](ROUND2-DESIGN.md) §9、§10。MIU 12、17、16、18 和隐私说明入口已完成。
 
 ### 7.2 全链路跑通后
 

@@ -202,7 +202,8 @@ engine.streamRun = async function* (handle, signal) {
 const server = createAiBffServer(
   store,
   {
-    allowedOrigins: new Set(['http://127.0.0.1:62058']),
+    // 62058: Vite test pages; 62059: the real Astro site (`pnpm dev:assistant-site`).
+    allowedOrigins: new Set(['http://127.0.0.1:62058', 'http://127.0.0.1:62059']),
     credentialTtlSeconds: 3600,
     engineId: 'fake',
     engineVersion: '0.1.0',

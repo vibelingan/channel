@@ -304,3 +304,260 @@ test('inflight_reply_resumes_without_second_model_run after a refresh mid-answer
   await page.reload();
   await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(1);
 });
+
+// MIU 18: a product opened from the chat replaces this page in the same tab,
+// and the conversation continues there and on the way back.
+const desktopLike = () => test.info().project.name !== 'mobile';
+async function cardsThenMore(page: Page, request: import('@playwright/test').APIRequestContext) {
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  for (const question of ['A product question', 'Another product question']) {
+    await send(page, question);
+    await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  }
+}
+/** Distance of the remembered card from the top of the visible transcript. */
+async function cardOffset(page: Page) {
+  return page.evaluate(() => {
+    const transcript = document.querySelector('[data-testid="assistant-transcript"]');
+    const card = transcript?.querySelector('[data-product-id="demo-1"]');
+    if (!transcript || !card) return Number.NaN;
+    return card.getBoundingClientRect().top - transcript.getBoundingClientRect().top;
+  });
+}
+function messagePosts(page: Page) {
+  const posts: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().endsWith('/messages')) posts.push(r.postData() ?? '');
+  });
+  return posts;
+}
+
+test('product_link_navigates_same_tab, opens at the source card, and back_restores_previous_page_chat', async ({
+  page,
+  context,
+  request,
+}) => {
+  await cardsThenMore(page, request);
+  const posts = messagePosts(page);
+  const tabs = context.pages().length;
+  await page
+    .locator('[data-message-role="assistant"]')
+    .first()
+    .getByRole('link', { name: 'View product' })
+    .first()
+    .click();
+  await page.waitForURL('**/products/item/?id=demo-1');
+  expect(context.pages()).toHaveLength(tabs);
+  await expect(page.locator('[data-product-page="demo-1"]')).toBeVisible();
+  if (desktopLike()) await expect(page.getByRole('dialog')).toBeVisible();
+  else {
+    // mobile_shows_continue_launcher_not_expanded: the product stays readable.
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('[data-launcher-notice]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Continue conversation' }).click();
+  }
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveText([
+    'Show headphones',
+    'A product question',
+    'Another product question',
+  ]);
+  // desktop_restores_expanded_at_source_card (and the same after opening on a phone).
+  await expect.poll(() => cardOffset(page)).toBeLessThan(24);
+  expect(await cardOffset(page)).toBeGreaterThanOrEqual(0);
+  // Looking at a product never asks the model.
+  expect(posts).toEqual([]);
+  await page.screenshot({
+    path: `output/assistant-chat/product-page-${test.info().project.name}.png`,
+  });
+
+  if (!desktopLike()) await page.getByRole('button', { name: 'Close assistant' }).click();
+  await page.goBack();
+  await page.waitForURL('**/assistant-chat.html');
+  if (desktopLike()) await expect(page.getByRole('dialog')).toBeVisible();
+  else {
+    // As the visitor left it: closed, ready to continue.
+    await expect(page.getByRole('button', { name: 'Continue conversation' })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Continue conversation' }).click();
+  }
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(3);
+  if (desktopLike()) await expect.poll(() => cardOffset(page)).toBeLessThan(24);
+  await send(page, 'One more question back here');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(4);
+});
+
+test('launcher_marks_answer_finished_while_away and navigation_mid_answer_has_no_second_model_run', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(45000);
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const posts = messagePosts(page);
+  const accepted = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/messages'),
+  );
+  await send(page, 'slow answer please');
+  await accepted;
+  await page
+    .locator('[data-message-role="assistant"]')
+    .first()
+    .getByRole('link', { name: 'View product' })
+    .first()
+    .click();
+  await page.waitForURL('**/products/item/?id=demo-1');
+  if (desktopLike()) {
+    await expect(page.getByLabel('Answer status')).toContainText('Answer ready', {
+      timeout: 15000,
+    });
+  } else {
+    const dot = page.locator('[data-launcher-notice]');
+    await expect(dot).toHaveCount(1, { timeout: 15000 });
+    await expect(
+      page.getByRole('button', { name: /Continue conversation · New answer/ }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: /Continue conversation/ }).click();
+    await expect(dot).toHaveCount(0);
+  }
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveText([
+    'Show headphones',
+    'slow answer please',
+  ]);
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(2);
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'database and worker',
+  );
+  // Whatever each page sent was the same question under the same key.
+  expect(posts.length).toBeGreaterThanOrEqual(1);
+  expect(new Set(posts).size).toBe(1);
+});
+
+test('navigation_mid_save_keeps_same_submission', async ({ page, request }) => {
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const answer = page.locator('[data-message-role="assistant"]').first();
+  await answer.getByRole('button', { name: 'Prepare inquiry', exact: true }).first().click();
+  await fillInquiry(page);
+  const before = (await (
+    await request.get('http://127.0.0.1:62384/__fixture/state')
+  ).json()) as Record<string, unknown>;
+  const bodies: string[] = [];
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/ai/v2/conversations/*/inquiries', async (route) => {
+    bodies.push(route.request().postData() ?? '');
+    // The first save never reaches the server before the visitor leaves.
+    if (bodies.length === 1) {
+      await held;
+      await route.abort('aborted').catch(() => undefined);
+      return;
+    }
+    await route.fulfill({ response: await route.fetch() });
+  });
+  await page.getByRole('button', { name: 'Confirm & submit' }).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  await answer.getByRole('link', { name: 'View product' }).first().click();
+  await page.waitForURL('**/products/item/?id=demo-1');
+  release();
+  if (!desktopLike()) await page.getByRole('button', { name: 'Continue conversation' }).click();
+  await expect(page.getByLabel('Inquiry receipt')).toContainText('Your inquiry is recorded', {
+    timeout: 15000,
+  });
+  expect(bodies.length).toBe(2);
+  expect(bodies[1]).toBe(bodies[0]);
+  const after = (await (
+    await request.get('http://127.0.0.1:62384/__fixture/state')
+  ).json()) as Record<string, unknown>;
+  const added = Object.keys(after).filter((k) => !Object.hasOwn(before, k));
+  expect(added.filter((k) => k.startsWith('oemProjects/'))).toHaveLength(1);
+});
+
+test('new_tab_starts_fresh_conversation and direct_product_visit_has_single_widget', async ({
+  page,
+  context,
+  request,
+}) => {
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const opened = context.waitForEvent('page');
+  await page
+    .locator('[data-message-role="assistant"]')
+    .first()
+    .getByRole('link', { name: 'View product' })
+    .first()
+    .click({ modifiers: ['ControlOrMeta'] });
+  const tab = await opened;
+  await tab.waitForURL('**/products/item/?id=demo-1');
+  await expect(tab.getByRole('button', { name: 'Ask our AI' })).toHaveCount(1);
+  await expect(tab.getByRole('button', { name: 'Continue conversation' })).toHaveCount(0);
+  await tab.getByRole('button', { name: 'Ask our AI' }).click();
+  await expect(tab.locator('[data-message-role="visitor"]')).toHaveCount(0);
+  // The original tab is untouched and still in the same conversation.
+  await expect(page).toHaveURL(/assistant-chat\.html$/);
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveText(['Show headphones']);
+  await tab.close();
+});
+
+test('missing_anchor_restores_latest_with_notice', async ({ page }) => {
+  await send(page, 'A product question');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find((k) => k.startsWith('channel.ai.v2.'));
+    if (!key) throw new Error('No saved conversation');
+    const saved = JSON.parse(sessionStorage.getItem(key) ?? '{}');
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({ ...saved, anchor: { messageId: 'answer:gone', productId: 'demo-1' } }),
+    );
+  });
+  await page.reload();
+  await expect(page.getByText('The product card you opened is no longer shown here')).toBeVisible();
+  await expect(page.locator('[data-message-role="assistant"]').last()).toBeInViewport();
+});
+
+/** Ask on the product page, go Back, and expect the earlier page to have caught up. */
+async function questionOnProductPageSurvivesBack(
+  page: Page,
+  request: import('@playwright/test').APIRequestContext,
+  fromCache: boolean,
+) {
+  // Records how each page was shown, so the result says which path Back took.
+  await page.addInitScript(() =>
+    addEventListener('pageshow', (event) =>
+      document.documentElement.setAttribute('data-from-cache', String(event.persisted)),
+    ),
+  );
+  await page.reload();
+  await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
+  await send(page, 'Show headphones');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page.getByRole('link', { name: 'View product' }).first().click();
+  await page.waitForURL('**/products/item/?id=demo-1');
+  if (!desktopLike()) await page.getByRole('button', { name: 'Continue conversation' }).click();
+  await send(page, 'Asked on the product page');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page.goBack();
+  await page.waitForURL('**/assistant-chat.html');
+  await expect(page.locator('html')).toHaveAttribute('data-from-cache', String(fromCache));
+  // Left open on the product page, so it comes back open on every screen size.
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveText([
+    'Show headphones',
+    'Asked on the product page',
+  ]);
+  await expect(page.locator('[data-message-role="assistant"]').last()).toBeInViewport();
+}
+test('a question asked on the product page is there after Back, at the latest message', async ({
+  page,
+  request,
+}) => {
+  await questionOnProductPageSurvivesBack(page, request, false);
+});

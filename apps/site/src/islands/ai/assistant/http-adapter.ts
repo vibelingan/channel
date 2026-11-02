@@ -379,6 +379,7 @@ export function createHttpAssistantAdapter(
         ...(resume ? { resume } : {}),
         ...(record.inquiry ? { inquiry: record.inquiry } : {}),
         ...(record.anchor ? { anchor: record.anchor } : {}),
+        ...(record.turn && !resume ? { finishedWhileAway: true as const } : {}),
       };
     },
     forget() {

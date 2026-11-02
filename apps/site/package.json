@@ -14,7 +14,8 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test": "tsc -p tsconfig.test.json --noEmit && tsx --test --test-concurrency=2 \"src/**/*.test.ts\"",
     "build:blog-server": "astro build --config astro.blog.config.ts",
-    "dev:assistant-preview": "vite --config assistant-preview.vite.ts"
+    "dev:assistant-preview": "vite --config assistant-preview.vite.ts",
+    "dev:assistant-site": "ASTRO_DEV_TOOLBAR=0 PUBLIC_AI_CHAT_V2=1 PUBLIC_AI_INQUIRIES=1 PUBLIC_AI_API_BASE_URL=http://127.0.0.1:62382 PUBLIC_CB_HOST=127.0.0.1:62383 astro dev --host 127.0.0.1 --port 62059"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",

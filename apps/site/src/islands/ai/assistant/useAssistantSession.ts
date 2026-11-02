@@ -22,7 +22,7 @@ import type {
   PublicProduct,
   TurnRequest,
 } from './model';
-import type { AssistantPersistence } from './persistence';
+import type { AssistantAnchor, AssistantPersistence } from './persistence';
 import { initialAssistantState, isTurnWorking, reduceAssistant } from './state';
 import { AssistantTransportError } from './transport-error';
 
@@ -55,6 +55,10 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     setInquiry(next);
   }
   const [inquiryExpanded, setInquiryExpanded] = useState(seed.inquiryExpanded ?? false);
+  /** The product card the visitor left from, shown first when the panel opens. */
+  const [anchor, setAnchor] = useState<Omit<AssistantAnchor, 'arriving'> | null>(null);
+  /** An answer finished while the panel was closed; the launcher shows a dot. */
+  const [unseenAnswer, setUnseenAnswer] = useState(false);
   /** Bumped when the visitor asks to see the card, so it can take focus. */
   const [inquiryFocus, setInquiryFocus] = useState(0);
   // Suggestions already in the conversation when it was seeded or restored are
@@ -165,6 +169,9 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     };
     dispatch({ type: 'begin', request, regenerate });
     setDraft('');
+    // A new question moves the conversation on; later pages open at the latest.
+    setAnchor(null);
+    seed.persistence?.update({ anchor: undefined });
     // The answer appears above the card; a folded card keeps it in view.
     setInquiryExpanded(false);
     void drive(request, 0);
@@ -223,8 +230,20 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     setInquiryExpanded(false);
     setDraft('');
   }
-  async function restore() {
-    if (
+  /**
+   * `resync`: this page came back from the browser's back-forward cache, so the
+   * tab's record (which the page in between may have moved on) wins over what
+   * this page still holds in memory.
+   */
+  async function restore(resync = false) {
+    if (resync) {
+      pendingRestore.current = true;
+      generation.current += 1;
+      active.current?.abort();
+      active.current = null;
+      saving.current?.abort();
+      saving.current = null;
+    } else if (
       active.current ||
       isTurnWorking(latest.current.turn?.phase) ||
       ['editing', 'saving', 'unknown'].includes(inquiryRef.current.phase)
@@ -247,7 +266,17 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
         return;
       }
       suggestionSeen.current = lastSuggestion(restored.messages)?.id;
-      dispatch({ type: 'restored', conversation: restored });
+      const { arriving, ...left } = restored.anchor ?? { messageId: '' };
+      // Arriving from a product link: expanded beside the product on a wide
+      // screen, a launcher on a phone. Otherwise the panel is as it was left.
+      const open = arriving ? wideViewport() : restored.open;
+      dispatch({
+        type: 'restored',
+        conversation: { ...restored, ...(open === undefined ? {} : { open }) },
+      });
+      setAnchor(restored.anchor ? left : null);
+      if (arriving) seed.persistence?.update({ anchor: left });
+      setUnseenAnswer(Boolean(restored.finishedWhileAway) && open === false);
       const view = restoredInquiry(restored.inquiry);
       commitInquiry(view);
       setInquiryExpanded(view.phase === 'editing' || view.phase === 'unknown');
@@ -264,9 +293,28 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     }
   }
   const restoreOnMount = useRef(restore);
+  useLayoutEffect(() => {
+    restoreOnMount.current = restore;
+  });
   useEffect(() => {
     if (pendingRestore.current) void restoreOnMount.current();
-  }, []);
+    const returned = (event: PageTransitionEvent) => {
+      if (event.persisted && seed.persistence?.load()) void restoreOnMount.current(true);
+    };
+    window.addEventListener('pageshow', returned);
+    return () => window.removeEventListener('pageshow', returned);
+  }, [seed.persistence]);
+  const lastPhase = useRef(state.turn?.phase);
+  useEffect(() => {
+    const finished = state.turn?.phase === 'complete' && lastPhase.current !== 'complete';
+    lastPhase.current = state.turn?.phase;
+    if (state.open) setUnseenAnswer(false);
+    else if (finished) setUnseenAnswer(true);
+  }, [state.open, state.turn?.phase]);
+  /** Called as the visitor follows a product link in this tab. */
+  function leaveForProduct(messageId: string, productId: string) {
+    seed.persistence?.update({ anchor: { messageId, productId, arriving: true } });
+  }
   // The tab record mirrors what a refresh needs: the conversation key, whether
   // the panel was open, an unfinished question and an unsent or uncertain inquiry.
   const resumable =
@@ -418,6 +466,9 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     reset,
     restore,
     setOpen: (open: boolean) => dispatch({ type: 'open', open }),
+    anchor,
+    unseenAnswer,
+    leaveForProduct,
     inquiry,
     inquiryExpanded,
     setInquiryExpanded,
@@ -432,6 +483,11 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
   };
 }
 
+function wideViewport() {
+  return (
+    typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches === true
+  );
+}
 function lastSuggestion(messages: ChatMessage[]) {
   return messages.findLast((message) => message.role === 'assistant' && message.inquirySuggestion);
 }

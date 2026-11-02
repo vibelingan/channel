@@ -6,12 +6,17 @@ export function ChatPanel({
   children,
   headerActions,
   triggerRef,
+  launcherLabel = 'Ask our AI',
+  launcherNotice,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
   headerActions?: ReactNode;
   triggerRef?: RefObject<HTMLButtonElement | null>;
+  launcherLabel?: string;
+  /** Shown as a dot on the launcher, and read out with its label. */
+  launcherNotice?: string;
 }) {
   const localTrigger = useRef<HTMLButtonElement>(null);
   const trigger = triggerRef ?? localTrigger;
@@ -77,7 +82,7 @@ export function ChatPanel({
         type="button"
         onClick={() => onOpenChange(!open)}
         aria-expanded={open}
-        className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        className="relative ml-auto flex min-h-11 items-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
       >
         <span
           className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-brand-950"
@@ -85,7 +90,17 @@ export function ChatPanel({
         >
           ✦
         </span>
-        Ask our AI
+        {launcherLabel}
+        {launcherNotice && (
+          <>
+            <span
+              data-launcher-notice
+              className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-600"
+              aria-hidden="true"
+            />
+            <span className="sr-only">{` · ${launcherNotice}`}</span>
+          </>
+        )}
       </button>
       <noscript>
         <a

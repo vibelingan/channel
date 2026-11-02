@@ -19,7 +19,7 @@ export type AnswerKind =
   | 'team_followup'
   | 'product_updated';
 export type PublicProduct = PublicProductCard;
-import type { PersistedInquiry } from './persistence';
+import type { AssistantAnchor, PersistedInquiry } from './persistence';
 export interface ChatMessage {
   id: string;
   role: 'visitor' | 'assistant';
@@ -92,7 +92,9 @@ export interface RestoredConversation {
   resume?: TurnRequest;
   open?: boolean;
   inquiry?: PersistedInquiry;
-  anchor?: { messageId: string };
+  anchor?: AssistantAnchor;
+  /** A question in flight when the visitor left has since finished. */
+  finishedWhileAway?: true;
 }
 export interface InquiryDraft {
   requirement: string;
