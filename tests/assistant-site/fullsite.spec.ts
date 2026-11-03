@@ -17,6 +17,10 @@ test.afterEach(async ({ page }) => {
 });
 
 const assistant = (page: Page) => page.locator('[data-message-role="assistant"]');
+// A click before the widget hydrates is lost; a cold dev server (as in CI)
+// can take a while to serve the island.
+const widgetReady = (page: Page) =>
+  page.locator('astro-island[component-export="AssistantWidget"]:not([ssr])').waitFor();
 async function send(page: Page, text: string) {
   await page.getByRole('textbox', { name: 'Your question' }).fill(text);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
@@ -32,6 +36,7 @@ test('real_site_path: hello, products, follow-up, product page, inquiry and Sale
 }, info) => {
   const mobile = info.project.name === 'mobile';
   await page.goto('/');
+  await widgetReady(page);
   await page.getByRole('button', { name: 'Ask our AI' }).click();
   // A visitor who opens with "hi" gets a real answer and ways to start.
   await send(page, 'hi');
@@ -69,6 +74,7 @@ test('real_site_path: hello, products, follow-up, product page, inquiry and Sale
   await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
   // The product stays readable; the launcher offers to continue, at every width.
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await widgetReady(page);
   await page.getByRole('button', { name: 'Continue conversation' }).click();
   await expect(assistant(page)).toHaveCount(3);
   await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(3);
@@ -105,6 +111,7 @@ for (const width of [320, 768]) {
     test.skip(info.project.name !== 'mobile', 'one run per width is enough');
     await page.setViewportSize({ width, height: 700 });
     await page.goto('/');
+    await widgetReady(page);
     await page.getByRole('button', { name: 'Ask our AI' }).click();
     await send(page, 'We want headphones for our team');
     await answered(page, 1);
