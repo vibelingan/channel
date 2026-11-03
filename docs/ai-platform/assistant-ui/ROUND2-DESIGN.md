@@ -154,7 +154,7 @@ resultSetId 对应这次用户问题和筛选条件。左右滑动、点圆点�
 [ 同一张核对卡更新；明确显示变化，不再开第二张 ]
 ```
 
-聊天输入框保持可用，没有 Back to chat。可用卡片自身的折叠控制收起长表单；不是再新增一个“表单页面”。勾选与提交是业务动作，不能被普通聊天的 Send 替代。
+聊天输入框保持可用，没有 Back to chat。可用卡片自身的折叠控制收起长表单；不是再新增一个“表单页面”。提交是业务动作，不能被普通聊天的 Send 替代。
 
 当前活跃草稿用稳定 draftId/revision 关联；产品和需求变化时保留联系人，撤销旧同意。客户自己编辑的内容不能被模型无提示覆盖：显示更改摘要，冲突字段让客户选择。保存中／未知结果时原草稿冻结，但不遮住整个聊天。
 
@@ -329,9 +329,9 @@ DeepSeek chat-completions 是无状态调用，应用需要把需要的上下文
 - 数据：一张活跃草稿的 draftId／revision；提交后是不可变回执。联系人与同意有自己的生命周期。
 - 改动位置：AssistantExperience、AssistantMessages、InquiryReview、原 inquiry helpers／hook；原保存接口继续复用。
 - 核心形状：`messages = [...conversation, InquiryMessage(draft)]`；同一草稿更新，不反复新增表单。Back to chat 不再出现。
-- 模型更新草稿时的处理（简化版，已确认）：卡片上显示“本次更新了哪些内容”（旧值 → 新值）；客户可以**整体采用更新**、**保留我填的**，或直接在卡片里手改。不做逐字段的冲突选择界面。客户手改过的字段不会被模型静默覆盖；任何需求变化都撤销已勾选的同意，联系人保留。
+- 模型更新草稿时的处理（简化版，已确认）：卡片上显示“本次更新了哪些内容”（旧值 → 新值）；客户可以**整体采用更新**、**保留我填的**，或直接在卡片里手改。不做逐字段的冲突选择界面。客户手改过的字段不会被模型静默覆盖；需求一变就换新的提交键，联系人保留。卡片上没有同意勾选框（负责人 11-03 决定），和首页表单一样只有隐私说明链接，按“确认提交”即表示请我们就这个询盘联系。
 - 选择：表单留在聊天内；模型只建议草稿，确认与同意仍由人完成。保存中允许继续问答，不切换原提交内容。
-- 验收：`inquiry_is_inside_transcript`、`chat_remains_visible_during_edit`、`model_update_shows_change_summary`、`manual_edit_not_overwritten_silently`、`changed_need_preserves_contact_and_clears_consent`、`two_products_do_not_silently_swap_draft`、`saved_receipt_does_not_resubmit`。
+- 验收：`inquiry_is_inside_transcript`、`chat_remains_visible_during_edit`、`model_update_shows_change_summary`、`manual_edit_not_overwritten_silently`、`changed_need_preserves_contact`（原 `…_and_clears_consent`，同意勾选框已按负责人 11-03 决定去掉）、`two_products_do_not_silently_swap_draft`、`saved_receipt_does_not_resubmit`。
 - 依赖：MIU 12；不等 Resend。
 
 ### MIU 17：匿名会话恢复与进行中回答续读
@@ -694,7 +694,7 @@ CloudBase 账号与环境（负责人确认）：
   | 2 | 重新核对时换新 submissionKey | `lost_receipt_recovers_same_submission`；journeys “unknown inquiry retries the frozen original key … only one record” | killed |
   | 3 | 快照不校验凭据 | BFF “snapshot restores the credential holder’s turns”（另一个凭据读取应得 401） | killed |
   | 4a | 推测的旧数量覆盖原话的新数量 | policy “cannot turn 700 back into 500”；worker “thirty turns later” | killed |
-  | 4b | 需求变了不撤销同意 | `changed_need_preserves_contact_and_clears_consent` | killed |
+  | 4b | 需求变了仍用原来的提交键（11-03 同意勾选框去掉后，由“需求变了不撤销同意”改成这一项） | `changed_need_preserves_contact` | killed |
   | 5 | 去掉单问题预算门禁 | vibekb “spent its input budget stops before the next call” | killed |
   | 6 | 测试身份改回按公司名判断 | `ordinary_company_in_test_scope_can_submit` | killed |
   | 7 | 恢复时不带原 idempotencyKey | `inflight_reply_resumes_without_second_model_run` | killed |

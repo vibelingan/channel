@@ -310,14 +310,14 @@
 
 **发布顺序（负责人，2026-11-03）：** 功能分支先合入 `test` → 部署到唯一的 CloudBase 环境 → 全面测试、修好 → 再合入 `main`。没有在 `test` 上部署并测完的代码不进 `main`。合入 `test` 就是生产写入，每次都先征得负责人同意，前后做只读检查。
 
-**上线前还缺（2026-11-03 只读核对）：**
+**上线前还缺（2026-11-03 只读核对，同日傍晚更正）：**
 
-1. **`test` 不是唯一的部署来源。** 线上 `public-api` 跑的是只在 `feat/seo-foundation` 上的 `dc3af64b`，那个分支比 `test` 多 79 个提交。本分支直接部署会把它换回旧版本。要么两个分支一起合入 `test`（试合并只有两个文件冲突），要么 SEO 先合入 `test`。
-2. **生产引擎接线（MIU 21）：** `Deploy AI CloudRun` 只支持 `anythingllm`，新聊天要的是 `vibekb`。需要做的有：清单和工作流按引擎提供设置；worker 加上模型、VibeKB 和公开目录的设置；BFF 加上询盘 intake 的设置；部署后的冒烟问题也要换成新引擎。
-3. **负责人提供的密钥：** 模型服务密钥、VibeKB MCP 密钥、询盘 intake 专用令牌，放进 GitHub `test` 环境的 secrets。
-4. **VibeKB MCP 的 HTTPS 入口：** CloudRun 要能访问 Hermes 主机上的 MCP。本机验收靠 SSH 转发，不能直接拿来当生产方案。
-5. **先只给测试的人看：** 建议让 `PUBLIC_AI_CHAT_V2` 支持“预览”值，只有带预览参数打开的标签页显示新聊天。等真实网站上验收完，再对所有访客打开。
-6. **线上旧聊天现在不可用：** 线上旧组件调用的 `ai-bff` 地址请求超时。这是原有问题，不是本轮造成的。
+1. **SEO 的线上版本不在 `test` 上。** `public-api`、`admin`、`alibaba-catalog-sync` 三个函数跑的都是 `dc3af64b`（目录 SEO 记录、博客服务端发布都已打开），是 Codex 用 `SEO static canary (manual)` 直接从 `feat/seo-foundation` 部署的，没有经过 `test`。所以“保留他的、加上我的”就要求部署的提交里包含 `dc3af64b`。做法：把线上这一个提交（不是 SEO 分支之后还在改的 20 个提交）合进本分支，试合并只有 `apps/functions/public-api/src/index.ts` 和 `packages/db/package.json` 两处冲突，跑完全部检查后再快进 `test`。负责人：等 Codex 跑完当前任务再合。
+2. **生产引擎接线（MIU 21）：** 代码已完成。清单按 `AI_ENGINE_ID` 给 worker 不同设置（`vibekb`：模型、MCP 知识范围、公开目录；`anythingllm`：原来的工作区和证明），BFF 只在打开询盘时拿 intake 地址和令牌，Deploy Test 把 `PUBLIC_AI_CHAT_V2`、`PUBLIC_AI_INQUIRIES` 传给站点构建。负责人决定不做预览开关，直接打开。
+3. **设置和密钥：** GitHub `test` 环境变量已由 Claude 设好（11-03，负责人授权）：`AI_ENGINE_ID=vibekb`、`AI_MAX_TOOL_CALLS=8`、`AI_MAX_STREAM_DURATION_MS=120000`、`AI_MODEL_BASE_URL`、`AI_MODEL_ID`、`AI_MODEL_THINKING_MODE=disabled`、`VIBEKB_MCP_URL=https://kb.supplychainsai.com/mcp`、`VIBEKB_PUBLIC_WORKSPACE_ID=2`、`VIBEKB_PUBLIC_DOCUMENT_IDS=12`、`AI_PUBLIC_CATALOG_ORIGIN=https://www.supplychainsai.com`。这些只在 AI 部署时读取。回退旧接法改回 `AI_ENGINE_ID=anythingllm`、`AI_MAX_TOOL_CALLS=0`、`AI_MAX_STREAM_DURATION_MS=55000`。`PUBLIC_AI_CHAT_V2=1` 等 AI 服务部署好、站点部署时再设。还缺负责人自己输入的两个密钥：`AI_MODEL_API_KEY`、`VIBEKB_MCP_API_KEY`。
+4. **MCP 的 HTTPS 入口：** 知识库已经有 `https://kb.supplychainsai.com`（就是 Hermes 主机 43.157.53.132 上的 nginx，有证书），但 `/mcp` 现在落到网页上，MCP 服务只听本机 9021 端口。在这个 nginx 站点里加一段 `/mcp` 转发到 `127.0.0.1:9021` 就是生产入口，鉴权仍是 MCP 自己的 Bearer 密钥。SSH 转发只是开发机临时用的。
+5. **聊天里提交询盘要等 sales-integration 函数上线：** 它还不在 CloudBase 函数部署清单里，也没有 Hermes 许可的设置。第一次上线先只开新聊天（`PUBLIC_AI_INQUIRIES=0`），询盘照旧走首页和 OEM 页表单。
+6. **线上旧聊天：** `ai-bff` 进程是活的（`/api/ai/healthz` 两秒内 200），但所有要查数据库的请求都卡住（`/api/ai/readyz` 30 秒无响应），说明它和 PostgreSQL 之间的连接挂住了。原因（数据库实例停了、网络路径变了，还是半开连接）要看 CloudRun 日志和数据库状态。代码上已补连接超时和 TCP keepalive，下次部署会换新连接。
 
 ### 7.2 全链路跑通后
 
@@ -327,16 +327,16 @@
 | N3 | 凭据改为“最后一次提问后 24 小时、最长 7 天” | 低优先 |
 | N4 | ADR：`AssistantProfile`＋`ActionDefinition`，把外贸销售改成第一个插件 | 已同意，逐步做，不影响线上 |
 | N5 | Hermes H3：Sales agent 登记进 agent 注册表 | 已确认，Sales 流程完成后做 |
-| N6 | 用量与成本：按会话看模型调用次数、输入／缓存命中／输出 token | 每个问题的调用次数和输入、输出 token 已记入 `ai_runs.usage`（MIU 19）；还缺一个查看的地方和缓存命中数 |
+| N6 | 用量与成本：按会话看模型调用次数、输入／缓存命中／输出 token | Backlog（负责人，2026-11-03）。数据已记入 `ai_runs.usage`（MIU 19）；以后要看时，先做每周汇总 |
 | N7 | 防护层 L0 规则（§5.6） | 已完成（2026-11-03）；数字随 N6 的用量再调 |
 | N8 | 隐私说明页放进公开知识库，让助手能回答并引用（§6.3） | 随全链路联调 |
 | N9 | Sales agent 把乱填的询盘标成“不是有效线索”，不起草回复（Hermes 侧） | 随 H3 |
 
 ### 7.3 以后
 
-- 防护层 L1 内容安全分类：用腾讯云 TMS（§5.7），看到滥用时再加，届时给负责人开通链接。
+- 防护层 L1 内容安全分类：用腾讯云 TMS（§5.7），看到滥用时再加。现在只需要开通文本内容安全；图片内容安全等做图片上传（N10）时再开。
 - 跨天回访（§3）、邮件链接续聊、登录用户的历史。
-- 多模态：访客上传产品照片或图纸，助手返回图片或对比表。需要文件存储、内容审核和支持图片的模型，做之前单独调研。
+- 多模态（N10）：访客上传产品照片找同款或类似产品。建议的边界：每次只传一张，每个会话最多两张；手机原图在浏览器里先压到长边 1600 像素以内、约 1 MB 再上传，服务器拒收超过 2 MB 的文件，所以 5 MB 的原图也能传；同一 IP 每天有上限。图片由一个看图模型先转成文字描述，再交给现在的模型去查产品，看图那一步另外计费；需要腾讯云图片内容安全和对象存储。现在的 DeepSeek 模型是否能直接看图，做之前用 TokenHub 实测。
 - 跨会话的长期客户记忆，比如同一买家的偏好。需要明确的身份和同意，放在登录或邮件验证之后。
 - Hermes H4：多层授权简化。
 - 接入第二个行业，验证 N4 的合同。
@@ -350,6 +350,15 @@
 3. **可复用内核：** 同意 §4.3。不过度架构，先上线，上线后逐步重构。
 4. **隐私说明：** 低调的入口，需要时能看到（§6）。
 5. **防护层：** 放进 roadmap，排在后面（§5）。
+
+**2026-11-03（第五批），负责人：**
+
+1. **引擎：** 线上用的一直是 VibeKB。`anythingllm` 只是旧接法的名字：worker 通过 AnythingLLM 兼容的聊天接口问 VibeKB，由 VibeKB 自己检索、作答。新聊天换成 `vibekb` 接法：worker 自己调用模型，通过 MCP 读取公开文档。尽快上线，不做预览开关。
+2. **设置：** GitHub 变量由 Claude 直接改；密钥由负责人自己输入。
+3. **部署和 SEO：** 部署不能影响 SEO 已上线的内容和它的部署脚本；Codex 跑完当前任务后，由 Claude 合并两个分支。其他 Codex 会在本分支做验证，尽量不改代码。
+4. **询盘：** 不要同意勾选框，也不要“不要联系我”选项；访客说了不要联系，也照样记录和起草跟进，只标出来给审核的人。其余按建议：30 分钟、90 天、电话和 WhatsApp 都算。
+5. **N6：** 放进 backlog。
+6. **图片上传：** 记为 N10，以后做（§7.3）。
 
 **2026-11-03（第四批），负责人：**
 

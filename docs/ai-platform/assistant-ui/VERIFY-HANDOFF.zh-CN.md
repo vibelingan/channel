@@ -6,7 +6,7 @@
 
 - 仓库 `vibelingan/channel`，分支 `feat/sales-assistant`。请在你自己的 checkout 或 worktree 里工作，不要动 `/Users/nina/projects/channel-integration`（Claude 正在用）。
 - 设计与记录：`docs/ai-platform/assistant-ui/ROUND2-DESIGN.md`（§15 是每个 MIU 的实现记录、必测项与测试的对应、未验证项），`ROADMAP.md`（§5.6 寒暄边界，§7 发布顺序，§8 负责人决定）。
-- 本轮主要提交：`7f8dc4a2`（需求摘要、输入预算、用量、追问建议）、`404d2047`（整站测试与七道门禁缺陷注入）、`0318d9e9`（文档），以及之后“追问短标签、空转窗口改 10 分钟、产品页启动按钮提示”的提交。
+- 本轮主要提交：`7f8dc4a2`（需求摘要、输入预算、用量、追问建议）、`404d2047`（整站测试与七道门禁缺陷注入）、`0318d9e9`（文档）、`e066ce52`（追问短标签、空转窗口改 10 分钟、产品页启动按钮提示），以及之后“vibekb 部署接线、去掉询盘同意勾选框、数据库连接超时”的提交。
 
 ## 做了什么（一句话一项）
 
@@ -24,9 +24,10 @@
 
 ## 线上现状（Claude 2026-11-03 只读核对，请你也独立确认）
 
-1. 官网的新聊天开关 `PUBLIC_AI_CHAT_V2` 没有打开，访客看到的是旧组件；它调用的 `ai-bff` CloudRun 地址目前请求超时。
-2. `Deploy AI CloudRun` 工作流只支持 `AI_ENGINE_ID=anythingllm`。第二轮的需求摘要、建议和预算都在 `vibekb` 引擎里，生产上还缺：模型服务密钥、CloudRun 能访问的 VibeKB MCP HTTPS 入口、询盘 intake 的地址和专用令牌，以及工作流对这些设置的支持。
-3. 线上 `public-api` 跑的是 `dc3af64b`，它只在 `feat/seo-foundation` 上，不在 `test` 上。这个分支比 `test` 多 79 个提交；直接把本分支部署到 `test` 会把它的线上函数换回旧版本。和本分支试合并只有两个文件冲突：`apps/functions/public-api/src/index.ts` 和 `packages/db/package.json`。
+1. 官网的新聊天开关 `PUBLIC_AI_CHAT_V2` 还没打开，访客看到的是旧组件。旧组件后面的 `ai-bff` 进程是活的（`/api/ai/healthz` 返回 200），但所有要查数据库的请求都卡住（`/api/ai/readyz` 30 秒无响应）：它和 PostgreSQL 的连接挂住了，原因还没从日志确认。
+2. 知识库一直是 VibeKB（`https://kb.supplychainsai.com`）。部署里的 `anythingllm` 是旧接法的名字：通过 AnythingLLM 兼容接口让 VibeKB 自己作答。第二轮用的是 `vibekb` 接法（worker 自己调模型，通过 MCP 读公开文档）。部署接线已在本分支完成（MIU 21），生产上还缺 GitHub 变量、两个密钥和 `kb.supplychainsai.com/mcp` 的 nginx 转发。
+3. 线上 `public-api`、`admin`、`alibaba-catalog-sync` 都跑着 `dc3af64b`，它只在 `feat/seo-foundation` 上，不在 `test` 上。本分支部署前要先把这个提交合进来（试合并两处冲突），否则会把 SEO 已上线的功能换掉。
+4. 聊天里的询盘提交要经过 `sales-integration` 函数，它还不在 CloudBase 函数部署清单里。第一次上线只开新聊天，询盘仍走首页表单。
 
 ## Claude 没能验证的部分（你可以优先看）
 
