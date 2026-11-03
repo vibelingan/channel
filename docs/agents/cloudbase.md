@@ -22,6 +22,12 @@ first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
   - admin: `POST /api/admin` with `{"action":"health"}`
   Each returns `releaseId` (the commit) and `buildTime`. Watch that, not the
   workflow status: the code is live when the function says so.
+- Before fast-forwarding `test`, check that every live `releaseId` is an
+  ancestor of the commit you are about to deploy
+  (`git merge-base --is-ancestor <releaseId> <commit>`). `test` is not the
+  only writer: on 2026-11-01 the SEO static canary deployed `public-api`
+  from `feat/seo-foundation`, which `test` did not contain, so a plain
+  `test` deploy would have rolled that work back.
 - API base: `https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com`.
 
 ## Deploy timing and failure modes
