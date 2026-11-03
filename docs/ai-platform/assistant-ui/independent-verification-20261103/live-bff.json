@@ -1,0 +1,11 @@
+[
+  {
+    "path": "/api/ai/readyz",
+    "error": "The read operation timed out"
+  },
+  {
+    "path": "/api/ai/healthz",
+    "status": 200,
+    "body": "{\"status\":\"live\",\"service\":\"channel-ai-bff\"}"
+  }
+]

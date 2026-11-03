@@ -1,0 +1,70 @@
+$ astro check
+19:27:16 [types] Generated 126ms
+19:27:16 [check] Getting diagnostics for Astro files in ${VERIFY_ROOT}/apps/site...
+[96msrc/components/form/CountryPicker.tsx[0m:[93m166[0m:[93m11[0m - [93mwarning[0m[90m ts(6385): [0m'UNSTABLE_portalContainer' is deprecated.
+
+[7m166[0m           UNSTABLE_portalContainer={portal ?? undefined}
+[7m   [0m [93m          ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/islands/admin/AssistantInquirySummary.tsx[0m:[93m1[0m:[93m1[0m - [93mwarning[0m[90m ts(6133): [0m'React' is declared but its value is never read.
+
+[7m1[0m import * as React from 'react';
+[7m [0m [93m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/islands/admin/RecordForm.tsx[0m:[93m345[0m:[93m38[0m - [93mwarning[0m[90m ts(6385): [0m'FormEvent' is deprecated.
+
+[7m345[0m   function handleSubmit(event: React.FormEvent) {
+[7m   [0m [93m                                     ~~~~~~~~~[0m
+[96msrc/islands/admin/RecordForm.tsx[0m:[93m315[0m:[93m13[0m - [93mwarning[0m[90m ts(6385): [0m'returnValue' is deprecated.
+
+[7m315[0m       event.returnValue = '';
+[7m   [0m [93m            ~~~~~~~~~~~[0m
+
+[96msrc/islands/admin/api.ts[0m:[93m516[0m:[93m17[0m - [93mwarning[0m[90m ts(80006): [0mThis may be converted to an async function.
+
+[7m516[0m export function updateProductFromEditor(
+[7m   [0m [93m                ~~~~~~~~~~~~~~~~~~~~~~~[0m
+[96msrc/islands/admin/api.ts[0m:[93m47[0m:[93m1[0m - [93mwarning[0m[90m ts(6133): [0m'getToken' is declared but its value is never read.
+
+[7m47[0m import { getToken } from '../../lib/session.ts';
+[7m  [0m [93m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/islands/admin/articles/ArticleForm.tsx[0m:[93m73[0m:[93m15[0m - [93mwarning[0m[90m ts(6385): [0m'returnValue' is deprecated.
+
+[7m73[0m         event.returnValue = '';
+[7m  [0m [93m              ~~~~~~~~~~~[0m
+
+[96msrc/islands/ai/assistant/AssistantExperience.tsx[0m:[93m8[0m:[93m33[0m - [93mwarning[0m[90m ts(6196): [0m'PublicProduct' is declared but never used.
+
+[7m8[0m import type { AssistantAdapter, PublicProduct, TurnView } from './model';
+[7m [0m [93m                                ~~~~~~~~~~~~~[0m
+
+[96msrc/islands/auth/AuthForm.tsx[0m:[93m26[0m:[93m40[0m - [93mwarning[0m[90m ts(6385): [0m'FormEvent' is deprecated.
+
+[7m26[0m   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+[7m  [0m [93m                                       ~~~~~~~~~[0m
+
+[96msrc/islands/auth/ProfilePanel.tsx[0m:[93m41[0m:[93m40[0m - [93mwarning[0m[90m ts(6385): [0m'FormEvent' is deprecated.
+
+[7m41[0m   async function savePassword(e: React.FormEvent<HTMLFormElement>) {
+[7m  [0m [93m                                       ~~~~~~~~~[0m
+[96msrc/islands/auth/ProfilePanel.tsx[0m:[93m25[0m:[93m39[0m - [93mwarning[0m[90m ts(6385): [0m'FormEvent' is deprecated.
+
+[7m25[0m   async function saveProfile(e: React.FormEvent<HTMLFormElement>) {
+[7m  [0m [93m                                      ~~~~~~~~~[0m
+
+[96msrc/islands/auth/ResetForm.tsx[0m:[93m21[0m:[93m40[0m - [93mwarning[0m[90m ts(6385): [0m'FormEvent' is deprecated.
+
+[7m21[0m   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+[7m  [0m [93m                                       ~~~~~~~~~[0m
+
+[96msrc/islands/shop/InquiryForm.tsx[0m:[93m22[0m:[93m40[0m - [93mwarning[0m[90m ts(6385): [0m'FormEvent' is deprecated.
+
+[7m22[0m   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+[7m  [0m [93m                                       ~~~~~~~~~[0m
+
+Result (311 files): 
+- 0 errors
+- 0 warnings
+- 13 hints
+

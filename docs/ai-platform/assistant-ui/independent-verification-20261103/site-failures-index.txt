@@ -1,0 +1,63 @@
+1221:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1228:not ok 45 - src/islands/admin/alibaba-catalog-sync/alibaba-sync-browser.test.ts
+1235:  error: 'test failed'
+1421:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1428:not ok 54 - src/islands/admin/catalog-created-publication.test.ts
+1435:  error: 'test failed'
+1561:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1568:not ok 56 - src/islands/admin/catalog-draft-save.test.ts
+1575:  error: 'test failed'
+1581:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1588:not ok 57 - src/islands/admin/catalog-editor-publication.test.ts
+1595:  error: 'test failed'
+1601:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1608:not ok 58 - src/islands/admin/catalog-editor-recovery-browser.test.ts
+1615:  error: 'test failed'
+1866:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1873:not ok 62 - src/islands/admin/catalog-list-readiness-browser.test.ts
+1880:  error: 'test failed'
+1886:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+1893:not ok 63 - src/islands/admin/catalog-live-editor-browser.test.ts
+1900:  error: 'test failed'
+2347:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+2354:not ok 67 - src/islands/admin/catalog-preparation-integration.test.ts
+2361:  error: 'test failed'
+2367:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+2374:not ok 68 - src/islands/admin/catalog-preparation-native-flow.test.ts
+2381:  error: 'test failed'
+2457:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+2464:not ok 71 - src/islands/admin/catalog-product-create-browser.test.ts
+2471:  error: 'test failed'
+2477:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+2484:not ok 72 - src/islands/admin/catalog-product-create-integration.test.ts
+2491:  error: 'test failed'
+2917:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+2924:not ok 75 - src/islands/admin/catalog-product-operation-integration.test.ts
+2931:  error: 'test failed'
+2937:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+2944:not ok 76 - src/islands/admin/catalog-publication-batch-integration.test.ts
+2951:  error: 'test failed'
+3649:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+3656:not ok 81 - src/islands/admin/catalog-publication-original-start.test.ts
+3663:  error: 'test failed'
+3669:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+3676:not ok 82 - src/islands/admin/catalog-publication-run-integration.test.ts
+3683:  error: 'test failed'
+4086:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+4093:not ok 84 - src/islands/admin/catalog-table-publication-browser.test.ts
+4100:  error: 'test failed'
+4131:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+4138:not ok 86 - src/islands/admin/catalog-table-publication.test.ts
+4145:  error: 'test failed'
+4286:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+4293:not ok 88 - src/islands/admin/classification-publication-browser.test.ts
+4300:  error: 'test failed'
+4421:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+4428:not ok 94 - src/islands/admin/product-batch-publication.test.ts
+4435:  error: 'test failed'
+4976:# SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+4983:not ok 104 - src/islands/admin/session-storage-feedback-browser.test.ts
+4990:  error: 'test failed'
+6451:# pass 1207
+6452:# fail 20
+6454:# skipped 1

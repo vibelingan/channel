@@ -1,0 +1,21 @@
+7332d0a8d9fb97566eadcd994d3d1e35a38f4757
+100644 1e7630ce7ffb40cead352817bcbbb302dd5a9b2c 1	apps/functions/public-api/src/index.ts
+100644 71c24e0f15e670dc74872b1d7d9a921e02f872d7 2	apps/functions/public-api/src/index.ts
+100644 d029bcd53d3775ef2327d2d15d56c1faf08b5734 3	apps/functions/public-api/src/index.ts
+100644 e72699426cf2568446a1cc9d8b00430b615deeb0 1	packages/db/package.json
+100644 dd07ecdd1daa048a0208d36db488637541197384 2	packages/db/package.json
+100644 11012a258c11103cd0e7a87fa0b0b215c659c906 3	packages/db/package.json
+
+Auto-merging .github/workflows/ci.yml
+Auto-merging apps/functions/admin/src/handler.ts
+Auto-merging apps/functions/admin/src/index.ts
+Auto-merging apps/functions/public-api/src/http-adapter.ts
+Auto-merging apps/functions/public-api/src/index.ts
+CONFLICT (content): Merge conflict in apps/functions/public-api/src/index.ts
+Auto-merging apps/local-server/src/json-adapter.ts
+Auto-merging apps/site/astro.config.ts
+Auto-merging packages/db/package.json
+CONFLICT (content): Merge conflict in packages/db/package.json
+Auto-merging packages/db/src/cloudbase-adapter.ts
+Auto-merging pnpm-lock.yaml
+Auto-merging scripts/runtime-contract.test.mjs

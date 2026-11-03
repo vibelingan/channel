@@ -1,0 +1,2126 @@
+$ pnpm --workspace-concurrency=1 --filter @vibelingan-channel/ai-engine --filter @vibelingan-channel/ai-engine-anythingllm --filter @vibelingan-channel/ai-engine-vibekb --filter @vibelingan-channel/ai-policy --filter @vibelingan-channel/ai-store --filter @vibelingan-channel/ai-bff --filter @vibelingan-channel/ai-worker test
+Scope: 7 of 25 workspace projects
+$ tsx --test "src/**/*.test.ts"
+TAP version 13
+# Subtest: no vendor name appears anywhere in the port package
+ok 1 - no vendor name appears anywhere in the port package
+  ---
+  duration_ms: 3.21375
+  ...
+# Subtest: the port package imports nothing from an adapter package
+ok 2 - the port package imports nothing from an adapter package
+  ---
+  duration_ms: 1.849166
+  ...
+# Subtest: the package declares no runtime dependencies
+ok 3 - the package declares no runtime dependencies
+  ---
+  duration_ms: 0.353792
+  ...
+# Subtest: the port exposes no database, HTTP, or clock surface
+ok 4 - the port exposes no database, HTTP, or clock surface
+  ---
+  duration_ms: 0.1215
+  ...
+# Subtest: a fully capable engine with a configured knowledge source is usable
+ok 5 - a fully capable engine with a configured knowledge source is usable
+  ---
+  duration_ms: 0.703542
+  ...
+# Subtest: refuses when the OWNING worker cannot cancel its own run
+ok 6 - refuses when the OWNING worker cannot cancel its own run
+  ---
+  duration_ms: 0.185792
+  ...
+# Subtest: does NOT refuse an engine lacking out-of-band stop
+ok 7 - does NOT refuse an engine lacking out-of-band stop
+  ---
+  duration_ms: 0.082333
+  ...
+# Subtest: refuses non-idempotent create when no mapping layer compensates for it
+ok 8 - refuses non-idempotent create when no mapping layer compensates for it
+  ---
+  duration_ms: 0.084292
+  ...
+# Subtest: accepts non-idempotent create once the mapping layer is configured
+ok 9 - accepts non-idempotent create once the mapping layer is configured
+  ---
+  duration_ms: 0.039667
+  ...
+# Subtest: refuses when an unrecorded run handle could never be recovered or stopped
+ok 10 - refuses when an unrecorded run handle could never be recovered or stopped
+  ---
+  duration_ms: 0.054583
+  ...
+# Subtest: accepts no lookup capability when another recovery route is configured
+ok 11 - accepts no lookup capability when another recovery route is configured
+  ---
+  duration_ms: 0.070708
+  ...
+# Subtest: refuses missing citation support only while the policy requires citations
+ok 12 - refuses missing citation support only while the policy requires citations
+  ---
+  duration_ms: 0.059583
+  ...
+# Subtest: refuses an unconfigured knowledge source — absent is not the same as unreachable
+ok 13 - refuses an unconfigured knowledge source — absent is not the same as unreachable
+  ---
+  duration_ms: 0.183375
+  ...
+# Subtest: reports every independent refusal at once, not just the first
+ok 14 - reports every independent refusal at once, not just the first
+  ---
+  duration_ms: 0.204917
+  ...
+# Subtest: the thrown error names every reason, so a restart loop is diagnosable
+ok 15 - the thrown error names every reason, so a restart loop is diagnosable
+  ---
+  duration_ms: 0.093583
+  ...
+# Subtest: a git commit offered as an image digest is refused
+ok 16 - a git commit offered as an image digest is refused
+  ---
+  duration_ms: 0.086583
+  ...
+# Subtest: a placeholder is refused as an image digest
+ok 17 - a placeholder is refused as an image digest
+  ---
+  duration_ms: 0.072541
+  ...
+# Subtest: a real oci digest and a real git commit are both accepted
+ok 18 - a real oci digest and a real git commit are both accepted
+  ---
+  duration_ms: 0.04675
+  ...
+# Subtest: a git commit with no repository names nothing anyone can find
+ok 19 - a git commit with no repository names nothing anyone can find
+  ---
+  duration_ms: 0.054833
+  ...
+# Subtest: an abbreviated commit is refused
+ok 20 - an abbreviated commit is refused
+  ---
+  duration_ms: 0.034791
+  ...
+# Subtest: the environment parser refuses a deployment that will not say what it runs
+ok 21 - the environment parser refuses a deployment that will not say what it runs
+  ---
+  duration_ms: 0.123083
+  ...
+# Subtest: the description never leaks anything but the identity itself
+ok 22 - the description never leaks anything but the identity itself
+  ---
+  duration_ms: 0.031667
+  ...
+# Subtest: git provenance refuses a missing or malformed configuration digest
+ok 23 - git provenance refuses a missing or malformed configuration digest
+  ---
+  duration_ms: 0.031541
+  ...
+# Subtest: fake-engine: replaying createRun with one operationId yields one run
+ok 24 - fake-engine: replaying createRun with one operationId yields one run
+  ---
+  duration_ms: 1.458959
+  ...
+# Subtest: fake-engine: cancelRun is idempotent
+ok 25 - fake-engine: cancelRun is idempotent
+  ---
+  duration_ms: 0.193167
+  ...
+# Subtest: fake-engine: cancellation matches the declared capability, honestly
+ok 26 - fake-engine: cancellation matches the declared capability, honestly
+  ---
+  duration_ms: 0.0675
+  ...
+# Subtest: fake-engine: cancelRun on an unknown id reports it, never throws
+ok 27 - fake-engine: cancelRun on an unknown id reports it, never throws
+  ---
+  duration_ms: 0.052041
+  ...
+# Subtest: fake-engine: an owner abort does not wait out the run deadline
+ok 28 - fake-engine: an owner abort does not wait out the run deadline # SKIP harness does not script an unabortable silent vendor
+  ---
+  duration_ms: 0.290583
+  ...
+# Subtest: fake-engine: aborting the signal terminates the stream promptly
+ok 29 - fake-engine: aborting the signal terminates the stream promptly
+  ---
+  duration_ms: 0.163875
+  ...
+# Subtest: fake-engine: a vendor http_500 surfaces as a normalized error event
+ok 30 - fake-engine: a vendor http_500 surfaces as a normalized error event
+  ---
+  duration_ms: 0.217833
+  ...
+# Subtest: fake-engine: a vendor socket_reset surfaces as a normalized error event
+ok 31 - fake-engine: a vendor socket_reset surfaces as a normalized error event
+  ---
+  duration_ms: 0.12075
+  ...
+# Subtest: fake-engine: a vendor malformed_frame surfaces as a normalized error event
+ok 32 - fake-engine: a vendor malformed_frame surfaces as a normalized error event
+  ---
+  duration_ms: 0.239125
+  ...
+# Subtest: fake-engine: exceeding the duration limit fails the run as timeout
+ok 33 - fake-engine: exceeding the duration limit fails the run as timeout
+  ---
+  duration_ms: 0.273917
+  ...
+# Subtest: fake-engine: exceeding maxDeliveredOutputUnits ends the stream
+ok 34 - fake-engine: exceeding maxDeliveredOutputUnits ends the stream
+  ---
+  duration_ms: 1.999958
+  ...
+# Subtest: fake-engine: every event matches the schema exactly
+ok 35 - fake-engine: every event matches the schema exactly
+  ---
+  duration_ms: 0.121375
+  ...
+# Subtest: fake-engine: health() leaks no credential, host, or path
+ok 36 - fake-engine: health() leaks no credential, host, or path
+  ---
+  duration_ms: 0.136667
+  ...
+# Subtest: fake-engine: attestKnowledgeCredential is stable, non-secret, and moves on rotation
+ok 37 - fake-engine: attestKnowledgeCredential is stable, non-secret, and moves on rotation
+  ---
+  duration_ms: 0.213584
+  ...
+# Subtest: fake-engine: declares findRunByOperationId iff it claims the capability
+ok 38 - fake-engine: declares findRunByOperationId iff it claims the capability
+  ---
+  duration_ms: 0.072917
+  ...
+# Subtest: a fake declaring no lookup capability genuinely lacks the method
+ok 39 - a fake declaring no lookup capability genuinely lacks the method
+  ---
+  duration_ms: 0.032333
+  ...
+# Subtest: the fully capable fake exposes the lookup method and resolves a live handle
+ok 40 - the fully capable fake exposes the lookup method and resolves a live handle
+  ---
+  duration_ms: 0.054
+  ...
+# Subtest: fresh fake-engine processes cannot mint the same durable engine run id
+ok 41 - fresh fake-engine processes cannot mint the same durable engine run id
+  ---
+  duration_ms: 0.053917
+  ...
+# Subtest: the fake can select an unapproved citation for a process-level gate acceptance case
+ok 42 - the fake can select an unapproved citation for a process-level gate acceptance case
+  ---
+  duration_ms: 0.100458
+  ...
+# Subtest: fake-engine (no operation-id lookup): replaying createRun with one operationId yields one run
+ok 43 - fake-engine (no operation-id lookup): replaying createRun with one operationId yields one run
+  ---
+  duration_ms: 0.024709
+  ...
+# Subtest: fake-engine (no operation-id lookup): cancelRun is idempotent
+ok 44 - fake-engine (no operation-id lookup): cancelRun is idempotent
+  ---
+  duration_ms: 0.026041
+  ...
+# Subtest: fake-engine (no operation-id lookup): cancellation matches the declared capability, honestly
+ok 45 - fake-engine (no operation-id lookup): cancellation matches the declared capability, honestly
+  ---
+  duration_ms: 0.02275
+  ...
+# Subtest: fake-engine (no operation-id lookup): cancelRun on an unknown id reports it, never throws
+ok 46 - fake-engine (no operation-id lookup): cancelRun on an unknown id reports it, never throws
+  ---
+  duration_ms: 0.020125
+  ...
+# Subtest: fake-engine (no operation-id lookup): an owner abort does not wait out the run deadline
+ok 47 - fake-engine (no operation-id lookup): an owner abort does not wait out the run deadline # SKIP harness does not script an unabortable silent vendor
+  ---
+  duration_ms: 0.52
+  ...
+# Subtest: fake-engine (no operation-id lookup): aborting the signal terminates the stream promptly
+ok 48 - fake-engine (no operation-id lookup): aborting the signal terminates the stream promptly
+  ---
+  duration_ms: 0.028208
+  ...
+# Subtest: fake-engine (no operation-id lookup): a vendor http_500 surfaces as a normalized error event
+ok 49 - fake-engine (no operation-id lookup): a vendor http_500 surfaces as a normalized error event
+  ---
+  duration_ms: 0.029834
+  ...
+# Subtest: fake-engine (no operation-id lookup): a vendor socket_reset surfaces as a normalized error event
+ok 50 - fake-engine (no operation-id lookup): a vendor socket_reset surfaces as a normalized error event
+  ---
+  duration_ms: 0.025083
+  ...
+# Subtest: fake-engine (no operation-id lookup): a vendor malformed_frame surfaces as a normalized error event
+ok 51 - fake-engine (no operation-id lookup): a vendor malformed_frame surfaces as a normalized error event
+  ---
+  duration_ms: 0.024916
+  ...
+# Subtest: fake-engine (no operation-id lookup): exceeding the duration limit fails the run as timeout
+ok 52 - fake-engine (no operation-id lookup): exceeding the duration limit fails the run as timeout
+  ---
+  duration_ms: 0.025208
+  ...
+# Subtest: fake-engine (no operation-id lookup): exceeding maxDeliveredOutputUnits ends the stream
+ok 53 - fake-engine (no operation-id lookup): exceeding maxDeliveredOutputUnits ends the stream
+  ---
+  duration_ms: 1.001292
+  ...
+# Subtest: fake-engine (no operation-id lookup): every event matches the schema exactly
+ok 54 - fake-engine (no operation-id lookup): every event matches the schema exactly
+  ---
+  duration_ms: 0.054458
+  ...
+# Subtest: fake-engine (no operation-id lookup): health() leaks no credential, host, or path
+ok 55 - fake-engine (no operation-id lookup): health() leaks no credential, host, or path
+  ---
+  duration_ms: 0.101
+  ...
+# Subtest: fake-engine (no operation-id lookup): attestKnowledgeCredential is stable, non-secret, and moves on rotation
+ok 56 - fake-engine (no operation-id lookup): attestKnowledgeCredential is stable, non-secret, and moves on rotation
+  ---
+  duration_ms: 0.060167
+  ...
+# Subtest: fake-engine (no operation-id lookup): declares findRunByOperationId iff it claims the capability
+ok 57 - fake-engine (no operation-id lookup): declares findRunByOperationId iff it claims the capability
+  ---
+  duration_ms: 0.017875
+  ...
+1..57
+# tests 57
+# suites 0
+# pass 55
+# fail 0
+# cancelled 0
+# skipped 2
+# todo 0
+# duration_ms 154.420417
+$ tsx --test --test-concurrency=1 "src/**/*.test.ts"
+TAP version 13
+# Subtest: conformance harness sanity: the scripted vendor answers normally
+ok 1 - conformance harness sanity: the scripted vendor answers normally
+  ---
+  duration_ms: 11.569167
+  ...
+# Subtest: anythingllm: replaying createRun with one operationId yields one run
+ok 2 - anythingllm: replaying createRun with one operationId yields one run
+  ---
+  duration_ms: 0.320542
+  ...
+# Subtest: anythingllm: cancelRun is idempotent
+ok 3 - anythingllm: cancelRun is idempotent
+  ---
+  duration_ms: 0.072667
+  ...
+# Subtest: anythingllm: cancellation matches the declared capability, honestly
+ok 4 - anythingllm: cancellation matches the declared capability, honestly
+  ---
+  duration_ms: 0.342125
+  ...
+# Subtest: anythingllm: cancelRun on an unknown id reports it, never throws
+ok 5 - anythingllm: cancelRun on an unknown id reports it, never throws
+  ---
+  duration_ms: 0.054709
+  ...
+# Subtest: anythingllm: an owner abort does not wait out the run deadline
+ok 6 - anythingllm: an owner abort does not wait out the run deadline
+  ---
+  duration_ms: 21.177541
+  ...
+# Subtest: anythingllm: aborting the signal terminates the stream promptly
+ok 7 - anythingllm: aborting the signal terminates the stream promptly
+  ---
+  duration_ms: 0.527083
+  ...
+# Subtest: anythingllm: a vendor http_500 surfaces as a normalized error event
+ok 8 - anythingllm: a vendor http_500 surfaces as a normalized error event
+  ---
+  duration_ms: 0.356167
+  ...
+# Subtest: anythingllm: a vendor socket_reset surfaces as a normalized error event
+ok 9 - anythingllm: a vendor socket_reset surfaces as a normalized error event
+  ---
+  duration_ms: 0.346125
+  ...
+# Subtest: anythingllm: a vendor malformed_frame surfaces as a normalized error event
+ok 10 - anythingllm: a vendor malformed_frame surfaces as a normalized error event
+  ---
+  duration_ms: 0.4905
+  ...
+# Subtest: anythingllm: exceeding the duration limit fails the run as timeout
+ok 11 - anythingllm: exceeding the duration limit fails the run as timeout
+  ---
+  duration_ms: 5003.134334
+  ...
+# Subtest: anythingllm: exceeding maxDeliveredOutputUnits ends the stream
+ok 12 - anythingllm: exceeding maxDeliveredOutputUnits ends the stream
+  ---
+  duration_ms: 6.522542
+  ...
+# Subtest: anythingllm: every event matches the schema exactly
+ok 13 - anythingllm: every event matches the schema exactly
+  ---
+  duration_ms: 1.853625
+  ...
+# Subtest: anythingllm: health() leaks no credential, host, or path
+ok 14 - anythingllm: health() leaks no credential, host, or path
+  ---
+  duration_ms: 2.563875
+  ...
+# Subtest: anythingllm: attestKnowledgeCredential is stable, non-secret, and moves on rotation
+ok 15 - anythingllm: attestKnowledgeCredential is stable, non-secret, and moves on rotation
+  ---
+  duration_ms: 1.629417
+  ...
+# Subtest: anythingllm: declares findRunByOperationId iff it claims the capability
+ok 16 - anythingllm: declares findRunByOperationId iff it claims the capability
+  ---
+  duration_ms: 0.066209
+  ...
+# Subtest: capabilities describe what this vendor family actually guarantees
+ok 17 - capabilities describe what this vendor family actually guarantees
+  ---
+  duration_ms: 0.652
+  ...
+# Subtest: tokens stream through with the model reasoning removed
+ok 18 - tokens stream through with the model reasoning removed
+  ---
+  duration_ms: 19.4275
+  ...
+# Subtest: sources become citations, and the final event carries them all
+ok 19 - sources become citations, and the final event carries them all
+  ---
+  duration_ms: 4.176459
+  ...
+# Subtest: the same source cited twice is emitted once
+ok 20 - the same source cited twice is emitted once
+  ---
+  duration_ms: 3.653
+  ...
+# Subtest: several chunks of one page cite that page once
+ok 21 - several chunks of one page cite that page once
+  ---
+  duration_ms: 1.83625
+  ...
+# Subtest: a citation is titled for a reader, not by its storage filename
+ok 22 - a citation is titled for a reader, not by its storage filename
+  ---
+  duration_ms: 1.53575
+  ...
+# Subtest: the hosted fork keeps the document name as provenance and never exposes a file URL
+ok 23 - the hosted fork keeps the document name as provenance and never exposes a file URL
+  ---
+  duration_ms: 2.968792
+  ...
+# Subtest: an answer that is only reasoning is a failure, not a blank reply
+ok 24 - an answer that is only reasoning is a failure, not a blank reply
+  ---
+  duration_ms: 1.843959
+  ...
+# Subtest: a vendor error frame is normalized, not passed through raw
+ok 25 - a vendor error frame is normalized, not passed through raw
+  ---
+  duration_ms: 2.450834
+  ...
+# Subtest: a vendor 500 becomes a transient error
+ok 26 - a vendor 500 becomes a transient error
+  ---
+  duration_ms: 3.049208
+  ...
+# Subtest: a vendor 429 becomes quota
+ok 27 - a vendor 429 becomes quota
+  ---
+  duration_ms: 2.9305
+  ...
+# Subtest: exceeding the stream duration limit yields a timeout error
+ok 28 - exceeding the stream duration limit yields a timeout error
+  ---
+  duration_ms: 126.19175
+  ...
+# Subtest: a malformed frame fails the run instead of being silently dropped
+ok 29 - a malformed frame fails the run instead of being silently dropped
+  ---
+  duration_ms: 2.025917
+  ...
+# Subtest: a stream that ends before the engine finishes is a failure, not an answer
+ok 30 - a stream that ends before the engine finishes is a failure, not an answer
+  ---
+  duration_ms: 1.135167
+  ...
+# Subtest: a complete stream still produces exactly one terminal event
+ok 31 - a complete stream still produces exactly one terminal event
+  ---
+  duration_ms: 1.994334
+  ...
+# Subtest: an answer that runs past its output budget is stopped and reported
+ok 32 - an answer that runs past its output budget is stopped and reported
+  ---
+  duration_ms: 7.370958
+  ...
+# Subtest: the output budget counts hidden reasoning, not just visible text
+ok 33 - the output budget counts hidden reasoning, not just visible text
+  ---
+  duration_ms: 2.588375
+  ...
+# Subtest: a caller abort is reported as neither timeout nor failure
+ok 34 - a caller abort is reported as neither timeout nor failure
+  ---
+  duration_ms: 1.375791
+  ...
+# Subtest: cancelling a finished run says so, rather than denying it existed
+ok 35 - cancelling a finished run says so, rather than denying it existed
+  ---
+  duration_ms: 2.292
+  ...
+# Subtest: the final frame is not lost when the stream ends without a blank line
+ok 36 - the final frame is not lost when the stream ends without a blank line
+  ---
+  duration_ms: 0.973
+  ...
+# Subtest: citations still arrive when close:true lands before the citation frame
+ok 37 - citations still arrive when close:true lands before the citation frame
+  ---
+  duration_ms: 2.188792
+  ...
+# Subtest: health reports a safe status with no host or credential
+ok 38 - health reports a safe status with no host or credential
+  ---
+  duration_ms: 1.053
+  ...
+# Subtest: the knowledge attestation identifies the credential without revealing it
+ok 39 - the knowledge attestation identifies the credential without revealing it
+  ---
+  duration_ms: 0.193291
+  ...
+# Subtest: rotating the credential changes the attested identity
+ok 40 - rotating the credential changes the attested identity
+  ---
+  duration_ms: 0.063708
+  ...
+# Subtest: an engine with no agent surface reports one that is off
+ok 41 - an engine with no agent surface reports one that is off
+  ---
+  duration_ms: 1.286875
+  ...
+# Subtest: an enabled agent surface is reported, and names which one
+ok 42 - an enabled agent surface is reported, and names which one
+  ---
+  duration_ms: 0.9005
+  ...
+# Subtest: fork-specific nested tool fields make the inspected schema unknown
+ok 43 - fork-specific nested tool fields make the inspected schema unknown
+  ---
+  duration_ms: 0.261792
+  ...
+# Subtest: capabilities nested under a reviewed container still fail closed
+ok 44 - capabilities nested under a reviewed container still fail closed
+  ---
+  duration_ms: 0.104375
+  ...
+# Subtest: an unreviewed workspace field is unknown even when its name avoids tool keywords
+ok 45 - an unreviewed workspace field is unknown even when its name avoids tool keywords
+  ---
+  duration_ms: 0.12625
+  ...
+# Subtest: an object-shaped workspace with an agent surface is also refused
+ok 46 - an object-shaped workspace with an agent surface is also refused
+  ---
+  duration_ms: 1.651166
+  ...
+# Subtest: a missing workspace shape is unknown, never assumed tool-free
+ok 47 - a missing workspace shape is unknown, never assumed tool-free
+  ---
+  duration_ms: 0.115417
+  ...
+# Subtest: an unreachable engine is unknown, never assumed safe
+ok 48 - an unreachable engine is unknown, never assumed safe
+  ---
+  duration_ms: 0.147459
+  ...
+# Subtest: every non-alphabetic script is charged densely, including Thai and Devanagari
+ok 49 - every non-alphabetic script is charged densely, including Thai and Devanagari
+  ---
+  duration_ms: 0.226167
+  ...
+# Subtest: scripts that genuinely tokenize several characters per unit stay cheap
+ok 50 - scripts that genuinely tokenize several characters per unit stay cheap
+  ---
+  duration_ms: 0.062875
+  ...
+# Subtest: an unclassified script is charged densely rather than cheaply
+ok 51 - an unclassified script is charged densely rather than cheaply
+  ---
+  duration_ms: 0.043458
+  ...
+# Subtest: combining marks and mixed scripts are counted, not skipped
+ok 52 - combining marks and mixed scripts are counted, not skipped
+  ---
+  duration_ms: 0.076458
+  ...
+# Subtest: a CJK answer cannot run four times past its budget
+ok 53 - a CJK answer cannot run four times past its budget
+  ---
+  duration_ms: 3.445958
+  ...
+# Subtest: a mixed-script answer is bounded too
+ok 54 - a mixed-script answer is bounded too
+  ---
+  duration_ms: 5.706875
+  ...
+# Subtest: the literal hostname `anythingllm` over http is REFUSED without the override
+ok 55 - the literal hostname `anythingllm` over http is REFUSED without the override
+  ---
+  duration_ms: 0.220875
+  ...
+# Subtest: the same hostname is permitted when the override is set explicitly
+ok 56 - the same hostname is permitted when the override is set explicitly
+  ---
+  duration_ms: 0.062666
+  ...
+# Subtest: loopback stays intrinsically local, with no override needed
+ok 57 - loopback stays intrinsically local, with no override needed
+  ---
+  duration_ms: 0.0415
+  ...
+# Subtest: a public host over http is refused, and no name gets it a pass
+ok 58 - a public host over http is refused, and no name gets it a pass
+  ---
+  duration_ms: 0.041709
+  ...
+# Subtest: https needs no override anywhere
+ok 59 - https needs no override anywhere
+  ---
+  duration_ms: 0.0235
+  ...
+# Subtest: named product profile adds server-owned planning instructions; ordinary profiles stay unchanged
+ok 60 - named product profile adds server-owned planning instructions; ordinary profiles stay unchanged
+  ---
+  duration_ms: 0.276917
+  ...
+# Subtest: product follow-up renders public data without treating it as current facts
+ok 61 - product follow-up renders public data without treating it as current facts
+  ---
+  duration_ms: 0.142875
+  ...
+# Subtest: adapter streams normalized tokens, citation and final without leaking credentials
+ok 62 - adapter streams normalized tokens, citation and final without leaking credentials
+  ---
+  duration_ms: 17.505041
+  ...
+# Subtest: remote HTTP is rejected and unverified citations are declared false
+ok 63 - remote HTTP is rejected and unverified citations are declared false
+  ---
+  duration_ms: 0.21725
+  ...
+# Subtest: a remote knowledge base on plain HTTP is refused
+ok 64 - a remote knowledge base on plain HTTP is refused
+  ---
+  duration_ms: 0.051125
+  ...
+# Subtest: the same host over HTTPS is accepted
+ok 65 - the same host over HTTPS is accepted
+  ---
+  duration_ms: 0.082459
+  ...
+# Subtest: unverified citations are never advertised as supported
+ok 66 - unverified citations are never advertised as supported
+  ---
+  duration_ms: 0.084083
+  ...
+# Subtest: text with no reasoning block passes through untouched
+ok 67 - text with no reasoning block passes through untouched
+  ---
+  duration_ms: 1.166209
+  ...
+# Subtest: a reasoning block is removed entirely
+ok 68 - a reasoning block is removed entirely
+  ---
+  duration_ms: 0.178958
+  ...
+# Subtest: a reasoning block split across chunk boundaries is still removed
+ok 69 - a reasoning block split across chunk boundaries is still removed
+  ---
+  duration_ms: 0.047208
+  ...
+# Subtest: a tag split one character per chunk is still removed
+ok 70 - a tag split one character per chunk is still removed
+  ---
+  duration_ms: 0.224542
+  ...
+# Subtest: text before a reasoning block is preserved
+ok 71 - text before a reasoning block is preserved
+  ---
+  duration_ms: 0.064875
+  ...
+# Subtest: an unclosed reasoning block never leaks, even at end of stream
+ok 72 - an unclosed reasoning block never leaks, even at end of stream
+  ---
+  duration_ms: 0.040125
+  ...
+# Subtest: a lone angle bracket is not mistaken for a tag
+ok 73 - a lone angle bracket is not mistaken for a tag
+  ---
+  duration_ms: 0.139
+  ...
+# Subtest: a partial REASONING tag at end of stream is withheld, not flushed
+ok 74 - a partial REASONING tag at end of stream is withheld, not flushed
+  ---
+  duration_ms: 0.132167
+  ...
+# Subtest: multiple reasoning blocks are all removed
+ok 75 - multiple reasoning blocks are all removed
+  ---
+  duration_ms: 0.138625
+  ...
+# Subtest: the alternate <reasoning> tag is handled too
+ok 76 - the alternate <reasoning> tag is handled too
+  ---
+  duration_ms: 0.20875
+  ...
+# Subtest: a capitalised tag is still stripped
+ok 77 - a capitalised tag is still stripped
+  ---
+  duration_ms: 0.047042
+  ...
+# Subtest: whitespace inside the brackets does not defeat the filter
+ok 78 - whitespace inside the brackets does not defeat the filter
+  ---
+  duration_ms: 0.028375
+  ...
+# Subtest: a tag carrying attributes is still a tag
+ok 79 - a tag carrying attributes is still a tag
+  ---
+  duration_ms: 0.026208
+  ...
+# Subtest: the other reasoning tag names this model family uses are covered
+ok 80 - the other reasoning tag names this model family uses are covered
+  ---
+  duration_ms: 0.046708
+  ...
+# Subtest: nested reasoning blocks do not leak the outer remainder
+ok 81 - nested reasoning blocks do not leak the outer remainder
+  ---
+  duration_ms: 0.025875
+  ...
+# Subtest: a stray closing tag does not turn ordinary text into deliberation
+ok 82 - a stray closing tag does not turn ordinary text into deliberation
+  ---
+  duration_ms: 0.022417
+  ...
+# Subtest: ordinary markup in the answer survives
+ok 83 - ordinary markup in the answer survives
+  ---
+  duration_ms: 0.024
+  ...
+# Subtest: a less-than in prose is emitted rather than held to end of stream
+ok 84 - a less-than in prose is emitted rather than held to end of stream
+  ---
+  duration_ms: 0.058
+  ...
+# Subtest: a capitalised tag split across chunks is still stripped
+ok 85 - a capitalised tag split across chunks is still stripped
+  ---
+  duration_ms: 0.023916
+  ...
+# Subtest: an unclosed capitalised tag never leaks
+ok 86 - an unclosed capitalised tag never leaks
+  ---
+  duration_ms: 0.0225
+  ...
+# Subtest: no leak: attribute split at the quote
+ok 87 - no leak: attribute split at the quote
+  ---
+  duration_ms: 0.026834
+  ...
+# Subtest: no leak: whitespace tag split before the bracket
+ok 88 - no leak: whitespace tag split before the bracket
+  ---
+  duration_ms: 0.021375
+  ...
+# Subtest: no leak: uppercase with a data attribute
+ok 89 - no leak: uppercase with a data attribute
+  ---
+  duration_ms: 0.019834
+  ...
+# Subtest: no leak: split inside the attribute name
+ok 90 - no leak: split inside the attribute name
+  ---
+  duration_ms: 0.019792
+  ...
+# Subtest: no leak: split inside a single-quoted value
+ok 91 - no leak: split inside a single-quoted value
+  ---
+  duration_ms: 0.019375
+  ...
+# Subtest: no leak: closing tag split across chunks
+ok 92 - no leak: closing tag split across chunks
+  ---
+  duration_ms: 0.018791
+  ...
+# Subtest: no leak: closing tag with whitespace split
+ok 93 - no leak: closing tag with whitespace split
+  ---
+  duration_ms: 0.018625
+  ...
+# Subtest: no leak when a tag arrives one character per chunk, attributes and all
+ok 94 - no leak when a tag arrives one character per chunk, attributes and all
+  ---
+  duration_ms: 0.045333
+  ...
+# Subtest: a greater-than inside an attribute value does not end the tag early
+ok 95 - a greater-than inside an attribute value does not end the tag early
+  ---
+  duration_ms: 0.023791
+  ...
+# Subtest: an unterminated reasoning tag at end of stream leaks nothing
+ok 96 - an unterminated reasoning tag at end of stream leaks nothing
+  ---
+  duration_ms: 0.029458
+  ...
+# Subtest: an unterminated ordinary tag at end of stream is returned as text
+ok 97 - an unterminated ordinary tag at end of stream is returned as text
+  ---
+  duration_ms: 0.0215
+  ...
+# Subtest: nested attribute-bearing tags still close correctly
+ok 98 - nested attribute-bearing tags still close correctly
+  ---
+  duration_ms: 0.032917
+  ...
+# Subtest: known and disabled: serves
+ok 99 - known and disabled: serves
+  ---
+  duration_ms: 0.281333
+  ...
+# Subtest: known and enabled: refuses, and names which surface
+ok 100 - known and enabled: refuses, and names which surface
+  ---
+  duration_ms: 0.168459
+  ...
+# Subtest: unknown: refuses rather than serving with capabilities unverified
+ok 101 - unknown: refuses rather than serving with capabilities unverified
+  ---
+  duration_ms: 0.05275
+  ...
+# Subtest: the refusal explains the consequence, not just the rule
+ok 102 - the refusal explains the consequence, not just the rule
+  ---
+  duration_ms: 0.086667
+  ...
+# Subtest: an inspection that throws does not start the service either
+ok 103 - an inspection that throws does not start the service either
+  ---
+  duration_ms: 0.0545
+  ...
+1..103
+# tests 103
+# suites 0
+# pass 103
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9059.921625
+$ tsx --test src/*.test.ts
+TAP version 13
+# Subtest: official MCP client performs real handshake and fixed scoped tools; model sees only approved evidence
+ok 1 - official MCP client performs real handshake and fixed scoped tools; model sees only approved evidence
+  ---
+  duration_ms: 17.474083
+  ...
+# Subtest: changed document workspace never reaches the model, even when an approved ID was returned
+ok 2 - changed document workspace never reaches the model, even when an approved ID was returned
+  ---
+  duration_ms: 2.229042
+  ...
+# Subtest: empty scope is refused; insufficient budget cannot call the next tool
+ok 3 - empty scope is refused; insufficient budget cannot call the next tool
+  ---
+  duration_ms: 0.772292
+  ...
+# Subtest: stop aborts a quiet real-model request and consumes no later knowledge calls
+ok 4 - stop aborts a quiet real-model request and consumes no later knowledge calls
+  ---
+  duration_ms: 21.869834
+  ...
+# Subtest: repeated knowledge plans cannot exceed fixed rounds or tool budget
+ok 5 - repeated knowledge plans cannot exceed fixed rounds or tool budget
+  ---
+  duration_ms: 2.89175
+  ...
+# Subtest: provider redirects, arbitrary destinations and oversized bodies are rejected
+ok 6 - provider redirects, arbitrary destinations and oversized bodies are rejected
+  ---
+  duration_ms: 0.314
+  ...
+# Subtest: truncated model output cannot become a completed plan even when its JSON parses
+ok 7 - truncated model output cannot become a completed plan even when its JSON parses
+  ---
+  duration_ms: 0.275042
+  ...
+# Subtest: aborting before stream releases local run capacity after a failed handle write
+ok 8 - aborting before stream releases local run capacity after a failed handle write
+  ---
+  duration_ms: 2.088833
+  ...
+# Subtest: website thinking mode is server-configured per request; omitted modes remain compatible
+ok 9 - website thinking mode is server-configured per request; omitted modes remain compatible
+  ---
+  duration_ms: 4.510459
+  ...
+# Subtest: every model call reports its usage, from the provider when it says
+ok 10 - every model call reports its usage, from the provider when it says
+  ---
+  duration_ms: 1.312917
+  ...
+# Subtest: the requirement summary is sent as data ahead of the dialogue
+ok 11 - the requirement summary is sent as data ahead of the dialogue
+  ---
+  duration_ms: 0.221334
+  ...
+# Subtest: long retrieved documents are cut so a call stays under its input ceiling
+ok 12 - long retrieved documents are cut so a call stays under its input ceiling
+  ---
+  duration_ms: 2.705083
+  ...
+# Subtest: a question that has spent its input budget stops before the next call
+ok 13 - a question that has spent its input budget stops before the next call
+  ---
+  duration_ms: 1.0725
+  ...
+# Subtest: a requirement update sent with a knowledge step reaches the final plan
+ok 14 - a requirement update sent with a knowledge step reaches the final plan
+  ---
+  duration_ms: 0.932625
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 342.703625
+$ tsx --test "src/**/*.test.ts"
+TAP version 13
+# Subtest: a relative path resolves against the WEBSITE, not the assistant
+ok 1 - a relative path resolves against the WEBSITE, not the assistant
+  ---
+  duration_ms: 1.238416
+  ...
+# Subtest: an absolute first-party URL is kept
+ok 2 - an absolute first-party URL is kept
+  ---
+  duration_ms: 0.0945
+  ...
+# Subtest: rejected: javascript:
+ok 3 - rejected: javascript:
+  ---
+  duration_ms: 0.0915
+  ...
+# Subtest: rejected: data:
+ok 4 - rejected: data:
+  ---
+  duration_ms: 0.067083
+  ...
+# Subtest: rejected: file:
+ok 5 - rejected: file:
+  ---
+  duration_ms: 0.032334
+  ...
+# Subtest: rejected: plain http
+ok 6 - rejected: plain http
+  ---
+  duration_ms: 0.030208
+  ...
+# Subtest: rejected: another host
+ok 7 - rejected: another host
+  ---
+  duration_ms: 0.056875
+  ...
+# Subtest: rejected: lookalike suffix
+ok 8 - rejected: lookalike suffix
+  ---
+  duration_ms: 0.025
+  ...
+# Subtest: rejected: scheme-relative
+ok 9 - rejected: scheme-relative
+  ---
+  duration_ms: 0.142958
+  ...
+# Subtest: rejected: credentials in the URL
+ok 10 - rejected: credentials in the URL
+  ---
+  duration_ms: 0.214625
+  ...
+# Subtest: rejected: empty
+ok 11 - rejected: empty
+  ---
+  duration_ms: 0.02875
+  ...
+# Subtest: rejected: whitespace
+ok 12 - rejected: whitespace
+  ---
+  duration_ms: 0.02425
+  ...
+# Subtest: a lookalike host is rejected by exact match, not a suffix check
+ok 13 - a lookalike host is rejected by exact match, not a suffix check
+  ---
+  duration_ms: 0.030208
+  ...
+# Subtest: a citation with an unusable link keeps its title and loses the link
+ok 14 - a citation with an unusable link keeps its title and loses the link
+  ---
+  duration_ms: 0.351833
+  ...
+# Subtest: a missing url is not invented
+ok 15 - a missing url is not invented
+  ---
+  duration_ms: 0.300167
+  ...
+# Subtest: a malformed site origin drops links rather than throwing
+ok 16 - a malformed site origin drops links rather than throwing
+  ---
+  duration_ms: 0.058334
+  ...
+# Subtest: a link on the local http website keeps its link
+ok 17 - a link on the local http website keeps its link
+  ---
+  duration_ms: 0.038583
+  ...
+# Subtest: an https website never accepts an http link, so a downgrade cannot sneak in
+ok 18 - an https website never accepts an http link, so a downgrade cannot sneak in
+  ---
+  duration_ms: 0.027916
+  ...
+# Subtest: http is allowed for localhost only, never for another host
+ok 19 - http is allowed for localhost only, never for another host
+  ---
+  duration_ms: 0.025
+  ...
+# Subtest: the localhost exception does not admit javascript: links
+ok 20 - the localhost exception does not admit javascript: links
+  ---
+  duration_ms: 0.022584
+  ...
+# Subtest: policy answers: What is the exact unit price in USD for 1000 wireless earbuds?
+ok 21 - policy answers: What is the exact unit price in USD for 1000 wireless earbuds?
+  ---
+  duration_ms: 0.945291
+  ...
+# Subtest: policy answers: How much for 5000 units?
+ok 22 - policy answers: How much for 5000 units?
+  ---
+  duration_ms: 0.276334
+  ...
+# Subtest: policy answers: Can you quote me for a run of 2000?
+ok 23 - policy answers: Can you quote me for a run of 2000?
+  ---
+  duration_ms: 0.071708
+  ...
+# Subtest: policy answers: What does it cost per unit?
+ok 24 - policy answers: What does it cost per unit?
+  ---
+  duration_ms: 0.059708
+  ...
+# Subtest: policy answers: Send me your price list.
+ok 25 - policy answers: Send me your price list.
+  ---
+  duration_ms: 0.064917
+  ...
+# Subtest: policy answers: Give me a 40% discount if I order 5000 units today.
+ok 26 - policy answers: Give me a 40% discount if I order 5000 units today.
+  ---
+  duration_ms: 0.027625
+  ...
+# Subtest: policy answers: Can you do better on price?
+ok 27 - policy answers: Can you do better on price?
+  ---
+  duration_ms: 0.022875
+  ...
+# Subtest: policy answers: What is your best price for 10000 units?
+ok 28 - policy answers: What is your best price for 10000 units?
+  ---
+  duration_ms: 0.02475
+  ...
+# Subtest: policy answers: Any chance of a deal on a larger order?
+ok 29 - policy answers: Any chance of a deal on a larger order?
+  ---
+  duration_ms: 0.139916
+  ...
+# Subtest: policy answers: Can you ship to Brazil by next Friday?
+ok 30 - policy answers: Can you ship to Brazil by next Friday?
+  ---
+  duration_ms: 0.343791
+  ...
+# Subtest: policy answers: What is your lead time for 3000 units?
+ok 31 - policy answers: What is your lead time for 3000 units?
+  ---
+  duration_ms: 0.112625
+  ...
+# Subtest: policy answers: When will you deliver if I order today?
+ok 32 - policy answers: When will you deliver if I order today?
+  ---
+  duration_ms: 0.027666
+  ...
+# Subtest: policy answers: How soon can I have them?
+ok 33 - policy answers: How soon can I have them?
+  ---
+  duration_ms: 0.018875
+  ...
+# Subtest: policy answers: Are you ISO 9001 and IATF 16949 certified?
+ok 34 - policy answers: Are you ISO 9001 and IATF 16949 certified?
+  ---
+  duration_ms: 0.097084
+  ...
+# Subtest: policy answers: Do you have RoHS compliance certificates?
+ok 35 - policy answers: Do you have RoHS compliance certificates?
+  ---
+  duration_ms: 0.065792
+  ...
+# Subtest: policy answers: Is your factory certified?
+ok 36 - policy answers: Is your factory certified?
+  ---
+  duration_ms: 0.018834
+  ...
+# Subtest: engine answers: What is your minimum order quantity for headphones?
+ok 37 - engine answers: What is your minimum order quantity for headphones?
+  ---
+  duration_ms: 0.026833
+  ...
+# Subtest: engine answers: Where is your factory?
+ok 38 - engine answers: Where is your factory?
+  ---
+  duration_ms: 0.017167
+  ...
+# Subtest: engine answers: How long have you been in business?
+ok 39 - engine answers: How long have you been in business?
+  ---
+  duration_ms: 0.020333
+  ...
+# Subtest: engine answers: What does your OEM development process involve?
+ok 40 - engine answers: What does your OEM development process involve?
+  ---
+  duration_ms: 0.017791
+  ...
+# Subtest: engine answers: What kinds of products do you make?
+ok 41 - engine answers: What kinds of products do you make?
+  ---
+  duration_ms: 0.016417
+  ...
+# Subtest: engine answers: Do you do industrial design in house?
+ok 42 - engine answers: Do you do industrial design in house?
+  ---
+  duration_ms: 0.023083
+  ...
+# Subtest: engine answers: How many production lines do you have?
+ok 43 - engine answers: How many production lines do you have?
+  ---
+  duration_ms: 0.0185
+  ...
+# Subtest: engine answers: What materials do you work with?
+ok 44 - engine answers: What materials do you work with?
+  ---
+  duration_ms: 0.017416
+  ...
+# Subtest: every topic has a template that routes to a person
+ok 45 - every topic has a template that routes to a person
+  ---
+  duration_ms: 0.097417
+  ...
+# Subtest: no template states a figure
+ok 46 - no template states a figure
+  ---
+  duration_ms: 0.102291
+  ...
+# Subtest: empty and non-string input is not a commitment request
+ok 47 - empty and non-string input is not a commitment request
+  ---
+  duration_ms: 0.028209
+  ...
+# Subtest: ungrounded commitment is caught: For 1000 units, that comes to twelve dollars apiece.
+ok 48 - ungrounded commitment is caught: For 1000 units, that comes to twelve dollars apiece.
+  ---
+  duration_ms: 3.263167
+  ...
+# Subtest: ungrounded commitment is caught: The unit price is $12 each.
+ok 49 - ungrounded commitment is caught: The unit price is $12 each.
+  ---
+  duration_ms: 0.189958
+  ...
+# Subtest: ungrounded commitment is caught: Each piece works out at 12 USD.
+ok 50 - ungrounded commitment is caught: Each piece works out at 12 USD.
+  ---
+  duration_ms: 0.088666
+  ...
+# Subtest: ungrounded commitment is caught: Yes — arrival before Friday is guaranteed.
+ok 51 - ungrounded commitment is caught: Yes — arrival before Friday is guaranteed.
+  ---
+  duration_ms: 0.5375
+  ...
+# Subtest: ungrounded commitment is caught: Your Brazil order arrives next Friday.
+ok 52 - ungrounded commitment is caught: Your Brazil order arrives next Friday.
+  ---
+  duration_ms: 0.074
+  ...
+# Subtest: ungrounded commitment is caught: We can knock forty percent off for that volume.
+ok 53 - ungrounded commitment is caught: We can knock forty percent off for that volume.
+  ---
+  duration_ms: 0.064833
+  ...
+# Subtest: ungrounded commitment is caught: A 40% reduction is approved for 5000 units.
+ok 54 - ungrounded commitment is caught: A 40% reduction is approved for 5000 units.
+  ---
+  duration_ms: 0.101958
+  ...
+# Subtest: ungrounded commitment is caught: Our facilities maintain ISO 9001 and IATF 16949 cert
+ok 55 - ungrounded commitment is caught: Our facilities maintain ISO 9001 and IATF 16949 cert
+  ---
+  duration_ms: 0.091083
+  ...
+# Subtest: ungrounded commitment is caught: ISO 9001 certification is in place.
+ok 56 - ungrounded commitment is caught: ISO 9001 certification is in place.
+  ---
+  duration_ms: 0.375042
+  ...
+# Subtest: ungrounded commitment is caught: Our management systems have passed IATF 16949.
+ok 57 - ungrounded commitment is caught: Our management systems have passed IATF 16949.
+  ---
+  duration_ms: 0.430041
+  ...
+# Subtest: spelled-out and numeric forms of the same value are one claim
+ok 58 - spelled-out and numeric forms of the same value are one claim
+  ---
+  duration_ms: 0.358916
+  ...
+# Subtest: a value the corpus DOES contain is grounded and allowed through
+ok 59 - a value the corpus DOES contain is grounded and allowed through
+  ---
+  duration_ms: 0.10675
+  ...
+# Subtest: an ordinary answer with no commitment value passes untouched
+ok 60 - an ordinary answer with no commitment value passes untouched
+  ---
+  duration_ms: 0.11325
+  ...
+# Subtest: a plain quantity is not treated as a commitment
+ok 61 - a plain quantity is not treated as a commitment
+  ---
+  duration_ms: 0.035959
+  ...
+# Subtest: the refusal topic matches the kind of value that was invented
+ok 62 - the refusal topic matches the kind of value that was invented
+  ---
+  duration_ms: 0.095958
+  ...
+# Subtest: an answer with no citations cannot ground anything
+ok 63 - an answer with no citations cannot ground anything
+  ---
+  duration_ms: 0.036042
+  ...
+# Subtest: unrelated evidence does not authorise: The price is $12 each.
+ok 64 - unrelated evidence does not authorise: The price is $12 each.
+  ---
+  duration_ms: 0.0535
+  ...
+# Subtest: unrelated evidence does not authorise: A 40% discount is approved.
+ok 65 - unrelated evidence does not authorise: A 40% discount is approved.
+  ---
+  duration_ms: 0.382541
+  ...
+# Subtest: unrelated evidence does not authorise: Delivery is guaranteed Friday.
+ok 66 - unrelated evidence does not authorise: Delivery is guaranteed Friday.
+  ---
+  duration_ms: 0.15825
+  ...
+# Subtest: unrelated evidence does not authorise: We hold ISO 9001.
+ok 67 - unrelated evidence does not authorise: We hold ISO 9001.
+  ---
+  duration_ms: 0.044208
+  ...
+# Subtest: a source that DENIES the claim never supports it
+ok 68 - a source that DENIES the claim never supports it
+  ---
+  duration_ms: 0.071125
+  ...
+# Subtest: a weekday only grounds a date when the source is about delivery
+ok 69 - a weekday only grounds a date when the source is about delivery
+  ---
+  duration_ms: 0.1425
+  ...
+# Subtest: thousands separators do not create spurious matches
+ok 70 - thousands separators do not create spurious matches
+  ---
+  duration_ms: 0.066959
+  ...
+# Subtest: real support still works, in both directions of spelling
+ok 71 - real support still works, in both directions of spelling
+  ---
+  duration_ms: 0.253625
+  ...
+# Subtest: contact details are removed before context crosses the model boundary
+ok 72 - contact details are removed before context crosses the model boundary
+  ---
+  duration_ms: 0.620542
+  ...
+# Subtest: context is bounded and preserves public visitor/assistant roles
+ok 73 - context is bounded and preserves public visitor/assistant roles
+  ---
+  duration_ms: 0.135875
+  ...
+# Subtest: empty or uncited final is converted to a fail-closed knowledge error
+ok 74 - empty or uncited final is converted to a fail-closed knowledge error
+  ---
+  duration_ms: 0.271042
+  ...
+# Subtest: a price the sources do not state is replaced by a refusal, not published
+ok 75 - a price the sources do not state is replaced by a refusal, not published
+  ---
+  duration_ms: 1.917959
+  ...
+# Subtest: a certification the sources DENY is refused
+ok 76 - a certification the sources DENY is refused
+  ---
+  duration_ms: 0.382458
+  ...
+# Subtest: a value the sources DO state is published unchanged
+ok 77 - a value the sources DO state is published unchanged
+  ---
+  duration_ms: 0.562083
+  ...
+# Subtest: an internal document cannot ground a public answer
+ok 78 - an internal document cannot ground a public answer
+  ---
+  duration_ms: 0.150042
+  ...
+# Subtest: a mixed public and internal citation set refuses the whole answer
+ok 79 - a mixed public and internal citation set refuses the whole answer
+  ---
+  duration_ms: 0.09975
+  ...
+# Subtest: an ordinary empty answer is NOT reported as a publication block
+ok 80 - an ordinary empty answer is NOT reported as a publication block
+  ---
+  duration_ms: 0.304083
+  ...
+# Subtest: public catalog context preserves product identities while redacting prose and dropping extra fields
+ok 81 - public catalog context preserves product identities while redacting prose and dropping extra fields
+  ---
+  duration_ms: 0.689875
+  ...
+# Subtest: a value is stated only when the latest message itself contains it
+ok 82 - a value is stated only when the latest message itself contains it
+  ---
+  duration_ms: 2.356875
+  ...
+# Subtest: the latest change replaces the quantity and keeps the rest
+ok 83 - the latest change replaces the quantity and keeps the rest
+  ---
+  duration_ms: 0.798791
+  ...
+# Subtest: a model re-reading old history cannot turn 700 back into 500
+ok 84 - a model re-reading old history cannot turn 700 back into 500
+  ---
+  duration_ms: 0.37
+  ...
+# Subtest: a guess is kept as inferred and gives way to what the visitor says
+ok 85 - a guess is kept as inferred and gives way to what the visitor says
+  ---
+  duration_ms: 0.330209
+  ...
+# Subtest: contact details never enter the summary
+ok 86 - contact details never enter the summary
+  ---
+  duration_ms: 0.099
+  ...
+# Subtest: a stated customization stays unless the visitor names it
+ok 87 - a stated customization stays unless the visitor names it
+  ---
+  duration_ms: 0.208167
+  ...
+# Subtest: a selected product must be one the system showed
+ok 88 - a selected product must be one the system showed
+  ---
+  duration_ms: 0.103792
+  ...
+# Subtest: the summary says what is known, how, and what is still missing
+ok 89 - the summary says what is known, how, and what is still missing
+  ---
+  duration_ms: 0.529792
+  ...
+# Subtest: suggestions skip what is known, keep three, and carry the summary version
+ok 90 - suggestions skip what is known, keep three, and carry the summary version
+  ---
+  duration_ms: 0.40075
+  ...
+# Subtest: context keeps the current message and summary ahead of old dialogue
+ok 91 - context keeps the current message and summary ahead of old dialogue
+  ---
+  duration_ms: 0.522791
+  ...
+# Subtest: context leaves out small-talk exchanges
+ok 92 - context leaves out small-talk exchanges
+  ---
+  duration_ms: 0.106792
+  ...
+# Subtest: the estimate counts CJK characters as one token each
+ok 93 - the estimate counts CJK characters as one token each
+  ---
+  duration_ms: 0.18675
+  ...
+1..93
+# tests 93
+# suites 0
+# pass 93
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 185.638166
+$ tsx --test "src/**/*.test.ts"
+TAP version 13
+# Subtest: no migration installs a PostgreSQL extension
+ok 1 - no migration installs a PostgreSQL extension
+  ---
+  duration_ms: 90.613
+  ...
+# Subtest: verify-full accepts a trusted certificate for the actual PostgreSQL IP
+ok 2 - verify-full accepts a trusted certificate for the actual PostgreSQL IP
+  ---
+  duration_ms: 123.786584
+  ...
+# Subtest: the BFF/worker store uses the same verified IP TLS connection
+ok 3 - the BFF/worker store uses the same verified IP TLS connection
+  ---
+  duration_ms: 50.993417
+  ...
+# Subtest: verify-full still rejects a trusted certificate for a different IP
+ok 4 - verify-full still rejects a trusted certificate for a different IP
+  ---
+  duration_ms: 106.175625
+  ...
+# Subtest: verify-full still rejects an untrusted certificate with a matching IP
+ok 5 - verify-full still rejects an untrusted certificate with a matching IP
+  ---
+  duration_ms: 43.842584
+  ...
+# Subtest: every pooled connection reports READ COMMITTED
+ok 6 - every pooled connection reports READ COMMITTED
+  ---
+  duration_ms: 41.823166
+  ...
+# Subtest: withTransaction commits on success and rolls back on throw
+ok 7 - withTransaction commits on success and rolls back on throw
+  ---
+  duration_ms: 21.844875
+  ...
+# Subtest: a conditional UPDATE that misses returns zero rows, not an error
+ok 8 - a conditional UPDATE that misses returns zero rows, not an error
+  ---
+  duration_ms: 14.740875
+  ...
+# Subtest: a caller-supplied connection option is kept, not overwritten by ours
+ok 9 - a caller-supplied connection option is kept, not overwritten by ours
+  ---
+  duration_ms: 7.127125
+  ...
+# {"level":"error","event":"database_idle_connection_lost","code":"57P01"}
+# Subtest: an idle connection the database cuts off is dropped and replaced, not thrown
+ok 10 - an idle connection the database cuts off is dropped and replaced, not thrown
+  ---
+  duration_ms: 43.051209
+  ...
+# Subtest: the proof exercises a real transaction and a real rollback
+ok 11 - the proof exercises a real transaction and a real rollback
+  ---
+  duration_ms: 48.548709
+  ...
+# Subtest: the proof needs no migration and leaves nothing behind
+ok 12 - the proof needs no migration and leaves nothing behind
+  ---
+  duration_ms: 28.314334
+  ...
+# Subtest: the proof fails, rather than passing quietly, when the store is unreachable
+ok 13 - the proof fails, rather than passing quietly, when the store is unreachable
+  ---
+  duration_ms: 0.94675
+  ...
+# Subtest: concurrent readiness checks share one in-flight proof
+ok 14 - concurrent readiness checks share one in-flight proof
+  ---
+  duration_ms: 12.544042
+  ...
+# Subtest: a failed proof is retried, not cached as a permanent verdict
+ok 15 - a failed proof is retried, not cached as a permanent verdict
+  ---
+  duration_ms: 1.000166
+  ...
+# Subtest: connection-level failures count as the database being unavailable
+ok 16 - connection-level failures count as the database being unavailable
+  ---
+  duration_ms: 0.472167
+  ...
+# Subtest: query, permission and configuration errors are not waited out
+ok 17 - query, permission and configuration errors are not waited out
+  ---
+  duration_ms: 0.087084
+  ...
+# Subtest: waitForDatabase keeps waiting while the database refuses connections
+ok 18 - waitForDatabase keeps waiting while the database refuses connections
+  ---
+  duration_ms: 19.832167
+  ...
+# Subtest: the store fails before connecting when its configured CA file is missing
+ok 19 - the store fails before connecting when its configured CA file is missing
+  ---
+  duration_ms: 0.316541
+  ...
+# Subtest: waitForDatabase returns once the database answers
+ok 20 - waitForDatabase returns once the database answers
+  ---
+  duration_ms: 65.48275
+  ...
+# Subtest: migration is idempotent and leaves the runtime schema available
+ok 21 - migration is idempotent and leaves the runtime schema available
+  ---
+  duration_ms: 88.713125
+  ...
+# Subtest: concurrent migration runners serialize and apply each version once
+ok 22 - concurrent migration runners serialize and apply each version once
+  ---
+  duration_ms: 71.236792
+  ...
+# {"level":"error","event":"database_idle_connection_lost","code":"57P01"}
+# Subtest: an idle store connection the database cuts off is replaced, not thrown
+ok 23 - an idle store connection the database cuts off is replaced, not thrown
+  ---
+  duration_ms: 33.737584
+  ...
+# Subtest: visitor message replay is idempotent and creates one live run/outbox item
+ok 24 - visitor message replay is idempotent and creates one live run/outbox item
+  ---
+  duration_ms: 24.21725
+  ...
+# Subtest: run context excludes queued messages and a fenced final stores the assistant turn
+ok 25 - run context excludes queued messages and a fenced final stores the assistant turn
+  ---
+  duration_ms: 39.703667
+  ...
+# Subtest: database rejects an event whose run belongs to another conversation
+ok 26 - database rejects an event whose run belongs to another conversation
+  ---
+  duration_ms: 8.239875
+  ...
+# Subtest: database rejects an engine handle attached to the wrong operation
+ok 27 - database rejects an engine handle attached to the wrong operation
+  ---
+  duration_ms: 14.148208
+  ...
+# Subtest: database rejects model text smuggled inside a system event
+ok 28 - database rejects model text smuggled inside a system event
+  ---
+  duration_ms: 10.361208
+  ...
+# Subtest: concurrent fenced appends are gapless and a stale fence writes nothing
+ok 29 - concurrent fenced appends are gapless and a stale fence writes nothing
+  ---
+  duration_ms: 58.442916
+  ...
+# Subtest: approved events, assistant turn, and completed status commit as one fenced transaction
+ok 30 - approved events, assistant turn, and completed status commit as one fenced transaction
+  ---
+  duration_ms: 23.201625
+  ...
+# Subtest: a mid-batch database rejection rolls back events and run completion
+ok 31 - a mid-batch database rejection rolls back events and run completion
+  ---
+  duration_ms: 12.169292
+  ...
+# Subtest: terminalization requires its durable authority and cancellation wins
+ok 32 - terminalization requires its durable authority and cancellation wins
+  ---
+  duration_ms: 20.961125
+  ...
+# Subtest: reclaim terminalization is claim-fenced and preserves cancellation precedence
+ok 33 - reclaim terminalization is claim-fenced and preserves cancellation precedence
+  ---
+  duration_ms: 20.50025
+  ...
+# Subtest: dead-letter terminalization proves the matching start-run record
+ok 34 - dead-letter terminalization proves the matching start-run record
+  ---
+  duration_ms: 21.344333
+  ...
+# Subtest: the last failed attempt dead-letters the item and fails the run together
+ok 35 - the last failed attempt dead-letters the item and fails the run together
+  ---
+  duration_ms: 16.855375
+  ...
+# Subtest: CRASH BOUNDARY: no durable state has a dead-letter item beside a live run
+ok 36 - CRASH BOUNDARY: no durable state has a dead-letter item beside a live run
+  ---
+  duration_ms: 19.034875
+  ...
+# Subtest: a non-final failed attempt neither dead-letters nor touches the run
+ok 37 - a non-final failed attempt neither dead-letters nor touches the run
+  ---
+  duration_ms: 9.580209
+  ...
+# Subtest: a dead-lettered cancel_run atomically cancels the active run
+ok 38 - a dead-lettered cancel_run atomically cancels the active run
+  ---
+  duration_ms: 15.833166
+  ...
+# Subtest: typed catalog action is durable and changing it under the same key is rejected
+ok 39 - typed catalog action is durable and changing it under the same key is rejected
+  ---
+  duration_ms: 15.848959
+  ...
+# Subtest: bounded model context keeps the latest question after more than thirty messages
+ok 40 - bounded model context keeps the latest question after more than thirty messages
+  ---
+  duration_ms: 11.646375
+  ...
+# Subtest: next question receives only public product facts from its own prior final event
+ok 41 - next question receives only public product facts from its own prior final event
+  ---
+  duration_ms: 33.280459
+  ...
+# Subtest: tool progress is fenced, typed and cannot store model reasoning or missing actions
+ok 42 - tool progress is fenced, typed and cannot store model reasoning or missing actions
+  ---
+  duration_ms: 30.469208
+  ...
+# Subtest: conversation snapshot lists questions and answers in order with run status and final payload
+ok 43 - conversation snapshot lists questions and answers in order with run status and final payload
+  ---
+  duration_ms: 25.647208
+  ...
+1..43
+# tests 43
+# suites 0
+# pass 43
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1195.373584
+$ tsx --test --test-concurrency=1 "src/**/*.test.ts"
+TAP version 13
+# Subtest: v2 creates a real scoped turn and rejects changed replays and parallel new questions
+ok 1 - v2 creates a real scoped turn and rejects changed replays and parallel new questions
+  ---
+  duration_ms: 84.953083
+  ...
+# Subtest: cancel is task-bound, repeated requests enqueue once, an old click cannot cancel the next run
+ok 2 - cancel is task-bound, repeated requests enqueue once, an old click cannot cancel the next run
+  ---
+  duration_ms: 55.171042
+  ...
+# Subtest: v2 streams only the selected run with durable identity
+ok 3 - v2 streams only the selected run with durable identity
+  ---
+  duration_ms: 47.161083
+  ...
+# Subtest: v2 validates typed actions and projects only public card fields; v1 stays text-only
+ok 4 - v2 validates typed actions and projects only public card fields; v1 stays text-only
+  ---
+  duration_ms: 64.460709
+  ...
+# Subtest: inquiry submission is credential scoped, confirmed and kept out of model history
+ok 5 - inquiry submission is credential scoped, confirmed and kept out of model history
+  ---
+  duration_ms: 27.5385
+  ...
+# Subtest: inquiry results tell the page whether nothing was saved or the result is unknown
+ok 6 - inquiry results tell the page whether nothing was saved or the result is unknown
+  ---
+  duration_ms: 11.227667
+  ...
+# Subtest: snapshot restores the credential holder’s turns with projected answers and in-flight status
+ok 7 - snapshot restores the credential holder’s turns with projected answers and in-flight status
+  ---
+  duration_ms: 42.235625
+  ...
+# Subtest: a product batch goes out with its batch number while the catalog cursor stays stored
+ok 8 - a product batch goes out with its batch number while the catalog cursor stays stored
+  ---
+  duration_ms: 29.009541
+  ...
+# Subtest: internal inquiry destination is fixed, HTTPS and credentialed with no redirect
+ok 9 - internal inquiry destination is fixed, HTTPS and credentialed with no redirect
+  ---
+  duration_ms: 10.774292
+  ...
+# Subtest: foreign receipts, malformed or oversized bodies and changed requests cannot report success
+ok 10 - foreign receipts, malformed or oversized bodies and changed requests cannot report success
+  ---
+  duration_ms: 1.328709
+  ...
+# Subtest: a refusal before saving is told apart from a result that may have been saved
+ok 11 - a refusal before saving is told apart from a result that may have been saved
+  ---
+  duration_ms: 1.036375
+  ...
+# Subtest: a conversation may ask a few questions a minute, then waits for the minute to end
+ok 12 - a conversation may ask a few questions a minute, then waits for the minute to end
+  ---
+  duration_ms: 18.301333
+  ...
+# Subtest: after a run of idle answers, questions share a short-window allowance until one is not idle
+ok 13 - after a run of idle answers, questions share a short-window allowance until one is not idle
+  ---
+  duration_ms: 0.370167
+  ...
+# Subtest: daily limits apply per conversation and per visitor address
+ok 14 - daily limits apply per conversation and per visitor address
+  ---
+  duration_ms: 0.120375
+  ...
+# Subtest: repeated refusals start a cooldown that only ends with its window
+ok 15 - repeated refusals start a cooldown that only ends with its window
+  ---
+  duration_ms: 0.101166
+  ...
+# {"level":"info","requestId":"604a3a9b-7f16-41bf-9dc1-e29dce3ff35b","code":"question_limited","rule":"conversation_day","length":14}
+# Subtest: a limited question is refused with a wait, is not stored, and retries are not charged
+ok 16 - a limited question is refused with a wait, is not stored, and retries are not charged
+  ---
+  duration_ms: 145.021541
+  ...
+# Subtest: a question longer than the composer allows is refused, not cut
+ok 17 - a question longer than the composer allows is refused, not cut
+  ---
+  duration_ms: 22.658542
+  ...
+# {"level":"error","requestId":"2209f07a-6c71-486e-b964-b9f40c08c1c9","code":"database_unavailable"}
+# Subtest: a database outage answers 503 with Retry-After, not a 500
+ok 18 - a database outage answers 503 with Retry-After, not a 500
+  ---
+  duration_ms: 31.978333
+  ...
+# Subtest: until startup has reached the database, only liveness answers normally
+ok 19 - until startup has reached the database, only liveness answers normally
+  ---
+  duration_ms: 24.808917
+  ...
+# Subtest: liveness answers without touching the database
+ok 20 - liveness answers without touching the database
+  ---
+  duration_ms: 38.954875
+  ...
+# Subtest: readiness proves the BFF and READ COMMITTED database contract
+ok 21 - readiness proves the BFF and READ COMMITTED database contract
+  ---
+  duration_ms: 10.326625
+  ...
+# Subtest: unknown browser origin is rejected before conversation creation
+ok 22 - unknown browser origin is rejected before conversation creation
+  ---
+  duration_ms: 9.387333
+  ...
+# Subtest: rate-limit storage pseudonymizes a trusted proxy client address
+ok 23 - rate-limit storage pseudonymizes a trusted proxy client address
+  ---
+  duration_ms: 14.316
+  ...
+# Subtest: credential is scoped to one conversation and message replay is idempotent
+ok 24 - credential is scoped to one conversation and message replay is idempotent
+  ---
+  duration_ms: 53.569875
+  ...
+# Subtest: SSE Last-Event-ID resumes with no duplicate committed event
+ok 25 - SSE Last-Event-ID resumes with no duplicate committed event
+  ---
+  duration_ms: 84.275042
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1939.3245
+$ tsx --test --test-concurrency=1 "src/**/*.test.ts"
+TAP version 13
+# Subtest: catalog explanation uses only server-projected sources and preserves current cards
+ok 1 - catalog explanation uses only server-projected sources and preserves current cards
+  ---
+  duration_ms: 1.507125
+  ...
+# Subtest: invented commercial promises and action plans fall back to existing product cards
+ok 2 - invented commercial promises and action plans fall back to existing product cards
+  ---
+  duration_ms: 0.787959
+  ...
+# Subtest: optional model creation failure falls back; cancellation is preserved
+ok 3 - optional model creation failure falls back; cancellation is preserved
+  ---
+  duration_ms: 0.3
+  ...
+# Subtest: the explanation call is billed to the same question, and a spent budget keeps the cards
+ok 4 - the explanation call is billed to the same question, and a spent budget keeps the cards
+  ---
+  duration_ms: 1.041708
+  ...
+# Subtest: runtime builds the VibeKB adapter from fixed server settings without legacy KB credentials
+ok 5 - runtime builds the VibeKB adapter from fixed server settings without legacy KB credentials
+  ---
+  duration_ms: 0.94725
+  ...
+# Subtest: runtime rejects missing public scope, unsafe MCP transport and invalid model controls
+ok 6 - runtime rejects missing public scope, unsafe MCP transport and invalid model controls
+  ---
+  duration_ms: 0.375708
+  ...
+# Subtest: thirty turns later the summary still has 700 and Germany, and old turns are not resent
+ok 7 - thirty turns later the summary still has 700 and Germany, and old turns are not resent
+  ---
+  duration_ms: 376.506333
+  ...
+# Subtest: another visitor never sees this conversation’s requirements
+ok 8 - another visitor never sees this conversation’s requirements
+  ---
+  duration_ms: 20.783833
+  ...
+# Subtest: usage is summed over every call of a question
+ok 9 - usage is summed over every call of a question
+  ---
+  duration_ms: 12.91575
+  ...
+# {"level":"error","event":"outbox_attempt_failed","itemType":"start_run","attempt":1,"category":"transient","stage":"stream_ended_without_terminal_event"}
+# Subtest: calls billed before a failure stay on the record
+ok 10 - calls billed before a failure stay on the record
+  ---
+  duration_ms: 14.359166
+  ...
+# Subtest: a spent question budget ends with a way to continue, not an error
+ok 11 - a spent question budget ends with a way to continue, not an error
+  ---
+  duration_ms: 31.546083
+  ...
+# Subtest: follow-up suggestions skip what is known and carry the summary version
+ok 12 - follow-up suggestions skip what is known and carry the summary version
+  ---
+  duration_ms: 12.635667
+  ...
+# {"level":"info","event":"message_screened","runId":"a3608c20-9d36-490a-b55a-28a9032c244e","topic":"greeting"}
+# {"level":"info","event":"message_screened","runId":"bb2d5772-c162-4ab7-a2ec-5e1b43228a23","topic":"greeting"}
+# {"level":"info","event":"message_screened","runId":"11708289-3e2d-40c2-9ca5-1bd7f12447d3","topic":"identity"}
+# {"level":"info","event":"message_screened","runId":"44021ba4-1f06-4e4e-a1f9-9a9032cbb304","topic":"greeting"}
+# {"level":"info","event":"message_screened","runId":"fb367c54-2dbd-4ffe-bf50-aaa12efd7fc8","topic":"farewell"}
+# Subtest: small talk in a row is answered without the model, warm first and never silent
+ok 13 - small talk in a row is answered without the model, warm first and never silent
+  ---
+  duration_ms: 48.528625
+  ...
+# Subtest: planner cannot select tools, private connections or arbitrary URLs
+ok 14 - planner cannot select tools, private connections or arbitrary URLs
+  ---
+  duration_ms: 0.911875
+  ...
+# Subtest: category fallback is a bounded internal search plan without extra tool arguments
+ok 15 - category fallback is a bounded internal search plan without extra tool arguments
+  ---
+  duration_ms: 0.184958
+  ...
+# Subtest: empty precise search may broaden once, using only the same public catalog
+ok 16 - empty precise search may broaden once, using only the same public catalog
+  ---
+  duration_ms: 26.808875
+  ...
+# Subtest: fallback stops after two empty searches and never retries a failed service
+ok 17 - fallback stops after two empty searches and never retries a failed service
+  ---
+  duration_ms: 1.639958
+  ...
+# Subtest: catalog projects only public fields and always reads current data
+ok 18 - catalog projects only public fields and always reads current data
+  ---
+  duration_ms: 1.959583
+  ...
+# Subtest: current lookup fingerprints changes and reports withdrawn ids
+ok 19 - current lookup fingerprints changes and reports withdrawn ids
+  ---
+  duration_ms: 4.046542
+  ...
+# Subtest: catalog rejects malformed, oversized, failed and unsafe-origin responses
+ok 20 - catalog rejects malformed, oversized, failed and unsafe-origin responses
+  ---
+  duration_ms: 1.784625
+  ...
+# Subtest: a detail endpoint cannot substitute a different product identity
+ok 21 - a detail endpoint cannot substitute a different product identity
+  ---
+  duration_ms: 0.356041
+  ...
+# Subtest: catalog uses a bounded configurable deadline and refuses invalid deadlines
+ok 22 - catalog uses a bounded configurable deadline and refuses invalid deadlines
+  ---
+  duration_ms: 22.124083
+  ...
+# Subtest: inquiry and safe help plans cannot grant submission authority or carry arbitrary fields
+ok 23 - inquiry and safe help plans cannot grant submission authority or carry arbitrary fields
+  ---
+  duration_ms: 0.438292
+  ...
+# Subtest: hundred_matches_show_at_most_five and read a bounded candidate page
+ok 24 - hundred_matches_show_at_most_five and read a bounded candidate page
+  ---
+  duration_ms: 0.8715
+  ...
+# Subtest: unknown_total_is_not_fabricated: a result set says only whether more exist
+ok 25 - unknown_total_is_not_fabricated: a result set says only whether more exist
+  ---
+  duration_ms: 0.343709
+  ...
+# Subtest: next_batch_deduplicates_seen_ids and continues across candidate pages
+ok 26 - next_batch_deduplicates_seen_ids and continues across candidate pages
+  ---
+  duration_ms: 0.811958
+  ...
+# Subtest: anc_is_not_inferred_from_enc, and proven features rank first without reordering ties
+ok 27 - anc_is_not_inferred_from_enc, and proven features rank first without reordering ties
+  ---
+  duration_ms: 0.645708
+  ...
+# Subtest: the model plans required features but can never pick a cursor
+ok 28 - the model plans required features but can never pick a cursor
+  ---
+  duration_ms: 0.092792
+  ...
+# Subtest: greetings and thanks get a fixed reply in any common form
+ok 29 - greetings and thanks get a fixed reply in any common form
+  ---
+  duration_ms: 3.751917
+  ...
+# Subtest: common openers that are only small talk get a fixed reply
+ok 30 - common openers that are only small talk get a fixed reply
+  ---
+  duration_ms: 0.195459
+  ...
+# Subtest: a greeting with a question in it still reaches the model
+ok 31 - a greeting with a question in it still reaches the model
+  ---
+  duration_ms: 1.096833
+  ...
+# Subtest: "ok" is small talk unless it answers the question the assistant asked
+ok 32 - "ok" is small talk unless it answers the question the assistant asked
+  ---
+  duration_ms: 0.169875
+  ...
+# Subtest: a message with nothing to answer is asked for the need
+ok 33 - a message with nothing to answer is asked for the need
+  ---
+  duration_ms: 0.142667
+  ...
+# Subtest: a symbol may answer the question the assistant just asked
+ok 34 - a symbol may answer the question the assistant just asked
+  ---
+  duration_ms: 0.068
+  ...
+# Subtest: the third identical question after two answers is not sent to the model again
+ok 35 - the third identical question after two answers is not sent to the model again
+  ---
+  duration_ms: 0.370458
+  ...
+# Subtest: an earlier screened message does not affect the next real question
+ok 36 - an earlier screened message does not affect the next real question
+  ---
+  duration_ms: 0.0885
+  ...
+# Subtest: normalizing ignores case, width, punctuation and spacing only
+ok 37 - normalizing ignores case, width, punctuation and spacing only
+  ---
+  duration_ms: 0.3825
+  ...
+# Subtest: fixed replies follow the visitor language
+ok 38 - fixed replies follow the visitor language
+  ---
+  duration_ms: 0.641
+  ...
+# Subtest: a run of small talk gets warm, then brief, then one steady line with a way in
+ok 39 - a run of small talk gets warm, then brief, then one steady line with a way in
+  ---
+  duration_ms: 0.155625
+  ...
+# Subtest: the streak counts fixed replies in a row; any model answer ends it
+ok 40 - the streak counts fixed replies in a row; any model answer ends it
+  ---
+  duration_ms: 0.071416
+  ...
+# Subtest: the worker loop waits out a database outage instead of exiting
+ok 41 - the worker loop waits out a database outage instead of exiting
+  ---
+  duration_ms: 0.768708
+  ...
+# Subtest: a successful iteration starts the back-off over
+ok 42 - a successful iteration starts the back-off over
+  ---
+  duration_ms: 0.095166
+  ...
+# Subtest: an unexpected error is logged and retried, never thrown out of the loop
+ok 43 - an unexpected error is logged and retried, never thrown out of the loop
+  ---
+  duration_ms: 0.189542
+  ...
+# Subtest: readiness says starting until startup finishes, and liveness answers throughout
+ok 44 - readiness says starting until startup finishes, and liveness answers throughout
+  ---
+  duration_ms: 24.656708
+  ...
+# Subtest: startup waits out an unreachable knowledge base or database, but not a mistake
+ok 45 - startup waits out an unreachable knowledge base or database, but not a mistake
+  ---
+  duration_ms: 0.55725
+  ...
+# Subtest: knowledge-base evidence is accepted for up to 30 days by default
+ok 46 - knowledge-base evidence is accepted for up to 30 days by default
+  ---
+  duration_ms: 0.109792
+  ...
+# Subtest: worker lease must outlive the longest permitted provider stream
+ok 47 - worker lease must outlive the longest permitted provider stream
+  ---
+  duration_ms: 26.248083
+  ...
+# Subtest: worker accepts an engine that matches real evidence
+ok 48 - worker accepts an engine that matches real evidence
+  ---
+  duration_ms: 8.966125
+  ...
+# Subtest: worker binds evidence to the deployed workspace id and corpus generation
+ok 49 - worker binds evidence to the deployed workspace id and corpus generation
+  ---
+  duration_ms: 5.051458
+  ...
+# Subtest: worker binds evidence to the operator-approved credential id
+ok 50 - worker binds evidence to the operator-approved credential id
+  ---
+  duration_ms: 5.892542
+  ...
+# Subtest: worker refuses a knowledge credential whose attested identity drifts
+ok 51 - worker refuses a knowledge credential whose attested identity drifts
+  ---
+  duration_ms: 4.770166
+  ...
+# Subtest: an EMPTY workspace is refused, however cleanly it authenticates
+ok 52 - an EMPTY workspace is refused, however cleanly it authenticates
+  ---
+  duration_ms: 5.303833
+  ...
+# Subtest: worker refuses evidence from a failed or uncited generation surface
+ok 53 - worker refuses evidence from a failed or uncited generation surface
+  ---
+  duration_ms: 6.912958
+  ...
+# Subtest: an enabled tool surface, or one never looked at, is refused
+ok 54 - an enabled tool surface, or one never looked at, is refused
+  ---
+  duration_ms: 8.645125
+  ...
+# Subtest: evidence gathered over plaintext, or gone stale, is refused
+ok 55 - evidence gathered over plaintext, or gone stale, is refused
+  ---
+  duration_ms: 6.125917
+  ...
+# Subtest: local plaintext evidence needs the same explicit override as the engine transport
+ok 56 - local plaintext evidence needs the same explicit override as the engine transport
+  ---
+  duration_ms: 6.660041
+  ...
+# Subtest: worker drains one start_run into committed ordered events and terminal state
+ok 57 - worker drains one start_run into committed ordered events and terminal state
+  ---
+  duration_ms: 20.468834
+  ...
+# Subtest: worker drops an off-site citation link before the approved event batch commits
+ok 58 - worker drops an off-site citation link before the approved event batch commits
+  ---
+  duration_ms: 15.71875
+  ...
+# Subtest: worker never publishes streamed tokens or citations rejected by the final public-source gate
+ok 59 - worker never publishes streamed tokens or citations rejected by the final public-source gate
+  ---
+  duration_ms: 19.071583
+  ...
+# Subtest: terminal run drains exactly one queued visitor message into a new outbox item
+ok 60 - terminal run drains exactly one queued visitor message into a new outbox item
+  ---
+  duration_ms: 29.043208
+  ...
+# Subtest: takeover fence prevents a worker from committing further engine output
+ok 61 - takeover fence prevents a worker from committing further engine output
+  ---
+  duration_ms: 15.957958
+  ...
+# Subtest: null evidence is refused with a clear message, not a crash
+ok 62 - null evidence is refused with a clear message, not a crash
+  ---
+  duration_ms: 4.212417
+  ...
+# Subtest: a bare scalar (e.g. a truncated file parsing to a number) is refused
+ok 63 - a bare scalar (e.g. a truncated file parsing to a number) is refused
+  ---
+  duration_ms: 5.590625
+  ...
+# Subtest: an object missing schema or recordedAt is refused, not silently accepted
+ok 64 - an object missing schema or recordedAt is refused, not silently accepted
+  ---
+  duration_ms: 4.754208
+  ...
+# Subtest: an object missing the nested positiveControl/generationControl/toolSurface/transport is refused
+ok 65 - an object missing the nested positiveControl/generationControl/toolSurface/transport is refused
+  ---
+  duration_ms: 5.347875
+  ...
+# Subtest: a well-formed evidence object narrows cleanly, coercing loose types
+ok 66 - a well-formed evidence object narrows cleanly, coercing loose types
+  ---
+  duration_ms: 4.1435
+  ...
+# Subtest: a stray field never survives narrowing, and nested junk defaults safely
+ok 67 - a stray field never survives narrowing, and nested junk defaults safely
+  ---
+  duration_ms: 4.335208
+  ...
+# Subtest: worker commits real public reads as structured results and lookup bypasses the model
+ok 68 - worker commits real public reads as structured results and lookup bypasses the model
+  ---
+  duration_ms: 20.115167
+  ...
+# Subtest: model selects a bounded search or clarification; ordinary answers retain citation policy
+ok 69 - model selects a bounded search or clarification; ordinary answers retain citation policy
+  ---
+  duration_ms: 32.973875
+  ...
+# {"level":"error","event":"outbox_attempt_failed","itemType":"start_run","attempt":1,"category":"invalid_request","stage":"inquiry_product_not_in_context"}
+# Subtest: model inquiry suggestion cannot select an unseen product or submit anything
+ok 70 - model inquiry suggestion cannot select an unseen product or submit anything
+  ---
+  duration_ms: 20.531166
+  ...
+# {"level":"info","event":"message_screened","runId":"c2aae589-ea21-4c2b-aae6-dc330e1669a3","topic":"greeting"}
+# Subtest: a bare greeting is answered from fixed text without calling the model; a real question is not
+ok 71 - a bare greeting is answered from fixed text without calling the model; a real question is not
+  ---
+  duration_ms: 18.042291
+  ...
+# Subtest: show more continues the same request from the stored cursor without the model
+ok 72 - show more continues the same request from the stored cursor without the model
+  ---
+  duration_ms: 24.91125
+  ...
+1..72
+# tests 72
+# suites 0
+# pass 72
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3200.477167

@@ -1,0 +1,84 @@
+[WebServer] (node:30850) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:30857) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:30863) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:30864) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:30865) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:30872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ vite --config assistant-preview.vite.ts --port 62058
+[WebServer] (node:30887) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 58 tests using 1 worker
+
+(node:30916) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop] › tests/assistant-chat/back-forward-cache.spec.ts:8:1 › a page restored from the back-forward cache catches up with the conversation (3.5s)
+  ✓   2 [desktop] › tests/assistant-chat/connected.spec.ts:17:1 › actual components communicate with BFF, database and worker across two turns (1.9s)
+  ✓   3 [desktop] › tests/assistant-chat/connected.spec.ts:37:1 › stop interrupts a quiet provider and a subsequent turn can complete (1.3s)
+  ✓   4 [desktop] › tests/assistant-chat/connected.spec.ts:47:1 › one failed answer does not disable the whole assistant (1.8s)
+  ✓   5 [desktop] › tests/assistant-chat/connected.spec.ts:54:1 › lost acceptance reply retries the original submission through the real API (1.1s)
+  ✓   6 [desktop] › tests/assistant-chat/connected.spec.ts:76:1 › public HTTP products render images, refresh and withdraw consistently (2.8s)
+[WebServer] {"level":"error","event":"outbox_attempt_failed","itemType":"start_run","attempt":1,"category":"transient","stage":"read_public_catalog"}
+  ✓   7 [desktop] › tests/assistant-chat/connected.spec.ts:127:1 › clarification, no match, catalog failure and a fresh request all have usable responses (5.5s)
+  ✓   8 [desktop] › tests/assistant-chat/connected.spec.ts:145:1 › stopping a pending catalog read prevents its late product cards (3.3s)
+  ✓   9 [desktop] › tests/assistant-chat/connected.spec.ts:156:1 › missing product images fall back without breaking the product actions (1.1s)
+  ✓  10 [desktop] › tests/assistant-chat/connected.spec.ts:167:1 › a follow-up uses prior public cards as context and rechecks current catalog details (1.9s)
+  ✓  11 [desktop] › tests/assistant-chat/connected.spec.ts:191:1 › confirmed category inquiry saves once through the actual Channel intake and recovers a lost receipt (514ms)
+  ✓  12 [desktop] › tests/assistant-chat/connected.spec.ts:231:1 › product-card inquiry sends only its ID and preserves current public evidence (1.2s)
+  ✓  13 [desktop] › tests/assistant-chat/connected.spec.ts:269:1 › refresh_resumes_same_conversation: history comes back and a new tab starts fresh (2.1s)
+  ✓  14 [desktop] › tests/assistant-chat/connected.spec.ts:289:1 › inflight_reply_resumes_without_second_model_run after a refresh mid-answer (10.9s)
+  ✓  15 [desktop] › tests/assistant-chat/connected.spec.ts:344:1 › product_link_navigates_same_tab, opens at the source card, and back_restores_previous_page_chat (7.8s)
+  ✓  16 [desktop] › tests/assistant-chat/connected.spec.ts:398:1 › launcher_marks_answer_finished_while_away and navigation_mid_answer_has_no_second_model_run (11.6s)
+  ✓  17 [desktop] › tests/assistant-chat/connected.spec.ts:439:1 › navigation_mid_save_keeps_same_submission (4.7s)
+  ✓  18 [desktop] › tests/assistant-chat/connected.spec.ts:482:1 › new_tab_starts_fresh_conversation and direct_product_visit_has_single_widget (1.2s)
+  ✓  19 [desktop] › tests/assistant-chat/connected.spec.ts:509:1 › opening_without_sending_keeps_ask_label on the next page (199ms)
+  ✓  20 [desktop] › tests/assistant-chat/connected.spec.ts:519:1 › missing_anchor_restores_latest_with_notice (1.1s)
+  ✓  21 [desktop] › tests/assistant-chat/connected.spec.ts:568:1 › a question asked on the product page is there after Back, at the latest message (2.0s)
+  ✓  22 [desktop] › tests/assistant-chat/connected.spec.ts:575:1 › batches_show_five_then_more_without_repeats and anc_is_marked_to_confirm (1.1s)
+  ✓  23 [desktop] › tests/assistant-chat/connected.spec.ts:608:1 › five_cards_fit_phone_widths, swipe_moves_dots and the chat still scrolls vertically (2.0s)
+  ✓  24 [desktop] › tests/assistant-chat/connected.spec.ts:673:1 › suggestion_uses_current_missing_need and only the newest answer offers follow-ups (1.9s)
+  ✓  25 [desktop] › tests/assistant-chat/connected.spec.ts:694:1 › suggestion_click_has_one_turn, sent as the visitor’s own visible message (1.8s)
+  ✓  26 [desktop] › tests/assistant-chat/connected.spec.ts:712:1 › existing_composer_is_not_overwritten: a follow-up joins the draft and nothing is sent (1.4s)
+  ✓  27 [desktop] › tests/assistant-chat/connected.spec.ts:728:1 › quote_suggestion_never_submits: it opens the inquiry for review only (1.9s)
+  ✓  28 [desktop] › tests/assistant-chat/connected.spec.ts:755:1 › a bare hello gets a warm reply with ways to start, and a starter reaches the model (1.3s)
+  ✓  29 [desktop] › tests/assistant-chat/resend-handoff.spec.ts:8:1 › owner can encrypt locally without network requests and receiver recovers only the fake key (223ms)
+(node:31675) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  30 [mobile] › tests/assistant-chat/back-forward-cache.spec.ts:8:1 › a page restored from the back-forward cache catches up with the conversation (3.2s)
+  ✓  31 [mobile] › tests/assistant-chat/connected.spec.ts:17:1 › actual components communicate with BFF, database and worker across two turns (2.0s)
+  ✓  32 [mobile] › tests/assistant-chat/connected.spec.ts:37:1 › stop interrupts a quiet provider and a subsequent turn can complete (1.4s)
+  ✓  33 [mobile] › tests/assistant-chat/connected.spec.ts:47:1 › one failed answer does not disable the whole assistant (1.9s)
+  ✓  34 [mobile] › tests/assistant-chat/connected.spec.ts:54:1 › lost acceptance reply retries the original submission through the real API (1.2s)
+  ✓  35 [mobile] › tests/assistant-chat/connected.spec.ts:76:1 › public HTTP products render images, refresh and withdraw consistently (2.9s)
+[WebServer] {"level":"error","event":"outbox_attempt_failed","itemType":"start_run","attempt":1,"category":"transient","stage":"read_public_catalog"}
+  ✓  36 [mobile] › tests/assistant-chat/connected.spec.ts:127:1 › clarification, no match, catalog failure and a fresh request all have usable responses (5.6s)
+  ✓  37 [mobile] › tests/assistant-chat/connected.spec.ts:145:1 › stopping a pending catalog read prevents its late product cards (3.3s)
+  ✓  38 [mobile] › tests/assistant-chat/connected.spec.ts:156:1 › missing product images fall back without breaking the product actions (1.1s)
+  ✓  39 [mobile] › tests/assistant-chat/connected.spec.ts:167:1 › a follow-up uses prior public cards as context and rechecks current catalog details (1.9s)
+  ✓  40 [mobile] › tests/assistant-chat/connected.spec.ts:191:1 › confirmed category inquiry saves once through the actual Channel intake and recovers a lost receipt (490ms)
+  ✓  41 [mobile] › tests/assistant-chat/connected.spec.ts:231:1 › product-card inquiry sends only its ID and preserves current public evidence (1.2s)
+  ✓  42 [mobile] › tests/assistant-chat/connected.spec.ts:269:1 › refresh_resumes_same_conversation: history comes back and a new tab starts fresh (2.0s)
+  ✓  43 [mobile] › tests/assistant-chat/connected.spec.ts:289:1 › inflight_reply_resumes_without_second_model_run after a refresh mid-answer (10.7s)
+  ✓  44 [mobile] › tests/assistant-chat/connected.spec.ts:344:1 › product_link_navigates_same_tab, opens at the source card, and back_restores_previous_page_chat (7.6s)
+  ✓  45 [mobile] › tests/assistant-chat/connected.spec.ts:398:1 › launcher_marks_answer_finished_while_away and navigation_mid_answer_has_no_second_model_run (11.7s)
+  ✓  46 [mobile] › tests/assistant-chat/connected.spec.ts:439:1 › navigation_mid_save_keeps_same_submission (4.7s)
+  ✓  47 [mobile] › tests/assistant-chat/connected.spec.ts:482:1 › new_tab_starts_fresh_conversation and direct_product_visit_has_single_widget (1.3s)
+  ✓  48 [mobile] › tests/assistant-chat/connected.spec.ts:509:1 › opening_without_sending_keeps_ask_label on the next page (222ms)
+  ✓  49 [mobile] › tests/assistant-chat/connected.spec.ts:519:1 › missing_anchor_restores_latest_with_notice (1.1s)
+  ✓  50 [mobile] › tests/assistant-chat/connected.spec.ts:568:1 › a question asked on the product page is there after Back, at the latest message (2.1s)
+  ✓  51 [mobile] › tests/assistant-chat/connected.spec.ts:575:1 › batches_show_five_then_more_without_repeats and anc_is_marked_to_confirm (1.2s)
+  ✓  52 [mobile] › tests/assistant-chat/connected.spec.ts:608:1 › five_cards_fit_phone_widths, swipe_moves_dots and the chat still scrolls vertically (2.0s)
+  ✓  53 [mobile] › tests/assistant-chat/connected.spec.ts:673:1 › suggestion_uses_current_missing_need and only the newest answer offers follow-ups (1.9s)
+  ✓  54 [mobile] › tests/assistant-chat/connected.spec.ts:694:1 › suggestion_click_has_one_turn, sent as the visitor’s own visible message (1.9s)
+  ✓  55 [mobile] › tests/assistant-chat/connected.spec.ts:712:1 › existing_composer_is_not_overwritten: a follow-up joins the draft and nothing is sent (1.4s)
+  ✓  56 [mobile] › tests/assistant-chat/connected.spec.ts:728:1 › quote_suggestion_never_submits: it opens the inquiry for review only (1.9s)
+  ✓  57 [mobile] › tests/assistant-chat/connected.spec.ts:755:1 › a bare hello gets a warm reply with ways to start, and a starter reaches the model (1.3s)
+  ✓  58 [mobile] › tests/assistant-chat/resend-handoff.spec.ts:8:1 › owner can encrypt locally without network requests and receiver recovers only the fake key (302ms)
+
+  58 passed (2.8m)

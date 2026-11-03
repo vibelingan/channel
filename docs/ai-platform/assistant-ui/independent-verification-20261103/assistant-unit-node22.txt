@@ -1,0 +1,235 @@
+TAP version 13
+# Subtest: source links are public HTTP links, never executable or credential-bearing URLs
+ok 1 - source links are public HTTP links, never executable or credential-bearing URLs
+  ---
+  duration_ms: 0.343667
+  ...
+# Subtest: the chat transcript follows newly rendered messages without scrolling the page
+ok 2 - the chat transcript follows newly rendered messages without scrolling the page
+  ---
+  duration_ms: 3.99525
+  ...
+# Subtest: HTTP adapter replays a lost append acknowledgement using the same key, never invents completion
+ok 3 - HTTP adapter replays a lost append acknowledgement using the same key, never invents completion
+  ---
+  duration_ms: 19.030208
+  ...
+# Subtest: HTTP adapter rejects a foreign terminal event before it can change the answer
+ok 4 - HTTP adapter rejects a foreign terminal event before it can change the answer
+  ---
+  duration_ms: 0.745625
+  ...
+# Subtest: inquiry retries freeze the form and bind receipt to the original conversation even after credential expiry
+ok 5 - inquiry retries freeze the form and bind receipt to the original conversation even after credential expiry
+  ---
+  duration_ms: 1.414041
+  ...
+# Subtest: stop waits for queued cancellation of the same run instead of immediately reporting unknown
+ok 6 - stop waits for queued cancellation of the same run instead of immediately reporting unknown
+  ---
+  duration_ms: 102.679417
+  ...
+# Subtest: known_rejection_stays_editable: a refusal before saving frees the key; an unknown result keeps it frozen
+ok 7 - known_rejection_stays_editable: a refusal before saving frees the key; an unknown result keeps it frozen
+  ---
+  duration_ms: 0.955083
+  ...
+# Subtest: refresh_resumes_same_conversation and inflight_reply_resumes_without_second_model_run
+ok 8 - refresh_resumes_same_conversation and inflight_reply_resumes_without_second_model_run
+  ---
+  duration_ms: 1.289833
+  ...
+# Subtest: finished_run_during_navigation_shows_final_answer without resuming it
+ok 9 - finished_run_during_navigation_shows_final_answer without resuming it
+  ---
+  duration_ms: 0.605166
+  ...
+# Subtest: expired_session_is_not_silently_resubmitted and unknown_submission_survives_refresh_with_same_key
+ok 10 - expired_session_is_not_silently_resubmitted and unknown_submission_survives_refresh_with_same_key
+  ---
+  duration_ms: 0.704667
+  ...
+# Subtest: a vague purchase without a SKU is valid only after explicit contact consent
+ok 11 - a vague purchase without a SKU is valid only after explicit contact consent
+  ---
+  duration_ms: 0.651083
+  ...
+# Subtest: invalid fields have specific errors without changing the input
+ok 12 - invalid fields have specific errors without changing the input
+  ---
+  duration_ms: 0.11475
+  ...
+# Subtest: model_update_shows_change_summary: a conversation suggestion waits on the card with old and new values
+ok 13 - model_update_shows_change_summary: a conversation suggestion waits on the card with old and new values
+  ---
+  duration_ms: 0.162916
+  ...
+# Subtest: changed_need_preserves_contact_and_clears_consent: using an update keeps contact, needs consent again and changes the unsent key
+ok 14 - changed_need_preserves_contact_and_clears_consent: using an update keeps contact, needs consent again and changes the unsent key
+  ---
+  duration_ms: 0.06175
+  ...
+# Subtest: manual_edit_not_overwritten_silently: keeping the current draft drops the suggestion and keeps the visitor text and consent
+ok 15 - manual_edit_not_overwritten_silently: keeping the current draft drops the suggestion and keeps the visitor text and consent
+  ---
+  duration_ms: 0.085833
+  ...
+# Subtest: two_products_do_not_silently_swap_draft: a second product card asks first, an empty product is filled directly
+ok 16 - two_products_do_not_silently_swap_draft: a second product card asks first, an empty product is filled directly
+  ---
+  duration_ms: 0.161916
+  ...
+# Subtest: only the visitor opens a draft; a frozen submission is never changed
+ok 17 - only the visitor opens a draft; a frozen submission is never changed
+  ---
+  duration_ms: 0.11
+  ...
+# Subtest: saved_receipt_does_not_resubmit: after saving, the conversation cannot start another inquiry; the visitor can
+ok 18 - saved_receipt_does_not_resubmit: after saving, the conversation cannot start another inquiry; the visitor can
+  ---
+  duration_ms: 0.06375
+  ...
+# Subtest: known_rejection_stays_editable: a refusal on a first attempt reopens the same draft with a reason
+ok 19 - known_rejection_stays_editable: a refusal on a first attempt reopens the same draft with a reason
+  ---
+  duration_ms: 0.142625
+  ...
+# Subtest: lost_receipt_recovers_same_submission: an unknown result is rechecked a bounded number of times with the frozen draft
+ok 20 - lost_receipt_recovers_same_submission: an unknown result is rechecked a bounded number of times with the frozen draft
+  ---
+  duration_ms: 0.252292
+  ...
+# Subtest: a refusal after an uncertain attempt cannot unfreeze a submission that may have been saved
+ok 21 - a refusal after an uncertain attempt cannot unfreeze a submission that may have been saved
+  ---
+  duration_ms: 0.046875
+  ...
+# Subtest: an inquiry survives refresh: drafts stay editable, in-flight saves come back as unknown
+ok 22 - an inquiry survives refresh: drafts stay editable, in-flight saves come back as unknown
+  ---
+  duration_ms: 0.070041
+  ...
+# Subtest: one tab keeps one versioned record per site and business, merged by its owners
+ok 23 - one tab keeps one versioned record per site and business, merged by its owners
+  ---
+  duration_ms: 10.6155
+  ...
+# Subtest: expired, foreign-version or malformed records are dropped, never trusted
+ok 24 - expired, foreign-version or malformed records are dropped, never trusted
+  ---
+  duration_ms: 0.196209
+  ...
+# Subtest: the product card the visitor left from is kept, and arriving is cleared by the next page
+ok 25 - the product card the visitor left from is kept, and arriving is cleared by the next page
+  ---
+  duration_ms: 0.5795
+  ...
+# Subtest: blocked storage degrades to an in-memory conversation without throwing
+ok 26 - blocked storage degrades to an in-memory conversation without throwing
+  ---
+  duration_ms: 0.084416
+  ...
+# Subtest: begin has visible receipt and one question, retaining the assigned operation identity
+ok 27 - begin has visible receipt and one question, retaining the assigned operation identity
+  ---
+  duration_ms: 0.642958
+  ...
+# Subtest: duplicate event cannot append the same token twice
+ok 28 - duplicate event cannot append the same token twice
+  ---
+  duration_ms: 0.087584
+  ...
+# Subtest: foreign conversation and old turn events cannot modify current answer
+ok 29 - foreign conversation and old turn events cannot modify current answer
+  ---
+  duration_ms: 0.395833
+  ...
+# Subtest: terminal answers ignore late text even with a newer sequence
+ok 30 - terminal answers ignore late text even with a newer sequence
+  ---
+  duration_ms: 0.239375
+  ...
+# Subtest: requesting stop and uncertain acknowledgement never pretend the answer stopped
+ok 31 - requesting stop and uncertain acknowledgement never pretend the answer stopped
+  ---
+  duration_ms: 0.230625
+  ...
+# Subtest: completion wins over a delayed stop acknowledgement
+ok 32 - completion wins over a delayed stop acknowledgement
+  ---
+  duration_ms: 0.520459
+  ...
+# Subtest: closing only hides the panel and preserves the running answer
+ok 33 - closing only hides the panel and preserves the running answer
+  ---
+  duration_ms: 0.154583
+  ...
+# Subtest: retry preserves operation, partial text and cursor without a duplicate question
+ok 34 - retry preserves operation, partial text and cursor without a duplicate question
+  ---
+  duration_ms: 0.291833
+  ...
+# Subtest: ordinary unsupported answers complete instead of disabling the whole assistant
+ok 35 - ordinary unsupported answers complete instead of disabling the whole assistant
+  ---
+  duration_ms: 0.205792
+  ...
+# Subtest: restoring an expired conversation removes old visible history
+ok 36 - restoring an expired conversation removes old visible history
+  ---
+  duration_ms: 0.226709
+  ...
+# Subtest: a deliberate new answer receives a new key and preserves the stopped answer
+ok 37 - a deliberate new answer receives a new key and preserves the stopped answer
+  ---
+  duration_ms: 0.065041
+  ...
+# Subtest: invalid sequence cannot poison the cursor
+ok 38 - invalid sequence cannot poison the cursor
+  ---
+  duration_ms: 0.055
+  ...
+# Subtest: empty completion still displays a response and allows another question
+ok 39 - empty completion still displays a response and allows another question
+  ---
+  duration_ms: 0.075
+  ...
+# Subtest: temporary history failure preserves the current conversation and allows retry
+ok 40 - temporary history failure preserves the current conversation and allows retry
+  ---
+  duration_ms: 0.034292
+  ...
+# Subtest: terminal failure writes a visible reply and retries as a new answer
+ok 41 - terminal failure writes a visible reply and retries as a new answer
+  ---
+  duration_ms: 0.041167
+  ...
+# Subtest: a restored in-flight question keeps its message and waits to resume from cursor 0
+ok 42 - a restored in-flight question keeps its message and waits to resume from cursor 0
+  ---
+  duration_ms: 0.161458
+  ...
+# Subtest: a wait is said in seconds, minutes or hours
+ok 43 - a wait is said in seconds, minutes or hours
+  ---
+  duration_ms: 0.678625
+  ...
+# Subtest: direct_product_visit_has_single_widget: one assistant on exactly the allowlisted pages
+ok 44 - direct_product_visit_has_single_widget: one assistant on exactly the allowlisted pages
+  ---
+  duration_ms: 23.722917
+  ...
+# Subtest: only the host mounts the assistant island, and the shared layout does not
+ok 45 - only the host mounts the assistant island, and the shared layout does not
+  ---
+  duration_ms: 33.416209
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 713.232333

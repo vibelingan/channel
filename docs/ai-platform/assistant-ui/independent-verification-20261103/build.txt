@@ -1,0 +1,61 @@
+$ tsx scripts/product-seo-fixture.ts /Volumes/Lexar-Mac/.channel-tmp-20261102/independent-assistant-seo.json
+Prepared 2 synthetic public products for a local-only build.
+$ astro build
+19:24:50 [vite] Re-optimizing dependencies because vite config has changed
+19:24:50 [types] Generated 840ms
+19:24:50 [build] output: "static"
+19:24:50 [build] mode: "static"
+19:24:50 [build] directory: ${VERIFY_ROOT}/apps/site/dist/
+19:24:50 [build] Collecting build info...
+19:24:50 [build] ✓ Completed in 864ms.
+19:24:50 [build] Building static entrypoints...
+19:24:56 [vite] ✓ built in 4.91s
+19:25:11 [WARN] [vite] [plugin vite:reporter] 
+(!) ${VERIFY_ROOT}/apps/site/src/islands/admin/alibaba-catalog-sync/alibaba-api.ts is dynamically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts, ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts, ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-detail-approval-api.ts but also statically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/RecordForm.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/alibaba-catalog-sync/AlibabaPhotoIssues.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/alibaba-catalog-sync/AlibabaProductRefresh.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/alibaba-gallery-import.ts, dynamic import will not move module into another chunk.
+
+19:25:11 [WARN] [vite] [plugin vite:reporter] 
+(!) ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-product-create-api.ts is dynamically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts but also statically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/ProductCreateForm.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-product-creation.ts, ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-product-publication.ts, dynamic import will not move module into another chunk.
+
+19:25:11 [WARN] [vite] [plugin vite:reporter] 
+(!) ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-product-publication.ts is dynamically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts but also statically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/ProductCreateForm.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/ProductEditForm.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/ProductPublicationRecovery.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-product-creation.ts, dynamic import will not move module into another chunk.
+
+19:25:11 [WARN] [vite] [plugin vite:reporter] 
+(!) ${VERIFY_ROOT}/apps/site/src/islands/admin/alibaba-gallery-import.ts is dynamically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts, ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts but also statically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/RecordForm.tsx, dynamic import will not move module into another chunk.
+
+19:25:11 [WARN] [vite] [plugin vite:reporter] 
+(!) ${VERIFY_ROOT}/apps/site/src/islands/admin/catalog-table-publication.ts is dynamically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts, ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts, ${VERIFY_ROOT}/apps/site/src/islands/admin/api.ts but also statically imported by ${VERIFY_ROOT}/apps/site/src/islands/admin/CollectionView.tsx, ${VERIFY_ROOT}/apps/site/src/islands/admin/ProductPublicationInbox.tsx, dynamic import will not move module into another chunk.
+
+19:25:11 [WARN] [vite] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+19:25:11 [vite] ✓ built in 15.76s
+19:25:11 [build] Rearranging server assets...
+
+ generating static routes 
+19:25:13   ├─ /404.html (+248ms) 
+19:25:13   ├─ /account/index.html (+139ms) 
+19:25:14   ├─ /admin/index.html (+35ms) 
+19:25:14   ├─ /ai-gadgets/index.html (+82ms) 
+19:25:14   ├─ /electronics-toys/index.html (+9ms) 
+19:25:14   ├─ /headphones/index.html (+93ms) 
+19:25:14   ├─ /login/index.html (+303ms) 
+19:25:14   ├─ /misc/index.html (+19ms) 
+19:25:14   ├─ /oem/index.html (+104ms) 
+19:25:14   ├─ /oem_submit_result/index.html (+24ms) 
+19:25:14   ├─ /portfolio/index.html (+37ms) 
+19:25:14   ├─ /privacy/index.html (+24ms) 
+19:25:14   ├─ /products/item/index.html (+71ms) 
+19:25:14   ├─ /products/manifest.json (+26ms) 
+19:25:14   ├─ /products/p-canonical-product/index.html (+244ms) 
+19:25:15   ├─ /products/p-legacy-without-slug/index.html (+7ms) 
+19:25:15   ├─ /register/index.html (+6ms) 
+19:25:15   ├─ /reset/index.html (+15ms) 
+19:25:15   ├─ /success-stories/index.html (+3ms) 
+19:25:15   ├─ /toys/index.html (+5ms) 
+19:25:15   ├─ /index.html (+25ms) 
+19:25:15 ✓ Completed in 3.37s.
+
+19:25:15 [build] ✓ Completed in 24.33s.
+19:25:15 [@astrojs/sitemap] `sitemap-index.xml` created at `dist`

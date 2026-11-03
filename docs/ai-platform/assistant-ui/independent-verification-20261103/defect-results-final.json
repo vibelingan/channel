@@ -1,0 +1,122 @@
+{
+  "recordedAt": "2026-11-03T10:32:07.857Z",
+  "report": [
+    {
+      "id": 1,
+      "title": "Five-card batch limit removed",
+      "file": "apps/ai-worker/src/product-workflow.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/ai-worker src/product-workflow.test.ts /hundred_matches_show_at_most_five/",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Inquiry recheck uses a new submission key",
+      "file": "apps/site/src/islands/ai/assistant/inquiry.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/site src/islands/ai/assistant/inquiry.test.ts /lost_receipt_recovers_same_submission/",
+          "failed": true,
+          "ran": true
+        },
+        {
+          "test": "playwright.assistant.config.ts --grep \"unknown inquiry retries the frozen original key\"",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Snapshot readable without the conversation credential",
+      "file": "apps/ai-bff/src/server.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/ai-bff src/chat-v2.test.ts /snapshot restores the credential holder/",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    },
+    {
+      "id": "4a",
+      "title": "Requirement summary lets an old quantity overwrite the new one",
+      "file": "packages/ai-policy/src/need.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/ai-policy src/need.test.ts /cannot turn 700 back into 500/",
+          "failed": true,
+          "ran": true
+        },
+        {
+          "test": "@vibelingan-channel/ai-worker src/memory.test.ts /thirty turns later/",
+          "failed": true,
+          "ran": true
+        }
+      ],
+      "note": "Both unchanged-source baselines passed on a fresh dedicated local DB before mutation."
+    },
+    {
+      "id": "4b",
+      "title": "A changed requirement keeps the earlier consent",
+      "file": "apps/site/src/islands/ai/assistant/inquiry.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/site src/islands/ai/assistant/inquiry.test.ts /changed_need_preserves_contact_and_clears_consent/",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Per-question input budget gate removed",
+      "file": "packages/ai-engine-vibekb/src/index.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/ai-engine-vibekb src/index.test.ts /spent its input budget/",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Test identity decided by the company name again",
+      "file": "apps/functions/sales-integration/src/assistant-intake.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/fn-sales-integration src/assistant-intake.test.ts /ordinary_company_in_test_scope_can_submit/",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Restore resumes without the original idempotency key",
+      "file": "apps/site/src/islands/ai/assistant/http-adapter.ts",
+      "outcome": "killed",
+      "runs": [
+        {
+          "test": "@vibelingan-channel/site src/islands/ai/assistant/http-adapter.test.ts /inflight_reply_resumes_without_second_model_run/",
+          "failed": true,
+          "ran": true
+        }
+      ]
+    }
+  ],
+  "freshDbRerunRecordedAt": "2026-11-03T10:32:48.043Z",
+  "baselineVerified": true
+}

@@ -1,0 +1,42 @@
+chat	Validate contracts and service types	﻿2026-11-03T10:41:49.3563339Z ##[group]Run pnpm exec tsc -p tsconfig.assistant-chat.json
+chat	Validate contracts and service types	2026-11-03T10:41:49.3563814Z ^[[36;1mpnpm exec tsc -p tsconfig.assistant-chat.json^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3564203Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-contracts test^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3564615Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-contracts typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3565027Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-store typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3565565Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-bff typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3565943Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-worker typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3566326Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-policy typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3566759Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-engine-anythingllm typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3567187Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-policy test^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3567587Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-engine-anythingllm test^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3568070Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-engine-vibekb typecheck^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3568484Z ^[[36;1mpnpm --filter @vibelingan-channel/ai-engine-vibekb test^[[0m
+chat	Validate contracts and service types	2026-11-03T10:41:49.3582446Z shell: /usr/bin/bash -e {0}
+chat	Validate contracts and service types	2026-11-03T10:41:49.3582710Z env:
+chat	Validate contracts and service types	2026-11-03T10:41:49.3582904Z   CI: true
+chat	Validate contracts and service types	2026-11-03T10:41:49.3583300Z   DATABASE_URL: ***127.0.0.1:5432/chat_test
+chat	Validate contracts and service types	2026-11-03T10:41:49.3583687Z   CHAT_TEST_DATABASE_URL: ***127.0.0.1:5432/chat_test
+chat	Validate contracts and service types	2026-11-03T10:41:49.3584150Z   ASSISTANT_SALES_SOURCE_ROOT: ${CI_HOME}/work/channel/channel/.assistant-sales-source
+chat	Validate contracts and service types	2026-11-03T10:41:49.3584637Z   PNPM_HOME: ${CI_HOME}/setup-pnpm/node_modules/.bin
+chat	Validate contracts and service types	2026-11-03T10:41:49.3584934Z ##[endgroup]
+chat	Validate contracts and service types	2026-11-03T10:41:52.8971956Z ##[error]tests/assistant-chat/connected.spec.ts(620,25): error TS2488: Type 'HTMLCollection' must have a '[Symbol.iterator]()' method that returns an iterator.
+chat	Validate contracts and service types	2026-11-03T10:41:52.8982370Z ##[error]tests/assistant-chat/connected.spec.ts(622,24): error TS2488: Type 'NodeListOf<Element>' must have a '[Symbol.iterator]()' method that returns an iterator.
+chat	Validate contracts and service types	2026-11-03T10:41:52.9373857Z ##[error]Process completed with exit code 2.
+chat	Run actions/upload-artifact@v4	﻿2026-11-03T10:41:52.9448339Z ##[group]Run actions/upload-artifact@v4
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9448634Z with:
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9448909Z   name: assistant-chat-004e534c27d2c7bdee01ed535ea853925bcf8774
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9449264Z   path: output/assistant-chat/
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9449544Z   if-no-files-found: error
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9449772Z   compression-level: 6
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9449980Z   overwrite: false
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9450185Z   include-hidden-files: false
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9450412Z env:
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9450586Z   CI: true
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9450946Z   DATABASE_URL: ***127.0.0.1:5432/chat_test
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9451318Z   CHAT_TEST_DATABASE_URL: ***127.0.0.1:5432/chat_test
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9451761Z   ASSISTANT_SALES_SOURCE_ROOT: ${CI_HOME}/work/channel/channel/.assistant-sales-source
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9452544Z   PNPM_HOME: ${CI_HOME}/setup-pnpm/node_modules/.bin
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:52.9452851Z ##[endgroup]
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:53.1340288Z (node:4089) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:53.1341801Z (Use `node --trace-deprecation ...` to show where the warning was created)
+chat	Run actions/upload-artifact@v4	2026-11-03T10:41:53.1378536Z ##[error]No files were found with the provided path: output/assistant-chat/. No artifacts will be uploaded.

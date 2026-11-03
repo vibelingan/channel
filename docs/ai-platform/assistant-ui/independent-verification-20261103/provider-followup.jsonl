@@ -1,0 +1,2 @@
+{"path": "/models", "status": 404, "seconds": 0.43}
+{"path": "/chat/completions", "status": 200, "seconds": 1.64, "has_choices": true, "model_count": 0}

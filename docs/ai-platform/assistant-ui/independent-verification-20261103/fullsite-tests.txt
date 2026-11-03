@@ -1,0 +1,28 @@
+[WebServer] (node:16707) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:16750) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:16785) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] ${VERIFY_ROOT}/packages/sales-contracts/src/canonical.ts:4
+[WebServer] import { visit } from 'jsonc-parser/lib/esm/main.js';
+[WebServer]          ^
+[WebServer] 
+[WebServer] SyntaxError: The requested module 'jsonc-parser/lib/esm/main.js' does not provide an export named 'visit'
+[WebServer]     at ModuleJob._instantiate (node:internal/modules/esm/module_job:180:21)
+[WebServer]     at async ModuleJob.run (node:internal/modules/esm/module_job:263:5)
+[WebServer]     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:547:26)
+[WebServer]     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+[WebServer] 
+[WebServer] Node.js v22.13.0
+[WebServer] ${VERIFY_ROOT}/scripts/assistant-chat-local.ts:48
+[WebServer]     throw fixtureError ?? new Error('Inquiry fixture exited before startup');
+[WebServer]                           ^
+[WebServer] 
+[WebServer] 
+[WebServer] Error: Inquiry fixture exited before startup
+[WebServer]     at <anonymous> (${VERIFY_ROOT}/scripts/assistant-chat-local.ts:48:27)
+[WebServer] 
+[WebServer] Node.js v22.13.0
+Error: Process from config.webServer was not able to start. Exit code: 1
+

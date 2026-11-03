@@ -1,0 +1,141 @@
+(node:32935) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+TAP version 13
+# (node:32939) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: cross-repository browser probe refuses remote and non-dedicated database destinations before starting
+ok 1 - cross-repository browser probe refuses remote and non-dedicated database destinations before starting
+  ---
+  duration_ms: 4035.053375
+  ...
+# (node:32973) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the decoder package work preserves the three application function identities
+ok 2 - the decoder package work preserves the three application function identities
+  ---
+  duration_ms: 0.602625
+  ...
+# Subtest: admin preserves the private runtime import in its bundle
+ok 3 - admin preserves the private runtime import in its bundle
+  ---
+  duration_ms: 682.133709
+  ...
+# Subtest: public-api preserves the private runtime import in its bundle
+ok 4 - public-api preserves the private runtime import in its bundle
+  ---
+  duration_ms: 3.860292
+  ...
+# Subtest: alibaba-catalog-sync preserves the private runtime import in its bundle
+ok 5 - alibaba-catalog-sync preserves the private runtime import in its bundle
+  ---
+  duration_ms: 2.060166
+  ...
+# Subtest: only bundles using the private decoder import require the native package
+ok 6 - only bundles using the private decoder import require the native package
+  ---
+  duration_ms: 5.553167
+  ...
+# Subtest: the package is self-contained after root node_modules removal and relocation
+ok 7 - the package is self-contained after root node_modules removal and relocation
+  ---
+  duration_ms: 5560.065292
+  ...
+# Subtest: the deploy artifact always carries fixed Linux x64 binaries without Mac binaries
+ok 8 - the deploy artifact always carries fixed Linux x64 binaries without Mac binaries
+  ---
+  duration_ms: 1317.834708
+  ...
+# Subtest: artifact validation rejects missing-wrapper
+ok 9 - artifact validation rejects missing-wrapper
+  ---
+  duration_ms: 653.574166
+  ...
+# Subtest: artifact validation rejects missing-native
+ok 10 - artifact validation rejects missing-native
+  ---
+  duration_ms: 647.304875
+  ...
+# Subtest: artifact validation rejects modified-native
+ok 11 - artifact validation rejects modified-native
+  ---
+  duration_ms: 642.928708
+  ...
+# Subtest: artifact validation rejects missing-js-dependency
+ok 12 - artifact validation rejects missing-js-dependency
+  ---
+  duration_ms: 650.011125
+  ...
+# Subtest: artifact validation rejects version-drift
+ok 13 - artifact validation rejects version-drift
+  ---
+  duration_ms: 644.634375
+  ...
+# Subtest: a missing native package fails packaging instead of relying on online installation
+ok 14 - a missing native package fails packaging instead of relying on online installation
+  ---
+  duration_ms: 2.592708
+  ...
+# Subtest: the executable smoke detects a broken loader even when its file hash is updated
+ok 15 - the executable smoke detects a broken loader even when its file hash is updated
+  ---
+  duration_ms: 700.425333
+  ...
+# Subtest: Linux decoder execution cannot be reported as successful on an incompatible host
+ok 16 - Linux decoder execution cannot be reported as successful on an incompatible host
+  ---
+  duration_ms: 701.11175
+  ...
+# Subtest: every artifact smoke checks a decoder used by the built entry
+ok 17 - every artifact smoke checks a decoder used by the built entry
+  ---
+  duration_ms: 0.735083
+  ...
+# Subtest: the actual function-artifact command enforces decoder smoke: none
+ok 18 - the actual function-artifact command enforces decoder smoke: none
+  ---
+  duration_ms: 9104.121625
+  ...
+# Subtest: the actual function-artifact command enforces decoder smoke: missing-manifest
+ok 19 - the actual function-artifact command enforces decoder smoke: missing-manifest
+  ---
+  duration_ms: 3324.509792
+  ...
+# Subtest: the actual function-artifact command enforces decoder smoke: broken-loader
+ok 20 - the actual function-artifact command enforces decoder smoke: broken-loader
+  ---
+  duration_ms: 2868.921917
+  ...
+# Subtest: the actual function-artifact command enforces decoder smoke: wrong-import-map
+ok 21 - the actual function-artifact command enforces decoder smoke: wrong-import-map
+  ---
+  duration_ms: 2957.334541
+  ...
+# Subtest: admin build configuration keeps the pixel module usable after relocation
+ok 22 - admin build configuration keeps the pixel module usable after relocation
+  ---
+  duration_ms: 2042.041375
+  ...
+# Subtest: public-api build configuration keeps the pixel module usable after relocation
+ok 23 - public-api build configuration keeps the pixel module usable after relocation
+  ---
+  duration_ms: 1933.379125
+  ...
+# Subtest: alibaba-catalog-sync build configuration keeps the pixel module usable after relocation
+ok 24 - alibaba-catalog-sync build configuration keeps the pixel module usable after relocation
+  ---
+  duration_ms: 2501.922833
+  ...
+# Subtest: the default artifact command rejects a native SDK write without acknowledgement
+ok 25 - the default artifact command rejects a native SDK write without acknowledgement
+  ---
+  duration_ms: 1315.66175
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 42451.323792

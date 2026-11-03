@@ -1,0 +1,39 @@
+{
+  "model": "deepseek/deepseek-v4-pro",
+  "workspace": 2,
+  "publicIds": [
+    12
+  ],
+  "results": [
+    {
+      "q": "我们想采购500副主动降噪耳机，德国市场，做公司礼品，要印我们自己的logo。先推荐合适的产品。",
+      "durationMs": 102623,
+      "error": "EngineError: engine error: unavailable",
+      "events": [
+        {
+          "type": "activity",
+          "action": "model_answer"
+        }
+      ],
+      "calls": [],
+      "state": {
+        "version": 0
+      }
+    },
+    {
+      "q": "数量改成700副，logo不要了，改成礼盒包装。其他条件不变。",
+      "durationMs": 102067,
+      "error": "EngineError: engine error: unavailable",
+      "events": [
+        {
+          "type": "activity",
+          "action": "model_answer"
+        }
+      ],
+      "calls": [],
+      "state": {
+        "version": 0
+      }
+    }
+  ]
+}

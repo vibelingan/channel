@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-11-03T10:43:54.524796+00:00",
+  "command": "pnpm build:ai",
+  "node": "22.13.0",
+  "exitCode": 0,
+  "checks": [
+    "ai-store/bff/worker emit",
+    "Docker ai-bff runtime stage cold import",
+    "Docker ai-worker runtime stage cold import"
+  ],
+  "historyRefs": [
+    "1d1qn7o26ed9kacbffpvcauoi",
+    "nku6i2c92t4slsiyrn9qmqfg2"
+  ]
+}

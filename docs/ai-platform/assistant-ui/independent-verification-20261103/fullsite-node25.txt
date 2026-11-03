@@ -1,0 +1,31 @@
+[WebServer] (node:17645) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17667) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17676) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17720) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17721) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17735) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ ASTRO_DEV_TOOLBAR=0 PUBLIC_AI_CHAT_V2=1 PUBLIC_AI_INQUIRIES=1 PUBLIC_AI_API_BASE_URL=http://127.0.0.1:62382 PUBLIC_CB_HOST=127.0.0.1:62383 astro dev --host 127.0.0.1 --port 62059
+[WebServer] (node:17748) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 6 tests using 1 worker
+
+(node:18066) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › tests/assistant-site/fullsite.spec.ts:29:1 › real_site_path: hello, products, follow-up, product page, inquiry and Sales hand-off (9.8s)
+  -  2 [desktop] › tests/assistant-site/fullsite.spec.ts:103:3 › narrow_320: the widget fits, nothing scrolls sideways, and the composer stays visible with a keyboard-sized viewport
+  -  3 [desktop] › tests/assistant-site/fullsite.spec.ts:103:3 › narrow_768: the widget fits, nothing scrolls sideways, and the composer stays visible with a keyboard-sized viewport
+(node:18196) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [mobile] › tests/assistant-site/fullsite.spec.ts:29:1 › real_site_path: hello, products, follow-up, product page, inquiry and Sales hand-off (4.9s)
+  ✓  5 [mobile] › tests/assistant-site/fullsite.spec.ts:103:3 › narrow_320: the widget fits, nothing scrolls sideways, and the composer stays visible with a keyboard-sized viewport (3.6s)
+  ✓  6 [mobile] › tests/assistant-site/fullsite.spec.ts:103:3 › narrow_768: the widget fits, nothing scrolls sideways, and the composer stays visible with a keyboard-sized viewport (3.9s)
+
+  2 skipped
+  4 passed (37.5s)

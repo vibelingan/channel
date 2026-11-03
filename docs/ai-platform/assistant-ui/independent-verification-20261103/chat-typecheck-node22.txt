@@ -1,0 +1,2 @@
+tests/assistant-chat/connected.spec.ts(620,25): error TS2488: Type 'HTMLCollection' must have a '[Symbol.iterator]()' method that returns an iterator.
+tests/assistant-chat/connected.spec.ts(622,24): error TS2488: Type 'NodeListOf<Element>' must have a '[Symbol.iterator]()' method that returns an iterator.
