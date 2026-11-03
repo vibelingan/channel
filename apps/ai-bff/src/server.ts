@@ -67,11 +67,14 @@ export interface QuestionLimits {
   cooldownSeconds: number;
   /**
    * After this many idle answers in a row (fixed small-talk replies or
-   * out-of-scope refusals), further questions also share `idleQuestionsPerHour`.
-   * The first answer that is not idle ends it. Both unset: no idle allowance.
+   * out-of-scope refusals), further questions also share a small allowance:
+   * `idleQuestionsPerWindow` per `idleWindowSeconds`. The window is short on
+   * purpose: a visitor who comes back with a real question waits minutes, not
+   * hours, and the first answer that is not idle ends it. Unset: no allowance.
    */
   idleRepliesBeforeSlowdown?: number;
-  idleQuestionsPerHour?: number;
+  idleQuestionsPerWindow?: number;
+  idleWindowSeconds?: number;
 }
 
 /** The composer allows this much; a longer question is refused, not cut. */
@@ -447,13 +450,18 @@ export async function questionWait(
     ['conversation_day', `questions:${conversationId}:day`, 86_400, limits.perConversationPerDay],
     ['ip_day', `questions:ip:${sourceKey}:day`, 86_400, limits.perIpPerDay],
   ] as Array<readonly [string, string, number, number]>;
-  const { idleRepliesBeforeSlowdown: idleAfter, idleQuestionsPerHour: idlePerHour } = limits;
+  const {
+    idleRepliesBeforeSlowdown: idleAfter,
+    idleQuestionsPerWindow: idleLimit,
+    idleWindowSeconds: idleWindow,
+  } = limits;
   if (
     idleAfter !== undefined &&
-    idlePerHour !== undefined &&
+    idleLimit !== undefined &&
+    idleWindow !== undefined &&
     (await store.idleAnswerStreak(conversationId, idleAfter)) >= idleAfter
   )
-    windows.push(['idle_hour', `questions:${conversationId}:idle-hour`, 3_600, idlePerHour]);
+    windows.push(['idle', `questions:${conversationId}:idle`, idleWindow, idleLimit]);
   for (const [rule, bucketKey, windowSeconds, limit] of windows) {
     if ((await store.reserveRateLimit({ bucketKey, windowSeconds, limit })).allowed) continue;
     await store.reserveRateLimit({
@@ -732,7 +740,8 @@ function configFromEnvironment(): AiBffConfig {
       refusalsBeforeCooldown: numberEnv('AI_QUESTION_REFUSALS_BEFORE_COOLDOWN', 5),
       cooldownSeconds: numberEnv('AI_QUESTION_COOLDOWN_SECONDS', 600),
       idleRepliesBeforeSlowdown: numberEnv('AI_IDLE_REPLIES_BEFORE_SLOWDOWN', 5),
-      idleQuestionsPerHour: numberEnv('AI_IDLE_QUESTIONS_PER_HOUR', 10),
+      idleQuestionsPerWindow: numberEnv('AI_IDLE_QUESTIONS_PER_WINDOW', 3),
+      idleWindowSeconds: numberEnv('AI_IDLE_WINDOW_SECONDS', 600),
     },
     ipHashSecret: requiredSecretEnv('AI_IP_HASH_SECRET'),
     trustProxy: process.env.AI_TRUST_PROXY === '1',

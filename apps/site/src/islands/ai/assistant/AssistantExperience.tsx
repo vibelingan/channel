@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChatComposer } from '../../../components/chat/ChatComposer';
 import { ChatPanel } from '../../../components/chat/ChatPanel';
 import { useChatViewport } from '../../../components/chat/useChatViewport';
@@ -9,6 +9,9 @@ import type { AssistantAdapter, PublicProduct, TurnView } from './model';
 import { isTurnWorking } from './state';
 import { type AssistantSeed, useAssistantSession } from './useAssistantSession';
 import { waitText } from './wait-text';
+
+/** Set once a tab has seen the launcher's first-visit nudge. */
+const WELCOME_NUDGE_KEY = 'channel.ai.welcome-nudge';
 
 const actionClass =
   'min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-ink hover:bg-slate-50 disabled:opacity-50';
@@ -55,6 +58,21 @@ export function AssistantExperience({
   const { state, inquiry } = session;
   const [confirmRegenerate, setConfirmRegenerate] = useState(seed.confirmRegenerate ?? false);
   const composer = useRef<HTMLTextAreaElement>(null);
+  // A first visit in this tab gets one nudge towards the chat; later pages do not.
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(WELCOME_NUDGE_KEY)) return;
+      sessionStorage.setItem(WELCOME_NUDGE_KEY, '1');
+      setWelcome(true);
+    } catch {
+      // No storage: no nudge, the launcher still works.
+    }
+  }, []);
+  // Once the visitor has opened the chat on this page, closing it is a choice:
+  // the launcher stops nudging.
+  const [openedHere, setOpenedHere] = useState(false);
+  if (state.open && !openedHere) setOpenedHere(true);
   const messageRevision = state.messages
     .map(
       (message) =>
@@ -83,6 +101,7 @@ export function AssistantExperience({
     state.sessionStatus === 'expired' ||
     state.sessionStatus === 'unavailable';
   const products = currentPublicProducts(state.messages);
+  const talked = state.messages.some((message) => message.role === 'visitor');
   function send(message?: string) {
     setConfirmRegenerate(false);
     session.send(message);
@@ -92,10 +111,14 @@ export function AssistantExperience({
     <ChatPanel
       open={state.open}
       onOpenChange={session.setOpen}
-      {...(!state.open && state.messages.some((message) => message.role === 'visitor')
-        ? { launcherLabel: 'Continue conversation' }
-        : {})}
+      {...(!state.open && talked ? { launcherLabel: 'Continue conversation' } : {})}
       {...(session.unseenAnswer ? { launcherNotice: 'New answer' } : {})}
+      nudge={
+        !state.open &&
+        !openedHere &&
+        !blocked &&
+        ((session.arrived && talked) || (welcome && !talked))
+      }
       headerActions={
         capabilities.history && (
           <button

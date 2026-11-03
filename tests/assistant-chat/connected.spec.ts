@@ -358,19 +358,18 @@ test('product_link_navigates_same_tab, opens at the source card, and back_restor
   await page.waitForURL('**/products/item/?id=demo-1');
   expect(context.pages()).toHaveLength(tabs);
   await expect(page.locator('[data-product-page="demo-1"]')).toBeVisible();
-  if (desktopLike()) await expect(page.getByRole('dialog')).toBeVisible();
-  else {
-    // mobile_shows_continue_launcher_not_expanded: the product stays readable.
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.locator('[data-launcher-notice]')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Continue conversation' }).click();
-  }
+  // arriving_shows_continue_launcher_not_expanded, at every width: the product
+  // stays readable and the launcher nudges once the page settles.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('[data-launcher-notice]')).toHaveCount(0);
+  await expect(page.locator('[data-nudging]')).toHaveCount(1, { timeout: 5000 });
+  await page.getByRole('button', { name: 'Continue conversation' }).click();
   await expect(page.locator('[data-message-role="visitor"]')).toHaveText([
     'Show headphones',
     'A product question',
     'Another product question',
   ]);
-  // desktop_restores_expanded_at_source_card (and the same after opening on a phone).
+  // continuing_opens_at_source_card.
   await expect.poll(() => cardOffset(page)).toBeLessThan(24);
   expect(await cardOffset(page)).toBeGreaterThanOrEqual(0);
   // Looking at a product never asks the model.
@@ -417,19 +416,13 @@ test('launcher_marks_answer_finished_while_away and navigation_mid_answer_has_no
     .first()
     .click();
   await page.waitForURL('**/products/item/?id=demo-1');
-  if (desktopLike()) {
-    await expect(page.getByLabel('Answer status')).toContainText('Answer ready', {
-      timeout: 15000,
-    });
-  } else {
-    const dot = page.locator('[data-launcher-notice]');
-    await expect(dot).toHaveCount(1, { timeout: 15000 });
-    await expect(
-      page.getByRole('button', { name: /Continue conversation · New answer/ }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: /Continue conversation/ }).click();
-    await expect(dot).toHaveCount(0);
-  }
+  const dot = page.locator('[data-launcher-notice]');
+  await expect(dot).toHaveCount(1, { timeout: 15000 });
+  await expect(
+    page.getByRole('button', { name: /Continue conversation · New answer/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Continue conversation/ }).click();
+  await expect(dot).toHaveCount(0);
   await expect(page.locator('[data-message-role="visitor"]')).toHaveText([
     'Show headphones',
     'slow answer please',
@@ -473,7 +466,7 @@ test('navigation_mid_save_keeps_same_submission', async ({ page, request }) => {
   await answer.getByRole('link', { name: 'View product' }).first().click();
   await page.waitForURL('**/products/item/?id=demo-1');
   release();
-  if (!desktopLike()) await page.getByRole('button', { name: 'Continue conversation' }).click();
+  await page.getByRole('button', { name: 'Continue conversation' }).click();
   await expect(page.getByLabel('Inquiry receipt')).toContainText('Your inquiry is recorded', {
     timeout: 15000,
   });
@@ -558,7 +551,7 @@ async function questionOnProductPageSurvivesBack(
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   await page.getByRole('link', { name: 'View product' }).first().click();
   await page.waitForURL('**/products/item/?id=demo-1');
-  if (!desktopLike()) await page.getByRole('button', { name: 'Continue conversation' }).click();
+  await page.getByRole('button', { name: 'Continue conversation' }).click();
   await send(page, 'Asked on the product page');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   await page.goBack();
@@ -683,20 +676,18 @@ test('suggestion_uses_current_missing_need and only the newest answer offers fol
   await send(page, 'We want headphones for our team');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   const first = page.locator('[data-message-role="assistant"]').last();
-  await expect(
-    first.getByRole('button', { name: 'What is the minimum order quantity?' }),
-  ).toBeVisible();
+  // The chip shows a short label and says on hover what it will send.
+  await expect(first.getByRole('button', { name: 'Minimum order?' })).toHaveAttribute(
+    'title',
+    'What is the minimum order quantity?',
+  );
   await send(page, 'We need 700 headphones');
   await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(2);
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   const latest = page.locator('[data-message-role="assistant"]').last();
   // The quantity is known now, so it is not asked again.
-  await expect(
-    latest.getByRole('button', { name: 'Can you print our logo on them?' }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'What is the minimum order quantity?' }),
-  ).toHaveCount(0);
+  await expect(latest.getByRole('button', { name: 'Add our logo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Minimum order?' })).toHaveCount(0);
   await expect(page.getByRole('list', { name: 'Suggested next messages' })).toHaveCount(1);
 });
 
@@ -706,7 +697,8 @@ test('suggestion_click_has_one_turn, sent as the visitor’s own visible message
   await send(page, 'We want headphones for our team');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   const posts = messagePosts(page);
-  await page.getByRole('button', { name: 'Can you print our logo on them?' }).click();
+  await page.getByRole('button', { name: 'Add our logo' }).click();
+  // The transcript shows the whole message that was sent, not the chip label.
   await expect(page.locator('[data-message-role="visitor"]').last()).toHaveText(
     'Can you print our logo on them?',
   );
@@ -725,7 +717,7 @@ test('existing_composer_is_not_overwritten: a follow-up joins the draft and noth
   const posts = messagePosts(page);
   const box = page.getByRole('textbox', { name: 'Your question' });
   await box.fill('Our own words');
-  await page.getByRole('button', { name: 'Can you print our logo on them?' }).click();
+  await page.getByRole('button', { name: 'Add our logo' }).click();
   await expect(box).toHaveValue('Our own words\nCan you print our logo on them?');
   await expect(box).toBeFocused();
   await page.waitForTimeout(300);
@@ -740,7 +732,7 @@ test('quote_suggestion_never_submits: it opens the inquiry for review only', asy
   });
   await send(page, 'We want headphones for our team');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
-  await page.getByRole('button', { name: 'Please send me a quote' }).click();
+  await page.getByRole('button', { name: 'Get a quote' }).click();
   await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
     'Nothing is submitted yet',
   );
@@ -771,7 +763,10 @@ test('a bare hello gets a warm reply with ways to start, and a starter reaches t
   await expect(reply.getByRole('listitem')).toHaveCount(3);
   await send(page, 'hello?');
   await expect(page.locator('[data-message-role="assistant"]').last()).toContainText('Hi again');
-  await page.getByRole('button', { name: 'What products do you offer?' }).click();
+  await page.getByRole('button', { name: 'Browse products' }).click();
+  await expect(page.locator('[data-message-role="visitor"]').last()).toHaveText(
+    'What products do you offer?',
+  );
   await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(3);
   await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
     'database and worker',

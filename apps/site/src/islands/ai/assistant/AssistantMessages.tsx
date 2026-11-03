@@ -136,14 +136,16 @@ export function AssistantMessages({
                 )}
                 {follow.map((suggestion) => (
                   <li key={suggestion.id}>
-                    {/* The chip shows exactly what will be sent as the visitor's message. */}
+                    {/* A short label; the full message it sends shows on hover and,
+                        once sent, as the visitor's own message in the transcript. */}
                     <button
                       type="button"
                       data-suggestion-kind={suggestion.kind}
+                      title={suggestion.utterance}
                       onClick={() => onSuggestion?.(suggestion)}
                       className="min-h-11 rounded-full border border-brand-200 bg-brand-50 px-3 py-2 text-left text-xs font-medium text-brand-800"
                     >
-                      {suggestion.utterance}
+                      {suggestion.label}
                     </button>
                   </li>
                 ))}

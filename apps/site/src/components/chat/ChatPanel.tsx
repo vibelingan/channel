@@ -1,4 +1,7 @@
-import { type ReactNode, type RefObject, useEffect, useId, useRef } from 'react';
+import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from 'react';
+
+/** When a nudged launcher moves: soon after the page settles, then once more. */
+const NUDGE_AFTER_MS = [1_500, 12_000];
 
 export function ChatPanel({
   open,
@@ -8,6 +11,7 @@ export function ChatPanel({
   triggerRef,
   launcherLabel = 'Ask our AI',
   launcherNotice,
+  nudge = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -17,12 +21,29 @@ export function ChatPanel({
   launcherLabel?: string;
   /** Shown as a dot on the launcher, and read out with its label. */
   launcherNotice?: string;
+  /**
+   * Draw the eye to the closed launcher: a short wiggle soon after the page
+   * settles and once more later. Nothing moves with reduced motion; the
+   * label still says what the launcher does.
+   */
+  nudge?: boolean;
 }) {
   const localTrigger = useRef<HTMLButtonElement>(null);
   const trigger = triggerRef ?? localTrigger;
   const panel = useRef<HTMLDialogElement>(null);
   const wasOpen = useRef(false);
   const titleId = useId();
+  const [nudging, setNudging] = useState(false);
+  useEffect(() => {
+    if (!nudge || open) {
+      setNudging(false);
+      return;
+    }
+    const timers = NUDGE_AFTER_MS.map((ms) => window.setTimeout(() => setNudging(true), ms));
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+    };
+  }, [nudge, open]);
   useEffect(() => {
     const closing = wasOpen.current && !open;
     wasOpen.current = open;
@@ -81,11 +102,15 @@ export function ChatPanel({
         ref={trigger}
         type="button"
         onClick={() => onOpenChange(!open)}
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget) setNudging(false);
+        }}
         aria-expanded={open}
-        className="relative ml-auto flex min-h-11 items-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        data-nudging={nudging || undefined}
+        className={`relative ml-auto flex min-h-11 items-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${nudging ? 'motion-safe:animate-launcher-nudge' : ''}`}
       >
         <span
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-brand-950"
+          className={`flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-brand-950 ${nudging ? 'motion-safe:animate-launcher-spark' : ''}`}
           aria-hidden="true"
         >
           ✦

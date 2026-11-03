@@ -52,19 +52,24 @@ test('a conversation may ask a few questions a minute, then waits for the minute
   assert.equal(await questionWait(store, rules, 'c2', 'ip'), null);
 });
 
-test('after a run of idle answers, questions share a small hourly allowance until one is not idle', async () => {
+test('after a run of idle answers, questions share a short-window allowance until one is not idle', async () => {
   const idle = { streak: 4 };
   const store = bucketStore(idle);
-  const rules = limits({ idleRepliesBeforeSlowdown: 5, idleQuestionsPerHour: 2 });
+  const rules = limits({
+    idleRepliesBeforeSlowdown: 5,
+    idleQuestionsPerWindow: 2,
+    idleWindowSeconds: 600,
+  });
   // Four small-talk replies in a row change nothing.
   for (let i = 0; i < 5; i++) assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
-  assert.equal(store.hits.get('questions:c1:idle-hour'), undefined);
+  assert.equal(store.hits.get('questions:c1:idle'), undefined);
   idle.streak = 5;
   assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
   assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
   const wait = await questionWait(store, rules, 'c1', 'ip');
-  assert.equal(wait?.rule, 'idle_hour');
-  assert.ok(wait && wait.seconds >= 1 && wait.seconds <= 3_600);
+  assert.equal(wait?.rule, 'idle');
+  // Minutes at most, never hours.
+  assert.ok(wait && wait.seconds >= 1 && wait.seconds <= 600);
   // A real answer ends the streak, and with it the allowance.
   idle.streak = 0;
   assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);

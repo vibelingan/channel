@@ -55,7 +55,7 @@ test('real_site_path: hello, products, follow-up, product page, inquiry and Sale
     await expect(dots.nth(1)).toHaveAttribute('aria-current', 'true');
   }
 
-  await page.getByRole('button', { name: 'Can you print our logo on them?' }).click();
+  await page.getByRole('button', { name: 'Add our logo' }).click();
   await answered(page, 3);
   await expect(page.locator('[data-message-role="visitor"]').last()).toHaveText(
     'Can you print our logo on them?',
@@ -67,7 +67,9 @@ test('real_site_path: hello, products, follow-up, product page, inquiry and Sale
   await first.getByRole('link', { name: 'View product' }).click();
   await expect(page).toHaveURL(/\/products\/item\/\?id=/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
-  if (mobile) await page.getByRole('button', { name: 'Continue conversation' }).click();
+  // The product stays readable; the launcher offers to continue, at every width.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Continue conversation' }).click();
   await expect(assistant(page)).toHaveCount(3);
   await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(3);
 

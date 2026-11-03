@@ -184,18 +184,18 @@ engine.streamRun = async function* (handle, signal) {
   // Follow-ups as the planner proposes them; the worker drops the known ones.
   const followUps = [
     {
-      label: 'Quantity',
+      label: 'Minimum order?',
       utterance: 'What is the minimum order quantity?',
       kind: 'ask',
       about: 'quantity',
     },
     {
-      label: 'Logo',
+      label: 'Add our logo',
       utterance: 'Can you print our logo on them?',
       kind: 'ask',
       about: 'customization',
     },
-    { label: 'Quote', utterance: 'Please send me a quote', kind: 'ask' },
+    { label: 'Get a quote', utterance: 'Please send me a quote', kind: 'ask' },
   ];
   const plan = question.includes('those again')
     ? { kind: 'lookup', ids: earlier?.products.slice(0, 2).map((p) => p.id) ?? [] }

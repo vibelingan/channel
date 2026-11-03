@@ -56,6 +56,8 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
   const [inquiryExpanded, setInquiryExpanded] = useState(seed.inquiryExpanded ?? false);
   /** The product card the visitor left from, shown first when the panel opens. */
   const [anchor, setAnchor] = useState<Omit<AssistantAnchor, 'arriving'> | null>(null);
+  /** This page was opened from a product link in the conversation. */
+  const [arrived, setArrived] = useState(false);
   /** An answer finished while the panel was closed; the launcher shows a dot. */
   const [unseenAnswer, setUnseenAnswer] = useState(false);
   /** Bumped when the visitor asks to see the card, so it can take focus. */
@@ -266,14 +268,16 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
       }
       suggestionSeen.current = lastSuggestion(restored.messages)?.id;
       const { arriving, ...left } = restored.anchor ?? { messageId: '' };
-      // Arriving from a product link: expanded beside the product on a wide
-      // screen, a launcher on a phone. Otherwise the panel is as it was left.
-      const open = arriving ? wideViewport() : restored.open;
+      // Arriving from a product link: the product stays readable at every
+      // width and the launcher offers to continue. Otherwise the panel is as
+      // it was left.
+      const open = arriving ? false : restored.open;
       dispatch({
         type: 'restored',
         conversation: { ...restored, ...(open === undefined ? {} : { open }) },
       });
       setAnchor(restored.anchor ? left : null);
+      setArrived(Boolean(arriving));
       if (arriving) seed.persistence?.update({ anchor: left });
       setUnseenAnswer(Boolean(restored.finishedWhileAway) && open === false);
       const view = restoredInquiry(restored.inquiry);
@@ -466,6 +470,7 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
     restore,
     setOpen: (open: boolean) => dispatch({ type: 'open', open }),
     anchor,
+    arrived,
     unseenAnswer,
     leaveForProduct,
     inquiry,
@@ -482,11 +487,6 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
   };
 }
 
-function wideViewport() {
-  return (
-    typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches === true
-  );
-}
 function lastSuggestion(messages: ChatMessage[]) {
   return messages.findLast((message) => message.role === 'assistant' && message.inquirySuggestion);
 }
