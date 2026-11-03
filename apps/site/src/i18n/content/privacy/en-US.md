@@ -2,13 +2,16 @@
 locale: en-US
 
 # Written from what the site and the assistant actually do (2026-11-03).
-# Facts to confirm with the owner before release: docs/ai-platform/assistant-ui/ROADMAP.md §6.4.
+# Legal entity and contact as confirmed by the owner: docs/ai-platform/assistant-ui/ROADMAP.md §6.4.
 updated: 3 November 2026
 heading: Privacy notice
 intro: >-
-  Diversity Technology Limited runs this website. This notice explains what we
-  collect when you use it, why, where it is processed, how long we keep it,
-  and how to ask us to see, correct or delete it.
+  Diversity Technology Limited is the brand of Diversity Innovations Limited
+  (先驅多元有限公司), a company registered in Hong Kong (Business Registration
+  No. 63108687), which runs this website and is responsible for the personal
+  data described here. This notice explains what we collect when you use the
+  site, why, where it is processed, how long we keep it, and how to ask us to
+  see, correct or delete it.
 
 sections:
   - heading: What we collect
@@ -93,6 +96,10 @@ sections:
         body: >-
           You can ask to see, correct or delete your personal data, or object
           to how we use it. We may need to confirm it is you before we act.
+      - title: Applicable law
+        body: >-
+          We handle personal data in line with the Personal Data (Privacy)
+          Ordinance of Hong Kong (Cap. 486).
       - title: Contact
         body: Email sales@supplychainsai.com with the word "Privacy" in the subject.
 ---

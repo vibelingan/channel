@@ -662,3 +662,55 @@ test(
     }
   },
 );
+
+test(
+  'a bare greeting is answered from fixed text without calling the model; a real question is not',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () => {
+      throw new Error('No catalog read expected');
+    });
+    const greeting = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: greeting.id,
+      idempotencyKey: 'screened-greeting',
+      content: 'Hello!',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const silent = new FakeEngine();
+    silent.createRun = async () => {
+      throw new Error('No model needed for a greeting');
+    };
+    assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
+    const final = (await store.listEvents(greeting.id)).at(-1);
+    assert.equal(final?.type, 'final');
+    assert.match(String(final.payload.text), /^Hello\. I can help find products/);
+    assert.equal(final.payload.kind, 'answer');
+    assert.equal((await store.getConversation(greeting.id))?.activeRunId, null);
+
+    const question = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: question.id,
+      idempotencyKey: 'screened-question',
+      content: 'Hello, which speakers do you make?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    let modelCalls = 0;
+    const engine = new FakeEngine({
+      script: ['{"kind":"clarify","question":"Which size do you need?"}'],
+      citations: [],
+    });
+    const createRun = engine.createRun.bind(engine);
+    engine.createRun = async (...args) => {
+      modelCalls += 1;
+      return createRun(...args);
+    };
+    assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+    assert.equal(modelCalls, 1);
+    assert.equal((await store.listEvents(question.id)).at(-1)?.payload.kind, 'clarification');
+  },
+);

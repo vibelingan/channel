@@ -245,6 +245,17 @@ export class AiStore {
       : { allowed: true, remaining: Math.max(0, input.limit - hits) };
   }
 
+  /** Hits so far in the current window of a bucket, without adding one. */
+  async rateLimitHits(bucketKey: string, windowSeconds: number): Promise<number> {
+    const result = await this.pool.query<{ hits: number }>(
+      `SELECT hits FROM ai_rate_limit_buckets
+       WHERE bucket_key = $1
+         AND window_started_at = to_timestamp(floor(extract(epoch FROM clock_timestamp()) / $2) * $2)`,
+      [bucketKey, windowSeconds],
+    );
+    return result.rows[0]?.hits ?? 0;
+  }
+
   async appendVisitorMessage(input: {
     conversationId: string;
     idempotencyKey: string;

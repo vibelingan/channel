@@ -47,12 +47,26 @@ export interface AiBffConfig {
   engineProvenance?: EngineProvenance;
   globalRequestsPerMinute: number;
   ipRequestsPerMinute: number;
+  /** Limits on new questions, which are what cost a model call. Absent: none. */
+  questionLimits?: QuestionLimits;
   ipHashSecret: string;
   trustProxy: boolean;
   ssePollMs: number;
   sseHeartbeatMs: number;
   sseMaxDurationMs: number;
 }
+
+export interface QuestionLimits {
+  perConversationPerMinute: number;
+  perConversationPerDay: number;
+  perIpPerDay: number;
+  /** Refusals in one cooldown window before the conversation waits out the window. */
+  refusalsBeforeCooldown: number;
+  cooldownSeconds: number;
+}
+
+/** The composer allows this much; a longer question is refused, not cut. */
+export const MAX_QUESTION_CHARS = 2000;
 
 export interface AiBffServerOptions {
   inquiryClient?: InquiryClient;
@@ -221,10 +235,42 @@ export function createAiBffServer(
           error(response, 400, 'BAD_REQUEST', 'Invalid message request', requestId);
           return;
         }
+        const question = body.message.trim();
+        if (v2 && question.length > MAX_QUESTION_CHARS) {
+          error(response, 400, 'BAD_REQUEST', 'Shorten the question and send it again', requestId);
+          return;
+        }
+        // A retry of a question already accepted is not a new question.
+        if (
+          config.questionLimits &&
+          !(await store.getChatTurn(route.conversationId, body.idempotencyKey))
+        ) {
+          const wait = await questionWait(
+            store,
+            config.questionLimits,
+            route.conversationId,
+            sourceKey,
+          );
+          if (wait) {
+            // Only the rule and the length are logged, never the question.
+            console.info(
+              JSON.stringify({
+                level: 'info',
+                requestId,
+                code: 'question_limited',
+                rule: wait.rule,
+                length: question.length,
+              }),
+            );
+            response.setHeader('Retry-After', String(wait.seconds));
+            error(response, 429, 'RATE_LIMITED', 'Too many questions', requestId);
+            return;
+          }
+        }
         const accepted = await store.appendVisitorMessage({
           conversationId: route.conversationId,
           idempotencyKey: body.idempotencyKey,
-          content: body.message.trim(),
+          content: question,
           engineId: config.engineId,
           engineVersion: config.engineVersion,
           ...(config.engineProvenance ? { provenance: config.engineProvenance } : {}),
@@ -362,6 +408,46 @@ export function createAiBffServer(
       }
     }
   });
+}
+
+/**
+ * Seconds to wait before this conversation may ask again, and which limit
+ * applies; null when it may ask now. Every limit is a fixed window that ends
+ * by itself, so a visitor who was refused earlier is never blocked for good.
+ */
+export async function questionWait(
+  store: Pick<AiStore, 'reserveRateLimit' | 'rateLimitHits'>,
+  limits: QuestionLimits,
+  conversationId: string,
+  sourceKey: string,
+): Promise<{ rule: string; seconds: number } | null> {
+  const untilEnd = (windowSeconds: number) =>
+    windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds);
+  const refusals = `question-refusals:${conversationId}`;
+  if (
+    (await store.rateLimitHits(refusals, limits.cooldownSeconds)) >= limits.refusalsBeforeCooldown
+  )
+    return { rule: 'cooldown', seconds: untilEnd(limits.cooldownSeconds) };
+  const windows = [
+    [
+      'conversation_minute',
+      `questions:${conversationId}:minute`,
+      60,
+      limits.perConversationPerMinute,
+    ],
+    ['conversation_day', `questions:${conversationId}:day`, 86_400, limits.perConversationPerDay],
+    ['ip_day', `questions:ip:${sourceKey}:day`, 86_400, limits.perIpPerDay],
+  ] as const;
+  for (const [rule, bucketKey, windowSeconds, limit] of windows) {
+    if ((await store.reserveRateLimit({ bucketKey, windowSeconds, limit })).allowed) continue;
+    await store.reserveRateLimit({
+      bucketKey: refusals,
+      windowSeconds: limits.cooldownSeconds,
+      limit: limits.refusalsBeforeCooldown,
+    });
+    return { rule, seconds: untilEnd(windowSeconds) };
+  }
+  return null;
 }
 
 /** "Try again shortly": the database is out, or startup has not reached it yet. */
@@ -623,6 +709,13 @@ function configFromEnvironment(): AiBffConfig {
       : {}),
     globalRequestsPerMinute: numberEnv('AI_GLOBAL_REQUESTS_PER_MINUTE', 600),
     ipRequestsPerMinute: numberEnv('AI_IP_REQUESTS_PER_MINUTE', 60),
+    questionLimits: {
+      perConversationPerMinute: numberEnv('AI_CONVERSATION_QUESTIONS_PER_MINUTE', 6),
+      perConversationPerDay: numberEnv('AI_CONVERSATION_QUESTIONS_PER_DAY', 60),
+      perIpPerDay: numberEnv('AI_IP_QUESTIONS_PER_DAY', 200),
+      refusalsBeforeCooldown: numberEnv('AI_QUESTION_REFUSALS_BEFORE_COOLDOWN', 5),
+      cooldownSeconds: numberEnv('AI_QUESTION_COOLDOWN_SECONDS', 600),
+    },
     ipHashSecret: requiredSecretEnv('AI_IP_HASH_SECRET'),
     trustProxy: process.env.AI_TRUST_PROXY === '1',
     ssePollMs: numberEnv('AI_SSE_POLL_MS', 250),

@@ -506,6 +506,16 @@ test('new_tab_starts_fresh_conversation and direct_product_visit_has_single_widg
   await tab.close();
 });
 
+test('opening_without_sending_keeps_ask_label on the next page', async ({ page }) => {
+  await page.getByRole('textbox', { name: 'Your question' }).fill('A draft I did not send');
+  await page.goto('/products/item/?id=demo-1');
+  await expect(page.locator('h1[data-product-page]')).toBeVisible();
+  const close = page.getByRole('button', { name: 'Close assistant' });
+  if (await close.isVisible()) await close.click();
+  await expect(page.getByRole('button', { name: 'Ask our AI' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /Continue conversation/ })).toHaveCount(0);
+});
+
 test('missing_anchor_restores_latest_with_notice', async ({ page }) => {
   await send(page, 'A product question');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');

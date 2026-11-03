@@ -393,7 +393,7 @@ DeepSeek chat-completions 是无状态调用，应用需要把需要的上下文
 5. MIU 20 整站回归与七项缺陷注入。
 6. Sales 流程开发完成并可部署后，再做 H3（登记 Sales agent）。
 
-每个单元都要说明实现位置、复用部分、实际通过的检查、尚未实测的边界；通过后提交并推送 `feat/sales-assistant`。遇到 pricing／SEO 的不可兼容冲突，先停止这部分整合，不改他人工作。全部完成后从 `feat/sales-assistant` 向 main 开一个 PR。
+每个单元都要说明实现位置、复用部分、实际通过的检查、尚未实测的边界；通过后提交并推送 `feat/sales-assistant`。遇到 pricing／SEO 的不可兼容冲突，先停止这部分整合，不改他人工作。全部完成后先合入 `test`、部署到唯一的 CloudBase 环境、全面测试并修好，再从 `feat/sales-assistant` 向 main 开一个 PR（负责人，2026-11-03；合入 `test` 前先征得同意）。
 
 拟复用检查包括：site 单测／typecheck、assistant 浏览器套件、worker／BFF／store 测试、Sales 保存与 SDK 合同、函数打包 smoke、定向缺陷注入、公开页 SEO gate 和构建。测试运行库与人工会话库继续分开；真实邮件发送保持关闭。
 
@@ -555,6 +555,12 @@ CloudBase 账号与环境（负责人确认）：
   - Playwright 和 Vite 开发服务器都不让 Chromium 缓存这些页面，所以从缓存还原是用同样的 `pageshow` 事件模拟的，没有在真实缓存里跑过。
   - 存储被禁用时记不下来源，产品页按新对话处理。
   - 320／768px 截图和 SEO 构建核对放进 MIU 20 的整站回归。
+
+### 负责人第二批意见（2026-11-03）
+
+- **启动按钮：** 只打开、只打字没发送，按钮仍是 “Ask our AI”；条件改成“有访客发出的消息”。检查：journeys 的焦点用例补了“打字不发再关上”；connected 新增 `opening_without_sending_keeps_ask_label`（电脑、手机各一遍）。
+- **隐私页：** 写明法律主体 Diversity Innovations Limited（先驅多元有限公司，BRN 63108687）和适用的香港《个人资料（私隐）条例》；邮箱仍是官网唯一公布的 `sales@`；不写模型服务商。`privacy-content.test.ts` 钉住这几项。
+- **L0 规则层：** 已做，见 ROADMAP §5.6。BFF 管限额、冷却、长度；worker 在模型调用前给问候、感谢、无内容和第三次重复固定回复。检查：BFF 23、worker 54、store 43 项全过；去掉“重试不计数”或 worker 里的筛选，对应测试会失败。
 
 ### 隐私说明入口（2026-11-03，本轮之外的小项）
 

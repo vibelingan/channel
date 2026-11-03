@@ -26,6 +26,7 @@ import {
 } from '@vibelingan-channel/ai-store';
 import { explainCatalog } from './catalog-answer.ts';
 import { PublicCatalog, parseProductPlan } from './product-workflow.ts';
+import { FIXED_REPLIES, fixedReply, screenVisitorMessage } from './screen.ts';
 
 export interface WorkerConfig {
   catalog?: PublicCatalog;
@@ -396,6 +397,29 @@ async function startRun(
       await finishProduct(context.catalogAction);
       return;
     }
+    const screened = config.catalog ? screenVisitorMessage(context.turns) : null;
+    if (screened) {
+      // Only the topic is logged, never the message.
+      console.info(
+        JSON.stringify({ level: 'info', event: 'message_screened', runId, topic: screened }),
+      );
+      await workerStage('finish_screened', () =>
+        store.finishRunFenced({
+          conversationId: context.conversationId,
+          runId: context.runId,
+          expectedControlVersion: context.controlVersion,
+          claimEpoch: context.claimEpoch,
+          status: 'completed',
+          events: [
+            {
+              type: 'final',
+              payload: fixedReply(screened, context.turns.at(-1)?.text ?? '', context.locale),
+            },
+          ],
+        }),
+      );
+      return;
+    }
     const handle = await workerStage('create_engine_run', () =>
       engine.createRun(
         {
@@ -511,9 +535,7 @@ async function startRun(
                 ? '我已整理采购需求。请核对需求、填写邮箱，并确认是否交给团队跟进；确认前不会提交。'
                 : 'Your purchase requirements are ready to review. Check the details and add your email before confirming. Nothing is submitted yet.'
               : plan.topic === 'greeting'
-                ? chinese
-                  ? '你好，我可以帮你查找产品、了解 OEM 服务，或整理询盘需求。你想采购什么？'
-                  : 'Hello. I can help find products, explain our OEM services, or prepare an inquiry. What are you looking for?'
+                ? FIXED_REPLIES.greeting[chinese ? 'zh' : 'en']
                 : plan.topic === 'unsupported'
                   ? chinese
                     ? '这件事超出我目前能处理的范围。我可以帮你查产品、了解服务，或者整理需求交给团队。'

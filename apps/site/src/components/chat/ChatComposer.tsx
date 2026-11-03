@@ -1,5 +1,8 @@
 import { useId, useRef } from 'react';
 
+/** The assistant server refuses longer questions (MAX_QUESTION_CHARS in ai-bff). */
+export const MAX_QUESTION_CHARS = 2000;
+
 export function ChatComposer({
   value,
   onChange,
@@ -36,7 +39,7 @@ export function ChatComposer({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={2}
-        maxLength={8000}
+        maxLength={MAX_QUESTION_CHARS}
         disabled={disabled}
         onCompositionStart={() => {
           composing.current = true;

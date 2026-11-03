@@ -107,6 +107,11 @@ test('real components mount, follow branding and restore keyboard focus', async 
   await expect(page.getByRole('button', { name: 'Ask our AI' })).toBeFocused();
   await page.getByRole('button', { name: 'Ask our AI' }).click();
   await expect(question).toBeFocused();
+  // Opening and typing without sending is not a conversation to continue.
+  await question.fill('A draft I did not send');
+  await question.press('Escape');
+  await expect(page.getByRole('button', { name: 'Ask our AI' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Continue conversation/ })).toHaveCount(0);
 });
 
 test('IME and Shift+Enter preserve input; Enter creates one turn and cards can compare', async ({
@@ -214,6 +219,10 @@ test('server cooldown disables retry only until its supplied time', async ({ pag
   await select(page, 'rate_limit', true);
   await send(page);
   await expect(page.getByRole('button', { name: 'Resume this answer' })).toBeDisabled();
+  // While waiting, the visitor is told the way to the team that is still open.
+  await expect(page.getByLabel('Answer status')).toContainText(
+    'You can still send your requirement to our team with Prepare inquiry.',
+  );
   await expect(page.getByRole('button', { name: 'Resume this answer' })).toBeEnabled();
   await page.getByRole('button', { name: 'Resume this answer' }).click();
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');

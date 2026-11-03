@@ -8,6 +8,7 @@ import { currentPublicProducts } from './inquiry';
 import type { AssistantAdapter, PublicProduct, TurnView } from './model';
 import { isTurnWorking } from './state';
 import { type AssistantSeed, useAssistantSession } from './useAssistantSession';
+import { waitText } from './wait-text';
 
 const actionClass =
   'min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-ink hover:bg-slate-50 disabled:opacity-50';
@@ -101,7 +102,7 @@ export function AssistantExperience({
     <ChatPanel
       open={state.open}
       onOpenChange={session.setOpen}
-      {...(!state.open && state.messages.length > 0
+      {...(!state.open && state.messages.some((message) => message.role === 'visitor')
         ? { launcherLabel: 'Continue conversation' }
         : {})}
       {...(session.unseenAnswer ? { launcherNotice: 'New answer' } : {})}
@@ -261,7 +262,9 @@ export function AssistantExperience({
             <output aria-live="polite">{turnStatus(state.turn)}</output>
             {session.retrySeconds > 0 && state.turn.phase === 'rate_limited' && (
               <p className="mt-2">
-                Retry available in {session.retrySeconds} seconds, as requested by the service.
+                Retry available in {waitText(session.retrySeconds)}, as requested by the service.
+                {capabilities.inquiries &&
+                  ' You can still send your requirement to our team with Prepare inquiry.'}
               </p>
             )}
             {['reconnecting', 'failed', 'rate_limited'].includes(state.turn.phase) && (

@@ -40,6 +40,13 @@ test('the privacy notice is reachable, quietly, from every place that collects d
 
 test('each statement in the notice is still true of the code', () => {
   assert.ok(notice.updated.trim() && notice.intro.includes('Diversity Technology Limited'));
+  // The legal entity behind the brand, as confirmed by the owner.
+  assert.match(notice.intro, /Diversity Innovations Limited\s+\(先驅多元有限公司\)/);
+  assert.match(notice.intro, /Business Registration\s+No\. 63108687/);
+  assert.match(statement('Applicable law'), /Personal Data \(Privacy\)\s+Ordinance of Hong Kong/);
+  // The one mailbox the site publishes.
+  assert.match(statement('Contact'), /sales@supplychainsai\.com/);
+  assert.match(read('./content/en-US.md'), /mailto:sales@supplychainsai\.com/);
 
   // Passwords: "stored only as a one-way hash".
   assert.match(statement('Accounts'), /one-way hash/);
