@@ -317,7 +317,7 @@
 3. **设置和密钥：** GitHub `test` 环境变量已由 Claude 设好（11-03，负责人授权）：`AI_ENGINE_ID=vibekb`、`AI_MAX_TOOL_CALLS=8`、`AI_MAX_STREAM_DURATION_MS=120000`、`AI_MODEL_BASE_URL`、`AI_MODEL_ID`、`AI_MODEL_THINKING_MODE=disabled`、`VIBEKB_MCP_URL=https://kb.supplychainsai.com/mcp`、`VIBEKB_PUBLIC_WORKSPACE_ID=2`、`VIBEKB_PUBLIC_DOCUMENT_IDS=12`、`AI_PUBLIC_CATALOG_ORIGIN=https://www.supplychainsai.com`。这些只在 AI 部署时读取。回退旧接法改回 `AI_ENGINE_ID=anythingllm`、`AI_MAX_TOOL_CALLS=0`、`AI_MAX_STREAM_DURATION_MS=55000`。`PUBLIC_AI_CHAT_V2=1` 等 AI 服务部署好、站点部署时再设。还缺负责人自己输入的两个密钥：`AI_MODEL_API_KEY`、`VIBEKB_MCP_API_KEY`。
 4. **MCP 的 HTTPS 入口：** 知识库已经有 `https://kb.supplychainsai.com`（就是 Hermes 主机 43.157.53.132 上的 nginx，有证书），但 `/mcp` 现在落到网页上，MCP 服务只听本机 9021 端口。在这个 nginx 站点里加一段 `/mcp` 转发到 `127.0.0.1:9021` 就是生产入口，鉴权仍是 MCP 自己的 Bearer 密钥。SSH 转发只是开发机临时用的。
 5. **聊天里提交询盘要等 sales-integration 函数上线：** 它还不在 CloudBase 函数部署清单里，也没有 Hermes 许可的设置。第一次上线先只开新聊天（`PUBLIC_AI_INQUIRIES=0`），询盘照旧走首页和 OEM 页表单。
-6. **线上旧聊天：** `ai-bff` 进程是活的（`/api/ai/healthz` 两秒内 200），但所有要查数据库的请求都卡住（`/api/ai/readyz` 30 秒无响应），说明它和 PostgreSQL 之间的连接挂住了。原因（数据库实例停了、网络路径变了，还是半开连接）要看 CloudRun 日志和数据库状态。代码上已补连接超时和 TCP keepalive，下次部署会换新连接。
+6. **AI 数据库已经不在了（2026-11-03 查明）：** 旧聊天和新聊天共用的 PostgreSQL `postgres-nalivqki`（包年包月，1 核 2 GB，¥211.20/月）只付到 2026-10-14 14:51，没有续费，到期后被隔离、释放。所以 `ai-bff` 进程活着，但所有查数据库的请求都卡住。新聊天上线前要重新买一个：同一子网 `channel-ai-postgres-sh2`、同一安全组 `sg-glj0najs`，打开 SSL 和自动续费；负责人自己设密码并更新 `DATABASE_URL` 密钥；服务启动时会自动建表。账户余额只有 ¥0.88，需要先充值。旧库里只有 9 月 14 日到 10 月 14 日的聊天记录，询盘存在 CloudBase 的 `oemProjects`，不受影响。代码上已补连接超时和 TCP keepalive。
 
 ### 7.2 全链路跑通后
 

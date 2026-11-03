@@ -24,7 +24,7 @@
 
 ## 线上现状（Claude 2026-11-03 只读核对，请你也独立确认）
 
-1. 官网的新聊天开关 `PUBLIC_AI_CHAT_V2` 还没打开，访客看到的是旧组件。旧组件后面的 `ai-bff` 进程是活的（`/api/ai/healthz` 返回 200），但所有要查数据库的请求都卡住（`/api/ai/readyz` 30 秒无响应）：它和 PostgreSQL 的连接挂住了，原因还没从日志确认。
+1. 官网的新聊天开关 `PUBLIC_AI_CHAT_V2` 还没打开，访客看到的是旧组件。旧组件后面的 `ai-bff` 进程是活的（`/api/ai/healthz` 返回 200），但所有要查数据库的请求都卡住（`/api/ai/readyz` 30 秒无响应）。原因已查明：AI 用的 PostgreSQL `postgres-nalivqki` 是包年包月，10 月 14 日到期没续费，已被释放。上线前要重新购买（见 ROADMAP §7.1 第 6 条）。
 2. 知识库一直是 VibeKB（`https://kb.supplychainsai.com`）。部署里的 `anythingllm` 是旧接法的名字：通过 AnythingLLM 兼容接口让 VibeKB 自己作答。第二轮用的是 `vibekb` 接法（worker 自己调模型，通过 MCP 读公开文档）。部署接线已在本分支完成（MIU 21），生产上还缺 GitHub 变量、两个密钥和 `kb.supplychainsai.com/mcp` 的 nginx 转发。
 3. 线上 `public-api`、`admin`、`alibaba-catalog-sync` 都跑着 `dc3af64b`，它只在 `feat/seo-foundation` 上，不在 `test` 上。本分支部署前要先把这个提交合进来（试合并两处冲突），否则会把 SEO 已上线的功能换掉。
 4. 聊天里的询盘提交要经过 `sales-integration` 函数，它还不在 CloudBase 函数部署清单里。第一次上线只开新聊天，询盘仍走首页表单。
