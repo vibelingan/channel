@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "playwright.assistant.config.ts",
+    "playwright.assistant-chat.config.ts",
+    "playwright.assistant-site.config.ts",
+    "tests/assistant-ui/**/*.ts",
+    "tests/assistant-chat/**/*.ts",
+    "tests/assistant-site/**/*.ts"
+  ]
+}

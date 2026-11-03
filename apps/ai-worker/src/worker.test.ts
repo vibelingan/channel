@@ -527,3 +527,263 @@ test('a stray field never survives narrowing, and nested junk defaults safely', 
   assert.equal(parsed.positiveControl.resultCount, 0); // Number('many') is NaN -> coerced to 0 below
   assert.equal(parsed.toolSurface.verdict, 'unknown');
 });
+
+test(
+  'worker commits real public reads as structured results and lookup bypasses the model',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () =>
+      Response.json({
+        ok: true,
+        data: {
+          _id: 'p1',
+          name: 'Public headphones',
+          description: 'Published facts',
+          published: true,
+          privateNote: 'SECRET',
+        },
+      }),
+    );
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'worker-product-lookup',
+      content: 'Check latest',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      catalogAction: { kind: 'lookup', ids: ['p1'] },
+    });
+    const engine = new FakeEngine();
+    engine.createRun = async () => {
+      throw new Error('No model needed for a typed read');
+    };
+    assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+    const events = await store.listEvents(conversation.id);
+    assert.equal(events.at(-1)?.type, 'final');
+    assert.equal(events.at(-1)?.payload.kind, 'product_updated');
+    assert.ok(JSON.stringify(events).includes('Public headphones'));
+    assert.equal(JSON.stringify(events).includes('SECRET'), false);
+    assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
+  },
+);
+
+test(
+  'model selects a bounded search or clarification; ordinary answers retain citation policy',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () =>
+      Response.json({
+        ok: true,
+        data: { items: [{ _id: 'p1', name: 'Public headphones', published: true }] },
+      }),
+    );
+    for (const [key, plan, expectedKind] of [
+      ['search', '{"kind":"search","query":"headphones"}', 'answer'],
+      [
+        'clarify',
+        '{"kind":"clarify","question":"Which product type do you need?"}',
+        'clarification',
+      ],
+      ['answer', '{"kind":"answer","text":"An unsupported commercial promise"}', undefined],
+    ] as const) {
+      const c = await store.createConversation();
+      await store.appendVisitorMessage({
+        conversationId: c.id,
+        idempotencyKey: `product-plan-${key}`,
+        content: 'Help me',
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      const engine = new FakeEngine({ script: [plan], citations: [] });
+      assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+      const terminal = (await store.listEvents(c.id)).at(-1);
+      if (expectedKind) {
+        assert.equal(terminal?.type, 'final');
+        assert.equal(terminal.payload.kind, expectedKind);
+      } else {
+        assert.equal(JSON.stringify(terminal).includes('unsupported commercial promise'), false);
+      }
+    }
+  },
+);
+
+test(
+  'model inquiry suggestion cannot select an unseen product or submit anything',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () => {
+      throw new Error('No catalog read expected');
+    });
+    for (const [id, plan] of [
+      ['valid', { kind: 'inquiry', summary: '700 headphones with logo' }],
+      ['foreign', { kind: 'inquiry', summary: '700 headphones', productId: 'unseen-product' }],
+    ] as const) {
+      const conversation = await store.createConversation();
+      await store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `inquiry-plan-${id}`,
+        content: 'Please prepare an inquiry',
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      const engine = new FakeEngine({ script: [JSON.stringify(plan)] });
+      const disposition = await processOne(store, engine, { ...config, catalog, maxAttempts: 1 });
+      const events = await store.listEvents(conversation.id);
+      if (id === 'valid') {
+        const result = events.find((e) => e.type === 'final');
+        assert.ok(result);
+        assert.deepEqual(result.payload.inquirySuggestion, {
+          requirement: '700 headphones with logo',
+        });
+        assert.equal(result.payload.kind, 'team_followup');
+        assert.equal(
+          (
+            await store.pool.query(
+              'SELECT COUNT(*)::int AS total FROM leads WHERE conversation_id=$1',
+              [conversation.id],
+            )
+          ).rows[0].total,
+          0,
+        );
+      } else {
+        assert.equal(disposition, 'dead_letter');
+        assert.equal(
+          events.some((e) => e.type === 'final'),
+          false,
+        );
+        assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
+      }
+    }
+  },
+);
+
+test(
+  'a bare greeting is answered from fixed text without calling the model; a real question is not',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () => {
+      throw new Error('No catalog read expected');
+    });
+    const greeting = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: greeting.id,
+      idempotencyKey: 'screened-greeting',
+      content: 'Hello!',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const silent = new FakeEngine();
+    silent.createRun = async () => {
+      throw new Error('No model needed for a greeting');
+    };
+    assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
+    const final = (await store.listEvents(greeting.id)).at(-1);
+    assert.equal(final?.type, 'final');
+    assert.match(String(final.payload.text), /^Hello! I can find products/);
+    assert.equal(final.payload.screened, 'greeting');
+    assert.equal(final.payload.kind, 'answer');
+    assert.equal((await store.getConversation(greeting.id))?.activeRunId, null);
+
+    const question = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: question.id,
+      idempotencyKey: 'screened-question',
+      content: 'Hello, which speakers do you make?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    let modelCalls = 0;
+    const engine = new FakeEngine({
+      script: ['{"kind":"clarify","question":"Which size do you need?"}'],
+      citations: [],
+    });
+    const createRun = engine.createRun.bind(engine);
+    engine.createRun = async (...args) => {
+      modelCalls += 1;
+      return createRun(...args);
+    };
+    assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+    assert.equal(modelCalls, 1);
+    assert.equal((await store.listEvents(question.id)).at(-1)?.payload.kind, 'clarification');
+  },
+);
+
+test(
+  'show more continues the same request from the stored cursor without the model',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const queries: string[] = [];
+    const catalog = new PublicCatalog('https://catalog.invalid', async (input) => {
+      const url = new URL(String(input));
+      queries.push(`${url.searchParams.get('search')}:${url.searchParams.get('page')}`);
+      const page = Number(url.searchParams.get('page'));
+      const items = Array.from({ length: 8 }, (_, i) => ({
+        _id: `m${i + 1}`,
+        name: `Earbuds ${i + 1}`,
+        description: 'Wireless.',
+        published: true,
+      })).slice((page - 1) * 20, page * 20);
+      return Response.json({ ok: true, data: { items, total: 8 } });
+    });
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'more-first-question',
+      content: 'Wireless earbuds',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const planner = new FakeEngine({
+      script: ['{"kind":"search","query":"earbuds","fallbackQuery":"earbuds"}'],
+      citations: [],
+    });
+    assert.equal(await processOne(store, planner, { ...config, catalog }), 'processed');
+    const first = (await store.listEvents(conversation.id)).at(-1);
+    assert.deepEqual(first?.payload.resultSet, { batch: 1, hasMore: true });
+    assert.equal((first?.payload.products as unknown[]).length, 5);
+
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'more-second-batch',
+      content: 'Show more options',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      catalogAction: { kind: 'more', after: 'more-first-question' },
+    });
+    const silent = new FakeEngine();
+    silent.createRun = async () => {
+      throw new Error('No model needed for the next batch');
+    };
+    assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
+    const second = (await store.listEvents(conversation.id)).at(-1);
+    assert.deepEqual(
+      (second?.payload.products as Array<{ id: string }>).map((p) => p.id),
+      ['m6', 'm7', 'm8'],
+    );
+    assert.deepEqual(second?.payload.resultSet, { batch: 2, hasMore: false });
+    assert.deepEqual(queries, ['earbuds:1', 'earbuds:1']);
+
+    // An answer with nothing more (or another conversation's question) has no cursor.
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'more-third-batch',
+      content: 'Show more options',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      catalogAction: { kind: 'more', after: 'more-second-batch' },
+    });
+    assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
+    assert.equal((await store.listEvents(conversation.id)).at(-1)?.payload.kind, 'no_match');
+    assert.equal(queries.length, 2);
+  },
+);

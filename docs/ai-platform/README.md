@@ -29,6 +29,7 @@ the architecture above wins and the specifying document is corrected.
 | [MIU-0-RUNBOOK.md](./MIU-0-RUNBOOK.md) | The executable preflight for local Docker, cloud integration probes, credentials, external providers, and human decisions | Starting infrastructure or MIU 0 work |
 | [PRODUCTION-KB-CLOUDRUN-RUNBOOK.md](./PRODUCTION-KB-CLOUDRUN-RUNBOOK.md) | Live AnythingLLM-compatible KB probe, secret audit, reproducible local setup, and CloudBase Run + TencentDB PostgreSQL deployment gate | Connecting a real KB or preparing the first cloud integration window |
 | [MIU-IMPLEMENTATION-TRACE.md](./MIU-IMPLEMENTATION-TRACE.md) | Implemented BFF, worker, store, widget, engine adapter and deployment-preparation trace with checks | Reviewing or continuing the current implementation |
+| [assistant-ui/README.md](./assistant-ui/README.md) | 2026-10-30 website assistant component foundation, 29-state preview, scoped verification and planned backend MIUs; real backend integration remains pending | Continuing the website chat upgrade |
 
 ## Historical and Supporting Documents
 

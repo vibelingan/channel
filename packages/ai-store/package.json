@@ -16,7 +16,8 @@
   "dependencies": {
     "@vibelingan-channel/ai-engine": "workspace:*",
     "pg": "^8.23.0",
-    "pg-connection-string": "^2.14.0"
+    "pg-connection-string": "^2.14.0",
+    "@vibelingan-channel/ai-contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",

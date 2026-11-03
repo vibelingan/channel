@@ -1,0 +1,33 @@
+# 复用与缺口
+
+2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
+
+2026-10-26 复核：以[权限与真实工具设计 D1](SECURITY-AND-TOOLS-DESIGN.md)为本轮补充，开发暂停。现有单元完成状态只覆盖原验收范围；任务级授权、可信来源核验、安装归属及真实接线待补。
+2026-10-23。优先保留已有工作。详细来源、分支和校验记录见 [BASELINE](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/BASELINE.md)。
+
+| 范围 | 已有内容 | 本轮处理 |
+|---|---|---|
+| 官网公开客服 | Phase 1 BFF/worker/store、公开知识边界；Phase 2 产品检索、卡片、prepare inquiry 等设计 | 直接引用，不重做。客服只准备，买家确认提交；不偷偷传完整对话 |
+| 单品询盘 | main `404d1a25`与Phase 2 `a7e16aa2`均有正式`catalogQuoteRequests`持久化和后台；旧模拟组件保留在历史链中 | SG1.0已核对正式路由及回退，复用原事务、快照和后台。线上开关与部署仍未验证 |
+| OEM 询盘 | `submitProject` 保存 `oemProjects`，附件有激活/补偿；当前 SMTP 确认 best-effort | 接到相同销售流程，原数据不强行迁表。切换时只停旧询盘确认信，不动密码重置 |
+| 旧 Stage E 邮件方案 | Claude 方案含 IMAP/SMTP、Channel 内邮件审核/发送队列 | 被 Resend 邮件层及 Hermes 审批/执行取代，保留历史副本，不按旧路线再造邮箱 |
+| 三条业务线 | v1.1 已明确获客、询盘跟进、客户维护独立，共用底座 | 保留业务决策，补模块接口、状态、验收及执行顺序 |
+| Hermes 任务基础 | 任务派发、assignment状态机、事务outbox、租约、重试、死信、产物归属部分检查 | 复用并扩展客户绑定；不另造完整调度系统 |
+| Hermes 客户隔离 | 部分 customer_id 校验；角色级运行卷、全局能力路由和共享目录扫描仍需补证据 | SG0/SG2 为试点客户固定运行/连接/文件范围，先不承诺通用多客户交付 |
+| 当前文章发布确认 | “可以发”选择会话最新待审任务 | 文章流保持原样；Sales 新增精确任务/版本审批，避免改变其他 Agent 的工作 |
+| 草稿与审核 | 旧方案倾向 Resend 当前草稿＋企微/网页批准 | 保留草稿工作台；补不可变审核内容、受控发送路径和原生人工接管边界 |
+| 任务痕迹回 Channel | 之前为可选少量只读 | 保持可选：程序异步回写 task/artifact/send 引用及时间，不同步企微自然语言聊天 |
+| Apollo 隔离调研 | v3 已说明客户独立空间＋授权代管，Partner Seat 是访问身份 | 保留推荐，补 onboarding/退出与连接合同；不用父子账号作为实施前提 |
+| 工时收益 | 30→10 分钟等均为可调假设 | 不再估出“已实现节省”；SG8 设计采样字段和同口径试点比较 |
+
+## 新增设计文件怎样覆盖旧版
+
+`reference/` 留存 v1.1、v3 和 Phase 2 的来源副本，清单中记录原路径与哈希。业务方向沿用旧版；本目录的接口、模块边界、固定版本发送及实施顺序用于这轮工程交接。它不覆盖原 `docs/ai-platform`，也不暗中把 Phase 2 草案改为已接受或已实现。
+
+旧方案中“官网客服也叫 Sales Agent”容易误解。本轮统一称官网智能客服和后续 Sales 流程；它们可复用模型/检索程序，权限和处理阶段仍分开。并不要求将官网客服并入定海对话人格。
+
+## 实施前要核实的代码差异
+
+原销售设计worktree从`03be923c`创建。SG1.0选定main `404d1a25`，随后在用户授权SG1.1时从该main建立`feat/sales-agent-integration`并带入我们自己的销售提交；产品实现未改写。Phase 2 `a7e16aa2`只作客服设计参考，两者不是包含关系。详细路径、附件完成条件及字段差异见[SG1.0复用结论](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.0-BASELINE.md)。Hermes仍须核对实际部署与本地快照。
+
+这些是工程证据任务，不再向客户重复询问 Resend 是否付费开通。需要客户提供的是负责人/批准权限、可信业务资料、首批渠道和留存政策。内部接口、重试、预览路由和并发处理由工程设计负责。

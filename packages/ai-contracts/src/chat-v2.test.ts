@@ -1,0 +1,107 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import test from 'node:test';
+import { isChatEventV2, isChatTurnV2 } from './chat-v2.ts';
+const event = {
+  protocolVersion: 2,
+  conversationId: randomUUID(),
+  messageId: randomUUID(),
+  runId: randomUUID(),
+  controlVersion: 1,
+  type: 'final',
+  sequence: 1,
+  text: 'An answer',
+};
+test('v2 rejects missing or malformed identities and unsupported event types', () => {
+  assert.ok(isChatEventV2(event));
+  for (const patch of [
+    { runId: null },
+    { conversationId: '' },
+    { messageId: 4 },
+    { controlVersion: Number.NaN },
+    { sequence: 1.5 },
+    { sequence: 0 },
+    { type: 'tool.execute' },
+    { text: undefined },
+    { text: 'x'.repeat(32001) },
+  ])
+    assert.equal(isChatEventV2({ ...event, ...patch }), false);
+});
+test('queued and running v2 state have distinct required identities', () => {
+  const state = { ...event, operationKey: randomUUID(), status: 'running', cancelRequested: false };
+  assert.ok(isChatTurnV2(state));
+  assert.equal(isChatTurnV2({ ...state, runId: null }), false);
+  assert.ok(isChatTurnV2({ ...state, status: 'queued', runId: null, controlVersion: null }));
+  assert.equal(isChatTurnV2({ ...state, operationKey: 'bad/key' }), false);
+});
+
+test('product final has bounded public paths, unique identities and a known result kind', () => {
+  const card = {
+    id: 'p1',
+    name: 'Headphones',
+    summary: 'Published',
+    revision: 'v1',
+    href: '/products/item/?id=p1',
+    imageUrl: '/api/images/public-1',
+  };
+  assert.ok(
+    isChatEventV2({ ...event, products: [card], kind: 'answer', unavailableProductIds: [] }),
+  );
+  for (const patch of [
+    { products: [{ ...card, href: 'https://evil.invalid' }] },
+    { products: [{ ...card, imageUrl: 'https://storage.invalid/private' }] },
+    { products: [card, card] },
+    { products: [{ ...card, revision: '' }] },
+    { kind: 'execute' },
+    { unavailableProductIds: ['../secret'] },
+  ])
+    assert.equal(isChatEventV2({ ...event, ...patch }), false);
+});
+
+test('inquiry suggestion carries only editable need and public product identity, never authority', () => {
+  const suggested = {
+    ...event,
+    kind: 'team_followup',
+    inquirySuggestion: { requirement: '700 headphones with logo', productId: 'public-1' },
+  };
+  assert.ok(isChatEventV2(suggested));
+  for (const patch of [
+    { send: true },
+    { client_id: 'foreign' },
+    { email: 'private@example.invalid' },
+    { productId: '../private' },
+    { requirement: '' },
+  ])
+    assert.equal(
+      isChatEventV2({
+        ...suggested,
+        inquirySuggestion: { ...suggested.inquirySuggestion, ...patch },
+      }),
+      false,
+    );
+  assert.equal(isChatEventV2({ ...suggested, kind: 'answer' }), false);
+  assert.ok(isChatEventV2({ ...event, type: 'tool.progress', action: 'knowledge_search' }));
+  assert.equal(isChatEventV2({ ...event, type: 'tool.progress', action: 'run_shell' }), false);
+});
+test('follow-up suggestions are at most three plain messages, never an action', () => {
+  const suggestion = {
+    id: 's1',
+    label: 'Add a logo',
+    utterance: 'Can you print our logo?',
+    kind: 'ask',
+    baseCriteriaVersion: 2,
+  };
+  assert.ok(isChatEventV2({ ...event, suggestions: [suggestion] }));
+  for (const suggestions of [
+    [],
+    [1, 2, 3, 4].map((n) => ({ ...suggestion, id: `s${n}` })),
+    [suggestion, suggestion],
+    [{ ...suggestion, kind: 'more' }],
+    [{ ...suggestion, kind: 'submit' }],
+    [{ ...suggestion, action: 'send_email' }],
+    [{ ...suggestion, utterance: 'x'.repeat(161) }],
+    [{ ...suggestion, label: '' }],
+    [{ ...suggestion, baseCriteriaVersion: -1 }],
+  ])
+    assert.equal(isChatEventV2({ ...event, suggestions }), false, JSON.stringify(suggestions));
+});

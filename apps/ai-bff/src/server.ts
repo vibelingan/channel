@@ -1,14 +1,27 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
 import {
+  PRODUCT_KINDS,
+  isAnswerSuggestions,
+  isInquirySuggestion,
+  isProductCards,
+  isProductResultSet,
+} from '@vibelingan-channel/ai-contracts';
+import {
   type AiApiErrorCode,
   type AiApiErrorEnvelope,
+  type AnswerExtrasV2,
   type AppendMessageResponse,
+  type ChatTurnV2,
+  type ConversationSnapshotV2,
   type CreateConversationResponse,
   type PublicSseEvent,
   isAppendMessageRequest,
   isCreateConversationRequest,
+  isOperationKey,
+  isUuid,
 } from '@vibelingan-channel/ai-contracts';
+import { isInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import {
   type EngineProvenance,
   provenanceFromEnv,
@@ -16,9 +29,16 @@ import {
 import {
   AiStore,
   type EventRow,
+  type SnapshotRow,
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
+import {
+  type InquiryClient,
+  InquiryRejected,
+  InquirySubmissionChanged,
+  createInquiryClient,
+} from './inquiry-client.ts';
 
 export interface AiBffConfig {
   allowedOrigins: ReadonlySet<string>;
@@ -29,6 +49,8 @@ export interface AiBffConfig {
   engineProvenance?: EngineProvenance;
   globalRequestsPerMinute: number;
   ipRequestsPerMinute: number;
+  /** Limits on new questions, which are what cost a model call. Absent: none. */
+  questionLimits?: QuestionLimits;
   ipHashSecret: string;
   trustProxy: boolean;
   ssePollMs: number;
@@ -36,7 +58,30 @@ export interface AiBffConfig {
   sseMaxDurationMs: number;
 }
 
+export interface QuestionLimits {
+  perConversationPerMinute: number;
+  perConversationPerDay: number;
+  perIpPerDay: number;
+  /** Refusals in one cooldown window before the conversation waits out the window. */
+  refusalsBeforeCooldown: number;
+  cooldownSeconds: number;
+  /**
+   * After this many idle answers in a row (fixed small-talk replies or
+   * out-of-scope refusals), further questions also share a small allowance:
+   * `idleQuestionsPerWindow` per `idleWindowSeconds`. The window is short on
+   * purpose: a visitor who comes back with a real question waits minutes, not
+   * hours, and the first answer that is not idle ends it. Unset: no allowance.
+   */
+  idleRepliesBeforeSlowdown?: number;
+  idleQuestionsPerWindow?: number;
+  idleWindowSeconds?: number;
+}
+
+/** The composer allows this much; a longer question is refused, not cut. */
+export const MAX_QUESTION_CHARS = 2000;
+
 export interface AiBffServerOptions {
+  inquiryClient?: InquiryClient;
   /**
    * False while startup is still waiting for the database. Until then every
    * route except liveness answers 503, so a visitor gets "try again shortly"
@@ -60,6 +105,12 @@ export function createAiBffServer(
       }
 
       const url = new URL(request.url ?? '/', 'http://ai-bff.local');
+
+      const v2 = url.pathname.startsWith('/api/ai/v2/');
+      if (v2) {
+        response.setHeader('Cache-Control', 'private, no-store');
+        url.pathname = url.pathname.replace('/api/ai/v2/', '/api/ai/');
+      }
 
       // Liveness: unauthenticated, no dependencies. It answers "is this process
       // up", never "is it able to serve". Calling the database here means a
@@ -143,30 +194,155 @@ export function createAiBffServer(
         return;
       }
 
+      if (v2 && request.method === 'POST' && route.action === 'inquiries') {
+        if (!options.inquiryClient) {
+          error(response, 404, 'NOT_FOUND', 'Inquiry submission is not enabled', requestId);
+          return;
+        }
+        const body = await readJson(request, 32768);
+        if (!isInquirySubmission(body)) {
+          error(
+            response,
+            400,
+            'BAD_REQUEST',
+            'Confirm the inquiry details and contact permission',
+            requestId,
+            { outcome: 'not_started', reason: 'INVALID_DETAILS' },
+          );
+          return;
+        }
+        try {
+          const receipt = await options.inquiryClient.submit({
+            schemaVersion: '1',
+            conversationId: route.conversationId,
+            submission: body,
+          });
+          json(response, 200, receipt);
+        } catch (e) {
+          if (e instanceof InquiryRejected)
+            error(response, 422, 'INQUIRY_REJECTED', 'The inquiry was not saved', requestId, {
+              outcome: 'not_started',
+              reason: e.reason,
+            });
+          else
+            error(
+              response,
+              e instanceof InquirySubmissionChanged ? 409 : 503,
+              e instanceof InquirySubmissionChanged ? 'CONFLICT' : 'UNAVAILABLE',
+              'The original inquiry result could not be confirmed',
+              requestId,
+              { outcome: 'unknown' },
+            );
+        }
+        return;
+      }
+
       if (request.method === 'POST' && route.action === 'messages') {
         const body = await readJson(request);
-        if (!isAppendMessageRequest(body)) {
+        if (
+          !isAppendMessageRequest(body) ||
+          (v2 && !isOperationKey(body.idempotencyKey)) ||
+          (!v2 && isAppendMessageRequest(body) && body.catalogAction !== undefined)
+        ) {
           error(response, 400, 'BAD_REQUEST', 'Invalid message request', requestId);
           return;
+        }
+        const question = body.message.trim();
+        if (v2 && question.length > MAX_QUESTION_CHARS) {
+          error(response, 400, 'BAD_REQUEST', 'Shorten the question and send it again', requestId);
+          return;
+        }
+        // A retry of a question already accepted is not a new question.
+        if (
+          config.questionLimits &&
+          !(await store.getChatTurn(route.conversationId, body.idempotencyKey))
+        ) {
+          const wait = await questionWait(
+            store,
+            config.questionLimits,
+            route.conversationId,
+            sourceKey,
+          );
+          if (wait) {
+            // Only the rule and the length are logged, never the question.
+            console.info(
+              JSON.stringify({
+                level: 'info',
+                requestId,
+                code: 'question_limited',
+                rule: wait.rule,
+                length: question.length,
+              }),
+            );
+            response.setHeader('Retry-After', String(wait.seconds));
+            error(response, 429, 'RATE_LIMITED', 'Too many questions', requestId);
+            return;
+          }
         }
         const accepted = await store.appendVisitorMessage({
           conversationId: route.conversationId,
           idempotencyKey: body.idempotencyKey,
-          content: body.message.trim(),
+          content: question,
           engineId: config.engineId,
           engineVersion: config.engineVersion,
           ...(config.engineProvenance ? { provenance: config.engineProvenance } : {}),
+          ...(v2 ? { strictReplay: true, catalogAction: body.catalogAction } : {}),
         });
         const payload: AppendMessageResponse = {
           messageId: accepted.messageId,
           runId: accepted.run?.id ?? null,
           disposition: accepted.replayed ? 'replayed' : accepted.run ? 'started' : 'queued',
         };
+        if (v2) {
+          const state = await store.getChatTurn(route.conversationId, body.idempotencyKey);
+          json(response, accepted.replayed ? 200 : 202, state);
+          return;
+        }
         json(response, accepted.replayed ? 200 : 202, payload);
         return;
       }
 
-      if (request.method === 'POST' && route.action === 'cancel') {
+      if (v2 && route.operationKey) {
+        const state = await store.getChatTurn(route.conversationId, route.operationKey);
+        if (!state) {
+          error(response, 404, 'NOT_FOUND', 'Turn not found', requestId);
+          return;
+        }
+        if (request.method === 'GET' && route.action === 'turn') {
+          json(response, 200, state);
+          return;
+        }
+        if (request.method === 'POST' && route.action === 'turn_cancel') {
+          const body = await readJson(request);
+          if (
+            !body ||
+            typeof body !== 'object' ||
+            !('runId' in body) ||
+            !isUuid(body.runId) ||
+            !('controlVersion' in body) ||
+            typeof body.controlVersion !== 'number' ||
+            !Number.isSafeInteger(body.controlVersion) ||
+            body.controlVersion < 1
+          ) {
+            error(response, 400, 'BAD_REQUEST', 'Invalid cancellation', requestId);
+            return;
+          }
+          if (
+            !(await store.cancelChatTurn(
+              route.conversationId,
+              route.operationKey,
+              body.runId,
+              body.controlVersion,
+            ))
+          ) {
+            error(response, 409, 'CONFLICT', 'Turn changed', requestId);
+            return;
+          }
+          json(response, 202, await store.getChatTurn(route.conversationId, route.operationKey));
+          return;
+        }
+      }
+      if (!v2 && request.method === 'POST' && route.action === 'cancel') {
         const conversation = await store.getConversation(route.conversationId);
         if (!conversation) {
           error(response, 404, 'NOT_FOUND', 'Conversation not found', requestId);
@@ -180,8 +356,34 @@ export function createAiBffServer(
         return;
       }
 
+      if (v2 && request.method === 'GET' && route.action === 'snapshot') {
+        json(
+          response,
+          200,
+          conversationSnapshot(
+            route.conversationId,
+            await store.getConversationSnapshot(route.conversationId),
+          ),
+        );
+        return;
+      }
+
       if (request.method === 'GET' && route.action === 'events') {
-        await streamEvents(request, response, store, route.conversationId, config);
+        let turn: ChatTurnV2 | undefined;
+        if (v2) {
+          const key = url.searchParams.get('turn');
+          if (!isOperationKey(key)) {
+            error(response, 400, 'BAD_REQUEST', 'Turn key required', requestId);
+            return;
+          }
+          const found = await store.getChatTurn(route.conversationId, key);
+          if (!found?.runId) {
+            error(response, 404, 'NOT_FOUND', 'Run not found', requestId);
+            return;
+          }
+          turn = found;
+        }
+        await streamEvents(request, response, store, route.conversationId, config, turn);
         return;
       }
 
@@ -192,6 +394,14 @@ export function createAiBffServer(
         error(response, 400, 'BAD_REQUEST', 'Invalid JSON body', requestId);
       } else if (message === 'conversation_closed') {
         error(response, 409, 'CONFLICT', 'Conversation is closed', requestId);
+      } else if (message === 'replay_content_conflict' || message === 'conversation_busy') {
+        error(
+          response,
+          409,
+          'CONFLICT',
+          'This submission changed or another answer is active',
+          requestId,
+        );
       } else if (isDatabaseUnavailable(caught)) {
         // An outage, not a bug: say so, and say when to try again.
         console.error(JSON.stringify({ level: 'error', requestId, code: 'database_unavailable' }));
@@ -210,6 +420,58 @@ export function createAiBffServer(
       }
     }
   });
+}
+
+/**
+ * Seconds to wait before this conversation may ask again, and which limit
+ * applies; null when it may ask now. Every limit is a fixed window that ends
+ * by itself, so a visitor who was refused earlier is never blocked for good.
+ */
+export async function questionWait(
+  store: Pick<AiStore, 'reserveRateLimit' | 'rateLimitHits' | 'idleAnswerStreak'>,
+  limits: QuestionLimits,
+  conversationId: string,
+  sourceKey: string,
+): Promise<{ rule: string; seconds: number } | null> {
+  const untilEnd = (windowSeconds: number) =>
+    windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds);
+  const refusals = `question-refusals:${conversationId}`;
+  if (
+    (await store.rateLimitHits(refusals, limits.cooldownSeconds)) >= limits.refusalsBeforeCooldown
+  )
+    return { rule: 'cooldown', seconds: untilEnd(limits.cooldownSeconds) };
+  const windows = [
+    [
+      'conversation_minute',
+      `questions:${conversationId}:minute`,
+      60,
+      limits.perConversationPerMinute,
+    ],
+    ['conversation_day', `questions:${conversationId}:day`, 86_400, limits.perConversationPerDay],
+    ['ip_day', `questions:ip:${sourceKey}:day`, 86_400, limits.perIpPerDay],
+  ] as Array<readonly [string, string, number, number]>;
+  const {
+    idleRepliesBeforeSlowdown: idleAfter,
+    idleQuestionsPerWindow: idleLimit,
+    idleWindowSeconds: idleWindow,
+  } = limits;
+  if (
+    idleAfter !== undefined &&
+    idleLimit !== undefined &&
+    idleWindow !== undefined &&
+    (await store.idleAnswerStreak(conversationId, idleAfter)) >= idleAfter
+  )
+    windows.push(['idle', `questions:${conversationId}:idle`, idleWindow, idleLimit]);
+  for (const [rule, bucketKey, windowSeconds, limit] of windows) {
+    if ((await store.reserveRateLimit({ bucketKey, windowSeconds, limit })).allowed) continue;
+    await store.reserveRateLimit({
+      bucketKey: refusals,
+      windowSeconds: limits.cooldownSeconds,
+      limit: limits.refusalsBeforeCooldown,
+    });
+    return { rule, seconds: untilEnd(windowSeconds) };
+  }
+  return null;
 }
 
 /** "Try again shortly": the database is out, or startup has not reached it yet. */
@@ -253,23 +515,37 @@ function hashCredential(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function conversationRoute(
-  pathname: string,
-): { conversationId: string; action: 'messages' | 'cancel' | 'events' } | null {
+function conversationRoute(pathname: string): {
+  conversationId: string;
+  action: 'messages' | 'cancel' | 'events' | 'turn' | 'turn_cancel' | 'inquiries' | 'snapshot';
+  operationKey?: string;
+} | null {
+  const turn = pathname.match(
+    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/turns\/([a-zA-Z0-9_-]{8,128})(\/cancel)?$/,
+  );
+  if (turn?.[1] && turn[2])
+    return {
+      conversationId: turn[1],
+      operationKey: turn[2],
+      action: turn[3] ? 'turn_cancel' : 'turn',
+    };
   const match = pathname.match(
-    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events)$/,
+    /^\/api\/ai\/conversations\/([0-9a-f-]{36})\/(messages|cancel|events|inquiries|snapshot)$/,
   );
   if (!match?.[1] || !match[2]) return null;
-  return { conversationId: match[1], action: match[2] as 'messages' | 'cancel' | 'events' };
+  return {
+    conversationId: match[1],
+    action: match[2] as 'messages' | 'cancel' | 'events' | 'inquiries' | 'snapshot',
+  };
 }
 
-async function readJson(request: IncomingMessage): Promise<unknown> {
+async function readJson(request: IncomingMessage, maxBytes = 16384): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 16_384) throw new Error('body_too_large');
+    if (size > maxBytes) throw new Error('body_too_large');
     chunks.push(buffer);
   }
   try {
@@ -285,6 +561,7 @@ async function streamEvents(
   store: AiStore,
   conversationId: string,
   config: AiBffConfig,
+  turn?: ChatTurnV2,
 ): Promise<void> {
   response.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
@@ -297,13 +574,43 @@ async function streamEvents(
   let heartbeatAt = startedAt;
 
   while (!request.destroyed && Date.now() - startedAt < config.sseMaxDurationMs) {
+    if (turn && !(await authorizeConversation(request, store, conversationId))) {
+      response.end();
+      return;
+    }
     const events = await store.listEvents(conversationId, sequence);
     for (const event of events) {
-      const publicEvent = toPublicEvent(event);
+      sequence = event.sequence;
+      if (turn && event.runId !== turn.runId) continue;
+      if (!turn && event.type === 'tool.progress') continue;
+      const publicEvent = turn
+        ? {
+            ...toPublicEvent(event),
+            ...(event.type === 'final' ? productFields(event.payload) : {}),
+            protocolVersion: 2,
+            conversationId,
+            messageId: turn.messageId,
+            runId: turn.runId,
+            controlVersion: turn.controlVersion,
+          }
+        : toPublicEvent(event);
       response.write(
         `id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(publicEvent)}\n\n`,
       );
-      sequence = event.sequence;
+      if (
+        turn &&
+        [
+          'final',
+          'error',
+          'run.failed',
+          'assistant.cancelled',
+          'handoff.started',
+          'conversation.closed',
+        ].includes(event.type)
+      ) {
+        response.end();
+        return;
+      }
     }
     if (Date.now() - heartbeatAt >= config.sseHeartbeatMs) {
       response.write(': heartbeat\n\n');
@@ -317,6 +624,12 @@ async function streamEvents(
 function toPublicEvent(event: EventRow): PublicSseEvent {
   const sequence = event.sequence;
   switch (event.type) {
+    case 'tool.progress': {
+      const action = event.payload.action;
+      if (action !== 'knowledge_search' && action !== 'model_answer' && action !== 'product_search')
+        throw new Error('Invalid public tool progress');
+      return { type: 'tool.progress', sequence, action };
+    }
     case 'token':
       return { type: 'token', sequence, text: stringField(event.payload, 'text') };
     case 'citation': {
@@ -396,8 +709,9 @@ function error(
   code: AiApiErrorCode,
   message: string,
   requestId: string,
+  inquiry?: Pick<AiApiErrorEnvelope['error'], 'outcome' | 'reason'>,
 ): void {
-  const payload: AiApiErrorEnvelope = { error: { code, message, requestId } };
+  const payload: AiApiErrorEnvelope = { error: { code, message, requestId, ...inquiry } };
   json(response, status, payload);
 }
 
@@ -419,6 +733,16 @@ function configFromEnvironment(): AiBffConfig {
       : {}),
     globalRequestsPerMinute: numberEnv('AI_GLOBAL_REQUESTS_PER_MINUTE', 600),
     ipRequestsPerMinute: numberEnv('AI_IP_REQUESTS_PER_MINUTE', 60),
+    questionLimits: {
+      perConversationPerMinute: numberEnv('AI_CONVERSATION_QUESTIONS_PER_MINUTE', 6),
+      perConversationPerDay: numberEnv('AI_CONVERSATION_QUESTIONS_PER_DAY', 60),
+      perIpPerDay: numberEnv('AI_IP_QUESTIONS_PER_DAY', 200),
+      refusalsBeforeCooldown: numberEnv('AI_QUESTION_REFUSALS_BEFORE_COOLDOWN', 5),
+      cooldownSeconds: numberEnv('AI_QUESTION_COOLDOWN_SECONDS', 600),
+      idleRepliesBeforeSlowdown: numberEnv('AI_IDLE_REPLIES_BEFORE_SLOWDOWN', 5),
+      idleQuestionsPerWindow: numberEnv('AI_IDLE_QUESTIONS_PER_WINDOW', 3),
+      idleWindowSeconds: numberEnv('AI_IDLE_WINDOW_SECONDS', 600),
+    },
     ipHashSecret: requiredSecretEnv('AI_IP_HASH_SECRET'),
     trustProxy: process.env.AI_TRUST_PROXY === '1',
     ssePollMs: numberEnv('AI_SSE_POLL_MS', 250),
@@ -451,7 +775,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // instead of a refused connection, for as long as the outage lasts.
   let ready = false;
   const stopping = new AbortController();
-  const server = createAiBffServer(store, config, { isReady: () => ready });
+  const server = createAiBffServer(store, config, {
+    isReady: () => ready,
+    ...(process.env.AI_INQUIRY_ENABLED === '1'
+      ? {
+          inquiryClient: createInquiryClient(
+            process.env.AI_INQUIRY_BASE_URL ?? '',
+            process.env.AI_INQUIRY_TOKEN ?? '',
+          ),
+        }
+      : {}),
+  });
   const port = numberEnv('PORT', 8080);
   server.listen(port, '0.0.0.0', () => {
     console.log(JSON.stringify({ level: 'info', event: 'listening', port }));
@@ -477,4 +811,82 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } catch (error) {
     if (!stopping.signal.aborted) throw error;
   }
+}
+
+/** Same projection as live `final` events: stored payloads never pass through as-is. */
+function conversationSnapshot(conversationId: string, rows: SnapshotRow[]): ConversationSnapshotV2 {
+  const messages: ConversationSnapshotV2['messages'] = [];
+  for (const row of rows) {
+    if (row.role === 'visitor' && row.operationKey)
+      messages.push({
+        role: 'visitor',
+        operationKey: row.operationKey,
+        runId: row.runId,
+        status: row.runStatus ?? 'queued',
+        text: row.content,
+      });
+    else if (row.role === 'assistant' && row.runId)
+      messages.push({
+        role: 'assistant',
+        runId: row.runId,
+        text: row.content,
+        ...(row.finalPayload ? productFields(row.finalPayload) : {}),
+      });
+  }
+  return { protocolVersion: 2, conversationId, messages };
+}
+
+function productFields(payload: Record<string, unknown>): AnswerExtrasV2 {
+  // Rebuild cards explicitly: a valid shape does not authorize additional fields.
+  const products = isProductCards(payload.products)
+    ? payload.products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        summary: p.summary,
+        revision: p.revision,
+        href: p.href,
+        ...(p.imageUrl ? { imageUrl: p.imageUrl } : {}),
+        ...(p.retrievedAt ? { retrievedAt: p.retrievedAt } : {}),
+        ...(p.toConfirm ? { toConfirm: [...p.toConfirm] } : {}),
+      }))
+    : undefined;
+  // The worker's catalog cursor stays in the stored payload; only this goes out.
+  const resultSet = isProductResultSet(payload.resultSet)
+    ? { batch: payload.resultSet.batch, hasMore: payload.resultSet.hasMore }
+    : undefined;
+  const kind = PRODUCT_KINDS.find((value) => value === payload.kind);
+  const unavailableProductIds =
+    Array.isArray(payload.unavailableProductIds) &&
+    payload.unavailableProductIds.length <= 2 &&
+    payload.unavailableProductIds.every(
+      (id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id),
+    )
+      ? payload.unavailableProductIds
+      : undefined;
+  const suggestions = isAnswerSuggestions(payload.suggestions)
+    ? payload.suggestions.map((s) => ({
+        id: s.id,
+        label: s.label,
+        utterance: s.utterance,
+        kind: s.kind,
+        baseCriteriaVersion: s.baseCriteriaVersion,
+      }))
+    : undefined;
+  return {
+    ...(products ? { products } : {}),
+    ...(products && resultSet ? { resultSet } : {}),
+    ...(suggestions ? { suggestions } : {}),
+    ...(kind ? { kind } : {}),
+    ...(unavailableProductIds ? { unavailableProductIds } : {}),
+    ...(payload.kind === 'team_followup' && isInquirySuggestion(payload.inquirySuggestion)
+      ? {
+          inquirySuggestion: {
+            requirement: payload.inquirySuggestion.requirement,
+            ...(payload.inquirySuggestion.productId
+              ? { productId: payload.inquirySuggestion.productId }
+              : {}),
+          },
+        }
+      : {}),
+  };
 }

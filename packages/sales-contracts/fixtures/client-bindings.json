@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "enabled": true,
+  "bindings": [
+    {
+      "client_id": "client_a",
+      "active": true,
+      "business_lines": [
+        "website_sales"
+      ],
+      "source_installation_id": "site_a",
+      "runtime_id": "runtime_a",
+      "knowledge_scope_ref": "knowledge_a",
+      "credential_refs": {
+        "channel": "env:CHANNEL_a",
+        "resend": "env:RESEND_a"
+      },
+      "resend_team_id": "team_a",
+      "resend_inbox_id": "inbox_a",
+      "allowed_sender_ids": [
+        "sender_a"
+      ],
+      "permitted_operator_ids": [
+        "sales_a"
+      ],
+      "automation_mode": "draft_only",
+      "test_recipient_allowlist": [
+        "test@example.invalid"
+      ],
+      "environment": "test",
+      "control_epoch": 1,
+      "connections": [
+        {
+          "connection_id": "agent_a",
+          "credential_ref": "env:AGENT_a",
+          "active": true,
+          "actor": {
+            "kind": "runtime",
+            "id": "runtime_a"
+          },
+          "actions": [
+            "inquiry.read",
+            "product.read",
+            "asset.read",
+            "artifact.write"
+          ]
+        },
+        {
+          "connection_id": "sales_a",
+          "credential_ref": "env:SALES_a",
+          "active": true,
+          "actor": {
+            "kind": "operator",
+            "id": "sales_a"
+          },
+          "actions": [
+            "mail.approve",
+            "task.pause",
+            "task.takeover",
+            "task.resume"
+          ]
+        }
+      ]
+    },
+    {
+      "client_id": "client_b",
+      "active": true,
+      "business_lines": [
+        "website_sales"
+      ],
+      "source_installation_id": "site_b",
+      "runtime_id": "runtime_b",
+      "knowledge_scope_ref": "knowledge_b",
+      "credential_refs": {
+        "channel": "env:CHANNEL_b",
+        "resend": "env:RESEND_b"
+      },
+      "resend_team_id": "team_b",
+      "resend_inbox_id": "inbox_b",
+      "allowed_sender_ids": [
+        "sender_b"
+      ],
+      "permitted_operator_ids": [
+        "sales_b"
+      ],
+      "automation_mode": "draft_only",
+      "test_recipient_allowlist": [
+        "test@example.invalid"
+      ],
+      "environment": "test",
+      "control_epoch": 1,
+      "connections": [
+        {
+          "connection_id": "agent_b",
+          "credential_ref": "env:AGENT_b",
+          "active": true,
+          "actor": {
+            "kind": "runtime",
+            "id": "runtime_b"
+          },
+          "actions": [
+            "inquiry.read",
+            "product.read",
+            "asset.read",
+            "artifact.write"
+          ]
+        },
+        {
+          "connection_id": "sales_b",
+          "credential_ref": "env:SALES_b",
+          "active": true,
+          "actor": {
+            "kind": "operator",
+            "id": "sales_b"
+          },
+          "actions": [
+            "mail.approve",
+            "task.pause",
+            "task.takeover",
+            "task.resume"
+          ]
+        }
+      ]
+    }
+  ]
+}

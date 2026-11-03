@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:auth:handoff:1",
+  "title": "SourceHandoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "client_id",
+    "business_line",
+    "source_installation_id",
+    "environment",
+    "handoff_sha256",
+    "source",
+    "state",
+    "created_at"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "sales-auth/1"
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+    },
+    "business_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+    },
+    "source_installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+    },
+    "environment": {
+      "enum": [
+        "test",
+        "production"
+      ]
+    },
+    "handoff_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "revision"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "oem",
+            "product"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_:/.-]*$"
+        }
+      }
+    },
+    "state": {
+      "enum": [
+        "ready",
+        "revoked"
+      ]
+    },
+    "created_at": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  }
+}

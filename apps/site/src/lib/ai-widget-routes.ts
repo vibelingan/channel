@@ -1,8 +1,16 @@
 /**
  * Product/security placement boundary for the public assistant.
  *
- * Deliberately small for the pilot: product/OEM questions belong on these
- * pages. Account, auth, admin, form-result, preview and customer-project pages
- * are excluded by construction because they do not import the island.
+ * Product/OEM questions belong on these pages, and the two product page kinds
+ * carry it so a product opened from the chat in the same tab continues the
+ * conversation. Each mounts it once, through `components/AssistantHost.astro`.
+ * Account, auth, admin, form-result, preview and customer-project pages are
+ * excluded by construction because they do not mount the host.
  */
-export const AI_WIDGET_ROUTES = Object.freeze(['/', '/headphones', '/oem'] as const);
+export const AI_WIDGET_ROUTES = Object.freeze([
+  '/',
+  '/headphones',
+  '/oem',
+  '/products/item',
+  '/products/[publicKey]',
+] as const);

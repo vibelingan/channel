@@ -66,6 +66,9 @@ export function includeInSitemap(page: string): boolean {
 
 export default defineConfig({
   site,
+  // `dev:assistant-site` turns the dev toolbar off: on a phone-sized window it
+  // covers the assistant launcher, which no production page has.
+  devToolbar: { enabled: env.ASTRO_DEV_TOOLBAR !== '0' },
   redirects: {
     '/success-stories': '/portfolio/',
   },

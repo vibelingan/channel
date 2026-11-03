@@ -22,6 +22,12 @@ first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
   - admin: `POST /api/admin` with `{"action":"health"}`
   Each returns `releaseId` (the commit) and `buildTime`. Watch that, not the
   workflow status: the code is live when the function says so.
+- Before fast-forwarding `test`, check that every live `releaseId` is an
+  ancestor of the commit you are about to deploy
+  (`git merge-base --is-ancestor <releaseId> <commit>`). `test` is not the
+  only writer: on 2026-11-01 the SEO static canary deployed `public-api`
+  from `feat/seo-foundation`, which `test` did not contain, so a plain
+  `test` deploy would have rolled that work back.
 - API base: `https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com`.
 
 ## Deploy timing and failure modes
@@ -80,6 +86,25 @@ first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
   unfinished jobs (`packages/db/src/approval-job-age.ts`).
 - Approval writes do not change `updatedAt`; a revision guard alone does not
   detect an approval in between. Add a state guard (`requireUnapprovedDraft`).
+
+### AI assistant PostgreSQL (outside CloudBase)
+
+- The AI services (`ai-bff`, `ai-worker` on CloudRun) use their own TencentDB
+  for PostgreSQL in VPC `vpc-1xrpitgs`, subnet `subnet-7ye4wxgz`
+  (`channel-ai-postgres-sh2`), security group `sg-glj0najs` (5432 from the
+  CloudRun subnet `10.42.10.0/24`). It is NOT part of the CloudBase package and
+  has its own bill.
+- The first instance, `postgres-nalivqki`, was monthly prepaid and paid until
+  2026-10-14 14:51; it was not renewed, was isolated and then released. From
+  then on the BFF answered liveness but hung on every database call. Check it
+  with `postgres DescribeDBInstances` (ap-shanghai) or by the subnet's free IP
+  count: 253 of 253 free means no instance.
+- A new instance goes in the same subnet and security group, with SSL on and
+  auto-renew on. `DATABASE_URL` (GitHub secret, owner-entered) uses
+  `sslmode=verify-full&sslrootcert=/app/certs/tencentdb-postgres-ca.crt`; the
+  services create the schema on start (`waitForDatabase` → `migrateUp`).
+- Prepaid resources here default to manual renewal and the account balance can
+  be near zero: check expiry dates before relying on any of them.
 
 ## Production data and admin actions
 

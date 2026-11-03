@@ -1,4 +1,5 @@
 ---
+import AssistantHost from '../../components/AssistantHost.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCatalogContent, getSharedDetailContent } from '../../i18n/catalog.ts';
@@ -42,4 +43,5 @@ const page = productPageDescriptor(
     <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} client:load />
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
+  <AssistantHost />
 </BaseLayout>

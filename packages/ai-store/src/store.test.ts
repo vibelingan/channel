@@ -729,3 +729,278 @@ test('a dead-lettered cancel_run atomically cancels the active run', { skip }, a
     ['assistant.cancelled'],
   );
 });
+
+test(
+  'typed catalog action is durable and changing it under the same key is rejected',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const input = {
+      conversationId: conversation.id,
+      idempotencyKey: 'catalog-action-replay',
+      content: 'Check current details',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      strictReplay: true,
+      catalogAction: { kind: 'lookup', ids: ['p1'] },
+    };
+    const accepted = await store.appendVisitorMessage(input);
+    assert.ok(accepted.run);
+    await store.claimRun(accepted.run.id);
+    assert.deepEqual(
+      (await store.getRunExecutionContext(accepted.run.id))?.catalogAction,
+      input.catalogAction,
+    );
+    assert.equal((await store.appendVisitorMessage(input)).replayed, true);
+    await assert.rejects(
+      () =>
+        store.appendVisitorMessage({ ...input, catalogAction: { kind: 'lookup', ids: ['p2'] } }),
+      /replay_content_conflict/,
+    );
+    await assert.rejects(
+      () => store.appendVisitorMessage({ ...input, catalogAction: undefined }),
+      /replay_content_conflict/,
+    );
+  },
+);
+
+test(
+  'bounded model context keeps the latest question after more than thirty messages',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await store.createConversation();
+    await store.pool.query(
+      `INSERT INTO conversation_messages(id,conversation_id,role,content,created_at,idempotency_key,accepted_in_epoch)
+ SELECT gen_random_uuid(),$1,'assistant','Older answer '||i,clock_timestamp()-interval '1 hour'+ i*interval '1 second','history-'||i,0 FROM generate_series(1,35) i`,
+      [c.id],
+    );
+    const accepted = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'latest-context',
+      content: 'LATEST QUESTION',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(accepted.run);
+    await store.claimRun(accepted.run.id);
+    const context = await store.getRunExecutionContext(accepted.run.id);
+    assert.equal(context?.turns.length, 30);
+    assert.equal(context?.turns.at(-1)?.text, 'LATEST QUESTION');
+    assert.equal(context?.turns[0]?.text, 'Older answer 7');
+  },
+);
+
+test(
+  'next question receives only public product facts from its own prior final event',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await store.createConversation();
+    const first = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'product-context-first',
+      content: 'Find products',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(first.run);
+    const claim = await store.claimRun(first.run.id);
+    assert.ok(claim);
+    const card = {
+      id: '123456789012345',
+      name: 'Public headphones',
+      summary: 'Published features',
+      revision: 'r1',
+      href: '/products/item/?id=123456789012345',
+      privateNote: 'PRIVATE_CONTEXT_CANARY',
+    };
+    await store.finishRunFenced({
+      conversationId: c.id,
+      runId: first.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: 'Here are product options.',
+            products: [card],
+            unavailableProductIds: [],
+          },
+        },
+      ],
+    });
+    const next = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'product-context-next',
+      content: 'Check those again',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(next.run);
+    const nextClaim = await store.claimRun(next.run.id);
+    assert.ok(nextClaim);
+    const context = await store.getRunExecutionContext(next.run.id);
+    assert.ok(context);
+    const serialized = JSON.stringify(context.turns);
+    assert.ok(serialized.includes('123456789012345'));
+    assert.ok(serialized.includes('Published features'));
+    assert.equal(serialized.includes('PRIVATE_CONTEXT_CANARY'), false);
+    await store.finishRunFenced({
+      conversationId: c.id,
+      runId: next.run.id,
+      expectedControlVersion: nextClaim.controlVersion,
+      claimEpoch: nextClaim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: { text: 'No longer listed.', products: [], unavailableProductIds: [card.id] },
+        },
+      ],
+    });
+    const followUp = await store.appendVisitorMessage({
+      conversationId: c.id,
+      idempotencyKey: 'after-withdrawal',
+      content: 'What happened to it?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(followUp.run);
+    await store.claimRun(followUp.run.id);
+    const refreshed = (await store.getRunExecutionContext(followUp.run.id))?.turns.filter(
+      (t) => t.publicCatalog,
+    );
+    assert.equal(refreshed?.length, 1);
+    assert.deepEqual(refreshed?.[0]?.publicCatalog, {
+      products: [],
+      unavailableProductIds: [card.id],
+    });
+    const other = await store.createConversation();
+    const third = await store.appendVisitorMessage({
+      conversationId: other.id,
+      idempotencyKey: 'different-session',
+      content: 'Hello',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(third.run);
+    await store.claimRun(third.run.id);
+    assert.equal(
+      JSON.stringify((await store.getRunExecutionContext(third.run.id))?.turns).includes(
+        'Public headphones',
+      ),
+      false,
+    );
+  },
+);
+
+test(
+  'tool progress is fenced, typed and cannot store model reasoning or missing actions',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const accepted = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'progress-test',
+      content: 'Show headphones',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(accepted.run);
+    const claim = await store.claimRun(accepted.run.id);
+    assert.ok(claim);
+    const identity = {
+      conversationId: conversation.id,
+      runId: accepted.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+    };
+    assert.ok(
+      await store.appendEventFenced({
+        ...identity,
+        type: 'tool.progress',
+        payload: { action: 'product_search' },
+      }),
+    );
+    for (const payload of [
+      {},
+      { action: null },
+      { action: 'run_shell' },
+      { action: 'model_answer', text: 'private reasoning' },
+    ])
+      await assert.rejects(
+        store.appendEventFenced({ ...identity, type: 'tool.progress', payload }),
+      );
+    const events = await store.listEvents(conversation.id);
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.sequence, 1);
+    assert.equal(
+      await store.appendEventFenced({
+        ...identity,
+        expectedControlVersion: claim.controlVersion + 1,
+        type: 'tool.progress',
+        payload: { action: 'model_answer' },
+      }),
+      null,
+    );
+  },
+);
+
+test(
+  'conversation snapshot lists questions and answers in order with run status and final payload',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const first = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'snap-1',
+      content: 'Which headphones suit 500 gifts?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(first.run);
+    const claim = await store.claimRun(first.run.id);
+    assert.ok(claim);
+    await store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: first.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [{ type: 'final', payload: { text: 'Try model A', kind: 'answer' } }],
+    });
+    const second = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'snap-2',
+      content: 'And for 700?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(second.run);
+    const other = await store.createConversation();
+    const snapshot = await store.getConversationSnapshot(conversation.id);
+    assert.deepEqual(
+      snapshot.map((row) => [row.role, row.content, row.operationKey, row.runStatus]),
+      [
+        ['visitor', 'Which headphones suit 500 gifts?', 'snap-1', 'completed'],
+        ['assistant', 'Try model A', null, 'completed'],
+        ['visitor', 'And for 700?', 'snap-2', 'creating'],
+      ],
+    );
+    assert.equal(snapshot[1]?.runId, first.run.id);
+    assert.equal(snapshot[0]?.runId, first.run.id);
+    assert.equal(snapshot[1]?.finalPayload?.kind, 'answer');
+    assert.deepEqual(await store.getConversationSnapshot(other.id), []);
+    assert.equal((await store.getConversationSnapshot(conversation.id, 1)).length, 1);
+    assert.equal(
+      (await store.getConversationSnapshot(conversation.id, 1))[0]?.operationKey,
+      'snap-2',
+    );
+  },
+);

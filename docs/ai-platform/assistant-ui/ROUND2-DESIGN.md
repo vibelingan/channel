@@ -1,0 +1,733 @@
+# 官网助手第二轮：整改设计、执行顺序与剩余工作（定稿）
+
+2026-11-02，日本时间。状态：**定稿，负责人已确认（2026-11-02 第二轮讨论后），按 §10 顺序实施**。本版由 Claude 在 Codex 草稿基础上按负责人逐条意见修订，取代草稿，不再交 Codex 复核。
+
+代码基点：channel 整合分支 `feat/sales-assistant` `765c4a65`（= 官网助手 `46895b62` 合并 Channel Sales `e2f55b7c`，见 §12）；Hermes Sales `9c30d4b`（`hermesinfra` `feat/sales-agent-runtime`）。
+
+本版相对草稿的改动：
+
+- §6 点产品：同标签页打开完整产品页并恢复聊天（桌面自动展开，手机显示“继续刚才的对话”入口）。曾评估的页内半屏／侧栏速览因手机上必然遮挡聊天而放弃，不做 Sheet 组件。
+- MIU 17 保留“跳页时正在生成的回答接着续上”：现有接口已按幂等键去重并支持 `Last-Event-ID` 续读，成本低于草稿评估。
+- MIU 16 冲突处理简化为“显示改了什么＋整体采用或保留＋手改”；MIU 19 用模型返回用量＋保守估算，重点放在结构化需求摘要；MIU 20 的缺陷注入只覆盖七道关键门禁。
+- 新增 §12 仓库／分支整合与整理方案（含 Hermes 202 个文件的审计）、§13 环境与权限方案、§14 待确认项。
+
+## 1. 结论与优先级
+
+本轮先把“正常填写能完成询盘”和“点开产品还能接着聊”补成完整体验，再改候选产品的展示和引导。原来的模型、VibeKB、产品 API、会话库、询盘事务、Sales 队列继续复用。
+
+| 用户遇到的事 | 本轮决定 | 优先级 |
+| --- | --- | --- |
+| 提交后只看到结果未知 | 区分明确拒绝、明确成功、真正未知；测试身份由服务器标记，正常公司名不承担测试开关作用 | P0 |
+| 表单遮住整段聊天 | 询盘作为一条可编辑的聊天消息；保留上下文和输入框，取消 Back to chat | P0 |
+| 点产品后聊天消失 | 同标签页打开完整产品页，并恢复同一会话、草稿和进行中的回答 | P0 |
+| 刷新／跳页丢会话 | 同标签页恢复原会话、草稿和正在生成的回答，不重复调用模型 | P0 |
+| 卡片向下堆积 | 每批最多五张，消息内横向浏览；桌面箭头和圆点，手机滑动和下一张边缘提示 | P1 |
+| 不知道接下来怎么问 | 每次回答后最多三个与当前需求有关的建议，点击后显示为用户自己的新问题 | P1 |
+| 结果不稳定、可能很多 | 限定检索、按可核实条件排序、固定每批顺序；更多结果由用户明确请求 | P1 |
+| 记忆和费用不清楚 | 结构化需求摘要＋近期对话；按模型返回用量记账，输入先按 8–16K 预算 | P1 |
+| 两个 channel 分支分叉、Hermes 文件过多 | 已建整合分支；Hermes 先整理文档／证据与注册方式，代码结构暂不推倒 | 本轮前置／并行 |
+| 当前还有哪些没做完 | 本文件第 8 节统一列出，不将“有代码”“已实测”“已上线”混在一起 | 发布前核对 |
+
+P0 是完整试用的前置条件。P1 同样属于本轮确认后的整改范围，不表示可以一直跳过。
+
+## 2. 提交问题：已核对的原因和改法
+
+### 2.1 当前实际行为
+
+本地聊天在 `127.0.0.1:62683`，保存端在 `127.0.0.1:51184`。本轮只读核对了进程入口与源码。保存端使用 `assistant-inquiry-live.mts`，其包裹原保存事务的规则是：
+
+```ts
+// 当前验收 helper 的真实规则，非生产表单规则。
+if (!email.endsWith('@example.invalid') || !company.startsWith('[TEST'))
+  throw new Error('Live acceptance refuses real customer data');
+// 只有通过后才调用原 store.submit(input)。
+```
+
+截图中的公司名是 VibeLingan，按此规则会在入库前被拒绝。公司名本身有效；问题在于把内部验收限制带进了人工试用入口。没有取得该次请求的原始网络追踪，也没有为本次诊断写入云库，因此不将“截图里的请求已经保存”当成事实。
+
+异常又经过三层处理：验收入口将非冲突错误统一转成 503；BFF 统一提示无法确认原提交；前端把提交异常放进 unknown。于是，一个明确发生在保存前的拒绝，看起来像网络断开后可能已经写入。这是独立的错误分类和交互缺陷。
+
+### 2.2 测试模式的正确位置
+
+正常填写自己的公司名和邮箱应该能完成手工验收。测试模式由服务器固定的安装身份、`environment=test` 和无发送配置决定，不能由公司名、邮箱后缀或模型猜测决定。
+
+继续使用现有 CloudBase，不要求另开环境。记录归属沿用当前验收 installation；如增加 testRunId，也只能由服务器生成。测试标记与真实业务字段分开，不能悄悄把用户公司名改成 `[TEST]`。后台如何显示测试标记，以现有询盘界面的最小改动实现，不新增任务管理台。
+
+本轮测试服务仍没有邮件发送实现和权限；后续任何真实发送验收另设明确收件地址白名单与独立开关。取消内容层面的 TEST 限制，不等于开启对外发送。
+
+### 2.3 三种结果与恢复方式
+
+| 结果 | 判断依据 | 用户看到什么 | 表单是否可改 |
+| --- | --- | --- | --- |
+| 明确未提交 | 本地校验失败，或服务明确返回保存前拒绝 | 具体字段／原因；保留输入，可修正后提交 | 可以 |
+| 明确已保存 | 校验后的真实回执 | 聊天内的单号与需求摘要 | 原提交只读，可另起新询盘 |
+| 暂时无法确认 | 请求可能已到达写入端，但未取得可信回执 | 正在核对这一次提交；显示核对状态，不声称失败或成功 | 原提交冻结，仍可继续聊天 |
+
+200 成功回执形状继续复用。错误沿用现有 error 包装，增加受限的公开分类和结果性质；不把原始数据库异常或凭据交给前端。模型不参与判断是否已入库。
+
+真正未知时，按原 conversation、submissionKey、冻结内容核对。复用原保存层确定性的记录 ID 和 fingerprint，不另建一套询盘库。不存在记录只能说“暂未查到”，不能排除原请求稍后提交。需要重试时也使用同一个 key 和相同内容，不能重新随机生成一条。
+
+建议增加只读结果查询，复用现有归属、回执和 fingerprint 校验。查询记录前核验原会话与可信服务身份。自动核对次数有上限；服务持续不可用时保留原提交标识，给出明确的后续途径，不让按钮无限空转。
+
+## 3. 产品查找与横向卡片
+
+### 3.1 五张是一个批次，不是全部匹配结果
+
+每次先展示最多五款。只有三款就展示三款，不补假卡片。圆点表示当前这批卡片，不表示全站结果数；计数显示“2 / 5”。只有接口提供可信总数时才显示总数，没有时只说“先看这五款”。
+
+不能一次拉回一百款，再在浏览器里藏掉九十五款。复用现有公开目录分页，在服务端执行有上限的候选检索。初始建议最多读取二十个候选用于筛选；是否需要更低上限，由真实延迟验收决定。这是本项目的提议值，不是现在已经实现的行为。
+
+首批结果按照可核实的匹配程度排序：
+
+1. 公开资料明确支持客户已说明的必要条件。
+2. 产品类别匹配，但某项能力需要进一步确认；明确标成候选，不能冒充完全符合。
+3. 明确不符合必要条件的产品不进入推荐卡片。
+
+同层保持稳定次序。当前接口以关键词查询为主，不能直接宣称已经是全目录语义排名最高的五款。初版不为此另做向量库或把全部产品搬进 VibeKB。
+
+“降噪”需要区分主动降噪 ANC 与通话降噪 ENC。标题中的笼统描述不自动证明两者都支持。必要时先提供耳机候选，同时提示需确认降噪方式；不能因为搜到了耳机就答应某种降噪、认证、logo 工艺或交期。
+
+更具体的问题会形成新的条件版本，结果可能减少；放宽条件时也可能增多。不是每次都强制变少。用户没有改的数量、用途和定制要求要保留。
+
+### 3.2 结果批次保持稳定
+
+建议内部返回形状如下，属于设计 DTO，不是现有接口声明：
+
+```ts
+type ProductResultSet = {
+  resultSetId: string;
+  criteriaVersion: number;
+  items: PublicProductCard[]; // 最多 5
+  hasMore: boolean;
+  nextCursor?: string;
+};
+```
+
+resultSetId 对应这次用户问题和筛选条件。左右滑动、点圆点、点箭头只是浏览已经取得的数据，不再调用模型、不重新排序、不触发询盘。
+
+用户主动点“再看几款”才取下一批，排除已看过的 ID。cursor 由服务器固定关联查询及会话，不能由模型指定 URL 或其他客户身份。若既有目录只提供 page/pageSize，就在受控宿主中封装，不要求重建目录 API。
+
+后续一批作为下一条正常回答出现；不把同一个轮播无限追加到一百张，也不自动连续加载。旧消息保留原产品和位置；产品更新／下架继续用现有复查逻辑提示，不能把旧卡当成当前报价。
+
+### 3.3 桌面和手机的表现
+
+| 项目 | 桌面 | 手机 |
+| --- | --- | --- |
+| 排列 | 消息内横向轮播，一张主卡；聊天本身仍纵向滚动 | 同一数据与组件，触摸横滑 |
+| 后续提示 | 下一张露出约 12–20px | 下一张露出约 16–24px，形成用户说的叠放边缘感 |
+| 控制 | 上一张／下一张箭头，加最多五个圆点 | 滑动与圆点；不依赖鼠标悬停 |
+| 高度 | 图片、标题与摘要限高，翻卡不把对话推走 | 短卡片，纵向聊天手势仍可用 |
+| 边界 | 到第一／最后一张停住，不循环伪装有更多结果 | 相同 |
+
+不自动轮播。箭头和圆点有键盘／读屏标签，视觉圆点虽小，点击区域至少 44px；支持减少动画设置。横向滚动只存在于消息内，不能把整页撑出横向滚动条。采用原生横向滚动与吸附，避免拦住手机所有触摸事件。
+
+“2 / 5” 放在卡片图片角落，不与五个圆点、两个箭头挤在同一行。窄屏优先保留圆点和滑动；桌面控制行容纳不下时调整布局，不缩小触控区域。
+
+产品卡保留两个动作：查看产品、询这款。去掉 Compare／Selected 选择按钮和单独的 Compare options 区域。已有当前产品读取能力继续复用；用户主动在对话中问差别时仍可回答，不要求先学会勾选两张卡。
+
+视觉沿用现有 ChatPanel、brand 色、字体、边框、ProductThumbnail 和按钮规范，不重做网站风格。不要靠三维堆叠或卡片互相覆盖来实现边缘提示。
+
+## 4. 回答后的三个建议
+
+每次有效回答后最多三个建议，不强行凑满。建议跟随当前缺少的条件变化，不反复问已经确认的东西。
+
+例如首次问“有没有降噪耳机”，可以提供“我更看重主动降噪”“我更看重通话降噪”“先看常见款式”。已经明确 ANC 后，可以改成“需要定制 logo”“我更在意轻便”“再看几款”。这只是交互例子，不能据此说仓库一定有对应库存或工艺。
+
+模型可在同一次计划中提出建议，服务器限制数量、长度和动作种类。点击后展示为用户发出的可见问题，沿用原消息接口和去重；不额外同时请求三个模型回答。若输入框已有文字，不直接覆盖，先把建议放入草稿由人确认。
+
+建议能做的是提问、调整条件、请求下一批。不能把“获取报价”解释成已提交询盘，更不能直接发邮件、下单或批准价格。请求报价最多打开聊天内核对卡，最终提交仍须人明确确认。
+
+建议内部携带 baseCriteriaVersion，旧消息下的建议若已过时，先解释正在针对哪批结果，不把旧筛选条件覆盖最新需求。
+
+## 5. 询盘成为聊天的一部分
+
+当前并没有真的打开另一个网页，但 `inquiryOpen` 会把聊天主体隐藏，换成整块 InquiryReview，所以看起来像去了另一页。设计要改这个交互，不另写一套表单。
+
+复用 InquiryReview 字段、校验、提交 key 和真实保存接口，将其作为一条 InquiryMessage 放进原消息流：
+
+```text
+客户：我要 700 件，印 logo，发德国。
+助手：已整理。请核对后确认。
+[ 询盘核对卡：产品、需求、联系人、同意、确认询盘 ]
+客户：包装也要定制。
+助手：已更新包装要求，数量仍为 700。请重新核对。
+[ 同一张核对卡更新；明确显示变化，不再开第二张 ]
+```
+
+聊天输入框保持可用，没有 Back to chat。可用卡片自身的折叠控制收起长表单；不是再新增一个“表单页面”。提交是业务动作，不能被普通聊天的 Send 替代。
+
+当前活跃草稿用稳定 draftId/revision 关联；产品和需求变化时保留联系人，撤销旧同意。客户自己编辑的内容不能被模型无提示覆盖：显示更改摘要，冲突字段让客户选择。保存中／未知结果时原草稿冻结，但不遮住整个聊天。
+
+产品卡里的“询这款”直接带入该产品。已有另一款未提交草稿时，清楚提示更换产品，不能静默把 A 的询盘改成 B；提交过程中不切换原提交身份。成功后核对卡变成紧凑回执，显示单号、产品和已确认需求；AI 后续说“好的”不会再创建一条询盘。
+
+## 6. 点开产品：同标签页打开完整产品页，聊天接着用
+
+### 6.1 当前缺口
+
+- 产品按钮显式设置 `target="_blank"`，当前确实打开新标签页，原聊天留在旧标签。
+- v2 adapter 的会话凭据只在闭包内，页面刷新／跳转会重新创建；`restore()` 现在直接报 "History restore is not enabled"。
+- AssistantWidget 只挂在首页、OEM 和耳机页；两类产品详情页没有挂助手。
+- 本地 Vite 聊天验收页没有整站路由，`/products/item/?id=...` 返回 404；这不是数据缺失。
+
+已有可复用的能力：回答按 `idempotencyKey` 建立，BFF 返回同一 operation 时不新建 run（`http-adapter.ts` 校验 `operationKey`），事件流用 `Last-Event-ID` 从游标续读；产品详情页 `SkuDetailPage` 已能按 `productId` 读取公开商品。
+
+### 6.2 方案比较与决定（负责人确认）
+
+| 方案 | 做法 | 结论 |
+| --- | --- | --- |
+| A 同标签页跳完整产品页，聊天恢复 | 保存会话与锚点 → 当前标签页跳转 → 新页面验证后恢复 | **采用** |
+| B 页内半屏／侧栏产品速览 | 不跳页，在当前页拉起产品面板 | 不采用，原因见下 |
+| C 新标签页（现状） | `target="_blank"` | 不采用：用户感觉聊天消失，回不去 |
+
+不采用 B 的原因（按实际尺寸核对）：
+
+- 手机上聊天面板宽为 `100vw - 2rem`、高为 `min(38rem, 100svh - 7rem)`，几乎是全屏。半屏产品面板只能盖住聊天下半截，恰好是输入框和最新回答；如果改为把聊天顶上去，两边都只剩半屏，都看不全。手机上无论怎样都只能一次看一样，半屏只是多出一个不上不下的状态。
+- 桌面上聊天是右下角 24rem 浮窗。跳到完整产品页再展开聊天，左边是产品、右边是聊天，本身就能边看边问，不需要另做侧栏。
+- 会话恢复（MIU 17）无论如何都要做（刷新也会丢会话），A 的增量成本小；B 还要另做一份缩略产品视图和叠层管理，没有其他使用方。
+
+因此本轮**不做** Sheet、ProductPeek、叠层栈，`CatalogQuoteSheet` 保持不变。
+
+### 6.3 交互规则
+
+| 情况 | 桌面（≥1024px） | 手机／平板（<1024px） |
+| --- | --- | --- |
+| 点卡片上的“查看产品” | 同右（2026-11-03 起不再自动展开，负责人：挡产品就收起，用提示引导访客继续聊） | 当前标签页跳到产品页，聊天收成启动按钮，按钮显示“继续刚才的对话”并轻晃两下；不自动展开，以免挡住产品 |
+| 在产品页再打开聊天 | 点按钮展开，停在来源卡片 | 点按钮即全屏恢复，停在来源卡片 |
+| 离开期间回答写完 | 启动按钮上显示提示点 | 启动按钮上显示提示点 |
+| 浏览器返回上一页 | 上一页恢复聊天，停在来源卡片 | 同左，按离开时的展开状态恢复 |
+| 浮窗挡住产品右栏 | 不再出现：到达时不展开。访客自己打开后可随时收起，收起不清空对话 | — |
+
+- 不做“把聊天滑到屏幕边缘”的手势：iOS 和 Android 都把边缘滑动当作返回，容易冲突；收起成按钮就是贴边状态。
+- 跳页时回答还在生成：到新页面后用原 idempotencyKey 与游标续读，不再调用一次模型（MIU 17）。
+- 询盘草稿填到一半：随会话恢复，不丢失。
+- 用户长按或用快捷键在新标签页打开：新标签没有本标签页的 sessionStorage，按新对话处理，原标签不受影响。这是有意的，避免凭据跨标签共享。
+- 每次跳页要重新读取产品数据，海外访客在 CloudBase 网关上每次多 0.6–3 秒。缓解方式不是另做速览，而是让 MIU 14 的卡片本身带足比较信息（图片、名称、关键规格、MOQ、公开价格档），横滑即可比较，只有要细看某一款才跳页。
+
+### 6.4 完整详情页：同标签页跳转并续聊
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant C as 当前页（聊天）
+  participant S as 同标签页 sessionStorage
+  participant P as 产品详情页
+  participant B as 原 BFF/会话库
+  U->>C: 查看产品
+  C->>S: 保存会话凭据、进行中的回答、草稿、来源卡片锚点、展开意图
+  C->>P: 当前标签页导航（既有 publicKey URL）
+  P->>S: 读取短期恢复信息
+  P->>B: 用原凭据读会话快照
+  B-->>P: 可公开的消息、进行中 run、已确认回执
+  P->>B: 进行中的回答按原 idempotencyKey 与游标续读
+  P-->>U: 桌面恢复展开聊天；手机显示“继续刚才的对话”入口
+```
+
+- 新增薄的 `AssistantHost`，由首页、OEM、耳机和两类产品页复用；每页只挂一个助手。不改 SEO 共用的 BaseLayout，不在 admin 挂公共客服。URL 复用既有 publicKey 规则，不改 canonical、sitemap、pricing。
+- sessionStorage 按站点／业务／协议版本分区，只保存凭据、expiresAt、最后事件序号、进行中回答的 idempotencyKey 与游标、展开意图、来源消息和卡片 ID、必要的未提交草稿。消息正文以服务端会话库为准。凭据不进 URL、日志或模型；服务器仍校验凭据和会话归属。有效期以服务端 expiresAt 为准（默认 24 小时）。恢复只执行一次，找不到锚点时恢复到最新位置并说明。跨设备、跨浏览器、清除存储后的恢复与登录账号历史继续后置。
+
+## 7. Conversation Memory 与成本
+
+### 7.1 先分清三件事
+
+| 内容 | 当前情况 | 提议 |
+| --- | --- | --- |
+| 浏览器是否接回同一会话 | v2 仅内存，跳页会丢凭据 | 采用第 6 节的短期匿名恢复 |
+| 服务端保存了哪些聊天 | 原 PostgreSQL 已存消息／事件 | 继续复用，不因模型少读就删除历史 |
+| 每次模型读多少内容 | 查询近 30 条消息，再截最近 20 条；没有长期摘要或输入 token 硬预算 | 最近对话＋结构化需求＋相关资料，按 token 预算选择 |
+
+20 条是消息条数，通常约十轮问答，不是 20K，也不是 256K。目前 1200 的设置是单次模型最大输出，不是会话记忆。
+
+DeepSeek chat-completions 是无状态调用，应用需要把需要的上下文放进每次请求。[官方多轮说明](https://api-docs.deepseek.com/guides/multi_round_chat/)。腾讯标准模型列表当前把同名 V4 Pro 系列列为 1M 上下文；这不是本项目必须使用的容量，也不能单凭标准目录证明当前 plan 账号的实际额度。[模型列表](https://cloud.tencent.com/document/product/1823/130051)。
+
+### 7.2 本项目建议的起始预算
+
+- 普通请求以 8–12K 输入为目标，单次模型输入硬上限先设 16K。
+- 一次用户提问可能触发多次模型调用。沿用最多四次的既有上限；整个用户问题的输入累计先限 32K，不能误以为“一轮”只付一次调用。
+- 当前每次模型输出约束仍为最多 1200，四次合计上限 4800。正常答案不为凑容量变长。
+- 这些是待实现和校准的本项目预算，不是“业界统一客服标准”，也不是已经配置生效。
+
+上下文按以下优先级组织：安全与业务规则、当前用户消息、已经确认的需求和当前草稿、近期对话、这次相关产品／公开知识。历史产品只保留少量 ID 与必要摘要；当前价格、版本和可用性按原接口复查。
+
+摘要保留数量、用途、目的地、预算状态、定制条件、已选产品和仍缺的信息，并记录来源消息。700 替代旧 500；后续聊三十轮也应保留 700。用户明确提供的事实、模型推测和系统已验证事实分开，模型不能通过“写记忆”改变租户、授权、同意或提交状态。
+
+达到阈值时再整理摘要，不每个聊天气泡都额外调一次模型。摘要与产品数据仍按原客户／会话分开；Sales 只接收最终确认的询盘快照，不直接继承官网访客的所有聊天或其他客户的记忆。
+
+发请求前用保守估算决定裁剪（见 MIU 19），实际用量以模型返回的 usage 为准；估算只用于裁剪，不用于计费。预算不足时减少低优先级旧资料，必要时展示已有产品卡／邀请核对询盘；不默默截断当前需求，也不让请求一直等待。
+
+成本示例仅作假设：每天一百个问题、每题两次模型调用、每次八千输入 token，输入合计约 160 万；若每题合计输出八百 token，则输出约八万。最终金额还取决于套餐、模型、缓存和实际调用次数，不把原厂按量价直接套给现有 plan 入口。[腾讯计费方式](https://cloud.tencent.com/document/product/1823/130054)。
+
+缓存可以减少重复前缀开销，但不是应用的永久记忆，不能代替会话库或安全边界。[DeepSeek 缓存说明](https://api-docs.deepseek.com/guides/kv_cache/)。
+
+## 8. 合并后的剩余工作
+
+旧 plan.json 与早期交付有历史状态，不能只读某个 planned 字段就说代码不存在。以下按当前源码与保存的真实验收证据区分。
+
+| 模块 | 已有内容 | 尚未完成 |
+| --- | --- | --- |
+| 官网问答与工具 | 真实 DeepSeek、VibeKB 只读公开资料、产品 API、停止／错误恢复已有代码和真实测试证据 | 本轮展示、引导、表单、导航、记忆整改；真实整站人工验收 |
+| 公开知识 | 固定 workspace、公开文档清单与归属核对 | 目前只启用已确认公开的品牌文档 12；仍需补齐客户认可的 FAQ／服务资料，不直接开放全部内部文档 |
+| SG0／SG2 授权与隔离 | 系统门禁、任务授权、客户运行边界、队列／恢复／归档已有实现及测试 | 客户生产身份、独立服务连接、运行账户和部署演练；不把本地隔离运行等同现网已启用 |
+| SG1.2 统一保存与通知 | 原事务保存、来源登记、去重通知；真实云库与本地 Hermes 联动已有证据 | 本轮人工提交缺陷、生产开关和定时补偿入口、三种官网入口在发布环境的一致性验收 |
+| SG3.2 Sales 准备 | 自动读取询盘／当前产品、真实模型计划、受控模板正文与归档已实测 | 生产接入现网调度与运行账户；更丰富的邮件文案、内容工厂协作不能说已经完成 |
+| SG4.1 Resend 草稿 | `resend_drafts.py` 已有固定 Inbox 的 draft-only 适配与消费接线，不是完全没代码 | 客户真实账号连接、发件身份、真实草稿／附件／界面预览验证；无真实发送验收 |
+| SG4.2 回信与多渠道联系人 | 已有设计及身份／事件合同 | Webhook 签名、去重、回信关联、新邮件使旧批准失效、多渠道来源与订阅状态同步等正式接线 |
+| SG5 审核与发送 | 任务／收件人／版本等合同与规则已设计 | 具体操作者权限、完整预览、企微精确任务操作、网页／企微批准共用状态、真正的发送门禁及结果核对 |
+| SG4.3 确认信 | 唯一 Resend 路径与预批准模板的方向已确定 | 模板、唯一发送、旧官网路径切换及双发检查；当前不自动发确认信 |
+| SG8 运维与上线 | 代码测试、CI、合成与部分真实链路证据 | 发布迁移顺序、生产接线、告警／用量与成本记录、持久成果保存、灰度及回滚演练 |
+| SG6 Apollo | 隔离、客户授权与交接方案已有调研设计 | 实际客户工作环境／授权、活动、回复分类、停发和 Resend 交接实现及账号验收 |
+| SG7 其他渠道／客户维护 | 与官网询盘分开、共用底座的设计方向 | 渠道连接、联系人和来源映射、同意／退订规则及维护活动实现 |
+| 明确后置 | 之前的暂停／继续／人工接管交互设计保留 | 不因本轮整改重新把这些控制列为首期必做；跨设备历史和完整 Agent 管理台也不顺手扩建 |
+
+官网整改可以先推进，不依赖 Resend／Apollo 的账号。后者进入各自真实接入阶段时再处理授权；不以缺这些账号为由停住当前可做的模块。
+
+## 9. MIU 12–20 执行方案
+
+延续原 MIU 1–11，新增 12–20 表示本轮独立可验收的改动；原 SG 模块不重新编号。每项都完成前后端相关部分、源码复核、针对性测试和浏览器验证，再推进下一项。以下均为计划，不是本轮已执行结果。
+
+### MIU 12：正常填写与明确的提交结果
+
+- 场景／缺陷：截图里的正常公司名触发验收 guard，却被统一显示为 unknown。
+- 数据与归属：测试安装由服务器固定；业务字段原样保存；原 submissionKey、fingerprint、回执继续使用。
+- 改动位置：Sales `assistant-inquiry-live.mts`、`assistant-intake.ts`；原 BFF inquiry-client／server；前端 adapter、useAssistantSession 和错误展示。
+- 核心接口形状：成功沿用原 receipt；错误增加受限 code、`outcome=not_started|unknown`、可选 field、requestId。未知不默认当作未保存。
+- 选择：修正测试模式与结果分类，不直接放开任何对外发送，不删除原幂等逻辑。
+- 验收：`ordinary_company_in_test_scope_can_submit`、`known_rejection_stays_editable`、`lost_receipt_recovers_same_submission`、`repeated_confirm_has_one_record`；含正常人工资料、提交前拒绝和真实事务读回。
+- 依赖：无，第一项。
+
+### MIU 13：候选批次、匹配依据与更多结果
+
+- 场景：一百个匹配不能变成一百张卡；“降噪”不能混淆 ANC／ENC。
+- 数据：受控 criteriaVersion、resultSetId、最多五张卡、hasMore／cursor；具体产品事实保留来源和查询时间。
+- 改动位置：原 product-workflow、公开 DTO 投影、model plan／prompt、BFF 公开事件及前端结果模型。公开目录若已有分页，直接复用。
+- 核心形状：`execute(criteria, cursor) -> ProductResultSet`；最多二十个检索候选、首批五款为待校准起始值。不是遍历全库的承诺。
+- 选择：当前目录受控筛选，不新建产品向量库；未知能力明示待确认，不自动扩充成硬事实。
+- 验收：`hundred_matches_show_at_most_five`、`next_batch_deduplicates_seen_ids`、`unknown_total_is_not_fabricated`、`anc_is_not_inferred_from_enc`、`swiping_does_not_requery`。
+- 依赖：原公开产品接口；不依赖真实邮件账号。
+
+### MIU 14：横向产品卡与操作精简
+
+- 场景：现有 products.map 垂直堆积，Compare 的后果不清楚。
+- 数据：每个 resultSet 的 activeProductId／index 属于 UI 状态，不是新的模型消息。
+- 改动位置：复用 AssistantMessages、ProductThumbnail 和现有 tokens；抽出薄的 ProductCarousel，业务过滤仍在功能模块。
+- 核心形状：`ProductCarousel(items, activeId, onView, onInquiry)`；去掉手工比较选择与固定比较区，卡片保留两个业务动作。
+- 选择：原生横滑／吸附，不引入自动播放或整个页面的横向滚动；单卡不显示多余导航。
+- 验收：桌面箭头／圆点／键盘、320/390/430px 手机滑动、纵向聊天仍能滚动、减少动画；1／3／5 张卡、长标题、坏图、末张、旧卡下架和无横向页面溢出。
+- 依赖：MIU 13 的批次形状。
+
+### MIU 15：情境追问建议
+
+- 场景：回答后用户不知道怎么继续，不能靠增加一排业务按钮解决。
+- 数据：最多三条 `{id,label,utterance,kind,baseCriteriaVersion}`，kind 只允许 ask/refine/more；模型不能指定工具或发送动作。
+- 改动位置：原 engine plan、公开事件合同、AssistantMessages／会话 hook、现有 composer。
+- 选择：同一次模型结果可附建议，点击才发一条可见用户消息；输入框已有内容时不覆盖。过时建议不能回写旧条件。
+- 验收：`suggestion_uses_current_missing_need`、`existing_composer_is_not_overwritten`、`suggestion_click_has_one_turn`、`quote_suggestion_never_submits`。
+- 依赖：MIU 13；与 MIU 19 的需求记忆字段共用，不另外存一份业务事实。
+
+### MIU 16：聊天内询盘卡
+
+- 场景：当前 inquiryOpen 隐藏消息区；客户不能自然补充需求。
+- 数据：一张活跃草稿的 draftId／revision；提交后是不可变回执。联系人与同意有自己的生命周期。
+- 改动位置：AssistantExperience、AssistantMessages、InquiryReview、原 inquiry helpers／hook；原保存接口继续复用。
+- 核心形状：`messages = [...conversation, InquiryMessage(draft)]`；同一草稿更新，不反复新增表单。Back to chat 不再出现。
+- 模型更新草稿时的处理（简化版，已确认）：卡片上显示“本次更新了哪些内容”（旧值 → 新值）；客户可以**整体采用更新**、**保留我填的**，或直接在卡片里手改。不做逐字段的冲突选择界面。客户手改过的字段不会被模型静默覆盖；需求一变就换新的提交键，联系人保留。卡片上没有同意勾选框（负责人 11-03 决定），和首页表单一样只有隐私说明链接，按“确认提交”即表示请我们就这个询盘联系。
+- 选择：表单留在聊天内；模型只建议草稿，确认与同意仍由人完成。保存中允许继续问答，不切换原提交内容。
+- 验收：`inquiry_is_inside_transcript`、`chat_remains_visible_during_edit`、`model_update_shows_change_summary`、`manual_edit_not_overwritten_silently`、`changed_need_preserves_contact`（原 `…_and_clears_consent`，同意勾选框已按负责人 11-03 决定去掉）、`two_products_do_not_silently_swap_draft`、`saved_receipt_does_not_resubmit`。
+- 依赖：MIU 12；不等 Resend。
+
+### MIU 17：匿名会话恢复与进行中回答续读
+
+- 场景：页面刷新或跳到完整详情页会丢掉仅内存保存的凭据、消息、原提交 key 和正在生成的回答。
+- 数据：短期凭据／expiresAt／事件序号、进行中回答的 idempotencyKey＋turnKey＋游标、未提交草稿在本标签页；消息和实际运行状态在原 SQL 库；身份仍由服务器验证。
+- 改动位置：原 BFF 增加受保护的只读 snapshot，复用 store 查询与公开投影；adapter 实现 `restore()`，加严格版本化的 sessionStorage helper。
+- 核心接口形状：`GET conversations/{id}/snapshot?anchor=messageId`，使用原授权头；不把 credential 放 URL。实际路由沿用现有 `/api/ai/v2` 风格。
+- 进行中回答（保留，负责人确认）：恢复后用原 idempotencyKey 调用现有 turn 接口，BFF 返回同一 operation／run，再用 `Last-Event-ID` 从保存的游标续读。不新建模型任务。实现时先补 BFF 测试锁定“同 key 不新建 run”，再接前端。run 已结束则直接显示结果；已失败／取消则显示原状态和重试。
+- 选择：同标签页恢复，不接入登录／跨设备历史；未知提交在刷新后仍使用冻结的原身份。没有凭据不能查询记录。
+- 验收：`refresh_resumes_same_conversation`、`foreign_credential_cannot_read_snapshot`、`expired_session_is_not_silently_resubmitted`、`inflight_reply_resumes_without_second_model_run`、`finished_run_during_navigation_shows_final_answer`、`unknown_submission_survives_refresh_with_same_key`。
+- 依赖：MIU 12 的提交身份与结果模型。
+
+### MIU 18：同标签页打开产品页并续聊
+
+- 场景：现有链接开新 tab，产品页未挂助手；Vite 人工入口产品路由 404。
+- 数据：导航意图含来源消息／产品／批次锚点和展开意图，授权来自原凭据（MIU 17 的恢复数据）。
+- 改动位置：AssistantMessages 产品按钮改为同标签页导航并先保存锚点；薄的 AssistantHost 与五个挂载页；ChatPanel 启动按钮的“继续刚才的对话”状态和提示点；真实 Astro 手工入口和固定公开读取配置。
+- 核心流程：`saveAnchor -> sameTabNavigate -> verifySnapshot -> restore -> scrollToAnchor`。单纯看产品不请求模型。
+- 选择：见 §6。不通过全局重写 BaseLayout 改动 SEO；每页一个 widget；不做 Sheet／速览；CatalogQuoteSheet 不变。
+- 验收：`product_link_navigates_same_tab`、`desktop_restores_expanded_at_source_card`、`mobile_shows_continue_launcher_not_expanded`、`launcher_marks_answer_finished_while_away`、`back_restores_previous_page_chat`、`navigation_mid_answer_has_no_second_model_run`、`navigation_mid_save_keeps_same_submission`、`new_tab_starts_fresh_conversation`、`direct_product_visit_has_single_widget`、`missing_anchor_restores_latest_with_notice`；320/390/430/768/1024/1440px 截图核对；公开页 SEO 合同与构建。
+- 依赖：MIU 17。与 MIU 14 共享按 productId 的卡片锚点。
+
+### MIU 19：结构化需求摘要、有效上下文与用量
+
+- 场景：早期需求落出近 30 条消息窗口后会丢；目前没有输入预算。
+- 数据：按 conversation 隔离的结构化需求（数量、用途、目的地、预算状态、定制条件、已选产品、缺失项，每项带来源 turn 与“客户明确／模型推测／系统核实”标记）、当前版本、每次调用的 provider usage；联系人和权限不进入业务摘要。
+- 改动位置：ai-policy 的上下文组装、ai-store 最小持久化扩展、VibeKB engine 输入／usage、worker 的每问题累计预算。复用已有事件和 run 标识。
+- 计量（简化版，已确认）：发请求前用保守估算（按字符估，中日韩字符按 1 字 ≈ 1 token 上限计，其余按约 3 字符 ≈ 1 token），只用来决定裁剪哪些低优先级内容；实际费用以模型返回的 usage 记账。不接入专门的分词器。
+- 核心形状：`buildContext(current, needState, recent, evidence, budget)`；已确认与推测分开，按优先级裁剪：规则 → 当前消息 → 需求摘要与草稿 → 近期对话 → 相关产品／资料。
+- 选择：8–16K 有效输入起点，单问题累计 32K；摘要在阈值触发时整理，不是每条消息都多调一次模型；如需模型整理，计入同一费用记录。先不新增跨客户画像或通用长期记忆。
+- 验收：三十轮后仍保留数量／目的地、700 不变回 500、不同访客不串记录、长资料不会挤掉当前需求、每问题 2–4 次调用的 usage 累计正确、预算耗尽有可继续的降级结果。
+- 依赖：原会话库；与 MIU 13／15 使用同一份需求结构。
+
+### MIU 20：按真实使用路径整合验收
+
+- 场景：此前技术链路通过，却漏掉正常公司名、产品跳页及试用入口差异。
+- 范围：真实 Astro 首页 → 真实提问 → 五张以内卡片 → 横滑／追问 → 同标签页打开完整详情页并续聊 → 聊天内询盘 → 后台读回 → 自动 Sales 待审核成果。
+- 选择：自动化和人工试用分开记录；人工入口不再用只有聊天页的测试壳冒充整站。
+- 必测：正常公司名、已知拒绝、回执丢失、重复确认、导航时还在回答／保存、切换产品、报价／交期不瞎承诺、产品下架、移动端键盘、20/30 轮记忆、不同访客与租户隔离。
+- 缺陷注入（只做关键门禁，已确认）：目的是证明“测试真的会抓到问题”。做法是一个脚本对代码打一个很小的补丁，故意拆掉一道保护，只跑对应的测试文件，期望它失败，然后还原。测试失败记为 killed（测试有效）；测试仍通过记为 survived（这道保护其实没被测到，必须补测试）。只做以下七项，每次发布前手动跑一次，不放进每次 CI：
+  1. 去掉五张上限 → `hundred_matches_show_at_most_five` 必须失败。
+  2. 重试时改用新的 submissionKey → `repeated_confirm_has_one_record`、`lost_receipt_recovers_same_submission` 必须失败。
+  3. 快照接口不校验凭据归属 → `foreign_credential_cannot_read_snapshot` 必须失败。
+  4. 需求摘要用旧数量覆盖新数量，或需求变化不撤销同意 → 700/500 与同意撤销测试必须失败。
+  5. 去掉单问题预算门禁 → 预算测试必须失败。
+  6. 测试身份改回按公司名／邮箱判断 → `ordinary_company_in_test_scope_can_submit` 必须失败。
+  7. 恢复时不带原 idempotencyKey → `inflight_reply_resumes_without_second_model_run` 必须失败。
+  记录每项的 killed／survived／invalid（补丁没打上），不只报测试总数。全模块的变异测试不做。
+- 依赖：12–19。发布另需 SG8 的生产部署与回滚验收，本单元不自动发邮件。
+
+## 10. 实施顺序与交付门槛
+
+0. 已完成：channel 整合分支 `feat/sales-assistant`（§12.2）。
+1. 整理提交：§12.3 的 channel 部分；§12.4 的 H1、H2 在 hermesinfra 分支。
+2. MIU 12，解除当前无法提交的阻塞。
+3. MIU 17 → MIU 16 → MIU 18。
+4. MIU 13 → 14 → 19 → 15。
+5. MIU 20 整站回归与七项缺陷注入。
+6. Sales 流程开发完成并可部署后，再做 H3（登记 Sales agent）。
+
+每个单元都要说明实现位置、复用部分、实际通过的检查、尚未实测的边界；通过后提交并推送 `feat/sales-assistant`。遇到 pricing／SEO 的不可兼容冲突，先停止这部分整合，不改他人工作。全部完成后先合入 `test`、部署到唯一的 CloudBase 环境、全面测试并修好，再从 `feat/sales-assistant` 向 main 开一个 PR（负责人，2026-11-03；合入 `test` 前先征得同意）。
+
+拟复用检查包括：site 单测／typecheck、assistant 浏览器套件、worker／BFF／store 测试、Sales 保存与 SDK 合同、函数打包 smoke、定向缺陷注入、公开页 SEO gate 和构建。测试运行库与人工会话库继续分开；真实邮件发送保持关闭。
+
+## 11. 核对资料与文字复核
+
+本轮实际查阅：ConnectedAssistant、AssistantWidget、AssistantExperience、AssistantMessages、InquiryReview、useAssistantSession、http-adapter、BFF inquiry 分支、Channel assistant-intake／assistant-inquiry／live helper、ai-policy、store 上下文查询、产品页与公开 SEO 合同、Sales 当前真实验收清单、Resend draft-only 代码及旧模块计划。旧计划与新证据冲突时采用源码和较新的真实记录，并保留历史文档。
+
+具体措辞修正：把“数据库里可能没有产品”改为“当前 Vite 聊天入口的产品路由实测 404”；把“所有提交异常结果未知”分为明确未写入、已保存与真正未知；把“20 轮记忆”校正为“20 条消息”。
+
+UI/UX Pro Max 的本地检索用于核对错误反馈、键盘和触摸操作。其避免整页横向滚动的建议不禁止用户指定的消息内轮播。参考 [W3C 轮播交互规范](https://www.w3.org/WAI/ARIA/apg/patterns/carousel/) 中的控制、可访问标签与位置说明；本产品选择不自动轮播。
+
+定稿修订：第 6 节、MIU 16–20、第 10 节按负责人 2026-11-02 意见重写；第 12–14 节为新增，依据整合分支合并结果、Hermes 分支逐文件统计和源码核对。
+
+## 12. 仓库、分支与整理
+
+### 12.1 各部分在哪里
+
+| 部分 | 仓库／分支 | 内容 |
+| --- | --- | --- |
+| 官网助手（询盘前半段：客户与我们的第一轮交互） | channel `feat/website-assistant-ui-foundation` | 前端组件、BFF、worker、会话库、VibeKB engine |
+| Channel 侧 Sales 落盘 | channel `feat/sales-agent-integration` | `apps/functions/sales-integration`、`packages/sales-contracts`、`packages/db` 的 sales-inquiry-*、后台询盘摘要 |
+| Sales Agent 运行时（处理落盘记录、生成内容） | hermesinfra `feat/sales-agent-runtime` | `deploy/hub/sales_flow`，独立 HTTP 服务＋worker＋专用 MySQL |
+| VibeEntAgentsFoundation | 独立仓库，与 hermesinfra 没有共同提交历史 | “Vibelingan Enterprise Brain” 需求文档与 `feature/phase1-mvp`（Go 控制面，最后提交 2026-08-20）；无 Sales 代码，不引用 channel，本轮不涉及。交接里说的 “Foundation／Hermes Infra” 指 hermesinfra（负责人另一台机器上的本地目录名） |
+
+### 12.2 channel 分支决定（已执行）
+
+两个 channel 分支严重分叉：官网助手分支基于当前 main，Sales 分支基于 10-21 的 main，落后 668 个提交。MIU 12 要同时改两边，分开做必然重复解决冲突。
+
+决定：新建 `feat/sales-assistant` = 官网助手分支 **merge**（不 rebase）Sales 分支，已推送远端（`765c4a65`）。用 merge 是因为两个分支都已推送，rebase 42 个提交会在每个提交上反复解决冲突并改写他人可见历史。之后 MIU 12–20 都只在这个分支上做，两个旧分支冻结保留作参考；全部完成后一个 PR 合入 main。
+
+合并结果：
+
+- 9 个冲突文件（admin handler／入口、public-api、local-server、后台 RecordForm、db 导出、锁文件、一份计划文档），都是两边各加了不同内容，保留双方。
+- 合并暴露两个真实问题并已修：`sales-contracts` 引入的 `jsonc-parser` 默认入口是 UMD 构建，打进 admin 云函数包后冷启动报 `Cannot find module './impl/format'`，改为引入它的 ESM 构建；admin 入口合同测试补上新的 sales 配置依赖。
+- 检查：全仓 typecheck 通过；根目录与各包单测 1264 项通过；`apps/site` 当时有 103 项失败，后查明是本机未安装 Playwright 的 Chromium／WebKit；安装后 1506 项全部通过，不是代码问题。
+
+### 12.3 channel 侧整理（已确认，第一个提交）
+
+- 先在整理前的提交上打归档 tag `archive/process-evidence-2026-11-02`，再从分支删除过程文件；需要时用 `git show <tag>:<path>` 取回。
+- 删除被强制提交、但本在 `.gitignore` 里的文件：`output/` 下 93 个设计截图／PDF（约 11MB）和 `.claude/` 下两份本地复核记录。
+- 归档 `docs/sales-agent/evidence/`、`docs/sales-agent/diagrams/*.visual-check.*` 截图，以及 `docs/sales-agent`、`docs/ai-platform/assistant-ui` 里逐轮的计划／交付／验证文件；各目录 README 改为“当前状态＋设计索引＋归档说明”。
+- 让脚本不再往 `docs/` 写证据：Sales 的两个缺陷注入脚本默认写到 `output/sales-agent/`，CI 上传路径同步改。
+- `AGENTS.md` 与 `CLAUDE.md` 写明不提交本地产物；CI 增加检查：`git ls-files -ci --exclude-standard` 有输出即失败。
+
+### 12.4 Hermes 202 个文件的审计
+
+| 类别 | 文件 | 行数 | 说明 |
+| --- | --- | --- | --- |
+| 验收证据 `docs/sales-agent/evidence` | 74 | 12.5K | 每轮测试的 JSON 报告 |
+| 计划／交付文档 `docs/sales-agent` | 31 | 1.8K | 每个 SG 一份计划、一份验证、一份交付 |
+| 测试 `deploy/hub/tests` | 37 | 9.7K | 单测、MySQL 事务、端到端 |
+| 代码 `deploy/hub/sales_flow` | 54 | 11.6K | 约 30 个 Python 模块；约 20 个是从 channel 按 sha 固定复制的合同 schema／fixture；一个 1.8K 行的测试用例 JSON |
+| 工具与 CI | 5 | 1.9K | E2E、缺陷注入、真实 channel 验收脚本、独立 CI |
+
+结论：
+
+1. **没有动 main 的架构。** 对已有文件的改动只有 `regression.yml` 加两行依赖安装和 `.gitignore`；Hub server、agent 注册表、dispatcher、现有 14 个 agent 都没改。
+2. **一半以上是过程文件。** 105 个文件是文档和证据，这是 Codex“每步都留证据”的工作方式造成的，不该进 main。
+3. **代码量对需求来说不算离谱，但它是一套平行系统。** Hub 现有的 `hubkit/taskqueue` 是按聊天消息判断忙闲的轻量队列，不适合需要幂等、可审计、按客户隔离的询盘处理，所以单独做服务有道理。问题是 Sales 没有作为 agent 登记到 `deploy/hub/agents/*.json`，现有协调层看不到它。
+4. **授权层偏重。** 5 个 sales-auth-* schema 加 lease／permit／handoff 多层授权，是为多客户、多运行账户设计的；当前只有一个负责人部署，偏重。但它已有测试、涉及安全，本轮不推倒。
+
+整理方案（在 hermesinfra `feat/sales-agent-runtime` 做，负责人已确认）：
+
+- H1（现在做）：先打归档 tag `archive/sales-agent-evidence-2026-11-02`，再删除证据与逐轮文档，只保留 `sales_flow/README.md`、一份 `IMPLEMENTATION.md`、一份证据索引（写明 tag）；预计减少约 100 个文件。从 channel 固定复制的合同文件是代码在用的，保留。
+- H2（现在做）：`preparation-cases.json` 等测试数据移到 `tests/fixtures`。
+- H3（Sales 流程开发完成、可部署后再做）：按平台标准 `deploy/create_agent.py` 登记 Sales agent（分配端口、起容器、写 `hub/agents/{id}.json`、注册进 Hub）。现在只登记 JSON 会让 @ 提及和协调路由指向一个没人接的目标，所以推迟；之前只用 `--dry-run` 核对与标准接入的差距。事务处理仍走它自己的服务，不改走 taskqueue。
+- H4（后置）：等 SG8 确定真实部署形态后，再评估把多层授权合并简化。
+
+## 13. 环境与权限
+
+原则：能本地就本地；真实云端只在需要真实读回时使用；密钥尽量不离开原主机。
+
+| 组件 | 现在怎么做 | 什么时候要真实环境 | 需要你做什么 |
+| --- | --- | --- | --- |
+| 助手会话库 Postgres | 我在本机 Docker 起一个专用容器（与 kidsbuddy／coachflow 的容器分开） | 不需要 | 无 |
+| 询盘保存 | 开发和测试走 local-server 的本地 JSON 库（`LOCAL_DB_FILE`）＋测试替身 | MIU 20 后台读回 | 见下方 CloudBase |
+| 产品数据 | 公开 API 只读，沿用 `.env` 里已有的 `PUBLIC_CB_PROXY` | 不需要登录 | 无 |
+| 模型（DeepSeek）与 VibeKB | 测试用假 engine；真实问答沿用 Codex 的方式：经 SSH 连到 Hermes 主机，密钥留在那台机器上，不复制到本机 | MIU 13／19 检索验收、人工试用 | 明天给一个 SSH 主机别名（在 `~/.ssh/config` 里配好，加上本机公钥） |
+| Hermes Sales 运行时 | 本机 Docker MySQL 跑它的测试 | 全链路时与 channel 联调 | 无 |
+| CloudBase 账号 | 暂不需要 | MIU 20、或需要查真实询盘记录时 | 一次浏览器登录，见下 |
+
+CloudBase 账号与环境（负责人确认）：
+
+- channel 使用的是挂在环境所有者主账号下的**协作者账号**，权限由主账号授予；本机 CloudBase CLI 用这个协作者账号在浏览器登录一次，凭据保存在本机。无法也不需要另建子用户。登录后先确认 CLI 能看到环境；看不到时显式传环境 ID。
+- 不能新建 CloudBase 环境，所以**继续只用现有一个环境**（它同时是线上站）。CloudBase 是无服务器的：云函数、NoSQL 和静态托管都绑在环境 ID 上，没有“实例”和“端口”可以另开。因此：
+  - 日常开发与测试全部在本地完成（local-server JSON 库、本机 Postgres、测试替身），线上产品数据只读。
+  - 写入线上库只通过已部署的函数，测试数据由服务器端测试身份标记（MIU 12），写入前后做只读核对，写入需负责人点头。
+  - 部署照旧只靠快进 `test` 分支；不用 CLI 部署。
+- Hermes 在另一个账号的服务器上，本身就是每个 agent 一个容器、一个端口。需要测试实例时，在同一台机器上另起一套 sales_flow（另一个端口、独立 MySQL 库、独立配置），不影响线上 agent。经 SSH 访问，不需要那边的云控制台。
+
+## 14. 确认记录
+
+2026-11-02 负责人第二轮确认：
+
+1. §6 产品交互：同标签页打开完整产品页并续聊；不做页内半屏／侧栏速览。
+2. §12.3／§12.4 的整理：channel 移除强制提交的 `output/` 等文件并归档过程文件；Hermes 现在做 H1、H2，H3 推迟到 Sales 流程完成，H4 后置；AGENTS.md／CLAUDE.md 增加不提交本地产物的规则并由 CI 检查。
+3. §13：CloudBase 用协作者账号登录；不新建环境，谨慎使用现有环境；Hermes 测试实例可用另一端口。
+4. §10 的顺序。MIU 20 缺陷注入按七项执行。
+
+本文件即为最终版本；后续变化直接修改本文件并在此追加记录。
+
+## 15. 执行记录
+
+每个单元完成后在此追加：做了什么、改在哪里、实际跑过的检查、没有实测的边界。不另建逐轮文件。
+
+### MIU 12（2026-11-02）
+
+- 测试身份：去掉验收入口里“公司名以 `[TEST` 开头、邮箱以 `@example.invalid` 结尾”的限制。测试状态只来自服务器固定的测试安装：新增 `testScopeInquiryStore`（`apps/functions/sales-integration/src/assistant-intake.ts`），非 test 安装直接拒绝启动。业务字段原样保存。
+- 结果分类：保存层只在写入前的确定性拒绝时抛 `AssistantInquiryRejected`（`INVALID_DETAILS`／`PRODUCT_UNVERIFIED`／`NOT_ACCEPTING`，`packages/db/src/assistant-inquiry.ts`）；保存端返回 422 `not_started`，其余失败一律 `unknown`。BFF 只在收到格式正确的 `not_started` 时转发 422 `INQUIRY_REJECTED`，错误包装增加可选的 `outcome`／`reason`（`packages/ai-contracts`）。
+- 页面：明确未提交 → 表单重新可改，显示原因，同一 key 可提交修正后的内容；结果未知 → 冻结原内容，按 3s／8s／20s 自动用同一 key 和内容核对三次，之后显示核对码并保留“Check again now”。一旦某次尝试结果未知，之后即使收到拒绝也不解冻。
+- 与设计的差别：没有另做只读查询接口。保存按 key 幂等，“用同一 key 和相同内容再提交”本身就是核对，已有归属、指纹校验，少一条路由。后台测试标记推迟到 MIU 20：当前项目行没有 environment 字段，加字段会改动 Sales 合同。
+- 检查：db 2485、sales-integration 115、ai-bff 17（本机 Postgres）、ai-contracts 6、site 1506、根目录脚本 1264、助手浏览器 90 项全部通过；site typecheck 和改动文件 biome 通过。新增测试：`ordinary_company_in_test_scope_can_submit`、`known_rejection_stays_editable`、`lost_receipt_recovers_same_submission`，以及拒绝原因、未知不解冻、BFF 422／503 映射。`repeated_confirm_has_one_record` 由原有的并发重试与浏览器账本测试覆盖。
+- 未实测：真实 CloudBase 读回与正常资料的人工试用，等 MIU 20 用协作者账号登录后做。
+
+### MIU 17（2026-11-02）
+
+- 服务端：会话库新增 `getConversationSnapshot`（最近 60 条问答，按时间正序，带运行状态和最终答案的原始 payload）。BFF 新增 `GET /api/ai/v2/conversations/{id}/snapshot`，用原授权头校验凭据，答案的产品卡、类型、建议按与实时 `final` 事件相同的投影重建，原始 payload 不外泄。合同 `ConversationSnapshotV2` 与校验函数在 `packages/ai-contracts`。
+- 页面：新增 `persistence.ts`，每个标签页按“站点:业务”保存一条带版本的记录（凭据、过期时间、会话 key、是否展开、未完成的问题、未提交或结果未知的询盘、冻结的提交内容）。过期、版本不符、字段不符的记录直接丢弃；存储被禁用时退回只在内存里聊。新标签页没有这条记录，按新对话处理。
+- 恢复：页面加载时如有记录就自动恢复一次。答案用与实时相同的 `visitor:`／`answer:` id，MIU 18 的卡片锚点在恢复后仍然有效。仍在运行的问题用原 idempotencyKey 从游标 0 续读，已出过的字也会回来；服务端按 key 返回同一个 run，不会再调一次模型。导航期间已完成的问题直接显示最终答案，不再续读。服务端返回 401 时显示“开始新对话”，清掉记录，不会自动重发询盘。
+- 询盘：未提交的草稿恢复后仍可编辑；保存中被打断的按“结果未知”恢复，继续用同一 key 和冻结内容核对。
+- 发现并修正的问题：第一问时记录要等到建立会话后才存在，会话层写不进“未完成的问题”，刷新后就续不上。改为由 adapter 在发送问题前写入，覆盖“刚发出就刷新”的情况。
+- 检查：会话库快照测试、BFF 快照测试（凭据隔离、私有字段不外泄）、adapter 刷新／续读／完成于导航期间／过期／询盘冻结测试、reducer 和询盘恢复测试；真实 BFF＋Postgres＋worker 的浏览器测试新增“刷新后历史还在、新标签页是新对话”“回答中刷新后接着出同一答案、两次发送是同一 key”，桌面和手机共 28 项通过。
+- 边界：问题还没发出（建立会话前）就离开页面时无法恢复，这时也还没有服务端会话。跨标签、跨设备、清除存储后的恢复和登录历史仍然后置。恢复最多 60 条消息。
+- 期限：关掉标签页即结束；凭据 24 小时固定期限；服务端目前不删除历史。负责人 2026-11-03 决定：有价值的聊天长期保存、只删无效的，跨天回访不做，见 [ROADMAP.md](ROADMAP.md) §2、§3、§8。
+
+### MIU 16（2026-11-02）
+
+- 位置：询盘不再盖住聊天。唯一一张活跃草稿作为卡片放在消息流末尾（`InquiryCard.tsx`，原 `InquiryReview.tsx` 改名），可以展开或折叠成一行摘要；聊天输入框一直可用，没有 Back to chat。访客发新问题时卡片自动折叠，答案出现在它上方；在卡片里打字时，新消息不会把视图拉到底（`useChatViewport`）。
+- 模型建议：只有草稿打开时、新答案带 `inquirySuggestion` 才处理，且只作为“待确认的更新”挂在卡片上，显示旧值 → 新值；访客选 **Use update**（需求／产品换新，联系人保留，同意取消，换新的未提交 key）或 **Keep current**，也可以直接手改。对话里的建议不会打开新草稿，也不会直接改草稿；恢复或预置的旧建议不会再提一次。逻辑在 `inquiry.ts` 的 `proposeInquiry`／`inquiryChanges`／`applyInquiryUpdate`／`keepInquiryDraft`。
+- 访客自己的点击：产品卡“Prepare inquiry”在草稿还没有产品时直接带入；已有另一款时显示“Update this inquiry?”和产品 A → B，不静默替换。保存中和结果未知时草稿冻结，任何更新都不接受，折叠的摘要也显示保存／核对状态。
+- 成功后：卡片消失，消息流里出现回执（单号、产品、确认的需求）。之后对话再给建议也不会开新询盘；底部按钮变成“Start another inquiry”，只有访客明确点击才开第二份草稿（联系人沿用，同意重新勾）。
+- 与设计的差别：没有另设 draftId／revision，活跃草稿就是现有的提交 key；接受更新时换 key 是安全的，因为编辑中的 key 从未产生写入。待确认的更新不存进标签页，刷新后消失，答案上的“Review inquiry”可以重新提出。
+- 检查：询盘单测 12 项（新增 6 项，按验收名命名）；site 1518 项中 1517 通过、1 项跳过；助手浏览器旅程 98 项通过（桌面＋手机，新增 `inquiry_is_inside_transcript`／`chat_remains_visible_during_edit`、`two_products_do_not_silently_swap_draft`、`model_update_shows_change_summary`＋`manual_edit_not_overwritten_silently`＋`changed_need_preserves_contact_and_clears_consent`、`saved_receipt_does_not_resubmit`）；真实 BFF＋Postgres＋worker 浏览器测试 28 项通过；状态守卫变异 4/4 被杀；site、测试和 e2e 的 typecheck 与 biome 通过。
+- 未实测：真实模型脚本 `scripts/assistant-real-browser.mts` 已改为新交互（并修正 MIU 12 遗留的旧按钮名 “Check original submission”），要等 SSH 主机别名才能跑。
+- 边界：回执刷新后出现在消息末尾而不是原位置；先提交一单再开第二份草稿后刷新，第一单的回执不再显示（记录仍在 Sales，单号不丢）。
+
+### MIU 18（2026-11-03）
+
+- 跳页：产品卡的 “View product” 不再开新标签页。点击时先在本标签页的记录里写下来源（消息 id、产品 id、`arriving`），再由浏览器正常跳到 `/products/item/?id=…`；链接本身不变，无 JS 和 SEO 都不受影响。按住 Ctrl／⌘ 或中键打开的新标签页没有本标签页的记录，按新对话处理，原标签页不受影响。
+- 到达：产品页恢复会话时看到 `arriving`，所有宽度都只显示启动按钮 “Continue conversation”，约 1.5 秒和 12 秒后各轻晃一次（系统设置“减少动态效果”时不动），然后清掉 `arriving`。原先宽屏直接展开的做法会挡住产品标题，2026-11-03 取消。展开后先停在来源卡片（只滚动聊天记录，不动页面），之后由访客自己滚动；再次打开面板时回到最新消息。找不到来源卡片时停在最新消息，并说明一句。
+- 离开期间：正在生成的回答按 MIU 17 用原 key 续读，不再调用一次模型；面板收起时回答写完，启动按钮出现红点，读屏读作 “New answer”，打开即消失。保存中的询盘按“结果未知”恢复，用同一 key 和冻结内容核对，只落一条记录。
+- 返回：Back 回到上一页时按离开时的展开状态恢复。访客在产品页又提了问题时，来源卡片随新问题清除，上一页打开在最新消息。浏览器从前进后退缓存直接还原旧页面时（`pageshow` 的 `persisted`），以标签页记录和服务器快照为准重新恢复一次，不显示过时的对话。
+- 挂载：新增 `components/AssistantHost.astro`，首页、OEM、耳机和两类产品页（`products/item`、`products/[publicKey]`）各挂一次；其他页面和 BaseLayout 不挂。路由白名单 `AI_WIDGET_ROUTES` 同步。
+- 本机入口：
+  - 自动测试用的 Vite 页面现在把 `/products/item/` 指向一个产品页替身（`assistant-product.html`），挂的是同一个 `ConnectedAssistant`。
+  - 人工试用改用真实 Astro 整站：`pnpm --filter @vibelingan-channel/site dev:assistant-site`，地址 `http://127.0.0.1:62059`。产品数据固定读本机测试产品接口，聊天连本机 BFF。本机运行时允许这个来源；这条命令关掉了 Astro 开发工具条，因为它在手机尺寸下会挡住启动按钮。
+- 检查：
+  - 单测：记录里来源字段的校验、“离开期间写完”的标记、路由白名单，以及“只有 AssistantHost 挂助手、BaseLayout 不挂”。
+  - 真实 BFF＋Postgres＋worker 的浏览器测试新增 7 项，桌面和手机各跑一遍：`product_link_navigates_same_tab`（含 `desktop_restores_expanded_at_source_card`、`mobile_shows_continue_launcher_not_expanded`、`back_restores_previous_page_chat`）、`launcher_marks_answer_finished_while_away`＋`navigation_mid_answer_has_no_second_model_run`、`navigation_mid_save_keeps_same_submission`、`new_tab_starts_fresh_conversation`＋`direct_product_visit_has_single_widget`、`missing_anchor_restores_latest_with_notice`、在产品页提问后返回，以及从前进后退缓存还原。
+  - 缺陷注入：去掉点击时保存来源，或去掉 `pageshow` 处理，对应测试都会失败。
+  - 合计：
+    - 真实 BFF＋Postgres＋worker 浏览器测试 42 项通过。
+    - 助手浏览器旅程 98 项通过。“回答中收起面板”一项改为核对新的启动按钮文字和红点。
+    - site 1522 项中 1520 通过、1 项跳过、1 项失败。失败的是后台商品列表的一个浏览器测试，整套并发跑时 46 秒超时，单独重跑 4 秒通过；本单元没有改动后台。
+    - 状态守卫变异 4/4 被杀。
+    - `astro check`、测试与 e2e 的 typecheck、改动文件的 biome 都通过。
+  - 真实 Astro 整站（`dev:assistant-site`）用脚本实测：首页提问 → 点 “View product” → 真实产品详情页显示 “Everyday wireless headphones”。桌面聊天展开并停在该卡片；手机显示 “Continue conversation”，打开后历史还在。每页只有一个助手，没有页面错误。
+- 边界：
+  - Playwright 和 Vite 开发服务器都不让 Chromium 缓存这些页面，所以从缓存还原是用同样的 `pageshow` 事件模拟的，没有在真实缓存里跑过。
+  - 存储被禁用时记不下来源，产品页按新对话处理。
+  - 320／768px 截图和 SEO 构建核对放进 MIU 20 的整站回归。
+
+### MIU 13（2026-11-03）
+
+- **做了什么：**
+  - 搜索每次从公开目录读一页最多 20 个候选，按目录自身的稳定顺序，最多给 5 张卡。
+  - 规划器可以给出访客说的必要功能 `must`，最多四项。公开资料能证明全部功能的产品排前面，其余的卡片标出“To confirm with our team: …”，同组内不重排。
+  - ANC、ENC 和笼统的“降噪”分开判断：只写 ENC 或 noise reduction 的产品，不算有 ANC。给模型写说明文字的资料里也带着“待确认”，避免说明文字把它说成事实。
+  - 有更多结果时，最新一批下面显示 “Show more options”。点击发送 `{kind:'more', after:<那条问题的 key>}`。worker 在同一会话里找到那条回答保存的 cursor（查询、必要功能、已看过的 ID、页码），排除看过的再给下一批，不调用模型。每次最多多读一页。
+  - cursor 只存在保存的回答里。BFF 按字段重建公开内容，不转发 cursor；浏览器只能指定自己的问题，不能指定查询、页码或别人的会话。规划器也不能输出 `more`。
+- **公开形状：**
+  - 卡片多了可选的 `toConfirm`。
+  - 回答多了 `resultSet: {batch, hasMore}`。
+  - 不给总数：关键词命中数不等于“符合条件”的数量，所以只说有没有更多。
+- **和 §3.2 设计的差别：**
+  - 没有单独的 `criteriaVersion`：每个新问题本来就是一个新批次，`batch` 只在“再看几款”时递增。
+  - 排序只在当次读到的候选里进行，不保证全目录最优，§3.1 本来也没有承诺。
+  - `swiping_does_not_requery` 要等横向卡片（MIU 14）做出来再验。
+- **检查：**
+  - workflow 单元测试 15 项，包括 `hundred_matches_show_at_most_five`、`next_batch_deduplicates_seen_ids`、`unknown_total_is_not_fabricated`、`anc_is_not_inferred_from_enc`，以及“模型不能选 cursor”。
+  - worker 用真实库跑通“再看几款”：第二批不调模型，没有更多时回固定文字。
+  - BFF：快照里没有 cursor，带多余字段的 `more` 返回 400。
+  - connected 新增一项（电脑、手机各一遍）：7 个结果，先 5 后 2，没有重复；只写 ENC 的那款排到第二批并标“待确认”。
+  - 合计：BFF 24、worker 60、store 43、contracts 6、vibekb 9、engine 55；journeys 98/98、connected 46/46；状态守卫 4/4 被抓到；整站构建与构建检查通过；`pnpm lint` 无错误。
+- **未验证：** 真实模型会不会稳定给出 `must`，要到全链路联调时用真实模型验。
+
+### MIU 14（2026-11-03）
+
+- **做了什么：**
+  - 新增薄组件 `ProductCarousel.tsx`：一批卡片在消息里横向排列，用原生横滑和吸附。下一张在手机上露出约 20px，在桌面上约 16px。
+  - 每张卡右上角显示 “2 / 5”。下面一行是最多五个圆点；视觉上 8px，点击区域 44px，桌面另有上一张／下一张箭头。
+  - 到第一张或最后一张就停住，不循环。只有一张卡时不显示任何导航。
+  - 方向键在导航行里可以翻卡。减少动画时直接跳到目标卡，不滑动。
+  - 翻卡只滚动这一行，不移动对话，也不发任何请求。
+  - 卡片只留两个动作：View product、Prepare inquiry。去掉了 Compare／Selected 按钮和 “Compare options” 区块；要比较或查最新资料，就在对话里问，由现有的 lookup 计划重新读取。
+  - `screens.json` 第 9 屏改成“在对话里比较”。
+- **检查：**
+  - journeys 的卡片用例：圆点、键盘、箭头到头停住；翻卡不产生新请求；减少动画时立即到位；页面没有横向滚动。故意改成始终平滑滚动，这个用例会失败。
+  - connected 新增一项（电脑、手机各一遍）：320、390、430、1280px 下页面都不横向溢出，卡片行可横滑，下一张露出 12–24px，圆点点击区域 ≥44px。横滑后圆点跟着变，到最后一张停住，期间没有 POST 请求；鼠标在卡片上纵向滚轮，对话照样滚动。
+  - 原来测比较的 connected 用例改成在对话里 “Check those again”：先看到更新，再看到下架；只剩一张卡时没有圆点。
+  - 合计：journeys 98/98，connected 48/48，状态守卫 4/4，`pnpm lint` 无错误，astro check 0 错误。
+- **截图看过：**
+  - 桌面：露边、箭头、圆点和计数都正常。
+  - 手机：同一行卡片等高。另一张有两条提示时，这一张按钮下会留白；保留等高，翻卡时这一行的高度不跳。
+- **未验证：** 真机 iOS Safari 的横滑手感（Playwright 的 WebKit 手机模拟不是真机）。
+
+### 负责人第二批意见（2026-11-03）
+
+- **启动按钮：** 只打开、只打字没发送，按钮仍是 “Ask our AI”；条件改成“有访客发出的消息”。检查：journeys 的焦点用例补了“打字不发再关上”；connected 新增 `opening_without_sending_keeps_ask_label`（电脑、手机各一遍）。
+- **隐私页：** 写明法律主体 Diversity Innovations Limited（先驅多元有限公司，BRN 63108687）和适用的香港《个人资料（私隐）条例》；邮箱仍是官网唯一公布的 `sales@`；不写模型服务商。`privacy-content.test.ts` 钉住这几项。
+- **L0 规则层：** 已做，见 ROADMAP §5.6。BFF 管限额、冷却、长度；worker 在模型调用前给问候、感谢、无内容和第三次重复固定回复。检查：BFF 23、worker 54、store 43 项全过；去掉“重试不计数”或 worker 里的筛选，对应测试会失败。
+
+### 隐私说明入口（2026-11-03，本轮之外的小项）
+
+- 负责人要求：隐私说明不要太显眼，需要时能看到。网站原来没有隐私说明页。
+- 页面：新增 `/privacy/`（`apps/site/src/pages/privacy.astro`），内容在 `apps/site/src/i18n/content/privacy/en-US.md`，按系统实际行为写：收集什么、模型调用前去掉联系方式、腾讯云上海、按价值保存、浏览器存储、访客权利与联系邮箱。
+- 入口：页脚法律信息栏的 “Privacy”、聊天底部 “AI can make mistakes…” 一行的 “Privacy”（新标签页打开，不打断对话）、询盘卡同意说明里的链接、OEM 项目表单说明后的链接。不弹窗，不做 cookie 横幅（网站没有统计或广告 cookie）。
+- 检查：`privacy-content.test.ts` 核对每个入口都在，并把页面上的每条陈述钉到代码上（Argon2 密码、IP 只存 HMAC、联系方式在进模型前替换、助手只用 sessionStorage、没有统计脚本、单纯聊天不进 Sales）；公开页 SEO 元数据测试登记了新页面；site `astro check` 0 错误。
+- 待负责人确认（并入 main 前）：见 [ROADMAP.md](ROADMAP.md) §6.4 四项。聊天里问隐私时由助手引用这页（N8），随全链路联调把页面加入公开知识库。
+
+### 负责人第三批意见：寒暄的边界（2026-11-03）
+
+- 负责人意见：习惯先打招呼的访客必须得到回复，并被引到产品咨询和询盘；但反复寒暄或滥用不能消耗模型。边界要定清楚。
+- 做法见 [ROADMAP.md](ROADMAP.md) §5.6 “寒暄的边界”。要点：
+  - 只要整条消息只是寒暄（问候、“在吗”、问好、问身份、问能做什么、感谢、道别、没在回答提问时的 “ok”），就由规则回答，任何次数都不调用模型。
+  - 第一次是完整欢迎加三个开始选项，第二次换一句短的，第三次起固定一句，选项一直保留。
+  - 连续 5 个空转回答后，BFF 只再允许每 10 分钟 3 个问题（原为每小时 10 个，负责人 2026-11-03 改短）；一个正常回答就结束。
+- 位置仍在 worker（顺序、单一写回答路径、需要读上下文）。成本与放在 BFF 相同，都不调用模型。
+
+### MIU 19（2026-11-03）
+
+- **需求摘要：**
+  - 每个会话一份，存在 `conversations.need_state`（迁移 006）。字段只有：产品、数量、用途、目的地、预算、定制（列表）、必要功能（列表）、已选产品。
+  - 每项记来源（第几条访客消息）和依据。依据是“访客原话”或“推测”；已选产品是“系统核实”，只认这次对话里展示过的卡片。
+  - 规则在 `packages/ai-policy/src/need.ts`：
+    - 值出现在访客最新一句里才算原话。
+    - 推测不能覆盖原话，所以模型从旧对话里又读到 500，也改不回已经说过的 700。
+    - 原话里的定制项，只有访客在最新一句里提到它（如 “No logo after all”）才会被去掉。
+    - 带邮箱、电话的值整条丢弃。字段之外的东西（同意、提交、租户）根本写不进来。
+  - 不额外调用模型：模型在本来就要返回的计划里顺带给 `need`，worker 合并后和回答写在同一个受保护的事务里。知识检索那一步给的 `need` 也会带到最终计划。
+- **每次请求读什么**（`packages/ai-policy/src/context.ts` 的 `buildContext`）：
+  - 顺序是：规则、当前这条（总是完整发送）、需求摘要（作为 DATA）、按预算从新到旧连续取的近期对话。寒暄和它的固定回复不放进去。
+  - 引擎再把检索资料按单次上限裁剪：先缩短每份文档，再减少份数，最后才去掉最老的对话。
+- **预算与用量：**
+  - 默认值：近期对话 6000、单次调用 16000、单个问题合计 32000。估算方法是中日韩字 1 字算 1 token、其他约 3 个字符算 1 token，只用来决定裁剪什么。
+  - 引擎每调用一次就报告一次用量；有服务商返回的数字就用它，没有就用估算并标记。worker 逐次累加到 `ai_runs.usage`（调用次数、输入、输出、估算次数），所以中途失败前已经花掉的也记上了。说明文字那次调用记在同一个问题上。
+  - 预算用完时不报错：回复“一次回答需要查的内容太多，可以分开问，或核对询盘交给团队”，并用摘要里访客原话的部分预填询盘；问题一开始就没有余量时，不调用模型。
+- **检查：**
+  - policy 12 项（700／500、推测不覆盖原话、联系方式、定制项、已选产品、摘要内容、建议过滤、上下文优先级、跳过寒暄、估算）。
+  - vibekb 新增 5 项（每次调用都报用量、摘要作为数据发送、长文档裁剪后不超单次上限且当前问题完整、预算用完不发下一次调用、检索步骤的 `need` 带到最终计划）。
+  - worker 用真实库新增 7 项：
+    - 三十轮后仍是 700 和 Germany，第一轮原文已不再发送；第 20 轮模型给出的 500 不生效。
+    - 另一个访客看不到这份摘要。
+    - 四次调用的用量累计正确；失败前已计费的两次调用也记录在案。
+    - 预算用完给出可继续的结果；没有余量时不调用模型。
+    - 建议过滤；连续寒暄。
+  - 说明文字那次调用记在同一个问题上；预算用完时仍显示卡片。
+- **和设计的差别：**
+  - 没有“到阈值再整理一次摘要”的额外调用：每次规划顺带更新，效果相同，成本更低。
+  - 重试的问题不会再调用模型：run 被收回时直接结束，访客重新提问就是新问题、新预算。
+- **未验证：** 真实模型能否稳定按要求给出 `need`，以及服务商是否返回 `usage`，都要在全链路联调里看。
+
+### MIU 15（2026-11-03）
+
+- **做了什么：**
+  - 模型在同一次计划里可以附最多三条建议 `{label, utterance, kind: ask|refine, about}`。worker 过滤后公开 `{id, label, utterance, kind, baseCriteriaVersion}`：去掉已知字段的、重复的和其他动作，最多三条，并记录摘要版本号。
+  - BFF 按字段重建，`screened`、需求摘要等内部字段不出服务器。
+  - 只在最新一条回答下、空闲时显示。“Show more options” 和建议在同一行，但它来自批次本身（MIU 13），不是模型给的。
+  - **按钮上显示的就是要发送的原文。** 这样不会出现“按钮写 Ship to，发出去的却是 We ship to Germany”。提示词也要求建议不能替访客编事实，只能提问或给选项。
+  - 输入框为空时，点击就是一条可见的访客消息（同一个发送接口和去重）。输入框里已有文字时不发送，而是接到草稿后面并把焦点放回输入框。
+  - 寒暄的固定回复附三个开始选项，同样走这套。
+- **检查：**
+  - contracts 新增 1 项：最多三条；`more`、`submit` 或其他动作、过长、空 label 都会被拒。
+  - BFF：快照带出建议，但不带 `screened` 和摘要。
+  - connected 新增 5 项，电脑、手机各一遍：
+    - `suggestion_uses_current_missing_need`：说了 700 之后不再问数量；只有最新回答有建议。
+    - `suggestion_click_has_one_turn`。
+    - `existing_composer_is_not_overwritten`。
+    - `quote_suggestion_never_submits`：只出现“核对询盘”，点开后不填同意也提交不了，没有询盘请求。
+    - 打招呼得到欢迎和三个选项，点选项后交给模型。
+- **与设计的差别：** `baseCriteriaVersion` 保留在数据里；因为建议只出现在最新回答下，旧建议不会被点到。点击后的文字和普通提问一样，以当前摘要为准解释。
+
+### MIU 20（2026-11-03）
+
+- **整站路径**（`playwright.assistant-site.config.ts`，真实 Astro 站点 `dev:assistant-site`，后面是本机 BFF、Postgres、worker、目录替身和 Channel intake；没有模型，不发邮件）。电脑、手机各一遍：
+  1. 首页打开助手，说 “hi”：得到欢迎和三个选项。
+  2. 问耳机：最多五张卡；电脑点箭头，手机点圆点翻卡。
+  3. 点一条建议，作为访客消息发出。
+  4. 点 “View product”：同一标签页打开产品详情页，标题对得上；对话还在（手机先点 “Continue conversation”）。
+  5. 在产品页要报价：核对询盘，填一个普通公司名（Weber Audio GmbH），确认提交，看到回执。
+  6. 从本机 intake 读回：新增一条 OEM 项目（公司名正确），以及给 Sales 的登记和投递各一条。
+  7. 另测 320、768px：页面不横向滚动，面板在屏内；把高度压到 360px 模拟键盘弹出，输入框和 Send 仍在可见区域。
+- **七道门禁的缺陷注入**（`scripts/assistant-defect-injection.mjs`，发布前手动跑，不进 CI；结果写到 `output/assistant-defects/results.json`）。2026-11-03 本机结果：全部 killed，文件全部还原。
+
+  | 门禁 | 故意拆掉的保护 | 应该失败的测试 | 结果 |
+  | --- | --- | --- | --- |
+  | 1 | 五张上限 | `hundred_matches_show_at_most_five` | killed |
+  | 2 | 重新核对时换新 submissionKey | `lost_receipt_recovers_same_submission`；journeys “unknown inquiry retries the frozen original key … only one record” | killed |
+  | 3 | 快照不校验凭据 | BFF “snapshot restores the credential holder’s turns”（另一个凭据读取应得 401） | killed |
+  | 4a | 推测的旧数量覆盖原话的新数量 | policy “cannot turn 700 back into 500”；worker “thirty turns later” | killed |
+  | 4b | 需求变了仍用原来的提交键（11-03 同意勾选框去掉后，由“需求变了不撤销同意”改成这一项） | `changed_need_preserves_contact` | killed |
+  | 5 | 去掉单问题预算门禁 | vibekb “spent its input budget stops before the next call” | killed |
+  | 6 | 测试身份改回按公司名判断 | `ordinary_company_in_test_scope_can_submit` | killed |
+  | 7 | 恢复时不带原 idempotencyKey | `inflight_reply_resumes_without_second_model_run` | killed |
+
+- **必测项对应的测试：**
+
+  | 必测 | 测试 |
+  | --- | --- |
+  | 正常公司名 | `ordinary_company_in_test_scope_can_submit`；整站路径用 Weber Audio GmbH 提交 |
+  | 已知拒绝 | `known_rejection_stays_editable`；db “known rejections before any write carry a reason” |
+  | 回执丢失 | `lost_receipt_recovers_same_submission`；connected “confirmed category inquiry saves once … recovers a lost receipt” |
+  | 重复确认 | journeys “unknown inquiry retries … only one record”；db “concurrent retries … one original receipt” |
+  | 导航时还在回答／保存 | `launcher_marks_answer_finished_while_away`、`navigation_mid_answer_has_no_second_model_run`、`navigation_mid_save_keeps_same_submission` |
+  | 切换产品 | `two_products_do_not_silently_swap_draft`；connected “a follow-up uses prior public cards … rechecks” |
+  | 报价／交期不瞎承诺 | catalog-answer “invented commercial promises … fall back to existing product cards”；policy grounding 测试 |
+  | 产品下架 | connected “public HTTP products render images, refresh and withdraw consistently”；db “a withdrawn requested product remains an inquiry” |
+  | 移动端键盘 | 整站 `narrow_320`／`narrow_768`（视口压到 360px 高）；journeys 焦点恢复 |
+  | 20／30 轮记忆 | worker “thirty turns later the summary still has 700 and Germany” |
+  | 不同访客与租户隔离 | worker “another visitor never sees this conversation’s requirements”；BFF 外来凭据 401；db “different conversations do not share records” |
+
+- **检查合计（2026-11-03 本机）：**
+  - 整站：4 项通过。另 2 项按设计只在手机项目里跑，电脑项目跳过。
+  - 浏览器测试：connected 58/58，journeys 98/98。
+  - 单元和数据库测试：
+    - AI：policy 93、contracts 7、engine 55、vibekb 14、anythingllm 103、store 43、worker 72、BFF 25。
+    - site：1522 通过、1 跳过。
+  - 其他：状态守卫 4/4；缺陷注入 8/8 killed。
+  - 构建：整站构建、SEO 门禁（20 页）和助手构建核对都通过。
+  - 类型和格式：所有改动包 `tsc` 通过，astro check 0 错误；三条浏览器测试线的类型检查都通过；`pnpm lint` 无错误。
+- **截图里看到的两点（未改）：**
+  - 320×360 模拟键盘：输入框和 Send 可见，但对话区只剩一条缝。真实 iOS／Android 键盘一般不缩小布局视口，表现可能不同，要真机看过再决定是否在输入时收起底部两行。
+  - 电脑上跳到产品页时自动展开的聊天面板盖住标题右侧（MIU 18 的设计）。2026-11-03 已按负责人意见改为不自动展开，用启动按钮的提示动效引导继续聊。
+- **未验证（需要真机或真实服务）：**
+  - 真机 iOS Safari 的键盘和横滑。360px 高度只是模拟，真实键盘在 iOS 上不改变布局视口。
+  - 真实模型是否稳定给出 `need`、`suggestions`、`must`，服务商是否返回 `usage`。
+  - 后台读回和 Sales 待审核成果目前读的是本机 intake 替身；真实 CloudBase 和 Hermes 要在合入 `test` 部署后验。
