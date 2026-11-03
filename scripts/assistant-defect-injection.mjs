@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 /**
  * Defect injection for the assistant's seven release gates (ROUND2-DESIGN §9,
- * MIU 20). Each gate removes one protection with a tiny patch, runs only the
- * tests that should notice, then restores the file:
+ * MIU 20). Each gate first runs its tests on the unmodified code, then removes
+ * one protection with a tiny patch, runs the same tests, and restores the file:
  *
- *   killed   – a test failed: the protection is really tested
- *   survived – every test passed: the protection is NOT tested (fix the tests)
- *   invalid  – the patch did not apply, so nothing was proven
+ *   killed   – baseline passed, the patched run failed: the protection is tested
+ *   survived – the patched run passed too: the protection is NOT tested
+ *   invalid  – the patch did not apply, a pattern matched no test, or the
+ *              baseline already failed, so nothing was proven
+ *
+ * Every run gets its own fresh database (created next to the one named, then
+ * dropped), so jobs left queued by one run cannot decide another. Each run's
+ * output is kept in output/assistant-defects/.
  *
  * Run by hand before each release, not in CI:
  *   ASSISTANT_DEFECT_DATABASE_URL=postgres://ai:ai@127.0.0.1:55432/guard_test \
@@ -19,6 +24,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const database = process.env.ASSISTANT_DEFECT_DATABASE_URL;
@@ -33,6 +39,9 @@ const tsxTest = (pkg, file, pattern) => ({
 const playwright = (config, grep) => ({
   label: `${config} --grep "${grep}"`,
   args: ['exec', 'playwright', 'test', '-c', config, '--project', 'desktop', '--grep', grep],
+  // Never reuse a server left running by another lane: it would not carry
+  // the patch or this run's database.
+  env: { CI: '1' },
 });
 
 const GATES = [
@@ -173,6 +182,44 @@ function clean(file) {
   return spawnSync('git', ['diff', '--quiet', 'HEAD', '--', file], { cwd: root }).status === 0;
 }
 
+const logs = join(root, 'output/assistant-defects');
+mkdirSync(logs, { recursive: true });
+
+async function freshDatabase(label, use) {
+  const name = `defect_${label}_${process.pid}_${Date.now().toString(36)}`;
+  const admin = new pg.Client({ connectionString: database });
+  await admin.connect();
+  try {
+    await admin.query(`create database "${name}"`);
+    const url = new URL(database);
+    url.pathname = `/${name}`;
+    return use(url.href);
+  } finally {
+    await admin.query(`drop database if exists "${name}" with (force)`).catch(() => undefined);
+    await admin.end();
+  }
+}
+
+async function runTests(gate, phase) {
+  const runs = [];
+  for (const [index, t] of gate.tests.entries()) {
+    const run = await freshDatabase(`g${gate.id}_${phase}_${index}`, (url) =>
+      spawnSync('pnpm', t.args, {
+        cwd: root,
+        env: { ...process.env, ...t.env, DATABASE_URL: url, CHAT_TEST_DATABASE_URL: url },
+        encoding: 'utf8',
+        timeout: 300_000,
+      }),
+    );
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    writeFileSync(join(logs, `gate-${gate.id}-${phase}-${index}.txt`), output);
+    // A pattern that matched no test proves nothing either.
+    const ran = /ℹ tests [1-9]|\b[1-9]\d* (passed|failed)\b/.test(output);
+    runs.push({ test: t.label, failed: run.status !== 0, ran });
+  }
+  return runs;
+}
+
 const results = [];
 for (const gate of selected) {
   const path = join(root, gate.file);
@@ -185,22 +232,16 @@ for (const gate of selected) {
     results.push({ ...gate, outcome: 'invalid', detail: 'patch did not apply exactly once' });
     continue;
   }
+  const baseline = await runTests(gate, 'baseline');
+  if (baseline.some((r) => r.failed || !r.ran)) {
+    results.push({ ...gate, outcome: 'invalid', detail: 'baseline failed', runs: baseline });
+    continue;
+  }
   originals.set(path, text);
   writeFileSync(path, text.replace(gate.find, gate.replace));
-  const runs = [];
+  let runs = [];
   try {
-    for (const t of gate.tests) {
-      const run = spawnSync('pnpm', t.args, {
-        cwd: root,
-        env: { ...process.env, DATABASE_URL: database },
-        encoding: 'utf8',
-        timeout: 300_000,
-      });
-      const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-      // A pattern that matched no test proves nothing either.
-      const ran = /ℹ tests [1-9]|\b[1-9]\d* (passed|failed)\b/.test(output);
-      runs.push({ test: t.label, failed: run.status !== 0, ran });
-    }
+    runs = await runTests(gate, 'mutant');
   } finally {
     restoreAll();
   }
@@ -220,9 +261,8 @@ const report = results.map(({ id, title, file, outcome, runs, detail }) => ({
   ...(detail ? { detail } : {}),
   ...(runs ? { runs } : {}),
 }));
-mkdirSync(join(root, 'output/assistant-defects'), { recursive: true });
 writeFileSync(
-  join(root, 'output/assistant-defects/results.json'),
+  join(logs, 'results.json'),
   `${JSON.stringify({ recordedAt: new Date().toISOString(), report }, null, 2)}\n`,
 );
 for (const r of report) console.log(`${String(r.id).padEnd(3)} ${r.outcome.padEnd(9)} ${r.title}`);
