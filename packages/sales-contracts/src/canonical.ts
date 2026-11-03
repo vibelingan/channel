@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
-// The package `main` is a UMD build whose lazy relative requires break once
-// bundled into a function artifact; its ESM build bundles cleanly.
-import { visit } from 'jsonc-parser/lib/esm/main.js';
+// `#jsonc-parser` (package.json `imports`) gives bundlers the ESM build: the
+// UMD `main` lazily requires ./impl/format, which breaks inside a function
+// artifact. Node and tsx get the CommonJS `main`: the ESM build's
+// extensionless relative imports do not load outside a bundler.
+import { visit } from '#jsonc-parser';
 import { ContractValidationError } from './errors.ts';
 
 const MAX_DEPTH = 64;
