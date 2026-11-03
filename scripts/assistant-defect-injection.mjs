@@ -213,8 +213,9 @@ async function runTests(gate, phase) {
     );
     const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
     writeFileSync(join(logs, `gate-${gate.id}-${phase}-${index}.txt`), output);
-    // A pattern that matched no test proves nothing either.
-    const ran = /ℹ tests [1-9]|\b[1-9]\d* (passed|failed)\b/.test(output);
+    // A pattern that matched no test proves nothing either. node --test
+    // reports "ℹ tests N" (spec) or, on Node 22 without a TTY, "# tests N" (TAP).
+    const ran = /^(?:ℹ|#) tests [1-9]|\b[1-9]\d* (passed|failed)\b/m.test(output);
     runs.push({ test: t.label, failed: run.status !== 0, ran });
   }
   return runs;
