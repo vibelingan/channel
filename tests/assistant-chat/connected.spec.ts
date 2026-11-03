@@ -73,7 +73,7 @@ test('lost acceptance reply retries the original submission through the real API
   await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(1);
 });
 
-test('public HTTP products render images, compare, refresh and withdraw consistently', async ({
+test('public HTTP products render images, refresh and withdraw consistently', async ({
   page,
   request,
 }) => {
@@ -96,21 +96,28 @@ test('public HTTP products render images, compare, refresh and withdraw consiste
     '/products/item/?id=demo-1',
   );
   await expect(cards.getByRole('button', { name: 'Prepare inquiry' })).toHaveCount(2);
-  await cards.getByRole('button', { name: 'Compare', exact: true }).first().click();
-  await cards.getByRole('button', { name: 'Compare', exact: true }).click();
-  const comparison = page.getByRole('region', { name: 'Compare options' });
-  await expect(comparison.getByRole('heading', { level: 4 })).toHaveCount(2);
+  // Two actions per card; differences are asked in the conversation instead.
+  await expect(cards.getByRole('button', { name: 'Compare', exact: true })).toHaveCount(0);
   await request.post('http://127.0.0.1:62383/__fixture/control?state=updated');
-  await comparison.getByRole('button', { name: 'Check current details' }).click();
-  await expect(comparison).toContainText('Updated published details');
-  await expect(page.getByText('Earlier details. See the updated card below.')).toBeVisible();
+  await send(page, 'Check those again');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'Updated published details',
+  );
+  await expect(
+    page.getByText('Earlier details. See the updated card below.').first(),
+  ).toBeAttached();
   await request.post('http://127.0.0.1:62383/__fixture/control?state=withdrawn');
-  await comparison.getByRole('button', { name: 'Check current details' }).click();
-  await expect(comparison.getByRole('heading', { level: 4 })).toHaveCount(1);
-  await expect(comparison).not.toContainText('Office wireless headphones');
+  await send(page, 'Check those again');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const latest = page.locator('[data-message-role="assistant"]').last();
+  await expect(latest.locator('[data-product-id]')).toHaveCount(1);
+  // A single card has nothing to page through.
+  await expect(latest.getByRole('button', { name: /Show product/ })).toHaveCount(0);
+  await expect(latest).not.toContainText('Office wireless headphones');
   await expect(
     page.getByText('This product is no longer available in the public catalog.').first(),
-  ).toBeVisible();
+  ).toBeAttached();
   await request.post('http://127.0.0.1:62383/__fixture/control?state=normal');
   await page
     .getByRole('dialog')
@@ -603,4 +610,69 @@ test('batches_show_five_then_more_without_repeats and anc_is_marked_to_confirm',
   await expect(page.locator('[data-message-role="visitor"]').last()).toHaveText(
     'Show more options',
   );
+});
+
+test('five_cards_fit_phone_widths, swipe_moves_dots and the chat still scrolls vertically', async ({
+  page,
+}) => {
+  await send(page, 'ANC earbuds please');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const carousel = page.getByRole('region', { name: 'Product options' }).last();
+  await expect(carousel.locator('[data-product-id]')).toHaveCount(5);
+  await expect(carousel).toContainText('1 / 5');
+  for (const width of [320, 390, 430, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    const layout = await carousel.evaluate((element) => {
+      const track = element.querySelector('ul') as HTMLElement;
+      const cards = [...track.children].map((card) => card.getBoundingClientRect());
+      const box = track.getBoundingClientRect();
+      const dots = [...element.querySelectorAll('button[aria-label^="Show product"]')].map((dot) =>
+        dot.getBoundingClientRect(),
+      );
+      return {
+        pageFits: document.documentElement.scrollWidth <= window.innerWidth,
+        scrollable: track.scrollWidth > track.clientWidth,
+        peek: box.right - (cards[1]?.left ?? box.right),
+        smallestDot: Math.min(...dots.map((dot) => Math.min(dot.width, dot.height))),
+      };
+    });
+    expect(layout.pageFits, `page fits at ${width}px`).toBe(true);
+    expect(layout.scrollable).toBe(true);
+    // The next card shows at the edge, as a hint that there is more.
+    expect(layout.peek, `next card edge at ${width}px`).toBeGreaterThanOrEqual(12);
+    expect(layout.peek).toBeLessThanOrEqual(24);
+    expect(layout.smallestDot).toBeGreaterThanOrEqual(44);
+  }
+  await page.setViewportSize({ width: 390, height: 800 });
+  // A swipe is native scrolling; the dots follow it, and nothing is asked again.
+  const requests: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST') requests.push(r.url());
+  });
+  await carousel.locator('ul').evaluate((track) => {
+    const third = track.children[2] as HTMLElement;
+    track.scrollTo({ left: third.offsetLeft, behavior: 'auto' });
+  });
+  await expect(carousel.getByRole('button', { name: 'Show product 3 of 5' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  // The last card stops; there is no loop back to the first.
+  await carousel.getByRole('button', { name: 'Show product 5 of 5' }).click();
+  await expect(carousel.getByRole('button', { name: 'Show product 5 of 5' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  expect(requests).toEqual([]);
+  // Scrolling vertically over the cards still moves the conversation.
+  await send(page, 'A product question');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const transcript = page.locator('[data-message-role="assistant"]').first().locator('..');
+  await transcript.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const before = await transcript.evaluate((element) => element.scrollTop);
+  await carousel.hover();
+  await page.mouse.wheel(0, -400);
+  await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBeLessThan(before);
 });

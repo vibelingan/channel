@@ -53,7 +53,6 @@ export function AssistantExperience({
 }) {
   const session = useAssistantSession(adapter, seed);
   const { state, inquiry } = session;
-  const [compareIds, setCompareIds] = useState(seed.compareIds ?? []);
   const [confirmRegenerate, setConfirmRegenerate] = useState(seed.confirmRegenerate ?? false);
   const messageRevision = state.messages
     .map(
@@ -83,16 +82,6 @@ export function AssistantExperience({
     state.sessionStatus === 'expired' ||
     state.sessionStatus === 'unavailable';
   const products = currentPublicProducts(state.messages);
-  const compared = compareIds
-    .map((id) => products.get(id))
-    .filter((product): product is PublicProduct => Boolean(product));
-  function compare(product: PublicProduct) {
-    setCompareIds((current) =>
-      current.includes(product.id)
-        ? current.filter((id) => id !== product.id)
-        : [...current.slice(-1), product.id],
-    );
-  }
   function send(message?: string) {
     setConfirmRegenerate(false);
     session.send(message);
@@ -190,10 +179,8 @@ export function AssistantExperience({
           )}
         <AssistantMessages
           messages={state.messages}
-          compareIds={compareIds}
           currentProducts={products}
           inquiriesEnabled={capabilities.inquiries}
-          onCompare={compare}
           onInquiry={session.beginInquiry}
           onViewProduct={session.leaveForProduct}
           {...(!working && !blocked && state.messages.at(-1)?.resultSet?.hasMore
@@ -210,47 +197,6 @@ export function AssistantExperience({
             The product card you opened is no longer shown here, so the conversation continues from
             the latest messages.
           </output>
-        )}
-        {compared.length > 0 && (
-          <section
-            aria-label="Compare options"
-            className="rounded-xl border border-slate-200 bg-white p-4 text-sm"
-          >
-            <h3 className="font-semibold">Compare options</h3>
-            <div className="mt-3 space-y-3">
-              {compared.map((product) => (
-                <div key={product.id} className="rounded-lg bg-surface-alt p-3">
-                  <h4 className="font-semibold">{product.name}</h4>
-                  <p className="mt-1 line-clamp-3 text-xs">{product.summary}</p>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    Public product details. Commercial terms require confirmation.
-                  </p>
-                </div>
-              ))}
-            </div>
-            {!preview && (
-              <button
-                type="button"
-                disabled={working || blocked}
-                className={`${actionClass} mt-3 mr-2`}
-                onClick={() =>
-                  session.send('Check the latest published details for these products.', false, {
-                    kind: 'lookup',
-                    ids: compared.map((p) => p.id),
-                  })
-                }
-              >
-                Check current details
-              </button>
-            )}
-            <button
-              type="button"
-              className={`${actionClass} mt-3`}
-              onClick={() => setCompareIds([])}
-            >
-              Close comparison
-            </button>
-          </section>
         )}
         {state.turn?.steps.length ? (
           <ol

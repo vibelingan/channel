@@ -1,12 +1,11 @@
 import { safePublicChatLink } from '../../../components/chat/public-link';
 import { InquiryReceipt } from './InquiryCard';
+import { ProductCarousel } from './ProductCarousel';
 import { ProductThumbnail } from './ProductThumbnail';
 import type { ChatMessage, PublicProduct } from './model';
 
 export function AssistantMessages({
   messages,
-  compareIds,
-  onCompare,
   onInquiry,
   onViewProduct,
   onShowMore,
@@ -15,10 +14,8 @@ export function AssistantMessages({
   inquiriesEnabled = true,
 }: {
   messages: ChatMessage[];
-  compareIds: string[];
   currentProducts?: Map<string, PublicProduct>;
   inquiriesEnabled?: boolean;
-  onCompare: (product: PublicProduct) => void;
   onInquiry: (product?: PublicProduct, requirement?: string) => void;
   /** Called before a product link opens in this tab, to remember the card. */
   onViewProduct?: (messageId: string, productId: string) => void;
@@ -46,80 +43,73 @@ export function AssistantMessages({
           ) : (
             message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>
           )}
-          {message.products?.map((product) => (
-            <section
-              key={product.id}
-              data-product-id={product.id}
-              className="mt-3 overflow-hidden rounded-xl border border-slate-200"
-              aria-label={product.name}
-            >
-              <ProductThumbnail url={product.imageUrl} />
-              <div className="p-3">
-                <h3 className="font-semibold">{product.name}</h3>
-                <p className="mt-1 line-clamp-3 text-xs">{product.summary}</p>
-                {product.toConfirm && (
-                  <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
-                    To confirm with our team: {product.toConfirm.join(', ')}. Not shown in the
-                    public details.
-                  </p>
-                )}
-                <p className="mt-2 text-xs text-ink-muted">
-                  Price, MOQ and lead time: confirm with our team.
-                </p>
-                {currentProducts &&
-                  (!currentProducts.has(product.id) ||
-                    currentProducts.get(product.id)?.revision !== product.revision) && (
-                    <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
-                      {!currentProducts.has(product.id)
-                        ? 'This product is no longer available in the public catalog.'
-                        : 'Earlier details. See the updated card below.'}
+          {message.products?.length ? (
+            <ProductCarousel
+              products={message.products}
+              label={message.products.length > 1 ? 'Product options' : 'Product option'}
+              renderCard={(product) => (
+                <section
+                  data-product-id={product.id}
+                  className="h-full overflow-hidden rounded-xl border border-slate-200"
+                  aria-label={product.name}
+                >
+                  <ProductThumbnail url={product.imageUrl} />
+                  <div className="p-3">
+                    <h3 className="line-clamp-2 font-semibold break-words">{product.name}</h3>
+                    <p className="mt-1 line-clamp-3 text-xs">{product.summary}</p>
+                    {product.toConfirm && (
+                      <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+                        To confirm with our team: {product.toConfirm.join(', ')}. Not shown in the
+                        public details.
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs text-ink-muted">
+                      Price, MOQ and lead time: confirm with our team.
                     </p>
-                  )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <a
-                    className="flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-xs font-semibold"
-                    href={product.href}
-                    onClick={(event) => {
-                      // Same tab, so the conversation continues on the product
-                      // page. A modified click opens a new tab: a new conversation.
-                      if (
-                        event.button !== 0 ||
-                        event.metaKey ||
-                        event.ctrlKey ||
-                        event.shiftKey ||
-                        event.altKey
-                      )
-                        return;
-                      onViewProduct?.(message.id, product.id);
-                    }}
-                  >
-                    View product
-                  </a>
-                  <button
-                    type="button"
-                    disabled={
-                      currentProducts &&
-                      currentProducts.get(product.id)?.revision !== product.revision
-                    }
-                    aria-pressed={compareIds.includes(product.id)}
-                    onClick={() => onCompare(product)}
-                    className="min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
-                  >
-                    {compareIds.includes(product.id) ? 'Selected' : 'Compare'}
-                  </button>
-                  {inquiriesEnabled && (
-                    <button
-                      type="button"
-                      onClick={() => onInquiry(product)}
-                      className="min-h-11 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white"
-                    >
-                      Prepare inquiry
-                    </button>
-                  )}
-                </div>
-              </div>
-            </section>
-          ))}
+                    {currentProducts &&
+                      (!currentProducts.has(product.id) ||
+                        currentProducts.get(product.id)?.revision !== product.revision) && (
+                        <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+                          {!currentProducts.has(product.id)
+                            ? 'This product is no longer available in the public catalog.'
+                            : 'Earlier details. See the updated card below.'}
+                        </p>
+                      )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a
+                        className="flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-xs font-semibold"
+                        href={product.href}
+                        onClick={(event) => {
+                          // Same tab, so the conversation continues on the product
+                          // page. A modified click opens a new tab: a new conversation.
+                          if (
+                            event.button !== 0 ||
+                            event.metaKey ||
+                            event.ctrlKey ||
+                            event.shiftKey ||
+                            event.altKey
+                          )
+                            return;
+                          onViewProduct?.(message.id, product.id);
+                        }}
+                      >
+                        View product
+                      </a>
+                      {inquiriesEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => onInquiry(product)}
+                          className="min-h-11 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white"
+                        >
+                          Prepare inquiry
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+            />
+          ) : null}
           {message.id === showMoreFor && message.resultSet?.hasMore && onShowMore && (
             <button
               type="button"

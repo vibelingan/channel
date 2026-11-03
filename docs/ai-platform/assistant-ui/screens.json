@@ -69,10 +69,10 @@
     {
       "number": 9,
       "id": "comparison",
-      "title": "产品比较",
-      "entry": "选择两款产品后确认比较",
+      "title": "在对话里比较",
+      "entry": "访客在对话里问两款产品的差别",
       "exit": ["inquiry_review", "source_changed"],
-      "interaction_note": "窄屏用纵向卡片比较；不能用压缩小字或横向大表格承载核心信息。"
+      "interaction_note": "MIU 14 起没有勾选比较按钮和固定比较区；助手按最新公开资料在回答里说明差别，必要时重新读取。窄屏不能用压缩小字或横向大表格承载核心信息。"
     },
     {
       "number": 10,

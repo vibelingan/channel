@@ -114,7 +114,7 @@ test('real components mount, follow branding and restore keyboard focus', async 
   await expect(page.getByRole('button', { name: /Continue conversation/ })).toHaveCount(0);
 });
 
-test('IME and Shift+Enter preserve input; Enter creates one turn and cards can compare', async ({
+test('IME and Shift+Enter preserve input; Enter creates one turn and cards browse side by side', async ({
   page,
 }) => {
   const question = page.getByRole('textbox', { name: 'Your question' });
@@ -129,13 +129,43 @@ test('IME and Shift+Enter preserve input; Enter creates one turn and cards can c
   await question.press('Enter');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
   expect((await ledger(page)).runs).toHaveLength(1);
-  await page.getByRole('button', { name: 'Compare', exact: true }).first().click();
-  await page.getByRole('button', { name: 'Compare', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Compare options' })).toContainText(
-    'Compact wireless earbuds',
+  // Cards sit side by side; browsing them never asks the service again.
+  const carousel = page.getByRole('region', { name: 'Product options' });
+  await expect(carousel.locator('[data-product-id]')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Compare', exact: true })).toHaveCount(0);
+  const first = carousel.getByRole('button', { name: 'Show product 1 of 2' });
+  const second = carousel.getByRole('button', { name: 'Show product 2 of 2' });
+  await expect(first).toHaveAttribute('aria-current', 'true');
+  await second.click();
+  await expect(second).toHaveAttribute('aria-current', 'true');
+  await second.press('ArrowLeft');
+  await expect(first).toHaveAttribute('aria-current', 'true');
+  if (await carousel.getByRole('button', { name: 'Previous product' }).isVisible()) {
+    await expect(carousel.getByRole('button', { name: 'Previous product' })).toBeDisabled();
+    await carousel.getByRole('button', { name: 'Next product' }).click();
+    await expect(carousel.getByRole('button', { name: 'Next product' })).toBeDisabled();
+  }
+  // With reduced motion the jump is immediate rather than an animated slide.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await second.click();
+  expect(
+    await carousel
+      .locator('ul')
+      .evaluate(
+        (track) =>
+          Math.abs(
+            track.scrollLeft -
+              Math.min(
+                (track.children[1] as HTMLElement).offsetLeft,
+                track.scrollWidth - track.clientWidth,
+              ),
+          ) <= 1,
+      ),
+  ).toBe(true);
+  expect((await ledger(page)).runs).toHaveLength(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
   );
-  await page.getByRole('button', { name: 'Close comparison' }).click();
-  await expect(page.getByRole('region', { name: 'Compare options' })).toHaveCount(0);
 });
 
 test('closing during a turn preserves its answer without issuing stop', async ({ page }) => {

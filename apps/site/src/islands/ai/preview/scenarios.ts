@@ -125,7 +125,6 @@ export function seedFor(id: string): AssistantSeed {
     };
   const seed: AssistantSeed = {
     state,
-    ...(id === 'comparison' ? { compareIds: products.map((product) => product.id) } : {}),
     ...(id === 'retry_after_stop' ? { confirmRegenerate: true } : {}),
   };
   if (id.startsWith('inquiry_')) {

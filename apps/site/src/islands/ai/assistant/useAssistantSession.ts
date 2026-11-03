@@ -31,7 +31,6 @@ export interface AssistantSeed {
   inquiry?: InquiryView;
   /** Whether the inquiry card in the conversation shows its form or only a summary. */
   inquiryExpanded?: boolean;
-  compareIds?: string[];
   confirmRegenerate?: boolean;
   draft?: string;
   /** The tab's saved conversation; restored once on mount when present. */
