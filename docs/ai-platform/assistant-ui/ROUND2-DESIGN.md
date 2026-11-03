@@ -613,3 +613,121 @@ CloudBase 账号与环境（负责人确认）：
 - 入口：页脚法律信息栏的 “Privacy”、聊天底部 “AI can make mistakes…” 一行的 “Privacy”（新标签页打开，不打断对话）、询盘卡同意说明里的链接、OEM 项目表单说明后的链接。不弹窗，不做 cookie 横幅（网站没有统计或广告 cookie）。
 - 检查：`privacy-content.test.ts` 核对每个入口都在，并把页面上的每条陈述钉到代码上（Argon2 密码、IP 只存 HMAC、联系方式在进模型前替换、助手只用 sessionStorage、没有统计脚本、单纯聊天不进 Sales）；公开页 SEO 元数据测试登记了新页面；site `astro check` 0 错误。
 - 待负责人确认（并入 main 前）：见 [ROADMAP.md](ROADMAP.md) §6.4 四项。聊天里问隐私时由助手引用这页（N8），随全链路联调把页面加入公开知识库。
+
+### 负责人第三批意见：寒暄的边界（2026-11-03）
+
+- 负责人意见：习惯先打招呼的访客必须得到回复，并被引到产品咨询和询盘；但反复寒暄或滥用不能消耗模型。边界要定清楚。
+- 做法见 [ROADMAP.md](ROADMAP.md) §5.6 “寒暄的边界”。要点：
+  - 只要整条消息只是寒暄（问候、“在吗”、问好、问身份、问能做什么、感谢、道别、没在回答提问时的 “ok”），就由规则回答，任何次数都不调用模型。
+  - 第一次是完整欢迎加三个开始选项，第二次换一句短的，第三次起固定一句，选项一直保留。
+  - 连续 5 个空转回答后，BFF 再给每小时 10 个问题的额度；一个正常回答就结束。
+- 位置仍在 worker（顺序、单一写回答路径、需要读上下文）。成本与放在 BFF 相同，都不调用模型。
+
+### MIU 19（2026-11-03）
+
+- **需求摘要：**
+  - 每个会话一份，存在 `conversations.need_state`（迁移 006）。字段只有：产品、数量、用途、目的地、预算、定制（列表）、必要功能（列表）、已选产品。
+  - 每项记来源（第几条访客消息）和依据。依据是“访客原话”或“推测”；已选产品是“系统核实”，只认这次对话里展示过的卡片。
+  - 规则在 `packages/ai-policy/src/need.ts`：
+    - 值出现在访客最新一句里才算原话。
+    - 推测不能覆盖原话，所以模型从旧对话里又读到 500，也改不回已经说过的 700。
+    - 原话里的定制项，只有访客在最新一句里提到它（如 “No logo after all”）才会被去掉。
+    - 带邮箱、电话的值整条丢弃。字段之外的东西（同意、提交、租户）根本写不进来。
+  - 不额外调用模型：模型在本来就要返回的计划里顺带给 `need`，worker 合并后和回答写在同一个受保护的事务里。知识检索那一步给的 `need` 也会带到最终计划。
+- **每次请求读什么**（`packages/ai-policy/src/context.ts` 的 `buildContext`）：
+  - 顺序是：规则、当前这条（总是完整发送）、需求摘要（作为 DATA）、按预算从新到旧连续取的近期对话。寒暄和它的固定回复不放进去。
+  - 引擎再把检索资料按单次上限裁剪：先缩短每份文档，再减少份数，最后才去掉最老的对话。
+- **预算与用量：**
+  - 默认值：近期对话 6000、单次调用 16000、单个问题合计 32000。估算方法是中日韩字 1 字算 1 token、其他约 3 个字符算 1 token，只用来决定裁剪什么。
+  - 引擎每调用一次就报告一次用量；有服务商返回的数字就用它，没有就用估算并标记。worker 逐次累加到 `ai_runs.usage`（调用次数、输入、输出、估算次数），所以中途失败前已经花掉的也记上了。说明文字那次调用记在同一个问题上。
+  - 预算用完时不报错：回复“一次回答需要查的内容太多，可以分开问，或核对询盘交给团队”，并用摘要里访客原话的部分预填询盘；问题一开始就没有余量时，不调用模型。
+- **检查：**
+  - policy 12 项（700／500、推测不覆盖原话、联系方式、定制项、已选产品、摘要内容、建议过滤、上下文优先级、跳过寒暄、估算）。
+  - vibekb 新增 5 项（每次调用都报用量、摘要作为数据发送、长文档裁剪后不超单次上限且当前问题完整、预算用完不发下一次调用、检索步骤的 `need` 带到最终计划）。
+  - worker 用真实库新增 7 项：
+    - 三十轮后仍是 700 和 Germany，第一轮原文已不再发送；第 20 轮模型给出的 500 不生效。
+    - 另一个访客看不到这份摘要。
+    - 四次调用的用量累计正确；失败前已计费的两次调用也记录在案。
+    - 预算用完给出可继续的结果；没有余量时不调用模型。
+    - 建议过滤；连续寒暄。
+  - 说明文字那次调用记在同一个问题上；预算用完时仍显示卡片。
+- **和设计的差别：**
+  - 没有“到阈值再整理一次摘要”的额外调用：每次规划顺带更新，效果相同，成本更低。
+  - 重试的问题不会再调用模型：run 被收回时直接结束，访客重新提问就是新问题、新预算。
+- **未验证：** 真实模型能否稳定按要求给出 `need`，以及服务商是否返回 `usage`，都要在全链路联调里看。
+
+### MIU 15（2026-11-03）
+
+- **做了什么：**
+  - 模型在同一次计划里可以附最多三条建议 `{label, utterance, kind: ask|refine, about}`。worker 过滤后公开 `{id, label, utterance, kind, baseCriteriaVersion}`：去掉已知字段的、重复的和其他动作，最多三条，并记录摘要版本号。
+  - BFF 按字段重建，`screened`、需求摘要等内部字段不出服务器。
+  - 只在最新一条回答下、空闲时显示。“Show more options” 和建议在同一行，但它来自批次本身（MIU 13），不是模型给的。
+  - **按钮上显示的就是要发送的原文。** 这样不会出现“按钮写 Ship to，发出去的却是 We ship to Germany”。提示词也要求建议不能替访客编事实，只能提问或给选项。
+  - 输入框为空时，点击就是一条可见的访客消息（同一个发送接口和去重）。输入框里已有文字时不发送，而是接到草稿后面并把焦点放回输入框。
+  - 寒暄的固定回复附三个开始选项，同样走这套。
+- **检查：**
+  - contracts 新增 1 项：最多三条；`more`、`submit` 或其他动作、过长、空 label 都会被拒。
+  - BFF：快照带出建议，但不带 `screened` 和摘要。
+  - connected 新增 5 项，电脑、手机各一遍：
+    - `suggestion_uses_current_missing_need`：说了 700 之后不再问数量；只有最新回答有建议。
+    - `suggestion_click_has_one_turn`。
+    - `existing_composer_is_not_overwritten`。
+    - `quote_suggestion_never_submits`：只出现“核对询盘”，点开后不填同意也提交不了，没有询盘请求。
+    - 打招呼得到欢迎和三个选项，点选项后交给模型。
+- **与设计的差别：** `baseCriteriaVersion` 保留在数据里；因为建议只出现在最新回答下，旧建议不会被点到。点击后的文字和普通提问一样，以当前摘要为准解释。
+
+### MIU 20（2026-11-03）
+
+- **整站路径**（`playwright.assistant-site.config.ts`，真实 Astro 站点 `dev:assistant-site`，后面是本机 BFF、Postgres、worker、目录替身和 Channel intake；没有模型，不发邮件）。电脑、手机各一遍：
+  1. 首页打开助手，说 “hi”：得到欢迎和三个选项。
+  2. 问耳机：最多五张卡；电脑点箭头，手机点圆点翻卡。
+  3. 点一条建议，作为访客消息发出。
+  4. 点 “View product”：同一标签页打开产品详情页，标题对得上；对话还在（手机先点 “Continue conversation”）。
+  5. 在产品页要报价：核对询盘，填一个普通公司名（Weber Audio GmbH），确认提交，看到回执。
+  6. 从本机 intake 读回：新增一条 OEM 项目（公司名正确），以及给 Sales 的登记和投递各一条。
+  7. 另测 320、768px：页面不横向滚动，面板在屏内；把高度压到 360px 模拟键盘弹出，输入框和 Send 仍在可见区域。
+- **七道门禁的缺陷注入**（`scripts/assistant-defect-injection.mjs`，发布前手动跑，不进 CI；结果写到 `output/assistant-defects/results.json`）。2026-11-03 本机结果：全部 killed，文件全部还原。
+
+  | 门禁 | 故意拆掉的保护 | 应该失败的测试 | 结果 |
+  | --- | --- | --- | --- |
+  | 1 | 五张上限 | `hundred_matches_show_at_most_five` | killed |
+  | 2 | 重新核对时换新 submissionKey | `lost_receipt_recovers_same_submission`；journeys “unknown inquiry retries the frozen original key … only one record” | killed |
+  | 3 | 快照不校验凭据 | BFF “snapshot restores the credential holder’s turns”（另一个凭据读取应得 401） | killed |
+  | 4a | 推测的旧数量覆盖原话的新数量 | policy “cannot turn 700 back into 500”；worker “thirty turns later” | killed |
+  | 4b | 需求变了不撤销同意 | `changed_need_preserves_contact_and_clears_consent` | killed |
+  | 5 | 去掉单问题预算门禁 | vibekb “spent its input budget stops before the next call” | killed |
+  | 6 | 测试身份改回按公司名判断 | `ordinary_company_in_test_scope_can_submit` | killed |
+  | 7 | 恢复时不带原 idempotencyKey | `inflight_reply_resumes_without_second_model_run` | killed |
+
+- **必测项对应的测试：**
+
+  | 必测 | 测试 |
+  | --- | --- |
+  | 正常公司名 | `ordinary_company_in_test_scope_can_submit`；整站路径用 Weber Audio GmbH 提交 |
+  | 已知拒绝 | `known_rejection_stays_editable`；db “known rejections before any write carry a reason” |
+  | 回执丢失 | `lost_receipt_recovers_same_submission`；connected “confirmed category inquiry saves once … recovers a lost receipt” |
+  | 重复确认 | journeys “unknown inquiry retries … only one record”；db “concurrent retries … one original receipt” |
+  | 导航时还在回答／保存 | `launcher_marks_answer_finished_while_away`、`navigation_mid_answer_has_no_second_model_run`、`navigation_mid_save_keeps_same_submission` |
+  | 切换产品 | `two_products_do_not_silently_swap_draft`；connected “a follow-up uses prior public cards … rechecks” |
+  | 报价／交期不瞎承诺 | catalog-answer “invented commercial promises … fall back to existing product cards”；policy grounding 测试 |
+  | 产品下架 | connected “public HTTP products render images, refresh and withdraw consistently”；db “a withdrawn requested product remains an inquiry” |
+  | 移动端键盘 | 整站 `narrow_320`／`narrow_768`（视口压到 360px 高）；journeys 焦点恢复 |
+  | 20／30 轮记忆 | worker “thirty turns later the summary still has 700 and Germany” |
+  | 不同访客与租户隔离 | worker “another visitor never sees this conversation’s requirements”；BFF 外来凭据 401；db “different conversations do not share records” |
+
+- **检查合计（2026-11-03 本机）：**
+  - 整站：4 项通过。另 2 项按设计只在手机项目里跑，电脑项目跳过。
+  - 浏览器测试：connected 58/58，journeys 98/98。
+  - 单元和数据库测试：
+    - AI：policy 93、contracts 7、engine 55、vibekb 14、anythingllm 103、store 43、worker 72、BFF 25。
+    - site：1522 通过、1 跳过。
+  - 其他：状态守卫 4/4；缺陷注入 8/8 killed。
+  - 构建：整站构建、SEO 门禁（20 页）和助手构建核对都通过。
+  - 类型和格式：所有改动包 `tsc` 通过，astro check 0 错误；三条浏览器测试线的类型检查都通过；`pnpm lint` 无错误。
+- **截图里看到的两点（未改）：**
+  - 320×360 模拟键盘：输入框和 Send 可见，但对话区只剩一条缝。真实 iOS／Android 键盘一般不缩小布局视口，表现可能不同，要真机看过再决定是否在输入时收起底部两行。
+  - 电脑上跳到产品页时自动展开的聊天面板盖住标题右侧（MIU 18 的设计）。访客可以关掉面板；如果觉得遮挡太多，可以改成只在宽度 ≥1440px 时自动展开。
+- **未验证（需要真机或真实服务）：**
+  - 真机 iOS Safari 的键盘和横滑。360px 高度只是模拟，真实键盘在 iOS 上不改变布局视口。
+  - 真实模型是否稳定给出 `need`、`suggestions`、`must`，服务商是否返回 `usage`。
+  - 后台读回和 Sales 待审核成果目前读的是本机 intake 替身；真实 CloudBase 和 Hermes 要在合入 `test` 部署后验。
