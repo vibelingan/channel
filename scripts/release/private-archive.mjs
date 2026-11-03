@@ -116,18 +116,28 @@ export function createPrivateArchive({
     }
   };
   const get = async (ref, deadline = Number.POSITIVE_INFINITY) => {
-    await withinDeadline(deadline, () => target(ref));
-    return observe('read', ref, async () => {
-      const bytes = await withinDeadline(deadline, () =>
-        read(sdk, ref.fileID, {
-          maxBytes: ref.bytes,
-          timeoutMs: Math.min(timeout(ref.bytes), remaining(deadline)),
-        }),
-      );
-      if (!Buffer.isBuffer(bytes) || bytes.length !== ref.bytes || sha256(bytes) !== ref.sha256)
-        throw Error('Private archive byte verification failed');
-      return bytes;
-    });
+    const readDeadline = Math.min(deadline, now() + timeout(ref?.bytes));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // Policy failures are terminal; only the complete byte read may be retried.
+      await withinDeadline(readDeadline, () => target(ref));
+      try {
+        return await observe('read', ref, async () => {
+          const bytes = await withinDeadline(readDeadline, () =>
+            read(sdk, ref.fileID, {
+              maxBytes: ref.bytes,
+              timeoutMs: remaining(readDeadline),
+            }),
+          );
+          if (!Buffer.isBuffer(bytes) || bytes.length !== ref.bytes || sha256(bytes) !== ref.sha256)
+            throw Error('Private archive byte verification failed');
+          return bytes;
+        });
+      } catch (error) {
+        if (attempt === 1 || !transientArchiveError(error)) throw error;
+        remaining(readDeadline);
+      }
+    }
+    throw Error('Private archive read attempts exhausted');
   };
   return {
     get,
@@ -166,7 +176,7 @@ export function createPrivateArchive({
         } catch (readError) {
           if (
             bytes.length <= 8 * 1024 * 1024 ||
-            !transientArchiveUpload(uploadError) ||
+            !transientArchiveError(uploadError) ||
             readError?.code !== 'ARCHIVE_OBJECT_NOT_FOUND'
           )
             throw Error('Private archive upload needs readback; website was not changed');
@@ -195,7 +205,7 @@ export function createPrivateArchive({
   };
 }
 
-function transientArchiveUpload(error) {
+function transientArchiveError(error) {
   // A successful response header does not prove its body arrived: request 2.88.2
   // can still report ESOCKETTIMEDOUT with statusCode 200. Redirects and client
   // errors remain terminal, even when accompanied by a network code.

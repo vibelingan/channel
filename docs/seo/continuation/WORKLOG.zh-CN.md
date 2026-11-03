@@ -685,3 +685,11 @@ UTC17:27:42根会话独立读回：旧writing占用已为0，恢复progress.next
 仅补renew的精确恢复分支：DATABASE_TRANSACTION_FAIL + awaiting-sdk-transaction，且同操作读回明确absent，才允许原operationId/inputHash/guard/request再发一次；第二次回执丢失只再读一次，不能第三次写。renew参数在发送前复制，防止调用方改guard。旧实现两条红例已复现；新增8条正反例，根会话独立审查并运行44项通过，Biome与diff检查通过。没有修改其他写操作或恢复校验规则。
 
 旧renew回执两次管理读取都明确不存在；原GitHub任务已结束超过两分钟、45秒函数执行期限已过，身份FunctionId=lam-5c677m6h、Event、固定环境、无触发器/层均核对；旧HTTP绑定0、新网关13域完整清单无该函数、空调用在DB前拒绝。只删除seo-release-region-41605342554-1，完整7/7清单确认本轮两个worker都不存在；补充证据在外盘catalog-A2-41605342554/manual-cleanup.json，原artifact未改。没有手改DB清锁，后续仍须既有recoverCatalogPreparation用新鲜proof/版本/fence确认后清过期锁。清理后商品完整清单hash未变，抽查HTML/API、sitemap、404与两篇公开Blog正文/图片/时间/版本核对通过，网站仍B1。
+
+### 2026-11-03：A2 的第二次归档读取中断
+
+59aac44a 三项远端检查全部通过后，执行 A2 41611077367。旧过期锁由正常恢复入口处理；17 次续期全部完成。82,805,746 字节候选包的首次上传在约77秒后超时，确认对象不存在后续传约184秒成功，完整读回约18秒成功。site-retention 随后再次读取同一包，用于解压和核对清单，约11秒遇 ECONNRESET；现有日志不能区分是 HEAD 还是分片正文中断。网页交付尚未开始，没有 siteRun，业务写入为0。根会话独立核对目标 version4022 的 currentRunId/dirtyRunId/lease/unresolvedOperation 均 null，完整函数清单7/7，两临时函数已清理。网站仍是已验收的 B1，不能把本轮写成恢复通过。
+
+复查 private-archive.mjs、cos-archive-transfer.mjs、site-retention.mjs，以及已安装 COS 2.15.4 的 downloadFile 源码：RetryTimes 是尝试总数，现有值1不提供额外尝试，也不覆盖前后 HEAD。仅在私有归档 get 层补一次完整读取重试；两次共享原总时限，每次重新核对权限和生命周期，403/404、未知错误、长度或 SHA-256 不符立即失败。保留解压和清单核对，不缓存旧读取结果、不增大超时、不改 SDK 方法或并发。旧实现红例已复现；相关55项通过，根会话独立运行其中48项通过，脚本类型、指定文件Biome、SDK契约和diff检查通过。
+
+表达核对读取 humanizer/SKILL.md 与 plain-technical-writing.md；将“恢复已完成”明确为“归档上传与续期已通过，正式网页切换尚未完成”，核对依据为本轮实际日志、小型证据及上述现场读回。尚需这版远端检查、A2/B2真实切换和内容保持验收；不新增报告文档。

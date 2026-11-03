@@ -618,3 +618,206 @@ test('successful continuation readback is still bounded and verifies every byte'
     assert.equal(finalReadBudget, 120000);
   }
 });
+
+test('an interrupted archive read retries once with fresh policy checks and safe per-attempt diagnostics', async () => {
+  const x = setup();
+  const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.from('verified bytes'));
+  const events = [];
+  const read = x.read;
+  let reads = 0;
+  let lifecycleChecks = 0;
+  x.calls.length = 0;
+  x.readLifecycle = async () => {
+    lifecycleChecks++;
+    return { Rules: [] };
+  };
+  x.read = async (...args) => {
+    reads++;
+    if (reads === 1)
+      throw Object.assign(Error('https://private.example/?signature=NEVER_LOG_THIS'), {
+        code: 'ECONNRESET',
+      });
+    return read(...args);
+  };
+  const bytes = await createPrivateArchive({
+    ...x,
+    policy,
+    onTransfer: (event) => events.push(event),
+  }).get(ref);
+  assert.equal(bytes.toString(), 'verified bytes');
+  assert.equal(reads, 2);
+  assert.equal(x.calls.filter((call) => call[0] === 'permission').length, 2);
+  assert.equal(lifecycleChecks, 2);
+  assert.deepEqual(
+    events.map((event) => [event.action, event.outcome, event.cause]),
+    [
+      ['read', 'unconfirmed', 'ECONNRESET'],
+      ['read', 'complete', undefined],
+    ],
+  );
+  assert.doesNotMatch(JSON.stringify(events), /signature|NEVER_LOG_THIS|private\.example/);
+});
+
+test('transient network and server read failures stop after two complete attempts', async () => {
+  for (const fault of [{ code: 'ECONNRESET' }, { statusCode: 503 }]) {
+    const x = setup();
+    const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.from('bytes'));
+    let reads = 0;
+    x.read = async () => {
+      reads++;
+      throw Object.assign(Error('PRIVATE_READ_ERROR'), fault);
+    };
+    await assert.rejects(createPrivateArchive({ ...x, policy }).get(ref));
+    assert.equal(reads, 2);
+  }
+});
+
+test('client errors, unknown failures and byte mismatches never retry an archive read', async () => {
+  for (const fault of [
+    { statusCode: 403, code: 'ECONNRESET' },
+    { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' },
+    { statusCode: 429 },
+    {},
+    { code: 'ARCHIVE_SOURCE_CHANGED' },
+    'not-buffer',
+    'length',
+    'hash',
+  ]) {
+    const x = setup();
+    const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.from('bytes'));
+    let reads = 0;
+    x.read = async () => {
+      reads++;
+      if (fault === 'not-buffer') return 'bytes';
+      if (fault === 'length') return Buffer.from('shorter');
+      if (fault === 'hash') return Buffer.from('other');
+      throw Object.assign(Error('PRIVATE_READ_ERROR'), fault);
+    };
+    await assert.rejects(createPrivateArchive({ ...x, policy }).get(ref));
+    assert.equal(reads, 1, JSON.stringify(fault));
+  }
+});
+
+test('initial and changed ACL or lifecycle failures never enter another network read', async () => {
+  for (const failure of ['acl-network', 'lifecycle-network', 'changed-acl', 'changed-lifecycle']) {
+    const x = setup();
+    const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.from('bytes'));
+    let reads = 0;
+    let permissions = 0;
+    const permission = x.manager.permission.describeResourcePermission;
+    x.manager.permission.describeResourcePermission = async (input) => {
+      permissions++;
+      if (failure === 'acl-network')
+        throw Object.assign(Error('PRIVATE_POLICY_ERROR'), { code: 'ECONNRESET' });
+      const result = await permission(input);
+      if (failure === 'changed-acl' && reads === 1)
+        result.Data.PermissionList[0].Permission = 'PUBLICREAD';
+      return result;
+    };
+    x.readLifecycle = async () => {
+      if (failure === 'lifecycle-network')
+        throw Object.assign(Error('PRIVATE_POLICY_ERROR'), { code: 'ECONNRESET' });
+      return {
+        Rules:
+          failure === 'changed-lifecycle' && reads === 1
+            ? [{ Status: 'Enabled', Prefix: 'seo-recovery/', Expiration: { Days: 1 } }]
+            : [],
+      };
+    };
+    x.read = async () => {
+      reads++;
+      throw Object.assign(Error('PRIVATE_READ_ERROR'), { code: 'ECONNRESET' });
+    };
+    await assert.rejects(createPrivateArchive({ ...x, policy }).get(ref));
+    const changed = failure.startsWith('changed-');
+    assert.equal(reads, changed ? 1 : 0, failure);
+    assert.equal(permissions, changed ? 2 : 1, failure);
+  }
+});
+
+test('both read attempts share one size budget including repeated policy checks', async () => {
+  for (const size of [5, 9 * 1024 * 1024]) {
+    const x = setup();
+    const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.alloc(size));
+    let clock = 0;
+    const budgets = [];
+    const permission = x.manager.permission.describeResourcePermission;
+    x.manager.permission.describeResourcePermission = async (input) => {
+      clock += 1000;
+      return permission(input);
+    };
+    x.readLifecycle = async () => {
+      clock += 1000;
+      return { Rules: [] };
+    };
+    x.read = async (_sdk, id, options) => {
+      budgets.push(options.timeoutMs);
+      if (budgets.length === 1) {
+        clock += 10000;
+        throw Object.assign(Error('reset'), { code: 'ECONNRESET' });
+      }
+      return Buffer.from(x.objects.get(id));
+    };
+    assert.equal(
+      (await createPrivateArchive({ ...x, policy, now: () => clock }).get(ref)).length,
+      size,
+    );
+    assert.deepEqual(budgets, size === 5 ? [58000, 46000] : [298000, 286000]);
+  }
+});
+
+test('an exhausted initial or retry read deadline cannot issue another GET', async () => {
+  for (const exhaustedBeforeRead of [true, false]) {
+    const x = setup();
+    const ref = await createPrivateArchive({ ...x, policy }).put(Buffer.from('bytes'));
+    let clock = 0;
+    let reads = 0;
+    x.read = async () => {
+      reads++;
+      clock = 60000;
+      throw Object.assign(Error('reset'), { code: 'ECONNRESET' });
+    };
+    await assert.rejects(
+      createPrivateArchive({ ...x, policy, now: () => clock }).get(
+        ref,
+        exhaustedBeforeRead ? 0 : undefined,
+      ),
+      { code: 'ETIMEDOUT' },
+    );
+    assert.equal(reads, exhaustedBeforeRead ? 0 : 1);
+  }
+});
+
+test('read retries during upload continuation cannot extend its original deadline', async () => {
+  for (const exhausted of [false, true]) {
+    const x = setup();
+    let clock = 0;
+    let writes = 0;
+    let presentReads = 0;
+    const budgets = [];
+    const send = x.put;
+    x.put = async (...args) => {
+      if (++writes === 1) throw Object.assign(Error('reset'), { code: 'ECONNRESET' });
+      clock = 240000;
+      return send(...args);
+    };
+    x.read = async (_sdk, id, options) => {
+      budgets.push(options.timeoutMs);
+      if (!x.objects.has(id))
+        throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND', statusCode: 404 });
+      if (++presentReads === 1) {
+        clock = exhausted ? 300001 : 290000;
+        throw Object.assign(Error('reset'), { code: 'ECONNRESET' });
+      }
+      return Buffer.from(x.objects.get(id));
+    };
+    const attempt = createPrivateArchive({ ...x, policy, now: () => clock }).put(
+      Buffer.alloc(9 * 1024 * 1024),
+    );
+    if (exhausted) await assert.rejects(attempt, /needs readback/);
+    else assert.equal((await attempt).bytes, 9 * 1024 * 1024);
+    assert.equal(writes, 2);
+    assert.deepEqual(budgets, exhausted ? [300000, 60000] : [300000, 60000, 10000]);
+    assert.equal(presentReads, exhausted ? 1 : 2);
+  }
+});
