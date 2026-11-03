@@ -1,9 +1,9 @@
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
-import type { SourceGrantStore } from './source-grants.ts';
 import {
-  normalizeSalesSdkDocument,
   assertSalesSdkWrite,
+  normalizeSalesSdkDocument,
 } from '@vibelingan-channel/db/sales-inquiry-read';
+import type { SourceGrantStore } from './source-grants.ts';
 
 /** node-sdk 3.17.2 runTransaction returns the callback result; doc.set is flat data. */
 export function createCloudBaseSourceGrantStore(db: NodeSdkDatabase): SourceGrantStore {

@@ -78,11 +78,14 @@ try {
       entry === 'db' ? dbCopy : join(project, 'node_modules/@vibelingan-channel', entry),
       join(target, 'node_modules/@vibelingan-channel', entry),
     );
-  const targets=[...new Set(mutants.map(mutant=>mutant.test))];
-  for(const target of targets){
-    const baseline=run(target);
-    assert.equal(baseline.status,0,baseline.stderr||baseline.stdout);
-    assert.ok(baseline.stdout.includes(`ok 1 - ${target}`),`Clean target did not run: ${target}\n${baseline.stdout}`);
+  const targets = [...new Set(mutants.map((mutant) => mutant.test))];
+  for (const target of targets) {
+    const baseline = run(target);
+    assert.equal(baseline.status, 0, baseline.stderr || baseline.stdout);
+    assert.ok(
+      baseline.stdout.includes(`ok 1 - ${target}`),
+      `Clean target did not run: ${target}\n${baseline.stdout}`,
+    );
   }
   const killed = [];
   for (const mutant of mutants) {
@@ -104,15 +107,27 @@ try {
       result.stdout.includes(`not ok 1 - ${mutant.test}`),
       `${mutant.id} did not fail the intended behavior\n${result.stdout}`,
     );
-    assert.match(result.stdout,/\bcode:\s*['"]?ERR_ASSERTION\b/,`${mutant.id} failed without an assertion\n${result.stdout}`);
-    assert.match(result.stdout,/\bactual:\s*200\b/,`${mutant.id} did not expose the intended unauthorized success\n${result.stdout}`);
-    assert.match(result.stdout,/\bexpected:\s*403\b/,`${mutant.id} did not fail the permission assertion\n${result.stdout}`);
+    assert.match(
+      result.stdout,
+      /\bcode:\s*['"]?ERR_ASSERTION\b/,
+      `${mutant.id} failed without an assertion\n${result.stdout}`,
+    );
+    assert.match(
+      result.stdout,
+      /\bactual:\s*200\b/,
+      `${mutant.id} did not expose the intended unauthorized success\n${result.stdout}`,
+    );
+    assert.match(
+      result.stdout,
+      /\bexpected:\s*403\b/,
+      `${mutant.id} did not fail the permission assertion\n${result.stdout}`,
+    );
     killed.push(mutant.id);
   }
   console.log(
     JSON.stringify({
       status: 'passed',
-      clean_targets:targets.length,
+      clean_targets: targets.length,
       killed,
       scope: 'temporary source copies; no production changes or external mail',
     }),

@@ -282,14 +282,14 @@ test('HTTP grant route permits its bounded larger body while old read route rema
       authorization: `Bearer ${'g'.repeat(48)}`,
       'content-type': 'application/json',
     };
-    const result = await fetch(origin + '/integrations/sales/source-grants', {
+    const result = await fetch(`${origin}/integrations/sales/source-grants`, {
       method: 'POST',
       headers,
       body,
     });
     assert.equal(result.status, 200);
     await result.arrayBuffer();
-    const old = await fetch(origin + '/products/query', {
+    const old = await fetch(`${origin}/products/query`, {
       method: 'POST',
       headers,
       body,
@@ -370,8 +370,8 @@ test('canonical quantity uses only unambiguous positive integers through the con
 
 test('realistic long OEM identifiers survive canonical grant creation', async () => {
   const s = await grantFixture();
-  const projectId = 'o'.repeat(32),
-    fileId = 'f'.repeat(32);
+  const projectId = 'o'.repeat(32);
+  const fileId = 'f'.repeat(32);
   const oem = { ...s.oem, _id: projectId, drawing: fileId };
   s.store.rows.set(`oemProjects/${projectId}`, oem);
   s.store.rows.set(`files/${fileId}`, {

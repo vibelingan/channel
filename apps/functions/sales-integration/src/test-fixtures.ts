@@ -1,17 +1,17 @@
-import {
-  hashCanonicalJson,
-  validateContract,
-  type TaskReadLease,
-  type SourceHandoff,
-  type TaskAuthority,
-  type TaskReadRequest,
-} from '@vibelingan-channel/sales-contracts';
-import { issueTaskPermit, TaskAccessDenied } from '@vibelingan-channel/sales-contracts/task-access';
-import { readInquiry } from './sources.ts';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import {
+  type SourceHandoff,
+  type TaskAuthority,
+  type TaskReadLease,
+  type TaskReadRequest,
+  hashCanonicalJson,
+  validateContract,
+} from '@vibelingan-channel/sales-contracts';
+import { TaskAccessDenied, issueTaskPermit } from '@vibelingan-channel/sales-contracts/task-access';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { type SalesRequest, type SalesDependencies, createSalesHandler } from './handler.ts';
+import { type SalesDependencies, type SalesRequest, createSalesHandler } from './handler.ts';
+import { readInquiry } from './sources.ts';
 
 export async function setup() {
   const registry = JSON.parse(

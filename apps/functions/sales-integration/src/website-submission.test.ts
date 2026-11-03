@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createWebsiteFixture } from './website-test-fixtures.ts';
-import { handleAdminRequest } from '../../admin/src/handler.ts';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
   createInitialSourceDelivery,
   registrationKey,
 } from '@vibelingan-channel/db/sales-inquiry-submission';
+import { handleAdminRequest } from '../../admin/src/handler.ts';
+import { createWebsiteFixture } from './website-test-fixtures.ts';
 const fields = {
   company: 'Buyer',
   contact: 'Alex',
@@ -276,8 +276,8 @@ test('a concurrent upload loser cannot prevent the verified winner from completi
   const row = s.rows.get(`files/${value.fileId}`);
   assert.ok(row);
   s.objects.set(String(row.storageFileId), bytes);
-  let announce = () => {},
-    release = () => {};
+  let announce = () => {};
+  let release = () => {};
   const entered = new Promise<void>((resolve) => {
     announce = resolve;
   });

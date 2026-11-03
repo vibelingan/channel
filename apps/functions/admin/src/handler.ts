@@ -55,8 +55,8 @@ import {
   releaseImageMutation,
   remove,
   saveCatalogProductWithIdentities,
-  unfinishedApprovalUsingImage,
   saveFinalizedSalesOemSubmission,
+  unfinishedApprovalUsingImage,
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
@@ -144,6 +144,7 @@ import {
 import { CATALOG_PRODUCT_OPERATION_INPUT_MAX_BYTES } from '@vibelingan-channel/shared/catalog-product-operation';
 import { manageAdminCatalogProductOperation } from './catalog-product-operation.ts';
 
+import type { SalesCaptureScope } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { ADMIN_PRODUCT_LIST_VIEW } from '@vibelingan-channel/shared/admin-product-list';
 import { CatalogPriceSummarySchema } from '@vibelingan-channel/shared/catalog-detail';
 import {
@@ -157,7 +158,6 @@ import { z } from 'zod';
 import { executeArticleMediaRequest } from './article-media.ts';
 import { readArticleQueueStatusRequest } from './article-queue-status.ts';
 import { approveInOneRequest } from './catalog-approve-once.ts';
-import type { SalesCaptureScope } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
 import {
   type ChangeAuditReader,
@@ -646,9 +646,9 @@ export async function handleAdminRequest(
       case 'articleQueueStatus':
         return await readArticleQueueStatusRequest(req, config);
       case 'submitProject':
-        return await submitProject(req, context,config.salesCapture);
+        return await submitProject(req, context, config.salesCapture);
       case 'createOemFileUploadIntent':
-        return await createOemFileUploadIntentAction(req, context,config.salesCapture);
+        return await createOemFileUploadIntentAction(req, context, config.salesCapture);
     }
 
     // ---- Everything below requires a valid session --------------------
@@ -1239,7 +1239,7 @@ interface OemUploadClaim {
   storageFileId: string;
   byteSize: number;
   checksumSha256: string;
-  mimeType:string;
+  mimeType: string;
 }
 
 /**

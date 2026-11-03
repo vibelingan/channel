@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { hashCanonicalJson } from '@vibelingan-channel/sales-contracts';
 import { registrationKey } from '@vibelingan-channel/db/sales-inquiry-submission';
-import { createWebsiteFixture } from './website-test-fixtures.ts';
+import { hashCanonicalJson } from '@vibelingan-channel/sales-contracts';
 import { createWebsiteDeliveryFixture } from './delivery-fixtures.ts';
 import type { IntakeReceipt } from './inquiry-sender.ts';
+import { createWebsiteFixture } from './website-test-fixtures.ts';
 
 const receipt: IntakeReceipt = { task_id: 1, run_id: 'a'.repeat(32), state: 'queued' };
 async function prepared() {

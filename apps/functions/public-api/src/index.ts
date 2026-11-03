@@ -7,10 +7,10 @@ import { setAdapter } from '@vibelingan-channel/db';
  */
 import { createCloudBasePublicArticles } from '@vibelingan-channel/db/article-public-reader';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
-import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import {
   type PublicHttpConfig,
   handlePublicApiEvent,

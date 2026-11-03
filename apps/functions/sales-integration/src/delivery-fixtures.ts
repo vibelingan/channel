@@ -1,6 +1,6 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
-import { createDeliveryStore, type DeliveryDatabase } from './delivery-store.ts';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type DeliveryDatabase, createDeliveryStore } from './delivery-store.ts';
 import { HttpInquirySender, type InquirySender } from './inquiry-sender.ts';
 import { WebsiteDelivery } from './website-delivery.ts';
 import type { createWebsiteFixture } from './website-test-fixtures.ts';
@@ -31,7 +31,7 @@ export function fixtureDeliveryDatabase(
           },
           get: async () => {
             const data = [...rows]
-              .filter(([key]) => key.startsWith(name + '/'))
+              .filter(([key]) => key.startsWith(`${name}/`))
               .map(([, row]) => row)
               .filter((row) =>
                 Object.entries(filters).every(([field, expected]) => {

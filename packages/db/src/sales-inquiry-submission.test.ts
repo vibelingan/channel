@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  planSalesSubmission,
-  registrationKey,
   SourceRegistrationSchema,
   createInitialSourceDelivery,
+  planSalesSubmission,
+  registrationKey,
 } from './sales-inquiry-submission.ts';
 
 const scope = {

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createRequire } from 'node:module';
-import { createDeliveryStore, type DeliveryDatabase } from './delivery-store.ts';
+import { test } from 'node:test';
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
+import { type DeliveryDatabase, createDeliveryStore } from './delivery-store.ts';
 
 const owner = {
   client_id: 'client_a',

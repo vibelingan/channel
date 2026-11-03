@@ -5,18 +5,18 @@ import {
   SalesAccessController,
   SalesAccessDenied,
 } from '@vibelingan-channel/sales-contracts/access';
+import { TaskAccessDenied } from '@vibelingan-channel/sales-contracts/task-access';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
-import { SalesTaskGate, type TaskGateDependencies } from './task-gate.ts';
-import { TaskAccessDenied } from '@vibelingan-channel/sales-contracts/task-access';
-import { SalesSourceError, readAsset, readInquiry, recordId } from './sources.ts';
-import {
-  issueSourceGrant,
-  SourceGrantError,
-  sourceGrantTokenMatches,
-  type SourceGrantDependencies,
-} from './source-grants.ts';
 import { salesBodyLimit, salesPath } from './source-grant-route.ts';
+import {
+  type SourceGrantDependencies,
+  SourceGrantError,
+  issueSourceGrant,
+  sourceGrantTokenMatches,
+} from './source-grants.ts';
+import { SalesSourceError, readAsset, readInquiry, recordId } from './sources.ts';
+import { SalesTaskGate, type TaskGateDependencies } from './task-gate.ts';
 
 export interface SalesRequest {
   method: string;
@@ -149,7 +149,10 @@ export function createSalesHandler(dependencies: SalesDependencies) {
       if (url.search) return response(400, { code: 'INVALID_REQUEST' });
       const path = salesPath(request.url);
       if (path === null) return response(404, { code: 'NOT_FOUND' });
-      if (path === '/assistant-inquiries') return dependencies.assistantIntake ? dependencies.assistantIntake(request) : response(404, { code: 'NOT_FOUND' });
+      if (path === '/assistant-inquiries')
+        return dependencies.assistantIntake
+          ? dependencies.assistantIntake(request)
+          : response(404, { code: 'NOT_FOUND' });
       if (path === '/source-grants') {
         const config = dependencies.sourceGrants;
         if (!config?.enabled) return response(404, { code: 'NOT_FOUND' });

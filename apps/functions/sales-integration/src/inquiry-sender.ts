@@ -1,10 +1,10 @@
 import * as http from 'node:http';
 import * as https from 'node:https';
 import {
+  type InquirySubmitted,
   hashCanonicalJson,
   parseStrictJson,
   validateContract,
-  type InquirySubmitted,
 } from '@vibelingan-channel/sales-contracts';
 
 export interface IntakeReceipt {

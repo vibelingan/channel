@@ -112,6 +112,17 @@ import {
 } from '@vibelingan-channel/db/catalog-row-mutation';
 import { planSourceInvalidation } from '@vibelingan-channel/db/catalog-source-invalidation';
 import { runCategoryCommand } from '@vibelingan-channel/db/category-transaction';
+import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
+import {
+  type FinalizedSalesOemInput,
+  type SalesCaptureScope,
+  assertSalesInstallation,
+  createInitialSourceDelivery,
+  parseSalesCaptureScope,
+  planSalesSubmission,
+  registrationKey,
+  saveFinalizedOemInCloud,
+} from '@vibelingan-channel/db/sales-inquiry-submission';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
 import {
   type CollectionDoc,
@@ -126,8 +137,6 @@ import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-de
 import type { InquiryResult } from '@vibelingan-channel/shared/catalog-inquiry';
 import { CatalogQuoteSubmissionSchema } from '@vibelingan-channel/shared/catalog-quote';
 import { createLocalArticleRepository } from './article-repository.ts';
-import { assertSalesInstallation, planSalesSubmission, registrationKey, saveFinalizedOemInCloud, createInitialSourceDelivery, parseSalesCaptureScope, type FinalizedSalesOemInput, type SalesCaptureScope } from '@vibelingan-channel/db/sales-inquiry-submission';
-import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
 import { processCatalogInquiry } from './catalog-inquiry-store.ts';
 
 type Store = Record<string, CollectionDoc[]>;

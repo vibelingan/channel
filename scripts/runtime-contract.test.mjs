@@ -142,11 +142,13 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   });
   assert.deepEqual(injectedModes, ['static', 'server']);
   articleMode = 'typo';
-  assert.throws(() => runInNewContext(compiled, {
-        exports: {},
-        process: { env: {} },
-        require: (name) => modules[name],
-      }));
+  assert.throws(() =>
+    runInNewContext(compiled, {
+      exports: {},
+      process: { env: {} },
+      require: (name) => modules[name],
+    }),
+  );
   assert.deepEqual(injectedModes, ['static', 'server']);
 });
 const scriptTrees = [

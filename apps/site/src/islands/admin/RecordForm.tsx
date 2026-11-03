@@ -1,4 +1,3 @@
-import { AssistantInquirySummary } from './AssistantInquirySummary';
 import { useQuery } from '@tanstack/react-query';
 import {
   type CollectionDef,
@@ -23,6 +22,7 @@ import {
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { AlibabaPhotoPicker, type AlibabaPhotoSource } from './AlibabaPhotoPicker.tsx';
+import { AssistantInquirySummary } from './AssistantInquirySummary';
 import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';

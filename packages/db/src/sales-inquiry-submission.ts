@@ -1,17 +1,17 @@
-import { z } from 'zod';
 import {
+  type InquirySubmitted,
   hashCanonicalJson,
   validateContract,
-  type InquirySubmitted,
 } from '@vibelingan-channel/sales-contracts';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { z } from 'zod';
+import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
+import { assertSalesSdkWrite, normalizeSalesSdkDocument } from './sales-inquiry-read.ts';
 import {
+  type SalesSourceScope,
   canonicalInquiryEvent,
   readSalesInquiry,
-  type SalesSourceScope,
 } from './sales-inquiry-source.ts';
-import { assertSalesSdkWrite, normalizeSalesSdkDocument } from './sales-inquiry-read.ts';
-import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/);
 const seconds = z.number().int().nonnegative().safe();
 export const SalesCaptureScopeSchema = z

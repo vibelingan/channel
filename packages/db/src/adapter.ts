@@ -586,8 +586,14 @@ export interface DbAdapter {
     actorId: string,
     input: unknown,
   ): Promise<import('./catalog-detail-commit.ts').CatalogApprovalResult>;
-  submitCatalogQuote?(input: unknown, capture?:import('./sales-inquiry-submission.ts').SalesCaptureScope): Promise<import('./catalog-quote.ts').QuoteSaveResult>;
-  saveFinalizedSalesOemSubmission?(input:import('./sales-inquiry-submission.ts').FinalizedSalesOemInput,scope:import('./sales-inquiry-submission.ts').SalesCaptureScope):Promise<CollectionDoc>;
+  submitCatalogQuote?(
+    input: unknown,
+    capture?: import('./sales-inquiry-submission.ts').SalesCaptureScope,
+  ): Promise<import('./catalog-quote.ts').QuoteSaveResult>;
+  saveFinalizedSalesOemSubmission?(
+    input: import('./sales-inquiry-submission.ts').FinalizedSalesOemInput,
+    scope: import('./sales-inquiry-submission.ts').SalesCaptureScope,
+  ): Promise<CollectionDoc>;
   manageCatalogInquiry?(
     actorId: string,
     input: unknown,

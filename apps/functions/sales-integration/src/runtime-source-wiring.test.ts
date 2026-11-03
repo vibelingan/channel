@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { issueTaskPermit } from '@vibelingan-channel/sales-contracts/task-access';
 import { validateContract } from '@vibelingan-channel/sales-contracts';
+import { issueTaskPermit } from '@vibelingan-channel/sales-contracts/task-access';
 import { createSalesRuntime } from './index.ts';
-import { issueSourceGrant } from './source-grants.ts';
-import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
 import { grantFixture } from './source-grant-fixtures.ts';
+import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
+import { issueSourceGrant } from './source-grants.ts';
 import { createWebsiteFixture } from './website-test-fixtures.ts';
 
 test('actual createSalesRuntime reads an unregistered private product inquiry through its SDK port', async () => {
@@ -96,10 +96,10 @@ test('actual createSalesRuntime reads an unregistered private product inquiry th
   const previous = new Map(Object.keys(environment).map((key) => [key, process.env[key]]));
   try {
     Object.assign(process.env, environment);
-    Request.prototype.send = async function (
+    Request.prototype.send = async (
       name: string,
       param: { collectionName: string; query: string },
-    ) {
+    ) => {
       assert.equal(name, 'database.getDocument');
       const id = JSON.parse(param.query)._id;
       const key = `${param.collectionName}/${id}`;
@@ -144,8 +144,11 @@ test('actual createSalesRuntime reads an unregistered private product inquiry th
     assert.ok(calls.includes(`catalogQuoteRequests/${registration.source.id}`));
   } finally {
     Request.prototype.send = original;
-    for (const [key, value] of previous)
-      value === undefined ? delete process.env[key] : (process.env[key] = value);
+    for (const [key, value] of previous) {
+      // biome-ignore lint/performance/noDelete: an unset variable must be absent, not "undefined"
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

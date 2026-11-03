@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import test from 'node:test';
 import { issueTaskPermit } from '@vibelingan-channel/sales-contracts/task-access';
 import { createPermitClient } from './permit-client.ts';
@@ -135,7 +135,7 @@ test('configured control deadline handles a slow reply but still rejects an expi
     const address = server.address();
     assert.ok(address && typeof address !== 'string');
     const endpoint = `http://127.0.0.1:${address.port}/sales/authorize-read`;
-    for (const timeout of [NaN, Infinity, 0, 99, 10001, 1.5])
+    for (const timeout of [Number.NaN, Number.POSITIVE_INFINITY, 0, 99, 10001, 1.5])
       assert.throws(() => createPermitClient(endpoint, token, 'test', timeout));
     await assert.rejects(createPermitClient(endpoint, token, 'test', 100)(f.request), {
       message: 'Sales control unavailable',

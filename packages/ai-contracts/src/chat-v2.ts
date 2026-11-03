@@ -153,4 +153,3 @@ export function isConversationSnapshotV2(value: unknown): value is ConversationS
     )
   );
 }
-

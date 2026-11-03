@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { setAdapter, type DbAdapter } from '@vibelingan-channel/db';
+import { type DbAdapter, setAdapter } from '@vibelingan-channel/db';
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
-import { saveQuoteInCloud } from '../../../../packages/db/src/catalog-inquiry-cloud.ts';
 import {
+  type SalesCaptureScope,
   saveFinalizedOemInCloud,
   validateSourceRegistration,
-  type SalesCaptureScope,
 } from '@vibelingan-channel/db/sales-inquiry-submission';
+import { type MediaStorageAdapter, setMediaStorage } from '@vibelingan-channel/media-storage';
 import { type CollectionDoc, compareBySort, matchesFilter } from '@vibelingan-channel/shared';
-import { setMediaStorage, type MediaStorageAdapter } from '@vibelingan-channel/media-storage';
-import { handleAdminRequest, type AdminConfig } from '../../admin/src/handler.ts';
+import { saveQuoteInCloud } from '../../../../packages/db/src/catalog-inquiry-cloud.ts';
+import { type AdminConfig, handleAdminRequest } from '../../admin/src/handler.ts';
 import { handleQuoteEvent } from '../../public-api/src/catalog-quote-http.ts';
 
 /** Synthetic transactional documents; real producer functions use this mechanical SDK port. */
@@ -119,15 +119,16 @@ export function createWebsiteFixture() {
     findByField: async (collection, field, value) =>
       structuredClone(
         [...rows].find(
-          ([key, row]) => key.startsWith(collection + '/') && row[field] === value,
+          ([key, row]) => key.startsWith(`${collection}/`) && row[field] === value,
         )?.[1] ?? null,
       ),
     list: async (query) => {
       let items = [...rows]
-        .filter(([key]) => key.startsWith(query.collection + '/'))
+        .filter(([key]) => key.startsWith(`${query.collection}/`))
         .map(([, row]) => structuredClone(row));
-      if (query.filter) items = items.filter((row) => matchesFilter(row, query.filter!));
-      if (query.sort) items.sort((a, b) => compareBySort(a, b, query.sort!));
+      const { filter, sort } = query;
+      if (filter) items = items.filter((row) => matchesFilter(row, filter));
+      if (sort) items.sort((a, b) => compareBySort(a, b, sort));
       return {
         items: items.slice((query.page - 1) * query.pageSize, query.page * query.pageSize),
         total: items.length,

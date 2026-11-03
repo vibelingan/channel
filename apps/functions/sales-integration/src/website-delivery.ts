@@ -1,23 +1,23 @@
 import { randomBytes } from 'node:crypto';
-import { z } from 'zod';
-import { hashCanonicalJson, validateContract } from '@vibelingan-channel/sales-contracts';
-import {
-  SalesAccessController,
-  type AccessScope,
-} from '@vibelingan-channel/sales-contracts/access';
-import {
-  SourceRegistrationSchema,
-  registrationKey,
-  type SalesCaptureScope,
-  type SourceRegistration,
-} from '@vibelingan-channel/db/sales-inquiry-submission';
 import {
   canonicalInquiryEvent,
   readSalesInquiry,
 } from '@vibelingan-channel/db/sales-inquiry-source';
+import {
+  type SalesCaptureScope,
+  type SourceRegistration,
+  SourceRegistrationSchema,
+  registrationKey,
+} from '@vibelingan-channel/db/sales-inquiry-submission';
+import { hashCanonicalJson, validateContract } from '@vibelingan-channel/sales-contracts';
+import {
+  type AccessScope,
+  SalesAccessController,
+} from '@vibelingan-channel/sales-contracts/access';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { InquiryStatusSchema, isTerminalInquiry } from '@vibelingan-channel/shared/catalog-inquiry';
-import { parseIntakeReceipt, type IntakeReceipt, type InquirySender } from './inquiry-sender.ts';
+import { z } from 'zod';
+import { type InquirySender, type IntakeReceipt, parseIntakeReceipt } from './inquiry-sender.ts';
 
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);

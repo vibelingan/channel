@@ -5,7 +5,9 @@ import { setup } from './test-fixtures.ts';
 test('a service credential without task authorization cannot read private inquiries', async () => {
   const s = await setup();
   const request = s.request();
+  // biome-ignore lint/performance/noDelete: the test needs the key absent, not undefined
   delete request.headers['x-sales-task'];
+  // biome-ignore lint/performance/noDelete: the test needs the key absent, not undefined
   delete request.headers['x-sales-lease'];
   assert.equal((await s.handler(request)).status, 403);
   assert.deepEqual(s.calls, []);
@@ -14,8 +16,11 @@ test('a service credential without task authorization cannot read private inquir
 test('legacy inquiry without explicit ownership is not implicitly this installation', async () => {
   const s = await setup();
   const row: { _id: string; [key: string]: unknown } = { ...s.oem };
+  // biome-ignore lint/performance/noDelete: the test needs the key absent, not undefined
   delete row.client_id;
+  // biome-ignore lint/performance/noDelete: the test needs the key absent, not undefined
   delete row.business_line;
+  // biome-ignore lint/performance/noDelete: the test needs the key absent, not undefined
   delete row.source_installation_id;
   s.rows.set('oemProjects/oem_a', row);
   assert.equal((await s.handler(s.request())).status, 404);

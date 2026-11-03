@@ -1,17 +1,17 @@
-import { createAssistantIntake } from './assistant-intake.ts';
-import { createAssistantInquiryStore } from '@vibelingan-channel/db/assistant-inquiry';
-import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
-import { createPermitClient } from './permit-client.ts';
 import { setAdapter } from '@vibelingan-channel/db';
+import { createAssistantInquiryStore } from '@vibelingan-channel/db/assistant-inquiry';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { readSalesSourceRecord } from '@vibelingan-channel/db/sales-inquiry-read';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
+import { resolveSalesCredential } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { getProductDetail } from '../../public-api/src/catalog-detail.ts';
+import { createAssistantIntake } from './assistant-intake.ts';
 import { type SalesRequest, type SalesResponse, createSalesHandler } from './handler.ts';
+import { createPermitClient } from './permit-client.ts';
 import { readPrivateFile } from './private-file.ts';
 import { createSalesServer } from './server.ts';
 import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
-import { readSalesSourceRecord } from '@vibelingan-channel/db/sales-inquiry-read';
-import { resolveSalesCredential } from '@vibelingan-channel/db/sales-inquiry-submission';
 
 export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesResponse> {
   if (process.env.SALES_INTEGRATION_ENABLED !== '1')

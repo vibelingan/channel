@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
+import { type IncomingMessage, type ServerResponse, createServer } from 'node:http';
 import { test } from 'node:test';
-import { validateContract, type InquirySubmitted } from '@vibelingan-channel/sales-contracts';
+import { type InquirySubmitted, validateContract } from '@vibelingan-channel/sales-contracts';
 import { HttpInquirySender, sourcePayloadHash } from './inquiry-sender.ts';
 
 const event = validateContract(
@@ -110,12 +110,12 @@ test('body receipt, wrong digest, duplicate header, MIME and status errors are r
       head: headers(),
       data: body.replace('a'.repeat(32), 'g'.repeat(32)),
     },
-    { name: 'extra field', code: 202, head: headers(), data: body.slice(0, -1) + ',"extra":true}' },
+    { name: 'extra field', code: 202, head: headers(), data: `${body.slice(0, -1)},"extra":true}` },
     {
       name: 'duplicate JSON field',
       code: 202,
       head: headers(),
-      data: body.slice(0, -1) + ',"task_id":42}',
+      data: `${body.slice(0, -1)},"task_id":42}`,
     },
     { name: 'oversized valid JSON', code: 202, head: headers(), data: body + ' '.repeat(17000) },
   ];
@@ -171,9 +171,8 @@ test('proxy environment does not receive the source credential', async () => {
   });
   const names = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NODE_USE_ENV_PROXY'];
   const prior = names.map((name) => process.env[name]);
-  names.forEach((name) => {
+  for (const name of names)
     process.env[name] = name === 'NODE_USE_ENV_PROXY' ? '1' : proxy.endpoint;
-  });
   try {
     await new HttpInquirySender(target.endpoint, 's'.repeat(48), 'test').send(event);
     assert.equal(targetCalls, 1);

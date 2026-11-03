@@ -10,11 +10,11 @@ import { readArticleQueueStatus } from '@vibelingan-channel/db/article-release-s
 import { createCloudBaseArticleRepository } from '@vibelingan-channel/db/article-repository';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
 import { createCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
-import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { handleAdminRequest } from './handler.ts';
 import {
   type AdminHttpConfig,

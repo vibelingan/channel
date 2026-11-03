@@ -1,20 +1,20 @@
 import { createHash } from 'node:crypto';
 import {
+  ContractValidationError,
   hashCanonicalJson,
   parseStrictJson,
   validateContract,
-  ContractValidationError,
 } from '@vibelingan-channel/sales-contracts';
 import type { TaskReadLease, TaskReadRequest } from '@vibelingan-channel/sales-contracts';
 import type { AccessGrant } from '@vibelingan-channel/sales-contracts/access';
 import {
-  authorizeTaskRead,
   TaskAccessDenied,
+  authorizeTaskRead,
 } from '@vibelingan-channel/sales-contracts/task-access';
-import { z } from 'zod';
 import { InquiryStatusSchema, isTerminalInquiry } from '@vibelingan-channel/shared/catalog-inquiry';
+import { z } from 'zod';
 import type { SalesDependencies } from './handler.ts';
-import { readInquiry, SalesSourceError } from './sources.ts';
+import { SalesSourceError, readInquiry } from './sources.ts';
 
 export interface TaskGateDependencies {
   now(): number;

@@ -6,15 +6,15 @@ import { CONTRACT_SCHEMAS } from './schemas.generated.ts';
 import type {
   Approval,
   ClientBindings,
-  SourceHandoff,
-  TaskReadLease,
-  TaskReadRequest,
-  TaskAuthority,
-  TaskPermit,
   ControlCommand,
   InquirySubmitted,
   MailSnapshot,
   SalesRunContext,
+  SourceHandoff,
+  TaskAuthority,
+  TaskPermit,
+  TaskReadLease,
+  TaskReadRequest,
 } from './types.generated.ts';
 
 export type {

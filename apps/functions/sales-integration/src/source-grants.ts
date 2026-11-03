@@ -1,18 +1,19 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { z } from 'zod';
 import {
-  hashCanonicalJson,
-  validateContract,
+  type ContractMap,
   type InquirySubmitted,
   type SourceHandoff,
   type TaskReadLease,
+  hashCanonicalJson,
+  validateContract,
 } from '@vibelingan-channel/sales-contracts';
 import { SalesAccessController } from '@vibelingan-channel/sales-contracts/access';
-import { InquiryStatusSchema, isTerminalInquiry } from '@vibelingan-channel/shared/catalog-inquiry';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import type { SalesDependencies } from './handler.ts';
+import { InquiryStatusSchema, isTerminalInquiry } from '@vibelingan-channel/shared/catalog-inquiry';
+import { z } from 'zod';
 import { canonicalInquiryEvent } from './canonical-source-event.ts';
-import { readInquiry, SalesSourceError } from './sources.ts';
+import type { SalesDependencies } from './handler.ts';
+import { SalesSourceError, readInquiry } from './sources.ts';
 
 export type SourceGrantCollection =
   | 'oemProjects'
@@ -177,8 +178,8 @@ export async function issueSourceGrant(
   return config.store.transaction(async (tx) => {
     const now = config.now();
     if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(now + 300)) denied();
-    let registry;
-    let installation;
+    let registry: ContractMap['client-bindings'];
+    let installation: z.infer<typeof installationSchema>;
     try {
       registry = validateContract(
         'client-bindings',
@@ -265,7 +266,7 @@ export async function issueSourceGrant(
         : event.source === 'website_product'
           ? 'product'
           : denied();
-    let source;
+    let source: Awaited<ReturnType<typeof readInquiry>>['view'];
     try {
       source = (await readInquiry({ ...deps, readDoc }, kind, event.source_record_id)).view;
     } catch (error) {
@@ -338,7 +339,7 @@ export async function issueSourceGrant(
         claim.data.request_id !== request.request_id
       )
         conflict();
-      let lease;
+      let lease: TaskReadLease;
       try {
         lease = validateContract('sales-auth-lease', previousLease);
       } catch {

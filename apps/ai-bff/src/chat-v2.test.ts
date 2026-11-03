@@ -419,10 +419,7 @@ test(
       await request(c, 'messages', { message: 'And for 700?', idempotencyKey: second }),
     );
     const foreign = await conversation();
-    assert.equal(
-      (await request({ ...c, credential: foreign.credential }, 'snapshot')).status,
-      401,
-    );
+    assert.equal((await request({ ...c, credential: foreign.credential }, 'snapshot')).status, 401);
     const r = await request(c, 'snapshot');
     assert.equal(r.status, 200);
     const raw = await r.text();

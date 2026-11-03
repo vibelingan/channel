@@ -198,7 +198,7 @@ try {
     process.exitCode = 1;
   }
   await mkdir(output, { recursive: true });
-  await writeFile(join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n', {
+  await writeFile(join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`, {
     flag: 'wx',
   });
   await rm(temporary, { recursive: true, force: true });

@@ -1,12 +1,12 @@
 import {
+  type InquirySubmitted,
   hashCanonicalJson,
   validateContract,
-  type InquirySubmitted,
 } from '@vibelingan-channel/sales-contracts';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { InquiryDetailSchema } from '@vibelingan-channel/shared/catalog-inquiry';
 import { OEM_FILE_MAX_BYTES } from '@vibelingan-channel/shared/media';
 import { z } from 'zod';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
 export interface SalesSourceScope {
   client_id: string;
   business_line: string;

@@ -2,24 +2,24 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import * as cloudbase from '@cloudbase/node-sdk';
+import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 import {
-  createAssistantInquiryStore,
   AssistantInquiryConflict,
+  createAssistantInquiryStore,
 } from '@vibelingan-channel/db/assistant-inquiry';
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
 import {
-  normalizeSalesSdkDocument,
-  assertSalesSdkWrite,
   type SalesReadDatabase,
+  assertSalesSdkWrite,
+  normalizeSalesSdkDocument,
 } from '@vibelingan-channel/db/sales-inquiry-read';
 import { readSalesInquiry } from '@vibelingan-channel/db/sales-inquiry-source';
 import {
+  createInitialSourceDelivery,
   planSalesSubmission,
   registrationKey,
   validateSourceRegistration,
-  createInitialSourceDelivery,
 } from '@vibelingan-channel/db/sales-inquiry-submission';
-import type { InternalInquirySubmission } from '@vibelingan-channel/ai-contracts/inquiry';
 
 export const ACCEPTANCE_ENV = 'diversity-123-d9grnqfux221323bb';
 export const ACCEPTANCE_SCOPE = {

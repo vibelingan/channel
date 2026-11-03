@@ -13,15 +13,15 @@ import {
   quoteRequestIdentity,
 } from './catalog-quote.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
+import { assertSalesSdkWrite, normalizeSalesSdkDocument } from './sales-inquiry-read.ts';
 import {
+  type SalesCaptureScope,
   assertSalesInstallation,
+  createInitialSourceDelivery,
+  parseSalesCaptureScope,
   planSalesSubmission,
   registrationKey,
-  parseSalesCaptureScope,
-  createInitialSourceDelivery,
-  type SalesCaptureScope,
 } from './sales-inquiry-submission.ts';
-import { normalizeSalesSdkDocument, assertSalesSdkWrite } from './sales-inquiry-read.ts';
 
 export const INQUIRY_COLLECTION = 'catalogQuoteRequests';
 export const INQUIRY_LIMITS_COLLECTION = 'catalogInquiryLimits';

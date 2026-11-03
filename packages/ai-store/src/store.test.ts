@@ -998,6 +998,9 @@ test(
     assert.equal(snapshot[1]?.finalPayload?.kind, 'answer');
     assert.deepEqual(await store.getConversationSnapshot(other.id), []);
     assert.equal((await store.getConversationSnapshot(conversation.id, 1)).length, 1);
-    assert.equal((await store.getConversationSnapshot(conversation.id, 1))[0]?.operationKey, 'snap-2');
+    assert.equal(
+      (await store.getConversationSnapshot(conversation.id, 1))[0]?.operationKey,
+      'snap-2',
+    );
   },
 );

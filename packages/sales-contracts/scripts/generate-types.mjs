@@ -13,7 +13,6 @@ const kinds = [
   'sales-auth-request',
   'sales-auth-authority',
   'sales-auth-permit',
-
 ];
 const banner = '// Generated from schemas/*.schema.json. Run pnpm generate; do not edit.\n';
 const parts = [];

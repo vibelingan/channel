@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { hashCanonicalJson, validateContract } from './index.ts';
-import { authorizeTaskRead, issueTaskPermit, TaskAccessDenied } from './task-access.ts';
+import { TaskAccessDenied, authorizeTaskRead, issueTaskPermit } from './task-access.ts';
 
-const fixture = () => JSON.parse(readFileSync(new URL('../fixtures/task-access.json', import.meta.url), 'utf8'));
-const cases = JSON.parse(readFileSync(new URL('../fixtures/task-access-cases.json', import.meta.url), 'utf8'));
+const fixture = () =>
+  JSON.parse(readFileSync(new URL('../fixtures/task-access.json', import.meta.url), 'utf8'));
+const cases = JSON.parse(
+  readFileSync(new URL('../fixtures/task-access-cases.json', import.meta.url), 'utf8'),
+);
 for (const item of cases) {
   test(`task_read_${item.id}`, () => {
     const f = fixture();
@@ -23,18 +26,32 @@ test('fresh task state permits only verified current preparing run', () => {
   const f = fixture();
   assert.deepEqual(issueTaskPermit(f.request, f.authority, f.now), f.permit);
   for (const patch of [
-    { source_verified: false }, { mode: 'paused' }, { mode: 'human_owned' },
-    { work_state: 'finished' }, { run_id: 'old_run' }, { task_revision: 2 },
-    { client_id: 'client_b' }, { control_epoch: 2 }, { allowed_actions: ['product.read'] },
-    { source_verified: 1 }, { task_revision: true }, { mode: 'unknown' },
-  ]) assert.throws(() => issueTaskPermit(f.request, { ...f.authority, ...patch }, f.now), TaskAccessDenied);
+    { source_verified: false },
+    { mode: 'paused' },
+    { mode: 'human_owned' },
+    { work_state: 'finished' },
+    { run_id: 'old_run' },
+    { task_revision: 2 },
+    { client_id: 'client_b' },
+    { control_epoch: 2 },
+    { allowed_actions: ['product.read'] },
+    { source_verified: 1 },
+    { task_revision: true },
+    { mode: 'unknown' },
+  ])
+    assert.throws(
+      () => issueTaskPermit(f.request, { ...f.authority, ...patch }, f.now),
+      TaskAccessDenied,
+    );
 });
 
 test('new authorization schemas reject omitted scope, numeric task ids and unknown fields', () => {
   const f = fixture();
   for (const [kind, value] of [
-    ['sales-auth-handoff', f.handoff], ['sales-auth-lease', f.lease],
-    ['sales-auth-request', f.request], ['sales-auth-authority', f.authority],
+    ['sales-auth-handoff', f.handoff],
+    ['sales-auth-lease', f.lease],
+    ['sales-auth-request', f.request],
+    ['sales-auth-authority', f.authority],
     ['sales-auth-permit', f.permit],
   ] as const) {
     assert.deepEqual(validateContract(kind, value), value);
@@ -48,5 +65,8 @@ test('task ids cannot encode paths even when every record agrees', () => {
   f.lease.task_id = f.request.task_id = f.authority.task_id = 'task/../other_task';
   f.permit.request_sha256 = hashCanonicalJson(f.request);
   assert.throws(() => issueTaskPermit(f.request, f.authority, f.now), TaskAccessDenied);
-  assert.throws(() => authorizeTaskRead(f.lease, f.handoff, f.permit, f.request, f.now), TaskAccessDenied);
+  assert.throws(
+    () => authorizeTaskRead(f.lease, f.handoff, f.permit, f.request, f.now),
+    TaskAccessDenied,
+  );
 });

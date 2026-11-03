@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { JsonFileAdapter } from './json-adapter.ts';
 import { createWebsiteFixture } from '../../functions/sales-integration/src/website-test-fixtures.ts';
+import { JsonFileAdapter } from './json-adapter.ts';
 
 test('local file adapter persists the same source registrations across reopen and never backfills a retry', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'channel-sales-local-'));
@@ -23,9 +23,15 @@ test('local file adapter persists the same source registrations across reopen an
     const prior = fixture.quoteInput();
     assert.ok((await adapter.submitCatalogQuote(prior)).ok);
     assert.ok((await adapter.submitCatalogQuote(prior, fixture.scope)).ok);
-    const future=await adapter.submitCatalogQuote(fixture.quoteInput(),{...fixture.scope,cutover_at:Math.floor(Date.now()/1000)+3600});
+    const future = await adapter.submitCatalogQuote(fixture.quoteInput(), {
+      ...fixture.scope,
+      cutover_at: Math.floor(Date.now() / 1000) + 3600,
+    });
     assert.ok(future.ok);
-    assert.equal((await adapter.get('catalogQuoteRequests',future.requestId))?.client_id,undefined);
+    assert.equal(
+      (await adapter.get('catalogQuoteRequests', future.requestId))?.client_id,
+      undefined,
+    );
     const fresh = fixture.quoteInput();
     const product = await adapter.submitCatalogQuote(fresh, fixture.scope);
     assert.ok(product.ok);

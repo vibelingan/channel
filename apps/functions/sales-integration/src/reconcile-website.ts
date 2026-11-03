@@ -55,7 +55,7 @@ export async function reconcileWebsiteOnce(env: Record<string, string | undefine
 }
 if (require.main === module) {
   reconcileWebsiteOnce()
-    .then((result) => process.stdout.write(JSON.stringify(result) + '\n'))
+    .then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
     .catch(() => {
       process.stderr.write('Sales website reconciliation failed\n');
       process.exitCode = 1;

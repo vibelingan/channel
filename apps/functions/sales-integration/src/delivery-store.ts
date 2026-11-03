@@ -1,9 +1,9 @@
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
 import {
-  normalizeSalesSdkDocument,
   assertSalesSdkWrite,
+  normalizeSalesSdkDocument,
 } from '@vibelingan-channel/db/sales-inquiry-read';
-import type { DeliveryStore, DeliveryOwner } from './website-delivery.ts';
+import type { DeliveryOwner, DeliveryStore } from './website-delivery.ts';
 
 interface ScanQuery {
   orderBy(field: string, direction: 'asc' | 'desc'): ScanQuery;

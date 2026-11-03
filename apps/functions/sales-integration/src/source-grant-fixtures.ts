@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { canonicalInquiryEvent } from './canonical-source-event.ts';
-import { createSalesHandler, type SalesRequest } from './handler.ts';
-import { readInquiry } from './sources.ts';
+import { type SalesRequest, createSalesHandler } from './handler.ts';
 import type { SourceGrantStore, SourceGrantTransaction } from './source-grants.ts';
+import { readInquiry } from './sources.ts';
 import { setup } from './test-fixtures.ts';
 
 /** Serializable synthetic storage; never contacts CloudBase. */
