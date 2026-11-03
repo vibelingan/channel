@@ -1,0 +1,125 @@
+{
+  "model": "deepseek/deepseek-v4-pro",
+  "workspace": 2,
+  "publicIds": [
+    12
+  ],
+  "results": [
+    {
+      "q": "我们想采购500副主动降噪耳机，德国市场，做公司礼品，要印我们自己的logo。先推荐合适的产品。",
+      "durationMs": 5661,
+      "events": [
+        {
+          "type": "activity",
+          "action": "model_answer"
+        },
+        {
+          "type": "usage",
+          "usage": {
+            "inputTokens": 1184,
+            "outputTokens": 226
+          }
+        },
+        {
+          "type": "final",
+          "text": "{\n  \"kind\": \"search\",\n  \"query\": \"active noise cancelling headphones\",\n  \"fallbackQuery\": \"headphones\",\n  \"must\": [\"ANC\"],\n  \"need\": {\n    \"product\": \"主动降噪耳机\",\n    \"quantity\": \"500副\",\n    \"use\": \"公司礼品\",\n    \"destination\": \"德国市场\",\n    \"customization\": [\"印自己的logo\"],\n    \"features\": [\"主动降噪\"]\n  },\n  \"suggestions\": [\n    {\n      \"label\": \"预算范围\",\n      \"utterance\": \"我们的预算是多少比较合适？\",\n      \"kind\": \"ask\",\n      \"about\": \"budget\"\n    },\n    {\n      \"label\": \"颜色偏好\",\n      \"utterance\": \"有没有黑色或白色的款式？\",\n      \"kind\": \"refine\",\n      \"about\": \"features\"\n    },\n    {\n      \"label\": \"包装要求\",\n      \"utterance\": \"需要定制包装吗？\",\n      \"kind\": \"ask\",\n      \"about\": \"customization\"\n    }\n  ]\n}",
+          "citations": []
+        }
+      ],
+      "calls": [
+        {
+          "status": 200,
+          "usage": {
+            "prompt_tokens": 1184,
+            "completion_tokens": 226,
+            "total_tokens": 1410,
+            "prompt_tokens_details": {
+              "cached_tokens": 384
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          },
+          "finish": "stop",
+          "plan": {
+            "kind": "search",
+            "query": "active noise cancelling headphones",
+            "fallbackQuery": "headphones",
+            "must": [
+              "ANC"
+            ],
+            "need": {
+              "product": "主动降噪耳机",
+              "quantity": "500副",
+              "use": "公司礼品",
+              "destination": "德国市场",
+              "customization": [
+                "印自己的logo"
+              ],
+              "features": [
+                "主动降噪"
+              ]
+            },
+            "suggestions": [
+              {
+                "label": "预算范围",
+                "utterance": "我们的预算是多少比较合适？",
+                "kind": "ask",
+                "about": "budget"
+              },
+              {
+                "label": "颜色偏好",
+                "utterance": "有没有黑色或白色的款式？",
+                "kind": "refine",
+                "about": "features"
+              },
+              {
+                "label": "包装要求",
+                "utterance": "需要定制包装吗？",
+                "kind": "ask",
+                "about": "customization"
+              }
+            ]
+          }
+        }
+      ],
+      "state": {
+        "version": 1,
+        "product": {
+          "value": "主动降噪耳机",
+          "turn": 1,
+          "basis": "stated"
+        },
+        "quantity": {
+          "value": "500副",
+          "turn": 1,
+          "basis": "stated"
+        },
+        "use": {
+          "value": "公司礼品",
+          "turn": 1,
+          "basis": "stated"
+        },
+        "destination": {
+          "value": "德国市场",
+          "turn": 1,
+          "basis": "stated"
+        },
+        "customization": [
+          {
+            "value": "印自己的logo",
+            "turn": 1,
+            "basis": "stated"
+          }
+        ],
+        "features": [
+          {
+            "value": "主动降噪",
+            "turn": 1,
+            "basis": "stated"
+          }
+        ]
+      }
+    }
+  ]
+}
