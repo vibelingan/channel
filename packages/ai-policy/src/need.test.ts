@@ -81,6 +81,56 @@ test('a stated customization stays unless the visitor names it', () => {
   );
 });
 
+test('the visitor can cancel a whole list in their own words', () => {
+  const start = apply(
+    apply(EMPTY_NEED, { customization: ['logo'] }, 'Please add our logo', 1),
+    { customization: ['gift box'] },
+    'And a gift box',
+    2,
+  );
+  for (const said of [
+    'Cancel all customization; use standard packaging.',
+    'No customisation please, standard product',
+    "We don't need any customization anymore",
+    'Remove the custom options',
+    '不要定制了，标准包装就行',
+    '取消所有定制',
+  ]) {
+    const state = apply(start, { customization: [] }, said, 3);
+    assert.equal(state.customization, undefined, said);
+    assert.equal(state.version, start.version + 1, said);
+  }
+  const features = apply(EMPTY_NEED, { features: ['ANC'] }, 'It needs ANC', 1);
+  assert.equal(
+    apply(features, { features: [] }, 'No special features needed', 2).features,
+    undefined,
+  );
+});
+
+test('an empty list without the visitor cancelling keeps what they asked for', () => {
+  const start = apply(EMPTY_NEED, { customization: ['logo'] }, 'Please add our logo', 1);
+  for (const said of [
+    'What is the lead time?',
+    'Use standard packaging.',
+    'No rush on the samples',
+    'Cancel the order for the speakers, the customization stays',
+    '不要太贵',
+  ])
+    assert.deepEqual(
+      apply(start, { customization: [] }, said, 2).customization?.map((item) => item.value),
+      ['logo'],
+      said,
+    );
+  // Cancelling one list says nothing about the other.
+  const both = apply(start, { features: ['waterproof'] }, 'It must be waterproof', 2);
+  assert.deepEqual(
+    apply(both, { customization: [], features: [] }, 'Cancel all customization', 3).features?.map(
+      (item) => item.value,
+    ),
+    ['waterproof'],
+  );
+});
+
 test('a selected product must be one the system showed', () => {
   const shown = new Map([['hp-1', 'Studio headphones']]);
   const state = mergeNeed(EMPTY_NEED, parseNeedUpdate({ selected: ['hp-1', 'made-up'] }), {

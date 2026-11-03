@@ -11,7 +11,8 @@ import { redactContactData } from './redact.ts';
  *  - a value counts as `stated` only when the visitor's own latest message
  *    contains it; anything else is `inferred`;
  *  - an inferred value never replaces a stated one, so a model that re-reads
- *    "500" from old history cannot undo the visitor's change to 700.
+ *    "500" from old history cannot undo the visitor's change to 700. A stated
+ *    list item leaves when the latest message names it or cancels the list.
  *
  * Only these fields exist. Contact details, consent, tenant and submission
  * state are not representable here, so "writing memory" cannot change them.
@@ -159,6 +160,35 @@ export function statedIn(value: string, message: string): boolean {
 const same = (a: string, b: string) =>
   fold(a).replace(/\s+/g, ' ') === fold(b).replace(/\s+/g, ' ');
 
+const LIST_WORDS: Record<NeedList, { en: string; cjk: string }> = {
+  customization: { en: 'custom\\w*|branding|personali[sz]\\w*', cjk: '定制|订制|定做|个性化' },
+  features: { en: 'features?|functions?', cjk: '功能' },
+};
+const CANCEL =
+  "(?:cancel(?:led|ling)?|remove|drop|clear|skip|forget|no|without|do\\s*n['’]?t|does\\s*n['’]?t|do not|not)";
+const FILLER =
+  '(?:any|all|the|a|of|our|my|this|that|these|those|more|need|needs|needed|want|require|special|extra|other|further)';
+
+/**
+ * Whether one clause of the visitor's message cancels a whole list: a cancel
+ * word, at most three filler words, then the list itself ("cancel all
+ * customization", "don't need any custom options", "不要定制了").
+ */
+export function cancelsList(list: NeedList, message: string): boolean {
+  const { en, cjk } = LIST_WORDS[list];
+  const english = new RegExp(
+    `\\b${CANCEL}\\s+(?:${FILLER}\\s+){0,3}(?:${en})\\b|\\b(?:${en})\\s+(?:is\\s+|are\\s+)?(?:not needed|no longer needed|cancell?ed)\\b`,
+    'u',
+  );
+  const chinese = new RegExp(
+    `(?:取消|去掉|去除|不要|不需要|不用|无需)[所有全部的了这些任何再]{0,4}(?:${cjk})|(?:${cjk})(?:就|也)?(?:不要|不需要|不用|取消)`,
+    'u',
+  );
+  return fold(message)
+    .split(/[.;!?,\n。；！？，]/)
+    .some((clause) => english.test(clause) || chinese.test(clause));
+}
+
 /**
  * Applies one proposed update from the plan that answered `turn`.
  * `shown` is every product card shown in the turns the model saw, by id.
@@ -194,9 +224,12 @@ export function mergeNeed(
     const proposed = values.map(
       (value) => current.find((item) => same(item.value, value)) ?? fact(value),
     );
-    // A stated item leaves only when the latest message names it ("no logo").
+    // A stated item leaves only when the latest message names it ("no logo")
+    // or cancels the whole list; a bare empty list from the model does not.
+    const cancelled = values.length === 0 && cancelsList(list, input.latestVisitorText);
     for (const item of current)
       if (
+        !cancelled &&
         item.basis === 'stated' &&
         !proposed.some((p) => same(p.value, item.value)) &&
         !statedIn(item.value, input.latestVisitorText)
