@@ -577,6 +577,22 @@ export class AiStore {
     };
   }
 
+  /**
+   * The worker-only catalog cursor stored with the answer to one question in
+   * this conversation, if that answer had more products to show.
+   */
+  async getCatalogCursor(conversationId: string, operationKey: string): Promise<unknown> {
+    const result = await this.pool.query<{ cursor: unknown }>(
+      `SELECT e.payload->'catalogCursor' AS cursor
+       FROM conversation_messages m
+       JOIN conversation_events e ON e.conversation_id = m.conversation_id
+         AND e.run_id = m.answered_by_run AND e.type = 'final'
+       WHERE m.conversation_id = $1 AND m.idempotency_key = $2 AND m.role = 'visitor'`,
+      [conversationId, operationKey],
+    );
+    return result.rows[0]?.cursor ?? undefined;
+  }
+
   async getEngineHandle(runId: string): Promise<{
     operationId: string;
     engineRunId: string;

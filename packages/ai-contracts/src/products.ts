@@ -6,12 +6,30 @@ export interface PublicProductCard {
   href: string;
   imageUrl?: string;
   retrievedAt?: string;
+  /** Features the visitor asked for that this product's public facts do not show. */
+  toConfirm?: string[];
 }
-export type CatalogAction = { kind: 'search'; query: string } | { kind: 'lookup'; ids: string[] };
+/** One batch of a product search. A total is never claimed: only whether more exist. */
+export interface ProductResultSet {
+  batch: number;
+  hasMore: boolean;
+}
+export const PRODUCT_BATCH_SIZE = 5;
+export type CatalogAction =
+  | { kind: 'search'; query: string }
+  | { kind: 'lookup'; ids: string[] }
+  /** The next batch after the answer to the question with this operation key. */
+  | { kind: 'more'; after: string };
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 export function isCatalogAction(v: unknown): v is CatalogAction {
   if (!record(v)) return false;
+  if (v.kind === 'more')
+    return (
+      Object.keys(v).length === 2 &&
+      typeof v.after === 'string' &&
+      /^[a-zA-Z0-9_-]{8,128}$/.test(v.after)
+    );
   return v.kind === 'search'
     ? Object.keys(v).length === 2 &&
         typeof v.query === 'string' &&
@@ -42,7 +60,27 @@ export function isPublicProductCard(v: unknown): v is PublicProductCard {
     (v.imageUrl === undefined ||
       (typeof v.imageUrl === 'string' && /^\/api\/images\/[a-zA-Z0-9_%.-]+$/.test(v.imageUrl))) &&
     (v.retrievedAt === undefined ||
-      (typeof v.retrievedAt === 'string' && Number.isFinite(Date.parse(v.retrievedAt))))
+      (typeof v.retrievedAt === 'string' && Number.isFinite(Date.parse(v.retrievedAt)))) &&
+    (v.toConfirm === undefined || isFeatureList(v.toConfirm))
+  );
+}
+export function isFeatureList(v: unknown): v is string[] {
+  return (
+    Array.isArray(v) &&
+    v.length > 0 &&
+    v.length <= 4 &&
+    v.every((f) => typeof f === 'string' && f.trim().length > 0 && f.length <= 40)
+  );
+}
+export function isProductResultSet(v: unknown): v is ProductResultSet {
+  return (
+    record(v) &&
+    Object.keys(v).length === 2 &&
+    typeof v.batch === 'number' &&
+    Number.isSafeInteger(v.batch) &&
+    v.batch >= 1 &&
+    v.batch <= 20 &&
+    typeof v.hasMore === 'boolean'
   );
 }
 export function isProductCards(v: unknown): v is PublicProductCard[] {

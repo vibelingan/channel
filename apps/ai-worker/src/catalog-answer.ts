@@ -35,7 +35,15 @@ export async function explainCatalog(
             role: 'assistant',
             text: 'Current published catalog DATA, retrieved for the latest visitor question. Do not add or change these facts.',
             publicCatalog: {
-              products: products.map((p) => ({ id: p.id, name: p.name, summary: p.summary })),
+              // A feature the visitor needs but the public facts do not show must
+              // stay "to confirm" in the prose too, never become a claim.
+              products: products.map((p) => ({
+                id: p.id,
+                name: p.name,
+                summary: p.toConfirm
+                  ? `${p.summary} [Not shown in the public details; our team must confirm: ${p.toConfirm.join(', ')}]`
+                  : p.summary,
+              })),
               unavailableProductIds: [],
             },
           },

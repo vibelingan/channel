@@ -556,6 +556,30 @@ CloudBase 账号与环境（负责人确认）：
   - 存储被禁用时记不下来源，产品页按新对话处理。
   - 320／768px 截图和 SEO 构建核对放进 MIU 20 的整站回归。
 
+### MIU 13（2026-11-03）
+
+- **做了什么：**
+  - 搜索每次从公开目录读一页最多 20 个候选，按目录自身的稳定顺序，最多给 5 张卡。
+  - 规划器可以给出访客说的必要功能 `must`，最多四项。公开资料能证明全部功能的产品排前面，其余的卡片标出“To confirm with our team: …”，同组内不重排。
+  - ANC、ENC 和笼统的“降噪”分开判断：只写 ENC 或 noise reduction 的产品，不算有 ANC。给模型写说明文字的资料里也带着“待确认”，避免说明文字把它说成事实。
+  - 有更多结果时，最新一批下面显示 “Show more options”。点击发送 `{kind:'more', after:<那条问题的 key>}`。worker 在同一会话里找到那条回答保存的 cursor（查询、必要功能、已看过的 ID、页码），排除看过的再给下一批，不调用模型。每次最多多读一页。
+  - cursor 只存在保存的回答里。BFF 按字段重建公开内容，不转发 cursor；浏览器只能指定自己的问题，不能指定查询、页码或别人的会话。规划器也不能输出 `more`。
+- **公开形状：**
+  - 卡片多了可选的 `toConfirm`。
+  - 回答多了 `resultSet: {batch, hasMore}`。
+  - 不给总数：关键词命中数不等于“符合条件”的数量，所以只说有没有更多。
+- **和 §3.2 设计的差别：**
+  - 没有单独的 `criteriaVersion`：每个新问题本来就是一个新批次，`batch` 只在“再看几款”时递增。
+  - 排序只在当次读到的候选里进行，不保证全目录最优，§3.1 本来也没有承诺。
+  - `swiping_does_not_requery` 要等横向卡片（MIU 14）做出来再验。
+- **检查：**
+  - workflow 单元测试 15 项，包括 `hundred_matches_show_at_most_five`、`next_batch_deduplicates_seen_ids`、`unknown_total_is_not_fabricated`、`anc_is_not_inferred_from_enc`，以及“模型不能选 cursor”。
+  - worker 用真实库跑通“再看几款”：第二批不调模型，没有更多时回固定文字。
+  - BFF：快照里没有 cursor，带多余字段的 `more` 返回 400。
+  - connected 新增一项（电脑、手机各一遍）：7 个结果，先 5 后 2，没有重复；只写 ENC 的那款排到第二批并标“待确认”。
+  - 合计：BFF 24、worker 60、store 43、contracts 6、vibekb 9、engine 55；journeys 98/98、connected 46/46；状态守卫 4/4 被抓到；整站构建与构建检查通过；`pnpm lint` 无错误。
+- **未验证：** 真实模型会不会稳定给出 `must`，要到全链路联调时用真实模型验。
+
 ### 负责人第二批意见（2026-11-03）
 
 - **启动按钮：** 只打开、只打字没发送，按钮仍是 “Ask our AI”；条件改成“有访客发出的消息”。检查：journeys 的焦点用例补了“打字不发再关上”；connected 新增 `opening_without_sending_keeps_ask_label`（电脑、手机各一遍）。

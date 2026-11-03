@@ -4,6 +4,7 @@ import {
   PRODUCT_KINDS,
   isInquirySuggestion,
   isProductCards,
+  isProductResultSet,
 } from '@vibelingan-channel/ai-contracts';
 import {
   type AiApiErrorCode,
@@ -820,7 +821,12 @@ function productFields(payload: Record<string, unknown>): AnswerExtrasV2 {
         href: p.href,
         ...(p.imageUrl ? { imageUrl: p.imageUrl } : {}),
         ...(p.retrievedAt ? { retrievedAt: p.retrievedAt } : {}),
+        ...(p.toConfirm ? { toConfirm: [...p.toConfirm] } : {}),
       }))
+    : undefined;
+  // The worker's catalog cursor stays in the stored payload; only this goes out.
+  const resultSet = isProductResultSet(payload.resultSet)
+    ? { batch: payload.resultSet.batch, hasMore: payload.resultSet.hasMore }
     : undefined;
   const kind = PRODUCT_KINDS.find((value) => value === payload.kind);
   const unavailableProductIds =
@@ -833,6 +839,7 @@ function productFields(payload: Record<string, unknown>): AnswerExtrasV2 {
       : undefined;
   return {
     ...(products ? { products } : {}),
+    ...(products && resultSet ? { resultSet } : {}),
     ...(kind ? { kind } : {}),
     ...(unavailableProductIds ? { unavailableProductIds } : {}),
     ...(payload.kind === 'team_followup' && isInquirySuggestion(payload.inquirySuggestion)

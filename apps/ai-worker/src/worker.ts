@@ -25,7 +25,12 @@ import {
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
 import { explainCatalog } from './catalog-answer.ts';
-import { PublicCatalog, parseProductPlan } from './product-workflow.ts';
+import {
+  type CatalogCursor,
+  PublicCatalog,
+  isCatalogCursor,
+  parseProductPlan,
+} from './product-workflow.ts';
 import { FIXED_REPLIES, fixedReply, screenVisitorMessage } from './screen.ts';
 
 export interface WorkerConfig {
@@ -347,8 +352,35 @@ async function startRun(
         type: 'tool.progress',
         payload: { action: 'product_search' },
       });
+    let after: CatalogCursor | undefined;
+    if (action.kind === 'more') {
+      const cursor = await workerStage('load_catalog_cursor', () =>
+        store.getCatalogCursor(context.conversationId, action.after),
+      );
+      // An answer with nothing more to show (or an old one) has no cursor.
+      if (!isCatalogCursor(cursor)) {
+        await store.finishRunFenced({
+          conversationId: context.conversationId,
+          runId: context.runId,
+          expectedControlVersion: context.controlVersion,
+          claimEpoch: context.claimEpoch,
+          status: 'completed',
+          events: [
+            {
+              type: 'final',
+              payload: {
+                kind: 'no_match',
+                text: 'There are no more published options for this request. Ask with a broader product type and I will search again.',
+              },
+            },
+          ],
+        });
+        return;
+      }
+      after = cursor;
+    }
     const result = await workerStage('read_public_catalog', () =>
-      catalog.execute(action, controller.signal),
+      catalog.execute(action, controller.signal, after),
     );
     const explanation =
       engine instanceof VibeKbEngine && context.catalogAction === undefined

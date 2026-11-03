@@ -714,3 +714,75 @@ test(
     assert.equal((await store.listEvents(question.id)).at(-1)?.payload.kind, 'clarification');
   },
 );
+
+test(
+  'show more continues the same request from the stored cursor without the model',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const queries: string[] = [];
+    const catalog = new PublicCatalog('https://catalog.invalid', async (input) => {
+      const url = new URL(String(input));
+      queries.push(`${url.searchParams.get('search')}:${url.searchParams.get('page')}`);
+      const page = Number(url.searchParams.get('page'));
+      const items = Array.from({ length: 8 }, (_, i) => ({
+        _id: `m${i + 1}`,
+        name: `Earbuds ${i + 1}`,
+        description: 'Wireless.',
+        published: true,
+      })).slice((page - 1) * 20, page * 20);
+      return Response.json({ ok: true, data: { items, total: 8 } });
+    });
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'more-first-question',
+      content: 'Wireless earbuds',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const planner = new FakeEngine({
+      script: ['{"kind":"search","query":"earbuds","fallbackQuery":"earbuds"}'],
+      citations: [],
+    });
+    assert.equal(await processOne(store, planner, { ...config, catalog }), 'processed');
+    const first = (await store.listEvents(conversation.id)).at(-1);
+    assert.deepEqual(first?.payload.resultSet, { batch: 1, hasMore: true });
+    assert.equal((first?.payload.products as unknown[]).length, 5);
+
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'more-second-batch',
+      content: 'Show more options',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      catalogAction: { kind: 'more', after: 'more-first-question' },
+    });
+    const silent = new FakeEngine();
+    silent.createRun = async () => {
+      throw new Error('No model needed for the next batch');
+    };
+    assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
+    const second = (await store.listEvents(conversation.id)).at(-1);
+    assert.deepEqual(
+      (second?.payload.products as Array<{ id: string }>).map((p) => p.id),
+      ['m6', 'm7', 'm8'],
+    );
+    assert.deepEqual(second?.payload.resultSet, { batch: 2, hasMore: false });
+    assert.deepEqual(queries, ['earbuds:1', 'earbuds:1']);
+
+    // An answer with nothing more (or another conversation's question) has no cursor.
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'more-third-batch',
+      content: 'Show more options',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+      catalogAction: { kind: 'more', after: 'more-second-batch' },
+    });
+    assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
+    assert.equal((await store.listEvents(conversation.id)).at(-1)?.payload.kind, 'no_match');
+    assert.equal(queries.length, 2);
+  },
+);

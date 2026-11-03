@@ -196,6 +196,14 @@ export function AssistantExperience({
           onCompare={compare}
           onInquiry={session.beginInquiry}
           onViewProduct={session.leaveForProduct}
+          {...(!working && !blocked && state.messages.at(-1)?.resultSet?.hasMore
+            ? { showMoreFor: state.messages.at(-1)?.id }
+            : {})}
+          onShowMore={(messageId) => {
+            const after = messageId.replace(/^answer:/, '');
+            setConfirmRegenerate(false);
+            session.send('Show more options', false, { kind: 'more', after });
+          }}
         />
         {anchorMissing && (
           <output className="block rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

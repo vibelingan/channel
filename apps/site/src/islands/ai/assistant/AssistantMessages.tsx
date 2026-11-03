@@ -9,6 +9,8 @@ export function AssistantMessages({
   onCompare,
   onInquiry,
   onViewProduct,
+  onShowMore,
+  showMoreFor,
   currentProducts,
   inquiriesEnabled = true,
 }: {
@@ -20,6 +22,10 @@ export function AssistantMessages({
   onInquiry: (product?: PublicProduct, requirement?: string) => void;
   /** Called before a product link opens in this tab, to remember the card. */
   onViewProduct?: (messageId: string, productId: string) => void;
+  /** Asks for the next batch after this answer's cards. */
+  onShowMore?: (messageId: string) => void;
+  /** The one answer whose batch can be continued now: the latest, when idle. */
+  showMoreFor?: string;
 }) {
   const origin = typeof window === 'undefined' ? 'https://preview.invalid' : window.location.origin;
   return (
@@ -51,6 +57,12 @@ export function AssistantMessages({
               <div className="p-3">
                 <h3 className="font-semibold">{product.name}</h3>
                 <p className="mt-1 line-clamp-3 text-xs">{product.summary}</p>
+                {product.toConfirm && (
+                  <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+                    To confirm with our team: {product.toConfirm.join(', ')}. Not shown in the
+                    public details.
+                  </p>
+                )}
                 <p className="mt-2 text-xs text-ink-muted">
                   Price, MOQ and lead time: confirm with our team.
                 </p>
@@ -108,6 +120,15 @@ export function AssistantMessages({
               </div>
             </section>
           ))}
+          {message.id === showMoreFor && message.resultSet?.hasMore && onShowMore && (
+            <button
+              type="button"
+              onClick={() => onShowMore(message.id)}
+              className="mt-3 min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
+            >
+              Show more options
+            </button>
+          )}
           {message.citations?.length ? (
             <ul className="mt-3 border-t border-slate-100 pt-2 text-xs text-ink-muted">
               {message.citations.map((citation, index) => {

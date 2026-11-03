@@ -571,3 +571,36 @@ test('a question asked on the product page is there after Back, at the latest me
 }) => {
   await questionOnProductPageSurvivesBack(page, request, false);
 });
+
+test('batches_show_five_then_more_without_repeats and anc_is_marked_to_confirm', async ({
+  page,
+}) => {
+  await send(page, 'ANC earbuds please');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const first = page.locator('[data-message-role="assistant"]').last();
+  await expect(first.locator('[data-product-id]')).toHaveCount(5);
+  // Proven ANC first: the ENC-only product cannot be shown as ANC, so it waits.
+  await expect(first.locator('[data-product-id]').first()).toHaveAttribute(
+    'data-product-id',
+    'buds-2',
+  );
+  await expect(first.locator('[data-product-id="buds-1"]')).toHaveCount(0);
+  await expect(first).not.toContainText('To confirm');
+  await expect(first).not.toContainText(/\d+ (results|matches)/);
+  await first.getByRole('button', { name: 'Show more options' }).click();
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const second = page.locator('[data-message-role="assistant"]').last();
+  await expect(second.locator('[data-product-id]')).toHaveCount(2);
+  await expect(second.locator('[data-product-id="buds-1"]')).toContainText(
+    'To confirm with our team: ANC',
+  );
+  const ids = await page
+    .locator('[data-product-id]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-product-id')));
+  expect(new Set(ids).size).toBe(7);
+  // Only the latest batch offers more, and the last batch has none.
+  await expect(page.getByRole('button', { name: 'Show more options' })).toHaveCount(0);
+  await expect(page.locator('[data-message-role="visitor"]').last()).toHaveText(
+    'Show more options',
+  );
+});

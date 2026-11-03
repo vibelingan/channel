@@ -134,7 +134,21 @@ const catalogServer = createServer(async (req, res) => {
     },
   ].filter((p) => catalogState !== 'withdrawn' || p._id !== 'demo-2');
   res.setHeader('Content-Type', 'application/json');
-  if (url.pathname === '/api/products')
+  // "earbuds": seven matches, paged like the public API, to exercise batches.
+  const earbuds = Array.from({ length: 7 }, (_, i) => ({
+    _id: `buds-${i + 1}`,
+    name: `Wireless earbuds ${i + 1}`,
+    description: i === 0 ? 'ENC call noise reduction.' : 'Active noise cancellation (ANC).',
+    published: true,
+  }));
+  if (url.pathname === '/api/products' && query === 'earbuds') {
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const size = Number(url.searchParams.get('pageSize') ?? 24);
+    const items = earbuds.slice((page - 1) * size, page * size);
+    res.end(
+      JSON.stringify({ ok: true, data: { items, total: earbuds.length, page, pageSize: size } }),
+    );
+  } else if (url.pathname === '/api/products')
     res.end(JSON.stringify({ ok: true, data: { items: query === 'unknown' ? [] : rows } }));
   else {
     const product = rows.find((p) => url.pathname === `/api/products/${p._id}`);
@@ -169,23 +183,25 @@ engine.streamRun = async function* (handle, signal) {
   }
   const plan = question.includes('those again')
     ? { kind: 'lookup', ids: earlier?.products.slice(0, 2).map((p) => p.id) ?? [] }
-    : question.includes('headphones')
-      ? { kind: 'search', query: 'headphones' }
-      : question.includes('no matching')
-        ? { kind: 'search', query: 'unknown' }
-        : question.includes('catalog failure')
-          ? { kind: 'search', query: 'failure' }
-          : question.includes('catalog slow')
-            ? { kind: 'search', query: 'slowcatalog' }
-            : question.includes('not sure')
-              ? {
-                  kind: 'clarify',
-                  question: 'What type of product do you need, and what will it be used for?',
-                }
-              : {
-                  kind: 'answer',
-                  text: 'This local test answer confirms that the website, API, database and worker are connected.',
-                };
+    : question.includes('earbuds')
+      ? { kind: 'search', query: 'earbuds', fallbackQuery: 'earbuds', must: ['ANC'] }
+      : question.includes('headphones')
+        ? { kind: 'search', query: 'headphones' }
+        : question.includes('no matching')
+          ? { kind: 'search', query: 'unknown' }
+          : question.includes('catalog failure')
+            ? { kind: 'search', query: 'failure' }
+            : question.includes('catalog slow')
+              ? { kind: 'search', query: 'slowcatalog' }
+              : question.includes('not sure')
+                ? {
+                    kind: 'clarify',
+                    question: 'What type of product do you need, and what will it be used for?',
+                  }
+                : {
+                    kind: 'answer',
+                    text: 'This local test answer confirms that the website, API, database and worker are connected.',
+                  };
   yield {
     type: 'final',
     text: JSON.stringify(plan),

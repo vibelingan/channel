@@ -1,6 +1,7 @@
 import type {
   CatalogAction,
   InquirySuggestion,
+  ProductResultSet,
   PublicProductCard,
 } from '@vibelingan-channel/ai-contracts';
 /** View contracts only. A server adapter must authorize and decode its own wire data. */
@@ -29,6 +30,8 @@ export interface ChatMessage {
   products?: PublicProduct[];
   unavailableProductIds?: string[];
   inquirySuggestion?: InquirySuggestion;
+  /** Which batch of a product search these cards are, and whether more exist. */
+  resultSet?: ProductResultSet;
   /** A saved inquiry, shown in the conversation where the review card was. */
   receipt?: InquiryReceiptSummary;
 }
@@ -80,6 +83,7 @@ export type TurnEvent = EventIdentity &
         products?: PublicProduct[];
         unavailableProductIds?: string[];
         inquirySuggestion?: InquirySuggestion;
+        resultSet?: ProductResultSet;
       }
     | { type: 'failed'; message: string }
     | { type: 'rate_limited'; retryAt?: number }

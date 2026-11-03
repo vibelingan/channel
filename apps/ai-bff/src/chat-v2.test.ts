@@ -444,3 +444,80 @@ test(
     assert.equal(visitor.operationKey, second);
   },
 );
+
+test(
+  'a product batch goes out with its batch number while the catalog cursor stays stored',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const c = await conversation();
+    const key = randomUUID();
+    const turn = await readTurn(
+      await request(c, 'messages', { message: 'ANC earbuds', idempotencyKey: key }),
+    );
+    const claim = await store.claimRun(turn.runId);
+    assert.ok(claim);
+    const card = {
+      id: 'p1',
+      name: 'Earbuds',
+      summary: 'ENC call noise reduction.',
+      revision: 'public-1',
+      href: '/products/item/?id=p1',
+      toConfirm: ['ANC'],
+    };
+    await store.finishRunFenced({
+      conversationId: c.conversationId,
+      runId: turn.runId,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: 'Here are published product options.',
+            kind: 'answer',
+            products: [card],
+            resultSet: { batch: 1, hasMore: true },
+            catalogCursor: {
+              query: 'SECRET-QUERY',
+              must: ['ANC'],
+              page: 1,
+              seen: ['p1'],
+              batch: 2,
+            },
+          },
+        },
+      ],
+    });
+    const raw = await (await request(c, 'snapshot')).text();
+    assert.equal(raw.includes('catalogCursor'), false);
+    assert.equal(raw.includes('SECRET-QUERY'), false);
+    const answer = (JSON.parse(raw) as { messages: Array<Record<string, unknown>> }).messages.at(
+      -1,
+    );
+    assert.deepEqual(answer?.resultSet, { batch: 1, hasMore: true });
+    assert.deepEqual((answer?.products as Array<{ toConfirm?: string[] }>)[0]?.toConfirm, ['ANC']);
+    // The visitor may ask for the next batch only by naming their own question.
+    assert.equal(
+      (
+        await request(c, 'messages', {
+          message: 'Show more options',
+          idempotencyKey: randomUUID(),
+          catalogAction: { kind: 'more', after: key },
+        })
+      ).status,
+      202,
+    );
+    assert.equal(
+      (
+        await request(c, 'messages', {
+          message: 'Show more options',
+          idempotencyKey: randomUUID(),
+          catalogAction: { kind: 'more', after: key, page: 9 },
+        })
+      ).status,
+      400,
+    );
+  },
+);

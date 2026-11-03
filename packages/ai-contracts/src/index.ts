@@ -112,6 +112,10 @@ export {
   isPublicProductCard,
   isProductCards,
   PRODUCT_KINDS,
+  PRODUCT_BATCH_SIZE,
+  type ProductResultSet,
+  isProductResultSet,
+  isFeatureList,
   type InquirySuggestion,
   isInquirySuggestion,
 } from './products.ts';

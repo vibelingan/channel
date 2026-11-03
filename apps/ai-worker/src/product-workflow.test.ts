@@ -196,3 +196,112 @@ test('inquiry and safe help plans cannot grant submission authority or carry arb
     parseProductPlan('{"kind":"help","topic":"greeting","text":"invented commitments"}'),
   );
 });
+
+/** A keyword catalog with `count` matches, paged like the public API. */
+function pagedCatalog(count: number, facts: (n: number) => string = () => 'Wireless.') {
+  const reads: Array<{ page: number; pageSize: number }> = [];
+  const catalog = new PublicCatalog('https://catalog.invalid', async (input) => {
+    const url = new URL(String(input));
+    const page = Number(url.searchParams.get('page'));
+    const pageSize = Number(url.searchParams.get('pageSize'));
+    reads.push({ page, pageSize });
+    const items = Array.from({ length: count }, (_, i) => ({
+      _id: `p${String(i + 1).padStart(3, '0')}`,
+      name: `Product ${i + 1}`,
+      description: facts(i + 1),
+      published: true,
+    })).slice((page - 1) * pageSize, page * pageSize);
+    return Response.json({ ok: true, data: { items, total: count, page, pageSize } });
+  });
+  return { catalog, reads };
+}
+const search = (must?: string[]) => ({
+  kind: 'search' as const,
+  query: 'earbuds',
+  ...(must ? { must } : {}),
+});
+
+test('hundred_matches_show_at_most_five and read a bounded candidate page', async () => {
+  const { catalog, reads } = pagedCatalog(100);
+  const result = await catalog.execute(search(), new AbortController().signal);
+  assert.equal(result.products.length, 5);
+  assert.deepEqual(reads, [{ page: 1, pageSize: 20 }]);
+  assert.deepEqual(result.resultSet, { batch: 1, hasMore: true });
+  // Three matches are three cards, not padded, and nothing more is claimed.
+  const few = await pagedCatalog(3).catalog.execute(search(), new AbortController().signal);
+  assert.equal(few.products.length, 3);
+  assert.deepEqual(few.resultSet, { batch: 1, hasMore: false });
+  assert.equal('catalogCursor' in few, false);
+});
+
+test('unknown_total_is_not_fabricated: a result set says only whether more exist', async () => {
+  const { catalog } = pagedCatalog(100);
+  const result = await catalog.execute(search(), new AbortController().signal);
+  assert.deepEqual(Object.keys(result.resultSet ?? {}).sort(), ['batch', 'hasMore']);
+  assert.doesNotMatch(result.text, /\d/);
+});
+
+test('next_batch_deduplicates_seen_ids and continues across candidate pages', async () => {
+  const { catalog, reads } = pagedCatalog(23);
+  const signal = new AbortController().signal;
+  const shown: string[] = [];
+  let result = await catalog.execute(search(), signal);
+  shown.push(...result.products.map((p) => p.id));
+  for (let batch = 2; result.catalogCursor; batch++) {
+    result = await catalog.execute(
+      { kind: 'more', after: 'question-1' },
+      signal,
+      result.catalogCursor,
+    );
+    assert.equal(result.resultSet?.batch, batch);
+    shown.push(...result.products.map((p) => p.id));
+  }
+  assert.equal(shown.length, 23);
+  assert.equal(new Set(shown).size, 23);
+  assert.equal(result.resultSet?.hasMore, false);
+  // Never more than one extra page per request.
+  assert.ok(reads.length <= 10);
+  assert.ok(reads.every((read) => read.pageSize === 20 && read.page <= 2));
+});
+
+test('anc_is_not_inferred_from_enc, and proven features rank first without reordering ties', async () => {
+  const { catalog } = pagedCatalog(4, (n) =>
+    n === 1
+      ? 'ENC call noise reduction.'
+      : n === 2
+        ? 'Hybrid ANC with active noise cancellation.'
+        : n === 3
+          ? 'Noise reduction for calls.'
+          : 'Active noise cancelling, IPX5.',
+  );
+  const result = await catalog.execute(search(['ANC']), new AbortController().signal);
+  assert.deepEqual(
+    result.products.map((p) => [p.id, p.toConfirm]),
+    [
+      ['p002', undefined],
+      ['p004', undefined],
+      ['p001', ['ANC']],
+      ['p003', ['ANC']],
+    ],
+  );
+  assert.match(result.text, /to confirm/);
+  // A feature that is not ANC/ENC is matched on the public words only.
+  const ipx = await catalog.execute(search(['IPX5']), new AbortController().signal);
+  assert.deepEqual(
+    ipx.products.filter((p) => !p.toConfirm).map((p) => p.id),
+    ['p004'],
+  );
+});
+
+test('the model plans required features but can never pick a cursor', () => {
+  assert.deepEqual(
+    parseProductPlan(
+      '{"kind":"search","query":"earbuds","fallbackQuery":"earbuds","must":["ANC"]}',
+    ),
+    { kind: 'search', query: 'earbuds', fallbackQuery: 'earbuds', must: ['ANC'] },
+  );
+  assert.throws(() => parseProductPlan('{"kind":"more","after":"question-1"}'));
+  assert.throws(() =>
+    parseProductPlan('{"kind":"search","query":"earbuds","must":["a","b","c","d","e"]}'),
+  );
+});

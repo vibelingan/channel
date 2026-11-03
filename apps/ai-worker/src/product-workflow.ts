@@ -1,12 +1,71 @@
 import { createHash } from 'node:crypto';
 import {
   type CatalogAction,
+  PRODUCT_BATCH_SIZE,
+  type ProductResultSet,
   type PublicProductCard,
   isCatalogAction,
+  isFeatureList,
 } from '@vibelingan-channel/ai-contracts';
-export type CatalogPlan = CatalogAction & { fallbackQuery?: string };
+export type CatalogPlan = CatalogAction & { fallbackQuery?: string; must?: string[] };
+/** Candidates read per catalog request; the visitor sees PRODUCT_BATCH_SIZE of them. */
+export const CANDIDATE_PAGE_SIZE = 20;
+/**
+ * Where the next batch starts. Kept in the stored answer for the worker only:
+ * the BFF rebuilds public fields by name and never forwards it, so a visitor
+ * asks for "more" by naming their own question, never a query or a page.
+ */
+export interface CatalogCursor {
+  query: string;
+  must: string[];
+  page: number;
+  seen: string[];
+  batch: number;
+}
+export function isCatalogCursor(v: unknown): v is CatalogCursor {
+  return (
+    record(v) &&
+    typeof v.query === 'string' &&
+    isCatalogAction({ kind: 'search', query: v.query }) &&
+    Array.isArray(v.must) &&
+    (v.must.length === 0 || isFeatureList(v.must)) &&
+    Number.isSafeInteger(v.page) &&
+    (v.page as number) >= 1 &&
+    (v.page as number) <= 50 &&
+    Array.isArray(v.seen) &&
+    v.seen.length <= 200 &&
+    v.seen.every((id) => typeof id === 'string' && /^[-a-zA-Z0-9_]{1,128}$/.test(id)) &&
+    Number.isSafeInteger(v.batch) &&
+    (v.batch as number) >= 1 &&
+    (v.batch as number) < 20
+  );
+}
+/**
+ * Public facts that show a feature. ANC and ENC are different things, and a
+ * plain "noise reduction" proves neither.
+ */
+const FEATURE_EVIDENCE: Array<{ asked: RegExp; shown: RegExp }> = [
+  {
+    asked: /\banc\b|active noise|主动降噪/i,
+    shown: /\banc\b|active noise[- ]cancel|主动降噪/i,
+  },
+  {
+    asked: /\benc\b|environmental noise|call noise|通话降噪/i,
+    shown: /\benc\b|environmental noise[- ]cancel|通话降噪/i,
+  },
+  {
+    asked: /noise|降噪/i,
+    shown: /\banc\b|\benc\b|noise[- ]cancel|noise reduction|降噪/i,
+  },
+];
+export function featureShown(feature: string, facts: string): boolean {
+  const rule = FEATURE_EVIDENCE.find((entry) => entry.asked.test(feature));
+  if (rule) return rule.shown.test(facts);
+  const plain = (text: string) => text.toLowerCase().replace(/[\s_-]+/g, ' ');
+  return plain(facts).includes(plain(feature.trim()));
+}
 export type ProductPlan =
-  | CatalogPlan
+  | (Exclude<CatalogAction, { kind: 'more' }> & { fallbackQuery?: string; must?: string[] })
   | { kind: 'clarify'; question: string }
   | { kind: 'inquiry'; summary: string; productId?: string }
   | { kind: 'help'; topic: 'greeting' | 'unsupported' | 'no_knowledge' | 'handoff' }
@@ -15,18 +74,27 @@ export type ProductPlan =
 export function parseProductPlan(text: string): ProductPlan {
   if (text.length > 6000) throw new Error('invalid_product_plan');
   const v: unknown = JSON.parse(text);
-  if (isCatalogAction(v)) return v;
+  // Only a visitor's click asks for the next batch; the model never picks a cursor.
+  if (isCatalogAction(v) && v.kind !== 'more') return v;
   if (
     record(v) &&
     v.kind === 'search' &&
-    Object.keys(v).every((key) => ['kind', 'query', 'fallbackQuery'].includes(key)) &&
+    Object.keys(v).every((key) => ['kind', 'query', 'fallbackQuery', 'must'].includes(key)) &&
     typeof v.query === 'string' &&
     isCatalogAction({ kind: 'search', query: v.query }) &&
-    typeof v.fallbackQuery === 'string' &&
-    v.fallbackQuery.trim() &&
-    v.fallbackQuery.length <= 80
+    (v.fallbackQuery === undefined ||
+      (typeof v.fallbackQuery === 'string' &&
+        v.fallbackQuery.trim() &&
+        v.fallbackQuery.length <= 80)) &&
+    (v.must === undefined || isFeatureList(v.must)) &&
+    (v.fallbackQuery !== undefined || v.must !== undefined)
   )
-    return { kind: 'search', query: v.query, fallbackQuery: v.fallbackQuery.trim() };
+    return {
+      kind: 'search',
+      query: v.query,
+      ...(typeof v.fallbackQuery === 'string' ? { fallbackQuery: v.fallbackQuery.trim() } : {}),
+      ...(isFeatureList(v.must) ? { must: v.must.map((feature) => feature.trim()) } : {}),
+    };
   if (
     record(v) &&
     v.kind === 'inquiry' &&
@@ -190,46 +258,128 @@ export class PublicCatalog {
       retrievedAt: new Date().toISOString(),
     };
   }
-  async execute(action: CatalogPlan, signal: AbortSignal) {
-    const { fallbackQuery, ...base } = action;
+  /** One page of keyword candidates, in the catalog's own stable order. */
+  private async candidates(query: string, page: number, signal: AbortSignal) {
+    const data = await this.read(
+      `/api/products?search=${encodeURIComponent(query.trim())}&pageSize=${CANDIDATE_PAGE_SIZE}&page=${page}`,
+      signal,
+    );
+    if (!record(data) || !Array.isArray(data.items) || data.items.length > CANDIDATE_PAGE_SIZE)
+      throw new Error('invalid_public_catalog');
+    const total = Number.isSafeInteger(data.total) ? (data.total as number) : undefined;
+    return {
+      items: data.items,
+      // Without a total, only a full page suggests there may be another.
+      morePages:
+        total === undefined
+          ? data.items.length === CANDIDATE_PAGE_SIZE
+          : total > page * CANDIDATE_PAGE_SIZE,
+    };
+  }
+  /**
+   * Up to PRODUCT_BATCH_SIZE unseen products, those whose public facts show
+   * every required feature first; the rest are marked with what to confirm.
+   * Order within each group is the catalog's, so a batch never reshuffles.
+   */
+  private async batch(cursor: CatalogCursor, signal: AbortSignal) {
+    const seen = new Set(cursor.seen);
+    let page = cursor.page;
+    let read = await this.candidates(cursor.query, page, signal);
+    let pool = this.unseen(read.items, seen);
+    // One extra read at most, when this page is nearly used up.
+    if (pool.length < PRODUCT_BATCH_SIZE && read.morePages && page < 50) {
+      page += 1;
+      read = await this.candidates(cursor.query, page, signal);
+      pool = [...pool, ...this.unseen(read.items, new Set([...seen, ...pool.map((p) => p.id)]))];
+    }
+    const ranked = pool
+      .map((product) => {
+        const facts = `${product.name} ${product.summary}`;
+        const toConfirm = cursor.must.filter((feature) => !featureShown(feature, facts));
+        return toConfirm.length ? { ...product, toConfirm } : product;
+      })
+      .sort((a, b) => Number(Boolean(a.toConfirm)) - Number(Boolean(b.toConfirm)));
+    const products = ranked.slice(0, PRODUCT_BATCH_SIZE);
+    const hasMore = ranked.length > PRODUCT_BATCH_SIZE || read.morePages;
+    const next: CatalogCursor = {
+      ...cursor,
+      // Leftovers of this page are read again next time, minus what was shown.
+      page,
+      seen: [...cursor.seen, ...products.map((p) => p.id)].slice(-200),
+      batch: cursor.batch + 1,
+    };
+    const resultSet: ProductResultSet = { batch: cursor.batch, hasMore };
+    return { products, resultSet, ...(hasMore ? { catalogCursor: next } : {}) };
+  }
+  private unseen(rows: unknown[], seen: Set<string>) {
+    const products = rows
+      .map((row) => this.project(row))
+      .filter((p): p is PublicProductCard => p !== null);
+    if (new Set(products.map((p) => p.id)).size !== products.length)
+      throw new Error('invalid_public_catalog');
+    return products.filter((p) => !seen.has(p.id));
+  }
+  async execute(action: CatalogPlan, signal: AbortSignal, after?: CatalogCursor) {
+    const { fallbackQuery, must, ...base } = action;
     if (
       !isCatalogAction(base) ||
       (fallbackQuery !== undefined &&
         (base.kind !== 'search' ||
           typeof fallbackQuery !== 'string' ||
           !fallbackQuery.trim() ||
-          fallbackQuery.length > 80))
+          fallbackQuery.length > 80)) ||
+      (must !== undefined && (base.kind !== 'search' || !isFeatureList(must))) ||
+      (base.kind === 'more') !== (after !== undefined)
     )
       throw new Error('invalid_catalog_action');
-    let rows: unknown[];
-    let broadened = false;
-    if (action.kind === 'search') {
-      const search = async (query: string) => {
-        const data = await this.read(
-          `/api/products?search=${encodeURIComponent(query.trim())}&pageSize=6`,
-          signal,
-        );
-        if (!record(data) || !Array.isArray(data.items) || data.items.length > 6)
-          throw new Error('invalid_public_catalog');
-        return data.items;
+    if (base.kind === 'more') {
+      if (!after) throw new Error('invalid_catalog_action');
+      const result = await this.batch(after, signal);
+      return {
+        ...result,
+        unavailableProductIds: [],
+        kind: result.products.length ? 'answer' : 'no_match',
+        text: result.products.length
+          ? 'Here are more published options for the same request.'
+          : 'There are no more published options for this request. Try a broader product type or describe what it will be used for.',
       };
-      rows = await search(action.query);
+    }
+    if (base.kind === 'search') {
+      const first = (query: string): CatalogCursor => ({
+        query: query.trim(),
+        must: must ?? [],
+        page: 1,
+        seen: [],
+        batch: 1,
+      });
+      let result = await this.batch(first(base.query), signal);
+      let broadened = false;
       if (
-        !rows.length &&
+        !result.products.length &&
         fallbackQuery &&
-        fallbackQuery.trim().toLowerCase() !== action.query.trim().toLowerCase()
+        fallbackQuery.trim().toLowerCase() !== base.query.trim().toLowerCase()
       ) {
         broadened = true;
-        rows = await search(fallbackQuery);
+        result = await this.batch(first(fallbackQuery), signal);
       }
-    } else
-      rows = await Promise.all(
-        action.ids.map((id) => this.read(`/api/products/${encodeURIComponent(id)}`, signal)),
-      );
-    if (
-      action.kind === 'lookup' &&
-      rows.some((row, index) => row !== null && (!record(row) || row._id !== action.ids[index]))
-    )
+      const unconfirmed = result.products.some((p) => p.toConfirm);
+      return {
+        ...result,
+        unavailableProductIds: [],
+        kind: result.products.length ? 'answer' : 'no_match',
+        text: !result.products.length
+          ? 'I could not find a published product matching that request. Try a broader product type or describe what it will be used for.'
+          : broadened
+            ? 'Here are broader published product options. Our team needs to confirm the requested features and customization.'
+            : unconfirmed
+              ? 'Here are published product options. Features marked "to confirm" are not shown in their public details, so our team needs to confirm them.'
+              : 'Here are published product options matching your request. Open a product page for details.',
+      };
+    }
+    const rows = await Promise.all(
+      base.ids.map((id) => this.read(`/api/products/${encodeURIComponent(id)}`, signal)),
+    );
+    if (rows.some((row, index) => row !== null && (!record(row) || row._id !== base.ids[index])))
       throw new Error('invalid_public_catalog_identity');
     const products = rows
       .map((row) => this.project(row))
@@ -238,19 +388,9 @@ export class PublicCatalog {
       throw new Error('invalid_public_catalog');
     return {
       products,
-      unavailableProductIds:
-        action.kind === 'lookup'
-          ? action.ids.filter((id) => !products.some((p) => p.id === id))
-          : [],
-      kind: action.kind === 'lookup' ? 'product_updated' : products.length ? 'answer' : 'no_match',
-      text:
-        action.kind === 'lookup'
-          ? 'These are the latest published details. Unavailable products have been removed from the current comparison.'
-          : products.length
-            ? broadened
-              ? 'Here are broader published product options. Our team needs to confirm the requested features and customization.'
-              : 'Here are published product options matching your request. Compare the options or open a product page for details.'
-            : 'I could not find a published product matching that request. Try a broader product type or describe what it will be used for.',
+      unavailableProductIds: base.ids.filter((id) => !products.some((p) => p.id === id)),
+      kind: 'product_updated',
+      text: 'These are the latest published details. Unavailable products have been removed from the current comparison.',
     };
   }
 }
