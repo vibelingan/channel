@@ -312,12 +312,19 @@
 
 **上线前还缺（2026-11-03 只读核对，同日傍晚更正）：**
 
-1. **SEO 的线上版本不在 `test` 上。** `public-api`、`admin`、`alibaba-catalog-sync` 三个函数跑的都是 `dc3af64b`（目录 SEO 记录、博客服务端发布都已打开），是 Codex 用 `SEO static canary (manual)` 直接从 `feat/seo-foundation` 部署的，没有经过 `test`。所以“保留他的、加上我的”就要求部署的提交里包含 `dc3af64b`。做法：把线上这一个提交（不是 SEO 分支之后还在改的 20 个提交）合进本分支，试合并只有 `apps/functions/public-api/src/index.ts` 和 `packages/db/package.json` 两处冲突，跑完全部检查后再快进 `test`。负责人：等 Codex 跑完当前任务再合。
+1. **SEO 整合（2026-11-04）：** 线上三个函数跑的 `dc3af64b` 只在 `feat/seo-foundation` 上。SEO 那边已跑完，按 Codex 的建议不交叉合并两个功能分支，改用发布分支 `release/assistant-seo-20261104`：从 SEO 的 `ba2a480d`（包含 `dc3af64b`）出发，合入 `feat/sales-assistant`。两处冲突两边都保留。注意：SEO 头比线上多 20 个发布脚本修复，商品 HTML 自动交付在 SEO 侧仍是关闭状态。本分支对 SEO 的部署文件只加了两个站点开关。
 2. **生产引擎接线（MIU 21）：** 代码已完成。清单按 `AI_ENGINE_ID` 给 worker 不同设置（`vibekb`：模型、MCP 知识范围、公开目录；`anythingllm`：原来的工作区和证明），BFF 只在打开询盘时拿 intake 地址和令牌，Deploy Test 把 `PUBLIC_AI_CHAT_V2`、`PUBLIC_AI_INQUIRIES` 传给站点构建。负责人决定不做预览开关，直接打开。
-3. **设置和密钥：** GitHub `test` 环境变量已由 Claude 设好（11-03，负责人授权）：`AI_ENGINE_ID=vibekb`、`AI_MAX_TOOL_CALLS=8`、`AI_MAX_STREAM_DURATION_MS=120000`、`AI_MODEL_BASE_URL`、`AI_MODEL_ID`、`AI_MODEL_THINKING_MODE=disabled`、`VIBEKB_MCP_URL=https://kb.supplychainsai.com/mcp`、`VIBEKB_PUBLIC_WORKSPACE_ID=2`、`VIBEKB_PUBLIC_DOCUMENT_IDS=12`、`AI_PUBLIC_CATALOG_ORIGIN=https://www.supplychainsai.com`。这些只在 AI 部署时读取。回退旧接法改回 `AI_ENGINE_ID=anythingllm`、`AI_MAX_TOOL_CALLS=0`、`AI_MAX_STREAM_DURATION_MS=55000`。`PUBLIC_AI_CHAT_V2=1` 等 AI 服务部署好、站点部署时再设。还缺负责人自己输入的两个密钥：`AI_MODEL_API_KEY`、`VIBEKB_MCP_API_KEY`。
-4. **MCP 的 HTTPS 入口：** 知识库已经有 `https://kb.supplychainsai.com`（就是 Hermes 主机 43.157.53.132 上的 nginx，有证书），但 `/mcp` 现在落到网页上，MCP 服务只听本机 9021 端口。在这个 nginx 站点里加一段 `/mcp` 转发到 `127.0.0.1:9021` 就是生产入口，鉴权仍是 MCP 自己的 Bearer 密钥。SSH 转发只是开发机临时用的。
+3. **设置和密钥：** GitHub `test` 环境变量已由 Claude 设好（11-03，负责人授权）：`AI_ENGINE_ID=vibekb`、`AI_MAX_TOOL_CALLS=8`、`AI_MAX_STREAM_DURATION_MS=120000`、`AI_MODEL_BASE_URL`、`AI_MODEL_ID`、`AI_MODEL_THINKING_MODE=disabled`、`VIBEKB_MCP_URL=https://kb.supplychainsai.com/mcp`、`VIBEKB_PUBLIC_WORKSPACE_ID=2`、`VIBEKB_PUBLIC_DOCUMENT_IDS=12`、`AI_PUBLIC_CATALOG_ORIGIN=https://www.supplychainsai.com`。这些只在 AI 部署时读取。回退旧接法改回 `AI_ENGINE_ID=anythingllm`、`AI_MAX_TOOL_CALLS=0`、`AI_MAX_STREAM_DURATION_MS=55000`。`PUBLIC_AI_CHAT_V2=1` 等 AI 服务部署好、站点部署时再设。两个密钥 `AI_MODEL_API_KEY`、`VIBEKB_MCP_API_KEY` 已在 11-03 由 Codex 按负责人安排写入 `test` 环境（读回名称确认）。
+4. **MCP 的 HTTPS 入口：** 知识库已经有 `https://kb.supplychainsai.com`（就是 Hermes 主机 43.157.53.132 上的 nginx，有证书），但 `/mcp` 现在落到网页上，MCP 服务只听本机 9021 端口。在这个 nginx 站点里加一段 `/mcp` 转发到 `127.0.0.1:9021` 就是生产入口，鉴权仍是 MCP 自己的 Bearer 密钥。SSH 转发只是开发机临时用的。Codex 已把 Claude 专用的 SSH 公钥加到 Hermes（11-04），私钥在加密交接包里，负责人在本机运行安装脚本、输入口令后，Claude 再改 nginx（先备份、`nginx -t`、reload，前后只读核对）。
 5. **聊天里提交询盘要等 sales-integration 函数上线：** 它还不在 CloudBase 函数部署清单里，也没有 Hermes 许可的设置。第一次上线先只开新聊天（`PUBLIC_AI_INQUIRIES=0`），询盘照旧走首页和 OEM 页表单。
 6. **AI 数据库已经不在了（2026-11-03 查明）：** 旧聊天和新聊天共用的 PostgreSQL `postgres-nalivqki`（包年包月，1 核 2 GB，¥211.20/月）只付到 2026-10-14 14:51，没有续费，到期后被隔离、释放。所以 `ai-bff` 进程活着，但所有查数据库的请求都卡住。新聊天上线前要重新买一个：同一子网 `channel-ai-postgres-sh2`、同一安全组 `sg-glj0najs`，打开 SSL 和自动续费；负责人自己设密码并更新 `DATABASE_URL` 密钥；服务启动时会自动建表。账户余额只有 ¥0.88，需要先充值。旧库里只有 9 月 14 日到 10 月 14 日的聊天记录，询盘存在 CloudBase 的 `oemProjects`，不受影响。代码上已补连接超时和 TCP keepalive。
+
+**数据库到位后的上线顺序（11-04 定）：**
+
+1. 负责人：买好数据库，更新 `DATABASE_URL` 密钥。
+2. Claude：在发布分支最新提交上打 `ai-cloudrun-deploy-*` 标签，部署 AI 服务（vibekb）。确认 `readyz` 正常，并用真实模型问一个问题。
+3. Claude：设 `PUBLIC_AI_CHAT_V2=1`，`PUBLIC_AI_INQUIRIES` 保持 `0`。经负责人同意后把 `test` 快进到发布分支，由 Deploy Test 部署站点和函数。
+4. 只读核对线上：首页、产品页、新聊天、public-api 的版本号、Blog、SEO 页面。全部测完、修完再提 main。
 
 ### 7.2 全链路跑通后
 
